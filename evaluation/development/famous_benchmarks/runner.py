@@ -430,7 +430,7 @@ def main() -> int:
                 "One host and one numeric workload do not establish general performance or recommendation superiority.",
                 "The bounded parallel workload validates output and measures available modes; its process-pool timings include worker startup and cannot establish cross-host speedup.",
                 "The Veritas N-body workload is a translation, not an unmodified pyperformance program. A separate pinned-source probe validates the official Python workload and canonical Richards counts; Veritas-to-Python timing remains a fresh-process translated-workload comparison.",
-                "The Veritas Richards port matches canonical counts and all four functions execute natively with zero deoptimizations; this one-host run remains slower than pinned Python and does not support a general speed claim.",
+                "The Veritas Richards port matches canonical counts and all four functions execute natively with zero deoptimizations; these translated workloads on one host do not establish a general speed claim.",
             ],
         }
         RESULT.parent.mkdir(parents=True, exist_ok=True)

@@ -1314,6 +1314,61 @@ fn native_backend_charges_each_guest_instruction_exactly() {
 }
 
 #[test]
+fn native_fuel_metering_adds_control_flow_per_bytecode_block() {
+    let mut source = String::from("fn main() -> Int:\n    let value_0 = 0\n");
+    for index in 1..=80 {
+        source.push_str(&format!(
+            "    let value_{index} = value_{} + 1\n",
+            index - 1
+        ));
+    }
+    source.push_str("    return value_80\n");
+    let artifact = compile("native-metering-blocks.vr", &source).expect("source compiles");
+    let mut instance = Runtime::new()
+        .load(artifact.clone(), HostPolicy::default())
+        .expect("artifact loads");
+
+    assert_eq!(
+        instance.invoke("main", vec![]).unwrap(),
+        Value::Int(BigInt::parse("80").unwrap())
+    );
+    let instructions = instance.native_bytecode_instructions();
+    let ir_blocks = instance.native_cranelift_ir_blocks();
+    assert!(
+        ir_blocks < instructions * 2,
+        "fuel control flow should scale by bytecode block, not instruction: {ir_blocks} IR blocks for {instructions} instructions"
+    );
+
+    let exact_policy = HostPolicy {
+        instruction_limit: instructions as u64,
+        ..HostPolicy::default()
+    };
+    let mut exact = Runtime::new()
+        .load(artifact.clone(), exact_policy.clone())
+        .expect("artifact loads with exact fuel");
+    assert_eq!(
+        exact.invoke("main", vec![]).unwrap(),
+        Value::Int(BigInt::parse("80").unwrap())
+    );
+
+    let limited_policy = HostPolicy {
+        instruction_limit: instructions as u64 - 1,
+        ..HostPolicy::default()
+    };
+    let native_error = Runtime::new()
+        .load(artifact.clone(), limited_policy.clone())
+        .expect("native artifact loads")
+        .invoke("main", vec![])
+        .unwrap_err();
+    let vm_error = Runtime::vm_only()
+        .load(artifact, limited_policy)
+        .expect("VM artifact loads")
+        .invoke("main", vec![])
+        .unwrap_err();
+    assert_eq!(native_error, vm_error);
+}
+
+#[test]
 fn environment_access_requires_a_grant_and_preserves_unicode_values() {
     let key = format!("VERITAS_TEST_SECRET_{}", std::process::id());
     unsafe { std::env::set_var(&key, "café🔑") };

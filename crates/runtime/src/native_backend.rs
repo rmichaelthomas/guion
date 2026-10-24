@@ -577,8 +577,13 @@ impl NativeBackend {
                 }
                 stack_params[*block_index] = values;
             }
+            let mut block_instruction_counts = vec![0usize; blocks.len()];
+            for (ip, block_index) in block_for_ip.iter().enumerate() {
+                if depths[ip].is_some() {
+                    block_instruction_counts[*block_index] += 1;
+                }
+            }
             let fallback = builder.create_block();
-            let step_limit = builder.create_block();
             let divide_zero = builder.create_block();
             let float_nonfinite = builder.create_block();
             let math_domain = builder.create_block();
@@ -586,7 +591,6 @@ impl NativeBackend {
             let mut exit_params = Vec::new();
             for block in [
                 fallback,
-                step_limit,
                 divide_zero,
                 float_nonfinite,
                 math_domain,
@@ -669,28 +673,41 @@ impl NativeBackend {
                     builder.switch_to_block(check_fuel);
                     builder.seal_block(check_fuel);
                 }
-                let remaining_fuel = builder.use_var(fuel_var);
-                let zero = builder.ins().iconst(types::I64, 0);
-                let has_fuel = builder
-                    .ins()
-                    .icmp(IntCC::SignedGreaterThan, remaining_fuel, zero);
-                let execute = builder.create_block();
-                let refill = builder.create_block();
-                builder.ins().brif(has_fuel, execute, &[], refill, &[]);
-                builder.switch_to_block(refill);
-                let chunk = builder.ins().iconst(types::I64, 256);
-                let reserve_call = builder.ins().call(reserve_fuel, &[budget_pointer, chunk]);
-                let granted = builder.inst_results(reserve_call)[0];
-                let has_grant = builder.ins().icmp(IntCC::SignedGreaterThan, granted, zero);
-                let refilled = builder.create_block();
-                builder
-                    .ins()
-                    .brif(has_grant, refilled, &[], step_limit, &exit_args);
-                builder.switch_to_block(refilled);
-                builder.def_var(fuel_var, granted);
-                builder.ins().jump(execute, &[]);
-                builder.switch_to_block(execute);
-                builder.seal_block(execute);
+                if let Some(block_index) = leader_indices[ip] {
+                    let required = block_instruction_counts[block_index].max(1);
+                    let remaining_fuel = builder.use_var(fuel_var);
+                    let required_fuel = builder.ins().iconst(types::I64, required as i64);
+                    let enough_fuel = builder.ins().icmp(
+                        IntCC::SignedGreaterThanOrEqual,
+                        remaining_fuel,
+                        required_fuel,
+                    );
+                    let execute = builder.create_block();
+                    let refill = builder.create_block();
+                    builder.ins().brif(enough_fuel, execute, &[], refill, &[]);
+                    builder.switch_to_block(refill);
+                    builder
+                        .ins()
+                        .call(release_fuel, &[budget_pointer, remaining_fuel]);
+                    let zero_fuel = builder.ins().iconst(types::I64, 0);
+                    builder.def_var(fuel_var, zero_fuel);
+                    let chunk = builder.ins().iconst(types::I64, 256.max(required) as i64);
+                    let reserve_call = builder.ins().call(reserve_fuel, &[budget_pointer, chunk]);
+                    let granted = builder.inst_results(reserve_call)[0];
+                    builder.def_var(fuel_var, granted);
+                    let has_grant =
+                        builder
+                            .ins()
+                            .icmp(IntCC::SignedGreaterThanOrEqual, granted, required_fuel);
+                    let refilled = builder.create_block();
+                    builder
+                        .ins()
+                        .brif(has_grant, refilled, &[], fallback, &exit_args);
+                    builder.switch_to_block(refilled);
+                    builder.ins().jump(execute, &[]);
+                    builder.switch_to_block(execute);
+                    builder.seal_block(execute);
+                }
                 let remaining_fuel = builder.use_var(fuel_var);
                 let remaining_fuel = builder.ins().iadd_imm_s(remaining_fuel, -1);
                 builder.def_var(fuel_var, remaining_fuel);
@@ -1637,7 +1654,6 @@ impl NativeBackend {
 
             for ((block, status), params) in [
                 (fallback, 1),
-                (step_limit, 3),
                 (divide_zero, 2),
                 (float_nonfinite, 4),
                 (math_domain, 7),
@@ -2284,6 +2300,9 @@ fn bytecode_block_layout(
             Op::JumpIfFalse(target) => {
                 *leaders.get_mut(*target)? = true;
                 *leaders.get_mut(ip.checked_add(1)?)? = true;
+            }
+            Op::Call(_, _) if ip + 1 < instruction_count && depths[ip + 1].is_some() => {
+                leaders[ip + 1] = true;
             }
             _ => {}
         }

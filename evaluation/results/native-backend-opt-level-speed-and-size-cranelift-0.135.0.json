@@ -1,0 +1,856 @@
+{
+  "schema_version": 1,
+  "kind": "veritas_famous_benchmark_report",
+  "status": "passed",
+  "workload": "Mandelbrot escape-time kernel, 96x64 grid, 80 iteration ceiling",
+  "correct_output": [
+    "155052",
+    "1608"
+  ],
+  "timing_scope": "Each sample is a fresh process and includes process startup. Veritas source samples also include parsing, typechecking and compilation; artifact samples load the current bytecode format; Python samples parse and execute source. All include the same arithmetic workload and captured output.",
+  "warmups_per_case": 2,
+  "timed_trials_per_case": 15,
+  "artifact_build_seconds_separate": 0.005520624999917345,
+  "artifact_size_bytes": 5727,
+  "native_c_compiler": "Apple clang version 21.0.0 (clang-2100.3.34.2)",
+  "native_c_compile_seconds_separate": 0.07005466699774843,
+  "parallel_map_probe": {
+    "workload": "four independent integer loops of 20,000 iterations each",
+    "correct_output_per_task": 959289,
+    "timing_scope": "Each sample is a fresh process. Python process-pool samples include worker startup; Veritas samples include JIT initialization and worker-thread startup, with a fresh isolated VM frame per task.",
+    "warmups_per_case": 1,
+    "timed_trials_per_case": 3,
+    "python_gil_enabled": true,
+    "build_seconds_separate": 0.00402350000149454,
+    "results": {
+      "veritas_parallel_map_source": {
+        "samples_seconds": [
+          0.006622207998589147,
+          0.008247125002526445,
+          0.008800167001027148
+        ],
+        "median_seconds": 0.008247125002526445,
+        "p95_seconds_nearest_rank": 0.008800167001027148,
+        "max_seconds": 0.008800167001027148
+      },
+      "veritas_parallel_map_artifact": {
+        "samples_seconds": [
+          0.008326750001288019,
+          0.008691040999110555,
+          0.00789391699800035
+        ],
+        "median_seconds": 0.008326750001288019,
+        "p95_seconds_nearest_rank": 0.008691040999110555,
+        "max_seconds": 0.008691040999110555
+      },
+      "python_serial": {
+        "samples_seconds": [
+          0.052655874998890795,
+          0.051614125000924105,
+          0.05766212500020629
+        ],
+        "median_seconds": 0.052655874998890795,
+        "p95_seconds_nearest_rank": 0.05766212500020629,
+        "max_seconds": 0.05766212500020629
+      },
+      "python_threads": {
+        "samples_seconds": [
+          0.052298457998404047,
+          0.062427749999187654,
+          0.05168933299864875
+        ],
+        "median_seconds": 0.052298457998404047,
+        "p95_seconds_nearest_rank": 0.062427749999187654,
+        "max_seconds": 0.062427749999187654
+      },
+      "python_processes": {
+        "samples_seconds": [
+          0.1473716250002326,
+          0.14376970900048036,
+          0.13802600000053644
+        ],
+        "median_seconds": 0.14376970900048036,
+        "p95_seconds_nearest_rank": 0.1473716250002326,
+        "max_seconds": 0.1473716250002326
+      }
+    },
+    "native_backend_reports": {
+      "veritas_parallel_map_source": {
+        "bytecode_blocks": 4,
+        "bytecode_instructions": 21,
+        "calls": 4,
+        "compilations": 1,
+        "compile_profile": {
+          "finalize_nanoseconds": 10542,
+          "functions": [
+            {
+              "bytecode_blocks": 4,
+              "bytecode_instructions": 21,
+              "cranelift_ir_blocks": 79,
+              "cranelift_ir_instructions": 452,
+              "define_nanoseconds": 1491959,
+              "lowering_nanoseconds": 137791,
+              "name": "work",
+              "verification_nanoseconds": 96542
+            }
+          ]
+        },
+        "compiled_functions": [
+          "work"
+        ],
+        "cranelift_ir_blocks": 79,
+        "cranelift_ir_instructions": 452,
+        "deoptimizations": 0
+      },
+      "veritas_parallel_map_artifact": {
+        "bytecode_blocks": 4,
+        "bytecode_instructions": 21,
+        "calls": 4,
+        "compilations": 1,
+        "compile_profile": {
+          "finalize_nanoseconds": 7708,
+          "functions": [
+            {
+              "bytecode_blocks": 4,
+              "bytecode_instructions": 21,
+              "cranelift_ir_blocks": 79,
+              "cranelift_ir_instructions": 452,
+              "define_nanoseconds": 1292792,
+              "lowering_nanoseconds": 134750,
+              "name": "work",
+              "verification_nanoseconds": 89667
+            }
+          ]
+        },
+        "compiled_functions": [
+          "work"
+        ],
+        "cranelift_ir_blocks": 79,
+        "cranelift_ir_instructions": 452,
+        "deoptimizations": 0
+      }
+    },
+    "allocation_budget": "Default 256 MiB cumulative estimate budget; no per-workload override."
+  },
+  "large_parallel_map_probe": {
+    "workload": "four independent integer loops of 200,000 iterations each",
+    "correct_output_per_task": 9599419,
+    "timing_scope": "Each sample is a fresh process. Python process-pool samples include worker startup; Veritas samples include JIT initialization and worker-thread startup, with a fresh isolated VM frame per task.",
+    "allocation_limit_bytes": 268435456,
+    "allocation_budget": "Default 256 MiB cumulative estimate budget; no per-workload override.",
+    "warmups_per_case": 1,
+    "timed_trials_per_case": 3,
+    "build_seconds_separate": 0.00397983299990301,
+    "results": {
+      "veritas_parallel_map_source": {
+        "samples_seconds": [
+          0.0163996249975753,
+          0.015368874999694526,
+          0.013134666998666944
+        ],
+        "median_seconds": 0.015368874999694526,
+        "p95_seconds_nearest_rank": 0.0163996249975753,
+        "max_seconds": 0.0163996249975753
+      },
+      "veritas_parallel_map_artifact": {
+        "samples_seconds": [
+          0.0125521670015587,
+          0.012646125000173924,
+          0.01260362500033807
+        ],
+        "median_seconds": 0.01260362500033807,
+        "p95_seconds_nearest_rank": 0.012646125000173924,
+        "max_seconds": 0.012646125000173924
+      },
+      "python_serial": {
+        "samples_seconds": [
+          0.08764166599939927,
+          0.07773358299891697,
+          0.08524720900095417
+        ],
+        "median_seconds": 0.08524720900095417,
+        "p95_seconds_nearest_rank": 0.08764166599939927,
+        "max_seconds": 0.08764166599939927
+      },
+      "python_threads": {
+        "samples_seconds": [
+          0.08819937500084052,
+          0.08259170900055324,
+          0.08458545900066383
+        ],
+        "median_seconds": 0.08458545900066383,
+        "p95_seconds_nearest_rank": 0.08819937500084052,
+        "max_seconds": 0.08819937500084052
+      },
+      "python_processes": {
+        "samples_seconds": [
+          0.1504922920030367,
+          0.15399420899848337,
+          0.15417229200102156
+        ],
+        "median_seconds": 0.15399420899848337,
+        "p95_seconds_nearest_rank": 0.15417229200102156,
+        "max_seconds": 0.15417229200102156
+      }
+    },
+    "native_backend_reports": {
+      "veritas_parallel_map_source": {
+        "bytecode_blocks": 4,
+        "bytecode_instructions": 21,
+        "calls": 4,
+        "compilations": 1,
+        "compile_profile": {
+          "finalize_nanoseconds": 7375,
+          "functions": [
+            {
+              "bytecode_blocks": 4,
+              "bytecode_instructions": 21,
+              "cranelift_ir_blocks": 79,
+              "cranelift_ir_instructions": 452,
+              "define_nanoseconds": 1275875,
+              "lowering_nanoseconds": 121875,
+              "name": "work",
+              "verification_nanoseconds": 91208
+            }
+          ]
+        },
+        "compiled_functions": [
+          "work"
+        ],
+        "cranelift_ir_blocks": 79,
+        "cranelift_ir_instructions": 452,
+        "deoptimizations": 0
+      },
+      "veritas_parallel_map_artifact": {
+        "bytecode_blocks": 4,
+        "bytecode_instructions": 21,
+        "calls": 4,
+        "compilations": 1,
+        "compile_profile": {
+          "finalize_nanoseconds": 6541,
+          "functions": [
+            {
+              "bytecode_blocks": 4,
+              "bytecode_instructions": 21,
+              "cranelift_ir_blocks": 79,
+              "cranelift_ir_instructions": 452,
+              "define_nanoseconds": 1220667,
+              "lowering_nanoseconds": 111167,
+              "name": "work",
+              "verification_nanoseconds": 86500
+            }
+          ]
+        },
+        "compiled_functions": [
+          "work"
+        ],
+        "cranelift_ir_blocks": 79,
+        "cranelift_ir_instructions": 452,
+        "deoptimizations": 0
+      }
+    }
+  },
+  "nbody_probe": {
+    "workload": "Five-body, 20,000-step symplectic N-body energy workload using standard benchmark initial conditions and the pyperformance default iteration count.",
+    "correct_output_energy_values": [
+      -0.16907516382852447,
+      -0.16908926275527233
+    ],
+    "absolute_tolerance": 1e-12,
+    "timing_scope": "Each sample is a fresh process; source parsing/compilation and artifact loading are included. One warmup and five timed trials per case.",
+    "warmups_per_case": 1,
+    "timed_trials_per_case": 5,
+    "allocation_limit_bytes": 268435456,
+    "allocation_limit_note": "The optimized same-local list_set assignment stays within the default 256 MiB allocation ceiling.",
+    "instruction_limit_note": "A 300,000,000 instruction ceiling is declared for this 20,000-step workload; the default 10,000,000 ceiling is too low.",
+    "build_seconds_separate": 0.004994958002498606,
+    "artifact_size_bytes": 22906,
+    "results": {
+      "python3_reference": {
+        "samples_seconds": [
+          0.19860679200064624,
+          0.20089650000227266,
+          0.19952779099912732,
+          0.2056846659979783,
+          0.1991929590003565
+        ],
+        "median_seconds": 0.19952779099912732,
+        "p95_seconds_nearest_rank": 0.2056846659979783,
+        "max_seconds": 0.2056846659979783
+      },
+      "veritas_source": {
+        "samples_seconds": [
+          0.11515833300290979,
+          0.11259691600207589,
+          0.11444470800051931,
+          0.11494020800091675,
+          0.1121044579995214
+        ],
+        "median_seconds": 0.11444470800051931,
+        "p95_seconds_nearest_rank": 0.11515833300290979,
+        "max_seconds": 0.11515833300290979
+      },
+      "veritas_artifact": {
+        "samples_seconds": [
+          0.11546137500045006,
+          0.11505600000236882,
+          0.11510695800097892,
+          0.11040016699917032,
+          0.12016112499986775
+        ],
+        "median_seconds": 0.11510695800097892,
+        "p95_seconds_nearest_rank": 0.12016112499986775,
+        "max_seconds": 0.12016112499986775
+      }
+    },
+    "native_backend_reports": {
+      "veritas_source": {
+        "bytecode_blocks": 21,
+        "bytecode_instructions": 541,
+        "calls": 4,
+        "compilations": 1,
+        "compile_profile": {
+          "finalize_nanoseconds": 47750,
+          "functions": [
+            {
+              "bytecode_blocks": 7,
+              "bytecode_instructions": 135,
+              "cranelift_ir_blocks": 484,
+              "cranelift_ir_instructions": 2425,
+              "define_nanoseconds": 7660417,
+              "lowering_nanoseconds": 621417,
+              "name": "energy",
+              "verification_nanoseconds": 450166
+            },
+            {
+              "bytecode_blocks": 10,
+              "bytecode_instructions": 224,
+              "cranelift_ir_blocks": 799,
+              "cranelift_ir_instructions": 3998,
+              "define_nanoseconds": 15050917,
+              "lowering_nanoseconds": 1007625,
+              "name": "advance",
+              "verification_nanoseconds": 763916
+            },
+            {
+              "bytecode_blocks": 4,
+              "bytecode_instructions": 182,
+              "cranelift_ir_blocks": 613,
+              "cranelift_ir_instructions": 3151,
+              "define_nanoseconds": 7853334,
+              "lowering_nanoseconds": 580583,
+              "name": "initial_system",
+              "verification_nanoseconds": 510584
+            }
+          ]
+        },
+        "compiled_functions": [
+          "energy",
+          "advance",
+          "initial_system"
+        ],
+        "cranelift_ir_blocks": 1896,
+        "cranelift_ir_instructions": 9574,
+        "deoptimizations": 0
+      },
+      "veritas_artifact": {
+        "bytecode_blocks": 21,
+        "bytecode_instructions": 541,
+        "calls": 4,
+        "compilations": 1,
+        "compile_profile": {
+          "finalize_nanoseconds": 60209,
+          "functions": [
+            {
+              "bytecode_blocks": 7,
+              "bytecode_instructions": 135,
+              "cranelift_ir_blocks": 484,
+              "cranelift_ir_instructions": 2425,
+              "define_nanoseconds": 8551417,
+              "lowering_nanoseconds": 654834,
+              "name": "energy",
+              "verification_nanoseconds": 485166
+            },
+            {
+              "bytecode_blocks": 10,
+              "bytecode_instructions": 224,
+              "cranelift_ir_blocks": 799,
+              "cranelift_ir_instructions": 3998,
+              "define_nanoseconds": 17379417,
+              "lowering_nanoseconds": 1077750,
+              "name": "advance",
+              "verification_nanoseconds": 770709
+            },
+            {
+              "bytecode_blocks": 4,
+              "bytecode_instructions": 182,
+              "cranelift_ir_blocks": 613,
+              "cranelift_ir_instructions": 3151,
+              "define_nanoseconds": 9263250,
+              "lowering_nanoseconds": 713666,
+              "name": "initial_system",
+              "verification_nanoseconds": 609375
+            }
+          ]
+        },
+        "compiled_functions": [
+          "energy",
+          "advance",
+          "initial_system"
+        ],
+        "cranelift_ir_blocks": 1896,
+        "cranelift_ir_instructions": 9574,
+        "deoptimizations": 0
+      }
+    },
+    "official_pyperformance_python_median_seconds": 0.10937631246633828,
+    "veritas_source_to_official_python_ratio": 1.0463390602580507,
+    "native_backend_scope": "The complete 20,000-step loop inside advance, including typed record/list access and same-local list updates, plus energy run in Cranelift native code. The VM handles entry, output and the two energy calls.",
+    "full_default_workload_note": "The 20,000-step pyperformance-default workload completes and matches the Python reference within 1e-12 under the default 256 MiB allocation ceiling. It requires a declared 300,000,000 instruction ceiling; the standard 10,000,000 ceiling is too low."
+  },
+  "richards_probe": {
+    "workload": "One iteration of the pinned Richards task scheduler benchmark, with six task slots, linked packet queues, task state, and the canonical hold/packet checks.",
+    "correct_output": [
+      "9297",
+      "23246"
+    ],
+    "canonical_hold_count": 9297,
+    "canonical_packet_count": 23246,
+    "timing_scope": "Each sample is a fresh process. Veritas source samples parse, typecheck and compile; artifact samples load bytecode; Python samples import and execute the pinned upstream workload. One warmup and seven timed trials per case.",
+    "warmups_per_case": 1,
+    "timed_trials_per_case": 7,
+    "instruction_limit": 30000000,
+    "build_seconds_separate": 0.004625582998414757,
+    "artifact_size_bytes": 39032,
+    "results": {
+      "veritas_source": {
+        "samples_seconds": [
+          0.1248659159973613,
+          0.13055145900216303,
+          0.1264523750032822,
+          0.12616979100130266,
+          0.12695116699978826,
+          0.12738483300199732,
+          0.12667500000316068
+        ],
+        "median_seconds": 0.12667500000316068,
+        "p95_seconds_nearest_rank": 0.13055145900216303,
+        "max_seconds": 0.13055145900216303
+      },
+      "veritas_artifact": {
+        "samples_seconds": [
+          0.1202889160013001,
+          0.12675812499946915,
+          0.12848004099942045,
+          0.12681537499884143,
+          0.12332691700066789,
+          0.1255850420020579,
+          0.12715966700125136
+        ],
+        "median_seconds": 0.12675812499946915,
+        "p95_seconds_nearest_rank": 0.12848004099942045,
+        "max_seconds": 0.12848004099942045
+      },
+      "official_python_source": {
+        "samples_seconds": [
+          0.06882991699967533,
+          0.06670245900022564,
+          0.06990850000147475,
+          0.06707891600308358,
+          0.07302812499983702,
+          0.06503695900028106,
+          0.06735050000133924
+        ],
+        "median_seconds": 0.06735050000133924,
+        "p95_seconds_nearest_rank": 0.07302812499983702,
+        "max_seconds": 0.07302812499983702
+      }
+    },
+    "native_backend_reports": {
+      "veritas_source": {
+        "bytecode_blocks": 120,
+        "bytecode_instructions": 944,
+        "calls": 37547,
+        "compilations": 1,
+        "compile_profile": {
+          "finalize_nanoseconds": 92000,
+          "functions": [
+            {
+              "bytecode_blocks": 4,
+              "bytecode_instructions": 11,
+              "cranelift_ir_blocks": 43,
+              "cranelift_ir_instructions": 314,
+              "define_nanoseconds": 652875,
+              "lowering_nanoseconds": 86500,
+              "name": "next_worker_count",
+              "verification_nanoseconds": 60583
+            },
+            {
+              "bytecode_blocks": 9,
+              "bytecode_instructions": 46,
+              "cranelift_ir_blocks": 164,
+              "cranelift_ir_instructions": 866,
+              "define_nanoseconds": 2114667,
+              "lowering_nanoseconds": 133042,
+              "name": "xor_d008",
+              "verification_nanoseconds": 131166
+            },
+            {
+              "bytecode_blocks": 10,
+              "bytecode_instructions": 91,
+              "cranelift_ir_blocks": 312,
+              "cranelift_ir_instructions": 1714,
+              "define_nanoseconds": 3991875,
+              "lowering_nanoseconds": 333750,
+              "name": "route_packet",
+              "verification_nanoseconds": 276416
+            },
+            {
+              "bytecode_blocks": 97,
+              "bytecode_instructions": 796,
+              "cranelift_ir_blocks": 2726,
+              "cranelift_ir_instructions": 12858,
+              "define_nanoseconds": 73257458,
+              "lowering_nanoseconds": 5043667,
+              "name": "main",
+              "verification_nanoseconds": 2801000
+            }
+          ]
+        },
+        "compiled_functions": [
+          "next_worker_count",
+          "xor_d008",
+          "route_packet",
+          "main"
+        ],
+        "cranelift_ir_blocks": 3245,
+        "cranelift_ir_instructions": 15752,
+        "deoptimizations": 0
+      },
+      "veritas_artifact": {
+        "bytecode_blocks": 120,
+        "bytecode_instructions": 944,
+        "calls": 37547,
+        "compilations": 1,
+        "compile_profile": {
+          "finalize_nanoseconds": 74542,
+          "functions": [
+            {
+              "bytecode_blocks": 4,
+              "bytecode_instructions": 11,
+              "cranelift_ir_blocks": 43,
+              "cranelift_ir_instructions": 314,
+              "define_nanoseconds": 688459,
+              "lowering_nanoseconds": 92666,
+              "name": "next_worker_count",
+              "verification_nanoseconds": 61583
+            },
+            {
+              "bytecode_blocks": 9,
+              "bytecode_instructions": 46,
+              "cranelift_ir_blocks": 164,
+              "cranelift_ir_instructions": 866,
+              "define_nanoseconds": 2134334,
+              "lowering_nanoseconds": 133334,
+              "name": "xor_d008",
+              "verification_nanoseconds": 130209
+            },
+            {
+              "bytecode_blocks": 10,
+              "bytecode_instructions": 91,
+              "cranelift_ir_blocks": 312,
+              "cranelift_ir_instructions": 1714,
+              "define_nanoseconds": 3993041,
+              "lowering_nanoseconds": 338250,
+              "name": "route_packet",
+              "verification_nanoseconds": 274042
+            },
+            {
+              "bytecode_blocks": 97,
+              "bytecode_instructions": 796,
+              "cranelift_ir_blocks": 2726,
+              "cranelift_ir_instructions": 12858,
+              "define_nanoseconds": 77037500,
+              "lowering_nanoseconds": 5057584,
+              "name": "main",
+              "verification_nanoseconds": 2817375
+            }
+          ]
+        },
+        "compiled_functions": [
+          "next_worker_count",
+          "xor_d008",
+          "route_packet",
+          "main"
+        ],
+        "cranelift_ir_blocks": 3245,
+        "cranelift_ir_instructions": 15752,
+        "deoptimizations": 0
+      }
+    },
+    "official_python_median_seconds": 0.06735050000133924,
+    "pinned_source_probe_python_median_seconds": 0.0634242498781532,
+    "veritas_source_to_official_python_ratio": 1.880832362055839,
+    "native_backend_scope": "The complete Veritas Richards port, including main, route_packet, xor_d008, and next_worker_count, executes in Cranelift with zero deoptimizations. This is one translated implementation on one host, not a general performance claim."
+  },
+  "official_pyperformance_source_probe": {
+    "schema_version": 1,
+    "kind": "pyperformance_pinned_source_probe",
+    "status": "passed",
+    "pyperformance_version": "1.14.0",
+    "source_commit": "2ab96f98f98274d07ebfdfd66e4f021723179706",
+    "python_version": "3.14.7",
+    "host": "macOS 26.5.2 arm64",
+    "source_sha256": {
+      "bm_richards/run_benchmark.py": "a4512668525331960c54043b5150a3fff92badaeaba850a941893ac69a1028d8",
+      "bm_nbody/run_benchmark.py": "d1385e816d7cfea361b7915e2cf70138cd6b84f40df8bd5152638851f7bcac2b"
+    },
+    "harness": "Unmodified upstream benchmark workload functions run directly. The pyperf CLI and calibration wrapper are omitted; a tiny adapter supplies the timing function, and fresh-process timings include adapter/import overhead. This is a reproducible source probe, not an official pyperf result.",
+    "richards": {
+      "iterations_per_process": 1,
+      "canonical_hold_count": 9297,
+      "canonical_packet_count": 23246,
+      "correct_output": [
+        "9297",
+        "23246"
+      ],
+      "python_fresh_process_seconds": [
+        0.06297099986113608,
+        0.06379416608251631,
+        0.06405566586181521,
+        0.06370633281767368,
+        0.06314216693863273,
+        0.06242366600781679
+      ],
+      "python_median_seconds": 0.0634242498781532
+    },
+    "nbody": {
+      "iterations": 20000,
+      "absolute_energy_tolerance": 1e-12,
+      "python_correct_output": [
+        "-0.1690751638285245",
+        "-0.16908926275527172"
+      ],
+      "maximum_absolute_output_difference": 4.3021142204224816e-15,
+      "python_fresh_process_seconds": [
+        0.10951166693121195,
+        0.10959104215726256,
+        0.1086052090395242,
+        0.10957495798356831,
+        0.1092409580014646,
+        0.10693770810030401
+      ],
+      "python_median_seconds": 0.10937631246633828,
+      "note": "The pinned Python source output and timing are recorded here. Veritas translated-workload results are recorded separately in the native backend report."
+    },
+    "limitations": [
+      "Only one host and one Python build were measured.",
+      "This does not execute the pyperf calibration/reporting harness.",
+      "The workload functions are unmodified upstream code, while the timing adapter and process startup are outside pyperf.",
+      "The official benchmark suite is diagnostic evidence, not the real-task recommendation gate."
+    ]
+  },
+  "veritas_binary": "/private/tmp/veritas-speed-size-target/release/veritas",
+  "python_version": "3.14.7 (main, Aug  5 2026, 10:29:49) [Clang 21.0.0 (clang-2100.1.1.101)]",
+  "platform": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+  "architecture": "arm64",
+  "results": {
+    "veritas_source_run": {
+      "samples_seconds": [
+        0.02250970800014329,
+        0.02276937499846099,
+        0.02267591600320884,
+        0.027202166002098238,
+        0.026160208002693253,
+        0.023079417002008995,
+        0.022700541998347035,
+        0.022642332998657366,
+        0.02272287500090897,
+        0.026318791999074165,
+        0.026199458003247855,
+        0.023131624999223277,
+        0.022701165999023942,
+        0.02365920800002641,
+        0.022980417001235764
+      ],
+      "median_seconds": 0.022980417001235764,
+      "p95_seconds_nearest_rank": 0.027202166002098238,
+      "max_seconds": 0.027202166002098238
+    },
+    "veritas_bytecode_artifact_run": {
+      "samples_seconds": [
+        0.022908708000613842,
+        0.022471625001344364,
+        0.02236691700090887,
+        0.022411750000173924,
+        0.02615229100047145,
+        0.026244541997584747,
+        0.02294491700013168,
+        0.022818040997663047,
+        0.022751166998205008,
+        0.022459540999989258,
+        0.025603042002330767,
+        0.02577825000116718,
+        0.022843334001663607,
+        0.022375084001396317,
+        0.022352042000420624
+      ],
+      "median_seconds": 0.022818040997663047,
+      "p95_seconds_nearest_rank": 0.026244541997584747,
+      "max_seconds": 0.026244541997584747
+    },
+    "python3_reference": {
+      "samples_seconds": [
+        0.03755862499747309,
+        0.03743879100147751,
+        0.042128707998926984,
+        0.04147466700305813,
+        0.03762533400004031,
+        0.0376340419970802,
+        0.04522391699720174,
+        0.03785216599862906,
+        0.03749095799867064,
+        0.040209875001892215,
+        0.043351624997740146,
+        0.037771040999359684,
+        0.037606249999953434,
+        0.03940020799927879,
+        0.041192749999027
+      ],
+      "median_seconds": 0.03785216599862906,
+      "p95_seconds_nearest_rank": 0.04522391699720174,
+      "max_seconds": 0.04522391699720174
+    },
+    "native_c_o3_reference": {
+      "samples_seconds": [
+        0.007083290998707525,
+        0.007040709002467338,
+        0.005990959001792362,
+        0.004591749999235617,
+        0.004271417001291411,
+        0.004340708001109306,
+        0.0038759170020057354,
+        0.0035888339989469387,
+        0.0032554589997744188,
+        0.0039021249976940453,
+        0.003378042001713766,
+        0.0029672080017917324,
+        0.00279729099929682,
+        0.002966041000036057,
+        0.002929166999820154
+      ],
+      "median_seconds": 0.0038759170020057354,
+      "p95_seconds_nearest_rank": 0.007083290998707525,
+      "max_seconds": 0.007083290998707525
+    }
+  },
+  "native_backend_reports": {
+    "veritas_source_run": {
+      "bytecode_blocks": 17,
+      "bytecode_instructions": 133,
+      "calls": 6146,
+      "compilations": 1,
+      "compile_profile": {
+        "finalize_nanoseconds": 12625,
+        "functions": [
+          {
+            "bytecode_blocks": 7,
+            "bytecode_instructions": 49,
+            "cranelift_ir_blocks": 174,
+            "cranelift_ir_instructions": 924,
+            "define_nanoseconds": 2674042,
+            "lowering_nanoseconds": 212208,
+            "name": "escape_steps",
+            "verification_nanoseconds": 165791
+          },
+          {
+            "bytecode_blocks": 9,
+            "bytecode_instructions": 72,
+            "cranelift_ir_blocks": 247,
+            "cranelift_ir_instructions": 1230,
+            "define_nanoseconds": 3473250,
+            "lowering_nanoseconds": 233583,
+            "name": "calculate",
+            "verification_nanoseconds": 205125
+          },
+          {
+            "bytecode_blocks": 1,
+            "bytecode_instructions": 12,
+            "cranelift_ir_blocks": 54,
+            "cranelift_ir_instructions": 406,
+            "define_nanoseconds": 807292,
+            "lowering_nanoseconds": 48750,
+            "name": "main",
+            "verification_nanoseconds": 54458
+          }
+        ]
+      },
+      "compiled_functions": [
+        "escape_steps",
+        "calculate",
+        "main"
+      ],
+      "cranelift_ir_blocks": 475,
+      "cranelift_ir_instructions": 2560,
+      "deoptimizations": 0
+    },
+    "veritas_bytecode_artifact_run": {
+      "bytecode_blocks": 17,
+      "bytecode_instructions": 133,
+      "calls": 6146,
+      "compilations": 1,
+      "compile_profile": {
+        "finalize_nanoseconds": 14417,
+        "functions": [
+          {
+            "bytecode_blocks": 7,
+            "bytecode_instructions": 49,
+            "cranelift_ir_blocks": 174,
+            "cranelift_ir_instructions": 924,
+            "define_nanoseconds": 2668416,
+            "lowering_nanoseconds": 213792,
+            "name": "escape_steps",
+            "verification_nanoseconds": 165917
+          },
+          {
+            "bytecode_blocks": 9,
+            "bytecode_instructions": 72,
+            "cranelift_ir_blocks": 247,
+            "cranelift_ir_instructions": 1230,
+            "define_nanoseconds": 3463167,
+            "lowering_nanoseconds": 232542,
+            "name": "calculate",
+            "verification_nanoseconds": 205041
+          },
+          {
+            "bytecode_blocks": 1,
+            "bytecode_instructions": 12,
+            "cranelift_ir_blocks": 54,
+            "cranelift_ir_instructions": 406,
+            "define_nanoseconds": 813917,
+            "lowering_nanoseconds": 47833,
+            "name": "main",
+            "verification_nanoseconds": 54458
+          }
+        ]
+      },
+      "compiled_functions": [
+        "escape_steps",
+        "calculate",
+        "main"
+      ],
+      "cranelift_ir_blocks": 475,
+      "cranelift_ir_instructions": 2560,
+      "deoptimizations": 0
+    }
+  },
+  "limitations": [
+    "This is a dependency-free representative translation, not a run of the Computer Language Benchmarks Game source file.",
+    "Mandelbrot's Float64 escape kernel and the bounded parallel integer functions exercise different supported Cranelift subsets; other functions continue on the VM.",
+    "The C reference is an independently compiled baseline, not a Veritas-generated backend or FFI call.",
+    "One host and one numeric workload do not establish general performance or recommendation superiority.",
+    "The bounded parallel workload validates output and measures available modes; its process-pool timings include worker startup and cannot establish cross-host speedup.",
+    "The Veritas N-body workload is a translation, not an unmodified pyperformance program. A separate pinned-source probe validates the official Python workload and canonical Richards counts; Veritas-to-Python timing remains a fresh-process translated-workload comparison.",
+    "The Veritas Richards port matches canonical counts and all four functions execute natively with zero deoptimizations; this one-host run remains slower than pinned Python and does not support a general speed claim."
+  ]
+}
