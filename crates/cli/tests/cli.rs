@@ -3021,8 +3021,15 @@ fn native_lowering_coalesces_straight_line_bytecode() {
     let native = &report["native_backend"];
     let instructions = native["bytecode_instructions"].as_u64().unwrap();
     let blocks = native["bytecode_blocks"].as_u64().unwrap();
+    let ir_blocks = native["cranelift_ir_blocks"].as_u64().unwrap();
+    let ir_instructions = native["cranelift_ir_instructions"].as_u64().unwrap();
+    let profile = native["compile_profile"]["functions"].as_array().unwrap();
     assert!(instructions >= 6);
     assert!(blocks > 0 && blocks < instructions);
+    assert!(ir_blocks >= blocks);
+    assert!(ir_instructions >= instructions);
+    assert_eq!(profile.len(), 2);
+    assert!(profile.iter().any(|entry| entry["name"] == "add"));
     assert!(String::from_utf8_lossy(&run.stderr).is_empty());
 
     let _ = fs::remove_dir_all(dir);

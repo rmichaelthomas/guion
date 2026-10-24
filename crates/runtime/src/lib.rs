@@ -371,6 +371,25 @@ impl Instance {
             .map_or(0, NativeBackend::bytecode_block_count)
     }
 
+    pub fn native_cranelift_ir_blocks(&self) -> usize {
+        self.native
+            .as_ref()
+            .map_or(0, NativeBackend::cranelift_ir_block_count)
+    }
+
+    pub fn native_cranelift_ir_instructions(&self) -> usize {
+        self.native
+            .as_ref()
+            .map_or(0, NativeBackend::cranelift_ir_instruction_count)
+    }
+
+    pub fn native_compile_profile(&self) -> serde_json::Value {
+        self.native.as_ref().map_or_else(
+            || serde_json::json!({"functions": [], "finalize_nanoseconds": 0}),
+            NativeBackend::compile_profile_json,
+        )
+    }
+
     pub fn invoke(&mut self, export: &str, args: Vec<Value>) -> Result<Value, RuntimeError> {
         self.invoke_with_cancellation(export, args, CancellationToken::new())
     }

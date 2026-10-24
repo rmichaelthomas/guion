@@ -6,6 +6,7 @@
 
 use std::collections::VecDeque;
 use std::sync::Arc;
+use std::time::Instant;
 
 use super::NativeListArena;
 use cranelift_codegen::{
@@ -78,6 +79,22 @@ pub(crate) struct NativeBackend {
     max_result_words: usize,
     bytecode_instructions: usize,
     bytecode_blocks: usize,
+    cranelift_ir_blocks: usize,
+    cranelift_ir_instructions: usize,
+    function_compile_profiles: Vec<NativeFunctionCompileProfile>,
+    finalize_nanoseconds: u64,
+}
+
+#[derive(Debug)]
+struct NativeFunctionCompileProfile {
+    name: String,
+    bytecode_instructions: usize,
+    bytecode_blocks: usize,
+    cranelift_ir_blocks: usize,
+    cranelift_ir_instructions: usize,
+    lowering_nanoseconds: u64,
+    verification_nanoseconds: u64,
+    define_nanoseconds: u64,
 }
 
 /// Immutable native entry points shared by parallel workers. The owning
@@ -107,6 +124,10 @@ impl fmt::Debug for NativeBackend {
             .field("compiled_functions", &self.function_count())
             .field("bytecode_instructions", &self.bytecode_instructions)
             .field("bytecode_blocks", &self.bytecode_blocks)
+            .field("cranelift_ir_blocks", &self.cranelift_ir_blocks)
+            .field("cranelift_ir_instructions", &self.cranelift_ir_instructions)
+            .field("function_compile_profiles", &self.function_compile_profiles)
+            .field("finalize_nanoseconds", &self.finalize_nanoseconds)
             .finish()
     }
 }
@@ -225,6 +246,10 @@ impl NativeBackend {
                 .max(1),
             bytecode_instructions: 0,
             bytecode_blocks: 0,
+            cranelift_ir_blocks: 0,
+            cranelift_ir_instructions: 0,
+            function_compile_profiles: Vec::new(),
+            finalize_nanoseconds: 0,
         };
         let recursive = recursive_functions(&artifact.functions);
         let native_list_mutator: Vec<_> = artifact
@@ -299,15 +324,21 @@ impl NativeBackend {
                     &artifact.records,
                     backend.max_result_words,
                 ) {
-                    Ok(bytecode_blocks) => {
-                        backend.bytecode_instructions += function.code.len();
-                        backend.bytecode_blocks += bytecode_blocks;
+                    Ok(profile) => {
+                        backend.bytecode_instructions += profile.bytecode_instructions;
+                        backend.bytecode_blocks += profile.bytecode_blocks;
+                        backend.cranelift_ir_blocks += profile.cranelift_ir_blocks;
+                        backend.cranelift_ir_instructions += profile.cranelift_ir_instructions;
+                        backend.function_compile_profiles.push(profile);
                     }
                     Err(_) => function_ids[index] = None,
                 }
             }
         }
+        let finalize_start = Instant::now();
         backend.module.finalize_definitions().ok()?;
+        backend.finalize_nanoseconds =
+            finalize_start.elapsed().as_nanos().min(u64::MAX as u128) as u64;
         for (index, function_id) in function_ids.into_iter().enumerate() {
             if let Some(function_id) = function_id {
                 backend.functions[index] = Some(backend.module.get_finalized_function(function_id));
@@ -333,6 +364,37 @@ impl NativeBackend {
 
     pub(crate) fn bytecode_block_count(&self) -> usize {
         self.bytecode_blocks
+    }
+
+    pub(crate) fn cranelift_ir_block_count(&self) -> usize {
+        self.cranelift_ir_blocks
+    }
+
+    pub(crate) fn cranelift_ir_instruction_count(&self) -> usize {
+        self.cranelift_ir_instructions
+    }
+
+    pub(crate) fn compile_profile_json(&self) -> serde_json::Value {
+        let functions: Vec<_> = self
+            .function_compile_profiles
+            .iter()
+            .map(|profile| {
+                serde_json::json!({
+                    "name": profile.name,
+                    "bytecode_instructions": profile.bytecode_instructions,
+                    "bytecode_blocks": profile.bytecode_blocks,
+                    "cranelift_ir_blocks": profile.cranelift_ir_blocks,
+                    "cranelift_ir_instructions": profile.cranelift_ir_instructions,
+                    "lowering_nanoseconds": profile.lowering_nanoseconds,
+                    "verification_nanoseconds": profile.verification_nanoseconds,
+                    "define_nanoseconds": profile.define_nanoseconds
+                })
+            })
+            .collect();
+        serde_json::json!({
+            "functions": functions,
+            "finalize_nanoseconds": self.finalize_nanoseconds
+        })
     }
 
     pub(crate) fn compiled_function_names(&self, artifact: &Artifact) -> Vec<String> {
@@ -429,7 +491,8 @@ impl NativeBackend {
         all_functions: &[Function],
         records: &[veritas_model::RecordDefinition],
         max_result_words: usize,
-    ) -> Result<usize, String> {
+    ) -> Result<NativeFunctionCompileProfile, String> {
+        let lowering_start = Instant::now();
         let stack_types = infer_native_types(function, all_functions, records)
             .ok_or_else(|| "unsupported types or control flow".to_owned())?;
         let depths = stack_depths(function).ok_or_else(|| "invalid stack graph".to_owned())?;
@@ -1602,6 +1665,10 @@ impl NativeBackend {
             builder.seal_all_blocks();
             builder.finalize(target_config);
         }
+        let ir_blocks = context.func.layout.blocks().count();
+        let ir_instructions = context.func.dfg.num_insts();
+        let lowering_nanoseconds = lowering_start.elapsed().as_nanos().min(u64::MAX as u128) as u64;
+        let verification_start = Instant::now();
         if let Err(errors) =
             cranelift_codegen::verifier::verify_function(&context.func, self.module.isa())
         {
@@ -1610,14 +1677,29 @@ impl NativeBackend {
                 context.func
             ));
         }
+        let verification_nanoseconds = verification_start
+            .elapsed()
+            .as_nanos()
+            .min(u64::MAX as u128) as u64;
+        let define_start = Instant::now();
         self.module
             .define_function(function_id, &mut context)
             .map_err(|error| error.to_string())?;
+        let define_nanoseconds = define_start.elapsed().as_nanos().min(u64::MAX as u128) as u64;
         self.module.clear_context(&mut context);
-        Ok(leader_indices
-            .iter()
-            .filter(|leader| leader.is_some())
-            .count())
+        Ok(NativeFunctionCompileProfile {
+            name: function.name.clone(),
+            bytecode_instructions: function.code.len(),
+            bytecode_blocks: leader_indices
+                .iter()
+                .filter(|leader| leader.is_some())
+                .count(),
+            cranelift_ir_blocks: ir_blocks,
+            cranelift_ir_instructions: ir_instructions,
+            lowering_nanoseconds,
+            verification_nanoseconds,
+            define_nanoseconds,
+        })
     }
 }
 

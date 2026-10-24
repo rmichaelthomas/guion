@@ -10,10 +10,10 @@
   "timing_scope": "Each sample is a fresh process and includes process startup. Veritas source samples also include parsing, typechecking and compilation; artifact samples load the current bytecode format; Python samples parse and execute source. All include the same arithmetic workload and captured output.",
   "warmups_per_case": 2,
   "timed_trials_per_case": 15,
-  "artifact_build_seconds_separate": 0.004261833000782644,
+  "artifact_build_seconds_separate": 0.0051046660009888,
   "artifact_size_bytes": 5727,
   "native_c_compiler": "Apple clang version 21.0.0 (clang-2100.3.34.2)",
-  "native_c_compile_seconds_separate": 0.052209749999747146,
+  "native_c_compile_seconds_separate": 0.061122499999328284,
   "parallel_map_probe": {
     "workload": "four independent integer loops of 20,000 iterations each",
     "correct_output_per_task": 959289,
@@ -21,57 +21,57 @@
     "warmups_per_case": 1,
     "timed_trials_per_case": 3,
     "python_gil_enabled": true,
-    "build_seconds_separate": 0.004030625001178123,
+    "build_seconds_separate": 0.003943583000364015,
     "results": {
       "veritas_parallel_map_source": {
         "samples_seconds": [
-          0.006387417000951245,
-          0.006433708997064969,
-          0.006415040999854682
+          0.006264916999498382,
+          0.006166709001263371,
+          0.006289666998782195
         ],
-        "median_seconds": 0.006415040999854682,
-        "p95_seconds_nearest_rank": 0.006433708997064969,
-        "max_seconds": 0.006433708997064969
+        "median_seconds": 0.006264916999498382,
+        "p95_seconds_nearest_rank": 0.006289666998782195,
+        "max_seconds": 0.006289666998782195
       },
       "veritas_parallel_map_artifact": {
         "samples_seconds": [
-          0.00624887500089244,
-          0.006496874997537816,
-          0.0065020419970096555
+          0.006222167001396883,
+          0.0061192089997348376,
+          0.006281333997321781
         ],
-        "median_seconds": 0.006496874997537816,
-        "p95_seconds_nearest_rank": 0.0065020419970096555,
-        "max_seconds": 0.0065020419970096555
+        "median_seconds": 0.006222167001396883,
+        "p95_seconds_nearest_rank": 0.006281333997321781,
+        "max_seconds": 0.006281333997321781
       },
       "python_serial": {
         "samples_seconds": [
-          0.05118745899744681,
-          0.05168950000006589,
-          0.05119862499850569
+          0.05034000000159722,
+          0.05050408399984008,
+          0.050698999999440275
         ],
-        "median_seconds": 0.05119862499850569,
-        "p95_seconds_nearest_rank": 0.05168950000006589,
-        "max_seconds": 0.05168950000006589
+        "median_seconds": 0.05050408399984008,
+        "p95_seconds_nearest_rank": 0.050698999999440275,
+        "max_seconds": 0.050698999999440275
       },
       "python_threads": {
         "samples_seconds": [
-          0.051294000000780215,
-          0.052227832999051316,
-          0.05166408399963984
+          0.0509070830012206,
+          0.05064029200002551,
+          0.05103725000299164
         ],
-        "median_seconds": 0.05166408399963984,
-        "p95_seconds_nearest_rank": 0.052227832999051316,
-        "max_seconds": 0.052227832999051316
+        "median_seconds": 0.0509070830012206,
+        "p95_seconds_nearest_rank": 0.05103725000299164,
+        "max_seconds": 0.05103725000299164
       },
       "python_processes": {
         "samples_seconds": [
-          0.1362061250001716,
-          0.13686533399959444,
-          0.13725604099818156
+          0.14116541700059315,
+          0.13697512499857112,
+          0.13618683299864642
         ],
-        "median_seconds": 0.13686533399959444,
-        "p95_seconds_nearest_rank": 0.13725604099818156,
-        "max_seconds": 0.13725604099818156
+        "median_seconds": 0.13697512499857112,
+        "p95_seconds_nearest_rank": 0.14116541700059315,
+        "max_seconds": 0.14116541700059315
       }
     },
     "native_backend_reports": {
@@ -80,9 +80,26 @@
         "bytecode_instructions": 21,
         "calls": 4,
         "compilations": 1,
+        "compile_profile": {
+          "finalize_nanoseconds": 6583,
+          "functions": [
+            {
+              "bytecode_blocks": 4,
+              "bytecode_instructions": 21,
+              "cranelift_ir_blocks": 79,
+              "cranelift_ir_instructions": 452,
+              "define_nanoseconds": 896625,
+              "lowering_nanoseconds": 109791,
+              "name": "work",
+              "verification_nanoseconds": 78750
+            }
+          ]
+        },
         "compiled_functions": [
           "work"
         ],
+        "cranelift_ir_blocks": 79,
+        "cranelift_ir_instructions": 452,
         "deoptimizations": 0
       },
       "veritas_parallel_map_artifact": {
@@ -90,9 +107,26 @@
         "bytecode_instructions": 21,
         "calls": 4,
         "compilations": 1,
+        "compile_profile": {
+          "finalize_nanoseconds": 6583,
+          "functions": [
+            {
+              "bytecode_blocks": 4,
+              "bytecode_instructions": 21,
+              "cranelift_ir_blocks": 79,
+              "cranelift_ir_instructions": 452,
+              "define_nanoseconds": 880500,
+              "lowering_nanoseconds": 108167,
+              "name": "work",
+              "verification_nanoseconds": 78834
+            }
+          ]
+        },
         "compiled_functions": [
           "work"
         ],
+        "cranelift_ir_blocks": 79,
+        "cranelift_ir_instructions": 452,
         "deoptimizations": 0
       }
     },
@@ -106,57 +140,57 @@
     "allocation_budget": "Default 256 MiB cumulative estimate budget; no per-workload override.",
     "warmups_per_case": 1,
     "timed_trials_per_case": 3,
-    "build_seconds_separate": 0.004026582999358652,
+    "build_seconds_separate": 0.0040906670001277234,
     "results": {
       "veritas_parallel_map_source": {
         "samples_seconds": [
-          0.013836124999215826,
-          0.014007458001287887,
-          0.015839832998608472
+          0.014310208000097191,
+          0.013608708999527153,
+          0.016239707998465747
         ],
-        "median_seconds": 0.014007458001287887,
-        "p95_seconds_nearest_rank": 0.015839832998608472,
-        "max_seconds": 0.015839832998608472
+        "median_seconds": 0.014310208000097191,
+        "p95_seconds_nearest_rank": 0.016239707998465747,
+        "max_seconds": 0.016239707998465747
       },
       "veritas_parallel_map_artifact": {
         "samples_seconds": [
-          0.0140008750022389,
-          0.013840249997883802,
-          0.013886208998883376
+          0.014642291000200203,
+          0.014333582999825012,
+          0.01535383299778914
         ],
-        "median_seconds": 0.013886208998883376,
-        "p95_seconds_nearest_rank": 0.0140008750022389,
-        "max_seconds": 0.0140008750022389
+        "median_seconds": 0.014642291000200203,
+        "p95_seconds_nearest_rank": 0.01535383299778914,
+        "max_seconds": 0.01535383299778914
       },
       "python_serial": {
         "samples_seconds": [
-          0.0773576250030601,
-          0.0766235000010056,
-          0.07769950000147219
+          0.07721595799739589,
+          0.07700575000126264,
+          0.07729758399727871
         ],
-        "median_seconds": 0.0773576250030601,
-        "p95_seconds_nearest_rank": 0.07769950000147219,
-        "max_seconds": 0.07769950000147219
+        "median_seconds": 0.07721595799739589,
+        "p95_seconds_nearest_rank": 0.07729758399727871,
+        "max_seconds": 0.07729758399727871
       },
       "python_threads": {
         "samples_seconds": [
-          0.07778404199780198,
-          0.0782989590006764,
-          0.07847695799864596
+          0.07887191699774121,
+          0.07767674999922747,
+          0.07712783299939474
         ],
-        "median_seconds": 0.0782989590006764,
-        "p95_seconds_nearest_rank": 0.07847695799864596,
-        "max_seconds": 0.07847695799864596
+        "median_seconds": 0.07767674999922747,
+        "p95_seconds_nearest_rank": 0.07887191699774121,
+        "max_seconds": 0.07887191699774121
       },
       "python_processes": {
         "samples_seconds": [
-          0.14525879199936753,
-          0.14527108300171676,
-          0.15068791700105066
+          0.14773479200084694,
+          0.1463521670011687,
+          0.1457041659996321
         ],
-        "median_seconds": 0.14527108300171676,
-        "p95_seconds_nearest_rank": 0.15068791700105066,
-        "max_seconds": 0.15068791700105066
+        "median_seconds": 0.1463521670011687,
+        "p95_seconds_nearest_rank": 0.14773479200084694,
+        "max_seconds": 0.14773479200084694
       }
     },
     "native_backend_reports": {
@@ -165,9 +199,26 @@
         "bytecode_instructions": 21,
         "calls": 4,
         "compilations": 1,
+        "compile_profile": {
+          "finalize_nanoseconds": 7375,
+          "functions": [
+            {
+              "bytecode_blocks": 4,
+              "bytecode_instructions": 21,
+              "cranelift_ir_blocks": 79,
+              "cranelift_ir_instructions": 452,
+              "define_nanoseconds": 906833,
+              "lowering_nanoseconds": 118125,
+              "name": "work",
+              "verification_nanoseconds": 85708
+            }
+          ]
+        },
         "compiled_functions": [
           "work"
         ],
+        "cranelift_ir_blocks": 79,
+        "cranelift_ir_instructions": 452,
         "deoptimizations": 0
       },
       "veritas_parallel_map_artifact": {
@@ -175,9 +226,26 @@
         "bytecode_instructions": 21,
         "calls": 4,
         "compilations": 1,
+        "compile_profile": {
+          "finalize_nanoseconds": 6333,
+          "functions": [
+            {
+              "bytecode_blocks": 4,
+              "bytecode_instructions": 21,
+              "cranelift_ir_blocks": 79,
+              "cranelift_ir_instructions": 452,
+              "define_nanoseconds": 883291,
+              "lowering_nanoseconds": 109833,
+              "name": "work",
+              "verification_nanoseconds": 82833
+            }
+          ]
+        },
         "compiled_functions": [
           "work"
         ],
+        "cranelift_ir_blocks": 79,
+        "cranelift_ir_instructions": 452,
         "deoptimizations": 0
       }
     }
@@ -195,44 +263,44 @@
     "allocation_limit_bytes": 268435456,
     "allocation_limit_note": "The optimized same-local list_set assignment stays within the default 256 MiB allocation ceiling.",
     "instruction_limit_note": "A 300,000,000 instruction ceiling is declared for this 20,000-step workload; the default 10,000,000 ceiling is too low.",
-    "build_seconds_separate": 0.00451700000121491,
+    "build_seconds_separate": 0.004265916999429464,
     "artifact_size_bytes": 22906,
     "results": {
       "python3_reference": {
         "samples_seconds": [
-          0.1931318340029975,
-          0.19293637499868055,
-          0.19312525000350433,
-          0.19517179099784698,
-          0.19402666699897964
+          0.1936144580031396,
+          0.19349579199842992,
+          0.19407683300232748,
+          0.193478375000268,
+          0.1929544589984289
         ],
-        "median_seconds": 0.1931318340029975,
-        "p95_seconds_nearest_rank": 0.19517179099784698,
-        "max_seconds": 0.19517179099784698
+        "median_seconds": 0.19349579199842992,
+        "p95_seconds_nearest_rank": 0.19407683300232748,
+        "max_seconds": 0.19407683300232748
       },
       "veritas_source": {
         "samples_seconds": [
-          0.08645208300004015,
-          0.08636637500239885,
-          0.08666095800072071,
-          0.08656145900022238,
-          0.08612841699869023
+          0.08645858299860265,
+          0.0867966659970989,
+          0.08720208399972762,
+          0.08678641699953005,
+          0.0870092500008468
         ],
-        "median_seconds": 0.08645208300004015,
-        "p95_seconds_nearest_rank": 0.08666095800072071,
-        "max_seconds": 0.08666095800072071
+        "median_seconds": 0.0867966659970989,
+        "p95_seconds_nearest_rank": 0.08720208399972762,
+        "max_seconds": 0.08720208399972762
       },
       "veritas_artifact": {
         "samples_seconds": [
-          0.08628150000004098,
-          0.08680479200120317,
-          0.0864870420009538,
-          0.08642733300075633,
-          0.08605058299872326
+          0.08795745899988106,
+          0.08697283299989067,
+          0.08628079100162722,
+          0.08660749999762629,
+          0.08618391699928907
         ],
-        "median_seconds": 0.08642733300075633,
-        "p95_seconds_nearest_rank": 0.08680479200120317,
-        "max_seconds": 0.08680479200120317
+        "median_seconds": 0.08660749999762629,
+        "p95_seconds_nearest_rank": 0.08795745899988106,
+        "max_seconds": 0.08795745899988106
       }
     },
     "native_backend_reports": {
@@ -241,11 +309,48 @@
         "bytecode_instructions": 541,
         "calls": 4,
         "compilations": 1,
+        "compile_profile": {
+          "finalize_nanoseconds": 48125,
+          "functions": [
+            {
+              "bytecode_blocks": 7,
+              "bytecode_instructions": 135,
+              "cranelift_ir_blocks": 484,
+              "cranelift_ir_instructions": 2425,
+              "define_nanoseconds": 5848416,
+              "lowering_nanoseconds": 627000,
+              "name": "energy",
+              "verification_nanoseconds": 441583
+            },
+            {
+              "bytecode_blocks": 10,
+              "bytecode_instructions": 224,
+              "cranelift_ir_blocks": 799,
+              "cranelift_ir_instructions": 3998,
+              "define_nanoseconds": 12221083,
+              "lowering_nanoseconds": 1021708,
+              "name": "advance",
+              "verification_nanoseconds": 781125
+            },
+            {
+              "bytecode_blocks": 4,
+              "bytecode_instructions": 182,
+              "cranelift_ir_blocks": 613,
+              "cranelift_ir_instructions": 3151,
+              "define_nanoseconds": 6495125,
+              "lowering_nanoseconds": 587708,
+              "name": "initial_system",
+              "verification_nanoseconds": 504875
+            }
+          ]
+        },
         "compiled_functions": [
           "energy",
           "advance",
           "initial_system"
         ],
+        "cranelift_ir_blocks": 1896,
+        "cranelift_ir_instructions": 9574,
         "deoptimizations": 0
       },
       "veritas_artifact": {
@@ -253,16 +358,53 @@
         "bytecode_instructions": 541,
         "calls": 4,
         "compilations": 1,
+        "compile_profile": {
+          "finalize_nanoseconds": 47125,
+          "functions": [
+            {
+              "bytecode_blocks": 7,
+              "bytecode_instructions": 135,
+              "cranelift_ir_blocks": 484,
+              "cranelift_ir_instructions": 2425,
+              "define_nanoseconds": 5851250,
+              "lowering_nanoseconds": 637959,
+              "name": "energy",
+              "verification_nanoseconds": 443583
+            },
+            {
+              "bytecode_blocks": 10,
+              "bytecode_instructions": 224,
+              "cranelift_ir_blocks": 799,
+              "cranelift_ir_instructions": 3998,
+              "define_nanoseconds": 12077625,
+              "lowering_nanoseconds": 1019875,
+              "name": "advance",
+              "verification_nanoseconds": 753167
+            },
+            {
+              "bytecode_blocks": 4,
+              "bytecode_instructions": 182,
+              "cranelift_ir_blocks": 613,
+              "cranelift_ir_instructions": 3151,
+              "define_nanoseconds": 6491083,
+              "lowering_nanoseconds": 578333,
+              "name": "initial_system",
+              "verification_nanoseconds": 504250
+            }
+          ]
+        },
         "compiled_functions": [
           "energy",
           "advance",
           "initial_system"
         ],
+        "cranelift_ir_blocks": 1896,
+        "cranelift_ir_instructions": 9574,
         "deoptimizations": 0
       }
     },
     "official_pyperformance_python_median_seconds": 0.10937631246633828,
-    "veritas_source_to_official_python_ratio": 0.7904095599003367,
+    "veritas_source_to_official_python_ratio": 0.7935599952120482,
     "native_backend_scope": "The complete 20,000-step loop inside advance, including typed record/list access and same-local list updates, plus energy run in Cranelift native code. The VM handles entry, output and the two energy calls.",
     "full_default_workload_note": "The 20,000-step pyperformance-default workload completes and matches the Python reference within 1e-12 under the default 256 MiB allocation ceiling. It requires a declared 300,000,000 instruction ceiling; the standard 10,000,000 ceiling is too low."
   },
@@ -278,50 +420,50 @@
     "warmups_per_case": 1,
     "timed_trials_per_case": 7,
     "instruction_limit": 30000000,
-    "build_seconds_separate": 0.006537833000038518,
+    "build_seconds_separate": 0.005735082999308361,
     "artifact_size_bytes": 39032,
     "results": {
       "veritas_source": {
         "samples_seconds": [
-          0.10797354199894471,
-          0.10774845900232322,
-          0.10747933400125476,
-          0.10771462499906193,
-          0.10752116700314218,
-          0.10885529100050917,
-          0.10762875000000349
+          0.11246270799892955,
+          0.11323820799952955,
+          0.10902045799957705,
+          0.10813270799917518,
+          0.10912200000166195,
+          0.10737954100113711,
+          0.10737933400014299
         ],
-        "median_seconds": 0.10771462499906193,
-        "p95_seconds_nearest_rank": 0.10885529100050917,
-        "max_seconds": 0.10885529100050917
+        "median_seconds": 0.10902045799957705,
+        "p95_seconds_nearest_rank": 0.11323820799952955,
+        "max_seconds": 0.11323820799952955
       },
       "veritas_artifact": {
         "samples_seconds": [
-          0.10700591700151563,
-          0.10664874999929452,
-          0.10693725000237464,
-          0.10681816700162017,
-          0.10733412499757833,
-          0.1064470409983187,
-          0.1071754160002456
+          0.10743166700194706,
+          0.10683020800206577,
+          0.10686366699883365,
+          0.10897133300022688,
+          0.1067696669997531,
+          0.10635075000027427,
+          0.10711658299987903
         ],
-        "median_seconds": 0.10693725000237464,
-        "p95_seconds_nearest_rank": 0.10733412499757833,
-        "max_seconds": 0.10733412499757833
+        "median_seconds": 0.10686366699883365,
+        "p95_seconds_nearest_rank": 0.10897133300022688,
+        "max_seconds": 0.10897133300022688
       },
       "official_python_source": {
         "samples_seconds": [
-          0.06517387500207406,
-          0.06472712500180933,
-          0.06473362500037183,
-          0.06644116700044833,
-          0.06436133299939684,
-          0.06489779100229498,
-          0.06653875000120024
+          0.06423845900280867,
+          0.064007084001787,
+          0.06636266599889495,
+          0.06536420900010853,
+          0.06412933300089207,
+          0.0636264580025454,
+          0.06387875000291388
         ],
-        "median_seconds": 0.06489779100229498,
-        "p95_seconds_nearest_rank": 0.06653875000120024,
-        "max_seconds": 0.06653875000120024
+        "median_seconds": 0.06412933300089207,
+        "p95_seconds_nearest_rank": 0.06636266599889495,
+        "max_seconds": 0.06636266599889495
       }
     },
     "native_backend_reports": {
@@ -330,12 +472,59 @@
         "bytecode_instructions": 944,
         "calls": 37547,
         "compilations": 1,
+        "compile_profile": {
+          "finalize_nanoseconds": 70042,
+          "functions": [
+            {
+              "bytecode_blocks": 4,
+              "bytecode_instructions": 11,
+              "cranelift_ir_blocks": 43,
+              "cranelift_ir_instructions": 314,
+              "define_nanoseconds": 532208,
+              "lowering_nanoseconds": 88792,
+              "name": "next_worker_count",
+              "verification_nanoseconds": 60291
+            },
+            {
+              "bytecode_blocks": 9,
+              "bytecode_instructions": 46,
+              "cranelift_ir_blocks": 164,
+              "cranelift_ir_instructions": 866,
+              "define_nanoseconds": 1664500,
+              "lowering_nanoseconds": 130667,
+              "name": "xor_d008",
+              "verification_nanoseconds": 129041
+            },
+            {
+              "bytecode_blocks": 10,
+              "bytecode_instructions": 91,
+              "cranelift_ir_blocks": 312,
+              "cranelift_ir_instructions": 1714,
+              "define_nanoseconds": 3140042,
+              "lowering_nanoseconds": 342083,
+              "name": "route_packet",
+              "verification_nanoseconds": 270042
+            },
+            {
+              "bytecode_blocks": 97,
+              "bytecode_instructions": 796,
+              "cranelift_ir_blocks": 2726,
+              "cranelift_ir_instructions": 12858,
+              "define_nanoseconds": 64084000,
+              "lowering_nanoseconds": 5070334,
+              "name": "main",
+              "verification_nanoseconds": 2777792
+            }
+          ]
+        },
         "compiled_functions": [
           "next_worker_count",
           "xor_d008",
           "route_packet",
           "main"
         ],
+        "cranelift_ir_blocks": 3245,
+        "cranelift_ir_instructions": 15752,
         "deoptimizations": 0
       },
       "veritas_artifact": {
@@ -343,18 +532,65 @@
         "bytecode_instructions": 944,
         "calls": 37547,
         "compilations": 1,
+        "compile_profile": {
+          "finalize_nanoseconds": 79250,
+          "functions": [
+            {
+              "bytecode_blocks": 4,
+              "bytecode_instructions": 11,
+              "cranelift_ir_blocks": 43,
+              "cranelift_ir_instructions": 314,
+              "define_nanoseconds": 534583,
+              "lowering_nanoseconds": 90791,
+              "name": "next_worker_count",
+              "verification_nanoseconds": 60125
+            },
+            {
+              "bytecode_blocks": 9,
+              "bytecode_instructions": 46,
+              "cranelift_ir_blocks": 164,
+              "cranelift_ir_instructions": 866,
+              "define_nanoseconds": 1664417,
+              "lowering_nanoseconds": 135625,
+              "name": "xor_d008",
+              "verification_nanoseconds": 128041
+            },
+            {
+              "bytecode_blocks": 10,
+              "bytecode_instructions": 91,
+              "cranelift_ir_blocks": 312,
+              "cranelift_ir_instructions": 1714,
+              "define_nanoseconds": 3125125,
+              "lowering_nanoseconds": 352125,
+              "name": "route_packet",
+              "verification_nanoseconds": 270125
+            },
+            {
+              "bytecode_blocks": 97,
+              "bytecode_instructions": 796,
+              "cranelift_ir_blocks": 2726,
+              "cranelift_ir_instructions": 12858,
+              "define_nanoseconds": 64220625,
+              "lowering_nanoseconds": 5086584,
+              "name": "main",
+              "verification_nanoseconds": 2760083
+            }
+          ]
+        },
         "compiled_functions": [
           "next_worker_count",
           "xor_d008",
           "route_packet",
           "main"
         ],
+        "cranelift_ir_blocks": 3245,
+        "cranelift_ir_instructions": 15752,
         "deoptimizations": 0
       }
     },
-    "official_python_median_seconds": 0.06489779100229498,
+    "official_python_median_seconds": 0.06412933300089207,
     "pinned_source_probe_python_median_seconds": 0.0634242498781532,
-    "veritas_source_to_official_python_ratio": 1.6597579568656322,
+    "veritas_source_to_official_python_ratio": 1.700009229755446,
     "native_backend_scope": "The complete Veritas Richards port, including main, route_packet, xor_d008, and next_worker_count, executes in Cranelift with zero deoptimizations. This is one translated implementation on one host, not a general performance claim."
   },
   "official_pyperformance_source_probe": {
@@ -414,98 +650,98 @@
       "The official benchmark suite is diagnostic evidence, not the real-task recommendation gate."
     ]
   },
-  "veritas_binary": "/private/tmp/veritas-pivot-target/release/veritas",
+  "veritas_binary": "/private/tmp/veritas-profile-target/release/veritas",
   "python_version": "3.14.7 (main, Aug  5 2026, 10:29:49) [Clang 21.0.0 (clang-2100.1.1.101)]",
   "platform": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
   "architecture": "arm64",
   "results": {
     "veritas_source_run": {
       "samples_seconds": [
-        0.01974300000074436,
-        0.01980537499912316,
-        0.019854250000207685,
-        0.01973287500004517,
-        0.019780208000156563,
-        0.020915791999868816,
-        0.01983433300119941,
-        0.019770375001826324,
-        0.019754000000830274,
-        0.020593625002220506,
-        0.020396250001795124,
-        0.020271874996979022,
-        0.020076125001651235,
-        0.019794334002654068,
-        0.020437125000171363
+        0.019548500000382774,
+        0.019651208000141196,
+        0.019868167000822723,
+        0.02010104199871421,
+        0.0200347080026404,
+        0.020179416998871602,
+        0.01975562499865191,
+        0.019760708000831073,
+        0.019638290999864694,
+        0.01976016700064065,
+        0.019607375001214677,
+        0.019555625000066357,
+        0.019726374997844687,
+        0.019574666999687906,
+        0.019739333998586517
       ],
-      "median_seconds": 0.01983433300119941,
-      "p95_seconds_nearest_rank": 0.020915791999868816,
-      "max_seconds": 0.020915791999868816
+      "median_seconds": 0.019739333998586517,
+      "p95_seconds_nearest_rank": 0.020179416998871602,
+      "max_seconds": 0.020179416998871602
     },
     "veritas_bytecode_artifact_run": {
       "samples_seconds": [
-        0.019829208998999093,
-        0.01978787500047474,
-        0.020616083998902468,
-        0.019586542002798524,
-        0.01953079200029606,
-        0.01941708300000755,
-        0.019520833000569837,
-        0.02038762499796576,
-        0.01979816599850892,
-        0.01955370799987577,
-        0.020273083002393832,
-        0.019614583001384744,
-        0.019765540997468634,
-        0.019444959001702955,
-        0.01952750000054948
+        0.019430000000284053,
+        0.019432624998444226,
+        0.019395499999518506,
+        0.01946158400096465,
+        0.0213488330009568,
+        0.02000712500012014,
+        0.01988191700002062,
+        0.019530083001882304,
+        0.019479250000586035,
+        0.019981000001280336,
+        0.01949308399707661,
+        0.019458583999949042,
+        0.01952566699765157,
+        0.01977966699996614,
+        0.019890999999915948
       ],
-      "median_seconds": 0.019614583001384744,
-      "p95_seconds_nearest_rank": 0.020616083998902468,
-      "max_seconds": 0.020616083998902468
+      "median_seconds": 0.01952566699765157,
+      "p95_seconds_nearest_rank": 0.0213488330009568,
+      "max_seconds": 0.0213488330009568
     },
     "python3_reference": {
       "samples_seconds": [
-        0.03746212500118418,
-        0.03733729099985794,
-        0.03746070799752488,
-        0.03740824999840697,
-        0.03733362500133808,
-        0.037250582998240134,
-        0.04112604200054193,
-        0.03836474999843631,
-        0.03764108299947111,
-        0.037305750000086846,
-        0.03745645799790509,
-        0.03739895900071133,
-        0.03722054199897684,
-        0.03841945800013491,
-        0.03760024999792222
+        0.03721454199694563,
+        0.03852083300080267,
+        0.039653708998230286,
+        0.03892545900089317,
+        0.03796762499769102,
+        0.03944295899782446,
+        0.03827174999969429,
+        0.03796850000071572,
+        0.0379477919996134,
+        0.040113084000040544,
+        0.03816283299966017,
+        0.03738712500125985,
+        0.03750216600019485,
+        0.03764008300277055,
+        0.03742312499889522
       ],
-      "median_seconds": 0.03745645799790509,
-      "p95_seconds_nearest_rank": 0.04112604200054193,
-      "max_seconds": 0.04112604200054193
+      "median_seconds": 0.03796850000071572,
+      "p95_seconds_nearest_rank": 0.040113084000040544,
+      "max_seconds": 0.040113084000040544
     },
     "native_c_o3_reference": {
       "samples_seconds": [
-        0.005095333002827829,
-        0.0046835829998599365,
-        0.004389541001728503,
-        0.0037577919974864926,
-        0.0036710839995066635,
-        0.003725959002622403,
-        0.003446791997703258,
-        0.0033629999998083804,
-        0.003371167000295827,
-        0.0033364169976266567,
-        0.003125500003079651,
-        0.0031463330014958046,
-        0.0032820830019772984,
-        0.0032266670023091137,
-        0.002940958998806309
+        0.005229250000411412,
+        0.004311708999011898,
+        0.0037657919965568,
+        0.003517708002618747,
+        0.003788958998484304,
+        0.004068000002007466,
+        0.003531500002281973,
+        0.0037046670004201587,
+        0.003555957999196835,
+        0.003337458001624327,
+        0.003156167000270216,
+        0.003161083001032239,
+        0.003117917000054149,
+        0.002941874998214189,
+        0.002801250000629807
       ],
-      "median_seconds": 0.003371167000295827,
-      "p95_seconds_nearest_rank": 0.005095333002827829,
-      "max_seconds": 0.005095333002827829
+      "median_seconds": 0.003531500002281973,
+      "p95_seconds_nearest_rank": 0.005229250000411412,
+      "max_seconds": 0.005229250000411412
     }
   },
   "native_backend_reports": {
@@ -514,11 +750,48 @@
       "bytecode_instructions": 133,
       "calls": 6146,
       "compilations": 1,
+      "compile_profile": {
+        "finalize_nanoseconds": 13333,
+        "functions": [
+          {
+            "bytecode_blocks": 7,
+            "bytecode_instructions": 49,
+            "cranelift_ir_blocks": 174,
+            "cranelift_ir_instructions": 924,
+            "define_nanoseconds": 1931666,
+            "lowering_nanoseconds": 199750,
+            "name": "escape_steps",
+            "verification_nanoseconds": 159208
+          },
+          {
+            "bytecode_blocks": 9,
+            "bytecode_instructions": 72,
+            "cranelift_ir_blocks": 247,
+            "cranelift_ir_instructions": 1230,
+            "define_nanoseconds": 2889750,
+            "lowering_nanoseconds": 243083,
+            "name": "calculate",
+            "verification_nanoseconds": 206333
+          },
+          {
+            "bytecode_blocks": 1,
+            "bytecode_instructions": 12,
+            "cranelift_ir_blocks": 54,
+            "cranelift_ir_instructions": 406,
+            "define_nanoseconds": 606917,
+            "lowering_nanoseconds": 51458,
+            "name": "main",
+            "verification_nanoseconds": 54291
+          }
+        ]
+      },
       "compiled_functions": [
         "escape_steps",
         "calculate",
         "main"
       ],
+      "cranelift_ir_blocks": 475,
+      "cranelift_ir_instructions": 2560,
       "deoptimizations": 0
     },
     "veritas_bytecode_artifact_run": {
@@ -526,11 +799,48 @@
       "bytecode_instructions": 133,
       "calls": 6146,
       "compilations": 1,
+      "compile_profile": {
+        "finalize_nanoseconds": 12500,
+        "functions": [
+          {
+            "bytecode_blocks": 7,
+            "bytecode_instructions": 49,
+            "cranelift_ir_blocks": 174,
+            "cranelift_ir_instructions": 924,
+            "define_nanoseconds": 1986792,
+            "lowering_nanoseconds": 219750,
+            "name": "escape_steps",
+            "verification_nanoseconds": 166417
+          },
+          {
+            "bytecode_blocks": 9,
+            "bytecode_instructions": 72,
+            "cranelift_ir_blocks": 247,
+            "cranelift_ir_instructions": 1230,
+            "define_nanoseconds": 2965417,
+            "lowering_nanoseconds": 251166,
+            "name": "calculate",
+            "verification_nanoseconds": 207125
+          },
+          {
+            "bytecode_blocks": 1,
+            "bytecode_instructions": 12,
+            "cranelift_ir_blocks": 54,
+            "cranelift_ir_instructions": 406,
+            "define_nanoseconds": 617250,
+            "lowering_nanoseconds": 53334,
+            "name": "main",
+            "verification_nanoseconds": 55583
+          }
+        ]
+      },
       "compiled_functions": [
         "escape_steps",
         "calculate",
         "main"
       ],
+      "cranelift_ir_blocks": 475,
+      "cranelift_ir_instructions": 2560,
       "deoptimizations": 0
     }
   },

@@ -657,6 +657,9 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
                 "compilations": instance.native_compilations(),
                 "bytecode_instructions": instance.native_bytecode_instructions(),
                 "bytecode_blocks": instance.native_bytecode_blocks(),
+                "cranelift_ir_blocks": instance.native_cranelift_ir_blocks(),
+                "cranelift_ir_instructions": instance.native_cranelift_ir_instructions(),
+                "compile_profile": instance.native_compile_profile(),
                 "calls": instance.native_calls(),
                 "deoptimizations": instance.native_deoptimizations()
             });
