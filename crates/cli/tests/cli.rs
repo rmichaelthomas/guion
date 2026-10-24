@@ -2995,3 +2995,35 @@ fn parallel_map_reuses_one_native_backend_across_workers() {
 
     let _ = fs::remove_dir_all(dir);
 }
+
+#[test]
+fn native_lowering_coalesces_straight_line_bytecode() {
+    let dir = std::env::temp_dir().join(format!(
+        "veritas-native-block-coalescing-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(&dir).unwrap();
+    let source = dir.join("main.vr");
+    fs::write(
+        &source,
+        "fn add(left: Int, right: Int) -> Int:\n    return left + right\n\nfn main() -> Int:\n    print(add(20, 22))\n    return 0\n",
+    )
+    .unwrap();
+
+    let run = Command::new(env!("CARGO_BIN_EXE_veritas"))
+        .args(["run", "--json", source.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert_eq!(run.status.code(), Some(0));
+    let report: serde_json::Value = serde_json::from_slice(&run.stdout).unwrap();
+    assert_eq!(report["program_stdout"], "42\n");
+    let native = &report["native_backend"];
+    let instructions = native["bytecode_instructions"].as_u64().unwrap();
+    let blocks = native["bytecode_blocks"].as_u64().unwrap();
+    assert!(instructions >= 6);
+    assert!(blocks > 0 && blocks < instructions);
+    assert!(String::from_utf8_lossy(&run.stderr).is_empty());
+
+    let _ = fs::remove_dir_all(dir);
+}

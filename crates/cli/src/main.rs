@@ -655,6 +655,8 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
             let native_backend = serde_json::json!({
                 "compiled_functions": instance.native_function_names(),
                 "compilations": instance.native_compilations(),
+                "bytecode_instructions": instance.native_bytecode_instructions(),
+                "bytecode_blocks": instance.native_bytecode_blocks(),
                 "calls": instance.native_calls(),
                 "deoptimizations": instance.native_deoptimizations()
             });

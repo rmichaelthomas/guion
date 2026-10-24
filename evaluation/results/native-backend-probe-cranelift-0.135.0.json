@@ -10,10 +10,10 @@
   "timing_scope": "Each sample is a fresh process and includes process startup. Veritas source samples also include parsing, typechecking and compilation; artifact samples load the current bytecode format; Python samples parse and execute source. All include the same arithmetic workload and captured output.",
   "warmups_per_case": 2,
   "timed_trials_per_case": 15,
-  "artifact_build_seconds_separate": 0.0042344159992353525,
+  "artifact_build_seconds_separate": 0.004261833000782644,
   "artifact_size_bytes": 5727,
   "native_c_compiler": "Apple clang version 21.0.0 (clang-2100.3.34.2)",
-  "native_c_compile_seconds_separate": 0.06749958300133585,
+  "native_c_compile_seconds_separate": 0.052209749999747146,
   "parallel_map_probe": {
     "workload": "four independent integer loops of 20,000 iterations each",
     "correct_output_per_task": 959289,
@@ -21,61 +21,63 @@
     "warmups_per_case": 1,
     "timed_trials_per_case": 3,
     "python_gil_enabled": true,
-    "build_seconds_separate": 0.0042964169988408685,
+    "build_seconds_separate": 0.004030625001178123,
     "results": {
       "veritas_parallel_map_source": {
         "samples_seconds": [
-          0.0065577079985814635,
-          0.006656249999650754,
-          0.006534584001201438
+          0.006387417000951245,
+          0.006433708997064969,
+          0.006415040999854682
         ],
-        "median_seconds": 0.0065577079985814635,
-        "p95_seconds_nearest_rank": 0.006656249999650754,
-        "max_seconds": 0.006656249999650754
+        "median_seconds": 0.006415040999854682,
+        "p95_seconds_nearest_rank": 0.006433708997064969,
+        "max_seconds": 0.006433708997064969
       },
       "veritas_parallel_map_artifact": {
         "samples_seconds": [
-          0.006409249999705935,
-          0.006381458999385359,
-          0.006409624998923391
+          0.00624887500089244,
+          0.006496874997537816,
+          0.0065020419970096555
         ],
-        "median_seconds": 0.006409249999705935,
-        "p95_seconds_nearest_rank": 0.006409624998923391,
-        "max_seconds": 0.006409624998923391
+        "median_seconds": 0.006496874997537816,
+        "p95_seconds_nearest_rank": 0.0065020419970096555,
+        "max_seconds": 0.0065020419970096555
       },
       "python_serial": {
         "samples_seconds": [
-          0.05087483299939777,
-          0.05127750000247033,
-          0.05081574999712757
+          0.05118745899744681,
+          0.05168950000006589,
+          0.05119862499850569
         ],
-        "median_seconds": 0.05087483299939777,
-        "p95_seconds_nearest_rank": 0.05127750000247033,
-        "max_seconds": 0.05127750000247033
+        "median_seconds": 0.05119862499850569,
+        "p95_seconds_nearest_rank": 0.05168950000006589,
+        "max_seconds": 0.05168950000006589
       },
       "python_threads": {
         "samples_seconds": [
-          0.054533791000721976,
-          0.051591834002465475,
-          0.0513459169997077
+          0.051294000000780215,
+          0.052227832999051316,
+          0.05166408399963984
         ],
-        "median_seconds": 0.051591834002465475,
-        "p95_seconds_nearest_rank": 0.054533791000721976,
-        "max_seconds": 0.054533791000721976
+        "median_seconds": 0.05166408399963984,
+        "p95_seconds_nearest_rank": 0.052227832999051316,
+        "max_seconds": 0.052227832999051316
       },
       "python_processes": {
         "samples_seconds": [
-          0.1371106670012523,
-          0.1385704580025049,
-          0.13729795800099964
+          0.1362061250001716,
+          0.13686533399959444,
+          0.13725604099818156
         ],
-        "median_seconds": 0.13729795800099964,
-        "p95_seconds_nearest_rank": 0.1385704580025049,
-        "max_seconds": 0.1385704580025049
+        "median_seconds": 0.13686533399959444,
+        "p95_seconds_nearest_rank": 0.13725604099818156,
+        "max_seconds": 0.13725604099818156
       }
     },
     "native_backend_reports": {
       "veritas_parallel_map_source": {
+        "bytecode_blocks": 4,
+        "bytecode_instructions": 21,
         "calls": 4,
         "compilations": 1,
         "compiled_functions": [
@@ -84,6 +86,8 @@
         "deoptimizations": 0
       },
       "veritas_parallel_map_artifact": {
+        "bytecode_blocks": 4,
+        "bytecode_instructions": 21,
         "calls": 4,
         "compilations": 1,
         "compiled_functions": [
@@ -102,61 +106,63 @@
     "allocation_budget": "Default 256 MiB cumulative estimate budget; no per-workload override.",
     "warmups_per_case": 1,
     "timed_trials_per_case": 3,
-    "build_seconds_separate": 0.004198249996989034,
+    "build_seconds_separate": 0.004026582999358652,
     "results": {
       "veritas_parallel_map_source": {
         "samples_seconds": [
-          0.014420833998883609,
-          0.01645937499779393,
-          0.014434542001254158
+          0.013836124999215826,
+          0.014007458001287887,
+          0.015839832998608472
         ],
-        "median_seconds": 0.014434542001254158,
-        "p95_seconds_nearest_rank": 0.01645937499779393,
-        "max_seconds": 0.01645937499779393
+        "median_seconds": 0.014007458001287887,
+        "p95_seconds_nearest_rank": 0.015839832998608472,
+        "max_seconds": 0.015839832998608472
       },
       "veritas_parallel_map_artifact": {
         "samples_seconds": [
-          0.014432249998208135,
-          0.014030874997843057,
-          0.015962708999722963
+          0.0140008750022389,
+          0.013840249997883802,
+          0.013886208998883376
         ],
-        "median_seconds": 0.014432249998208135,
-        "p95_seconds_nearest_rank": 0.015962708999722963,
-        "max_seconds": 0.015962708999722963
+        "median_seconds": 0.013886208998883376,
+        "p95_seconds_nearest_rank": 0.0140008750022389,
+        "max_seconds": 0.0140008750022389
       },
       "python_serial": {
         "samples_seconds": [
-          0.0775397500001418,
-          0.07799404199977289,
-          0.07734758299920941
+          0.0773576250030601,
+          0.0766235000010056,
+          0.07769950000147219
         ],
-        "median_seconds": 0.0775397500001418,
-        "p95_seconds_nearest_rank": 0.07799404199977289,
-        "max_seconds": 0.07799404199977289
+        "median_seconds": 0.0773576250030601,
+        "p95_seconds_nearest_rank": 0.07769950000147219,
+        "max_seconds": 0.07769950000147219
       },
       "python_threads": {
         "samples_seconds": [
-          0.07861129099910613,
-          0.07840116700026556,
-          0.07852808399911737
+          0.07778404199780198,
+          0.0782989590006764,
+          0.07847695799864596
         ],
-        "median_seconds": 0.07852808399911737,
-        "p95_seconds_nearest_rank": 0.07861129099910613,
-        "max_seconds": 0.07861129099910613
+        "median_seconds": 0.0782989590006764,
+        "p95_seconds_nearest_rank": 0.07847695799864596,
+        "max_seconds": 0.07847695799864596
       },
       "python_processes": {
         "samples_seconds": [
-          0.14658179199977894,
-          0.1455774999994901,
-          0.14524250000249594
+          0.14525879199936753,
+          0.14527108300171676,
+          0.15068791700105066
         ],
-        "median_seconds": 0.1455774999994901,
-        "p95_seconds_nearest_rank": 0.14658179199977894,
-        "max_seconds": 0.14658179199977894
+        "median_seconds": 0.14527108300171676,
+        "p95_seconds_nearest_rank": 0.15068791700105066,
+        "max_seconds": 0.15068791700105066
       }
     },
     "native_backend_reports": {
       "veritas_parallel_map_source": {
+        "bytecode_blocks": 4,
+        "bytecode_instructions": 21,
         "calls": 4,
         "compilations": 1,
         "compiled_functions": [
@@ -165,6 +171,8 @@
         "deoptimizations": 0
       },
       "veritas_parallel_map_artifact": {
+        "bytecode_blocks": 4,
+        "bytecode_instructions": 21,
         "calls": 4,
         "compilations": 1,
         "compiled_functions": [
@@ -187,48 +195,50 @@
     "allocation_limit_bytes": 268435456,
     "allocation_limit_note": "The optimized same-local list_set assignment stays within the default 256 MiB allocation ceiling.",
     "instruction_limit_note": "A 300,000,000 instruction ceiling is declared for this 20,000-step workload; the default 10,000,000 ceiling is too low.",
-    "build_seconds_separate": 0.0043377080000936985,
+    "build_seconds_separate": 0.00451700000121491,
     "artifact_size_bytes": 22906,
     "results": {
       "python3_reference": {
         "samples_seconds": [
-          0.19305970899949898,
-          0.19281799999953364,
-          0.1931388330012851,
-          0.1932749999978114,
-          0.19275904199821525
+          0.1931318340029975,
+          0.19293637499868055,
+          0.19312525000350433,
+          0.19517179099784698,
+          0.19402666699897964
         ],
-        "median_seconds": 0.19305970899949898,
-        "p95_seconds_nearest_rank": 0.1932749999978114,
-        "max_seconds": 0.1932749999978114
+        "median_seconds": 0.1931318340029975,
+        "p95_seconds_nearest_rank": 0.19517179099784698,
+        "max_seconds": 0.19517179099784698
       },
       "veritas_source": {
         "samples_seconds": [
-          0.09097204099816736,
-          0.08770575000016834,
-          0.0864125830012199,
-          0.0865444170012779,
-          0.08789658299792791
+          0.08645208300004015,
+          0.08636637500239885,
+          0.08666095800072071,
+          0.08656145900022238,
+          0.08612841699869023
         ],
-        "median_seconds": 0.08770575000016834,
-        "p95_seconds_nearest_rank": 0.09097204099816736,
-        "max_seconds": 0.09097204099816736
+        "median_seconds": 0.08645208300004015,
+        "p95_seconds_nearest_rank": 0.08666095800072071,
+        "max_seconds": 0.08666095800072071
       },
       "veritas_artifact": {
         "samples_seconds": [
-          0.08970037499966566,
-          0.09260254100081511,
-          0.08708275000026333,
-          0.08754891699936707,
-          0.08622325000033015
+          0.08628150000004098,
+          0.08680479200120317,
+          0.0864870420009538,
+          0.08642733300075633,
+          0.08605058299872326
         ],
-        "median_seconds": 0.08754891699936707,
-        "p95_seconds_nearest_rank": 0.09260254100081511,
-        "max_seconds": 0.09260254100081511
+        "median_seconds": 0.08642733300075633,
+        "p95_seconds_nearest_rank": 0.08680479200120317,
+        "max_seconds": 0.08680479200120317
       }
     },
     "native_backend_reports": {
       "veritas_source": {
+        "bytecode_blocks": 21,
+        "bytecode_instructions": 541,
         "calls": 4,
         "compilations": 1,
         "compiled_functions": [
@@ -239,6 +249,8 @@
         "deoptimizations": 0
       },
       "veritas_artifact": {
+        "bytecode_blocks": 21,
+        "bytecode_instructions": 541,
         "calls": 4,
         "compilations": 1,
         "compiled_functions": [
@@ -250,7 +262,7 @@
       }
     },
     "official_pyperformance_python_median_seconds": 0.10937631246633828,
-    "veritas_source_to_official_python_ratio": 0.8018715206472217,
+    "veritas_source_to_official_python_ratio": 0.7904095599003367,
     "native_backend_scope": "The complete 20,000-step loop inside advance, including typed record/list access and same-local list updates, plus energy run in Cranelift native code. The VM handles entry, output and the two energy calls.",
     "full_default_workload_note": "The 20,000-step pyperformance-default workload completes and matches the Python reference within 1e-12 under the default 256 MiB allocation ceiling. It requires a declared 300,000,000 instruction ceiling; the standard 10,000,000 ceiling is too low."
   },
@@ -266,54 +278,56 @@
     "warmups_per_case": 1,
     "timed_trials_per_case": 7,
     "instruction_limit": 30000000,
-    "build_seconds_separate": 0.0050568750011734664,
+    "build_seconds_separate": 0.006537833000038518,
     "artifact_size_bytes": 39032,
     "results": {
       "veritas_source": {
         "samples_seconds": [
-          0.10958100000061677,
-          0.10926120899966918,
-          0.10905925000042771,
-          0.10886424999989686,
-          0.11054629199861665,
-          0.10937249999915366,
-          0.10928154100110987
+          0.10797354199894471,
+          0.10774845900232322,
+          0.10747933400125476,
+          0.10771462499906193,
+          0.10752116700314218,
+          0.10885529100050917,
+          0.10762875000000349
         ],
-        "median_seconds": 0.10928154100110987,
-        "p95_seconds_nearest_rank": 0.11054629199861665,
-        "max_seconds": 0.11054629199861665
+        "median_seconds": 0.10771462499906193,
+        "p95_seconds_nearest_rank": 0.10885529100050917,
+        "max_seconds": 0.10885529100050917
       },
       "veritas_artifact": {
         "samples_seconds": [
-          0.10780800000065938,
-          0.10801154200089513,
-          0.10935600000084378,
-          0.10776600000099279,
-          0.10758158300086507,
-          0.10879791700062924,
-          0.10917633300050511
+          0.10700591700151563,
+          0.10664874999929452,
+          0.10693725000237464,
+          0.10681816700162017,
+          0.10733412499757833,
+          0.1064470409983187,
+          0.1071754160002456
         ],
-        "median_seconds": 0.10801154200089513,
-        "p95_seconds_nearest_rank": 0.10935600000084378,
-        "max_seconds": 0.10935600000084378
+        "median_seconds": 0.10693725000237464,
+        "p95_seconds_nearest_rank": 0.10733412499757833,
+        "max_seconds": 0.10733412499757833
       },
       "official_python_source": {
         "samples_seconds": [
-          0.06483804099843837,
-          0.06435924999823328,
-          0.06525991600210546,
-          0.06468487500023912,
-          0.06446758300080546,
-          0.06452908299979754,
-          0.06435195800077054
+          0.06517387500207406,
+          0.06472712500180933,
+          0.06473362500037183,
+          0.06644116700044833,
+          0.06436133299939684,
+          0.06489779100229498,
+          0.06653875000120024
         ],
-        "median_seconds": 0.06452908299979754,
-        "p95_seconds_nearest_rank": 0.06525991600210546,
-        "max_seconds": 0.06525991600210546
+        "median_seconds": 0.06489779100229498,
+        "p95_seconds_nearest_rank": 0.06653875000120024,
+        "max_seconds": 0.06653875000120024
       }
     },
     "native_backend_reports": {
       "veritas_source": {
+        "bytecode_blocks": 120,
+        "bytecode_instructions": 944,
         "calls": 37547,
         "compilations": 1,
         "compiled_functions": [
@@ -325,6 +339,8 @@
         "deoptimizations": 0
       },
       "veritas_artifact": {
+        "bytecode_blocks": 120,
+        "bytecode_instructions": 944,
         "calls": 37547,
         "compilations": 1,
         "compiled_functions": [
@@ -336,9 +352,9 @@
         "deoptimizations": 0
       }
     },
-    "official_python_median_seconds": 0.06452908299979754,
+    "official_python_median_seconds": 0.06489779100229498,
     "pinned_source_probe_python_median_seconds": 0.0634242498781532,
-    "veritas_source_to_official_python_ratio": 1.6935238487962512,
+    "veritas_source_to_official_python_ratio": 1.6597579568656322,
     "native_backend_scope": "The complete Veritas Richards port, including main, route_packet, xor_d008, and next_worker_count, executes in Cranelift with zero deoptimizations. This is one translated implementation on one host, not a general performance claim."
   },
   "official_pyperformance_source_probe": {
@@ -405,95 +421,97 @@
   "results": {
     "veritas_source_run": {
       "samples_seconds": [
-        0.018049874997814186,
-        0.01805404200058547,
-        0.018082457998389145,
-        0.01798337500076741,
-        0.018436750000546454,
-        0.018117874999006744,
-        0.018369040997640695,
-        0.01800337499662419,
-        0.01796687499881955,
-        0.017903332998685073,
-        0.017897874997288454,
-        0.01812508299917681,
-        0.01800191599977552,
-        0.01862345900008222,
-        0.019131165998260258
+        0.01974300000074436,
+        0.01980537499912316,
+        0.019854250000207685,
+        0.01973287500004517,
+        0.019780208000156563,
+        0.020915791999868816,
+        0.01983433300119941,
+        0.019770375001826324,
+        0.019754000000830274,
+        0.020593625002220506,
+        0.020396250001795124,
+        0.020271874996979022,
+        0.020076125001651235,
+        0.019794334002654068,
+        0.020437125000171363
       ],
-      "median_seconds": 0.01805404200058547,
-      "p95_seconds_nearest_rank": 0.019131165998260258,
-      "max_seconds": 0.019131165998260258
+      "median_seconds": 0.01983433300119941,
+      "p95_seconds_nearest_rank": 0.020915791999868816,
+      "max_seconds": 0.020915791999868816
     },
     "veritas_bytecode_artifact_run": {
       "samples_seconds": [
-        0.01912320799965528,
-        0.018915917000413174,
-        0.01836083300077007,
-        0.01865854199786554,
-        0.018458208000083687,
-        0.018095917002938222,
-        0.017940582998562604,
-        0.01793362500029616,
-        0.01785070799815003,
-        0.017880250001326203,
-        0.017879415998322656,
-        0.017934625000634696,
-        0.017893374999403022,
-        0.017814625000028173,
-        0.017737083002430154
+        0.019829208998999093,
+        0.01978787500047474,
+        0.020616083998902468,
+        0.019586542002798524,
+        0.01953079200029606,
+        0.01941708300000755,
+        0.019520833000569837,
+        0.02038762499796576,
+        0.01979816599850892,
+        0.01955370799987577,
+        0.020273083002393832,
+        0.019614583001384744,
+        0.019765540997468634,
+        0.019444959001702955,
+        0.01952750000054948
       ],
-      "median_seconds": 0.017934625000634696,
-      "p95_seconds_nearest_rank": 0.01912320799965528,
-      "max_seconds": 0.01912320799965528
+      "median_seconds": 0.019614583001384744,
+      "p95_seconds_nearest_rank": 0.020616083998902468,
+      "max_seconds": 0.020616083998902468
     },
     "python3_reference": {
       "samples_seconds": [
-        0.03798049999750219,
-        0.037595166999381036,
-        0.037856957998883445,
-        0.03758070800176938,
-        0.03737079100028495,
-        0.03768025000317721,
-        0.03736350000326638,
-        0.03734500000064145,
-        0.03767883299951791,
-        0.03750012499949662,
-        0.03827054199791746,
-        0.03776095899956999,
-        0.03760287500335835,
-        0.03835391599932336,
-        0.03786012500131619
+        0.03746212500118418,
+        0.03733729099985794,
+        0.03746070799752488,
+        0.03740824999840697,
+        0.03733362500133808,
+        0.037250582998240134,
+        0.04112604200054193,
+        0.03836474999843631,
+        0.03764108299947111,
+        0.037305750000086846,
+        0.03745645799790509,
+        0.03739895900071133,
+        0.03722054199897684,
+        0.03841945800013491,
+        0.03760024999792222
       ],
-      "median_seconds": 0.03767883299951791,
-      "p95_seconds_nearest_rank": 0.03835391599932336,
-      "max_seconds": 0.03835391599932336
+      "median_seconds": 0.03745645799790509,
+      "p95_seconds_nearest_rank": 0.04112604200054193,
+      "max_seconds": 0.04112604200054193
     },
     "native_c_o3_reference": {
       "samples_seconds": [
-        0.005286291998345405,
-        0.004887457998847822,
-        0.00471112500235904,
-        0.0043475839993334375,
-        0.003748540999367833,
-        0.0035973750018456485,
-        0.004131791996769607,
-        0.0033401669970771763,
-        0.003153499998006737,
-        0.0032847910006239545,
-        0.003323583001474617,
-        0.003193000000464963,
-        0.003111582998826634,
-        0.0030767089992878027,
-        0.0029052919999230653
+        0.005095333002827829,
+        0.0046835829998599365,
+        0.004389541001728503,
+        0.0037577919974864926,
+        0.0036710839995066635,
+        0.003725959002622403,
+        0.003446791997703258,
+        0.0033629999998083804,
+        0.003371167000295827,
+        0.0033364169976266567,
+        0.003125500003079651,
+        0.0031463330014958046,
+        0.0032820830019772984,
+        0.0032266670023091137,
+        0.002940958998806309
       ],
-      "median_seconds": 0.0033401669970771763,
-      "p95_seconds_nearest_rank": 0.005286291998345405,
-      "max_seconds": 0.005286291998345405
+      "median_seconds": 0.003371167000295827,
+      "p95_seconds_nearest_rank": 0.005095333002827829,
+      "max_seconds": 0.005095333002827829
     }
   },
   "native_backend_reports": {
     "veritas_source_run": {
+      "bytecode_blocks": 17,
+      "bytecode_instructions": 133,
       "calls": 6146,
       "compilations": 1,
       "compiled_functions": [
@@ -504,6 +522,8 @@
       "deoptimizations": 0
     },
     "veritas_bytecode_artifact_run": {
+      "bytecode_blocks": 17,
+      "bytecode_instructions": 133,
       "calls": 6146,
       "compilations": 1,
       "compiled_functions": [

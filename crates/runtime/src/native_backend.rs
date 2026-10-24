@@ -76,6 +76,8 @@ pub(crate) struct NativeBackend {
     functions: Vec<Option<*const u8>>,
     result_words: Vec<usize>,
     max_result_words: usize,
+    bytecode_instructions: usize,
+    bytecode_blocks: usize,
 }
 
 /// Immutable native entry points shared by parallel workers. The owning
@@ -103,6 +105,8 @@ impl fmt::Debug for NativeBackend {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("NativeBackend")
             .field("compiled_functions", &self.function_count())
+            .field("bytecode_instructions", &self.bytecode_instructions)
+            .field("bytecode_blocks", &self.bytecode_blocks)
             .finish()
     }
 }
@@ -219,6 +223,8 @@ impl NativeBackend {
                 .max()
                 .unwrap_or(1)
                 .max(1),
+            bytecode_instructions: 0,
+            bytecode_blocks: 0,
         };
         let recursive = recursive_functions(&artifact.functions);
         let native_list_mutator: Vec<_> = artifact
@@ -284,19 +290,21 @@ impl NativeBackend {
                 .ok();
         }
         for (index, function) in artifact.functions.iter().enumerate() {
-            if function_ids[index].is_some()
-                && backend
-                    .compile_function(
-                        index,
-                        function,
-                        &function_ids,
-                        &artifact.functions,
-                        &artifact.records,
-                        backend.max_result_words,
-                    )
-                    .is_err()
-            {
-                function_ids[index] = None;
+            if function_ids[index].is_some() {
+                match backend.compile_function(
+                    index,
+                    function,
+                    &function_ids,
+                    &artifact.functions,
+                    &artifact.records,
+                    backend.max_result_words,
+                ) {
+                    Ok(bytecode_blocks) => {
+                        backend.bytecode_instructions += function.code.len();
+                        backend.bytecode_blocks += bytecode_blocks;
+                    }
+                    Err(_) => function_ids[index] = None,
+                }
             }
         }
         backend.module.finalize_definitions().ok()?;
@@ -317,6 +325,14 @@ impl NativeBackend {
             .iter()
             .filter(|function| function.is_some())
             .count()
+    }
+
+    pub(crate) fn bytecode_instruction_count(&self) -> usize {
+        self.bytecode_instructions
+    }
+
+    pub(crate) fn bytecode_block_count(&self) -> usize {
+        self.bytecode_blocks
     }
 
     pub(crate) fn compiled_function_names(&self, artifact: &Artifact) -> Vec<String> {
@@ -413,10 +429,12 @@ impl NativeBackend {
         all_functions: &[Function],
         records: &[veritas_model::RecordDefinition],
         max_result_words: usize,
-    ) -> Result<FuncId, String> {
+    ) -> Result<usize, String> {
         let stack_types = infer_native_types(function, all_functions, records)
             .ok_or_else(|| "unsupported types or control flow".to_owned())?;
         let depths = stack_depths(function).ok_or_else(|| "invalid stack graph".to_owned())?;
+        let (leader_indices, block_for_ip) = bytecode_block_layout(function, &depths)
+            .ok_or_else(|| "invalid bytecode block graph".to_owned())?;
         let target_config = self.module.target_config();
         let ptr = target_config.pointer_type();
         let mut signature = Signature::new(target_config.default_call_conv);
@@ -480,18 +498,21 @@ impl NativeBackend {
             let trace_pointer = params[5];
             let arena_pointer = params[6];
 
-            let blocks: Vec<_> = function
-                .code
+            let blocks: Vec<_> = leader_indices
                 .iter()
+                .filter(|leader| leader.is_some())
                 .map(|_| builder.create_block())
                 .collect();
-            let mut stack_params = Vec::with_capacity(blocks.len());
-            for (ip, block) in blocks.iter().enumerate() {
+            let mut stack_params = vec![Vec::new(); blocks.len()];
+            for (ip, block_index) in leader_indices.iter().enumerate() {
+                let Some(block_index) = block_index else {
+                    continue;
+                };
                 let mut values = Vec::new();
                 for _ in 0..depths[ip].unwrap_or(0) {
-                    values.push(builder.append_block_param(*block, types::I64));
+                    values.push(builder.append_block_param(blocks[*block_index], types::I64));
                 }
-                stack_params.push(values);
+                stack_params[*block_index] = values;
             }
             let fallback = builder.create_block();
             let step_limit = builder.create_block();
@@ -543,13 +564,14 @@ impl NativeBackend {
             builder.def_var(fuel_var, zero_steps);
             let first_native_call = builder.ins().iconst(types::I64, 1);
             builder.def_var(native_calls_var, first_native_call);
-            builder.ins().jump(blocks[0], &[]);
+            builder.ins().jump(blocks[block_for_ip[0]], &[]);
 
+            let mut stack = Vec::new();
             for (ip, instruction) in function.code.iter().enumerate() {
-                let Some(block) = blocks.get(ip).copied() else {
-                    continue;
-                };
-                builder.switch_to_block(block);
+                if let Some(leader_index) = leader_indices[ip] {
+                    builder.switch_to_block(blocks[leader_index]);
+                    stack = stack_params[leader_index].clone();
+                }
                 if depths[ip].is_none() {
                     let fault_ip = builder.ins().iconst(types::I64, ip as i64);
                     let calls = builder.use_var(native_calls_var);
@@ -613,7 +635,6 @@ impl NativeBackend {
                 let steps = builder.ins().iadd_imm_s(steps, 1);
                 builder.def_var(steps_var, steps);
 
-                let mut stack = stack_params[ip].clone();
                 match &instruction.op {
                     Op::Const(Value::Int(value)) => {
                         let Ok(value) = value.to_string().parse::<i64>() else {
@@ -942,31 +963,25 @@ impl NativeBackend {
                                 MemFlagsData::new(),
                                 value,
                             ));
-                            let next = blocks
-                                .get(ip + 1)
-                                .ok_or_else(|| "missing function terminator".to_owned())?;
-                            let block_args: Vec<_> =
-                                stack.iter().copied().map(BlockArg::Value).collect();
-                            builder.ins().jump(*next, &block_args);
-                            continue;
+                        } else {
+                            let (value, overflow) = match &instruction.op {
+                                Op::Add => builder.ins().sadd_overflow(left, right),
+                                Op::Subtract => builder.ins().ssub_overflow(left, right),
+                                Op::Multiply => builder.ins().smul_overflow(left, right),
+                                _ => unreachable!(),
+                            };
+                            let ok = builder.create_block();
+                            let overflow_ip = builder.ins().iconst(types::I64, ip as i64);
+                            let overflow_steps = builder.use_var(steps_var);
+                            let exit_args = [
+                                BlockArg::Value(overflow_steps),
+                                BlockArg::Value(overflow_ip),
+                            ];
+                            builder.ins().brif(overflow, fallback, &exit_args, ok, &[]);
+                            builder.switch_to_block(ok);
+                            builder.seal_block(ok);
+                            stack.push(value);
                         }
-                        let (value, overflow) = match &instruction.op {
-                            Op::Add => builder.ins().sadd_overflow(left, right),
-                            Op::Subtract => builder.ins().ssub_overflow(left, right),
-                            Op::Multiply => builder.ins().smul_overflow(left, right),
-                            _ => unreachable!(),
-                        };
-                        let ok = builder.create_block();
-                        let overflow_ip = builder.ins().iconst(types::I64, ip as i64);
-                        let overflow_steps = builder.use_var(steps_var);
-                        let exit_args = [
-                            BlockArg::Value(overflow_steps),
-                            BlockArg::Value(overflow_ip),
-                        ];
-                        builder.ins().brif(overflow, fallback, &exit_args, ok, &[]);
-                        builder.switch_to_block(ok);
-                        builder.seal_block(ok);
-                        stack.push(value);
                     }
                     Op::Negate => {
                         let value = stack.pop().ok_or_else(|| "stack underflow".to_owned())?;
@@ -1025,30 +1040,26 @@ impl NativeBackend {
                             };
                             let result = builder.ins().fcmp(condition, left, right);
                             stack.push(builder.ins().uextend(types::I64, result));
-                            let next = blocks
-                                .get(ip + 1)
-                                .ok_or_else(|| "missing function terminator".to_owned())?;
-                            let block_args: Vec<_> =
-                                stack.iter().copied().map(BlockArg::Value).collect();
-                            builder.ins().jump(*next, &block_args);
-                            continue;
+                        } else {
+                            let condition = match &instruction.op {
+                                Op::Equal => IntCC::Equal,
+                                Op::NotEqual => IntCC::NotEqual,
+                                Op::Less => IntCC::SignedLessThan,
+                                Op::LessEqual => IntCC::SignedLessThanOrEqual,
+                                Op::Greater => IntCC::SignedGreaterThan,
+                                Op::GreaterEqual => IntCC::SignedGreaterThanOrEqual,
+                                _ => unreachable!(),
+                            };
+                            let result = builder.ins().icmp(condition, left, right);
+                            stack.push(builder.ins().uextend(types::I64, result));
                         }
-                        let condition = match &instruction.op {
-                            Op::Equal => IntCC::Equal,
-                            Op::NotEqual => IntCC::NotEqual,
-                            Op::Less => IntCC::SignedLessThan,
-                            Op::LessEqual => IntCC::SignedLessThanOrEqual,
-                            Op::Greater => IntCC::SignedGreaterThan,
-                            Op::GreaterEqual => IntCC::SignedGreaterThanOrEqual,
-                            _ => unreachable!(),
-                        };
-                        let result = builder.ins().icmp(condition, left, right);
-                        stack.push(builder.ins().uextend(types::I64, result));
                     }
                     Op::Jump(target) => {
                         let block_args: Vec<_> =
                             stack.iter().copied().map(BlockArg::Value).collect();
-                        builder.ins().jump(blocks[*target], &block_args);
+                        builder
+                            .ins()
+                            .jump(blocks[block_for_ip[*target]], &block_args);
                         continue;
                     }
                     Op::Call(target, argc) => {
@@ -1244,16 +1255,14 @@ impl NativeBackend {
                         let value = stack.pop().ok_or_else(|| "stack underflow".to_owned())?;
                         let zero = builder.ins().iconst(types::I64, 0);
                         let condition = builder.ins().icmp(IntCC::NotEqual, value, zero);
-                        let next = blocks
-                            .get(ip + 1)
-                            .ok_or_else(|| "missing fallthrough".to_owned())?;
+                        let next = ip + 1;
                         let branch_args: Vec<_> =
                             stack.iter().copied().map(BlockArg::Value).collect();
                         builder.ins().brif(
                             condition,
-                            *next,
+                            blocks[block_for_ip[next]],
                             &branch_args,
-                            blocks[*target],
+                            blocks[block_for_ip[*target]],
                             &branch_args,
                         );
                         continue;
@@ -1365,44 +1374,40 @@ impl NativeBackend {
                                 MemFlagsData::new(),
                                 value,
                             ));
-                            let next = blocks
-                                .get(ip + 1)
-                                .ok_or_else(|| "missing function terminator".to_owned())?;
-                            let block_args: Vec<_> =
-                                stack.iter().copied().map(BlockArg::Value).collect();
-                            builder.ins().jump(*next, &block_args);
-                            continue;
+                        } else {
+                            let zero = builder.ins().iconst(types::I64, 0);
+                            let is_zero = builder.ins().icmp(IntCC::Equal, right, zero);
+                            let continue_division = builder.create_block();
+                            let fault_ip = builder.ins().iconst(types::I64, ip as i64);
+                            let fault_steps = builder.use_var(steps_var);
+                            let exit_args =
+                                [BlockArg::Value(fault_steps), BlockArg::Value(fault_ip)];
+                            builder.ins().brif(
+                                is_zero,
+                                divide_zero,
+                                &exit_args,
+                                continue_division,
+                                &[],
+                            );
+                            builder.switch_to_block(continue_division);
+                            builder.seal_block(continue_division);
+                            let min = builder.ins().iconst(types::I64, i64::MIN);
+                            let minus_one = builder.ins().iconst(types::I64, -1);
+                            let is_min = builder.ins().icmp(IntCC::Equal, left, min);
+                            let is_minus_one = builder.ins().icmp(IntCC::Equal, right, minus_one);
+                            let overflow = builder.ins().band(is_min, is_minus_one);
+                            let safe_division = builder.create_block();
+                            let fault_ip = builder.ins().iconst(types::I64, ip as i64);
+                            let fault_steps = builder.use_var(steps_var);
+                            let exit_args =
+                                [BlockArg::Value(fault_steps), BlockArg::Value(fault_ip)];
+                            builder
+                                .ins()
+                                .brif(overflow, fallback, &exit_args, safe_division, &[]);
+                            builder.switch_to_block(safe_division);
+                            builder.seal_block(safe_division);
+                            stack.push(builder.ins().sdiv(left, right));
                         }
-                        let zero = builder.ins().iconst(types::I64, 0);
-                        let is_zero = builder.ins().icmp(IntCC::Equal, right, zero);
-                        let continue_division = builder.create_block();
-                        let fault_ip = builder.ins().iconst(types::I64, ip as i64);
-                        let fault_steps = builder.use_var(steps_var);
-                        let exit_args = [BlockArg::Value(fault_steps), BlockArg::Value(fault_ip)];
-                        builder.ins().brif(
-                            is_zero,
-                            divide_zero,
-                            &exit_args,
-                            continue_division,
-                            &[],
-                        );
-                        builder.switch_to_block(continue_division);
-                        builder.seal_block(continue_division);
-                        let min = builder.ins().iconst(types::I64, i64::MIN);
-                        let minus_one = builder.ins().iconst(types::I64, -1);
-                        let is_min = builder.ins().icmp(IntCC::Equal, left, min);
-                        let is_minus_one = builder.ins().icmp(IntCC::Equal, right, minus_one);
-                        let overflow = builder.ins().band(is_min, is_minus_one);
-                        let safe_division = builder.create_block();
-                        let fault_ip = builder.ins().iconst(types::I64, ip as i64);
-                        let fault_steps = builder.use_var(steps_var);
-                        let exit_args = [BlockArg::Value(fault_steps), BlockArg::Value(fault_ip)];
-                        builder
-                            .ins()
-                            .brif(overflow, fallback, &exit_args, safe_division, &[]);
-                        builder.switch_to_block(safe_division);
-                        builder.seal_block(safe_division);
-                        stack.push(builder.ins().sdiv(left, right));
                     }
                     Op::FloatSqrt => {
                         let value = stack.pop().ok_or_else(|| "stack underflow".to_owned())?;
@@ -1558,11 +1563,13 @@ impl NativeBackend {
                     }
                     _ => return Err("unsupported instruction".into()),
                 }
-                let next = blocks
-                    .get(ip + 1)
-                    .ok_or_else(|| "missing function terminator".to_owned())?;
-                let block_args: Vec<_> = stack.iter().copied().map(BlockArg::Value).collect();
-                builder.ins().jump(*next, &block_args);
+                if ip + 1 >= function.code.len() {
+                    return Err("missing function terminator".into());
+                }
+                if let Some(next_block) = leader_indices[ip + 1] {
+                    let block_args: Vec<_> = stack.iter().copied().map(BlockArg::Value).collect();
+                    builder.ins().jump(blocks[next_block], &block_args);
+                }
             }
 
             for ((block, status), params) in [
@@ -1607,7 +1614,10 @@ impl NativeBackend {
             .define_function(function_id, &mut context)
             .map_err(|error| error.to_string())?;
         self.module.clear_context(&mut context);
-        Ok(function_id)
+        Ok(leader_indices
+            .iter()
+            .filter(|leader| leader.is_some())
+            .count())
     }
 }
 
@@ -2166,4 +2176,48 @@ fn stack_depths(function: &Function) -> Option<Vec<Option<usize>>> {
         }
     }
     Some(depths)
+}
+
+fn bytecode_block_layout(
+    function: &Function,
+    depths: &[Option<usize>],
+) -> Option<(Vec<Option<usize>>, Vec<usize>)> {
+    let instruction_count = function.code.len();
+    if instruction_count == 0 || depths.len() != instruction_count {
+        return None;
+    }
+
+    let mut leaders = vec![false; instruction_count];
+    leaders[0] = true;
+    for (ip, instruction) in function.code.iter().enumerate() {
+        if depths[ip].is_none() {
+            // Preserve the existing isolated exit for unreachable bytecode.
+            leaders[ip] = true;
+            continue;
+        }
+        match &instruction.op {
+            Op::Jump(target) => {
+                *leaders.get_mut(*target)? = true;
+            }
+            Op::JumpIfFalse(target) => {
+                *leaders.get_mut(*target)? = true;
+                *leaders.get_mut(ip.checked_add(1)?)? = true;
+            }
+            _ => {}
+        }
+    }
+
+    let mut leader_indices = vec![None; instruction_count];
+    let mut block_for_ip = Vec::with_capacity(instruction_count);
+    let mut next_block = 0;
+    let mut current_block = None;
+    for (ip, is_leader) in leaders.into_iter().enumerate() {
+        if is_leader {
+            current_block = Some(next_block);
+            leader_indices[ip] = current_block;
+            next_block += 1;
+        }
+        block_for_ip.push(current_block?);
+    }
+    Some((leader_indices, block_for_ip))
 }

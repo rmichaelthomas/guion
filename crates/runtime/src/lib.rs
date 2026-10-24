@@ -359,6 +359,18 @@ impl Instance {
         self.native_compilations.load(Ordering::Relaxed)
     }
 
+    pub fn native_bytecode_instructions(&self) -> usize {
+        self.native
+            .as_ref()
+            .map_or(0, NativeBackend::bytecode_instruction_count)
+    }
+
+    pub fn native_bytecode_blocks(&self) -> usize {
+        self.native
+            .as_ref()
+            .map_or(0, NativeBackend::bytecode_block_count)
+    }
+
     pub fn invoke(&mut self, export: &str, args: Vec<Value>) -> Result<Value, RuntimeError> {
         self.invoke_with_cancellation(export, args, CancellationToken::new())
     }
