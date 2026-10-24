@@ -4,6 +4,7 @@ use std::{
     env, fs,
     path::{Component, Path},
     process::ExitCode,
+    thread,
     time::Duration,
 };
 mod bytecode_ir;
@@ -14,9 +15,23 @@ use veritas_model::{Artifact, BuildMetadata, Op, ResourceLimits, Value};
 use veritas_runtime::{EffectKind, EffectOutcome, HostPolicy, Runtime};
 
 fn main() -> ExitCode {
-    match execute(env::args().skip(1).collect()) {
-        Ok(code) => code,
-        Err(message) => {
+    // The VM currently maps Veritas calls onto recursive Rust calls; reserve a
+    // bounded execution stack so valid programs cannot overflow the OS main stack.
+    const CLI_EXECUTION_STACK_SIZE: usize = 64 * 1024 * 1024;
+    let args = env::args().skip(1).collect();
+    let execution = thread::Builder::new()
+        .name("veritas-cli".into())
+        .stack_size(CLI_EXECUTION_STACK_SIZE)
+        .spawn(move || execute(args))
+        .map_err(|error| format!("could not start Veritas execution thread: {error}"))
+        .and_then(|worker| {
+            worker
+                .join()
+                .map_err(|_| "Veritas execution thread panicked".to_owned())
+        });
+    match execution {
+        Ok(Ok(code)) => code,
+        Ok(Err(message)) | Err(message) => {
             eprintln!("{message}");
             ExitCode::from(1)
         }

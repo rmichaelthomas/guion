@@ -28,6 +28,7 @@ record CodeTree:
     left: Option[CodeTree]
     right: Option[CodeTree]
     items: List[Json]
+    height: Int
 
 record CodeWork:
     node: CodeTree
@@ -46,7 +47,7 @@ fn ir_text(opcode: Text, key: Text, value: Text) -> Json:
     return ir_field(opcode, key, json_text(value))
 
 fn empty_code() -> CodeTree:
-    return CodeTree(no_code_tree(), no_code_tree(), empty_json_values())
+    return CodeTree(no_code_tree(), no_code_tree(), empty_json_values(), 0)
 
 fn empty_json_values() -> List[Json]:
     var values: List[Json] = []
@@ -68,10 +69,47 @@ fn push_code_work(previous: Option[CodeWork], node: CodeTree) -> Option[CodeWork
     return code_work_option(CodeWork(node, previous))
 
 fn append_code(left: CodeTree, right: CodeTree) -> CodeTree:
-    return CodeTree(code_tree_option(left), code_tree_option(right), empty_json_values())
+    if left.height == 0:
+        return right
+    if right.height == 0:
+        return left
+    if left.height > right.height + 1:
+        let left_left = unwrap(left.left)
+        let left_right = unwrap(left.right)
+        return balance_code(left_left, append_code(left_right, right))
+    if right.height > left.height + 1:
+        let right_left = unwrap(right.left)
+        let right_right = unwrap(right.right)
+        return balance_code(append_code(left, right_left), right_right)
+    return code_node(left, right)
+
+fn code_node(left: CodeTree, right: CodeTree) -> CodeTree:
+    var height = left.height
+    if right.height > height:
+        set height = right.height
+    return CodeTree(code_tree_option(left), code_tree_option(right), empty_json_values(), height + 1)
+
+fn balance_code(left: CodeTree, right: CodeTree) -> CodeTree:
+    if left.height > right.height + 1:
+        let left_left = unwrap(left.left)
+        let left_right = unwrap(left.right)
+        if left_left.height >= left_right.height:
+            return code_node(left_left, code_node(left_right, right))
+        let middle_left = unwrap(left_right.left)
+        let middle_right = unwrap(left_right.right)
+        return code_node(code_node(left_left, middle_left), code_node(middle_right, right))
+    if right.height > left.height + 1:
+        let right_left = unwrap(right.left)
+        let right_right = unwrap(right.right)
+        if right_right.height >= right_left.height:
+            return code_node(code_node(left, right_left), right_right)
+        let middle_left = unwrap(right_left.left)
+        let middle_right = unwrap(right_left.right)
+        return code_node(code_node(left, middle_left), code_node(middle_right, right_right))
+    return code_node(left, right)
 
 fn singleton(instruction: Json) -> CodeTree:
-    return CodeTree(no_code_tree(), no_code_tree(), [instruction])
+    return CodeTree(no_code_tree(), no_code_tree(), [instruction], 1)
 
 fn flatten_code(code: CodeTree) -> List[Json]:
     var pending = push_code_work(no_code_work(), code)
@@ -381,6 +419,46 @@ fn is_option_type(ty: Text) -> Bool:
     let characters = text_chars(ty)
     return len(characters) >= 8 and characters[0] == "O" and characters[1] == "p" and characters[2] == "t" and characters[3] == "i" and characters[4] == "o" and characters[5] == "n" and characters[6] == "["
 
+fn result_error_type(ty: Text) -> Text:
+    let characters = text_chars(ty)
+    var opening = -1
+    var cursor = 0
+    while cursor < len(characters) and opening < 0:
+        if characters[cursor] == "[":
+            set opening = cursor
+        set cursor = cursor + 1
+    var comma = -1
+    var depth = 0
+    set cursor = opening + 1
+    while cursor < len(characters) and comma < 0:
+        if characters[cursor] == "[":
+            set depth = depth + 1
+        if characters[cursor] == "]":
+            set depth = depth - 1
+        if characters[cursor] == "," and depth == 0:
+            set comma = cursor
+        set cursor = cursor + 1
+    if comma < 0:
+        return "Unit"
+    set cursor = comma + 1
+    if cursor < len(characters) and characters[cursor] == " ":
+        set cursor = cursor + 1
+    var result = ""
+    set depth = 0
+    var reading = true
+    while cursor < len(characters) and reading:
+        if characters[cursor] == "[":
+            set depth = depth + 1
+        if characters[cursor] == "]":
+            if depth == 0:
+                set reading = false
+            else:
+                set depth = depth - 1
+        if reading:
+            set result = result + characters[cursor]
+            set cursor = cursor + 1
+    return result
+
 fn expression(node: Json, state: CompilerState, functions: List[FunctionSignature], records: List[RecordSignature], expected: Text) -> ExpressionResult:
     let kind = json_as_text(json_get(node, "kind"))
     if kind == "Number":
@@ -540,10 +618,34 @@ fn expression(node: Json, state: CompilerState, functions: List[FunctionSignatur
             set operation = "FloatSqrt"
         if callee == "read_text":
             set operation = "ReadText"
+        if callee == "write_text":
+            set operation = "WriteText"
+        if callee == "write_text_atomic":
+            set operation = "WriteTextAtomic"
         if callee == "unwrap":
             set operation = "Unwrap"
+        if callee == "error":
+            set operation = "GetError"
+        if callee == "is_ok":
+            set operation = "IsOk"
         if callee == "is_some":
             set operation = "IsSome"
+        if callee == "json_error_code":
+            set operation = "JsonErrorCode"
+        if callee == "json_error_message":
+            set operation = "JsonErrorMessage"
+        if callee == "json_error_line":
+            set operation = "JsonErrorLine"
+        if callee == "json_error_column":
+            set operation = "JsonErrorColumn"
+        if callee == "file_error_code":
+            set operation = "FileErrorCode"
+        if callee == "file_error_message":
+            set operation = "FileErrorMessage"
+        if callee == "file_error_line":
+            set operation = "FileErrorLine"
+        if callee == "file_error_column":
+            set operation = "FileErrorColumn"
         if callee == "args":
             set operation = "Args"
         if callee == "text_chars":
@@ -560,11 +662,11 @@ fn expression(node: Json, state: CompilerState, functions: List[FunctionSignatur
                 set result_type = "Int"
             if callee == "json_as_bool" or callee == "json_has":
                 set result_type = "Bool"
-            if callee == "json_is_null":
+            if callee == "json_is_null" or callee == "is_ok":
                 set result_type = "Bool"
             if callee == "is_some":
                 set result_type = "Bool"
-            if callee == "json_as_text" or callee == "json_stringify":
+            if callee == "json_as_text" or callee == "json_stringify" or callee == "json_error_code" or callee == "json_error_message" or callee == "file_error_code" or callee == "file_error_message":
                 set result_type = "Text"
             if is_json_constructor(callee):
                 set result_type = "Json"
@@ -578,12 +680,20 @@ fn expression(node: Json, state: CompilerState, functions: List[FunctionSignatur
                 set result_type = "Float64"
             if callee == "read_text":
                 set result_type = "Result[Text, FileError]"
+            if callee == "json_parse":
+                set result_type = "Result[Json, JsonError]"
+            if callee == "write_text" or callee == "write_text_atomic":
+                set result_type = "Result[Unit, FileError]"
+            if callee == "json_error_line" or callee == "json_error_column" or callee == "file_error_line" or callee == "file_error_column":
+                set result_type = "Int"
             if callee == "args":
                 set result_type = "List[Text]"
             if callee == "text_chars":
                 set result_type = "List[Text]"
             if callee == "unwrap":
                 set result_type = list_element_type(expression_type(expression(json_index(arguments, 0), state, functions, records, "")), records)
+            if callee == "error":
+                set result_type = result_error_type(expression_type(expression(json_index(arguments, 0), state, functions, records, "")))
             return expression_result(append_code(code, singleton(ir_instruction(operation))), result_type)
         let known_function = function_index(functions, callee)
         if known_function < 0:

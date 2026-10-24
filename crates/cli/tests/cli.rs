@@ -42,6 +42,14 @@ fn copy_project_without_managed_environment(
     }
 }
 
+struct RemoveDirOnDrop(std::path::PathBuf);
+
+impl Drop for RemoveDirOnDrop {
+    fn drop(&mut self) {
+        let _ = fs::remove_dir_all(&self.0);
+    }
+}
+
 #[test]
 fn sync_json_reports_arguments_and_missing_python_configuration() {
     let base = std::env::temp_dir().join(format!("veritas-json-sync-{}", std::process::id()));
@@ -1723,11 +1731,12 @@ fn veritas_source_compiler_emits_ir_that_assembles_and_runs() {
 }
 
 #[test]
-fn veritas_source_compiler_compiles_itself_to_identical_ir() {
+fn veritas_source_compiler_compiles_itself_and_real_programs_with_parity() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let source_project = root.join("language/self_host");
     let base = std::env::temp_dir().join(format!("veritas-self-host-{}", std::process::id()));
     let _ = fs::remove_dir_all(&base);
+    let _cleanup = RemoveDirOnDrop(base.clone());
     fs::create_dir_all(&base).unwrap();
     for filename in ["veritas.toml", "compiler.vr", "lexer.vr", "parser.vr"] {
         fs::copy(source_project.join(filename), base.join(filename)).unwrap();
@@ -1778,6 +1787,339 @@ fn veritas_source_compiler_compiles_itself_to_identical_ir() {
     assert_eq!(
         report["program_stdout"].as_str().unwrap().as_bytes(),
         stage_zero.stdout
+    );
+
+    let stage_one_ir = base.join("stage-one.vri.json");
+    let stage_two_artifact = base.join(".compiler-stage-two.vrb");
+    fs::write(&stage_one_ir, report["program_stdout"].as_str().unwrap()).unwrap();
+    let stage_two_assembled = Command::new(env!("CARGO_BIN_EXE_veritas"))
+        .args(["assemble-ir", stage_one_ir.to_str().unwrap(), "--output"])
+        .arg(&stage_two_artifact)
+        .current_dir(&base)
+        .output()
+        .unwrap();
+    assert!(
+        stage_two_assembled.status.success(),
+        "{}",
+        String::from_utf8_lossy(&stage_two_assembled.stderr)
+    );
+
+    let stage_two = Command::new(env!("CARGO_BIN_EXE_veritas"))
+        .args(["run", "--json"])
+        .arg(&stage_two_artifact)
+        .arg("compiler.vr")
+        .current_dir(&base)
+        .output()
+        .unwrap();
+    assert!(
+        stage_two.status.success(),
+        "{}",
+        String::from_utf8_lossy(&stage_two.stdout)
+    );
+    let stage_two_report: serde_json::Value = serde_json::from_slice(&stage_two.stdout).unwrap();
+    assert_eq!(stage_two_report["exit_code"], 0);
+    assert!(stage_two_report["diagnostic"].is_null());
+    assert_eq!(
+        stage_two_report["program_stdout"]
+            .as_str()
+            .unwrap()
+            .as_bytes(),
+        stage_zero.stdout,
+        "the Veritas-compiled compiler must reproduce its own IR byte-for-byte"
+    );
+
+    let inventory_source = root.join("evaluation/development/inventory_reconcile");
+    let inventory_host = base.join("inventory-host");
+    let inventory_self = base.join("inventory-self");
+    let inventory_python = base.join("inventory-python");
+    for project in [&inventory_host, &inventory_self, &inventory_python] {
+        copy_project_without_managed_environment(&inventory_source, project);
+    }
+
+    let host_build = Command::new(env!("CARGO_BIN_EXE_veritas"))
+        .args(["build", "."])
+        .current_dir(&inventory_host)
+        .output()
+        .unwrap();
+    assert!(
+        host_build.status.success(),
+        "{}{}",
+        String::from_utf8_lossy(&host_build.stdout),
+        String::from_utf8_lossy(&host_build.stderr)
+    );
+
+    let inventory_stage_two = inventory_self.join(".compiler-stage-two.vrb");
+    fs::copy(&stage_two_artifact, &inventory_stage_two).unwrap();
+    let self_compiled = Command::new(env!("CARGO_BIN_EXE_veritas"))
+        .args(["run", "--json"])
+        .arg(&inventory_stage_two)
+        .arg("main.vr")
+        .current_dir(&inventory_self)
+        .output()
+        .unwrap();
+    assert!(
+        self_compiled.status.success(),
+        "{}",
+        String::from_utf8_lossy(&self_compiled.stdout)
+    );
+    let self_report: serde_json::Value = serde_json::from_slice(&self_compiled.stdout).unwrap();
+    assert_eq!(self_report["exit_code"], 0);
+    assert!(self_report["diagnostic"].is_null());
+    let self_ir = inventory_self.join("self-compiled-inventory.vri.json");
+    fs::write(&self_ir, self_report["program_stdout"].as_str().unwrap()).unwrap();
+    let self_artifact = inventory_self.join("self-main.vrb");
+    let self_assembled = Command::new(env!("CARGO_BIN_EXE_veritas"))
+        .args(["assemble-ir", self_ir.to_str().unwrap(), "--output"])
+        .arg(&self_artifact)
+        .current_dir(&inventory_self)
+        .output()
+        .unwrap();
+    assert!(
+        self_assembled.status.success(),
+        "{}",
+        String::from_utf8_lossy(&self_assembled.stderr)
+    );
+
+    let large_inventory: Vec<serde_json::Value> = (0..80)
+        .map(|index| serde_json::json!({"sku": format!("SKU-{index:03}"), "quantity": index + 10}))
+        .collect();
+    let generated_adjustments: Vec<serde_json::Value> = (0..600)
+        .map(|index| {
+            serde_json::json!({
+                "sku": format!("SKU-{:03}", (index * 37) % 80),
+                "delta": (index % 7) - 3,
+                "reason": format!("count-{index}"),
+                "source": "cycle-count"
+            })
+        })
+        .chain((0..20).map(|index| {
+            serde_json::json!({
+                "sku": format!("NEW-{index:03}"),
+                "delta": index + 1,
+                "reason": "opening stock",
+                "source": "receiving"
+            })
+        }))
+        .collect();
+    let cases = [
+        (
+            "unicode-and-ordered-adjustments",
+            serde_json::json!({"items": [
+                {"sku": "A-1", "quantity": 10},
+                {"sku": "café-東京", "quantity": 4}
+            ]}),
+            serde_json::json!({"adjustments": [
+                {"sku": "A-1", "delta": -3, "reason": "damaged", "source": "cycle-count"},
+                {"sku": "NEW", "delta": 7, "reason": "initial stock", "source": "receiving"},
+                {"sku": "A-1", "delta": 2, "reason": "found units", "source": "cycle-count"},
+                {"sku": "café-東京", "delta": -4, "reason": "expired", "source": "inspection"},
+                {"sku": "NEW", "delta": 5, "reason": "late delivery", "source": "receiving"}
+            ]}),
+            true,
+        ),
+        (
+            "reject-negative-without-partial-write",
+            serde_json::json!({"items": [{"sku": "A-1", "quantity": 2}]}),
+            serde_json::json!({"adjustments": [{"sku": "A-1", "delta": -3, "reason": "damaged", "source": "inspection"}]}),
+            false,
+        ),
+        (
+            "generated-100-skus-620-adjustments",
+            serde_json::json!({"items": large_inventory}),
+            serde_json::json!({"adjustments": generated_adjustments}),
+            true,
+        ),
+    ];
+
+    for (case, inventory, adjustments, expected_success) in cases {
+        for project in [&inventory_host, &inventory_self, &inventory_python] {
+            fs::write(
+                project.join("inventory.json"),
+                serde_json::to_vec(&inventory).unwrap(),
+            )
+            .unwrap();
+            fs::write(
+                project.join("adjustments.json"),
+                serde_json::to_vec(&adjustments).unwrap(),
+            )
+            .unwrap();
+            if !expected_success {
+                fs::write(project.join("reconciled.json"), b"previous result\n").unwrap();
+            } else {
+                let _ = fs::remove_file(project.join("reconciled.json"));
+            }
+        }
+
+        let host_run = Command::new(env!("CARGO_BIN_EXE_veritas"))
+            .args([
+                "run",
+                "main.vrb",
+                "inventory.json",
+                "adjustments.json",
+                "reconciled.json",
+            ])
+            .current_dir(&inventory_host)
+            .output()
+            .unwrap();
+        let self_run = Command::new(env!("CARGO_BIN_EXE_veritas"))
+            .args([
+                "run",
+                "self-main.vrb",
+                "inventory.json",
+                "adjustments.json",
+                "reconciled.json",
+            ])
+            .current_dir(&inventory_self)
+            .output()
+            .unwrap();
+        let python_run = Command::new("python3")
+            .args([
+                "reference.py",
+                "inventory.json",
+                "adjustments.json",
+                "reconciled.json",
+            ])
+            .current_dir(&inventory_python)
+            .output()
+            .unwrap();
+        for (label, run) in [
+            ("self-compiled", &self_run),
+            ("Python reference", &python_run),
+        ] {
+            assert_eq!(
+                host_run.status.code(),
+                run.status.code(),
+                "{case}: {label} exit differs"
+            );
+            assert_eq!(
+                host_run.stdout, run.stdout,
+                "{case}: {label} stdout differs"
+            );
+            assert_eq!(
+                host_run.stderr, run.stderr,
+                "{case}: {label} stderr differs"
+            );
+            assert_eq!(
+                host_run.status.success(),
+                expected_success,
+                "{case}: unexpected host exit"
+            );
+            let host_output = fs::read(inventory_host.join("reconciled.json")).ok();
+            let candidate_output = fs::read(if label == "self-compiled" {
+                inventory_self.join("reconciled.json")
+            } else {
+                inventory_python.join("reconciled.json")
+            })
+            .ok();
+            assert_eq!(
+                host_output, candidate_output,
+                "{case}: {label} output differs"
+            );
+        }
+    }
+
+    let richards_source = root.join("evaluation/development/famous_benchmarks/richards.vr");
+    let richards_host = base.join("richards-host");
+    let richards_self = base.join("richards-self");
+    for project in [&richards_host, &richards_self] {
+        fs::create_dir_all(project).unwrap();
+        fs::copy(&richards_source, project.join("richards.vr")).unwrap();
+        fs::write(
+            project.join("veritas.toml"),
+            "[project]\nname = \"richards-bootstrap-probe\"\nversion = \"0.1.0\"\nentry = \"richards.vr\"\n\n[runtime]\ninstruction_limit = 30000000\n",
+        )
+        .unwrap();
+    }
+
+    let richards_host_build = Command::new(env!("CARGO_BIN_EXE_veritas"))
+        .args(["build", "."])
+        .current_dir(&richards_host)
+        .output()
+        .unwrap();
+    assert!(
+        richards_host_build.status.success(),
+        "{}{}",
+        String::from_utf8_lossy(&richards_host_build.stdout),
+        String::from_utf8_lossy(&richards_host_build.stderr)
+    );
+
+    let richards_compiler = richards_self.join(".compiler-stage-two.vrb");
+    fs::copy(&stage_two_artifact, &richards_compiler).unwrap();
+    let richards_self_ir_report = Command::new(env!("CARGO_BIN_EXE_veritas"))
+        .args(["run", "--json"])
+        .arg(&richards_compiler)
+        .arg("richards.vr")
+        .current_dir(&richards_self)
+        .output()
+        .unwrap();
+    assert!(
+        richards_self_ir_report.status.success(),
+        "{}{}",
+        String::from_utf8_lossy(&richards_self_ir_report.stdout),
+        String::from_utf8_lossy(&richards_self_ir_report.stderr)
+    );
+    let richards_self_report: serde_json::Value =
+        serde_json::from_slice(&richards_self_ir_report.stdout).unwrap();
+    assert_eq!(richards_self_report["exit_code"], 0);
+    assert!(richards_self_report["diagnostic"].is_null());
+    let richards_self_ir = richards_self.join("richards-self.vri.json");
+    fs::write(
+        &richards_self_ir,
+        richards_self_report["program_stdout"].as_str().unwrap(),
+    )
+    .unwrap();
+    let richards_self_artifact = richards_self.join("richards-self.vrb");
+    let richards_assembled = Command::new(env!("CARGO_BIN_EXE_veritas"))
+        .args([
+            "assemble-ir",
+            richards_self_ir.to_str().unwrap(),
+            "--output",
+        ])
+        .arg(&richards_self_artifact)
+        .current_dir(&richards_self)
+        .output()
+        .unwrap();
+    assert!(
+        richards_assembled.status.success(),
+        "{}",
+        String::from_utf8_lossy(&richards_assembled.stderr)
+    );
+
+    let richards_host_run = Command::new(env!("CARGO_BIN_EXE_veritas"))
+        .args(["run", "--json"])
+        .arg(richards_host.join("richards.vrb"))
+        .current_dir(&richards_host)
+        .output()
+        .unwrap();
+    let richards_self_run = Command::new(env!("CARGO_BIN_EXE_veritas"))
+        .args(["run", "--json"])
+        .arg(&richards_self_artifact)
+        .current_dir(&richards_self)
+        .output()
+        .unwrap();
+    let python_reference =
+        root.join("evaluation/development/famous_benchmarks/richards_reference.py");
+    let richards_python_run = Command::new("python3")
+        .arg(python_reference)
+        .output()
+        .unwrap();
+    let richards_host_report: serde_json::Value =
+        serde_json::from_slice(&richards_host_run.stdout).unwrap();
+    let richards_self_run_report: serde_json::Value =
+        serde_json::from_slice(&richards_self_run.stdout).unwrap();
+    assert_eq!(richards_host_report["exit_code"], 0);
+    assert_eq!(richards_self_run_report["exit_code"], 0);
+    assert!(richards_host_report["diagnostic"].is_null());
+    assert!(richards_self_run_report["diagnostic"].is_null());
+    assert!(richards_python_run.status.success());
+    assert_eq!(richards_host_report["program_stdout"], "9297\n23246\n");
+    assert_eq!(
+        richards_self_run_report["program_stdout"],
+        richards_host_report["program_stdout"]
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&richards_python_run.stdout),
+        richards_host_report["program_stdout"].as_str().unwrap()
     );
 
     let _ = fs::remove_dir_all(base);
