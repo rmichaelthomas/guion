@@ -1,0 +1,79 @@
+{
+  "schema_version": 1,
+  "language": "veritas",
+  "task_id": "02-jsonl-retention",
+  "stage": "follow_up",
+  "candidate_project_sha256": "073273b14560215536f25d4955733b9bdfe7cd4b82c3b26ce76cb23c9e421abc",
+  "container": {
+    "image": "veritas-campaign-veritas:0.1.0",
+    "image_id": "sha256:5dbc60100d47f392726c01d723ef59aef20053667ff0a8a3ceb3886ae6276f5a",
+    "package_archive_sha256": "a71b79232b2efb73b32175e9c45ca283bc4a0d4eaf28a7aa905a7e5d02c49ef1",
+    "python_base_digest": "sha256:44e000a07b48bef1517a2b14adc93c17af728ca98858b5e24c6e1b18de1b2ef2",
+    "shared_dependencies_sha256": "34a2a4d8d157839eea434267f38e475187031f081f358387859181e5be136803",
+    "uv_version": "0.13.4",
+    "candidate_python_version": "3.14.8",
+    "platform": "linux/arm64",
+    "network": "none",
+    "read_only_rootfs": true,
+    "candidate_uid": 10001,
+    "limits": {
+      "cpus": 2,
+      "memory_bytes": 2147483648,
+      "pids": 128,
+      "tmpfs_bytes": 536870912
+    }
+  },
+  "container_exit_code": 0,
+  "launcher_stderr": "",
+  "case_report": {
+    "cases": [
+      {
+        "candidate": {},
+        "case_id": "jsonl-follow-up-allow-list",
+        "checks_passed": 3,
+        "checks_total": 3,
+        "elapsed_seconds": 0.086504,
+        "exit_code": 0,
+        "failures": [],
+        "http_fixtures": {},
+        "passed": true,
+        "stderr": "",
+        "stdout": "",
+        "steps": [
+          {
+            "checks_passed": 3,
+            "checks_total": 3,
+            "elapsed_seconds": 0.083318,
+            "exit_code": 0,
+            "failures": []
+          }
+        ]
+      },
+      {
+        "candidate": {},
+        "case_id": "jsonl-follow-up-empty-allow-list",
+        "checks_passed": 2,
+        "checks_total": 2,
+        "elapsed_seconds": 0.085362,
+        "exit_code": 0,
+        "failures": [],
+        "http_fixtures": {},
+        "passed": true,
+        "stderr": "",
+        "stdout": "",
+        "steps": [
+          {
+            "checks_passed": 2,
+            "checks_total": 2,
+            "elapsed_seconds": 0.081613,
+            "exit_code": 0,
+            "failures": []
+          }
+        ]
+      }
+    ],
+    "passed": true,
+    "stage": "follow_up",
+    "task_id": "02-jsonl-retention"
+  }
+}

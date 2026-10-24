@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "status": "pending",
+  "reviewer": {"name": "", "role": "", "independent_of_brief_and_implementation": null},
+  "tasks": {"01-support-sla-report": "pending", "02-jsonl-retention": "pending", "03-release-notes": "pending", "04-calendar-conflict-report": "pending", "05-webhook-replay": "pending", "06-service-health-digest": "pending", "07-config-migrator": "pending", "08-documentation-link-index": "pending", "09-lockfile-auditor": "pending"},
+  "manifest_and_oracle": "pending",
+  "comparison_protocol": "pending",
+  "practical_benefit_rule": "pending",
+  "findings": [],
+  "overall_recommendation": "pending"
+}

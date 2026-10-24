@@ -1,0 +1,14 @@
+fn main() -> Int:
+    let urls = args()
+    if len(urls) != 1:
+        print("usage: http_get.vr URL")
+        return 2
+    let response = http_get(urls[0])
+    if is_ok(response):
+        print(unwrap(response))
+        return 0
+    else:
+        let problem = error(response)
+        print(http_error_code(problem))
+        print(http_error_message(problem))
+        return 1

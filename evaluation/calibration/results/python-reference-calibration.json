@@ -1,0 +1,4475 @@
+{
+  "status": "author_calibration_only",
+  "manifest_sha256": "d36dc5246dec1e315a34bf65184c942400d5e3efef25a1f9d33f1e5cee555581",
+  "candidate_sha256": "37a1e849a3194b1b895eb473b3ea0cc5b7b731618968215c6214ab23607b606e",
+  "requirements_sha256": "c763fd932fdba9252d64123088358754222be7f39f6cc60819d9b71fac54a646",
+  "python": "3.14.8",
+  "python_executable": "/private/tmp/veritas-calibration-v17/bin/python3",
+  "dependency_versions": {
+    "icalendar": "6.3.1",
+    "python-dateutil": "3.0.0",
+    "six": "1.17.0",
+    "tzdata": "2026.5"
+  },
+  "dependency_source": "/private/tmp/veritas-calibration-v17/deps/campaign-dependencies/python-reference",
+  "environment_overrides": {
+    "PYTHONPATH": "/private/tmp/veritas-calibration-v17/deps/campaign-dependencies/python-reference",
+    "PYTHONHOME": "removed",
+    "PYTHONNOUSERSITE": "1"
+  },
+  "summary": {
+    "passed": 127,
+    "total": 127
+  },
+  "cases": [
+    {
+      "case_id": "sla-initial-report",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 0,
+      "checks_passed": 9,
+      "checks_total": 9,
+      "steps": [
+        {
+          "exit_code": 0,
+          "checks_passed": 9,
+          "checks_total": 9,
+          "failures": [],
+          "elapsed_seconds": 0.088368
+        }
+      ],
+      "elapsed_seconds": 0.483969,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "",
+      "failures": [],
+      "task_id": "01-support-sla-report",
+      "stage": "initial"
+    },
+    {
+      "case_id": "sla-duplicate-id-preserves-output",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 1,
+      "checks_passed": 2,
+      "checks_total": 2,
+      "steps": [
+        {
+          "exit_code": 1,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "failures": [],
+          "elapsed_seconds": 0.073445
+        }
+      ],
+      "elapsed_seconds": 0.344614,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "duplicate ticket ID: D-1\n",
+      "failures": [],
+      "task_id": "01-support-sla-report",
+      "stage": "initial"
+    },
+    {
+      "case_id": "sla-missing-policy-entry-preserves-output",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 1,
+      "checks_passed": 2,
+      "checks_total": 2,
+      "steps": [
+        {
+          "exit_code": 1,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "failures": [],
+          "elapsed_seconds": 0.094209
+        }
+      ],
+      "elapsed_seconds": 0.360687,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "missing_policy_entry: low\n",
+      "failures": [],
+      "task_id": "01-support-sla-report",
+      "stage": "initial"
+    },
+    {
+      "case_id": "sla-malformed-csv-preserves-output",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 1,
+      "checks_passed": 1,
+      "checks_total": 1,
+      "steps": [
+        {
+          "exit_code": 1,
+          "checks_passed": 1,
+          "checks_total": 1,
+          "failures": [],
+          "elapsed_seconds": 0.073802
+        }
+      ],
+      "elapsed_seconds": 0.340476,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "invalid CSV header\n",
+      "failures": [],
+      "task_id": "01-support-sla-report",
+      "stage": "initial"
+    },
+    {
+      "case_id": "sla-unknown-priority-preserves-output",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 1,
+      "checks_passed": 2,
+      "checks_total": 2,
+      "steps": [
+        {
+          "exit_code": 1,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "failures": [],
+          "elapsed_seconds": 0.080681
+        }
+      ],
+      "elapsed_seconds": 0.355234,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "unknown_priority: urgent\n",
+      "failures": [],
+      "task_id": "01-support-sla-report",
+      "stage": "initial"
+    },
+    {
+      "case_id": "sla-invalid-timestamp-preserves-output",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 1,
+      "checks_passed": 2,
+      "checks_total": 2,
+      "steps": [
+        {
+          "exit_code": 1,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "failures": [],
+          "elapsed_seconds": 0.079504
+        }
+      ],
+      "elapsed_seconds": 0.353083,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "timestamp must use RFC3339 date-time syntax\n",
+      "failures": [],
+      "task_id": "01-support-sla-report",
+      "stage": "initial"
+    },
+    {
+      "case_id": "sla-policy-boolean-preserves-output",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 1,
+      "checks_passed": 2,
+      "checks_total": 2,
+      "steps": [
+        {
+          "exit_code": 1,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "failures": [],
+          "elapsed_seconds": 0.071692
+        }
+      ],
+      "elapsed_seconds": 0.333165,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "policy limits must be nonnegative integers for high or low\n",
+      "failures": [],
+      "task_id": "01-support-sla-report",
+      "stage": "initial"
+    },
+    {
+      "case_id": "sla-policy-negative-preserves-output",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 1,
+      "checks_passed": 2,
+      "checks_total": 2,
+      "steps": [
+        {
+          "exit_code": 1,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "failures": [],
+          "elapsed_seconds": 0.073769
+        }
+      ],
+      "elapsed_seconds": 0.337458,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "policy limits must be nonnegative integers for high or low\n",
+      "failures": [],
+      "task_id": "01-support-sla-report",
+      "stage": "initial"
+    },
+    {
+      "case_id": "sla-policy-unknown-key-preserves-output",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 1,
+      "checks_passed": 2,
+      "checks_total": 2,
+      "steps": [
+        {
+          "exit_code": 1,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "failures": [],
+          "elapsed_seconds": 0.076283
+        }
+      ],
+      "elapsed_seconds": 0.336816,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "policy limits must be nonnegative integers for high or low\n",
+      "failures": [],
+      "task_id": "01-support-sla-report",
+      "stage": "initial"
+    },
+    {
+      "case_id": "sla-unknown-status-preserves-output",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 1,
+      "checks_passed": 2,
+      "checks_total": 2,
+      "steps": [
+        {
+          "exit_code": 1,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "failures": [],
+          "elapsed_seconds": 0.073313
+        }
+      ],
+      "elapsed_seconds": 0.334403,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "invalid status: pending\n",
+      "failures": [],
+      "task_id": "01-support-sla-report",
+      "stage": "initial"
+    },
+    {
+      "case_id": "sla-future-ticket-timestamp-preserves-output",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 1,
+      "checks_passed": 2,
+      "checks_total": 2,
+      "steps": [
+        {
+          "exit_code": 1,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "failures": [],
+          "elapsed_seconds": 0.077643
+        }
+      ],
+      "elapsed_seconds": 0.340318,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "ticket timestamp is after --as-of\n",
+      "failures": [],
+      "task_id": "01-support-sla-report",
+      "stage": "initial"
+    },
+    {
+      "case_id": "sla-follow-up-team-filter",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 0,
+      "checks_passed": 4,
+      "checks_total": 4,
+      "steps": [
+        {
+          "exit_code": 0,
+          "checks_passed": 4,
+          "checks_total": 4,
+          "failures": [],
+          "elapsed_seconds": 0.076428
+        }
+      ],
+      "elapsed_seconds": 0.354003,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "",
+      "failures": [],
+      "task_id": "01-support-sla-report",
+      "stage": "follow_up"
+    },
+    {
+      "case_id": "sla-follow-up-team-no-match",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 0,
+      "checks_passed": 3,
+      "checks_total": 3,
+      "steps": [
+        {
+          "exit_code": 0,
+          "checks_passed": 3,
+          "checks_total": 3,
+          "failures": [],
+          "elapsed_seconds": 0.074894
+        }
+      ],
+      "elapsed_seconds": 0.374934,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "",
+      "failures": [],
+      "task_id": "01-support-sla-report",
+      "stage": "follow_up"
+    },
+    {
+      "case_id": "jsonl-normal-summary",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 0,
+      "checks_passed": 4,
+      "checks_total": 4,
+      "steps": [
+        {
+          "exit_code": 0,
+          "checks_passed": 4,
+          "checks_total": 4,
+          "failures": [],
+          "elapsed_seconds": 0.075871
+        }
+      ],
+      "elapsed_seconds": 0.354836,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "",
+      "failures": [],
+      "task_id": "02-jsonl-retention",
+      "stage": "initial"
+    },
+    {
+      "case_id": "jsonl-strict-does-not-publish",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 1,
+      "checks_passed": 2,
+      "checks_total": 2,
+      "steps": [
+        {
+          "exit_code": 1,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "failures": [],
+          "elapsed_seconds": 0.079528
+        }
+      ],
+      "elapsed_seconds": 0.349204,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "invalid event at line 2: Expecting value: line 1 column 1 (char 0)\n",
+      "failures": [],
+      "task_id": "02-jsonl-retention",
+      "stage": "initial"
+    },
+    {
+      "case_id": "jsonl-empty-input",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 0,
+      "checks_passed": 4,
+      "checks_total": 4,
+      "steps": [
+        {
+          "exit_code": 0,
+          "checks_passed": 4,
+          "checks_total": 4,
+          "failures": [],
+          "elapsed_seconds": 0.074646
+        }
+      ],
+      "elapsed_seconds": 0.338714,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "",
+      "failures": [],
+      "task_id": "02-jsonl-retention",
+      "stage": "initial"
+    },
+    {
+      "case_id": "jsonl-missing-required-field",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 0,
+      "checks_passed": 4,
+      "checks_total": 4,
+      "steps": [
+        {
+          "exit_code": 0,
+          "checks_passed": 4,
+          "checks_total": 4,
+          "failures": [],
+          "elapsed_seconds": 0.07672
+        }
+      ],
+      "elapsed_seconds": 0.369019,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "",
+      "failures": [],
+      "task_id": "02-jsonl-retention",
+      "stage": "initial"
+    },
+    {
+      "case_id": "jsonl-malformed-rfc3339-normal-mode",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 0,
+      "checks_passed": 4,
+      "checks_total": 4,
+      "steps": [
+        {
+          "exit_code": 0,
+          "checks_passed": 4,
+          "checks_total": 4,
+          "failures": [],
+          "elapsed_seconds": 0.076441
+        }
+      ],
+      "elapsed_seconds": 0.3457,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "",
+      "failures": [],
+      "task_id": "02-jsonl-retention",
+      "stage": "initial"
+    },
+    {
+      "case_id": "jsonl-malformed-rfc3339-strict-preserves-output",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 1,
+      "checks_passed": 2,
+      "checks_total": 2,
+      "steps": [
+        {
+          "exit_code": 1,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "failures": [],
+          "elapsed_seconds": 0.071587
+        }
+      ],
+      "elapsed_seconds": 0.35194,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "invalid event at line 1: timestamp must use RFC3339 date-time syntax\n",
+      "failures": [],
+      "task_id": "02-jsonl-retention",
+      "stage": "initial"
+    },
+    {
+      "case_id": "jsonl-follow-up-allow-list",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 0,
+      "checks_passed": 5,
+      "checks_total": 5,
+      "steps": [
+        {
+          "exit_code": 0,
+          "checks_passed": 5,
+          "checks_total": 5,
+          "failures": [],
+          "elapsed_seconds": 0.075682
+        }
+      ],
+      "elapsed_seconds": 0.339063,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "",
+      "failures": [],
+      "task_id": "02-jsonl-retention",
+      "stage": "follow_up"
+    },
+    {
+      "case_id": "jsonl-follow-up-empty-allow-list",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 0,
+      "checks_passed": 4,
+      "checks_total": 4,
+      "steps": [
+        {
+          "exit_code": 0,
+          "checks_passed": 4,
+          "checks_total": 4,
+          "failures": [],
+          "elapsed_seconds": 0.074906
+        }
+      ],
+      "elapsed_seconds": 0.333921,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "",
+      "failures": [],
+      "task_id": "02-jsonl-retention",
+      "stage": "follow_up"
+    },
+    {
+      "case_id": "jsonl-follow-up-nonmatching-allow-list",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 0,
+      "checks_passed": 5,
+      "checks_total": 5,
+      "steps": [
+        {
+          "exit_code": 0,
+          "checks_passed": 5,
+          "checks_total": 5,
+          "failures": [],
+          "elapsed_seconds": 0.077257
+        }
+      ],
+      "elapsed_seconds": 0.333317,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "",
+      "failures": [],
+      "task_id": "02-jsonl-retention",
+      "stage": "follow_up"
+    },
+    {
+      "case_id": "jsonl-fractional-offset-uses-canonical-utc",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 0,
+      "checks_passed": 4,
+      "checks_total": 4,
+      "steps": [
+        {
+          "exit_code": 0,
+          "checks_passed": 4,
+          "checks_total": 4,
+          "failures": [],
+          "elapsed_seconds": 0.076022
+        }
+      ],
+      "elapsed_seconds": 0.35092,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "",
+      "failures": [],
+      "task_id": "02-jsonl-retention",
+      "stage": "follow_up"
+    },
+    {
+      "case_id": "jsonl-rejects-fraction-over-six-digits",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 0,
+      "checks_passed": 4,
+      "checks_total": 4,
+      "steps": [
+        {
+          "exit_code": 0,
+          "checks_passed": 4,
+          "checks_total": 4,
+          "failures": [],
+          "elapsed_seconds": 0.079587
+        }
+      ],
+      "elapsed_seconds": 0.345311,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "",
+      "failures": [],
+      "task_id": "02-jsonl-retention",
+      "stage": "follow_up"
+    },
+    {
+      "case_id": "release-notes-initial",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 0,
+      "checks_passed": 3,
+      "checks_total": 3,
+      "steps": [
+        {
+          "exit_code": 0,
+          "checks_passed": 3,
+          "checks_total": 3,
+          "failures": [],
+          "elapsed_seconds": 0.076439
+        }
+      ],
+      "elapsed_seconds": 0.413713,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "",
+      "failures": [],
+      "task_id": "03-release-notes",
+      "stage": "initial"
+    },
+    {
+      "case_id": "release-notes-invalid-record-preserves-both-outputs",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 1,
+      "checks_passed": 5,
+      "checks_total": 5,
+      "steps": [
+        {
+          "exit_code": 1,
+          "checks_passed": 5,
+          "checks_total": 5,
+          "failures": [],
+          "elapsed_seconds": 0.071509
+        }
+      ],
+      "elapsed_seconds": 0.338252,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "changes/1.3.0.json: unconfigured category field: category (Unconfigured)\n",
+      "failures": [],
+      "task_id": "03-release-notes",
+      "stage": "initial"
+    },
+    {
+      "case_id": "release-notes-duplicate-id-preserves-outputs",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 1,
+      "checks_passed": 2,
+      "checks_total": 2,
+      "steps": [
+        {
+          "exit_code": 1,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "failures": [],
+          "elapsed_seconds": 0.079073
+        }
+      ],
+      "elapsed_seconds": 0.343251,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "changes/1.2.0.json: duplicate field id: same\n",
+      "failures": [],
+      "task_id": "03-release-notes",
+      "stage": "initial"
+    },
+    {
+      "case_id": "release-notes-invalid-json-preserves-both-outputs",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 1,
+      "checks_passed": 2,
+      "checks_total": 2,
+      "steps": [
+        {
+          "exit_code": 1,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "failures": [],
+          "elapsed_seconds": 0.076543
+        }
+      ],
+      "elapsed_seconds": 0.336033,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "Expecting property name enclosed in double quotes: line 1 column 2 (char 1)\n",
+      "failures": [],
+      "task_id": "03-release-notes",
+      "stage": "initial"
+    },
+    {
+      "case_id": "release-notes-invalid-date-preserves-both-outputs",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 1,
+      "checks_passed": 2,
+      "checks_total": 2,
+      "steps": [
+        {
+          "exit_code": 1,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "failures": [],
+          "elapsed_seconds": 0.074607
+        }
+      ],
+      "elapsed_seconds": 0.332218,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "day 30 must be in range 1..28 for month 2 in year 2025\n",
+      "failures": [],
+      "task_id": "03-release-notes",
+      "stage": "initial"
+    },
+    {
+      "case_id": "release-notes-invalid-filename-version-preserves-both-outputs",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 1,
+      "checks_passed": 2,
+      "checks_total": 2,
+      "steps": [
+        {
+          "exit_code": 1,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "failures": [],
+          "elapsed_seconds": 0.077129
+        }
+      ],
+      "elapsed_seconds": 0.343918,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "invalid semantic version: not-a-version\n",
+      "failures": [],
+      "task_id": "03-release-notes",
+      "stage": "initial"
+    },
+    {
+      "case_id": "release-notes-invalid-field-names-file-and-field",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 1,
+      "checks_passed": 4,
+      "checks_total": 4,
+      "steps": [
+        {
+          "exit_code": 1,
+          "checks_passed": 4,
+          "checks_total": 4,
+          "failures": [],
+          "elapsed_seconds": 0.073401
+        }
+      ],
+      "elapsed_seconds": 0.323773,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "changes/1.0.0.json: invalid field type or empty value: text\n",
+      "failures": [],
+      "task_id": "03-release-notes",
+      "stage": "initial"
+    },
+    {
+      "case_id": "release-notes-since-follow-up",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 0,
+      "checks_passed": 3,
+      "checks_total": 3,
+      "steps": [
+        {
+          "exit_code": 0,
+          "checks_passed": 3,
+          "checks_total": 3,
+          "failures": [],
+          "elapsed_seconds": 0.078331
+        }
+      ],
+      "elapsed_seconds": 0.337254,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "",
+      "failures": [],
+      "task_id": "03-release-notes",
+      "stage": "follow_up"
+    },
+    {
+      "case_id": "release-notes-invalid-since-preserves-outputs",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 1,
+      "checks_passed": 3,
+      "checks_total": 3,
+      "steps": [
+        {
+          "exit_code": 1,
+          "checks_passed": 3,
+          "checks_total": 3,
+          "failures": [],
+          "elapsed_seconds": 0.074457
+        }
+      ],
+      "elapsed_seconds": 0.459784,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "invalid --since version: not-a-version\n",
+      "failures": [],
+      "task_id": "03-release-notes",
+      "stage": "follow_up"
+    },
+    {
+      "case_id": "release-notes-escapes-all-ascii-punctuation",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 0,
+      "checks_passed": 1,
+      "checks_total": 1,
+      "steps": [
+        {
+          "exit_code": 0,
+          "checks_passed": 1,
+          "checks_total": 1,
+          "failures": [],
+          "elapsed_seconds": 0.072861
+        }
+      ],
+      "elapsed_seconds": 0.331589,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "",
+      "failures": [],
+      "task_id": "03-release-notes",
+      "stage": "follow_up"
+    },
+    {
+      "case_id": "release-notes-empty-category-order-preserves-both-outputs",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 1,
+      "checks_passed": 3,
+      "checks_total": 3,
+      "steps": [
+        {
+          "exit_code": 1,
+          "checks_passed": 3,
+          "checks_total": 3,
+          "failures": [],
+          "elapsed_seconds": 0.072132
+        }
+      ],
+      "elapsed_seconds": 0.32801,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "category_order must contain unique non-empty single-line strings\n",
+      "failures": [],
+      "task_id": "03-release-notes",
+      "stage": "follow_up"
+    },
+    {
+      "case_id": "release-notes-since-validates-excluded-malformed-record",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 1,
+      "checks_passed": 2,
+      "checks_total": 2,
+      "steps": [
+        {
+          "exit_code": 1,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "failures": [],
+          "elapsed_seconds": 0.073128
+        }
+      ],
+      "elapsed_seconds": 0.330248,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "Expecting property name enclosed in double quotes: line 1 column 2 (char 1)\n",
+      "failures": [],
+      "task_id": "03-release-notes",
+      "stage": "follow_up"
+    },
+    {
+      "case_id": "release-notes-since-rejects-cross-filter-duplicate-id",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 1,
+      "checks_passed": 2,
+      "checks_total": 2,
+      "steps": [
+        {
+          "exit_code": 1,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "failures": [],
+          "elapsed_seconds": 0.076746
+        }
+      ],
+      "elapsed_seconds": 0.332333,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "changes/2.0.0.json: duplicate field id: same\n",
+      "failures": [],
+      "task_id": "03-release-notes",
+      "stage": "follow_up"
+    },
+    {
+      "case_id": "release-notes-reject-category-cr-preserves-both-outputs",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 1,
+      "checks_passed": 3,
+      "checks_total": 3,
+      "steps": [
+        {
+          "exit_code": 1,
+          "checks_passed": 3,
+          "checks_total": 3,
+          "failures": [],
+          "elapsed_seconds": 0.073652
+        }
+      ],
+      "elapsed_seconds": 0.327008,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "category_order must contain unique non-empty single-line strings\n",
+      "failures": [],
+      "task_id": "03-release-notes",
+      "stage": "follow_up"
+    },
+    {
+      "case_id": "release-notes-reject-category-lf-preserves-both-outputs",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 1,
+      "checks_passed": 3,
+      "checks_total": 3,
+      "steps": [
+        {
+          "exit_code": 1,
+          "checks_passed": 3,
+          "checks_total": 3,
+          "failures": [],
+          "elapsed_seconds": 0.07396
+        }
+      ],
+      "elapsed_seconds": 0.340243,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "category_order must contain unique non-empty single-line strings\n",
+      "failures": [],
+      "task_id": "03-release-notes",
+      "stage": "follow_up"
+    },
+    {
+      "case_id": "release-notes-reject-text-cr-preserves-both-outputs",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 1,
+      "checks_passed": 3,
+      "checks_total": 3,
+      "steps": [
+        {
+          "exit_code": 1,
+          "checks_passed": 3,
+          "checks_total": 3,
+          "failures": [],
+          "elapsed_seconds": 0.084064
+        }
+      ],
+      "elapsed_seconds": 0.360083,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "changes/1.0.0.json: field text must be a single-line string\n",
+      "failures": [],
+      "task_id": "03-release-notes",
+      "stage": "follow_up"
+    },
+    {
+      "case_id": "release-notes-reject-text-lf-preserves-both-outputs",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 1,
+      "checks_passed": 3,
+      "checks_total": 3,
+      "steps": [
+        {
+          "exit_code": 1,
+          "checks_passed": 3,
+          "checks_total": 3,
+          "failures": [],
+          "elapsed_seconds": 0.076167
+        }
+      ],
+      "elapsed_seconds": 0.342906,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "changes/1.0.0.json: field text must be a single-line string\n",
+      "failures": [],
+      "task_id": "03-release-notes",
+      "stage": "follow_up"
+    },
+    {
+      "case_id": "calendar-overlap-and-boundary",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 0,
+      "checks_passed": 6,
+      "checks_total": 6,
+      "steps": [
+        {
+          "exit_code": 0,
+          "checks_passed": 6,
+          "checks_total": 6,
+          "failures": [],
+          "elapsed_seconds": 0.34818
+        }
+      ],
+      "elapsed_seconds": 1.051249,
+      "http_fixtures": {
+        "calendar": {
+          "requests": [
+            {
+              "method": "GET",
+              "path": "/team.ics"
+            },
+            {
+              "method": "GET",
+              "path": "/personal.ics"
+            },
+            {
+              "method": "GET",
+              "path": "/other.ics"
+            },
+            {
+              "method": "GET",
+              "path": "/broken.ics"
+            },
+            {
+              "method": "GET",
+              "path": "/unavailable.ics"
+            }
+          ],
+          "max_in_flight": 2
+        }
+      },
+      "stdout": "",
+      "stderr": "",
+      "failures": [],
+      "task_id": "04-calendar-conflict-report",
+      "stage": "initial"
+    },
+    {
+      "case_id": "calendar-source-timeout",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 0,
+      "checks_passed": 4,
+      "checks_total": 4,
+      "steps": [
+        {
+          "exit_code": 0,
+          "checks_passed": 4,
+          "checks_total": 4,
+          "failures": [],
+          "elapsed_seconds": 0.141456
+        }
+      ],
+      "elapsed_seconds": 0.857653,
+      "http_fixtures": {
+        "calendar": {
+          "requests": [
+            {
+              "method": "GET",
+              "path": "/slow"
+            }
+          ],
+          "max_in_flight": 1
+        }
+      },
+      "stdout": "",
+      "stderr": "",
+      "failures": [],
+      "task_id": "04-calendar-conflict-report",
+      "stage": "initial"
+    },
+    {
+      "case_id": "calendar-window-clips-cross-boundary-overlap",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 0,
+      "checks_passed": 4,
+      "checks_total": 4,
+      "steps": [
+        {
+          "exit_code": 0,
+          "checks_passed": 4,
+          "checks_total": 4,
+          "failures": [],
+          "elapsed_seconds": 0.223089
+        }
+      ],
+      "elapsed_seconds": 0.866689,
+      "http_fixtures": {
+        "calendar": {
+          "requests": [
+            {
+              "method": "GET",
+              "path": "/a"
+            },
+            {
+              "method": "GET",
+              "path": "/b"
+            }
+          ],
+          "max_in_flight": 2
+        }
+      },
+      "stdout": "",
+      "stderr": "",
+      "failures": [],
+      "task_id": "04-calendar-conflict-report",
+      "stage": "initial"
+    },
+    {
+      "case_id": "calendar-tzid-normalizes-to-utc",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 0,
+      "checks_passed": 3,
+      "checks_total": 3,
+      "steps": [
+        {
+          "exit_code": 0,
+          "checks_passed": 3,
+          "checks_total": 3,
+          "failures": [],
+          "elapsed_seconds": 0.114025
+        }
+      ],
+      "elapsed_seconds": 0.860845,
+      "http_fixtures": {
+        "calendar": {
+          "requests": [
+            {
+              "method": "GET",
+              "path": "/utc.ics"
+            },
+            {
+              "method": "GET",
+              "path": "/la.ics"
+            }
+          ],
+          "max_in_flight": 1
+        }
+      },
+      "stdout": "",
+      "stderr": "",
+      "failures": [],
+      "task_id": "04-calendar-conflict-report",
+      "stage": "initial"
+    },
+    {
+      "case_id": "calendar-slow-trickle-exceeds-total-deadline",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 0,
+      "checks_passed": 4,
+      "checks_total": 4,
+      "steps": [
+        {
+          "exit_code": 0,
+          "checks_passed": 4,
+          "checks_total": 4,
+          "failures": [],
+          "elapsed_seconds": 0.25759
+        }
+      ],
+      "elapsed_seconds": 0.863386,
+      "http_fixtures": {
+        "calendar": {
+          "requests": [
+            {
+              "method": "GET",
+              "path": "/slow.ics"
+            }
+          ],
+          "max_in_flight": 1
+        }
+      },
+      "stdout": "",
+      "stderr": "",
+      "failures": [],
+      "task_id": "04-calendar-conflict-report",
+      "stage": "initial"
+    },
+    {
+      "case_id": "calendar-tentative-follow-up",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 0,
+      "checks_passed": 5,
+      "checks_total": 5,
+      "steps": [
+        {
+          "exit_code": 0,
+          "checks_passed": 5,
+          "checks_total": 5,
+          "failures": [],
+          "elapsed_seconds": 0.224446
+        }
+      ],
+      "elapsed_seconds": 0.87138,
+      "http_fixtures": {
+        "calendar": {
+          "requests": [
+            {
+              "method": "GET",
+              "path": "/personal.ics"
+            },
+            {
+              "method": "GET",
+              "path": "/team.ics"
+            }
+          ],
+          "max_in_flight": 2
+        }
+      },
+      "stdout": "",
+      "stderr": "",
+      "failures": [],
+      "task_id": "04-calendar-conflict-report",
+      "stage": "follow_up"
+    },
+    {
+      "case_id": "calendar-invalid-event-fields",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 0,
+      "checks_passed": 3,
+      "checks_total": 3,
+      "steps": [
+        {
+          "exit_code": 0,
+          "checks_passed": 3,
+          "checks_total": 3,
+          "failures": [],
+          "elapsed_seconds": 0.116097
+        }
+      ],
+      "elapsed_seconds": 0.87178,
+      "http_fixtures": {
+        "calendar": {
+          "requests": [
+            {
+              "method": "GET",
+              "path": "/malformed"
+            }
+          ],
+          "max_in_flight": 1
+        }
+      },
+      "stdout": "",
+      "stderr": "",
+      "failures": [],
+      "task_id": "04-calendar-conflict-report",
+      "stage": "follow_up"
+    },
+    {
+      "case_id": "calendar-fractional-window-clips-with-canonical-utc",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 0,
+      "checks_passed": 3,
+      "checks_total": 3,
+      "steps": [
+        {
+          "exit_code": 0,
+          "checks_passed": 3,
+          "checks_total": 3,
+          "failures": [],
+          "elapsed_seconds": 0.117347
+        }
+      ],
+      "elapsed_seconds": 0.873789,
+      "http_fixtures": {
+        "calendar": {
+          "requests": [
+            {
+              "method": "GET",
+              "path": "/b"
+            },
+            {
+              "method": "GET",
+              "path": "/a"
+            }
+          ],
+          "max_in_flight": 1
+        }
+      },
+      "stdout": "",
+      "stderr": "",
+      "failures": [],
+      "task_id": "04-calendar-conflict-report",
+      "stage": "follow_up"
+    },
+    {
+      "case_id": "calendar-invalid-floating-unknown-zone-missing-uid-and-reversed-interval",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 0,
+      "checks_passed": 4,
+      "checks_total": 4,
+      "steps": [
+        {
+          "exit_code": 0,
+          "checks_passed": 4,
+          "checks_total": 4,
+          "failures": [],
+          "elapsed_seconds": 0.126442
+        }
+      ],
+      "elapsed_seconds": 0.867109,
+      "http_fixtures": {
+        "calendar": {
+          "requests": [
+            {
+              "method": "GET",
+              "path": "/reversed"
+            },
+            {
+              "method": "GET",
+              "path": "/floating"
+            },
+            {
+              "method": "GET",
+              "path": "/unknown-zone"
+            },
+            {
+              "method": "GET",
+              "path": "/missing-uid"
+            }
+          ],
+          "max_in_flight": 1
+        }
+      },
+      "stdout": "",
+      "stderr": "",
+      "failures": [],
+      "task_id": "04-calendar-conflict-report",
+      "stage": "follow_up"
+    },
+    {
+      "case_id": "calendar-rejects-window-fraction-over-six-digits-preserves-output",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 1,
+      "checks_passed": 2,
+      "checks_total": 2,
+      "steps": [
+        {
+          "exit_code": 1,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "failures": [],
+          "elapsed_seconds": 0.101568
+        }
+      ],
+      "elapsed_seconds": 0.355186,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "timestamp must use RFC3339 date-time syntax\n",
+      "failures": [],
+      "task_id": "04-calendar-conflict-report",
+      "stage": "follow_up"
+    },
+    {
+      "case_id": "calendar-rejects-space-separator-preserves-output",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 1,
+      "checks_passed": 2,
+      "checks_total": 2,
+      "steps": [
+        {
+          "exit_code": 1,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "failures": [],
+          "elapsed_seconds": 0.100888
+        }
+      ],
+      "elapsed_seconds": 0.362702,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "timestamp must use RFC3339 date-time syntax\n",
+      "failures": [],
+      "task_id": "04-calendar-conflict-report",
+      "stage": "follow_up"
+    },
+    {
+      "case_id": "webhook-durable-retry-and-privacy",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 0,
+      "checks_passed": 25,
+      "checks_total": 25,
+      "steps": [
+        {
+          "exit_code": 0,
+          "checks_passed": 3,
+          "checks_total": 3,
+          "failures": [],
+          "elapsed_seconds": 0.085866
+        },
+        {
+          "exit_code": 0,
+          "checks_passed": 3,
+          "checks_total": 3,
+          "failures": [],
+          "elapsed_seconds": 0.07645
+        },
+        {
+          "exit_code": 1,
+          "checks_passed": 5,
+          "checks_total": 5,
+          "failures": [],
+          "elapsed_seconds": 0.077805
+        },
+        {
+          "exit_code": 1,
+          "checks_passed": 3,
+          "checks_total": 3,
+          "failures": [],
+          "elapsed_seconds": 0.076709
+        },
+        {
+          "exit_code": 1,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "failures": [],
+          "elapsed_seconds": 0.089743
+        },
+        {
+          "exit_code": 0,
+          "checks_passed": 3,
+          "checks_total": 3,
+          "failures": [],
+          "elapsed_seconds": 0.077354
+        },
+        {
+          "exit_code": 0,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "failures": [],
+          "elapsed_seconds": 0.089361
+        },
+        {
+          "exit_code": 0,
+          "checks_passed": 4,
+          "checks_total": 4,
+          "failures": [],
+          "elapsed_seconds": 0.075593
+        }
+      ],
+      "elapsed_seconds": 1.328317,
+      "http_fixtures": {
+        "downstream": {
+          "requests": [
+            {
+              "method": "POST",
+              "path": "/events"
+            },
+            {
+              "method": "POST",
+              "path": "/events"
+            }
+          ],
+          "max_in_flight": 1
+        }
+      },
+      "stdout": "",
+      "stderr": "",
+      "failures": [],
+      "task_id": "05-webhook-replay",
+      "stage": "initial"
+    },
+    {
+      "case_id": "webhook-malformed-body-rejected",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 1,
+      "checks_passed": 7,
+      "checks_total": 7,
+      "steps": [
+        {
+          "exit_code": 0,
+          "checks_passed": 1,
+          "checks_total": 1,
+          "failures": [],
+          "elapsed_seconds": 0.074838
+        },
+        {
+          "exit_code": 1,
+          "checks_passed": 4,
+          "checks_total": 4,
+          "failures": [],
+          "elapsed_seconds": 0.073306
+        },
+        {
+          "exit_code": 1,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "failures": [],
+          "elapsed_seconds": 0.073862
+        }
+      ],
+      "elapsed_seconds": 0.481637,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "",
+      "failures": [],
+      "task_id": "05-webhook-replay",
+      "stage": "initial"
+    },
+    {
+      "case_id": "webhook-invalid-secret-rejected-without-state-change",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 0,
+      "checks_passed": 11,
+      "checks_total": 11,
+      "steps": [
+        {
+          "exit_code": 0,
+          "checks_passed": 1,
+          "checks_total": 1,
+          "failures": [],
+          "elapsed_seconds": 0.078646
+        },
+        {
+          "exit_code": 1,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "failures": [],
+          "elapsed_seconds": 0.074065
+        },
+        {
+          "exit_code": 0,
+          "checks_passed": 3,
+          "checks_total": 3,
+          "failures": [],
+          "elapsed_seconds": 0.079308
+        },
+        {
+          "exit_code": 1,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "failures": [],
+          "elapsed_seconds": 0.078395
+        },
+        {
+          "exit_code": 0,
+          "checks_passed": 3,
+          "checks_total": 3,
+          "failures": [],
+          "elapsed_seconds": 0.074006
+        }
+      ],
+      "elapsed_seconds": 0.644159,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "",
+      "failures": [],
+      "task_id": "05-webhook-replay",
+      "stage": "initial"
+    },
+    {
+      "case_id": "webhook-rejections-preserve-state",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 0,
+      "checks_passed": 19,
+      "checks_total": 19,
+      "steps": [
+        {
+          "exit_code": 0,
+          "checks_passed": 1,
+          "checks_total": 1,
+          "failures": [],
+          "elapsed_seconds": 0.077956
+        },
+        {
+          "exit_code": 0,
+          "checks_passed": 3,
+          "checks_total": 3,
+          "failures": [],
+          "elapsed_seconds": 0.08301
+        },
+        {
+          "exit_code": 1,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "failures": [],
+          "elapsed_seconds": 0.078598
+        },
+        {
+          "exit_code": 0,
+          "checks_passed": 3,
+          "checks_total": 3,
+          "failures": [],
+          "elapsed_seconds": 0.075246
+        },
+        {
+          "exit_code": 1,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "failures": [],
+          "elapsed_seconds": 0.07613
+        },
+        {
+          "exit_code": 0,
+          "checks_passed": 3,
+          "checks_total": 3,
+          "failures": [],
+          "elapsed_seconds": 0.075963
+        },
+        {
+          "exit_code": 1,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "failures": [],
+          "elapsed_seconds": 0.075531
+        },
+        {
+          "exit_code": 0,
+          "checks_passed": 3,
+          "checks_total": 3,
+          "failures": [],
+          "elapsed_seconds": 0.079287
+        }
+      ],
+      "elapsed_seconds": 0.883036,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "",
+      "failures": [],
+      "task_id": "05-webhook-replay",
+      "stage": "initial"
+    },
+    {
+      "case_id": "webhook-null-payload-is-valid",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 0,
+      "checks_passed": 4,
+      "checks_total": 4,
+      "steps": [
+        {
+          "exit_code": 0,
+          "checks_passed": 1,
+          "checks_total": 1,
+          "failures": [],
+          "elapsed_seconds": 0.077679
+        },
+        {
+          "exit_code": 0,
+          "checks_passed": 3,
+          "checks_total": 3,
+          "failures": [],
+          "elapsed_seconds": 0.075882
+        }
+      ],
+      "elapsed_seconds": 0.413276,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "",
+      "failures": [],
+      "task_id": "05-webhook-replay",
+      "stage": "initial"
+    },
+    {
+      "case_id": "webhook-init-rejects-invalid-secrets-without-database-mutation",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 1,
+      "checks_passed": 5,
+      "checks_total": 5,
+      "steps": [
+        {
+          "exit_code": 1,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "failures": [],
+          "elapsed_seconds": 0.070999
+        },
+        {
+          "exit_code": 1,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "failures": [],
+          "elapsed_seconds": 0.072592
+        },
+        {
+          "exit_code": 1,
+          "checks_passed": 1,
+          "checks_total": 1,
+          "failures": [],
+          "elapsed_seconds": 0.073022
+        }
+      ],
+      "elapsed_seconds": 0.4702,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "invalid_secret\n",
+      "failures": [],
+      "task_id": "05-webhook-replay",
+      "stage": "initial"
+    },
+    {
+      "case_id": "webhook-uppercase-valid-signature-is-accepted",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 0,
+      "checks_passed": 4,
+      "checks_total": 4,
+      "steps": [
+        {
+          "exit_code": 0,
+          "checks_passed": 1,
+          "checks_total": 1,
+          "failures": [],
+          "elapsed_seconds": 0.073491
+        },
+        {
+          "exit_code": 0,
+          "checks_passed": 3,
+          "checks_total": 3,
+          "failures": [],
+          "elapsed_seconds": 0.074311
+        }
+      ],
+      "elapsed_seconds": 0.440385,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "",
+      "failures": [],
+      "task_id": "05-webhook-replay",
+      "stage": "initial"
+    },
+    {
+      "case_id": "webhook-dead-letter-limit",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 0,
+      "checks_passed": 11,
+      "checks_total": 11,
+      "steps": [
+        {
+          "exit_code": 0,
+          "checks_passed": 1,
+          "checks_total": 1,
+          "failures": [],
+          "elapsed_seconds": 0.087157
+        },
+        {
+          "exit_code": 0,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "failures": [],
+          "elapsed_seconds": 0.079725
+        },
+        {
+          "exit_code": 1,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "failures": [],
+          "elapsed_seconds": 0.087233
+        },
+        {
+          "exit_code": 1,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "failures": [],
+          "elapsed_seconds": 0.091268
+        },
+        {
+          "exit_code": 0,
+          "checks_passed": 4,
+          "checks_total": 4,
+          "failures": [],
+          "elapsed_seconds": 0.078684
+        }
+      ],
+      "elapsed_seconds": 1.101119,
+      "http_fixtures": {
+        "downstream": {
+          "requests": [
+            {
+              "method": "POST",
+              "path": "/events"
+            },
+            {
+              "method": "POST",
+              "path": "/events"
+            }
+          ],
+          "max_in_flight": 1
+        }
+      },
+      "stdout": "",
+      "stderr": "",
+      "failures": [],
+      "task_id": "05-webhook-replay",
+      "stage": "follow_up"
+    },
+    {
+      "case_id": "webhook-late-max-attempts-does-not-retry",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 0,
+      "checks_passed": 12,
+      "checks_total": 12,
+      "steps": [
+        {
+          "exit_code": 0,
+          "checks_passed": 1,
+          "checks_total": 1,
+          "failures": [],
+          "elapsed_seconds": 0.072441
+        },
+        {
+          "exit_code": 0,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "failures": [],
+          "elapsed_seconds": 0.075844
+        },
+        {
+          "exit_code": 1,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "failures": [],
+          "elapsed_seconds": 0.091613
+        },
+        {
+          "exit_code": 1,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "failures": [],
+          "elapsed_seconds": 0.088608
+        },
+        {
+          "exit_code": 1,
+          "checks_passed": 3,
+          "checks_total": 3,
+          "failures": [],
+          "elapsed_seconds": 0.074468
+        },
+        {
+          "exit_code": 0,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "failures": [],
+          "elapsed_seconds": 0.075094
+        }
+      ],
+      "elapsed_seconds": 1.084779,
+      "http_fixtures": {
+        "downstream": {
+          "requests": [
+            {
+              "method": "POST",
+              "path": "/events"
+            },
+            {
+              "method": "POST",
+              "path": "/events"
+            }
+          ],
+          "max_in_flight": 1
+        }
+      },
+      "stdout": "",
+      "stderr": "",
+      "failures": [],
+      "task_id": "05-webhook-replay",
+      "stage": "follow_up"
+    },
+    {
+      "case_id": "health-mixed-results-and-cap",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 0,
+      "checks_passed": 5,
+      "checks_total": 5,
+      "steps": [
+        {
+          "exit_code": 0,
+          "checks_passed": 5,
+          "checks_total": 5,
+          "failures": [],
+          "elapsed_seconds": 0.592268
+        }
+      ],
+      "elapsed_seconds": 1.349756,
+      "http_fixtures": {
+        "health": {
+          "requests": [
+            {
+              "method": "GET",
+              "path": "/worker"
+            },
+            {
+              "method": "GET",
+              "path": "/api"
+            },
+            {
+              "method": "GET",
+              "path": "/slow"
+            },
+            {
+              "method": "GET",
+              "path": "/invalid"
+            }
+          ],
+          "max_in_flight": 2
+        }
+      },
+      "stdout": "",
+      "stderr": "",
+      "failures": [],
+      "task_id": "06-service-health-digest",
+      "stage": "initial"
+    },
+    {
+      "case_id": "health-concurrency-bound",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 0,
+      "checks_passed": 5,
+      "checks_total": 5,
+      "steps": [
+        {
+          "exit_code": 0,
+          "checks_passed": 5,
+          "checks_total": 5,
+          "failures": [],
+          "elapsed_seconds": 0.219952
+        }
+      ],
+      "elapsed_seconds": 0.857629,
+      "http_fixtures": {
+        "health": {
+          "requests": [
+            {
+              "method": "GET",
+              "path": "/api"
+            },
+            {
+              "method": "GET",
+              "path": "/worker"
+            }
+          ],
+          "max_in_flight": 2
+        }
+      },
+      "stdout": "",
+      "stderr": "",
+      "failures": [],
+      "task_id": "06-service-health-digest",
+      "stage": "initial"
+    },
+    {
+      "case_id": "health-empty-configuration",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 0,
+      "checks_passed": 3,
+      "checks_total": 3,
+      "steps": [
+        {
+          "exit_code": 0,
+          "checks_passed": 3,
+          "checks_total": 3,
+          "failures": [],
+          "elapsed_seconds": 0.074805
+        }
+      ],
+      "elapsed_seconds": 0.327259,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "",
+      "failures": [],
+      "task_id": "06-service-health-digest",
+      "stage": "initial"
+    },
+    {
+      "case_id": "health-http-error-is-unhealthy",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 0,
+      "checks_passed": 4,
+      "checks_total": 4,
+      "steps": [
+        {
+          "exit_code": 0,
+          "checks_passed": 4,
+          "checks_total": 4,
+          "failures": [],
+          "elapsed_seconds": 0.086156
+        }
+      ],
+      "elapsed_seconds": 0.840897,
+      "http_fixtures": {
+        "health": {
+          "requests": [
+            {
+              "method": "GET",
+              "path": "/api?token=fixture-only-secret"
+            }
+          ],
+          "max_in_flight": 1
+        }
+      },
+      "stdout": "",
+      "stderr": "",
+      "failures": [],
+      "task_id": "06-service-health-digest",
+      "stage": "initial"
+    },
+    {
+      "case_id": "health-duplicate-service-names-rejected",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 1,
+      "checks_passed": 1,
+      "checks_total": 1,
+      "steps": [
+        {
+          "exit_code": 1,
+          "checks_passed": 1,
+          "checks_total": 1,
+          "failures": [],
+          "elapsed_seconds": 0.076292
+        }
+      ],
+      "elapsed_seconds": 0.560488,
+      "http_fixtures": {
+        "health": {
+          "requests": [],
+          "max_in_flight": 0
+        }
+      },
+      "stdout": "",
+      "stderr": "service names must be unique\n",
+      "failures": [],
+      "task_id": "06-service-health-digest",
+      "stage": "initial"
+    },
+    {
+      "case_id": "health-slow-trickle-exceeds-total-deadline",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 0,
+      "checks_passed": 4,
+      "checks_total": 4,
+      "steps": [
+        {
+          "exit_code": 0,
+          "checks_passed": 4,
+          "checks_total": 4,
+          "failures": [],
+          "elapsed_seconds": 0.190304
+        }
+      ],
+      "elapsed_seconds": 0.8394,
+      "http_fixtures": {
+        "health": {
+          "requests": [
+            {
+              "method": "GET",
+              "path": "/slow"
+            }
+          ],
+          "max_in_flight": 1
+        }
+      },
+      "stdout": "",
+      "stderr": "",
+      "failures": [],
+      "task_id": "06-service-health-digest",
+      "stage": "initial"
+    },
+    {
+      "case_id": "health-maintenance-boundaries",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 0,
+      "checks_passed": 4,
+      "checks_total": 4,
+      "steps": [
+        {
+          "exit_code": 0,
+          "checks_passed": 4,
+          "checks_total": 4,
+          "failures": [],
+          "elapsed_seconds": 0.093699
+        }
+      ],
+      "elapsed_seconds": 0.84987,
+      "http_fixtures": {
+        "health": {
+          "requests": [
+            {
+              "method": "GET",
+              "path": "/worker"
+            },
+            {
+              "method": "GET",
+              "path": "/worker"
+            },
+            {
+              "method": "GET",
+              "path": "/api"
+            },
+            {
+              "method": "GET",
+              "path": "/unavailable"
+            },
+            {
+              "method": "GET",
+              "path": "/invalid"
+            }
+          ],
+          "max_in_flight": 2
+        }
+      },
+      "stdout": "",
+      "stderr": "",
+      "failures": [],
+      "task_id": "06-service-health-digest",
+      "stage": "follow_up"
+    },
+    {
+      "case_id": "health-timeout-and-invalid-shapes-in-maintenance",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 0,
+      "checks_passed": 3,
+      "checks_total": 3,
+      "steps": [
+        {
+          "exit_code": 0,
+          "checks_passed": 3,
+          "checks_total": 3,
+          "failures": [],
+          "elapsed_seconds": 0.600632
+        }
+      ],
+      "elapsed_seconds": 1.352793,
+      "http_fixtures": {
+        "health": {
+          "requests": [
+            {
+              "method": "GET",
+              "path": "/missing"
+            },
+            {
+              "method": "GET",
+              "path": "/slow"
+            },
+            {
+              "method": "GET",
+              "path": "/array"
+            },
+            {
+              "method": "GET",
+              "path": "/numeric"
+            }
+          ],
+          "max_in_flight": 2
+        }
+      },
+      "stdout": "",
+      "stderr": "",
+      "failures": [],
+      "task_id": "06-service-health-digest",
+      "stage": "follow_up"
+    },
+    {
+      "case_id": "health-maintenance-requires-now",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 1,
+      "checks_passed": 1,
+      "checks_total": 1,
+      "steps": [
+        {
+          "exit_code": 1,
+          "checks_passed": 1,
+          "checks_total": 1,
+          "failures": [],
+          "elapsed_seconds": 0.080023
+        }
+      ],
+      "elapsed_seconds": 0.567393,
+      "http_fixtures": {
+        "health": {
+          "requests": [],
+          "max_in_flight": 0
+        }
+      },
+      "stdout": "",
+      "stderr": "--now is required when maintenance is configured\n",
+      "failures": [],
+      "task_id": "06-service-health-digest",
+      "stage": "follow_up"
+    },
+    {
+      "case_id": "health-maintenance-invalid-rfc3339-preserves-output",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 1,
+      "checks_passed": 3,
+      "checks_total": 3,
+      "steps": [
+        {
+          "exit_code": 1,
+          "checks_passed": 3,
+          "checks_total": 3,
+          "failures": [],
+          "elapsed_seconds": 0.085864
+        }
+      ],
+      "elapsed_seconds": 0.448868,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "timestamp must use RFC3339 date-time syntax\n",
+      "failures": [],
+      "task_id": "06-service-health-digest",
+      "stage": "follow_up"
+    },
+    {
+      "case_id": "config-migrator-v1-to-v2",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 0,
+      "checks_passed": 3,
+      "checks_total": 3,
+      "steps": [
+        {
+          "exit_code": 0,
+          "checks_passed": 3,
+          "checks_total": 3,
+          "failures": [],
+          "elapsed_seconds": 0.078019
+        }
+      ],
+      "elapsed_seconds": 0.714346,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "",
+      "failures": [],
+      "task_id": "07-config-migrator",
+      "stage": "initial"
+    },
+    {
+      "case_id": "config-migrator-future-version-safe",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 1,
+      "checks_passed": 2,
+      "checks_total": 2,
+      "steps": [
+        {
+          "exit_code": 1,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "failures": [],
+          "elapsed_seconds": 0.07894
+        }
+      ],
+      "elapsed_seconds": 0.337017,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "unsupported schema version 99\n",
+      "failures": [],
+      "task_id": "07-config-migrator",
+      "stage": "initial"
+    },
+    {
+      "case_id": "config-migrator-current-schema-check-is-read-only",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 0,
+      "checks_passed": 1,
+      "checks_total": 1,
+      "steps": [
+        {
+          "exit_code": 0,
+          "checks_passed": 1,
+          "checks_total": 1,
+          "failures": [],
+          "elapsed_seconds": 0.081802
+        }
+      ],
+      "elapsed_seconds": 0.351803,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "",
+      "failures": [],
+      "task_id": "07-config-migrator",
+      "stage": "initial"
+    },
+    {
+      "case_id": "config-migrator-invalid-current-schema-is-safe",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 1,
+      "checks_passed": 2,
+      "checks_total": 2,
+      "steps": [
+        {
+          "exit_code": 1,
+          "checks_passed": 1,
+          "checks_total": 1,
+          "failures": [],
+          "elapsed_seconds": 0.074957
+        },
+        {
+          "exit_code": 1,
+          "checks_passed": 1,
+          "checks_total": 1,
+          "failures": [],
+          "elapsed_seconds": 0.071354
+        }
+      ],
+      "elapsed_seconds": 0.404041,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "invalid sync timeout_seconds\n",
+      "failures": [],
+      "task_id": "07-config-migrator",
+      "stage": "initial"
+    },
+    {
+      "case_id": "config-migrator-bool-field-check-and-migrate-safe",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 1,
+      "checks_passed": 2,
+      "checks_total": 2,
+      "steps": [
+        {
+          "exit_code": 1,
+          "checks_passed": 1,
+          "checks_total": 1,
+          "failures": [],
+          "elapsed_seconds": 0.073977
+        },
+        {
+          "exit_code": 1,
+          "checks_passed": 1,
+          "checks_total": 1,
+          "failures": [],
+          "elapsed_seconds": 0.074722
+        }
+      ],
+      "elapsed_seconds": 0.404736,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "invalid sync timeout_seconds\n",
+      "failures": [],
+      "task_id": "07-config-migrator",
+      "stage": "initial"
+    },
+    {
+      "case_id": "config-migrator-zero-field-check-and-migrate-safe",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 1,
+      "checks_passed": 2,
+      "checks_total": 2,
+      "steps": [
+        {
+          "exit_code": 1,
+          "checks_passed": 1,
+          "checks_total": 1,
+          "failures": [],
+          "elapsed_seconds": 0.079388
+        },
+        {
+          "exit_code": 1,
+          "checks_passed": 1,
+          "checks_total": 1,
+          "failures": [],
+          "elapsed_seconds": 0.07517
+        }
+      ],
+      "elapsed_seconds": 0.403761,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "invalid sync timeout_seconds\n",
+      "failures": [],
+      "task_id": "07-config-migrator",
+      "stage": "initial"
+    },
+    {
+      "case_id": "config-migrator-missing-field-check-and-migrate-safe",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 1,
+      "checks_passed": 2,
+      "checks_total": 2,
+      "steps": [
+        {
+          "exit_code": 1,
+          "checks_passed": 1,
+          "checks_total": 1,
+          "failures": [],
+          "elapsed_seconds": 0.079266
+        },
+        {
+          "exit_code": 1,
+          "checks_passed": 1,
+          "checks_total": 1,
+          "failures": [],
+          "elapsed_seconds": 0.076912
+        }
+      ],
+      "elapsed_seconds": 0.419508,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "schema version 3 requires sync.parallelism\n",
+      "failures": [],
+      "task_id": "07-config-migrator",
+      "stage": "initial"
+    },
+    {
+      "case_id": "config-migrator-schema1-sync-not-table-safe",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 1,
+      "checks_passed": 2,
+      "checks_total": 2,
+      "steps": [
+        {
+          "exit_code": 1,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "failures": [],
+          "elapsed_seconds": 0.083076
+        }
+      ],
+      "elapsed_seconds": 0.354189,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "sync must be a table\n",
+      "failures": [],
+      "task_id": "07-config-migrator",
+      "stage": "initial"
+    },
+    {
+      "case_id": "config-migrator-zero-version-safe",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 1,
+      "checks_passed": 2,
+      "checks_total": 2,
+      "steps": [
+        {
+          "exit_code": 1,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "failures": [],
+          "elapsed_seconds": 0.076753
+        }
+      ],
+      "elapsed_seconds": 0.375155,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "unsupported schema version 0\n",
+      "failures": [],
+      "task_id": "07-config-migrator",
+      "stage": "initial"
+    },
+    {
+      "case_id": "config-migrator-check-schema1-valid",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 0,
+      "checks_passed": 1,
+      "checks_total": 1,
+      "steps": [
+        {
+          "exit_code": 0,
+          "checks_passed": 1,
+          "checks_total": 1,
+          "failures": [],
+          "elapsed_seconds": 0.078697
+        }
+      ],
+      "elapsed_seconds": 0.346165,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "",
+      "failures": [],
+      "task_id": "07-config-migrator",
+      "stage": "initial"
+    },
+    {
+      "case_id": "config-migrator-check-schema2-valid",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 0,
+      "checks_passed": 1,
+      "checks_total": 1,
+      "steps": [
+        {
+          "exit_code": 0,
+          "checks_passed": 1,
+          "checks_total": 1,
+          "failures": [],
+          "elapsed_seconds": 0.083695
+        }
+      ],
+      "elapsed_seconds": 0.336203,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "",
+      "failures": [],
+      "task_id": "07-config-migrator",
+      "stage": "initial"
+    },
+    {
+      "case_id": "config-migrator-check-schema2-missing-timeout-safe",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 1,
+      "checks_passed": 2,
+      "checks_total": 2,
+      "steps": [
+        {
+          "exit_code": 1,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "failures": [],
+          "elapsed_seconds": 0.072446
+        }
+      ],
+      "elapsed_seconds": 0.322806,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "schema version 2 or later requires sync.timeout_seconds\n",
+      "failures": [],
+      "task_id": "07-config-migrator",
+      "stage": "initial"
+    },
+    {
+      "case_id": "config-migrator-v2-to-v3",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 0,
+      "checks_passed": 2,
+      "checks_total": 2,
+      "steps": [
+        {
+          "exit_code": 0,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "failures": [],
+          "elapsed_seconds": 0.081084
+        }
+      ],
+      "elapsed_seconds": 0.337071,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "",
+      "failures": [],
+      "task_id": "07-config-migrator",
+      "stage": "follow_up"
+    },
+    {
+      "case_id": "config-migrator-current-schema-migrate-no-op",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 0,
+      "checks_passed": 1,
+      "checks_total": 1,
+      "steps": [
+        {
+          "exit_code": 0,
+          "checks_passed": 1,
+          "checks_total": 1,
+          "failures": [],
+          "elapsed_seconds": 0.07865
+        }
+      ],
+      "elapsed_seconds": 0.372044,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "",
+      "failures": [],
+      "task_id": "07-config-migrator",
+      "stage": "follow_up"
+    },
+    {
+      "case_id": "config-migrator-v2-to-v3-preserves-explicit-parallelism",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 0,
+      "checks_passed": 2,
+      "checks_total": 2,
+      "steps": [
+        {
+          "exit_code": 0,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "failures": [],
+          "elapsed_seconds": 0.077393
+        }
+      ],
+      "elapsed_seconds": 0.336702,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "",
+      "failures": [],
+      "task_id": "07-config-migrator",
+      "stage": "follow_up"
+    },
+    {
+      "case_id": "config-migrator-migrate-schema2-missing-timeout-safe",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 1,
+      "checks_passed": 2,
+      "checks_total": 2,
+      "steps": [
+        {
+          "exit_code": 1,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "failures": [],
+          "elapsed_seconds": 0.077579
+        }
+      ],
+      "elapsed_seconds": 0.33535,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "schema version 2 or later requires sync.timeout_seconds\n",
+      "failures": [],
+      "task_id": "07-config-migrator",
+      "stage": "follow_up"
+    },
+    {
+      "case_id": "config-migrator-invalid-schema2-timeout-check-and-migrate-safe",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 1,
+      "checks_passed": 4,
+      "checks_total": 4,
+      "steps": [
+        {
+          "exit_code": 1,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "failures": [],
+          "elapsed_seconds": 0.076879
+        },
+        {
+          "exit_code": 1,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "failures": [],
+          "elapsed_seconds": 0.073611
+        }
+      ],
+      "elapsed_seconds": 0.408481,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "invalid sync timeout_seconds\n",
+      "failures": [],
+      "task_id": "07-config-migrator",
+      "stage": "follow_up"
+    },
+    {
+      "case_id": "config-migrator-invalid-schema2-parallelism-check-and-migrate-safe",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 1,
+      "checks_passed": 2,
+      "checks_total": 2,
+      "steps": [
+        {
+          "exit_code": 1,
+          "checks_passed": 1,
+          "checks_total": 1,
+          "failures": [],
+          "elapsed_seconds": 0.074085
+        },
+        {
+          "exit_code": 1,
+          "checks_passed": 1,
+          "checks_total": 1,
+          "failures": [],
+          "elapsed_seconds": 0.076705
+        }
+      ],
+      "elapsed_seconds": 0.424754,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "invalid sync parallelism\n",
+      "failures": [],
+      "task_id": "07-config-migrator",
+      "stage": "follow_up"
+    },
+    {
+      "case_id": "config-migrator-migrate-schema1-preserves-inline-version-comment",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 0,
+      "checks_passed": 3,
+      "checks_total": 3,
+      "steps": [
+        {
+          "exit_code": 0,
+          "checks_passed": 3,
+          "checks_total": 3,
+          "failures": [],
+          "elapsed_seconds": 0.074685
+        }
+      ],
+      "elapsed_seconds": 0.339998,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "",
+      "failures": [],
+      "task_id": "07-config-migrator",
+      "stage": "follow_up"
+    },
+    {
+      "case_id": "config-migrator-check-schema2-missing-parallelism-read-only",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 0,
+      "checks_passed": 1,
+      "checks_total": 1,
+      "steps": [
+        {
+          "exit_code": 0,
+          "checks_passed": 1,
+          "checks_total": 1,
+          "failures": [],
+          "elapsed_seconds": 0.074835
+        }
+      ],
+      "elapsed_seconds": 0.338293,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "",
+      "failures": [],
+      "task_id": "07-config-migrator",
+      "stage": "follow_up"
+    },
+    {
+      "case_id": "config-migrator-invalid-schema2-boolean-parallelism-check-and-migrate-safe",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 1,
+      "checks_passed": 4,
+      "checks_total": 4,
+      "steps": [
+        {
+          "exit_code": 1,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "failures": [],
+          "elapsed_seconds": 0.072889
+        },
+        {
+          "exit_code": 1,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "failures": [],
+          "elapsed_seconds": 0.076026
+        }
+      ],
+      "elapsed_seconds": 0.408768,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "invalid sync parallelism\n",
+      "failures": [],
+      "task_id": "07-config-migrator",
+      "stage": "follow_up"
+    },
+    {
+      "case_id": "doc-index-build-check-backlinks",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 0,
+      "checks_passed": 7,
+      "checks_total": 7,
+      "steps": [
+        {
+          "exit_code": 0,
+          "checks_passed": 1,
+          "checks_total": 1,
+          "failures": [],
+          "elapsed_seconds": 0.075931
+        },
+        {
+          "exit_code": 0,
+          "checks_passed": 4,
+          "checks_total": 4,
+          "failures": [],
+          "elapsed_seconds": 0.080179
+        },
+        {
+          "exit_code": 0,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "failures": [],
+          "elapsed_seconds": 0.35314
+        }
+      ],
+      "elapsed_seconds": 0.778413,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "",
+      "failures": [],
+      "task_id": "08-documentation-link-index",
+      "stage": "initial"
+    },
+    {
+      "case_id": "doc-index-ignores-symlink-outside-root",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 0,
+      "checks_passed": 4,
+      "checks_total": 4,
+      "steps": [
+        {
+          "exit_code": 0,
+          "checks_passed": 1,
+          "checks_total": 1,
+          "failures": [],
+          "elapsed_seconds": 0.074909
+        },
+        {
+          "exit_code": 0,
+          "checks_passed": 3,
+          "checks_total": 3,
+          "failures": [],
+          "elapsed_seconds": 0.077898
+        }
+      ],
+      "elapsed_seconds": 0.465595,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "",
+      "failures": [],
+      "task_id": "08-documentation-link-index",
+      "stage": "initial"
+    },
+    {
+      "case_id": "doc-index-invalid-utf8-preserves-index",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 0,
+      "checks_passed": 3,
+      "checks_total": 3,
+      "steps": [
+        {
+          "exit_code": 1,
+          "checks_passed": 1,
+          "checks_total": 1,
+          "failures": [],
+          "elapsed_seconds": 0.082199
+        },
+        {
+          "exit_code": 0,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "failures": [],
+          "elapsed_seconds": 0.077779
+        }
+      ],
+      "elapsed_seconds": 0.604995,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "",
+      "failures": [],
+      "task_id": "08-documentation-link-index",
+      "stage": "initial"
+    },
+    {
+      "case_id": "doc-index-indexes-nested-folders",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 0,
+      "checks_passed": 3,
+      "checks_total": 3,
+      "steps": [
+        {
+          "exit_code": 0,
+          "checks_passed": 1,
+          "checks_total": 1,
+          "failures": [],
+          "elapsed_seconds": 0.080597
+        },
+        {
+          "exit_code": 0,
+          "checks_passed": 1,
+          "checks_total": 1,
+          "failures": [],
+          "elapsed_seconds": 0.075677
+        },
+        {
+          "exit_code": 0,
+          "checks_passed": 1,
+          "checks_total": 1,
+          "failures": [],
+          "elapsed_seconds": 0.077663
+        }
+      ],
+      "elapsed_seconds": 0.560405,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "",
+      "failures": [],
+      "task_id": "08-documentation-link-index",
+      "stage": "initial"
+    },
+    {
+      "case_id": "doc-index-ignores-symlinked-directory",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 0,
+      "checks_passed": 2,
+      "checks_total": 2,
+      "steps": [
+        {
+          "exit_code": 0,
+          "checks_passed": 1,
+          "checks_total": 1,
+          "failures": [],
+          "elapsed_seconds": 0.077454
+        },
+        {
+          "exit_code": 0,
+          "checks_passed": 1,
+          "checks_total": 1,
+          "failures": [],
+          "elapsed_seconds": 0.073979
+        }
+      ],
+      "elapsed_seconds": 0.442281,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "",
+      "failures": [],
+      "task_id": "08-documentation-link-index",
+      "stage": "initial"
+    },
+    {
+      "case_id": "doc-index-alias-schema-follow-up",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 0,
+      "checks_passed": 9,
+      "checks_total": 9,
+      "steps": [
+        {
+          "exit_code": 0,
+          "checks_passed": 1,
+          "checks_total": 1,
+          "failures": [],
+          "elapsed_seconds": 0.074919
+        },
+        {
+          "exit_code": 0,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "failures": [],
+          "elapsed_seconds": 0.076734
+        },
+        {
+          "exit_code": 0,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "failures": [],
+          "elapsed_seconds": 0.080516
+        },
+        {
+          "exit_code": 0,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "failures": [],
+          "elapsed_seconds": 0.075173
+        },
+        {
+          "exit_code": 0,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "failures": [],
+          "elapsed_seconds": 0.077188
+        }
+      ],
+      "elapsed_seconds": 0.752339,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "",
+      "failures": [],
+      "task_id": "08-documentation-link-index",
+      "stage": "follow_up"
+    },
+    {
+      "case_id": "doc-index-alias-collision-is-ambiguous",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 0,
+      "checks_passed": 5,
+      "checks_total": 5,
+      "steps": [
+        {
+          "exit_code": 0,
+          "checks_passed": 1,
+          "checks_total": 1,
+          "failures": [],
+          "elapsed_seconds": 0.07613
+        },
+        {
+          "exit_code": 0,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "failures": [],
+          "elapsed_seconds": 0.076812
+        },
+        {
+          "exit_code": 0,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "failures": [],
+          "elapsed_seconds": 0.072399
+        }
+      ],
+      "elapsed_seconds": 0.513881,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "",
+      "failures": [],
+      "task_id": "08-documentation-link-index",
+      "stage": "follow_up"
+    },
+    {
+      "case_id": "doc-index-alias-json-grammar",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 0,
+      "checks_passed": 7,
+      "checks_total": 7,
+      "steps": [
+        {
+          "exit_code": 0,
+          "checks_passed": 1,
+          "checks_total": 1,
+          "failures": [],
+          "elapsed_seconds": 0.075197
+        },
+        {
+          "exit_code": 0,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "failures": [],
+          "elapsed_seconds": 0.074491
+        },
+        {
+          "exit_code": 0,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "failures": [],
+          "elapsed_seconds": 0.072915
+        },
+        {
+          "exit_code": 0,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "failures": [],
+          "elapsed_seconds": 0.075109
+        }
+      ],
+      "elapsed_seconds": 0.596026,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "",
+      "failures": [],
+      "task_id": "08-documentation-link-index",
+      "stage": "follow_up"
+    },
+    {
+      "case_id": "doc-index-alias-invalid-values-preserves-index",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 0,
+      "checks_passed": 3,
+      "checks_total": 3,
+      "steps": [
+        {
+          "exit_code": 1,
+          "checks_passed": 1,
+          "checks_total": 1,
+          "failures": [],
+          "elapsed_seconds": 0.070894
+        },
+        {
+          "exit_code": 0,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "failures": [],
+          "elapsed_seconds": 0.076497
+        }
+      ],
+      "elapsed_seconds": 0.513262,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "",
+      "failures": [],
+      "task_id": "08-documentation-link-index",
+      "stage": "follow_up"
+    },
+    {
+      "case_id": "doc-index-alias-nested-preserves-index",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 0,
+      "checks_passed": 3,
+      "checks_total": 3,
+      "steps": [
+        {
+          "exit_code": 1,
+          "checks_passed": 1,
+          "checks_total": 1,
+          "failures": [],
+          "elapsed_seconds": 0.07338
+        },
+        {
+          "exit_code": 0,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "failures": [],
+          "elapsed_seconds": 0.07297
+        }
+      ],
+      "elapsed_seconds": 0.603465,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "",
+      "failures": [],
+      "task_id": "08-documentation-link-index",
+      "stage": "follow_up"
+    },
+    {
+      "case_id": "doc-index-duplicate-alias-field-preserves-index",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 0,
+      "checks_passed": 3,
+      "checks_total": 3,
+      "steps": [
+        {
+          "exit_code": 1,
+          "checks_passed": 1,
+          "checks_total": 1,
+          "failures": [],
+          "elapsed_seconds": 0.073119
+        },
+        {
+          "exit_code": 0,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "failures": [],
+          "elapsed_seconds": 0.070365
+        }
+      ],
+      "elapsed_seconds": 0.515842,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "",
+      "failures": [],
+      "task_id": "08-documentation-link-index",
+      "stage": "follow_up"
+    },
+    {
+      "case_id": "doc-index-malformed-alias-preserves-index",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 0,
+      "checks_passed": 3,
+      "checks_total": 3,
+      "steps": [
+        {
+          "exit_code": 1,
+          "checks_passed": 1,
+          "checks_total": 1,
+          "failures": [],
+          "elapsed_seconds": 0.071155
+        },
+        {
+          "exit_code": 0,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "failures": [],
+          "elapsed_seconds": 0.09635
+        }
+      ],
+      "elapsed_seconds": 0.532085,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "",
+      "failures": [],
+      "task_id": "08-documentation-link-index",
+      "stage": "follow_up"
+    },
+    {
+      "case_id": "doc-index-same-page-title-alias-and-extra-front-matter",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 0,
+      "checks_passed": 4,
+      "checks_total": 4,
+      "steps": [
+        {
+          "exit_code": 0,
+          "checks_passed": 1,
+          "checks_total": 1,
+          "failures": [],
+          "elapsed_seconds": 0.078278
+        },
+        {
+          "exit_code": 0,
+          "checks_passed": 3,
+          "checks_total": 3,
+          "failures": [],
+          "elapsed_seconds": 0.076431
+        }
+      ],
+      "elapsed_seconds": 0.451332,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "",
+      "failures": [],
+      "task_id": "08-documentation-link-index",
+      "stage": "follow_up"
+    },
+    {
+      "case_id": "doc-index-rebuild-removes-stale-backlinks",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 0,
+      "checks_passed": 3,
+      "checks_total": 3,
+      "steps": [
+        {
+          "exit_code": 0,
+          "checks_passed": 1,
+          "checks_total": 1,
+          "failures": [],
+          "elapsed_seconds": 0.075975
+        },
+        {
+          "exit_code": 0,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "failures": [],
+          "elapsed_seconds": 0.075201
+        }
+      ],
+      "elapsed_seconds": 0.526232,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "",
+      "failures": [],
+      "task_id": "08-documentation-link-index",
+      "stage": "follow_up"
+    },
+    {
+      "case_id": "doc-index-ignores-aliases-text-without-frontmatter-opener",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 0,
+      "checks_passed": 4,
+      "checks_total": 4,
+      "steps": [
+        {
+          "exit_code": 0,
+          "checks_passed": 1,
+          "checks_total": 1,
+          "failures": [],
+          "elapsed_seconds": 0.074835
+        },
+        {
+          "exit_code": 0,
+          "checks_passed": 3,
+          "checks_total": 3,
+          "failures": [],
+          "elapsed_seconds": 0.074448
+        }
+      ],
+      "elapsed_seconds": 0.440886,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "",
+      "failures": [],
+      "task_id": "08-documentation-link-index",
+      "stage": "follow_up"
+    },
+    {
+      "case_id": "doc-index-unclosed-frontmatter-is-ordinary-markdown",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 0,
+      "checks_passed": 4,
+      "checks_total": 4,
+      "steps": [
+        {
+          "exit_code": 0,
+          "checks_passed": 1,
+          "checks_total": 1,
+          "failures": [],
+          "elapsed_seconds": 0.076361
+        },
+        {
+          "exit_code": 0,
+          "checks_passed": 3,
+          "checks_total": 3,
+          "failures": [],
+          "elapsed_seconds": 0.072398
+        }
+      ],
+      "elapsed_seconds": 0.440832,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "",
+      "failures": [],
+      "task_id": "08-documentation-link-index",
+      "stage": "follow_up"
+    },
+    {
+      "case_id": "doc-index-normalized-order-and-ignores-frontmatter-content",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 0,
+      "checks_passed": 6,
+      "checks_total": 6,
+      "steps": [
+        {
+          "exit_code": 0,
+          "checks_passed": 1,
+          "checks_total": 1,
+          "failures": [],
+          "elapsed_seconds": 0.07759
+        },
+        {
+          "exit_code": 0,
+          "checks_passed": 3,
+          "checks_total": 3,
+          "failures": [],
+          "elapsed_seconds": 0.074801
+        },
+        {
+          "exit_code": 0,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "failures": [],
+          "elapsed_seconds": 0.079664
+        }
+      ],
+      "elapsed_seconds": 0.524585,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "",
+      "failures": [],
+      "task_id": "08-documentation-link-index",
+      "stage": "follow_up"
+    },
+    {
+      "case_id": "doc-index-normalized-path-tie-break",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 0,
+      "checks_passed": 3,
+      "checks_total": 3,
+      "steps": [
+        {
+          "exit_code": 0,
+          "checks_passed": 1,
+          "checks_total": 1,
+          "failures": [],
+          "elapsed_seconds": 0.074543
+        },
+        {
+          "exit_code": 0,
+          "checks_passed": 1,
+          "checks_total": 1,
+          "failures": [],
+          "elapsed_seconds": 0.075181
+        },
+        {
+          "exit_code": 0,
+          "checks_passed": 1,
+          "checks_total": 1,
+          "failures": [],
+          "elapsed_seconds": 0.075645
+        }
+      ],
+      "elapsed_seconds": 0.732437,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "",
+      "failures": [],
+      "task_id": "08-documentation-link-index",
+      "stage": "follow_up"
+    },
+    {
+      "case_id": "lockfile-auditor-policy-report",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 0,
+      "checks_passed": 3,
+      "checks_total": 3,
+      "steps": [
+        {
+          "exit_code": 0,
+          "checks_passed": 3,
+          "checks_total": 3,
+          "failures": [],
+          "elapsed_seconds": 0.072837
+        }
+      ],
+      "elapsed_seconds": 0.386761,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "",
+      "failures": [],
+      "task_id": "09-lockfile-auditor",
+      "stage": "initial"
+    },
+    {
+      "case_id": "lockfile-auditor-malformed-input-preserves-output",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 1,
+      "checks_passed": 2,
+      "checks_total": 2,
+      "steps": [
+        {
+          "exit_code": 1,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "failures": [],
+          "elapsed_seconds": 0.073511
+        }
+      ],
+      "elapsed_seconds": 0.366692,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "each lock entry requires non-empty name and version\n",
+      "failures": [],
+      "task_id": "09-lockfile-auditor",
+      "stage": "initial"
+    },
+    {
+      "case_id": "lockfile-auditor-volume-tail-policy",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 0,
+      "checks_passed": 3,
+      "checks_total": 3,
+      "steps": [
+        {
+          "exit_code": 0,
+          "checks_passed": 3,
+          "checks_total": 3,
+          "failures": [],
+          "elapsed_seconds": 0.074195
+        }
+      ],
+      "elapsed_seconds": 0.404494,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "",
+      "failures": [],
+      "task_id": "09-lockfile-auditor",
+      "stage": "initial"
+    },
+    {
+      "case_id": "lockfile-auditor-outside-version-bounds",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 0,
+      "checks_passed": 3,
+      "checks_total": 3,
+      "steps": [
+        {
+          "exit_code": 0,
+          "checks_passed": 3,
+          "checks_total": 3,
+          "failures": [],
+          "elapsed_seconds": 0.074815
+        }
+      ],
+      "elapsed_seconds": 0.377493,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "",
+      "failures": [],
+      "task_id": "09-lockfile-auditor",
+      "stage": "initial"
+    },
+    {
+      "case_id": "lockfile-auditor-policy-fields-default-empty",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 0,
+      "checks_passed": 3,
+      "checks_total": 3,
+      "steps": [
+        {
+          "exit_code": 0,
+          "checks_passed": 3,
+          "checks_total": 3,
+          "failures": [],
+          "elapsed_seconds": 0.086739
+        }
+      ],
+      "elapsed_seconds": 0.408315,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "",
+      "failures": [],
+      "task_id": "09-lockfile-auditor",
+      "stage": "initial"
+    },
+    {
+      "case_id": "lockfile-auditor-repeated-diagnostics-per-entry",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 0,
+      "checks_passed": 3,
+      "checks_total": 3,
+      "steps": [
+        {
+          "exit_code": 0,
+          "checks_passed": 3,
+          "checks_total": 3,
+          "failures": [],
+          "elapsed_seconds": 0.092798
+        }
+      ],
+      "elapsed_seconds": 0.405719,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "",
+      "failures": [],
+      "task_id": "09-lockfile-auditor",
+      "stage": "initial"
+    },
+    {
+      "case_id": "lockfile-auditor-inclusive-minimum-and-maximum-boundaries",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 0,
+      "checks_passed": 3,
+      "checks_total": 3,
+      "steps": [
+        {
+          "exit_code": 0,
+          "checks_passed": 3,
+          "checks_total": 3,
+          "failures": [],
+          "elapsed_seconds": 0.079426
+        }
+      ],
+      "elapsed_seconds": 0.392263,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "",
+      "failures": [],
+      "task_id": "09-lockfile-auditor",
+      "stage": "initial"
+    },
+    {
+      "case_id": "lockfile-auditor-unexpired-exception",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 0,
+      "checks_passed": 3,
+      "checks_total": 3,
+      "steps": [
+        {
+          "exit_code": 0,
+          "checks_passed": 3,
+          "checks_total": 3,
+          "failures": [],
+          "elapsed_seconds": 0.078091
+        }
+      ],
+      "elapsed_seconds": 0.394393,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "",
+      "failures": [],
+      "task_id": "09-lockfile-auditor",
+      "stage": "follow_up"
+    },
+    {
+      "case_id": "lockfile-auditor-valid-expired-exception",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 0,
+      "checks_passed": 3,
+      "checks_total": 3,
+      "steps": [
+        {
+          "exit_code": 0,
+          "checks_passed": 3,
+          "checks_total": 3,
+          "failures": [],
+          "elapsed_seconds": 0.082582
+        }
+      ],
+      "elapsed_seconds": 0.384528,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "",
+      "failures": [],
+      "task_id": "09-lockfile-auditor",
+      "stage": "follow_up"
+    },
+    {
+      "case_id": "lockfile-auditor-duplicate-exception-preserves-output",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 1,
+      "checks_passed": 2,
+      "checks_total": 2,
+      "steps": [
+        {
+          "exit_code": 1,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "failures": [],
+          "elapsed_seconds": 0.08203
+        }
+      ],
+      "elapsed_seconds": 0.368782,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "duplicate exception name\n",
+      "failures": [],
+      "task_id": "09-lockfile-auditor",
+      "stage": "follow_up"
+    },
+    {
+      "case_id": "lockfile-auditor-invalid-exception-preserves-output",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 1,
+      "checks_passed": 2,
+      "checks_total": 2,
+      "steps": [
+        {
+          "exit_code": 1,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "failures": [],
+          "elapsed_seconds": 0.081343
+        }
+      ],
+      "elapsed_seconds": 0.374641,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "invalid exception entry\n",
+      "failures": [],
+      "task_id": "09-lockfile-auditor",
+      "stage": "follow_up"
+    },
+    {
+      "case_id": "lockfile-auditor-invalid-exception-date-preserves-output",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 1,
+      "checks_passed": 2,
+      "checks_total": 2,
+      "steps": [
+        {
+          "exit_code": 1,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "failures": [],
+          "elapsed_seconds": 0.072447
+        }
+      ],
+      "elapsed_seconds": 0.360014,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "invalid exception date\n",
+      "failures": [],
+      "task_id": "09-lockfile-auditor",
+      "stage": "follow_up"
+    },
+    {
+      "case_id": "lockfile-auditor-missing-as-of-preserves-output",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 1,
+      "checks_passed": 2,
+      "checks_total": 2,
+      "steps": [
+        {
+          "exit_code": 1,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "failures": [],
+          "elapsed_seconds": 0.07515
+        }
+      ],
+      "elapsed_seconds": 0.331774,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "--as-of is required when exceptions are configured\n",
+      "failures": [],
+      "task_id": "09-lockfile-auditor",
+      "stage": "follow_up"
+    },
+    {
+      "case_id": "lockfile-auditor-invalid-as-of-preserves-output",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 1,
+      "checks_passed": 2,
+      "checks_total": 2,
+      "steps": [
+        {
+          "exit_code": 1,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "failures": [],
+          "elapsed_seconds": 0.07356
+        }
+      ],
+      "elapsed_seconds": 0.343559,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "invalid --as-of date\n",
+      "failures": [],
+      "task_id": "09-lockfile-auditor",
+      "stage": "follow_up"
+    },
+    {
+      "case_id": "lockfile-auditor-exception-for-non-denied-package-has-no-effect",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 0,
+      "checks_passed": 3,
+      "checks_total": 3,
+      "steps": [
+        {
+          "exit_code": 0,
+          "checks_passed": 3,
+          "checks_total": 3,
+          "failures": [],
+          "elapsed_seconds": 0.075847
+        }
+      ],
+      "elapsed_seconds": 0.385306,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "",
+      "failures": [],
+      "task_id": "09-lockfile-auditor",
+      "stage": "follow_up"
+    },
+    {
+      "case_id": "lockfile-auditor-empty-as-of-preserves-output",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 1,
+      "checks_passed": 1,
+      "checks_total": 1,
+      "steps": [
+        {
+          "exit_code": 1,
+          "checks_passed": 1,
+          "checks_total": 1,
+          "failures": [],
+          "elapsed_seconds": 0.073243
+        }
+      ],
+      "elapsed_seconds": 0.344117,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "invalid --as-of date\n",
+      "failures": [],
+      "task_id": "09-lockfile-auditor",
+      "stage": "follow_up"
+    },
+    {
+      "case_id": "lockfile-auditor-exception-expires-on-as-of",
+      "candidate": {
+        "language": "Python",
+        "role": "author_calibration_reference",
+        "python": "3.14.8",
+        "dependencies": "evaluation/calibration/python-reference/requirements.txt"
+      },
+      "passed": true,
+      "exit_code": 0,
+      "checks_passed": 3,
+      "checks_total": 3,
+      "steps": [
+        {
+          "exit_code": 0,
+          "checks_passed": 3,
+          "checks_total": 3,
+          "failures": [],
+          "elapsed_seconds": 0.07833
+        }
+      ],
+      "elapsed_seconds": 0.329346,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "",
+      "failures": [],
+      "task_id": "09-lockfile-auditor",
+      "stage": "follow_up"
+    }
+  ]
+}

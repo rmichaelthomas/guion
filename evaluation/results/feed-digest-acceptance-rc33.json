@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "captured_at": "2026-10-22",
+  "status": "passed",
+  "classification": "author-defined development acceptance; not an independent recommendation evaluation",
+  "candidate": {
+    "release": "RC33",
+    "artifact_format": 21,
+    "target": "macos-aarch64",
+    "managed_python": "3.14.8",
+    "uv": "0.13.4",
+    "python_dependency": "feedparser==6.0.14",
+    "manifest_network_grant": ["127.0.0.1"],
+    "package_sha256": "37bb972b0551276a3231399c2fd9950420fa482565e7097bed638761d7128948"
+  },
+  "environment": {
+    "python_installation": "temporary UV_PYTHON_INSTALL_DIR under /private/tmp",
+    "uv_cache": "temporary UV_CACHE_DIR under /private/tmp",
+    "initial_state": "both installation directory and cache empty",
+    "bootstrap": "veritas sync downloaded pinned CPython 3.14.8 and installed the locked feedparser dependency",
+    "package_execution": "fresh extraction under /private/tmp/veritas-foundation-rc33-cold"
+  },
+  "acceptance_suite": {
+    "transport": "loopback-only threaded fixture server",
+    "summary": {
+      "first_use_bootstrap_then_suite": {"passed": 10, "failed": 0},
+      "feed_digest": {"passed": 6, "failed": 0},
+      "task_ledger_packaged_cli": {"passed": 4, "failed": 0}
+    },
+    "feed_cases": [
+      {"name": "changed_title_is_reflected_on_fresh_run", "status": "passed"},
+      {"name": "dedup_unicode_sort_failure_and_python_parity", "status": "passed"},
+      {"name": "malformed_feed_contributes_no_entries", "status": "passed"},
+      {"name": "reversed_input_is_deterministic", "status": "passed"},
+      {"name": "ungranted_hostname_is_denied", "status": "passed"},
+      {"name": "veritas_and_python_fetch_independent_feeds_concurrently", "status": "passed"}
+    ],
+    "limits": {
+      "max_parallel_requests": 4,
+      "request_timeout_seconds": 15,
+      "max_response_bytes": 16777216,
+      "max_redirects": 5
+    }
+  },
+  "limits": [
+    "same-host macOS ARM64 first-use evidence only",
+    "no public network feeds contacted",
+    "not an independent task or recommendation study",
+    "no performance comparison claimed"
+  ]
+}

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Sample Feed</title>
+    <link>https://example.test/</link>
+    <description>A tiny feed for trying the parser and inbox.</description>
+    <item>
+      <title>First Veritas inbox item</title>
+      <link>https://example.test/first</link>
+      <pubDate>Wed, 21 Oct 2026 07:28:00 GMT</pubDate>
+    </item>
+    <item>
+      <title>Second Veritas inbox item</title>
+      <link>https://example.test/second</link>
+    </item>
+  </channel>
+</rss>

@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "milestone": "RC58",
+  "feature": "typed_machine_readable_dependency_sync_failures",
+  "status": "passed",
+  "suite_totals": {
+    "rust_workspace": {
+      "passed_tests": 117,
+      "failed_tests": 0
+    },
+    "installed_python_acceptance": {
+      "passed_tests": 21,
+      "failed_tests": 0
+    },
+    "formatting": "passed",
+    "strict_clippy": "passed",
+    "release_packaging_installer_relocation_repeat_launch": "passed"
+  },
+  "checks": {
+    "typed_uv_not_found_failure": true,
+    "typed_uv_version_mismatch_failure": true,
+    "failed_sync_does_not_leave_partial_bridge_environment": true,
+    "sync_json_configuration_and_argument_diagnostics": true,
+    "sync_json_managed_python_success_and_lock_fingerprints": true,
+    "installed_sync_json_offline_success": true,
+    "installed_python_acceptance_from_packaged_release": true,
+    "release_archive_checksum_verified": true
+  },
+  "diagnostic_codes": [
+    "E_SYNC_ARGUMENT",
+    "E_PROJECT_NOT_FOUND",
+    "E_SYNC_PROJECT",
+    "E_SYNC_CONFIGURATION",
+    "E_UV_NOT_FOUND",
+    "E_UV_VERSION_MISMATCH",
+    "E_UV_UNAVAILABLE",
+    "E_SYNC_LOCK_INVALID",
+    "E_DEPENDENCY_RESOLUTION_FAILED",
+    "E_DEPENDENCY_INSTALL_FAILED",
+    "E_MANAGED_PYTHON_UNAVAILABLE",
+    "E_SYNC_FAILED"
+  ],
+  "scope_limits": [
+    "Only macOS ARM64 was exercised.",
+    "Lock fingerprints identify lock contents but do not prove publisher provenance.",
+    "Dynamic native loading and native images in the offline wheel cache remain outside the provenance scan.",
+    "Independent assistant task evaluation and recommendation gate remain open."
+  ]
+}

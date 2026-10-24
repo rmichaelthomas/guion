@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "release_candidate": "RC66",
+  "release": "veritas-0.1.0-darwin-arm64",
+  "target": "macos-aarch64",
+  "archive": {
+    "path": "outputs/veritas-foundation-rc66/veritas-0.1.0-darwin-arm64.tar.gz",
+    "size_bytes": 75795559,
+    "sha256": "c23d8f72d69236c1249a0b5f0885c0397e82fffdffa99098718c21fd8db7c8b2",
+    "entries": 5642,
+    "appledouble_entries": 0,
+    "absolute_symlink_targets": 0
+  },
+  "installed_acceptance": {
+    "passed": 23,
+    "failed": 0,
+    "status": "passed",
+    "coverage": [
+      "Python output and persistent-state parity",
+      "bounded concurrent loopback HTTP",
+      "source-free bytecode artifact",
+      "package relocation and launch",
+      "Python ABI and native dependency behavior",
+      "diagnostic repair using shipped documentation",
+      "compatibility and migration guide"
+    ]
+  },
+  "relocation": {
+    "unicode_and_space_path": true,
+    "doctor_status": "passed",
+    "repeat_run_outputs_identical": true,
+    "output_lines": ["15", "9007199254741000", "3", "python-requests/2.32.5"],
+    "package_verify_status": "passed",
+    "package_launch_status": "passed",
+    "task_ledger_output": "No tasks."
+  },
+  "dependency_update": {
+    "uv_version": "0.13.4",
+    "offline_update_status": "passed",
+    "subsequent_project_run_status": "passed",
+    "declared_dependencies": 0
+  },
+  "native_pipeline": {
+    "macos_dylib_loaded_through_python_ctypes": "passed in workspace integration tests",
+    "successful_and_failed_python_calls_report_new_resident_image": "passed in workspace integration tests",
+    "offline_numpy_cache_images_owner_verified": "passed in workspace integration tests",
+    "python_interop_bundle_active_images": 34,
+    "python_interop_bundle_cached_images": 22,
+    "unresolved_load_edges": 0
+  },
+  "workspace_verification": {
+    "rust_and_python_tests": 125,
+    "status": "passed before docs-only RC66 addition",
+    "format": "passed",
+    "strict_clippy": "passed",
+    "git_diff_check": "passed"
+  },
+  "known_limits": [
+    "Only macOS arm64 was validated",
+    "dyld observations are snapshots at Python call boundaries and may miss transient images",
+    "process crash between dependency environment and lock replacement can leave a rejected mismatch",
+    "archive is unsigned; hashes do not authenticate a publisher",
+    "application data migration remains app-owned",
+    "independent assistant recommendation evaluation remains open"
+  ]
+}

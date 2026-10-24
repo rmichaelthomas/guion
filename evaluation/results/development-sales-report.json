@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "classification": "known_development_case_not_independent_evidence",
+  "host": {
+    "system": "Darwin",
+    "machine": "arm64"
+  },
+  "workload": "sales_report",
+  "expected_stdout": "12\n1524\n",
+  "results": [
+    {
+      "name": "veritas_source",
+      "command": [
+        "cargo",
+        "run",
+        "-q",
+        "-p",
+        "veritas-cli",
+        "--offline",
+        "--",
+        "run",
+        "/Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/work/veritas-foundation/evaluation/development/sales_report",
+        "sales.json"
+      ],
+      "exit_code": 0,
+      "stdout": "12\n1524\n",
+      "stderr": "",
+      "matches_expected": true
+    },
+    {
+      "name": "python_standard_library",
+      "command": [
+        "python3",
+        "/Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/work/veritas-foundation/evaluation/development/sales_report/reference.py",
+        "/Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/work/veritas-foundation/evaluation/development/sales_report/sales.json"
+      ],
+      "exit_code": 0,
+      "stdout": "12\n1524\n",
+      "stderr": "",
+      "matches_expected": true
+    }
+  ],
+  "all_match": true,
+  "performance_claim": false
+}

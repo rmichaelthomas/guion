@@ -1,0 +1,2181 @@
+use std::time::Duration;
+use veritas_compiler::compile;
+use veritas_model::{Artifact, BigInt, Float64, Op, Value};
+use veritas_runtime::{
+    CancellationToken, EffectKind, EffectOutcome, EffectRecord, HostPolicy, Runtime,
+};
+
+#[test]
+fn host_cancellation_interrupts_native_execution() {
+    let source = "fn spin(value: Int) -> Int:\n    var i = 0\n    while i < value:\n        set i = i + 1\n    return i\n\nfn main() -> Int:\n    return spin(1)\n";
+    let artifact = compile("native-cancel.vr", source).expect("native loop compiles");
+    let policy = HostPolicy {
+        instruction_limit: 1_000_000_000_000,
+        ..HostPolicy::default()
+    };
+    let mut instance = Runtime::new().load(artifact, policy).unwrap();
+    instance.invoke("main", vec![]).unwrap(); // Compile the native backend before timing cancellation.
+    let cancellation = CancellationToken::new();
+    let cancellation_from_thread = cancellation.clone();
+    let cancel_thread = std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(20));
+        cancellation_from_thread.cancel();
+    });
+    let started = std::time::Instant::now();
+    let error = instance
+        .invoke_with_cancellation(
+            "spin",
+            vec![Value::Int(BigInt::parse("1000000000000").unwrap())],
+            cancellation,
+        )
+        .unwrap_err();
+    cancel_thread.join().unwrap();
+
+    assert_eq!(error.code, "R_CANCELLED");
+    assert!(instance
+        .native_function_names()
+        .iter()
+        .any(|name| name == "spin"));
+    assert!(
+        instance.native_calls() > 0,
+        "cancellation reached the JIT function"
+    );
+    assert!(started.elapsed() < Duration::from_secs(3));
+}
+
+#[test]
+fn host_cancellation_interrupts_vm_execution() {
+    let source = "fn main() -> Int:\n    print(\"running\")\n    return 0\n";
+    let artifact = compile("vm-cancel.vr", source).expect("host effect stays on VM");
+    let mut instance = Runtime::new()
+        .load(artifact, HostPolicy::default())
+        .unwrap();
+    let cancellation = CancellationToken::new();
+    cancellation.cancel();
+
+    let error = instance
+        .invoke_with_cancellation("main", vec![], cancellation)
+        .unwrap_err();
+
+    assert_eq!(error.code, "R_CANCELLED");
+}
+
+#[test]
+fn program_stderr_is_separate_and_reported_as_an_effect() {
+    let source = "fn main() -> Int:\n    eprint(\"duplicate id\")\n    return 0\n";
+    let artifact = compile("program-stderr.vr", source).unwrap();
+    let mut legacy = artifact.clone();
+    legacy.format_version = 27;
+    assert!(legacy.to_bytes().unwrap_err().message.contains("format 28"));
+    let artifact = veritas_model::Artifact::from_bytes(&artifact.to_bytes().unwrap()).unwrap();
+    let mut instance = Runtime::new()
+        .load(artifact, HostPolicy::default())
+        .unwrap();
+
+    instance.invoke("main", vec![]).unwrap();
+
+    assert_eq!(instance.take_output(), "");
+    assert_eq!(instance.take_program_stderr(), "duplicate id\n");
+    assert_eq!(
+        instance.effect_report(),
+        &[EffectRecord {
+            kind: EffectKind::ProgramErrorOutput,
+            target: "13 bytes".into(),
+            target_truncated: false,
+            outcome: EffectOutcome::Returned,
+        }]
+    );
+}
+
+#[test]
+fn host_cancellation_joins_parallel_native_workers_and_returns_cancelled() {
+    let source = "fn spin(value: Int) -> Int:\n    var i = 0\n    while true:\n        set i = i + value\n    return i\n\nfn run() -> Result[List[Int], TaskError]:\n    return parallel_map([1, 2, 3, 4], spin, 4)\n\nfn main() -> Int:\n    return 0\n";
+    let artifact = compile("parallel-host-cancel.vr", source).unwrap();
+    let policy = HostPolicy {
+        instruction_limit: 1_000_000_000_000,
+        ..HostPolicy::default()
+    };
+    let mut instance = Runtime::new().load(artifact, policy).unwrap();
+    let cancellation = CancellationToken::new();
+    let cancellation_from_thread = cancellation.clone();
+    let cancel_thread = std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(30));
+        cancellation_from_thread.cancel();
+    });
+    let started = std::time::Instant::now();
+
+    let error = instance
+        .invoke_with_cancellation("run", vec![], cancellation)
+        .unwrap_err();
+    cancel_thread.join().unwrap();
+
+    assert_eq!(error.code, "R_CANCELLED");
+    assert!(started.elapsed() < Duration::from_secs(3));
+    assert!(instance.parallel_threads_used() > 0);
+}
+
+#[test]
+fn cancellation_report_preserves_completed_file_effects() {
+    let root = std::env::temp_dir().join(format!(
+        "veritas-effect-report-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    std::fs::create_dir_all(&root).unwrap();
+    let source = "fn spin(value: Int) -> Int:\n    var i = 0\n    while true:\n        set i = i + value\n    return i\n\nfn main() -> Int:\n    let saved = unwrap(write_text_atomic(\"result.txt\", \"persisted\"))\n    let never = spin(1)\n    return 0\n";
+    let artifact = compile("effect-report.vr", source).unwrap();
+    let policy = HostPolicy {
+        instruction_limit: 1_000_000_000_000,
+        ..HostPolicy::default()
+    }
+    .with_file_access(&root, true, true);
+    let mut instance = Runtime::new().load(artifact, policy).unwrap();
+    let destination = root.join("result.txt");
+    let cancellation = CancellationToken::new();
+    let cancellation_from_thread = cancellation.clone();
+    let destination_from_thread = destination.clone();
+    let cancel_thread = std::thread::spawn(move || {
+        for _ in 0..1_000 {
+            if destination_from_thread.exists() {
+                cancellation_from_thread.cancel();
+                return;
+            }
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        panic!("Veritas did not complete the atomic file write");
+    });
+
+    let error = instance
+        .invoke_with_cancellation("main", vec![], cancellation)
+        .unwrap_err();
+    cancel_thread.join().unwrap();
+
+    assert_eq!(error.code, "R_CANCELLED");
+    assert_eq!(std::fs::read_to_string(&destination).unwrap(), "persisted");
+    assert_eq!(
+        instance.effect_report(),
+        &[EffectRecord {
+            kind: EffectKind::FileWrite,
+            target: "result.txt".into(),
+            target_truncated: false,
+            outcome: EffectOutcome::Returned,
+        }]
+    );
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn effect_reporting_is_bounded_and_marks_omitted_events() {
+    let source = "fn main() -> Int:\n    var i = 0\n    while i < 1100:\n        print(i)\n        set i = i + 1\n    return 0\n";
+    let artifact = compile("bounded-effects.vr", source).unwrap();
+    let mut instance = Runtime::new()
+        .load(artifact, HostPolicy::default())
+        .unwrap();
+
+    instance.invoke("main", vec![]).unwrap();
+
+    assert_eq!(instance.effect_report().len(), 1024);
+    assert_eq!(instance.omitted_effects(), 76);
+    instance.invoke("main", vec![]).unwrap();
+    assert_eq!(instance.effect_report().len(), 1024);
+    assert_eq!(instance.omitted_effects(), 76);
+}
+
+#[test]
+fn typed_empty_collections_work_in_locals_mutations_and_calls() {
+    let source = "fn count(values: List[Int]) -> Int:\n    return len(values)\n\nfn empty_values() -> List[Int]:\n    return []\n\nfn main() -> Int:\n    var values: List[Int] = []\n    set values = [1, 2]\n    let groups: Map[Text, Int] = {}\n    let updated = map_set(groups, \"one\", count([]))\n    return len(values) + updated[\"one\"] + len(empty_values())\n";
+    let artifact = compile("typed-empty-collections.vr", source)
+        .expect("annotations provide element types to empty collection literals");
+    assert_eq!(artifact.format_version, 30);
+    let mut old_format = artifact.clone();
+    old_format.format_version = 24;
+    assert_eq!(
+        old_format.to_bytes().unwrap_err().code,
+        "E_ARTIFACT_VERSION"
+    );
+    let encoded = artifact.to_bytes().unwrap();
+    let artifact = veritas_model::Artifact::from_bytes(&encoded).unwrap();
+    let mut instance = Runtime::new()
+        .load(artifact, HostPolicy::default())
+        .unwrap();
+
+    assert_eq!(
+        instance.invoke("main", vec![]).unwrap(),
+        Value::Int(BigInt::parse("2").unwrap())
+    );
+}
+
+#[test]
+fn lists_support_immutable_push_and_index_replacement() {
+    let source = "fn main() -> Int:\n    let original = [1, 2]\n    let appended = list_push(original, 3)\n    let replaced = list_set(appended, 1, 9)\n    assert(original[1] == 2)\n    assert(appended[1] == 2)\n    assert(replaced[1] == 9)\n    assert(len(replaced) == 3)\n    return replaced[0] + replaced[1] + replaced[2]\n";
+    let artifact = compile("immutable-list-update.vr", source)
+        .expect("typed lists support immutable updates without aliasing");
+    assert_eq!(artifact.format_version, 30);
+    let mut old_format = artifact.clone();
+    old_format.format_version = 25;
+    assert_eq!(
+        old_format.to_bytes().unwrap_err().code,
+        "E_ARTIFACT_VERSION"
+    );
+    let artifact = veritas_model::Artifact::from_bytes(&artifact.to_bytes().unwrap()).unwrap();
+    let mut instance = Runtime::new()
+        .load(artifact, HostPolicy::default())
+        .unwrap();
+    assert_eq!(
+        instance.invoke("main", vec![]).unwrap(),
+        Value::Int(BigInt::parse("13").unwrap())
+    );
+}
+
+#[test]
+fn list_set_assignment_keeps_old_aliases_unchanged() {
+    let source = "fn main() -> Int:\n    let original = [1, 2]\n    var updated = original\n    set updated = list_set(updated, 0, 9)\n    print(original[0])\n    print(updated[0])\n    return 0\n";
+    let artifact = compile("list-alias.vr", source).unwrap();
+    let mut instance = Runtime::new()
+        .load(artifact, HostPolicy::default())
+        .unwrap();
+    instance.invoke("main", vec![]).unwrap();
+    assert_eq!(instance.take_output(), "1\n9\n");
+}
+
+#[test]
+fn same_local_list_updates_do_not_accumulate_full_list_copies() {
+    let source = "fn main() -> Int:\n    var values = [0.0]\n    var i = 0\n    while i < 5000:\n        set values = list_set(values, 0, values[0] + 1.0)\n        set i = i + 1\n    print(values[0])\n    return i\n";
+    let artifact = compile("list-update-budget.vr", source).unwrap();
+    assert!(artifact.functions[0]
+        .code
+        .iter()
+        .any(|instruction| matches!(instruction.op, Op::ListSetLocal(_))));
+    let legacy = {
+        let mut artifact = artifact.clone();
+        artifact.format_version = 25;
+        artifact
+    };
+    assert_eq!(legacy.to_bytes().unwrap_err().code, "E_ARTIFACT_VERSION");
+    let encoded = artifact.to_bytes().unwrap();
+    let artifact = veritas_model::Artifact::from_bytes(&encoded).unwrap();
+    let policy = HostPolicy {
+        allocation_limit_bytes: 1024,
+        ..HostPolicy::default()
+    };
+    let mut instance = Runtime::new().load(artifact, policy).unwrap();
+    assert_eq!(
+        instance.invoke("main", vec![]).unwrap(),
+        Value::Int(BigInt::from_usize(5000))
+    );
+    assert_eq!(instance.take_output(), "5000\n");
+}
+
+#[test]
+fn float64_square_root_runs_in_native_code_and_checks_domain() {
+    let source = "fn hypotenuse(x: Float64, y: Float64) -> Float64:\n    return sqrt(x * x + y * y)\n\nfn invalid_root() -> Float64:\n    return sqrt(-1.0)\n\nfn main() -> Int:\n    return 0\n";
+    let artifact = compile("float-sqrt.vr", source).expect("Float64 square root compiles");
+    let mut instance = Runtime::new()
+        .load(artifact, HostPolicy::default())
+        .unwrap();
+    instance.invoke("main", vec![]).unwrap();
+    assert!(instance
+        .native_function_names()
+        .contains(&"hypotenuse".to_owned()));
+    assert_eq!(
+        instance
+            .invoke(
+                "hypotenuse",
+                vec![
+                    Value::Float64(Float64::new(3.0).unwrap()),
+                    Value::Float64(Float64::new(4.0).unwrap()),
+                ],
+            )
+            .unwrap(),
+        Value::Float64(Float64::new(5.0).unwrap())
+    );
+    assert_eq!(
+        instance.invoke("invalid_root", vec![]).unwrap_err().code,
+        "R_MATH_DOMAIN"
+    );
+}
+
+#[test]
+fn immutable_list_updates_reject_wrong_types_and_out_of_range_indices() {
+    let mismatched = compile(
+        "list-update-type.vr",
+        "fn main() -> Int:\n    let values = list_push([1], \"wrong\")\n    return 0\n",
+    )
+    .unwrap_err();
+    assert_eq!(mismatched.code, "E_TYPE_ARGUMENT");
+
+    let out_of_range = compile(
+        "list-update-index.vr",
+        "fn main() -> Int:\n    let values = list_set([1], 1, 2)\n    return 0\n",
+    )
+    .unwrap();
+    let mut instance = Runtime::new()
+        .load(out_of_range, HostPolicy::default())
+        .unwrap();
+    assert_eq!(
+        instance.invoke("main", vec![]).unwrap_err().code,
+        "R_LIST_INDEX"
+    );
+}
+
+#[test]
+fn local_type_annotation_rejects_a_mismatched_initializer() {
+    let source = "fn main() -> Int:\n    let values: List[Int] = [\"wrong\"]\n    return 0\n";
+    let error = compile("mismatched-local-annotation.vr", source).unwrap_err();
+    assert_eq!(error.code, "E_TYPE_ANNOTATION");
+}
+
+#[test]
+fn executes_source_through_the_shared_artifact_path() {
+    let source = "fn sum_to(n: Int) -> Int:\n    var total = 0\n    var i = n\n    while i > 0:\n        set total = total + i\n        set i = i - 1\n    return total\n\nfn main() -> Int:\n    let result = sum_to(5)\n    print(result)\n    return result\n";
+    let artifact = compile("sum.vr", source).expect("source compiles");
+    let runtime = Runtime::new();
+    let mut instance = runtime
+        .load(artifact, HostPolicy::default())
+        .expect("artifact loads");
+    let result = instance.invoke("main", vec![]).expect("entry runs");
+    assert_eq!(result, Value::Int(BigInt::parse("15").unwrap()));
+    assert_eq!(instance.take_output(), "15\n");
+    instance.close();
+}
+
+#[test]
+fn args_from_skips_cli_subcommands_and_round_trips_in_current_format() {
+    let source = "fn main() -> Int:\n    let values = args_from(1)\n    print(len(values))\n    for value in values:\n        print(value)\n    return 0\n";
+    let artifact = compile("args-from.vr", source).expect("args_from source compiles");
+    assert_eq!(artifact.format_version, 30);
+    let mut legacy = artifact.clone();
+    legacy.format_version = 21;
+    assert_eq!(legacy.to_bytes().unwrap_err().code, "E_ARTIFACT_VERSION");
+    let encoded = artifact.to_bytes().unwrap();
+    let decoded = veritas_model::Artifact::from_bytes(&encoded).unwrap();
+    let mut policy = HostPolicy::default();
+    policy = policy.with_arguments(vec![
+        "refresh".into(),
+        "https://one.example/feed".into(),
+        "https://two.example/feed".into(),
+    ]);
+    let mut instance = Runtime::new().load(decoded, policy).unwrap();
+    instance.invoke("main", vec![]).unwrap();
+    assert_eq!(
+        instance.take_output(),
+        "2\nhttps://one.example/feed\nhttps://two.example/feed\n"
+    );
+}
+
+#[test]
+fn args_from_rejects_negative_and_past_end_indices() {
+    for index in ["-1", "2"] {
+        let source = format!(
+            "fn main() -> Int:\n    let values = args_from({index})\n    return len(values)\n"
+        );
+        let artifact = compile("args-from-index.vr", &source).expect("args_from source compiles");
+        let policy = HostPolicy::default().with_arguments(vec!["one".into()]);
+        let mut instance = Runtime::new().load(artifact, policy).unwrap();
+        assert_eq!(
+            instance.invoke("main", vec![]).unwrap_err().code,
+            "R_ARGUMENT_INDEX"
+        );
+    }
+}
+
+#[test]
+fn integer_division_floor_division_and_remainder_follow_the_numeric_contract() {
+    let source = "fn main() -> Int:\n    print(-7 / 3)\n    print(-7 // 3)\n    print(-7 % 3)\n    print(7 / -3)\n    print(7 // -3)\n    print(7 % -3)\n    print(123456789012345678901234567890 / 7)\n    print(7.0 / 2.0)\n    return 0\n";
+    let artifact = compile("integer-division.vr", source).expect("numeric operators compile");
+    let bytes = artifact.to_bytes().unwrap();
+    let artifact = veritas_model::Artifact::from_bytes(&bytes).unwrap();
+    let mut instance = Runtime::new()
+        .load(artifact, HostPolicy::default())
+        .unwrap();
+    instance.invoke("main", vec![]).unwrap();
+    assert_eq!(
+        instance.take_output(),
+        "-2\n-3\n2\n-2\n-3\n-2\n17636684144620811271604938270\n3.5\n"
+    );
+}
+
+#[test]
+fn native_integer_division_overflow_deoptimizes_to_arbitrary_precision_vm() {
+    let source = "fn quotient(left: Int, right: Int) -> Int:\n    return left // right\n\nfn main() -> Int:\n    return quotient(-9223372036854775808, -1)\n";
+    let artifact = compile("native-int-divide-overflow.vr", source).unwrap();
+    let mut native = Runtime::new()
+        .load(artifact.clone(), HostPolicy::default())
+        .unwrap();
+    let mut vm = Runtime::vm_only()
+        .load(artifact, HostPolicy::default())
+        .unwrap();
+
+    let native_result = native.invoke("main", vec![]).unwrap();
+    assert_eq!(native_result, vm.invoke("main", vec![]).unwrap());
+    assert_eq!(
+        native_result,
+        Value::Int(BigInt::parse("9223372036854775808").unwrap())
+    );
+    assert!(native.native_deoptimizations() > 0);
+}
+
+#[test]
+fn integer_division_operators_report_division_by_zero() {
+    for operator in ["/", "//", "%"] {
+        let source =
+            format!("fn main() -> Int:\n    let result = 1 {operator} 0\n    return result\n");
+        let artifact = compile("divide-by-zero.vr", &source).expect("integer operator compiles");
+        let mut instance = Runtime::new()
+            .load(artifact, HostPolicy::default())
+            .unwrap();
+        assert_eq!(
+            instance.invoke("main", vec![]).unwrap_err().code,
+            "R_DIV_ZERO"
+        );
+    }
+}
+
+#[test]
+fn native_backend_executes_pure_integer_loops_and_falls_back_for_bigints() {
+    let source = "fn sum_to(n: Int) -> Int:\n    var total = 0\n    var i = n\n    while i > 0:\n        set total = total + i\n        set i = i - 1\n    return total\n\nfn main() -> Int:\n    return sum_to(5)\n\nfn big() -> Int:\n    return 9223372036854775808\n\nfn increment(value: Int) -> Int:\n    return value + 1\n\nfn quotient(left: Int, right: Int) -> Int:\n    return left / right\n\nfn remainder(left: Int, right: Int) -> Int:\n    return left % right\n";
+    let artifact = compile("native-loop.vr", source).expect("source compiles");
+    let mut instance = Runtime::new()
+        .load(artifact, HostPolicy::default())
+        .expect("artifact loads");
+    assert_eq!(
+        instance.invoke("main", vec![]).unwrap(),
+        Value::Int(BigInt::parse("15").unwrap())
+    );
+    assert!(instance.native_function_count() >= 1);
+    assert_eq!(
+        instance.invoke("big", vec![]).unwrap(),
+        Value::Int(BigInt::parse("9223372036854775808").unwrap())
+    );
+    assert_eq!(
+        instance
+            .invoke(
+                "increment",
+                vec![Value::Int(BigInt::parse("9223372036854775807").unwrap())]
+            )
+            .unwrap(),
+        Value::Int(BigInt::parse("9223372036854775808").unwrap())
+    );
+    assert_eq!(
+        instance
+            .invoke(
+                "quotient",
+                vec![
+                    Value::Int(BigInt::parse("9").unwrap()),
+                    Value::Int(BigInt::parse("0").unwrap()),
+                ]
+            )
+            .unwrap_err()
+            .code,
+        "R_DIV_ZERO"
+    );
+    for (left, right, expected) in [
+        ("-7", "3", "2"),
+        ("7", "-3", "-2"),
+        ("-7", "-3", "-1"),
+        ("7", "3", "1"),
+        ("-9223372036854775808", "-1", "0"),
+    ] {
+        assert_eq!(
+            instance
+                .invoke(
+                    "remainder",
+                    vec![
+                        Value::Int(BigInt::parse(left).unwrap()),
+                        Value::Int(BigInt::parse(right).unwrap()),
+                    ],
+                )
+                .unwrap(),
+            Value::Int(BigInt::parse(expected).unwrap())
+        );
+    }
+}
+
+#[test]
+fn json_columns_feed_native_integer_aggregation_with_stable_category_codes() {
+    let source = r#"record Analysis:
+    total: Int
+    counts: List[Int]
+    totals: List[Int]
+
+fn zeros(count: Int) -> List[Int]:
+    var values: List[Int] = []
+    var index = 0
+    while index < count:
+        set values = list_push(values, 0)
+        set index = index + 1
+    return values
+
+fn aggregate(values: List[Int], categories: List[Int], initial_counts: List[Int], initial_totals: List[Int]) -> Analysis:
+    var counts = list_set(initial_counts, 0, initial_counts[0])
+    var totals = list_set(initial_totals, 0, initial_totals[0])
+    var total = 0
+    var index = 0
+    while index < len(values):
+        let value = values[index]
+        let category = categories[index]
+        set counts = list_set(counts, category, counts[category] + 1)
+        set totals = list_set(totals, category, totals[category] + value)
+        set total = total + value
+        set index = index + 1
+    return Analysis(total, counts, totals)
+
+fn main() -> Int:
+    let document = unwrap(json_parse("{\"rows\":[{\"value\":12,\"tag\":\"b\"},{\"value\":8,\"tag\":\"a\"},{\"value\":21,\"tag\":\"b\"}]}"))
+    let rows = json_get(document, "rows")
+    let values = json_int_column(rows, "value")
+    let categorized = json_text_categories(rows, "tag")
+    let labels = json_get(categorized, "labels")
+    let categories = json_as_int_list(json_get(categorized, "codes"))
+    assert(len(values) == 3)
+    assert(json_as_text(json_index(labels, 0)) == "b")
+    assert(json_as_text(json_index(labels, 1)) == "a")
+    let result = aggregate(values, categories, zeros(json_len(labels)), zeros(json_len(labels)))
+    assert(result.total == 41)
+    assert(result.counts[0] == 2)
+    assert(result.counts[1] == 1)
+    assert(result.totals[0] == 33)
+    assert(result.totals[1] == 8)
+    return 0
+"#;
+    let artifact = compile("json-column-native.vr", source).expect("source compiles");
+    let mut instance = Runtime::new()
+        .load(artifact, HostPolicy::default())
+        .expect("artifact loads");
+
+    instance
+        .invoke("main", vec![])
+        .expect("native reduction runs");
+
+    assert!(
+        instance
+            .native_function_names()
+            .iter()
+            .any(|name| name == "aggregate"),
+        "native functions: {:?}",
+        instance.native_function_names()
+    );
+    assert!(
+        instance.native_calls() > 0,
+        "aggregation executes through the native backend"
+    );
+}
+
+#[test]
+fn json_column_builtins_preserve_exact_values_order_and_artifact_version() {
+    let source = r#"fn main() -> Int:
+    let rows = unwrap(json_parse("[{\"n\":9007199254740993,\"kind\":\"é\"},{\"n\":-7,\"kind\":\"a\"},{\"n\":12,\"kind\":\"é\"}]"))
+    let numbers = json_int_column(rows, "n")
+    let categories = json_text_categories(rows, "kind")
+    let codes = json_as_int_list(json_get(categories, "codes"))
+    let labels = json_get(categories, "labels")
+    assert(numbers[0] == 9007199254740993)
+    assert(numbers[1] == -7)
+    assert(codes[0] == 0)
+    assert(codes[1] == 1)
+    assert(codes[2] == 0)
+    assert(json_as_text(json_index(labels, 0)) == "é")
+    assert(json_as_text(json_index(labels, 1)) == "a")
+    return 0
+"#;
+    let artifact = compile("json-column-artifact.vr", source).unwrap();
+    assert_eq!(artifact.format_version, 30);
+    let decoded = Artifact::from_bytes(&artifact.to_bytes().unwrap()).unwrap();
+    assert_eq!(decoded.to_bytes().unwrap(), artifact.to_bytes().unwrap());
+    let mut legacy = artifact.clone();
+    legacy.format_version = 28;
+    assert_eq!(legacy.to_bytes().unwrap_err().code, "E_ARTIFACT_VERSION");
+
+    let mut instance = Runtime::new()
+        .load(artifact, HostPolicy::default())
+        .unwrap();
+    instance.invoke("main", vec![]).unwrap();
+}
+
+#[test]
+fn json_column_builtins_reject_wrong_shapes_and_non_integer_values() {
+    for (source, expected_code) in [
+        (
+            "fn main() -> Int:\n    let rows = unwrap(json_parse(\"[{\\\"n\\\":1.5}]\"))\n    return len(json_int_column(rows, \"n\"))\n",
+            "R_JSON_TYPE",
+        ),
+        (
+            "fn main() -> Int:\n    let values = unwrap(json_parse(\"[1, 2.5]\"))\n    return len(json_as_int_list(values))\n",
+            "R_JSON_TYPE",
+        ),
+        (
+            "fn main() -> Int:\n    let rows = unwrap(json_parse(\"[{\\\"tag\\\":true}]\"))\n    return json_len(json_text_categories(rows, \"tag\"))\n",
+            "R_JSON_TYPE",
+        ),
+    ] {
+        let artifact = compile("json-column-invalid.vr", source).unwrap();
+        let mut instance = Runtime::new()
+            .load(artifact, HostPolicy::default())
+            .unwrap();
+        assert_eq!(instance.invoke("main", vec![]).unwrap_err().code, expected_code);
+    }
+}
+
+#[test]
+fn json_projection_builds_only_requested_columns_and_preserves_duplicate_checks() {
+    let source = r#"fn main() -> Int:
+    let raw = "{\"meta\":{\"ignored\":[1,2]},\"payload\":{\"rows\":[{\"n\":9007199254740993,\"kind\":\"東京\",\"unused\":{\"$serde_json::private::Number\":{\"nested\":1}}},{\"n\":-7,\"kind\":\"é\",\"unused\":null},{\"n\":12,\"kind\":\"東京\"}]}}"
+    let columns = unwrap(json_project_columns(raw, ["payload", "rows"], ["n", "kind"]))
+    let numbers = json_as_int_list(json_get(columns, "n"))
+    let categories = json_text_categories_values(json_get(columns, "kind"))
+    let codes = json_as_int_list(json_get(categories, "codes"))
+    let labels = json_get(categories, "labels")
+    assert(numbers[0] == 9007199254740993)
+    assert(numbers[1] == -7)
+    assert(codes[0] == 0 and codes[1] == 1 and codes[2] == 0)
+    assert(json_as_text(json_index(labels, 0)) == "東京")
+    assert(json_as_text(json_index(labels, 1)) == "é")
+    return 0
+"#;
+    let artifact = compile("json-project-columns.vr", source).unwrap();
+    assert_eq!(artifact.format_version, 30);
+    let artifact = veritas_model::Artifact::from_bytes(&artifact.to_bytes().unwrap()).unwrap();
+    let mut instance = Runtime::new()
+        .load(artifact, HostPolicy::default())
+        .unwrap();
+    instance.invoke("main", vec![]).unwrap();
+
+    let duplicate = r#"fn main() -> Int:
+    let result = json_project_columns("{\"rows\":[{\"n\":1,\"ignored\":{\"x\":1,\"x\":2}}]}", ["rows"], ["n"])
+    assert(not is_ok(result))
+    assert(json_error_code(error(result)) == "R_JSON_DUPLICATE_KEY")
+    return 0
+"#;
+    let artifact = compile("json-project-duplicate.vr", duplicate).unwrap();
+    let mut instance = Runtime::new()
+        .load(artifact, HostPolicy::default())
+        .unwrap();
+    instance.invoke("main", vec![]).unwrap();
+}
+
+#[test]
+fn json_projection_reports_shape_and_field_errors_as_results() {
+    let source = r#"fn main() -> Int:
+    let missing_path = json_project_columns("{}", ["rows"], ["n"])
+    assert(not is_ok(missing_path))
+    assert(json_error_code(error(missing_path)) == "R_JSON_FIELD")
+    let wrong_rows = json_project_columns("{\"rows\":{}}", ["rows"], ["n"])
+    assert(not is_ok(wrong_rows))
+    assert(json_error_code(error(wrong_rows)) == "R_JSON_TYPE")
+    let wrong_row = json_project_columns("{\"rows\":[1]}", ["rows"], ["n"])
+    assert(not is_ok(wrong_row))
+    assert(json_error_code(error(wrong_row)) == "R_JSON_TYPE")
+    let missing_field = json_project_columns("{\"rows\":[{}]}", ["rows"], ["n"])
+    assert(not is_ok(missing_field))
+    assert(json_error_code(error(missing_field)) == "R_JSON_FIELD")
+    let repeated_field = json_project_columns("{\"rows\":[]}", ["rows"], ["n", "n"])
+    assert(not is_ok(repeated_field))
+    assert(json_error_code(error(repeated_field)) == "R_JSON_FIELD")
+    return 0
+"#;
+    let artifact = compile("json-project-shapes.vr", source).unwrap();
+    let mut instance = Runtime::new()
+        .load(artifact, HostPolicy::default())
+        .unwrap();
+    instance.invoke("main", vec![]).unwrap();
+}
+
+#[test]
+fn json_projection_preserves_reserved_looking_user_keys_and_numeric_text() {
+    let source = r#"fn main() -> Int:
+    let projected = json_project_columns("{\"rows\":[{\"special\":{\"$serde_json::private::Number\":\"123\"}}]}", ["rows"], ["special"])
+    assert(is_ok(projected))
+    let row = json_index(json_get(unwrap(projected), "special"), 0)
+    assert(json_as_text(json_get(row, "$serde_json::private::Number")) == "123")
+    return 0
+"#;
+    let artifact = compile("json-project-reserved-key.vr", source).unwrap();
+    let mut instance = Runtime::new()
+        .load(artifact, HostPolicy::default())
+        .unwrap();
+    instance.invoke("main", vec![]).unwrap();
+}
+
+#[test]
+fn json_projection_enforces_limits_inside_ignored_data() {
+    let source = r#"fn main() -> Int:
+    let result = json_project_columns("{\"rows\":[{\"n\":1,\"ignored\":12345}]}", ["rows"], ["n"])
+    assert(not is_ok(result))
+    assert(json_error_code(error(result)) == "R_INTEGER_LIMIT")
+    return 0
+"#;
+    let artifact = compile("json-project-integer-limit.vr", source).unwrap();
+    let policy = HostPolicy {
+        max_integer_digits: 4,
+        ..HostPolicy::default()
+    };
+    let mut instance = Runtime::new().load(artifact, policy).unwrap();
+    instance.invoke("main", vec![]).unwrap();
+
+    let source = r#"fn main() -> Int:
+    let result = json_project_columns("{\"rows\":[{\"n\":1}]}", ["rows"], ["n"])
+    assert(not is_ok(result))
+    assert(json_error_code(error(result)) == "R_COLLECTION_LIMIT")
+    return 0
+"#;
+    let artifact = compile("json-project-item-limit.vr", source).unwrap();
+    let policy = HostPolicy {
+        max_collection_items: 2,
+        ..HostPolicy::default()
+    };
+    let mut instance = Runtime::new().load(artifact, policy).unwrap();
+    instance.invoke("main", vec![]).unwrap();
+}
+
+#[test]
+fn native_backend_executes_float64_loop_and_preserves_float_faults() {
+    let source = "fn escape_steps(cx: Float64, cy: Float64, limit: Int) -> Int:\n    var x = 0.0\n    var y = 0.0\n    var steps = 0\n    while steps < limit and x * x + y * y <= 4.0:\n        let next_x = x * x - y * y + cx\n        set y = 2.0 * x * y + cy\n        set x = next_x\n        set steps = steps + 1\n    return steps\n\nfn quotient(left: Float64, right: Float64) -> Float64:\n    return left / right\n\nfn overflow() -> Float64:\n    return 1.0e308 * 1.0e308\n\nfn main() -> Int:\n    return 0\n";
+    let artifact = compile("native-float-loop.vr", source).expect("source compiles");
+    let mut instance = Runtime::new()
+        .load(artifact, HostPolicy::default())
+        .expect("artifact loads");
+    instance.invoke("main", vec![]).unwrap();
+    let native_names = instance.native_function_names();
+    assert!(native_names.contains(&"escape_steps".to_owned()));
+    assert!(native_names.contains(&"quotient".to_owned()));
+    assert!(native_names.contains(&"overflow".to_owned()));
+    let result = instance
+        .invoke(
+            "escape_steps",
+            vec![
+                Value::Float64(Float64::new(0.0).unwrap()),
+                Value::Float64(Float64::new(0.0).unwrap()),
+                Value::Int(BigInt::parse("80").unwrap()),
+            ],
+        )
+        .unwrap();
+    assert_eq!(result, Value::Int(BigInt::parse("80").unwrap()));
+    assert_eq!(
+        instance
+            .invoke(
+                "quotient",
+                vec![
+                    Value::Float64(Float64::new(1.0).unwrap()),
+                    Value::Float64(Float64::new(-0.0).unwrap()),
+                ],
+            )
+            .unwrap_err()
+            .code,
+        "R_DIV_ZERO"
+    );
+    assert_eq!(
+        instance.invoke("overflow", vec![]).unwrap_err().code,
+        "R_FLOAT_NONFINITE"
+    );
+    assert!(instance.native_calls() >= 3);
+}
+
+#[test]
+fn native_backend_reads_float64_lists_with_vm_parity() {
+    let source = "fn sum(values: List[Float64]) -> Float64:\n    var total = 0.0\n    var i = 0\n    while i < len(values):\n        set total = total + values[i]\n        set i = i + 1\n    return total\n\nfn main() -> Int:\n    assert(sum([1.25, 2.5, 3.75]) == 7.5)\n    return 0\n";
+    let artifact = compile("native-float-list.vr", source).unwrap();
+    let mut native = Runtime::new()
+        .load(artifact.clone(), HostPolicy::default())
+        .unwrap();
+    let mut vm = Runtime::vm_only()
+        .load(artifact, HostPolicy::default())
+        .unwrap();
+
+    let native_value = native.invoke("main", vec![]).unwrap();
+    let vm_value = vm.invoke("main", vec![]).unwrap();
+
+    assert_eq!(native_value, vm_value);
+    assert_eq!(native_value, Value::Int(BigInt::zero()));
+    assert!(native
+        .native_function_names()
+        .iter()
+        .any(|name| name == "sum"));
+    assert!(native.native_calls() > 0);
+}
+
+#[test]
+fn native_backend_reads_integer_lists_and_preserves_big_integer_fallback() {
+    let source = "fn sum(values: List[Int]) -> Int:\n    var total = 0\n    var i = 0\n    while i < len(values):\n        set total = total + values[i]\n        set i = i + 1\n    return total\n\nfn main() -> Int:\n    assert(sum([1, 2, 3]) == 6)\n    assert(sum([9223372036854775808, 2]) == 9223372036854775810)\n    return 0\n";
+    let artifact = compile("native-int-list.vr", source).unwrap();
+    let mut native = Runtime::new()
+        .load(artifact.clone(), HostPolicy::default())
+        .unwrap();
+    let mut vm = Runtime::vm_only()
+        .load(artifact, HostPolicy::default())
+        .unwrap();
+
+    assert_eq!(
+        native.invoke("main", vec![]).unwrap(),
+        vm.invoke("main", vec![]).unwrap()
+    );
+    assert!(native
+        .native_function_names()
+        .iter()
+        .any(|name| name == "sum"));
+    assert!(native.native_calls() > 0);
+}
+
+#[test]
+fn native_backend_keeps_integer_record_list_updates_in_a_repeated_loop() {
+    let source = "record Queue:\n    values: List[Int]\n\nfn run_steps(queue: Queue, steps: Int) -> Queue:\n    var values = queue.values\n    var index = 0\n    while index < steps:\n        let slot = index % len(values)\n        set values = list_set(values, slot, values[slot] + 1)\n        set index = index + 1\n    return Queue(values)\n\nfn main() -> Int:\n    let original = Queue([0, 0, 0])\n    let changed = run_steps(original, 3000)\n    assert(original.values[0] == 0)\n    assert(changed.values[0] == 1000)\n    assert(changed.values[1] == 1000)\n    assert(changed.values[2] == 1000)\n    return 0\n";
+    let artifact = compile("native-int-record-list-loop.vr", source).unwrap();
+    let mut native = Runtime::new()
+        .load(artifact.clone(), HostPolicy::default())
+        .unwrap();
+    let mut vm = Runtime::vm_only()
+        .load(artifact, HostPolicy::default())
+        .unwrap();
+
+    assert_eq!(
+        native.invoke("main", vec![]).unwrap(),
+        vm.invoke("main", vec![]).unwrap()
+    );
+    assert!(native
+        .native_function_names()
+        .iter()
+        .any(|name| name == "run_steps"));
+}
+
+#[test]
+fn native_integer_list_bounds_fault_deopts_to_the_vm() {
+    let source = "record Queue:\n    values: List[Int]\n\nfn update(queue: Queue) -> Queue:\n    var values = queue.values\n    set values = list_set(values, 4, 9)\n    return Queue(values)\n\nfn main() -> Int:\n    let queue = Queue([1, 2])\n    let changed = update(queue)\n    return 0\n";
+    let artifact = compile("native-int-list-bounds.vr", source).unwrap();
+    let mut native = Runtime::new()
+        .load(artifact.clone(), HostPolicy::default())
+        .unwrap();
+    let mut vm = Runtime::vm_only()
+        .load(artifact, HostPolicy::default())
+        .unwrap();
+
+    let native_error = native.invoke("main", vec![]).unwrap_err();
+    let vm_error = vm.invoke("main", vec![]).unwrap_err();
+
+    assert_eq!(native_error.code, vm_error.code);
+    assert_eq!(native_error.code, "R_LIST_INDEX");
+    assert!(native
+        .native_function_names()
+        .iter()
+        .any(|name| name == "update"));
+    assert!(native.native_deoptimizations() > 0);
+}
+
+#[test]
+fn native_backend_updates_boolean_lists_in_record_results() {
+    let source = "record Flags:\n    active: Bool\n    pending: List[Bool]\n\nfn update(flags: Flags) -> Flags:\n    let active = not flags.active\n    var pending = flags.pending\n    set pending = list_set(pending, 1, not pending[1])\n    return Flags(active, pending)\n\nfn main() -> Int:\n    let original = Flags(true, [true, false, true])\n    let changed = update(original)\n    assert(original.active == true)\n    assert(original.pending[1] == false)\n    assert(changed.active == false)\n    assert(changed.pending[1] == true)\n    return 0\n";
+    let artifact = compile("native-bool-record-list.vr", source).unwrap();
+    let mut native = Runtime::new()
+        .load(artifact.clone(), HostPolicy::default())
+        .unwrap();
+    let mut vm = Runtime::vm_only()
+        .load(artifact, HostPolicy::default())
+        .unwrap();
+
+    assert_eq!(
+        native.invoke("main", vec![]).unwrap(),
+        vm.invoke("main", vec![]).unwrap()
+    );
+    assert!(native
+        .native_function_names()
+        .iter()
+        .any(|name| name == "update"));
+}
+
+#[test]
+fn native_backend_constructs_typed_lists_and_updates_them_in_a_loop() {
+    let source = "fn main() -> Int:\n    var values = [1, 2, 3]\n    var index = 0\n    while index < 300:\n        let slot = index % len(values)\n        set values = list_set(values, slot, values[slot] + 1)\n        set index = index + 1\n    return values[0] + values[1] + values[2]\n";
+    let artifact = compile("native-list-construction-loop.vr", source).unwrap();
+    let mut native = Runtime::new()
+        .load(artifact.clone(), HostPolicy::default())
+        .unwrap();
+    let mut vm = Runtime::vm_only()
+        .load(artifact, HostPolicy::default())
+        .unwrap();
+
+    let native_value = native.invoke("main", vec![]).unwrap();
+    assert_eq!(native_value, vm.invoke("main", vec![]).unwrap());
+    assert_eq!(native_value, Value::Int(BigInt::parse("306").unwrap()));
+    assert!(native
+        .native_function_names()
+        .iter()
+        .any(|name| name == "main"));
+}
+
+#[test]
+fn native_backend_preserves_aliases_for_functional_list_updates() {
+    let source = "record Frame:\n    values: List[Int]\n\nfn replace(frame: Frame) -> Frame:\n    let changed = list_set(frame.values, 1, 99)\n    return Frame(changed)\n\nfn main() -> Int:\n    let original = Frame([1, 2, 3])\n    let changed = replace(original)\n    assert(original.values[1] == 2)\n    assert(changed.values[1] == 99)\n    return 0\n";
+    let artifact = compile("native-functional-list-set.vr", source).unwrap();
+    let mut native = Runtime::new()
+        .load(artifact.clone(), HostPolicy::default())
+        .unwrap();
+    let mut vm = Runtime::vm_only()
+        .load(artifact, HostPolicy::default())
+        .unwrap();
+
+    assert_eq!(
+        native.invoke("main", vec![]).unwrap(),
+        vm.invoke("main", vec![]).unwrap()
+    );
+    assert!(native
+        .native_function_names()
+        .iter()
+        .any(|name| name == "replace"));
+}
+
+#[test]
+fn native_backend_composes_record_valued_calls_with_list_fields() {
+    let source = "record Frame:\n    values: List[Int]\n    total: Int\n\nfn replace(frame: Frame) -> Frame:\n    let changed = list_set(frame.values, 1, 99)\n    return Frame(changed, frame.total + 1)\n\nfn inspect(frame: Frame) -> Int:\n    return frame.values[1] + frame.total\n\nfn main() -> Int:\n    let original = Frame([1, 2, 3], 4)\n    let changed = replace(original)\n    return inspect(changed)\n";
+    let artifact = compile("native-record-call-composition.vr", source).unwrap();
+    let mut native = Runtime::new()
+        .load(artifact.clone(), HostPolicy::default())
+        .unwrap();
+    let mut vm = Runtime::vm_only()
+        .load(artifact, HostPolicy::default())
+        .unwrap();
+
+    let native_result = native.invoke("main", vec![]).unwrap();
+    assert_eq!(native_result, vm.invoke("main", vec![]).unwrap());
+    assert_eq!(native_result, Value::Int(BigInt::parse("104").unwrap()));
+    for name in ["replace", "inspect", "main"] {
+        assert!(native
+            .native_function_names()
+            .iter()
+            .any(|native| native == name));
+    }
+}
+
+#[test]
+fn native_list_local_update_keeps_later_record_reads_aliased_correctly() {
+    let source = "record Frame:\n    values: List[Int]\n\nfn update(frame: Frame) -> Int:\n    var values = frame.values\n    set values = list_set(values, 1, 99)\n    return frame.values[1] + values[1]\n\nfn main() -> Int:\n    return update(Frame([1, 2, 3]))\n";
+    let artifact = compile("native-list-update-record-alias.vr", source).unwrap();
+    let mut native = Runtime::new()
+        .load(artifact.clone(), HostPolicy::default())
+        .unwrap();
+    let mut vm = Runtime::vm_only()
+        .load(artifact, HostPolicy::default())
+        .unwrap();
+
+    let native_result = native.invoke("main", vec![]).unwrap();
+    assert_eq!(native_result, vm.invoke("main", vec![]).unwrap());
+    assert_eq!(native_result, Value::Int(BigInt::parse("101").unwrap()));
+    assert!(native
+        .native_function_names()
+        .iter()
+        .any(|name| name == "update"));
+}
+
+#[test]
+fn native_print_preserves_output_effects_and_falls_back_without_partial_output() {
+    let source = "fn main() -> Int:\n    print(42)\n    print(true)\n    return 0\n";
+    let artifact = compile("native-print.vr", source).unwrap();
+    let mut native = Runtime::new()
+        .load(artifact.clone(), HostPolicy::default())
+        .unwrap();
+    let mut vm = Runtime::vm_only()
+        .load(artifact.clone(), HostPolicy::default())
+        .unwrap();
+
+    assert_eq!(
+        native.invoke("main", vec![]).unwrap(),
+        vm.invoke("main", vec![]).unwrap()
+    );
+    assert_eq!(native.take_output(), vm.take_output());
+    assert_eq!(native.effect_report(), vm.effect_report());
+    assert!(native
+        .native_function_names()
+        .iter()
+        .any(|name| name == "main"));
+
+    let limited = HostPolicy {
+        output_limit_bytes: 2,
+        ..HostPolicy::default()
+    };
+    let mut native = Runtime::new()
+        .load(artifact.clone(), limited.clone())
+        .unwrap();
+    let mut vm = Runtime::vm_only().load(artifact, limited).unwrap();
+    let native_error = native.invoke("main", vec![]).unwrap_err();
+    let vm_error = vm.invoke("main", vec![]).unwrap_err();
+    assert_eq!(native_error.code, vm_error.code);
+    assert_eq!(native_error.code, "R_OUTPUT_LIMIT");
+    assert_eq!(native.take_output(), "");
+}
+
+#[test]
+fn native_functional_list_updates_match_vm_allocation_limit_outcomes() {
+    let source = "record Frame:\n    values: List[Int]\n\nfn replace(frame: Frame) -> Frame:\n    let changed = list_set(frame.values, 1, 99)\n    return Frame(changed)\n\nfn main() -> Int:\n    let original = Frame([1, 2, 3])\n    let changed = replace(original)\n    return changed.values[1]\n";
+    let artifact = compile("native-functional-list-budget.vr", source).unwrap();
+
+    for allocation_limit_bytes in [0, 64, 128, 192, 256, 384, 512, 1024, 4096] {
+        let policy = HostPolicy {
+            allocation_limit_bytes,
+            ..HostPolicy::default()
+        };
+        let mut native = Runtime::new()
+            .load(artifact.clone(), policy.clone())
+            .unwrap();
+        let mut vm = Runtime::vm_only().load(artifact.clone(), policy).unwrap();
+        let native_result = native.invoke("main", vec![]);
+        let vm_result = vm.invoke("main", vec![]);
+        match (native_result, vm_result) {
+            (Ok(native), Ok(vm)) => assert_eq!(native, vm),
+            (Err(native), Err(vm)) => assert_eq!(native.code, vm.code),
+            (native, vm) => panic!(
+                "native/VM allocation outcome differs at {allocation_limit_bytes} bytes: {native:?} vs {vm:?}"
+            ),
+        }
+        if allocation_limit_bytes == 4096 {
+            assert!(native
+                .native_function_names()
+                .iter()
+                .any(|name| name == "replace"));
+        }
+    }
+}
+
+#[test]
+fn native_backend_reads_float64_lists_from_record_fields() {
+    let source = "record Frame:\n    values: List[Float64]\n\nfn sum(frame: Frame) -> Float64:\n    let values = frame.values\n    var total = 0.0\n    var i = 0\n    while i < len(values):\n        set total = total + values[i]\n        set i = i + 1\n    return total\n\nfn main() -> Int:\n    assert(sum(Frame([1.25, 2.5, 3.75])) == 7.5)\n    return 0\n";
+    let artifact = compile("native-record-float-list.vr", source).unwrap();
+    let mut native = Runtime::new()
+        .load(artifact.clone(), HostPolicy::default())
+        .unwrap();
+    let mut vm = Runtime::vm_only()
+        .load(artifact, HostPolicy::default())
+        .unwrap();
+
+    assert_eq!(
+        native.invoke("main", vec![]).unwrap(),
+        vm.invoke("main", vec![]).unwrap()
+    );
+    assert!(native
+        .native_function_names()
+        .iter()
+        .any(|name| name == "sum"));
+}
+
+#[test]
+fn native_backend_updates_copied_record_lists_and_returns_records() {
+    let source = "record Frame:\n    values: List[Float64]\n\nfn update(frame: Frame) -> Frame:\n    var values = frame.values\n    set values = list_set(values, 0, values[0] + 1.0)\n    return Frame(values)\n\nfn main() -> Int:\n    let original = Frame([1.0, 2.0])\n    let updated = update(original)\n    assert(original.values[0] == 1.0)\n    assert(updated.values[0] == 2.0)\n    return 0\n";
+    let artifact = compile("native-record-list-update.vr", source).unwrap();
+    let mut native = Runtime::new()
+        .load(artifact.clone(), HostPolicy::default())
+        .unwrap();
+    let mut vm = Runtime::vm_only()
+        .load(artifact, HostPolicy::default())
+        .unwrap();
+
+    assert_eq!(
+        native.invoke("main", vec![]).unwrap(),
+        vm.invoke("main", vec![]).unwrap()
+    );
+    assert!(native
+        .native_function_names()
+        .iter()
+        .any(|name| name == "update"));
+    assert!(native.native_calls() > 0);
+}
+
+#[test]
+fn native_backend_keeps_record_list_updates_inside_a_repeated_native_loop() {
+    let source = "record Frame:\n    values: List[Float64]\n\nfn run_steps(frame: Frame, steps: Int, delta: Float64) -> Frame:\n    var values = frame.values\n    var index = 0\n    while index < steps:\n        set values = list_set(values, 0, values[0] + delta)\n        set index = index + 1\n    return Frame(values)\n\nfn main() -> Int:\n    let original = Frame([1.0, 2.0])\n    let changed = run_steps(original, 3, 0.5)\n    assert(original.values[0] == 1.0)\n    assert(changed.values[0] == 2.5)\n    return 0\n";
+    let artifact = compile("native-record-list-loop.vr", source).unwrap();
+    let mut native = Runtime::new()
+        .load(artifact.clone(), HostPolicy::default())
+        .unwrap();
+    let mut vm = Runtime::vm_only()
+        .load(artifact, HostPolicy::default())
+        .unwrap();
+
+    assert_eq!(
+        native.invoke("main", vec![]).unwrap(),
+        vm.invoke("main", vec![]).unwrap()
+    );
+    let native_names = native.native_function_names();
+    assert!(native_names.iter().any(|name| name == "run_steps"));
+    assert!(native.native_calls() > 0);
+}
+
+#[test]
+fn native_record_list_updates_match_vm_allocation_limit_outcomes() {
+    let source = "record Frame:\n    values: List[Float64]\n\nfn update(frame: Frame) -> Frame:\n    var values = frame.values\n    set values = list_set(values, 0, values[0] + 1.0)\n    return Frame(values)\n\nfn main() -> Int:\n    let original = Frame([1.0, 2.0, 3.0, 4.0])\n    let updated = update(original)\n    assert(original.values[0] == 1.0)\n    assert(updated.values[0] == 2.0)\n    return 0\n";
+    let artifact = compile("native-record-list-budget.vr", source).unwrap();
+
+    for allocation_limit_bytes in [0, 64, 128, 256, 512, 1024, 2048, 4096] {
+        let policy = HostPolicy {
+            allocation_limit_bytes,
+            ..HostPolicy::default()
+        };
+        let mut native = Runtime::new()
+            .load(artifact.clone(), policy.clone())
+            .unwrap();
+        let mut vm = Runtime::vm_only().load(artifact.clone(), policy).unwrap();
+        let native_result = native.invoke("main", vec![]);
+        let vm_result = vm.invoke("main", vec![]);
+        match (native_result, vm_result) {
+            (Ok(native), Ok(vm)) => assert_eq!(native, vm),
+            (Err(native), Err(vm)) => assert_eq!(native.code, vm.code),
+            (native, vm) => panic!(
+                "native/VM allocation outcome differs at {allocation_limit_bytes} bytes: {native:?} vs {vm:?}"
+            ),
+        }
+        if allocation_limit_bytes == 4096 {
+            assert!(native
+                .native_function_names()
+                .iter()
+                .any(|name| name == "update"));
+        }
+    }
+}
+
+#[test]
+fn native_record_list_update_bounds_fault_deopts_to_the_vm() {
+    let source = "record Frame:\n    values: List[Float64]\n\nfn update(frame: Frame) -> Frame:\n    var values = frame.values\n    set values = list_set(values, 3, 9.0)\n    return Frame(values)\n\nfn main() -> Int:\n    let frame = Frame([1.0])\n    let updated = update(frame)\n    return 0\n";
+    let artifact = compile("native-record-list-bounds.vr", source).unwrap();
+    let mut instance = Runtime::new()
+        .load(artifact, HostPolicy::default())
+        .unwrap();
+
+    let error = instance.invoke("main", vec![]).unwrap_err();
+
+    assert_eq!(error.code, "R_LIST_INDEX");
+    assert!(instance
+        .native_function_names()
+        .iter()
+        .any(|name| name == "update"));
+    assert!(instance.native_deoptimizations() > 0);
+}
+
+#[test]
+fn float64_lists_keep_immutable_updates_and_aliases() {
+    let source = "fn main() -> Int:\n    let original = [1.0, 2.0]\n    let pushed = list_push(original, 3.0)\n    let replaced = list_set(pushed, 0, 4.0)\n    var local = [5.0, 6.0]\n    let alias = local\n    set local = list_set(local, 1, 7.0)\n    assert(original[0] == 1.0)\n    assert(pushed[0] == 1.0)\n    assert(replaced[0] == 4.0)\n    assert(alias[1] == 6.0)\n    assert(local[1] == 7.0)\n    return 0\n";
+    let artifact = compile("float64-list-updates.vr", source).unwrap();
+    let artifact = veritas_model::Artifact::from_bytes(&artifact.to_bytes().unwrap()).unwrap();
+    let mut instance = Runtime::new()
+        .load(artifact, HostPolicy::default())
+        .unwrap();
+
+    assert_eq!(
+        instance.invoke("main", vec![]).unwrap(),
+        Value::Int(BigInt::zero())
+    );
+}
+
+#[test]
+fn native_float_list_bounds_faults_deopt_to_the_vm_trace() {
+    let source = "fn at(values: List[Float64], index: Int) -> Float64:\n    return values[index]\n\nfn main() -> Int:\n    let value = at([1.0], 2)\n    return 0\n";
+    let artifact = compile("native-float-list-bounds.vr", source).unwrap();
+    let mut instance = Runtime::new()
+        .load(artifact, HostPolicy::default())
+        .unwrap();
+
+    let error = instance.invoke("main", vec![]).unwrap_err();
+
+    assert_eq!(error.code, "R_INDEX_BOUNDS");
+    assert!(instance
+        .native_function_names()
+        .iter()
+        .any(|name| name == "at"));
+    assert!(instance.native_deoptimizations() > 0);
+}
+
+#[test]
+fn native_backend_charges_each_guest_instruction_exactly() {
+    let source = "fn value() -> Int:\n    return 7\n\nfn main() -> Int:\n    return 0\n";
+    let artifact = compile("native-fuel.vr", source).expect("source compiles");
+    let mut limited = Runtime::new()
+        .load(
+            artifact.clone(),
+            HostPolicy {
+                instruction_limit: 1,
+                ..HostPolicy::default()
+            },
+        )
+        .expect("artifact loads");
+    assert_eq!(
+        limited.invoke("value", vec![]).unwrap_err().code,
+        "R_STEP_LIMIT"
+    );
+
+    let mut exact = Runtime::new()
+        .load(
+            artifact,
+            HostPolicy {
+                instruction_limit: 2,
+                ..HostPolicy::default()
+            },
+        )
+        .expect("artifact loads");
+    assert_eq!(
+        exact.invoke("value", vec![]).unwrap(),
+        Value::Int(BigInt::parse("7").unwrap())
+    );
+}
+
+#[test]
+fn environment_access_requires_a_grant_and_preserves_unicode_values() {
+    let key = format!("VERITAS_TEST_SECRET_{}", std::process::id());
+    unsafe { std::env::set_var(&key, "café🔑") };
+    let source = format!(
+        "fn read_secret() -> Option[Text]:\n    return env({key:?})\n\nfn main() -> Int:\n    return 0\n"
+    );
+    let artifact = compile("env-grant.vr", &source).expect("env should be a typed host operation");
+    let denied = Runtime::new()
+        .load(artifact.clone(), HostPolicy::default())
+        .unwrap()
+        .invoke("read_secret", vec![])
+        .unwrap_err();
+    assert_eq!(denied.code, "R_ENV_DENIED");
+
+    let mut policy = HostPolicy::default();
+    policy.allowed_environment_variables.insert(key.clone());
+    let value = Runtime::new()
+        .load(artifact, policy)
+        .unwrap()
+        .invoke("read_secret", vec![])
+        .unwrap();
+    assert_eq!(
+        value,
+        Value::OptionSome(Box::new(Value::Text("café🔑".into())))
+    );
+    unsafe { std::env::remove_var(key) };
+}
+
+#[test]
+fn native_nested_failure_keeps_every_call_site_in_the_runtime_trace() {
+    let source = "fn leaf(value: Int) -> Int:\n    return value + 1\n\nfn middle(value: Int) -> Int:\n    return leaf(value)\n\nfn main() -> Int:\n    return middle(1)\n";
+    let artifact = compile("native-trace.vr", source).expect("source compiles");
+    let policy = HostPolicy {
+        call_depth_limit: 2,
+        ..HostPolicy::default()
+    };
+    let mut instance = Runtime::new()
+        .load(artifact, policy)
+        .expect("artifact loads");
+
+    let error = instance
+        .invoke("main", vec![])
+        .expect_err("nested call exceeds the depth limit");
+
+    assert!(instance
+        .native_function_names()
+        .contains(&"leaf".to_owned()));
+    assert!(instance
+        .native_function_names()
+        .contains(&"middle".to_owned()));
+    assert!(instance
+        .native_function_names()
+        .contains(&"main".to_owned()));
+    assert_eq!(error.code, "R_CALL_DEPTH");
+    assert_eq!(
+        error.trace.iter().map(|span| span.line).collect::<Vec<_>>(),
+        [2, 5, 8]
+    );
+}
+
+#[test]
+fn native_backend_calls_native_functions_and_obeys_call_depth_limit() {
+    let source = "fn increment(value: Int) -> Int:\n    return value + 1\n\nfn outer(value: Int) -> Int:\n    return increment(value)\n\nfn sum_calls(count: Int) -> Int:\n    var index = 0\n    var total = 0\n    while index < count:\n        set total = total + increment(index)\n        set index = index + 1\n    return total\n\nfn main() -> Int:\n    return 0\n";
+    let artifact = compile("native-call.vr", source).expect("source compiles");
+    let mut instance = Runtime::new()
+        .load(artifact.clone(), HostPolicy::default())
+        .expect("artifact loads");
+    instance.invoke("main", vec![]).unwrap();
+    assert!(instance
+        .native_function_names()
+        .contains(&"sum_calls".to_owned()));
+    assert!(instance
+        .native_function_names()
+        .contains(&"increment".to_owned()));
+    assert!(instance
+        .native_function_names()
+        .contains(&"outer".to_owned()));
+    assert_eq!(
+        instance
+            .invoke("sum_calls", vec![Value::Int(BigInt::parse("5").unwrap())])
+            .unwrap(),
+        Value::Int(BigInt::parse("15").unwrap())
+    );
+    assert_eq!(
+        instance
+            .invoke(
+                "outer",
+                vec![Value::Int(BigInt::parse("9223372036854775807").unwrap())]
+            )
+            .unwrap(),
+        Value::Int(BigInt::parse("9223372036854775808").unwrap())
+    );
+    assert_eq!(instance.native_calls(), 10);
+
+    let mut shallow = Runtime::new()
+        .load(
+            artifact,
+            HostPolicy {
+                call_depth_limit: 1,
+                ..HostPolicy::default()
+            },
+        )
+        .expect("artifact loads");
+    assert_eq!(
+        shallow
+            .invoke("sum_calls", vec![Value::Int(BigInt::parse("1").unwrap())])
+            .unwrap_err()
+            .code,
+        "R_CALL_DEPTH"
+    );
+}
+
+#[test]
+fn records_construct_access_compare_and_round_trip_through_artifacts() {
+    let source = "record Point:\n    x: Int\n    y: Int\n\nfn shift(point: Point, dx: Int) -> Point:\n    return Point(point.x + dx, point.y)\n\nfn main() -> Int:\n    let original = Point(3, 4)\n    let moved = shift(original, 5)\n    assert(moved == Point(8, 4))\n    print(moved.x)\n    print(moved.y)\n    return 0\n";
+    let artifact = compile("records.vr", source).expect("record program compiles");
+    let encoded = artifact.to_bytes().unwrap();
+    let artifact = veritas_model::Artifact::from_bytes(&encoded).unwrap();
+    let mut instance = Runtime::new()
+        .load(artifact, HostPolicy::default())
+        .unwrap();
+    instance.invoke("main", vec![]).unwrap();
+    assert_eq!(instance.take_output(), "8\n4\n");
+}
+
+#[test]
+fn option_and_result_matches_are_exhaustive_and_run_through_artifacts() {
+    let source = "fn present() -> Option[Int]:\n    return Some(42)\n\nfn absent() -> Option[Int]:\n    return None\n\nfn success() -> Result[Int, Text]:\n    return Ok(17)\n\nfn failure() -> Result[Int, Text]:\n    return Err(\"nope\")\n\nfn from_option(value: Option[Int]) -> Int:\n    match value:\n        None:\n            return 0\n        Some(found):\n            return found\n\nfn with_continuation(value: Option[Int]) -> Int:\n    var total = 0\n    match value:\n        Some(found):\n            set total = found + 1\n        None:\n            set total = 0\n    return total\n\nfn from_result(value: Result[Int, Text]) -> Int:\n    match value:\n        Err(message):\n            return 99\n        Ok(found):\n            return found\n\nfn main() -> Int:\n    print(from_option(present()))\n    print(from_option(absent()))\n    print(with_continuation(present()))\n    print(with_continuation(absent()))\n    print(from_result(success()))\n    print(from_result(failure()))\n    return 0\n";
+    let artifact = compile("matching.vr", source).expect("match source compiles");
+    let bytes = artifact.to_bytes().unwrap();
+    let artifact = veritas_model::Artifact::from_bytes(&bytes).unwrap();
+    let mut instance = Runtime::new()
+        .load(artifact, HostPolicy::default())
+        .unwrap();
+    instance.invoke("main", vec![]).unwrap();
+    assert_eq!(instance.take_output(), "42\n0\n43\n0\n17\n99\n");
+}
+
+#[test]
+fn option_and_result_matches_reject_incomplete_duplicate_and_wrong_variants() {
+    let cases = [
+        (
+            "fn main() -> Int:\n    let option = make()\n    return 0\nfn make() -> Option[Int]:\n    return None\nfn use(value: Option[Int]) -> Int:\n    match value:\n        Some(item):\n            return item\n",
+            "E_MATCH_NONEXHAUSTIVE",
+        ),
+        (
+            "fn use(value: Option[Int]) -> Int:\n    match value:\n        Some(item):\n            return item\n        None:\n            return 0\n        None:\n            return 1\nfn main() -> Int:\n    return 0\n",
+            "E_MATCH_DUPLICATE",
+        ),
+        (
+            "fn use(value: Option[Int]) -> Int:\n    match value:\n        Ok(item):\n            return item\n        Err(error):\n            return 0\nfn main() -> Int:\n    return 0\n",
+            "E_MATCH_VARIANT",
+        ),
+    ];
+    for (source, expected_code) in cases {
+        assert_eq!(
+            compile("invalid-match.vr", source).unwrap_err().code,
+            expected_code
+        );
+    }
+}
+
+#[test]
+fn records_reject_unknown_fields_types_and_wrong_constructor_arguments() {
+    let cases = [
+        (
+            "record Point:\n    x: Int\n\nfn main() -> Int:\n    let point = Point(1)\n    return point.missing\n",
+            "E_FIELD_UNKNOWN",
+        ),
+        (
+            "record Point:\n    x: Int\n\nfn main() -> Int:\n    let point = Point(\"wrong\")\n    return 0\n",
+            "E_TYPE_ARGUMENT",
+        ),
+        (
+            "record Point:\n    x: Imaginary\n\nfn main() -> Int:\n    return 0\n",
+            "E_TYPE_UNKNOWN",
+        ),
+        (
+            "record Point:\n    x: Int\n    x: Text\n\nfn main() -> Int:\n    return 0\n",
+            "E_RECORD_FIELD_DUPLICATE",
+        ),
+    ];
+    for (source, expected_code) in cases {
+        assert_eq!(
+            compile("bad-record.vr", source).unwrap_err().code,
+            expected_code
+        );
+    }
+}
+
+#[test]
+fn artifact_verifier_rejects_record_instructions_with_invalid_record_indices() {
+    let source = "record Point:\n    x: Int\n\nfn main() -> Int:\n    let point = Point(1)\n    return point.x\n";
+    let mut artifact = compile("bad-record-artifact.vr", source).unwrap();
+    let constructor = artifact.functions[0]
+        .code
+        .iter_mut()
+        .find(|instruction| matches!(instruction.op, Op::MakeRecord(_, _)))
+        .unwrap();
+    constructor.op = Op::MakeRecord(99, 1);
+    assert_eq!(
+        Runtime::new()
+            .load(artifact, HostPolicy::default())
+            .unwrap_err()
+            .code,
+        "R_ARTIFACT_INVALID"
+    );
+}
+
+#[test]
+fn instruction_budget_stops_unbounded_programs_with_a_source_trace() {
+    let source = "fn main() -> Int:\n    while true:\n        let unchanged = 1\n    return 0\n";
+    let artifact = compile("loop.vr", source).expect("source compiles");
+    let runtime = Runtime::new();
+    let policy = HostPolicy {
+        instruction_limit: 80,
+        ..HostPolicy::default()
+    };
+    let mut instance = runtime.load(artifact, policy).expect("artifact loads");
+    let error = instance
+        .invoke("main", vec![])
+        .expect_err("loop is bounded");
+    assert_eq!(error.code, "R_STEP_LIMIT");
+    assert!(error.trace.iter().any(|frame| frame.line > 0));
+}
+
+#[test]
+fn logical_operators_return_a_boolean_on_both_short_circuit_paths() {
+    let source = "fn main() -> Int:\n    let value = false and true\n    if value:\n        return 1\n    else:\n        return 0\n    return 0\n";
+    let artifact = compile("boolean.vr", source).expect("source compiles");
+    let mut instance = Runtime::new()
+        .load(artifact, HostPolicy::default())
+        .expect("artifact loads");
+    assert_eq!(
+        instance.invoke("main", vec![]).unwrap(),
+        Value::Int(BigInt::zero())
+    );
+}
+
+#[test]
+fn artifact_loader_rejects_invalid_stack_control_flow_before_execution() {
+    let source = "fn main() -> Int:\n    return 1\n";
+    let mut artifact = compile("bad.vr", source).unwrap();
+    artifact.functions[0].code[0].op = Op::Pop;
+    let error = Runtime::new()
+        .load(artifact, HostPolicy::default())
+        .unwrap_err();
+    assert_eq!(error.code, "R_ARTIFACT_INVALID");
+
+    let mut artifact = veritas_compiler::compile(
+        "record.vr",
+        "record Point:\n    x: Int\nfn main() -> Int:\n    print(Point(1).x)\n    return 0\n",
+    )
+    .unwrap();
+    artifact.records[0].fields[0].ty = veritas_model::Type::Record("Missing".into());
+    let error = Runtime::new()
+        .load(artifact, HostPolicy::default())
+        .unwrap_err();
+    assert_eq!(error.code, "R_ARTIFACT_INVALID");
+
+    let mut artifact = compile("bad-source-map.vr", "fn main() -> Int:\n    return 0\n").unwrap();
+    artifact.functions[0].code[0].span.source_id = 42;
+    assert_eq!(
+        Runtime::new()
+            .load(artifact, HostPolicy::default())
+            .unwrap_err()
+            .code,
+        "R_ARTIFACT_INVALID"
+    );
+}
+
+#[test]
+fn artifact_loader_rejects_stack_types_that_disagree_with_function_signatures() {
+    let mut artifact = compile("bad-type.vr", "fn main() -> Int:\n    return 1\n").unwrap();
+    artifact.functions[0].code[0].op = Op::Const(Value::Bool(true));
+    let error = Runtime::new()
+        .load(artifact, HostPolicy::default())
+        .unwrap_err();
+    assert_eq!(error.code, "R_ARTIFACT_INVALID");
+}
+
+#[test]
+fn artifact_loader_rejects_an_invalid_entry_signature() {
+    let mut artifact = compile("bad-entry.vr", "fn main() -> Int:\n    return 1\n").unwrap();
+    artifact.functions[0].parameters = vec![veritas_model::Type::Int];
+    artifact.functions[0].local_count = 1;
+    let error = Runtime::new()
+        .load(artifact, HostPolicy::default())
+        .unwrap_err();
+    assert_eq!(error.code, "R_ARTIFACT_INVALID");
+}
+
+#[test]
+fn unit_functions_can_be_called_as_statements() {
+    let source = "fn announce() -> Unit:\n    print(\"ready\")\n\nfn main() -> Int:\n    announce()\n    return 0\n";
+    let artifact = compile("unit.vr", source).expect("Unit calls are legal statements");
+    let mut instance = Runtime::new()
+        .load(artifact, HostPolicy::default())
+        .unwrap();
+    assert_eq!(
+        instance.invoke("main", vec![]).unwrap(),
+        Value::Int(BigInt::zero())
+    );
+    assert_eq!(instance.take_output(), "ready\n");
+}
+
+#[test]
+fn lists_support_literals_indexing_and_for_loops() {
+    let source = "fn sum(values: List[Int]) -> Int:\n    var total = 0\n    for value in values:\n        set total = total + value\n    return total\n\nfn main() -> Int:\n    let values = [2, 3, 4]\n    print(values[1])\n    return sum(values)\n";
+    let artifact = compile("lists.vr", source).expect("list program compiles");
+    let mut instance = Runtime::new()
+        .load(artifact, HostPolicy::default())
+        .unwrap();
+    assert_eq!(
+        instance.invoke("main", vec![]).unwrap(),
+        Value::Int(BigInt::parse("9").unwrap())
+    );
+    assert_eq!(instance.take_output(), "3\n");
+}
+
+#[test]
+fn maps_support_typed_literals_text_key_lookup_and_length() {
+    let source = "fn main() -> Int:\n    let prices = {\"pear\": 4, \"apple\": 3}\n    print(prices[\"apple\"])\n    return len(prices)\n";
+    let artifact = compile("maps.vr", source).expect("map program compiles");
+    let bytes = artifact.to_bytes().expect("map artifact encodes");
+    let artifact = veritas_model::Artifact::from_bytes(&bytes).expect("map artifact decodes");
+    let mut instance = Runtime::new()
+        .load(artifact, HostPolicy::default())
+        .unwrap();
+    assert_eq!(
+        instance.invoke("main", vec![]).unwrap(),
+        Value::Int(BigInt::parse("2").unwrap())
+    );
+    assert_eq!(instance.take_output(), "3\n");
+}
+
+#[test]
+fn float64_literals_arithmetic_comparison_and_artifact_execution_work() {
+    let source = "fn add(x: Float64, y: Float64) -> Float64:\n    return x + y\n\nfn main() -> Int:\n    let value = add(1.25, 2.75e0)\n    assert(value == 4.0)\n    print(value)\n    return 0\n";
+    let artifact = compile("float.vr", source).expect("Float64 source compiles");
+    let encoded = artifact.to_bytes().expect("Float64 artifact encodes");
+    let artifact = veritas_model::Artifact::from_bytes(&encoded).expect("artifact decodes");
+    let mut instance = Runtime::new()
+        .load(artifact, HostPolicy::default())
+        .unwrap();
+    assert_eq!(
+        instance.invoke("main", vec![]).unwrap(),
+        Value::Int(BigInt::zero())
+    );
+    assert_eq!(instance.take_output(), "4\n");
+}
+
+#[test]
+fn float64_rejects_implicit_integer_mixing_nonfinite_results_and_zero_division() {
+    let mixed = compile(
+        "mixed-float.vr",
+        "fn main() -> Int:\n    let value = 1 + 2.0\n    return 0\n",
+    )
+    .expect_err("Int and Float64 must not mix implicitly");
+    assert_eq!(mixed.code, "E_TYPE_OPERATOR");
+
+    let oversized = compile(
+        "overflow-literal.vr",
+        "fn main() -> Float64:\n    return 1e309\n",
+    )
+    .expect_err("non-finite literals must be rejected");
+    assert_eq!(oversized.code, "E_FLOAT_LITERAL");
+
+    for (source, expected_code) in [
+        ("fn compute() -> Float64:\n    return 1.0 / 0.0\n\nfn main() -> Int:\n    let ignored = compute()\n    return 0\n", "R_DIV_ZERO"),
+        ("fn compute() -> Float64:\n    return 1e308 * 1e308\n\nfn main() -> Int:\n    let ignored = compute()\n    return 0\n", "R_FLOAT_NONFINITE"),
+    ] {
+        let artifact = compile("float-runtime-error.vr", source).unwrap();
+        let mut instance = Runtime::new()
+            .load(artifact, HostPolicy::default())
+            .unwrap();
+        assert_eq!(instance.invoke("main", vec![]).unwrap_err().code, expected_code);
+    }
+}
+
+#[test]
+fn json_float_values_convert_explicitly_to_float64() {
+    let source = "fn main() -> Int:\n    let document = unwrap(json_parse(\"{\\\"ratio\\\": 1.25}\"))\n    let ratio = json_as_float(json_get(document, \"ratio\"))\n    assert(ratio == 1.25)\n    print(ratio * 4.0)\n    return 0\n";
+    let artifact =
+        compile("json-float.vr", source).expect("explicit JSON float conversion compiles");
+    let encoded = artifact.to_bytes().unwrap();
+    let artifact = veritas_model::Artifact::from_bytes(&encoded).unwrap();
+    let mut instance = Runtime::new()
+        .load(artifact, HostPolicy::default())
+        .unwrap();
+    assert_eq!(
+        instance.invoke("main", vec![]).unwrap(),
+        Value::Int(BigInt::zero())
+    );
+    assert_eq!(instance.take_output(), "5\n");
+}
+
+#[test]
+fn map_literals_reject_duplicate_keys_and_missing_lookups_are_traced() {
+    let duplicate = compile(
+        "duplicate.vr",
+        "fn main() -> Int:\n    let values = {\"x\": 1, \"x\": 2}\n    return 0\n",
+    )
+    .expect_err("duplicate keys must not silently overwrite");
+    assert_eq!(duplicate.code, "E_MAP_DUPLICATE_KEY");
+
+    let artifact = compile(
+        "missing.vr",
+        "fn main() -> Int:\n    let values = {\"x\": 1}\n    return values[\"missing\"]\n",
+    )
+    .unwrap();
+    let mut instance = Runtime::new()
+        .load(artifact, HostPolicy::default())
+        .unwrap();
+    let error = instance
+        .invoke("main", vec![])
+        .expect_err("missing key fails");
+    assert_eq!(error.code, "R_MAP_KEY_MISSING");
+    assert_eq!(error.trace[0].line, 3);
+}
+
+#[test]
+fn maps_support_immutable_updates_sorted_key_iteration_and_typed_signatures() {
+    let source = "fn total(values: Map[Text, Int]) -> Int:\n    var answer = 0\n    var keys = \"\"\n    for key in values:\n        set answer = answer + values[key]\n        set keys = keys + key\n    print(keys)\n    return answer\n\nfn main() -> Int:\n    let original = {\"pear\": 4, \"apple\": 3}\n    let changed = map_set(original, \"pear\", 8)\n    let extended = map_set(changed, \"zebra\", 4)\n    assert(original[\"pear\"] == 4)\n    assert(not map_has(original, \"zebra\"))\n    assert(changed[\"pear\"] == 8)\n    return total(extended)\n";
+    let artifact = compile("map-update.vr", source).expect("map operations compile");
+    let mut instance = Runtime::new()
+        .load(artifact, HostPolicy::default())
+        .unwrap();
+    assert_eq!(
+        instance.invoke("main", vec![]).unwrap(),
+        Value::Int(BigInt::parse("15").unwrap())
+    );
+    assert_eq!(instance.take_output(), "applepearzebra\n");
+}
+
+#[test]
+fn json_values_support_typed_access_exact_integers_and_stable_round_trip() {
+    let source = "fn main() -> Int:\n    let document = unwrap(json_parse(\"{\\\"name\\\":\\\"Veritas\\\",\\\"count\\\":123456789012345678901}\"))\n    assert(json_has(document, \"name\"))\n    assert(json_len(document) == 2)\n    let values = unwrap(json_parse(\"[true, null, 3]\"))\n    assert(json_as_bool(json_index(values, 0)))\n    assert(json_is_null(json_index(values, 1)))\n    print(json_as_text(json_get(document, \"name\")))\n    print(json_as_int(json_get(document, \"count\")))\n    print(json_stringify(document))\n    return 0\n";
+    let artifact = compile("json.vr", source).expect("JSON helpers compile");
+    let mut instance = Runtime::new()
+        .load(artifact, HostPolicy::default())
+        .unwrap();
+    assert_eq!(
+        instance.invoke("main", vec![]).unwrap(),
+        Value::Int(BigInt::zero())
+    );
+    assert_eq!(
+        instance.take_output(),
+        "Veritas\n123456789012345678901\n{\"count\":123456789012345678901,\"name\":\"Veritas\"}\n"
+    );
+}
+
+#[test]
+fn json_values_can_be_constructed_and_updated_from_typed_veritas_values() {
+    let source = "fn main() -> Int:\n    let row = json_set(json_set(json_object(), \"title\", json_text(\"Crème 東京\")), \"amount\", json_int(123456789012345678901234567890))\n    let rows = json_push(json_array(), row)\n    let document = json_set(json_object(), \"rows\", rows)\n    let updated = json_set(document, \"active\", json_bool(true))\n    assert(json_len(json_get(updated, \"rows\")) == 1)\n    assert(json_as_int(json_get(json_index(json_get(updated, \"rows\"), 0), \"amount\")) == 123456789012345678901234567890)\n    print(json_stringify(updated))\n    return 0\n";
+    let artifact = compile("json-builder.vr", source)
+        .expect("typed JSON values should be constructible without a Python adapter");
+    let artifact = veritas_model::Artifact::from_bytes(&artifact.to_bytes().unwrap()).unwrap();
+    let mut instance = Runtime::new()
+        .load(artifact, HostPolicy::default())
+        .unwrap();
+    assert_eq!(
+        instance.invoke("main", vec![]).unwrap(),
+        Value::Int(BigInt::zero())
+    );
+    assert_eq!(
+        instance.take_output(),
+        "{\"active\":true,\"rows\":[{\"amount\":123456789012345678901234567890,\"title\":\"Crème 東京\"}]}\n"
+    );
+}
+
+#[test]
+fn json_construction_rejects_wrong_container_kinds_and_policy_overruns() {
+    let wrong_array = compile(
+        "json-push-type.vr",
+        "fn main() -> Int:\n    let value = json_push(json_object(), json_null())\n    return 0\n",
+    )
+    .unwrap();
+    let mut instance = Runtime::new()
+        .load(wrong_array, HostPolicy::default())
+        .unwrap();
+    assert_eq!(
+        instance.invoke("main", vec![]).unwrap_err().code,
+        "R_JSON_TYPE"
+    );
+
+    let wrong_object = compile(
+        "json-set-type.vr",
+        "fn main() -> Int:\n    let value = json_set(json_array(), \"key\", json_null())\n    return 0\n",
+    )
+    .unwrap();
+    let mut instance = Runtime::new()
+        .load(wrong_object, HostPolicy::default())
+        .unwrap();
+    assert_eq!(
+        instance.invoke("main", vec![]).unwrap_err().code,
+        "R_JSON_TYPE"
+    );
+
+    let too_many = compile(
+        "json-push-limit.vr",
+        "fn main() -> Int:\n    let values = json_push(json_array(), json_int(1))\n    let more = json_push(values, json_int(2))\n    return 0\n",
+    )
+    .unwrap();
+    let policy = HostPolicy {
+        max_collection_items: 1,
+        ..HostPolicy::default()
+    };
+    let mut instance = Runtime::new().load(too_many, policy).unwrap();
+    assert_eq!(
+        instance.invoke("main", vec![]).unwrap_err().code,
+        "R_COLLECTION_LIMIT"
+    );
+}
+
+#[test]
+fn missing_text_file_is_classified_and_atomic_text_write_replaces_complete_contents() {
+    let root = std::env::temp_dir().join(format!("veritas-atomic-write-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(&root).unwrap();
+    let source = "fn main() -> Int:\n    let missing = read_text(\"state.json\")\n    print(file_error_code(error(missing)))\n    unwrap(write_text_atomic(\"state.json\", \"{\\\"version\\\":1}\"))\n    unwrap(write_text_atomic(\"state.json\", \"{\\\"version\\\":2}\"))\n    print(unwrap(read_text(\"state.json\")))\n    return 0\n";
+    let artifact = compile("atomic-write.vr", source)
+        .expect("atomic text write should be available to source programs");
+    let mut instance = Runtime::new()
+        .load(
+            artifact,
+            HostPolicy::default().with_file_access(root.clone(), true, true),
+        )
+        .unwrap();
+    instance.invoke("main", vec![]).unwrap();
+    assert_eq!(
+        instance.take_output(),
+        "R_FILE_NOT_FOUND\n{\"version\":2}\n"
+    );
+    assert_eq!(
+        std::fs::read_to_string(root.join("state.json")).unwrap(),
+        "{\"version\":2}"
+    );
+    assert_eq!(
+        std::fs::read_dir(&root).unwrap().count(),
+        1,
+        "temporary files must be removed after a successful replacement"
+    );
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+#[test]
+fn json_parse_returns_inspectable_errors_and_typed_access_fails() {
+    let malformed = compile(
+        "bad-json.vr",
+        "fn main() -> Int:\n    let result = json_parse(\"{\")\n    assert(not is_ok(result))\n    let issue = error(result)\n    print(json_error_code(issue))\n    print(json_error_line(issue))\n    print(json_error_column(issue))\n    return 0\n",
+    )
+    .unwrap();
+    let mut instance = Runtime::new()
+        .load(malformed, HostPolicy::default())
+        .unwrap();
+    instance.invoke("main", vec![]).unwrap();
+    assert_eq!(instance.take_output(), "R_JSON_PARSE\n1\n1\n");
+
+    let wrong_type = compile("json-type.vr", "fn main() -> Int:\n    let value = json_as_int(unwrap(json_parse(\"\\\"text\\\"\")))\n    return value\n").unwrap();
+    let mut instance = Runtime::new()
+        .load(wrong_type, HostPolicy::default())
+        .unwrap();
+    assert_eq!(
+        instance.invoke("main", vec![]).unwrap_err().code,
+        "R_JSON_TYPE"
+    );
+
+    let duplicate = compile(
+        "duplicate-json.vr",
+        r#"fn main() -> Int:
+    let value = json_parse("{\"a\":1,\"\\u0061\":2}")
+    assert(not is_ok(value))
+    let issue = error(value)
+    print(json_error_code(issue))
+    print(json_error_line(issue))
+    print(json_error_column(issue))
+    return 0
+"#,
+    )
+    .unwrap();
+    let mut instance = Runtime::new()
+        .load(duplicate, HostPolicy::default())
+        .unwrap();
+    instance.invoke("main", vec![]).unwrap();
+    assert_eq!(instance.take_output(), "R_JSON_DUPLICATE_KEY\n1\n8\n");
+}
+
+#[test]
+fn json_values_obey_integer_and_collection_limits() {
+    let huge = compile(
+        "json-large-int.vr",
+        "fn main() -> Int:\n    let value = unwrap(json_parse(\"12345\"))\n    return json_as_int(value)\n",
+    )
+    .unwrap();
+    let policy = HostPolicy {
+        max_integer_digits: 4,
+        ..HostPolicy::default()
+    };
+    let mut instance = Runtime::new().load(huge, policy).unwrap();
+    assert_eq!(
+        instance.invoke("main", vec![]).unwrap_err().code,
+        "R_INTEGER_LIMIT"
+    );
+
+    let list = compile(
+        "json-large-list.vr",
+        "fn main() -> Int:\n    let value = unwrap(json_parse(\"[1,2,3]\"))\n    return 0\n",
+    )
+    .unwrap();
+    let policy = HostPolicy {
+        max_collection_items: 2,
+        ..HostPolicy::default()
+    };
+    let mut instance = Runtime::new().load(list, policy).unwrap();
+    assert_eq!(
+        instance.invoke("main", vec![]).unwrap_err().code,
+        "R_COLLECTION_LIMIT"
+    );
+}
+
+#[test]
+fn runtime_enforces_a_configurable_integer_size_limit() {
+    let digits = "9".repeat(5_000);
+    let source = format!("fn main() -> Int:\n    print({digits})\n    return 0\n");
+    let artifact = compile("large-int.vr", &source).unwrap();
+    let policy = HostPolicy {
+        max_integer_digits: 256,
+        ..HostPolicy::default()
+    };
+    let mut instance = Runtime::new().load(artifact, policy).unwrap();
+    let error = instance.invoke("main", vec![]).unwrap_err();
+    assert_eq!(error.code, "R_INTEGER_LIMIT");
+}
+
+#[test]
+fn allocation_limit_is_shared_across_nested_calls_and_resets_per_invocation() {
+    let source = "fn churn(rounds: Int) -> Int:\n    var i = 0\n    while i < rounds:\n        let text = \"12345678\" + \"abcdefgh\"\n        set i = i + 1\n    return 0\n\nfn main() -> Int:\n    return churn(20)\n";
+    let artifact = compile("allocation-limit.vr", source).unwrap();
+    let policy = HostPolicy {
+        allocation_limit_bytes: 2048,
+        ..HostPolicy::default()
+    };
+    let mut instance = Runtime::new().load(artifact, policy).unwrap();
+    assert_eq!(
+        instance.invoke("main", vec![]).unwrap_err().code,
+        "R_ALLOCATION_LIMIT"
+    );
+    assert_eq!(
+        instance
+            .invoke("churn", vec![Value::Int(BigInt::from_usize(1))])
+            .unwrap(),
+        Value::Int(BigInt::zero())
+    );
+}
+
+#[test]
+fn allocation_limit_is_shared_across_parallel_workers() {
+    let source = "fn churn(rounds: Int) -> Int:\n    var i = 0\n    while i < rounds:\n        let text = \"12345678\" + \"abcdefgh\"\n        set i = i + 1\n    return 0\n\nfn work() -> Result[List[Int], TaskError]:\n    return parallel_map([100, 100], churn, 2)\n\nfn main() -> Int:\n    return 0\n";
+    let artifact = compile("parallel-allocation-limit.vr", source).unwrap();
+    let policy = HostPolicy {
+        allocation_limit_bytes: 4096,
+        ..HostPolicy::default()
+    };
+    let mut instance = Runtime::new().load(artifact, policy).unwrap();
+    let Value::ResultErr(error) = instance.invoke("work", vec![]).unwrap() else {
+        panic!("shared worker allocation exhaustion should be a TaskError")
+    };
+    let Value::TaskError(error) = *error else {
+        panic!("parallel allocation exhaustion should preserve its runtime code")
+    };
+    assert_eq!(error.code, "R_ALLOCATION_LIMIT");
+}
+
+#[test]
+fn allocation_limit_accounts_for_guest_collection_construction() {
+    let source = "fn main() -> Int:\n    let values = [true, true, true, true, true, true, true, true]\n    return 0\n";
+    let artifact = compile("stack-allocation-limit.vr", source).unwrap();
+    let mut constrained = Runtime::new()
+        .load(
+            artifact.clone(),
+            HostPolicy {
+                allocation_limit_bytes: 128,
+                ..HostPolicy::default()
+            },
+        )
+        .unwrap();
+    assert_eq!(
+        constrained.invoke("main", vec![]).unwrap_err().code,
+        "R_ALLOCATION_LIMIT"
+    );
+
+    let mut enough_for_collection = Runtime::new()
+        .load(
+            artifact,
+            HostPolicy {
+                allocation_limit_bytes: 1024,
+                ..HostPolicy::default()
+            },
+        )
+        .unwrap();
+    assert_eq!(
+        enough_for_collection.invoke("main", vec![]).unwrap(),
+        Value::Int(BigInt::zero())
+    );
+}
+
+#[test]
+fn native_and_vm_modes_have_the_same_result_at_the_same_allocation_limit() {
+    let source = "fn sum_to(n: Int) -> Int:\n    var total = 0\n    var i = 0\n    while i < n:\n        set total = total + i\n        set i = i + 1\n    return total\n\nfn main() -> Int:\n    return sum_to(1000)\n";
+    let artifact = compile("backend-allocation-parity.vr", source).unwrap();
+    let policy = HostPolicy {
+        allocation_limit_bytes: 1,
+        ..HostPolicy::default()
+    };
+    let mut automatic = Runtime::new()
+        .load(artifact.clone(), policy.clone())
+        .unwrap();
+    let mut vm_only = Runtime::vm_only().load(artifact, policy).unwrap();
+
+    let automatic_result = automatic.invoke("main", vec![]);
+    let vm_result = vm_only.invoke("main", vec![]);
+    assert!(!automatic.native_function_names().is_empty());
+    assert!(vm_only.native_function_names().is_empty());
+    assert_eq!(automatic_result, vm_result);
+    assert_eq!(
+        automatic_result.unwrap(),
+        Value::Int(BigInt::parse("499500").unwrap())
+    );
+}
+
+#[test]
+fn allocation_limit_accounts_for_print_rendering() {
+    let payload = "a".repeat(900_000);
+    let source = format!("fn main() -> Int:\n    print(\"{payload}\")\n    return 0\n");
+    let artifact = compile("print-allocation-limit.vr", &source).unwrap();
+    let policy = HostPolicy {
+        allocation_limit_bytes: 1_500_000,
+        ..HostPolicy::default()
+    };
+    let mut instance = Runtime::new().load(artifact, policy).unwrap();
+    assert_eq!(
+        instance.invoke("main", vec![]).unwrap_err().code,
+        "R_ALLOCATION_LIMIT"
+    );
+}
+
+#[test]
+fn parallel_map_runs_pure_functions_on_multiple_workers_and_keeps_input_order() {
+    let source = "fn repeat(value: Int) -> Int:\n    var i = 0\n    var total = 0\n    while i < 2000:\n        set total = total + value\n        set i = i + 1\n    return total\n\nfn results() -> Result[List[Int], TaskError]:\n    let values = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]\n    return parallel_map(values, repeat, 4)\n\nfn main() -> Int:\n    let result = results()\n    if is_ok(result):\n        return len(unwrap(result))\n    else:\n        return 0\n";
+    let artifact = compile("parallel.vr", source).expect("parallel_map is part of the language");
+    let mut instance = Runtime::new()
+        .load(artifact, HostPolicy::default())
+        .unwrap();
+    assert_eq!(
+        instance.invoke("main", vec![]).unwrap(),
+        Value::Int(BigInt::parse("16").unwrap())
+    );
+    let Value::ResultOk(value) = instance.invoke("results", vec![]).unwrap() else {
+        unreachable!()
+    };
+    let Value::List(results) = *value else {
+        unreachable!()
+    };
+    assert_eq!(
+        results.first(),
+        Some(&Value::Int(BigInt::parse("2000").unwrap()))
+    );
+    assert_eq!(
+        results.last(),
+        Some(&Value::Int(BigInt::parse("32000").unwrap()))
+    );
+    assert!(
+        instance.parallel_threads_used() > 1,
+        "CPU work ran on only one worker"
+    );
+}
+
+#[test]
+fn parallel_failures_cancel_pending_work_and_join_running_workers() {
+    let source = "fn spin(value: Int) -> Int:\n    while true:\n        let again = value\n    return value\n\nfn work() -> Result[List[Int], TaskError]:\n    return parallel_map([1, 2, 3, 4, 5, 6, 7, 8], spin, 4)\n\nfn main() -> Int:\n    let result = work()\n    if is_ok(result):\n        return 1\n    else:\n        let problem = error(result)\n        print(task_index(problem))\n        print(task_code(problem))\n        return 0\n";
+    let artifact = compile("parallel-failure.vr", source).unwrap();
+    let policy = HostPolicy {
+        instruction_limit: 300,
+        ..HostPolicy::default()
+    };
+    let mut instance = Runtime::new().load(artifact, policy).unwrap();
+    let Value::ResultErr(value) = instance.invoke("work", vec![]).unwrap() else {
+        panic!("parallel failure is returned as Err")
+    };
+    let Value::TaskError(task_error) = *value else {
+        panic!("parallel Err contains TaskError")
+    };
+    assert_eq!(task_error.code, "R_STEP_LIMIT");
+    assert!(task_error.index < BigInt::parse("4").unwrap());
+    assert!(!task_error.trace.is_empty());
+    assert_eq!(
+        instance.invoke("main", vec![]).unwrap(),
+        Value::Int(BigInt::zero())
+    );
+    let output = instance.take_output();
+    assert!(output.lines().any(|line| line == "R_STEP_LIMIT"));
+    assert!(instance.parallel_threads_used() > 0);
+}
+
+#[test]
+fn file_host_calls_need_a_root_and_cannot_escape_it() {
+    let dir = std::env::temp_dir().join(format!("veritas-files-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(dir.join("input.txt"), "hello é").unwrap();
+    let source = "fn main() -> Int:\n    let read_result = read_text(\"input.txt\")\n    if is_ok(read_result):\n        let content = unwrap(read_result)\n        unwrap(write_text(\"copy.txt\", content))\n    else:\n        print(file_error_code(error(read_result)))\n    return 0\n";
+    let artifact = compile("files.vr", source).unwrap();
+    let mut denied = Runtime::new()
+        .load(artifact.clone(), HostPolicy::default())
+        .unwrap();
+    denied.invoke("main", vec![]).unwrap();
+    assert_eq!(denied.take_output(), "R_HOST_DENIED\n");
+
+    let policy = HostPolicy::default().with_file_access(&dir, true, true);
+    let mut allowed = Runtime::new().load(artifact, policy).unwrap();
+    allowed.invoke("main", vec![]).unwrap();
+    assert_eq!(
+        std::fs::read_to_string(dir.join("copy.txt")).unwrap(),
+        "hello é"
+    );
+
+    let escape = compile(
+        "escape.vr",
+        "fn main() -> Int:\n    let result = read_text(\"../outside.txt\")\n    assert(not is_ok(result))\n    print(file_error_code(error(result)))\n    return 0\n",
+    )
+    .unwrap();
+    let mut escaped = Runtime::new()
+        .load(
+            escape,
+            HostPolicy::default().with_file_access(&dir, true, false),
+        )
+        .unwrap();
+    escaped.invoke("main", vec![]).unwrap();
+    assert_eq!(escaped.take_output(), "R_HOST_DENIED\n");
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn binary_file_reads_preserve_bytes_and_enforce_the_file_limit() {
+    let dir = std::env::temp_dir().join(format!("veritas-binary-files-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let bytes = [0, 0xff, 0x80, b'x'];
+    std::fs::write(dir.join("input.bin"), bytes).unwrap();
+    let source = "fn main() -> Int:\n    let payload = unwrap(read_bytes(\"input.bin\"))\n    unwrap(write_bytes(\"copy.bin\", payload))\n    return len(unwrap(read_bytes(\"copy.bin\")))\n";
+    let artifact = compile("binary-files.vr", source).unwrap();
+    let policy = HostPolicy::default().with_file_access(&dir, true, true);
+    let mut instance = Runtime::new().load(artifact.clone(), policy).unwrap();
+    assert_eq!(
+        instance.invoke("main", vec![]).unwrap(),
+        Value::Int(BigInt::parse("4").unwrap())
+    );
+    assert_eq!(std::fs::read(dir.join("copy.bin")).unwrap(), bytes);
+
+    std::fs::write(dir.join("too-large.bin"), [0, 1, 2, 3, 4]).unwrap();
+    let too_large = compile(
+        "binary-limit.vr",
+        "fn main() -> Int:\n    return len(unwrap(read_bytes(\"too-large.bin\")))\n",
+    )
+    .unwrap();
+    let mut limited = Runtime::new()
+        .load(
+            too_large,
+            HostPolicy {
+                max_file_bytes: 4,
+                ..HostPolicy::default().with_file_access(&dir, true, false)
+            },
+        )
+        .unwrap();
+    assert_eq!(
+        limited.invoke("main", vec![]).unwrap_err().code,
+        "R_FILE_LIMIT"
+    );
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn result_constructors_and_try_propagate_file_errors() {
+    let dir = std::env::temp_dir().join(format!("veritas-result-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(dir.join("input.txt"), "safe").unwrap();
+    let source = "fn relay(path: Text) -> Result[Text, FileError]:\n    return Ok(read_text(path)?)\n\nfn explicit_ok(text: Text) -> Result[Text, FileError]:\n    return Ok(text)\n\nfn explicit_err(problem: FileError) -> Result[Text, FileError]:\n    return Err(problem)\n\nfn main() -> Int:\n    let success = relay(\"input.txt\")\n    let wrapped = explicit_ok(unwrap(success))\n    print(unwrap(wrapped))\n    let failure = relay(\"missing.txt\")\n    let wrapped_failure = explicit_err(error(failure))\n    print(file_error_code(error(wrapped_failure)))\n    print(file_error_line(error(wrapped_failure)))\n    print(file_error_column(error(wrapped_failure)))\n    return 0\n";
+    let artifact = compile("result.vr", source).unwrap();
+    let policy = HostPolicy::default().with_file_access(&dir, true, true);
+    let mut instance = Runtime::new().load(artifact, policy).unwrap();
+    instance.invoke("main", vec![]).unwrap();
+    assert_eq!(instance.take_output(), "safe\nR_FILE_NOT_FOUND\n2\n15\n");
+    let _ = std::fs::remove_dir_all(dir);
+
+    let invalid_context =
+        compile("result-context.vr", "fn main() -> Int:\n    return Ok(1)\n").unwrap_err();
+    assert_eq!(invalid_context.code, "E_RESULT_CONSTRUCTOR_CONTEXT");
+    let invalid_try = compile(
+        "result-try.vr",
+        "fn main() -> Int:\n    let text = read_text(\"x\")?\n    return 0\n",
+    )
+    .unwrap_err();
+    assert_eq!(invalid_try.code, "E_RESULT_TRY_FUNCTION");
+    let mismatched_error = compile(
+        "result-error-type.vr",
+        "fn parse(text: Text) -> Result[Int, FileError]:\n    return Ok(json_parse(text)?)\n\nfn main() -> Int:\n    return 0\n",
+    )
+    .unwrap_err();
+    assert_eq!(mismatched_error.code, "E_RESULT_TRY_ERROR");
+}
+
+#[test]
+fn instances_support_repeated_invocation_and_reject_use_after_close() {
+    let source = "fn greet() -> Int:\n    print(\"hello\")\n    return 7\n\nfn main() -> Int:\n    return greet()\n";
+    let artifact = compile("lifecycle.vr", source).unwrap();
+    let mut instance = Runtime::new()
+        .load(artifact, HostPolicy::default())
+        .unwrap();
+    for _ in 0..2 {
+        assert_eq!(
+            instance.invoke("main", vec![]).unwrap(),
+            Value::Int(BigInt::parse("7").unwrap())
+        );
+        assert_eq!(instance.take_output(), "hello\n");
+    }
+    instance.close();
+    assert_eq!(
+        instance.invoke("main", vec![]).unwrap_err().code,
+        "R_INSTANCE_CLOSED"
+    );
+}
+
+#[test]
+fn option_values_are_constructed_checked_unwrapped_and_portable() {
+    let source = "fn maybe(value: Int) -> Option[Int]:\n    if value > 0:\n        return Some(value)\n    return None\n\nfn main() -> Int:\n    let present = maybe(42)\n    if is_some(present):\n        return unwrap(present)\n    return 0\n";
+    let artifact = compile("option.vr", source).expect("Option source compiles");
+    let bytes = artifact.to_bytes().expect("Option artifact serializes");
+    let artifact = veritas_model::Artifact::from_bytes(&bytes).expect("Option artifact loads");
+    let mut instance = Runtime::new()
+        .load(artifact, HostPolicy::default())
+        .expect("Option artifact verifies");
+    assert_eq!(
+        instance.invoke("main", vec![]).unwrap(),
+        Value::Int(BigInt::parse("42").unwrap())
+    );
+}
+
+#[test]
+fn option_unwrap_reports_absence_and_none_needs_an_option_context() {
+    let source = "fn maybe() -> Option[Int]:\n    return None\n\nfn main() -> Int:\n    return unwrap(maybe())\n";
+    let artifact = compile("option-empty.vr", source).unwrap();
+    let mut instance = Runtime::new()
+        .load(artifact, HostPolicy::default())
+        .unwrap();
+    assert_eq!(
+        instance.invoke("main", vec![]).unwrap_err().code,
+        "R_OPTION_UNWRAP"
+    );
+
+    let invalid = compile("option-context.vr", "fn main() -> Int:\n    return None\n").unwrap_err();
+    assert_eq!(invalid.code, "E_OPTION_CONSTRUCTOR_CONTEXT");
+}

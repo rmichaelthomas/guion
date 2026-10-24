@@ -1,0 +1,43 @@
+{
+  "candidate": "author-self-review-veritas-config-migrator",
+  "passed": 6,
+  "total": 6,
+  "cases": [
+    {
+      "id": "config-migrator-v1-to-v2",
+      "passed": true,
+      "elapsed_seconds": 0.400084,
+      "failures": []
+    },
+    {
+      "id": "config-migrator-future-version-safe",
+      "passed": true,
+      "elapsed_seconds": 0.199584,
+      "failures": []
+    },
+    {
+      "id": "config-migrator-current-schema-check-is-read-only",
+      "passed": true,
+      "elapsed_seconds": 0.188554,
+      "failures": []
+    },
+    {
+      "id": "config-migrator-invalid-current-schema-is-safe",
+      "passed": true,
+      "elapsed_seconds": 0.189546,
+      "failures": []
+    },
+    {
+      "id": "config-migrator-v2-to-v3",
+      "passed": true,
+      "elapsed_seconds": 0.206371,
+      "failures": []
+    },
+    {
+      "id": "config-migrator-current-schema-migrate-no-op",
+      "passed": true,
+      "elapsed_seconds": 0.202726,
+      "failures": []
+    }
+  ]
+}

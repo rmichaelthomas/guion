@@ -1,0 +1,142 @@
+extern python "lockfile_support:compare_semver" fn compare_semver(left: Text, right: Text) -> Int
+extern python "lockfile_support:is_expired" fn is_expired(as_of: Text, expires: Text) -> Bool
+
+fn add_rule(records: Map[Text, Map[Text, Bool]], name: Text, rule: Text) -> Map[Text, Map[Text, Bool]]:
+    var rules: Map[Text, Bool] = {}
+    if map_has(records, name):
+        set rules = records[name]
+    set rules = map_set(rules, rule, true)
+    return map_set(records, name, rules)
+
+fn find_exception(exceptions: Json, name: Text) -> Json:
+    var index = 0
+    while index < json_len(exceptions):
+        let exception = json_index(exceptions, index)
+        if json_as_text(json_get(exception, "name")) == name:
+            return exception
+        set index = index + 1
+    return json_null()
+
+fn main() -> Int:
+    let arguments = args()
+    var lockfile_path = ""
+    var policy_path = ""
+    var as_of = ""
+    var output_path = ""
+    var index = 0
+    while index < len(arguments):
+        if arguments[index] == "--lockfile" and index + 1 < len(arguments):
+            set lockfile_path = arguments[index + 1]
+            set index = index + 2
+        else:
+            if arguments[index] == "--policy" and index + 1 < len(arguments):
+                set policy_path = arguments[index + 1]
+                set index = index + 2
+            else:
+                if arguments[index] == "--as-of" and index + 1 < len(arguments):
+                    set as_of = arguments[index + 1]
+                    set index = index + 2
+                else:
+                    if arguments[index] == "--output" and index + 1 < len(arguments):
+                        set output_path = arguments[index + 1]
+                        set index = index + 2
+                    else:
+                        eprint("unknown or incomplete argument")
+                        return 2
+    if lockfile_path == "" or policy_path == "" or as_of == "" or output_path == "":
+        eprint("usage: lockfile-auditor --lockfile PATH --policy PATH --as-of DATE --output PATH")
+        return 2
+
+    let lock_text = read_text(lockfile_path)
+    let policy_text = read_text(policy_path)
+    if not is_ok(lock_text) or not is_ok(policy_text):
+        eprint("cannot read lockfile or policy")
+        return 1
+    let lock_result = json_parse(unwrap(lock_text))
+    let policy_result = json_parse(unwrap(policy_text))
+    if not is_ok(lock_result) or not is_ok(policy_result):
+        eprint("invalid lockfile or policy JSON")
+        return 1
+    let lock = unwrap(lock_result)
+    let policy = unwrap(policy_result)
+    let packages = json_get(lock, "packages")
+    let deny = json_get(policy, "deny")
+    let minimum_versions = json_get(policy, "minimum_versions")
+    let maximum_versions = json_get(policy, "maximum_versions")
+    var exceptions = json_array()
+    if json_has(policy, "exceptions"):
+        set exceptions = json_get(policy, "exceptions")
+
+    var violations: Map[Text, Map[Text, Bool]] = {}
+    var warnings: Map[Text, Map[Text, Bool]] = {}
+    var package_index = 0
+    while package_index < json_len(packages):
+        let package = json_index(packages, package_index)
+        let name = json_as_text(json_get(package, "name"))
+        let version = json_as_text(json_get(package, "version"))
+        let exception = find_exception(exceptions, name)
+        var exception_active = false
+        var exception_expired = false
+        if not json_is_null(exception):
+            let expires = json_as_text(json_get(exception, "expires"))
+            set exception_expired = is_expired(as_of, expires)
+            set exception_active = not exception_expired
+        if exception_expired:
+            set warnings = add_rule(warnings, name, "expired_exception")
+
+        var denied = false
+        var deny_index = 0
+        while deny_index < json_len(deny):
+            if json_as_text(json_index(deny, deny_index)) == name:
+                set denied = true
+            set deny_index = deny_index + 1
+        if denied and not exception_active:
+            set violations = add_rule(violations, name, "denied")
+
+        if json_has(minimum_versions, name):
+            let minimum = json_as_text(json_get(minimum_versions, name))
+            if compare_semver(version, minimum) < 0:
+                set violations = add_rule(violations, name, "below_minimum")
+        if json_has(maximum_versions, name):
+            let maximum = json_as_text(json_get(maximum_versions, name))
+            if compare_semver(version, maximum) > 0:
+                set violations = add_rule(violations, name, "above_maximum")
+
+        if json_as_bool(json_get(policy, "require_source")):
+            if not json_has(package, "source") or json_is_null(json_get(package, "source")):
+                set violations = add_rule(violations, name, "missing_source")
+            else:
+                if json_as_text(json_get(package, "source")) == "":
+                    set violations = add_rule(violations, name, "missing_source")
+        if json_as_bool(json_get(policy, "require_checksum")):
+            if not json_has(package, "checksum") or json_is_null(json_get(package, "checksum")):
+                set violations = add_rule(violations, name, "missing_checksum")
+            else:
+                if json_as_text(json_get(package, "checksum")) == "":
+                    set violations = add_rule(violations, name, "missing_checksum")
+        set package_index = package_index + 1
+
+    var violation_rows = json_array()
+    for name in violations:
+        let rules = violations[name]
+        for rule in rules:
+            var row = json_object()
+            set row = json_set(row, "name", json_text(name))
+            set row = json_set(row, "rule", json_text(rule))
+            set violation_rows = json_push(violation_rows, row)
+    var warning_rows = json_array()
+    for name in warnings:
+        let rules = warnings[name]
+        for rule in rules:
+            var row = json_object()
+            set row = json_set(row, "name", json_text(name))
+            set row = json_set(row, "rule", json_text(rule))
+            set warning_rows = json_push(warning_rows, row)
+    var report = json_object()
+    set report = json_set(report, "violations", violation_rows)
+    set report = json_set(report, "warnings", warning_rows)
+    let written = write_text_atomic(output_path, json_stringify(report) + "\n")
+    if not is_ok(written):
+        eprint("cannot write report")
+        return 1
+    return 0

@@ -1,0 +1,145 @@
+extern python "doc_index_support:scan_docs" fn scan_docs(root: Text) -> Json
+extern python "doc_index_support:store_index" fn store_index(db_path: Text, documents: Json) -> Bool
+extern python "doc_index_support:read_index" fn read_index(db_path: Text) -> Json
+extern python "doc_index_support:normalize_title" fn normalize_title(value: Text) -> Text
+
+fn build_choices(documents: Json) -> Map[Text, List[Text]]:
+    var choices: Map[Text, List[Text]] = {}
+    var document_index = 0
+    while document_index < json_len(documents):
+        let document = json_index(documents, document_index)
+        let path = json_as_text(json_get(document, "path"))
+        let title_key = normalize_title(json_as_text(json_get(document, "title")))
+        var destinations: List[Text] = []
+        if map_has(choices, title_key):
+            set destinations = choices[title_key]
+        set destinations = list_push(destinations, path)
+        set choices = map_set(choices, title_key, destinations)
+        let aliases = json_get(document, "aliases")
+        var alias_index = 0
+        while alias_index < json_len(aliases):
+            let alias_key = normalize_title(json_as_text(json_index(aliases, alias_index)))
+            var alias_destinations: List[Text] = []
+            if map_has(choices, alias_key):
+                set alias_destinations = choices[alias_key]
+            set alias_destinations = list_push(alias_destinations, path)
+            set choices = map_set(choices, alias_key, alias_destinations)
+            set alias_index = alias_index + 1
+        set document_index = document_index + 1
+    return choices
+
+fn main() -> Int:
+    let arguments = args()
+    if len(arguments) < 1:
+        eprint("usage: doc-index build|check|backlinks --database PATH [options]")
+        return 2
+    let command = arguments[0]
+    var root = ""
+    var database = ""
+    var json_path = ""
+    var title = ""
+    var index = 1
+    while index < len(arguments):
+        if arguments[index] == "--root" and index + 1 < len(arguments):
+            set root = arguments[index + 1]
+            set index = index + 2
+        else:
+            if arguments[index] == "--database" and index + 1 < len(arguments):
+                set database = arguments[index + 1]
+                set index = index + 2
+            else:
+                if arguments[index] == "--json" and index + 1 < len(arguments):
+                    set json_path = arguments[index + 1]
+                    set index = index + 2
+                else:
+                    if command == "backlinks":
+                        if title == "":
+                            set title = arguments[index]
+                        else:
+                            set title = title + " " + arguments[index]
+                        set index = index + 1
+                    else:
+                        eprint("unknown or incomplete argument")
+                        return 2
+    if database == "":
+        eprint("--database PATH is required")
+        return 2
+
+    if command == "build":
+        if root == "":
+            eprint("build requires --root PATH")
+            return 2
+        let scanned = scan_docs(root)
+        if not json_as_bool(json_get(scanned, "ok")):
+            eprint("cannot index documentation: " + json_as_text(json_get(scanned, "error")))
+            return 1
+        if not store_index(database, json_get(scanned, "documents")):
+            eprint("cannot store documentation index")
+            return 1
+        return 0
+
+    if command == "check":
+        if json_path == "":
+            eprint("check requires --json PATH")
+            return 2
+        let index_data = read_index(database)
+        let documents = json_get(index_data, "documents")
+        let links = json_get(index_data, "links")
+        let choices = build_choices(documents)
+        var missing = json_array()
+        var ambiguous = json_array()
+        var link_index = 0
+        while link_index < json_len(links):
+            let link = json_index(links, link_index)
+            let normalized = normalize_title(json_as_text(json_get(link, "target")))
+            if not map_has(choices, normalized):
+                var result = json_object()
+                set result = json_set(result, "source", json_get(link, "source"))
+                set result = json_set(result, "target", json_get(link, "target"))
+                set missing = json_push(missing, result)
+            else:
+                if len(choices[normalized]) > 1:
+                    var result = json_object()
+                    set result = json_set(result, "source", json_get(link, "source"))
+                    set result = json_set(result, "target", json_get(link, "target"))
+                    set ambiguous = json_push(ambiguous, result)
+            set link_index = link_index + 1
+        var report = json_object()
+        set report = json_set(report, "missing", missing)
+        set report = json_set(report, "ambiguous", ambiguous)
+        let written = write_text_atomic(json_path, json_stringify(report) + "\n")
+        if not is_ok(written):
+            eprint("cannot write documentation check report")
+            return 1
+        return 0
+
+    if command == "backlinks":
+        if json_path == "" or title == "":
+            eprint("backlinks requires --json PATH TITLE")
+            return 2
+        let index_data = read_index(database)
+        let documents = json_get(index_data, "documents")
+        let links = json_get(index_data, "links")
+        let choices = build_choices(documents)
+        let target = normalize_title(title)
+        var backlink_set: Map[Text, Bool] = {}
+        if map_has(choices, target) and len(choices[target]) == 1:
+            var link_index = 0
+            while link_index < json_len(links):
+                let link = json_index(links, link_index)
+                if normalize_title(json_as_text(json_get(link, "target"))) == target:
+                    let source = json_as_text(json_get(link, "source"))
+                    set backlink_set = map_set(backlink_set, source, true)
+                set link_index = link_index + 1
+        var backlinks = json_array()
+        for source in backlink_set:
+            set backlinks = json_push(backlinks, json_text(source))
+        var report = json_object()
+        set report = json_set(report, "backlinks", backlinks)
+        let written = write_text_atomic(json_path, json_stringify(report) + "\n")
+        if not is_ok(written):
+            eprint("cannot write backlinks report")
+            return 1
+        return 0
+    eprint("unknown documentation command")
+    return 2

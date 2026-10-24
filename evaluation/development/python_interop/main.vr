@@ -1,0 +1,33 @@
+extern python "orjson:loads" fn parse_document(value: Text) -> Json
+extern python "numpy:arange" fn sequence(stop: Int) -> List[Int]
+extern python "requests.utils:default_user_agent" fn user_agent() -> Text
+
+fn main() -> Int:
+    let document = parse_document("{\"records\":[{\"active\":true,\"amount\":9007199254740993,\"labels\":[\"Crème\",\"東京\"]},{\"active\":false,\"amount\":2,\"labels\":[]},{\"active\":true,\"amount\":7,\"labels\":[\"native\"]}],\"meta\":{\"source\":\"orjson\",\"version\":1}}")
+    let records = json_get(document, "records")
+    assert(json_len(records) == 3)
+    assert(json_as_int(json_get(json_get(document, "meta"), "version")) == 1)
+    assert(json_as_text(json_index(json_get(json_index(records, 0), "labels"), 1)) == "東京")
+
+    let vector = sequence(6)
+    var vector_index = 0
+    var vector_total = 0
+    while vector_index < len(vector):
+        set vector_total = vector_total + vector[vector_index]
+        set vector_index = vector_index + 1
+    print(vector_total)
+
+    var index = 0
+    var active_total = 0
+    var label_count = 0
+    while index < json_len(records):
+        let record = json_index(records, index)
+        if json_as_bool(json_get(record, "active")):
+            set active_total = active_total + json_as_int(json_get(record, "amount"))
+        set label_count = label_count + json_len(json_get(record, "labels"))
+        set index = index + 1
+
+    print(active_total)
+    print(label_count)
+    print(user_agent())
+    return 0

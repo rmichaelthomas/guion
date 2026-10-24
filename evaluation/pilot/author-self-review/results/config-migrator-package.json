@@ -1,0 +1,51 @@
+{
+  "status": "author-run-micro-pilot",
+  "artifact_sha256": "afbc9fe4eac3fd5b788c3e85fb851e7369c36b5ee6dfc3c26502787ecdcca9b6",
+  "package_directory_bytes": 200383611,
+  "trials": [
+    {
+      "pair": 1,
+      "veritas_seconds": 2.07861675019376,
+      "python_seconds": 0.173600957961753
+    },
+    {
+      "pair": 2,
+      "python_seconds": 0.17356087500229478,
+      "veritas_seconds": 0.7997740830760449
+    },
+    {
+      "pair": 3,
+      "veritas_seconds": 0.8024270830210298,
+      "python_seconds": 0.17636487493291497
+    },
+    {
+      "pair": 4,
+      "python_seconds": 0.1699591251090169,
+      "veritas_seconds": 0.842453874880448
+    },
+    {
+      "pair": 5,
+      "veritas_seconds": 0.8101562089286745,
+      "python_seconds": 0.17000129097141325
+    },
+    {
+      "pair": 6,
+      "python_seconds": 0.17031362489797175,
+      "veritas_seconds": 0.805977791082114
+    },
+    {
+      "pair": 7,
+      "veritas_seconds": 0.808193749981001,
+      "python_seconds": 0.17148329108022153
+    },
+    {
+      "pair": 8,
+      "python_seconds": 0.1747333339881152,
+      "veritas_seconds": 0.8050245409831405
+    }
+  ],
+  "median_veritas_seconds": 0.8070857705315575,
+  "median_python_seconds": 0.17252208304125816,
+  "median_veritas_over_python": 4.678159203181806,
+  "conditions": "8 paired fresh-process invocations, alternating order, relocated clean package, verification before and after every invocation, warm filesystem caches. Veritas uses its packaged launcher and supervised -B Python sidecar; Python uses the same bundled interpreter with -B, locked tomlkit, and the same helper."
+}

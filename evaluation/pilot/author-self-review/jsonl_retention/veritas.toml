@@ -1,0 +1,4 @@
+[project]
+name = "veritas-jsonl-retention-pilot"
+version = "0.1.0"
+entry = "main.vr"

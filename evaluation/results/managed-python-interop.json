@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "classification": "known_development_case_author_run_not_independent_evidence",
+  "host": {
+    "system": "Darwin",
+    "machine": "arm64"
+  },
+  "project": "evaluation/development/python_interop",
+  "toolchain": {
+    "uv_version": "0.13.4",
+    "uv_archive_sha256": "e0b1d4743ce64c55d9f0f4a444afa6b81125680070ee04e853fcd0f6c1ebf8f1",
+    "managed_python": "CPython 3.14.8",
+    "target": "macos-aarch64"
+  },
+  "dependencies": [
+    {
+      "name": "requests",
+      "version": "2.32.5",
+      "kind": "pure_python_wheel",
+      "wheel": "requests-2.32.5-py3-none-any.whl",
+      "sha256": "2462f94637a34fd532264295e186976db0f5d453d1cdd31473c85a6a161affb6"
+    },
+    {
+      "name": "orjson",
+      "version": "3.13.0",
+      "kind": "compiled_native_wheel",
+      "wheel": "orjson-3.13.0-cp314-cp314-macosx_15_0_arm64.whl",
+      "sha256": "91d933e668ff0ffe164d7c2daec36beba6d1ce7fadb71538fbe142a71f8a1e6e"
+    },
+    {
+      "name": "numpy",
+      "version": "2.5.4",
+      "kind": "compiled_native_wheel",
+      "wheel": "numpy-2.5.4-cp314-cp314-macosx_14_0_arm64.whl",
+      "sha256": "956555e0603a4d38019ae6925711cb9dc43195c076a928accf7ea5d50bddfe53"
+    }
+  ],
+  "uv_lock_sha256": "b87418841e739bd528978c63a2f6a5bc288efe4ab5a5fd0c37969c1ed99c3ec4",
+  "expected_stdout": "15\n9007199254741000\n3\npython-requests/2.32.5\n",
+  "observed_stdout": "15\n9007199254741000\n3\npython-requests/2.32.5\n",
+  "checks": {
+    "sync_created_managed_cpython_and_installed_packages": true,
+    "orjson_returned_a_veritas_list_of_integers": true,
+    "requests_call_returned_text": true,
+    "run_reused_locked_environment_offline": true,
+    "run_left_uv_lock_unchanged": true,
+    "packaged_cli_used_bundled_uv": true,
+    "packaged_cli_ran_project_after_sync": true,
+    "orjson_returned_a_nested_heterogeneous_veritas_json_value": true,
+    "large_integer_above_javascript_safe_range_preserved": true,
+    "nested_object_array_boolean_unicode_and_metadata_accessed_in_veritas": true,
+    "active_records_aggregated_with_exact_integer_result": true,
+    "numpy_ndarray_returned_as_typed_veritas_list": true,
+    "multidimensional_numpy_array_returned_as_nested_veritas_lists": true,
+    "numpy_values_validated_against_declared_veritas_element_type": true,
+    "locked_numpy_wheel_installed_and_imported_on_managed_cpython_3_14_8": true,
+    "numpy_array_size_guard_rejects_oversized_values_before_tolist": true,
+    "numpy_array_size_guard_case_100000_elements": "rejected before materialization",
+    "numpy_array_dtype_and_width_limits_documented": true
+  },
+  "limitations": [
+    "one macOS ARM64 host and one author-run example",
+    "NumPy arrays are copied through ndarray.tolist(), JSON framing, and Veritas list reconstruction; no zero-copy view",
+    "array conversion only applies to a top-level ndarray declared as List[T]; tensors and arbitrary Python objects remain unsupported",
+    "the bundle acquires managed CPython and wheels on sync but does not contain a relocatable interpreter or wheel environment",
+    "NumPy ndarray conversion is capped at 98,304 elements using a conservative 256-byte-per-element temporary-object estimate; the frame ceiling still applies independently"
+  ],
+  "recommendation_claim": false,
+  "candidate": "RC36 source build"
+}

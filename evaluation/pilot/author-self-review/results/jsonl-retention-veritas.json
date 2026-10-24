@@ -1,0 +1,43 @@
+{
+  "candidate": "author-self-review-veritas-jsonl-retention",
+  "passed": 6,
+  "total": 6,
+  "cases": [
+    {
+      "id": "jsonl-normal-summary",
+      "passed": true,
+      "elapsed_seconds": 0.114786,
+      "failures": []
+    },
+    {
+      "id": "jsonl-strict-does-not-publish",
+      "passed": true,
+      "elapsed_seconds": 0.061684,
+      "failures": []
+    },
+    {
+      "id": "jsonl-empty-input",
+      "passed": true,
+      "elapsed_seconds": 0.060164,
+      "failures": []
+    },
+    {
+      "id": "jsonl-missing-required-field",
+      "passed": true,
+      "elapsed_seconds": 0.055427,
+      "failures": []
+    },
+    {
+      "id": "jsonl-follow-up-allow-list",
+      "passed": true,
+      "elapsed_seconds": 0.058924,
+      "failures": []
+    },
+    {
+      "id": "jsonl-follow-up-empty-allow-list",
+      "passed": true,
+      "elapsed_seconds": 0.057579,
+      "failures": []
+    }
+  ]
+}

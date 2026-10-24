@@ -1,0 +1,37 @@
+{
+  "candidate": "author-self-review-veritas-service-health",
+  "passed": 5,
+  "total": 5,
+  "cases": [
+    {
+      "id": "health-mixed-results-and-cap",
+      "passed": true,
+      "elapsed_seconds": 0.618964,
+      "failures": []
+    },
+    {
+      "id": "health-concurrency-bound",
+      "passed": true,
+      "elapsed_seconds": 0.586127,
+      "failures": []
+    },
+    {
+      "id": "health-empty-configuration",
+      "passed": true,
+      "elapsed_seconds": 0.081394,
+      "failures": []
+    },
+    {
+      "id": "health-http-error-is-unhealthy",
+      "passed": true,
+      "elapsed_seconds": 0.558682,
+      "failures": []
+    },
+    {
+      "id": "health-maintenance-boundaries",
+      "passed": true,
+      "elapsed_seconds": 0.594271,
+      "failures": []
+    }
+  ]
+}

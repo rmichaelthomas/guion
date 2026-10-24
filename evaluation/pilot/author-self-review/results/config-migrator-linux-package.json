@@ -1,0 +1,15 @@
+{
+  "status": "author-run-package-acceptance",
+  "target": "linux-aarch64",
+  "package_directory_bytes": 264857029,
+  "source_free_after_relocation": true,
+  "migration_result": {
+    "version": 3,
+    "name": "demo",
+    "sync": {
+      "timeout_seconds": 45,
+      "parallelism": 4
+    }
+  },
+  "verification_after_launch": "passed"
+}

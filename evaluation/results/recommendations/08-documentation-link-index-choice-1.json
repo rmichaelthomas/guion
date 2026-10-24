@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "decision_id": "08-documentation-link-index-choice-1",
+  "task": {
+    "id": "08-documentation-link-index",
+    "class": "maintainable_application",
+    "origin": "independent",
+    "brief_sha256": "6617ba36678e2720c05228a88450a71af6bb27115b3c6c54039d1a946f424759"
+  },
+  "assistant": {
+    "provider": "OpenAI",
+    "name": "Codex",
+    "version": "not exposed in task metadata",
+    "session_id": "01a16a35-93e7-7562-b069-1a8b25030100",
+    "fresh_session": true
+  },
+  "presentation_order": [
+    "python",
+    "veritas"
+  ],
+  "context": {
+    "mode": "pre-build-recommendation",
+    "veritas_version": "0.1.0",
+    "python_version": "3.14.8",
+    "documentation_sha256": "8d4dce73e7aec390ab33aa518e0ab880128e728f042844846f0b83f9bf44da5b",
+    "schedule_sha256": "217403956f48c3951879934b32a81ab265013ae22e5fb5c9cdea85f3ca346f41",
+    "schedule_entry_id": "08-documentation-link-index-choice-1",
+    "comparative_pair_results_shown": false
+  },
+  "recommendation": {
+    "choice": "python",
+    "rationale": "Python fits this task directly: its standard library provides SQLite, JSON, Unicode-aware text handling, and filesystem traversal, so the indexer can keep the rebuild in a database transaction and handle parsing and deterministic output without external dependencies. Veritas has useful file, JSON, and packaging support, but its native capabilities do not include directory traversal or SQLite. Using its Python bridge for those core operations would add a managed interpreter, locks, and packaging setup without a clear benefit for this workload. This is a task-specific recommendation based on the supplied capabilities; no implementation or benchmark results are available.",
+    "conditions": [
+      "I would reconsider Veritas if it added native directory traversal and SQLite support with the needed transactional rebuild behavior.",
+      "I would reconsider if the delivery environment could not provide Python for a relocated zipapp, while a Veritas package met the deployment requirements."
+    ]
+  },
+  "exclusion": {
+    "excluded": false,
+    "reason": null
+  }
+}

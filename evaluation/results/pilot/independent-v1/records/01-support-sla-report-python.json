@@ -1,0 +1,386 @@
+{
+  "schema_version": 1,
+  "pilot_id": "independent-v1-cross-class-pilot",
+  "task": {
+    "id": "01-support-sla-report",
+    "class": "small_automation_cli",
+    "origin": "independent",
+    "brief_sha256": "38a0dfc58825bed7db1d295fd32e5a0558d4663ef810a140ca531611747f2556"
+  },
+  "candidate": {
+    "language": "python",
+    "version": "3.14.8",
+    "implementation": "standard library; zipapp"
+  },
+  "assistant": {
+    "provider": "OpenAI",
+    "name": "Codex",
+    "version": "not exposed in task metadata",
+    "session_id": "01a16a54-61f5-7681-b735-c522ccd51f10",
+    "fresh_session": true,
+    "workspace": "/Users/rmichaelthomas/Documents/Codex/2026-10-23/python-pilot-01-support-sla",
+    "turns": [
+      {
+        "started_at_epoch": 1792785278,
+        "completed_at_epoch": 1792785892,
+        "duration_ms": 614034,
+        "tool_calls": 54
+      },
+      {
+        "started_at_epoch": 1792785963,
+        "completed_at_epoch": 1792786137,
+        "duration_ms": 173425,
+        "tool_calls": 22
+      },
+      {
+        "started_at_epoch": 1792786178,
+        "completed_at_epoch": 1792786241,
+        "duration_ms": 62840,
+        "tool_calls": 11
+      }
+    ],
+    "measured_turn_active_seconds": 850.299,
+    "tool_call_budget": 150
+  },
+  "environment": {
+    "authoring_host": "macOS arm64",
+    "host_python_initially": "3.14.7",
+    "authoring_toolchain": "frozen CPython 3.14.8 and uv 0.13.4 supplied from read-only package",
+    "evaluation_platform": "linux/arm64",
+    "cpu": "Apple Silicon; exact model unavailable",
+    "python_image_id": "sha256:247421bada960203f9d8c8438608309e0eb6c1128681017d42af30bcbc9d1178",
+    "python_version": "3.14.8",
+    "uv_version": "0.13.4",
+    "network_mode": "none",
+    "container_limits": {
+      "cpus": 2,
+      "memory_bytes": 2147483648,
+      "pids": 128,
+      "tmpfs_bytes": 536870912
+    }
+  },
+  "interventions": [
+    {
+      "kind": "toolchain_path",
+      "detail": "Supplied frozen CPython 3.14.8 and uv 0.13.4 paths after authoring host initially reported Python 3.14.7 and no uv."
+    },
+    {
+      "kind": "source_runner_contract",
+      "detail": "Clarified required root main.py source entrypoint and nonzero status for rejected input after the first run."
+    },
+    {
+      "kind": "exit_status_contract",
+      "detail": "Clarified data-validation status 1 versus usage status 2 after the candidate returned 2."
+    },
+    {
+      "kind": "planned_follow_up",
+      "detail": "Added the predeclared optional --team filter."
+    }
+  ],
+  "candidate_results": {
+    "python_initial_v1": {
+      "source": {
+        "passed": false,
+        "cases_passed": 0,
+        "cases_total": 6,
+        "failed_cases": [
+          {
+            "id": "sla-initial-report",
+            "failures": [
+              "step 1: expected exit code 0, received 2",
+              "step 1: check 1: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-etal4sns/report.json'",
+              "step 1: check 2: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-etal4sns/report.json'",
+              "step 1: check 3: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-etal4sns/report.json'",
+              "step 1: check 4: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-etal4sns/report.json'",
+              "step 1: check 5: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-etal4sns/report.json'",
+              "step 1: check 6: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-etal4sns/report.json'",
+              "step 1: check 7: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-etal4sns/report.json'",
+              "step 1: check 8: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-etal4sns/report.json'"
+            ]
+          },
+          {
+            "id": "sla-duplicate-id-preserves-output",
+            "failures": [
+              "step 1: expected exit code 1, received 2",
+              "step 1: check 2: stderr_contains did not match its expected value"
+            ]
+          },
+          {
+            "id": "sla-missing-policy-entry-preserves-output",
+            "failures": [
+              "step 1: expected exit code 1, received 2",
+              "step 1: check 2: stderr_contains did not match its expected value"
+            ]
+          },
+          {
+            "id": "sla-malformed-csv-preserves-output",
+            "failures": [
+              "step 1: expected exit code 1, received 2"
+            ]
+          },
+          {
+            "id": "sla-unknown-priority-preserves-output",
+            "failures": [
+              "step 1: expected exit code 1, received 2",
+              "step 1: check 2: stderr_contains did not match its expected value"
+            ]
+          },
+          {
+            "id": "sla-invalid-timestamp-preserves-output",
+            "failures": [
+              "step 1: expected exit code 1, received 2"
+            ]
+          }
+        ]
+      },
+      "delivery": {
+        "passed": false,
+        "cases_passed": 1,
+        "cases_total": 6,
+        "failed_cases": [
+          {
+            "id": "sla-duplicate-id-preserves-output",
+            "failures": [
+              "step 1: expected exit code 1, received 0"
+            ]
+          },
+          {
+            "id": "sla-missing-policy-entry-preserves-output",
+            "failures": [
+              "step 1: expected exit code 1, received 0",
+              "step 1: check 2: stderr_contains did not match its expected value"
+            ]
+          },
+          {
+            "id": "sla-malformed-csv-preserves-output",
+            "failures": [
+              "step 1: expected exit code 1, received 0"
+            ]
+          },
+          {
+            "id": "sla-unknown-priority-preserves-output",
+            "failures": [
+              "step 1: expected exit code 1, received 0"
+            ]
+          },
+          {
+            "id": "sla-invalid-timestamp-preserves-output",
+            "failures": [
+              "step 1: expected exit code 1, received 0"
+            ]
+          }
+        ]
+      },
+      "container_exit_codes": {
+        "source": 1,
+        "delivery": 1,
+        "delivery_stage": 0
+      },
+      "report": "evaluation/results/pilot/independent-v1/reports/01-support-sla-report-python-initial.json"
+    },
+    "python_initial_after_runner_correction": {
+      "source": {
+        "passed": false,
+        "cases_passed": 1,
+        "cases_total": 6,
+        "failed_cases": [
+          {
+            "id": "sla-duplicate-id-preserves-output",
+            "failures": [
+              "step 1: expected exit code 1, received 2"
+            ]
+          },
+          {
+            "id": "sla-missing-policy-entry-preserves-output",
+            "failures": [
+              "step 1: expected exit code 1, received 2",
+              "step 1: check 2: stderr_contains did not match its expected value"
+            ]
+          },
+          {
+            "id": "sla-malformed-csv-preserves-output",
+            "failures": [
+              "step 1: expected exit code 1, received 2"
+            ]
+          },
+          {
+            "id": "sla-unknown-priority-preserves-output",
+            "failures": [
+              "step 1: expected exit code 1, received 2"
+            ]
+          },
+          {
+            "id": "sla-invalid-timestamp-preserves-output",
+            "failures": [
+              "step 1: expected exit code 1, received 2"
+            ]
+          }
+        ]
+      },
+      "delivery": {
+        "passed": false,
+        "cases_passed": 1,
+        "cases_total": 6,
+        "failed_cases": [
+          {
+            "id": "sla-duplicate-id-preserves-output",
+            "failures": [
+              "step 1: expected exit code 1, received 2"
+            ]
+          },
+          {
+            "id": "sla-missing-policy-entry-preserves-output",
+            "failures": [
+              "step 1: expected exit code 1, received 2",
+              "step 1: check 2: stderr_contains did not match its expected value"
+            ]
+          },
+          {
+            "id": "sla-malformed-csv-preserves-output",
+            "failures": [
+              "step 1: expected exit code 1, received 2"
+            ]
+          },
+          {
+            "id": "sla-unknown-priority-preserves-output",
+            "failures": [
+              "step 1: expected exit code 1, received 2"
+            ]
+          },
+          {
+            "id": "sla-invalid-timestamp-preserves-output",
+            "failures": [
+              "step 1: expected exit code 1, received 2"
+            ]
+          }
+        ]
+      },
+      "container_exit_codes": {
+        "source": 1,
+        "delivery": 1,
+        "delivery_stage": 0
+      },
+      "report": "evaluation/results/pilot/independent-v1/reports/01-support-sla-report-python-final-initial.json"
+    },
+    "python_follow_up_before_status_fix": {
+      "source": {
+        "passed": true,
+        "cases_passed": 1,
+        "cases_total": 1,
+        "failed_cases": []
+      },
+      "delivery": {
+        "passed": true,
+        "cases_passed": 1,
+        "cases_total": 1,
+        "failed_cases": []
+      },
+      "container_exit_codes": {
+        "source": 0,
+        "delivery": 0,
+        "delivery_stage": 0
+      },
+      "report": "evaluation/results/pilot/independent-v1/reports/01-support-sla-report-python-follow-up.json"
+    },
+    "python_initial_final": {
+      "source": {
+        "passed": false,
+        "cases_passed": 5,
+        "cases_total": 6,
+        "failed_cases": [
+          {
+            "id": "sla-missing-policy-entry-preserves-output",
+            "failures": [
+              "step 1: check 2: stderr_contains did not match its expected value"
+            ]
+          }
+        ]
+      },
+      "delivery": {
+        "passed": false,
+        "cases_passed": 5,
+        "cases_total": 6,
+        "failed_cases": [
+          {
+            "id": "sla-missing-policy-entry-preserves-output",
+            "failures": [
+              "step 1: check 2: stderr_contains did not match its expected value"
+            ]
+          }
+        ]
+      },
+      "container_exit_codes": {
+        "source": 1,
+        "delivery": 1,
+        "delivery_stage": 0
+      },
+      "report": "evaluation/results/pilot/independent-v1/reports/01-support-sla-report-python-corrected-initial.json"
+    },
+    "python_follow_up_final": {
+      "source": {
+        "passed": true,
+        "cases_passed": 1,
+        "cases_total": 1,
+        "failed_cases": []
+      },
+      "delivery": {
+        "passed": true,
+        "cases_passed": 1,
+        "cases_total": 1,
+        "failed_cases": []
+      },
+      "container_exit_codes": {
+        "source": 0,
+        "delivery": 0,
+        "delivery_stage": 0
+      },
+      "report": "evaluation/results/pilot/independent-v1/reports/01-support-sla-report-python-corrected-follow-up.json"
+    }
+  },
+  "final_summary": {
+    "initial_source": {
+      "passed": false,
+      "cases_passed": 5,
+      "cases_total": 6,
+      "failed_cases": [
+        {
+          "id": "sla-missing-policy-entry-preserves-output",
+          "failures": [
+            "step 1: check 2: stderr_contains did not match its expected value"
+          ]
+        }
+      ]
+    },
+    "initial_delivery": {
+      "passed": false,
+      "cases_passed": 5,
+      "cases_total": 6,
+      "failed_cases": [
+        {
+          "id": "sla-missing-policy-entry-preserves-output",
+          "failures": [
+            "step 1: check 2: stderr_contains did not match its expected value"
+          ]
+        }
+      ]
+    },
+    "follow_up_source": {
+      "passed": true,
+      "cases_passed": 1,
+      "cases_total": 1,
+      "failed_cases": []
+    },
+    "follow_up_delivery": {
+      "passed": true,
+      "cases_passed": 1,
+      "cases_total": 1,
+      "failed_cases": []
+    },
+    "zipapp_bytes": 10638,
+    "lockfile_bytes": 138,
+    "third_party_dependency_bytes": 0,
+    "locked_offline_sync_seconds": 0.35,
+    "sample_warm_run_seconds": 0.12,
+    "primary_remaining_failure": "The missing-policy diagnostic did not contain the oracle phrase “missing policy entry”; the brief instead specifies the error code missing_policy_entry. This is a brief/oracle mismatch to resolve before freezing."
+  }
+}

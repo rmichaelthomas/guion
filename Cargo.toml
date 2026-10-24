@@ -1,0 +1,21 @@
+[workspace]
+resolver = "2"
+members = ["crates/model", "crates/compiler", "crates/runtime", "crates/cli"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+
+[workspace.dependencies]
+veritas-model = { path = "crates/model" }
+veritas-compiler = { path = "crates/compiler" }
+veritas-runtime = { path = "crates/runtime" }
+toml = "=1.1.8"
+serde_json = { version = "=1.0.151", features = ["arbitrary_precision"] }
+serde = "=1.0.229"
+sha2 = "=0.10.9"
+libc = "=0.2.189"
+base64 = "=0.22.1"
+reqwest = { version = "=0.12.28", default-features = false, features = ["blocking", "rustls-tls"] }
+

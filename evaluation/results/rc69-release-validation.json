@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "release_candidate": "RC69",
+  "release": "veritas-0.1.0-darwin-arm64",
+  "target": "macos-aarch64",
+  "archive": {
+    "path": "outputs/veritas-foundation-rc69/veritas-0.1.0-darwin-arm64.tar.gz",
+    "size_bytes": 76796502,
+    "sha256": "5b7721afceb2760d6c068fd35aa288f93753e18efae42df1d3b253cc14530f18",
+    "entries": 5647,
+    "appledouble_entries": 0,
+    "absolute_symlink_targets": 0
+  },
+  "installed_acceptance": {"passed": 31, "failed": 0, "status": "passed"},
+  "source_evaluation_suite": {"discovered": 31, "passed": 28, "skipped": 3, "failed": 0, "status": "passed", "skips": "three release-only repair/package checks are skipped outside an installed distribution"},
+  "evaluation_ledger": {
+    "focused_tests_passed": 8,
+    "independent_records": 0,
+    "known_or_calibration_records": 0,
+    "recommendation_gate": "insufficient_independent_evidence",
+    "decision_effect": "none; the ledger checks evidence integrity and sample sufficiency only"
+  },
+  "relocation": {
+    "unicode_and_space_path": true,
+    "doctor_status": "passed",
+    "bundled_task_ledger_package_verification": "passed",
+    "bundled_task_ledger_launch": "passed",
+    "task_ledger_output": "No tasks."
+  },
+  "dependency_update": {
+    "uv_version": "0.13.4",
+    "offline_update_status": "passed",
+    "subsequent_project_run_status": "passed",
+    "declared_dependencies": 0
+  },
+  "native_pipeline": {
+    "python_interop_bundle_active_images": 34,
+    "python_interop_bundle_cached_images": 22,
+    "unresolved_load_edges": 0,
+    "C_dynamic_library_via_python_ctypes": "passed in workspace integration tests",
+    "success_and_failure_native_image_observations": "passed in workspace integration tests",
+    "NumPy_offline_cache_ownership": "passed in workspace integration tests"
+  },
+  "workspace_verification": {
+    "rust_and_python_tests": 125,
+    "format": "passed",
+    "strict_clippy": "passed",
+    "git_diff_check": "passed",
+    "scope_note": "No Rust implementation changed after this run; RC69 adds the evaluation ledger and packaging copy path."
+  },
+  "known_limits": [
+    "Only macOS arm64 was validated",
+    "No independent builder/model comparison records exist yet",
+    "dyld observations are snapshots at Python call boundaries and may miss transient images",
+    "process crash between dependency environment and lock replacement can leave a rejected mismatch",
+    "archive is unsigned; hashes do not authenticate a publisher",
+    "application data migration remains app-owned"
+  ]
+}

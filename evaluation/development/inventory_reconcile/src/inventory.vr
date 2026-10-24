@@ -1,0 +1,8 @@
+pub fn total_quantity(quantities: Json, order: Json) -> Int:
+    var total = 0
+    var index = 0
+    while index < json_len(order):
+        let sku = json_as_text(json_index(order, index))
+        set total = total + json_as_int(json_get(quantities, sku))
+        set index = index + 1
+    return total

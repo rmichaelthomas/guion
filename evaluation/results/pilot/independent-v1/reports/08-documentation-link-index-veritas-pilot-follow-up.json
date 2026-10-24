@@ -1,0 +1,586 @@
+{
+  "schema_version": 1,
+  "language": "veritas",
+  "task_id": "08-documentation-link-index",
+  "stage": "follow_up",
+  "candidate_project_sha256": "909e41b7eb02927f9c02bc51f9df9f9d84636ea36c9f1ede3ec243e5fe6bd81c",
+  "delivery_artifact_path": "/Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/work/veritas-foundation/evaluation/results/pilot/independent-v1/reports/08-documentation-link-index-veritas-pilot-follow-up.json.delivery",
+  "delivery_artifact_sha256": "1e1609601a4705fa9ff3da6705b6c795018096de21783a71082df9caafcf5a90",
+  "container": {
+    "image": "veritas-campaign-veritas:0.1.0",
+    "image_id": "sha256:66bae1a446d36e4b28e1ebb115699037a3a119057c92a8d3192a1f7ab5e7b444",
+    "package_archive_sha256": "735604fabff913cae5569ef9bb1f7b175e777332e6d879299398142c8eb3037b",
+    "python_base_digest": "sha256:44e000a07b48bef1517a2b14adc93c17af728ca98858b5e24c6e1b18de1b2ef2",
+    "shared_dependencies_sha256": "34a2a4d8d157839eea434267f38e475187031f081f358387859181e5be136803",
+    "uv_version": "0.13.4",
+    "candidate_python_version": "3.14.8",
+    "platform": "linux/arm64",
+    "network": "none",
+    "read_only_rootfs": true,
+    "candidate_uid": 10001,
+    "limits": {
+      "cpus": 2,
+      "memory_bytes": 2147483648,
+      "pids": 128,
+      "tmpfs_bytes": 536870912
+    },
+    "source_project_mounted": true,
+    "delivery_source_project_mounted": false
+  },
+  "container_exit_codes": {
+    "source": 1,
+    "delivery": 1,
+    "delivery_stage": 0
+  },
+  "launcher_stderr": {
+    "source": "",
+    "delivery": ""
+  },
+  "case_report": {
+    "task_id": "08-documentation-link-index",
+    "stage": "follow_up",
+    "passed": false,
+    "source": {
+      "cases": [
+        {
+          "candidate": {},
+          "case_id": "doc-index-alias-schema-follow-up",
+          "checks_passed": 3,
+          "checks_total": 5,
+          "elapsed_seconds": 1.072834,
+          "exit_code": 0,
+          "failures": [
+            "step 2: check 1: json_path_equals did not match its expected value",
+            "step 4: check 1: json_path_equals did not match its expected value"
+          ],
+          "http_fixtures": {},
+          "passed": false,
+          "stderr": "",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.139593,
+              "exit_code": 0,
+              "failures": []
+            },
+            {
+              "checks_passed": 0,
+              "checks_total": 1,
+              "elapsed_seconds": 0.198942,
+              "exit_code": 0,
+              "failures": [
+                "check 1: json_path_equals did not match its expected value"
+              ]
+            },
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.191951,
+              "exit_code": 0,
+              "failures": []
+            },
+            {
+              "checks_passed": 0,
+              "checks_total": 1,
+              "elapsed_seconds": 0.189121,
+              "exit_code": 0,
+              "failures": [
+                "check 1: json_path_equals did not match its expected value"
+              ]
+            },
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.190759,
+              "exit_code": 0,
+              "failures": []
+            }
+          ]
+        },
+        {
+          "candidate": {},
+          "case_id": "doc-index-alias-collision-is-ambiguous",
+          "checks_passed": 2,
+          "checks_total": 2,
+          "elapsed_seconds": 0.328432,
+          "exit_code": 0,
+          "failures": [],
+          "http_fixtures": {},
+          "passed": true,
+          "stderr": "",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.121817,
+              "exit_code": 0,
+              "failures": []
+            },
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.202415,
+              "exit_code": 0,
+              "failures": []
+            }
+          ]
+        },
+        {
+          "candidate": {},
+          "case_id": "doc-index-alias-json-grammar",
+          "checks_passed": 4,
+          "checks_total": 4,
+          "elapsed_seconds": 0.694953,
+          "exit_code": 0,
+          "failures": [],
+          "http_fixtures": {},
+          "passed": true,
+          "stderr": "",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.126786,
+              "exit_code": 0,
+              "failures": []
+            },
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.186332,
+              "exit_code": 0,
+              "failures": []
+            },
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.189271,
+              "exit_code": 0,
+              "failures": []
+            },
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.187627,
+              "exit_code": 0,
+              "failures": []
+            }
+          ]
+        },
+        {
+          "candidate": {},
+          "case_id": "doc-index-alias-invalid-values-preserves-index",
+          "checks_passed": 2,
+          "checks_total": 2,
+          "elapsed_seconds": 0.440762,
+          "exit_code": 0,
+          "failures": [],
+          "http_fixtures": {},
+          "passed": true,
+          "stderr": "",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.121311,
+              "exit_code": 1,
+              "failures": []
+            },
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.192981,
+              "exit_code": 0,
+              "failures": []
+            }
+          ]
+        },
+        {
+          "candidate": {},
+          "case_id": "doc-index-alias-nested-preserves-index",
+          "checks_passed": 2,
+          "checks_total": 2,
+          "elapsed_seconds": 0.439787,
+          "exit_code": 0,
+          "failures": [],
+          "http_fixtures": {},
+          "passed": true,
+          "stderr": "",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.123302,
+              "exit_code": 1,
+              "failures": []
+            },
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.18788,
+              "exit_code": 0,
+              "failures": []
+            }
+          ]
+        },
+        {
+          "candidate": {},
+          "case_id": "doc-index-duplicate-alias-field-preserves-index",
+          "checks_passed": 2,
+          "checks_total": 2,
+          "elapsed_seconds": 0.436006,
+          "exit_code": 0,
+          "failures": [],
+          "http_fixtures": {},
+          "passed": true,
+          "stderr": "",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.124349,
+              "exit_code": 1,
+              "failures": []
+            },
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.181581,
+              "exit_code": 0,
+              "failures": []
+            }
+          ]
+        }
+      ],
+      "passed": false,
+      "stage": "follow_up",
+      "task_id": "08-documentation-link-index"
+    },
+    "delivery": {
+      "passed": false,
+      "artifact_sha256": "1e1609601a4705fa9ff3da6705b6c795018096de21783a71082df9caafcf5a90",
+      "artifact_bytes": 25415,
+      "source_paths_excluded": [
+        "main.vr",
+        "src"
+      ],
+      "original_project_mounted": false,
+      "cases": [
+        {
+          "candidate": {
+            "artifact_bytes": 25415,
+            "artifact_paths": [
+              "main.vrb",
+              "docindex_adapter.py",
+              "dependencies.lock",
+              "README.md"
+            ],
+            "artifact_sha256": "1e1609601a4705fa9ff3da6705b6c795018096de21783a71082df9caafcf5a90",
+            "delivery_manifest": "delivery.json",
+            "dependency_lock_path": "dependencies.lock",
+            "source_paths": [
+              "main.vr",
+              "src"
+            ]
+          },
+          "case_id": "doc-index-alias-schema-follow-up",
+          "checks_passed": 3,
+          "checks_total": 5,
+          "elapsed_seconds": 0.987983,
+          "exit_code": 0,
+          "failures": [
+            "step 2: check 1: json_path_equals did not match its expected value",
+            "step 4: check 1: json_path_equals did not match its expected value"
+          ],
+          "http_fixtures": {},
+          "passed": false,
+          "stderr": "",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.121077,
+              "exit_code": 0,
+              "failures": []
+            },
+            {
+              "checks_passed": 0,
+              "checks_total": 1,
+              "elapsed_seconds": 0.177503,
+              "exit_code": 0,
+              "failures": [
+                "check 1: json_path_equals did not match its expected value"
+              ]
+            },
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.188406,
+              "exit_code": 0,
+              "failures": []
+            },
+            {
+              "checks_passed": 0,
+              "checks_total": 1,
+              "elapsed_seconds": 0.191555,
+              "exit_code": 0,
+              "failures": [
+                "check 1: json_path_equals did not match its expected value"
+              ]
+            },
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.186145,
+              "exit_code": 0,
+              "failures": []
+            }
+          ]
+        },
+        {
+          "candidate": {
+            "artifact_bytes": 25415,
+            "artifact_paths": [
+              "main.vrb",
+              "docindex_adapter.py",
+              "dependencies.lock",
+              "README.md"
+            ],
+            "artifact_sha256": "1e1609601a4705fa9ff3da6705b6c795018096de21783a71082df9caafcf5a90",
+            "delivery_manifest": "delivery.json",
+            "dependency_lock_path": "dependencies.lock",
+            "source_paths": [
+              "main.vr",
+              "src"
+            ]
+          },
+          "case_id": "doc-index-alias-collision-is-ambiguous",
+          "checks_passed": 2,
+          "checks_total": 2,
+          "elapsed_seconds": 0.306241,
+          "exit_code": 0,
+          "failures": [],
+          "http_fixtures": {},
+          "passed": true,
+          "stderr": "",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.123026,
+              "exit_code": 0,
+              "failures": []
+            },
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.179969,
+              "exit_code": 0,
+              "failures": []
+            }
+          ]
+        },
+        {
+          "candidate": {
+            "artifact_bytes": 25415,
+            "artifact_paths": [
+              "main.vrb",
+              "docindex_adapter.py",
+              "dependencies.lock",
+              "README.md"
+            ],
+            "artifact_sha256": "1e1609601a4705fa9ff3da6705b6c795018096de21783a71082df9caafcf5a90",
+            "delivery_manifest": "delivery.json",
+            "dependency_lock_path": "dependencies.lock",
+            "source_paths": [
+              "main.vr",
+              "src"
+            ]
+          },
+          "case_id": "doc-index-alias-json-grammar",
+          "checks_passed": 4,
+          "checks_total": 4,
+          "elapsed_seconds": 0.698817,
+          "exit_code": 0,
+          "failures": [],
+          "http_fixtures": {},
+          "passed": true,
+          "stderr": "",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.115762,
+              "exit_code": 0,
+              "failures": []
+            },
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.18759,
+              "exit_code": 0,
+              "failures": []
+            },
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.193174,
+              "exit_code": 0,
+              "failures": []
+            },
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.199817,
+              "exit_code": 0,
+              "failures": []
+            }
+          ]
+        },
+        {
+          "candidate": {
+            "artifact_bytes": 25415,
+            "artifact_paths": [
+              "main.vrb",
+              "docindex_adapter.py",
+              "dependencies.lock",
+              "README.md"
+            ],
+            "artifact_sha256": "1e1609601a4705fa9ff3da6705b6c795018096de21783a71082df9caafcf5a90",
+            "delivery_manifest": "delivery.json",
+            "dependency_lock_path": "dependencies.lock",
+            "source_paths": [
+              "main.vr",
+              "src"
+            ]
+          },
+          "case_id": "doc-index-alias-invalid-values-preserves-index",
+          "checks_passed": 2,
+          "checks_total": 2,
+          "elapsed_seconds": 0.445917,
+          "exit_code": 0,
+          "failures": [],
+          "http_fixtures": {},
+          "passed": true,
+          "stderr": "",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.126301,
+              "exit_code": 1,
+              "failures": []
+            },
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.191681,
+              "exit_code": 0,
+              "failures": []
+            }
+          ]
+        },
+        {
+          "candidate": {
+            "artifact_bytes": 25415,
+            "artifact_paths": [
+              "main.vrb",
+              "docindex_adapter.py",
+              "dependencies.lock",
+              "README.md"
+            ],
+            "artifact_sha256": "1e1609601a4705fa9ff3da6705b6c795018096de21783a71082df9caafcf5a90",
+            "delivery_manifest": "delivery.json",
+            "dependency_lock_path": "dependencies.lock",
+            "source_paths": [
+              "main.vr",
+              "src"
+            ]
+          },
+          "case_id": "doc-index-alias-nested-preserves-index",
+          "checks_passed": 2,
+          "checks_total": 2,
+          "elapsed_seconds": 0.443152,
+          "exit_code": 0,
+          "failures": [],
+          "http_fixtures": {},
+          "passed": true,
+          "stderr": "",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.121901,
+              "exit_code": 1,
+              "failures": []
+            },
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.190445,
+              "exit_code": 0,
+              "failures": []
+            }
+          ]
+        },
+        {
+          "candidate": {
+            "artifact_bytes": 25415,
+            "artifact_paths": [
+              "main.vrb",
+              "docindex_adapter.py",
+              "dependencies.lock",
+              "README.md"
+            ],
+            "artifact_sha256": "1e1609601a4705fa9ff3da6705b6c795018096de21783a71082df9caafcf5a90",
+            "delivery_manifest": "delivery.json",
+            "dependency_lock_path": "dependencies.lock",
+            "source_paths": [
+              "main.vr",
+              "src"
+            ]
+          },
+          "case_id": "doc-index-duplicate-alias-field-preserves-index",
+          "checks_passed": 2,
+          "checks_total": 2,
+          "elapsed_seconds": 0.432902,
+          "exit_code": 0,
+          "failures": [],
+          "http_fixtures": {},
+          "passed": true,
+          "stderr": "",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.124269,
+              "exit_code": 1,
+              "failures": []
+            },
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.180935,
+              "exit_code": 0,
+              "failures": []
+            }
+          ]
+        }
+      ],
+      "stage_error": ""
+    }
+  }
+}

@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "milestone": "RC42",
+  "host": "darwin-arm64",
+  "python_version": "3.14.8",
+  "uv_version": "0.13.4",
+  "feature": "python_dependency_license_inventory_and_integrity",
+  "status": "passed",
+  "checks": [
+    {
+      "command": "cargo fmt --all --check",
+      "passed": true
+    },
+    {
+      "command": "cargo clippy --workspace --all-targets --offline -- -D warnings",
+      "passed": true
+    },
+    {
+      "command": "cargo test --workspace --offline",
+      "passed": true,
+      "passed_tests": 105,
+      "failed_tests": 0,
+      "permission_note": "Required localhost and runtime/wheel network access for integration cases."
+    },
+    {
+      "command": "python3 -m unittest discover -s evaluation/tests -v",
+      "passed": true,
+      "passed_tests": 20,
+      "failed_tests": 0,
+      "permission_note": "Required localhost access for fixture HTTP servers."
+    },
+    {
+      "test": "package_runs_compiled_python_wheels_after_relocation_without_python_setup",
+      "passed": true,
+      "distributions_checked": ["numpy", "orjson", "requests"],
+      "relocated_runs": 2,
+      "tamper_cases_rejected": ["copied_python_license", "bundled_python_runtime"]
+    },
+    {
+      "test": "shipped_release_binary_builds_and_runs_a_relocated_native_wheel_app",
+      "passed": true,
+      "relocated_path_included_spaces_and_unicode": true,
+      "verify_package_passed": true,
+      "offline_runs": 2,
+      "python_distributions": 7,
+      "all_license_status_complete": true,
+      "missing_license_warnings": 0,
+      "license_file_counts": {
+        "numpy": 17,
+        "orjson": 3,
+        "certifi": 1,
+        "charset-normalizer": 1,
+        "idna": 1,
+        "requests": 1,
+        "urllib3": 1
+      }
+    },
+    {
+      "test": "shipped_source_free_task_ledger_bundle",
+      "passed": true,
+      "verify_package_passed": true,
+      "state_change_command_passed": true
+    }
+  ],
+  "scope_limits": [
+    "Only macOS ARM64 was exercised.",
+    "The inventory preserves Python distribution metadata but does not assess license compatibility or legal compliance.",
+    "The inventory covers the locked project environment only; bundled pip, CPython/Tcl/Tk, and uv notices are not included in application-level provenance.",
+    "Native shared-library closure and its notices remain unimplemented; one-off host reconnaissance is not a product audit.",
+    "Package metadata is unsigned and does not authenticate the publisher.",
+    "The full virtual environment and uv cache are not independently hashed."
+  ]
+}

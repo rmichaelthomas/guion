@@ -1,0 +1,830 @@
+{
+  "status": "author_run_calibration_only",
+  "manifest_status": "review_pending",
+  "manifest_sha256": "79e4ef3664414f8edad4f121d568df81b0cafb96a599ade41a9d7bf870599309",
+  "python_version": "3.14.7",
+  "total_cases": 50,
+  "results": {
+    "veritas": {
+      "passed": 50,
+      "total": 50,
+      "tasks": {
+        "01-support-sla-report": {
+          "passed": 7,
+          "total": 7,
+          "cases": [
+            {
+              "id": "sla-initial-report",
+              "stage": "initial",
+              "passed": true,
+              "elapsed_seconds": 0.111686,
+              "failures": []
+            },
+            {
+              "id": "sla-duplicate-id-preserves-output",
+              "stage": "initial",
+              "passed": true,
+              "elapsed_seconds": 0.050721,
+              "failures": []
+            },
+            {
+              "id": "sla-missing-policy-entry-preserves-output",
+              "stage": "initial",
+              "passed": true,
+              "elapsed_seconds": 0.051099,
+              "failures": []
+            },
+            {
+              "id": "sla-malformed-csv-preserves-output",
+              "stage": "initial",
+              "passed": true,
+              "elapsed_seconds": 0.05069,
+              "failures": []
+            },
+            {
+              "id": "sla-unknown-priority-preserves-output",
+              "stage": "initial",
+              "passed": true,
+              "elapsed_seconds": 0.050295,
+              "failures": []
+            },
+            {
+              "id": "sla-invalid-timestamp-preserves-output",
+              "stage": "initial",
+              "passed": true,
+              "elapsed_seconds": 0.051848,
+              "failures": []
+            },
+            {
+              "id": "sla-follow-up-team-filter",
+              "stage": "follow_up",
+              "passed": true,
+              "elapsed_seconds": 0.058933,
+              "failures": []
+            }
+          ]
+        },
+        "02-jsonl-retention": {
+          "passed": 6,
+          "total": 6,
+          "cases": [
+            {
+              "id": "jsonl-normal-summary",
+              "stage": "initial",
+              "passed": true,
+              "elapsed_seconds": 0.076906,
+              "failures": []
+            },
+            {
+              "id": "jsonl-strict-does-not-publish",
+              "stage": "initial",
+              "passed": true,
+              "elapsed_seconds": 0.049053,
+              "failures": []
+            },
+            {
+              "id": "jsonl-empty-input",
+              "stage": "initial",
+              "passed": true,
+              "elapsed_seconds": 0.063265,
+              "failures": []
+            },
+            {
+              "id": "jsonl-missing-required-field",
+              "stage": "initial",
+              "passed": true,
+              "elapsed_seconds": 0.0786,
+              "failures": []
+            },
+            {
+              "id": "jsonl-follow-up-allow-list",
+              "stage": "follow_up",
+              "passed": true,
+              "elapsed_seconds": 0.078512,
+              "failures": []
+            },
+            {
+              "id": "jsonl-follow-up-empty-allow-list",
+              "stage": "follow_up",
+              "passed": true,
+              "elapsed_seconds": 0.085622,
+              "failures": []
+            }
+          ]
+        },
+        "03-release-notes": {
+          "passed": 5,
+          "total": 5,
+          "cases": [
+            {
+              "id": "release-notes-initial",
+              "stage": "initial",
+              "passed": true,
+              "elapsed_seconds": 0.058847,
+              "failures": []
+            },
+            {
+              "id": "release-notes-invalid-record-preserves-both-outputs",
+              "stage": "initial",
+              "passed": true,
+              "elapsed_seconds": 0.059074,
+              "failures": []
+            },
+            {
+              "id": "release-notes-duplicate-id-preserves-outputs",
+              "stage": "initial",
+              "passed": true,
+              "elapsed_seconds": 0.058236,
+              "failures": []
+            },
+            {
+              "id": "release-notes-since-follow-up",
+              "stage": "follow_up",
+              "passed": true,
+              "elapsed_seconds": 0.0584,
+              "failures": []
+            },
+            {
+              "id": "release-notes-invalid-since-preserves-outputs",
+              "stage": "follow_up",
+              "passed": true,
+              "elapsed_seconds": 0.055861,
+              "failures": []
+            }
+          ]
+        },
+        "04-calendar-conflict-report": {
+          "passed": 5,
+          "total": 5,
+          "cases": [
+            {
+              "id": "calendar-overlap-and-boundary",
+              "stage": "initial",
+              "passed": true,
+              "elapsed_seconds": 1.20176,
+              "failures": []
+            },
+            {
+              "id": "calendar-source-timeout",
+              "stage": "initial",
+              "passed": true,
+              "elapsed_seconds": 0.794852,
+              "failures": []
+            },
+            {
+              "id": "calendar-window-clips-cross-boundary-overlap",
+              "stage": "initial",
+              "passed": true,
+              "elapsed_seconds": 0.800291,
+              "failures": []
+            },
+            {
+              "id": "calendar-tentative-follow-up",
+              "stage": "follow_up",
+              "passed": true,
+              "elapsed_seconds": 0.775703,
+              "failures": []
+            },
+            {
+              "id": "calendar-invalid-event-fields",
+              "stage": "follow_up",
+              "passed": true,
+              "elapsed_seconds": 0.780722,
+              "failures": []
+            }
+          ]
+        },
+        "05-webhook-replay": {
+          "passed": 5,
+          "total": 5,
+          "cases": [
+            {
+              "id": "webhook-durable-retry-and-privacy",
+              "stage": "initial",
+              "passed": true,
+              "elapsed_seconds": 0.915373,
+              "failures": []
+            },
+            {
+              "id": "webhook-malformed-body-rejected",
+              "stage": "initial",
+              "passed": true,
+              "elapsed_seconds": 0.121632,
+              "failures": []
+            },
+            {
+              "id": "webhook-invalid-secret-rejected-without-state-change",
+              "stage": "initial",
+              "passed": true,
+              "elapsed_seconds": 0.286978,
+              "failures": []
+            },
+            {
+              "id": "webhook-rejections-preserve-state",
+              "stage": "initial",
+              "passed": true,
+              "elapsed_seconds": 0.481166,
+              "failures": []
+            },
+            {
+              "id": "webhook-dead-letter-limit",
+              "stage": "follow_up",
+              "passed": true,
+              "elapsed_seconds": 0.737135,
+              "failures": []
+            }
+          ]
+        },
+        "06-service-health-digest": {
+          "passed": 5,
+          "total": 5,
+          "cases": [
+            {
+              "id": "health-mixed-results-and-cap",
+              "stage": "initial",
+              "passed": true,
+              "elapsed_seconds": 0.559707,
+              "failures": []
+            },
+            {
+              "id": "health-concurrency-bound",
+              "stage": "initial",
+              "passed": true,
+              "elapsed_seconds": 0.555915,
+              "failures": []
+            },
+            {
+              "id": "health-empty-configuration",
+              "stage": "initial",
+              "passed": true,
+              "elapsed_seconds": 0.09112,
+              "failures": []
+            },
+            {
+              "id": "health-http-error-is-unhealthy",
+              "stage": "initial",
+              "passed": true,
+              "elapsed_seconds": 0.55625,
+              "failures": []
+            },
+            {
+              "id": "health-maintenance-boundaries",
+              "stage": "follow_up",
+              "passed": true,
+              "elapsed_seconds": 0.556158,
+              "failures": []
+            }
+          ]
+        },
+        "07-config-migrator": {
+          "passed": 6,
+          "total": 6,
+          "cases": [
+            {
+              "id": "config-migrator-v1-to-v2",
+              "stage": "initial",
+              "passed": true,
+              "elapsed_seconds": 0.46922,
+              "failures": []
+            },
+            {
+              "id": "config-migrator-future-version-safe",
+              "stage": "initial",
+              "passed": true,
+              "elapsed_seconds": 0.188576,
+              "failures": []
+            },
+            {
+              "id": "config-migrator-current-schema-check-is-read-only",
+              "stage": "initial",
+              "passed": true,
+              "elapsed_seconds": 0.187509,
+              "failures": []
+            },
+            {
+              "id": "config-migrator-invalid-current-schema-is-safe",
+              "stage": "initial",
+              "passed": true,
+              "elapsed_seconds": 0.185723,
+              "failures": []
+            },
+            {
+              "id": "config-migrator-v2-to-v3",
+              "stage": "follow_up",
+              "passed": true,
+              "elapsed_seconds": 0.202734,
+              "failures": []
+            },
+            {
+              "id": "config-migrator-current-schema-migrate-no-op",
+              "stage": "follow_up",
+              "passed": true,
+              "elapsed_seconds": 0.210668,
+              "failures": []
+            }
+          ]
+        },
+        "08-documentation-link-index": {
+          "passed": 5,
+          "total": 5,
+          "cases": [
+            {
+              "id": "doc-index-build-check-backlinks",
+              "stage": "initial",
+              "passed": true,
+              "elapsed_seconds": 0.183667,
+              "failures": []
+            },
+            {
+              "id": "doc-index-ignores-symlink-outside-root",
+              "stage": "initial",
+              "passed": true,
+              "elapsed_seconds": 0.140001,
+              "failures": []
+            },
+            {
+              "id": "doc-index-invalid-utf8-preserves-index",
+              "stage": "initial",
+              "passed": true,
+              "elapsed_seconds": 0.164268,
+              "failures": []
+            },
+            {
+              "id": "doc-index-alias-schema-follow-up",
+              "stage": "follow_up",
+              "passed": true,
+              "elapsed_seconds": 0.255779,
+              "failures": []
+            },
+            {
+              "id": "doc-index-alias-collision-is-ambiguous",
+              "stage": "follow_up",
+              "passed": true,
+              "elapsed_seconds": 0.14399,
+              "failures": []
+            }
+          ]
+        },
+        "09-lockfile-auditor": {
+          "passed": 6,
+          "total": 6,
+          "cases": [
+            {
+              "id": "lockfile-auditor-policy-report",
+              "stage": "initial",
+              "passed": true,
+              "elapsed_seconds": 0.063622,
+              "failures": []
+            },
+            {
+              "id": "lockfile-auditor-malformed-input-preserves-output",
+              "stage": "initial",
+              "passed": true,
+              "elapsed_seconds": 0.013494,
+              "failures": []
+            },
+            {
+              "id": "lockfile-auditor-volume-tail-policy",
+              "stage": "initial",
+              "passed": true,
+              "elapsed_seconds": 0.053106,
+              "failures": []
+            },
+            {
+              "id": "lockfile-auditor-outside-version-bounds",
+              "stage": "initial",
+              "passed": true,
+              "elapsed_seconds": 0.086336,
+              "failures": []
+            },
+            {
+              "id": "lockfile-auditor-unexpired-exception",
+              "stage": "follow_up",
+              "passed": true,
+              "elapsed_seconds": 0.061756,
+              "failures": []
+            },
+            {
+              "id": "lockfile-auditor-expired-exception",
+              "stage": "follow_up",
+              "passed": true,
+              "elapsed_seconds": 0.076983,
+              "failures": []
+            }
+          ]
+        }
+      }
+    },
+    "python": {
+      "passed": 50,
+      "total": 50,
+      "tasks": {
+        "01-support-sla-report": {
+          "passed": 7,
+          "total": 7,
+          "cases": [
+            {
+              "id": "sla-initial-report",
+              "stage": "initial",
+              "passed": true,
+              "elapsed_seconds": 0.33501,
+              "failures": []
+            },
+            {
+              "id": "sla-duplicate-id-preserves-output",
+              "stage": "initial",
+              "passed": true,
+              "elapsed_seconds": 0.316383,
+              "failures": []
+            },
+            {
+              "id": "sla-missing-policy-entry-preserves-output",
+              "stage": "initial",
+              "passed": true,
+              "elapsed_seconds": 0.322989,
+              "failures": []
+            },
+            {
+              "id": "sla-malformed-csv-preserves-output",
+              "stage": "initial",
+              "passed": true,
+              "elapsed_seconds": 0.310508,
+              "failures": []
+            },
+            {
+              "id": "sla-unknown-priority-preserves-output",
+              "stage": "initial",
+              "passed": true,
+              "elapsed_seconds": 0.322094,
+              "failures": []
+            },
+            {
+              "id": "sla-invalid-timestamp-preserves-output",
+              "stage": "initial",
+              "passed": true,
+              "elapsed_seconds": 0.308694,
+              "failures": []
+            },
+            {
+              "id": "sla-follow-up-team-filter",
+              "stage": "follow_up",
+              "passed": true,
+              "elapsed_seconds": 0.303768,
+              "failures": []
+            }
+          ]
+        },
+        "02-jsonl-retention": {
+          "passed": 6,
+          "total": 6,
+          "cases": [
+            {
+              "id": "jsonl-normal-summary",
+              "stage": "initial",
+              "passed": true,
+              "elapsed_seconds": 0.336131,
+              "failures": []
+            },
+            {
+              "id": "jsonl-strict-does-not-publish",
+              "stage": "initial",
+              "passed": true,
+              "elapsed_seconds": 0.312013,
+              "failures": []
+            },
+            {
+              "id": "jsonl-empty-input",
+              "stage": "initial",
+              "passed": true,
+              "elapsed_seconds": 0.306194,
+              "failures": []
+            },
+            {
+              "id": "jsonl-missing-required-field",
+              "stage": "initial",
+              "passed": true,
+              "elapsed_seconds": 0.304546,
+              "failures": []
+            },
+            {
+              "id": "jsonl-follow-up-allow-list",
+              "stage": "follow_up",
+              "passed": true,
+              "elapsed_seconds": 0.309218,
+              "failures": []
+            },
+            {
+              "id": "jsonl-follow-up-empty-allow-list",
+              "stage": "follow_up",
+              "passed": true,
+              "elapsed_seconds": 0.309767,
+              "failures": []
+            }
+          ]
+        },
+        "03-release-notes": {
+          "passed": 5,
+          "total": 5,
+          "cases": [
+            {
+              "id": "release-notes-initial",
+              "stage": "initial",
+              "passed": true,
+              "elapsed_seconds": 0.336486,
+              "failures": []
+            },
+            {
+              "id": "release-notes-invalid-record-preserves-both-outputs",
+              "stage": "initial",
+              "passed": true,
+              "elapsed_seconds": 0.308222,
+              "failures": []
+            },
+            {
+              "id": "release-notes-duplicate-id-preserves-outputs",
+              "stage": "initial",
+              "passed": true,
+              "elapsed_seconds": 0.302812,
+              "failures": []
+            },
+            {
+              "id": "release-notes-since-follow-up",
+              "stage": "follow_up",
+              "passed": true,
+              "elapsed_seconds": 0.320003,
+              "failures": []
+            },
+            {
+              "id": "release-notes-invalid-since-preserves-outputs",
+              "stage": "follow_up",
+              "passed": true,
+              "elapsed_seconds": 0.310535,
+              "failures": []
+            }
+          ]
+        },
+        "04-calendar-conflict-report": {
+          "passed": 5,
+          "total": 5,
+          "cases": [
+            {
+              "id": "calendar-overlap-and-boundary",
+              "stage": "initial",
+              "passed": true,
+              "elapsed_seconds": 1.041007,
+              "failures": []
+            },
+            {
+              "id": "calendar-source-timeout",
+              "stage": "initial",
+              "passed": true,
+              "elapsed_seconds": 0.913365,
+              "failures": []
+            },
+            {
+              "id": "calendar-window-clips-cross-boundary-overlap",
+              "stage": "initial",
+              "passed": true,
+              "elapsed_seconds": 0.930007,
+              "failures": []
+            },
+            {
+              "id": "calendar-tentative-follow-up",
+              "stage": "follow_up",
+              "passed": true,
+              "elapsed_seconds": 0.919421,
+              "failures": []
+            },
+            {
+              "id": "calendar-invalid-event-fields",
+              "stage": "follow_up",
+              "passed": true,
+              "elapsed_seconds": 0.957632,
+              "failures": []
+            }
+          ]
+        },
+        "05-webhook-replay": {
+          "passed": 5,
+          "total": 5,
+          "cases": [
+            {
+              "id": "webhook-durable-retry-and-privacy",
+              "stage": "initial",
+              "passed": true,
+              "elapsed_seconds": 1.370841,
+              "failures": []
+            },
+            {
+              "id": "webhook-malformed-body-rejected",
+              "stage": "initial",
+              "passed": true,
+              "elapsed_seconds": 0.391031,
+              "failures": []
+            },
+            {
+              "id": "webhook-invalid-secret-rejected-without-state-change",
+              "stage": "initial",
+              "passed": true,
+              "elapsed_seconds": 0.617956,
+              "failures": []
+            },
+            {
+              "id": "webhook-rejections-preserve-state",
+              "stage": "initial",
+              "passed": true,
+              "elapsed_seconds": 0.875087,
+              "failures": []
+            },
+            {
+              "id": "webhook-dead-letter-limit",
+              "stage": "follow_up",
+              "passed": true,
+              "elapsed_seconds": 1.110479,
+              "failures": []
+            }
+          ]
+        },
+        "06-service-health-digest": {
+          "passed": 5,
+          "total": 5,
+          "cases": [
+            {
+              "id": "health-mixed-results-and-cap",
+              "stage": "initial",
+              "passed": true,
+              "elapsed_seconds": 0.872822,
+              "failures": []
+            },
+            {
+              "id": "health-concurrency-bound",
+              "stage": "initial",
+              "passed": true,
+              "elapsed_seconds": 0.867237,
+              "failures": []
+            },
+            {
+              "id": "health-empty-configuration",
+              "stage": "initial",
+              "passed": true,
+              "elapsed_seconds": 0.31809,
+              "failures": []
+            },
+            {
+              "id": "health-http-error-is-unhealthy",
+              "stage": "initial",
+              "passed": true,
+              "elapsed_seconds": 0.904092,
+              "failures": []
+            },
+            {
+              "id": "health-maintenance-boundaries",
+              "stage": "follow_up",
+              "passed": true,
+              "elapsed_seconds": 0.845107,
+              "failures": []
+            }
+          ]
+        },
+        "07-config-migrator": {
+          "passed": 6,
+          "total": 6,
+          "cases": [
+            {
+              "id": "config-migrator-v1-to-v2",
+              "stage": "initial",
+              "passed": true,
+              "elapsed_seconds": 0.342697,
+              "failures": []
+            },
+            {
+              "id": "config-migrator-future-version-safe",
+              "stage": "initial",
+              "passed": true,
+              "elapsed_seconds": 0.308167,
+              "failures": []
+            },
+            {
+              "id": "config-migrator-current-schema-check-is-read-only",
+              "stage": "initial",
+              "passed": true,
+              "elapsed_seconds": 0.308275,
+              "failures": []
+            },
+            {
+              "id": "config-migrator-invalid-current-schema-is-safe",
+              "stage": "initial",
+              "passed": true,
+              "elapsed_seconds": 0.305382,
+              "failures": []
+            },
+            {
+              "id": "config-migrator-v2-to-v3",
+              "stage": "follow_up",
+              "passed": true,
+              "elapsed_seconds": 0.304742,
+              "failures": []
+            },
+            {
+              "id": "config-migrator-current-schema-migrate-no-op",
+              "stage": "follow_up",
+              "passed": true,
+              "elapsed_seconds": 0.300062,
+              "failures": []
+            }
+          ]
+        },
+        "08-documentation-link-index": {
+          "passed": 5,
+          "total": 5,
+          "cases": [
+            {
+              "id": "doc-index-build-check-backlinks",
+              "stage": "initial",
+              "passed": true,
+              "elapsed_seconds": 0.458832,
+              "failures": []
+            },
+            {
+              "id": "doc-index-ignores-symlink-outside-root",
+              "stage": "initial",
+              "passed": true,
+              "elapsed_seconds": 0.395241,
+              "failures": []
+            },
+            {
+              "id": "doc-index-invalid-utf8-preserves-index",
+              "stage": "initial",
+              "passed": true,
+              "elapsed_seconds": 0.472557,
+              "failures": []
+            },
+            {
+              "id": "doc-index-alias-schema-follow-up",
+              "stage": "follow_up",
+              "passed": true,
+              "elapsed_seconds": 0.559087,
+              "failures": []
+            },
+            {
+              "id": "doc-index-alias-collision-is-ambiguous",
+              "stage": "follow_up",
+              "passed": true,
+              "elapsed_seconds": 0.399178,
+              "failures": []
+            }
+          ]
+        },
+        "09-lockfile-auditor": {
+          "passed": 6,
+          "total": 6,
+          "cases": [
+            {
+              "id": "lockfile-auditor-policy-report",
+              "stage": "initial",
+              "passed": true,
+              "elapsed_seconds": 0.311949,
+              "failures": []
+            },
+            {
+              "id": "lockfile-auditor-malformed-input-preserves-output",
+              "stage": "initial",
+              "passed": true,
+              "elapsed_seconds": 0.304664,
+              "failures": []
+            },
+            {
+              "id": "lockfile-auditor-volume-tail-policy",
+              "stage": "initial",
+              "passed": true,
+              "elapsed_seconds": 0.32196,
+              "failures": []
+            },
+            {
+              "id": "lockfile-auditor-outside-version-bounds",
+              "stage": "initial",
+              "passed": true,
+              "elapsed_seconds": 0.331208,
+              "failures": []
+            },
+            {
+              "id": "lockfile-auditor-unexpired-exception",
+              "stage": "follow_up",
+              "passed": true,
+              "elapsed_seconds": 0.308918,
+              "failures": []
+            },
+            {
+              "id": "lockfile-auditor-expired-exception",
+              "stage": "follow_up",
+              "passed": true,
+              "elapsed_seconds": 0.300813,
+              "failures": []
+            }
+          ]
+        }
+      }
+    }
+  },
+  "overall_case_parity": true
+}

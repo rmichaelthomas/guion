@@ -1,0 +1,83 @@
+{
+  "schema_version": 1,
+  "classification": "author_run_synthetic_runtime_probe_not_independent_evidence",
+  "host": {
+    "system": "Darwin",
+    "release": "25.5.0",
+    "machine": "arm64",
+    "processor": "arm",
+    "cpu_count": 10,
+    "python": "3.14.7"
+  },
+  "veritas": {
+    "version_output": "veritas 0.1.0 (artifact format 8)",
+    "binary_path": "/Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/work/veritas-foundation/target/release/veritas",
+    "binary_built_for_probe": false,
+    "binary_build_seconds": 0.0,
+    "artifact_bytes": 2262,
+    "artifact_compile_seconds": 0.005082209
+  },
+  "workload": {
+    "name": "sales_report_generated_json_sum",
+    "records": 5000,
+    "input_bytes": 74466,
+    "expected_stdout": "5000\n2498050\n",
+    "warmup_runs_per_implementation": 1,
+    "measured_repetitions": 5,
+    "measured_scope": "child process startup and the selected implementation's run path, including JSON parsing and aggregation",
+    "per_implementation_scope": {
+      "veritas_source": "source read, parse, typecheck, compilation, VM load, JSON parsing, and execution on every invocation",
+      "veritas_artifact": "artifact load, JSON parsing, and execution; artifact compilation is excluded and reported separately",
+      "python_standard_library": "Python interpreter startup, source import/parse, JSON parsing, and execution"
+    },
+    "excluded_scope": "fixture generation, Veritas Rust CLI build, and the separate veritas build command (the source-run command still compiles each invocation)"
+  },
+  "first_run_seconds": {
+    "veritas_source": 0.012151291826739907,
+    "veritas_artifact": 0.012650166871026158,
+    "python_standard_library": 0.033986084163188934
+  },
+  "warm_runtime": {
+    "veritas_source": {
+      "samples_seconds": [
+        0.01348325,
+        0.012666167,
+        0.013615417,
+        0.012668584,
+        0.011588208
+      ],
+      "min_seconds": 0.011588208,
+      "median_seconds": 0.012668584,
+      "p95_seconds": 0.013588984,
+      "max_seconds": 0.013615417
+    },
+    "veritas_artifact": {
+      "samples_seconds": [
+        0.012191542,
+        0.012341292,
+        0.012559625,
+        0.014292292,
+        0.013396625
+      ],
+      "min_seconds": 0.012191542,
+      "median_seconds": 0.012559625,
+      "p95_seconds": 0.014113158,
+      "max_seconds": 0.014292292
+    },
+    "python_standard_library": {
+      "samples_seconds": [
+        0.036427625,
+        0.033319875,
+        0.033129083,
+        0.044282125,
+        0.033806791
+      ],
+      "min_seconds": 0.033129083,
+      "median_seconds": 0.033806791,
+      "p95_seconds": 0.042711225,
+      "max_seconds": 0.044282125
+    }
+  },
+  "correctness_checked_on_every_run": true,
+  "recommendation_claim": false
+}

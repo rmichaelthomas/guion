@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "milestone": "RC51",
+  "feature": "relocatable_installed_evaluation_kit",
+  "status": "passed",
+  "checks": {
+    "rust_workspace_tests": {
+      "passed": 114,
+      "failed": 0,
+      "command": "cargo test --workspace --offline"
+    },
+    "installed_python_acceptance": {
+      "passed": 21,
+      "failed": 0,
+      "working_directory": "installed release root",
+      "tested_binary": "installed bin/veritas",
+      "suite_includes_docs_repair": true,
+      "suite_includes_known_workload_parity": true
+    },
+    "formatting": "passed",
+    "strict_clippy": "passed",
+    "git_diff_check": "passed",
+    "release_contents": {
+      "bundled_test_suite": true,
+      "benchmark_helper": true,
+      "feed_digest_example": true,
+      "feed_inbox_example": true,
+      "task_ledger_example": true,
+      "v1_31_checkpoint": true
+    }
+  },
+  "debugging_evidence": {
+    "first_installed_suite_run": "failed: 18 cases could not import evaluation helpers or locate source-checkout workload directories",
+    "fix": "resolve known projects from installed examples and include benchmark_sales_report.py",
+    "rerun": "21 installed-kit tests passed"
+  },
+  "scope_limits": [
+    "All evaluation workloads are known author-run cases, not independent task briefs or model sessions.",
+    "Python interop tests require the documented pinned uv, cache, and managed Python installation.",
+    "Only macOS ARM64 was exercised.",
+    "The assistant recommendation gate remains open."
+  ]
+}

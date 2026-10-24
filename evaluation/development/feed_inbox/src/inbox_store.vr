@@ -1,0 +1,76 @@
+pub fn empty_inbox() -> Json:
+    return json_set(json_object(), "entries", json_array())
+
+pub fn entry_json(item: Map[Text, Text], read: Bool) -> Json:
+    let first = json_set(json_object(), "link", json_text(item["link"]))
+    let second = json_set(first, "title", json_text(item["title"]))
+    let third = json_set(second, "published", json_text(item["published"]))
+    return json_set(third, "read", json_bool(read))
+
+pub fn merge_entry(entries: Json, item: Map[Text, Text]) -> Json:
+    let link = item["link"]
+    let candidate = entry_json(item, false)
+    var updated = json_array()
+    var found = false
+    var index = 0
+    while index < json_len(entries):
+        let current = json_index(entries, index)
+        if json_as_text(json_get(current, "link")) == link:
+            set found = true
+            let old_published = json_as_text(json_get(current, "published"))
+            let new_published = json_as_text(json_get(candidate, "published"))
+            let old_title = json_as_text(json_get(current, "title"))
+            let new_title = json_as_text(json_get(candidate, "title"))
+            var chosen = current
+            if new_published != "" and old_published == "":
+                set chosen = candidate
+            else:
+                if (new_published == "") == (old_published == "") and new_title < old_title:
+                    set chosen = candidate
+            set chosen = json_set(chosen, "read", json_get(current, "read"))
+            set updated = json_push(updated, chosen)
+        else:
+            set updated = json_push(updated, current)
+        set index = index + 1
+    if not found:
+        set updated = json_push(updated, candidate)
+    return updated
+
+pub fn has_entry(entries: Json, link: Text) -> Bool:
+    var index = 0
+    while index < json_len(entries):
+        if json_as_text(json_get(json_index(entries, index), "link")) == link:
+            return true
+        set index = index + 1
+    return false
+
+pub fn mark_entry(entries: Json, link: Text, read: Bool) -> Json:
+    var updated = json_array()
+    var index = 0
+    while index < json_len(entries):
+        let current = json_index(entries, index)
+        if json_as_text(json_get(current, "link")) == link:
+            set updated = json_push(updated, json_set(current, "read", json_bool(read)))
+        else:
+            set updated = json_push(updated, current)
+        set index = index + 1
+    return updated
+
+pub fn test_merge_preserves_read_and_prefers_published_entry() -> Unit:
+    let original = {"link": "https://example.test/a", "title": "Old title", "published": ""}
+    let incoming = {"link": "https://example.test/a", "title": "New title", "published": "2026-10-21"}
+    let old_entry = entry_json(original, true)
+    let entries = json_push(json_array(), old_entry)
+    let merged = merge_entry(entries, incoming)
+    let result = json_index(merged, 0)
+    assert(json_as_bool(json_get(result, "read")))
+    assert(json_as_text(json_get(result, "title")) == "New title")
+    assert(json_as_text(json_get(result, "published")) == "2026-10-21")
+
+pub fn test_duplicate_without_dates_uses_lexical_title() -> Unit:
+    let original = {"link": "https://example.test/a", "title": "Zulu", "published": ""}
+    let incoming = {"link": "https://example.test/a", "title": "Alpha", "published": ""}
+    let old_entry = entry_json(original, false)
+    let entries = json_push(json_array(), old_entry)
+    let merged = merge_entry(entries, incoming)
+    assert(json_as_text(json_get(json_index(merged, 0), "title")) == "Alpha")

@@ -1,0 +1,122 @@
+{
+  "schema_version": 1,
+  "language": "python",
+  "task_id": "09-lockfile-auditor",
+  "stage": "initial",
+  "candidate_project_sha256": "8e62127f8e007597df51bac916dc5962fa6febd926e3f9ad50c2137f6af6389d",
+  "container": {
+    "image": "veritas-campaign-python:3.14.7",
+    "image_id": "sha256:c1852cb407e219a8c727f4fd6c88b029eabbc8c595439aed9224674b839005c8",
+    "package_archive_sha256": "080750d582c199e21e4098da7f21023958083c5602db725f2cb8226e9e20c203",
+    "python_base_digest": "sha256:82bc3c539b8813ada9d68c63b40158fa002f7f33de9bf3312a3dfdc0620dff56",
+    "shared_dependencies_sha256": "34a2a4d8d157839eea434267f38e475187031f081f358387859181e5be136803",
+    "uv_version": "0.13.4",
+    "platform": "linux/arm64",
+    "network": "none",
+    "read_only_rootfs": true,
+    "candidate_uid": 10001,
+    "limits": {
+      "cpus": 2,
+      "memory_bytes": 2147483648,
+      "pids": 128,
+      "tmpfs_bytes": 536870912
+    }
+  },
+  "container_exit_code": 0,
+  "launcher_stderr": "",
+  "case_report": {
+    "cases": [
+      {
+        "candidate": {},
+        "case_id": "lockfile-auditor-policy-report",
+        "checks_passed": 2,
+        "checks_total": 2,
+        "elapsed_seconds": 0.637888,
+        "exit_code": 0,
+        "failures": [],
+        "http_fixtures": {},
+        "passed": true,
+        "stderr": "",
+        "stdout": "",
+        "steps": [
+          {
+            "checks_passed": 2,
+            "checks_total": 2,
+            "elapsed_seconds": 0.27973,
+            "exit_code": 0,
+            "failures": []
+          }
+        ]
+      },
+      {
+        "candidate": {},
+        "case_id": "lockfile-auditor-malformed-input-preserves-output",
+        "checks_passed": 1,
+        "checks_total": 1,
+        "elapsed_seconds": 0.70535,
+        "exit_code": 1,
+        "failures": [],
+        "http_fixtures": {},
+        "passed": true,
+        "stderr": "Expecting property name enclosed in double quotes: line 1 column 2 (char 1)\n",
+        "stdout": "",
+        "steps": [
+          {
+            "checks_passed": 1,
+            "checks_total": 1,
+            "elapsed_seconds": 0.287037,
+            "exit_code": 1,
+            "failures": []
+          }
+        ]
+      },
+      {
+        "candidate": {},
+        "case_id": "lockfile-auditor-volume-tail-policy",
+        "checks_passed": 2,
+        "checks_total": 2,
+        "elapsed_seconds": 0.70259,
+        "exit_code": 0,
+        "failures": [],
+        "http_fixtures": {},
+        "passed": true,
+        "stderr": "",
+        "stdout": "",
+        "steps": [
+          {
+            "checks_passed": 2,
+            "checks_total": 2,
+            "elapsed_seconds": 0.274391,
+            "exit_code": 0,
+            "failures": []
+          }
+        ]
+      },
+      {
+        "candidate": {},
+        "case_id": "lockfile-auditor-outside-version-bounds",
+        "checks_passed": 2,
+        "checks_total": 2,
+        "elapsed_seconds": 0.672566,
+        "exit_code": 0,
+        "failures": [],
+        "http_fixtures": {},
+        "passed": true,
+        "stderr": "",
+        "stdout": "",
+        "steps": [
+          {
+            "checks_passed": 2,
+            "checks_total": 2,
+            "elapsed_seconds": 0.267125,
+            "exit_code": 0,
+            "failures": []
+          }
+        ]
+      }
+    ],
+    "passed": true,
+    "stage": "initial",
+    "task_id": "09-lockfile-auditor"
+  }
+}

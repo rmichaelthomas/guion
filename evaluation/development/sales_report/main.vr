@@ -1,0 +1,18 @@
+fn main() -> Int:
+    let arguments = args()
+    assert(len(arguments) == 1)
+    let input_path = arguments[0]
+    let input = unwrap(read_text(input_path))
+    let document = unwrap(json_parse(input))
+    let sales = json_get(document, "sales")
+    let count = json_len(sales)
+    var index = 0
+    var total = 0
+    while index < count:
+        let sale = json_index(sales, index)
+        let amount = json_as_int(json_get(sale, "amount"))
+        set total = total + amount
+        set index = index + 1
+    print(count)
+    print(total)
+    return 0

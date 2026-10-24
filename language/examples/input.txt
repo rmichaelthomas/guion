@@ -1,0 +1,1 @@
+This is a small local file used with file_copy.vr.

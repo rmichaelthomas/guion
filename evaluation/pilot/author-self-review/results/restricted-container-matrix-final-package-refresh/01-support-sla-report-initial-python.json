@@ -1,0 +1,167 @@
+{
+  "schema_version": 1,
+  "language": "python",
+  "task_id": "01-support-sla-report",
+  "stage": "initial",
+  "candidate_project_sha256": "5a399b24a2fa05f05bb0934fa23e557b9c512d8a76263425d5962ce3439ed246",
+  "container": {
+    "image": "veritas-campaign-python:3.14.8",
+    "image_id": "sha256:ce8869aa12f6d2fbf14ff4ebdfe028fb229eda77feb025a2e3cb1c7d29a1ff32",
+    "package_archive_sha256": "a71b79232b2efb73b32175e9c45ca283bc4a0d4eaf28a7aa905a7e5d02c49ef1",
+    "python_base_digest": "sha256:44e000a07b48bef1517a2b14adc93c17af728ca98858b5e24c6e1b18de1b2ef2",
+    "shared_dependencies_sha256": "34a2a4d8d157839eea434267f38e475187031f081f358387859181e5be136803",
+    "uv_version": "0.13.4",
+    "candidate_python_version": "3.14.8",
+    "platform": "linux/arm64",
+    "network": "none",
+    "read_only_rootfs": true,
+    "candidate_uid": 10001,
+    "limits": {
+      "cpus": 2,
+      "memory_bytes": 2147483648,
+      "pids": 128,
+      "tmpfs_bytes": 536870912
+    }
+  },
+  "container_exit_code": 0,
+  "launcher_stderr": "",
+  "case_report": {
+    "cases": [
+      {
+        "candidate": {},
+        "case_id": "sla-initial-report",
+        "checks_passed": 8,
+        "checks_total": 8,
+        "elapsed_seconds": 0.922169,
+        "exit_code": 0,
+        "failures": [],
+        "http_fixtures": {},
+        "passed": true,
+        "stderr": "",
+        "stdout": "",
+        "steps": [
+          {
+            "checks_passed": 8,
+            "checks_total": 8,
+            "elapsed_seconds": 0.312254,
+            "exit_code": 0,
+            "failures": []
+          }
+        ]
+      },
+      {
+        "candidate": {},
+        "case_id": "sla-duplicate-id-preserves-output",
+        "checks_passed": 2,
+        "checks_total": 2,
+        "elapsed_seconds": 0.608665,
+        "exit_code": 1,
+        "failures": [],
+        "http_fixtures": {},
+        "passed": true,
+        "stderr": "duplicate ticket ID: D-1\n",
+        "stdout": "",
+        "steps": [
+          {
+            "checks_passed": 2,
+            "checks_total": 2,
+            "elapsed_seconds": 0.231654,
+            "exit_code": 1,
+            "failures": []
+          }
+        ]
+      },
+      {
+        "candidate": {},
+        "case_id": "sla-missing-policy-entry-preserves-output",
+        "checks_passed": 1,
+        "checks_total": 1,
+        "elapsed_seconds": 0.62197,
+        "exit_code": 1,
+        "failures": [],
+        "http_fixtures": {},
+        "passed": true,
+        "stderr": "unknown priority: urgent\n",
+        "stdout": "",
+        "steps": [
+          {
+            "checks_passed": 1,
+            "checks_total": 1,
+            "elapsed_seconds": 0.239003,
+            "exit_code": 1,
+            "failures": []
+          }
+        ]
+      },
+      {
+        "candidate": {},
+        "case_id": "sla-malformed-csv-preserves-output",
+        "checks_passed": 1,
+        "checks_total": 1,
+        "elapsed_seconds": 0.600526,
+        "exit_code": 1,
+        "failures": [],
+        "http_fixtures": {},
+        "passed": true,
+        "stderr": "malformed CSV row\n",
+        "stdout": "",
+        "steps": [
+          {
+            "checks_passed": 1,
+            "checks_total": 1,
+            "elapsed_seconds": 0.22712,
+            "exit_code": 1,
+            "failures": []
+          }
+        ]
+      },
+      {
+        "candidate": {},
+        "case_id": "sla-unknown-priority-preserves-output",
+        "checks_passed": 1,
+        "checks_total": 1,
+        "elapsed_seconds": 0.6037,
+        "exit_code": 1,
+        "failures": [],
+        "http_fixtures": {},
+        "passed": true,
+        "stderr": "unknown priority: urgent\n",
+        "stdout": "",
+        "steps": [
+          {
+            "checks_passed": 1,
+            "checks_total": 1,
+            "elapsed_seconds": 0.230426,
+            "exit_code": 1,
+            "failures": []
+          }
+        ]
+      },
+      {
+        "candidate": {},
+        "case_id": "sla-invalid-timestamp-preserves-output",
+        "checks_passed": 1,
+        "checks_total": 1,
+        "elapsed_seconds": 0.609057,
+        "exit_code": 1,
+        "failures": [],
+        "http_fixtures": {},
+        "passed": true,
+        "stderr": "Invalid isoformat string: 'not-a-timestamp'\n",
+        "stdout": "",
+        "steps": [
+          {
+            "checks_passed": 1,
+            "checks_total": 1,
+            "elapsed_seconds": 0.237242,
+            "exit_code": 1,
+            "failures": []
+          }
+        ]
+      }
+    ],
+    "passed": true,
+    "stage": "initial",
+    "task_id": "01-support-sla-report"
+  }
+}

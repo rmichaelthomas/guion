@@ -1,0 +1,123 @@
+{
+  "schema_version": 1,
+  "language": "python",
+  "task_id": "07-config-migrator",
+  "stage": "initial",
+  "candidate_project_sha256": "8e62127f8e007597df51bac916dc5962fa6febd926e3f9ad50c2137f6af6389d",
+  "container": {
+    "image": "veritas-campaign-python:3.14.8",
+    "image_id": "sha256:1363fdcf7c68370bb217f7576e8a3a9e8988da57f396a805336dd1ed6acb1522",
+    "package_archive_sha256": "080750d582c199e21e4098da7f21023958083c5602db725f2cb8226e9e20c203",
+    "python_base_digest": "sha256:44e000a07b48bef1517a2b14adc93c17af728ca98858b5e24c6e1b18de1b2ef2",
+    "shared_dependencies_sha256": "34a2a4d8d157839eea434267f38e475187031f081f358387859181e5be136803",
+    "uv_version": "0.13.4",
+    "candidate_python_version": "3.14.8",
+    "platform": "linux/arm64",
+    "network": "none",
+    "read_only_rootfs": true,
+    "candidate_uid": 10001,
+    "limits": {
+      "cpus": 2,
+      "memory_bytes": 2147483648,
+      "pids": 128,
+      "tmpfs_bytes": 536870912
+    }
+  },
+  "container_exit_code": 0,
+  "launcher_stderr": "",
+  "case_report": {
+    "cases": [
+      {
+        "candidate": {},
+        "case_id": "config-migrator-v1-to-v2",
+        "checks_passed": 2,
+        "checks_total": 2,
+        "elapsed_seconds": 0.585415,
+        "exit_code": 0,
+        "failures": [],
+        "http_fixtures": {},
+        "passed": true,
+        "stderr": "",
+        "stdout": "",
+        "steps": [
+          {
+            "checks_passed": 2,
+            "checks_total": 2,
+            "elapsed_seconds": 0.268864,
+            "exit_code": 0,
+            "failures": []
+          }
+        ]
+      },
+      {
+        "candidate": {},
+        "case_id": "config-migrator-future-version-safe",
+        "checks_passed": 2,
+        "checks_total": 2,
+        "elapsed_seconds": 0.568521,
+        "exit_code": 1,
+        "failures": [],
+        "http_fixtures": {},
+        "passed": true,
+        "stderr": "future schema version 99 is not supported\n",
+        "stdout": "",
+        "steps": [
+          {
+            "checks_passed": 2,
+            "checks_total": 2,
+            "elapsed_seconds": 0.259046,
+            "exit_code": 1,
+            "failures": []
+          }
+        ]
+      },
+      {
+        "candidate": {},
+        "case_id": "config-migrator-current-schema-check-is-read-only",
+        "checks_passed": 1,
+        "checks_total": 1,
+        "elapsed_seconds": 0.564564,
+        "exit_code": 0,
+        "failures": [],
+        "http_fixtures": {},
+        "passed": true,
+        "stderr": "",
+        "stdout": "",
+        "steps": [
+          {
+            "checks_passed": 1,
+            "checks_total": 1,
+            "elapsed_seconds": 0.25911,
+            "exit_code": 0,
+            "failures": []
+          }
+        ]
+      },
+      {
+        "candidate": {},
+        "case_id": "config-migrator-invalid-current-schema-is-safe",
+        "checks_passed": 1,
+        "checks_total": 1,
+        "elapsed_seconds": 0.62871,
+        "exit_code": 1,
+        "failures": [],
+        "http_fixtures": {},
+        "passed": true,
+        "stderr": "invalid sync settings\n",
+        "stdout": "",
+        "steps": [
+          {
+            "checks_passed": 1,
+            "checks_total": 1,
+            "elapsed_seconds": 0.263229,
+            "exit_code": 1,
+            "failures": []
+          }
+        ]
+      }
+    ],
+    "passed": true,
+    "stage": "initial",
+    "task_id": "07-config-migrator"
+  }
+}

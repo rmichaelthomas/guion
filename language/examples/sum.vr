@@ -1,0 +1,12 @@
+fn sum_to(n: Int) -> Int:
+    var total = 0
+    var current = n
+    while current > 0:
+        set total = total + current
+        set current = current - 1
+    return total
+
+fn main() -> Int:
+    let total = sum_to(5)
+    print(total)
+    return total

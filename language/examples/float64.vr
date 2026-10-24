@@ -1,0 +1,10 @@
+fn scale(value: Float64, factor: Float64) -> Float64:
+    return value * factor
+
+fn main() -> Int:
+    let report = unwrap(json_parse("{\"ratio\": 1.25}"))
+    let ratio = json_as_float(json_get(report, "ratio"))
+    let adjusted = scale(ratio, 4.0)
+    assert(adjusted == 5.0)
+    print(adjusted)
+    return 0

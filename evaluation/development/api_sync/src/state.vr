@@ -1,0 +1,4 @@
+pub fn persist_sync_state(records: Json, next_page: Json) -> Bool:
+    let state = json_set(json_set(json_object(), "records", records), "next_page", next_page)
+    let saved = write_text_atomic("sync-state.json", json_stringify(state))
+    return is_ok(saved)

@@ -1,0 +1,4 @@
+[project]
+name = "veritas-release-notes-pilot"
+version = "0.1.0"
+entry = "main.vr"

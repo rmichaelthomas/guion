@@ -1,0 +1,35 @@
+fn maybe_value(found: Bool) -> Option[Int]:
+    if found:
+        return Some(42)
+    return None
+
+fn calculation(succeeds: Bool) -> Result[Int, Text]:
+    if succeeds:
+        return Ok(17)
+    return Err("calculation failed")
+
+fn main() -> Int:
+    match maybe_value(true):
+        Some(value):
+            print(value)
+        None:
+            print("no value")
+
+    match maybe_value(false):
+        None:
+            print("no value")
+        Some(value):
+            print(value)
+
+    match calculation(true):
+        Ok(value):
+            print(value)
+        Err(message):
+            print(message)
+
+    match calculation(false):
+        Err(message):
+            print(message)
+        Ok(value):
+            print(value)
+    return 0

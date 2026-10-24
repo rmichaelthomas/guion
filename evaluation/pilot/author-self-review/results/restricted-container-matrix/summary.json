@@ -1,0 +1,482 @@
+{
+  "schema_version": 1,
+  "status": "author_calibration_only_not_independent_campaign",
+  "description": "Full 50-case matrix using the restricted campaign container images; these are existing authored candidates, not fresh paired assistant runs.",
+  "python_image": null,
+  "veritas_image": null,
+  "runs": [
+    {
+      "task_id": "01-support-sla-report",
+      "stage": "initial",
+      "language": "python",
+      "returncode": 0,
+      "summary": null,
+      "stderr": "",
+      "passed": true,
+      "passed_cases": 6,
+      "total_cases": 6,
+      "report": "01-support-sla-report-initial-python.json"
+    },
+    {
+      "task_id": "01-support-sla-report",
+      "stage": "follow_up",
+      "language": "python",
+      "returncode": 0,
+      "summary": null,
+      "stderr": "",
+      "passed": true,
+      "passed_cases": 1,
+      "total_cases": 1,
+      "report": "01-support-sla-report-follow_up-python.json"
+    },
+    {
+      "task_id": "01-support-sla-report",
+      "stage": "initial",
+      "language": "veritas",
+      "returncode": 0,
+      "summary": null,
+      "stderr": "",
+      "passed": true,
+      "passed_cases": 6,
+      "total_cases": 6,
+      "report": "01-support-sla-report-initial-veritas.json"
+    },
+    {
+      "task_id": "01-support-sla-report",
+      "stage": "follow_up",
+      "language": "veritas",
+      "returncode": 0,
+      "summary": null,
+      "stderr": "",
+      "passed": true,
+      "passed_cases": 1,
+      "total_cases": 1,
+      "report": "01-support-sla-report-follow_up-veritas.json"
+    },
+    {
+      "task_id": "02-jsonl-retention",
+      "stage": "initial",
+      "language": "python",
+      "returncode": 0,
+      "summary": null,
+      "stderr": "",
+      "passed": true,
+      "passed_cases": 4,
+      "total_cases": 4,
+      "report": "02-jsonl-retention-initial-python.json"
+    },
+    {
+      "task_id": "02-jsonl-retention",
+      "stage": "follow_up",
+      "language": "python",
+      "returncode": 0,
+      "summary": null,
+      "stderr": "",
+      "passed": true,
+      "passed_cases": 2,
+      "total_cases": 2,
+      "report": "02-jsonl-retention-follow_up-python.json"
+    },
+    {
+      "task_id": "02-jsonl-retention",
+      "stage": "initial",
+      "language": "veritas",
+      "returncode": 0,
+      "summary": null,
+      "stderr": "",
+      "passed": true,
+      "passed_cases": 4,
+      "total_cases": 4,
+      "report": "02-jsonl-retention-initial-veritas.json"
+    },
+    {
+      "task_id": "02-jsonl-retention",
+      "stage": "follow_up",
+      "language": "veritas",
+      "returncode": 0,
+      "summary": null,
+      "stderr": "",
+      "passed": true,
+      "passed_cases": 2,
+      "total_cases": 2,
+      "report": "02-jsonl-retention-follow_up-veritas.json"
+    },
+    {
+      "task_id": "03-release-notes",
+      "stage": "initial",
+      "language": "python",
+      "returncode": 0,
+      "summary": null,
+      "stderr": "",
+      "passed": true,
+      "passed_cases": 3,
+      "total_cases": 3,
+      "report": "03-release-notes-initial-python.json"
+    },
+    {
+      "task_id": "03-release-notes",
+      "stage": "follow_up",
+      "language": "python",
+      "returncode": 0,
+      "summary": null,
+      "stderr": "",
+      "passed": true,
+      "passed_cases": 2,
+      "total_cases": 2,
+      "report": "03-release-notes-follow_up-python.json"
+    },
+    {
+      "task_id": "03-release-notes",
+      "stage": "initial",
+      "language": "veritas",
+      "returncode": 0,
+      "summary": null,
+      "stderr": "",
+      "passed": true,
+      "passed_cases": 3,
+      "total_cases": 3,
+      "report": "03-release-notes-initial-veritas.json"
+    },
+    {
+      "task_id": "03-release-notes",
+      "stage": "follow_up",
+      "language": "veritas",
+      "returncode": 0,
+      "summary": null,
+      "stderr": "",
+      "passed": true,
+      "passed_cases": 2,
+      "total_cases": 2,
+      "report": "03-release-notes-follow_up-veritas.json"
+    },
+    {
+      "task_id": "04-calendar-conflict-report",
+      "stage": "initial",
+      "language": "python",
+      "returncode": 0,
+      "summary": null,
+      "stderr": "",
+      "passed": true,
+      "passed_cases": 3,
+      "total_cases": 3,
+      "report": "04-calendar-conflict-report-initial-python.json"
+    },
+    {
+      "task_id": "04-calendar-conflict-report",
+      "stage": "follow_up",
+      "language": "python",
+      "returncode": 0,
+      "summary": null,
+      "stderr": "",
+      "passed": true,
+      "passed_cases": 2,
+      "total_cases": 2,
+      "report": "04-calendar-conflict-report-follow_up-python.json"
+    },
+    {
+      "task_id": "04-calendar-conflict-report",
+      "stage": "initial",
+      "language": "veritas",
+      "returncode": 0,
+      "summary": null,
+      "stderr": "",
+      "passed": true,
+      "passed_cases": 3,
+      "total_cases": 3,
+      "report": "04-calendar-conflict-report-initial-veritas.json"
+    },
+    {
+      "task_id": "04-calendar-conflict-report",
+      "stage": "follow_up",
+      "language": "veritas",
+      "returncode": 0,
+      "summary": null,
+      "stderr": "",
+      "passed": true,
+      "passed_cases": 2,
+      "total_cases": 2,
+      "report": "04-calendar-conflict-report-follow_up-veritas.json"
+    },
+    {
+      "task_id": "05-webhook-replay",
+      "stage": "initial",
+      "language": "python",
+      "returncode": 0,
+      "summary": null,
+      "stderr": "",
+      "passed": true,
+      "passed_cases": 4,
+      "total_cases": 4,
+      "report": "05-webhook-replay-initial-python.json"
+    },
+    {
+      "task_id": "05-webhook-replay",
+      "stage": "follow_up",
+      "language": "python",
+      "returncode": 0,
+      "summary": null,
+      "stderr": "",
+      "passed": true,
+      "passed_cases": 1,
+      "total_cases": 1,
+      "report": "05-webhook-replay-follow_up-python.json"
+    },
+    {
+      "task_id": "05-webhook-replay",
+      "stage": "initial",
+      "language": "veritas",
+      "returncode": 0,
+      "summary": null,
+      "stderr": "",
+      "passed": true,
+      "passed_cases": 4,
+      "total_cases": 4,
+      "report": "05-webhook-replay-initial-veritas.json"
+    },
+    {
+      "task_id": "05-webhook-replay",
+      "stage": "follow_up",
+      "language": "veritas",
+      "returncode": 0,
+      "summary": null,
+      "stderr": "",
+      "passed": true,
+      "passed_cases": 1,
+      "total_cases": 1,
+      "report": "05-webhook-replay-follow_up-veritas.json"
+    },
+    {
+      "task_id": "06-service-health-digest",
+      "stage": "initial",
+      "language": "python",
+      "returncode": 0,
+      "summary": null,
+      "stderr": "",
+      "passed": true,
+      "passed_cases": 4,
+      "total_cases": 4,
+      "report": "06-service-health-digest-initial-python.json"
+    },
+    {
+      "task_id": "06-service-health-digest",
+      "stage": "follow_up",
+      "language": "python",
+      "returncode": 0,
+      "summary": null,
+      "stderr": "",
+      "passed": true,
+      "passed_cases": 1,
+      "total_cases": 1,
+      "report": "06-service-health-digest-follow_up-python.json"
+    },
+    {
+      "task_id": "06-service-health-digest",
+      "stage": "initial",
+      "language": "veritas",
+      "returncode": 0,
+      "summary": null,
+      "stderr": "",
+      "passed": true,
+      "passed_cases": 4,
+      "total_cases": 4,
+      "report": "06-service-health-digest-initial-veritas.json"
+    },
+    {
+      "task_id": "06-service-health-digest",
+      "stage": "follow_up",
+      "language": "veritas",
+      "returncode": 0,
+      "summary": null,
+      "stderr": "",
+      "passed": true,
+      "passed_cases": 1,
+      "total_cases": 1,
+      "report": "06-service-health-digest-follow_up-veritas.json"
+    },
+    {
+      "task_id": "07-config-migrator",
+      "stage": "initial",
+      "language": "python",
+      "returncode": 0,
+      "summary": null,
+      "stderr": "",
+      "passed": true,
+      "passed_cases": 4,
+      "total_cases": 4,
+      "report": "07-config-migrator-initial-python.json"
+    },
+    {
+      "task_id": "07-config-migrator",
+      "stage": "follow_up",
+      "language": "python",
+      "returncode": 0,
+      "summary": null,
+      "stderr": "",
+      "passed": true,
+      "passed_cases": 2,
+      "total_cases": 2,
+      "report": "07-config-migrator-follow_up-python.json"
+    },
+    {
+      "task_id": "07-config-migrator",
+      "stage": "initial",
+      "language": "veritas",
+      "returncode": 1,
+      "summary": null,
+      "stderr": "",
+      "passed": false,
+      "passed_cases": 1,
+      "total_cases": 4,
+      "report": "07-config-migrator-initial-veritas.json",
+      "failures": [
+        {
+          "case_id": "config-migrator-v1-to-v2",
+          "failures": [
+            "step 1: expected exit code 0, received 1",
+            "step 1: check 2: toml_equals did not match its expected value"
+          ],
+          "stderr": "managed Python lock does not match this target, veritas.toml, or uv.lock; run `veritas sync --update <project>` to refresh it\n"
+        },
+        {
+          "case_id": "config-migrator-future-version-safe",
+          "failures": [
+            "step 1: check 2: stderr_contains did not match its expected value"
+          ],
+          "stderr": "managed Python lock does not match this target, veritas.toml, or uv.lock; run `veritas sync --update <project>` to refresh it\n"
+        },
+        {
+          "case_id": "config-migrator-current-schema-check-is-read-only",
+          "failures": [
+            "step 1: expected exit code 0, received 1"
+          ],
+          "stderr": "managed Python lock does not match this target, veritas.toml, or uv.lock; run `veritas sync --update <project>` to refresh it\n"
+        }
+      ]
+    },
+    {
+      "task_id": "07-config-migrator",
+      "stage": "follow_up",
+      "language": "veritas",
+      "returncode": 1,
+      "summary": null,
+      "stderr": "",
+      "passed": false,
+      "passed_cases": 0,
+      "total_cases": 2,
+      "report": "07-config-migrator-follow_up-veritas.json",
+      "failures": [
+        {
+          "case_id": "config-migrator-v2-to-v3",
+          "failures": [
+            "step 1: expected exit code 0, received 1",
+            "step 1: check 2: toml_equals did not match its expected value"
+          ],
+          "stderr": "managed Python lock does not match this target, veritas.toml, or uv.lock; run `veritas sync --update <project>` to refresh it\n"
+        },
+        {
+          "case_id": "config-migrator-current-schema-migrate-no-op",
+          "failures": [
+            "step 1: expected exit code 0, received 1"
+          ],
+          "stderr": "managed Python lock does not match this target, veritas.toml, or uv.lock; run `veritas sync --update <project>` to refresh it\n"
+        }
+      ]
+    },
+    {
+      "task_id": "08-documentation-link-index",
+      "stage": "initial",
+      "language": "python",
+      "returncode": 0,
+      "summary": null,
+      "stderr": "",
+      "passed": true,
+      "passed_cases": 3,
+      "total_cases": 3,
+      "report": "08-documentation-link-index-initial-python.json"
+    },
+    {
+      "task_id": "08-documentation-link-index",
+      "stage": "follow_up",
+      "language": "python",
+      "returncode": 0,
+      "summary": null,
+      "stderr": "",
+      "passed": true,
+      "passed_cases": 2,
+      "total_cases": 2,
+      "report": "08-documentation-link-index-follow_up-python.json"
+    },
+    {
+      "task_id": "08-documentation-link-index",
+      "stage": "initial",
+      "language": "veritas",
+      "returncode": 0,
+      "summary": null,
+      "stderr": "",
+      "passed": true,
+      "passed_cases": 3,
+      "total_cases": 3,
+      "report": "08-documentation-link-index-initial-veritas.json"
+    },
+    {
+      "task_id": "08-documentation-link-index",
+      "stage": "follow_up",
+      "language": "veritas",
+      "returncode": 0,
+      "summary": null,
+      "stderr": "",
+      "passed": true,
+      "passed_cases": 2,
+      "total_cases": 2,
+      "report": "08-documentation-link-index-follow_up-veritas.json"
+    },
+    {
+      "task_id": "09-lockfile-auditor",
+      "stage": "initial",
+      "language": "python",
+      "returncode": 0,
+      "summary": null,
+      "stderr": "",
+      "passed": true,
+      "passed_cases": 4,
+      "total_cases": 4,
+      "report": "09-lockfile-auditor-initial-python.json"
+    },
+    {
+      "task_id": "09-lockfile-auditor",
+      "stage": "follow_up",
+      "language": "python",
+      "returncode": 0,
+      "summary": null,
+      "stderr": "",
+      "passed": true,
+      "passed_cases": 2,
+      "total_cases": 2,
+      "report": "09-lockfile-auditor-follow_up-python.json"
+    },
+    {
+      "task_id": "09-lockfile-auditor",
+      "stage": "initial",
+      "language": "veritas",
+      "returncode": 0,
+      "summary": null,
+      "stderr": "",
+      "passed": true,
+      "passed_cases": 4,
+      "total_cases": 4,
+      "report": "09-lockfile-auditor-initial-veritas.json"
+    },
+    {
+      "task_id": "09-lockfile-auditor",
+      "stage": "follow_up",
+      "language": "veritas",
+      "returncode": 0,
+      "summary": null,
+      "stderr": "",
+      "passed": true,
+      "passed_cases": 2,
+      "total_cases": 2,
+      "report": "09-lockfile-auditor-follow_up-veritas.json"
+    }
+  ]
+}

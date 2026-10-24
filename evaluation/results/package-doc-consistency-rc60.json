@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "milestone": "RC60",
+  "feature": "shipped_python_package_docs_match_current_runtime",
+  "status": "passed",
+  "suite_totals": {
+    "rust_workspace": {
+      "passed_tests": 118,
+      "failed_tests": 0,
+      "verification_source": "RC59; Rust source unchanged for this documentation-and-acceptance-kit update"
+    },
+    "installed_python_acceptance": {
+      "passed_tests": 22,
+      "failed_tests": 0
+    },
+    "formatting": "passed on RC59 source; no Rust changes in this milestone",
+    "strict_clippy": "passed on RC59 source; no Rust changes in this milestone"
+  },
+  "checks": {
+    "stale_non_relocatable_python_claim_removed": true,
+    "python_abi_describes_managed_runtime_app_bundle_and_offline_cache": true,
+    "reference_identifies_artifact_format_22_as_current": true,
+    "installed_docs_acceptance_guards_python_packaging_claim": true,
+    "known_task_workloads_still_pass": true
+  },
+  "scope_limits": [
+    "Python package relocation evidence remains macOS ARM64-specific.",
+    "Dynamic native loading and native images in the offline wheel cache remain outside the provenance scan.",
+    "Independent assistant task evaluation and recommendation gate remain open."
+  ]
+}

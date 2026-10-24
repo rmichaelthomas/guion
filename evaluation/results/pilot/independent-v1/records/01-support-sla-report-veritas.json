@@ -1,0 +1,159 @@
+{
+  "schema_version": 1,
+  "pilot_id": "independent-v1-cross-class-pilot",
+  "task": {
+    "id": "01-support-sla-report",
+    "class": "small_automation_cli",
+    "origin": "independent",
+    "brief_sha256": "38a0dfc58825bed7db1d295fd32e5a0558d4663ef810a140ca531611747f2556"
+  },
+  "candidate": {
+    "language": "veritas",
+    "version": "0.1.0",
+    "format": 30
+  },
+  "assistant": {
+    "provider": "OpenAI",
+    "name": "Codex",
+    "version": "not exposed in task metadata",
+    "session_id": "01a16a46-b24d-7df0-a323-43a6a5a0b647",
+    "fresh_session": true,
+    "workspace": "/Users/rmichaelthomas/Documents/Codex/2026-10-23/veritas-pilot-01-support-sla",
+    "turns": [
+      {
+        "started_at_epoch": 1792784380,
+        "completed_at_epoch": 1792784999,
+        "duration_ms": 618570,
+        "tool_calls": 28
+      },
+      {
+        "started_at_epoch": 1792785110,
+        "completed_at_epoch": 1792785197,
+        "duration_ms": 87200,
+        "tool_calls": 8
+      }
+    ],
+    "measured_turn_active_seconds": 705.77,
+    "tool_call_budget": 150
+  },
+  "environment": {
+    "authoring_host": "macOS arm64",
+    "evaluation_platform": "linux/arm64",
+    "cpu": "Apple Silicon; exact model unavailable",
+    "veritas_image_id": "sha256:66bae1a446d36e4b28e1ebb115699037a3a119057c92a8d3192a1f7ab5e7b444",
+    "veritas_package_sha256": "735604fabff913cae5569ef9bb1f7b175e777332e6d879299398142c8eb3037b",
+    "python_version": "3.14.8",
+    "uv_version": "0.13.4",
+    "network_mode": "none",
+    "container_limits": {
+      "cpus": 2,
+      "memory_bytes": 2147483648,
+      "pids": 128,
+      "tmpfs_bytes": 536870912
+    }
+  },
+  "interventions": [
+    {
+      "kind": "tool_path_clarification",
+      "detail": "Evaluator supplied the frozen macOS ARM64 Veritas executable path after the fresh task found no veritas command on PATH."
+    },
+    {
+      "kind": "package_runtime",
+      "detail": "After the task package attempt failed on network access, evaluator reran the unchanged package command with approved network access; standalone package was produced."
+    },
+    {
+      "kind": "planned_follow_up",
+      "detail": "Evaluator supplied the predeclared --team NAME change after completing initial-stage scoring."
+    }
+  ],
+  "candidate_results": {
+    "initial_submission_before_follow_up": {
+      "source": {
+        "passed": false,
+        "cases_total": 6,
+        "cases_passed": 2,
+        "failed_case_ids": [
+          "sla-initial-report",
+          "sla-duplicate-id-preserves-output",
+          "sla-missing-policy-entry-preserves-output",
+          "sla-unknown-priority-preserves-output"
+        ]
+      },
+      "delivery": {
+        "passed": false,
+        "cases_total": 6,
+        "cases_passed": 0,
+        "failed_case_ids": [
+          "sla-initial-report",
+          "sla-duplicate-id-preserves-output",
+          "sla-missing-policy-entry-preserves-output",
+          "sla-malformed-csv-preserves-output",
+          "sla-unknown-priority-preserves-output",
+          "sla-invalid-timestamp-preserves-output"
+        ]
+      },
+      "report": "evaluation/results/pilot/independent-v1/reports/01-support-sla-report-veritas-initial.json"
+    },
+    "final_initial_stage": {
+      "source": {
+        "passed": false,
+        "cases_total": 6,
+        "cases_passed": 2,
+        "failed_case_ids": [
+          "sla-initial-report",
+          "sla-duplicate-id-preserves-output",
+          "sla-missing-policy-entry-preserves-output",
+          "sla-unknown-priority-preserves-output"
+        ]
+      },
+      "delivery": {
+        "passed": false,
+        "cases_total": 6,
+        "cases_passed": 0,
+        "failed_case_ids": [
+          "sla-initial-report",
+          "sla-duplicate-id-preserves-output",
+          "sla-missing-policy-entry-preserves-output",
+          "sla-malformed-csv-preserves-output",
+          "sla-unknown-priority-preserves-output",
+          "sla-invalid-timestamp-preserves-output"
+        ]
+      },
+      "container_exit_codes": {
+        "source": 1,
+        "delivery": 1,
+        "delivery_stage": 0
+      },
+      "report": "evaluation/results/pilot/independent-v1/reports/01-support-sla-report-veritas-final-initial.json"
+    },
+    "follow_up_stage": {
+      "source": {
+        "passed": false,
+        "cases_total": 1,
+        "cases_passed": 0,
+        "failed_case_ids": [
+          "sla-follow-up-team-filter"
+        ]
+      },
+      "delivery": {
+        "passed": false,
+        "cases_total": 1,
+        "cases_passed": 0,
+        "failed_case_ids": [
+          "sla-follow-up-team-filter"
+        ]
+      },
+      "container_exit_codes": {
+        "source": 1,
+        "delivery": 1,
+        "delivery_stage": 0
+      },
+      "report": "evaluation/results/pilot/independent-v1/reports/01-support-sla-report-veritas-follow-up.json"
+    }
+  },
+  "primary_failures": [
+    "Source execution rejected the managed Python lock because it records the macOS target while the campaign container is linux-aarch64.",
+    "Relocated delivery could not launch because delivery.json uses the command name veritas, which is absent from the restricted container PATH."
+  ],
+  "follow_up_behavior": "Optional --team filter implemented; the follow-up source case still failed at runtime due to the target-specific managed Python lock."
+}

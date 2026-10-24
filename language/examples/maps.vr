@@ -1,0 +1,13 @@
+fn total(values: Map[Text, Int]) -> Int:
+    var answer = 0
+    for key in values:
+        set answer = answer + values[key]
+    return answer
+
+fn main() -> Int:
+    let prices = {"pear": 4, "apple": 3}
+    let adjusted = map_set(prices, "pear", 8)
+    assert(prices["pear"] == 4)
+    assert(map_has(adjusted, "pear"))
+    print(adjusted["pear"])
+    return total(adjusted)

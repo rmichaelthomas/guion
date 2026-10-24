@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "decision_id": "01-support-sla-report-choice-1",
+  "task": {
+    "id": "01-support-sla-report",
+    "class": "small_automation_cli",
+    "origin": "independent",
+    "brief_sha256": "38a0dfc58825bed7db1d295fd32e5a0558d4663ef810a140ca531611747f2556"
+  },
+  "assistant": {
+    "provider": "OpenAI",
+    "name": "Codex",
+    "version": "not exposed in task metadata",
+    "session_id": "01a16a34-5cfa-7212-bf6f-89355741763a",
+    "fresh_session": true
+  },
+  "presentation_order": [
+    "veritas",
+    "python"
+  ],
+  "context": {
+    "mode": "pre-build-recommendation",
+    "veritas_version": "0.1.0",
+    "python_version": "3.14.8",
+    "documentation_sha256": "8d4dce73e7aec390ab33aa518e0ab880128e728f042844846f0b83f9bf44da5b",
+    "schedule_sha256": "217403956f48c3951879934b32a81ab265013ae22e5fb5c9cdea85f3ca346f41",
+    "schedule_entry_id": "01-support-sla-report-choice-1",
+    "comparative_pair_results_shown": false
+  },
+  "recommendation": {
+    "choice": "python",
+    "rationale": "This small CLI maps directly to Python’s standard library: csv and json for inputs and output, datetime for UTC timestamps, and tempfile plus os.replace to preserve an existing output if processing fails. Sorting, filtering, and SLA counts are straightforward. Veritas supports JSON and atomic replacement, but the supplied product facts don’t list native CSV or RFC3339 parsing; using its Python bridge would add setup and packaging work. Python still has a delivery step: build a wheel or zipapp with a committed uv.lock. No comparative implementation results or benchmarks are available, so this is based on task fit rather than measured performance.",
+    "conditions": [
+      "I’d reconsider Veritas if the project requires a pure-Veritas deliverable and verified native CSV and RFC3339 handling can meet the contract without the Python bridge.",
+      "I’d reconsider either choice if a required deployment environment or delivery constraint makes one candidate’s packaged CLI materially easier to run."
+    ]
+  },
+  "exclusion": {
+    "excluded": false,
+    "reason": null
+  }
+}

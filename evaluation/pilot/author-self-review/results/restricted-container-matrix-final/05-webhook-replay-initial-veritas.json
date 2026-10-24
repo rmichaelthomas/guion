@@ -1,0 +1,270 @@
+{
+  "schema_version": 1,
+  "language": "veritas",
+  "task_id": "05-webhook-replay",
+  "stage": "initial",
+  "candidate_project_sha256": "b6e7d034b8c43c107af5d4090c6c0b2ebdae84e0bf0498a219f9fd205b8751ab",
+  "container": {
+    "image": "veritas-campaign-veritas:0.1.0",
+    "image_id": "sha256:e46c66243b564c5955208727c9e6cda978ec42173fad50a58771b5b4154f9dc2",
+    "package_archive_sha256": "080750d582c199e21e4098da7f21023958083c5602db725f2cb8226e9e20c203",
+    "python_base_digest": "sha256:44e000a07b48bef1517a2b14adc93c17af728ca98858b5e24c6e1b18de1b2ef2",
+    "shared_dependencies_sha256": "34a2a4d8d157839eea434267f38e475187031f081f358387859181e5be136803",
+    "uv_version": "0.13.4",
+    "candidate_python_version": "3.14.8",
+    "platform": "linux/arm64",
+    "network": "none",
+    "read_only_rootfs": true,
+    "candidate_uid": 10001,
+    "limits": {
+      "cpus": 2,
+      "memory_bytes": 2147483648,
+      "pids": 128,
+      "tmpfs_bytes": 536870912
+    }
+  },
+  "container_exit_code": 0,
+  "launcher_stderr": "",
+  "case_report": {
+    "cases": [
+      {
+        "candidate": {},
+        "case_id": "webhook-durable-retry-and-privacy",
+        "checks_passed": 16,
+        "checks_total": 16,
+        "elapsed_seconds": 1.169617,
+        "exit_code": 0,
+        "failures": [],
+        "http_fixtures": {
+          "downstream": {
+            "max_in_flight": 1,
+            "requests": [
+              {
+                "method": "POST",
+                "path": "/events"
+              },
+              {
+                "method": "POST",
+                "path": "/events"
+              }
+            ]
+          }
+        },
+        "passed": true,
+        "stderr": "",
+        "stdout": "",
+        "steps": [
+          {
+            "checks_passed": 1,
+            "checks_total": 1,
+            "elapsed_seconds": 0.092799,
+            "exit_code": 0,
+            "failures": []
+          },
+          {
+            "checks_passed": 2,
+            "checks_total": 2,
+            "elapsed_seconds": 0.09405,
+            "exit_code": 0,
+            "failures": []
+          },
+          {
+            "checks_passed": 4,
+            "checks_total": 4,
+            "elapsed_seconds": 0.0972,
+            "exit_code": 1,
+            "failures": []
+          },
+          {
+            "checks_passed": 2,
+            "checks_total": 2,
+            "elapsed_seconds": 0.095074,
+            "exit_code": 1,
+            "failures": []
+          },
+          {
+            "checks_passed": 1,
+            "checks_total": 1,
+            "elapsed_seconds": 0.093397,
+            "exit_code": 1,
+            "failures": []
+          },
+          {
+            "checks_passed": 2,
+            "checks_total": 2,
+            "elapsed_seconds": 0.090823,
+            "exit_code": 0,
+            "failures": []
+          },
+          {
+            "checks_passed": 1,
+            "checks_total": 1,
+            "elapsed_seconds": 0.091713,
+            "exit_code": 0,
+            "failures": []
+          },
+          {
+            "checks_passed": 3,
+            "checks_total": 3,
+            "elapsed_seconds": 0.096416,
+            "exit_code": 0,
+            "failures": []
+          }
+        ]
+      },
+      {
+        "candidate": {},
+        "case_id": "webhook-malformed-body-rejected",
+        "checks_passed": 3,
+        "checks_total": 3,
+        "elapsed_seconds": 0.221231,
+        "exit_code": 1,
+        "failures": [],
+        "http_fixtures": {},
+        "passed": true,
+        "stderr": "",
+        "stdout": "",
+        "steps": [
+          {
+            "checks_passed": 1,
+            "checks_total": 1,
+            "elapsed_seconds": 0.121265,
+            "exit_code": 0,
+            "failures": []
+          },
+          {
+            "checks_passed": 2,
+            "checks_total": 2,
+            "elapsed_seconds": 0.090789,
+            "exit_code": 1,
+            "failures": []
+          }
+        ]
+      },
+      {
+        "candidate": {},
+        "case_id": "webhook-invalid-secret-rejected-without-state-change",
+        "checks_passed": 7,
+        "checks_total": 7,
+        "elapsed_seconds": 0.46131,
+        "exit_code": 0,
+        "failures": [],
+        "http_fixtures": {},
+        "passed": true,
+        "stderr": "",
+        "stdout": "",
+        "steps": [
+          {
+            "checks_passed": 1,
+            "checks_total": 1,
+            "elapsed_seconds": 0.090422,
+            "exit_code": 0,
+            "failures": []
+          },
+          {
+            "checks_passed": 1,
+            "checks_total": 1,
+            "elapsed_seconds": 0.090647,
+            "exit_code": 1,
+            "failures": []
+          },
+          {
+            "checks_passed": 2,
+            "checks_total": 2,
+            "elapsed_seconds": 0.089844,
+            "exit_code": 0,
+            "failures": []
+          },
+          {
+            "checks_passed": 1,
+            "checks_total": 1,
+            "elapsed_seconds": 0.094182,
+            "exit_code": 1,
+            "failures": []
+          },
+          {
+            "checks_passed": 2,
+            "checks_total": 2,
+            "elapsed_seconds": 0.093514,
+            "exit_code": 0,
+            "failures": []
+          }
+        ]
+      },
+      {
+        "candidate": {},
+        "case_id": "webhook-rejections-preserve-state",
+        "checks_passed": 12,
+        "checks_total": 12,
+        "elapsed_seconds": 0.757871,
+        "exit_code": 0,
+        "failures": [],
+        "http_fixtures": {},
+        "passed": true,
+        "stderr": "",
+        "stdout": "",
+        "steps": [
+          {
+            "checks_passed": 1,
+            "checks_total": 1,
+            "elapsed_seconds": 0.092161,
+            "exit_code": 0,
+            "failures": []
+          },
+          {
+            "checks_passed": 2,
+            "checks_total": 2,
+            "elapsed_seconds": 0.106226,
+            "exit_code": 0,
+            "failures": []
+          },
+          {
+            "checks_passed": 1,
+            "checks_total": 1,
+            "elapsed_seconds": 0.094551,
+            "exit_code": 1,
+            "failures": []
+          },
+          {
+            "checks_passed": 2,
+            "checks_total": 2,
+            "elapsed_seconds": 0.09433,
+            "exit_code": 0,
+            "failures": []
+          },
+          {
+            "checks_passed": 1,
+            "checks_total": 1,
+            "elapsed_seconds": 0.094874,
+            "exit_code": 1,
+            "failures": []
+          },
+          {
+            "checks_passed": 2,
+            "checks_total": 2,
+            "elapsed_seconds": 0.089978,
+            "exit_code": 0,
+            "failures": []
+          },
+          {
+            "checks_passed": 1,
+            "checks_total": 1,
+            "elapsed_seconds": 0.092269,
+            "exit_code": 1,
+            "failures": []
+          },
+          {
+            "checks_passed": 2,
+            "checks_total": 2,
+            "elapsed_seconds": 0.090534,
+            "exit_code": 0,
+            "failures": []
+          }
+        ]
+      }
+    ],
+    "passed": true,
+    "stage": "initial",
+    "task_id": "05-webhook-replay"
+  }
+}

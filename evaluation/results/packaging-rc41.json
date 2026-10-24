@@ -1,0 +1,79 @@
+{
+  "schema_version": 1,
+  "captured_at": "2026-10-22",
+  "classification": "author-run release acceptance; not independent recommendation evidence",
+  "candidate": {
+    "release": "RC41",
+    "version": "0.1.0",
+    "target": "macos-aarch64",
+    "archive": "veritas-0.1.0-darwin-arm64.tar.gz",
+    "managed_python": "3.14.8",
+    "uv": "0.13.4"
+  },
+  "verification": {
+    "cargo_fmt_all_check": "passed",
+    "cargo_clippy_workspace_all_targets_offline_deny_warnings": "passed",
+    "cargo_test_workspace_offline": {
+      "passed": 105,
+      "failed": 0,
+      "required_test_environment": "VERITAS_UV set to the pinned uv 0.13.4 executable"
+    },
+    "python3_unittest_evaluation_tests": {
+      "passed": 20,
+      "failed": 0,
+      "binary": "rebuilt target/debug/veritas",
+      "python_dependencies": "pinned managed CPython 3.14.8 and uv 0.13.4"
+    }
+  },
+  "package_integrity": {
+    "checks": [
+      "target and package schema",
+      "source-free Veritas artifact SHA-256",
+      "Veritas runtime SHA-256 and size",
+      "declared resource SHA-256 and size",
+      "managed Python runtime tree SHA-256 and size",
+      "pinned uv SHA-256",
+      "native Python lock SHA-256",
+      "launcher invokes verification before app execution"
+    ],
+    "tamper_tests": {
+      "declared_resource": "rejected before app output",
+      "managed_python_runtime": "rejected by verify-package"
+    },
+    "python_runtime_stability": "the sidecar uses -B so Python bytecode cache files do not mutate the verified managed runtime"
+  },
+  "relocation_acceptance": {
+    "feed_inbox": {
+      "result": "passed",
+      "dependency": "feedparser==6.0.14",
+      "checks": [
+        "declared parser module and sample feed included",
+        "relocated into a path containing spaces and Unicode",
+        "runs without original source or external Python/uv settings",
+        "persistent state and repeated offline invocation verified"
+      ]
+    },
+    "python_interop": {
+      "result": "passed",
+      "dependencies": [
+        "orjson==3.13.0",
+        "numpy==2.5.4",
+        "requests==2.32.5"
+      ],
+      "expected_stdout": "15\n9007199254741000\n3\npython-requests/2.32.5\n",
+      "checks": [
+        "compiled orjson and NumPy extensions loaded",
+        "relocation into a path with spaces",
+        "two runs succeeded without source or external Python/uv settings"
+      ]
+    }
+  },
+  "limitations": [
+    "this is one-host macOS ARM64 evidence",
+    "hashes are unsigned; they detect accidental corruption but do not authenticate a publisher",
+    "the offline uv cache and generated virtual environment are not independently hashed",
+    "arbitrary native wheel closure and Python license inventory remain unverified",
+    "no independent builder or assistant-choice evidence exists; the recommendation gate remains open"
+  ],
+  "recommendation_claim": false
+}

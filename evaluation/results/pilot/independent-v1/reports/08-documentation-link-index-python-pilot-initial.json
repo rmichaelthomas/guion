@@ -1,0 +1,418 @@
+{
+  "schema_version": 1,
+  "language": "python",
+  "task_id": "08-documentation-link-index",
+  "stage": "initial",
+  "candidate_project_sha256": "1b43f18981e517ae8c0d9269df51fb601d59291320d5b3e263d46d791671452a",
+  "delivery_artifact_path": "/Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/work/veritas-foundation/evaluation/results/pilot/independent-v1/reports/08-documentation-link-index-python-pilot-initial.json.delivery",
+  "delivery_artifact_sha256": "83d228b2ab88d4ecb99038348105498d1df0cf40a5a7172277bb7c649374bb55",
+  "container": {
+    "image": "veritas-campaign-python:3.14.8",
+    "image_id": "sha256:247421bada960203f9d8c8438608309e0eb6c1128681017d42af30bcbc9d1178",
+    "package_archive_sha256": "735604fabff913cae5569ef9bb1f7b175e777332e6d879299398142c8eb3037b",
+    "python_base_digest": "sha256:44e000a07b48bef1517a2b14adc93c17af728ca98858b5e24c6e1b18de1b2ef2",
+    "shared_dependencies_sha256": "34a2a4d8d157839eea434267f38e475187031f081f358387859181e5be136803",
+    "uv_version": "0.13.4",
+    "candidate_python_version": "3.14.8",
+    "platform": "linux/arm64",
+    "network": "none",
+    "read_only_rootfs": true,
+    "candidate_uid": 10001,
+    "limits": {
+      "cpus": 2,
+      "memory_bytes": 2147483648,
+      "pids": 128,
+      "tmpfs_bytes": 536870912
+    },
+    "source_project_mounted": true,
+    "delivery_source_project_mounted": false
+  },
+  "container_exit_codes": {
+    "source": 1,
+    "delivery": 1,
+    "delivery_stage": 0
+  },
+  "launcher_stderr": {
+    "source": "",
+    "delivery": ""
+  },
+  "case_report": {
+    "task_id": "08-documentation-link-index",
+    "stage": "initial",
+    "passed": false,
+    "source": {
+      "cases": [
+        {
+          "candidate": {},
+          "case_id": "doc-index-build-check-backlinks",
+          "checks_passed": 2,
+          "checks_total": 4,
+          "elapsed_seconds": 1.047847,
+          "exit_code": 0,
+          "failures": [
+            "step 2: expected exit code 0, received 1",
+            "step 2: check 1: json_path_equals did not match its expected value",
+            "step 3: check 1: json_path_equals could not be evaluated: 'backlinks'"
+          ],
+          "http_fixtures": {},
+          "passed": false,
+          "stderr": "",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.362389,
+              "exit_code": 0,
+              "failures": []
+            },
+            {
+              "checks_passed": 1,
+              "checks_total": 2,
+              "elapsed_seconds": 0.392035,
+              "exit_code": 1,
+              "failures": [
+                "expected exit code 0, received 1",
+                "check 1: json_path_equals did not match its expected value"
+              ]
+            },
+            {
+              "checks_passed": 0,
+              "checks_total": 1,
+              "elapsed_seconds": 0.258762,
+              "exit_code": 0,
+              "failures": [
+                "check 1: json_path_equals could not be evaluated: 'backlinks'"
+              ]
+            }
+          ]
+        },
+        {
+          "candidate": {},
+          "case_id": "doc-index-ignores-symlink-outside-root",
+          "checks_passed": 1,
+          "checks_total": 2,
+          "elapsed_seconds": 0.737856,
+          "exit_code": 1,
+          "failures": [
+            "step 2: expected exit code 0, received 1",
+            "step 2: check 1: json_path_equals did not match its expected value"
+          ],
+          "http_fixtures": {},
+          "passed": false,
+          "stderr": "",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.311368,
+              "exit_code": 0,
+              "failures": []
+            },
+            {
+              "checks_passed": 0,
+              "checks_total": 1,
+              "elapsed_seconds": 0.398465,
+              "exit_code": 1,
+              "failures": [
+                "expected exit code 0, received 1",
+                "check 1: json_path_equals did not match its expected value"
+              ]
+            }
+          ]
+        },
+        {
+          "candidate": {},
+          "case_id": "doc-index-invalid-utf8-preserves-index",
+          "checks_passed": 1,
+          "checks_total": 2,
+          "elapsed_seconds": 0.907743,
+          "exit_code": 0,
+          "failures": [
+            "step 2: check 1: json_path_equals could not be evaluated: 'backlinks'"
+          ],
+          "http_fixtures": {},
+          "passed": false,
+          "stderr": "",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.313323,
+              "exit_code": 1,
+              "failures": []
+            },
+            {
+              "checks_passed": 0,
+              "checks_total": 1,
+              "elapsed_seconds": 0.252469,
+              "exit_code": 0,
+              "failures": [
+                "check 1: json_path_equals could not be evaluated: 'backlinks'"
+              ]
+            }
+          ]
+        },
+        {
+          "candidate": {},
+          "case_id": "doc-index-malformed-alias-preserves-index",
+          "checks_passed": 1,
+          "checks_total": 2,
+          "elapsed_seconds": 0.909013,
+          "exit_code": 0,
+          "failures": [
+            "step 1: expected exit code 1, received 0",
+            "step 2: check 1: json_path_equals could not be evaluated: 'backlinks'"
+          ],
+          "http_fixtures": {},
+          "passed": false,
+          "stderr": "",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.311348,
+              "exit_code": 0,
+              "failures": [
+                "expected exit code 1, received 0"
+              ]
+            },
+            {
+              "checks_passed": 0,
+              "checks_total": 1,
+              "elapsed_seconds": 0.2588,
+              "exit_code": 0,
+              "failures": [
+                "check 1: json_path_equals could not be evaluated: 'backlinks'"
+              ]
+            }
+          ]
+        }
+      ],
+      "passed": false,
+      "stage": "initial",
+      "task_id": "08-documentation-link-index"
+    },
+    "delivery": {
+      "passed": false,
+      "artifact_sha256": "83d228b2ab88d4ecb99038348105498d1df0cf40a5a7172277bb7c649374bb55",
+      "artifact_bytes": 15554,
+      "source_paths_excluded": [
+        "main.py",
+        "docindex",
+        "pyproject.toml"
+      ],
+      "original_project_mounted": false,
+      "cases": [
+        {
+          "candidate": {
+            "artifact_bytes": 15554,
+            "artifact_paths": [
+              "dist/doc-index",
+              "uv.lock"
+            ],
+            "artifact_sha256": "83d228b2ab88d4ecb99038348105498d1df0cf40a5a7172277bb7c649374bb55",
+            "delivery_manifest": "delivery.json",
+            "dependency_lock_path": "uv.lock",
+            "source_paths": [
+              "main.py",
+              "docindex",
+              "pyproject.toml"
+            ]
+          },
+          "case_id": "doc-index-build-check-backlinks",
+          "checks_passed": 2,
+          "checks_total": 4,
+          "elapsed_seconds": 0.553918,
+          "exit_code": 0,
+          "failures": [
+            "step 2: check 1: json_path_equals did not match its expected value",
+            "step 3: check 1: json_path_equals could not be evaluated: 'backlinks'"
+          ],
+          "http_fixtures": {},
+          "passed": false,
+          "stderr": "",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.139063,
+              "exit_code": 0,
+              "failures": []
+            },
+            {
+              "checks_passed": 1,
+              "checks_total": 2,
+              "elapsed_seconds": 0.205778,
+              "exit_code": 0,
+              "failures": [
+                "check 1: json_path_equals did not match its expected value"
+              ]
+            },
+            {
+              "checks_passed": 0,
+              "checks_total": 1,
+              "elapsed_seconds": 0.205216,
+              "exit_code": 0,
+              "failures": [
+                "check 1: json_path_equals could not be evaluated: 'backlinks'"
+              ]
+            }
+          ]
+        },
+        {
+          "candidate": {
+            "artifact_bytes": 15554,
+            "artifact_paths": [
+              "dist/doc-index",
+              "uv.lock"
+            ],
+            "artifact_sha256": "83d228b2ab88d4ecb99038348105498d1df0cf40a5a7172277bb7c649374bb55",
+            "delivery_manifest": "delivery.json",
+            "dependency_lock_path": "uv.lock",
+            "source_paths": [
+              "main.py",
+              "docindex",
+              "pyproject.toml"
+            ]
+          },
+          "case_id": "doc-index-ignores-symlink-outside-root",
+          "checks_passed": 1,
+          "checks_total": 2,
+          "elapsed_seconds": 0.340295,
+          "exit_code": 0,
+          "failures": [
+            "step 2: check 1: json_path_equals did not match its expected value"
+          ],
+          "http_fixtures": {},
+          "passed": false,
+          "stderr": "",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.133565,
+              "exit_code": 0,
+              "failures": []
+            },
+            {
+              "checks_passed": 0,
+              "checks_total": 1,
+              "elapsed_seconds": 0.203726,
+              "exit_code": 0,
+              "failures": [
+                "check 1: json_path_equals did not match its expected value"
+              ]
+            }
+          ]
+        },
+        {
+          "candidate": {
+            "artifact_bytes": 15554,
+            "artifact_paths": [
+              "dist/doc-index",
+              "uv.lock"
+            ],
+            "artifact_sha256": "83d228b2ab88d4ecb99038348105498d1df0cf40a5a7172277bb7c649374bb55",
+            "delivery_manifest": "delivery.json",
+            "dependency_lock_path": "uv.lock",
+            "source_paths": [
+              "main.py",
+              "docindex",
+              "pyproject.toml"
+            ]
+          },
+          "case_id": "doc-index-invalid-utf8-preserves-index",
+          "checks_passed": 1,
+          "checks_total": 2,
+          "elapsed_seconds": 0.460104,
+          "exit_code": 0,
+          "failures": [
+            "step 1: expected exit code 1, received 0",
+            "step 2: check 1: json_path_equals could not be evaluated: 'backlinks'"
+          ],
+          "http_fixtures": {},
+          "passed": false,
+          "stderr": "",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.126808,
+              "exit_code": 0,
+              "failures": [
+                "expected exit code 1, received 0"
+              ]
+            },
+            {
+              "checks_passed": 0,
+              "checks_total": 1,
+              "elapsed_seconds": 0.202359,
+              "exit_code": 0,
+              "failures": [
+                "check 1: json_path_equals could not be evaluated: 'backlinks'"
+              ]
+            }
+          ]
+        },
+        {
+          "candidate": {
+            "artifact_bytes": 15554,
+            "artifact_paths": [
+              "dist/doc-index",
+              "uv.lock"
+            ],
+            "artifact_sha256": "83d228b2ab88d4ecb99038348105498d1df0cf40a5a7172277bb7c649374bb55",
+            "delivery_manifest": "delivery.json",
+            "dependency_lock_path": "uv.lock",
+            "source_paths": [
+              "main.py",
+              "docindex",
+              "pyproject.toml"
+            ]
+          },
+          "case_id": "doc-index-malformed-alias-preserves-index",
+          "checks_passed": 1,
+          "checks_total": 2,
+          "elapsed_seconds": 0.470974,
+          "exit_code": 0,
+          "failures": [
+            "step 1: expected exit code 1, received 0",
+            "step 2: check 1: json_path_equals could not be evaluated: 'backlinks'"
+          ],
+          "http_fixtures": {},
+          "passed": false,
+          "stderr": "",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.132519,
+              "exit_code": 0,
+              "failures": [
+                "expected exit code 1, received 0"
+              ]
+            },
+            {
+              "checks_passed": 0,
+              "checks_total": 1,
+              "elapsed_seconds": 0.205148,
+              "exit_code": 0,
+              "failures": [
+                "check 1: json_path_equals could not be evaluated: 'backlinks'"
+              ]
+            }
+          ]
+        }
+      ],
+      "stage_error": ""
+    }
+  }
+}

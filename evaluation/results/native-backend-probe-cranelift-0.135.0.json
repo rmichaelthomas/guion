@@ -1,0 +1,516 @@
+{
+  "schema_version": 1,
+  "kind": "veritas_famous_benchmark_report",
+  "status": "passed",
+  "workload": "Mandelbrot escape-time kernel, 96x64 grid, 80 iteration ceiling",
+  "correct_output": [
+    "155052",
+    "1608"
+  ],
+  "timing_scope": "Each sample is a fresh process and includes process startup. Veritas source samples also include parsing, typechecking and compilation; artifact samples load the current bytecode format; Python samples parse and execute source. All include the same arithmetic workload and captured output.",
+  "warmups_per_case": 2,
+  "timed_trials_per_case": 15,
+  "artifact_build_seconds_separate": 0.004570208955556154,
+  "artifact_size_bytes": 5727,
+  "native_c_compiler": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
+  "native_c_compile_seconds_separate": 0.2295389159116894,
+  "parallel_map_probe": {
+    "workload": "four independent integer loops of 20,000 iterations each",
+    "correct_output_per_task": 959289,
+    "timing_scope": "Each sample is a fresh process. Python process-pool samples include worker startup; Veritas samples include JIT initialization and worker-thread startup, with a fresh isolated VM frame per task.",
+    "warmups_per_case": 1,
+    "timed_trials_per_case": 3,
+    "python_gil_enabled": true,
+    "build_seconds_separate": 0.0041060419753193855,
+    "results": {
+      "veritas_parallel_map_source": {
+        "samples_seconds": [
+          0.007862166967242956,
+          0.007639625109732151,
+          0.007703459123149514
+        ],
+        "median_seconds": 0.007703459123149514,
+        "p95_seconds_nearest_rank": 0.007862166967242956,
+        "max_seconds": 0.007862166967242956
+      },
+      "veritas_parallel_map_artifact": {
+        "samples_seconds": [
+          0.007433792110532522,
+          0.007523666834458709,
+          0.007604542188346386
+        ],
+        "median_seconds": 0.007523666834458709,
+        "p95_seconds_nearest_rank": 0.007604542188346386,
+        "max_seconds": 0.007604542188346386
+      },
+      "python_serial": {
+        "samples_seconds": [
+          0.05046262498944998,
+          0.05036691692657769,
+          0.05139170796610415
+        ],
+        "median_seconds": 0.05046262498944998,
+        "p95_seconds_nearest_rank": 0.05139170796610415,
+        "max_seconds": 0.05139170796610415
+      },
+      "python_threads": {
+        "samples_seconds": [
+          0.05072829104028642,
+          0.05031124991364777,
+          0.05113620893098414
+        ],
+        "median_seconds": 0.05072829104028642,
+        "p95_seconds_nearest_rank": 0.05113620893098414,
+        "max_seconds": 0.05113620893098414
+      },
+      "python_processes": {
+        "samples_seconds": [
+          0.13623637496493757,
+          0.1367897919844836,
+          0.1353578749112785
+        ],
+        "median_seconds": 0.13623637496493757,
+        "p95_seconds_nearest_rank": 0.1367897919844836,
+        "max_seconds": 0.1367897919844836
+      }
+    },
+    "native_backend_reports": {
+      "veritas_parallel_map_source": {
+        "calls": 4,
+        "compiled_functions": [
+          "work"
+        ],
+        "deoptimizations": 0
+      },
+      "veritas_parallel_map_artifact": {
+        "calls": 4,
+        "compiled_functions": [
+          "work"
+        ],
+        "deoptimizations": 0
+      }
+    },
+    "allocation_budget": "Default 256 MiB cumulative estimate budget; no per-workload override."
+  },
+  "large_parallel_map_probe": {
+    "workload": "four independent integer loops of 200,000 iterations each",
+    "correct_output_per_task": 9599419,
+    "timing_scope": "Each sample is a fresh process. Python process-pool samples include worker startup; Veritas samples include JIT initialization and worker-thread startup, with a fresh isolated VM frame per task.",
+    "allocation_limit_bytes": 268435456,
+    "allocation_budget": "Default 256 MiB cumulative estimate budget; no per-workload override.",
+    "warmups_per_case": 1,
+    "timed_trials_per_case": 3,
+    "build_seconds_separate": 0.003864666912704706,
+    "results": {
+      "veritas_parallel_map_source": {
+        "samples_seconds": [
+          0.017379292054101825,
+          0.01756816590204835,
+          0.017575624864548445
+        ],
+        "median_seconds": 0.01756816590204835,
+        "p95_seconds_nearest_rank": 0.017575624864548445,
+        "max_seconds": 0.017575624864548445
+      },
+      "veritas_parallel_map_artifact": {
+        "samples_seconds": [
+          0.017383416881784797,
+          0.017380875069648027,
+          0.01459795911796391
+        ],
+        "median_seconds": 0.017380875069648027,
+        "p95_seconds_nearest_rank": 0.017383416881784797,
+        "max_seconds": 0.017383416881784797
+      },
+      "python_serial": {
+        "samples_seconds": [
+          0.07693512481637299,
+          0.07676362502388656,
+          0.07692587492056191
+        ],
+        "median_seconds": 0.07692587492056191,
+        "p95_seconds_nearest_rank": 0.07693512481637299,
+        "max_seconds": 0.07693512481637299
+      },
+      "python_threads": {
+        "samples_seconds": [
+          0.0773044170346111,
+          0.07739225006662309,
+          0.07680941605940461
+        ],
+        "median_seconds": 0.0773044170346111,
+        "p95_seconds_nearest_rank": 0.07739225006662309,
+        "max_seconds": 0.07739225006662309
+      },
+      "python_processes": {
+        "samples_seconds": [
+          0.1450241671409458,
+          0.1453073751181364,
+          0.14733358309604228
+        ],
+        "median_seconds": 0.1453073751181364,
+        "p95_seconds_nearest_rank": 0.14733358309604228,
+        "max_seconds": 0.14733358309604228
+      }
+    },
+    "native_backend_reports": {
+      "veritas_parallel_map_source": {
+        "calls": 4,
+        "compiled_functions": [
+          "work"
+        ],
+        "deoptimizations": 0
+      },
+      "veritas_parallel_map_artifact": {
+        "calls": 4,
+        "compiled_functions": [
+          "work"
+        ],
+        "deoptimizations": 0
+      }
+    }
+  },
+  "nbody_probe": {
+    "workload": "Five-body, 20,000-step symplectic N-body energy workload using standard benchmark initial conditions and the pyperformance default iteration count.",
+    "correct_output_energy_values": [
+      -0.16907516382852447,
+      -0.16908926275527233
+    ],
+    "absolute_tolerance": 1e-12,
+    "timing_scope": "Each sample is a fresh process; source parsing/compilation and artifact loading are included. One warmup and five timed trials per case.",
+    "warmups_per_case": 1,
+    "timed_trials_per_case": 5,
+    "allocation_limit_bytes": 268435456,
+    "allocation_limit_note": "The optimized same-local list_set assignment stays within the default 256 MiB allocation ceiling.",
+    "instruction_limit_note": "A 300,000,000 instruction ceiling is declared for this 20,000-step workload; the default 10,000,000 ceiling is too low.",
+    "build_seconds_separate": 0.004415458999574184,
+    "artifact_size_bytes": 22906,
+    "results": {
+      "python3_reference": {
+        "samples_seconds": [
+          0.1943322499282658,
+          0.19270637491717935,
+          0.19212254090234637,
+          0.1925274170935154,
+          0.1920125000178814
+        ],
+        "median_seconds": 0.1925274170935154,
+        "p95_seconds_nearest_rank": 0.1943322499282658,
+        "max_seconds": 0.1943322499282658
+      },
+      "veritas_source": {
+        "samples_seconds": [
+          0.08581754099577665,
+          0.08568379213102162,
+          0.08644470805302262,
+          0.08599187503568828,
+          0.08582825004123151
+        ],
+        "median_seconds": 0.08582825004123151,
+        "p95_seconds_nearest_rank": 0.08644470805302262,
+        "max_seconds": 0.08644470805302262
+      },
+      "veritas_artifact": {
+        "samples_seconds": [
+          0.08536087488755584,
+          0.0861774580553174,
+          0.08549129194580019,
+          0.08529158402234316,
+          0.08595758303999901
+        ],
+        "median_seconds": 0.08549129194580019,
+        "p95_seconds_nearest_rank": 0.0861774580553174,
+        "max_seconds": 0.0861774580553174
+      }
+    },
+    "native_backend_reports": {
+      "veritas_source": {
+        "calls": 4,
+        "compiled_functions": [
+          "energy",
+          "advance",
+          "initial_system"
+        ],
+        "deoptimizations": 0
+      },
+      "veritas_artifact": {
+        "calls": 4,
+        "compiled_functions": [
+          "energy",
+          "advance",
+          "initial_system"
+        ],
+        "deoptimizations": 0
+      }
+    },
+    "official_pyperformance_python_median_seconds": 0.10937631246633828,
+    "veritas_source_to_official_python_ratio": 0.7847060127177543,
+    "native_backend_scope": "The complete 20,000-step loop inside advance, including typed record/list access and same-local list updates, plus energy run in Cranelift native code. The VM handles entry, output and the two energy calls.",
+    "full_default_workload_note": "The 20,000-step pyperformance-default workload completes and matches the Python reference within 1e-12 under the default 256 MiB allocation ceiling. It requires a declared 300,000,000 instruction ceiling; the standard 10,000,000 ceiling is too low."
+  },
+  "richards_probe": {
+    "workload": "One iteration of the pinned Richards task scheduler benchmark, with six task slots, linked packet queues, task state, and the canonical hold/packet checks.",
+    "correct_output": [
+      "9297",
+      "23246"
+    ],
+    "canonical_hold_count": 9297,
+    "canonical_packet_count": 23246,
+    "timing_scope": "Each sample is a fresh process. Veritas source samples parse, typecheck and compile; artifact samples load bytecode; Python samples import and execute the pinned upstream workload. One warmup and seven timed trials per case.",
+    "warmups_per_case": 1,
+    "timed_trials_per_case": 7,
+    "instruction_limit": 30000000,
+    "build_seconds_separate": 0.0044759169686585665,
+    "artifact_size_bytes": 39032,
+    "results": {
+      "veritas_source": {
+        "samples_seconds": [
+          0.11068229097872972,
+          0.11113650002516806,
+          0.11185745801776648,
+          0.11142554203979671,
+          0.11261766706593335,
+          0.11143149994313717,
+          0.11081495904363692
+        ],
+        "median_seconds": 0.11142554203979671,
+        "p95_seconds_nearest_rank": 0.11261766706593335,
+        "max_seconds": 0.11261766706593335
+      },
+      "veritas_artifact": {
+        "samples_seconds": [
+          0.10962604102678597,
+          0.1102424580603838,
+          0.11049808305688202,
+          0.11079679196700454,
+          0.10988862509839237,
+          0.10969075001776218,
+          0.10959745896980166
+        ],
+        "median_seconds": 0.10988862509839237,
+        "p95_seconds_nearest_rank": 0.11079679196700454,
+        "max_seconds": 0.11079679196700454
+      },
+      "official_python_source": {
+        "samples_seconds": [
+          0.06340970820747316,
+          0.06281241704709828,
+          0.06246925005689263,
+          0.06278304103761911,
+          0.06265583308413625,
+          0.0628224581014365,
+          0.06362283299677074
+        ],
+        "median_seconds": 0.06281241704709828,
+        "p95_seconds_nearest_rank": 0.06362283299677074,
+        "max_seconds": 0.06362283299677074
+      }
+    },
+    "native_backend_reports": {
+      "veritas_source": {
+        "calls": 37547,
+        "compiled_functions": [
+          "next_worker_count",
+          "xor_d008",
+          "route_packet",
+          "main"
+        ],
+        "deoptimizations": 0
+      },
+      "veritas_artifact": {
+        "calls": 37547,
+        "compiled_functions": [
+          "next_worker_count",
+          "xor_d008",
+          "route_packet",
+          "main"
+        ],
+        "deoptimizations": 0
+      }
+    },
+    "official_python_median_seconds": 0.06281241704709828,
+    "pinned_source_probe_python_median_seconds": 0.0634242498781532,
+    "veritas_source_to_official_python_ratio": 1.7739413204915697,
+    "native_backend_scope": "The complete Veritas Richards port, including main, route_packet, xor_d008, and next_worker_count, executes in Cranelift with zero deoptimizations. This is one translated implementation on one host, not a general performance claim."
+  },
+  "official_pyperformance_source_probe": {
+    "schema_version": 1,
+    "kind": "pyperformance_pinned_source_probe",
+    "status": "passed",
+    "pyperformance_version": "1.14.0",
+    "source_commit": "2ab96f98f98274d07ebfdfd66e4f021723179706",
+    "python_version": "3.14.7",
+    "host": "macOS 26.5.2 arm64",
+    "source_sha256": {
+      "bm_richards/run_benchmark.py": "a4512668525331960c54043b5150a3fff92badaeaba850a941893ac69a1028d8",
+      "bm_nbody/run_benchmark.py": "d1385e816d7cfea361b7915e2cf70138cd6b84f40df8bd5152638851f7bcac2b"
+    },
+    "harness": "Unmodified upstream benchmark workload functions run directly. The pyperf CLI and calibration wrapper are omitted; a tiny adapter supplies the timing function, and fresh-process timings include adapter/import overhead. This is a reproducible source probe, not an official pyperf result.",
+    "richards": {
+      "iterations_per_process": 1,
+      "canonical_hold_count": 9297,
+      "canonical_packet_count": 23246,
+      "correct_output": [
+        "9297",
+        "23246"
+      ],
+      "python_fresh_process_seconds": [
+        0.06297099986113608,
+        0.06379416608251631,
+        0.06405566586181521,
+        0.06370633281767368,
+        0.06314216693863273,
+        0.06242366600781679
+      ],
+      "python_median_seconds": 0.0634242498781532
+    },
+    "nbody": {
+      "iterations": 20000,
+      "absolute_energy_tolerance": 1e-12,
+      "python_correct_output": [
+        "-0.1690751638285245",
+        "-0.16908926275527172"
+      ],
+      "maximum_absolute_output_difference": 4.3021142204224816e-15,
+      "python_fresh_process_seconds": [
+        0.10951166693121195,
+        0.10959104215726256,
+        0.1086052090395242,
+        0.10957495798356831,
+        0.1092409580014646,
+        0.10693770810030401
+      ],
+      "python_median_seconds": 0.10937631246633828,
+      "note": "The pinned Python source output and timing are recorded here. Veritas translated-workload results are recorded separately in the native backend report."
+    },
+    "limitations": [
+      "Only one host and one Python build were measured.",
+      "This does not execute the pyperf calibration/reporting harness.",
+      "The workload functions are unmodified upstream code, while the timing adapter and process startup are outside pyperf.",
+      "The official benchmark suite is diagnostic evidence, not the real-task recommendation gate."
+    ]
+  },
+  "veritas_binary": "/Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/work/veritas-foundation/target/release/veritas",
+  "python_version": "3.14.7 (main, Aug  5 2026, 10:29:49) [Clang 21.0.0 (clang-2100.1.1.101)]",
+  "platform": "macOS-26.5.2-arm64-arm-64bit-Mach-O",
+  "architecture": "arm64",
+  "results": {
+    "veritas_source_run": {
+      "samples_seconds": [
+        0.0198662921320647,
+        0.01939525012858212,
+        0.019473500084131956,
+        0.018204750027507544,
+        0.01780683291144669,
+        0.018258624942973256,
+        0.01836745790205896,
+        0.01794316596351564,
+        0.01805320894345641,
+        0.018731707939878106,
+        0.019467125181108713,
+        0.01847020909190178,
+        0.017820166889578104,
+        0.017868791008368134,
+        0.017886334098875523
+      ],
+      "median_seconds": 0.018258624942973256,
+      "p95_seconds_nearest_rank": 0.0198662921320647,
+      "max_seconds": 0.0198662921320647
+    },
+    "veritas_bytecode_artifact_run": {
+      "samples_seconds": [
+        0.017590958159416914,
+        0.01759191695600748,
+        0.017812166130170226,
+        0.017631500028073788,
+        0.017554083140566945,
+        0.01748608285561204,
+        0.01747370883822441,
+        0.017893792130053043,
+        0.018827333115041256,
+        0.018437332939356565,
+        0.01874358393251896,
+        0.019003333989530802,
+        0.018840417033061385,
+        0.01874025003053248,
+        0.01881104102358222
+      ],
+      "median_seconds": 0.017893792130053043,
+      "p95_seconds_nearest_rank": 0.019003333989530802,
+      "max_seconds": 0.019003333989530802
+    },
+    "python3_reference": {
+      "samples_seconds": [
+        0.03692854102700949,
+        0.03710012510418892,
+        0.03714695805683732,
+        0.03686699992977083,
+        0.0369933748152107,
+        0.03812941606156528,
+        0.04068212490528822,
+        0.038944041822105646,
+        0.03869966696947813,
+        0.04138087504543364,
+        0.039560250006616116,
+        0.03776979190297425,
+        0.03786499984562397,
+        0.03687020787037909,
+        0.03718012501485646
+      ],
+      "median_seconds": 0.03776979190297425,
+      "p95_seconds_nearest_rank": 0.04138087504543364,
+      "max_seconds": 0.04138087504543364
+    },
+    "native_c_o3_reference": {
+      "samples_seconds": [
+        0.004612874938175082,
+        0.0037079579196870327,
+        0.0035395831800997257,
+        0.0038727920036762953,
+        0.003528582863509655,
+        0.003552708076313138,
+        0.0033652500715106726,
+        0.003638416063040495,
+        0.0035375000443309546,
+        0.0032248341012746096,
+        0.003378417110070586,
+        0.0034115409944206476,
+        0.003258500015363097,
+        0.0032509169541299343,
+        0.003158666891977191
+      ],
+      "median_seconds": 0.003528582863509655,
+      "p95_seconds_nearest_rank": 0.004612874938175082,
+      "max_seconds": 0.004612874938175082
+    }
+  },
+  "native_backend_reports": {
+    "veritas_source_run": {
+      "calls": 6146,
+      "compiled_functions": [
+        "escape_steps",
+        "calculate",
+        "main"
+      ],
+      "deoptimizations": 0
+    },
+    "veritas_bytecode_artifact_run": {
+      "calls": 6146,
+      "compiled_functions": [
+        "escape_steps",
+        "calculate",
+        "main"
+      ],
+      "deoptimizations": 0
+    }
+  },
+  "limitations": [
+    "This is a dependency-free representative translation, not a run of the Computer Language Benchmarks Game source file.",
+    "Mandelbrot's Float64 escape kernel and the bounded parallel integer functions exercise different supported Cranelift subsets; other functions continue on the VM.",
+    "The C reference is an independently compiled baseline, not a Veritas-generated backend or FFI call.",
+    "One host and one numeric workload do not establish general performance or recommendation superiority.",
+    "The bounded parallel workload validates output and measures available modes; its process-pool timings include worker startup and cannot establish cross-host speedup.",
+    "The Veritas N-body workload is a translation, not an unmodified pyperformance program. A separate pinned-source probe validates the official Python workload and canonical Richards counts; Veritas-to-Python timing remains a fresh-process translated-workload comparison.",
+    "The Veritas Richards port matches canonical counts and all four functions execute natively with zero deoptimizations; this one-host run remains slower than pinned Python and does not support a general speed claim."
+  ]
+}

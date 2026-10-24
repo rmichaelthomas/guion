@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "kind": "veritas_uploaded_starter_verification",
+  "status": "completed_with_failures",
+  "isolation": "Original uploads were copied into a temporary directory; execution had a 10-second timeout and generated files stayed in that directory.",
+  "scripts": {
+    "veritas.py": {
+      "sha256": "2158de987f6d34689108f068122cd3b4e2a93c13c868df7690733da4d3ddebcc",
+      "syntax_check": "failed",
+      "syntax_error": "line 113: def peek(() -> Token: — invalid syntax",
+      "execution": "failed before side effects with the same SyntaxError"
+    },
+    "veritas_ultimate.py": {
+      "sha256": "83c15fa8106b4de75dc95cc76b694d2d590e36f4dd7b785f2559985bc4a3aa90",
+      "syntax_check": "passed",
+      "execution": "passed its built-in sum 6 through 10 assertion (40)",
+      "vm_claim": "The implementation walks AST statement objects directly; it has no bytecode instruction stream or operand stack.",
+      "c_export_claim": "The exporter returns a fixed C source string unrelated to the parsed AST. The script writes .c/.h files but does not compile or load them.",
+      "separate_c_harness": {
+        "compiler": "Apple clang 21.0.0",
+        "compile": "passed with -Wall -Wextra -Werror",
+        "calls": "veritas_compute_pipeline(5), (10), and (12); veritas_runtime_init(2)",
+        "output": "0,40,63,1",
+        "meaning": "The hard-coded C template can compile and be called from a separate C program; this does not establish generated Veritas-to-C compilation or a working FFI pipeline."
+      }
+    }
+  },
+  "originals_modified": false
+}

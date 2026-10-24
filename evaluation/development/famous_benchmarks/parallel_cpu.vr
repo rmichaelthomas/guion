@@ -1,0 +1,22 @@
+fn work(count: Int) -> Int:
+    var index = 0
+    var total = 0
+    while index < count:
+        set total = total + index % 97
+        set index = index + 1
+    return total
+
+fn main() -> Int:
+    let tasks = [20000, 20000, 20000, 20000]
+    let outcome = parallel_map(tasks, work, 4)
+    if is_ok(outcome):
+        let results = unwrap(outcome)
+        print(results[0])
+        print(results[1])
+        print(results[2])
+        print(results[3])
+    else:
+        let failure = error(outcome)
+        print(task_code(failure))
+        print(task_message(failure))
+    return 0

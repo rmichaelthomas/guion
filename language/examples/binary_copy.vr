@@ -1,0 +1,5 @@
+fn main() -> Int:
+    let payload = unwrap(read_bytes("input.bin"))
+    unwrap(write_bytes("copy.bin", payload))
+    print(len(payload))
+    return 0

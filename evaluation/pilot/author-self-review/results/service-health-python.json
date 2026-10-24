@@ -1,0 +1,37 @@
+{
+  "candidate": "author-calibrated-python-reference",
+  "passed": 5,
+  "total": 5,
+  "cases": [
+    {
+      "id": "health-mixed-results-and-cap",
+      "passed": true,
+      "elapsed_seconds": 0.931564,
+      "failures": []
+    },
+    {
+      "id": "health-concurrency-bound",
+      "passed": true,
+      "elapsed_seconds": 0.840432,
+      "failures": []
+    },
+    {
+      "id": "health-empty-configuration",
+      "passed": true,
+      "elapsed_seconds": 0.296436,
+      "failures": []
+    },
+    {
+      "id": "health-http-error-is-unhealthy",
+      "passed": true,
+      "elapsed_seconds": 0.812046,
+      "failures": []
+    },
+    {
+      "id": "health-maintenance-boundaries",
+      "passed": true,
+      "elapsed_seconds": 0.836836,
+      "failures": []
+    }
+  ]
+}

@@ -1,0 +1,102 @@
+extern python "sla_support:parse_timestamp" fn parse_timestamp(value: Text) -> Int
+extern python "sla_support:parse_tickets" fn parse_tickets(value: Text) -> List[Map[Text, Text]]
+extern python "sla_support:minutes_since" fn minutes_since(as_of: Text, created_at: Text) -> Int
+extern python "sla_support:write_stderr" fn write_stderr(value: Text) -> Int
+
+fn main() -> Int:
+    let arguments = args()
+    var tickets_path = ""
+    var policy_path = ""
+    var as_of_text = ""
+    var output_path = ""
+    var team = ""
+    var i = 0
+    while i < len(arguments):
+        if arguments[i] == "--tickets" and i + 1 < len(arguments):
+            set tickets_path = arguments[i + 1]
+            set i = i + 2
+        else:
+            if arguments[i] == "--policy" and i + 1 < len(arguments):
+                set policy_path = arguments[i + 1]
+                set i = i + 2
+            else:
+                if arguments[i] == "--as-of" and i + 1 < len(arguments):
+                    set as_of_text = arguments[i + 1]
+                    set i = i + 2
+                else:
+                    if arguments[i] == "--output" and i + 1 < len(arguments):
+                        set output_path = arguments[i + 1]
+                        set i = i + 2
+                    else:
+                        if arguments[i] == "--team" and i + 1 < len(arguments):
+                            set team = arguments[i + 1]
+                            set i = i + 2
+                        else:
+                            print("unknown or incomplete argument")
+                            return 2
+    if tickets_path == "" or policy_path == "" or as_of_text == "" or output_path == "":
+        print("usage: sla-report --tickets PATH --policy PATH --as-of RFC3339 --output PATH")
+        return 2
+
+    let ticket_text_result = read_text(tickets_path)
+    let policy_text_result = read_text(policy_path)
+    if not is_ok(ticket_text_result) or not is_ok(policy_text_result):
+        let ignored = write_stderr("cannot read input files\n")
+        return 1
+    let as_of = parse_timestamp(as_of_text)
+    let rows = parse_tickets(unwrap(ticket_text_result))
+    let policy_result = json_parse(unwrap(policy_text_result))
+    if not is_ok(policy_result):
+        let ignored = write_stderr("invalid policy JSON\n")
+        return 1
+    let limits = json_get(unwrap(policy_result), "response_minutes")
+    var ids: Map[Text, Bool] = {}
+    var results = json_array()
+    var breached_count = 0
+    var total = 0
+    var row_index = 0
+    while row_index < len(rows):
+        let row = rows[row_index]
+        let id = row["id"]
+        let priority = row["priority"]
+        if map_has(ids, id):
+            let ignored = write_stderr("duplicate ticket id: " + id + "\n")
+            return 1
+        set ids = map_set(ids, id, true)
+        if not json_has(limits, priority):
+            let ignored = write_stderr("unknown priority or missing policy entry: " + priority + "\n")
+            return 1
+        let limit = json_as_int(json_get(limits, priority))
+        let age = minutes_since(as_of_text, row["created_at"])
+        if age < 0:
+            let ignored = write_stderr("ticket timestamp is after --as-of\n")
+            return 1
+        if team == "" or team == row["team"]:
+            let is_breached = row["status"] != "closed" and age > limit
+            var item = json_object()
+            set item = json_set(item, "id", json_text(id))
+            set item = json_set(item, "team", json_text(row["team"]))
+            set item = json_set(item, "priority", json_text(priority))
+            set item = json_set(item, "status", json_text(row["status"]))
+            set item = json_set(item, "age_minutes", json_int(age))
+            set item = json_set(item, "limit_minutes", json_int(limit))
+            set item = json_set(item, "breached", json_bool(is_breached))
+            set results = json_push(results, item)
+            set total = total + 1
+            if is_breached:
+                set breached_count = breached_count + 1
+        set row_index = row_index + 1
+
+    # Stable order is team then ticket ID; input rows are sorted using a reusable Python helper.
+    var summary = json_object()
+    set summary = json_set(summary, "total", json_int(total))
+    set summary = json_set(summary, "breached", json_int(breached_count))
+    var report = json_object()
+    set report = json_set(report, "as_of", json_text(as_of_text))
+    set report = json_set(report, "tickets", results)
+    set report = json_set(report, "summary", summary)
+    let written = write_text_atomic(output_path, json_stringify(report) + "\n")
+    if not is_ok(written):
+        let ignored = write_stderr("cannot write report\n")
+        return 1
+    return 0

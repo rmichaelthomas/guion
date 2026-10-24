@@ -1,0 +1,8 @@
+pub record Sample:
+    value: Int
+
+fn increment(value: Int) -> Int:
+    return value + 1
+
+pub fn double(value: Int) -> Int:
+    return increment(value) * 2

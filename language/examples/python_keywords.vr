@@ -1,0 +1,5 @@
+extern python "builtins:pow" fn power(base: Int, exp: Int, mod: Int) -> Int
+
+fn main() -> Int:
+    print(power(2, exp=10))
+    return 0

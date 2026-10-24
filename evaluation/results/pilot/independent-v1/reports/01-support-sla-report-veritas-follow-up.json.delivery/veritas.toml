@@ -1,0 +1,11 @@
+[project]
+name = "sla-report"
+version = "0.1.0"
+entry = "main.vr"
+
+[python]
+version = "3.14.8"
+dependencies = []
+
+[package]
+resources = ["sla_report.py"]

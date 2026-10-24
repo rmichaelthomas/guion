@@ -1,0 +1,405 @@
+{
+  "schema_version": 1,
+  "language": "python",
+  "task_id": "06-service-health-digest",
+  "stage": "initial",
+  "candidate_project_sha256": "4258dc504470447446e2dca30b97ffce49a819d3634b97e0d49f0e317576506a",
+  "delivery_artifact_path": "/Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/work/veritas-foundation/evaluation/results/pilot/independent-v1/reports/06-service-health-digest-python-initial.json.delivery",
+  "delivery_artifact_sha256": "84745134785d8fd6dfa712718dc33157eb2f413596933af21c3c90d2de948f4d",
+  "container": {
+    "image": "veritas-campaign-python:3.14.8",
+    "image_id": "sha256:247421bada960203f9d8c8438608309e0eb6c1128681017d42af30bcbc9d1178",
+    "package_archive_sha256": "735604fabff913cae5569ef9bb1f7b175e777332e6d879299398142c8eb3037b",
+    "python_base_digest": "sha256:44e000a07b48bef1517a2b14adc93c17af728ca98858b5e24c6e1b18de1b2ef2",
+    "shared_dependencies_sha256": "34a2a4d8d157839eea434267f38e475187031f081f358387859181e5be136803",
+    "uv_version": "0.13.4",
+    "candidate_python_version": "3.14.8",
+    "platform": "linux/arm64",
+    "network": "none",
+    "read_only_rootfs": true,
+    "candidate_uid": 10001,
+    "limits": {
+      "cpus": 2,
+      "memory_bytes": 2147483648,
+      "pids": 128,
+      "tmpfs_bytes": 536870912
+    },
+    "source_project_mounted": true,
+    "delivery_source_project_mounted": false
+  },
+  "container_exit_codes": {
+    "source": 1,
+    "delivery": 1,
+    "delivery_stage": 0
+  },
+  "launcher_stderr": {
+    "source": "",
+    "delivery": ""
+  },
+  "case_report": {
+    "task_id": "06-service-health-digest",
+    "stage": "initial",
+    "passed": false,
+    "source": {
+      "cases": [
+        {
+          "candidate": {},
+          "case_id": "health-mixed-results-and-cap",
+          "checks_passed": 4,
+          "checks_total": 4,
+          "elapsed_seconds": 1.051744,
+          "exit_code": 0,
+          "failures": [],
+          "http_fixtures": {
+            "health": {
+              "max_in_flight": 1,
+              "requests": [
+                {
+                  "method": "GET",
+                  "path": "/worker"
+                },
+                {
+                  "method": "GET",
+                  "path": "/api"
+                },
+                {
+                  "method": "GET",
+                  "path": "/invalid"
+                },
+                {
+                  "method": "GET",
+                  "path": "/slow"
+                }
+              ]
+            }
+          },
+          "passed": true,
+          "stderr": "warning: Ignoring existing virtual environment linked to non-existent Python interpreter: `candidate/.venv/bin/python` -> `/Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/work/veritas-foundation/distribution/out-north-star-json-borrow-final-macos/veritas-0.1.0-darwin-arm64/examples/python_interop_bundle/python/cpython-3.14.8-macos-aarch64-none/bin/python3.14`\nUsing CPython 3.14.8\nRemoved virtual environment at: candidate/.venv\nCreating virtual environment at: candidate/.venv\n",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 4,
+              "checks_total": 4,
+              "elapsed_seconds": 0.559987,
+              "exit_code": 0,
+              "failures": []
+            }
+          ]
+        },
+        {
+          "candidate": {},
+          "case_id": "health-concurrency-bound",
+          "checks_passed": 4,
+          "checks_total": 4,
+          "elapsed_seconds": 0.976578,
+          "exit_code": 0,
+          "failures": [],
+          "http_fixtures": {
+            "health": {
+              "max_in_flight": 2,
+              "requests": [
+                {
+                  "method": "GET",
+                  "path": "/worker"
+                },
+                {
+                  "method": "GET",
+                  "path": "/api"
+                }
+              ]
+            }
+          },
+          "passed": true,
+          "stderr": "warning: Ignoring existing virtual environment linked to non-existent Python interpreter: `candidate/.venv/bin/python` -> `/Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/work/veritas-foundation/distribution/out-north-star-json-borrow-final-macos/veritas-0.1.0-darwin-arm64/examples/python_interop_bundle/python/cpython-3.14.8-macos-aarch64-none/bin/python3.14`\nUsing CPython 3.14.8\nRemoved virtual environment at: candidate/.venv\nCreating virtual environment at: candidate/.venv\n",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 4,
+              "checks_total": 4,
+              "elapsed_seconds": 0.576524,
+              "exit_code": 0,
+              "failures": []
+            }
+          ]
+        },
+        {
+          "candidate": {},
+          "case_id": "health-empty-configuration",
+          "checks_passed": 2,
+          "checks_total": 2,
+          "elapsed_seconds": 0.445534,
+          "exit_code": 0,
+          "failures": [],
+          "http_fixtures": {},
+          "passed": true,
+          "stderr": "warning: Ignoring existing virtual environment linked to non-existent Python interpreter: `candidate/.venv/bin/python` -> `/Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/work/veritas-foundation/distribution/out-north-star-json-borrow-final-macos/veritas-0.1.0-darwin-arm64/examples/python_interop_bundle/python/cpython-3.14.8-macos-aarch64-none/bin/python3.14`\nUsing CPython 3.14.8\nRemoved virtual environment at: candidate/.venv\nCreating virtual environment at: candidate/.venv\n",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 2,
+              "checks_total": 2,
+              "elapsed_seconds": 0.427232,
+              "exit_code": 0,
+              "failures": []
+            }
+          ]
+        },
+        {
+          "candidate": {},
+          "case_id": "health-http-error-is-unhealthy",
+          "checks_passed": 1,
+          "checks_total": 3,
+          "elapsed_seconds": 0.95089,
+          "exit_code": 0,
+          "failures": [
+            "step 1: check 1: json_path_equals did not match its expected value",
+            "step 1: check 2: file_equals did not match its expected value"
+          ],
+          "http_fixtures": {
+            "health": {
+              "max_in_flight": 1,
+              "requests": [
+                {
+                  "method": "GET",
+                  "path": "/api?token=fixture-only-secret"
+                }
+              ]
+            }
+          },
+          "passed": false,
+          "stderr": "warning: Ignoring existing virtual environment linked to non-existent Python interpreter: `candidate/.venv/bin/python` -> `/Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/work/veritas-foundation/distribution/out-north-star-json-borrow-final-macos/veritas-0.1.0-darwin-arm64/examples/python_interop_bundle/python/cpython-3.14.8-macos-aarch64-none/bin/python3.14`\nUsing CPython 3.14.8\nRemoved virtual environment at: candidate/.venv\nCreating virtual environment at: candidate/.venv\n",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 3,
+              "elapsed_seconds": 0.432139,
+              "exit_code": 0,
+              "failures": [
+                "check 1: json_path_equals did not match its expected value",
+                "check 2: file_equals did not match its expected value"
+              ]
+            }
+          ]
+        }
+      ],
+      "passed": false,
+      "stage": "initial",
+      "task_id": "06-service-health-digest"
+    },
+    "delivery": {
+      "passed": false,
+      "artifact_sha256": "84745134785d8fd6dfa712718dc33157eb2f413596933af21c3c90d2de948f4d",
+      "artifact_bytes": 7737,
+      "source_paths_excluded": [
+        "main.py",
+        "pyproject.toml",
+        ".python-version",
+        "work"
+      ],
+      "original_project_mounted": false,
+      "cases": [
+        {
+          "candidate": {
+            "artifact_bytes": 7737,
+            "artifact_paths": [
+              "dist/service-health",
+              "uv.lock"
+            ],
+            "artifact_sha256": "84745134785d8fd6dfa712718dc33157eb2f413596933af21c3c90d2de948f4d",
+            "delivery_manifest": "delivery.json",
+            "dependency_lock_path": "uv.lock",
+            "source_paths": [
+              "main.py",
+              "pyproject.toml",
+              ".python-version",
+              "work"
+            ]
+          },
+          "case_id": "health-mixed-results-and-cap",
+          "checks_passed": 1,
+          "checks_total": 4,
+          "elapsed_seconds": 0.522133,
+          "exit_code": null,
+          "failures": [
+            "step 1: candidate could not be launched: [Errno 13] Permission denied: '/tmp/veritas-independent-case-j5wc_cqx/candidate/dist/service-health'",
+            "step 1: check 1: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-j5wc_cqx/report.json'",
+            "step 1: check 2: file_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-j5wc_cqx/digest.txt'",
+            "step 1: check 3: http_request_count_equals did not match its expected value"
+          ],
+          "http_fixtures": {
+            "health": {
+              "max_in_flight": 0,
+              "requests": []
+            }
+          },
+          "passed": false,
+          "stderr": "",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 4,
+              "elapsed_seconds": 0.001829,
+              "exit_code": null,
+              "failures": [
+                "candidate could not be launched: [Errno 13] Permission denied: '/tmp/veritas-independent-case-j5wc_cqx/candidate/dist/service-health'",
+                "check 1: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-j5wc_cqx/report.json'",
+                "check 2: file_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-j5wc_cqx/digest.txt'",
+                "check 3: http_request_count_equals did not match its expected value"
+              ]
+            }
+          ]
+        },
+        {
+          "candidate": {
+            "artifact_bytes": 7737,
+            "artifact_paths": [
+              "dist/service-health",
+              "uv.lock"
+            ],
+            "artifact_sha256": "84745134785d8fd6dfa712718dc33157eb2f413596933af21c3c90d2de948f4d",
+            "delivery_manifest": "delivery.json",
+            "dependency_lock_path": "uv.lock",
+            "source_paths": [
+              "main.py",
+              "pyproject.toml",
+              ".python-version",
+              "work"
+            ]
+          },
+          "case_id": "health-concurrency-bound",
+          "checks_passed": 1,
+          "checks_total": 4,
+          "elapsed_seconds": 0.50493,
+          "exit_code": null,
+          "failures": [
+            "step 1: candidate could not be launched: [Errno 13] Permission denied: '/tmp/veritas-independent-case-1m0tcx72/candidate/dist/service-health'",
+            "step 1: check 1: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-1m0tcx72/report.json'",
+            "step 1: check 2: http_request_count_equals did not match its expected value",
+            "step 1: check 4: http_max_in_flight_at_least did not match its expected value"
+          ],
+          "http_fixtures": {
+            "health": {
+              "max_in_flight": 0,
+              "requests": []
+            }
+          },
+          "passed": false,
+          "stderr": "",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 4,
+              "elapsed_seconds": 0.002118,
+              "exit_code": null,
+              "failures": [
+                "candidate could not be launched: [Errno 13] Permission denied: '/tmp/veritas-independent-case-1m0tcx72/candidate/dist/service-health'",
+                "check 1: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-1m0tcx72/report.json'",
+                "check 2: http_request_count_equals did not match its expected value",
+                "check 4: http_max_in_flight_at_least did not match its expected value"
+              ]
+            }
+          ]
+        },
+        {
+          "candidate": {
+            "artifact_bytes": 7737,
+            "artifact_paths": [
+              "dist/service-health",
+              "uv.lock"
+            ],
+            "artifact_sha256": "84745134785d8fd6dfa712718dc33157eb2f413596933af21c3c90d2de948f4d",
+            "delivery_manifest": "delivery.json",
+            "dependency_lock_path": "uv.lock",
+            "source_paths": [
+              "main.py",
+              "pyproject.toml",
+              ".python-version",
+              "work"
+            ]
+          },
+          "case_id": "health-empty-configuration",
+          "checks_passed": 0,
+          "checks_total": 2,
+          "elapsed_seconds": 0.003824,
+          "exit_code": null,
+          "failures": [
+            "step 1: candidate could not be launched: [Errno 13] Permission denied: '/tmp/veritas-independent-case-4n5iv44d/candidate/dist/service-health'",
+            "step 1: check 1: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-4n5iv44d/report.json'",
+            "step 1: check 2: file_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-4n5iv44d/digest.txt'"
+          ],
+          "http_fixtures": {},
+          "passed": false,
+          "stderr": "",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 0,
+              "checks_total": 2,
+              "elapsed_seconds": 0.001361,
+              "exit_code": null,
+              "failures": [
+                "candidate could not be launched: [Errno 13] Permission denied: '/tmp/veritas-independent-case-4n5iv44d/candidate/dist/service-health'",
+                "check 1: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-4n5iv44d/report.json'",
+                "check 2: file_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-4n5iv44d/digest.txt'"
+              ]
+            }
+          ]
+        },
+        {
+          "candidate": {
+            "artifact_bytes": 7737,
+            "artifact_paths": [
+              "dist/service-health",
+              "uv.lock"
+            ],
+            "artifact_sha256": "84745134785d8fd6dfa712718dc33157eb2f413596933af21c3c90d2de948f4d",
+            "delivery_manifest": "delivery.json",
+            "dependency_lock_path": "uv.lock",
+            "source_paths": [
+              "main.py",
+              "pyproject.toml",
+              ".python-version",
+              "work"
+            ]
+          },
+          "case_id": "health-http-error-is-unhealthy",
+          "checks_passed": 1,
+          "checks_total": 3,
+          "elapsed_seconds": 0.504927,
+          "exit_code": null,
+          "failures": [
+            "step 1: candidate could not be launched: [Errno 13] Permission denied: '/tmp/veritas-independent-case-8bqa2ckf/candidate/dist/service-health'",
+            "step 1: check 1: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-8bqa2ckf/report.json'",
+            "step 1: check 2: file_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-8bqa2ckf/digest.txt'"
+          ],
+          "http_fixtures": {
+            "health": {
+              "max_in_flight": 0,
+              "requests": []
+            }
+          },
+          "passed": false,
+          "stderr": "",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 3,
+              "elapsed_seconds": 0.001158,
+              "exit_code": null,
+              "failures": [
+                "candidate could not be launched: [Errno 13] Permission denied: '/tmp/veritas-independent-case-8bqa2ckf/candidate/dist/service-health'",
+                "check 1: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-8bqa2ckf/report.json'",
+                "check 2: file_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-8bqa2ckf/digest.txt'"
+              ]
+            }
+          ]
+        }
+      ],
+      "stage_error": ""
+    }
+  }
+}

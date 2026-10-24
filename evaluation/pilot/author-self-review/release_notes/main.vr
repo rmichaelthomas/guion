@@ -1,0 +1,87 @@
+extern python "release_support:prepare_release" fn prepare_release(changes_dir: Text, config_path: Text, since: Text) -> Json
+extern python "release_support:escape_markdown" fn escape_markdown(value: Text) -> Text
+extern python "release_support:write_pair_atomic" fn write_pair_atomic(markdown_path: Text, markdown: Text, summary_path: Text, summary: Text) -> Json
+
+fn main() -> Int:
+    let arguments = args()
+    var changes_dir = ""
+    var config_path = ""
+    var markdown_path = ""
+    var summary_path = ""
+    var since = ""
+    var index = 0
+    while index < len(arguments):
+        if arguments[index] == "--changes" and index + 1 < len(arguments):
+            set changes_dir = arguments[index + 1]
+            set index = index + 2
+        else:
+            if arguments[index] == "--config" and index + 1 < len(arguments):
+                set config_path = arguments[index + 1]
+                set index = index + 2
+            else:
+                if arguments[index] == "--markdown" and index + 1 < len(arguments):
+                    set markdown_path = arguments[index + 1]
+                    set index = index + 2
+                else:
+                    if arguments[index] == "--summary" and index + 1 < len(arguments):
+                        set summary_path = arguments[index + 1]
+                        set index = index + 2
+                    else:
+                        if arguments[index] == "--since" and index + 1 < len(arguments):
+                            set since = arguments[index + 1]
+                            set index = index + 2
+                        else:
+                            eprint("unknown or incomplete argument")
+                            return 2
+    if changes_dir == "" or config_path == "" or markdown_path == "" or summary_path == "":
+        eprint("usage: release-notes --changes DIR --config PATH --markdown PATH --summary PATH [--since VERSION]")
+        return 2
+
+    let prepared = prepare_release(changes_dir, config_path, since)
+    if not json_as_bool(json_get(prepared, "ok")):
+        eprint(json_as_text(json_get(prepared, "error")))
+        return 1
+    let release_date = json_as_text(json_get(prepared, "date"))
+    let categories = json_get(prepared, "categories")
+    let releases = json_get(prepared, "releases")
+    var markdown = "# Release notes (" + release_date + ")"
+    var summaries = json_array()
+    var release_index = 0
+    while release_index < json_len(releases):
+        let release = json_index(releases, release_index)
+        let version = json_as_text(json_get(release, "version"))
+        let entries = json_get(release, "entries")
+        set markdown = markdown + "\n\n## " + version
+        var entry_count = 0
+        var category_index = 0
+        while category_index < json_len(categories):
+            let category = json_as_text(json_index(categories, category_index))
+            var category_entries = json_array()
+            var entry_index = 0
+            while entry_index < json_len(entries):
+                let entry = json_index(entries, entry_index)
+                if json_as_text(json_get(entry, "category")) == category:
+                    set category_entries = json_push(category_entries, entry)
+                set entry_index = entry_index + 1
+            if json_len(category_entries) > 0:
+                set markdown = markdown + "\n\n### " + category
+                var selected_index = 0
+                while selected_index < json_len(category_entries):
+                    let item = json_index(category_entries, selected_index)
+                    set markdown = markdown + "\n- " + escape_markdown(json_as_text(json_get(item, "text")))
+                    set entry_count = entry_count + 1
+                    set selected_index = selected_index + 1
+            set category_index = category_index + 1
+        var summary_item = json_object()
+        set summary_item = json_set(summary_item, "version", json_text(version))
+        set summary_item = json_set(summary_item, "entry_count", json_int(entry_count))
+        set summaries = json_push(summaries, summary_item)
+        set release_index = release_index + 1
+
+    var report = json_object()
+    set report = json_set(report, "releases", summaries)
+    let publication = write_pair_atomic(markdown_path, markdown + "\n", summary_path, json_stringify(report) + "\n")
+    if not json_as_bool(json_get(publication, "ok")):
+        eprint(json_as_text(json_get(publication, "error")))
+        return 1
+    return 0

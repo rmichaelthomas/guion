@@ -1,0 +1,67 @@
+{
+  "schema_version": 1,
+  "release_candidate": "RC62",
+  "change": "release-archive-validation-and-python-link-relocation",
+  "observations": {
+    "prior_rc61_archive_inspection": {
+      "members": 11284,
+      "appledouble_entries": 5642,
+      "absolute_python_venv_symlinks": 1,
+      "absolute_symlink_target": "temporary package staging tree"
+    },
+    "archive_validator_unit_tests": {
+      "passed": 4,
+      "failed": 0,
+      "covers": [
+        "valid relative symlinks",
+        "absolute and traversal member paths",
+        "absolute and escaping symlink targets",
+        "duplicate members",
+        "children beneath symlink entries"
+      ]
+    },
+    "python_bridge_link_normalization_regression": "passed",
+    "rust_workspace_tests": {
+      "passed": 120,
+      "failed": 0,
+      "includes_managed_python_integration": true
+    },
+    "formatting": "passed",
+    "clippy_warnings_denied": "passed",
+    "dyld_print_libraries_probe": {
+      "status": "no_events_observed",
+      "dynamic_runtime_provenance_claimed": false
+    },
+    "final_release_archive": {
+      "status": "validated",
+      "entries": 5637,
+      "appledouble_entries": 0,
+      "absolute_symlinks": 0,
+      "archive_links_resolve_inside_package": true,
+      "checksum_verified": true
+    },
+    "installed_rc62_acceptance_suite": {
+      "passed": 22,
+      "failed": 0,
+      "isolated_cpython_and_dependency_cache_preprovisioned": true,
+      "loopback_http_fixtures_enabled": true
+    },
+    "distribution_packaging": {
+      "installer_relocation_into_unicode_prefix": "passed",
+      "task_ledger_and_python_interop_bundles_verified": true,
+      "repeated_python_app_launch_output": "identical"
+    },
+    "extracted_archive_runtime": {
+      "extracted_to_fresh_unicode_path": true,
+      "doctor": "passed",
+      "offline_python_app_launches": 2,
+      "launch_outputs_identical": true,
+      "output": ["15", "9007199254741000", "3", "python-requests/2.32.5"]
+    }
+  },
+  "remaining": [
+    "dynamic loader event capture is unresolved",
+    "cross-platform package validation is not implemented",
+    "independent recommendation evaluation remains open"
+  ]
+}

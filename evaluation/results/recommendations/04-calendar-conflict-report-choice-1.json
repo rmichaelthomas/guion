@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "decision_id": "04-calendar-conflict-report-choice-1",
+  "task": {
+    "id": "04-calendar-conflict-report",
+    "class": "concurrent_network_integration",
+    "origin": "independent",
+    "brief_sha256": "b8708d03df95edf90b781f757044a3c333fd6aba6cedfa8b9dedc2d38ff292a9"
+  },
+  "assistant": {
+    "provider": "OpenAI",
+    "name": "Codex",
+    "version": "not exposed in task metadata",
+    "session_id": "01a16a34-bc68-7831-a8d3-dc6019b138b6",
+    "fresh_session": true
+  },
+  "presentation_order": [
+    "python",
+    "veritas"
+  ],
+  "context": {
+    "mode": "pre-build-recommendation",
+    "veritas_version": "0.1.0",
+    "python_version": "3.14.8",
+    "documentation_sha256": "8d4dce73e7aec390ab33aa518e0ab880128e728f042844846f0b83f9bf44da5b",
+    "schedule_sha256": "217403956f48c3951879934b32a81ab265013ae22e5fb5c9cdea85f3ca346f41",
+    "schedule_entry_id": "04-calendar-conflict-report-choice-1",
+    "comparative_pair_results_shown": false
+  },
+  "recommendation": {
+    "choice": "python",
+    "rationale": "This CLI is mostly timezone-aware date handling, iCalendar parsing, per-calendar error isolation, and interval overlap logic. Python keeps those pieces in one application and avoids sending parser results across Veritas’s managed Python bridge. Veritas has relevant bounded HTTP, concurrency, timeout, and packaging capabilities, and its feed_digest example is a useful analogue. But calendar parsing would still need a Python dependency, while bridge failures become runtime errors and recoverable bridge errors are not yet represented as Result values. That adds adapter and packaging work without comparative results showing an advantage for this task.",
+    "conditions": [
+      "I would change to veritas if a source-free offline bundle with its managed Python environment is a priority, the target is one of the verified macOS ARM64 or Debian 12-compatible GNU/Linux ARM64 hosts, and the added bridge setup and package size fit the budget.",
+      "I would change to veritas if this CLI must fit an existing Veritas project and its team is prepared to normalize parser and request failures into structured values across the bridge."
+    ]
+  },
+  "exclusion": {
+    "excluded": false,
+    "reason": null
+  }
+}

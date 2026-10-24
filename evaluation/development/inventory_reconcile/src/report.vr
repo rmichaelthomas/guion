@@ -1,0 +1,4 @@
+pub fn write_result(path: Text, quantities: Json, changes: Json) -> Unit:
+    let result = json_set(json_object(), "items", quantities)
+    let audited = json_set(result, "changes", changes)
+    unwrap(write_text_atomic(path, json_stringify(audited)))

@@ -1,0 +1,32 @@
+pub fn show_entries(entries: Json, unread_only: Bool) -> Unit:
+    var index = 0
+    var shown = 0
+    while index < json_len(entries):
+        let entry = json_index(entries, index)
+        let is_read = json_as_bool(json_get(entry, "read"))
+        if not unread_only or not is_read:
+            if is_read:
+                print("[read] " + json_as_text(json_get(entry, "title")) + " — " + json_as_text(json_get(entry, "published")) + " — " + json_as_text(json_get(entry, "link")))
+            else:
+                print("[new] " + json_as_text(json_get(entry, "title")) + " — " + json_as_text(json_get(entry, "published")) + " — " + json_as_text(json_get(entry, "link")))
+            set shown = shown + 1
+        set index = index + 1
+    if shown == 0:
+        if unread_only:
+            print("No unread items.")
+        else:
+            print("No feed items.")
+
+pub fn show_summary(entries: Json) -> Unit:
+    var index = 0
+    var read_count = 0
+    while index < json_len(entries):
+        if json_as_bool(json_get(json_index(entries, index), "read")):
+            set read_count = read_count + 1
+        set index = index + 1
+    print("Items:")
+    print(json_len(entries))
+    print("Unread:")
+    print(json_len(entries) - read_count)
+    print("Read:")
+    print(read_count)

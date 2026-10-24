@@ -1,0 +1,39 @@
+fn escape_steps(cx: Float64, cy: Float64, limit: Int) -> Int:
+    var x = 0.0
+    var y = 0.0
+    var steps = 0
+    while steps < limit and x * x + y * y <= 4.0:
+        let next_x = x * x - y * y + cx
+        set y = 2.0 * x * y + cy
+        set x = next_x
+        set steps = steps + 1
+    return steps
+
+fn calculate() -> Int:
+    let width = 96
+    let height = 64
+    let limit = 80
+    let step = 0.03125
+    var y_index = 0
+    var cy = -1.0
+    var total_steps = 0
+    var interior = 0
+    while y_index < height:
+        var x_index = 0
+        var cx = -2.0
+        while x_index < width:
+            let steps = escape_steps(cx, cy, limit)
+            set total_steps = total_steps + steps
+            if steps == limit:
+                set interior = interior + 1
+            set cx = cx + step
+            set x_index = x_index + 1
+        set cy = cy + step
+        set y_index = y_index + 1
+    return total_steps * 10000 + interior
+
+fn main() -> Int:
+    let result = calculate()
+    print(result / 10000)
+    print(result % 10000)
+    return 0

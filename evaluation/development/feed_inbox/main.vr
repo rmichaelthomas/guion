@@ -1,0 +1,147 @@
+import "src/inbox_store.vr"
+import "src/inbox_view.vr"
+
+extern python "feed_inbox:parse_entries" fn parse_entries(source: Text) -> List[Map[Text, Text]]
+
+fn fetch_feed(url: Text) -> Result[Text, HttpError]:
+    return http_get(url)
+
+fn persist(entries: Json) -> Result[Unit, FileError]:
+    let document = json_set(json_object(), "entries", entries)
+    return write_text_atomic("inbox.json", json_stringify(document))
+
+fn save_or_report(entries: Json) -> Bool:
+    let saved = persist(entries)
+    if is_ok(saved):
+        return true
+    let problem = error(saved)
+    print("Cannot save inbox: " + file_error_code(problem) + " — " + file_error_message(problem))
+    return false
+
+fn main() -> Int:
+    let arguments = args()
+    if len(arguments) == 0:
+        print("Usage: veritas run PROJECT <refresh URL [URL ...]|import-feed PATH|list [unread]|summary|read LINK|unread LINK>")
+        return 2
+
+    var entries = json_array()
+    let contents = read_text("inbox.json")
+    if is_ok(contents):
+        let parsed = json_parse(unwrap(contents))
+        if not is_ok(parsed):
+            let problem = error(parsed)
+            print("Invalid inbox.json: " + json_error_code(problem) + " — " + json_error_message(problem))
+            return 1
+        let document = unwrap(parsed)
+        if json_has(document, "entries"):
+            set entries = json_get(document, "entries")
+        else:
+            print("Invalid inbox.json: missing entries")
+            return 1
+    else:
+        let problem = error(contents)
+        if file_error_code(problem) != "R_FILE_NOT_FOUND":
+            print("Cannot read inbox.json: " + file_error_code(problem) + " — " + file_error_message(problem))
+            return 1
+
+    let command = arguments[0]
+    if command == "list":
+        if len(arguments) == 1:
+            show_entries(entries, false)
+            return 0
+        if len(arguments) == 2 and arguments[1] == "unread":
+            show_entries(entries, true)
+            return 0
+        print("Usage: list [unread]")
+        return 2
+
+    if command == "summary":
+        if len(arguments) != 1:
+            print("Usage: summary")
+            return 2
+        show_summary(entries)
+        return 0
+
+    if command == "read" or command == "unread":
+        if len(arguments) != 2:
+            print("Usage: " + command + " LINK")
+            return 2
+        let link = arguments[1]
+        if not has_entry(entries, link):
+            print("No inbox item: " + link)
+            return 1
+        let updated = mark_entry(entries, link, command == "read")
+        if not save_or_report(updated):
+            return 1
+        if command == "read":
+            print("Marked read: " + link)
+        else:
+            print("Marked unread: " + link)
+        return 0
+
+    if command == "import-feed":
+        if len(arguments) != 2:
+            print("Usage: import-feed PATH")
+            return 2
+        let source = read_text(arguments[1])
+        if not is_ok(source):
+            let problem = error(source)
+            print("Cannot read feed: " + file_error_code(problem) + " — " + file_error_message(problem))
+            return 1
+        let items = parse_entries(unwrap(source))
+        var new_count = 0
+        for item in items:
+            if not has_entry(entries, item["link"]):
+                set new_count = new_count + 1
+            set entries = merge_entry(entries, item)
+        if not save_or_report(entries):
+            return 1
+        print("New items:")
+        print(new_count)
+        print("Total items:")
+        print(json_len(entries))
+        return 0
+
+    if command == "refresh":
+        if len(arguments) < 2:
+            print("Usage: refresh FEED_URL [FEED_URL ...]")
+            return 2
+        let urls = args_from(1)
+        let fetched = parallel_map(urls, fetch_feed, 4)
+        if not is_ok(fetched):
+            let problem = error(fetched)
+            print("Feed workers failed")
+            print(task_index(problem))
+            print(task_code(problem))
+            return 1
+        let responses = unwrap(fetched)
+        var new_count = 0
+        var failures = ""
+        var response_index = 0
+        for response in responses:
+            if is_ok(response):
+                let items = parse_entries(unwrap(response))
+                for item in items:
+                    let link = item["link"]
+                    if not has_entry(entries, link):
+                        set new_count = new_count + 1
+                    set entries = merge_entry(entries, item)
+            else:
+                let problem = error(response)
+                set failures = failures + urls[response_index] + " — " + http_error_code(problem) + ": " + http_error_message(problem) + "\n"
+            set response_index = response_index + 1
+
+        if not save_or_report(entries):
+            return 1
+        print("New items:")
+        print(new_count)
+        print("Total items:")
+        print(json_len(entries))
+        if failures != "":
+            print("Feed errors:")
+            print(failures)
+            return 1
+        return 0
+
+    print("Unknown command: " + command)
+    return 2

@@ -1,0 +1,14 @@
+[project]
+name = "api-sync"
+version = "0.1.0"
+entry = "main.vr"
+
+[environment]
+variables = ["VERITAS_API_TOKEN"]
+
+[network]
+hosts = ["127.0.0.1"]
+timeout_ms = 5000
+max_request_bytes = 1048576
+max_response_bytes = 1048576
+max_redirects = 3

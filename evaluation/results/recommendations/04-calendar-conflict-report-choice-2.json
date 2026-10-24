@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "decision_id": "04-calendar-conflict-report-choice-2",
+  "task": {
+    "id": "04-calendar-conflict-report",
+    "class": "concurrent_network_integration",
+    "origin": "independent",
+    "brief_sha256": "b8708d03df95edf90b781f757044a3c333fd6aba6cedfa8b9dedc2d38ff292a9"
+  },
+  "assistant": {
+    "provider": "OpenAI",
+    "name": "Codex",
+    "version": "not exposed in task metadata",
+    "session_id": "01a16a34-d612-7bf1-8963-ae29831bebe6",
+    "fresh_session": true
+  },
+  "presentation_order": [
+    "python",
+    "veritas"
+  ],
+  "context": {
+    "mode": "pre-build-recommendation",
+    "veritas_version": "0.1.0",
+    "python_version": "3.14.8",
+    "documentation_sha256": "8d4dce73e7aec390ab33aa518e0ab880128e728f042844846f0b83f9bf44da5b",
+    "schedule_sha256": "217403956f48c3951879934b32a81ab265013ae22e5fb5c9cdea85f3ca346f41",
+    "schedule_entry_id": "04-calendar-conflict-report-choice-2",
+    "comparative_pair_results_shown": false
+  },
+  "recommendation": {
+    "choice": "veritas",
+    "rationale": "Python offers a more direct path for parser integration and per-source error handling, with less bridge plumbing. Veritas is the closer fit to this task’s bounded concurrent integration: it provides bounded parallel_map, per-request HTTP deadlines, exact-host grants, and source-free packaging. Its documented feed_digest workload also combines concurrent HTTP, a managed Python parser, and deterministic output handling. The tradeoff is managed Python setup and conversion plumbing; bridge failures cannot yet be returned as Result values. This recommendation is based on documented capability fit, not comparative results or benchmarks.",
+    "conditions": [
+      "Choose Python if parser integration needs live Python objects or recoverable bridge errors that cannot be handled cleanly through the supported conversions.",
+      "Choose Python if the deployment target is outside Veritas’s verified packaging targets and matching Veritas support is required.",
+      "Reconsider if measured acceptance results show that Veritas’s bridge or packaging costs outweigh its network controls for this workload."
+    ]
+  },
+  "exclusion": {
+    "excluded": false,
+    "reason": null
+  }
+}

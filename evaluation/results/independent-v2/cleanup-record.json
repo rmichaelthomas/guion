@@ -1,0 +1,25 @@
+{
+  "recorded_at_utc": "2026-10-24T04:29:26.605365Z",
+  "purpose": "workspace hygiene before the independent Veritas campaign",
+  "preserved_campaign_package": "distribution/out-north-star-sprint-final-linux-v30/veritas-0.1.0-linux-aarch64.tar.gz",
+  "docker_builder_cache_prune_reported": "docker builder prune --all --force removed 23.4GB of reported build cache; current build cache is 0B",
+  "cargo_clean_reported": "cargo clean reported 15.4GiB removed; three nested Rust targets were also removed",
+  "formal_campaign_sessions_started": false,
+  "updated_at_utc": "2026-10-24T04:32:29.360903Z",
+  "initial_matching_extracted_release_tree_count": 54,
+  "matching_extracted_release_trees_removed_total": 54,
+  "matching_release_archives_preserved_total": 54,
+  "remaining_unpacked_release_trees_without_adjacent_archives": 3,
+  "estimated_disk_for_initial_matching_extractions_mib": 22481.2,
+  "docker_stale_campaign_images_removed": 17,
+  "docker_build_cache_after_cleanup": "0B",
+  "campaign_image_ids_retained": {
+    "python": "sha256:2bc7a7c22371ebcd3bfba0c04c795f3430d00fee800d618a71c64570f47e323b",
+    "veritas": "sha256:fffd3076f665c38a9d0694517f52627b385dbef721b29e3aa23d82e9165778e9"
+  },
+  "campaign_package_sha256_retained": "9b0712a92bcb12aeeafc91485ae505105bf785bc6193f2da408154671be6538d",
+  "host_free_space_observed_gib": {
+    "before": 22,
+    "after": 56
+  }
+}

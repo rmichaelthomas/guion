@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "status": "selected_before_independent_runs",
+  "platform": "linux/arm64",
+  "python_version": "3.14.8",
+  "uv_version": "0.13.4",
+  "base_image": {
+    "reference": "python:3.14.8-slim-bookworm",
+    "sha256": "44e000a07b48bef1517a2b14adc93c17af728ca98858b5e24c6e1b18de1b2ef2"
+  },
+  "veritas_archive": {
+    "path": "distribution/out-north-star-sprint-final-linux-v30/veritas-0.1.0-linux-aarch64.tar.gz",
+    "sha256": "9b0712a92bcb12aeeafc91485ae505105bf785bc6193f2da408154671be6538d"
+  },
+  "dependency_bundle": {
+    "path": "evaluation/sandbox/dependencies/campaign-dependencies.tar.gz",
+    "sha256": "34a2a4d8d157839eea434267f38e475187031f081f358387859181e5be136803"
+  }
+}

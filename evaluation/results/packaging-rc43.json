@@ -1,0 +1,80 @@
+{
+  "schema_version": 1,
+  "milestone": "RC43",
+  "host": "darwin-arm64",
+  "python_version": "3.14.8",
+  "uv_version": "0.13.4",
+  "feature": "runtime_license_and_macho_dependency_provenance",
+  "status": "passed",
+  "checks": [
+    {
+      "command": "cargo fmt --all --check",
+      "passed": true
+    },
+    {
+      "command": "cargo clippy --workspace --all-targets --offline -- -D warnings",
+      "passed": true
+    },
+    {
+      "command": "cargo test --workspace --offline",
+      "passed": true,
+      "passed_tests": 107,
+      "failed_tests": 0,
+      "permission_note": "Required pinned runtime and localhost access for integration cases."
+    },
+    {
+      "command": "python3 -m unittest discover -s evaluation/tests -v",
+      "passed": true,
+      "passed_tests": 20,
+      "failed_tests": 0,
+      "permission_note": "Required localhost access for fixture HTTP servers."
+    },
+    {
+      "test": "package_runs_compiled_python_wheels_after_relocation_without_python_setup",
+      "passed": true,
+      "python_distributions_checked": ["pip", "numpy", "orjson", "requests"],
+      "runtime_license_components": ["CPython", "uv", "Tcl/Tk"],
+      "native_report_has_unresolved_references": false,
+      "bundled_tcl_tk_libraries_found": true,
+      "relocated_offline_runs": 2,
+      "tamper_cases_rejected": ["python_license", "native_extension", "python_runtime"]
+    },
+    {
+      "test": "package_builds_a_relocatable_app_with_declared_resources",
+      "passed": true,
+      "native_report_created_for_pure_veritas_app": true
+    },
+    {
+      "test": "shipped_release_binary_builds_and_runs_a_relocated_native_wheel_app",
+      "passed": true,
+      "python_distributions": 8,
+      "managed_interpreter_includes_pip": true,
+      "complete_license_records": 8,
+      "missing_license_warnings": 0,
+      "distribution_license_files": 47,
+      "runtime_license_components": ["CPython", "uv", "Tcl/Tk"],
+      "runtime_license_files": 5,
+      "native_images": 34,
+      "bundled_libraries": 2,
+      "system_libraries": 23,
+      "unresolved_native_references": 0,
+      "relocated_path_included_spaces_and_unicode": true,
+      "verify_package_passed": true,
+      "offline_runs": 2
+    },
+    {
+      "test": "shipped_source_free_task_ledger_bundle",
+      "passed": true,
+      "verify_package_passed": true,
+      "state_change_command_passed": true
+    }
+  ],
+  "scope_limits": [
+    "Only macOS ARM64 has been exercised.",
+    "The static scan does not observe libraries loaded through runtime APIs such as dlopen.",
+    "The offline wheel cache is excluded from the native image graph and is not independently hashed as a tree.",
+    "Native images are not yet mapped to owning distributions with verified RECORD metadata.",
+    "Standalone app bundles do not yet contain the Veritas Rust runtime dependency notices.",
+    "Unsigned package hashes do not authenticate the publisher or prove legal compliance."
+  ]
+}

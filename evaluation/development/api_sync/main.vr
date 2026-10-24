@@ -1,0 +1,110 @@
+import "src/state.vr"
+
+fn send_request(method: Text, url: Text, token: Text, body: Text) -> Result[Json, HttpError]:
+    let headers = {"authorization": "Bearer " + token, "accept": "application/json", "content-type": "application/json"}
+    return http_request(method, url, headers, body)
+
+fn main() -> Int:
+    let arguments = args()
+    if len(arguments) != 1 and len(arguments) != 2:
+        print("Usage: veritas run PROJECT BASE_URL [START_PAGE]")
+        return 2
+
+    let base_url = arguments[0]
+    var initial_page = "1"
+    var use_initial_page = false
+    if len(arguments) == 2:
+        set initial_page = arguments[1]
+        set use_initial_page = true
+    let token_option = env("VERITAS_API_TOKEN")
+    if not is_some(token_option):
+        print("Missing VERITAS_API_TOKEN")
+        return 2
+    let token = unwrap(token_option)
+    var records = json_object()
+    var next_page = json_int(1)
+    let state_read = read_text("sync-state.json")
+    if is_ok(state_read):
+        let state_parse = json_parse(unwrap(state_read))
+        if not is_ok(state_parse):
+            print("Invalid sync-state.json: " + json_error_code(error(state_parse)))
+            return 1
+        let state = unwrap(state_parse)
+        set records = json_get(state, "records")
+        set next_page = json_get(state, "next_page")
+        set use_initial_page = false
+    else:
+        let problem = error(state_read)
+        if file_error_code(problem) != "R_FILE_NOT_FOUND":
+            print("Cannot read sync-state.json: " + file_error_code(problem))
+            return 1
+
+    while not json_is_null(next_page):
+        var url = base_url + "/records?page=" + json_stringify(next_page)
+        if use_initial_page:
+            set url = base_url + "/records?page=" + initial_page
+            set use_initial_page = false
+        var attempt = 0
+        var completed = false
+        while attempt < 3 and not completed:
+            let response = send_request("GET", url, token, "")
+            if not is_ok(response):
+                set attempt = attempt + 1
+            else:
+                let envelope = unwrap(response)
+                let status = json_as_int(json_get(envelope, "status"))
+                if status >= 200 and status < 300:
+                    let parsed = json_parse(json_as_text(json_get(envelope, "body")))
+                    if not is_ok(parsed):
+                        print("Invalid API page JSON: " + json_error_code(error(parsed)))
+                        return 1
+                    let page = unwrap(parsed)
+                    let page_records = json_get(page, "items")
+                    var index = 0
+                    while index < json_len(page_records):
+                        let record = json_index(page_records, index)
+                        let record_id = json_as_text(json_get(record, "id"))
+                        set records = json_set(records, record_id, record)
+                        set index = index + 1
+                    set next_page = json_get(page, "next")
+                    if not persist_sync_state(records, next_page):
+                        print("Could not persist sync state")
+                        return 1
+                    set completed = true
+                else:
+                    if status >= 500 and attempt < 2:
+                        set attempt = attempt + 1
+                    else:
+                        print("API page failed with status:")
+                        print(status)
+                        return 1
+        if not completed:
+            print("API page request failed after retries")
+            return 1
+
+    let acknowledge_body = json_stringify(json_set(json_object(), "records_seen", json_int(json_len(records))))
+    var attempt = 0
+    var acknowledged = false
+    while attempt < 3 and not acknowledged:
+        let response = send_request("POST", base_url + "/ack", token, acknowledge_body)
+        if not is_ok(response):
+            set attempt = attempt + 1
+        else:
+            let envelope = unwrap(response)
+            let status = json_as_int(json_get(envelope, "status"))
+            if status >= 200 and status < 300:
+                set acknowledged = true
+            else:
+                if status >= 500 and attempt < 2:
+                    set attempt = attempt + 1
+                else:
+                    print("Acknowledgement failed with status:")
+                    print(status)
+                    return 1
+    if not acknowledged:
+        print("Acknowledgement failed after retries")
+        return 1
+
+    print("Records:")
+    print(json_len(records))
+    return 0

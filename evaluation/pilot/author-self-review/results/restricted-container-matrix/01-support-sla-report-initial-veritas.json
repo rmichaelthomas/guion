@@ -1,0 +1,166 @@
+{
+  "schema_version": 1,
+  "language": "veritas",
+  "task_id": "01-support-sla-report",
+  "stage": "initial",
+  "candidate_project_sha256": "527613aa3fe15498f5602b42e70c2e18bbb94373fba003f26df44634ca1d3728",
+  "container": {
+    "image": "veritas-campaign-veritas:0.1.0",
+    "image_id": "sha256:0c98cb8bf2b132290731f77306fdf014946fdb87e9205c5091190656da79892c",
+    "package_archive_sha256": "080750d582c199e21e4098da7f21023958083c5602db725f2cb8226e9e20c203",
+    "python_base_digest": "sha256:82bc3c539b8813ada9d68c63b40158fa002f7f33de9bf3312a3dfdc0620dff56",
+    "shared_dependencies_sha256": "34a2a4d8d157839eea434267f38e475187031f081f358387859181e5be136803",
+    "uv_version": "0.13.4",
+    "platform": "linux/arm64",
+    "network": "none",
+    "read_only_rootfs": true,
+    "candidate_uid": 10001,
+    "limits": {
+      "cpus": 2,
+      "memory_bytes": 2147483648,
+      "pids": 128,
+      "tmpfs_bytes": 536870912
+    }
+  },
+  "container_exit_code": 0,
+  "launcher_stderr": "",
+  "case_report": {
+    "cases": [
+      {
+        "candidate": {},
+        "case_id": "sla-initial-report",
+        "checks_passed": 8,
+        "checks_total": 8,
+        "elapsed_seconds": 0.114184,
+        "exit_code": 0,
+        "failures": [],
+        "http_fixtures": {},
+        "passed": true,
+        "stderr": "",
+        "stdout": "",
+        "steps": [
+          {
+            "checks_passed": 8,
+            "checks_total": 8,
+            "elapsed_seconds": 0.106309,
+            "exit_code": 0,
+            "failures": []
+          }
+        ]
+      },
+      {
+        "candidate": {},
+        "case_id": "sla-duplicate-id-preserves-output",
+        "checks_passed": 2,
+        "checks_total": 2,
+        "elapsed_seconds": 0.108099,
+        "exit_code": 1,
+        "failures": [],
+        "http_fixtures": {},
+        "passed": true,
+        "stderr": "main.vr:47:16: runtime error[R_PYTHON_CALL]: Python ValueError: duplicate ticket id: D-1\nTraceback (most recent call last):\n  File \"<string>\", line 193, in <module>\n  File \"/tmp/veritas-independent-case-il3gjrwn/sla_support.py\", line 21, in parse_tickets\n    raise ValueError(\"duplicate ticket id: \" + row[\"id\"])\nValueError: duplicate ticket id: D-1\n\n",
+        "stdout": "",
+        "steps": [
+          {
+            "checks_passed": 2,
+            "checks_total": 2,
+            "elapsed_seconds": 0.102262,
+            "exit_code": 1,
+            "failures": []
+          }
+        ]
+      },
+      {
+        "candidate": {},
+        "case_id": "sla-missing-policy-entry-preserves-output",
+        "checks_passed": 1,
+        "checks_total": 1,
+        "elapsed_seconds": 0.102721,
+        "exit_code": 1,
+        "failures": [],
+        "http_fixtures": {},
+        "passed": true,
+        "stderr": "unknown priority or missing policy entry: urgent\n",
+        "stdout": "",
+        "steps": [
+          {
+            "checks_passed": 1,
+            "checks_total": 1,
+            "elapsed_seconds": 0.097665,
+            "exit_code": 1,
+            "failures": []
+          }
+        ]
+      },
+      {
+        "candidate": {},
+        "case_id": "sla-malformed-csv-preserves-output",
+        "checks_passed": 1,
+        "checks_total": 1,
+        "elapsed_seconds": 0.102328,
+        "exit_code": 1,
+        "failures": [],
+        "http_fixtures": {},
+        "passed": true,
+        "stderr": "main.vr:47:16: runtime error[R_PYTHON_CALL]: Python ValueError: malformed CSV row\nTraceback (most recent call last):\n  File \"<string>\", line 193, in <module>\n  File \"/tmp/veritas-independent-case-y0b7rnf7/sla_support.py\", line 19, in parse_tickets\n    raise ValueError(\"malformed CSV row\")\nValueError: malformed CSV row\n\n",
+        "stdout": "",
+        "steps": [
+          {
+            "checks_passed": 1,
+            "checks_total": 1,
+            "elapsed_seconds": 0.097214,
+            "exit_code": 1,
+            "failures": []
+          }
+        ]
+      },
+      {
+        "candidate": {},
+        "case_id": "sla-unknown-priority-preserves-output",
+        "checks_passed": 1,
+        "checks_total": 1,
+        "elapsed_seconds": 0.102843,
+        "exit_code": 1,
+        "failures": [],
+        "http_fixtures": {},
+        "passed": true,
+        "stderr": "unknown priority or missing policy entry: urgent\n",
+        "stdout": "",
+        "steps": [
+          {
+            "checks_passed": 1,
+            "checks_total": 1,
+            "elapsed_seconds": 0.097575,
+            "exit_code": 1,
+            "failures": []
+          }
+        ]
+      },
+      {
+        "candidate": {},
+        "case_id": "sla-invalid-timestamp-preserves-output",
+        "checks_passed": 1,
+        "checks_total": 1,
+        "elapsed_seconds": 0.102734,
+        "exit_code": 1,
+        "failures": [],
+        "http_fixtures": {},
+        "passed": true,
+        "stderr": "main.vr:70:19: runtime error[R_PYTHON_CALL]: Python ValueError: Invalid isoformat string: 'not-a-timestamp'\nTraceback (most recent call last):\n  File \"<string>\", line 193, in <module>\n  File \"/tmp/veritas-independent-case-2cp37454/sla_support.py\", line 29, in minutes_since\n    start = dt.datetime.fromisoformat(created_at.replace(\"Z\", \"+00:00\"))\nValueError: Invalid isoformat string: 'not-a-timestamp'\n\n",
+        "stdout": "",
+        "steps": [
+          {
+            "checks_passed": 1,
+            "checks_total": 1,
+            "elapsed_seconds": 0.09781,
+            "exit_code": 1,
+            "failures": []
+          }
+        ]
+      }
+    ],
+    "passed": true,
+    "stage": "initial",
+    "task_id": "01-support-sla-report"
+  }
+}

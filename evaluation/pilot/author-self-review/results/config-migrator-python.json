@@ -1,0 +1,44 @@
+{
+  "candidate": "author-calibrated-python-config-migrator",
+  "interpreter": "/Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/work/veritas-foundation/evaluation/pilot/author-self-review/config_migrator/.veritas/python-bridge/.venv/bin/python",
+  "passed": 6,
+  "total": 6,
+  "cases": [
+    {
+      "id": "config-migrator-v1-to-v2",
+      "passed": true,
+      "elapsed_seconds": 0.063909,
+      "failures": []
+    },
+    {
+      "id": "config-migrator-future-version-safe",
+      "passed": true,
+      "elapsed_seconds": 0.057431,
+      "failures": []
+    },
+    {
+      "id": "config-migrator-current-schema-check-is-read-only",
+      "passed": true,
+      "elapsed_seconds": 0.056791,
+      "failures": []
+    },
+    {
+      "id": "config-migrator-invalid-current-schema-is-safe",
+      "passed": true,
+      "elapsed_seconds": 0.056542,
+      "failures": []
+    },
+    {
+      "id": "config-migrator-v2-to-v3",
+      "passed": true,
+      "elapsed_seconds": 0.067026,
+      "failures": []
+    },
+    {
+      "id": "config-migrator-current-schema-migrate-no-op",
+      "passed": true,
+      "elapsed_seconds": 0.062293,
+      "failures": []
+    }
+  ]
+}

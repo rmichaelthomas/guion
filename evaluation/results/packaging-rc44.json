@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "milestone": "RC44",
+  "host": "darwin-arm64",
+  "feature": "standalone_app_rust_dependency_notice_provenance",
+  "status": "passed",
+  "checks": [
+    {
+      "command": "cargo fmt --all --check",
+      "passed": true
+    },
+    {
+      "command": "cargo clippy --workspace --all-targets --offline -- -D warnings",
+      "passed": true
+    },
+    {
+      "command": "VERITAS_UV=<pinned uv> cargo test --workspace --offline",
+      "passed": true,
+      "passed_tests": 109,
+      "failed_tests": 0
+    },
+    {
+      "command": "VERITAS_UV=<pinned uv> UV_CACHE_DIR=<managed cache> UV_PYTHON_INSTALL_DIR=<managed CPython> python3 -m unittest discover -s evaluation/tests -v",
+      "passed": true,
+      "passed_tests": 20,
+      "failed_tests": 0
+    },
+    {
+      "test": "release_packager_builds_and_verifies_task_ledger_app",
+      "passed": true,
+      "rust_dependency_packages": 121,
+      "rust_notice_files": 207
+    },
+    {
+      "test": "release_packager_rejects_tampered_rust_notice",
+      "passed": true
+    },
+    {
+      "test": "final_archive_checksum_and_relocated_source_free_launch",
+      "passed": true,
+      "checksum_algorithm": "SHA-256"
+    }
+  ],
+  "scope_limits": [
+    "Only macOS ARM64 has been exercised.",
+    "Native-image ownership is not yet mapped to verified Python distribution RECORD metadata.",
+    "The native scanner does not see runtime-loaded libraries such as dlopen targets.",
+    "The offline wheel cache is excluded from the native-image graph and is not independently hashed as a tree.",
+    "Package hashes are unsigned and do not authenticate the publisher or determine legal compatibility.",
+    "This release milestone does not establish that an assistant should recommend Veritas over Python."
+  ]
+}

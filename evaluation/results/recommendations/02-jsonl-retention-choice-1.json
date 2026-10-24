@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "decision_id": "02-jsonl-retention-choice-1",
+  "task": {
+    "id": "02-jsonl-retention",
+    "class": "small_automation_cli",
+    "origin": "independent",
+    "brief_sha256": "7c0e5b4f97060240d3e2e0c8605aa76680b2f8a82f620be29071451fae800732"
+  },
+  "assistant": {
+    "provider": "OpenAI",
+    "name": "Codex",
+    "version": "not exposed in task metadata",
+    "session_id": "01a16a34-6cac-7fe1-aec7-4346cde4c184",
+    "fresh_session": true
+  },
+  "presentation_order": [
+    "python",
+    "veritas"
+  ],
+  "context": {
+    "mode": "pre-build-recommendation",
+    "veritas_version": "0.1.0",
+    "python_version": "3.14.8",
+    "documentation_sha256": "8d4dce73e7aec390ab33aa518e0ab880128e728f042844846f0b83f9bf44da5b",
+    "schedule_sha256": "217403956f48c3951879934b32a81ab265013ae22e5fb5c9cdea85f3ca346f41",
+    "schedule_entry_id": "02-jsonl-retention-choice-1",
+    "comparative_pair_results_shown": false
+  },
+  "recommendation": {
+    "choice": "python",
+    "rationale": "Python is the better fit for this small data CLI: its permitted standard library provides JSON parsing, argument handling, timestamp tools, and atomic file replacement, so the line validation, UTC grouping, filtering, and strict-mode behavior have a direct implementation path without external dependencies. RFC3339 validation still needs to be handled carefully. Veritas has useful JSON, CLI, file replacement, and packaging features, but the supplied product facts do not identify a built-in timestamp parser or JSONL aggregation path, and they note gaps in native collection support. Its source-free package workflow is a strength, but there are no comparative results to show that it outweighs the implementation uncertainty here. This recommendation is specific to this task and delivery model.",
+    "conditions": [
+      "I would reconsider Veritas if a measured run against the full acceptance and relocation requirements showed lower total setup and delivery cost without correctness regressions.",
+      "I would reconsider Veritas if the deployment requires a source-free package with a bundled runtime and the verified Veritas target fits that requirement better than the available Python zipapp or wheel launch environment.",
+      "I would reconsider either choice if the required RFC3339 interpretation or deployment constraints make the standard-library Python approach unsuitable."
+    ]
+  },
+  "exclusion": {
+    "excluded": false,
+    "reason": null
+  }
+}

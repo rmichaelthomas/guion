@@ -1,0 +1,43 @@
+pub fn make_task(title: Text, note: Text) -> Json:
+    let fields = json_set(json_object(), "title", json_text(title))
+    let with_note = json_set(fields, "note", json_text(note))
+    return json_set(with_note, "done", json_bool(false))
+
+pub fn title_of(task: Json) -> Text:
+    return json_as_text(json_get(task, "title"))
+
+pub fn has_title(tasks: Json, title: Text) -> Bool:
+    let count = json_len(tasks)
+    var index = 0
+    while index < count:
+        if title_of(json_index(tasks, index)) == title:
+            return true
+        set index = index + 1
+    return false
+
+pub fn add_task(tasks: Json, title: Text, note: Text) -> Json:
+    return json_push(tasks, make_task(title, note))
+
+pub fn mark_done(tasks: Json, title: Text) -> Json:
+    let count = json_len(tasks)
+    var index = 0
+    var updated = json_array()
+    while index < count:
+        let task = json_index(tasks, index)
+        if title_of(task) == title:
+            set updated = json_push(updated, json_set(task, "done", json_bool(true)))
+        else:
+            set updated = json_push(updated, task)
+        set index = index + 1
+    return updated
+
+pub fn remove_task(tasks: Json, title: Text) -> Json:
+    let count = json_len(tasks)
+    var index = 0
+    var updated = json_array()
+    while index < count:
+        let task = json_index(tasks, index)
+        if title_of(task) != title:
+            set updated = json_push(updated, task)
+        set index = index + 1
+    return updated

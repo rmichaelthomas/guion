@@ -1,0 +1,6 @@
+import "modules_math.vr"
+
+fn main() -> Int:
+    let input = Sample(20)
+    print(double(input.value + 1))
+    return 0

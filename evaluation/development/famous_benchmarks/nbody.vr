@@ -1,0 +1,100 @@
+record System:
+    x: List[Float64]
+    y: List[Float64]
+    z: List[Float64]
+    vx: List[Float64]
+    vy: List[Float64]
+    vz: List[Float64]
+    mass: List[Float64]
+
+fn energy(system: System) -> Float64:
+    let x = system.x
+    let y = system.y
+    let z = system.z
+    let vx = system.vx
+    let vy = system.vy
+    let vz = system.vz
+    let mass = system.mass
+    let count = len(mass)
+    var total = 0.0
+    var i = 0
+    while i < count:
+        let speed_squared = vx[i] * vx[i] + vy[i] * vy[i] + vz[i] * vz[i]
+        set total = total + mass[i] * speed_squared * 0.5
+        var j = i + 1
+        while j < count:
+            let dx = x[i] - x[j]
+            let dy = y[i] - y[j]
+            let dz = z[i] - z[j]
+            let distance = sqrt(dx * dx + dy * dy + dz * dz)
+            set total = total - mass[i] * mass[j] / distance
+            set j = j + 1
+        set i = i + 1
+    return total
+
+fn advance(system: System, dt: Float64, steps: Int) -> System:
+    var x = system.x
+    var y = system.y
+    var z = system.z
+    var vx = system.vx
+    var vy = system.vy
+    var vz = system.vz
+    let mass = system.mass
+    let count = len(mass)
+    var step = 0
+    while step < steps:
+        var i = 0
+        while i < count:
+            var j = i + 1
+            while j < count:
+                let dx = x[i] - x[j]
+                let dy = y[i] - y[j]
+                let dz = z[i] - z[j]
+                let distance_squared = dx * dx + dy * dy + dz * dz
+                let distance = sqrt(distance_squared)
+                let magnitude = dt / (distance_squared * distance)
+                set vx = list_set(vx, i, vx[i] - dx * mass[j] * magnitude)
+                set vy = list_set(vy, i, vy[i] - dy * mass[j] * magnitude)
+                set vz = list_set(vz, i, vz[i] - dz * mass[j] * magnitude)
+                set vx = list_set(vx, j, vx[j] + dx * mass[i] * magnitude)
+                set vy = list_set(vy, j, vy[j] + dy * mass[i] * magnitude)
+                set vz = list_set(vz, j, vz[j] + dz * mass[i] * magnitude)
+                set j = j + 1
+            set x = list_set(x, i, x[i] + dt * vx[i])
+            set y = list_set(y, i, y[i] + dt * vy[i])
+            set z = list_set(z, i, z[i] + dt * vz[i])
+            set i = i + 1
+        set step = step + 1
+    return System(x, y, z, vx, vy, vz, mass)
+
+fn initial_system() -> System:
+    let pi = 3.141592653589793
+    let solar_mass = 4.0 * pi * pi
+    let days_per_year = 365.24
+    let masses = [solar_mass, 0.0009547919384243266 * solar_mass, 0.0002858859806661308 * solar_mass, 0.00004366244043351563 * solar_mass, 0.000051513890204661145 * solar_mass]
+    let x = [0.0, 4.841431442464721, 8.34336671824458, 12.894369562139131, 15.379697114850917]
+    let y = [0.0, -1.1603200440274284, 4.124798564124305, -15.111151401698631, -25.919314609987964]
+    let z = [0.0, -0.10362204447112311, -0.4035234171143214, -0.22330757889265573, 0.17925877295037118]
+    let vx = [0.0, 0.001660076642744037 * days_per_year, -0.002767425107268624 * days_per_year, 0.002964601375647616 * days_per_year, 0.0026806777249038932 * days_per_year]
+    let vy = [0.0, 0.007699011184197404 * days_per_year, 0.004998528012349172 * days_per_year, 0.0023784717395948095 * days_per_year, 0.001628241700382423 * days_per_year]
+    let vz = [0.0, -0.0000690460016972063 * days_per_year, 0.00002304172975737639 * days_per_year, -0.00002965895685402376 * days_per_year, -0.00009515922545197159 * days_per_year]
+    var momentum_x = 0.0
+    var momentum_y = 0.0
+    var momentum_z = 0.0
+    var i = 1
+    while i < len(masses):
+        set momentum_x = momentum_x + vx[i] * masses[i]
+        set momentum_y = momentum_y + vy[i] * masses[i]
+        set momentum_z = momentum_z + vz[i] * masses[i]
+        set i = i + 1
+    let adjusted_vx = list_set(vx, 0, -momentum_x / solar_mass)
+    let adjusted_vy = list_set(vy, 0, -momentum_y / solar_mass)
+    let adjusted_vz = list_set(vz, 0, -momentum_z / solar_mass)
+    return System(x, y, z, adjusted_vx, adjusted_vy, adjusted_vz, masses)
+
+fn main() -> Int:
+    var system = initial_system()
+    print(energy(system))
+    set system = advance(system, 0.01, 20000)
+    print(energy(system))
+    return 0

@@ -1,0 +1,49 @@
+{
+  "candidate": "author-calibrated-python-reference",
+  "passed": 7,
+  "total": 7,
+  "cases": [
+    {
+      "id": "sla-initial-report",
+      "passed": true,
+      "elapsed_seconds": 0.431292,
+      "failures": []
+    },
+    {
+      "id": "sla-duplicate-id-preserves-output",
+      "passed": true,
+      "elapsed_seconds": 0.360283,
+      "failures": []
+    },
+    {
+      "id": "sla-missing-policy-entry-preserves-output",
+      "passed": true,
+      "elapsed_seconds": 0.315122,
+      "failures": []
+    },
+    {
+      "id": "sla-malformed-csv-preserves-output",
+      "passed": true,
+      "elapsed_seconds": 0.301605,
+      "failures": []
+    },
+    {
+      "id": "sla-unknown-priority-preserves-output",
+      "passed": true,
+      "elapsed_seconds": 0.303369,
+      "failures": []
+    },
+    {
+      "id": "sla-invalid-timestamp-preserves-output",
+      "passed": true,
+      "elapsed_seconds": 0.304679,
+      "failures": []
+    },
+    {
+      "id": "sla-follow-up-team-filter",
+      "passed": true,
+      "elapsed_seconds": 0.302879,
+      "failures": []
+    }
+  ]
+}

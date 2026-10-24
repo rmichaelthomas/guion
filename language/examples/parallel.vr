@@ -1,0 +1,24 @@
+fn repeated_sum(value: Int) -> Int:
+    var index = 0
+    var total = 0
+    while index < 2000:
+        set total = total + value
+        set index = index + 1
+    return total
+
+fn results() -> Result[List[Int], TaskError]:
+    let inputs = [1, 2, 3, 4, 5, 6, 7, 8]
+    return parallel_map(inputs, repeated_sum, 4)
+
+fn main() -> Int:
+    let result = results()
+    if is_ok(result):
+        let outputs = unwrap(result)
+        print(outputs)
+        return len(outputs)
+    else:
+        let problem = error(result)
+        print(task_index(problem))
+        print(task_code(problem))
+        print(task_message(problem))
+        return 1

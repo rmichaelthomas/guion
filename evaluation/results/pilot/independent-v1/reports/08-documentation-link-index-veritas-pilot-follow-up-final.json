@@ -1,0 +1,572 @@
+{
+  "schema_version": 1,
+  "language": "veritas",
+  "task_id": "08-documentation-link-index",
+  "stage": "follow_up",
+  "candidate_project_sha256": "f5f866210531a9aabb1f2fb0a9d06f930bd29297c6f39d34376b8cfcfc65b9d6",
+  "delivery_artifact_path": "/Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/work/veritas-foundation/evaluation/results/pilot/independent-v1/reports/08-documentation-link-index-veritas-pilot-follow-up-final.json.delivery",
+  "delivery_artifact_sha256": "2c1a40f6fc543f576e7f7a3faf721c75bba48dee2c7f27e5d5c55cb81f9d74f4",
+  "container": {
+    "image": "veritas-campaign-veritas:0.1.0",
+    "image_id": "sha256:66bae1a446d36e4b28e1ebb115699037a3a119057c92a8d3192a1f7ab5e7b444",
+    "package_archive_sha256": "735604fabff913cae5569ef9bb1f7b175e777332e6d879299398142c8eb3037b",
+    "python_base_digest": "sha256:44e000a07b48bef1517a2b14adc93c17af728ca98858b5e24c6e1b18de1b2ef2",
+    "shared_dependencies_sha256": "34a2a4d8d157839eea434267f38e475187031f081f358387859181e5be136803",
+    "uv_version": "0.13.4",
+    "candidate_python_version": "3.14.8",
+    "platform": "linux/arm64",
+    "network": "none",
+    "read_only_rootfs": true,
+    "candidate_uid": 10001,
+    "limits": {
+      "cpus": 2,
+      "memory_bytes": 2147483648,
+      "pids": 128,
+      "tmpfs_bytes": 536870912
+    },
+    "source_project_mounted": true,
+    "delivery_source_project_mounted": false
+  },
+  "container_exit_codes": {
+    "source": 0,
+    "delivery": 0,
+    "delivery_stage": 0
+  },
+  "launcher_stderr": {
+    "source": "",
+    "delivery": ""
+  },
+  "case_report": {
+    "task_id": "08-documentation-link-index",
+    "stage": "follow_up",
+    "passed": true,
+    "source": {
+      "cases": [
+        {
+          "candidate": {},
+          "case_id": "doc-index-alias-schema-follow-up",
+          "checks_passed": 5,
+          "checks_total": 5,
+          "elapsed_seconds": 1.026752,
+          "exit_code": 0,
+          "failures": [],
+          "http_fixtures": {},
+          "passed": true,
+          "stderr": "",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.13011,
+              "exit_code": 0,
+              "failures": []
+            },
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.193911,
+              "exit_code": 0,
+              "failures": []
+            },
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.185369,
+              "exit_code": 0,
+              "failures": []
+            },
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.183871,
+              "exit_code": 0,
+              "failures": []
+            },
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.182502,
+              "exit_code": 0,
+              "failures": []
+            }
+          ]
+        },
+        {
+          "candidate": {},
+          "case_id": "doc-index-alias-collision-is-ambiguous",
+          "checks_passed": 2,
+          "checks_total": 2,
+          "elapsed_seconds": 0.304875,
+          "exit_code": 0,
+          "failures": [],
+          "http_fixtures": {},
+          "passed": true,
+          "stderr": "",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.118713,
+              "exit_code": 0,
+              "failures": []
+            },
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.182148,
+              "exit_code": 0,
+              "failures": []
+            }
+          ]
+        },
+        {
+          "candidate": {},
+          "case_id": "doc-index-alias-json-grammar",
+          "checks_passed": 4,
+          "checks_total": 4,
+          "elapsed_seconds": 0.669401,
+          "exit_code": 0,
+          "failures": [],
+          "http_fixtures": {},
+          "passed": true,
+          "stderr": "",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.119218,
+              "exit_code": 0,
+              "failures": []
+            },
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.183066,
+              "exit_code": 0,
+              "failures": []
+            },
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.181235,
+              "exit_code": 0,
+              "failures": []
+            },
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.1821,
+              "exit_code": 0,
+              "failures": []
+            }
+          ]
+        },
+        {
+          "candidate": {},
+          "case_id": "doc-index-alias-invalid-values-preserves-index",
+          "checks_passed": 2,
+          "checks_total": 2,
+          "elapsed_seconds": 0.430635,
+          "exit_code": 0,
+          "failures": [],
+          "http_fixtures": {},
+          "passed": true,
+          "stderr": "",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.11842,
+              "exit_code": 1,
+              "failures": []
+            },
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.191804,
+              "exit_code": 0,
+              "failures": []
+            }
+          ]
+        },
+        {
+          "candidate": {},
+          "case_id": "doc-index-alias-nested-preserves-index",
+          "checks_passed": 2,
+          "checks_total": 2,
+          "elapsed_seconds": 0.4518,
+          "exit_code": 0,
+          "failures": [],
+          "http_fixtures": {},
+          "passed": true,
+          "stderr": "",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.125696,
+              "exit_code": 1,
+              "failures": []
+            },
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.19597,
+              "exit_code": 0,
+              "failures": []
+            }
+          ]
+        },
+        {
+          "candidate": {},
+          "case_id": "doc-index-duplicate-alias-field-preserves-index",
+          "checks_passed": 2,
+          "checks_total": 2,
+          "elapsed_seconds": 0.449266,
+          "exit_code": 0,
+          "failures": [],
+          "http_fixtures": {},
+          "passed": true,
+          "stderr": "",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.12563,
+              "exit_code": 1,
+              "failures": []
+            },
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.193198,
+              "exit_code": 0,
+              "failures": []
+            }
+          ]
+        }
+      ],
+      "passed": true,
+      "stage": "follow_up",
+      "task_id": "08-documentation-link-index"
+    },
+    "delivery": {
+      "passed": true,
+      "artifact_sha256": "2c1a40f6fc543f576e7f7a3faf721c75bba48dee2c7f27e5d5c55cb81f9d74f4",
+      "artifact_bytes": 25002,
+      "source_paths_excluded": [
+        "main.vr",
+        "src"
+      ],
+      "original_project_mounted": false,
+      "cases": [
+        {
+          "candidate": {
+            "artifact_bytes": 25002,
+            "artifact_paths": [
+              "main.vrb",
+              "docindex_adapter.py",
+              "dependencies.lock",
+              "README.md"
+            ],
+            "artifact_sha256": "2c1a40f6fc543f576e7f7a3faf721c75bba48dee2c7f27e5d5c55cb81f9d74f4",
+            "delivery_manifest": "delivery.json",
+            "dependency_lock_path": "dependencies.lock",
+            "source_paths": [
+              "main.vr",
+              "src"
+            ]
+          },
+          "case_id": "doc-index-alias-schema-follow-up",
+          "checks_passed": 5,
+          "checks_total": 5,
+          "elapsed_seconds": 1.034061,
+          "exit_code": 0,
+          "failures": [],
+          "http_fixtures": {},
+          "passed": true,
+          "stderr": "",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.130025,
+              "exit_code": 0,
+              "failures": []
+            },
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.195551,
+              "exit_code": 0,
+              "failures": []
+            },
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.194252,
+              "exit_code": 0,
+              "failures": []
+            },
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.195199,
+              "exit_code": 0,
+              "failures": []
+            },
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.190202,
+              "exit_code": 0,
+              "failures": []
+            }
+          ]
+        },
+        {
+          "candidate": {
+            "artifact_bytes": 25002,
+            "artifact_paths": [
+              "main.vrb",
+              "docindex_adapter.py",
+              "dependencies.lock",
+              "README.md"
+            ],
+            "artifact_sha256": "2c1a40f6fc543f576e7f7a3faf721c75bba48dee2c7f27e5d5c55cb81f9d74f4",
+            "delivery_manifest": "delivery.json",
+            "dependency_lock_path": "dependencies.lock",
+            "source_paths": [
+              "main.vr",
+              "src"
+            ]
+          },
+          "case_id": "doc-index-alias-collision-is-ambiguous",
+          "checks_passed": 2,
+          "checks_total": 2,
+          "elapsed_seconds": 0.318562,
+          "exit_code": 0,
+          "failures": [],
+          "http_fixtures": {},
+          "passed": true,
+          "stderr": "",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.126741,
+              "exit_code": 0,
+              "failures": []
+            },
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.188832,
+              "exit_code": 0,
+              "failures": []
+            }
+          ]
+        },
+        {
+          "candidate": {
+            "artifact_bytes": 25002,
+            "artifact_paths": [
+              "main.vrb",
+              "docindex_adapter.py",
+              "dependencies.lock",
+              "README.md"
+            ],
+            "artifact_sha256": "2c1a40f6fc543f576e7f7a3faf721c75bba48dee2c7f27e5d5c55cb81f9d74f4",
+            "delivery_manifest": "delivery.json",
+            "dependency_lock_path": "dependencies.lock",
+            "source_paths": [
+              "main.vr",
+              "src"
+            ]
+          },
+          "case_id": "doc-index-alias-json-grammar",
+          "checks_passed": 4,
+          "checks_total": 4,
+          "elapsed_seconds": 0.70596,
+          "exit_code": 0,
+          "failures": [],
+          "http_fixtures": {},
+          "passed": true,
+          "stderr": "",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.125523,
+              "exit_code": 0,
+              "failures": []
+            },
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.194091,
+              "exit_code": 0,
+              "failures": []
+            },
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.195613,
+              "exit_code": 0,
+              "failures": []
+            },
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.188001,
+              "exit_code": 0,
+              "failures": []
+            }
+          ]
+        },
+        {
+          "candidate": {
+            "artifact_bytes": 25002,
+            "artifact_paths": [
+              "main.vrb",
+              "docindex_adapter.py",
+              "dependencies.lock",
+              "README.md"
+            ],
+            "artifact_sha256": "2c1a40f6fc543f576e7f7a3faf721c75bba48dee2c7f27e5d5c55cb81f9d74f4",
+            "delivery_manifest": "delivery.json",
+            "dependency_lock_path": "dependencies.lock",
+            "source_paths": [
+              "main.vr",
+              "src"
+            ]
+          },
+          "case_id": "doc-index-alias-invalid-values-preserves-index",
+          "checks_passed": 2,
+          "checks_total": 2,
+          "elapsed_seconds": 0.429868,
+          "exit_code": 0,
+          "failures": [],
+          "http_fixtures": {},
+          "passed": true,
+          "stderr": "",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.118946,
+              "exit_code": 1,
+              "failures": []
+            },
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.18541,
+              "exit_code": 0,
+              "failures": []
+            }
+          ]
+        },
+        {
+          "candidate": {
+            "artifact_bytes": 25002,
+            "artifact_paths": [
+              "main.vrb",
+              "docindex_adapter.py",
+              "dependencies.lock",
+              "README.md"
+            ],
+            "artifact_sha256": "2c1a40f6fc543f576e7f7a3faf721c75bba48dee2c7f27e5d5c55cb81f9d74f4",
+            "delivery_manifest": "delivery.json",
+            "dependency_lock_path": "dependencies.lock",
+            "source_paths": [
+              "main.vr",
+              "src"
+            ]
+          },
+          "case_id": "doc-index-alias-nested-preserves-index",
+          "checks_passed": 2,
+          "checks_total": 2,
+          "elapsed_seconds": 0.454734,
+          "exit_code": 0,
+          "failures": [],
+          "http_fixtures": {},
+          "passed": true,
+          "stderr": "",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.127178,
+              "exit_code": 1,
+              "failures": []
+            },
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.197958,
+              "exit_code": 0,
+              "failures": []
+            }
+          ]
+        },
+        {
+          "candidate": {
+            "artifact_bytes": 25002,
+            "artifact_paths": [
+              "main.vrb",
+              "docindex_adapter.py",
+              "dependencies.lock",
+              "README.md"
+            ],
+            "artifact_sha256": "2c1a40f6fc543f576e7f7a3faf721c75bba48dee2c7f27e5d5c55cb81f9d74f4",
+            "delivery_manifest": "delivery.json",
+            "dependency_lock_path": "dependencies.lock",
+            "source_paths": [
+              "main.vr",
+              "src"
+            ]
+          },
+          "case_id": "doc-index-duplicate-alias-field-preserves-index",
+          "checks_passed": 2,
+          "checks_total": 2,
+          "elapsed_seconds": 0.449991,
+          "exit_code": 0,
+          "failures": [],
+          "http_fixtures": {},
+          "passed": true,
+          "stderr": "",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.12784,
+              "exit_code": 1,
+              "failures": []
+            },
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.190274,
+              "exit_code": 0,
+              "failures": []
+            }
+          ]
+        }
+      ],
+      "stage_error": ""
+    }
+  }
+}

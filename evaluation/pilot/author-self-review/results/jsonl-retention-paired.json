@@ -1,0 +1,103 @@
+{
+  "status": "author_run_calibration",
+  "task_id": "02-jsonl-retention",
+  "manifest_status": "review_pending",
+  "candidate_reports": {
+    "veritas": {
+      "passed": 6,
+      "total": 6,
+      "cases": [
+        {
+          "id": "jsonl-normal-summary",
+          "stage": "initial",
+          "passed": true,
+          "elapsed_seconds": 0.111712,
+          "failures": []
+        },
+        {
+          "id": "jsonl-strict-does-not-publish",
+          "stage": "initial",
+          "passed": true,
+          "elapsed_seconds": 0.051635,
+          "failures": []
+        },
+        {
+          "id": "jsonl-empty-input",
+          "stage": "initial",
+          "passed": true,
+          "elapsed_seconds": 0.063234,
+          "failures": []
+        },
+        {
+          "id": "jsonl-missing-required-field",
+          "stage": "initial",
+          "passed": true,
+          "elapsed_seconds": 0.061256,
+          "failures": []
+        },
+        {
+          "id": "jsonl-follow-up-allow-list",
+          "stage": "follow_up",
+          "passed": true,
+          "elapsed_seconds": 0.062782,
+          "failures": []
+        },
+        {
+          "id": "jsonl-follow-up-empty-allow-list",
+          "stage": "follow_up",
+          "passed": true,
+          "elapsed_seconds": 0.068314,
+          "failures": []
+        }
+      ]
+    },
+    "python": {
+      "passed": 6,
+      "total": 6,
+      "cases": [
+        {
+          "id": "jsonl-normal-summary",
+          "stage": "initial",
+          "passed": true,
+          "elapsed_seconds": 0.402133,
+          "failures": []
+        },
+        {
+          "id": "jsonl-strict-does-not-publish",
+          "stage": "initial",
+          "passed": true,
+          "elapsed_seconds": 0.312028,
+          "failures": []
+        },
+        {
+          "id": "jsonl-empty-input",
+          "stage": "initial",
+          "passed": true,
+          "elapsed_seconds": 0.314177,
+          "failures": []
+        },
+        {
+          "id": "jsonl-missing-required-field",
+          "stage": "initial",
+          "passed": true,
+          "elapsed_seconds": 0.312255,
+          "failures": []
+        },
+        {
+          "id": "jsonl-follow-up-allow-list",
+          "stage": "follow_up",
+          "passed": true,
+          "elapsed_seconds": 0.321166,
+          "failures": []
+        },
+        {
+          "id": "jsonl-follow-up-empty-allow-list",
+          "stage": "follow_up",
+          "passed": true,
+          "elapsed_seconds": 0.322696,
+          "failures": []
+        }
+      ]
+    }
+  }
+}

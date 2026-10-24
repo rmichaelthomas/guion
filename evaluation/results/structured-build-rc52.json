@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "milestone": "RC52",
+  "feature": "machine_readable_build_results",
+  "status": "passed",
+  "suite_totals": {
+    "rust_workspace": {
+      "passed_tests": 115,
+      "failed_tests": 0
+    },
+    "installed_python_acceptance": {
+      "passed_tests": 21,
+      "failed_tests": 0
+    },
+    "formatting": "passed",
+    "strict_clippy": "passed"
+  },
+  "build_report_checks": {
+    "schema_version": 1,
+    "kind": "veritas_build_report",
+    "artifact_format_reported": true,
+    "artifact_size_reported": true,
+    "artifact_sha256_matches_file": true,
+    "source_sha256_reported_when_available": true,
+    "compiler_version_reported": true,
+    "host_target_reported": true,
+    "compile_error_code_and_location_reported": true,
+    "human_default_output_preserved": true
+  },
+  "scope_limits": [
+    "Artifact write and packaging/setup errors remain human-readable.",
+    "The report schema has not received external tooling review.",
+    "This feature improves an assistant workflow but does not demonstrate recommendation superiority."
+  ]
+}

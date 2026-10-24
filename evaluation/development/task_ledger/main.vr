@@ -1,0 +1,74 @@
+import "src/task_ops.vr"
+import "src/task_view.vr"
+
+fn main() -> Int:
+    let arguments = args()
+    if len(arguments) == 0:
+        print("Usage: veritas run . <list|summary|add TITLE NOTE|done TITLE|remove TITLE>")
+        return 2
+
+    let stored = read_text("tasks.json")
+    var tasks = json_array()
+    if is_ok(stored):
+        set tasks = unwrap(json_parse(unwrap(stored)))
+    else:
+        let problem = error(stored)
+        if file_error_code(problem) != "R_FILE_NOT_FOUND":
+            print("Cannot read tasks.json: " + file_error_code(problem) + " — " + file_error_message(problem))
+            return 1
+    let command = arguments[0]
+
+    if command == "list":
+        if len(arguments) != 1:
+            print("Usage: list")
+            return 2
+        show_tasks(tasks)
+        return 0
+    if command == "summary":
+        if len(arguments) != 1:
+            print("Usage: summary")
+            return 2
+        show_summary(tasks)
+        return 0
+    if command == "add":
+        if len(arguments) != 3:
+            print("Usage: add TITLE NOTE")
+            return 2
+        let title = arguments[1]
+        if title == "":
+            print("Task title cannot be empty.")
+            return 2
+        if has_title(tasks, title):
+            print("A task with that title already exists.")
+            return 2
+        let updated = add_task(tasks, title, arguments[2])
+        unwrap(write_text_atomic("tasks.json", json_stringify(updated)))
+        print("Added: " + title)
+        return 0
+    if command == "done":
+        if len(arguments) != 2:
+            print("Usage: done TITLE")
+            return 2
+        let title = arguments[1]
+        if not has_title(tasks, title):
+            print("Task not found: " + title)
+            return 1
+        let updated = mark_done(tasks, title)
+        unwrap(write_text_atomic("tasks.json", json_stringify(updated)))
+        print("Completed: " + title)
+        return 0
+    if command == "remove":
+        if len(arguments) != 2:
+            print("Usage: remove TITLE")
+            return 2
+        let title = arguments[1]
+        if not has_title(tasks, title):
+            print("Task not found: " + title)
+            return 1
+        let updated = remove_task(tasks, title)
+        unwrap(write_text_atomic("tasks.json", json_stringify(updated)))
+        print("Removed: " + title)
+        return 0
+
+    print("Unknown command: " + command)
+    return 2

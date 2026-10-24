@@ -1,0 +1,188 @@
+extern python "webhook_support:check_signature" fn check_signature(secret: Bytes, body: Bytes, signature: Text) -> Text
+extern python "webhook_support:decode_event" fn decode_event(body: Bytes) -> Json
+extern python "webhook_support:initialize" fn initialize(db_path: Text) -> Bool
+extern python "webhook_support:insert_event" fn insert_event(db_path: Text, event_id: Text, body: Bytes) -> Bool
+extern python "webhook_support:pending_events" fn pending_events(db_path: Text) -> Json
+extern python "webhook_support:record_attempt" fn record_attempt(db_path: Text, event_id: Text, delivered: Bool, max_attempts: Int) -> Text
+extern python "webhook_support:status_data" fn status_data(db_path: Text) -> Json
+extern python "webhook_support:dead_letters_data" fn dead_letters_data(db_path: Text) -> Json
+extern python "builtins:int" fn parse_int(value: Text) -> Int
+
+fn rejected_result(path: Text, reason: Text) -> Int:
+    var result = json_object()
+    set result = json_set(result, "accepted", json_bool(false))
+    set result = json_set(result, "reason", json_text(reason))
+    let written = write_text_atomic(path, json_stringify(result) + "\n")
+    if not is_ok(written):
+        eprint("cannot write ingest result")
+    return 1
+
+fn main() -> Int:
+    let arguments = args()
+    if len(arguments) < 1:
+        eprint("usage: webhook-replay init|ingest|deliver|status|dead-letters [options]")
+        return 2
+    let command = arguments[0]
+    var db_path = ""
+    var secret_path = ""
+    var body_path = ""
+    var signature = ""
+    var result_path = ""
+    var output_path = ""
+    var target = ""
+    var max_attempts = 0
+    var index = 1
+    while index < len(arguments):
+        if arguments[index] == "--db" and index + 1 < len(arguments):
+            set db_path = arguments[index + 1]
+            set index = index + 2
+        else:
+            if arguments[index] == "--secret-file" and index + 1 < len(arguments):
+                set secret_path = arguments[index + 1]
+                set index = index + 2
+            else:
+                if arguments[index] == "--body" and index + 1 < len(arguments):
+                    set body_path = arguments[index + 1]
+                    set index = index + 2
+                else:
+                    if arguments[index] == "--signature" and index + 1 < len(arguments):
+                        set signature = arguments[index + 1]
+                        set index = index + 2
+                    else:
+                        if arguments[index] == "--result" and index + 1 < len(arguments):
+                            set result_path = arguments[index + 1]
+                            set index = index + 2
+                        else:
+                            if arguments[index] == "--output" and index + 1 < len(arguments):
+                                set output_path = arguments[index + 1]
+                                set index = index + 2
+                            else:
+                                if arguments[index] == "--target" and index + 1 < len(arguments):
+                                    set target = arguments[index + 1]
+                                    set index = index + 2
+                                else:
+                                    if arguments[index] == "--max-attempts" and index + 1 < len(arguments):
+                                        set max_attempts = parse_int(arguments[index + 1])
+                                        set index = index + 2
+                                    else:
+                                        eprint("unknown or incomplete argument")
+                                        return 2
+    if db_path == "":
+        eprint("--db PATH is required")
+        return 2
+
+    if command == "init":
+        if secret_path == "":
+            eprint("init requires --secret-file PATH")
+            return 2
+        if not initialize(db_path):
+            eprint("cannot initialize webhook state")
+            return 1
+        return 0
+
+    if command == "ingest":
+        if secret_path == "" or body_path == "" or signature == "" or result_path == "":
+            eprint("ingest requires --secret-file, --body, --signature, and --result")
+            return 2
+        let secret = read_bytes(secret_path)
+        let body = read_bytes(body_path)
+        if not is_ok(secret):
+            return rejected_result(result_path, "invalid_secret")
+        if not is_ok(body):
+            return rejected_result(result_path, "invalid_body")
+        let validation = check_signature(unwrap(secret), unwrap(body), signature)
+        if validation != "ok":
+            return rejected_result(result_path, validation)
+        let decoded = decode_event(unwrap(body))
+        if not json_as_bool(json_get(decoded, "ok")):
+            return rejected_result(result_path, "invalid_body")
+        let event = json_get(decoded, "event")
+        let event_id = json_as_text(json_get(event, "id"))
+        if not insert_event(db_path, event_id, unwrap(body)):
+            var result = json_object()
+            set result = json_set(result, "accepted", json_bool(false))
+            set result = json_set(result, "reason", json_text("duplicate_id"))
+            let written = write_text_atomic(result_path, json_stringify(result) + "\n")
+            if not is_ok(written):
+                eprint("cannot write ingest result")
+            return 1
+        var result = json_object()
+        set result = json_set(result, "accepted", json_bool(true))
+        set result = json_set(result, "id", json_text(event_id))
+        let written = write_text_atomic(result_path, json_stringify(result) + "\n")
+        if not is_ok(written):
+            eprint("cannot write ingest result")
+            return 1
+        return 0
+
+    if command == "deliver":
+        if target == "" or result_path == "":
+            eprint("deliver requires --target URL and --result PATH")
+            return 2
+        if max_attempts < 0:
+            eprint("--max-attempts must be positive")
+            return 2
+        let pending = pending_events(db_path)
+        var pending_ids = json_array()
+        var delivered_ids = json_array()
+        var dead_lettered_ids = json_array()
+        var failed = false
+        var event_index = 0
+        while event_index < json_len(pending):
+            let event = json_index(pending, event_index)
+            let event_id = json_as_text(json_get(event, "id"))
+            let body = json_as_text(json_get(event, "body"))
+            let headers: Map[Text, Text] = {"content-type": "application/json"}
+            let response = http_request_with_timeout("POST", target, headers, body, 2000)
+            var was_delivered = false
+            if is_ok(response):
+                let envelope = unwrap(response)
+                let status = json_as_int(json_get(envelope, "status"))
+                if status >= 200 and status < 300:
+                    set was_delivered = true
+            if not was_delivered:
+                set failed = true
+            let state = record_attempt(db_path, event_id, was_delivered, max_attempts)
+            if state == "delivered":
+                set delivered_ids = json_push(delivered_ids, json_text(event_id))
+            else:
+                if state == "dead_lettered":
+                    set dead_lettered_ids = json_push(dead_lettered_ids, json_text(event_id))
+                else:
+                    set pending_ids = json_push(pending_ids, json_text(event_id))
+            set event_index = event_index + 1
+        var result = json_object()
+        set result = json_set(result, "pending", pending_ids)
+        set result = json_set(result, "delivered", delivered_ids)
+        set result = json_set(result, "dead_lettered", dead_lettered_ids)
+        let written = write_text_atomic(result_path, json_stringify(result) + "\n")
+        if not is_ok(written):
+            eprint("cannot write delivery result")
+            return 1
+        if failed:
+            return 1
+        return 0
+
+    if command == "status":
+        if output_path == "":
+            eprint("status requires --output PATH")
+            return 2
+        let written = write_text_atomic(output_path, json_stringify(status_data(db_path)) + "\n")
+        if not is_ok(written):
+            eprint("cannot write status")
+            return 1
+        return 0
+
+    if command == "dead-letters":
+        if output_path == "":
+            eprint("dead-letters requires --output PATH")
+            return 2
+        var report = json_object()
+        set report = json_set(report, "dead_letters", dead_letters_data(db_path))
+        let written = write_text_atomic(output_path, json_stringify(report) + "\n")
+        if not is_ok(written):
+            eprint("cannot write dead-letter report")
+            return 1
+        return 0
+    eprint("unknown webhook command")
+    return 2

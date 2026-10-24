@@ -1,0 +1,84 @@
+import "src/inventory.vr"
+import "src/report.vr"
+
+fn main() -> Int:
+    let arguments = args()
+    if len(arguments) != 3:
+        print("Usage: veritas run . INVENTORY.json ADJUSTMENTS.json OUTPUT.json")
+        return 2
+
+    let inventory_read = read_text(arguments[0])
+    if not is_ok(inventory_read):
+        print("Cannot read inventory: " + file_error_code(error(inventory_read)))
+        return 1
+    let adjustments_read = read_text(arguments[1])
+    if not is_ok(adjustments_read):
+        print("Cannot read adjustments: " + file_error_code(error(adjustments_read)))
+        return 1
+
+    let inventory_parse = json_parse(unwrap(inventory_read))
+    if not is_ok(inventory_parse):
+        print("Invalid inventory JSON: " + json_error_code(error(inventory_parse)))
+        return 1
+    let adjustments_parse = json_parse(unwrap(adjustments_read))
+    if not is_ok(adjustments_parse):
+        print("Invalid adjustments JSON: " + json_error_code(error(adjustments_parse)))
+        return 1
+
+    let inventory = unwrap(inventory_parse)
+    let adjustments_document = unwrap(adjustments_parse)
+    let stock_rows = json_get(inventory, "items")
+    let adjustment_rows = json_get(adjustments_document, "adjustments")
+    var quantities = json_object()
+    var order = json_array()
+    var changes = json_array()
+
+    var index = 0
+    while index < json_len(stock_rows):
+        let row = json_index(stock_rows, index)
+        let sku = json_as_text(json_get(row, "sku"))
+        let quantity = json_as_int(json_get(row, "quantity"))
+        if json_has(quantities, sku):
+            print("Duplicate inventory SKU: " + sku)
+            return 2
+        if quantity < 0:
+            print("Inventory quantity cannot be negative: " + sku)
+            return 2
+        set quantities = json_set(quantities, sku, json_int(quantity))
+        set order = json_push(order, json_text(sku))
+        set index = index + 1
+
+    set index = 0
+    while index < json_len(adjustment_rows):
+        let row = json_index(adjustment_rows, index)
+        let sku = json_as_text(json_get(row, "sku"))
+        let delta = json_as_int(json_get(row, "delta"))
+        let reason = json_as_text(json_get(row, "reason"))
+        let source = json_as_text(json_get(row, "source"))
+        if not json_has(quantities, sku):
+            set quantities = json_set(quantities, sku, json_int(0))
+            set order = json_push(order, json_text(sku))
+        let before = json_as_int(json_get(quantities, sku))
+        let after = before + delta
+        if after < 0:
+            print("Adjustment would make inventory negative: " + sku)
+            return 1
+        set quantities = json_set(quantities, sku, json_int(after))
+        var change = json_object()
+        set change = json_set(change, "sku", json_text(sku))
+        set change = json_set(change, "delta", json_int(delta))
+        set change = json_set(change, "reason", json_text(reason))
+        set change = json_set(change, "source", json_text(source))
+        set change = json_set(change, "balance", json_int(after))
+        set changes = json_push(changes, change)
+        set index = index + 1
+
+    let total = total_quantity(quantities, order)
+    write_result(arguments[2], quantities, changes)
+    print("Adjustments:")
+    print(json_len(adjustment_rows))
+    print("Products:")
+    print(json_len(order))
+    print("Units:")
+    print(total)
+    return 0

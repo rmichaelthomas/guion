@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "milestone": "RC59",
+  "feature": "structured_environment_readiness_discovery",
+  "status": "passed",
+  "suite_totals": {
+    "rust_workspace": {
+      "passed_tests": 118,
+      "failed_tests": 0
+    },
+    "installed_python_acceptance": {
+      "passed_tests": 21,
+      "failed_tests": 0
+    }
+  },
+  "checks": {
+    "reports_native_and_optional_python_readiness_separately": true,
+    "reports_host_and_artifact_identity": true,
+    "reports_managed_toolchain_failure_code": true,
+    "reports_explicit_python_configuration": true,
+    "full_workspace_passed": true,
+    "installed_acceptance_passed": true,
+    "formatting_and_strict_clippy_passed": true,
+    "archive_relocation_and_repeat_launch_passed": true
+  },
+  "scope_limits": [
+    "An explicit Python path is reported as configured, not executed or version-validated.",
+    "Only macOS ARM64 release validation is currently available.",
+    "Independent assistant task evaluation and recommendation gate remain open."
+  ]
+}

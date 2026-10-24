@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "milestone": "RC47",
+  "feature": "machine_readable_check_and_test_reports",
+  "status": "passed",
+  "suite_totals": {
+    "rust": {
+      "passed_tests": 113,
+      "failed_tests": 0
+    },
+    "python_acceptance": {
+      "passed_tests": 20,
+      "failed_tests": 0
+    },
+    "formatting": "passed",
+    "strict_clippy": "passed"
+  },
+  "checks": [
+    {
+      "test": "check_json_reports_compiler_success_and_source_diagnostics",
+      "passed": true,
+      "red_phase_confirmed_missing_report": true,
+      "success_report_kind": "veritas_check_report",
+      "diagnostic_kind": "veritas_diagnostic",
+      "diagnostic_code": "E_NAME_UNKNOWN",
+      "source_location_included": true,
+      "nonzero_exit_on_compile_error": true,
+      "stderr_empty": true
+    },
+    {
+      "test": "test_json_report_is_machine_readable_on_success_and_failure",
+      "passed": true,
+      "red_phase_confirmed_missing_report": true,
+      "report_kind": "veritas_test_report",
+      "failure_code": "R_ASSERTION",
+      "ordered_test_statuses_included": true,
+      "summary_counts_included": true,
+      "source_trace_included": true,
+      "nonzero_exit_on_test_failure": true,
+      "stderr_empty": true
+    },
+    {
+      "test": "run_json_report_captures_program_output_status_and_runtime_failure",
+      "passed": true,
+      "red_phase_confirmed_missing_report": true,
+      "success_exit_code_preserved": 23,
+      "captured_program_output": true,
+      "runtime_failure_code": "R_DIV_ZERO",
+      "compile_failure_code": "E_NAME_UNKNOWN",
+      "source_trace_included": true,
+      "failure_status": 1,
+      "stderr_empty": true
+    }
+  ],
+  "scope_limits": [
+    "Only check and test commands have JSON output; run, build, setup, and other command failures remain text-based.",
+    "The report schema is not yet externally reviewed or frozen.",
+    "A machine-readable interface does not establish assistant recommendation superiority over Python."
+  ]
+}

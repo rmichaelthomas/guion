@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "release_candidate": "RC61",
+  "change": "package-destination-safety",
+  "observations": {
+    "regression_test_before_fix": {
+      "status": "failed_as_expected",
+      "diagnostic": "E_PACKAGE_FAILED",
+      "cause": "Path::exists followed a dangling symlink and treated it as an available destination"
+    },
+    "regression_test_after_fix": {
+      "status": "passed",
+      "checks": [
+        "dangling symlink destination rejected as E_PACKAGE_OUTPUT_EXISTS",
+        "dangling symlink remains unchanged",
+        "atomic no-replace publication refuses a destination created after preflight",
+        "competing destination and staged package are both preserved on publication failure",
+        "Unicode and spaces in source and destination paths",
+        "package verification succeeds",
+        "launcher succeeds with a different current working directory"
+      ]
+    },
+    "formatting": "passed",
+    "clippy_warnings_denied": "passed",
+    "rust_workspace_tests": {
+      "passed": 119,
+      "failed": 0,
+      "includes_managed_python_integration": true
+    },
+    "installed_rc61_acceptance_suite": {
+      "passed": 22,
+      "failed": 0,
+      "isolated_cpython_and_dependency_cache_preprovisioned": true,
+      "loopback_http_fixtures_enabled": true
+    },
+    "distribution_packaging": {
+      "archive_built": true,
+      "archive_sidecar_checksum_verified": true,
+      "installer_relocation_and_unicode_path": "passed",
+      "bundled_task_ledger_and_python_interop_package_verification": "passed",
+      "repeated_installed_python_app_output": "identical"
+    },
+    "source_archive": {
+      "checksum_verified": true,
+      "extracted_path_contains_spaces_and_unicode": true,
+      "cargo_test_workspace_offline_no_run": "passed"
+    }
+  },
+  "limitations": [
+    "release archive path validation is not covered by this change",
+    "cross-platform atomic publication is not implemented",
+    "this is package safety evidence, not independent comparative or recommendation evidence"
+  ]
+}

@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "classification": "author_run_before_after_performance_observation_not_independent_evidence",
+  "change": "Store immutable JSON and list values behind shared reference-counted storage so VM local loads do not deep-copy whole collections.",
+  "host": {
+    "system": "Darwin",
+    "machine": "arm64",
+    "python": "3.14.7",
+    "veritas_version": "0.1.0 (artifact format 8)"
+  },
+  "method": {
+    "runner": "evaluation/development/benchmark_sales_report.py",
+    "timed_scope": "child process startup, artifact/interpreter loading, JSON parsing, and program execution",
+    "warmup_runs_per_implementation": 1,
+    "fixture": "generated JSON rows with deterministic integer amounts; outputs checked on every run",
+    "limitations": "one workload, one host, author-run, no memory measurement, no independent builders"
+  },
+  "observations": [
+    {
+      "records": 1000,
+      "before": {
+        "veritas_median_seconds": 0.100213417,
+        "veritas_p95_seconds": 0.100902174,
+        "veritas_samples_seconds": [0.100208417, 0.100197208, 0.100213417, 0.100238208, 0.101068166],
+        "python_median_seconds": 0.031416458,
+        "python_samples_seconds": [0.031681542, 0.031416458, 0.029925166, 0.029824709, 0.038246292]
+      },
+      "after_report": "sales-report-runtime-benchmark.json",
+      "after_veritas_artifact_median_seconds": 0.006266,
+      "after_veritas_source_median_seconds": 0.006408,
+      "after_veritas_source_p95_seconds": 0.008977,
+      "after_python_median_seconds": 0.03214
+    },
+    {
+      "records": 5000,
+      "before": {
+        "veritas_median_seconds": 2.455628667,
+        "veritas_p95_seconds": 2.474083392,
+        "veritas_samples_seconds": [2.455239917, 2.476133917, 2.455628667],
+        "python_median_seconds": 0.034632083,
+        "python_samples_seconds": [0.035170541, 0.034632083, 0.031047625]
+      },
+      "after_report": "sales-report-5000-runtime-benchmark.json",
+      "after_veritas_artifact_median_seconds": 0.01256,
+      "after_veritas_source_median_seconds": 0.012669,
+      "after_veritas_source_p95_seconds": 0.013589,
+      "after_python_median_seconds": 0.033807
+    },
+    {
+      "records": 10000,
+      "before": {
+        "veritas_result": "Not completed; the run was stopped after roughly one minute without a result report."
+      },
+      "after_report": "sales-report-10000-runtime-benchmark.json",
+      "after_veritas_artifact_median_seconds": 0.022283,
+      "after_veritas_source_median_seconds": 0.0229,
+      "after_veritas_source_p95_seconds": 0.048445,
+      "after_veritas_artifact_p95_seconds": 0.04028,
+      "after_python_median_seconds": 0.036108,
+      "after_veritas_p95_seconds": 0.048445,
+      "after_python_p95_seconds": 0.042258
+    }
+  ],
+  "interpretation": "The before/after change strongly supports the identified whole-array cloning cost and shows near-linear Veritas runtime from 1k to 10k records after the fix. It does not establish an overall advantage over Python."
+}

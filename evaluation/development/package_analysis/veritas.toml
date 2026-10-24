@@ -1,0 +1,11 @@
+[project]
+name = "package-analysis"
+version = "0.1.0"
+entry = "main.vr"
+
+[python]
+version = "3.14.8"
+dependencies = ["orjson==3.13.0", "numpy==2.5.4"]
+
+[package]
+resources = ["analysis.py", "dataset.json"]

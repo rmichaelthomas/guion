@@ -1,0 +1,464 @@
+{
+  "schema_version": 1,
+  "language": "python",
+  "task_id": "01-support-sla-report",
+  "stage": "initial",
+  "candidate_project_sha256": "1f971d7efd38d0c2f5c8d2b95b1d74e8b1ad3f79bd08df875050ed270c572349",
+  "delivery_artifact_path": "/Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/work/veritas-foundation/evaluation/results/pilot/independent-v1/reports/01-support-sla-report-python-final-initial.json.delivery",
+  "delivery_artifact_sha256": "a490cd643c6c11593f5563ba877f968d4d6b224bea56c8b60cf1f96ba4146856",
+  "container": {
+    "image": "veritas-campaign-python:3.14.8",
+    "image_id": "sha256:247421bada960203f9d8c8438608309e0eb6c1128681017d42af30bcbc9d1178",
+    "package_archive_sha256": "735604fabff913cae5569ef9bb1f7b175e777332e6d879299398142c8eb3037b",
+    "python_base_digest": "sha256:44e000a07b48bef1517a2b14adc93c17af728ca98858b5e24c6e1b18de1b2ef2",
+    "shared_dependencies_sha256": "34a2a4d8d157839eea434267f38e475187031f081f358387859181e5be136803",
+    "uv_version": "0.13.4",
+    "candidate_python_version": "3.14.8",
+    "platform": "linux/arm64",
+    "network": "none",
+    "read_only_rootfs": true,
+    "candidate_uid": 10001,
+    "limits": {
+      "cpus": 2,
+      "memory_bytes": 2147483648,
+      "pids": 128,
+      "tmpfs_bytes": 536870912
+    },
+    "source_project_mounted": true,
+    "delivery_source_project_mounted": false
+  },
+  "container_exit_codes": {
+    "source": 1,
+    "delivery": 1,
+    "delivery_stage": 0
+  },
+  "launcher_stderr": {
+    "source": "",
+    "delivery": ""
+  },
+  "case_report": {
+    "task_id": "01-support-sla-report",
+    "stage": "initial",
+    "passed": false,
+    "source": {
+      "cases": [
+        {
+          "candidate": {},
+          "case_id": "sla-initial-report",
+          "checks_passed": 8,
+          "checks_total": 8,
+          "elapsed_seconds": 0.529316,
+          "exit_code": 0,
+          "failures": [],
+          "http_fixtures": {},
+          "passed": true,
+          "stderr": "warning: Ignoring existing virtual environment linked to non-existent Python interpreter: `candidate/.venv/bin/python` -> `/Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/work/veritas-foundation/distribution/out-north-star-json-borrow-final-macos/veritas-0.1.0-darwin-arm64/examples/python_interop_bundle/python/cpython-3.14.8-macos-aarch64-none/bin/python3.14`\nUsing CPython 3.14.8\nRemoved virtual environment at: candidate/.venv\nCreating virtual environment at: candidate/.venv\n",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 8,
+              "checks_total": 8,
+              "elapsed_seconds": 0.491054,
+              "exit_code": 0,
+              "failures": []
+            }
+          ]
+        },
+        {
+          "candidate": {},
+          "case_id": "sla-duplicate-id-preserves-output",
+          "checks_passed": 2,
+          "checks_total": 2,
+          "elapsed_seconds": 0.503461,
+          "exit_code": 2,
+          "failures": [
+            "step 1: expected exit code 1, received 2"
+          ],
+          "http_fixtures": {},
+          "passed": false,
+          "stderr": "warning: Ignoring existing virtual environment linked to non-existent Python interpreter: `candidate/.venv/bin/python` -> `/Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/work/veritas-foundation/distribution/out-north-star-json-borrow-final-macos/veritas-0.1.0-darwin-arm64/examples/python_interop_bundle/python/cpython-3.14.8-macos-aarch64-none/bin/python3.14`\nUsing CPython 3.14.8\nRemoved virtual environment at: candidate/.venv\nCreating virtual environment at: candidate/.venv\nerror[duplicate_id]: duplicate ticket id 'D-1' at line 3\n",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 2,
+              "checks_total": 2,
+              "elapsed_seconds": 0.485798,
+              "exit_code": 2,
+              "failures": [
+                "expected exit code 1, received 2"
+              ]
+            }
+          ]
+        },
+        {
+          "candidate": {},
+          "case_id": "sla-missing-policy-entry-preserves-output",
+          "checks_passed": 1,
+          "checks_total": 2,
+          "elapsed_seconds": 0.371064,
+          "exit_code": 2,
+          "failures": [
+            "step 1: expected exit code 1, received 2",
+            "step 1: check 2: stderr_contains did not match its expected value"
+          ],
+          "http_fixtures": {},
+          "passed": false,
+          "stderr": "warning: Ignoring existing virtual environment linked to non-existent Python interpreter: `candidate/.venv/bin/python` -> `/Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/work/veritas-foundation/distribution/out-north-star-json-borrow-final-macos/veritas-0.1.0-darwin-arm64/examples/python_interop_bundle/python/cpython-3.14.8-macos-aarch64-none/bin/python3.14`\nUsing CPython 3.14.8\nRemoved virtual environment at: candidate/.venv\nCreating virtual environment at: candidate/.venv\nerror[missing_policy_entry]: policy has no response_minutes entry for priority 'low'\n",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 2,
+              "elapsed_seconds": 0.33641,
+              "exit_code": 2,
+              "failures": [
+                "expected exit code 1, received 2",
+                "check 2: stderr_contains did not match its expected value"
+              ]
+            }
+          ]
+        },
+        {
+          "candidate": {},
+          "case_id": "sla-malformed-csv-preserves-output",
+          "checks_passed": 1,
+          "checks_total": 1,
+          "elapsed_seconds": 0.369422,
+          "exit_code": 2,
+          "failures": [
+            "step 1: expected exit code 1, received 2"
+          ],
+          "http_fixtures": {},
+          "passed": false,
+          "stderr": "warning: Ignoring existing virtual environment linked to non-existent Python interpreter: `candidate/.venv/bin/python` -> `/Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/work/veritas-foundation/distribution/out-north-star-json-borrow-final-macos/veritas-0.1.0-darwin-arm64/examples/python_interop_bundle/python/cpython-3.14.8-macos-aarch64-none/bin/python3.14`\nUsing CPython 3.14.8\nRemoved virtual environment at: candidate/.venv\nCreating virtual environment at: candidate/.venv\nerror[malformed_header]: ticket CSV header must contain id, team, priority, status, and created_at once each\n",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.350422,
+              "exit_code": 2,
+              "failures": [
+                "expected exit code 1, received 2"
+              ]
+            }
+          ]
+        },
+        {
+          "candidate": {},
+          "case_id": "sla-unknown-priority-preserves-output",
+          "checks_passed": 2,
+          "checks_total": 2,
+          "elapsed_seconds": 0.371205,
+          "exit_code": 2,
+          "failures": [
+            "step 1: expected exit code 1, received 2"
+          ],
+          "http_fixtures": {},
+          "passed": false,
+          "stderr": "warning: Ignoring existing virtual environment linked to non-existent Python interpreter: `candidate/.venv/bin/python` -> `/Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/work/veritas-foundation/distribution/out-north-star-json-borrow-final-macos/veritas-0.1.0-darwin-arm64/examples/python_interop_bundle/python/cpython-3.14.8-macos-aarch64-none/bin/python3.14`\nUsing CPython 3.14.8\nRemoved virtual environment at: candidate/.venv\nCreating virtual environment at: candidate/.venv\nerror[unknown_priority]: ticket 'X-1' has unknown priority 'urgent'\n",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 2,
+              "checks_total": 2,
+              "elapsed_seconds": 0.354033,
+              "exit_code": 2,
+              "failures": [
+                "expected exit code 1, received 2"
+              ]
+            }
+          ]
+        },
+        {
+          "candidate": {},
+          "case_id": "sla-invalid-timestamp-preserves-output",
+          "checks_passed": 1,
+          "checks_total": 1,
+          "elapsed_seconds": 0.420971,
+          "exit_code": 2,
+          "failures": [
+            "step 1: expected exit code 1, received 2"
+          ],
+          "http_fixtures": {},
+          "passed": false,
+          "stderr": "warning: Ignoring existing virtual environment linked to non-existent Python interpreter: `candidate/.venv/bin/python` -> `/Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/work/veritas-foundation/distribution/out-north-star-json-borrow-final-macos/veritas-0.1.0-darwin-arm64/examples/python_interop_bundle/python/cpython-3.14.8-macos-aarch64-none/bin/python3.14`\nUsing CPython 3.14.8\nRemoved virtual environment at: candidate/.venv\nCreating virtual environment at: candidate/.venv\nerror[invalid_timestamp]: created_at for ticket 'X-1' must be an RFC3339 timestamp\n",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.402379,
+              "exit_code": 2,
+              "failures": [
+                "expected exit code 1, received 2"
+              ]
+            }
+          ]
+        }
+      ],
+      "passed": false,
+      "stage": "initial",
+      "task_id": "01-support-sla-report"
+    },
+    "delivery": {
+      "passed": false,
+      "artifact_sha256": "a490cd643c6c11593f5563ba877f968d4d6b224bea56c8b60cf1f96ba4146856",
+      "artifact_bytes": 10776,
+      "source_paths_excluded": [
+        "src",
+        "main.py",
+        "pyproject.toml",
+        "build.sh"
+      ],
+      "original_project_mounted": false,
+      "cases": [
+        {
+          "candidate": {
+            "artifact_bytes": 10776,
+            "artifact_paths": [
+              "dist/sla-report.pyz",
+              "uv.lock"
+            ],
+            "artifact_sha256": "a490cd643c6c11593f5563ba877f968d4d6b224bea56c8b60cf1f96ba4146856",
+            "delivery_manifest": "delivery.json",
+            "dependency_lock_path": "uv.lock",
+            "source_paths": [
+              "src",
+              "main.py",
+              "pyproject.toml",
+              "build.sh"
+            ]
+          },
+          "case_id": "sla-initial-report",
+          "checks_passed": 8,
+          "checks_total": 8,
+          "elapsed_seconds": 0.139876,
+          "exit_code": 0,
+          "failures": [],
+          "http_fixtures": {},
+          "passed": true,
+          "stderr": "",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 8,
+              "checks_total": 8,
+              "elapsed_seconds": 0.137562,
+              "exit_code": 0,
+              "failures": []
+            }
+          ]
+        },
+        {
+          "candidate": {
+            "artifact_bytes": 10776,
+            "artifact_paths": [
+              "dist/sla-report.pyz",
+              "uv.lock"
+            ],
+            "artifact_sha256": "a490cd643c6c11593f5563ba877f968d4d6b224bea56c8b60cf1f96ba4146856",
+            "delivery_manifest": "delivery.json",
+            "dependency_lock_path": "uv.lock",
+            "source_paths": [
+              "src",
+              "main.py",
+              "pyproject.toml",
+              "build.sh"
+            ]
+          },
+          "case_id": "sla-duplicate-id-preserves-output",
+          "checks_passed": 2,
+          "checks_total": 2,
+          "elapsed_seconds": 0.142603,
+          "exit_code": 2,
+          "failures": [
+            "step 1: expected exit code 1, received 2"
+          ],
+          "http_fixtures": {},
+          "passed": false,
+          "stderr": "error[duplicate_id]: duplicate ticket id 'D-1' at line 3\n",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 2,
+              "checks_total": 2,
+              "elapsed_seconds": 0.140386,
+              "exit_code": 2,
+              "failures": [
+                "expected exit code 1, received 2"
+              ]
+            }
+          ]
+        },
+        {
+          "candidate": {
+            "artifact_bytes": 10776,
+            "artifact_paths": [
+              "dist/sla-report.pyz",
+              "uv.lock"
+            ],
+            "artifact_sha256": "a490cd643c6c11593f5563ba877f968d4d6b224bea56c8b60cf1f96ba4146856",
+            "delivery_manifest": "delivery.json",
+            "dependency_lock_path": "uv.lock",
+            "source_paths": [
+              "src",
+              "main.py",
+              "pyproject.toml",
+              "build.sh"
+            ]
+          },
+          "case_id": "sla-missing-policy-entry-preserves-output",
+          "checks_passed": 1,
+          "checks_total": 2,
+          "elapsed_seconds": 0.150178,
+          "exit_code": 2,
+          "failures": [
+            "step 1: expected exit code 1, received 2",
+            "step 1: check 2: stderr_contains did not match its expected value"
+          ],
+          "http_fixtures": {},
+          "passed": false,
+          "stderr": "error[missing_policy_entry]: policy has no response_minutes entry for priority 'low'\n",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 2,
+              "elapsed_seconds": 0.147768,
+              "exit_code": 2,
+              "failures": [
+                "expected exit code 1, received 2",
+                "check 2: stderr_contains did not match its expected value"
+              ]
+            }
+          ]
+        },
+        {
+          "candidate": {
+            "artifact_bytes": 10776,
+            "artifact_paths": [
+              "dist/sla-report.pyz",
+              "uv.lock"
+            ],
+            "artifact_sha256": "a490cd643c6c11593f5563ba877f968d4d6b224bea56c8b60cf1f96ba4146856",
+            "delivery_manifest": "delivery.json",
+            "dependency_lock_path": "uv.lock",
+            "source_paths": [
+              "src",
+              "main.py",
+              "pyproject.toml",
+              "build.sh"
+            ]
+          },
+          "case_id": "sla-malformed-csv-preserves-output",
+          "checks_passed": 1,
+          "checks_total": 1,
+          "elapsed_seconds": 0.144547,
+          "exit_code": 2,
+          "failures": [
+            "step 1: expected exit code 1, received 2"
+          ],
+          "http_fixtures": {},
+          "passed": false,
+          "stderr": "error[malformed_header]: ticket CSV header must contain id, team, priority, status, and created_at once each\n",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.1417,
+              "exit_code": 2,
+              "failures": [
+                "expected exit code 1, received 2"
+              ]
+            }
+          ]
+        },
+        {
+          "candidate": {
+            "artifact_bytes": 10776,
+            "artifact_paths": [
+              "dist/sla-report.pyz",
+              "uv.lock"
+            ],
+            "artifact_sha256": "a490cd643c6c11593f5563ba877f968d4d6b224bea56c8b60cf1f96ba4146856",
+            "delivery_manifest": "delivery.json",
+            "dependency_lock_path": "uv.lock",
+            "source_paths": [
+              "src",
+              "main.py",
+              "pyproject.toml",
+              "build.sh"
+            ]
+          },
+          "case_id": "sla-unknown-priority-preserves-output",
+          "checks_passed": 2,
+          "checks_total": 2,
+          "elapsed_seconds": 0.145334,
+          "exit_code": 2,
+          "failures": [
+            "step 1: expected exit code 1, received 2"
+          ],
+          "http_fixtures": {},
+          "passed": false,
+          "stderr": "error[unknown_priority]: ticket 'X-1' has unknown priority 'urgent'\n",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 2,
+              "checks_total": 2,
+              "elapsed_seconds": 0.143025,
+              "exit_code": 2,
+              "failures": [
+                "expected exit code 1, received 2"
+              ]
+            }
+          ]
+        },
+        {
+          "candidate": {
+            "artifact_bytes": 10776,
+            "artifact_paths": [
+              "dist/sla-report.pyz",
+              "uv.lock"
+            ],
+            "artifact_sha256": "a490cd643c6c11593f5563ba877f968d4d6b224bea56c8b60cf1f96ba4146856",
+            "delivery_manifest": "delivery.json",
+            "dependency_lock_path": "uv.lock",
+            "source_paths": [
+              "src",
+              "main.py",
+              "pyproject.toml",
+              "build.sh"
+            ]
+          },
+          "case_id": "sla-invalid-timestamp-preserves-output",
+          "checks_passed": 1,
+          "checks_total": 1,
+          "elapsed_seconds": 0.142704,
+          "exit_code": 2,
+          "failures": [
+            "step 1: expected exit code 1, received 2"
+          ],
+          "http_fixtures": {},
+          "passed": false,
+          "stderr": "error[invalid_timestamp]: created_at for ticket 'X-1' must be an RFC3339 timestamp\n",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.140516,
+              "exit_code": 2,
+              "failures": [
+                "expected exit code 1, received 2"
+              ]
+            }
+          ]
+        }
+      ],
+      "stage_error": ""
+    }
+  }
+}

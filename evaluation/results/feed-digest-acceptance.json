@@ -1,0 +1,82 @@
+{
+  "schema_version": 1,
+  "captured_at": "2026-10-22",
+  "status": "passed",
+  "classification": "author-defined development acceptance; not an independent recommendation evaluation",
+  "candidate": {
+    "version": "0.1.0",
+    "artifact_format": 19,
+    "target": "macos-aarch64",
+    "managed_python": "3.14.8",
+    "uv": "0.13.4",
+    "python_dependency": "feedparser==6.0.14",
+    "workspace_project": "evaluation/development/feed_digest",
+    "manifest_network_grant": ["127.0.0.1"],
+    "source_lock_sha256": {
+      "uv.lock": "737de8b1e9d63af92218a207ff026b30b1d03859a26f36107177d95f06417721",
+      "veritas.lock": "b53b89c4c43abd7483563194242c7e7ca086fc5e45e99e67ad5b7ca07774ebba"
+    }
+  },
+  "acceptance_suite": {
+    "command": "python3 -m unittest discover -s evaluation/tests -p 'test_feed_digest.py' -v",
+    "transport": "loopback-only threaded fixture server",
+    "summary": {
+      "workspace_cli": {"passed": 6, "failed": 0},
+      "extracted_package_cli": {"passed": 6, "failed": 0}
+    },
+    "cases": [
+      {"name": "dedup_unicode_sort_failure_and_python_parity", "status": "passed"},
+      {"name": "reversed_input_is_deterministic", "status": "passed"},
+      {"name": "changed_title_is_reflected_on_fresh_run", "status": "passed"},
+      {"name": "malformed_feed_contributes_no_entries", "status": "passed"},
+      {"name": "ungranted_hostname_is_denied", "status": "passed"},
+      {"name": "veritas_and_python_fetch_independent_feeds_concurrently", "status": "passed"}
+    ],
+    "limits": {
+      "max_parallel_requests": 4,
+      "request_timeout_seconds": 15,
+      "max_response_bytes": 16777216,
+      "max_redirects": 5
+    },
+    "python_baseline": "Independent HTTP/concurrency/rendering implementation; shares only the pinned feedparser library and fixture response contract."
+  },
+  "workspace_verification": {
+    "command": "cargo test --offline --workspace",
+    "passed": 88,
+    "failed": 0,
+    "breakdown": {
+      "cli_unit": 3,
+      "cli_integration": 16,
+      "python_dependencies": 2,
+      "compiler_pipeline": 5,
+      "model_and_artifact": 7,
+      "runtime_execution": 37,
+      "http": 4,
+      "python_bridge": 14
+    },
+    "format": "cargo fmt --all -- --check passed",
+    "lint": "cargo clippy --offline --workspace --all-targets -- -D warnings passed"
+  },
+  "package": {
+    "path": "outputs/veritas-foundation-rc31/veritas-0.1.0-darwin-arm64.tar.gz",
+    "sha256": "0ca58d7012cf79e582a6da8d8b3cc4b5e9cd07e1b57e27dded35b1da54d9e258",
+    "size_bytes": 16538072,
+    "package_smoke": "Extracted to a new temporary directory; doctor passed; feed_digest locked sync passed offline using the already populated Python/wheel cache; the 6-case suite then passed against the extracted binary.",
+    "rust_dependency_notices": 121,
+    "native_linkage": ["/usr/lib/libiconv.2.dylib", "/usr/lib/libSystem.B.dylib"],
+    "not_verified": [
+      "cold dependency download or first install on a clean machine",
+      "cross-host relocation",
+      "code signing and notarization",
+      "relocatable Python runtime or wheel bundle"
+    ]
+  },
+  "performance": {
+    "throughput_benchmark": "not run",
+    "concurrency_evidence": "fixture server observed two simultaneous active requests in both candidates"
+  },
+  "recommendation_gate": {
+    "passed": false,
+    "reason": "one known workload and prior author-run sales aggregation are insufficient; independent builders, varied task classes, cold/warm cost accounting, and broad portability evidence remain absent"
+  }
+}

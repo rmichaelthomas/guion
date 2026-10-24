@@ -1,0 +1,19 @@
+[package]
+name = "veritas-runtime"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+veritas-model.workspace = true
+serde_json.workspace = true
+serde.workspace = true
+base64.workspace = true
+reqwest.workspace = true
+veritas-compiler.workspace = true
+cranelift-codegen = "=0.135.0"
+cranelift-frontend = "=0.135.0"
+cranelift-jit = "=0.135.0"
+cranelift-module = "=0.135.0"
+cranelift-native = "=0.135.0"
+

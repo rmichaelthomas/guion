@@ -1,0 +1,129 @@
+{
+  "schema_version": 1,
+  "language": "veritas",
+  "task_id": "08-documentation-link-index",
+  "stage": "initial",
+  "candidate_project_sha256": "b60cceac5d9f32541987b90f575a9f25b9eabb40e28b526b55849efa90c34fae",
+  "container": {
+    "image": "veritas-campaign-veritas:0.1.0",
+    "image_id": "sha256:5dbc60100d47f392726c01d723ef59aef20053667ff0a8a3ceb3886ae6276f5a",
+    "package_archive_sha256": "a71b79232b2efb73b32175e9c45ca283bc4a0d4eaf28a7aa905a7e5d02c49ef1",
+    "python_base_digest": "sha256:44e000a07b48bef1517a2b14adc93c17af728ca98858b5e24c6e1b18de1b2ef2",
+    "shared_dependencies_sha256": "34a2a4d8d157839eea434267f38e475187031f081f358387859181e5be136803",
+    "uv_version": "0.13.4",
+    "candidate_python_version": "3.14.8",
+    "platform": "linux/arm64",
+    "network": "none",
+    "read_only_rootfs": true,
+    "candidate_uid": 10001,
+    "limits": {
+      "cpus": 2,
+      "memory_bytes": 2147483648,
+      "pids": 128,
+      "tmpfs_bytes": 536870912
+    }
+  },
+  "container_exit_code": 0,
+  "launcher_stderr": "",
+  "case_report": {
+    "cases": [
+      {
+        "candidate": {},
+        "case_id": "doc-index-build-check-backlinks",
+        "checks_passed": 4,
+        "checks_total": 4,
+        "elapsed_seconds": 0.291923,
+        "exit_code": 0,
+        "failures": [],
+        "http_fixtures": {},
+        "passed": true,
+        "stderr": "",
+        "stdout": "",
+        "steps": [
+          {
+            "checks_passed": 1,
+            "checks_total": 1,
+            "elapsed_seconds": 0.096949,
+            "exit_code": 0,
+            "failures": []
+          },
+          {
+            "checks_passed": 2,
+            "checks_total": 2,
+            "elapsed_seconds": 0.096202,
+            "exit_code": 0,
+            "failures": []
+          },
+          {
+            "checks_passed": 1,
+            "checks_total": 1,
+            "elapsed_seconds": 0.094889,
+            "exit_code": 0,
+            "failures": []
+          }
+        ]
+      },
+      {
+        "candidate": {},
+        "case_id": "doc-index-ignores-symlink-outside-root",
+        "checks_passed": 2,
+        "checks_total": 2,
+        "elapsed_seconds": 0.188217,
+        "exit_code": 0,
+        "failures": [],
+        "http_fixtures": {},
+        "passed": true,
+        "stderr": "",
+        "stdout": "",
+        "steps": [
+          {
+            "checks_passed": 1,
+            "checks_total": 1,
+            "elapsed_seconds": 0.09292,
+            "exit_code": 0,
+            "failures": []
+          },
+          {
+            "checks_passed": 1,
+            "checks_total": 1,
+            "elapsed_seconds": 0.09268,
+            "exit_code": 0,
+            "failures": []
+          }
+        ]
+      },
+      {
+        "candidate": {},
+        "case_id": "doc-index-invalid-utf8-preserves-index",
+        "checks_passed": 2,
+        "checks_total": 2,
+        "elapsed_seconds": 0.282347,
+        "exit_code": 0,
+        "failures": [],
+        "http_fixtures": {},
+        "passed": true,
+        "stderr": "",
+        "stdout": "",
+        "steps": [
+          {
+            "checks_passed": 1,
+            "checks_total": 1,
+            "elapsed_seconds": 0.09285,
+            "exit_code": 1,
+            "failures": []
+          },
+          {
+            "checks_passed": 1,
+            "checks_total": 1,
+            "elapsed_seconds": 0.094255,
+            "exit_code": 0,
+            "failures": []
+          }
+        ]
+      }
+    ],
+    "passed": true,
+    "stage": "initial",
+    "task_id": "08-documentation-link-index"
+  }
+}

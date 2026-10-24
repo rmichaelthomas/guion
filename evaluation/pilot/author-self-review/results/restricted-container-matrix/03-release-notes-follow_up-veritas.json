@@ -1,0 +1,78 @@
+{
+  "schema_version": 1,
+  "language": "veritas",
+  "task_id": "03-release-notes",
+  "stage": "follow_up",
+  "candidate_project_sha256": "2f94bf7cb04cc63983aebd97978b4fba485fe902f0afb44d0836d914e1e05d81",
+  "container": {
+    "image": "veritas-campaign-veritas:0.1.0",
+    "image_id": "sha256:0c98cb8bf2b132290731f77306fdf014946fdb87e9205c5091190656da79892c",
+    "package_archive_sha256": "080750d582c199e21e4098da7f21023958083c5602db725f2cb8226e9e20c203",
+    "python_base_digest": "sha256:82bc3c539b8813ada9d68c63b40158fa002f7f33de9bf3312a3dfdc0620dff56",
+    "shared_dependencies_sha256": "34a2a4d8d157839eea434267f38e475187031f081f358387859181e5be136803",
+    "uv_version": "0.13.4",
+    "platform": "linux/arm64",
+    "network": "none",
+    "read_only_rootfs": true,
+    "candidate_uid": 10001,
+    "limits": {
+      "cpus": 2,
+      "memory_bytes": 2147483648,
+      "pids": 128,
+      "tmpfs_bytes": 536870912
+    }
+  },
+  "container_exit_code": 0,
+  "launcher_stderr": "",
+  "case_report": {
+    "cases": [
+      {
+        "candidate": {},
+        "case_id": "release-notes-since-follow-up",
+        "checks_passed": 2,
+        "checks_total": 2,
+        "elapsed_seconds": 0.123336,
+        "exit_code": 0,
+        "failures": [],
+        "http_fixtures": {},
+        "passed": true,
+        "stderr": "",
+        "stdout": "",
+        "steps": [
+          {
+            "checks_passed": 2,
+            "checks_total": 2,
+            "elapsed_seconds": 0.120305,
+            "exit_code": 0,
+            "failures": []
+          }
+        ]
+      },
+      {
+        "candidate": {},
+        "case_id": "release-notes-invalid-since-preserves-outputs",
+        "checks_passed": 2,
+        "checks_total": 2,
+        "elapsed_seconds": 0.130378,
+        "exit_code": 1,
+        "failures": [],
+        "http_fixtures": {},
+        "passed": true,
+        "stderr": "invalid semantic version: not-a-version\n",
+        "stdout": "",
+        "steps": [
+          {
+            "checks_passed": 2,
+            "checks_total": 2,
+            "elapsed_seconds": 0.12667,
+            "exit_code": 1,
+            "failures": []
+          }
+        ]
+      }
+    ],
+    "passed": true,
+    "stage": "follow_up",
+    "task_id": "03-release-notes"
+  }
+}

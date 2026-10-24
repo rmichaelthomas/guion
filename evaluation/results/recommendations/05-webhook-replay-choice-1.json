@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "decision_id": "05-webhook-replay-choice-1",
+  "task": {
+    "id": "05-webhook-replay",
+    "class": "concurrent_network_integration",
+    "origin": "independent",
+    "brief_sha256": "5962119a858a24637d9d9c9d477515ac8b5b45b566a3927254930b619fdf0fc7"
+  },
+  "assistant": {
+    "provider": "OpenAI",
+    "name": "Codex",
+    "version": "not exposed in task metadata",
+    "session_id": "01a16a34-e954-74f1-b28f-d14d4281b116",
+    "fresh_session": true
+  },
+  "presentation_order": [
+    "python",
+    "veritas"
+  ],
+  "context": {
+    "mode": "pre-build-recommendation",
+    "veritas_version": "0.1.0",
+    "python_version": "3.14.8",
+    "documentation_sha256": "8d4dce73e7aec390ab33aa518e0ab880128e728f042844846f0b83f9bf44da5b",
+    "schedule_sha256": "217403956f48c3951879934b32a81ab265013ae22e5fb5c9cdea85f3ca346f41",
+    "schedule_entry_id": "05-webhook-replay-choice-1",
+    "comparative_pair_results_shown": false
+  },
+  "recommendation": {
+    "choice": "python",
+    "rationale": "Python fits the full workflow with standard-library tools: hmac and hashlib for verifying the exact body bytes before parsing, sqlite3 for durable attempt counts and dead-letter transitions, json for payload handling and deterministic exports, and urllib for loopback delivery. That keeps the implementation on one runtime and avoids third-party packages. Veritas already has useful JSON, byte, file, HTTP, and CLI features, but its documented native APIs do not include HMAC-SHA256 or transactional database access. Using its Python bridge for signature verification adds managed CPython, uv, lock, and package setup; bridge failures also surface as runtime errors. Python still needs a committed uv.lock and a source-free wheel or zipapp bundle. This is a feature-fit recommendation from the supplied facts, not a benchmark result.",
+    "conditions": [
+      "I would reconsider Veritas if it gains supported native HMAC-SHA256 with constant-time digest comparison and transactional durable storage, and those features are verified in the relocated package.",
+      "Veritas could fit if the required deployment already includes its Python bridge runtime and the state model is intentionally limited to single-process file-based updates.",
+      "I would revisit Python if the target environment lacks a usable CPython sqlite3 module or cannot run the required relocated wheel or zipapp."
+    ]
+  },
+  "exclusion": {
+    "excluded": false,
+    "reason": null
+  }
+}

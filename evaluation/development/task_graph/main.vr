@@ -1,0 +1,104 @@
+fn main() -> Int:
+    let arguments = args()
+    if len(arguments) != 2 and len(arguments) != 3:
+        print("Usage: veritas run . INPUT.json OUTPUT.json [--priority]")
+        return 2
+
+    let priority_mode = len(arguments) == 3
+    if priority_mode and arguments[2] != "--priority":
+        print("Usage: veritas run . INPUT.json OUTPUT.json [--priority]")
+        return 2
+
+    let loaded = read_text(arguments[0])
+    if not is_ok(loaded):
+        let problem = error(loaded)
+        print("Cannot read input: " + file_error_code(problem) + " — " + file_error_message(problem))
+        return 1
+    let parsed = json_parse(unwrap(loaded))
+    if not is_ok(parsed):
+        let problem = error(parsed)
+        print("Invalid JSON: " + json_error_code(problem) + " — " + json_error_message(problem))
+        return 1
+
+    let document = unwrap(parsed)
+    if not json_has(document, "tasks"):
+        print("Invalid task graph: missing tasks array")
+        return 1
+    let tasks = json_get(document, "tasks")
+    let task_count = json_len(tasks)
+    var ids: Map[Text, Bool] = {}
+    var index = 0
+    while index < task_count:
+        let task = json_index(tasks, index)
+        let task_id = json_as_text(json_get(task, "id"))
+        if task_id == "":
+            print("Invalid task graph: task id cannot be empty")
+            return 1
+        if map_has(ids, task_id):
+            print("Invalid task graph: duplicate task id " + task_id)
+            return 1
+        set ids = map_set(ids, task_id, true)
+        set index = index + 1
+
+    set index = 0
+    while index < task_count:
+        let task = json_index(tasks, index)
+        let task_id = json_as_text(json_get(task, "id"))
+        let dependencies = json_get(task, "depends_on")
+        var dependency_index = 0
+        while dependency_index < json_len(dependencies):
+            let dependency = json_as_text(json_index(dependencies, dependency_index))
+            if not map_has(ids, dependency):
+                print("Invalid task graph: unknown dependency " + dependency + " for " + task_id)
+                return 1
+            set dependency_index = dependency_index + 1
+        set index = index + 1
+
+    var completed: Map[Text, Bool] = {}
+    var order = json_array()
+    var emitted = 0
+    while emitted < task_count:
+        var found_ready = false
+        var best_id = ""
+        var best_priority = 0
+        set index = 0
+        while index < task_count:
+            let task = json_index(tasks, index)
+            let task_id = json_as_text(json_get(task, "id"))
+            if not map_has(completed, task_id):
+                let dependencies = json_get(task, "depends_on")
+                var ready = true
+                var dependency_index = 0
+                while dependency_index < json_len(dependencies):
+                    let dependency = json_as_text(json_index(dependencies, dependency_index))
+                    if not map_has(completed, dependency):
+                        set ready = false
+                    set dependency_index = dependency_index + 1
+
+                if ready:
+                    var priority = 0
+                    if priority_mode and json_has(task, "priority"):
+                        set priority = json_as_int(json_get(task, "priority"))
+                    if not found_ready or priority > best_priority or (priority == best_priority and task_id < best_id):
+                        set found_ready = true
+                        set best_id = task_id
+                        set best_priority = priority
+            set index = index + 1
+
+        if not found_ready:
+            print("Invalid task graph: dependency cycle")
+            return 1
+        set order = json_push(order, json_text(best_id))
+        set completed = map_set(completed, best_id, true)
+        set emitted = emitted + 1
+
+    let result = json_set(json_object(), "order", order)
+    let complete_result = json_set(result, "count", json_int(task_count))
+    let saved = write_text_atomic(arguments[1], json_stringify(complete_result))
+    if not is_ok(saved):
+        let problem = error(saved)
+        print("Cannot write output: " + file_error_code(problem) + " — " + file_error_message(problem))
+        return 1
+    print("Planned tasks:")
+    print(task_count)
+    return 0

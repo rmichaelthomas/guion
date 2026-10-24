@@ -1,0 +1,136 @@
+{
+  "schema_version": 1,
+  "language": "veritas",
+  "task_id": "07-config-migrator",
+  "stage": "initial",
+  "candidate_project_sha256": "5bb3998c54372ecddc725055c084f16573f0162616fd9fcb70993bdafe809797",
+  "container": {
+    "image": "veritas-campaign-veritas:0.1.0",
+    "image_id": "sha256:0c98cb8bf2b132290731f77306fdf014946fdb87e9205c5091190656da79892c",
+    "package_archive_sha256": "080750d582c199e21e4098da7f21023958083c5602db725f2cb8226e9e20c203",
+    "python_base_digest": "sha256:82bc3c539b8813ada9d68c63b40158fa002f7f33de9bf3312a3dfdc0620dff56",
+    "shared_dependencies_sha256": "34a2a4d8d157839eea434267f38e475187031f081f358387859181e5be136803",
+    "uv_version": "0.13.4",
+    "platform": "linux/arm64",
+    "network": "none",
+    "read_only_rootfs": true,
+    "candidate_uid": 10001,
+    "limits": {
+      "cpus": 2,
+      "memory_bytes": 2147483648,
+      "pids": 128,
+      "tmpfs_bytes": 536870912
+    }
+  },
+  "container_exit_code": 1,
+  "launcher_stderr": "",
+  "case_report": {
+    "cases": [
+      {
+        "candidate": {},
+        "case_id": "config-migrator-v1-to-v2",
+        "checks_passed": 1,
+        "checks_total": 2,
+        "elapsed_seconds": 0.038522,
+        "exit_code": 1,
+        "failures": [
+          "step 1: expected exit code 0, received 1",
+          "step 1: check 2: toml_equals did not match its expected value"
+        ],
+        "http_fixtures": {},
+        "passed": false,
+        "stderr": "managed Python lock does not match this target, veritas.toml, or uv.lock; run `veritas sync --update <project>` to refresh it\n",
+        "stdout": "",
+        "steps": [
+          {
+            "checks_passed": 1,
+            "checks_total": 2,
+            "elapsed_seconds": 0.006319,
+            "exit_code": 1,
+            "failures": [
+              "expected exit code 0, received 1",
+              "check 2: toml_equals did not match its expected value"
+            ]
+          }
+        ]
+      },
+      {
+        "candidate": {},
+        "case_id": "config-migrator-future-version-safe",
+        "checks_passed": 1,
+        "checks_total": 2,
+        "elapsed_seconds": 0.027094,
+        "exit_code": 1,
+        "failures": [
+          "step 1: check 2: stderr_contains did not match its expected value"
+        ],
+        "http_fixtures": {},
+        "passed": false,
+        "stderr": "managed Python lock does not match this target, veritas.toml, or uv.lock; run `veritas sync --update <project>` to refresh it\n",
+        "stdout": "",
+        "steps": [
+          {
+            "checks_passed": 1,
+            "checks_total": 2,
+            "elapsed_seconds": 0.004172,
+            "exit_code": 1,
+            "failures": [
+              "check 2: stderr_contains did not match its expected value"
+            ]
+          }
+        ]
+      },
+      {
+        "candidate": {},
+        "case_id": "config-migrator-current-schema-check-is-read-only",
+        "checks_passed": 1,
+        "checks_total": 1,
+        "elapsed_seconds": 0.028448,
+        "exit_code": 1,
+        "failures": [
+          "step 1: expected exit code 0, received 1"
+        ],
+        "http_fixtures": {},
+        "passed": false,
+        "stderr": "managed Python lock does not match this target, veritas.toml, or uv.lock; run `veritas sync --update <project>` to refresh it\n",
+        "stdout": "",
+        "steps": [
+          {
+            "checks_passed": 1,
+            "checks_total": 1,
+            "elapsed_seconds": 0.00405,
+            "exit_code": 1,
+            "failures": [
+              "expected exit code 0, received 1"
+            ]
+          }
+        ]
+      },
+      {
+        "candidate": {},
+        "case_id": "config-migrator-invalid-current-schema-is-safe",
+        "checks_passed": 1,
+        "checks_total": 1,
+        "elapsed_seconds": 0.027559,
+        "exit_code": 1,
+        "failures": [],
+        "http_fixtures": {},
+        "passed": true,
+        "stderr": "managed Python lock does not match this target, veritas.toml, or uv.lock; run `veritas sync --update <project>` to refresh it\n",
+        "stdout": "",
+        "steps": [
+          {
+            "checks_passed": 1,
+            "checks_total": 1,
+            "elapsed_seconds": 0.003337,
+            "exit_code": 1,
+            "failures": []
+          }
+        ]
+      }
+    ],
+    "passed": false,
+    "stage": "initial",
+    "task_id": "07-config-migrator"
+  }
+}

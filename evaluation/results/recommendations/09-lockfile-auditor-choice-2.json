@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "decision_id": "09-lockfile-auditor-choice-2",
+  "task": {
+    "id": "09-lockfile-auditor",
+    "class": "maintainable_application",
+    "origin": "independent",
+    "brief_sha256": "371c1c2fb741a00716f1ceae2ac5b07e9ca99aa5f8fdcb831db2398153e02eb9"
+  },
+  "assistant": {
+    "provider": "OpenAI",
+    "name": "Codex",
+    "version": "not exposed in task metadata",
+    "session_id": "01a16a42-e310-7fb0-bb69-cb9e3c6df56c",
+    "fresh_session": true
+  },
+  "presentation_order": [
+    "python",
+    "veritas"
+  ],
+  "context": {
+    "mode": "pre-build-recommendation",
+    "veritas_version": "0.1.0",
+    "python_version": "3.14.8",
+    "documentation_sha256": "8d4dce73e7aec390ab33aa518e0ab880128e728f042844846f0b83f9bf44da5b",
+    "schedule_sha256": "217403956f48c3951879934b32a81ab265013ae22e5fb5c9cdea85f3ca346f41",
+    "schedule_entry_id": "09-lockfile-auditor-choice-2",
+    "comparative_pair_results_shown": false
+  },
+  "recommendation": {
+    "choice": "python",
+    "rationale": "Python fits this data-validation CLI with fewer moving parts: its standard library covers JSON, command-line arguments, Gregorian date validation, and atomic file replacement. SemVer 2.0.0 still needs a maintained parser or careful custom validation. Veritas has relevant JSON, CLI, and atomic-write capabilities, but this task’s exact SemVer and exception rules would still need implementation; using its Python bridge for a parser would add managed-interpreter and packaging work. Neither candidate has comparative results here, so this is a fit-based recommendation, not a performance claim.",
+    "conditions": [
+      "I would reconsider Veritas if it already had a proven native SemVer 2.0.0 parser and the required date and JSON validation, with clean-install and relocated packaging demonstrated within the evaluation budget.",
+      "I would reconsider if the required maintained SemVer parser is unavailable in the shared offline wheelhouse and the evaluator requires using one rather than implementing validation.",
+      "I would consider either candidate if the frozen lockfile subset and shared parser approach make implementation and delivery requirements equivalent."
+    ]
+  },
+  "exclusion": {
+    "excluded": false,
+    "reason": null
+  }
+}

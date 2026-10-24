@@ -1,0 +1,223 @@
+record Routing:
+    packet_links: List[Int]
+    packet_ident: List[Int]
+    task_input: List[Int]
+    task_pending: List[Bool]
+    packet_count: Int
+    next_task: Int
+
+fn next_worker_count(count: Int) -> Int:
+    if count >= 26:
+        return 1
+    return count + 1
+
+fn xor_d008(value: Int) -> Int:
+    var left = value
+    var right = 53256
+    var place = 1
+    var result = 0
+    while left > 0 or right > 0:
+        if left % 2 != right % 2:
+            set result = result + place
+        set left = left // 2
+        set right = right // 2
+        set place = place * 2
+    return result
+
+fn route_packet(packet: Int, source_task: Int, packet_links: List[Int], packet_ident: List[Int], task_input: List[Int], task_pending: List[Bool], task_priority: List[Int], packet_count: Int) -> Routing:
+    let target = packet_ident[packet]
+    let clean_links = list_set(packet_links, packet, -1)
+    let changed_ident = list_set(packet_ident, packet, source_task)
+    let count = packet_count + 1
+    if task_input[target] == -1:
+        let changed_input = list_set(task_input, target, packet)
+        let changed_pending = list_set(task_pending, target, true)
+        if task_priority[target] > task_priority[source_task]:
+            return Routing(clean_links, changed_ident, changed_input, changed_pending, count, target)
+        return Routing(clean_links, changed_ident, changed_input, changed_pending, count, source_task)
+
+    var tail = task_input[target]
+    while packet_links[tail] != -1:
+        set tail = packet_links[tail]
+    let changed_links = list_set(clean_links, tail, packet)
+    return Routing(changed_links, changed_ident, task_input, task_pending, count, source_task)
+
+fn main() -> Int:
+    let task_next = [-1, 0, 1, 2, 3, 4]
+    let task_priority = [0, 1000, 2000, 3000, 4000, 5000]
+    var task_pending = [false, true, true, true, false, false]
+    var task_waiting = [false, true, true, true, true, true]
+    var task_holding = [false, false, false, false, false, false]
+    var task_input = [-1, 1, 4, 7, -1, -1]
+    var packet_links = [-1, 0, -1, 2, 3, -1, 5, 6]
+    var packet_ident = [0, 0, 4, 4, 4, 5, 5, 5]
+    let packet_kind = [1001, 1001, 1000, 1000, 1000, 1000, 1000, 1000]
+    var packet_datum = [0, 0, 0, 0, 0, 0, 0, 0]
+    var packet_data_a = [0, 0, 0, 0, 0, 0, 0, 0]
+    var packet_data_b = [0, 0, 0, 0, 0, 0, 0, 0]
+    var packet_data_c = [0, 0, 0, 0, 0, 0, 0, 0]
+    var packet_data_d = [0, 0, 0, 0, 0, 0, 0, 0]
+    var handler_work = [-1, -1, -1, -1, -1, -1]
+    var handler_device = [-1, -1, -1, -1, -1, -1]
+    var device_pending = [-1, -1, -1, -1, -1, -1]
+    var worker_destination = [0, 2, 0, 0, 0, 0]
+    var worker_count = [0, 0, 0, 0, 0, 0]
+    var idle_control = 1
+    var idle_count = 10000
+    var hold_count = 0
+    var packet_count = 0
+    var current_task = 5
+
+    while current_task >= 0:
+        if task_holding[current_task] or (task_waiting[current_task] and not task_pending[current_task]):
+            set current_task = task_next[current_task]
+        else:
+            let executing_task = current_task
+            var message = -1
+            if task_pending[current_task] and task_waiting[current_task]:
+                set message = task_input[current_task]
+                set task_input = list_set(task_input, current_task, packet_links[message])
+                if task_input[current_task] == -1:
+                    set task_pending = list_set(task_pending, current_task, false)
+                    set task_waiting = list_set(task_waiting, current_task, false)
+                else:
+                    set task_pending = list_set(task_pending, current_task, true)
+                    set task_waiting = list_set(task_waiting, current_task, false)
+
+            if executing_task == 0:
+                set idle_count = idle_count - 1
+                if idle_count == 0:
+                    set hold_count = hold_count + 1
+                    set task_holding = list_set(task_holding, current_task, true)
+                    set current_task = task_next[current_task]
+                else:
+                    if idle_control % 2 == 0:
+                        set idle_control = idle_control // 2
+                        let released = 4
+                        set task_holding = list_set(task_holding, released, false)
+                        if task_priority[released] > task_priority[current_task]:
+                            set current_task = released
+                        else:
+                            set current_task = task_next[current_task]
+                    else:
+                        set idle_control = xor_d008(idle_control // 2)
+                        let released = 5
+                        set task_holding = list_set(task_holding, released, false)
+                        if task_priority[released] > task_priority[current_task]:
+                            set current_task = released
+                        else:
+                            set current_task = task_next[current_task]
+            if executing_task == 1:
+                if message == -1:
+                    set task_waiting = list_set(task_waiting, current_task, true)
+                else:
+                    var destination = 0
+                    if worker_destination[current_task] == 2:
+                        set destination = 3
+                    else:
+                        set destination = 2
+                    set worker_destination = list_set(worker_destination, current_task, destination)
+                    set packet_ident = list_set(packet_ident, message, destination)
+                    set packet_datum = list_set(packet_datum, message, 0)
+                    var data_index = 0
+                    while data_index < 4:
+                        let next_count = next_worker_count(worker_count[current_task])
+                        set worker_count = list_set(worker_count, current_task, next_count)
+                        let letter = 64 + next_count
+                        if data_index == 0:
+                            set packet_data_a = list_set(packet_data_a, message, letter)
+                        if data_index == 1:
+                            set packet_data_b = list_set(packet_data_b, message, letter)
+                        if data_index == 2:
+                            set packet_data_c = list_set(packet_data_c, message, letter)
+                        if data_index == 3:
+                            set packet_data_d = list_set(packet_data_d, message, letter)
+                        set data_index = data_index + 1
+                    let routed = route_packet(message, current_task, packet_links, packet_ident, task_input, task_pending, task_priority, packet_count)
+                    set packet_links = routed.packet_links
+                    set packet_ident = routed.packet_ident
+                    set task_input = routed.task_input
+                    set task_pending = routed.task_pending
+                    set packet_count = routed.packet_count
+                    set current_task = routed.next_task
+            if executing_task == 2 or executing_task == 3:
+                if message != -1:
+                    if packet_kind[message] == 1001:
+                        set packet_links = list_set(packet_links, message, -1)
+                        if handler_work[current_task] == -1:
+                            set handler_work = list_set(handler_work, current_task, message)
+                        else:
+                            var tail = handler_work[current_task]
+                            while packet_links[tail] != -1:
+                                set tail = packet_links[tail]
+                            set packet_links = list_set(packet_links, tail, message)
+                    else:
+                        set packet_links = list_set(packet_links, message, -1)
+                        if handler_device[current_task] == -1:
+                            set handler_device = list_set(handler_device, current_task, message)
+                        else:
+                            var tail = handler_device[current_task]
+                            while packet_links[tail] != -1:
+                                set tail = packet_links[tail]
+                            set packet_links = list_set(packet_links, tail, message)
+                let work = handler_work[current_task]
+                if work == -1:
+                    set task_waiting = list_set(task_waiting, current_task, true)
+                else:
+                    let work_index = packet_datum[work]
+                    if work_index >= 4:
+                        set handler_work = list_set(handler_work, current_task, packet_links[work])
+                        let routed = route_packet(work, current_task, packet_links, packet_ident, task_input, task_pending, task_priority, packet_count)
+                        set packet_links = routed.packet_links
+                        set packet_ident = routed.packet_ident
+                        set task_input = routed.task_input
+                        set task_pending = routed.task_pending
+                        set packet_count = routed.packet_count
+                        set current_task = routed.next_task
+                    else:
+                        let device = handler_device[current_task]
+                        if device == -1:
+                            set task_waiting = list_set(task_waiting, current_task, true)
+                        else:
+                            set handler_device = list_set(handler_device, current_task, packet_links[device])
+                            var letter = 0
+                            if work_index == 0:
+                                set letter = packet_data_a[work]
+                            if work_index == 1:
+                                set letter = packet_data_b[work]
+                            if work_index == 2:
+                                set letter = packet_data_c[work]
+                            if work_index == 3:
+                                set letter = packet_data_d[work]
+                            set packet_datum = list_set(packet_datum, device, letter)
+                            set packet_datum = list_set(packet_datum, work, work_index + 1)
+                            let routed = route_packet(device, current_task, packet_links, packet_ident, task_input, task_pending, task_priority, packet_count)
+                            set packet_links = routed.packet_links
+                            set packet_ident = routed.packet_ident
+                            set task_input = routed.task_input
+                            set task_pending = routed.task_pending
+                            set packet_count = routed.packet_count
+                            set current_task = routed.next_task
+            if executing_task == 4 or executing_task == 5:
+                if message == -1:
+                    let pending_packet = device_pending[current_task]
+                    if pending_packet == -1:
+                        set task_waiting = list_set(task_waiting, current_task, true)
+                    else:
+                        set device_pending = list_set(device_pending, current_task, -1)
+                        let routed = route_packet(pending_packet, current_task, packet_links, packet_ident, task_input, task_pending, task_priority, packet_count)
+                        set packet_links = routed.packet_links
+                        set packet_ident = routed.packet_ident
+                        set task_input = routed.task_input
+                        set task_pending = routed.task_pending
+                        set packet_count = routed.packet_count
+                        set current_task = routed.next_task
+                else:
+                    set device_pending = list_set(device_pending, current_task, message)
+                    set hold_count = hold_count + 1
+                    set task_holding = list_set(task_holding, current_task, true)
+                    set current_task = task_next[current_task]
+
+    print(hold_count)
+    print(packet_count)
+    return 0

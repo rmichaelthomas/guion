@@ -1,0 +1,4 @@
+[project]
+name = "inventory-reconcile"
+version = "0.1.0"
+entry = "main.vr"

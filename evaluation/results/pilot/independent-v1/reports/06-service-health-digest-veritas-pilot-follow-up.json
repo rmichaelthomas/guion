@@ -1,0 +1,173 @@
+{
+  "schema_version": 1,
+  "language": "veritas",
+  "task_id": "06-service-health-digest",
+  "stage": "follow_up",
+  "candidate_project_sha256": "14457fa28cbaea394db0513cb36e48060d8870ee53d8be9a4bca95c3839b78a7",
+  "delivery_artifact_path": "/Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/work/veritas-foundation/evaluation/results/pilot/independent-v1/reports/06-service-health-digest-veritas-pilot-follow-up.json.delivery",
+  "delivery_artifact_sha256": "2375b1ea86eb3601a2ee58a9e6d395c8684d4ccfb5c1b1d0b01cb43a56313240",
+  "container": {
+    "image": "veritas-campaign-veritas:0.1.0",
+    "image_id": "sha256:66bae1a446d36e4b28e1ebb115699037a3a119057c92a8d3192a1f7ab5e7b444",
+    "package_archive_sha256": "735604fabff913cae5569ef9bb1f7b175e777332e6d879299398142c8eb3037b",
+    "python_base_digest": "sha256:44e000a07b48bef1517a2b14adc93c17af728ca98858b5e24c6e1b18de1b2ef2",
+    "shared_dependencies_sha256": "34a2a4d8d157839eea434267f38e475187031f081f358387859181e5be136803",
+    "uv_version": "0.13.4",
+    "candidate_python_version": "3.14.8",
+    "platform": "linux/arm64",
+    "network": "none",
+    "read_only_rootfs": true,
+    "candidate_uid": 10001,
+    "limits": {
+      "cpus": 2,
+      "memory_bytes": 2147483648,
+      "pids": 128,
+      "tmpfs_bytes": 536870912
+    },
+    "source_project_mounted": true,
+    "delivery_source_project_mounted": false
+  },
+  "container_exit_codes": {
+    "source": 0,
+    "delivery": 0,
+    "delivery_stage": 0
+  },
+  "launcher_stderr": {
+    "source": "",
+    "delivery": ""
+  },
+  "case_report": {
+    "task_id": "06-service-health-digest",
+    "stage": "follow_up",
+    "passed": true,
+    "source": {
+      "cases": [
+        {
+          "candidate": {},
+          "case_id": "health-maintenance-boundaries",
+          "checks_passed": 3,
+          "checks_total": 3,
+          "elapsed_seconds": 0.806686,
+          "exit_code": 0,
+          "failures": [],
+          "http_fixtures": {
+            "health": {
+              "max_in_flight": 2,
+              "requests": [
+                {
+                  "method": "GET",
+                  "path": "/worker"
+                },
+                {
+                  "method": "GET",
+                  "path": "/worker"
+                },
+                {
+                  "method": "GET",
+                  "path": "/api"
+                },
+                {
+                  "method": "GET",
+                  "path": "/unavailable"
+                },
+                {
+                  "method": "GET",
+                  "path": "/invalid"
+                }
+              ]
+            }
+          },
+          "passed": true,
+          "stderr": "",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 3,
+              "checks_total": 3,
+              "elapsed_seconds": 0.372756,
+              "exit_code": 0,
+              "failures": []
+            }
+          ]
+        }
+      ],
+      "passed": true,
+      "stage": "follow_up",
+      "task_id": "06-service-health-digest"
+    },
+    "delivery": {
+      "passed": true,
+      "artifact_sha256": "2375b1ea86eb3601a2ee58a9e6d395c8684d4ccfb5c1b1d0b01cb43a56313240",
+      "artifact_bytes": 28613,
+      "source_paths_excluded": [
+        "main.vr"
+      ],
+      "original_project_mounted": false,
+      "cases": [
+        {
+          "candidate": {
+            "artifact_bytes": 28613,
+            "artifact_paths": [
+              "main.vrb",
+              "veritas.toml",
+              "dependencies.lock.json",
+              "service_health.py"
+            ],
+            "artifact_sha256": "2375b1ea86eb3601a2ee58a9e6d395c8684d4ccfb5c1b1d0b01cb43a56313240",
+            "delivery_manifest": "delivery.json",
+            "dependency_lock_path": "dependencies.lock.json",
+            "source_paths": [
+              "main.vr"
+            ]
+          },
+          "case_id": "health-maintenance-boundaries",
+          "checks_passed": 3,
+          "checks_total": 3,
+          "elapsed_seconds": 0.785948,
+          "exit_code": 0,
+          "failures": [],
+          "http_fixtures": {
+            "health": {
+              "max_in_flight": 2,
+              "requests": [
+                {
+                  "method": "GET",
+                  "path": "/worker"
+                },
+                {
+                  "method": "GET",
+                  "path": "/worker"
+                },
+                {
+                  "method": "GET",
+                  "path": "/api"
+                },
+                {
+                  "method": "GET",
+                  "path": "/unavailable"
+                },
+                {
+                  "method": "GET",
+                  "path": "/invalid"
+                }
+              ]
+            }
+          },
+          "passed": true,
+          "stderr": "",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 3,
+              "checks_total": 3,
+              "elapsed_seconds": 0.360055,
+              "exit_code": 0,
+              "failures": []
+            }
+          ]
+        }
+      ],
+      "stage_error": ""
+    }
+  }
+}

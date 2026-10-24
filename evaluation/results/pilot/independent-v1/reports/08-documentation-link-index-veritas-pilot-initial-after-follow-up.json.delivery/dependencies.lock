@@ -1,0 +1,7 @@
+lock_version = 1
+veritas_version = "0.1.0"
+artifact_format = 30
+python_version = "3.14.8"
+third_party_packages = []
+standard_library_modules = ["json", "os", "pathlib", "re", "sqlite3", "tempfile", "typing"]
+interpreter_selection = "VERITAS_PYTHON"

@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "decision_id": "07-config-migrator-choice-2",
+  "task": {
+    "id": "07-config-migrator",
+    "class": "maintainable_application",
+    "origin": "independent",
+    "brief_sha256": "4558938ee7fe00a44474317e3281e1515137a39ca4ed3d63c5ba7c67ff13ee94"
+  },
+  "assistant": {
+    "provider": "OpenAI",
+    "name": "Codex",
+    "version": "not exposed in task metadata",
+    "session_id": "01a16a35-7913-7e02-9893-f439c273d35b",
+    "fresh_session": true
+  },
+  "presentation_order": [
+    "python",
+    "veritas"
+  ],
+  "context": {
+    "mode": "pre-build-recommendation",
+    "veritas_version": "0.1.0",
+    "python_version": "3.14.8",
+    "documentation_sha256": "8d4dce73e7aec390ab33aa518e0ab880128e728f042844846f0b83f9bf44da5b",
+    "schedule_sha256": "217403956f48c3951879934b32a81ab265013ae22e5fb5c9cdea85f3ca346f41",
+    "schedule_entry_id": "07-config-migrator-choice-2",
+    "comparative_pair_results_shown": false
+  },
+  "recommendation": {
+    "choice": "python",
+    "rationale": "Comment and value preservation are central to this migrator. Python can use a maintained TOML library that preserves comments, then rely on standard-library code for validation and atomic replacement. Veritas has atomic file replacement and packaging, but the supplied capabilities do not include TOML parsing; using its Python bridge would add managed interpreter, dependency, and packaging setup for the same TOML library. No comparative results support a performance or size claim.",
+    "conditions": [
+      "If the app must run without relying on any installed Python runtime, Veritas becomes more attractive because its package can include its runtime and a managed Python environment for the bridge.",
+      "If a suitable comment-preserving TOML library is unavailable in the shared offline wheelhouse, reassess the Python approach against Veritas’s managed bridge path.",
+      "If later measurements show the Veritas bridge package meets relocation requirements with materially lower setup cost or package size, reconsider Veritas."
+    ]
+  },
+  "exclusion": {
+    "excluded": false,
+    "reason": null
+  }
+}

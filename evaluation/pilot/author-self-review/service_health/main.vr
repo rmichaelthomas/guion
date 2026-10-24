@@ -1,0 +1,152 @@
+extern python "builtins:int" fn parse_int(value: Text) -> Int
+extern python "health_dates:within_window" fn within_window(now: Text, start: Text, end: Text) -> Bool
+
+fn probe_service(service: Json) -> Json:
+    let name = json_as_text(json_get(service, "name"))
+    let url = json_as_text(json_get(service, "url"))
+    let timeout = json_as_int(json_get(service, "timeout_ms"))
+    let headers: Map[Text, Text] = {}
+    let response = http_request_with_timeout("GET", url, headers, "", timeout)
+    var result = json_object()
+    set result = json_set(result, "service", json_text(name))
+    if not is_ok(response):
+        let problem = error(response)
+        let error_code = http_error_code(problem)
+        var failed_state = "unhealthy"
+        if error_code == "R_HTTP_TIMEOUT":
+            set failed_state = "timeout"
+        set result = json_set(result, "status", json_text(failed_state))
+        set result = json_set(result, "raw_status", json_null())
+        return result
+
+    let envelope = unwrap(response)
+    let status_code = json_as_int(json_get(envelope, "status"))
+    if status_code < 200 or status_code >= 300:
+        set result = json_set(result, "status", json_text("unhealthy"))
+        set result = json_set(result, "raw_status", json_null())
+        return result
+
+    let parsed = json_parse(json_as_text(json_get(envelope, "body")))
+    if not is_ok(parsed):
+        set result = json_set(result, "status", json_text("invalid_response"))
+        set result = json_set(result, "raw_status", json_null())
+        return result
+
+    let document = unwrap(parsed)
+    var raw_status = json_null()
+    if json_has(document, "status"):
+        set raw_status = json_get(document, "status")
+    var state = "unhealthy"
+    if json_stringify(raw_status) == "\"ok\"":
+        set state = "healthy"
+    set result = json_set(result, "status", json_text(state))
+    set result = json_set(result, "raw_status", raw_status)
+    return result
+
+fn main() -> Int:
+    let arguments = args()
+    var config_path = ""
+    var json_path = ""
+    var text_path = ""
+    var now = ""
+    var concurrency = 4
+    var timeout_ms = 1000
+    var i = 0
+    while i < len(arguments):
+        if arguments[i] == "--config" and i + 1 < len(arguments):
+            set config_path = arguments[i + 1]
+            set i = i + 2
+        else:
+            if arguments[i] == "--json" and i + 1 < len(arguments):
+                set json_path = arguments[i + 1]
+                set i = i + 2
+            else:
+                if arguments[i] == "--text" and i + 1 < len(arguments):
+                    set text_path = arguments[i + 1]
+                    set i = i + 2
+                else:
+                    if arguments[i] == "--concurrency" and i + 1 < len(arguments):
+                        set concurrency = parse_int(arguments[i + 1])
+                        set i = i + 2
+                    else:
+                        if arguments[i] == "--timeout-ms" and i + 1 < len(arguments):
+                            set timeout_ms = parse_int(arguments[i + 1])
+                            set i = i + 2
+                        else:
+                            if arguments[i] == "--now" and i + 1 < len(arguments):
+                                set now = arguments[i + 1]
+                                set i = i + 2
+                            else:
+                                eprint("unknown or incomplete argument")
+                                return 2
+
+    if config_path == "" or json_path == "" or text_path == "" or concurrency < 1 or timeout_ms < 1:
+        eprint("usage: service-health --config PATH --json PATH --text PATH --concurrency N --timeout-ms N")
+        return 2
+    let config_text = read_text(config_path)
+    if not is_ok(config_text):
+        eprint("cannot read service config")
+        return 1
+    let config_parse = json_parse(unwrap(config_text))
+    if not is_ok(config_parse):
+        eprint("invalid service config JSON")
+        return 1
+    let config = unwrap(config_parse)
+    let services = json_get(config, "services")
+    var work_items: List[Json] = []
+    set i = 0
+    while i < json_len(services):
+        let service = json_index(services, i)
+        var work = json_set(service, "timeout_ms", json_int(timeout_ms))
+        var in_maintenance = false
+        if json_has(service, "maintenance"):
+            if now == "":
+                eprint("--now is required when maintenance windows are configured")
+                return 1
+            let window = json_get(service, "maintenance")
+            set in_maintenance = within_window(now, json_as_text(json_get(window, "start")), json_as_text(json_get(window, "end")))
+        set work = json_set(work, "in_maintenance", json_bool(in_maintenance))
+        set work_items = list_push(work_items, work)
+        set i = i + 1
+
+    let fetched = parallel_map(work_items, probe_service, concurrency)
+    if not is_ok(fetched):
+        let problem = error(fetched)
+        eprint("service workers failed: " + task_code(problem))
+        return 1
+
+    var ordered: Map[Text, Json] = {}
+    for response in unwrap(fetched):
+        let name = json_as_text(json_get(response, "service"))
+        set ordered = map_set(ordered, name, response)
+    var rows = json_array()
+    var digest = ""
+    for name in ordered:
+        let response = ordered[name]
+        var state = json_as_text(json_get(response, "status"))
+        var service_index = 0
+        var in_maintenance = false
+        while service_index < len(work_items):
+            let work = work_items[service_index]
+            if json_as_text(json_get(work, "name")) == name:
+                set in_maintenance = json_as_bool(json_get(work, "in_maintenance"))
+            set service_index = service_index + 1
+        if in_maintenance and state != "healthy":
+            set state = "maintenance"
+        var row = json_object()
+        set row = json_set(row, "service", json_text(name))
+        set row = json_set(row, "status", json_text(state))
+        set row = json_set(row, "raw_status", json_get(response, "raw_status"))
+        set rows = json_push(rows, row)
+        set digest = digest + name + " " + state + "\n"
+
+    let report = json_set(json_object(), "results", rows)
+    let text_written = write_text_atomic(text_path, digest)
+    if not is_ok(text_written):
+        eprint("cannot write text digest")
+        return 1
+    let json_written = write_text_atomic(json_path, json_stringify(report) + "\n")
+    if not is_ok(json_written):
+        eprint("cannot write JSON report")
+        return 1
+    return 0

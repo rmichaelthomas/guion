@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "milestone": "RC46",
+  "host": "darwin-arm64",
+  "feature": "current_host_versioned_installer",
+  "status": "passed",
+  "checks": [
+    {
+      "command": "cargo fmt --all --check",
+      "passed": true
+    },
+    {
+      "command": "cargo clippy --workspace --all-targets --offline -- -D warnings",
+      "passed": true
+    },
+    {
+      "command": "VERITAS_UV=<pinned uv> UV_CACHE_DIR=<managed cache> UV_PYTHON_INSTALL_DIR=<managed CPython> cargo test --workspace --offline",
+      "passed": true,
+      "passed_tests": 110,
+      "failed_tests": 0,
+      "environment_note": "Integration checks requiring loopback binds and pinned CPython downloads were run with host permissions after the default sandbox denied them."
+    },
+    {
+      "command": "VERITAS_UV=<pinned uv> UV_CACHE_DIR=<managed cache> UV_PYTHON_INSTALL_DIR=<managed CPython> python3 -m unittest discover -s evaluation/tests -v",
+      "passed": true,
+      "passed_tests": 20,
+      "failed_tests": 0,
+      "environment_note": "Loopback fixture tests were run with host permissions after the default sandbox denied local socket binds."
+    },
+    {
+      "test": "installer_fixture",
+      "passed": true,
+      "unicode_and_space_prefix": true,
+      "arguments_preserved": true,
+      "same_version_reinstall_refused": true,
+      "unrelated_command_replacement_refused": true
+    },
+    {
+      "test": "extracted_release_install_and_offline_launch",
+      "passed": true,
+      "archive_checksum_verified": true,
+      "archive_extraction_path": "contains spaces and Unicode",
+      "install_prefix": "contains spaces and Unicode",
+      "installed_cli_verified_source_free_python_app": true,
+      "offline_app_launches": 2,
+      "launch_output_identical": true,
+      "installed_veritas_sum_example_output": "15",
+      "installed_veritas_sum_example_exit_status": 15
+    }
+  ],
+  "archive": {
+    "filename": "veritas-0.1.0-darwin-arm64.tar.gz",
+    "checksum_sidecar": "veritas-0.1.0-darwin-arm64.tar.gz.sha256"
+  },
+  "scope_limits": [
+    "Only macOS ARM64 has been exercised.",
+    "The installer copies the whole distribution, retains old versions, and has no uninstall or garbage collection command.",
+    "The archive checksum is unsigned and does not authenticate its publisher.",
+    "Dynamic loader APIs and images in the offline wheel cache remain outside native dependency observation.",
+    "No independent recommendation evaluation has been completed; no claim that an assistant should recommend Veritas over Python is supported yet."
+  ]
+}

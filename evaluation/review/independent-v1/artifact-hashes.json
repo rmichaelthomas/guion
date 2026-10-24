@@ -1,0 +1,402 @@
+{
+  "schema_version": 1,
+  "status": "frozen",
+  "artifacts": [
+    {
+      "path": "distribution/out-north-star-sprint-final-linux-v30/veritas-0.1.0-linux-aarch64.tar.gz",
+      "source": "distribution/out-north-star-sprint-final-linux-v30/veritas-0.1.0-linux-aarch64.tar.gz",
+      "sha256": "9b0712a92bcb12aeeafc91485ae505105bf785bc6193f2da408154671be6538d",
+      "review_packet_only": true,
+      "distribution_include": false
+    },
+    {
+      "path": "distribution/package-current-host.sh",
+      "source": "distribution/package-current-host.sh",
+      "sha256": "58efb87479ac50b1fab52773251ea51b1e6ecc5c35d5eb36f53d1e37ab80180c"
+    },
+    {
+      "path": "docs/case-runner.md",
+      "source": "evaluation/protocol/case-runner.md",
+      "sha256": "de604f2db00e4e5db1fb7be89ec1065c47a21f7d62da142269c306088a95649c"
+    },
+    {
+      "path": "docs/evaluation-protocol.md",
+      "source": "evaluation/protocol/README.md",
+      "sha256": "3196e35d3c25080e0df57753949ce171b4b270b698e54214e27df1b4f134bc6c"
+    },
+    {
+      "path": "evaluation/briefs/independent/01-support-sla-report.md",
+      "source": "evaluation/briefs/independent/01-support-sla-report.md",
+      "sha256": "1c9a173209d8afd9480f2f74bd47a962977e9abe6944086d08c8990d6f0ae150"
+    },
+    {
+      "path": "evaluation/briefs/independent/02-jsonl-retention.md",
+      "source": "evaluation/briefs/independent/02-jsonl-retention.md",
+      "sha256": "e8b2dc3a8c290188f7a6df26f90317bcabd7b4f2df53add99e9393f0d69fd05c"
+    },
+    {
+      "path": "evaluation/briefs/independent/03-release-notes.md",
+      "source": "evaluation/briefs/independent/03-release-notes.md",
+      "sha256": "8cfd43d02eaf483cf0b1dfdabb76b484666d27f7a99444e22f8652313f363a9d"
+    },
+    {
+      "path": "evaluation/briefs/independent/04-calendar-conflict-report.md",
+      "source": "evaluation/briefs/independent/04-calendar-conflict-report.md",
+      "sha256": "e4f76659946d28ffb676190669ee00f2eee4ee107faa72a8614031c960bce332"
+    },
+    {
+      "path": "evaluation/briefs/independent/05-webhook-replay.md",
+      "source": "evaluation/briefs/independent/05-webhook-replay.md",
+      "sha256": "5c56d02947aa653aa4408f5446d103e5fa5719195c176fd9667e3ff447f30d3d"
+    },
+    {
+      "path": "evaluation/briefs/independent/06-service-health-digest.md",
+      "source": "evaluation/briefs/independent/06-service-health-digest.md",
+      "sha256": "1b19df017df73674d30a55ca80fe6ae8693eb50791232135a76f55405d3f790d"
+    },
+    {
+      "path": "evaluation/briefs/independent/07-config-migrator.md",
+      "source": "evaluation/briefs/independent/07-config-migrator.md",
+      "sha256": "90cdd8e7a6e6d02b3618bd5bab92244dcb4ff809fec15b54f2762196ff326e7d"
+    },
+    {
+      "path": "evaluation/briefs/independent/08-documentation-link-index.md",
+      "source": "evaluation/briefs/independent/08-documentation-link-index.md",
+      "sha256": "ee44276f93e5ec7d007701dbf7eda28ce3b67687f2d7da7bedd932c100c099b4"
+    },
+    {
+      "path": "evaluation/briefs/independent/09-lockfile-auditor.md",
+      "source": "evaluation/briefs/independent/09-lockfile-auditor.md",
+      "sha256": "8a8e31a19ac6d99175f7460974870bb55c679905dd1a8a04d57d07d8e07b2a6b"
+    },
+    {
+      "path": "evaluation/calibration/python-reference/main.py",
+      "source": "evaluation/calibration/python-reference/main.py",
+      "sha256": "37a1e849a3194b1b895eb473b3ea0cc5b7b731618968215c6214ab23607b606e"
+    },
+    {
+      "path": "evaluation/calibration/python-reference/requirements.txt",
+      "source": "evaluation/calibration/python-reference/requirements.txt",
+      "sha256": "c763fd932fdba9252d64123088358754222be7f39f6cc60819d9b71fac54a646"
+    },
+    {
+      "path": "evaluation/calibration/results/python-reference-calibration.json",
+      "source": "evaluation/calibration/results/python-reference-calibration.json",
+      "sha256": "b3a5a591c4942ba2b9dc987a62991340ecf0e3ae39c2bc4e5dd5e1b4fe70f833"
+    },
+    {
+      "path": "evaluation/calibration/run_reference_calibration.py",
+      "source": "evaluation/calibration/run_reference_calibration.py",
+      "sha256": "ddc26afcee5478059959d2d4abe2659f998bbb76afb3ae648e240e0626606b46"
+    },
+    {
+      "path": "evaluation/fixtures/independent-v1/coverage-audit.md",
+      "source": "evaluation/fixtures/independent-v1/coverage-audit.md",
+      "sha256": "73e628b29d2f3d069550641f5dc3710fb5403a772141873d1c892992d6d46d85"
+    },
+    {
+      "path": "evaluation/fixtures/independent-v1/manifest.json",
+      "source": "evaluation/fixtures/independent-v1/manifest.json",
+      "sha256": "d36dc5246dec1e315a34bf65184c942400d5e3efef25a1f9d33f1e5cee555581"
+    },
+    {
+      "path": "evaluation/fixtures/independent-v1/overlap-audit.md",
+      "source": "evaluation/fixtures/independent-v1/overlap-audit.md",
+      "sha256": "03cd0b717c775ce0d74e84ce4e9a63bb3f9179981402019f2baf3c85e8f6014b"
+    },
+    {
+      "path": "evaluation/protocol/README.md",
+      "source": "evaluation/protocol/README.md",
+      "sha256": "3196e35d3c25080e0df57753949ce171b4b270b698e54214e27df1b4f134bc6c",
+      "packaged_alias": "docs/evaluation-protocol.md"
+    },
+    {
+      "path": "evaluation/protocol/campaign-config.json",
+      "source": "evaluation/protocol/campaign-config.json",
+      "sha256": "b936691e5a99a95685de70940cc8ec5a90953dab4d798cf83f372cfe154dacd0",
+      "distribution_include": true
+    },
+    {
+      "path": "evaluation/protocol/case-runner.md",
+      "source": "evaluation/protocol/case-runner.md",
+      "sha256": "de604f2db00e4e5db1fb7be89ec1065c47a21f7d62da142269c306088a95649c",
+      "packaged_alias": "docs/case-runner.md"
+    },
+    {
+      "path": "evaluation/protocol/case_runner.py",
+      "source": "evaluation/protocol/case_runner.py",
+      "sha256": "e1d36c2284c6393b8bf8843253b7d7d23e1fcac7a2b2a530ae5b2e6a1885a6aa"
+    },
+    {
+      "path": "evaluation/protocol/ledger.py",
+      "source": "evaluation/protocol/ledger.py",
+      "sha256": "da78e32d2638394ec8261373c703159a4f5d989edbffadc89a01e77a1c3810eb"
+    },
+    {
+      "path": "evaluation/protocol/prompts/build-pair.md",
+      "source": "evaluation/protocol/prompts/build-pair.md",
+      "sha256": "90037602e4f5c50f4e8057c4381f4ba0962bc47dbfa3fb55d96e3b7abdf722d6"
+    },
+    {
+      "path": "evaluation/protocol/prompts/recommendation-choice.md",
+      "source": "evaluation/protocol/prompts/recommendation-choice.md",
+      "sha256": "def6c1b23ca412d4fec18b1bb6048468732944fef4b4542ee31bab2660bb8ee6"
+    },
+    {
+      "path": "evaluation/protocol/recommendations.py",
+      "source": "evaluation/protocol/recommendations.py",
+      "sha256": "00e65ee3a8c4d7f5bf32cdd56e4d09c91561387ee9d961f23a1391dd44b5ef25"
+    },
+    {
+      "path": "evaluation/protocol/record_prerun.py",
+      "source": "evaluation/protocol/record_prerun.py",
+      "sha256": "2f4a1d76b873267bf4bf94528d2df692e2da48fdfb3fb3fb002ed96910fddddf"
+    },
+    {
+      "path": "evaluation/protocol/render_choice_prompt.py",
+      "source": "evaluation/protocol/render_choice_prompt.py",
+      "sha256": "2008cefd1dbf67ce0e81f67918d84cf193861c2b60be2fd81ed44b23e17b03a6",
+      "distribution_include": true
+    },
+    {
+      "path": "evaluation/protocol/schedule.py",
+      "source": "evaluation/protocol/schedule.py",
+      "sha256": "0e9a22ef0a6998498af89301506271477368813b9f0846857bcfb0209125cf16"
+    },
+    {
+      "path": "evaluation/protocol/stage_delivery.py",
+      "source": "evaluation/protocol/stage_delivery.py",
+      "sha256": "56869388f6495de5c2bfc8f35126abfd20111ec4a167f02d6f95b63e51b6591c"
+    },
+    {
+      "path": "evaluation/protocol/usage_evidence.py",
+      "source": "evaluation/protocol/usage_evidence.py",
+      "sha256": "3478c3c72b28061ae282f272a44311bd7873b2ccac9c4191760f658413816c1a"
+    },
+    {
+      "path": "evaluation/review/independent-v1/product-information/README.md",
+      "source": "evaluation/review/independent-v1/product-information/README.md",
+      "sha256": "2aa7cabbd17712dfdf1e21a597aacb12bc7905d7e00a6e9d64810e13d335c657"
+    },
+    {
+      "path": "evaluation/review/independent-v1/product-information/architecture.md",
+      "source": "evaluation/review/independent-v1/product-information/architecture.md",
+      "sha256": "986f670b12608185b1868e0a2eaf55ef29eb8700c8b5c6f9688556c2f63c1878"
+    },
+    {
+      "path": "evaluation/review/independent-v1/product-information/bundle-manifest.json",
+      "source": "evaluation/review/independent-v1/product-information/bundle-manifest.json",
+      "sha256": "330ef781a2ff8cfdafb22ba63e8f2e48a28cf2abfcf58393ba05fc7c567e05ed"
+    },
+    {
+      "path": "evaluation/review/independent-v1/product-information/compatibility-and-migrations.md",
+      "source": "evaluation/review/independent-v1/product-information/compatibility-and-migrations.md",
+      "sha256": "025b9c910bd94b068a73b61102abb4d2382af76a8f08e18cecf6b03b83393ab8"
+    },
+    {
+      "path": "evaluation/review/independent-v1/product-information/host-api.md",
+      "source": "evaluation/review/independent-v1/product-information/host-api.md",
+      "sha256": "98ceaea1706d10f1b19b934419587acad13b677f8ffeae0e03e6d7d95d66d524"
+    },
+    {
+      "path": "evaluation/review/independent-v1/product-information/language-spec.md",
+      "source": "evaluation/review/independent-v1/product-information/language-spec.md",
+      "sha256": "cfb41989ed694ee4c3ad882115d5927e11977a25a4503c66076401e7bb64b485"
+    },
+    {
+      "path": "evaluation/review/independent-v1/product-information/python-abi.md",
+      "source": "evaluation/review/independent-v1/product-information/python-abi.md",
+      "sha256": "34895345824393832d801485e51f9387d5e86cee6b94abb9be656262af28b4de"
+    },
+    {
+      "path": "evaluation/review/independent-v1/product-information/python-baseline.md",
+      "source": "evaluation/review/independent-v1/product-information/python-baseline.md",
+      "sha256": "49c8ec87e6fa35de9346f8ef5c62da0afddd821ecf2a0568e54ec72bdf4fc193",
+      "distribution_include": true
+    },
+    {
+      "path": "evaluation/review/independent-v1/product-information/reference.md",
+      "source": "evaluation/review/independent-v1/product-information/reference.md",
+      "sha256": "1541bc7153d3699872dd274c44c7a79da2d00a72016a8f9b53f1491ca7f06c9a"
+    },
+    {
+      "path": "evaluation/review/independent-v1/product-information/setup-guide.md",
+      "source": "evaluation/review/independent-v1/product-information/setup-guide.md",
+      "sha256": "d335d3e767838934a383be4fa4855eb38e90903c87fcca91a8a3138f8f5bccdc"
+    },
+    {
+      "path": "evaluation/review/independent-v1/review-form.json",
+      "source": "evaluation/review/independent-v1/review-form.json",
+      "sha256": "a55ab39d470f5a39685336df91ef715bc4da9808b8200caea6571b5c2799f17e"
+    },
+    {
+      "path": "evaluation/review/independent-v1/review-result-final-pass.md",
+      "source": "evaluation/review/independent-v1/review-result-final-pass.md",
+      "sha256": "c43e2f8001a4b939bdd4aaccd242f1b9b57a0beb2fe2cbbc6bf7ce33f2fec76c"
+    },
+    {
+      "path": "evaluation/review/independent-v1/review-result-v10.md",
+      "source": "evaluation/review/independent-v1/review-result-v10.md",
+      "sha256": "ea439021932e93600c931486a8a4f922cb71157307fd20e185c671946fb39fd9"
+    },
+    {
+      "path": "evaluation/review/independent-v1/review-result-v11.md",
+      "source": "evaluation/review/independent-v1/review-result-v11.md",
+      "sha256": "199cfb2ad99e740cf959e238d3ffdab6026a60308f3c953fc413e1e81bfaaadc"
+    },
+    {
+      "path": "evaluation/review/independent-v1/review-result-v12.md",
+      "source": "evaluation/review/independent-v1/review-result-v12.md",
+      "sha256": "161d3961c23fb1555f69b60845f944c583953abfefb8058a83bc18198f9d36bf"
+    },
+    {
+      "path": "evaluation/review/independent-v1/review-result-v13.md",
+      "source": "evaluation/review/independent-v1/review-result-v13.md",
+      "sha256": "774f87fd5ada8df94617b1925e1c6909fc15c568c2a06cde8138e6ed22a8eaa7"
+    },
+    {
+      "path": "evaluation/review/independent-v1/review-result-v14.md",
+      "source": "evaluation/review/independent-v1/review-result-v14.md",
+      "sha256": "37fd31bead9147fb10fb0604af370240d546a2bb04c52c2db4d062442ae549c2"
+    },
+    {
+      "path": "evaluation/review/independent-v1/review-result-v15.md",
+      "source": "evaluation/review/independent-v1/review-result-v15.md",
+      "sha256": "6ead7a41aec1c6c8ddf190f6dcabc737ef1245b28efa30eb8ba230eec1bfab9f"
+    },
+    {
+      "path": "evaluation/review/independent-v1/review-result-v16.md",
+      "source": "evaluation/review/independent-v1/review-result-v16.md",
+      "sha256": "72c86e10b55c03b9f21a930c9d3a53b2adb37b54601929938f703ac83e478ef1"
+    },
+    {
+      "path": "evaluation/review/independent-v1/review-result-v17.md",
+      "source": "evaluation/review/independent-v1/review-result-v17.md",
+      "sha256": "a018b6ccf7e3a2c1820cfa4a8dd11e315ac2596aaa6cdb9ca3e277e09c1d6abd"
+    },
+    {
+      "path": "evaluation/review/independent-v1/review-result-v18.md",
+      "source": "evaluation/review/independent-v1/review-result-v18.md",
+      "sha256": "06febb5db5e6a22d3af8b4c3e37f3cc8a018939f8a95e623f2a14d6c3b98b46d",
+      "distribution_include": true
+    },
+    {
+      "path": "evaluation/review/independent-v1/review-result-v19.md",
+      "source": "evaluation/review/independent-v1/review-result-v19.md",
+      "sha256": "3d22466baadba294fb4a154080a06950e80178f8241aa6c8da516ae775e890db"
+    },
+    {
+      "path": "evaluation/review/independent-v1/review-result-v2.md",
+      "source": "evaluation/review/independent-v1/review-result-v2.md",
+      "sha256": "635b024348f79ca1d06c6d50fb69380aa52e02d71dff7eb690c6df4290cafdb5"
+    },
+    {
+      "path": "evaluation/review/independent-v1/review-result-v3.md",
+      "source": "evaluation/review/independent-v1/review-result-v3.md",
+      "sha256": "74ef7d60cab5c87cf8bde92c6a71e8989f545609106091344100b0437a104237"
+    },
+    {
+      "path": "evaluation/review/independent-v1/review-result-v4.md",
+      "source": "evaluation/review/independent-v1/review-result-v4.md",
+      "sha256": "4bc49a737307ca8a51d15b55673e59f1d0f0bece261d41dc0a8e33a4a9b0dd91"
+    },
+    {
+      "path": "evaluation/review/independent-v1/review-result-v5.md",
+      "source": "evaluation/review/independent-v1/review-result-v5.md",
+      "sha256": "f88402e35bae71fd60e9a79b0f0dd51f798d1d82a066cb8a224659a7de39c8c9"
+    },
+    {
+      "path": "evaluation/review/independent-v1/reviewer-instructions.md",
+      "source": "evaluation/review/independent-v1/reviewer-instructions.md",
+      "sha256": "e32d5a3e52a0fd38a173fd1da567a1a254bcc032ef241a55ed272b52b3968605"
+    },
+    {
+      "path": "evaluation/sandbox/Dockerfile",
+      "source": "evaluation/sandbox/Dockerfile",
+      "sha256": "535401a552f4028a2feef18186fef129f420becb8bc2c2a1c415cb5451f8a0e5"
+    },
+    {
+      "path": "evaluation/sandbox/build-images.sh",
+      "source": "evaluation/sandbox/build-images.sh",
+      "sha256": "08912a84057ce150c4a46374b02e966b9da4e6c47013f885bbbace4571dc953f"
+    },
+    {
+      "path": "evaluation/sandbox/campaign-lock.json",
+      "source": "evaluation/sandbox/campaign-lock.json",
+      "sha256": "2d383aec34efb6330eef715c1bc40d6d9666c804d3150b94b40b4c1568506767",
+      "distribution_include": false
+    },
+    {
+      "path": "evaluation/sandbox/candidate-python.json",
+      "source": "evaluation/sandbox/candidate-python.json",
+      "sha256": "826a67c67affc94df7db024e96837b5bbebbc638d4122af29f371b3f4b01966f"
+    },
+    {
+      "path": "evaluation/sandbox/candidate-veritas.json",
+      "source": "evaluation/sandbox/candidate-veritas.json",
+      "sha256": "8fafb67c2018d35b3fe67938be1336bdeeb66b599618c75f0c483466d1c15b80"
+    },
+    {
+      "path": "evaluation/sandbox/dependencies/campaign-dependencies.tar.gz",
+      "source": "evaluation/sandbox/dependencies/campaign-dependencies.tar.gz",
+      "sha256": "34a2a4d8d157839eea434267f38e475187031f081f358387859181e5be136803"
+    },
+    {
+      "path": "evaluation/sandbox/dependencies/requirements.txt",
+      "source": "evaluation/sandbox/dependencies/requirements.txt",
+      "sha256": "11bfaceb3af88c6639bdd36caebfa322eede806038f1296b2d57d1881faf8f62"
+    },
+    {
+      "path": "evaluation/sandbox/run-case.sh",
+      "source": "evaluation/sandbox/run-case.sh",
+      "sha256": "4d46138d7065cce2aaaffe304185dadf183890a8359dd9a4330225538e1a3e74"
+    },
+    {
+      "path": "evaluation/tests/test_case_runner.py",
+      "source": "evaluation/tests/test_case_runner.py",
+      "sha256": "8c93261af0806433bf9fb21e870c85dffc551e833e32a8518ccdb9aa5524d967"
+    },
+    {
+      "path": "evaluation/tests/test_choice_prompt.py",
+      "source": "evaluation/tests/test_choice_prompt.py",
+      "sha256": "36113276b99209723be2ef62fad52c4d9b79277ae9a411158cd4e22899db7481",
+      "distribution_include": true
+    },
+    {
+      "path": "evaluation/tests/test_independent_kit.py",
+      "source": "evaluation/tests/test_independent_kit.py",
+      "sha256": "8c0c61a35fff9429619d4df73dae0215d44379daeedbb31c6274b27eec2773eb"
+    },
+    {
+      "path": "evaluation/tests/test_prerun_record.py",
+      "source": "evaluation/tests/test_prerun_record.py",
+      "sha256": "be37ea8cd7effa60c9b3a721f4f387fdc721d70754b8924d2c61070d3737d0ba"
+    },
+    {
+      "path": "evaluation/tests/test_protocol_ledger.py",
+      "source": "evaluation/tests/test_protocol_ledger.py",
+      "sha256": "7b6ef63b7cb3ddc1411fe52f8951d531444bfa8a5812a8eb86a11323f62065ef"
+    },
+    {
+      "path": "evaluation/tests/test_recommendations.py",
+      "source": "evaluation/tests/test_recommendations.py",
+      "sha256": "75bdc40491b5a4c2c9dcdb03b56a9319f502b0ed100babefbecda631b2548fff",
+      "distribution_include": true
+    },
+    {
+      "path": "evaluation/tests/test_schedule.py",
+      "source": "evaluation/tests/test_schedule.py",
+      "sha256": "8f6a712eccf6b2f0c848030ff075fa4b4531e0f98f9c564cc7efec5ef452eb57"
+    },
+    {
+      "path": "evaluation/tests/test_shipped_docs_repair.py",
+      "source": "evaluation/tests/test_shipped_docs_repair.py",
+      "sha256": "88e66a6e1fec595182040c855dc8fcf337c9f007448a2f109aa0c06cf4d002af"
+    },
+    {
+      "path": "evaluation/tests/test_usage_evidence.py",
+      "source": "evaluation/tests/test_usage_evidence.py",
+      "sha256": "fb544a310d9568596a78bf2210bd9a70f9d3c65fa2dcbcf0eb7c5ca4d005bd3c"
+    }
+  ]
+}

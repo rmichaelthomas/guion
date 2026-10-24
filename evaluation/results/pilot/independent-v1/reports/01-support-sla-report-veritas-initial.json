@@ -1,0 +1,501 @@
+{
+  "schema_version": 1,
+  "language": "veritas",
+  "task_id": "01-support-sla-report",
+  "stage": "initial",
+  "candidate_project_sha256": "8946605b64442487bdb067c6b9ca26642149b564123cbe0a8b9f234a0c982ae6",
+  "delivery_artifact_path": "/Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/work/veritas-foundation/evaluation/results/pilot/independent-v1/reports/01-support-sla-report-veritas-initial.json.delivery",
+  "delivery_artifact_sha256": "47478573327982fd5eeb156ba43b578be10bcbf5d2f3dae177caf31ccabc12e2",
+  "container": {
+    "image": "veritas-campaign-veritas:0.1.0",
+    "image_id": "sha256:66bae1a446d36e4b28e1ebb115699037a3a119057c92a8d3192a1f7ab5e7b444",
+    "package_archive_sha256": "735604fabff913cae5569ef9bb1f7b175e777332e6d879299398142c8eb3037b",
+    "python_base_digest": "sha256:44e000a07b48bef1517a2b14adc93c17af728ca98858b5e24c6e1b18de1b2ef2",
+    "shared_dependencies_sha256": "34a2a4d8d157839eea434267f38e475187031f081f358387859181e5be136803",
+    "uv_version": "0.13.4",
+    "candidate_python_version": "3.14.8",
+    "platform": "linux/arm64",
+    "network": "none",
+    "read_only_rootfs": true,
+    "candidate_uid": 10001,
+    "limits": {
+      "cpus": 2,
+      "memory_bytes": 2147483648,
+      "pids": 128,
+      "tmpfs_bytes": 536870912
+    },
+    "source_project_mounted": true,
+    "delivery_source_project_mounted": false
+  },
+  "container_exit_codes": {
+    "source": 1,
+    "delivery": 1,
+    "delivery_stage": 0
+  },
+  "launcher_stderr": {
+    "source": "",
+    "delivery": ""
+  },
+  "case_report": {
+    "task_id": "01-support-sla-report",
+    "stage": "initial",
+    "passed": false,
+    "source": {
+      "cases": [
+        {
+          "candidate": {},
+          "case_id": "sla-initial-report",
+          "checks_passed": 0,
+          "checks_total": 8,
+          "elapsed_seconds": 1.543797,
+          "exit_code": 1,
+          "failures": [
+            "step 1: expected exit code 0, received 1",
+            "step 1: check 1: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-dtmq06tb/report.json'",
+            "step 1: check 2: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-dtmq06tb/report.json'",
+            "step 1: check 3: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-dtmq06tb/report.json'",
+            "step 1: check 4: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-dtmq06tb/report.json'",
+            "step 1: check 5: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-dtmq06tb/report.json'",
+            "step 1: check 6: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-dtmq06tb/report.json'",
+            "step 1: check 7: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-dtmq06tb/report.json'",
+            "step 1: check 8: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-dtmq06tb/report.json'"
+          ],
+          "http_fixtures": {},
+          "passed": false,
+          "stderr": "managed Python lock does not match this target, veritas.toml, or uv.lock; run `veritas sync --update <project>` to refresh it\n",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 0,
+              "checks_total": 8,
+              "elapsed_seconds": 0.020149,
+              "exit_code": 1,
+              "failures": [
+                "expected exit code 0, received 1",
+                "check 1: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-dtmq06tb/report.json'",
+                "check 2: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-dtmq06tb/report.json'",
+                "check 3: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-dtmq06tb/report.json'",
+                "check 4: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-dtmq06tb/report.json'",
+                "check 5: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-dtmq06tb/report.json'",
+                "check 6: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-dtmq06tb/report.json'",
+                "check 7: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-dtmq06tb/report.json'",
+                "check 8: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-dtmq06tb/report.json'"
+              ]
+            }
+          ]
+        },
+        {
+          "candidate": {},
+          "case_id": "sla-duplicate-id-preserves-output",
+          "checks_passed": 1,
+          "checks_total": 2,
+          "elapsed_seconds": 1.142203,
+          "exit_code": 1,
+          "failures": [
+            "step 1: check 2: stderr_contains did not match its expected value"
+          ],
+          "http_fixtures": {},
+          "passed": false,
+          "stderr": "managed Python lock does not match this target, veritas.toml, or uv.lock; run `veritas sync --update <project>` to refresh it\n",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 2,
+              "elapsed_seconds": 0.005623,
+              "exit_code": 1,
+              "failures": [
+                "check 2: stderr_contains did not match its expected value"
+              ]
+            }
+          ]
+        },
+        {
+          "candidate": {},
+          "case_id": "sla-missing-policy-entry-preserves-output",
+          "checks_passed": 1,
+          "checks_total": 2,
+          "elapsed_seconds": 1.238706,
+          "exit_code": 1,
+          "failures": [
+            "step 1: check 2: stderr_contains did not match its expected value"
+          ],
+          "http_fixtures": {},
+          "passed": false,
+          "stderr": "managed Python lock does not match this target, veritas.toml, or uv.lock; run `veritas sync --update <project>` to refresh it\n",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 2,
+              "elapsed_seconds": 0.006486,
+              "exit_code": 1,
+              "failures": [
+                "check 2: stderr_contains did not match its expected value"
+              ]
+            }
+          ]
+        },
+        {
+          "candidate": {},
+          "case_id": "sla-malformed-csv-preserves-output",
+          "checks_passed": 1,
+          "checks_total": 1,
+          "elapsed_seconds": 1.067275,
+          "exit_code": 1,
+          "failures": [],
+          "http_fixtures": {},
+          "passed": true,
+          "stderr": "managed Python lock does not match this target, veritas.toml, or uv.lock; run `veritas sync --update <project>` to refresh it\n",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.005216,
+              "exit_code": 1,
+              "failures": []
+            }
+          ]
+        },
+        {
+          "candidate": {},
+          "case_id": "sla-unknown-priority-preserves-output",
+          "checks_passed": 1,
+          "checks_total": 2,
+          "elapsed_seconds": 1.074568,
+          "exit_code": 1,
+          "failures": [
+            "step 1: check 2: stderr_contains did not match its expected value"
+          ],
+          "http_fixtures": {},
+          "passed": false,
+          "stderr": "managed Python lock does not match this target, veritas.toml, or uv.lock; run `veritas sync --update <project>` to refresh it\n",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 2,
+              "elapsed_seconds": 0.004411,
+              "exit_code": 1,
+              "failures": [
+                "check 2: stderr_contains did not match its expected value"
+              ]
+            }
+          ]
+        },
+        {
+          "candidate": {},
+          "case_id": "sla-invalid-timestamp-preserves-output",
+          "checks_passed": 1,
+          "checks_total": 1,
+          "elapsed_seconds": 1.067022,
+          "exit_code": 1,
+          "failures": [],
+          "http_fixtures": {},
+          "passed": true,
+          "stderr": "managed Python lock does not match this target, veritas.toml, or uv.lock; run `veritas sync --update <project>` to refresh it\n",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.003072,
+              "exit_code": 1,
+              "failures": []
+            }
+          ]
+        }
+      ],
+      "passed": false,
+      "stage": "initial",
+      "task_id": "01-support-sla-report"
+    },
+    "delivery": {
+      "passed": false,
+      "artifact_sha256": "47478573327982fd5eeb156ba43b578be10bcbf5d2f3dae177caf31ccabc12e2",
+      "artifact_bytes": 9605,
+      "source_paths_excluded": [
+        "main.vr"
+      ],
+      "original_project_mounted": false,
+      "cases": [
+        {
+          "candidate": {
+            "artifact_bytes": 9605,
+            "artifact_paths": [
+              "sla-report.vrb",
+              "sla_report.py",
+              "veritas.toml",
+              "veritas.lock",
+              ".veritas/python-bridge/pyproject.toml",
+              ".veritas/python-bridge/uv.lock"
+            ],
+            "artifact_sha256": "47478573327982fd5eeb156ba43b578be10bcbf5d2f3dae177caf31ccabc12e2",
+            "delivery_manifest": "delivery.json",
+            "dependency_lock_path": "veritas.lock",
+            "source_paths": [
+              "main.vr"
+            ]
+          },
+          "case_id": "sla-initial-report",
+          "checks_passed": 0,
+          "checks_total": 8,
+          "elapsed_seconds": 0.005043,
+          "exit_code": null,
+          "failures": [
+            "step 1: candidate could not be launched: [Errno 2] No such file or directory: 'veritas'",
+            "step 1: check 1: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-e3ls991m/report.json'",
+            "step 1: check 2: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-e3ls991m/report.json'",
+            "step 1: check 3: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-e3ls991m/report.json'",
+            "step 1: check 4: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-e3ls991m/report.json'",
+            "step 1: check 5: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-e3ls991m/report.json'",
+            "step 1: check 6: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-e3ls991m/report.json'",
+            "step 1: check 7: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-e3ls991m/report.json'",
+            "step 1: check 8: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-e3ls991m/report.json'"
+          ],
+          "http_fixtures": {},
+          "passed": false,
+          "stderr": "",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 0,
+              "checks_total": 8,
+              "elapsed_seconds": 0.001902,
+              "exit_code": null,
+              "failures": [
+                "candidate could not be launched: [Errno 2] No such file or directory: 'veritas'",
+                "check 1: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-e3ls991m/report.json'",
+                "check 2: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-e3ls991m/report.json'",
+                "check 3: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-e3ls991m/report.json'",
+                "check 4: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-e3ls991m/report.json'",
+                "check 5: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-e3ls991m/report.json'",
+                "check 6: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-e3ls991m/report.json'",
+                "check 7: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-e3ls991m/report.json'",
+                "check 8: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-e3ls991m/report.json'"
+              ]
+            }
+          ]
+        },
+        {
+          "candidate": {
+            "artifact_bytes": 9605,
+            "artifact_paths": [
+              "sla-report.vrb",
+              "sla_report.py",
+              "veritas.toml",
+              "veritas.lock",
+              ".veritas/python-bridge/pyproject.toml",
+              ".veritas/python-bridge/uv.lock"
+            ],
+            "artifact_sha256": "47478573327982fd5eeb156ba43b578be10bcbf5d2f3dae177caf31ccabc12e2",
+            "delivery_manifest": "delivery.json",
+            "dependency_lock_path": "veritas.lock",
+            "source_paths": [
+              "main.vr"
+            ]
+          },
+          "case_id": "sla-duplicate-id-preserves-output",
+          "checks_passed": 1,
+          "checks_total": 2,
+          "elapsed_seconds": 0.004032,
+          "exit_code": null,
+          "failures": [
+            "step 1: candidate could not be launched: [Errno 2] No such file or directory: 'veritas'",
+            "step 1: check 2: stderr_contains did not match its expected value"
+          ],
+          "http_fixtures": {},
+          "passed": false,
+          "stderr": "",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 2,
+              "elapsed_seconds": 0.001455,
+              "exit_code": null,
+              "failures": [
+                "candidate could not be launched: [Errno 2] No such file or directory: 'veritas'",
+                "check 2: stderr_contains did not match its expected value"
+              ]
+            }
+          ]
+        },
+        {
+          "candidate": {
+            "artifact_bytes": 9605,
+            "artifact_paths": [
+              "sla-report.vrb",
+              "sla_report.py",
+              "veritas.toml",
+              "veritas.lock",
+              ".veritas/python-bridge/pyproject.toml",
+              ".veritas/python-bridge/uv.lock"
+            ],
+            "artifact_sha256": "47478573327982fd5eeb156ba43b578be10bcbf5d2f3dae177caf31ccabc12e2",
+            "delivery_manifest": "delivery.json",
+            "dependency_lock_path": "veritas.lock",
+            "source_paths": [
+              "main.vr"
+            ]
+          },
+          "case_id": "sla-missing-policy-entry-preserves-output",
+          "checks_passed": 1,
+          "checks_total": 2,
+          "elapsed_seconds": 0.004135,
+          "exit_code": null,
+          "failures": [
+            "step 1: candidate could not be launched: [Errno 2] No such file or directory: 'veritas'",
+            "step 1: check 2: stderr_contains did not match its expected value"
+          ],
+          "http_fixtures": {},
+          "passed": false,
+          "stderr": "",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 2,
+              "elapsed_seconds": 0.00171,
+              "exit_code": null,
+              "failures": [
+                "candidate could not be launched: [Errno 2] No such file or directory: 'veritas'",
+                "check 2: stderr_contains did not match its expected value"
+              ]
+            }
+          ]
+        },
+        {
+          "candidate": {
+            "artifact_bytes": 9605,
+            "artifact_paths": [
+              "sla-report.vrb",
+              "sla_report.py",
+              "veritas.toml",
+              "veritas.lock",
+              ".veritas/python-bridge/pyproject.toml",
+              ".veritas/python-bridge/uv.lock"
+            ],
+            "artifact_sha256": "47478573327982fd5eeb156ba43b578be10bcbf5d2f3dae177caf31ccabc12e2",
+            "delivery_manifest": "delivery.json",
+            "dependency_lock_path": "veritas.lock",
+            "source_paths": [
+              "main.vr"
+            ]
+          },
+          "case_id": "sla-malformed-csv-preserves-output",
+          "checks_passed": 1,
+          "checks_total": 1,
+          "elapsed_seconds": 0.004129,
+          "exit_code": null,
+          "failures": [
+            "step 1: candidate could not be launched: [Errno 2] No such file or directory: 'veritas'"
+          ],
+          "http_fixtures": {},
+          "passed": false,
+          "stderr": "",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.00145,
+              "exit_code": null,
+              "failures": [
+                "candidate could not be launched: [Errno 2] No such file or directory: 'veritas'"
+              ]
+            }
+          ]
+        },
+        {
+          "candidate": {
+            "artifact_bytes": 9605,
+            "artifact_paths": [
+              "sla-report.vrb",
+              "sla_report.py",
+              "veritas.toml",
+              "veritas.lock",
+              ".veritas/python-bridge/pyproject.toml",
+              ".veritas/python-bridge/uv.lock"
+            ],
+            "artifact_sha256": "47478573327982fd5eeb156ba43b578be10bcbf5d2f3dae177caf31ccabc12e2",
+            "delivery_manifest": "delivery.json",
+            "dependency_lock_path": "veritas.lock",
+            "source_paths": [
+              "main.vr"
+            ]
+          },
+          "case_id": "sla-unknown-priority-preserves-output",
+          "checks_passed": 1,
+          "checks_total": 2,
+          "elapsed_seconds": 0.003792,
+          "exit_code": null,
+          "failures": [
+            "step 1: candidate could not be launched: [Errno 2] No such file or directory: 'veritas'",
+            "step 1: check 2: stderr_contains did not match its expected value"
+          ],
+          "http_fixtures": {},
+          "passed": false,
+          "stderr": "",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 2,
+              "elapsed_seconds": 0.00122,
+              "exit_code": null,
+              "failures": [
+                "candidate could not be launched: [Errno 2] No such file or directory: 'veritas'",
+                "check 2: stderr_contains did not match its expected value"
+              ]
+            }
+          ]
+        },
+        {
+          "candidate": {
+            "artifact_bytes": 9605,
+            "artifact_paths": [
+              "sla-report.vrb",
+              "sla_report.py",
+              "veritas.toml",
+              "veritas.lock",
+              ".veritas/python-bridge/pyproject.toml",
+              ".veritas/python-bridge/uv.lock"
+            ],
+            "artifact_sha256": "47478573327982fd5eeb156ba43b578be10bcbf5d2f3dae177caf31ccabc12e2",
+            "delivery_manifest": "delivery.json",
+            "dependency_lock_path": "veritas.lock",
+            "source_paths": [
+              "main.vr"
+            ]
+          },
+          "case_id": "sla-invalid-timestamp-preserves-output",
+          "checks_passed": 1,
+          "checks_total": 1,
+          "elapsed_seconds": 0.003571,
+          "exit_code": null,
+          "failures": [
+            "step 1: candidate could not be launched: [Errno 2] No such file or directory: 'veritas'"
+          ],
+          "http_fixtures": {},
+          "passed": false,
+          "stderr": "",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.001091,
+              "exit_code": null,
+              "failures": [
+                "candidate could not be launched: [Errno 2] No such file or directory: 'veritas'"
+              ]
+            }
+          ]
+        }
+      ],
+      "stage_error": ""
+    }
+  }
+}

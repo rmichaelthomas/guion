@@ -1,0 +1,370 @@
+{
+  "schema_version": 1,
+  "language": "veritas",
+  "task_id": "08-documentation-link-index",
+  "stage": "initial",
+  "candidate_project_sha256": "f5f866210531a9aabb1f2fb0a9d06f930bd29297c6f39d34376b8cfcfc65b9d6",
+  "delivery_artifact_path": "/Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/work/veritas-foundation/evaluation/results/pilot/independent-v1/reports/08-documentation-link-index-veritas-pilot-initial-after-follow-up.json.delivery",
+  "delivery_artifact_sha256": "2c1a40f6fc543f576e7f7a3faf721c75bba48dee2c7f27e5d5c55cb81f9d74f4",
+  "container": {
+    "image": "veritas-campaign-veritas:0.1.0",
+    "image_id": "sha256:66bae1a446d36e4b28e1ebb115699037a3a119057c92a8d3192a1f7ab5e7b444",
+    "package_archive_sha256": "735604fabff913cae5569ef9bb1f7b175e777332e6d879299398142c8eb3037b",
+    "python_base_digest": "sha256:44e000a07b48bef1517a2b14adc93c17af728ca98858b5e24c6e1b18de1b2ef2",
+    "shared_dependencies_sha256": "34a2a4d8d157839eea434267f38e475187031f081f358387859181e5be136803",
+    "uv_version": "0.13.4",
+    "candidate_python_version": "3.14.8",
+    "platform": "linux/arm64",
+    "network": "none",
+    "read_only_rootfs": true,
+    "candidate_uid": 10001,
+    "limits": {
+      "cpus": 2,
+      "memory_bytes": 2147483648,
+      "pids": 128,
+      "tmpfs_bytes": 536870912
+    },
+    "source_project_mounted": true,
+    "delivery_source_project_mounted": false
+  },
+  "container_exit_codes": {
+    "source": 0,
+    "delivery": 0,
+    "delivery_stage": 0
+  },
+  "launcher_stderr": {
+    "source": "",
+    "delivery": ""
+  },
+  "case_report": {
+    "task_id": "08-documentation-link-index",
+    "stage": "initial",
+    "passed": true,
+    "source": {
+      "cases": [
+        {
+          "candidate": {},
+          "case_id": "doc-index-build-check-backlinks",
+          "checks_passed": 4,
+          "checks_total": 4,
+          "elapsed_seconds": 0.519156,
+          "exit_code": 0,
+          "failures": [],
+          "http_fixtures": {},
+          "passed": true,
+          "stderr": "",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.123819,
+              "exit_code": 0,
+              "failures": []
+            },
+            {
+              "checks_passed": 2,
+              "checks_total": 2,
+              "elapsed_seconds": 0.191515,
+              "exit_code": 0,
+              "failures": []
+            },
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.199117,
+              "exit_code": 0,
+              "failures": []
+            }
+          ]
+        },
+        {
+          "candidate": {},
+          "case_id": "doc-index-ignores-symlink-outside-root",
+          "checks_passed": 2,
+          "checks_total": 2,
+          "elapsed_seconds": 0.332806,
+          "exit_code": 0,
+          "failures": [],
+          "http_fixtures": {},
+          "passed": true,
+          "stderr": "",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.127383,
+              "exit_code": 0,
+              "failures": []
+            },
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.200641,
+              "exit_code": 0,
+              "failures": []
+            }
+          ]
+        },
+        {
+          "candidate": {},
+          "case_id": "doc-index-invalid-utf8-preserves-index",
+          "checks_passed": 2,
+          "checks_total": 2,
+          "elapsed_seconds": 0.463132,
+          "exit_code": 0,
+          "failures": [],
+          "http_fixtures": {},
+          "passed": true,
+          "stderr": "",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.124177,
+              "exit_code": 1,
+              "failures": []
+            },
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.198198,
+              "exit_code": 0,
+              "failures": []
+            }
+          ]
+        },
+        {
+          "candidate": {},
+          "case_id": "doc-index-malformed-alias-preserves-index",
+          "checks_passed": 2,
+          "checks_total": 2,
+          "elapsed_seconds": 0.447025,
+          "exit_code": 0,
+          "failures": [],
+          "http_fixtures": {},
+          "passed": true,
+          "stderr": "",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.12382,
+              "exit_code": 1,
+              "failures": []
+            },
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.193168,
+              "exit_code": 0,
+              "failures": []
+            }
+          ]
+        }
+      ],
+      "passed": true,
+      "stage": "initial",
+      "task_id": "08-documentation-link-index"
+    },
+    "delivery": {
+      "passed": true,
+      "artifact_sha256": "2c1a40f6fc543f576e7f7a3faf721c75bba48dee2c7f27e5d5c55cb81f9d74f4",
+      "artifact_bytes": 25002,
+      "source_paths_excluded": [
+        "main.vr",
+        "src"
+      ],
+      "original_project_mounted": false,
+      "cases": [
+        {
+          "candidate": {
+            "artifact_bytes": 25002,
+            "artifact_paths": [
+              "main.vrb",
+              "docindex_adapter.py",
+              "dependencies.lock",
+              "README.md"
+            ],
+            "artifact_sha256": "2c1a40f6fc543f576e7f7a3faf721c75bba48dee2c7f27e5d5c55cb81f9d74f4",
+            "delivery_manifest": "delivery.json",
+            "dependency_lock_path": "dependencies.lock",
+            "source_paths": [
+              "main.vr",
+              "src"
+            ]
+          },
+          "case_id": "doc-index-build-check-backlinks",
+          "checks_passed": 4,
+          "checks_total": 4,
+          "elapsed_seconds": 0.511075,
+          "exit_code": 0,
+          "failures": [],
+          "http_fixtures": {},
+          "passed": true,
+          "stderr": "",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.125881,
+              "exit_code": 0,
+              "failures": []
+            },
+            {
+              "checks_passed": 2,
+              "checks_total": 2,
+              "elapsed_seconds": 0.193186,
+              "exit_code": 0,
+              "failures": []
+            },
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.188379,
+              "exit_code": 0,
+              "failures": []
+            }
+          ]
+        },
+        {
+          "candidate": {
+            "artifact_bytes": 25002,
+            "artifact_paths": [
+              "main.vrb",
+              "docindex_adapter.py",
+              "dependencies.lock",
+              "README.md"
+            ],
+            "artifact_sha256": "2c1a40f6fc543f576e7f7a3faf721c75bba48dee2c7f27e5d5c55cb81f9d74f4",
+            "delivery_manifest": "delivery.json",
+            "dependency_lock_path": "dependencies.lock",
+            "source_paths": [
+              "main.vr",
+              "src"
+            ]
+          },
+          "case_id": "doc-index-ignores-symlink-outside-root",
+          "checks_passed": 2,
+          "checks_total": 2,
+          "elapsed_seconds": 0.315538,
+          "exit_code": 0,
+          "failures": [],
+          "http_fixtures": {},
+          "passed": true,
+          "stderr": "",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.127826,
+              "exit_code": 0,
+              "failures": []
+            },
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.184721,
+              "exit_code": 0,
+              "failures": []
+            }
+          ]
+        },
+        {
+          "candidate": {
+            "artifact_bytes": 25002,
+            "artifact_paths": [
+              "main.vrb",
+              "docindex_adapter.py",
+              "dependencies.lock",
+              "README.md"
+            ],
+            "artifact_sha256": "2c1a40f6fc543f576e7f7a3faf721c75bba48dee2c7f27e5d5c55cb81f9d74f4",
+            "delivery_manifest": "delivery.json",
+            "dependency_lock_path": "dependencies.lock",
+            "source_paths": [
+              "main.vr",
+              "src"
+            ]
+          },
+          "case_id": "doc-index-invalid-utf8-preserves-index",
+          "checks_passed": 2,
+          "checks_total": 2,
+          "elapsed_seconds": 0.431871,
+          "exit_code": 0,
+          "failures": [],
+          "http_fixtures": {},
+          "passed": true,
+          "stderr": "",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.120253,
+              "exit_code": 1,
+              "failures": []
+            },
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.189563,
+              "exit_code": 0,
+              "failures": []
+            }
+          ]
+        },
+        {
+          "candidate": {
+            "artifact_bytes": 25002,
+            "artifact_paths": [
+              "main.vrb",
+              "docindex_adapter.py",
+              "dependencies.lock",
+              "README.md"
+            ],
+            "artifact_sha256": "2c1a40f6fc543f576e7f7a3faf721c75bba48dee2c7f27e5d5c55cb81f9d74f4",
+            "delivery_manifest": "delivery.json",
+            "dependency_lock_path": "dependencies.lock",
+            "source_paths": [
+              "main.vr",
+              "src"
+            ]
+          },
+          "case_id": "doc-index-malformed-alias-preserves-index",
+          "checks_passed": 2,
+          "checks_total": 2,
+          "elapsed_seconds": 0.443392,
+          "exit_code": 0,
+          "failures": [],
+          "http_fixtures": {},
+          "passed": true,
+          "stderr": "",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.123129,
+              "exit_code": 1,
+              "failures": []
+            },
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.196596,
+              "exit_code": 0,
+              "failures": []
+            }
+          ]
+        }
+      ],
+      "stage_error": ""
+    }
+  }
+}

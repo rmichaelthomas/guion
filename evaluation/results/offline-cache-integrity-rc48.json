@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "milestone": "RC48",
+  "feature": "python_offline_cache_integrity",
+  "status": "passed",
+  "suite_totals": {
+    "rust_workspace": {
+      "passed_tests": 113,
+      "failed_tests": 0
+    },
+    "python_acceptance": {
+      "passed_tests": 20,
+      "failed_tests": 0
+    },
+    "formatting": "passed",
+    "strict_clippy": "passed"
+  },
+  "checks": [
+    {
+      "check": "schema_2_records_immutable_cache_digest_and_size",
+      "passed": true,
+      "observed_cache_size_bytes": 23436572
+    },
+    {
+      "check": "ordinary_offline_launch_preserves_cache_integrity",
+      "passed": true,
+      "launches": 2,
+      "relocated_path_contains_spaces_and_unicode": true,
+      "environment_inherited_by_launcher": false,
+      "source_tree_required": false
+    },
+    {
+      "check": "tampered_cache_is_rejected",
+      "passed": true,
+      "diagnostic": "offline Python cache integrity check failed"
+    },
+    {
+      "check": "schema_1_package_compatibility",
+      "passed": true,
+      "package_source": "retained RC47 Python interop package"
+    },
+    {
+      "check": "installed_release_cli_and_package_verification",
+      "passed": true,
+      "prefix_contains_spaces_and_unicode": true
+    }
+  ],
+  "archive": {
+    "target": "darwin-arm64",
+    "filename": "veritas-0.1.0-darwin-arm64.tar.gz",
+    "sha256": "9a55943f59903608170654e630502073146bdbc27033e982ded17b0d002fc5f9"
+  },
+  "scope_limits": [
+    "Hashes detect corruption and do not authenticate the publisher.",
+    "Mutable uv bookkeeping files ending in .lock, .http, or .msgpack are excluded from the cache payload digest.",
+    "Native wheel images stored only in the offline cache remain outside the Mach-O audit.",
+    "Only macOS ARM64 was built and exercised."
+  ]
+}

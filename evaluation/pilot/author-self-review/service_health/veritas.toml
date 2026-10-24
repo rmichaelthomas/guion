@@ -1,0 +1,11 @@
+[project]
+name = "service-health-pilot"
+version = "0.1.0"
+entry = "main.vr"
+
+[network]
+hosts = ["127.0.0.1"]
+timeout_ms = 1000
+max_response_bytes = 1048576
+max_request_bytes = 65536
+max_redirects = 2

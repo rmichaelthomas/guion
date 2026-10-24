@@ -1,0 +1,75 @@
+{
+  "schema_version": 1,
+  "captured_at": "2026-10-22",
+  "classification": "author-run release acceptance; not independent recommendation evidence",
+  "candidate": {
+    "release": "RC40",
+    "version": "0.1.0",
+    "target": "macos-aarch64",
+    "archive": "veritas-0.1.0-darwin-arm64.tar.gz",
+    "archive_sha256": "8f2160467ec7c395d3a1be5f04b3e5522314a080ff5e1a65fa89a5442835d8df",
+    "managed_python": "3.14.8",
+    "uv": "0.13.4"
+  },
+  "verification": {
+    "cargo_fmt_all_check": "passed",
+    "cargo_clippy_workspace_all_targets_offline_deny_warnings": "passed",
+    "cargo_test_workspace_offline": {
+      "passed": 105,
+      "failed": 0,
+      "required_test_environment": "VERITAS_UV set to the pinned uv 0.13.4 executable"
+    },
+    "python3_unittest_evaluation_tests": {
+      "passed": 20,
+      "failed": 0,
+      "binary": "rebuilt target/debug/veritas",
+      "python_dependencies": "pinned managed CPython 3.14.8 and uv 0.13.4"
+    },
+    "release_archive_checksum": "verified",
+    "extracted_release_doctor": "passed"
+  },
+  "relocation_acceptance": {
+    "pure_python_feed_inbox": {
+      "result": "passed",
+      "dependency": "feedparser==6.0.14",
+      "checks": [
+        "bundled source-free Veritas artifact and runtime",
+        "declared local parser module and sample feed included",
+        "moved into a path containing spaces and Unicode",
+        "ran after removing original source and external Python/uv settings",
+        "persisted two feed entries and passed a second offline invocation"
+      ]
+    },
+    "compiled_wheel_python_interop": {
+      "result": "passed",
+      "dependencies": [
+        "orjson==3.13.0",
+        "numpy==2.5.4",
+        "requests==2.32.5"
+      ],
+      "expected_and_observed_stdout": "15\n9007199254741000\n3\npython-requests/2.32.5\n",
+      "checks": [
+        "packed using the RC40 release CLI and bundled uv",
+        "moved into a path containing spaces",
+        "ran twice with external Python/uv settings removed",
+        "native orjson JSON conversion and NumPy ndarray conversion both succeeded"
+      ],
+      "macos_native_dependencies_inspected": {
+        "orjson": ["/usr/lib/libiconv.2.dylib", "/usr/lib/libSystem.B.dylib"],
+        "numpy_core": [
+          "/System/Library/Frameworks/Accelerate.framework/Versions/A/Accelerate",
+          "/usr/lib/libc++.1.dylib",
+          "/usr/lib/libSystem.B.dylib"
+        ]
+      }
+    }
+  },
+  "limits": [
+    "one macOS ARM64 host only; Linux, Windows, cross-host delivery and clean-machine installation are unverified",
+    "native-wheel coverage includes only orjson and NumPy in the pinned sample; arbitrary wheel library closure and system requirements are not audited",
+    "Python license collection and package integrity verification after first launch are not implemented",
+    "the workloads and acceptance tests are authored development cases, not independent builder or assistant comparisons",
+    "the recommendation gate is open; this result does not justify recommending Veritas over Python for a broad task class"
+  ],
+  "recommendation_claim": false
+}

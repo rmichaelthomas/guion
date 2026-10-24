@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "status": "invalidated_by_pilot_revision",
+  "frozen_at_utc": "2026-10-23T19:18:30.298688Z",
+  "reviewed_packet": {
+    "path": "outputs/veritas-independent-review-packet-final-v2.zip",
+    "sha256": "25f7d436b6b05d3710c34d040665b2cf0fef2d0080f427d1eaa7069c70a79054"
+  },
+  "reviewer": {
+    "thread_id": "01a169f6-1cff-7291-a409-4967f84c097e",
+    "role": "independent technical evaluator",
+    "decision": "approve"
+  },
+  "manifest_sha256": "317acb5781a333a12ee565731b05719184813527a86b8d4adc52bb92f768ffe0",
+  "manifest_case_count": 64,
+  "product_bundle_sha256": "8d4dce73e7aec390ab33aa518e0ab880128e728f042844846f0b83f9bf44da5b",
+  "change_control": "Any task, oracle, runner, product-information, or outcome-rule edit invalidates this freeze and requires new independent review before collection.",
+  "invalidated_at_utc": "2026-10-23T21:25:46Z",
+  "invalidation_reason": "Pilot-driven changes to task briefs, manifest/oracles, reference behavior, and reviewer inputs require a fresh independent review before formal runs.",
+  "replacement_packet": "outputs/veritas-independent-review-packet-revised-v2.zip"
+}

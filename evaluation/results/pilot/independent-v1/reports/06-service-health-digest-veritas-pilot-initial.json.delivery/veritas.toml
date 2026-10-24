@@ -1,0 +1,13 @@
+[project]
+name = "service-health-digest"
+entry = "main.vr"
+
+[network]
+hosts = ["127.0.0.1", "localhost", "::1"]
+timeout_ms = 60000
+max_response_bytes = 16777216
+max_redirects = 0
+
+[runtime]
+max_parallelism = 32
+

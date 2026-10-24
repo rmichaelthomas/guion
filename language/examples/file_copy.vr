@@ -1,0 +1,15 @@
+fn copy_text(source: Text) -> Result[Unit, FileError]:
+    let content = read_text(source)?
+    return Ok(write_text("copy.txt", content)?)
+
+fn main() -> Int:
+    let result = copy_text("input.txt")
+    if is_ok(result):
+        print("Copied input.txt to copy.txt")
+        return 0
+    else:
+        let problem = error(result)
+        print(file_error_code(problem))
+        print(file_error_line(problem))
+        print(file_error_column(problem))
+        return 1

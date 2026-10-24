@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "milestone": "RC49",
+  "feature": "machine_readable_api_documentation",
+  "status": "passed",
+  "suite_totals": {
+    "rust_workspace": {
+      "passed_tests": 114,
+      "failed_tests": 0
+    },
+    "python_acceptance": {
+      "passed_tests": 20,
+      "failed_tests": 0
+    },
+    "formatting": "passed",
+    "strict_clippy": "passed"
+  },
+  "api_report": {
+    "schema_version": 1,
+    "kind": "veritas_api_report",
+    "includes_function_parameter_types": true,
+    "includes_function_result_types": true,
+    "includes_record_fields": true,
+    "includes_python_module_callable_and_named_parameters": true,
+    "marks_python_effects_opaque": true,
+    "human_documentation_output_preserved": true
+  },
+  "release_archive": {
+    "target": "darwin-arm64",
+    "filename": "veritas-0.1.0-darwin-arm64.tar.gz",
+    "sha256": "3d5ec692e01d20aa093ef26a4ab29870d08c8cebfcff88c5d821d2f3aad8618f",
+    "installed_cli_and_bundle_verified": true,
+    "offline_python_app_launches": 2
+  },
+  "scope_limits": [
+    "Compiled Veritas function parameters do not retain source names; API reports list their types in source order.",
+    "Compile failures for doc remain human-readable, not JSON.",
+    "The report is per source compilation unit and is not a global package index.",
+    "This tooling improvement does not establish recommendation superiority over Python."
+  ]
+}

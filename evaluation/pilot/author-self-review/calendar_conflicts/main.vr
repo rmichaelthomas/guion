@@ -1,0 +1,189 @@
+extern python "calendar_support:parse_calendar" fn parse_calendar(source: Text, name: Text, window_start: Text, window_end: Text, include_tentative: Bool) -> Json
+extern python "calendar_support:sort_conflicts" fn sort_conflicts(values: Json) -> Json
+extern python "builtins:int" fn parse_int(value: Text) -> Int
+
+fn fetch_calendar(source: Json) -> Json:
+    let name = json_as_text(json_get(source, "name"))
+    let url = json_as_text(json_get(source, "url"))
+    let timeout_ms = json_as_int(json_get(source, "timeout_ms"))
+    let headers: Map[Text, Text] = {}
+    let response = http_request_with_timeout("GET", url, headers, "", timeout_ms)
+    if not is_ok(response):
+        let problem = error(response)
+        var category = "http"
+        if http_error_code(problem) == "R_HTTP_TIMEOUT":
+            set category = "timeout"
+        var failed = json_object()
+        set failed = json_set(failed, "name", json_text(name))
+        set failed = json_set(failed, "error", json_text(category))
+        return failed
+    let envelope = unwrap(response)
+    let status = json_as_int(json_get(envelope, "status"))
+    if status < 200 or status >= 300:
+        var failed = json_object()
+        set failed = json_set(failed, "name", json_text(name))
+        set failed = json_set(failed, "error", json_text("http"))
+        return failed
+    let parsed = parse_calendar(json_as_text(json_get(envelope, "body")), name, json_as_text(json_get(source, "window_start")), json_as_text(json_get(source, "window_end")), json_as_bool(json_get(source, "include_tentative")))
+    return json_set(parsed, "name", json_text(name))
+
+fn main() -> Int:
+    let arguments = args()
+    var sources_path = ""
+    var window_start = ""
+    var window_end = ""
+    var output_path = ""
+    var concurrency = 4
+    var timeout_ms = 1000
+    var include_tentative = false
+    var index = 0
+    while index < len(arguments):
+        if arguments[index] == "--sources" and index + 1 < len(arguments):
+            set sources_path = arguments[index + 1]
+            set index = index + 2
+        else:
+            if arguments[index] == "--window-start" and index + 1 < len(arguments):
+                set window_start = arguments[index + 1]
+                set index = index + 2
+            else:
+                if arguments[index] == "--window-end" and index + 1 < len(arguments):
+                    set window_end = arguments[index + 1]
+                    set index = index + 2
+                else:
+                    if arguments[index] == "--output" and index + 1 < len(arguments):
+                        set output_path = arguments[index + 1]
+                        set index = index + 2
+                    else:
+                        if arguments[index] == "--concurrency" and index + 1 < len(arguments):
+                            let parsed_concurrency = parse_int(arguments[index + 1])
+                            set concurrency = parsed_concurrency
+                            set index = index + 2
+                        else:
+                            if arguments[index] == "--timeout-ms" and index + 1 < len(arguments):
+                                let parsed_timeout = parse_int(arguments[index + 1])
+                                set timeout_ms = parsed_timeout
+                                set index = index + 2
+                            else:
+                                if arguments[index] == "--include-tentative":
+                                    set include_tentative = true
+                                    set index = index + 1
+                                else:
+                                    eprint("unknown or incomplete argument")
+                                    return 2
+    if sources_path == "" or window_start == "" or window_end == "" or output_path == "":
+        eprint("usage: calendar-conflicts --sources PATH --window-start RFC3339 --window-end RFC3339 --output PATH [--concurrency N] [--timeout-ms N] [--include-tentative]")
+        return 2
+    if concurrency < 1 or timeout_ms < 1:
+        eprint("concurrency and timeout must be positive")
+        return 2
+    let source_text = read_text(sources_path)
+    if not is_ok(source_text):
+        eprint("cannot read sources file")
+        return 1
+    let source_result = json_parse(unwrap(source_text))
+    if not is_ok(source_result):
+        eprint("invalid sources JSON")
+        return 1
+    let source_document = unwrap(source_result)
+    let calendars = json_get(source_document, "calendars")
+    var work_items: List[Json] = []
+    var calendar_index = 0
+    while calendar_index < json_len(calendars):
+        var item = json_index(calendars, calendar_index)
+        set item = json_set(item, "timeout_ms", json_int(timeout_ms))
+        set item = json_set(item, "window_start", json_text(window_start))
+        set item = json_set(item, "window_end", json_text(window_end))
+        set item = json_set(item, "include_tentative", json_bool(include_tentative))
+        set work_items = list_push(work_items, item)
+        set calendar_index = calendar_index + 1
+    let fetched = parallel_map(work_items, fetch_calendar, concurrency)
+    if not is_ok(fetched):
+        let problem = error(fetched)
+        eprint("calendar requests failed: " + task_code(problem))
+        return 1
+
+    var all_events: List[Json] = []
+    var source_errors: Map[Text, Text] = {}
+    for result in unwrap(fetched):
+        let name = json_as_text(json_get(result, "name"))
+        if not json_has(result, "ok"):
+            set source_errors = map_set(source_errors, name, json_as_text(json_get(result, "error")))
+        else:
+            if json_as_bool(json_get(result, "ok")):
+                let events = json_get(result, "events")
+                var event_index = 0
+                while event_index < json_len(events):
+                    set all_events = list_push(all_events, json_index(events, event_index))
+                    set event_index = event_index + 1
+            else:
+                set source_errors = map_set(source_errors, name, "invalid_calendar")
+
+    var conflicts = json_array()
+    var left_index = 0
+    while left_index < len(all_events):
+        let left = all_events[left_index]
+        var right_index = left_index + 1
+        while right_index < len(all_events):
+            let right = all_events[right_index]
+            let left_calendar = json_as_text(json_get(left, "calendar"))
+            let right_calendar = json_as_text(json_get(right, "calendar"))
+            if left_calendar != right_calendar:
+                let left_start = json_as_int(json_get(left, "start_us"))
+                let right_start = json_as_int(json_get(right, "start_us"))
+                let left_end = json_as_int(json_get(left, "end_us"))
+                let right_end = json_as_int(json_get(right, "end_us"))
+                var overlap_start = left_start
+                var overlap_start_text = json_as_text(json_get(left, "start"))
+                if right_start > overlap_start:
+                    set overlap_start = right_start
+                    set overlap_start_text = json_as_text(json_get(right, "start"))
+                var overlap_end = left_end
+                var overlap_end_text = json_as_text(json_get(left, "end"))
+                if right_end < overlap_end:
+                    set overlap_end = right_end
+                    set overlap_end_text = json_as_text(json_get(right, "end"))
+                if overlap_start < overlap_end:
+                    let left_id = json_as_text(json_get(left, "id"))
+                    let right_id = json_as_text(json_get(right, "id"))
+                    var first_id = left_id
+                    var second_id = right_id
+                    if right_id < left_id:
+                        set first_id = right_id
+                        set second_id = left_id
+                    var first_calendar = left_calendar
+                    var second_calendar = right_calendar
+                    if right_calendar < left_calendar:
+                        set first_calendar = right_calendar
+                        set second_calendar = left_calendar
+                    var event_ids = json_array()
+                    set event_ids = json_push(event_ids, json_text(first_id))
+                    set event_ids = json_push(event_ids, json_text(second_id))
+                    var calendars_out = json_array()
+                    set calendars_out = json_push(calendars_out, json_text(first_calendar))
+                    set calendars_out = json_push(calendars_out, json_text(second_calendar))
+                    var conflict = json_object()
+                    set conflict = json_set(conflict, "start", json_text(overlap_start_text))
+                    set conflict = json_set(conflict, "end", json_text(overlap_end_text))
+                    set conflict = json_set(conflict, "start_us", json_int(overlap_start))
+                    set conflict = json_set(conflict, "end_us", json_int(overlap_end))
+                    set conflict = json_set(conflict, "event_ids", event_ids)
+                    set conflict = json_set(conflict, "calendars", calendars_out)
+                    set conflicts = json_push(conflicts, conflict)
+            set right_index = right_index + 1
+        set left_index = left_index + 1
+
+    let ordered_conflicts = sort_conflicts(conflicts)
+    var error_rows = json_array()
+    for name in source_errors:
+        var row = json_object()
+        set row = json_set(row, "calendar", json_text(name))
+        set row = json_set(row, "category", json_text(source_errors[name]))
+        set error_rows = json_push(error_rows, row)
+    var report = json_object()
+    set report = json_set(report, "conflicts", ordered_conflicts)
+    set report = json_set(report, "source_errors", error_rows)
+    let written = write_text_atomic(output_path, json_stringify(report) + "\n")
+    if not is_ok(written):
+        eprint("cannot write conflict report")
+        return 1
+    return 0
