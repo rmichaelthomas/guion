@@ -20,7 +20,9 @@ use veritas_model::{
 mod json_projection;
 mod native_backend;
 pub mod python_bridge;
-use native_backend::{NativeBackend, NativeFloatList, NativeIntList, NativeRecord, NativeSymbols};
+use native_backend::{
+    NativeBackend, NativeCode, NativeFloatList, NativeIntList, NativeRecord, NativeSymbols,
+};
 
 // JIT code keeps raw pointers to these descriptors; Box preserves each address when the Vec grows.
 #[allow(clippy::vec_box)]
@@ -287,9 +289,11 @@ impl Runtime {
         Ok(Instance {
             artifact,
             native: None,
+            native_code: None,
             native_enabled: self.native_enabled,
             native_calls: Arc::new(AtomicUsize::new(0)),
             native_deoptimizations: Arc::new(AtomicUsize::new(0)),
+            native_compilations: Arc::new(AtomicUsize::new(0)),
             policy,
             output: String::new(),
             program_stderr: String::new(),
@@ -310,9 +314,11 @@ impl Runtime {
 pub struct Instance {
     artifact: Artifact,
     native: Option<NativeBackend>,
+    native_code: Option<Arc<NativeCode>>,
     native_enabled: bool,
     native_calls: Arc<AtomicUsize>,
     native_deoptimizations: Arc<AtomicUsize>,
+    native_compilations: Arc<AtomicUsize>,
     policy: HostPolicy,
     output: String,
     program_stderr: String,
@@ -347,6 +353,10 @@ impl Instance {
 
     pub fn native_deoptimizations(&self) -> usize {
         self.native_deoptimizations.load(Ordering::Relaxed)
+    }
+
+    pub fn native_compilations(&self) -> usize {
+        self.native_compilations.load(Ordering::Relaxed)
     }
 
     pub fn invoke(&mut self, export: &str, args: Vec<Value>) -> Result<Value, RuntimeError> {
@@ -415,6 +425,10 @@ impl Instance {
                     print: native_print as *const () as *const u8,
                 },
             );
+            if let Some(native) = self.native.as_ref() {
+                self.native_code = Some(native.shared_code());
+                self.native_compilations.fetch_add(1, Ordering::Relaxed);
+            }
         }
         for (value, ty) in args.iter().zip(&self.artifact.functions[index].parameters) {
             if !value_matches(value, ty, &self.artifact.records) {
@@ -739,7 +753,7 @@ impl Instance {
             })
             .collect::<Option<Vec<_>>>();
         if let Some(native_args) = native_args {
-            if let Some(outcome) = self.native.as_ref().and_then(|native| {
+            if let Some(outcome) = self.native_code.as_ref().and_then(|native| {
                 native.invoke(
                     index,
                     &native_args,
@@ -4190,9 +4204,11 @@ impl Instance {
         let artifact = Arc::new(self.artifact.clone());
         let policy = self.policy.clone();
         let native_enabled = self.native_enabled;
+        let native_code = self.native_code.clone();
         let values = Arc::new(values);
         let native_calls = self.native_calls.clone();
         let native_deoptimizations = self.native_deoptimizations.clone();
+        let native_compilations = self.native_compilations.clone();
         // Reserve most of the remaining global instruction allowance for workers,
         // while keeping enough for the caller to inspect and handle the Result.
         // The workers share one bounded child budget, so the total remains bounded.
@@ -4214,20 +4230,10 @@ impl Instance {
             let budget = worker_budget.clone();
             let native_calls = native_calls.clone();
             let native_deoptimizations = native_deoptimizations.clone();
+            let native_compilations = native_compilations.clone();
+            let native_code = native_code.clone();
             let sender = sender.clone();
             handles.push(thread::spawn(move || {
-                let mut native = NativeBackend::compile(
-                    &artifact,
-                    NativeSymbols {
-                        reserve_fuel: native_reserve_fuel as *const () as *const u8,
-                        release_fuel: native_release_fuel as *const () as *const u8,
-                        poll_cancellation: native_poll_cancellation as *const () as *const u8,
-                        make_list: native_make_list as *const () as *const u8,
-                        list_set: native_list_set as *const () as *const u8,
-                        charge_record: native_charge_record as *const () as *const u8,
-                        print: native_print as *const () as *const u8,
-                    },
-                );
                 let mut assigned_index = Some(initial_index);
                 loop {
                     if cancelled.load(Ordering::Relaxed) {
@@ -4242,10 +4248,12 @@ impl Instance {
                     let thread_id = format!("{:?}", thread::current().id());
                     let mut worker = Instance {
                         artifact: (*artifact).clone(),
-                        native: native.take(),
+                        native: None,
+                        native_code: native_code.clone(),
                         native_enabled,
                         native_calls: native_calls.clone(),
                         native_deoptimizations: native_deoptimizations.clone(),
+                        native_compilations: native_compilations.clone(),
                         policy: policy.clone(),
                         output: String::new(),
                         program_stderr: String::new(),
@@ -4268,7 +4276,6 @@ impl Instance {
                     if result.is_err() {
                         cancelled.store(true, Ordering::Relaxed);
                     }
-                    native = worker.native.take();
                     let _ = sender.send((index, result, worker.output, thread_id));
                 }
             }));

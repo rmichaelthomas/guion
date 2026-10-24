@@ -2965,3 +2965,33 @@ fn run_json_report_captures_program_output_status_and_runtime_failure() {
     assert!(String::from_utf8_lossy(&compile_failed.stderr).is_empty());
     let _ = fs::remove_dir_all(dir);
 }
+
+#[test]
+fn parallel_map_reuses_one_native_backend_across_workers() {
+    let dir = std::env::temp_dir().join(format!(
+        "veritas-parallel-native-reuse-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(&dir).unwrap();
+    let source = dir.join("main.vr");
+    fs::write(
+        &source,
+        "fn work(count: Int) -> Int:\n    var index = 0\n    var total = 0\n    while index < count:\n        set total = total + index % 97\n        set index = index + 1\n    return total\n\nfn main() -> Int:\n    let tasks = [200, 200, 200, 200]\n    let outcome = parallel_map(tasks, work, 4)\n    if is_ok(outcome):\n        let results = unwrap(outcome)\n        print(results[0])\n        print(results[1])\n        print(results[2])\n        print(results[3])\n    return 0\n",
+    )
+    .unwrap();
+
+    let run = Command::new(env!("CARGO_BIN_EXE_veritas"))
+        .args(["run", "--json", source.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert_eq!(run.status.code(), Some(0));
+    let report: serde_json::Value = serde_json::from_slice(&run.stdout).unwrap();
+    assert_eq!(report["program_stdout"], "9327\n9327\n9327\n9327\n");
+    assert_eq!(report["native_backend"]["compilations"], 1);
+    assert!(report["native_backend"]["calls"].as_u64().unwrap() >= 4);
+    assert_eq!(report["native_backend"]["deoptimizations"], 0);
+    assert!(String::from_utf8_lossy(&run.stderr).is_empty());
+
+    let _ = fs::remove_dir_all(dir);
+}

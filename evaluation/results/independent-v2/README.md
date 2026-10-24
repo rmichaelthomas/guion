@@ -16,3 +16,7 @@ Status: preregistered; no formal choice or implementation sessions have been rec
 - Build ledger records: `../runs/<run-id>.json` under `evaluation/results/runs/`. Each record points to evidence by path relative to this campaign directory and includes its SHA-256.
 
 Keep both languages in a pair on the same brief, model, host, budgets, and assigned order. Use distinct fresh assistant sessions. Keep choice sessions separate from build sessions. Record failed and incomplete attempts rather than dropping them.
+
+## Evidence archive and workspace hygiene
+
+The preserved raw `run-evidence/` tree is stored in `run-evidence/evidence.tar.zst` to keep the active workspace smaller. The archive contains the complete original tree: 52,067 tar entries, including 46,260 regular files, with 2.39 GiB uncompressed. Its SHA-256 is `c458124b129e86075db573f015c693c773ddd4d2025655c4b66538ebf3b30a07`. Validate it with `zstd -t run-evidence/evidence.tar.zst`. From this directory, restore the original tree with `zstd -dc run-evidence/evidence.tar.zst | tar -xf -`. The archive remains under the existing Git-ignored evidence path. New campaign outputs may be added beside it; do not overwrite the archive.

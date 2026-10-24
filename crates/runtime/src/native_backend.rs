@@ -5,6 +5,7 @@
 //! Veritas's arbitrary-precision integer behavior.
 
 use std::collections::VecDeque;
+use std::sync::Arc;
 
 use super::NativeListArena;
 use cranelift_codegen::{
@@ -73,6 +74,15 @@ pub(crate) struct NativeBackend {
     charge_record: FuncId,
     print: FuncId,
     functions: Vec<Option<*const u8>>,
+    result_words: Vec<usize>,
+    max_result_words: usize,
+}
+
+/// Immutable native entry points shared by parallel workers. The owning
+/// `NativeBackend` stays alive on the parent instance until those workers join.
+#[derive(Debug)]
+pub(crate) struct NativeCode {
+    functions: Vec<Option<usize>>,
     result_words: Vec<usize>,
     max_result_words: usize,
 }
@@ -321,6 +331,20 @@ impl NativeBackend {
             .collect()
     }
 
+    pub(crate) fn shared_code(&self) -> Arc<NativeCode> {
+        Arc::new(NativeCode {
+            functions: self
+                .functions
+                .iter()
+                .map(|function| function.map(|pointer| pointer as usize))
+                .collect(),
+            result_words: self.result_words.clone(),
+            max_result_words: self.max_result_words,
+        })
+    }
+}
+
+impl NativeCode {
     pub(crate) fn invoke(
         &self,
         index: usize,
@@ -331,7 +355,10 @@ impl NativeBackend {
         arena: &mut NativeListArena,
     ) -> Option<NativeOutcome> {
         let pointer = *self.functions.get(index)?.as_ref()?;
-        let function: NativeFunction = unsafe { std::mem::transmute(pointer) };
+        // SAFETY: the parent Instance retains the JITModule that owns this address
+        // until parallel_map has joined every worker. Generated functions are
+        // reentrant: invocation state is passed through these arguments.
+        let function: NativeFunction = unsafe { std::mem::transmute(pointer as *const u8) };
         let trace_words = depth_limit.checked_mul(2)?.checked_add(1)?;
         let mut trace_buffer = Vec::new();
         trace_buffer.try_reserve_exact(trace_words).ok()?;
@@ -375,7 +402,9 @@ impl NativeBackend {
             allocations: arena.charged_bytes,
         })
     }
+}
 
+impl NativeBackend {
     fn compile_function(
         &mut self,
         index: usize,

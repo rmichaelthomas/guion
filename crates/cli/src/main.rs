@@ -654,6 +654,7 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
             let python_native_images = instance.python_native_images().to_vec();
             let native_backend = serde_json::json!({
                 "compiled_functions": instance.native_function_names(),
+                "compilations": instance.native_compilations(),
                 "calls": instance.native_calls(),
                 "deoptimizations": instance.native_deoptimizations()
             });
