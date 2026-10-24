@@ -1,0 +1,41 @@
+import "lexer.vr"
+import "parser.vr"
+
+fn main() -> Int:
+    let expression = parse_expression(scan("1 + 2 * 3"), 0, 0)
+    assert(expression.ok)
+    assert(json_as_text(json_get(expression.value, "kind")) == "Binary")
+    assert(json_as_text(json_get(expression.value, "operator")) == "+")
+    assert(json_as_text(json_get(json_get(expression.value, "right"), "operator")) == "*")
+
+    let call = parse_expression(scan("f(1, 2)"), 0, 0)
+    assert(call.ok)
+    assert(json_as_text(json_get(call.value, "kind")) == "Call")
+    assert(json_len(json_get(call.value, "arguments")) == 2)
+
+    let lexer_source = unwrap(read_text("lexer.vr"))
+    let lexer_program = parse_program(scan(lexer_source))
+    assert(lexer_program.ok)
+    assert(json_len(json_get(lexer_program.value, "functions")) > 5)
+
+    let parser_source = unwrap(read_text("parser.vr"))
+    let parser_program = parse_program(scan(parser_source))
+    assert(parser_program.ok)
+    assert(json_len(json_get(parser_program.value, "functions")) > 20)
+
+    let sample = scan("fn main() -> Int:\n    print(\"é\")\n")
+    assert(sample[0].text == "fn")
+    assert(sample[8].kind == "Indent")
+    assert(sample[11].text == "é")
+
+    let invalid_indent = scan("fn main() -> Int:\n\treturn 0\n")
+    assert(invalid_indent[8].kind == "Error")
+
+    let source = unwrap(read_text("lexer.vr"))
+    let tokens = scan(source)
+    assert(len(tokens) > 500)
+    for item in tokens:
+        assert(item.kind != "Error")
+    print("scanned Veritas lexer source tokens:")
+    print(len(tokens))
+    return 0

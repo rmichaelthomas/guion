@@ -255,6 +255,7 @@ fn main() -> Int:
     let Value::Json(response) = *response else {
         panic!("expected a JSON response envelope");
     };
+    let response = response.to_serde();
     assert_eq!(response["status"], 429);
     assert_eq!(response["body"], "{\"next\":null}");
     assert_eq!(response["headers"]["content-type"], "application/json");

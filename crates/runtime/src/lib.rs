@@ -15,7 +15,7 @@ use std::{
 };
 use veritas_model::{
     Artifact, BigInt, FileErrorValue, Float64, HttpErrorValue, JsonErrorValue, Op, RuntimeError,
-    Span, TaskErrorValue, Type, Value,
+    SharedJson, Span, TaskErrorValue, Type, Value,
 };
 mod json_projection;
 mod native_backend;
@@ -1585,15 +1585,49 @@ impl Instance {
                         Value::Float64List(values) => values.len(),
                         Value::Map(values) => values.len(),
                         Value::Bytes(values) => values.len(),
+                        Value::Text(values) => values.chars().count(),
                         _ => {
                             return Err(RuntimeError::new(
                                 "R_TYPE_INVALID",
-                                "len requires a List, Map, or Bytes",
+                                "len requires a List, Map, Bytes, or Text",
                                 instruction.span,
                             ))
                         }
                     };
                     push_stack!(Value::Int(BigInt::parse(&len.to_string()).unwrap()));
+                }
+                Op::TextChars => {
+                    let text = match pop!() {
+                        Value::Text(text) => text,
+                        _ => {
+                            return Err(RuntimeError::new(
+                                "R_TYPE_INVALID",
+                                "text_chars requires Text",
+                                instruction.span,
+                            ))
+                        }
+                    };
+                    let count = text.chars().count();
+                    if count > self.policy.max_collection_items {
+                        return Err(RuntimeError::new(
+                            "R_COLLECTION_LIMIT",
+                            "text_chars result exceeds the configured item limit",
+                            instruction.span,
+                        ));
+                    }
+                    let allocation = text.chars().fold(
+                        size_of::<Vec<Value>>()
+                            .saturating_add(count.saturating_mul(size_of::<Value>())),
+                        |total, scalar| {
+                            total.saturating_add(size_of::<String>() + scalar.len_utf8())
+                        },
+                    );
+                    charge_allocation(budget.as_ref(), allocation, instruction.span)?;
+                    let values = text
+                        .chars()
+                        .map(|scalar| Value::Text(scalar.to_string()))
+                        .collect::<Vec<_>>();
+                    push_stack!(Value::from_list_items(values));
                 }
                 Op::Index => {
                     let index = pop!();
@@ -1669,6 +1703,30 @@ impl Instance {
                             )?;
                             push_stack!(value);
                         }
+                        (Value::Text(text), Value::Int(index)) => {
+                            let index = index.to_usize().ok_or_else(|| {
+                                RuntimeError::new(
+                                    "R_INDEX_INVALID",
+                                    "text index must be a non-negative machine-sized integer",
+                                    instruction.span,
+                                )
+                            })?;
+                            let length = text.chars().count();
+                            let value = text.chars().nth(index).map(|scalar| scalar.to_string()).ok_or_else(|| {
+                                RuntimeError::new(
+                                    "R_INDEX_BOUNDS",
+                                    format!("text index {index} is out of range for length {length}"),
+                                    instruction.span,
+                                )
+                            })?;
+                            let value = Value::Text(value);
+                            charge_allocation(
+                                budget.as_ref(),
+                                cloned_value_allocation(&value),
+                                instruction.span,
+                            )?;
+                            push_stack!(value);
+                        }
                         (Value::List(_), _) => {
                             return Err(RuntimeError::new(
                                 "R_INDEX_INVALID",
@@ -1690,10 +1748,17 @@ impl Instance {
                                 instruction.span,
                             ))
                         }
+                        (Value::Text(_), _) => {
+                            return Err(RuntimeError::new(
+                                "R_INDEX_INVALID",
+                                "text index must be Int",
+                                instruction.span,
+                            ))
+                        }
                         _ => {
                             return Err(RuntimeError::new(
                                 "R_TYPE_INVALID",
-                                "index requires a List or Map",
+                                "index requires a List, Map, or Text",
                                 instruction.span,
                             ))
                         }
@@ -1753,6 +1818,134 @@ impl Instance {
                         return Err(error);
                     }
                     push_stack!(list);
+                }
+                Op::ListPushLocal(slot) => {
+                    let value = pop!();
+                    let local = locals.get_mut(slot).ok_or_else(|| {
+                        RuntimeError::new(
+                            "R_LOCAL_UNINITIALIZED",
+                            "list_push assignment targets an uninitialized local",
+                            instruction.span,
+                        )
+                    })?;
+                    match local {
+                        Value::List(items) => {
+                            let len = items.len();
+                            if len >= self.policy.max_collection_items {
+                                return Err(RuntimeError::new(
+                                    "R_COLLECTION_LIMIT",
+                                    "list exceeds the configured item limit",
+                                    instruction.span,
+                                ));
+                            }
+                            let shared = Arc::strong_count(items) > 1;
+                            let capacity = items.capacity();
+                            let allocation = if shared || capacity == len {
+                                let grown_capacity =
+                                    capacity.saturating_mul(2).max(len.saturating_add(1)).max(4);
+                                size_of::<Vec<Value>>().saturating_add(
+                                    grown_capacity.saturating_mul(size_of::<Value>()),
+                                )
+                            } else {
+                                0
+                            };
+                            charge_allocation(budget.as_ref(), allocation, instruction.span)?;
+                            Arc::make_mut(items).push(value);
+                        }
+                        Value::Float64List(items) => {
+                            let Value::Float64(value) = value else {
+                                return Err(RuntimeError::new(
+                                    "R_TYPE_INVALID",
+                                    "list_push value must match the List item type",
+                                    instruction.span,
+                                ));
+                            };
+                            let len = items.len();
+                            if len >= self.policy.max_collection_items {
+                                return Err(RuntimeError::new(
+                                    "R_COLLECTION_LIMIT",
+                                    "list exceeds the configured item limit",
+                                    instruction.span,
+                                ));
+                            }
+                            let shared = Arc::strong_count(items) > 1;
+                            let capacity = items.capacity();
+                            let allocation = if shared || capacity == len {
+                                let grown_capacity =
+                                    capacity.saturating_mul(2).max(len.saturating_add(1)).max(4);
+                                size_of::<Vec<Float64>>().saturating_add(
+                                    grown_capacity.saturating_mul(size_of::<Float64>()),
+                                )
+                            } else {
+                                0
+                            };
+                            charge_allocation(budget.as_ref(), allocation, instruction.span)?;
+                            Arc::make_mut(items).push(value);
+                        }
+                        _ => {
+                            return Err(RuntimeError::new(
+                                "R_TYPE_INVALID",
+                                "list_push assignment target must be a List",
+                                instruction.span,
+                            ));
+                        }
+                    }
+                    if let Some(error) = value_limit_error(local, &self.policy, instruction.span) {
+                        return Err(error);
+                    }
+                }
+                Op::JsonPushLocal(slot) => {
+                    let value = match pop!() {
+                        Value::Json(value) => value,
+                        _ => {
+                            return Err(RuntimeError::new(
+                                "R_TYPE_INVALID",
+                                "json_push value must be Json",
+                                instruction.span,
+                            ))
+                        }
+                    };
+                    let local = locals.get_mut(slot).ok_or_else(|| {
+                        RuntimeError::new(
+                            "R_LOCAL_UNINITIALIZED",
+                            "json_push assignment targets an uninitialized local",
+                            instruction.span,
+                        )
+                    })?;
+                    let Value::Json(array) = local else {
+                        return Err(RuntimeError::new(
+                            "R_TYPE_INVALID",
+                            "json_push assignment target must be Json",
+                            instruction.span,
+                        ));
+                    };
+                    let Some(items) = array.as_array() else {
+                        return Err(RuntimeError::new(
+                            "R_JSON_TYPE",
+                            "json_push requires a JSON array",
+                            instruction.span,
+                        ));
+                    };
+                    let len = items.len();
+                    if len >= self.policy.max_collection_items {
+                        return Err(RuntimeError::new(
+                            "R_COLLECTION_LIMIT",
+                            "JSON array exceeds the configured item limit",
+                            instruction.span,
+                        ));
+                    }
+                    charge_allocation(
+                        budget.as_ref(),
+                        shared_json_push_local_allocation(array),
+                        instruction.span,
+                    )?;
+                    Arc::make_mut(array)
+                        .as_array_mut()
+                        .expect("array type was checked before copy-on-write")
+                        .push(value);
+                    if let Some(error) = value_limit_error(local, &self.policy, instruction.span) {
+                        return Err(error);
+                    }
                 }
                 Op::ListSet => {
                     let value = pop!();
@@ -2157,7 +2350,9 @@ impl Instance {
                                 response.to_string().len(),
                                 instruction.span,
                             )?;
-                            push_stack!(Value::ResultOk(Box::new(Value::Json(Arc::new(response)))));
+                            push_stack!(Value::ResultOk(Box::new(Value::Json(
+                                SharedJson::from_serde(response)
+                            ))));
                         }
                         Err(mut error) => {
                             self.finish_effect(effect, EffectOutcome::ReturnedError);
@@ -2962,8 +3157,8 @@ impl Instance {
                             instruction.span,
                         ));
                     };
-                    items.push(child);
-                    push_stack!(finish_json_value(
+                    items.push(Arc::new(child));
+                    push_stack!(finish_shared_json(
                         array,
                         &self.policy,
                         budget.as_ref(),
@@ -3015,8 +3210,8 @@ impl Instance {
                             instruction.span,
                         ));
                     };
-                    fields.insert(key, child);
-                    push_stack!(finish_json_value(
+                    fields.insert(key, Arc::new(child));
+                    push_stack!(finish_shared_json(
                         object,
                         &self.policy,
                         budget.as_ref(),
@@ -3089,7 +3284,9 @@ impl Instance {
                         ));
                     }
                     charge_allocation(budget.as_ref(), metrics.allocation_bytes, instruction.span)?;
-                    push_stack!(Value::ResultOk(Box::new(Value::Json(Arc::new(value)))));
+                    push_stack!(Value::ResultOk(Box::new(Value::Json(
+                        SharedJson::from_serde(value)
+                    ))));
                 }
                 Op::JsonStringify => {
                     let value = match pop!() {
@@ -3102,7 +3299,7 @@ impl Instance {
                             ))
                         }
                     };
-                    let text = serde_json::to_string(value.as_ref()).map_err(|error| {
+                    let text = serde_json::to_string(&value.to_serde()).map_err(|error| {
                         RuntimeError::new("R_JSON_ENCODE", error.to_string(), instruction.span)
                     })?;
                     if text.len() > self.policy.max_text_bytes {
@@ -3154,12 +3351,7 @@ impl Instance {
                             instruction.span,
                         )
                     })?;
-                    charge_allocation(
-                        budget.as_ref(),
-                        json_allocation_estimate(&value),
-                        instruction.span,
-                    )?;
-                    push_stack!(Value::Json(Arc::new(value)));
+                    push_stack!(Value::Json(value));
                 }
                 Op::JsonIndex => {
                     let index = match pop!() {
@@ -3200,12 +3392,7 @@ impl Instance {
                             instruction.span,
                         )
                     })?;
-                    charge_allocation(
-                        budget.as_ref(),
-                        json_allocation_estimate(&value),
-                        instruction.span,
-                    )?;
-                    push_stack!(Value::Json(Arc::new(value)));
+                    push_stack!(Value::Json(value));
                 }
                 Op::JsonHas => {
                     let key = match pop!() {
@@ -3250,8 +3437,8 @@ impl Instance {
                     };
                     let length = value
                         .as_array()
-                        .map(Vec::len)
-                        .or_else(|| value.as_object().map(serde_json::Map::len))
+                        .map(|items| items.len())
+                        .or_else(|| value.as_object().map(|items| items.len()))
                         .ok_or_else(|| {
                             RuntimeError::new(
                                 "R_JSON_TYPE",
@@ -3298,7 +3485,7 @@ impl Instance {
                     }
                     let mut values = Vec::with_capacity(rows.len());
                     let mut allocation = size_of::<Vec<Value>>()
-                        .saturating_add(rows.capacity().saturating_mul(size_of::<Value>()));
+                        .saturating_add(rows.len().saturating_mul(size_of::<Value>()));
                     for row in rows {
                         let object = row.as_object().ok_or_else(|| {
                             RuntimeError::new(
@@ -3461,7 +3648,7 @@ impl Instance {
                     }
                     let mut values = Vec::with_capacity(items.len());
                     let mut allocation = size_of::<Vec<Value>>()
-                        .saturating_add(items.capacity().saturating_mul(size_of::<Value>()));
+                        .saturating_add(items.len().saturating_mul(size_of::<Value>()));
                     for item in items {
                         let integer = json_exact_integer(item).ok_or_else(|| {
                             RuntimeError::new(
@@ -3638,13 +3825,13 @@ impl Instance {
                 }
                 Op::JsonAsText => match pop!() {
                     Value::Json(value) => match value.as_ref() {
-                        serde_json::Value::String(text) => {
+                        SharedJson::String(text) => {
                             charge_allocation(
                                 budget.as_ref(),
                                 size_of::<String>().saturating_add(text.len()),
                                 instruction.span,
                             )?;
-                            push_stack!(Value::Text(text.clone()))
+                            push_stack!(Value::Text(text.to_string()))
                         }
                         _ => {
                             return Err(RuntimeError::new(
@@ -3738,10 +3925,9 @@ impl Instance {
                 },
                 Op::JsonAsBool => match pop!() {
                     Value::Json(value) if value.is_boolean() => {
-                        let serde_json::Value::Bool(value) = value.as_ref() else {
-                            unreachable!()
-                        };
-                        push_stack!(Value::Bool(*value))
+                        push_stack!(Value::Bool(
+                            value.as_bool().expect("boolean type was checked")
+                        ))
                     }
                     Value::Json(_) => {
                         return Err(RuntimeError::new(
@@ -4548,16 +4734,13 @@ fn new_value_allocation(value: &Value) -> usize {
         Value::Bytes(bytes) => size_of::<Vec<u8>>().saturating_add(bytes.capacity()),
         Value::Float64List(items) => size_of::<Vec<Float64>>()
             .saturating_add(items.len().saturating_mul(size_of::<Float64>())),
+        // Records own a fresh field-vector, but nested Lists, Maps, and JSON
+        // remain Arc-shared. Their payloads were charged when first created.
         Value::Record(name, fields) => size_of::<Vec<Value>>()
             .saturating_add(fields.len().saturating_mul(size_of::<Value>()))
-            .saturating_add(name.capacity())
-            .saturating_add(
-                fields
-                    .iter()
-                    .map(new_value_allocation)
-                    .fold(0usize, usize::saturating_add),
-            ),
-        Value::Json(json) => json_allocation_estimate(json),
+            .saturating_add(name.capacity()),
+        // JSON nodes are immutable and Arc-shared; cloning a value allocates no subtree.
+        Value::Json(_) => 0,
         Value::TaskError(error) => size_of::<TaskErrorValue>()
             .saturating_add(error.code.capacity())
             .saturating_add(error.message.capacity())
@@ -4615,7 +4798,7 @@ fn input_value_allocation(value: &Value) -> usize {
                 })
                 .fold(0usize, usize::saturating_add),
         ),
-        Value::Json(value) => size_of::<Value>().saturating_add(json_allocation_estimate(value)),
+        Value::Json(_) => 0,
         Value::OptionSome(value) | Value::ResultOk(value) | Value::ResultErr(value) => {
             size_of::<Value>().saturating_add(input_value_allocation(value))
         }
@@ -4707,10 +4890,6 @@ fn map_clone_allocation(
     total
 }
 
-fn json_allocation_estimate(value: &serde_json::Value) -> usize {
-    json_metrics(value, usize::MAX).allocation_bytes
-}
-
 struct JsonMetrics {
     depth: usize,
     item_count: usize,
@@ -4791,10 +4970,8 @@ fn json_metrics(value: &serde_json::Value, max_integer_digits: usize) -> JsonMet
     }
 }
 
-fn json_exact_integer(value: &serde_json::Value) -> Option<BigInt> {
-    let serde_json::Value::Number(number) = value else {
-        return None;
-    };
+fn json_exact_integer(value: &SharedJson) -> Option<BigInt> {
+    let number = value.as_number()?;
     if let Some(value) = number.as_i64() {
         return Some(BigInt::from_i64(value));
     }
@@ -4833,7 +5010,165 @@ fn finish_json_value(
         ));
     }
     charge_allocation(budget, metrics.allocation_bytes, span)?;
+    Ok(Value::Json(SharedJson::from_serde(value)))
+}
+
+fn shared_json_metrics(value: &SharedJson, max_integer_digits: usize) -> JsonMetrics {
+    match value {
+        SharedJson::Null | SharedJson::Bool(_) => JsonMetrics {
+            depth: 0,
+            item_count: 0,
+            oversized_integer: false,
+            allocation_bytes: size_of::<SharedJson>(),
+        },
+        SharedJson::Number(number) => {
+            let text = number.to_string();
+            let digits = text.strip_prefix('-').unwrap_or(&text);
+            let is_integer = !digits.is_empty() && digits.bytes().all(|byte| byte.is_ascii_digit());
+            JsonMetrics {
+                depth: 0,
+                item_count: 0,
+                oversized_integer: is_integer && digits.len() > max_integer_digits,
+                allocation_bytes: size_of::<SharedJson>().saturating_add(text.len()),
+            }
+        }
+        SharedJson::String(text) => JsonMetrics {
+            depth: 0,
+            item_count: 0,
+            oversized_integer: false,
+            allocation_bytes: size_of::<SharedJson>().saturating_add(text.len()),
+        },
+        SharedJson::Array(items) => {
+            let mut metrics = JsonMetrics {
+                depth: 1,
+                item_count: items.len(),
+                oversized_integer: false,
+                allocation_bytes: size_of::<SharedJson>()
+                    .saturating_add(size_of::<Vec<Arc<SharedJson>>>())
+                    .saturating_add(
+                        items
+                            .capacity()
+                            .saturating_mul(size_of::<Arc<SharedJson>>()),
+                    ),
+            };
+            for item in items.iter() {
+                let child = shared_json_metrics(item, max_integer_digits);
+                metrics.depth = metrics.depth.max(child.depth.saturating_add(1));
+                metrics.item_count = metrics.item_count.saturating_add(child.item_count);
+                metrics.oversized_integer |= child.oversized_integer;
+            }
+            metrics
+        }
+        SharedJson::Object(items) => {
+            let mut metrics = JsonMetrics {
+                depth: 1,
+                item_count: items.len(),
+                oversized_integer: false,
+                allocation_bytes: size_of::<SharedJson>()
+                    .saturating_add(size_of::<BTreeMap<String, Arc<SharedJson>>>()),
+            };
+            for (key, child_value) in items.iter() {
+                let child = shared_json_metrics(child_value, max_integer_digits);
+                metrics.depth = metrics.depth.max(child.depth.saturating_add(1));
+                metrics.item_count = metrics.item_count.saturating_add(child.item_count);
+                metrics.oversized_integer |= child.oversized_integer;
+                metrics.allocation_bytes = metrics
+                    .allocation_bytes
+                    .saturating_add(size_of::<String>() + key.len())
+                    .saturating_add(size_of::<Arc<SharedJson>>() * 3);
+            }
+            metrics
+        }
+    }
+}
+
+fn finish_shared_json(
+    value: SharedJson,
+    policy: &HostPolicy,
+    budget: &Budget,
+    span: Span,
+) -> Result<Value, RuntimeError> {
+    let metrics = shared_json_metrics(&value, policy.max_integer_digits);
+    if metrics.depth > 64 {
+        return Err(RuntimeError::new(
+            "R_JSON_DEPTH",
+            "JSON nesting exceeds 64 levels",
+            span,
+        ));
+    }
+    if metrics.oversized_integer {
+        return Err(RuntimeError::new(
+            "R_INTEGER_LIMIT",
+            "JSON integer exceeds the configured digit limit",
+            span,
+        ));
+    }
+    if metrics.item_count > policy.max_collection_items {
+        return Err(RuntimeError::new(
+            "R_COLLECTION_LIMIT",
+            "JSON collection exceeds the configured item limit",
+            span,
+        ));
+    }
+    charge_allocation(budget, metrics.allocation_bytes, span)?;
     Ok(Value::Json(Arc::new(value)))
+}
+
+fn shared_json_encoded_len(value: &SharedJson) -> Option<usize> {
+    match value {
+        SharedJson::Null => Some(4),
+        SharedJson::Bool(true) => Some(4),
+        SharedJson::Bool(false) => Some(5),
+        SharedJson::Number(number) => Some(number.to_string().len()),
+        SharedJson::String(text) => serde_json::to_string(text.as_ref()).ok().map(|s| s.len()),
+        SharedJson::Array(items) => {
+            let mut size = 2usize.saturating_add(items.len().saturating_sub(1));
+            for item in items.iter() {
+                size = size.saturating_add(shared_json_encoded_len(item)?);
+            }
+            Some(size)
+        }
+        SharedJson::Object(items) => {
+            let mut size = 2usize.saturating_add(items.len().saturating_sub(1));
+            for (key, item) in items.iter() {
+                size = size
+                    .saturating_add(serde_json::to_string(key).ok()?.len())
+                    .saturating_add(1)
+                    .saturating_add(shared_json_encoded_len(item)?);
+            }
+            Some(size)
+        }
+    }
+}
+
+fn shared_json_push_local_allocation(value: &Arc<SharedJson>) -> usize {
+    let SharedJson::Array(items) = value.as_ref() else {
+        return 0;
+    };
+    let len = items.len();
+    let mut allocation = if Arc::strong_count(value) > 1 {
+        size_of::<SharedJson>()
+    } else {
+        0
+    };
+    if Arc::strong_count(items) > 1 {
+        allocation = allocation.saturating_add(
+            size_of::<Vec<Arc<SharedJson>>>()
+                .saturating_add(len.saturating_mul(size_of::<Arc<SharedJson>>())),
+        );
+    } else if items.capacity() == len {
+        allocation = allocation.saturating_add(
+            size_of::<Vec<Arc<SharedJson>>>().saturating_add(
+                items
+                    .capacity()
+                    .saturating_mul(2)
+                    .max(len.saturating_add(1))
+                    .max(4)
+                    .saturating_mul(size_of::<Arc<SharedJson>>()),
+            ),
+        );
+    }
+    allocation
 }
 
 fn value_matches(value: &Value, ty: &Type, records: &[veritas_model::RecordDefinition]) -> bool {
@@ -5856,15 +6191,15 @@ fn value_limit_error(value: &Value, policy: &HostPolicy, span: Span) -> Option<R
         Value::OptionSome(value) => value_limit_error(value, policy, span),
         Value::ResultOk(value) | Value::ResultErr(value) => value_limit_error(value, policy, span),
         Value::Json(value) => {
-            let metrics = json_metrics(value, policy.max_integer_digits);
+            let metrics = shared_json_metrics(value, policy.max_integer_digits);
             if metrics.depth > 64 {
                 Some(RuntimeError::new(
                     "R_JSON_DEPTH",
                     "JSON nesting exceeds 64 levels",
                     span,
                 ))
-            } else if serde_json::to_vec(value.as_ref())
-                .map(|bytes| bytes.len() > policy.max_text_bytes)
+            } else if shared_json_encoded_len(value)
+                .map(|bytes| bytes > policy.max_text_bytes)
                 .unwrap_or(true)
             {
                 Some(RuntimeError::new(
@@ -6046,7 +6381,13 @@ fn verify(artifact: &Artifact) -> Result<(), RuntimeError> {
                 )));
             }
             match i.op {
-                Op::Load(s) | Op::Store(s) | Op::ListSetLocal(s) if s >= f.local_count => {
+                Op::Load(s)
+                | Op::Store(s)
+                | Op::ListSetLocal(s)
+                | Op::ListPushLocal(s)
+                | Op::JsonPushLocal(s)
+                    if s >= f.local_count =>
+                {
                     return Err(fail(format!(
                         "function `{}` references missing local {s}",
                         f.name
@@ -6237,6 +6578,28 @@ fn verify_stack(function: &veritas_model::Function, artifact: &Artifact) -> Resu
             Op::Store(slot) => {
                 let ty = pop_type(&mut state.stack, pc)?;
                 state.locals[*slot] = Some(ty);
+            }
+            Op::ListPushLocal(slot) => {
+                let value = pop_type(&mut state.stack, pc)?;
+                let Type::List(item) = state
+                    .locals
+                    .get(*slot)
+                    .and_then(Option::as_ref)
+                    .ok_or_else(|| format!("list_push reads an uninitialized local at {pc}"))?
+                else {
+                    return Err(format!("list_push local is not a List at instruction {pc}"));
+                };
+                if item.as_ref() != &value {
+                    return Err(format!("list_push item type mismatch at instruction {pc}"));
+                }
+            }
+            Op::JsonPushLocal(slot) => {
+                if pop_type(&mut state.stack, pc)? != Type::Json {
+                    return Err(format!("json_push value must be Json at instruction {pc}"));
+                }
+                if state.locals.get(*slot).and_then(Option::as_ref) != Some(&Type::Json) {
+                    return Err(format!("json_push local is not Json at instruction {pc}"));
+                }
             }
             Op::ListSetLocal(slot) => {
                 let value = pop_type(&mut state.stack, pc)?;
@@ -6636,23 +6999,30 @@ fn verify_stack(function: &veritas_model::Function, artifact: &Artifact) -> Resu
             Op::Length => {
                 if !matches!(
                     pop_type(&mut state.stack, pc)?,
-                    Type::List(_) | Type::Map(_) | Type::Bytes
+                    Type::List(_) | Type::Map(_) | Type::Bytes | Type::Text
                 ) {
                     return Err(format!(
-                        "len requires List, Map, or Bytes at instruction {pc}"
+                        "len requires List, Map, Bytes, or Text at instruction {pc}"
                     ));
                 }
                 state.stack.push(Type::Int);
+            }
+            Op::TextChars => {
+                if pop_type(&mut state.stack, pc)? != Type::Text {
+                    return Err(format!("text_chars requires Text at instruction {pc}"));
+                }
+                state.stack.push(Type::List(Box::new(Type::Text)));
             }
             Op::Index => {
                 let index = pop_type(&mut state.stack, pc)?;
                 match pop_type(&mut state.stack, pc)? {
                     Type::List(item) if index == Type::Int => state.stack.push(*item),
                     Type::Map(item) if index == Type::Text => state.stack.push(*item),
+                    Type::Text if index == Type::Int => state.stack.push(Type::Text),
                     _ => {
                         return Err(format!(
-                            "index requires List[Int] or Map[Text, T] at instruction {pc}"
-                        ))
+                        "index requires List[Int], Map[Text, T], or Text[Int] at instruction {pc}"
+                    ))
                     }
                 }
             }
@@ -6986,7 +7356,10 @@ fn verify_stack(function: &veritas_model::Function, artifact: &Artifact) -> Resu
                 let result = pop_type(&mut state.stack, pc)?;
                 if result != function.result || !state.stack.is_empty() {
                     return Err(format!(
-                        "return type or stack height is invalid at instruction {pc}"
+                        "return type or stack height is invalid at instruction {pc}: expected {:?}, got {:?}, stack {:?}",
+                        function.result,
+                        result,
+                        state.stack
                     ));
                 }
                 has_return = true;

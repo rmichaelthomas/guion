@@ -1,0 +1,197 @@
+pub record Token:
+    kind: Text
+    text: Text
+    character_index: Int
+    line: Int
+    column: Int
+
+fn token(kind: Text, text: Text, character_index: Int, line: Int, column: Int) -> Token:
+    return Token(kind, text, character_index, line, column)
+
+fn is_digit(character: Text) -> Bool:
+    return character >= "0" and character <= "9"
+
+fn is_name_start(character: Text) -> Bool:
+    return character == "_" or (character >= "a" and character <= "z") or (character >= "A" and character <= "Z")
+
+fn is_name_continue(character: Text) -> Bool:
+    return is_name_start(character) or is_digit(character)
+
+fn one_of(value: Text, choices: List[Text]) -> Bool:
+    var cursor = 0
+    while cursor < len(choices):
+        if value == choices[cursor]:
+            return true
+        set cursor = cursor + 1
+    return false
+
+fn is_space(character: Text) -> Bool:
+    return character == " " or character == "\t" or character == "\r"
+
+pub fn scan(source: Text) -> List[Token]:
+    let characters = text_chars(source)
+    var tokens: List[Token] = []
+    var indentation: List[Int] = [0]
+    var indentation_depth = 1
+    var cursor = 0
+    var line = 1
+    var column = 1
+    var line_start = true
+    var indentation_width = 0
+
+    while cursor < len(characters):
+        let character = characters[cursor]
+        var handled = false
+
+        if line_start and character == "\t":
+            set tokens = list_push(tokens, token("Error", "tabs are not allowed for indentation", cursor, line, column))
+            set cursor = cursor + 1
+            set column = column + 1
+            set handled = true
+
+        if line_start and not handled and character == " ":
+            set indentation_width = indentation_width + 1
+            set cursor = cursor + 1
+            set column = column + 1
+            set handled = true
+
+        if line_start and not handled and character == "\n":
+            set tokens = list_push(tokens, token("Newline", "", cursor, line, column))
+            set cursor = cursor + 1
+            set line = line + 1
+            set column = 1
+            set indentation_width = 0
+            set handled = true
+
+        if line_start and not handled and character == "#":
+            while cursor < len(characters) and characters[cursor] != "\n":
+                set cursor = cursor + 1
+                set column = column + 1
+            set handled = true
+
+        if line_start and not handled:
+            let previous_indent = indentation[indentation_depth - 1]
+            if indentation_width > previous_indent:
+                if indentation_width != previous_indent + 4:
+                    set tokens = list_push(tokens, token("Error", "indentation must increase by four spaces", cursor, line, column))
+                if indentation_depth < len(indentation):
+                    set indentation = list_set(indentation, indentation_depth, indentation_width)
+                else:
+                    set indentation = list_push(indentation, indentation_width)
+                set indentation_depth = indentation_depth + 1
+                set tokens = list_push(tokens, token("Indent", "", cursor, line, column))
+            else:
+                while indentation_depth > 1 and indentation_width < indentation[indentation_depth - 1]:
+                    set indentation_depth = indentation_depth - 1
+                    set tokens = list_push(tokens, token("Dedent", "", cursor, line, column))
+                if indentation_width != indentation[indentation_depth - 1]:
+                    set tokens = list_push(tokens, token("Error", "indentation does not match an outer level", cursor, line, column))
+            set line_start = false
+            set handled = true
+
+        if not handled and is_space(character):
+            set cursor = cursor + 1
+            set column = column + 1
+            set handled = true
+
+        if not handled and character == "#":
+            while cursor < len(characters) and characters[cursor] != "\n":
+                set cursor = cursor + 1
+                set column = column + 1
+            set handled = true
+
+        if not handled and character == "\n":
+            set tokens = list_push(tokens, token("Newline", "", cursor, line, column))
+            set cursor = cursor + 1
+            set line = line + 1
+            set column = 1
+            set line_start = true
+            set indentation_width = 0
+            set handled = true
+
+        if not handled and is_name_start(character):
+            let start = cursor
+            let start_column = column
+            var name = ""
+            while cursor < len(characters) and is_name_continue(characters[cursor]):
+                set name = name + characters[cursor]
+                set cursor = cursor + 1
+                set column = column + 1
+            set tokens = list_push(tokens, token("Name", name, start, line, start_column))
+            set handled = true
+
+        if not handled and is_digit(character):
+            let start = cursor
+            let start_column = column
+            var number = ""
+            while cursor < len(characters) and is_digit(characters[cursor]):
+                set number = number + characters[cursor]
+                set cursor = cursor + 1
+                set column = column + 1
+            set tokens = list_push(tokens, token("Number", number, start, line, start_column))
+            set handled = true
+
+        if not handled and character == "\"":
+            let start = cursor
+            let start_column = column
+            set cursor = cursor + 1
+            set column = column + 1
+            var value = ""
+            var closed = false
+            while cursor < len(characters) and not closed:
+                let current = characters[cursor]
+                if current == "\"":
+                    set cursor = cursor + 1
+                    set column = column + 1
+                    set closed = true
+                else:
+                    if current == "\\" and cursor + 1 < len(characters):
+                        set cursor = cursor + 1
+                        set column = column + 1
+                        let escaped = characters[cursor]
+                        var recognized = false
+                        if escaped == "n":
+                            set value = value + "\n"
+                            set recognized = true
+                        if escaped == "r":
+                            set value = value + "\r"
+                            set recognized = true
+                        if escaped == "t":
+                            set value = value + "\t"
+                            set recognized = true
+                        if not recognized:
+                            set value = value + escaped
+                        set cursor = cursor + 1
+                        set column = column + 1
+                    else:
+                        set value = value + current
+                        set cursor = cursor + 1
+                        set column = column + 1
+            if closed:
+                set tokens = list_push(tokens, token("Text", value, start, line, start_column))
+            else:
+                set tokens = list_push(tokens, token("Error", "unterminated text literal", start, line, start_column))
+            set handled = true
+
+        if not handled:
+            let start = cursor
+            let start_column = column
+            var symbol = character
+            if cursor + 1 < len(characters):
+                let pair = character + characters[cursor + 1]
+                if one_of(pair, ["==", "!=", "<=", ">=", "//", "->"]):
+                    set symbol = pair
+                    set cursor = cursor + 1
+                    set column = column + 1
+            if one_of(symbol, [":", ",", ".", "(", ")", "[", "]", "{", "}", "+", "-", "*", "/", "//", "%", "=", "==", "!=", "<", "<=", ">", ">=", "->", "?"]):
+                set tokens = list_push(tokens, token("Symbol", symbol, start, line, start_column))
+            else:
+                set tokens = list_push(tokens, token("Error", "unsupported character " + symbol, start, line, start_column))
+            set cursor = cursor + 1
+            set column = column + 1
+
+    while indentation_depth > 1:
+        set indentation_depth = indentation_depth - 1
+        set tokens = list_push(tokens, token("Dedent", "", cursor, line, column))
+    set tokens = list_push(tokens, token("End", "", cursor, line, column))
+    return tokens

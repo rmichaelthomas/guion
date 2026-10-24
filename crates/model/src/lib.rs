@@ -2,7 +2,7 @@
 mod tests {
     use super::{
         Artifact, BigInt, BuildMetadata, ExternalFunction, FileErrorValue, Function, Instruction,
-        JsonErrorValue, Op, ResourceLimits, Span, Type, Value,
+        JsonErrorValue, Op, ResourceLimits, SharedJson, Span, Type, Value,
     };
     use std::sync::Arc;
 
@@ -343,7 +343,7 @@ mod tests {
                         span: Span::default(),
                     },
                     Instruction {
-                        op: Op::Const(Value::Json(Arc::new(
+                        op: Op::Const(Value::Json(SharedJson::from_serde(
                             serde_json::from_str(
                                 "{\"count\":123456789012345678901,\"name\":\"Veritas\"}",
                             )
@@ -467,7 +467,7 @@ mod tests {
 
     #[test]
     fn cloning_json_values_shares_immutable_storage() {
-        let original = Value::Json(Arc::new(serde_json::json!({
+        let original = Value::Json(SharedJson::from_serde(serde_json::json!({
             "rows": [{"amount": 10}, {"amount": 20}]
         })));
         let copied = original.clone();
@@ -865,6 +865,126 @@ impl PartialEq for Float64 {
 }
 impl Eq for Float64 {}
 
+/// Immutable JSON nodes with shared child storage. Reading a nested value
+/// clones an Arc instead of recursively copying the entire subtree.
+#[derive(Clone, Debug, PartialEq)]
+pub enum SharedJson {
+    Null,
+    Bool(bool),
+    Number(serde_json::Number),
+    String(Arc<str>),
+    Array(Arc<Vec<Arc<SharedJson>>>),
+    Object(Arc<BTreeMap<String, Arc<SharedJson>>>),
+}
+
+impl SharedJson {
+    pub fn from_serde(value: serde_json::Value) -> Arc<Self> {
+        Arc::new(match value {
+            serde_json::Value::Null => Self::Null,
+            serde_json::Value::Bool(value) => Self::Bool(value),
+            serde_json::Value::Number(value) => Self::Number(value),
+            serde_json::Value::String(value) => Self::String(Arc::from(value)),
+            serde_json::Value::Array(values) => {
+                Self::Array(Arc::new(values.into_iter().map(Self::from_serde).collect()))
+            }
+            serde_json::Value::Object(values) => Self::Object(Arc::new(
+                values
+                    .into_iter()
+                    .map(|(key, value)| (key, Self::from_serde(value)))
+                    .collect(),
+            )),
+        })
+    }
+
+    pub fn to_serde(&self) -> serde_json::Value {
+        match self {
+            Self::Null => serde_json::Value::Null,
+            Self::Bool(value) => serde_json::Value::Bool(*value),
+            Self::Number(value) => serde_json::Value::Number(value.clone()),
+            Self::String(value) => serde_json::Value::String(value.to_string()),
+            Self::Array(values) => {
+                serde_json::Value::Array(values.iter().map(|value| value.to_serde()).collect())
+            }
+            Self::Object(values) => serde_json::Value::Object(
+                values
+                    .iter()
+                    .map(|(key, value)| (key.clone(), value.to_serde()))
+                    .collect(),
+            ),
+        }
+    }
+
+    pub fn as_array(&self) -> Option<&[Arc<SharedJson>]> {
+        match self {
+            Self::Array(values) => Some(values),
+            _ => None,
+        }
+    }
+
+    pub fn as_array_mut(&mut self) -> Option<&mut Vec<Arc<SharedJson>>> {
+        match self {
+            Self::Array(values) => Some(Arc::make_mut(values)),
+            _ => None,
+        }
+    }
+
+    pub fn as_object(&self) -> Option<&BTreeMap<String, Arc<SharedJson>>> {
+        match self {
+            Self::Object(values) => Some(values),
+            _ => None,
+        }
+    }
+
+    pub fn as_object_mut(&mut self) -> Option<&mut BTreeMap<String, Arc<SharedJson>>> {
+        match self {
+            Self::Object(values) => Some(Arc::make_mut(values)),
+            _ => None,
+        }
+    }
+
+    pub fn as_str(&self) -> Option<&str> {
+        match self {
+            Self::String(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    pub fn as_number(&self) -> Option<&serde_json::Number> {
+        match self {
+            Self::Number(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    pub fn as_bool(&self) -> Option<bool> {
+        match self {
+            Self::Bool(value) => Some(*value),
+            _ => None,
+        }
+    }
+
+    pub fn is_number(&self) -> bool {
+        matches!(self, Self::Number(_))
+    }
+
+    pub fn is_boolean(&self) -> bool {
+        matches!(self, Self::Bool(_))
+    }
+
+    pub fn is_null(&self) -> bool {
+        matches!(self, Self::Null)
+    }
+}
+
+impl fmt::Display for SharedJson {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match serde_json::to_string(&self.to_serde()) {
+            Ok(value) => f.write_str(&value),
+            Err(_) => f.write_str("null"),
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub enum Value {
     Int(BigInt),
@@ -881,7 +1001,7 @@ pub enum Value {
     ResultOk(Box<Value>),
     ResultErr(Box<Value>),
     TaskError(TaskErrorValue),
-    Json(Arc<serde_json::Value>),
+    Json(Arc<SharedJson>),
     JsonError(JsonErrorValue),
     FileError(FileErrorValue),
     HttpError(HttpErrorValue),
@@ -1116,6 +1236,7 @@ pub enum Op {
     MapSet,
     MapHas,
     ListPush,
+    ListPushLocal(usize),
     ListSet,
     ListSetLocal(usize),
     Divide,
@@ -1168,6 +1289,7 @@ pub enum Op {
     JsonAsIntList,
     JsonProjectColumns,
     JsonTextCategoriesValues,
+    JsonPushLocal(usize),
     JsonErrorMessage,
     JsonErrorLine,
     JsonErrorColumn,
@@ -1187,6 +1309,7 @@ pub enum Op {
     HttpRequest,
     HttpRequestWithTimeout,
     Environment,
+    TextChars,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -1264,7 +1387,7 @@ pub struct Artifact {
 }
 
 impl Artifact {
-    pub const CURRENT_VERSION: u32 = 30;
+    pub const CURRENT_VERSION: u32 = 33;
     pub fn entry(&self) -> &str {
         &self.entry
     }
@@ -1358,6 +1481,24 @@ impl Artifact {
             return Err(ArtifactError::new(
                 "E_ARTIFACT_VERSION",
                 "streaming JSON column projection requires artifact format 30",
+            ));
+        }
+        if self.format_version < 31 && artifact_uses_text_chars(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "text_chars requires artifact format 31",
+            ));
+        }
+        if self.format_version < 32 && artifact_uses_list_push_local(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "in-place list push requires artifact format 32",
+            ));
+        }
+        if self.format_version < 33 && artifact_uses_json_push_local(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "in-place JSON array push requires artifact format 33",
             ));
         }
         let mut w = Writer(Vec::new());
@@ -1568,6 +1709,15 @@ impl Artifact {
                     Op::JsonAsIntList => w.u8(99),
                     Op::JsonProjectColumns => w.u8(100),
                     Op::JsonTextCategoriesValues => w.u8(101),
+                    Op::TextChars => w.u8(102),
+                    Op::ListPushLocal(slot) => {
+                        w.u8(103);
+                        w.count(*slot)?;
+                    }
+                    Op::JsonPushLocal(slot) => {
+                        w.u8(104);
+                        w.count(*slot)?;
+                    }
                 }
             }
         }
@@ -1822,6 +1972,9 @@ impl Artifact {
                     99 => Op::JsonAsIntList,
                     100 => Op::JsonProjectColumns,
                     101 => Op::JsonTextCategoriesValues,
+                    102 => Op::TextChars,
+                    103 => Op::ListPushLocal(r.count()?),
+                    104 => Op::JsonPushLocal(r.count()?),
                     _ => {
                         return Err(ArtifactError::new(
                             "E_ARTIFACT_OPCODE",
@@ -2000,6 +2153,24 @@ impl Artifact {
                 "streaming JSON column projection requires artifact format 30",
             ));
         }
+        if format_version < 31 && artifact_uses_text_chars(&artifact) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "text_chars requires artifact format 31",
+            ));
+        }
+        if format_version < 32 && artifact_uses_list_push_local(&artifact) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "in-place list push requires artifact format 32",
+            ));
+        }
+        if format_version < 33 && artifact_uses_json_push_local(&artifact) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "in-place JSON array push requires artifact format 33",
+            ));
+        }
         Ok(artifact)
     }
 }
@@ -2160,6 +2331,33 @@ fn artifact_uses_json_projection(artifact: &Artifact) -> bool {
                 Op::JsonProjectColumns | Op::JsonTextCategoriesValues
             )
         })
+    })
+}
+
+fn artifact_uses_text_chars(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function
+            .code
+            .iter()
+            .any(|instruction| matches!(instruction.op, Op::TextChars))
+    })
+}
+
+fn artifact_uses_list_push_local(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function
+            .code
+            .iter()
+            .any(|instruction| matches!(instruction.op, Op::ListPushLocal(_)))
+    })
+}
+
+fn artifact_uses_json_push_local(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function
+            .code
+            .iter()
+            .any(|instruction| matches!(instruction.op, Op::JsonPushLocal(_)))
     })
 }
 
@@ -2378,7 +2576,7 @@ impl Writer {
             }
             Value::Json(value) => {
                 self.u8(8);
-                let encoded = serde_json::to_string(value.as_ref()).map_err(|error| {
+                let encoded = serde_json::to_string(&value.to_serde()).map_err(|error| {
                     ArtifactError::new(
                         "E_ARTIFACT_JSON",
                         format!("cannot encode JSON value: {error}"),
@@ -2596,7 +2794,7 @@ impl<'a> Reader<'a> {
                 }))
             }
             8 => serde_json::from_str(&self.string()?)
-                .map(Arc::new)
+                .map(SharedJson::from_serde)
                 .map(Value::Json)
                 .map_err(|_| ArtifactError::new("E_ARTIFACT_JSON", "invalid JSON value encoding")),
             9 => Ok(Value::JsonError(JsonErrorValue {

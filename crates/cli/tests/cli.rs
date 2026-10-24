@@ -1510,7 +1510,7 @@ fn build_json_reports_artifact_identity_and_source_diagnostics() {
     assert_eq!(report["schema_version"], 1);
     assert_eq!(report["source"], source.to_string_lossy().as_ref());
     assert_eq!(report["artifact"], artifact.to_string_lossy().as_ref());
-    assert_eq!(report["artifact_format"], 30);
+    assert_eq!(report["artifact_format"], 33);
     assert_eq!(
         report["artifact_size_bytes"],
         fs::metadata(&artifact).unwrap().len()
@@ -1544,6 +1544,272 @@ fn build_json_reports_artifact_identity_and_source_diagnostics() {
     assert_eq!(diagnostic["diagnostic"]["code"], "E_NAME_UNKNOWN");
     assert_eq!(diagnostic["diagnostic"]["line"], 2);
     let _ = fs::remove_dir_all(base);
+}
+
+#[test]
+fn assemble_ir_creates_a_runnable_versioned_artifact() {
+    let base = std::env::temp_dir().join(format!("veritas-assemble-ir-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&base);
+    fs::create_dir_all(&base).unwrap();
+    let ir = base.join("program.vri.json");
+    let artifact = base.join("program.vrb");
+    fs::write(
+        &ir,
+        r#"{
+            "schema": "veritas-bytecode-ir/v1",
+            "source_name": "generated.vr",
+            "entry": "main",
+            "functions": [{
+                "name": "main",
+                "parameters": [],
+                "result": "Int",
+                "local_count": 0,
+                "code": [
+                    {"op": "ConstInt", "value": "42"},
+                    {"op": "Return"}
+                ]
+            }]
+        }"#,
+    )
+    .unwrap();
+
+    let assembled = Command::new(env!("CARGO_BIN_EXE_veritas"))
+        .args([
+            "assemble-ir",
+            ir.to_str().unwrap(),
+            "--output",
+            artifact.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        assembled.status.success(),
+        "{}",
+        String::from_utf8_lossy(&assembled.stderr)
+    );
+    assert_eq!(
+        fs::read(&artifact).unwrap().get(..4),
+        Some(b"VRTA".as_slice())
+    );
+
+    let run = Command::new(env!("CARGO_BIN_EXE_veritas"))
+        .args(["run", artifact.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert_eq!(run.status.code(), Some(42));
+    assert!(run.stderr.is_empty());
+    let _ = fs::remove_dir_all(base);
+}
+
+#[test]
+fn assemble_ir_rejects_unknown_opcodes_without_creating_an_artifact() {
+    let base = std::env::temp_dir().join(format!(
+        "veritas-assemble-ir-invalid-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&base);
+    fs::create_dir_all(&base).unwrap();
+    let ir = base.join("bad.vri.json");
+    let artifact = base.join("bad.vrb");
+    fs::write(
+        &ir,
+        r#"{"schema":"veritas-bytecode-ir/v1","entry":"main","functions":[{"name":"main","parameters":[],"result":"Int","local_count":0,"code":[{"op":"MagicSpeedup"}]}]}"#,
+    )
+    .unwrap();
+    let assembled = Command::new(env!("CARGO_BIN_EXE_veritas"))
+        .args([
+            "assemble-ir",
+            ir.to_str().unwrap(),
+            "--output",
+            artifact.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    assert_eq!(assembled.status.code(), Some(1));
+    assert!(
+        String::from_utf8_lossy(&assembled.stderr).contains("unsupported IR opcode `MagicSpeedup`")
+    );
+    assert!(!artifact.exists());
+    let _ = fs::remove_dir_all(base);
+}
+
+#[test]
+fn assemble_ir_resolves_symbolic_control_flow_labels() {
+    let base = std::env::temp_dir().join(format!("veritas-ir-labels-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&base);
+    fs::create_dir_all(&base).unwrap();
+    let ir = base.join("loop.vri.json");
+    let artifact = base.join("loop.vrb");
+    fs::write(
+        &ir,
+        r#"{"schema":"veritas-bytecode-ir/v1","entry":"main","functions":[{"name":"main","parameters":[],"result":"Int","local_count":1,"code":[{"op":"ConstInt","value":"0"},{"op":"Store","local":0},{"op":"Label","id":10},{"op":"Load","local":0},{"op":"ConstInt","value":"3"},{"op":"Less"},{"op":"JumpIfFalse","label_id":20},{"op":"Load","local":0},{"op":"ConstInt","value":"1"},{"op":"Add"},{"op":"Store","local":0},{"op":"Jump","label_id":10},{"op":"Label","id":20},{"op":"Load","local":0},{"op":"Return"}]}]}"#,
+    )
+    .unwrap();
+    let assembled = Command::new(env!("CARGO_BIN_EXE_veritas"))
+        .args([
+            "assemble-ir",
+            ir.to_str().unwrap(),
+            "--output",
+            artifact.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        assembled.status.success(),
+        "{}",
+        String::from_utf8_lossy(&assembled.stderr)
+    );
+    let run = Command::new(env!("CARGO_BIN_EXE_veritas"))
+        .args(["run", artifact.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert_eq!(run.status.code(), Some(3));
+    let _ = fs::remove_dir_all(base);
+}
+
+#[test]
+fn veritas_source_compiler_emits_ir_that_assembles_and_runs() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let compiler = root.join("language/self_host/compiler.vr");
+    let base = std::env::temp_dir().join(format!("veritas-source-compiler-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&base);
+    fs::create_dir_all(&base).unwrap();
+    let source_name = format!(".source-compiler-input-{}.vr", std::process::id());
+    let source = root.join("language/self_host").join(&source_name);
+    fs::write(
+        &source,
+        "fn increment(value: Int) -> Int:\n    return value + 1\n\nfn main() -> Int:\n    print(increment(41))\n    return 42\n",
+    )
+    .unwrap();
+    let ir = base.join("program.vri.json");
+    let artifact = base.join("program.vrb");
+
+    let generated = Command::new(env!("CARGO_BIN_EXE_veritas"))
+        .args(["run", compiler.to_str().unwrap(), source_name.as_str()])
+        .output()
+        .unwrap();
+    assert!(
+        generated.status.success(),
+        "{}",
+        String::from_utf8_lossy(&generated.stderr)
+    );
+    assert!(String::from_utf8_lossy(&generated.stdout).contains("veritas-bytecode-ir/v1"));
+    fs::write(&ir, generated.stdout).unwrap();
+
+    let assembled = Command::new(env!("CARGO_BIN_EXE_veritas"))
+        .args([
+            "assemble-ir",
+            ir.to_str().unwrap(),
+            "--output",
+            artifact.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        assembled.status.success(),
+        "{}",
+        String::from_utf8_lossy(&assembled.stderr)
+    );
+
+    let run = Command::new(env!("CARGO_BIN_EXE_veritas"))
+        .args(["run", artifact.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert_eq!(run.status.code(), Some(42));
+    assert_eq!(String::from_utf8_lossy(&run.stdout), "42\n");
+    assert!(run.stderr.is_empty());
+    let _ = fs::remove_file(source);
+    let _ = fs::remove_dir_all(base);
+}
+
+#[test]
+fn veritas_source_compiler_compiles_itself_to_identical_ir() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let source_project = root.join("language/self_host");
+    let base = std::env::temp_dir().join(format!("veritas-self-host-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&base);
+    fs::create_dir_all(&base).unwrap();
+    for filename in ["veritas.toml", "compiler.vr", "lexer.vr", "parser.vr"] {
+        fs::copy(source_project.join(filename), base.join(filename)).unwrap();
+    }
+
+    let stage_zero = Command::new(env!("CARGO_BIN_EXE_veritas"))
+        .args(["run", "compiler.vr", "compiler.vr"])
+        .current_dir(&base)
+        .output()
+        .unwrap();
+    assert!(
+        stage_zero.status.success(),
+        "{}{}",
+        String::from_utf8_lossy(&stage_zero.stdout),
+        String::from_utf8_lossy(&stage_zero.stderr)
+    );
+
+    let stage_zero_ir = base.join("stage-zero.vri.json");
+    let stage_one_artifact = base.join(".compiler-stage-one.vrb");
+    fs::write(&stage_zero_ir, &stage_zero.stdout).unwrap();
+    let assembled = Command::new(env!("CARGO_BIN_EXE_veritas"))
+        .args(["assemble-ir", stage_zero_ir.to_str().unwrap(), "--output"])
+        .arg(&stage_one_artifact)
+        .current_dir(&base)
+        .output()
+        .unwrap();
+    assert!(
+        assembled.status.success(),
+        "{}",
+        String::from_utf8_lossy(&assembled.stderr)
+    );
+
+    let stage_one = Command::new(env!("CARGO_BIN_EXE_veritas"))
+        .args(["run", "--json"])
+        .arg(&stage_one_artifact)
+        .arg("compiler.vr")
+        .current_dir(&base)
+        .output()
+        .unwrap();
+    assert!(
+        stage_one.status.success(),
+        "{}",
+        String::from_utf8_lossy(&stage_one.stdout)
+    );
+    let report: serde_json::Value = serde_json::from_slice(&stage_one.stdout).unwrap();
+    assert_eq!(report["exit_code"], 0);
+    assert!(report["diagnostic"].is_null());
+    assert_eq!(
+        report["program_stdout"].as_str().unwrap().as_bytes(),
+        stage_zero.stdout
+    );
+
+    let _ = fs::remove_dir_all(base);
+}
+
+#[test]
+fn mutable_json_array_append_fits_a_bounded_allocation_budget() {
+    let dir = std::env::temp_dir().join(format!("veritas-json-append-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(dir.join("src")).unwrap();
+    fs::write(
+        dir.join("veritas.toml"),
+        "[project]\nname = \"json-append-budget\"\nversion = \"0.1.0\"\nentry = \"src/main.vr\"\n\n[runtime]\nallocation_limit_bytes = 64000000\n",
+    )
+    .unwrap();
+    fs::write(
+        dir.join("src/main.vr"),
+        "fn main() -> Int:\n    var values = json_array()\n    var cursor = 0\n    while cursor < 2500:\n        set values = json_push(values, json_int(cursor))\n        set cursor = cursor + 1\n    print(json_len(values))\n    return 0\n",
+    )
+    .unwrap();
+
+    let run = Command::new(env!("CARGO_BIN_EXE_veritas"))
+        .args(["run", dir.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(
+        run.status.success(),
+        "{}",
+        String::from_utf8_lossy(&run.stderr)
+    );
+    assert_eq!(String::from_utf8_lossy(&run.stdout), "2500\n");
+    let _ = fs::remove_dir_all(dir);
 }
 
 #[test]

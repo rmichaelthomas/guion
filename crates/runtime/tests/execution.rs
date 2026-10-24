@@ -6,6 +6,41 @@ use veritas_runtime::{
 };
 
 #[test]
+fn text_length_and_index_use_unicode_scalar_positions() {
+    let source =
+        "fn main() -> Int:\n    print(len(\"a🙂é\"))\n    print(\"a🙂é\"[1])\n    return 0\n";
+    let artifact = compile("text-index.vr", source).expect("text operations compile");
+    let mut instance = Runtime::new()
+        .load(artifact, HostPolicy::default())
+        .expect("runtime loads the artifact");
+
+    instance.invoke("main", vec![]).expect("program runs");
+
+    assert_eq!(instance.take_output(), "3\n🙂\n");
+}
+
+#[test]
+fn text_chars_materializes_unicode_scalars_for_linear_scanning() {
+    let source = "fn main() -> Int:\n    let characters = text_chars(\"a🙂é\")\n    print(len(characters))\n    print(characters[1])\n    return 0\n";
+    let artifact = compile("text-chars.vr", source).expect("text_chars compiles");
+    let mut previous_format = artifact.clone();
+    previous_format.format_version = 30;
+    assert_eq!(
+        previous_format.to_bytes().unwrap_err().code,
+        "E_ARTIFACT_VERSION"
+    );
+    let artifact = Artifact::from_bytes(&artifact.to_bytes().unwrap())
+        .expect("format 31 preserves the text_chars operation");
+    let mut instance = Runtime::new()
+        .load(artifact, HostPolicy::default())
+        .expect("runtime loads the artifact");
+
+    instance.invoke("main", vec![]).expect("program runs");
+
+    assert_eq!(instance.take_output(), "3\n🙂\n");
+}
+
+#[test]
 fn host_cancellation_interrupts_native_execution() {
     let source = "fn spin(value: Int) -> Int:\n    var i = 0\n    while i < value:\n        set i = i + 1\n    return i\n\nfn main() -> Int:\n    return spin(1)\n";
     let artifact = compile("native-cancel.vr", source).expect("native loop compiles");
@@ -189,7 +224,7 @@ fn typed_empty_collections_work_in_locals_mutations_and_calls() {
     let source = "fn count(values: List[Int]) -> Int:\n    return len(values)\n\nfn empty_values() -> List[Int]:\n    return []\n\nfn main() -> Int:\n    var values: List[Int] = []\n    set values = [1, 2]\n    let groups: Map[Text, Int] = {}\n    let updated = map_set(groups, \"one\", count([]))\n    return len(values) + updated[\"one\"] + len(empty_values())\n";
     let artifact = compile("typed-empty-collections.vr", source)
         .expect("annotations provide element types to empty collection literals");
-    assert_eq!(artifact.format_version, 30);
+    assert_eq!(artifact.format_version, Artifact::CURRENT_VERSION);
     let mut old_format = artifact.clone();
     old_format.format_version = 24;
     assert_eq!(
@@ -213,7 +248,7 @@ fn lists_support_immutable_push_and_index_replacement() {
     let source = "fn main() -> Int:\n    let original = [1, 2]\n    let appended = list_push(original, 3)\n    let replaced = list_set(appended, 1, 9)\n    assert(original[1] == 2)\n    assert(appended[1] == 2)\n    assert(replaced[1] == 9)\n    assert(len(replaced) == 3)\n    return replaced[0] + replaced[1] + replaced[2]\n";
     let artifact = compile("immutable-list-update.vr", source)
         .expect("typed lists support immutable updates without aliasing");
-    assert_eq!(artifact.format_version, 30);
+    assert_eq!(artifact.format_version, Artifact::CURRENT_VERSION);
     let mut old_format = artifact.clone();
     old_format.format_version = 25;
     assert_eq!(
@@ -267,6 +302,70 @@ fn same_local_list_updates_do_not_accumulate_full_list_copies() {
         Value::Int(BigInt::from_usize(5000))
     );
     assert_eq!(instance.take_output(), "5000\n");
+}
+
+#[test]
+fn same_local_list_pushes_fit_a_linear_allocation_budget() {
+    let source = "fn main() -> Int:\n    var values: List[Int] = []\n    var i = 0\n    while i < 6000:\n        set values = list_push(values, i)\n        set i = i + 1\n    return len(values)\n";
+    let artifact = compile("list-push-budget.vr", source).unwrap();
+    assert_eq!(artifact.format_version, Artifact::CURRENT_VERSION);
+    assert!(artifact.functions[0]
+        .code
+        .iter()
+        .any(|instruction| matches!(instruction.op, Op::ListPushLocal(_))));
+    let mut legacy = artifact.clone();
+    legacy.format_version = 31;
+    assert_eq!(legacy.to_bytes().unwrap_err().code, "E_ARTIFACT_VERSION");
+    let artifact = Artifact::from_bytes(&artifact.to_bytes().unwrap()).unwrap();
+    let policy = HostPolicy {
+        allocation_limit_bytes: 64 * 1024 * 1024,
+        ..HostPolicy::default()
+    };
+    let mut instance = Runtime::new().load(artifact, policy).unwrap();
+
+    assert_eq!(
+        instance.invoke("main", vec![]).unwrap(),
+        Value::Int(BigInt::from_usize(6000))
+    );
+}
+
+#[test]
+fn optimized_list_push_preserves_older_shared_aliases() {
+    let source = "fn main() -> Int:\n    var values = [1]\n    let previous = values\n    set values = list_push(values, 2)\n    assert(len(previous) == 1)\n    assert(previous[0] == 1)\n    assert(len(values) == 2)\n    assert(values[1] == 2)\n    var floats: List[Float64] = []\n    set floats = list_push(floats, 1.5)\n    assert(floats[0] == 1.5)\n    return 0\n";
+    let artifact = compile("list-push-alias.vr", source).unwrap();
+    assert!(artifact.functions[0]
+        .code
+        .iter()
+        .any(|instruction| matches!(instruction.op, Op::ListPushLocal(_))));
+    let mut instance = Runtime::new()
+        .load(artifact, HostPolicy::default())
+        .unwrap();
+
+    instance.invoke("main", vec![]).unwrap();
+}
+
+#[test]
+fn mutable_json_array_push_is_linear_and_preserves_aliases() {
+    let source = "fn main() -> Int:\n    var values = json_array()\n    var cursor = 0\n    while cursor < 2500:\n        set values = json_push(values, json_int(cursor))\n        set cursor = cursor + 1\n    let previous = values\n    set values = json_push(values, json_int(2500))\n    assert(json_len(previous) == 2500)\n    assert(json_len(values) == 2501)\n    assert(json_as_int(json_index(previous, 2499)) == 2499)\n    assert(json_as_int(json_index(values, 2500)) == 2500)\n    return json_len(values)\n";
+    let artifact = compile("json-push-local.vr", source).unwrap();
+    assert_eq!(artifact.format_version, Artifact::CURRENT_VERSION);
+    assert!(artifact.functions[0]
+        .code
+        .iter()
+        .any(|instruction| matches!(instruction.op, Op::JsonPushLocal(_))));
+    let mut legacy = artifact.clone();
+    legacy.format_version = 32;
+    assert_eq!(legacy.to_bytes().unwrap_err().code, "E_ARTIFACT_VERSION");
+    let artifact = Artifact::from_bytes(&artifact.to_bytes().unwrap()).unwrap();
+    let policy = HostPolicy {
+        allocation_limit_bytes: 64 * 1024 * 1024,
+        ..HostPolicy::default()
+    };
+    let mut instance = Runtime::new().load(artifact, policy).unwrap();
+    assert_eq!(
+        instance.invoke("main", vec![]).unwrap(),
+        Value::Int(BigInt::from_usize(2501))
+    );
 }
 
 #[test]
@@ -346,7 +445,7 @@ fn executes_source_through_the_shared_artifact_path() {
 fn args_from_skips_cli_subcommands_and_round_trips_in_current_format() {
     let source = "fn main() -> Int:\n    let values = args_from(1)\n    print(len(values))\n    for value in values:\n        print(value)\n    return 0\n";
     let artifact = compile("args-from.vr", source).expect("args_from source compiles");
-    assert_eq!(artifact.format_version, 30);
+    assert_eq!(artifact.format_version, Artifact::CURRENT_VERSION);
     let mut legacy = artifact.clone();
     legacy.format_version = 21;
     assert_eq!(legacy.to_bytes().unwrap_err().code, "E_ARTIFACT_VERSION");
@@ -582,7 +681,7 @@ fn json_column_builtins_preserve_exact_values_order_and_artifact_version() {
     return 0
 "#;
     let artifact = compile("json-column-artifact.vr", source).unwrap();
-    assert_eq!(artifact.format_version, 30);
+    assert_eq!(artifact.format_version, Artifact::CURRENT_VERSION);
     let decoded = Artifact::from_bytes(&artifact.to_bytes().unwrap()).unwrap();
     assert_eq!(decoded.to_bytes().unwrap(), artifact.to_bytes().unwrap());
     let mut legacy = artifact.clone();
@@ -636,7 +735,7 @@ fn json_projection_builds_only_requested_columns_and_preserves_duplicate_checks(
     return 0
 "#;
     let artifact = compile("json-project-columns.vr", source).unwrap();
-    assert_eq!(artifact.format_version, 30);
+    assert_eq!(artifact.format_version, Artifact::CURRENT_VERSION);
     let artifact = veritas_model::Artifact::from_bytes(&artifact.to_bytes().unwrap()).unwrap();
     let mut instance = Runtime::new()
         .load(artifact, HostPolicy::default())

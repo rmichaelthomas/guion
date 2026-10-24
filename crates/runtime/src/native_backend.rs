@@ -215,10 +215,12 @@ impl NativeBackend {
             .functions
             .iter()
             .map(|function| {
-                function
-                    .code
-                    .iter()
-                    .any(|instruction| matches!(instruction.op, Op::ListSetLocal(_)))
+                function.code.iter().any(|instruction| {
+                    matches!(
+                        instruction.op,
+                        Op::ListSetLocal(_) | Op::ListPushLocal(_) | Op::JsonPushLocal(_)
+                    )
+                })
             })
             .collect();
         let mut eligible: Vec<_> = artifact
@@ -1970,6 +1972,7 @@ fn infer_native_types(
                     return None;
                 }
             }
+            Op::ListPushLocal(_) | Op::JsonPushLocal(_) => return None,
             _ => return None,
         }
 
@@ -2081,13 +2084,14 @@ fn stack_depths(function: &Function) -> Option<Vec<Option<usize>>> {
             Op::Store(_) | Op::Pop | Op::JumpIfFalse(_) | Op::Print | Op::PrintErr | Op::Return => {
                 (1, 0)
             }
-            Op::Negate | Op::Not | Op::FloatSqrt => (1, 1),
+            Op::Negate | Op::Not | Op::FloatSqrt | Op::TextChars => (1, 1),
             Op::Length | Op::GetField(_, _) => (1, 1),
             Op::Index => (2, 1),
             Op::MakeRecord(_, count) => (*count, 1),
             Op::MakeList(count) => (*count, 1),
             Op::MakeTypedList(_) => (0, 1),
             Op::ListSetLocal(_) => (2, 0),
+            Op::ListPushLocal(_) | Op::JsonPushLocal(_) => (1, 0),
             Op::ListSet => (3, 1),
             Op::Add
             | Op::Subtract

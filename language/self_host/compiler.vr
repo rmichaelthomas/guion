@@ -1,0 +1,779 @@
+import "lexer.vr"
+import "parser.vr"
+
+record CompilerState:
+    code: CodeTree
+    locals: List[Json]
+    next_local: Int
+    returned: Bool
+    return_type: Text
+
+record ExpressionResult:
+    code: CodeTree
+    type: Text
+
+record FunctionSignature:
+    name: Text
+    result: Json
+
+record RecordField:
+    name: Text
+    type: Json
+
+record RecordSignature:
+    name: Text
+    fields: List[RecordField]
+
+record CodeTree:
+    left: Option[CodeTree]
+    right: Option[CodeTree]
+    items: List[Json]
+
+record CodeWork:
+    node: CodeTree
+    previous: Option[CodeWork]
+
+fn ir_instruction(opcode: Text) -> Json:
+    return json_set(json_object(), "op", json_text(opcode))
+
+fn ir_field(opcode: Text, key: Text, value: Json) -> Json:
+    return json_set(ir_instruction(opcode), key, value)
+
+fn ir_integer(opcode: Text, key: Text, value: Int) -> Json:
+    return ir_field(opcode, key, json_int(value))
+
+fn ir_text(opcode: Text, key: Text, value: Text) -> Json:
+    return ir_field(opcode, key, json_text(value))
+
+fn empty_code() -> CodeTree:
+    return CodeTree(no_code_tree(), no_code_tree(), empty_json_values())
+
+fn empty_json_values() -> List[Json]:
+    var values: List[Json] = []
+    return values
+
+fn no_code_tree() -> Option[CodeTree]:
+    return None
+
+fn code_tree_option(value: CodeTree) -> Option[CodeTree]:
+    return Some(value)
+
+fn no_code_work() -> Option[CodeWork]:
+    return None
+
+fn code_work_option(value: CodeWork) -> Option[CodeWork]:
+    return Some(value)
+
+fn push_code_work(previous: Option[CodeWork], node: CodeTree) -> Option[CodeWork]:
+    return code_work_option(CodeWork(node, previous))
+
+fn append_code(left: CodeTree, right: CodeTree) -> CodeTree:
+    return CodeTree(code_tree_option(left), code_tree_option(right), empty_json_values())
+
+fn singleton(instruction: Json) -> CodeTree:
+    return CodeTree(no_code_tree(), no_code_tree(), [instruction])
+
+fn flatten_code(code: CodeTree) -> List[Json]:
+    var pending = push_code_work(no_code_work(), code)
+    var result: List[Json] = []
+    while is_some(pending):
+        let current_work = unwrap(pending)
+        set pending = current_work.previous
+        let current = current_work.node
+        if is_some(current.left):
+            set pending = push_code_work(pending, unwrap(current.right))
+            set pending = push_code_work(pending, unwrap(current.left))
+        else:
+            var cursor = 0
+            while cursor < len(current.items):
+                set result = list_push(result, current.items[cursor])
+                set cursor = cursor + 1
+    return result
+
+fn json_from_list(values: List[Json]) -> Json:
+    var result = json_array()
+    var cursor = 0
+    while cursor < len(values):
+        set result = json_push(result, values[cursor])
+        set cursor = cursor + 1
+    return result
+
+fn ir_label(identifier: Int) -> Json:
+    return ir_integer("Label", "id", identifier)
+
+fn ir_jump(opcode: Text, label: Int) -> Json:
+    return ir_integer(opcode, "label_id", label)
+
+fn append_array(left: Json, right: Json) -> Json:
+    var result = left
+    var cursor = 0
+    while cursor < json_len(right):
+        set result = json_push(result, json_index(right, cursor))
+        set cursor = cursor + 1
+    return result
+
+fn contains_text(values: Json, value: Text) -> Bool:
+    var cursor = 0
+    while cursor < json_len(values):
+        if json_as_text(json_index(values, cursor)) == value:
+            return true
+        set cursor = cursor + 1
+    return false
+
+fn import_path(source_name: Text, relative: Text) -> Text:
+    let characters = text_chars(source_name)
+    var slash = -1
+    var cursor = 0
+    while cursor < len(characters):
+        if characters[cursor] == "/":
+            set slash = cursor
+        set cursor = cursor + 1
+    var directory = ""
+    set cursor = 0
+    while cursor <= slash:
+        set directory = directory + characters[cursor]
+        set cursor = cursor + 1
+    return directory + relative
+
+fn load_program(source_name: Text, source: Text, seen: Json) -> Json:
+    if contains_text(seen, source_name):
+        var skipped = json_set(json_set(json_object(), "functions", json_array()), "records", json_array())
+        return json_set(skipped, "seen", seen)
+    var next_seen = json_push(seen, json_text(source_name))
+    let parsed = parse_program(scan(source))
+    assert(parsed.ok)
+    var functions = json_array()
+    var records = json_array()
+    let imports = json_get(parsed.value, "imports")
+    var cursor = 0
+    while cursor < json_len(imports):
+        let relative = json_as_text(json_index(imports, cursor))
+        let path = import_path(source_name, relative)
+        let imported_source = unwrap(read_text(path))
+        let imported = load_program(path, imported_source, next_seen)
+        set next_seen = json_get(imported, "seen")
+        let imported_functions = json_get(imported, "functions")
+        var function_cursor = 0
+        while function_cursor < json_len(imported_functions):
+            let imported_function = json_index(imported_functions, function_cursor)
+            if json_as_text(json_get(imported_function, "name")) != "main":
+                set functions = json_push(functions, imported_function)
+            set function_cursor = function_cursor + 1
+        set records = append_array(records, json_get(imported, "records"))
+        set cursor = cursor + 1
+    set records = append_array(records, json_get(parsed.value, "records"))
+    set functions = append_array(functions, json_get(parsed.value, "functions"))
+    var loaded = json_set(json_object(), "functions", functions)
+    set loaded = json_set(loaded, "records", records)
+    return json_set(loaded, "seen", next_seen)
+
+fn is_record(records: List[RecordSignature], name: Text) -> Bool:
+    var cursor = 0
+    while cursor < len(records):
+        if records[cursor].name == name:
+            return true
+        set cursor = cursor + 1
+    return false
+
+fn type_name(value: Json, records: List[RecordSignature]) -> Text:
+    let name = json_as_text(json_get(value, "name"))
+    let arguments = json_get(value, "arguments")
+    if json_len(arguments) == 0:
+        if is_record(records, name):
+            return "Record[" + name + "]"
+        return name
+    if json_len(arguments) == 1:
+        return name + "[" + type_name(json_index(arguments, 0), records) + "]"
+    return name + "[" + type_name(json_index(arguments, 0), records) + ", " + type_name(json_index(arguments, 1), records) + "]"
+
+fn expression_result(code: CodeTree, ty: Text) -> ExpressionResult:
+    return ExpressionResult(code, ty)
+
+fn expression_code(value: ExpressionResult) -> CodeTree:
+    return value.code
+
+fn expression_type(value: ExpressionResult) -> Text:
+    return value.type
+
+fn list_element_type(ty: Text, records: List[RecordSignature]) -> Text:
+    if ty == "Text":
+        return "Text"
+    if ty == "Bytes":
+        return "Int"
+    let characters = text_chars(ty)
+    var opening = -1
+    var cursor = 0
+    while cursor < len(characters) and opening < 0:
+        if characters[cursor] == "[":
+            set opening = cursor
+        set cursor = cursor + 1
+    if opening < 0:
+        return "Unit"
+    var inner = ""
+    set cursor = opening + 1
+    var depth = 0
+    var reading = true
+    while cursor < len(characters) and reading:
+        if characters[cursor] == "[":
+            set depth = depth + 1
+        if characters[cursor] == "]":
+            if depth == 0:
+                set reading = false
+            else:
+                set depth = depth - 1
+        if characters[cursor] == "," and depth == 0:
+            set reading = false
+        if reading:
+            set inner = inner + characters[cursor]
+            set cursor = cursor + 1
+    if is_record(records, inner):
+        return "Record[" + inner + "]"
+    return inner
+
+fn record_index(records: List[RecordSignature], name: Text) -> Int:
+    var cursor = 0
+    while cursor < len(records):
+        if records[cursor].name == name:
+            return cursor
+        set cursor = cursor + 1
+    return -1
+
+fn record_field_index(records: List[RecordSignature], record_name: Text, field_name: Text) -> Int:
+    let record = record_index(records, record_name)
+    assert(record >= 0)
+    let fields = records[record].fields
+    var cursor = 0
+    while cursor < len(fields):
+        if fields[cursor].name == field_name:
+            return cursor
+        set cursor = cursor + 1
+    return -1
+
+fn record_field_type(records: List[RecordSignature], record_name: Text, field_name: Text) -> Text:
+    let record = record_index(records, record_name)
+    assert(record >= 0)
+    let index = record_field_index(records, record_name, field_name)
+    assert(index >= 0)
+    return type_name(records[record].fields[index].type, records)
+
+fn record_name_from_type(ty: Text) -> Text:
+    let characters = text_chars(ty)
+    var result = ""
+    var cursor = 7
+    while cursor < len(characters) - 1:
+        set result = result + characters[cursor]
+        set cursor = cursor + 1
+    return result
+
+fn new_state(return_type: Text) -> CompilerState:
+    return CompilerState(empty_code(), empty_json_values(), 0, false, return_type)
+
+fn state_with_code(state: CompilerState, code: CodeTree) -> CompilerState:
+    return CompilerState(code, state.locals, state.next_local, state.returned, state.return_type)
+
+fn state_with_locals(state: CompilerState, locals: List[Json], next_local: Int) -> CompilerState:
+    return CompilerState(state.code, locals, next_local, state.returned, state.return_type)
+
+fn state_with_returned(state: CompilerState, returned: Bool) -> CompilerState:
+    return CompilerState(state.code, state.locals, state.next_local, returned, state.return_type)
+
+fn local_index(locals: List[Json], name: Text) -> Int:
+    var cursor = 0
+    while cursor < len(locals):
+        let local = locals[cursor]
+        if json_as_text(json_get(local, "name")) == name:
+            return json_as_int(json_get(local, "slot"))
+        set cursor = cursor + 1
+    return -1
+
+fn local_type(locals: List[Json], name: Text) -> Text:
+    var cursor = 0
+    while cursor < len(locals):
+        let local = locals[cursor]
+        if json_as_text(json_get(local, "name")) == name:
+            return json_as_text(json_get(local, "type"))
+        set cursor = cursor + 1
+    return "Unit"
+
+fn add_local(locals: List[Json], name: Text, slot: Int, ty: Text) -> List[Json]:
+    var local = json_set(json_object(), "name", json_text(name))
+    set local = json_set(local, "slot", json_int(slot))
+    set local = json_set(local, "type", json_text(ty))
+    return list_push(locals, local)
+
+fn function_index(functions: List[FunctionSignature], name: Text) -> Int:
+    var cursor = 0
+    while cursor < len(functions):
+        if functions[cursor].name == name:
+            return cursor
+        set cursor = cursor + 1
+    return -1
+
+fn function_result(functions: List[FunctionSignature], name: Text, records: List[RecordSignature]) -> Text:
+    let index = function_index(functions, name)
+    if index < 0:
+        return "Unit"
+    return type_name(functions[index].result, records)
+
+fn is_local_json_push(value: Json, name: Text) -> Bool:
+    if json_as_text(json_get(value, "kind")) != "Call":
+        return false
+    if json_as_text(json_get(value, "callee")) != "json_push":
+        return false
+    let arguments = json_get(value, "arguments")
+    if json_len(arguments) != 2:
+        return false
+    let first = json_index(arguments, 0)
+    return json_as_text(json_get(first, "kind")) == "Name" and json_as_text(json_get(first, "text")) == name
+
+fn is_local_list_push(value: Json, name: Text) -> Bool:
+    if json_as_text(json_get(value, "kind")) != "Call":
+        return false
+    if json_as_text(json_get(value, "callee")) != "list_push":
+        return false
+    let arguments = json_get(value, "arguments")
+    if json_len(arguments) != 2:
+        return false
+    let first = json_index(arguments, 0)
+    return json_as_text(json_get(first, "kind")) == "Name" and json_as_text(json_get(first, "text")) == name
+
+fn is_comparison(operator: Text) -> Bool:
+    if operator == "==":
+        return true
+    if operator == "!=":
+        return true
+    if operator == "<":
+        return true
+    if operator == "<=":
+        return true
+    if operator == ">":
+        return true
+    return operator == ">="
+
+fn is_json_constructor(name: Text) -> Bool:
+    if name == "json_null":
+        return true
+    if name == "json_bool":
+        return true
+    if name == "json_int":
+        return true
+    if name == "json_float":
+        return true
+    if name == "json_text":
+        return true
+    if name == "json_array":
+        return true
+    if name == "json_object":
+        return true
+    if name == "json_push":
+        return true
+    if name == "json_set":
+        return true
+    if name == "json_get":
+        return true
+    if name == "json_index":
+        return true
+    if name == "json_parse":
+        return true
+    return false
+
+fn is_option_type(ty: Text) -> Bool:
+    let characters = text_chars(ty)
+    return len(characters) >= 8 and characters[0] == "O" and characters[1] == "p" and characters[2] == "t" and characters[3] == "i" and characters[4] == "o" and characters[5] == "n" and characters[6] == "["
+
+fn expression(node: Json, state: CompilerState, functions: List[FunctionSignature], records: List[RecordSignature], expected: Text) -> ExpressionResult:
+    let kind = json_as_text(json_get(node, "kind"))
+    if kind == "Number":
+        return expression_result(singleton(ir_text("ConstInt", "value", json_as_text(json_get(node, "text")))), "Int")
+    if kind == "Text":
+        return expression_result(singleton(ir_text("ConstText", "value", json_as_text(json_get(node, "text")))), "Text")
+    if kind == "Bool":
+        return expression_result(singleton(ir_field("ConstBool", "value", json_get(node, "value"))), "Bool")
+    if kind == "Name":
+        let name = json_as_text(json_get(node, "text"))
+        if name == "None":
+            assert(is_option_type(expected))
+            return expression_result(singleton(ir_instruction("MakeNone")), expected)
+        let slot = local_index(state.locals, name)
+        assert(slot >= 0)
+        return expression_result(singleton(ir_integer("Load", "local", slot)), local_type(state.locals, name))
+    if kind == "Unary":
+        let operand = expression(json_get(node, "operand"), state, functions, records, "")
+        let operator = json_as_text(json_get(node, "operator"))
+        var operation = "Not"
+        if operator == "-":
+            set operation = "Negate"
+        return expression_result(append_code(expression_code(operand), singleton(ir_instruction(operation))), expression_type(operand))
+    if kind == "Binary":
+        let operator = json_as_text(json_get(node, "operator"))
+        let left = expression(json_get(node, "left"), state, functions, records, "")
+        let right = expression(json_get(node, "right"), state, functions, records, "")
+        if operator == "and" or operator == "or":
+            var code = expression_code(left)
+            if operator == "or":
+                set code = append_code(code, singleton(ir_instruction("Not")))
+            let branch = json_as_int(json_get(node, "character_index")) * 4 + 2
+            set code = append_code(code, singleton(ir_jump("JumpIfFalse", branch)))
+            set code = append_code(code, expression_code(right))
+            let ending = branch + 1
+            set code = append_code(code, singleton(ir_jump("Jump", ending)))
+            set code = append_code(code, singleton(ir_label(branch)))
+            let short_value = operator == "or"
+            set code = append_code(code, singleton(ir_field("ConstBool", "value", json_bool(short_value))))
+            set code = append_code(code, singleton(ir_label(ending)))
+            return expression_result(code, "Bool")
+        var operation = "Add"
+        if operator == "-":
+            set operation = "Subtract"
+        if operator == "*":
+            set operation = "Multiply"
+        if operator == "/":
+            set operation = "Divide"
+        if operator == "//":
+            set operation = "FloorDivide"
+        if operator == "%":
+            set operation = "Remainder"
+        if operator == "==":
+            set operation = "Equal"
+        if operator == "!=":
+            set operation = "NotEqual"
+        if operator == "<":
+            set operation = "Less"
+        if operator == "<=":
+            set operation = "LessEqual"
+        if operator == ">":
+            set operation = "Greater"
+        if operator == ">=":
+            set operation = "GreaterEqual"
+        var result_type = expression_type(left)
+        if is_comparison(operator):
+            set result_type = "Bool"
+        return expression_result(append_code(append_code(expression_code(left), expression_code(right)), singleton(ir_instruction(operation))), result_type)
+    if kind == "Index":
+        let value = expression(json_get(node, "value"), state, functions, records, "")
+        let index = expression(json_get(node, "index"), state, functions, records, "")
+        return expression_result(append_code(append_code(expression_code(value), expression_code(index)), singleton(ir_instruction("Index"))), list_element_type(expression_type(value), records))
+    if kind == "Field":
+        let value = expression(json_get(node, "value"), state, functions, records, "")
+        let record_name = record_name_from_type(expression_type(value))
+        let field_name = json_as_text(json_get(node, "name"))
+        let record = record_index(records, record_name)
+        let field = record_field_index(records, record_name, field_name)
+        assert(record >= 0 and field >= 0)
+        var operation = ir_text("GetField", "record", record_name)
+        set operation = json_set(operation, "field", json_text(field_name))
+        return expression_result(append_code(expression_code(value), singleton(operation)), record_field_type(records, record_name, field_name))
+    if kind == "List":
+        let items = json_get(node, "items")
+        var code = empty_code()
+        var cursor = 0
+        var item_type = "Unit"
+        while cursor < json_len(items):
+            let item = expression(json_index(items, cursor), state, functions, records, "")
+            set code = append_code(code, expression_code(item))
+            set item_type = expression_type(item)
+            set cursor = cursor + 1
+        if json_len(items) == 0 and expected != "":
+            return expression_result(append_code(code, singleton(ir_text("MakeTypedList", "item_type", list_element_type(expected, records)))), expected)
+        return expression_result(append_code(code, singleton(ir_integer("MakeList", "count", json_len(items)))), "List[" + item_type + "]")
+    if kind == "Call":
+        let callee = json_as_text(json_get(node, "callee"))
+        let arguments = json_get(node, "arguments")
+        var code = empty_code()
+        var cursor = 0
+        while cursor < json_len(arguments):
+            let argument = expression(json_index(arguments, cursor), state, functions, records, "")
+            set code = append_code(code, expression_code(argument))
+            set cursor = cursor + 1
+        if is_record(records, callee):
+            var instruction = ir_text("MakeRecord", "record", callee)
+            set instruction = json_set(instruction, "count", json_int(json_len(arguments)))
+            return expression_result(append_code(code, singleton(instruction)), "Record[" + callee + "]")
+        var operation = ""
+        if callee == "Some":
+            set operation = "MakeSome"
+        if callee == "len":
+            set operation = "Length"
+        if callee == "list_push":
+            set operation = "ListPush"
+        if callee == "list_set":
+            set operation = "ListSet"
+        if callee == "json_null":
+            set operation = "JsonNull"
+        if callee == "json_bool":
+            set operation = "JsonBool"
+        if callee == "json_int":
+            set operation = "JsonInt"
+        if callee == "json_float":
+            set operation = "JsonFloat"
+        if callee == "json_text":
+            set operation = "JsonText"
+        if callee == "json_array":
+            set operation = "JsonArray"
+        if callee == "json_object":
+            set operation = "JsonObject"
+        if callee == "json_push":
+            set operation = "JsonPush"
+        if callee == "json_set":
+            set operation = "JsonSet"
+        if callee == "json_get":
+            set operation = "JsonGet"
+        if callee == "json_index":
+            set operation = "JsonIndex"
+        if callee == "json_has":
+            set operation = "JsonHas"
+        if callee == "json_len":
+            set operation = "JsonLength"
+        if callee == "json_as_text":
+            set operation = "JsonAsText"
+        if callee == "json_as_int":
+            set operation = "JsonAsInt"
+        if callee == "json_as_bool":
+            set operation = "JsonAsBool"
+        if callee == "json_is_null":
+            set operation = "JsonIsNull"
+        if callee == "json_stringify":
+            set operation = "JsonStringify"
+        if callee == "json_parse":
+            set operation = "JsonParse"
+        if callee == "sqrt":
+            set operation = "FloatSqrt"
+        if callee == "read_text":
+            set operation = "ReadText"
+        if callee == "unwrap":
+            set operation = "Unwrap"
+        if callee == "is_some":
+            set operation = "IsSome"
+        if callee == "args":
+            set operation = "Args"
+        if callee == "text_chars":
+            set operation = "TextChars"
+        if callee == "assert":
+            set operation = "Assert"
+        if callee == "print":
+            set operation = "Print"
+        if callee == "eprint":
+            set operation = "PrintErr"
+        if operation != "":
+            var result_type = "Unit"
+            if callee == "len" or callee == "json_len" or callee == "json_as_int":
+                set result_type = "Int"
+            if callee == "json_as_bool" or callee == "json_has":
+                set result_type = "Bool"
+            if callee == "json_is_null":
+                set result_type = "Bool"
+            if callee == "is_some":
+                set result_type = "Bool"
+            if callee == "json_as_text" or callee == "json_stringify":
+                set result_type = "Text"
+            if is_json_constructor(callee):
+                set result_type = "Json"
+            if callee == "list_push":
+                set result_type = expression_type(expression(json_index(arguments, 0), state, functions, records, ""))
+            if callee == "list_set":
+                set result_type = expression_type(expression(json_index(arguments, 0), state, functions, records, ""))
+            if callee == "Some":
+                set result_type = "Option[" + expression_type(expression(json_index(arguments, 0), state, functions, records, "")) + "]"
+            if callee == "sqrt":
+                set result_type = "Float64"
+            if callee == "read_text":
+                set result_type = "Result[Text, FileError]"
+            if callee == "args":
+                set result_type = "List[Text]"
+            if callee == "text_chars":
+                set result_type = "List[Text]"
+            if callee == "unwrap":
+                set result_type = list_element_type(expression_type(expression(json_index(arguments, 0), state, functions, records, "")), records)
+            return expression_result(append_code(code, singleton(ir_instruction(operation))), result_type)
+        let known_function = function_index(functions, callee)
+        if known_function < 0:
+            assert(known_function >= 0)
+        var instruction = ir_text("Call", "function", callee)
+        set instruction = json_set(instruction, "argc", json_int(json_len(arguments)))
+        return expression_result(append_code(code, singleton(instruction)), function_result(functions, callee, records))
+    return expression_result(empty_code(), "Unit")
+
+fn compile_block(statements: Json, state: CompilerState, functions: List[FunctionSignature], records: List[RecordSignature]) -> CompilerState:
+    var result = state
+    var cursor = 0
+    while cursor < json_len(statements):
+        set result = compile_statement(json_index(statements, cursor), result, functions, records)
+        set cursor = cursor + 1
+    return result
+
+fn compile_statement(statement: Json, state: CompilerState, functions: List[FunctionSignature], records: List[RecordSignature]) -> CompilerState:
+    let kind = json_as_text(json_get(statement, "kind"))
+    let code = state.code
+    if kind == "Let":
+        let name = json_as_text(json_get(statement, "name"))
+        let locals = state.locals
+        assert(local_index(locals, name) < 0)
+        let annotation = json_get(statement, "annotation")
+        var expected = ""
+        if not json_is_null(annotation):
+            set expected = type_name(annotation, records)
+        let value = expression(json_get(statement, "value"), state, functions, records, expected)
+        if expected == "":
+            set expected = expression_type(value)
+        let slot = state.next_local
+        var next_code = append_code(code, expression_code(value))
+        set next_code = append_code(next_code, singleton(ir_integer("Store", "local", slot)))
+        return CompilerState(next_code, add_local(locals, name, slot, expected), slot + 1, state.returned, state.return_type)
+    if kind == "Set":
+        let name = json_as_text(json_get(statement, "name"))
+        let locals = state.locals
+        let slot = local_index(locals, name)
+        assert(slot >= 0)
+        let value_node = json_get(statement, "value")
+        var next_code = code
+        if local_type(locals, name) == "Json" and is_local_json_push(value_node, name):
+            let arguments = json_get(value_node, "arguments")
+            let item = expression(json_index(arguments, 1), state, functions, records, "Json")
+            set next_code = append_code(code, expression_code(item))
+            set next_code = append_code(next_code, singleton(ir_integer("JsonPushLocal", "local", slot)))
+        else:
+            if is_local_list_push(value_node, name):
+                let arguments = json_get(value_node, "arguments")
+                let item_type = list_element_type(local_type(locals, name), records)
+                let item = expression(json_index(arguments, 1), state, functions, records, item_type)
+                set next_code = append_code(code, expression_code(item))
+                set next_code = append_code(next_code, singleton(ir_integer("ListPushLocal", "local", slot)))
+            else:
+                let value = expression(value_node, state, functions, records, local_type(locals, name))
+                set next_code = append_code(code, expression_code(value))
+                set next_code = append_code(next_code, singleton(ir_integer("Store", "local", slot)))
+        return state_with_code(state, next_code)
+    if kind == "Return":
+        var next_code = append_code(code, expression_code(expression(json_get(statement, "value"), state, functions, records, state.return_type)))
+        set next_code = append_code(next_code, singleton(ir_instruction("Return")))
+        return CompilerState(next_code, state.locals, state.next_local, true, state.return_type)
+    if kind == "CallStatement":
+        let call = json_get(statement, "call")
+        let callee = json_as_text(json_get(call, "callee"))
+        var next_code = append_code(code, expression_code(expression(call, state, functions, records, "")))
+        if callee != "print" and callee != "eprint":
+            set next_code = append_code(next_code, singleton(ir_instruction("Pop")))
+        return state_with_code(state, next_code)
+    if kind == "If":
+        var next_code = append_code(code, expression_code(expression(json_get(statement, "condition"), state, functions, records, "")))
+        let branch = json_as_int(json_get(statement, "character_index")) * 4
+        set next_code = append_code(next_code, singleton(ir_jump("JumpIfFalse", branch)))
+        var yes_state = state_with_code(state, next_code)
+        set yes_state = compile_block(json_get(statement, "body"), yes_state, functions, records)
+        set next_code = yes_state.code
+        var next_local = yes_state.next_local
+        var returned = state.returned
+        if json_has(statement, "alternate"):
+            let skip_else = branch + 1
+            set next_code = append_code(next_code, singleton(ir_jump("Jump", skip_else)))
+            set next_code = append_code(next_code, singleton(ir_label(branch)))
+            var no_state = state_with_code(state, next_code)
+            set no_state = compile_block(json_get(statement, "alternate"), no_state, functions, records)
+            if no_state.next_local > next_local:
+                set next_local = no_state.next_local
+            set returned = yes_state.returned and no_state.returned
+            set next_code = append_code(no_state.code, singleton(ir_label(skip_else)))
+        else:
+            set next_code = append_code(next_code, singleton(ir_label(branch)))
+        return CompilerState(next_code, state.locals, next_local, returned, state.return_type)
+    if kind == "While":
+        let start = json_as_int(json_get(statement, "character_index")) * 4
+        var next_code = append_code(code, singleton(ir_label(start)))
+        set next_code = append_code(next_code, expression_code(expression(json_get(statement, "condition"), state, functions, records, "")))
+        let branch = start + 1
+        set next_code = append_code(next_code, singleton(ir_jump("JumpIfFalse", branch)))
+        var body_state = state_with_code(state, next_code)
+        set body_state = compile_block(json_get(statement, "body"), body_state, functions, records)
+        set next_code = append_code(body_state.code, singleton(ir_jump("Jump", start)))
+        set next_code = append_code(next_code, singleton(ir_label(branch)))
+        var next_local = state.next_local
+        if body_state.next_local > next_local:
+            set next_local = body_state.next_local
+        return CompilerState(next_code, state.locals, next_local, state.returned, state.return_type)
+    return state
+
+fn compile_function(function: Json, functions: List[FunctionSignature], records: List[RecordSignature]) -> Json:
+    let parameters = json_get(function, "parameters")
+    let result_type = type_name(json_get(function, "result"), records)
+    var state = new_state(result_type)
+    var parameter_types = json_array()
+    var cursor = 0
+    while cursor < json_len(parameters):
+        let parameter = json_index(parameters, cursor)
+        let name = json_as_text(json_get(parameter, "name"))
+        let ty = type_name(json_get(parameter, "type"), records)
+        set parameter_types = json_push(parameter_types, json_text(ty))
+        let locals = add_local(state.locals, name, cursor, ty)
+        set state = state_with_locals(state, locals, cursor + 1)
+        set cursor = cursor + 1
+    set state = compile_block(json_get(function, "body"), state, functions, records)
+    if not state.returned and result_type == "Unit":
+        var code = append_code(state.code, singleton(ir_instruction("ConstUnit")))
+        set code = append_code(code, singleton(ir_instruction("Return")))
+        set state = state_with_code(state, code)
+    var result = ir_text("Function", "name", json_as_text(json_get(function, "name")))
+    set result = json_set(result, "parameters", parameter_types)
+    set result = json_set(result, "result", json_text(result_type))
+    set result = json_set(result, "local_count", json_int(state.next_local))
+    set result = json_set(result, "code", json_from_list(flatten_code(state.code)))
+    return result
+
+pub fn compile_source(source_name: Text, source: Text) -> Json:
+    let program = load_program(source_name, source, json_array())
+    let functions = json_get(program, "functions")
+    let record_nodes = json_get(program, "records")
+    var records: List[RecordSignature] = []
+    var record_cursor = 0
+    while record_cursor < json_len(record_nodes):
+        let record_node = json_index(record_nodes, record_cursor)
+        let field_nodes = json_get(record_node, "fields")
+        var fields: List[RecordField] = []
+        var field_cursor = 0
+        while field_cursor < json_len(field_nodes):
+            let field_node = json_index(field_nodes, field_cursor)
+            set fields = list_push(fields, RecordField(json_as_text(json_get(field_node, "name")), json_get(field_node, "type")))
+            set field_cursor = field_cursor + 1
+        set records = list_push(records, RecordSignature(json_as_text(json_get(record_node, "name")), fields))
+        set record_cursor = record_cursor + 1
+    var signatures: List[FunctionSignature] = []
+    var signature_cursor = 0
+    while signature_cursor < json_len(functions):
+        let function = json_index(functions, signature_cursor)
+        set signatures = list_push(signatures, FunctionSignature(json_as_text(json_get(function, "name")), json_get(function, "result")))
+        set signature_cursor = signature_cursor + 1
+    var compiled = json_array()
+    var cursor = 0
+    while cursor < json_len(functions):
+        set compiled = json_push(compiled, compile_function(json_index(functions, cursor), signatures, records))
+        set cursor = cursor + 1
+    var result = json_set(json_object(), "schema", json_text("veritas-bytecode-ir/v1"))
+    set result = json_set(result, "source_name", json_text(source_name))
+    set result = json_set(result, "entry", json_text("main"))
+    set result = json_set(result, "functions", compiled)
+    var compiled_records = json_array()
+    set cursor = 0
+    while cursor < len(records):
+        let record = records[cursor]
+        let fields = record.fields
+        var compiled_fields = json_array()
+        var field_cursor = 0
+        while field_cursor < len(fields):
+            let field = fields[field_cursor]
+            var compiled_field = json_set(json_object(), "name", json_text(field.name))
+            set compiled_field = json_set(compiled_field, "type", json_text(type_name(field.type, records)))
+            set compiled_fields = json_push(compiled_fields, compiled_field)
+            set field_cursor = field_cursor + 1
+        var compiled_record = json_set(json_object(), "name", json_text(record.name))
+        set compiled_record = json_set(compiled_record, "fields", compiled_fields)
+        set compiled_records = json_push(compiled_records, compiled_record)
+        set cursor = cursor + 1
+    set result = json_set(result, "records", compiled_records)
+    return result
+
+fn main() -> Int:
+    let arguments = args()
+    assert(len(arguments) == 1)
+    let path = arguments[0]
+    let source = unwrap(read_text(path))
+    print(json_stringify(compile_source(path, source)))
+    return 0

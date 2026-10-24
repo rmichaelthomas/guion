@@ -1,0 +1,10 @@
+[project]
+name = "veritas-self-hosting"
+version = "0.1.0"
+entry = "parser_smoke.vr"
+
+[runtime]
+instruction_limit = 20000000
+allocation_limit_bytes = 268435456
+call_depth_limit = 34
+max_collection_items = 1000000

@@ -6,6 +6,7 @@ use std::{
     process::ExitCode,
     time::Duration,
 };
+mod bytecode_ir;
 mod dependencies;
 mod native_dependencies;
 use veritas_compiler::compile_project;
@@ -25,7 +26,7 @@ fn main() -> ExitCode {
 fn execute(args: Vec<String>) -> Result<ExitCode, String> {
     let Some(command) = args.first().map(String::as_str) else {
         return Err(
-            "usage: veritas <new|check|fmt|test|run|build|package|verify-package|sync|inspect|doc|doctor> [path]"
+            "usage: veritas <new|check|fmt|test|run|build|assemble-ir|package|verify-package|sync|inspect|doc|doctor> [path]"
                 .into(),
         );
     };
@@ -35,6 +36,19 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
             env!("CARGO_PKG_VERSION"),
             veritas_model::Artifact::CURRENT_VERSION
         );
+        return Ok(ExitCode::SUCCESS);
+    }
+    if command == "assemble-ir" {
+        let Some(input) = args.get(1) else {
+            return Err("usage: veritas assemble-ir <input.vri.json> --output <output.vrb>".into());
+        };
+        let output = args
+            .iter()
+            .position(|argument| argument == "--output" || argument == "-o")
+            .and_then(|index| args.get(index + 1))
+            .ok_or("usage: veritas assemble-ir <input.vri.json> --output <output.vrb>")?;
+        bytecode_ir::assemble_file(input, output)?;
+        println!("assembled {input} -> {output}");
         return Ok(ExitCode::SUCCESS);
     }
     if command == "doctor" {
@@ -276,7 +290,7 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
         return Ok(ExitCode::SUCCESS);
     }
     if !["check", "fmt", "test", "run", "build", "inspect", "doc"].contains(&command) {
-        return Err(format!("unknown command `{command}`\nusage: veritas <new|check|fmt|test|run|build|package|verify-package|sync|inspect|doc|doctor> [path]"));
+        return Err(format!("unknown command `{command}`\nusage: veritas <new|check|fmt|test|run|build|assemble-ir|package|verify-package|sync|inspect|doc|doctor> [path]"));
     }
     let json_run = command == "run" && args.get(1).is_some_and(|arg| arg == "--json");
     let json_inspect = command == "inspect" && args.iter().any(|argument| argument == "--json");

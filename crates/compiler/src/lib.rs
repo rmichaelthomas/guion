@@ -1248,10 +1248,20 @@ impl<'a> FnCompiler<'a> {
                         }
                         *item
                     }
+                    Type::Text => {
+                        if self.expr(index)? != Type::Int {
+                            return Err(diagnostic(
+                                "E_TYPE_INDEX",
+                                "text index must be Int",
+                                index.span(),
+                            ));
+                        }
+                        Type::Text
+                    }
                     _ => {
                         return Err(diagnostic(
                             "E_TYPE_INDEX",
-                            "indexing requires a List or Map",
+                            "indexing requires a List, Map, or Text",
                             values.span(),
                         ))
                     }
@@ -2006,24 +2016,38 @@ impl<'a> FnCompiler<'a> {
                 }
                 if name == "len" {
                     if args.len() != 1 {
-                        return Err(diagnostic(
-                            "E_CALL_ARITY",
-                            "len expects one List argument",
-                            *s,
-                        ));
+                        return Err(diagnostic("E_CALL_ARITY", "len expects one argument", *s));
                     }
                     if !matches!(
                         self.expr(&args[0])?,
-                        Type::List(_) | Type::Map(_) | Type::Bytes
+                        Type::List(_) | Type::Map(_) | Type::Bytes | Type::Text
                     ) {
                         return Err(diagnostic(
                             "E_TYPE_ARGUMENT",
-                            "len expects a List, Map, or Bytes",
+                            "len expects a List, Map, Bytes, or Text",
                             args[0].span(),
                         ));
                     }
                     self.emit(Op::Length, *s);
                     return Ok(Type::Int);
+                }
+                if name == "text_chars" {
+                    if args.len() != 1 {
+                        return Err(diagnostic(
+                            "E_CALL_ARITY",
+                            "text_chars expects one Text argument",
+                            *s,
+                        ));
+                    }
+                    if self.expr(&args[0])? != Type::Text {
+                        return Err(diagnostic(
+                            "E_TYPE_ARGUMENT",
+                            "text_chars expects one Text argument",
+                            args[0].span(),
+                        ));
+                    }
+                    self.emit(Op::TextChars, *s);
+                    return Ok(Type::List(Box::new(Type::Text)));
                 }
                 if name == "map_set" {
                     if args.len() != 3 {
@@ -2363,6 +2387,56 @@ impl<'a> FnCompiler<'a> {
                             *span,
                         ));
                     }
+                    let optimized_list_push = match value {
+                        Expr::Call(call, args, keywords, _)
+                            if call == "list_push"
+                                && keywords.is_empty()
+                                && args.len() == 2
+                                && matches!(&args[0], Expr::Name(source, _) if source == name) =>
+                        {
+                            let Type::List(item) = &local.ty else {
+                                return Err(diagnostic(
+                                    "E_TYPE_ASSIGN",
+                                    "list_push assignment requires a List local",
+                                    *span,
+                                ));
+                            };
+                            if self.expr_with_expected(&args[1], Some(item.as_ref()))? != **item {
+                                return Err(diagnostic(
+                                    "E_TYPE_ARGUMENT",
+                                    "list_push value must match the List item type",
+                                    args[1].span(),
+                                ));
+                            }
+                            Some(Op::ListPushLocal(local.slot))
+                        }
+                        _ => None,
+                    };
+                    let optimized_json_push = match value {
+                        Expr::Call(call, args, keywords, _)
+                            if call == "json_push"
+                                && keywords.is_empty()
+                                && args.len() == 2
+                                && matches!(&args[0], Expr::Name(source, _) if source == name) =>
+                        {
+                            if local.ty != Type::Json {
+                                return Err(diagnostic(
+                                    "E_TYPE_ASSIGN",
+                                    "json_push assignment requires a Json local",
+                                    *span,
+                                ));
+                            }
+                            if self.expr_with_expected(&args[1], Some(&Type::Json))? != Type::Json {
+                                return Err(diagnostic(
+                                    "E_TYPE_ARGUMENT",
+                                    "json_push value must be Json",
+                                    args[1].span(),
+                                ));
+                            }
+                            Some(Op::JsonPushLocal(local.slot))
+                        }
+                        _ => None,
+                    };
                     let optimized_list_set = match value {
                         Expr::Call(call, args, keywords, _)
                             if call == "list_set"
@@ -2395,7 +2469,11 @@ impl<'a> FnCompiler<'a> {
                         }
                         _ => None,
                     };
-                    let ty = if optimized_list_set.is_some() {
+                    let optimized_local_list_update =
+                        optimized_list_push.is_some() || optimized_list_set.is_some();
+                    let optimized_local_update =
+                        optimized_local_list_update || optimized_json_push.is_some();
+                    let ty = if optimized_local_update {
                         local.ty.clone()
                     } else {
                         self.expr_with_expected(value, Some(&local.ty))?
@@ -2407,7 +2485,13 @@ impl<'a> FnCompiler<'a> {
                             *span,
                         ));
                     }
-                    self.emit(optimized_list_set.unwrap_or(Op::Store(local.slot)), *span);
+                    self.emit(
+                        optimized_json_push
+                            .or(optimized_list_push)
+                            .or(optimized_list_set)
+                            .unwrap_or(Op::Store(local.slot)),
+                        *span,
+                    );
                 }
                 Stmt::Return(value, span) => {
                     let ty = self.expr_with_expected(value, Some(&self.ast.result))?;

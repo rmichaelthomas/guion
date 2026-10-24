@@ -359,8 +359,9 @@ fn encode_value_at(value: &Value, depth: usize) -> Result<JsonValue, PythonBridg
             json!({"t":"map","v":encoded})
         }
         Value::Json(value) => {
-            validate_json_depth(value, depth + 1)?;
-            json!({"t":"json","v":value.as_ref()})
+            let json = value.to_serde();
+            validate_json_depth(&json, depth + 1)?;
+            json!({"t":"json","v":json})
         }
         Value::OptionNone
         | Value::OptionSome(_)
@@ -392,7 +393,9 @@ fn decode_value(value: &JsonValue, expected: &Type) -> Result<Value, PythonBridg
         ("unit", Type::Unit) => Ok(Value::Unit),
         ("json", Type::Json) => {
             validate_json_depth(payload, 0)?;
-            Ok(Value::Json(Arc::new(payload.clone())))
+            Ok(Value::Json(veritas_model::SharedJson::from_serde(
+                payload.clone(),
+            )))
         }
         ("bool", Type::Bool) => payload.as_bool().map(Value::Bool).ok_or_else(invalid),
         ("int", Type::Int) => payload
