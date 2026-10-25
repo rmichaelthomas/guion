@@ -1,0 +1,19 @@
+fn main() -> Int:
+    let arguments = args()
+    if len(arguments) != 1:
+        print("usage: file_data_cli.gu JSON_FILE")
+        return 2
+
+    let source = read_text(arguments[0])
+    if not is_ok(source):
+        print(file_error_code(error(source)))
+        return 1
+
+    let parsed = json_parse(unwrap(source))
+    if not is_ok(parsed):
+        print(json_error_code(error(parsed)))
+        return 1
+
+    let rows = unwrap(parsed)
+    print(json_len(rows))
+    return 0

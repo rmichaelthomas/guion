@@ -35,6 +35,7 @@ Guion's previously validated release targets are macOS ARM64 and Debian 12-compa
 ## Project guide
 
 - [Getting started](docs/getting-started.md)
+- [Agent programming path](docs/agents/start-here.md) and [runnable recipes](docs/agents/recipes.md)
 - [Architecture](docs/architecture.md)
 - [Language and command reference](docs/reference.md)
 - [Compatibility and migration](docs/compatibility-and-migrations.md)

@@ -1,0 +1,16 @@
+fn square(value: Int) -> Int:
+    return value * value
+
+fn square_all(values: List[Int]) -> Result[List[Int], TaskError]:
+    return parallel_map(values, square, 3)
+
+fn main() -> Int:
+    let result = square_all([1, 2, 3, 4])
+    if is_ok(result):
+        print(unwrap(result))
+        return 0
+
+    let problem = error(result)
+    eprint(task_code(problem))
+    eprint(task_message(problem))
+    return 1

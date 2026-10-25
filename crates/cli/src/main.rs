@@ -1266,6 +1266,7 @@ fn python_doctor_report() -> String {
 fn python_doctor_report() -> String {
     serde_json::json!({
         "schema_version": 1,
+        "kind": "guion_doctor_report",
         "python_interop": "disabled",
         "message": "Python interoperability is optional; rebuild with --features python-interop to enable it"
     })

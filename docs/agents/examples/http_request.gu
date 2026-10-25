@@ -1,0 +1,18 @@
+fn main() -> Int:
+    let arguments = args()
+    if len(arguments) != 1:
+        print("usage: http_request.gu URL")
+        return 2
+
+    let headers: Map[Text, Text] = {}
+    let response = http_request("GET", arguments[0], headers, "")
+    if is_ok(response):
+        let envelope = unwrap(response)
+        print(json_as_int(json_get(envelope, "status")))
+        print(json_as_text(json_get(envelope, "body")))
+        return 0
+
+    let problem = error(response)
+    eprint(http_error_code(problem))
+    eprint(http_error_message(problem))
+    return 1

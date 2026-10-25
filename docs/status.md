@@ -18,6 +18,6 @@
 
 ## Remaining pre-release work
 
-Agent onboarding, evidence indexing, full final validation, continuous integration, and the handoff report remain to be completed. Required macOS and Debian ARM64 checks must be reported individually; a skipped target cannot be marked green. See the [approved migration plan](superpowers/plans/2026-10-24-veritas-complete-product.md) for the complete task gates.
+Evidence indexing, full final validation, continuous integration, and the handoff report remain to be completed. Required macOS and Debian ARM64 checks must be reported individually; a skipped target cannot be marked green. See the [approved migration plan](superpowers/plans/2026-10-24-veritas-complete-product.md) for the complete task gates.
 
 This status page is a current summary, not the test record. The [historical index](history/README.md) links to the original completion report, checkpoints, campaigns, and preserved results.

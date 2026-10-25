@@ -8,4 +8,5 @@ Changes are recorded here as the project moves toward its first release. No publ
 - Added transition reads for selected legacy Veritas manifests, locks, project state, source files, and existing artifacts.
 - Added a Guion-named acceptance-report cohort for nine retained applications; the frozen Veritas evidence remains unchanged.
 - Replaced current-facing getting-started, architecture, reference, compatibility, and status documentation; preserved the Veritas-era checkpoints and results as history.
-- Full Guion release-matrix, benchmark, agent-onboarding, and pre-release handoff checks remain open.
+- Added an agent start guide, four runnable recipes, a versioned machine index, and CLI JSON report envelope schemas.
+- Full Guion release-matrix, benchmark, evidence-index, and pre-release handoff checks remain open.

@@ -53,7 +53,7 @@ For the optional Python bridge, the CLI must be built with the `python-interop` 
 - Run `guion fmt FILE.gu` to format a source file.
 - Run `guion lint FILE.gu` to check for unused imports and locals and unreachable statements.
 - Run `guion build FILE.gu` to create a `.gub` artifact.
-- Run `guion doctor --json` to inspect the current host and enabled profile.
+- `guion doctor` reports the current host and enabled profile in human-readable form. `guion doctor --json` emits the versioned report for the active build profile; the [agent index](agents/index.json) lists both report shapes.
 - Use `guion package PROJECT --output DIRECTORY` to create a current-host application bundle.
 
 The CLI command list and behavior are in the [reference](reference.md). Release packaging is still a pre-release gate; do not treat these development commands as a public download or support promise.

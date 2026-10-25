@@ -1,0 +1,18 @@
+import "std:sqlite"
+import "std:toml"
+import "std:types"
+
+fn main() -> Int:
+    let settings_text = unwrap(read_text("settings.toml"))
+    let settings = unwrap(toml_parse(settings_text))
+    let app_name = unwrap(toml_get_text(settings, ["app", "name"]))
+
+    let database = unwrap(sqlite_open("agent-recipes.sqlite3"))
+    let transaction = unwrap(sqlite_begin(database))
+    unwrap(sqlite_execute(transaction, "CREATE TABLE IF NOT EXISTS runs (name TEXT NOT NULL)", []))
+    unwrap(sqlite_execute(transaction, "INSERT INTO runs (name) VALUES (?)", [sql_text(app_name)]))
+    let rows = unwrap(sqlite_query(transaction, "SELECT name FROM runs ORDER BY rowid DESC LIMIT 1", []))
+    unwrap(sqlite_commit(transaction))
+    print(rows[0].values[0].text)
+    unwrap(sqlite_close(database))
+    return 0

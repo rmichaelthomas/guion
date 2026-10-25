@@ -1,0 +1,224 @@
+{
+  "$schema": "index.schema.json",
+  "schema_version": 1,
+  "kind": "guion_agent_index",
+  "product": "Guion",
+  "status": "private_pre_release",
+  "documents": {
+    "start_here": "docs/agents/start-here.md",
+    "recipes": "docs/agents/recipes.md",
+    "language_contract": "language/spec.md",
+    "builtin_signatures": "language/builtin-signatures.json",
+    "standard_library_source": "language/stdlib/",
+    "host_api": "language/host-api.md",
+    "conformance_manifest": "language/conformance/manifest.json",
+    "compatibility": "docs/compatibility-and-migrations.md",
+    "status": "docs/status.md"
+  },
+  "cli_json_reports": {
+    "schema": "docs/agents/cli-reports.schema.json",
+    "emitter": "crates/cli/src/main.rs",
+    "schema_policy": "The standalone schema validates report envelopes and stable fields. Rust emitters and listed integration tests remain authoritative for full report details.",
+    "reports": [
+      {
+        "kind": "guion_check_report",
+        "schema_version": 1,
+        "command": "check --json",
+        "integration_tests": [
+          {
+            "path": "crates/cli/tests/cli.rs",
+            "case": "check_json_reports_compiler_success_and_source_diagnostics"
+          }
+        ]
+      },
+      {
+        "kind": "guion_lint_report",
+        "schema_version": 1,
+        "command": "lint --json",
+        "integration_tests": [
+          {
+            "path": "crates/cli/tests/builder_lifecycle.rs",
+            "case": "installed_core_completes_new_repair_format_lint_build_package_install_and_run"
+          }
+        ]
+      },
+      {
+        "kind": "guion_test_report",
+        "schema_version": 1,
+        "command": "test --json",
+        "integration_tests": [
+          {
+            "path": "crates/cli/tests/cli.rs",
+            "case": "test_json_report_is_machine_readable_on_success_and_failure"
+          }
+        ]
+      },
+      {
+        "kind": "guion_run_report",
+        "schema_version": 1,
+        "command": "run --json",
+        "integration_tests": [
+          {
+            "path": "crates/cli/tests/cli.rs",
+            "case": "run_json_report_captures_program_output_status_and_runtime_failure"
+          }
+        ]
+      },
+      {
+        "kind": "guion_build_report",
+        "schema_version": 1,
+        "command": "build --json",
+        "integration_tests": [
+          {
+            "path": "crates/cli/tests/cli.rs",
+            "case": "build_json_reports_artifact_identity_and_source_diagnostics"
+          }
+        ]
+      },
+      {
+        "kind": "guion_package_report",
+        "schema_version": 1,
+        "command": "package --json",
+        "integration_tests": [
+          {
+            "path": "crates/cli/tests/cli.rs",
+            "case": "package_json_reports_package_identity_verification_and_argument_failures"
+          }
+        ]
+      },
+      {
+        "kind": "guion_package_verification_report",
+        "schema_version": 1,
+        "command": "verify-package --json",
+        "integration_tests": [
+          {
+            "path": "crates/cli/tests/cli.rs",
+            "case": "package_json_reports_package_identity_verification_and_argument_failures"
+          }
+        ]
+      },
+      {
+        "kind": "guion_inspection_report",
+        "schema_version": 1,
+        "command": "inspect --json",
+        "integration_tests": [
+          {
+            "path": "crates/cli/tests/cli.rs",
+            "case": "inspect_json_reports_transitive_runtime_and_opaque_python_effects"
+          }
+        ]
+      },
+      {
+        "kind": "guion_api_report",
+        "schema_version": 2,
+        "command": "doc --json",
+        "integration_tests": [
+          {
+            "path": "crates/cli/tests/cli.rs",
+            "case": "doc_json_reports_function_record_and_python_signatures"
+          }
+        ]
+      },
+      {
+        "kind": "guion_doctor_report",
+        "schema_version": 1,
+        "command": "doctor --json",
+        "integration_tests": [
+          {
+            "path": "crates/cli/tests/cli.rs",
+            "case": "core_doctor_json_reports_disabled_python_interop"
+          },
+          {
+            "path": "crates/cli/tests/cli.rs",
+            "case": "doctor_json_reports_native_and_python_interop_readiness"
+          }
+        ]
+      },
+      {
+        "kind": "guion_sync_report",
+        "schema_version": 1,
+        "command": "sync --json",
+        "integration_tests": [
+          {
+            "path": "crates/cli/tests/cli.rs",
+            "case": "sync_json_reports_arguments_and_missing_python_configuration"
+          },
+          {
+            "path": "crates/cli/tests/python_dependencies.rs",
+            "case": "sync_json_reports_exact_python_lock_identity"
+          }
+        ]
+      },
+      {
+        "kind": "guion_diagnostic",
+        "schema_version": 1,
+        "command": "check/build/run --json (failure)",
+        "integration_tests": [
+          {
+            "path": "crates/cli/tests/cli.rs",
+            "case": "check_json_reports_compiler_success_and_source_diagnostics"
+          },
+          {
+            "path": "crates/cli/tests/compiler_driver.rs",
+            "case": "structured_source_diagnostic"
+          }
+        ]
+      }
+    ]
+  },
+  "supported_targets": {
+    "source": "docs/compatibility-and-migrations.md",
+    "previously_validated_before_guion_rename": [
+      "aarch64-apple-darwin",
+      "aarch64-unknown-linux-gnu"
+    ],
+    "current_guion_validation": "pre_release_matrix_pending"
+  },
+  "examples": [
+    {
+      "id": "file_data_cli",
+      "source": "docs/agents/examples/file_data_cli.gu",
+      "recipe": "docs/agents/recipes.md",
+      "fixtures": [
+        "docs/agents/examples/records.json"
+      ],
+      "expected_output": "3\n",
+      "run_requirements": [
+        "project_or_source_directory_file_access"
+      ]
+    },
+    {
+      "id": "http_request",
+      "source": "docs/agents/examples/http_request.gu",
+      "recipe": "docs/agents/recipes.md",
+      "fixtures": [],
+      "expected_output": "HTTP status line followed by response body; endpoint-dependent",
+      "run_requirements": [
+        "exact_network_hostname_grant"
+      ]
+    },
+    {
+      "id": "sqlite_toml",
+      "source": "docs/agents/examples/sqlite_toml.gu",
+      "recipe": "docs/agents/recipes.md",
+      "fixtures": [
+        "docs/agents/examples/settings.toml"
+      ],
+      "expected_output": "Guion agents\n",
+      "run_requirements": [
+        "source_directory_read_access",
+        "explicit_writable_file_root"
+      ]
+    },
+    {
+      "id": "concurrent_task",
+      "source": "docs/agents/examples/concurrent_task.gu",
+      "recipe": "docs/agents/recipes.md",
+      "fixtures": [],
+      "expected_output": "[1, 4, 9, 16]\n",
+      "run_requirements": [
+        "core_profile"
+      ]
+    }
+  ]
+}

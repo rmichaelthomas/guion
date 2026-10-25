@@ -1,0 +1,439 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Guion CLI JSON report envelopes",
+  "description": "Checks the versioned report discriminator and stable envelope fields. Additional fields are allowed. Full command behavior is guarded by the Rust integration tests listed in docs/agents/index.json.",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/guion_check_report"
+    },
+    {
+      "$ref": "#/$defs/guion_lint_report"
+    },
+    {
+      "$ref": "#/$defs/guion_test_report"
+    },
+    {
+      "$ref": "#/$defs/guion_run_report"
+    },
+    {
+      "$ref": "#/$defs/guion_build_report"
+    },
+    {
+      "$ref": "#/$defs/guion_package_report"
+    },
+    {
+      "$ref": "#/$defs/guion_package_verification_report"
+    },
+    {
+      "$ref": "#/$defs/guion_inspection_report"
+    },
+    {
+      "$ref": "#/$defs/guion_api_report"
+    },
+    {
+      "$ref": "#/$defs/guion_doctor_report"
+    },
+    {
+      "$ref": "#/$defs/guion_sync_report"
+    },
+    {
+      "$ref": "#/$defs/guion_diagnostic"
+    }
+  ],
+  "$defs": {
+    "envelope_v1": {
+      "type": "object",
+      "required": [
+        "schema_version",
+        "kind"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "kind": {
+          "type": "string"
+        }
+      }
+    },
+    "envelope_v2": {
+      "type": "object",
+      "required": [
+        "schema_version",
+        "kind"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 2
+        },
+        "kind": {
+          "type": "string"
+        }
+      }
+    },
+    "guion_check_report": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/envelope_v1"
+        },
+        {
+          "type": "object",
+          "required": [
+            "kind",
+            "source",
+            "status",
+            "function_count"
+          ],
+          "properties": {
+            "kind": {
+              "const": "guion_check_report"
+            },
+            "source": {
+              "type": "string"
+            },
+            "status": {
+              "type": "string"
+            },
+            "function_count": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      ]
+    },
+    "guion_lint_report": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/envelope_v1"
+        },
+        {
+          "type": "object",
+          "required": [
+            "kind",
+            "source"
+          ],
+          "properties": {
+            "kind": {
+              "const": "guion_lint_report"
+            },
+            "source": {
+              "type": "string"
+            }
+          }
+        }
+      ]
+    },
+    "guion_test_report": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/envelope_v1"
+        },
+        {
+          "type": "object",
+          "required": [
+            "kind",
+            "source",
+            "summary",
+            "tests"
+          ],
+          "properties": {
+            "kind": {
+              "const": "guion_test_report"
+            },
+            "source": {
+              "type": "string"
+            },
+            "summary": {
+              "type": "object"
+            },
+            "tests": {
+              "type": "array"
+            }
+          }
+        }
+      ]
+    },
+    "guion_run_report": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/envelope_v1"
+        },
+        {
+          "type": "object",
+          "required": [
+            "kind",
+            "source",
+            "status"
+          ],
+          "properties": {
+            "kind": {
+              "const": "guion_run_report"
+            },
+            "source": {
+              "type": "string"
+            },
+            "status": {
+              "type": "string"
+            }
+          }
+        }
+      ]
+    },
+    "guion_build_report": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/envelope_v1"
+        },
+        {
+          "type": "object",
+          "required": [
+            "kind",
+            "source",
+            "artifact",
+            "artifact_format",
+            "artifact_size_bytes",
+            "artifact_sha256"
+          ],
+          "properties": {
+            "kind": {
+              "const": "guion_build_report"
+            },
+            "source": {
+              "type": "string"
+            },
+            "artifact": {
+              "type": "string"
+            },
+            "artifact_format": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "artifact_size_bytes": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "artifact_sha256": {
+              "type": "string"
+            }
+          }
+        }
+      ]
+    },
+    "guion_package_report": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/envelope_v1"
+        },
+        {
+          "type": "object",
+          "required": [
+            "kind",
+            "package_schema_version"
+          ],
+          "properties": {
+            "kind": {
+              "const": "guion_package_report"
+            },
+            "package_schema_version": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      ]
+    },
+    "guion_package_verification_report": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/envelope_v1"
+        },
+        {
+          "type": "object",
+          "required": [
+            "kind",
+            "status"
+          ],
+          "properties": {
+            "kind": {
+              "const": "guion_package_verification_report"
+            },
+            "status": {
+              "type": "string"
+            }
+          }
+        }
+      ]
+    },
+    "guion_inspection_report": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/envelope_v1"
+        },
+        {
+          "type": "object",
+          "required": [
+            "kind",
+            "source",
+            "entry",
+            "functions"
+          ],
+          "properties": {
+            "kind": {
+              "const": "guion_inspection_report"
+            },
+            "source": {
+              "type": "string"
+            },
+            "functions": {
+              "type": "object"
+            }
+          }
+        }
+      ]
+    },
+    "guion_api_report": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/envelope_v2"
+        },
+        {
+          "type": "object",
+          "required": [
+            "kind",
+            "source",
+            "functions",
+            "records",
+            "standard_library"
+          ],
+          "properties": {
+            "kind": {
+              "const": "guion_api_report"
+            },
+            "source": {
+              "type": "string"
+            },
+            "functions": {
+              "type": "array"
+            },
+            "records": {
+              "type": "array"
+            },
+            "standard_library": {
+              "type": "object"
+            }
+          }
+        }
+      ]
+    },
+    "guion_doctor_report": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/envelope_v1"
+        },
+        {
+          "oneOf": [
+            {
+              "type": "object",
+              "required": [
+                "kind",
+                "python_interop",
+                "message"
+              ],
+              "properties": {
+                "kind": {
+                  "const": "guion_doctor_report"
+                },
+                "python_interop": {
+                  "const": "disabled"
+                },
+                "message": {
+                  "type": "string"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "required": [
+                "kind",
+                "runtime",
+                "capabilities",
+                "python"
+              ],
+              "properties": {
+                "kind": {
+                  "const": "guion_doctor_report"
+                },
+                "runtime": {
+                  "type": "object"
+                },
+                "capabilities": {
+                  "type": "object"
+                },
+                "python": {
+                  "type": "object"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "guion_sync_report": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/envelope_v1"
+        },
+        {
+          "type": "object",
+          "required": [
+            "kind",
+            "status"
+          ],
+          "properties": {
+            "kind": {
+              "const": "guion_sync_report"
+            },
+            "status": {
+              "type": "string"
+            }
+          }
+        }
+      ]
+    },
+    "guion_diagnostic": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/envelope_v1"
+        },
+        {
+          "type": "object",
+          "required": [
+            "kind",
+            "diagnostic"
+          ],
+          "properties": {
+            "kind": {
+              "const": "guion_diagnostic"
+            },
+            "diagnostic": {
+              "type": "object",
+              "required": [
+                "code",
+                "message"
+              ],
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

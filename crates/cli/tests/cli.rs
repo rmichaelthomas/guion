@@ -300,6 +300,23 @@ exit 99
     let _ = fs::remove_dir_all(base);
 }
 
+#[cfg(not(feature = "python-interop"))]
+#[test]
+fn core_doctor_json_reports_disabled_python_interop() {
+    let report = Command::new(env!("CARGO_BIN_EXE_guion"))
+        .args(["doctor", "--json"])
+        .output()
+        .unwrap();
+    assert!(report.status.success());
+    assert!(report.stderr.is_empty());
+    let report: serde_json::Value = serde_json::from_slice(&report.stdout).unwrap();
+    assert_eq!(report["kind"], "guion_doctor_report");
+    assert_eq!(report["schema_version"], 1);
+    assert_eq!(report["python_interop"], "disabled");
+    assert!(report["message"].as_str().is_some());
+}
+
+#[cfg(feature = "python-interop")]
 #[test]
 fn doctor_json_reports_native_and_python_interop_readiness() {
     let missing_uv =
@@ -3187,7 +3204,7 @@ fn doc_json_reports_function_record_and_python_signatures() {
     assert!(output.stderr.is_empty());
     let report: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(report["kind"], "guion_api_report");
-    assert_eq!(report["schema_version"], 1);
+    assert_eq!(report["schema_version"], 2);
     assert_eq!(report["functions"][0]["name"], "translate");
     assert_eq!(report["functions"][0]["parameters"][0]["type"], "Point");
     assert_eq!(report["records"][0]["name"], "Point");
@@ -3203,9 +3220,8 @@ fn doc_json_reports_function_record_and_python_signatures() {
         .output()
         .unwrap();
     assert!(human.status.success());
-    assert!(
-        String::from_utf8_lossy(&human.stdout).contains("fn translate(Point, Int, Int) -> Point")
-    );
+    assert!(String::from_utf8_lossy(&human.stdout)
+        .contains("fn translate(point: Point, dx: Int, dy: Int) -> Point"));
     let _ = fs::remove_dir_all(base);
 }
 

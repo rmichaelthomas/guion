@@ -1,0 +1,182 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Guion agent index",
+  "type": "object",
+  "required": [
+    "$schema",
+    "schema_version",
+    "kind",
+    "product",
+    "status",
+    "documents",
+    "cli_json_reports",
+    "supported_targets",
+    "examples"
+  ],
+  "properties": {
+    "$schema": {
+      "const": "index.schema.json"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "kind": {
+      "const": "guion_agent_index"
+    },
+    "product": {
+      "const": "Guion"
+    },
+    "status": {
+      "enum": [
+        "private_pre_release"
+      ]
+    },
+    "documents": {
+      "type": "object",
+      "required": [
+        "start_here",
+        "recipes",
+        "language_contract",
+        "builtin_signatures",
+        "standard_library_source",
+        "host_api",
+        "conformance_manifest",
+        "compatibility",
+        "status"
+      ],
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "cli_json_reports": {
+      "type": "object",
+      "required": [
+        "schema",
+        "emitter",
+        "schema_policy",
+        "reports"
+      ],
+      "properties": {
+        "schema": {
+          "type": "string"
+        },
+        "emitter": {
+          "type": "string"
+        },
+        "schema_policy": {
+          "type": "string"
+        },
+        "reports": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "kind",
+              "schema_version",
+              "command",
+              "integration_tests"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string"
+              },
+              "schema_version": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "command": {
+                "type": "string"
+              },
+              "integration_tests": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "path",
+                    "case"
+                  ],
+                  "properties": {
+                    "path": {
+                      "type": "string"
+                    },
+                    "case": {
+                      "type": "string"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "supported_targets": {
+      "type": "object",
+      "required": [
+        "source",
+        "previously_validated_before_guion_rename",
+        "current_guion_validation"
+      ],
+      "properties": {
+        "source": {
+          "type": "string"
+        },
+        "previously_validated_before_guion_rename": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "current_guion_validation": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "examples": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "source",
+          "recipe",
+          "fixtures",
+          "expected_output",
+          "run_requirements"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "recipe": {
+            "type": "string"
+          },
+          "fixtures": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "expected_output": {
+            "type": "string"
+          },
+          "run_requirements": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}
