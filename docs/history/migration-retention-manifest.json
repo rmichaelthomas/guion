@@ -5192,11 +5192,6 @@
       "sha256": "3478c3c72b28061ae282f272a44311bd7873b2ccac9c4191760f658413816c1a"
     },
     {
-      "path": "evaluation/results/independent-v2/preserved-inputs/sandbox/campaign-dependencies.tar.gz",
-      "bytes": 1244145,
-      "sha256": "34a2a4d8d157839eea434267f38e475187031f081f358387859181e5be136803"
-    },
-    {
       "path": "evaluation/results/independent-v2/preserved-inputs/sandbox/candidate-python.json",
       "bytes": 436,
       "sha256": "826a67c67affc94df7db024e96837b5bbebbc638d4122af29f371b3f4b01966f"
@@ -6429,6 +6424,11 @@
       "path": "evaluation/development/experiments/2026-10-25/python-lock-smoke/delivery.json",
       "bytes": 314,
       "sha256": "a5781f9d4d776d866884d5ed0394ad32cdc68fc8a8dbc541f66891c0623e081d"
+    },
+    {
+      "path": "evaluation/sandbox/dependencies/campaign-dependencies.tar.gz",
+      "bytes": 1244145,
+      "sha256": "34a2a4d8d157839eea434267f38e475187031f081f358387859181e5be136803"
     }
   ],
   "campaigns": {
@@ -6906,6 +6906,28 @@
       "referenced_by": [
         "docs/history/migration-retention-manifest.json"
       ]
+    },
+    {
+      "path": "evaluation/completion/builder/reports/evidence/field-kit-log-veritas/Field Kit – café/share/veritas/apps/field-kit-log/0.1.0/veritas",
+      "bytes": 12841696,
+      "sha256": "08dafd217babdf2e94734d32ed73542356f2926f795d65c3c6b1f4d39c2bf62a",
+      "category": "repeated packaged runtime executable in builder evidence",
+      "evidence_group": "field-kit-log-veritas/Field Kit – café",
+      "related_report": "evaluation/completion/builder/reports/field-kit-log-veritas.json",
+      "referenced_by": [
+        "docs/history/migration-retention-manifest.json",
+        "evaluation/completion/builder/reports/evidence/field-kit-log-veritas/report.json",
+        "evaluation/completion/builder/reports/field-kit-log-veritas.json"
+      ],
+      "replay": "Exact executable removed from current tree; source package/runtime and recorded report remain. Hash identifies bytes but cannot reconstruct them."
+    },
+    {
+      "path": "evaluation/results/independent-v2/preserved-inputs/sandbox/campaign-dependencies.tar.gz",
+      "bytes": 1244145,
+      "sha256": "34a2a4d8d157839eea434267f38e475187031f081f358387859181e5be136803",
+      "category": "duplicate copy of retained campaign dependency bundle",
+      "canonical_retained_path": "evaluation/sandbox/dependencies/campaign-dependencies.tar.gz",
+      "replay": "Exact same bytes remain at the canonical path; no unique campaign input was removed."
     }
   ],
   "process_check": {
@@ -6944,7 +6966,11 @@
     "git_pack_bytes_before_cleanup": 28154266,
     "limit_bytes": 52428800,
     "status": "under limit",
-    "builder_binary_paths": 10
+    "builder_binary_paths": 11,
+    "tracked_tree_bytes_after_cleanup": 26010239,
+    "tracked_tree_mib_after_cleanup": 24.81,
+    "tracked_tree_limit_bytes": 26214400,
+    "tracked_tree_status": "under 25 MiB"
   },
   "security_review": {
     "scanner": "gitleaks 8.30.1",
@@ -6959,14 +6985,14 @@
     "push_scope": "private repository rmichaelthomas/guion; verified visibility private and size 0 before migration."
   },
   "tracked_builder_binary_cleanup": {
-    "count": 10,
-    "file_bytes": 128297792,
+    "count": 11,
+    "file_bytes": 141139488,
     "unique_sha256": [
       "03be2204f0923684c818a72f823db96ef9a1735741fec7481b0c4c7a69ab7b01",
       "08dafd217babdf2e94734d32ed73542356f2926f795d65c3c6b1f4d39c2bf62a"
     ],
-    "interpretation": "10 paths contain 2 distinct executable builds; only repeated packaged evidence copies are removed from the current tree. Existing Git history remains.",
-    "files_with_recorded_references": 10
+    "interpretation": "11 paths contain 2 distinct executable builds; only repeated packaged evidence copies are removed from the current tree. Existing Git history remains.",
+    "files_with_recorded_references": 11
   },
   "retained_generated_source": {
     "config_migrator_linux": "The final source and scripts used for the exploratory Linux timing note are retained without copied virtual environments. The completed application source remains in evaluation/completion/applications/config-migrator/.",
@@ -7264,14 +7290,14 @@
       }
     ],
     "builder_executable_cleanup": {
-      "count": 10,
-      "file_bytes": 128297792,
+      "count": 11,
+      "file_bytes": 141139488,
       "unique_sha256": [
         "03be2204f0923684c818a72f823db96ef9a1735741fec7481b0c4c7a69ab7b01",
         "08dafd217babdf2e94734d32ed73542356f2926f795d65c3c6b1f4d39c2bf62a"
       ],
-      "interpretation": "10 paths contain 2 distinct executable builds; only repeated packaged evidence copies are removed from the current tree. Existing Git history remains.",
-      "files_with_recorded_references": 10
+      "interpretation": "11 paths contain 2 distinct executable builds; only repeated packaged evidence copies are removed from the current tree. Existing Git history remains.",
+      "files_with_recorded_references": 11
     }
   },
   "disk_reclamation": {
@@ -7517,5 +7543,12 @@
       "bytes_note": "The archive was inside the workspace deleted during approved cleanup; its byte size was not separately captured before deletion.",
       "loss": "Exact candidate package bytes are not present. Rebuilding from retained source/provenance may produce a candidate, but exact byte identity is not proven."
     }
-  ]
+  ],
+  "duplicate_campaign_input_deduplication": {
+    "removed_path": "evaluation/results/independent-v2/preserved-inputs/sandbox/campaign-dependencies.tar.gz",
+    "canonical_path": "evaluation/sandbox/dependencies/campaign-dependencies.tar.gz",
+    "bytes": 1244145,
+    "sha256": "34a2a4d8d157839eea434267f38e475187031f081f358387859181e5be136803",
+    "canonical_verified_identical": true
+  }
 }
