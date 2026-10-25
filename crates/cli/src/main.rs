@@ -621,7 +621,7 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
                         .ok_or("build output path is missing")?
                 } else {
                     source_path
-                        .with_extension("vrb")
+                        .with_extension("gub")
                         .to_string_lossy()
                         .into_owned()
                 };

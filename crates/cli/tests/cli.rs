@@ -1837,6 +1837,51 @@ fn project_import_compiles_the_module_graph_and_calls_only_public_functions() {
 }
 
 #[test]
+fn build_defaults_to_the_guion_artifact_extension() {
+    let base = std::env::temp_dir().join(format!("guion-default-build-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&base);
+    fs::create_dir_all(&base).unwrap();
+    let source = base.join("main.gu");
+    fs::write(
+        &source,
+        "fn main() -> Int:\n    print(\"default artifact\")\n    return 0\n",
+    )
+    .unwrap();
+
+    let built = Command::new(env!("CARGO_BIN_EXE_guion"))
+        .args(["build", source.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(
+        built.status.success(),
+        "{}",
+        String::from_utf8_lossy(&built.stderr)
+    );
+    let artifact = source.with_extension("gub");
+    assert!(
+        artifact.is_file(),
+        "default output should be {}",
+        artifact.display()
+    );
+    assert!(
+        !source.with_extension("vrb").exists(),
+        "new builds must not write a Veritas-named artifact"
+    );
+
+    let run = Command::new(env!("CARGO_BIN_EXE_guion"))
+        .args(["run", artifact.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(
+        run.status.success(),
+        "{}",
+        String::from_utf8_lossy(&run.stderr)
+    );
+    assert_eq!(String::from_utf8_lossy(&run.stdout), "default artifact\n");
+    let _ = fs::remove_dir_all(base);
+}
+
+#[test]
 fn build_json_reports_artifact_identity_and_source_diagnostics() {
     let base = std::env::temp_dir().join(format!("guion-json-build-{}", std::process::id()));
     let _ = fs::remove_dir_all(&base);
