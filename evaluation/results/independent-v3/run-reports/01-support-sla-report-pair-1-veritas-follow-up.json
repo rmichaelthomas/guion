@@ -1,0 +1,233 @@
+{
+  "schema_version": 1,
+  "pair_id": "01-support-sla-report-pair-1",
+  "session_id": "01a16e1b-020f-7911-bad7-821c898787cf",
+  "language": "veritas",
+  "candidate_version": "follow-up-v1",
+  "task_id": "01-support-sla-report",
+  "stage": "follow_up",
+  "manifest_sha256": "2c326ad23d3d9ad94efc69b320d60dc3bb43ba2eac178bdfc581b5649d5bb949",
+  "schedule_sha256": "abcc4bb175c51c22251846fc3609c94632123b196d549f1dd0a61de17eba76f5",
+  "candidate_project_sha256": "ce020c67676f9690f995d52b6ac7c0001ccebea23b08cc2570cf6c7cfda6d0fd",
+  "delivery_artifact_path": "01-support-sla-report-pair-1-veritas-follow-up.json.delivery",
+  "delivery_artifact_sha256": "cac0ca3b69ef7abbbe3fe4e7c55a44622d9aedca9f4f2250750230fbc58c29ea",
+  "delivery_manifest_path": "01-support-sla-report-pair-1-veritas-follow-up.json.delivery-manifest.json",
+  "delivery_manifest_sha256": "7d1d7285efc4e0f2e14d7b9c3603514654968ab2d93f2a9a4398a62215899c67",
+  "container": {
+    "image": "veritas-campaign-veritas:format33",
+    "image_id": "sha256:549c822695df5806370f1dcf8692617b9d41e626e4057ad2820ab4fb3d8a801d",
+    "docker_engine_id": "353e20b3-7c60-48f7-9c98-c6ae7d312a51",
+    "package_archive_sha256": "46e22bb115f4ccce767c0e38e29db5cf3012d49f1556054f3f66214e47f30eb8",
+    "python_base_digest": "sha256:44e000a07b48bef1517a2b14adc93c17af728ca98858b5e24c6e1b18de1b2ef2",
+    "shared_dependencies_sha256": "34a2a4d8d157839eea434267f38e475187031f081f358387859181e5be136803",
+    "uv_version": "0.13.4",
+    "candidate_python_version": "3.14.8",
+    "platform": "linux/arm64",
+    "network": "none",
+    "read_only_rootfs": true,
+    "candidate_uid": 10001,
+    "limits": {
+      "cpus": 2,
+      "memory_bytes": 2147483648,
+      "pids": 128,
+      "tmpfs_bytes": 536870912
+    },
+    "source_project_mounted": true,
+    "delivery_source_project_mounted": false
+  },
+  "container_exit_codes": {
+    "source": 1,
+    "delivery": 1,
+    "delivery_stage": 0
+  },
+  "launcher_stderr": {
+    "source": "",
+    "delivery": ""
+  },
+  "case_report": {
+    "task_id": "01-support-sla-report",
+    "stage": "follow_up",
+    "passed": false,
+    "source": {
+      "cases": [
+        {
+          "candidate": {},
+          "case_id": "sla-follow-up-team-filter",
+          "checks_passed": 0,
+          "checks_total": 4,
+          "elapsed_seconds": 0.165114,
+          "exit_code": 1,
+          "failures": [
+            "step 1: expected exit code 0, received 1",
+            "step 1: check 1: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-8sx5i_k8/report.json'",
+            "step 1: check 2: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-8sx5i_k8/report.json'",
+            "step 1: check 3: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-8sx5i_k8/report.json'",
+            "step 1: check 4: json_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-8sx5i_k8/report.json'"
+          ],
+          "http_fixtures": {},
+          "passed": false,
+          "stderr": "cannot read /tmp/veritas-independent-case-8sx5i_k8/main.vr: No such file or directory (os error 2)\n",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 0,
+              "checks_total": 4,
+              "elapsed_seconds": 0.002128,
+              "exit_code": 1,
+              "failures": [
+                "expected exit code 0, received 1",
+                "check 1: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-8sx5i_k8/report.json'",
+                "check 2: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-8sx5i_k8/report.json'",
+                "check 3: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-8sx5i_k8/report.json'",
+                "check 4: json_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-8sx5i_k8/report.json'"
+              ]
+            }
+          ]
+        },
+        {
+          "candidate": {},
+          "case_id": "sla-follow-up-team-no-match",
+          "checks_passed": 0,
+          "checks_total": 3,
+          "elapsed_seconds": 0.145522,
+          "exit_code": 1,
+          "failures": [
+            "step 1: expected exit code 0, received 1",
+            "step 1: check 1: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-p18fmdf_/report.json'",
+            "step 1: check 2: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-p18fmdf_/report.json'",
+            "step 1: check 3: json_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-p18fmdf_/report.json'"
+          ],
+          "http_fixtures": {},
+          "passed": false,
+          "stderr": "cannot read /tmp/veritas-independent-case-p18fmdf_/main.vr: No such file or directory (os error 2)\n",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 0,
+              "checks_total": 3,
+              "elapsed_seconds": 0.001603,
+              "exit_code": 1,
+              "failures": [
+                "expected exit code 0, received 1",
+                "check 1: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-p18fmdf_/report.json'",
+                "check 2: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-p18fmdf_/report.json'",
+                "check 3: json_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-p18fmdf_/report.json'"
+              ]
+            }
+          ]
+        }
+      ],
+      "passed": false,
+      "stage": "follow_up",
+      "task_id": "01-support-sla-report"
+    },
+    "delivery": {
+      "passed": false,
+      "artifact_sha256": "cac0ca3b69ef7abbbe3fe4e7c55a44622d9aedca9f4f2250750230fbc58c29ea",
+      "artifact_bytes": 11837165,
+      "source_paths_excluded": [
+        "app/src",
+        "work",
+        "sla-report"
+      ],
+      "original_project_mounted": false,
+      "cases": [
+        {
+          "candidate": {
+            "artifact_bytes": 11837165,
+            "artifact_paths": [
+              "dist/app",
+              "veritas.lock"
+            ],
+            "artifact_sha256": "cac0ca3b69ef7abbbe3fe4e7c55a44622d9aedca9f4f2250750230fbc58c29ea",
+            "delivery_manifest": "delivery.json",
+            "dependency_lock_path": "veritas.lock",
+            "source_paths": [
+              "app/src",
+              "work",
+              "sla-report"
+            ]
+          },
+          "case_id": "sla-follow-up-team-filter",
+          "checks_passed": 0,
+          "checks_total": 4,
+          "elapsed_seconds": 0.168267,
+          "exit_code": null,
+          "failures": [
+            "step 1: candidate could not be launched: [Errno 13] Permission denied: '/tmp/veritas-independent-case-7oqdgrkf/dist/app/sla-report'",
+            "step 1: check 1: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-7oqdgrkf/report.json'",
+            "step 1: check 2: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-7oqdgrkf/report.json'",
+            "step 1: check 3: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-7oqdgrkf/report.json'",
+            "step 1: check 4: json_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-7oqdgrkf/report.json'"
+          ],
+          "http_fixtures": {},
+          "passed": false,
+          "stderr": "",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 0,
+              "checks_total": 4,
+              "elapsed_seconds": 0.001169,
+              "exit_code": null,
+              "failures": [
+                "candidate could not be launched: [Errno 13] Permission denied: '/tmp/veritas-independent-case-7oqdgrkf/dist/app/sla-report'",
+                "check 1: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-7oqdgrkf/report.json'",
+                "check 2: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-7oqdgrkf/report.json'",
+                "check 3: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-7oqdgrkf/report.json'",
+                "check 4: json_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-7oqdgrkf/report.json'"
+              ]
+            }
+          ]
+        },
+        {
+          "candidate": {
+            "artifact_bytes": 11837165,
+            "artifact_paths": [
+              "dist/app",
+              "veritas.lock"
+            ],
+            "artifact_sha256": "cac0ca3b69ef7abbbe3fe4e7c55a44622d9aedca9f4f2250750230fbc58c29ea",
+            "delivery_manifest": "delivery.json",
+            "dependency_lock_path": "veritas.lock",
+            "source_paths": [
+              "app/src",
+              "work",
+              "sla-report"
+            ]
+          },
+          "case_id": "sla-follow-up-team-no-match",
+          "checks_passed": 0,
+          "checks_total": 3,
+          "elapsed_seconds": 0.163927,
+          "exit_code": null,
+          "failures": [
+            "step 1: candidate could not be launched: [Errno 13] Permission denied: '/tmp/veritas-independent-case-27qqs28l/dist/app/sla-report'",
+            "step 1: check 1: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-27qqs28l/report.json'",
+            "step 1: check 2: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-27qqs28l/report.json'",
+            "step 1: check 3: json_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-27qqs28l/report.json'"
+          ],
+          "http_fixtures": {},
+          "passed": false,
+          "stderr": "",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 0,
+              "checks_total": 3,
+              "elapsed_seconds": 0.001416,
+              "exit_code": null,
+              "failures": [
+                "candidate could not be launched: [Errno 13] Permission denied: '/tmp/veritas-independent-case-27qqs28l/dist/app/sla-report'",
+                "check 1: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-27qqs28l/report.json'",
+                "check 2: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-27qqs28l/report.json'",
+                "check 3: json_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-27qqs28l/report.json'"
+              ]
+            }
+          ]
+        }
+      ],
+      "stage_error": ""
+    }
+  }
+}

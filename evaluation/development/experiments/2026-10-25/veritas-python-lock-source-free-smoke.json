@@ -1,0 +1,232 @@
+{
+  "schema_version": 1,
+  "language": "python",
+  "task_id": "08-documentation-link-index",
+  "stage": "initial",
+  "candidate_project_sha256": "44e9660a3c6a2754be1095bd505aa866492f33c232927f44c695f4d6a0b23e77",
+  "delivery_artifact_path": "/Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/outputs/veritas-python-lock-source-free-smoke.json.delivery",
+  "delivery_artifact_sha256": "5c509817ad63f53f27b22399999447d3f8d1e375e3f0a02b70de5389bd89da17",
+  "container": {
+    "image": "veritas-campaign-python:3.14.8",
+    "image_id": "sha256:247421bada960203f9d8c8438608309e0eb6c1128681017d42af30bcbc9d1178",
+    "package_archive_sha256": "735604fabff913cae5569ef9bb1f7b175e777332e6d879299398142c8eb3037b",
+    "python_base_digest": "sha256:44e000a07b48bef1517a2b14adc93c17af728ca98858b5e24c6e1b18de1b2ef2",
+    "shared_dependencies_sha256": "34a2a4d8d157839eea434267f38e475187031f081f358387859181e5be136803",
+    "uv_version": "0.13.4",
+    "candidate_python_version": "3.14.8",
+    "platform": "linux/arm64",
+    "network": "none",
+    "read_only_rootfs": true,
+    "candidate_uid": 10001,
+    "limits": {
+      "cpus": 2,
+      "memory_bytes": 2147483648,
+      "pids": 128,
+      "tmpfs_bytes": 536870912
+    },
+    "source_project_mounted": true,
+    "delivery_source_project_mounted": false
+  },
+  "container_exit_codes": {
+    "source": 125,
+    "delivery": 0,
+    "delivery_stage": 0
+  },
+  "launcher_stderr": {
+    "source": "docker: Error response from daemon: invalid mount config for type \"bind\": bind source path does not exist: /private/tmp/veritas-python-lock-smoke\n\nRun 'docker run --help' for more information\n",
+    "delivery": ""
+  },
+  "case_report": {
+    "task_id": "08-documentation-link-index",
+    "stage": "initial",
+    "passed": false,
+    "source": null,
+    "delivery": {
+      "passed": true,
+      "artifact_sha256": "5c509817ad63f53f27b22399999447d3f8d1e375e3f0a02b70de5389bd89da17",
+      "artifact_bytes": 31664,
+      "source_paths_excluded": [
+        "dev/"
+      ],
+      "original_project_mounted": false,
+      "cases": [
+        {
+          "candidate": {
+            "artifact_bytes": 31664,
+            "artifact_paths": [
+              "main.py",
+              "pyproject.toml",
+              "uv.lock"
+            ],
+            "artifact_sha256": "5c509817ad63f53f27b22399999447d3f8d1e375e3f0a02b70de5389bd89da17",
+            "delivery_manifest": "delivery.json",
+            "dependency_lock_path": "uv.lock",
+            "source_paths": [
+              "dev/"
+            ]
+          },
+          "case_id": "doc-index-build-check-backlinks",
+          "checks_passed": 4,
+          "checks_total": 4,
+          "elapsed_seconds": 4.861274,
+          "exit_code": 0,
+          "failures": [],
+          "http_fixtures": {},
+          "passed": true,
+          "stderr": "",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 3.703063,
+              "exit_code": 0,
+              "failures": []
+            },
+            {
+              "checks_passed": 2,
+              "checks_total": 2,
+              "elapsed_seconds": 0.759975,
+              "exit_code": 0,
+              "failures": []
+            },
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.377781,
+              "exit_code": 0,
+              "failures": []
+            }
+          ]
+        },
+        {
+          "candidate": {
+            "artifact_bytes": 31664,
+            "artifact_paths": [
+              "main.py",
+              "pyproject.toml",
+              "uv.lock"
+            ],
+            "artifact_sha256": "5c509817ad63f53f27b22399999447d3f8d1e375e3f0a02b70de5389bd89da17",
+            "delivery_manifest": "delivery.json",
+            "dependency_lock_path": "uv.lock",
+            "source_paths": [
+              "dev/"
+            ]
+          },
+          "case_id": "doc-index-ignores-symlink-outside-root",
+          "checks_passed": 2,
+          "checks_total": 2,
+          "elapsed_seconds": 0.991266,
+          "exit_code": 0,
+          "failures": [],
+          "http_fixtures": {},
+          "passed": true,
+          "stderr": "",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.502538,
+              "exit_code": 0,
+              "failures": []
+            },
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.479423,
+              "exit_code": 0,
+              "failures": []
+            }
+          ]
+        },
+        {
+          "candidate": {
+            "artifact_bytes": 31664,
+            "artifact_paths": [
+              "main.py",
+              "pyproject.toml",
+              "uv.lock"
+            ],
+            "artifact_sha256": "5c509817ad63f53f27b22399999447d3f8d1e375e3f0a02b70de5389bd89da17",
+            "delivery_manifest": "delivery.json",
+            "dependency_lock_path": "uv.lock",
+            "source_paths": [
+              "dev/"
+            ]
+          },
+          "case_id": "doc-index-invalid-utf8-preserves-index",
+          "checks_passed": 2,
+          "checks_total": 2,
+          "elapsed_seconds": 1.645077,
+          "exit_code": 0,
+          "failures": [],
+          "http_fixtures": {},
+          "passed": true,
+          "stderr": "",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.580008,
+              "exit_code": 1,
+              "failures": []
+            },
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.363518,
+              "exit_code": 0,
+              "failures": []
+            }
+          ]
+        },
+        {
+          "candidate": {
+            "artifact_bytes": 31664,
+            "artifact_paths": [
+              "main.py",
+              "pyproject.toml",
+              "uv.lock"
+            ],
+            "artifact_sha256": "5c509817ad63f53f27b22399999447d3f8d1e375e3f0a02b70de5389bd89da17",
+            "delivery_manifest": "delivery.json",
+            "dependency_lock_path": "uv.lock",
+            "source_paths": [
+              "dev/"
+            ]
+          },
+          "case_id": "doc-index-malformed-alias-preserves-index",
+          "checks_passed": 2,
+          "checks_total": 2,
+          "elapsed_seconds": 1.26966,
+          "exit_code": 0,
+          "failures": [],
+          "http_fixtures": {},
+          "passed": true,
+          "stderr": "",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.447131,
+              "exit_code": 1,
+              "failures": []
+            },
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.374964,
+              "exit_code": 0,
+              "failures": []
+            }
+          ]
+        }
+      ],
+      "stage_error": ""
+    }
+  }
+}

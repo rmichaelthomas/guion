@@ -1,0 +1,29 @@
+{
+  "artifact_sha256": "4ecd112da3c02f668692c205a4dc367db1587cdf8a93e604fe23660b8bce680a",
+  "compiler_version": "0.1.0",
+  "native_dependency_report_sha256": "e176c26f75bfd5fc6b927ef1f11837f033ff6ec69594df6aae74ddb126868444",
+  "python_runtime": {
+    "dependency_report_sha256": "2cf27b5472b2705738f1fb0cc8521c6f3eee9a3870dc0785904f1569e37ccae3",
+    "python_cache_sha256": "aefe7f42476192ebbb0e61479eec0fe30a00a8cb2051234c876e4fa3380a4d51",
+    "python_cache_size_bytes": 44,
+    "python_runtime_sha256": "10d01eeed283a15b2085c34176a7d3ee77e93d02fbe7060c0a924fef277362a2",
+    "python_runtime_size_bytes": 81673430,
+    "uv_lock_sha256": "bb392244428a2b87e16fcf51bfbeff00030b1eb46947fc4928aee5a4bf940074",
+    "uv_sha256": "7ecaf349a12fb60c605c1848e8e1bbd313bbf9a362a6c3043c8f786ec570c491",
+    "uv_version": "0.13.4",
+    "version": "3.14.8"
+  },
+  "resources": [
+    {
+      "path": "sla_io.py",
+      "sha256": "a71096087f2c60e2e11beb1d9e32fc1547fda3b53ed455773f99e05e0f7fa82b",
+      "size_bytes": 5785
+    }
+  ],
+  "runtime_sha256": "466c357c89f4c184c64e49c73f62075212d04efe710190a5f35e78c2874ca222",
+  "runtime_size_bytes": 10375824,
+  "rust_notices": null,
+  "schema_version": 2,
+  "source_sha256": "bb09e1740a056f0e20b60ce9e4989c2d46bf095f6d726a658ead837c31658cd1",
+  "target": "linux-aarch64"
+}

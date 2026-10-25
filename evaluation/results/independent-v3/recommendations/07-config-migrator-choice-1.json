@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "decision_id": "07-config-migrator-choice-1",
+  "recorded_at_utc": "2026-10-24T13:26:46Z",
+  "task": {
+    "id": "07-config-migrator",
+    "class": "maintainable_application",
+    "origin": "independent",
+    "brief_sha256": "90cdd8e7a6e6d02b3618bd5bab92244dcb4ff809fec15b54f2762196ff326e7d"
+  },
+  "assistant": {
+    "provider": "OpenAI Codex",
+    "name": "gpt-6.1-sol",
+    "version": "gpt-6.1-sol",
+    "reasoning_effort": "medium",
+    "session_id": "01a16e17-446a-7550-b95f-5e5b2d2713c7",
+    "fresh_session": true
+  },
+  "budget": {
+    "active_minutes": 5,
+    "tool_calls": 0
+  },
+  "usage": {
+    "active_seconds": 26,
+    "tool_calls": 0
+  },
+  "evidence": {
+    "prompt_transcript_path": "choice-evidence/07-config-migrator-choice-1/prompt.md",
+    "prompt_transcript_sha256": "517f01cf2565867177448928aa529a83f189a7fe6f00d1f7324cdbdaceda168f",
+    "response_transcript_path": "choice-evidence/07-config-migrator-choice-1/response.md",
+    "response_transcript_sha256": "aab0caf3056f5be64558a18d9534cf39983fd0b9ed95515900cc2edbb34dfa09",
+    "usage_snapshot_path": "choice-evidence/07-config-migrator-choice-1/usage-snapshot.json",
+    "usage_snapshot_sha256": "68792ee6937eb5e51b88ab5e50f34cc5d44e16a9e3a29433e8c5bb41616fac76"
+  },
+  "presentation_order": [
+    "veritas",
+    "python"
+  ],
+  "context": {
+    "mode": "pre-build-recommendation",
+    "veritas_version": "0.1.0 (artifact format 33)",
+    "python_version": "3.14.8",
+    "documentation_sha256": "cebd18e725e855c1e9ee5150ef59ba855636b54f71e9daffd9634c59ee1888d5",
+    "schedule_sha256": "abcc4bb175c51c22251846fc3609c94632123b196d549f1dd0a61de17eba76f5",
+    "schedule_file_sha256": "04d198bcbe77295d2d0a2e413a4ecc24e3b48e12ae28ed4f5741b70b5c6cfd5a",
+    "schedule_entry_id": "07-config-migrator-choice-1",
+    "prerun_records_sha256": "a4d6ecff8b4840d60dfa8a881e7c34978c49979147b3f20b2ce398abed004d50",
+    "prerun_recorded_at_utc": "2026-10-24T13:14:17.296495Z",
+    "campaign_config_sha256": "b936691e5a99a95685de70940cc8ec5a90953dab4d798cf83f372cfe154dacd0",
+    "comparative_pair_results_shown": false
+  },
+  "recommendation": {
+    "choice": "python",
+    "rationale": "**python**\n\nThe decisive requirement is comment-preserving TOML editing. Python can use a maintained library directly, provided it exists in the pinned offline wheelhouse. The supplied Veritas profile documents no native comment-preserving TOML API; its managed Python bridge offers a route, but adds adapter code and a second runtime to maintain for this small application.\n\nPython still requires careful validation: reject booleans as integers, validate reserved fields before modifying anything, preserve explicit values, and perform atomic replacement only after successful validation. Neither language automatically guarantees these application rules.\n\nVeritas has a concrete delivery advantage: its documented package workflow bundles managed CPython, locked dependencies, and an offline cache. Python’s required wheel or zipapp does not itself establish interpreter independence; delivery must explicitly satisfy the “no implicit system-Python dependency” requirement. Startup time, package size, and API usability remain unmeasured for both options.\n\nI would reconsider if the wheelhouse lacks a suitable TOML library, Veritas gains a suitable native editing API, or its supported bundling workflow becomes the overriding deployment requirement. Missing TOML dependencies would require reassessing both candidates, since Veritas interop shares the same wheelhouse restriction.",
+    "conditions": []
+  },
+  "exclusion": {
+    "excluded": false,
+    "reason": null
+  }
+}

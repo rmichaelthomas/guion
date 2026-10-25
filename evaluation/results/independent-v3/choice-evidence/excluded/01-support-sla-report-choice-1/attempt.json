@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "status": "excluded_duplicate_interrupted_attempt",
+  "decision_id": "01-support-sla-report-choice-1",
+  "thread_id": "01a16e0e-669f-7473-84f6-bad00f933aa3",
+  "reason": "The first session was valid; this unnecessary rerun was interrupted and is excluded.",
+  "turn_status": "interrupted",
+  "duration_ms": 22179,
+  "assistant_message": "Session contract open: I’ll recommend one language using only the supplied brief and profiles, without tools, implementation, or claims about measured results."
+}

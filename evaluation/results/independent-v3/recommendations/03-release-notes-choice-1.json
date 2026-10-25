@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "decision_id": "03-release-notes-choice-1",
+  "recorded_at_utc": "2026-10-24T13:22:37Z",
+  "task": {
+    "id": "03-release-notes",
+    "class": "small_automation_cli",
+    "origin": "independent",
+    "brief_sha256": "8cfd43d02eaf483cf0b1dfdabb76b484666d27f7a99444e22f8652313f363a9d"
+  },
+  "assistant": {
+    "provider": "OpenAI Codex",
+    "name": "gpt-6.1-sol",
+    "version": "gpt-6.1-sol",
+    "reasoning_effort": "medium",
+    "session_id": "01a16e13-75fe-7971-a355-e2f453b31142",
+    "fresh_session": true
+  },
+  "budget": {
+    "active_minutes": 5,
+    "tool_calls": 0
+  },
+  "usage": {
+    "active_seconds": 26,
+    "tool_calls": 0
+  },
+  "evidence": {
+    "prompt_transcript_path": "choice-evidence/03-release-notes-choice-1/prompt.md",
+    "prompt_transcript_sha256": "270183b0e2a489367129c6dda62c1cb33262685bdc781dd937f4beaf1e85960d",
+    "response_transcript_path": "choice-evidence/03-release-notes-choice-1/response.md",
+    "response_transcript_sha256": "4e0969d62c90d745e6e432a69f93405a7fd16c7dd14b508b084fc259d096baea",
+    "usage_snapshot_path": "choice-evidence/03-release-notes-choice-1/usage-snapshot.json",
+    "usage_snapshot_sha256": "3350c4872f2bce04e7226e23cde887539104f58f64490ac98b0dde9ef2ef3788"
+  },
+  "presentation_order": [
+    "veritas",
+    "python"
+  ],
+  "context": {
+    "mode": "pre-build-recommendation",
+    "veritas_version": "0.1.0 (artifact format 33)",
+    "python_version": "3.14.8",
+    "documentation_sha256": "cebd18e725e855c1e9ee5150ef59ba855636b54f71e9daffd9634c59ee1888d5",
+    "schedule_sha256": "abcc4bb175c51c22251846fc3609c94632123b196d549f1dd0a61de17eba76f5",
+    "schedule_file_sha256": "04d198bcbe77295d2d0a2e413a4ecc24e3b48e12ae28ed4f5741b70b5c6cfd5a",
+    "schedule_entry_id": "03-release-notes-choice-1",
+    "prerun_records_sha256": "a4d6ecff8b4840d60dfa8a881e7c34978c49979147b3f20b2ce398abed004d50",
+    "prerun_recorded_at_utc": "2026-10-24T13:14:17.296495Z",
+    "campaign_config_sha256": "b936691e5a99a95685de70940cc8ec5a90953dab4d798cf83f372cfe154dacd0",
+    "comparative_pair_results_shown": false
+  },
+  "recommendation": {
+    "choice": "python",
+    "rationale": "**Choice: python.**\n\nThis task centers on strict validation, precise ordering, text rendering, and filesystem operations. Python’s standard library provides a direct path for CLI arguments, directory traversal, JSON, Gregorian date validation, temporary files, and atomic replacement, without third-party dependencies.\n\nThe main custom logic is SemVer 2.0.0 parsing and comparison. That must correctly handle prereleases, ignore build metadata for precedence, and apply the specified ascending ASCII tie-break. Python does not eliminate that work, but makes it straightforward to express and test.\n\nThe implementation must validate the entire directory before applying `--since`, then finish rendering **both** outputs before replacing either destination. Individual atomic replacements satisfy the brief; they do not create a crash-atomic transaction across two paths.\n\nVeritas documents useful support: typed records, `Result`, duplicate-key rejection in JSON, Unicode-scalar text iteration, and atomic text replacement. However, its experimental compatibility policy and narrower supported packaging targets add delivery considerations without an obvious benefit for this small CLI. Using its Python bridge would also add a runtime boundary to work Python can handle directly.\n\nI would reconsider if an existing Veritas application already supplied validated SemVer, directory-processing, and CLI helpers, or if Veritas’s bounded execution and effect reporting were explicit requirements. Neither is established here.\n\nThis recommendation concerns implementation and delivery fit for this task; it is not a measured performance or correctness result.",
+    "conditions": []
+  },
+  "exclusion": {
+    "excluded": false,
+    "reason": null
+  }
+}

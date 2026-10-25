@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "decision_id": "01-support-sla-report-choice-2",
+  "recorded_at_utc": "2026-10-24T13:20:06Z",
+  "task": {
+    "id": "01-support-sla-report",
+    "class": "small_automation_cli",
+    "origin": "independent",
+    "brief_sha256": "1c9a173209d8afd9480f2f74bd47a962977e9abe6944086d08c8990d6f0ae150"
+  },
+  "assistant": {
+    "provider": "OpenAI Codex",
+    "name": "gpt-6.1-sol",
+    "version": "gpt-6.1-sol",
+    "reasoning_effort": "medium",
+    "session_id": "01a16e11-2aab-7450-a089-fa2580c754c6",
+    "fresh_session": true
+  },
+  "budget": {
+    "active_minutes": 5,
+    "tool_calls": 0
+  },
+  "usage": {
+    "active_seconds": 26,
+    "tool_calls": 0
+  },
+  "evidence": {
+    "prompt_transcript_path": "choice-evidence/01-support-sla-report-choice-2/prompt.md",
+    "prompt_transcript_sha256": "8e8e5329804cc26d9784dfc5e07708f21c8952682428e431a4d8750bbe8c7f10",
+    "response_transcript_path": "choice-evidence/01-support-sla-report-choice-2/response.md",
+    "response_transcript_sha256": "4bae690eb981fdb8a48cd8dec631d1fe51aa79b473e08e7f457fc4fcb050fbd4",
+    "usage_snapshot_path": "choice-evidence/01-support-sla-report-choice-2/usage-snapshot.json",
+    "usage_snapshot_sha256": "9c5a93d6c132b116435565f80b4d745631b77e4a6b0d37bd937985303fa556cd"
+  },
+  "presentation_order": [
+    "python",
+    "veritas"
+  ],
+  "context": {
+    "mode": "pre-build-recommendation",
+    "veritas_version": "0.1.0 (artifact format 33)",
+    "python_version": "3.14.8",
+    "documentation_sha256": "cebd18e725e855c1e9ee5150ef59ba855636b54f71e9daffd9634c59ee1888d5",
+    "schedule_sha256": "abcc4bb175c51c22251846fc3609c94632123b196d549f1dd0a61de17eba76f5",
+    "schedule_file_sha256": "04d198bcbe77295d2d0a2e413a4ecc24e3b48e12ae28ed4f5741b70b5c6cfd5a",
+    "schedule_entry_id": "01-support-sla-report-choice-2",
+    "prerun_records_sha256": "a4d6ecff8b4840d60dfa8a881e7c34978c49979147b3f20b2ce398abed004d50",
+    "prerun_recorded_at_utc": "2026-10-24T13:14:17.296495Z",
+    "campaign_config_sha256": "b936691e5a99a95685de70940cc8ec5a90953dab4d798cf83f372cfe154dacd0",
+    "comparative_pair_results_shown": false
+  },
+  "recommendation": {
+    "choice": "python",
+    "rationale": "**Choose python.**\n\nThis task’s main difficulty is precise input validation: CSV structure, Gregorian timestamps with offsets and limited fractional precision, JSON integer rules, and preserving existing output on every failure. Python’s standard library provides CSV, date/time, JSON, argument parsing, sorting, and filesystem primitives that fit this work directly.\n\nThose libraries still require deliberate validation. A timestamp parser alone should not define the accepted syntax; Boolean policy values must be explicitly excluded from integers; and the program should finish validation before atomically replacing the output. These are implementation requirements, not demonstrated results.\n\nVeritas offers useful safeguards: typed records, exhaustive `Result` handling, exact integers, inspectable JSON errors, atomic text replacement, and packaged delivery. However, the supplied profile does not establish comparable native CSV and calendar/timezone facilities. Implementing those details manually would increase the correctness burden; using managed Python interop would add a bridge and packaging layer to a task Python can handle directly. Veritas’s experimental compatibility policy also adds maintenance considerations.\n\nThe `--team` follow-up is straightforward in either language and does not change the recommendation. Both choices must still meet the locked-project and relocated-artifact delivery requirements; Python is not exempt from packaging work.\n\nI would reconsider if an existing Veritas project already supplied verified CSV and strict timestamp helpers, or if Veritas’s runtime limits, effect reports, and package verification were explicit priorities for this CLI. The supplied material supports choosing Python for its direct fit, not a claim that either implementation has passed acceptance or runs faster.",
+    "conditions": [
+      "Verified Veritas CSV and strict timestamp helpers exist.",
+      "Veritas runtime limits, effect reports, and package verification are explicit priorities."
+    ]
+  },
+  "exclusion": {
+    "excluded": false,
+    "reason": null
+  }
+}

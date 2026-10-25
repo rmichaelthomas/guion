@@ -1,0 +1,376 @@
+{
+  "bundled_libraries": [
+    "python/cpython-3.14.8-linux-aarch64-gnu/lib/libpython3.14.so.1.0",
+    "python/cpython-3.14.8-linux-aarch64-gnu/lib/libtcl9.0.so",
+    "python/cpython-3.14.8-linux-aarch64-gnu/lib/libtcl9tk9.0.so"
+  ],
+  "cached_images": [],
+  "images": [
+    {
+      "architectures": [
+        "aarch64"
+      ],
+      "dependencies": [
+        {
+          "kind": "system",
+          "load_name": "ld-linux-aarch64.so.1",
+          "resolved_path": "/usr/lib/aarch64-linux-gnu/ld-linux-aarch64.so.1"
+        },
+        {
+          "kind": "system",
+          "load_name": "libc.so.6",
+          "resolved_path": "/usr/lib/aarch64-linux-gnu/libc.so.6"
+        },
+        {
+          "kind": "system",
+          "load_name": "libdl.so.2",
+          "resolved_path": "/usr/lib/aarch64-linux-gnu/libdl.so.2"
+        },
+        {
+          "kind": "system",
+          "load_name": "libm.so.6",
+          "resolved_path": "/usr/lib/aarch64-linux-gnu/libm.so.6"
+        },
+        {
+          "kind": "system",
+          "load_name": "libpthread.so.0",
+          "resolved_path": "/usr/lib/aarch64-linux-gnu/libpthread.so.0"
+        },
+        {
+          "kind": "system",
+          "load_name": "librt.so.1",
+          "resolved_path": "/usr/lib/aarch64-linux-gnu/librt.so.1"
+        },
+        {
+          "kind": "system",
+          "load_name": "libutil.so.1",
+          "resolved_path": "/usr/lib/aarch64-linux-gnu/libutil.so.1"
+        }
+      ],
+      "owner": {
+        "component": "CPython",
+        "kind": "managed_python_runtime"
+      },
+      "path": "python/cpython-3.14.8-linux-aarch64-gnu/bin/python3.14",
+      "required_glibc": "2.17",
+      "sha256": "8f054f13aeac907126ad34d8f0068e9b952686399f19d7d62e634bf6b28ada9d",
+      "size_bytes": 23081584
+    },
+    {
+      "architectures": [
+        "aarch64"
+      ],
+      "dependencies": [
+        {
+          "kind": "system",
+          "load_name": "ld-linux-aarch64.so.1",
+          "resolved_path": "/usr/lib/aarch64-linux-gnu/ld-linux-aarch64.so.1"
+        },
+        {
+          "kind": "system",
+          "load_name": "libc.so.6",
+          "resolved_path": "/usr/lib/aarch64-linux-gnu/libc.so.6"
+        }
+      ],
+      "owner": {
+        "component": "CPython",
+        "kind": "managed_python_runtime"
+      },
+      "path": "python/cpython-3.14.8-linux-aarch64-gnu/lib/itcl4.3.8/libtcl9itcl4.3.8.so",
+      "required_glibc": "2.17",
+      "sha256": "271fdc4fac12c899a73a2f0377777588462d6234ba2d39ceabf3cbffb00c315c",
+      "size_bytes": 357752
+    },
+    {
+      "architectures": [
+        "aarch64"
+      ],
+      "dependencies": [
+        {
+          "kind": "bundled",
+          "load_name": "$ORIGIN/../lib/libpython3.14.so.1.0",
+          "resolved_path": "python/cpython-3.14.8-linux-aarch64-gnu/lib/libpython3.14.so.1.0"
+        },
+        {
+          "kind": "system",
+          "load_name": "libc.so.6",
+          "resolved_path": "/usr/lib/aarch64-linux-gnu/libc.so.6"
+        },
+        {
+          "kind": "system",
+          "load_name": "libpthread.so.0",
+          "resolved_path": "/usr/lib/aarch64-linux-gnu/libpthread.so.0"
+        }
+      ],
+      "owner": {
+        "component": "CPython",
+        "kind": "managed_python_runtime"
+      },
+      "path": "python/cpython-3.14.8-linux-aarch64-gnu/lib/libpython3.so",
+      "required_glibc": "2.17",
+      "sha256": "fd3931b256170ec66ad3b14a9c34646efb1480060a9ca16d0f4a87f7961d8cac",
+      "size_bytes": 135096
+    },
+    {
+      "architectures": [
+        "aarch64"
+      ],
+      "dependencies": [
+        {
+          "kind": "system",
+          "load_name": "ld-linux-aarch64.so.1",
+          "resolved_path": "/usr/lib/aarch64-linux-gnu/ld-linux-aarch64.so.1"
+        },
+        {
+          "kind": "system",
+          "load_name": "libc.so.6",
+          "resolved_path": "/usr/lib/aarch64-linux-gnu/libc.so.6"
+        },
+        {
+          "kind": "system",
+          "load_name": "libdl.so.2",
+          "resolved_path": "/usr/lib/aarch64-linux-gnu/libdl.so.2"
+        },
+        {
+          "kind": "system",
+          "load_name": "libm.so.6",
+          "resolved_path": "/usr/lib/aarch64-linux-gnu/libm.so.6"
+        },
+        {
+          "kind": "system",
+          "load_name": "libpthread.so.0",
+          "resolved_path": "/usr/lib/aarch64-linux-gnu/libpthread.so.0"
+        }
+      ],
+      "owner": {
+        "component": "CPython",
+        "kind": "managed_python_runtime"
+      },
+      "path": "python/cpython-3.14.8-linux-aarch64-gnu/lib/libtcl9.0.so",
+      "required_glibc": "2.17",
+      "sha256": "29b09730cfe2f370655aefdf7723cc18cb5ba2fcd39b35c80cfc899015f5e05f",
+      "size_bytes": 2405904
+    },
+    {
+      "architectures": [
+        "aarch64"
+      ],
+      "dependencies": [
+        {
+          "kind": "system",
+          "load_name": "ld-linux-aarch64.so.1",
+          "resolved_path": "/usr/lib/aarch64-linux-gnu/ld-linux-aarch64.so.1"
+        },
+        {
+          "kind": "system",
+          "load_name": "libc.so.6",
+          "resolved_path": "/usr/lib/aarch64-linux-gnu/libc.so.6"
+        },
+        {
+          "kind": "system",
+          "load_name": "libdl.so.2",
+          "resolved_path": "/usr/lib/aarch64-linux-gnu/libdl.so.2"
+        },
+        {
+          "kind": "system",
+          "load_name": "libm.so.6",
+          "resolved_path": "/usr/lib/aarch64-linux-gnu/libm.so.6"
+        },
+        {
+          "kind": "system",
+          "load_name": "libpthread.so.0",
+          "resolved_path": "/usr/lib/aarch64-linux-gnu/libpthread.so.0"
+        }
+      ],
+      "owner": {
+        "component": "CPython",
+        "kind": "managed_python_runtime"
+      },
+      "path": "python/cpython-3.14.8-linux-aarch64-gnu/lib/libtcl9tk9.0.so",
+      "required_glibc": "2.17",
+      "sha256": "77235aff8c5e47f90f3032cdd20fb10347e844a1c1ae204e0488e31741fe8e44",
+      "size_bytes": 3198984
+    },
+    {
+      "architectures": [
+        "aarch64"
+      ],
+      "dependencies": [
+        {
+          "kind": "system",
+          "load_name": "ld-linux-aarch64.so.1",
+          "resolved_path": "/usr/lib/aarch64-linux-gnu/ld-linux-aarch64.so.1"
+        },
+        {
+          "kind": "system",
+          "load_name": "libc.so.6",
+          "resolved_path": "/usr/lib/aarch64-linux-gnu/libc.so.6"
+        },
+        {
+          "kind": "system",
+          "load_name": "libpthread.so.0",
+          "resolved_path": "/usr/lib/aarch64-linux-gnu/libpthread.so.0"
+        }
+      ],
+      "owner": {
+        "component": "CPython",
+        "kind": "managed_python_runtime"
+      },
+      "path": "python/cpython-3.14.8-linux-aarch64-gnu/lib/python3.14/lib-dynload/_dbm.cpython-314-aarch64-linux-gnu.so",
+      "required_glibc": "2.17",
+      "sha256": "8d58966947c19576b55ddb15c6291fcfdf80c0ce74e04bbbba99aadc30964262",
+      "size_bytes": 1713624
+    },
+    {
+      "architectures": [
+        "aarch64"
+      ],
+      "dependencies": [
+        {
+          "kind": "system",
+          "load_name": "libc.so.6",
+          "resolved_path": "/usr/lib/aarch64-linux-gnu/libc.so.6"
+        },
+        {
+          "kind": "system",
+          "load_name": "libdl.so.2",
+          "resolved_path": "/usr/lib/aarch64-linux-gnu/libdl.so.2"
+        },
+        {
+          "kind": "system",
+          "load_name": "libm.so.6",
+          "resolved_path": "/usr/lib/aarch64-linux-gnu/libm.so.6"
+        },
+        {
+          "kind": "system",
+          "load_name": "libpthread.so.0",
+          "resolved_path": "/usr/lib/aarch64-linux-gnu/libpthread.so.0"
+        },
+        {
+          "kind": "bundled",
+          "load_name": "libtcl9.0.so",
+          "resolved_path": "python/cpython-3.14.8-linux-aarch64-gnu/lib/libtcl9.0.so"
+        },
+        {
+          "kind": "bundled",
+          "load_name": "libtcl9tk9.0.so",
+          "resolved_path": "python/cpython-3.14.8-linux-aarch64-gnu/lib/libtcl9tk9.0.so"
+        }
+      ],
+      "owner": {
+        "component": "CPython",
+        "kind": "managed_python_runtime"
+      },
+      "path": "python/cpython-3.14.8-linux-aarch64-gnu/lib/python3.14/lib-dynload/_tkinter.cpython-314-aarch64-linux-gnu.so",
+      "required_glibc": "2.17",
+      "sha256": "2725b2887bbe48ccb69e79c2b096f4012a61e77f35f7081ff8cb1576502412f6",
+      "size_bytes": 159920
+    },
+    {
+      "architectures": [
+        "aarch64"
+      ],
+      "dependencies": [
+        {
+          "kind": "system",
+          "load_name": "ld-linux-aarch64.so.1",
+          "resolved_path": "/usr/lib/aarch64-linux-gnu/ld-linux-aarch64.so.1"
+        },
+        {
+          "kind": "system",
+          "load_name": "libc.so.6",
+          "resolved_path": "/usr/lib/aarch64-linux-gnu/libc.so.6"
+        }
+      ],
+      "owner": {
+        "component": "CPython",
+        "kind": "managed_python_runtime"
+      },
+      "path": "python/cpython-3.14.8-linux-aarch64-gnu/lib/thread3.0.6/libtcl9thread3.0.6.so",
+      "required_glibc": "2.17",
+      "sha256": "75d6ec5ca909bb265e7a01acaee058472a742340f1f5506d6a730cfec3355a41",
+      "size_bytes": 144328
+    },
+    {
+      "architectures": [
+        "aarch64"
+      ],
+      "dependencies": [
+        {
+          "kind": "system",
+          "load_name": "libc.so.6",
+          "resolved_path": "/usr/lib/aarch64-linux-gnu/libc.so.6"
+        },
+        {
+          "kind": "system",
+          "load_name": "libdl.so.2",
+          "resolved_path": "/usr/lib/aarch64-linux-gnu/libdl.so.2"
+        },
+        {
+          "kind": "system",
+          "load_name": "libgcc_s.so.1",
+          "resolved_path": "/usr/lib/aarch64-linux-gnu/libgcc_s.so.1"
+        },
+        {
+          "kind": "system",
+          "load_name": "libm.so.6",
+          "resolved_path": "/usr/lib/aarch64-linux-gnu/libm.so.6"
+        },
+        {
+          "kind": "system",
+          "load_name": "libpthread.so.0",
+          "resolved_path": "/usr/lib/aarch64-linux-gnu/libpthread.so.0"
+        }
+      ],
+      "owner": {
+        "component": "uv",
+        "kind": "bundled_toolchain"
+      },
+      "path": "toolchains/uv",
+      "required_glibc": "2.28",
+      "sha256": "7ecaf349a12fb60c605c1848e8e1bbd313bbf9a362a6c3043c8f786ec570c491",
+      "size_bytes": 31725720
+    },
+    {
+      "architectures": [
+        "aarch64"
+      ],
+      "dependencies": [
+        {
+          "kind": "system",
+          "load_name": "libc.so.6",
+          "resolved_path": "/usr/lib/aarch64-linux-gnu/libc.so.6"
+        },
+        {
+          "kind": "system",
+          "load_name": "libgcc_s.so.1",
+          "resolved_path": "/usr/lib/aarch64-linux-gnu/libgcc_s.so.1"
+        }
+      ],
+      "owner": {
+        "component": "Veritas",
+        "kind": "veritas_runtime"
+      },
+      "path": "veritas",
+      "required_glibc": "2.34",
+      "sha256": "466c357c89f4c184c64e49c73f62075212d04efe710190a5f35e78c2874ca222",
+      "size_bytes": 10375824
+    }
+  ],
+  "scanner": "ELF readelf dynamic metadata and ldd dependency resolution",
+  "schema_version": 1,
+  "scope": "app runtime images, managed Python, installed Python extensions, declared resources, and native files in extracted offline uv wheel-cache distributions",
+  "system_libraries": [
+    "/usr/lib/aarch64-linux-gnu/ld-linux-aarch64.so.1",
+    "/usr/lib/aarch64-linux-gnu/libc.so.6",
+    "/usr/lib/aarch64-linux-gnu/libdl.so.2",
+    "/usr/lib/aarch64-linux-gnu/libgcc_s.so.1",
+    "/usr/lib/aarch64-linux-gnu/libm.so.6",
+    "/usr/lib/aarch64-linux-gnu/libpthread.so.0",
+    "/usr/lib/aarch64-linux-gnu/librt.so.1",
+    "/usr/lib/aarch64-linux-gnu/libutil.so.1"
+  ],
+  "target": "linux-aarch64-gnu",
+  "unattributed_images": [],
+  "unresolved": []
+}

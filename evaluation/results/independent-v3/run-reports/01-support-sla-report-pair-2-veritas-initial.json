@@ -1,0 +1,872 @@
+{
+  "schema_version": 1,
+  "pair_id": "01-support-sla-report-pair-2",
+  "session_id": "01a16e3c-7111-7071-acbe-cdd9c3d104f6",
+  "language": "veritas",
+  "candidate_version": "Veritas 0.1.0, artifact format 33",
+  "task_id": "01-support-sla-report",
+  "stage": "initial",
+  "manifest_sha256": "2c326ad23d3d9ad94efc69b320d60dc3bb43ba2eac178fdd0a61de17eba76f5",
+  "schedule_sha256": "abcc4bb175c51c22251846fc3609c94632123b196d549f1dd0a61de17eba76f5",
+  "candidate_project_sha256": "80087cd03d1c93c925be36e17061d04614377a66d48dba64f488c4a181a88d50",
+  "delivery_artifact_path": "01-support-sla-report-pair-2-veritas-initial.json.delivery",
+  "delivery_artifact_sha256": "9bc39778700efea713a5db0c3c4ad82dd7f5715a686d66332ae1d99b81e36674",
+  "delivery_manifest_path": "01-support-sla-report-pair-2-veritas-initial.json.delivery-manifest.json",
+  "delivery_manifest_sha256": "86060dca9941df3328db82c5303de5c35e48c371df6ce19644723db00c75656e",
+  "container": {
+    "image": "veritas-campaign-veritas:format33",
+    "image_id": "sha256:549c822695df5806370f1dcf8692617b9d41e626e4057ad2820ab4fb3d8a801d",
+    "docker_engine_id": "353e20b3-7c60-48f7-9c98-c6ae7d312a51",
+    "package_archive_sha256": "46e22bb115f4ccce767c0e38e29db5cf3012d49f1556054f3f66214e47f30eb8",
+    "python_base_digest": "sha256:44e000a07b48bef1517a2b14adc93c17af728ca98858b5e24c6e1b18de1b2ef2",
+    "shared_dependencies_sha256": "34a2a4d8d157839eea434267f38e475187031f081f358387859181e5be136803",
+    "uv_version": "0.13.4",
+    "candidate_python_version": "3.14.8",
+    "platform": "linux/arm64",
+    "network": "none",
+    "read_only_rootfs": true,
+    "candidate_uid": 10001,
+    "limits": {
+      "cpus": 2,
+      "memory_bytes": 2147483648,
+      "pids": 128,
+      "tmpfs_bytes": 536870912
+    },
+    "source_project_mounted": true,
+    "delivery_source_project_mounted": false
+  },
+  "container_exit_codes": {
+    "source": 1,
+    "delivery": 1,
+    "delivery_stage": 0
+  },
+  "launcher_stderr": {
+    "source": "",
+    "delivery": ""
+  },
+  "case_report": {
+    "task_id": "01-support-sla-report",
+    "stage": "initial",
+    "passed": false,
+    "source": {
+      "cases": [
+        {
+          "candidate": {},
+          "case_id": "sla-initial-report",
+          "checks_passed": 0,
+          "checks_total": 9,
+          "elapsed_seconds": 3.108644,
+          "exit_code": 1,
+          "failures": [
+            "step 1: expected exit code 0, received 1",
+            "step 1: check 1: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-gpdn4hnc/report.json'",
+            "step 1: check 2: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-gpdn4hnc/report.json'",
+            "step 1: check 3: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-gpdn4hnc/report.json'",
+            "step 1: check 4: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-gpdn4hnc/report.json'",
+            "step 1: check 5: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-gpdn4hnc/report.json'",
+            "step 1: check 6: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-gpdn4hnc/report.json'",
+            "step 1: check 7: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-gpdn4hnc/report.json'",
+            "step 1: check 8: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-gpdn4hnc/report.json'",
+            "step 1: check 9: json_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-gpdn4hnc/report.json'"
+          ],
+          "http_fixtures": {},
+          "passed": false,
+          "stderr": "cannot read /tmp/veritas-independent-case-gpdn4hnc/main.vr: No such file or directory (os error 2)\n",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 0,
+              "checks_total": 9,
+              "elapsed_seconds": 0.003781,
+              "exit_code": 1,
+              "failures": [
+                "expected exit code 0, received 1",
+                "check 1: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-gpdn4hnc/report.json'",
+                "check 2: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-gpdn4hnc/report.json'",
+                "check 3: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-gpdn4hnc/report.json'",
+                "check 4: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-gpdn4hnc/report.json'",
+                "check 5: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-gpdn4hnc/report.json'",
+                "check 6: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-gpdn4hnc/report.json'",
+                "check 7: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-gpdn4hnc/report.json'",
+                "check 8: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-gpdn4hnc/report.json'",
+                "check 9: json_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-gpdn4hnc/report.json'"
+              ]
+            }
+          ]
+        },
+        {
+          "candidate": {},
+          "case_id": "sla-duplicate-id-preserves-output",
+          "checks_passed": 1,
+          "checks_total": 2,
+          "elapsed_seconds": 3.053682,
+          "exit_code": 1,
+          "failures": [
+            "step 1: check 2: stderr_contains did not match its expected value"
+          ],
+          "http_fixtures": {},
+          "passed": false,
+          "stderr": "cannot read /tmp/veritas-independent-case-8kt6fto_/main.vr: No such file or directory (os error 2)\n",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 2,
+              "elapsed_seconds": 0.00193,
+              "exit_code": 1,
+              "failures": [
+                "check 2: stderr_contains did not match its expected value"
+              ]
+            }
+          ]
+        },
+        {
+          "candidate": {},
+          "case_id": "sla-missing-policy-entry-preserves-output",
+          "checks_passed": 1,
+          "checks_total": 2,
+          "elapsed_seconds": 3.001322,
+          "exit_code": 1,
+          "failures": [
+            "step 1: check 2: stderr_contains did not match its expected value"
+          ],
+          "http_fixtures": {},
+          "passed": false,
+          "stderr": "cannot read /tmp/veritas-independent-case-3t1fuo7_/main.vr: No such file or directory (os error 2)\n",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 2,
+              "elapsed_seconds": 0.002163,
+              "exit_code": 1,
+              "failures": [
+                "check 2: stderr_contains did not match its expected value"
+              ]
+            }
+          ]
+        },
+        {
+          "candidate": {},
+          "case_id": "sla-malformed-csv-preserves-output",
+          "checks_passed": 1,
+          "checks_total": 1,
+          "elapsed_seconds": 3.036816,
+          "exit_code": 1,
+          "failures": [],
+          "http_fixtures": {},
+          "passed": true,
+          "stderr": "cannot read /tmp/veritas-independent-case-85grij4i/main.vr: No such file or directory (os error 2)\n",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.001726,
+              "exit_code": 1,
+              "failures": []
+            }
+          ]
+        },
+        {
+          "candidate": {},
+          "case_id": "sla-unknown-priority-preserves-output",
+          "checks_passed": 1,
+          "checks_total": 2,
+          "elapsed_seconds": 2.975617,
+          "exit_code": 1,
+          "failures": [
+            "step 1: check 2: stderr_contains did not match its expected value"
+          ],
+          "http_fixtures": {},
+          "passed": false,
+          "stderr": "cannot read /tmp/veritas-independent-case-r3irvi30/main.vr: No such file or directory (os error 2)\n",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 2,
+              "elapsed_seconds": 0.001859,
+              "exit_code": 1,
+              "failures": [
+                "check 2: stderr_contains did not match its expected value"
+              ]
+            }
+          ]
+        },
+        {
+          "candidate": {},
+          "case_id": "sla-invalid-timestamp-preserves-output",
+          "checks_passed": 1,
+          "checks_total": 2,
+          "elapsed_seconds": 2.978222,
+          "exit_code": 1,
+          "failures": [
+            "step 1: check 2: stderr_contains did not match its expected value"
+          ],
+          "http_fixtures": {},
+          "passed": false,
+          "stderr": "cannot read /tmp/veritas-independent-case-0k5zqfb_/main.vr: No such file or directory (os error 2)\n",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 2,
+              "elapsed_seconds": 0.001696,
+              "exit_code": 1,
+              "failures": [
+                "check 2: stderr_contains did not match its expected value"
+              ]
+            }
+          ]
+        },
+        {
+          "candidate": {},
+          "case_id": "sla-policy-boolean-preserves-output",
+          "checks_passed": 1,
+          "checks_total": 2,
+          "elapsed_seconds": 2.935478,
+          "exit_code": 1,
+          "failures": [
+            "step 1: check 2: stderr_contains did not match its expected value"
+          ],
+          "http_fixtures": {},
+          "passed": false,
+          "stderr": "cannot read /tmp/veritas-independent-case-hl4r0lsh/main.vr: No such file or directory (os error 2)\n",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 2,
+              "elapsed_seconds": 0.001706,
+              "exit_code": 1,
+              "failures": [
+                "check 2: stderr_contains did not match its expected value"
+              ]
+            }
+          ]
+        },
+        {
+          "candidate": {},
+          "case_id": "sla-policy-negative-preserves-output",
+          "checks_passed": 1,
+          "checks_total": 2,
+          "elapsed_seconds": 3.019625,
+          "exit_code": 1,
+          "failures": [
+            "step 1: check 2: stderr_contains did not match its expected value"
+          ],
+          "http_fixtures": {},
+          "passed": false,
+          "stderr": "cannot read /tmp/veritas-independent-case-0tlsz5ck/main.vr: No such file or directory (os error 2)\n",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 2,
+              "elapsed_seconds": 0.00178,
+              "exit_code": 1,
+              "failures": [
+                "check 2: stderr_contains did not match its expected value"
+              ]
+            }
+          ]
+        },
+        {
+          "candidate": {},
+          "case_id": "sla-policy-unknown-key-preserves-output",
+          "checks_passed": 1,
+          "checks_total": 2,
+          "elapsed_seconds": 2.983395,
+          "exit_code": 1,
+          "failures": [
+            "step 1: check 2: stderr_contains did not match its expected value"
+          ],
+          "http_fixtures": {},
+          "passed": false,
+          "stderr": "cannot read /tmp/veritas-independent-case-4923z_0_/main.vr: No such file or directory (os error 2)\n",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 2,
+              "elapsed_seconds": 0.001714,
+              "exit_code": 1,
+              "failures": [
+                "check 2: stderr_contains did not match its expected value"
+              ]
+            }
+          ]
+        },
+        {
+          "candidate": {},
+          "case_id": "sla-unknown-status-preserves-output",
+          "checks_passed": 1,
+          "checks_total": 2,
+          "elapsed_seconds": 2.990336,
+          "exit_code": 1,
+          "failures": [
+            "step 1: check 1: stderr_contains did not match its expected value"
+          ],
+          "http_fixtures": {},
+          "passed": false,
+          "stderr": "cannot read /tmp/veritas-independent-case-pb05ljyq/main.vr: No such file or directory (os error 2)\n",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 2,
+              "elapsed_seconds": 0.001772,
+              "exit_code": 1,
+              "failures": [
+                "check 1: stderr_contains did not match its expected value"
+              ]
+            }
+          ]
+        },
+        {
+          "candidate": {},
+          "case_id": "sla-future-ticket-timestamp-preserves-output",
+          "checks_passed": 1,
+          "checks_total": 2,
+          "elapsed_seconds": 3.017441,
+          "exit_code": 1,
+          "failures": [
+            "step 1: check 1: stderr_contains did not match its expected value"
+          ],
+          "http_fixtures": {},
+          "passed": false,
+          "stderr": "cannot read /tmp/veritas-independent-case-n6fmwreo/main.vr: No such file or directory (os error 2)\n",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 2,
+              "elapsed_seconds": 0.001771,
+              "exit_code": 1,
+              "failures": [
+                "check 1: stderr_contains did not match its expected value"
+              ]
+            }
+          ]
+        }
+      ],
+      "passed": false,
+      "stage": "initial",
+      "task_id": "01-support-sla-report"
+    },
+    "delivery": {
+      "passed": false,
+      "artifact_sha256": "9bc39778700efea713a5db0c3c4ad82dd7f5715a686d66332ae1d99b81e36674",
+      "artifact_bytes": 125233423,
+      "source_paths_excluded": [
+        "src",
+        "sla_io.py",
+        "sla-report",
+        "tests"
+      ],
+      "original_project_mounted": false,
+      "cases": [
+        {
+          "candidate": {
+            "artifact_bytes": 125233423,
+            "artifact_paths": [
+              "dist/sla-report",
+              "veritas.lock",
+              ".veritas/python-bridge/uv.lock"
+            ],
+            "artifact_sha256": "9bc39778700efea713a5db0c3c4ad82dd7f5715a686d66332ae1d99b81e36674",
+            "delivery_manifest": "delivery.json",
+            "dependency_lock_path": "veritas.lock",
+            "source_paths": [
+              "src",
+              "sla_io.py",
+              "sla-report",
+              "tests"
+            ]
+          },
+          "case_id": "sla-initial-report",
+          "checks_passed": 0,
+          "checks_total": 9,
+          "elapsed_seconds": 2.08599,
+          "exit_code": null,
+          "failures": [
+            "step 1: candidate could not be launched: [Errno 13] Permission denied: '/tmp/veritas-independent-case-ga2b27ly/dist/sla-report/run'",
+            "step 1: check 1: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-ga2b27ly/report.json'",
+            "step 1: check 2: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-ga2b27ly/report.json'",
+            "step 1: check 3: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-ga2b27ly/report.json'",
+            "step 1: check 4: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-ga2b27ly/report.json'",
+            "step 1: check 5: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-ga2b27ly/report.json'",
+            "step 1: check 6: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-ga2b27ly/report.json'",
+            "step 1: check 7: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-ga2b27ly/report.json'",
+            "step 1: check 8: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-ga2b27ly/report.json'",
+            "step 1: check 9: json_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-ga2b27ly/report.json'"
+          ],
+          "http_fixtures": {},
+          "passed": false,
+          "stderr": "",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 0,
+              "checks_total": 9,
+              "elapsed_seconds": 0.001407,
+              "exit_code": null,
+              "failures": [
+                "candidate could not be launched: [Errno 13] Permission denied: '/tmp/veritas-independent-case-ga2b27ly/dist/sla-report/run'",
+                "check 1: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-ga2b27ly/report.json'",
+                "check 2: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-ga2b27ly/report.json'",
+                "check 3: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-ga2b27ly/report.json'",
+                "check 4: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-ga2b27ly/report.json'",
+                "check 5: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-ga2b27ly/report.json'",
+                "check 6: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-ga2b27ly/report.json'",
+                "check 7: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-ga2b27ly/report.json'",
+                "check 8: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-ga2b27ly/report.json'",
+                "check 9: json_equals could not be evaluated: [Errno 2] No such file or directory: '/tmp/veritas-independent-case-ga2b27ly/report.json'"
+              ]
+            }
+          ]
+        },
+        {
+          "candidate": {
+            "artifact_bytes": 125233423,
+            "artifact_paths": [
+              "dist/sla-report",
+              "veritas.lock",
+              ".veritas/python-bridge/uv.lock"
+            ],
+            "artifact_sha256": "9bc39778700efea713a5db0c3c4ad82dd7f5715a686d66332ae1d99b81e36674",
+            "delivery_manifest": "delivery.json",
+            "dependency_lock_path": "veritas.lock",
+            "source_paths": [
+              "src",
+              "sla_io.py",
+              "sla-report",
+              "tests"
+            ]
+          },
+          "case_id": "sla-duplicate-id-preserves-output",
+          "checks_passed": 1,
+          "checks_total": 2,
+          "elapsed_seconds": 1.90993,
+          "exit_code": null,
+          "failures": [
+            "step 1: candidate could not be launched: [Errno 13] Permission denied: '/tmp/veritas-independent-case-uq0ovvek/dist/sla-report/run'",
+            "step 1: check 2: stderr_contains did not match its expected value"
+          ],
+          "http_fixtures": {},
+          "passed": false,
+          "stderr": "",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 2,
+              "elapsed_seconds": 0.001339,
+              "exit_code": null,
+              "failures": [
+                "candidate could not be launched: [Errno 13] Permission denied: '/tmp/veritas-independent-case-uq0ovvek/dist/sla-report/run'",
+                "check 2: stderr_contains did not match its expected value"
+              ]
+            }
+          ]
+        },
+        {
+          "candidate": {
+            "artifact_bytes": 125233423,
+            "artifact_paths": [
+              "dist/sla-report",
+              "veritas.lock",
+              ".veritas/python-bridge/uv.lock"
+            ],
+            "artifact_sha256": "9bc39778700efea713a5db0c3c4ad82dd7f5715a686d66332ae1d99b81e36674",
+            "delivery_manifest": "delivery.json",
+            "dependency_lock_path": "veritas.lock",
+            "source_paths": [
+              "src",
+              "sla_io.py",
+              "sla-report",
+              "tests"
+            ]
+          },
+          "case_id": "sla-missing-policy-entry-preserves-output",
+          "checks_passed": 1,
+          "checks_total": 2,
+          "elapsed_seconds": 1.928703,
+          "exit_code": null,
+          "failures": [
+            "step 1: candidate could not be launched: [Errno 13] Permission denied: '/tmp/veritas-independent-case-ag448e21/dist/sla-report/run'",
+            "step 1: check 2: stderr_contains did not match its expected value"
+          ],
+          "http_fixtures": {},
+          "passed": false,
+          "stderr": "",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 2,
+              "elapsed_seconds": 0.001194,
+              "exit_code": null,
+              "failures": [
+                "candidate could not be launched: [Errno 13] Permission denied: '/tmp/veritas-independent-case-ag448e21/dist/sla-report/run'",
+                "check 2: stderr_contains did not match its expected value"
+              ]
+            }
+          ]
+        },
+        {
+          "candidate": {
+            "artifact_bytes": 125233423,
+            "artifact_paths": [
+              "dist/sla-report",
+              "veritas.lock",
+              ".veritas/python-bridge/uv.lock"
+            ],
+            "artifact_sha256": "9bc39778700efea713a5db0c3c4ad82dd7f5715a686d66332ae1d99b81e36674",
+            "delivery_manifest": "delivery.json",
+            "dependency_lock_path": "veritas.lock",
+            "source_paths": [
+              "src",
+              "sla_io.py",
+              "sla-report",
+              "tests"
+            ]
+          },
+          "case_id": "sla-malformed-csv-preserves-output",
+          "checks_passed": 1,
+          "checks_total": 1,
+          "elapsed_seconds": 1.928916,
+          "exit_code": null,
+          "failures": [
+            "step 1: candidate could not be launched: [Errno 13] Permission denied: '/tmp/veritas-independent-case-x1li_7r2/dist/sla-report/run'"
+          ],
+          "http_fixtures": {},
+          "passed": false,
+          "stderr": "",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.001095,
+              "exit_code": null,
+              "failures": [
+                "candidate could not be launched: [Errno 13] Permission denied: '/tmp/veritas-independent-case-x1li_7r2/dist/sla-report/run'"
+              ]
+            }
+          ]
+        },
+        {
+          "candidate": {
+            "artifact_bytes": 125233423,
+            "artifact_paths": [
+              "dist/sla-report",
+              "veritas.lock",
+              ".veritas/python-bridge/uv.lock"
+            ],
+            "artifact_sha256": "9bc39778700efea713a5db0c3c4ad82dd7f5715a686d66332ae1d99b81e36674",
+            "delivery_manifest": "delivery.json",
+            "dependency_lock_path": "veritas.lock",
+            "source_paths": [
+              "src",
+              "sla_io.py",
+              "sla-report",
+              "tests"
+            ]
+          },
+          "case_id": "sla-unknown-priority-preserves-output",
+          "checks_passed": 1,
+          "checks_total": 2,
+          "elapsed_seconds": 1.954475,
+          "exit_code": null,
+          "failures": [
+            "step 1: candidate could not be launched: [Errno 13] Permission denied: '/tmp/veritas-independent-case-zn9dt6wo/dist/sla-report/run'",
+            "step 1: check 2: stderr_contains did not match its expected value"
+          ],
+          "http_fixtures": {},
+          "passed": false,
+          "stderr": "",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 2,
+              "elapsed_seconds": 0.00107,
+              "exit_code": null,
+              "failures": [
+                "candidate could not be launched: [Errno 13] Permission denied: '/tmp/veritas-independent-case-zn9dt6wo/dist/sla-report/run'",
+                "check 2: stderr_contains did not match its expected value"
+              ]
+            }
+          ]
+        },
+        {
+          "candidate": {
+            "artifact_bytes": 125233423,
+            "artifact_paths": [
+              "dist/sla-report",
+              "veritas.lock",
+              ".veritas/python-bridge/uv.lock"
+            ],
+            "artifact_sha256": "9bc39778700efea713a5db0c3c4ad82dd7f5715a686d66332ae1d99b81e36674",
+            "delivery_manifest": "delivery.json",
+            "dependency_lock_path": "veritas.lock",
+            "source_paths": [
+              "src",
+              "sla_io.py",
+              "sla-report",
+              "tests"
+            ]
+          },
+          "case_id": "sla-invalid-timestamp-preserves-output",
+          "checks_passed": 1,
+          "checks_total": 2,
+          "elapsed_seconds": 1.890553,
+          "exit_code": null,
+          "failures": [
+            "step 1: candidate could not be launched: [Errno 13] Permission denied: '/tmp/veritas-independent-case-9nktzx21/dist/sla-report/run'",
+            "step 1: check 2: stderr_contains did not match its expected value"
+          ],
+          "http_fixtures": {},
+          "passed": false,
+          "stderr": "",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 2,
+              "elapsed_seconds": 0.001112,
+              "exit_code": null,
+              "failures": [
+                "candidate could not be launched: [Errno 13] Permission denied: '/tmp/veritas-independent-case-9nktzx21/dist/sla-report/run'",
+                "check 2: stderr_contains did not match its expected value"
+              ]
+            }
+          ]
+        },
+        {
+          "candidate": {
+            "artifact_bytes": 125233423,
+            "artifact_paths": [
+              "dist/sla-report",
+              "veritas.lock",
+              ".veritas/python-bridge/uv.lock"
+            ],
+            "artifact_sha256": "9bc39778700efea713a5db0c3c4ad82dd7f5715a686d66332ae1d99b81e36674",
+            "delivery_manifest": "delivery.json",
+            "dependency_lock_path": "veritas.lock",
+            "source_paths": [
+              "src",
+              "sla_io.py",
+              "sla-report",
+              "tests"
+            ]
+          },
+          "case_id": "sla-policy-boolean-preserves-output",
+          "checks_passed": 1,
+          "checks_total": 2,
+          "elapsed_seconds": 1.876228,
+          "exit_code": null,
+          "failures": [
+            "step 1: candidate could not be launched: [Errno 13] Permission denied: '/tmp/veritas-independent-case-vjfmjmy1/dist/sla-report/run'",
+            "step 1: check 2: stderr_contains did not match its expected value"
+          ],
+          "http_fixtures": {},
+          "passed": false,
+          "stderr": "",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 2,
+              "elapsed_seconds": 0.001094,
+              "exit_code": null,
+              "failures": [
+                "candidate could not be launched: [Errno 13] Permission denied: '/tmp/veritas-independent-case-vjfmjmy1/dist/sla-report/run'",
+                "check 2: stderr_contains did not match its expected value"
+              ]
+            }
+          ]
+        },
+        {
+          "candidate": {
+            "artifact_bytes": 125233423,
+            "artifact_paths": [
+              "dist/sla-report",
+              "veritas.lock",
+              ".veritas/python-bridge/uv.lock"
+            ],
+            "artifact_sha256": "9bc39778700efea713a5db0c3c4ad82dd7f5715a686d66332ae1d99b81e36674",
+            "delivery_manifest": "delivery.json",
+            "dependency_lock_path": "veritas.lock",
+            "source_paths": [
+              "src",
+              "sla_io.py",
+              "sla-report",
+              "tests"
+            ]
+          },
+          "case_id": "sla-policy-negative-preserves-output",
+          "checks_passed": 1,
+          "checks_total": 2,
+          "elapsed_seconds": 1.977352,
+          "exit_code": null,
+          "failures": [
+            "step 1: candidate could not be launched: [Errno 13] Permission denied: '/tmp/veritas-independent-case-o29c5ej3/dist/sla-report/run'",
+            "step 1: check 2: stderr_contains did not match its expected value"
+          ],
+          "http_fixtures": {},
+          "passed": false,
+          "stderr": "",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 2,
+              "elapsed_seconds": 0.001172,
+              "exit_code": null,
+              "failures": [
+                "candidate could not be launched: [Errno 13] Permission denied: '/tmp/veritas-independent-case-o29c5ej3/dist/sla-report/run'",
+                "check 2: stderr_contains did not match its expected value"
+              ]
+            }
+          ]
+        },
+        {
+          "candidate": {
+            "artifact_bytes": 125233423,
+            "artifact_paths": [
+              "dist/sla-report",
+              "veritas.lock",
+              ".veritas/python-bridge/uv.lock"
+            ],
+            "artifact_sha256": "9bc39778700efea713a5db0c3c4ad82dd7f5715a686d66332ae1d99b81e36674",
+            "delivery_manifest": "delivery.json",
+            "dependency_lock_path": "veritas.lock",
+            "source_paths": [
+              "src",
+              "sla_io.py",
+              "sla-report",
+              "tests"
+            ]
+          },
+          "case_id": "sla-policy-unknown-key-preserves-output",
+          "checks_passed": 1,
+          "checks_total": 2,
+          "elapsed_seconds": 1.999513,
+          "exit_code": null,
+          "failures": [
+            "step 1: candidate could not be launched: [Errno 13] Permission denied: '/tmp/veritas-independent-case-8k1mbpxb/dist/sla-report/run'",
+            "step 1: check 2: stderr_contains did not match its expected value"
+          ],
+          "http_fixtures": {},
+          "passed": false,
+          "stderr": "",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 2,
+              "elapsed_seconds": 0.001137,
+              "exit_code": null,
+              "failures": [
+                "candidate could not be launched: [Errno 13] Permission denied: '/tmp/veritas-independent-case-8k1mbpxb/dist/sla-report/run'",
+                "check 2: stderr_contains did not match its expected value"
+              ]
+            }
+          ]
+        },
+        {
+          "candidate": {
+            "artifact_bytes": 125233423,
+            "artifact_paths": [
+              "dist/sla-report",
+              "veritas.lock",
+              ".veritas/python-bridge/uv.lock"
+            ],
+            "artifact_sha256": "9bc39778700efea713a5db0c3c4ad82dd7f5715a686d66332ae1d99b81e36674",
+            "delivery_manifest": "delivery.json",
+            "dependency_lock_path": "veritas.lock",
+            "source_paths": [
+              "src",
+              "sla_io.py",
+              "sla-report",
+              "tests"
+            ]
+          },
+          "case_id": "sla-unknown-status-preserves-output",
+          "checks_passed": 1,
+          "checks_total": 2,
+          "elapsed_seconds": 1.975192,
+          "exit_code": null,
+          "failures": [
+            "step 1: candidate could not be launched: [Errno 13] Permission denied: '/tmp/veritas-independent-case-cjhbmbwk/dist/sla-report/run'",
+            "step 1: check 1: stderr_contains did not match its expected value"
+          ],
+          "http_fixtures": {},
+          "passed": false,
+          "stderr": "",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 2,
+              "elapsed_seconds": 0.001195,
+              "exit_code": null,
+              "failures": [
+                "candidate could not be launched: [Errno 13] Permission denied: '/tmp/veritas-independent-case-cjhbmbwk/dist/sla-report/run'",
+                "check 1: stderr_contains did not match its expected value"
+              ]
+            }
+          ]
+        },
+        {
+          "candidate": {
+            "artifact_bytes": 125233423,
+            "artifact_paths": [
+              "dist/sla-report",
+              "veritas.lock",
+              ".veritas/python-bridge/uv.lock"
+            ],
+            "artifact_sha256": "9bc39778700efea713a5db0c3c4ad82dd7f5715a686d66332ae1d99b81e36674",
+            "delivery_manifest": "delivery.json",
+            "dependency_lock_path": "veritas.lock",
+            "source_paths": [
+              "src",
+              "sla_io.py",
+              "sla-report",
+              "tests"
+            ]
+          },
+          "case_id": "sla-future-ticket-timestamp-preserves-output",
+          "checks_passed": 1,
+          "checks_total": 2,
+          "elapsed_seconds": 1.947372,
+          "exit_code": null,
+          "failures": [
+            "step 1: candidate could not be launched: [Errno 13] Permission denied: '/tmp/veritas-independent-case-ev2wcjem/dist/sla-report/run'",
+            "step 1: check 1: stderr_contains did not match its expected value"
+          ],
+          "http_fixtures": {},
+          "passed": false,
+          "stderr": "",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 2,
+              "elapsed_seconds": 0.001298,
+              "exit_code": null,
+              "failures": [
+                "candidate could not be launched: [Errno 13] Permission denied: '/tmp/veritas-independent-case-ev2wcjem/dist/sla-report/run'",
+                "check 1: stderr_contains did not match its expected value"
+              ]
+            }
+          ]
+        }
+      ],
+      "stage_error": ""
+    }
+  }
+}

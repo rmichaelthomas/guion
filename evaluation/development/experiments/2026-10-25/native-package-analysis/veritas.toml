@@ -1,0 +1,7 @@
+[project]
+name = "native-package-analysis"
+version = "0.1.0"
+entry = "main.vr"
+
+[runtime]
+instruction_limit = 50000000

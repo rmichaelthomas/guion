@@ -1,0 +1,144 @@
+record Analysis:
+    total: Int
+    minimum: Int
+    maximum: Int
+    counts: List[Int]
+    totals: List[Int]
+    minima: List[Int]
+    maxima: List[Int]
+
+fn zeros(count: Int) -> List[Int]:
+    var values: List[Int] = []
+    var index = 0
+    while index < count:
+        set values = list_push(values, 0)
+        set index = index + 1
+    return values
+
+fn aggregate(values: List[Int], categories: List[Int], initial_counts: List[Int], initial_totals: List[Int], initial_minima: List[Int], initial_maxima: List[Int]) -> Analysis:
+    var counts = list_set(initial_counts, 0, initial_counts[0])
+    var totals = list_set(initial_totals, 0, initial_totals[0])
+    var minima = list_set(initial_minima, 0, initial_minima[0])
+    var maxima = list_set(initial_maxima, 0, initial_maxima[0])
+    var total = 0
+    var minimum = values[0]
+    var maximum = values[0]
+    var index = 0
+    while index < len(values):
+        let value = values[index]
+        let category = categories[index]
+        let previous_count = counts[category]
+        if previous_count == 0:
+            set minima = list_set(minima, category, value)
+            set maxima = list_set(maxima, category, value)
+        else:
+            if value < minima[category]:
+                set minima = list_set(minima, category, value)
+            if value > maxima[category]:
+                set maxima = list_set(maxima, category, value)
+        set counts = list_set(counts, category, counts[category] + 1)
+        set totals = list_set(totals, category, totals[category] + value)
+        if value < minimum:
+            set minimum = value
+        if value > maximum:
+            set maximum = value
+        set total = total + value
+        set index = index + 1
+    return Analysis(total, minimum, maximum, counts, totals, minima, maxima)
+
+fn mean_json(total: Int, count: Int) -> Json:
+    if count == 0:
+        return json_int(0)
+
+    var sign = ""
+    var magnitude = total
+    if total < 0:
+        set sign = "-"
+        set magnitude = -total
+
+    let scaled = magnitude * 1000000
+    var rounded = scaled // count
+    let remainder = scaled % count
+    if remainder * 2 > count or (remainder * 2 == count and rounded % 2 == 1):
+        set rounded = rounded + 1
+
+    let whole = rounded // 1000000
+    var fraction = rounded % 1000000
+    var fraction_text = ""
+    var saw_nonzero = false
+    var digit_index = 0
+    while digit_index < 6:
+        let digit = fraction % 10
+        if digit != 0 or saw_nonzero:
+            set fraction_text = json_stringify(json_int(digit)) + fraction_text
+        if digit != 0:
+            set saw_nonzero = true
+        set fraction = fraction // 10
+        set digit_index = digit_index + 1
+
+    if not saw_nonzero:
+        set fraction_text = "0"
+    let number_text = sign + json_stringify(json_int(whole)) + "." + fraction_text
+    return unwrap(json_parse(number_text))
+
+fn make_summary(count: Int, total: Int, minimum: Int, maximum: Int) -> Json:
+    let mean = mean_json(total, count)
+    let with_count = json_set(json_object(), "count", json_int(count))
+    let with_maximum = json_set(with_count, "maximum", json_int(maximum))
+    let with_mean = json_set(with_maximum, "mean", mean)
+    let with_minimum = json_set(with_mean, "minimum", json_int(minimum))
+    return json_set(with_minimum, "total", json_int(total))
+
+fn main() -> Int:
+    let arguments = args()
+    if len(arguments) != 2 and len(arguments) != 3:
+        print("Usage: package-analysis INPUT.json REPORT.json [GROUP_BY]")
+        return 2
+
+    var group_by = "tag"
+    if len(arguments) == 3:
+        set group_by = arguments[2]
+
+    let loaded = read_text(arguments[0])
+    if not is_ok(loaded):
+        print("Cannot read input: " + file_error_code(error(loaded)))
+        return 1
+    let projected = json_project_columns(unwrap(loaded), ["rows"], ["value", group_by])
+    if not is_ok(projected):
+        print("Invalid input JSON: " + json_error_code(error(projected)))
+        return 1
+
+    let columns = unwrap(projected)
+    let values = json_as_int_list(json_get(columns, "value"))
+    let categorized = json_text_categories_values(json_get(columns, group_by))
+    let categories = json_as_int_list(json_get(categorized, "codes"))
+    let labels = json_get(categorized, "labels")
+    let row_count = len(values)
+    let group_count = json_len(labels)
+
+    var overall = make_summary(0, 0, 0, 0)
+    var grouped = json_object()
+    var total = 0
+    if row_count > 0:
+        let analysis = aggregate(values, categories, zeros(group_count), zeros(group_count), zeros(group_count), zeros(group_count))
+        set total = analysis.total
+        set overall = make_summary(row_count, analysis.total, analysis.minimum, analysis.maximum)
+        var group_index = 0
+        while group_index < group_count:
+            let key = json_as_text(json_index(labels, group_index))
+            let summary = make_summary(analysis.counts[group_index], analysis.totals[group_index], analysis.minima[group_index], analysis.maxima[group_index])
+            set grouped = json_set(grouped, key, summary)
+            set group_index = group_index + 1
+
+    let with_group_by = json_set(overall, "group_by", json_text(group_by))
+    let report = json_set(with_group_by, "groups", grouped)
+    let saved = write_text_atomic(arguments[1], json_stringify(report))
+    if not is_ok(saved):
+        print("Cannot write report: " + file_error_code(error(saved)))
+        return 1
+
+    print("Rows:")
+    print(row_count)
+    print("Total:")
+    print(total)
+    return 0

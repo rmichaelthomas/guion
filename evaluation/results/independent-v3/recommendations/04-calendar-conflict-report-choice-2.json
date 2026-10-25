@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "decision_id": "04-calendar-conflict-report-choice-2",
+  "recorded_at_utc": "2026-10-24T13:24:15Z",
+  "task": {
+    "id": "04-calendar-conflict-report",
+    "class": "concurrent_network_integration",
+    "origin": "independent",
+    "brief_sha256": "e4f76659946d28ffb676190669ee00f2eee4ee107faa72a8614031c960bce332"
+  },
+  "assistant": {
+    "provider": "OpenAI Codex",
+    "name": "gpt-6.1-sol",
+    "version": "gpt-6.1-sol",
+    "reasoning_effort": "medium",
+    "session_id": "01a16e15-093b-7a23-b966-498845264239",
+    "fresh_session": true
+  },
+  "budget": {
+    "active_minutes": 5,
+    "tool_calls": 0
+  },
+  "usage": {
+    "active_seconds": 20,
+    "tool_calls": 0
+  },
+  "evidence": {
+    "prompt_transcript_path": "choice-evidence/04-calendar-conflict-report-choice-2/prompt.md",
+    "prompt_transcript_sha256": "ede50e728b96f1ffdb628d333fef14d3116131f9cd268116e51cdee0360102eb",
+    "response_transcript_path": "choice-evidence/04-calendar-conflict-report-choice-2/response.md",
+    "response_transcript_sha256": "32ff08d4965e062e6d2223ff01acb811d526aeb7309e46b4a59eab81ebf209db",
+    "usage_snapshot_path": "choice-evidence/04-calendar-conflict-report-choice-2/usage-snapshot.json",
+    "usage_snapshot_sha256": "7de84eb24a233a442d8bc6621f0af8ea1a3f65a353a0f2e76ef26c13a2699f4f"
+  },
+  "presentation_order": [
+    "python",
+    "veritas"
+  ],
+  "context": {
+    "mode": "pre-build-recommendation",
+    "veritas_version": "0.1.0 (artifact format 33)",
+    "python_version": "3.14.8",
+    "documentation_sha256": "cebd18e725e855c1e9ee5150ef59ba855636b54f71e9daffd9634c59ee1888d5",
+    "schedule_sha256": "abcc4bb175c51c22251846fc3609c94632123b196d549f1dd0a61de17eba76f5",
+    "schedule_file_sha256": "04d198bcbe77295d2d0a2e413a4ecc24e3b48e12ae28ed4f5741b70b5c6cfd5a",
+    "schedule_entry_id": "04-calendar-conflict-report-choice-2",
+    "prerun_records_sha256": "a4d6ecff8b4840d60dfa8a881e7c34978c49979147b3f20b2ce398abed004d50",
+    "prerun_recorded_at_utc": "2026-10-24T13:14:17.296495Z",
+    "campaign_config_sha256": "b936691e5a99a95685de70940cc8ec5a90953dab4d798cf83f372cfe154dacd0",
+    "comparative_pair_results_shown": false
+  },
+  "recommendation": {
+    "choice": "python",
+    "rationale": "**python**\n\nThis task’s hardest requirements are iCalendar and timezone correctness, plus a total request deadline that includes slow response bodies. Python provides a more direct integration path: parsing, timezone handling, concurrent fetching, and error classification can stay within one runtime, using only dependencies available in the pinned wheelhouse.\n\nVeritas is viable: it offers bounded parallel execution, request deadlines, typed results, and same-target packaging. Its managed Python bridge also permits the same calendar parser. However, that route adds bridge declarations, value conversions, and packaging configuration while retaining Python dependencies. For this CLI, those additional boundaries offer less benefit than keeping the integration together in Python.\n\nThe decision is not based on demonstrated performance or acceptance results. Either implementation must verify strict timestamp validation, VTIMEZONE resolution, trickle-resistant deadlines, per-source failure isolation, and launch after relocation without the original source tree. Python’s ordinary socket timeout alone should not be assumed to satisfy the total deadline.\n\nI would reconsider Veritas if manifest-controlled network access, runtime resource ceilings, or its package inventories became central requirements, especially within an existing Veritas application. Evidence of a compact, reliable parser adapter and successful deadline and relocation checks would also narrow the tradeoff. For the supplied task, Python has fewer integration boundaries to manage.",
+    "conditions": []
+  },
+  "exclusion": {
+    "excluded": false,
+    "reason": null
+  }
+}

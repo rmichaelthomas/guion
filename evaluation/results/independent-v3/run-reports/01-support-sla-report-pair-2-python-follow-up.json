@@ -1,0 +1,201 @@
+{
+  "schema_version": 1,
+  "pair_id": "01-support-sla-report-pair-2",
+  "session_id": "01a16e33-c2f8-76c3-afeb-ede202aec781",
+  "language": "python",
+  "candidate_version": "CPython 3.14.8 with uv 0.13.4",
+  "task_id": "01-support-sla-report",
+  "stage": "follow_up",
+  "manifest_sha256": "2c326ad23d3d9ad94efc69b320d60dc3bb43ba2eac178fdd0a61de17eba76f5",
+  "schedule_sha256": "abcc4bb175c51c22251846fc3609c94632123b196d549f1dd0a61de17eba76f5",
+  "candidate_project_sha256": "e860943d229281fcf4b9538940f407fe30e220862769714d2cf892a8743982b4",
+  "delivery_artifact_path": "01-support-sla-report-pair-2-python-follow-up.json.delivery",
+  "delivery_artifact_sha256": "d4da68e19608e4ed495f311a150df85a65d5a3d69a8a4981f914c2a5930a81ad",
+  "delivery_manifest_path": "01-support-sla-report-pair-2-python-follow-up.json.delivery-manifest.json",
+  "delivery_manifest_sha256": "85b5e7642221bee939aa5e9de80c17005c90e901b77181c49e2084bde14b918f",
+  "container": {
+    "image": "veritas-campaign-python:3.14.8",
+    "image_id": "sha256:2bc7a7c22371ebcd3bfba0c04c795f3430d00fee800d618a71c64570f47e323b",
+    "docker_engine_id": "353e20b3-7c60-48f7-9c98-c6ae7d312a51",
+    "package_archive_sha256": "9b0712a92bcb12aeeafc91485ae505105bf785bc6193f2da408154671be6538d",
+    "python_base_digest": "sha256:44e000a07b48bef1517a2b14adc93c17af728ca98858b5e24c6e1b18de1b2ef2",
+    "shared_dependencies_sha256": "34a2a4d8d157839eea434267f38e475187031f081f358387859181e5be136803",
+    "uv_version": "0.13.4",
+    "candidate_python_version": "3.14.8",
+    "platform": "linux/arm64",
+    "network": "none",
+    "read_only_rootfs": true,
+    "candidate_uid": 10001,
+    "limits": {
+      "cpus": 2,
+      "memory_bytes": 2147483648,
+      "pids": 128,
+      "tmpfs_bytes": 536870912
+    },
+    "source_project_mounted": true,
+    "delivery_source_project_mounted": false
+  },
+  "container_exit_codes": {
+    "source": 0,
+    "delivery": 0,
+    "delivery_stage": 0
+  },
+  "launcher_stderr": {
+    "source": "",
+    "delivery": ""
+  },
+  "case_report": {
+    "task_id": "01-support-sla-report",
+    "stage": "follow_up",
+    "passed": true,
+    "source": {
+      "cases": [
+        {
+          "candidate": {},
+          "case_id": "sla-follow-up-team-filter",
+          "checks_passed": 4,
+          "checks_total": 4,
+          "elapsed_seconds": 0.30969,
+          "exit_code": 0,
+          "failures": [],
+          "http_fixtures": {},
+          "passed": true,
+          "stderr": "",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 4,
+              "checks_total": 4,
+              "elapsed_seconds": 0.271864,
+              "exit_code": 0,
+              "failures": []
+            }
+          ]
+        },
+        {
+          "candidate": {},
+          "case_id": "sla-follow-up-team-no-match",
+          "checks_passed": 3,
+          "checks_total": 3,
+          "elapsed_seconds": 0.297674,
+          "exit_code": 0,
+          "failures": [],
+          "http_fixtures": {},
+          "passed": true,
+          "stderr": "",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 3,
+              "checks_total": 3,
+              "elapsed_seconds": 0.260191,
+              "exit_code": 0,
+              "failures": []
+            }
+          ]
+        }
+      ],
+      "passed": true,
+      "stage": "follow_up",
+      "task_id": "01-support-sla-report"
+    },
+    "delivery": {
+      "passed": true,
+      "artifact_sha256": "d4da68e19608e4ed495f311a150df85a65d5a3d69a8a4981f914c2a5930a81ad",
+      "artifact_bytes": 2687,
+      "source_paths_excluded": [
+        "main.py",
+        "sla-report",
+        "pyproject.toml",
+        "build.py",
+        "tests",
+        "work",
+        "README.md"
+      ],
+      "original_project_mounted": false,
+      "cases": [
+        {
+          "candidate": {
+            "artifact_bytes": 2687,
+            "artifact_paths": [
+              "dist/sla-report",
+              "uv.lock"
+            ],
+            "artifact_sha256": "d4da68e19608e4ed495f311a150df85a65d5a3d69a8a4981f914c2a5930a81ad",
+            "delivery_manifest": "delivery.json",
+            "dependency_lock_path": "uv.lock",
+            "source_paths": [
+              "main.py",
+              "sla-report",
+              "pyproject.toml",
+              "build.py",
+              "tests",
+              "work",
+              "README.md"
+            ]
+          },
+          "case_id": "sla-follow-up-team-filter",
+          "checks_passed": 4,
+          "checks_total": 4,
+          "elapsed_seconds": 0.113533,
+          "exit_code": 0,
+          "failures": [],
+          "http_fixtures": {},
+          "passed": true,
+          "stderr": "",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 4,
+              "checks_total": 4,
+              "elapsed_seconds": 0.111737,
+              "exit_code": 0,
+              "failures": []
+            }
+          ]
+        },
+        {
+          "candidate": {
+            "artifact_bytes": 2687,
+            "artifact_paths": [
+              "dist/sla-report",
+              "uv.lock"
+            ],
+            "artifact_sha256": "d4da68e19608e4ed495f311a150df85a65d5a3d69a8a4981f914c2a5930a81ad",
+            "delivery_manifest": "delivery.json",
+            "dependency_lock_path": "uv.lock",
+            "source_paths": [
+              "main.py",
+              "sla-report",
+              "pyproject.toml",
+              "build.py",
+              "tests",
+              "work",
+              "README.md"
+            ]
+          },
+          "case_id": "sla-follow-up-team-no-match",
+          "checks_passed": 3,
+          "checks_total": 3,
+          "elapsed_seconds": 0.11422,
+          "exit_code": 0,
+          "failures": [],
+          "http_fixtures": {},
+          "passed": true,
+          "stderr": "",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 3,
+              "checks_total": 3,
+              "elapsed_seconds": 0.112223,
+              "exit_code": 0,
+              "failures": []
+            }
+          ]
+        }
+      ],
+      "stage_error": ""
+    }
+  }
+}

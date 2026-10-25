@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "status": "selected_before_independent_runs",
+  "platform": "linux/arm64",
+  "python_version": "3.14.8",
+  "uv_version": "0.13.4",
+  "base_image": {
+    "reference": "python:3.14.8-slim-bookworm",
+    "sha256": "44e000a07b48bef1517a2b14adc93c17af728ca98858b5e24c6e1b18de1b2ef2"
+  },
+  "veritas_archive": {
+    "path": "evaluation/results/independent-v2/workspace/pinned/product/format33/veritas-0.1.0-linux-aarch64-format33.tar.gz",
+    "sha256": "46e22bb115f4ccce767c0e38e29db5cf3012d49f1556054f3f66214e47f30eb8"
+  },
+  "dependency_bundle": {
+    "path": "evaluation/sandbox/dependencies/campaign-dependencies.tar.gz",
+    "sha256": "34a2a4d8d157839eea434267f38e475187031f081f358387859181e5be136803"
+  },
+  "images": {
+    "python": {
+      "tag": "veritas-campaign-python:3.14.8",
+      "id": "sha256:2bc7a7c22371ebcd3bfba0c04c795f3430d00fee800d618a71c64570f47e323b"
+    },
+    "veritas": {
+      "tag": "veritas-campaign-veritas:format33",
+      "id": "sha256:549c822695df5806370f1dcf8692617b9d41e626e4057ad2820ab4fb3d8a801d"
+    },
+    "docker_engine": "353e20b3-7c60-48f7-9c98-c6ae7d312a51 linux/aarch64",
+    "dependency_bundle_sha256": "34a2a4d8d157839eea434267f38e475187031f081f358387859181e5be136803"
+  }
+}

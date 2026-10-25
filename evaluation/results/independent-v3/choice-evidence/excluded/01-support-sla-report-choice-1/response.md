@@ -1,0 +1,1 @@
+Session contract open: I’ll recommend one language using only the supplied brief and profiles, without tools, implementation, or claims about measured results.\n

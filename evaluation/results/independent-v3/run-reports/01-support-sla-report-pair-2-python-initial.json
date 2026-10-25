@@ -1,0 +1,859 @@
+{
+  "schema_version": 1,
+  "pair_id": "01-support-sla-report-pair-2",
+  "session_id": "01a16e33-c2f8-76c3-afeb-ede202aec781",
+  "language": "python",
+  "candidate_version": "CPython 3.14.8 with uv 0.13.4",
+  "task_id": "01-support-sla-report",
+  "stage": "initial",
+  "manifest_sha256": "2c326ad23d3d9ad94efc69b320d60dc3bb43ba2eac178fdd0a61de17eba76f5",
+  "schedule_sha256": "abcc4bb175c51c22251846fc3609c94632123b196d549f1dd0a61de17eba76f5",
+  "candidate_project_sha256": "64a104b256848e17b0cd068207b3c0cb7245f5b7329b3a3a7dcb7eae787773fd",
+  "delivery_artifact_path": "01-support-sla-report-pair-2-python-initial.json.delivery",
+  "delivery_artifact_sha256": "3857879de125030a0a2277f848e0ffe11ade765d539645266d939a60c4b72ef0",
+  "delivery_manifest_path": "01-support-sla-report-pair-2-python-initial.json.delivery-manifest.json",
+  "delivery_manifest_sha256": "85b5e7642221bee939aa5e9de80c17005c90e901b77181c49e2084bde14b918f",
+  "container": {
+    "image": "veritas-campaign-python:3.14.8",
+    "image_id": "sha256:2bc7a7c22371ebcd3bfba0c04c795f3430d00fee800d618a71c64570f47e323b",
+    "docker_engine_id": "353e20b3-7c60-48f7-9c98-c6ae7d312a51",
+    "package_archive_sha256": "9b0712a92bcb12aeeafc91485ae505105bf785bc6193f2da408154671be6538d",
+    "python_base_digest": "sha256:44e000a07b48bef1517a2b14adc93c17af728ca98858b5e24c6e1b18de1b2ef2",
+    "shared_dependencies_sha256": "34a2a4d8d157839eea434267f38e475187031f081f358387859181e5be136803",
+    "uv_version": "0.13.4",
+    "candidate_python_version": "3.14.8",
+    "platform": "linux/arm64",
+    "network": "none",
+    "read_only_rootfs": true,
+    "candidate_uid": 10001,
+    "limits": {
+      "cpus": 2,
+      "memory_bytes": 2147483648,
+      "pids": 128,
+      "tmpfs_bytes": 536870912
+    },
+    "source_project_mounted": true,
+    "delivery_source_project_mounted": false
+  },
+  "container_exit_codes": {
+    "source": 1,
+    "delivery": 1,
+    "delivery_stage": 0
+  },
+  "launcher_stderr": {
+    "source": "",
+    "delivery": ""
+  },
+  "case_report": {
+    "task_id": "01-support-sla-report",
+    "stage": "initial",
+    "passed": false,
+    "source": {
+      "cases": [
+        {
+          "candidate": {},
+          "case_id": "sla-initial-report",
+          "checks_passed": 9,
+          "checks_total": 9,
+          "elapsed_seconds": 0.314199,
+          "exit_code": 0,
+          "failures": [],
+          "http_fixtures": {},
+          "passed": true,
+          "stderr": "",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 9,
+              "checks_total": 9,
+              "elapsed_seconds": 0.282918,
+              "exit_code": 0,
+              "failures": []
+            }
+          ]
+        },
+        {
+          "candidate": {},
+          "case_id": "sla-duplicate-id-preserves-output",
+          "checks_passed": 2,
+          "checks_total": 2,
+          "elapsed_seconds": 0.306941,
+          "exit_code": 2,
+          "failures": [
+            "step 1: expected exit code 1, received 2"
+          ],
+          "http_fixtures": {},
+          "passed": false,
+          "stderr": "sla-report: duplicate_id: tickets.csv: CSV line 3: duplicate ID 'D-1'\n",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 2,
+              "checks_total": 2,
+              "elapsed_seconds": 0.273804,
+              "exit_code": 2,
+              "failures": [
+                "expected exit code 1, received 2"
+              ]
+            }
+          ]
+        },
+        {
+          "candidate": {},
+          "case_id": "sla-missing-policy-entry-preserves-output",
+          "checks_passed": 2,
+          "checks_total": 2,
+          "elapsed_seconds": 0.310772,
+          "exit_code": 2,
+          "failures": [
+            "step 1: expected exit code 1, received 2"
+          ],
+          "http_fixtures": {},
+          "passed": false,
+          "stderr": "sla-report: missing_policy_entry: tickets.csv: CSV line 2: add response_minutes.low to the policy\n",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 2,
+              "checks_total": 2,
+              "elapsed_seconds": 0.282706,
+              "exit_code": 2,
+              "failures": [
+                "expected exit code 1, received 2"
+              ]
+            }
+          ]
+        },
+        {
+          "candidate": {},
+          "case_id": "sla-malformed-csv-preserves-output",
+          "checks_passed": 1,
+          "checks_total": 1,
+          "elapsed_seconds": 0.294536,
+          "exit_code": 2,
+          "failures": [
+            "step 1: expected exit code 1, received 2"
+          ],
+          "http_fixtures": {},
+          "passed": false,
+          "stderr": "sla-report: invalid_header: CSV header must be exactly id,team,priority,status,created_at\n",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.263674,
+              "exit_code": 2,
+              "failures": [
+                "expected exit code 1, received 2"
+              ]
+            }
+          ]
+        },
+        {
+          "candidate": {},
+          "case_id": "sla-unknown-priority-preserves-output",
+          "checks_passed": 2,
+          "checks_total": 2,
+          "elapsed_seconds": 0.302358,
+          "exit_code": 2,
+          "failures": [
+            "step 1: expected exit code 1, received 2"
+          ],
+          "http_fixtures": {},
+          "passed": false,
+          "stderr": "sla-report: unknown_priority: tickets.csv: CSV line 2: 'urgent'; allowed values: high, low\n",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 2,
+              "checks_total": 2,
+              "elapsed_seconds": 0.272015,
+              "exit_code": 2,
+              "failures": [
+                "expected exit code 1, received 2"
+              ]
+            }
+          ]
+        },
+        {
+          "candidate": {},
+          "case_id": "sla-invalid-timestamp-preserves-output",
+          "checks_passed": 1,
+          "checks_total": 2,
+          "elapsed_seconds": 0.301417,
+          "exit_code": 2,
+          "failures": [
+            "step 1: expected exit code 1, received 2",
+            "step 1: check 2: stderr_contains did not match its expected value"
+          ],
+          "http_fixtures": {},
+          "passed": false,
+          "stderr": "sla-report: invalid_timestamp: tickets.csv: CSV line 2 created_at: '2025-01-02 00:00:00Z'; expected YYYY-MM-DDTHH:MM:SS[.ffffff](Z|±HH:MM)\n",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 2,
+              "elapsed_seconds": 0.269011,
+              "exit_code": 2,
+              "failures": [
+                "expected exit code 1, received 2",
+                "check 2: stderr_contains did not match its expected value"
+              ]
+            }
+          ]
+        },
+        {
+          "candidate": {},
+          "case_id": "sla-policy-boolean-preserves-output",
+          "checks_passed": 1,
+          "checks_total": 2,
+          "elapsed_seconds": 0.291597,
+          "exit_code": 2,
+          "failures": [
+            "step 1: expected exit code 1, received 2",
+            "step 1: check 2: stderr_contains did not match its expected value"
+          ],
+          "http_fixtures": {},
+          "passed": false,
+          "stderr": "sla-report: invalid_policy: policy.json: response_minutes.high must be a nonnegative JSON integer\n",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 2,
+              "elapsed_seconds": 0.261332,
+              "exit_code": 2,
+              "failures": [
+                "expected exit code 1, received 2",
+                "check 2: stderr_contains did not match its expected value"
+              ]
+            }
+          ]
+        },
+        {
+          "candidate": {},
+          "case_id": "sla-policy-negative-preserves-output",
+          "checks_passed": 1,
+          "checks_total": 2,
+          "elapsed_seconds": 0.298001,
+          "exit_code": 2,
+          "failures": [
+            "step 1: expected exit code 1, received 2",
+            "step 1: check 2: stderr_contains did not match its expected value"
+          ],
+          "http_fixtures": {},
+          "passed": false,
+          "stderr": "sla-report: invalid_policy: policy.json: response_minutes.high must be a nonnegative JSON integer\n",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 2,
+              "elapsed_seconds": 0.267849,
+              "exit_code": 2,
+              "failures": [
+                "expected exit code 1, received 2",
+                "check 2: stderr_contains did not match its expected value"
+              ]
+            }
+          ]
+        },
+        {
+          "candidate": {},
+          "case_id": "sla-policy-unknown-key-preserves-output",
+          "checks_passed": 1,
+          "checks_total": 2,
+          "elapsed_seconds": 0.308387,
+          "exit_code": 2,
+          "failures": [
+            "step 1: expected exit code 1, received 2",
+            "step 1: check 2: stderr_contains did not match its expected value"
+          ],
+          "http_fixtures": {},
+          "passed": false,
+          "stderr": "sla-report: invalid_policy: policy.json: unknown response_minutes key 'urgent'; allowed keys: high, low\n",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 2,
+              "elapsed_seconds": 0.276391,
+              "exit_code": 2,
+              "failures": [
+                "expected exit code 1, received 2",
+                "check 2: stderr_contains did not match its expected value"
+              ]
+            }
+          ]
+        },
+        {
+          "candidate": {},
+          "case_id": "sla-unknown-status-preserves-output",
+          "checks_passed": 2,
+          "checks_total": 2,
+          "elapsed_seconds": 0.299702,
+          "exit_code": 2,
+          "failures": [
+            "step 1: expected exit code 1, received 2"
+          ],
+          "http_fixtures": {},
+          "passed": false,
+          "stderr": "sla-report: unknown_status: tickets.csv: CSV line 2: 'pending'; allowed values: open, closed\n",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 2,
+              "checks_total": 2,
+              "elapsed_seconds": 0.267948,
+              "exit_code": 2,
+              "failures": [
+                "expected exit code 1, received 2"
+              ]
+            }
+          ]
+        },
+        {
+          "candidate": {},
+          "case_id": "sla-future-ticket-timestamp-preserves-output",
+          "checks_passed": 1,
+          "checks_total": 2,
+          "elapsed_seconds": 0.291091,
+          "exit_code": 2,
+          "failures": [
+            "step 1: expected exit code 1, received 2",
+            "step 1: check 1: stderr_contains did not match its expected value"
+          ],
+          "http_fixtures": {},
+          "passed": false,
+          "stderr": "sla-report: future_created_at: tickets.csv: CSV line 2: created_at is later than --as-of\n",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 2,
+              "elapsed_seconds": 0.261155,
+              "exit_code": 2,
+              "failures": [
+                "expected exit code 1, received 2",
+                "check 1: stderr_contains did not match its expected value"
+              ]
+            }
+          ]
+        }
+      ],
+      "passed": false,
+      "stage": "initial",
+      "task_id": "01-support-sla-report"
+    },
+    "delivery": {
+      "passed": false,
+      "artifact_sha256": "3857879de125030a0a2277f848e0ffe11ade765d539645266d939a60c4b72ef0",
+      "artifact_bytes": 2612,
+      "source_paths_excluded": [
+        "main.py",
+        "sla-report",
+        "pyproject.toml",
+        "build.py",
+        "tests",
+        "work",
+        "README.md"
+      ],
+      "original_project_mounted": false,
+      "cases": [
+        {
+          "candidate": {
+            "artifact_bytes": 2612,
+            "artifact_paths": [
+              "dist/sla-report",
+              "uv.lock"
+            ],
+            "artifact_sha256": "3857879de125030a0a2277f848e0ffe11ade765d539645266d939a60c4b72ef0",
+            "delivery_manifest": "delivery.json",
+            "dependency_lock_path": "uv.lock",
+            "source_paths": [
+              "main.py",
+              "sla-report",
+              "pyproject.toml",
+              "build.py",
+              "tests",
+              "work",
+              "README.md"
+            ]
+          },
+          "case_id": "sla-initial-report",
+          "checks_passed": 9,
+          "checks_total": 9,
+          "elapsed_seconds": 0.116319,
+          "exit_code": 0,
+          "failures": [],
+          "http_fixtures": {},
+          "passed": true,
+          "stderr": "",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 9,
+              "checks_total": 9,
+              "elapsed_seconds": 0.113363,
+              "exit_code": 0,
+              "failures": []
+            }
+          ]
+        },
+        {
+          "candidate": {
+            "artifact_bytes": 2612,
+            "artifact_paths": [
+              "dist/sla-report",
+              "uv.lock"
+            ],
+            "artifact_sha256": "3857879de125030a0a2277f848e0ffe11ade765d539645266d939a60c4b72ef0",
+            "delivery_manifest": "delivery.json",
+            "dependency_lock_path": "uv.lock",
+            "source_paths": [
+              "main.py",
+              "sla-report",
+              "pyproject.toml",
+              "build.py",
+              "tests",
+              "work",
+              "README.md"
+            ]
+          },
+          "case_id": "sla-duplicate-id-preserves-output",
+          "checks_passed": 2,
+          "checks_total": 2,
+          "elapsed_seconds": 0.117606,
+          "exit_code": 2,
+          "failures": [
+            "step 1: expected exit code 1, received 2"
+          ],
+          "http_fixtures": {},
+          "passed": false,
+          "stderr": "sla-report: duplicate_id: tickets.csv: CSV line 3: duplicate ID 'D-1'\n",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 2,
+              "checks_total": 2,
+              "elapsed_seconds": 0.115159,
+              "exit_code": 2,
+              "failures": [
+                "expected exit code 1, received 2"
+              ]
+            }
+          ]
+        },
+        {
+          "candidate": {
+            "artifact_bytes": 2612,
+            "artifact_paths": [
+              "dist/sla-report",
+              "uv.lock"
+            ],
+            "artifact_sha256": "3857879de125030a0a2277f848e0ffe11ade765d539645266d939a60c4b72ef0",
+            "delivery_manifest": "delivery.json",
+            "dependency_lock_path": "uv.lock",
+            "source_paths": [
+              "main.py",
+              "sla-report",
+              "pyproject.toml",
+              "build.py",
+              "tests",
+              "work",
+              "README.md"
+            ]
+          },
+          "case_id": "sla-missing-policy-entry-preserves-output",
+          "checks_passed": 2,
+          "checks_total": 2,
+          "elapsed_seconds": 0.109609,
+          "exit_code": 2,
+          "failures": [
+            "step 1: expected exit code 1, received 2"
+          ],
+          "http_fixtures": {},
+          "passed": false,
+          "stderr": "sla-report: missing_policy_entry: tickets.csv: CSV line 2: add response_minutes.low to the policy\n",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 2,
+              "checks_total": 2,
+              "elapsed_seconds": 0.106954,
+              "exit_code": 2,
+              "failures": [
+                "expected exit code 1, received 2"
+              ]
+            }
+          ]
+        },
+        {
+          "candidate": {
+            "artifact_bytes": 2612,
+            "artifact_paths": [
+              "dist/sla-report",
+              "uv.lock"
+            ],
+            "artifact_sha256": "3857879de125030a0a2277f848e0ffe11ade765d539645266d939a60c4b72ef0",
+            "delivery_manifest": "delivery.json",
+            "dependency_lock_path": "uv.lock",
+            "source_paths": [
+              "main.py",
+              "sla-report",
+              "pyproject.toml",
+              "build.py",
+              "tests",
+              "work",
+              "README.md"
+            ]
+          },
+          "case_id": "sla-malformed-csv-preserves-output",
+          "checks_passed": 1,
+          "checks_total": 1,
+          "elapsed_seconds": 0.109579,
+          "exit_code": 2,
+          "failures": [
+            "step 1: expected exit code 1, received 2"
+          ],
+          "http_fixtures": {},
+          "passed": false,
+          "stderr": "sla-report: invalid_header: CSV header must be exactly id,team,priority,status,created_at\n",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 1,
+              "elapsed_seconds": 0.107146,
+              "exit_code": 2,
+              "failures": [
+                "expected exit code 1, received 2"
+              ]
+            }
+          ]
+        },
+        {
+          "candidate": {
+            "artifact_bytes": 2612,
+            "artifact_paths": [
+              "dist/sla-report",
+              "uv.lock"
+            ],
+            "artifact_sha256": "3857879de125030a0a2277f848e0ffe11ade765d539645266d939a60c4b72ef0",
+            "delivery_manifest": "delivery.json",
+            "dependency_lock_path": "uv.lock",
+            "source_paths": [
+              "main.py",
+              "sla-report",
+              "pyproject.toml",
+              "build.py",
+              "tests",
+              "work",
+              "README.md"
+            ]
+          },
+          "case_id": "sla-unknown-priority-preserves-output",
+          "checks_passed": 2,
+          "checks_total": 2,
+          "elapsed_seconds": 0.111458,
+          "exit_code": 2,
+          "failures": [
+            "step 1: expected exit code 1, received 2"
+          ],
+          "http_fixtures": {},
+          "passed": false,
+          "stderr": "sla-report: unknown_priority: tickets.csv: CSV line 2: 'urgent'; allowed values: high, low\n",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 2,
+              "checks_total": 2,
+              "elapsed_seconds": 0.108644,
+              "exit_code": 2,
+              "failures": [
+                "expected exit code 1, received 2"
+              ]
+            }
+          ]
+        },
+        {
+          "candidate": {
+            "artifact_bytes": 2612,
+            "artifact_paths": [
+              "dist/sla-report",
+              "uv.lock"
+            ],
+            "artifact_sha256": "3857879de125030a0a2277f848e0ffe11ade765d539645266d939a60c4b72ef0",
+            "delivery_manifest": "delivery.json",
+            "dependency_lock_path": "uv.lock",
+            "source_paths": [
+              "main.py",
+              "sla-report",
+              "pyproject.toml",
+              "build.py",
+              "tests",
+              "work",
+              "README.md"
+            ]
+          },
+          "case_id": "sla-invalid-timestamp-preserves-output",
+          "checks_passed": 1,
+          "checks_total": 2,
+          "elapsed_seconds": 0.109022,
+          "exit_code": 2,
+          "failures": [
+            "step 1: expected exit code 1, received 2",
+            "step 1: check 2: stderr_contains did not match its expected value"
+          ],
+          "http_fixtures": {},
+          "passed": false,
+          "stderr": "sla-report: invalid_timestamp: tickets.csv: CSV line 2 created_at: '2025-01-02 00:00:00Z'; expected YYYY-MM-DDTHH:MM:SS[.ffffff](Z|±HH:MM)\n",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 2,
+              "elapsed_seconds": 0.106904,
+              "exit_code": 2,
+              "failures": [
+                "expected exit code 1, received 2",
+                "check 2: stderr_contains did not match its expected value"
+              ]
+            }
+          ]
+        },
+        {
+          "candidate": {
+            "artifact_bytes": 2612,
+            "artifact_paths": [
+              "dist/sla-report",
+              "uv.lock"
+            ],
+            "artifact_sha256": "3857879de125030a0a2277f848e0ffe11ade765d539645266d939a60c4b72ef0",
+            "delivery_manifest": "delivery.json",
+            "dependency_lock_path": "uv.lock",
+            "source_paths": [
+              "main.py",
+              "sla-report",
+              "pyproject.toml",
+              "build.py",
+              "tests",
+              "work",
+              "README.md"
+            ]
+          },
+          "case_id": "sla-policy-boolean-preserves-output",
+          "checks_passed": 1,
+          "checks_total": 2,
+          "elapsed_seconds": 0.109518,
+          "exit_code": 2,
+          "failures": [
+            "step 1: expected exit code 1, received 2",
+            "step 1: check 2: stderr_contains did not match its expected value"
+          ],
+          "http_fixtures": {},
+          "passed": false,
+          "stderr": "sla-report: invalid_policy: policy.json: response_minutes.high must be a nonnegative JSON integer\n",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 2,
+              "elapsed_seconds": 0.107086,
+              "exit_code": 2,
+              "failures": [
+                "expected exit code 1, received 2",
+                "check 2: stderr_contains did not match its expected value"
+              ]
+            }
+          ]
+        },
+        {
+          "candidate": {
+            "artifact_bytes": 2612,
+            "artifact_paths": [
+              "dist/sla-report",
+              "uv.lock"
+            ],
+            "artifact_sha256": "3857879de125030a0a2277f848e0ffe11ade765d539645266d939a60c4b72ef0",
+            "delivery_manifest": "delivery.json",
+            "dependency_lock_path": "uv.lock",
+            "source_paths": [
+              "main.py",
+              "sla-report",
+              "pyproject.toml",
+              "build.py",
+              "tests",
+              "work",
+              "README.md"
+            ]
+          },
+          "case_id": "sla-policy-negative-preserves-output",
+          "checks_passed": 1,
+          "checks_total": 2,
+          "elapsed_seconds": 0.112402,
+          "exit_code": 2,
+          "failures": [
+            "step 1: expected exit code 1, received 2",
+            "step 1: check 2: stderr_contains did not match its expected value"
+          ],
+          "http_fixtures": {},
+          "passed": false,
+          "stderr": "sla-report: invalid_policy: policy.json: response_minutes.high must be a nonnegative JSON integer\n",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 2,
+              "elapsed_seconds": 0.109473,
+              "exit_code": 2,
+              "failures": [
+                "expected exit code 1, received 2",
+                "check 2: stderr_contains did not match its expected value"
+              ]
+            }
+          ]
+        },
+        {
+          "candidate": {
+            "artifact_bytes": 2612,
+            "artifact_paths": [
+              "dist/sla-report",
+              "uv.lock"
+            ],
+            "artifact_sha256": "3857879de125030a0a2277f848e0ffe11ade765d539645266d939a60c4b72ef0",
+            "delivery_manifest": "delivery.json",
+            "dependency_lock_path": "uv.lock",
+            "source_paths": [
+              "main.py",
+              "sla-report",
+              "pyproject.toml",
+              "build.py",
+              "tests",
+              "work",
+              "README.md"
+            ]
+          },
+          "case_id": "sla-policy-unknown-key-preserves-output",
+          "checks_passed": 1,
+          "checks_total": 2,
+          "elapsed_seconds": 0.1213,
+          "exit_code": 2,
+          "failures": [
+            "step 1: expected exit code 1, received 2",
+            "step 1: check 2: stderr_contains did not match its expected value"
+          ],
+          "http_fixtures": {},
+          "passed": false,
+          "stderr": "sla-report: invalid_policy: policy.json: unknown response_minutes key 'urgent'; allowed keys: high, low\n",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 2,
+              "elapsed_seconds": 0.118221,
+              "exit_code": 2,
+              "failures": [
+                "expected exit code 1, received 2",
+                "check 2: stderr_contains did not match its expected value"
+              ]
+            }
+          ]
+        },
+        {
+          "candidate": {
+            "artifact_bytes": 2612,
+            "artifact_paths": [
+              "dist/sla-report",
+              "uv.lock"
+            ],
+            "artifact_sha256": "3857879de125030a0a2277f848e0ffe11ade765d539645266d939a60c4b72ef0",
+            "delivery_manifest": "delivery.json",
+            "dependency_lock_path": "uv.lock",
+            "source_paths": [
+              "main.py",
+              "sla-report",
+              "pyproject.toml",
+              "build.py",
+              "tests",
+              "work",
+              "README.md"
+            ]
+          },
+          "case_id": "sla-unknown-status-preserves-output",
+          "checks_passed": 2,
+          "checks_total": 2,
+          "elapsed_seconds": 0.115618,
+          "exit_code": 2,
+          "failures": [
+            "step 1: expected exit code 1, received 2"
+          ],
+          "http_fixtures": {},
+          "passed": false,
+          "stderr": "sla-report: unknown_status: tickets.csv: CSV line 2: 'pending'; allowed values: open, closed\n",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 2,
+              "checks_total": 2,
+              "elapsed_seconds": 0.112955,
+              "exit_code": 2,
+              "failures": [
+                "expected exit code 1, received 2"
+              ]
+            }
+          ]
+        },
+        {
+          "candidate": {
+            "artifact_bytes": 2612,
+            "artifact_paths": [
+              "dist/sla-report",
+              "uv.lock"
+            ],
+            "artifact_sha256": "3857879de125030a0a2277f848e0ffe11ade765d539645266d939a60c4b72ef0",
+            "delivery_manifest": "delivery.json",
+            "dependency_lock_path": "uv.lock",
+            "source_paths": [
+              "main.py",
+              "sla-report",
+              "pyproject.toml",
+              "build.py",
+              "tests",
+              "work",
+              "README.md"
+            ]
+          },
+          "case_id": "sla-future-ticket-timestamp-preserves-output",
+          "checks_passed": 1,
+          "checks_total": 2,
+          "elapsed_seconds": 0.116079,
+          "exit_code": 2,
+          "failures": [
+            "step 1: expected exit code 1, received 2",
+            "step 1: check 1: stderr_contains did not match its expected value"
+          ],
+          "http_fixtures": {},
+          "passed": false,
+          "stderr": "sla-report: future_created_at: tickets.csv: CSV line 2: created_at is later than --as-of\n",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 1,
+              "checks_total": 2,
+              "elapsed_seconds": 0.113864,
+              "exit_code": 2,
+              "failures": [
+                "expected exit code 1, received 2",
+                "check 1: stderr_contains did not match its expected value"
+              ]
+            }
+          ]
+        }
+      ],
+      "stage_error": ""
+    }
+  }
+}

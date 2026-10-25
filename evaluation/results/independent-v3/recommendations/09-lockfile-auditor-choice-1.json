@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "decision_id": "09-lockfile-auditor-choice-1",
+  "recorded_at_utc": "2026-10-24T13:28:32Z",
+  "task": {
+    "id": "09-lockfile-auditor",
+    "class": "maintainable_application",
+    "origin": "independent",
+    "brief_sha256": "8a8e31a19ac6d99175f7460974870bb55c679905dd1a8a04d57d07d8e07b2a6b"
+  },
+  "assistant": {
+    "provider": "OpenAI Codex",
+    "name": "gpt-6.1-sol",
+    "version": "gpt-6.1-sol",
+    "reasoning_effort": "medium",
+    "session_id": "01a16e18-deb0-7911-a947-a4cf728f2ee6",
+    "fresh_session": true
+  },
+  "budget": {
+    "active_minutes": 5,
+    "tool_calls": 0
+  },
+  "usage": {
+    "active_seconds": 27,
+    "tool_calls": 0
+  },
+  "evidence": {
+    "prompt_transcript_path": "choice-evidence/09-lockfile-auditor-choice-1/prompt.md",
+    "prompt_transcript_sha256": "34ea000c0bc7266951a5f41dfd1fc008c6661d56aadcf19992c5b1778c14d437",
+    "response_transcript_path": "choice-evidence/09-lockfile-auditor-choice-1/response.md",
+    "response_transcript_sha256": "4ac27399fbfc16aa49917c39ca53c03c3fe4d938bd4c4274ba102ee72cb06725",
+    "usage_snapshot_path": "choice-evidence/09-lockfile-auditor-choice-1/usage-snapshot.json",
+    "usage_snapshot_sha256": "9b6970b5aa1f93010946f2a0f89fc830352c41e73b3ad5c09dd61300cc46a207"
+  },
+  "presentation_order": [
+    "python",
+    "veritas"
+  ],
+  "context": {
+    "mode": "pre-build-recommendation",
+    "veritas_version": "0.1.0 (artifact format 33)",
+    "python_version": "3.14.8",
+    "documentation_sha256": "cebd18e725e855c1e9ee5150ef59ba855636b54f71e9daffd9634c59ee1888d5",
+    "schedule_sha256": "abcc4bb175c51c22251846fc3609c94632123b196d549f1dd0a61de17eba76f5",
+    "schedule_file_sha256": "04d198bcbe77295d2d0a2e413a4ecc24e3b48e12ae28ed4f5741b70b5c6cfd5a",
+    "schedule_entry_id": "09-lockfile-auditor-choice-1",
+    "prerun_records_sha256": "a4d6ecff8b4840d60dfa8a881e7c34978c49979147b3f20b2ce398abed004d50",
+    "prerun_recorded_at_utc": "2026-10-24T13:14:17.296495Z",
+    "campaign_config_sha256": "b936691e5a99a95685de70940cc8ec5a90953dab4d798cf83f372cfe154dacd0",
+    "comparative_pair_results_shown": false
+  },
+  "recommendation": {
+    "choice": "python",
+    "rationale": "**Choose python for this task.**\n\nThe decisive factor is the auditor’s concentration of strict input validation and policy edge cases: full SemVer precedence, exact Gregorian dates, omitted versus explicitly empty options, repeated diagnostics, and preserving an existing report on failure. Python’s standard library supplies CLI parsing, JSON handling, calendar validation, sorting, and file replacement primitives, making it a direct fit for a maintainable multi-module CLI.\n\nSemVer still needs deliberate treatment: use a suitable package only if it appears in the supplied offline dependency lock, or implement the specified SemVer rules directly. Neither ordinary string comparison nor a general package-version comparator should be assumed to satisfy SemVer 2.0.0.\n\nVeritas has relevant documented capabilities: modules, records, typed results, JSON parsing, atomic replacement, and source-free application bundles. Its packaging workflow is a meaningful advantage. However, the supplied profile also describes pre-1.0 compatibility limits, restricted matching and collection capabilities, and runtime errors for typed JSON access failures. Those introduce additional implementation and maintenance considerations for this validation-heavy application. Using its Python bridge is allowed, but adds a bridge and managed runtime boundary to logic that can run directly in Python.\n\nPython still must deliver a locked project and a wheel or zipapp that passes relocation with the original source tree absent. Its packaging success is not established by this recommendation.\n\nI would change the recommendation toward **veritas** if integration into an existing Veritas application, its runtime limits, or its bundled delivery and integrity metadata became primary requirements—and the supported Linux ARM64 target remained sufficient. No supplied evidence establishes a performance winner; meaningful-volume processing and clean delivery require verification for either choice.",
+    "conditions": []
+  },
+  "exclusion": {
+    "excluded": false,
+    "reason": null
+  }
+}

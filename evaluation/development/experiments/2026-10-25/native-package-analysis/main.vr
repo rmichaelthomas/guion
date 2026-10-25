@@ -1,0 +1,127 @@
+fn mean_json(total: Int, count: Int) -> Json:
+    if count == 0:
+        return json_int(0)
+
+    var sign = ""
+    var magnitude = total
+    if total < 0:
+        set sign = "-"
+        set magnitude = -total
+
+    let scaled = magnitude * 1000000
+    var rounded = scaled // count
+    let remainder = scaled % count
+    if remainder * 2 > count or (remainder * 2 == count and rounded % 2 == 1):
+        set rounded = rounded + 1
+
+    let whole = rounded // 1000000
+    var fraction = rounded % 1000000
+    var fraction_text = ""
+    var saw_nonzero = false
+    var digit_index = 0
+    while digit_index < 6:
+        let digit = fraction % 10
+        if digit != 0 or saw_nonzero:
+            set fraction_text = json_stringify(json_int(digit)) + fraction_text
+        if digit != 0:
+            set saw_nonzero = true
+        set fraction = fraction // 10
+        set digit_index = digit_index + 1
+
+    if not saw_nonzero:
+        set fraction_text = "0"
+    let number_text = sign + json_stringify(json_int(whole)) + "." + fraction_text
+    return unwrap(json_parse(number_text))
+
+fn make_summary(count: Int, total: Int, minimum: Int, maximum: Int) -> Json:
+    let mean = mean_json(total, count)
+    let with_count = json_set(json_object(), "count", json_int(count))
+    let with_maximum = json_set(with_count, "maximum", json_int(maximum))
+    let with_mean = json_set(with_maximum, "mean", mean)
+    let with_minimum = json_set(with_mean, "minimum", json_int(minimum))
+    return json_set(with_minimum, "total", json_int(total))
+
+fn main() -> Int:
+    let arguments = args()
+    if len(arguments) != 2 and len(arguments) != 3:
+        print("Usage: package-analysis INPUT.json REPORT.json [GROUP_BY]")
+        return 2
+
+    var group_by = "tag"
+    if len(arguments) == 3:
+        set group_by = arguments[2]
+
+    let loaded = read_text(arguments[0])
+    if not is_ok(loaded):
+        print("Cannot read input: " + file_error_code(error(loaded)))
+        return 1
+    let parsed = json_parse(unwrap(loaded))
+    if not is_ok(parsed):
+        print("Invalid input JSON: " + json_error_code(error(parsed)))
+        return 1
+
+    let document = unwrap(parsed)
+    let rows = json_get(document, "rows")
+    let row_count = json_len(rows)
+    var group_indices: Map[Text, Int] = {}
+    var group_keys: List[Text] = []
+    var totals: List[Int] = []
+    var counts: List[Int] = []
+    var minima: List[Int] = []
+    var maxima: List[Int] = []
+    var total = 0
+    var minimum = 0
+    var maximum = 0
+    var index = 0
+    while index < row_count:
+        let row = json_index(rows, index)
+        let value = json_as_int(json_get(row, "value"))
+        let key = json_as_text(json_get(row, group_by))
+        if index == 0:
+            set minimum = value
+            set maximum = value
+        else:
+            if value < minimum:
+                set minimum = value
+            if value > maximum:
+                set maximum = value
+
+        set total = total + value
+        if map_has(group_indices, key):
+            let group_index = group_indices[key]
+            set counts = list_set(counts, group_index, counts[group_index] + 1)
+            set totals = list_set(totals, group_index, totals[group_index] + value)
+            if value < minima[group_index]:
+                set minima = list_set(minima, group_index, value)
+            if value > maxima[group_index]:
+                set maxima = list_set(maxima, group_index, value)
+        else:
+            let group_index = len(group_keys)
+            set group_indices = map_set(group_indices, key, group_index)
+            set group_keys = list_push(group_keys, key)
+            set counts = list_push(counts, 1)
+            set totals = list_push(totals, value)
+            set minima = list_push(minima, value)
+            set maxima = list_push(maxima, value)
+        set index = index + 1
+
+    var grouped = json_object()
+    var group_index = 0
+    for key in group_keys:
+        let summary = make_summary(counts[group_index], totals[group_index], minima[group_index], maxima[group_index])
+        set grouped = json_set(grouped, key, summary)
+        set group_index = group_index + 1
+
+    let overall = make_summary(row_count, total, minimum, maximum)
+    let with_group_by = json_set(overall, "group_by", json_text(group_by))
+    let report = json_set(with_group_by, "groups", grouped)
+    let saved = write_text_atomic(arguments[1], json_stringify(report))
+    if not is_ok(saved):
+        print("Cannot write report: " + file_error_code(error(saved)))
+        return 1
+
+    print("Rows:")
+    print(row_count)
+    print("Total:")
+    print(total)
+    return 0

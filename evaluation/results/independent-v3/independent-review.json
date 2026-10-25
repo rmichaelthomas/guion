@@ -1,0 +1,171 @@
+{
+  "schema_version": 1,
+  "status": "approved",
+  "reviewer_identity": "/root/v33_campaign_review (independent read-only Codex reviewer)",
+  "reviewer_result": "APPROVE",
+  "reviewed_at": "2026-10-24",
+  "review_scope_sha256": "1fb7fb891a4ea217cd099f7474680a38598992c7159f52689313fe6eebb8e703",
+  "reviewed_files": [
+    {
+      "path": "evaluation/briefs/independent/01-support-sla-report.md",
+      "sha256": "1c9a173209d8afd9480f2f74bd47a962977e9abe6944086d08c8990d6f0ae150"
+    },
+    {
+      "path": "evaluation/briefs/independent/02-jsonl-retention.md",
+      "sha256": "e8b2dc3a8c290188f7a6df26f90317bcabd7b4f2df53add99e9393f0d69fd05c"
+    },
+    {
+      "path": "evaluation/briefs/independent/03-release-notes.md",
+      "sha256": "8cfd43d02eaf483cf0b1dfdabb76b484666d27f7a99444e22f8652313f363a9d"
+    },
+    {
+      "path": "evaluation/briefs/independent/04-calendar-conflict-report.md",
+      "sha256": "e4f76659946d28ffb676190669ee00f2eee4ee107faa72a8614031c960bce332"
+    },
+    {
+      "path": "evaluation/briefs/independent/05-webhook-replay.md",
+      "sha256": "5c56d02947aa653aa4408f5446d103e5fa5719195c176fd9667e3ff447f30d3d"
+    },
+    {
+      "path": "evaluation/briefs/independent/06-service-health-digest.md",
+      "sha256": "1b19df017df73674d30a55ca80fe6ae8693eb50791232135a76f55405d3f790d"
+    },
+    {
+      "path": "evaluation/briefs/independent/07-config-migrator.md",
+      "sha256": "90cdd8e7a6e6d02b3618bd5bab92244dcb4ff809fec15b54f2762196ff326e7d"
+    },
+    {
+      "path": "evaluation/briefs/independent/08-documentation-link-index.md",
+      "sha256": "ee44276f93e5ec7d007701dbf7eda28ce3b67687f2d7da7bedd932c100c099b4"
+    },
+    {
+      "path": "evaluation/briefs/independent/09-lockfile-auditor.md",
+      "sha256": "8a8e31a19ac6d99175f7460974870bb55c679905dd1a8a04d57d07d8e07b2a6b"
+    },
+    {
+      "path": "evaluation/fixtures/independent-v1/manifest.json",
+      "sha256": "d36dc5246dec1e315a34bf65184c942400d5e3efef25a1f9d33f1e5cee555581"
+    },
+    {
+      "path": "evaluation/protocol/campaign-config.json",
+      "sha256": "b936691e5a99a95685de70940cc8ec5a90953dab4d798cf83f372cfe154dacd0"
+    },
+    {
+      "path": "evaluation/protocol/case-runner.md",
+      "sha256": "de604f2db00e4e5db1fb7be89ec1065c47a21f7d62da142269c306088a95649c"
+    },
+    {
+      "path": "evaluation/protocol/case_runner.py",
+      "sha256": "e1d36c2284c6393b8bf8843253b7d7d23e1fcac7a2b2a530ae5b2e6a1885a6aa"
+    },
+    {
+      "path": "evaluation/protocol/ledger.py",
+      "sha256": "da78e32d2638394ec8261373c703159a4f5d989edbffadc89a01e77a1c3810eb"
+    },
+    {
+      "path": "evaluation/protocol/prompts/build-pair.md",
+      "sha256": "90037602e4f5c50f4e8057c4381f4ba0962bc47dbfa3fb55d96e3b7abdf722d6"
+    },
+    {
+      "path": "evaluation/protocol/prompts/recommendation-choice.md",
+      "sha256": "def6c1b23ca412d4fec18b1bb6048468732944fef4b4542ee31bab2660bb8ee6"
+    },
+    {
+      "path": "evaluation/protocol/recommendations.py",
+      "sha256": "00e65ee3a8c4d7f5bf32cdd56e4d09c91561387ee9d961f23a1391dd44b5ef25"
+    },
+    {
+      "path": "evaluation/protocol/record_prerun.py",
+      "sha256": "2f4a1d76b873267bf4bf94528d2df692e2da48fdfb3fb3fb002ed96910fddddf"
+    },
+    {
+      "path": "evaluation/protocol/render_choice_prompt.py",
+      "sha256": "2008cefd1dbf67ce0e81f67918d84cf193861c2b60be2fd81ed44b23e17b03a6"
+    },
+    {
+      "path": "evaluation/protocol/schedule.py",
+      "sha256": "0e9a22ef0a6998498af89301506271477368813b9f0846857bcfb0209125cf16"
+    },
+    {
+      "path": "evaluation/protocol/stage_delivery.py",
+      "sha256": "56869388f6495de5c2bfc8f35126abfd20111ec4a167f02d6f95b63e51b6591c"
+    },
+    {
+      "path": "evaluation/protocol/usage_evidence.py",
+      "sha256": "3478c3c72b28061ae282f272a44311bd7873b2ccac9c4191760f658413816c1a"
+    },
+    {
+      "path": "evaluation/results/independent-v3/campaign-lock.json",
+      "sha256": "fe08c7c6aaa54e51ba14fd1cb21aa6032c65a01cce748735defe5c13acf02be9"
+    },
+    {
+      "path": "evaluation/results/independent-v3/candidate-python.json",
+      "sha256": "826a67c67affc94df7db024e96837b5bbebbc638d4122af29f371b3f4b01966f"
+    },
+    {
+      "path": "evaluation/results/independent-v3/candidate-veritas.json",
+      "sha256": "8fafb67c2018d35b3fe67938be1336bdeeb66b599618c75f0c483466d1c15b80"
+    },
+    {
+      "path": "evaluation/results/independent-v3/product-information/README.md",
+      "sha256": "e2ea8fd16e99218ef2d855a76821531709e3db25455547eecd17c3cd2c72c988"
+    },
+    {
+      "path": "evaluation/results/independent-v3/product-information/architecture.md",
+      "sha256": "986f670b12608185b1868e0a2eaf55ef29eb8700c8b5c6f9688556c2f63c1878"
+    },
+    {
+      "path": "evaluation/results/independent-v3/product-information/bundle-manifest.json",
+      "sha256": "ab79e65354d28fa02185f4b4f37026395e18c26a9ea2c9739242d42c90b9ba7e"
+    },
+    {
+      "path": "evaluation/results/independent-v3/product-information/compatibility-and-migrations.md",
+      "sha256": "e630f250e738e6db7a258d1776f2413575327cc780cb94f2d90e1a72ff3b3762"
+    },
+    {
+      "path": "evaluation/results/independent-v3/product-information/host-api.md",
+      "sha256": "04624b3c5561726b7af6e1edf8bcde66a58d45a7e915299d938c399d607561d0"
+    },
+    {
+      "path": "evaluation/results/independent-v3/product-information/language-spec.md",
+      "sha256": "07ccf2d138c902f0b26b69070f35ec91c5867c8157df221c256782251356c515"
+    },
+    {
+      "path": "evaluation/results/independent-v3/product-information/python-abi.md",
+      "sha256": "34895345824393832d801485e51f9387d5e86cee6b94abb9be656262af28b4de"
+    },
+    {
+      "path": "evaluation/results/independent-v3/product-information/python-baseline.md",
+      "sha256": "49c8ec87e6fa35de9346f8ef5c62da0afddd821ecf2a0568e54ec72bdf4fc193"
+    },
+    {
+      "path": "evaluation/results/independent-v3/product-information/reference.md",
+      "sha256": "a11b1c7798d5bbbb39f7f759da87e4fcba7c20b010e9de33fb059d30b4e8b99c"
+    },
+    {
+      "path": "evaluation/results/independent-v3/product-information/setup-guide.md",
+      "sha256": "d335d3e767838934a383be4fa4855eb38e90903c87fcca91a8a3138f8f5bccdc"
+    },
+    {
+      "path": "evaluation/results/independent-v3/run-case.sh",
+      "sha256": "6b82a3bc74bb037044c3f09fe686ff7c639eeb748b4aa57ccd37416b70a5b3ea"
+    },
+    {
+      "path": "evaluation/results/independent-v3/workspace-addendum.json",
+      "sha256": "8e5eec312830bab0fc77e2e6e9427ecf8d3f478307ee600e554e543792185ba2"
+    }
+  ],
+  "findings": [
+    "All nine choice-safe product bundle files match their listed hashes and bundle digest.",
+    "Format-33 package archive digest, campaign image IDs, Docker Engine identity, shared dependency digest, Python version and uv version agree across the package, campaign lock and workspace addendum.",
+    "The candidate documentation accurately limits the self-hosted compiler claim to the supported frontend subset; assembler and bytecode VM remain Rust components.",
+    "The choice-safe bundle contains no comparative benchmark outcomes; campaign calibration notes must remain excluded from choice prompts.",
+    "Frozen format-30 campaign identities and records remain distinct from the format-33 candidate."
+  ],
+  "administrative_transition_after_review": {
+    "field": "campaign-lock.status",
+    "reviewed_value": "candidate_for_superseding_format33_campaign_review",
+    "frozen_value": "selected_before_independent_runs",
+    "substantive_candidate_identity_changed": false
+  }
+}

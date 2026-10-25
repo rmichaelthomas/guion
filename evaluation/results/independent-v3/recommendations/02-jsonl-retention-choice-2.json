@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "decision_id": "02-jsonl-retention-choice-2",
+  "recorded_at_utc": "2026-10-24T13:22:07Z",
+  "task": {
+    "id": "02-jsonl-retention",
+    "class": "small_automation_cli",
+    "origin": "independent",
+    "brief_sha256": "e8b2dc3a8c290188f7a6df26f90317bcabd7b4f2df53add99e9393f0d69fd05c"
+  },
+  "assistant": {
+    "provider": "OpenAI Codex",
+    "name": "gpt-6.1-sol",
+    "version": "gpt-6.1-sol",
+    "reasoning_effort": "medium",
+    "session_id": "01a16e13-0d8f-7893-b89b-1b15b05179c6",
+    "fresh_session": true
+  },
+  "budget": {
+    "active_minutes": 5,
+    "tool_calls": 0
+  },
+  "usage": {
+    "active_seconds": 23,
+    "tool_calls": 0
+  },
+  "evidence": {
+    "prompt_transcript_path": "choice-evidence/02-jsonl-retention-choice-2/prompt.md",
+    "prompt_transcript_sha256": "b0ec88e634d1a16c5ed115612d1f1a3a4f70fc9df97c6a2bc9294f0fd33f2080",
+    "response_transcript_path": "choice-evidence/02-jsonl-retention-choice-2/response.md",
+    "response_transcript_sha256": "9af0b7e0bec560e5fef0cb42929083a06baf9dada8b734a15148a84a690b3eba",
+    "usage_snapshot_path": "choice-evidence/02-jsonl-retention-choice-2/usage-snapshot.json",
+    "usage_snapshot_sha256": "c57365ef2e29d21a22ee635973a30ce9f5d92cc9994143d49be194fe23908416"
+  },
+  "presentation_order": [
+    "python",
+    "veritas"
+  ],
+  "context": {
+    "mode": "pre-build-recommendation",
+    "veritas_version": "0.1.0 (artifact format 33)",
+    "python_version": "3.14.8",
+    "documentation_sha256": "cebd18e725e855c1e9ee5150ef59ba855636b54f71e9daffd9634c59ee1888d5",
+    "schedule_sha256": "abcc4bb175c51c22251846fc3609c94632123b196d549f1dd0a61de17eba76f5",
+    "schedule_file_sha256": "04d198bcbe77295d2d0a2e413a4ecc24e3b48e12ae28ed4f5741b70b5c6cfd5a",
+    "schedule_entry_id": "02-jsonl-retention-choice-2",
+    "prerun_records_sha256": "a4d6ecff8b4840d60dfa8a881e7c34978c49979147b3f20b2ce398abed004d50",
+    "prerun_recorded_at_utc": "2026-10-24T13:14:17.296495Z",
+    "campaign_config_sha256": "b936691e5a99a95685de70940cc8ec5a90953dab4d798cf83f372cfe154dacd0",
+    "comparative_pair_results_shown": false
+  },
+  "recommendation": {
+    "choice": "python",
+    "rationale": "**Choose python.**\n\nThis task’s main difficulty is precise validation and error handling. Python’s standard library supplies JSON parsing, calendar and timezone arithmetic, CLI parsing, and atomic file replacement, reducing the amount of custom infrastructure needed.\n\nThe timestamp rules still require an explicit syntax check before datetime parsing: broader ISO 8601 acceptance must be rejected, fractions must contain one to six digits, and UTC serialization must follow the specified trimming rules. Physical line numbering, per-line error recovery, and preserving existing output also need deliberate implementation.\n\nVeritas offers useful typed records, explicit results, atomic text replacement, resource limits, and application packaging. However, the supplied profile does not establish a native timestamp facility. Its JSON type-access failures can also become invocation errors, complicating the requirement to report malformed events and continue. Python interop could cover these needs, but adds bridge configuration and packaging to a small CLI.\n\nI would reconsider if this CLI belonged to an existing Veritas application with reusable, verified timestamp and event-validation utilities, or if its runtime policies and packaged delivery were overriding requirements. For the brief as supplied, Python presents fewer integration risks. This recommendation predicts implementation suitability; it makes no measured speed or acceptance claim.",
+    "conditions": []
+  },
+  "exclusion": {
+    "excluded": false,
+    "reason": null
+  }
+}

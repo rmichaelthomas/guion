@@ -1,0 +1,16 @@
+{
+  "command": [
+    "/opt/veritas/veritas",
+    "run",
+    "${candidate}"
+  ],
+  "workspace_root_project": true,
+  "env": {
+    "UV_PYTHON_INSTALL_DIR": "/opt/campaign-python/python",
+    "UV_OFFLINE": "1",
+    "UV_NO_INDEX": "1",
+    "UV_FIND_LINKS": "/opt/campaign-dependencies/wheelhouse",
+    "PIP_NO_INDEX": "1",
+    "PIP_FIND_LINKS": "/opt/campaign-dependencies/wheelhouse"
+  }
+}

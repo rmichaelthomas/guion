@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "decision_id": "02-jsonl-retention-choice-1",
+  "recorded_at_utc": "2026-10-24T13:21:19Z",
+  "task": {
+    "id": "02-jsonl-retention",
+    "class": "small_automation_cli",
+    "origin": "independent",
+    "brief_sha256": "e8b2dc3a8c290188f7a6df26f90317bcabd7b4f2df53add99e9393f0d69fd05c"
+  },
+  "assistant": {
+    "provider": "OpenAI Codex",
+    "name": "gpt-6.1-sol",
+    "version": "gpt-6.1-sol",
+    "reasoning_effort": "medium",
+    "session_id": "01a16e12-163d-7013-a648-d156494aea99",
+    "fresh_session": true
+  },
+  "budget": {
+    "active_minutes": 5,
+    "tool_calls": 0
+  },
+  "usage": {
+    "active_seconds": 38,
+    "tool_calls": 0
+  },
+  "evidence": {
+    "prompt_transcript_path": "choice-evidence/02-jsonl-retention-choice-1/prompt.md",
+    "prompt_transcript_sha256": "38074edbb3aec067089c9c23cfe4933bd6670babaa8d381b13e8073bd663f712",
+    "response_transcript_path": "choice-evidence/02-jsonl-retention-choice-1/response.md",
+    "response_transcript_sha256": "57b5e3a91281e5d494ca00612dca7d8191451cf9ec00b6a8562e8ce4326d33ad",
+    "usage_snapshot_path": "choice-evidence/02-jsonl-retention-choice-1/usage-snapshot.json",
+    "usage_snapshot_sha256": "8c3f854be650289b9beae789bb9ad82ae11770192af83901f4eb60dd0fcd6046"
+  },
+  "presentation_order": [
+    "python",
+    "veritas"
+  ],
+  "context": {
+    "mode": "pre-build-recommendation",
+    "veritas_version": "0.1.0 (artifact format 33)",
+    "python_version": "3.14.8",
+    "documentation_sha256": "cebd18e725e855c1e9ee5150ef59ba855636b54f71e9daffd9634c59ee1888d5",
+    "schedule_sha256": "abcc4bb175c51c22251846fc3609c94632123b196d549f1dd0a61de17eba76f5",
+    "schedule_file_sha256": "04d198bcbe77295d2d0a2e413a4ecc24e3b48e12ae28ed4f5741b70b5c6cfd5a",
+    "schedule_entry_id": "02-jsonl-retention-choice-1",
+    "prerun_records_sha256": "a4d6ecff8b4840d60dfa8a881e7c34978c49979147b3f20b2ce398abed004d50",
+    "prerun_recorded_at_utc": "2026-10-24T13:14:17.296495Z",
+    "campaign_config_sha256": "b936691e5a99a95685de70940cc8ec5a90953dab4d798cf83f372cfe154dacd0",
+    "comparative_pair_results_shown": false
+  },
+  "recommendation": {
+    "choice": "python",
+    "rationale": "**Choice: python.**\n\nThis task is dominated by precise validation and recoverable errors. Python’s standard library provides the needed CLI, JSON, calendar/timezone, collection, and file operations without third-party dependencies. Its broader ISO timestamp parsing still needs an explicit format check to enforce the brief’s exact grammar, offset requirement, seconds range, and one-to-six fractional digits.\n\nThe decisive tradeoffs are:\n\n- **Validation control:** Each malformed event must become a physical line number while processing continues. Veritas documents recoverable JSON parsing, but typed JSON access failures remain invocation errors. That requires particular care around valid JSON with incorrect field types.\n- **Timestamp work:** Calendar validation, offset normalization, UTC date grouping, and exact microsecond serialization are central requirements. The supplied Veritas profile does not establish a comparable native date/time facility. A custom implementation adds correctness work; Python interop adds a managed interpreter and bridge to this small CLI.\n- **Output preservation:** Veritas’s atomic text replacement directly helps. Python can also stage output and replace it only after successful validation and serialization. Both require deliberate sequencing.\n- **Delivery:** Both require locked, relocated artifacts. Python can keep this task within its standard library; Veritas’s bounded runtime, explicit permissions, and package verification offer benefits if those are operational priorities.\n\nThe service filter does not change my recommendation. Validation must precede filtering so malformed events remain invalid and only valid excluded events increase `ignored_count`.\n\nI would reconsider **veritas** if its runtime policies and verified packaging were primary requirements, especially in an existing Veritas deployment, and the timestamp and recoverable field-validation paths were established. Those advantages could justify the additional implementation work.\n\nThis is a task-specific assessment of implementation risk, not a measured speed or correctness result.",
+    "conditions": []
+  },
+  "exclusion": {
+    "excluded": false,
+    "reason": null
+  }
+}

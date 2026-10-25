@@ -6362,6 +6362,16 @@
       "path": "evaluation/completion/logs/legacy-veritas/final-conformance-debian.log",
       "bytes": 56955,
       "sha256": "d993b0cfa8db19a9c5bfd89b87483a55b2b3f54bed8478b08732b92ed4646638"
+    },
+    {
+      "path": "native/vendor/libical-COPYING.LESSER.txt",
+      "bytes": 43,
+      "sha256": "b05582ea97007616dbbecbc9b8e3d1ddf79ec25280c28abf9e5dd201de082134"
+    },
+    {
+      "path": "crates/runtime/tests/fixtures/libical-2.ics",
+      "bytes": 594,
+      "sha256": "fbdbecc0105b33e659f0b473432d7cf103f26325f2fea7e2090d2d391a4d0970"
     }
   ],
   "campaigns": {
@@ -6713,6 +6723,132 @@
       "bytes": 112,
       "sha256": "79b03f4f4b2548e4f0ab2ae7a446c68de053b30aab0b7256c91df48e5844ec40",
       "category": "duplicate self-host compiler temporary"
+    },
+    {
+      "path": "evaluation/completion/builder/reports/evidence/bookloom-veritas-initial/app-package/veritas",
+      "bytes": 12824672,
+      "sha256": "03be2204f0923684c818a72f823db96ef9a1735741fec7481b0c4c7a69ab7b01",
+      "category": "repeated packaged runtime executable in builder evidence",
+      "evidence_group": "bookloom-veritas-initial",
+      "related_report": "evaluation/completion/builder/reports/bookloom-veritas-initial-attempt.json",
+      "replay": "Exact executable removed from current tree; source package/runtime and recorded report remain. Hash identifies bytes but cannot reconstruct them.",
+      "referenced_by": [
+        "docs/history/migration-retention-manifest.json"
+      ]
+    },
+    {
+      "path": "evaluation/completion/builder/reports/evidence/bookloom-veritas-initial/install-root/share/veritas/apps/bookloom/0.1.0/veritas",
+      "bytes": 12824672,
+      "sha256": "03be2204f0923684c818a72f823db96ef9a1735741fec7481b0c4c7a69ab7b01",
+      "category": "repeated packaged runtime executable in builder evidence",
+      "evidence_group": "bookloom-veritas-initial",
+      "related_report": "evaluation/completion/builder/reports/bookloom-veritas-initial-attempt.json",
+      "replay": "Exact executable removed from current tree; source package/runtime and recorded report remain. Hash identifies bytes but cannot reconstruct them.",
+      "referenced_by": [
+        "docs/history/migration-retention-manifest.json"
+      ]
+    },
+    {
+      "path": "evaluation/completion/builder/reports/evidence/bookloom-veritas-staged/installed/share/veritas/apps/bookloom/0.1.0/veritas",
+      "bytes": 12824672,
+      "sha256": "03be2204f0923684c818a72f823db96ef9a1735741fec7481b0c4c7a69ab7b01",
+      "category": "repeated packaged runtime executable in builder evidence",
+      "evidence_group": "bookloom-veritas-staged",
+      "related_report": "evaluation/completion/builder/reports/bookloom-veritas.json",
+      "replay": "Exact executable removed from current tree; source package/runtime and recorded report remain. Hash identifies bytes but cannot reconstruct them.",
+      "referenced_by": [
+        "docs/history/migration-retention-manifest.json"
+      ]
+    },
+    {
+      "path": "evaluation/completion/builder/reports/evidence/bookloom-veritas-staged/release-package/veritas",
+      "bytes": 12824672,
+      "sha256": "03be2204f0923684c818a72f823db96ef9a1735741fec7481b0c4c7a69ab7b01",
+      "category": "repeated packaged runtime executable in builder evidence",
+      "evidence_group": "bookloom-veritas-staged",
+      "related_report": "evaluation/completion/builder/reports/bookloom-veritas.json",
+      "replay": "Exact executable removed from current tree; source package/runtime and recorded report remain. Hash identifies bytes but cannot reconstruct them.",
+      "referenced_by": [
+        "docs/history/migration-retention-manifest.json"
+      ]
+    },
+    {
+      "path": "evaluation/completion/builder/reports/evidence/field-kit-log-veritas/package-final/veritas",
+      "bytes": 12841696,
+      "sha256": "08dafd217babdf2e94734d32ed73542356f2926f795d65c3c6b1f4d39c2bf62a",
+      "category": "repeated packaged runtime executable in builder evidence",
+      "evidence_group": "field-kit-log-veritas",
+      "related_report": "evaluation/completion/builder/reports/field-kit-log-veritas.json",
+      "replay": "Exact executable removed from current tree; source package/runtime and recorded report remain. Hash identifies bytes but cannot reconstruct them.",
+      "referenced_by": [
+        "docs/history/migration-retention-manifest.json",
+        "evaluation/completion/builder/reports/evidence/field-kit-log-veritas/report.json",
+        "evaluation/completion/builder/reports/field-kit-log-veritas.json"
+      ]
+    },
+    {
+      "path": "evaluation/completion/builder/reports/evidence/field-kit-log-veritas/package-v1/veritas",
+      "bytes": 12841696,
+      "sha256": "08dafd217babdf2e94734d32ed73542356f2926f795d65c3c6b1f4d39c2bf62a",
+      "category": "repeated packaged runtime executable in builder evidence",
+      "evidence_group": "field-kit-log-veritas",
+      "related_report": "evaluation/completion/builder/reports/field-kit-log-veritas.json",
+      "replay": "Exact executable removed from current tree; source package/runtime and recorded report remain. Hash identifies bytes but cannot reconstruct them.",
+      "referenced_by": [
+        "docs/history/migration-retention-manifest.json",
+        "evaluation/completion/builder/reports/evidence/field-kit-log-veritas/report.json",
+        "evaluation/completion/builder/reports/field-kit-log-veritas.json"
+      ]
+    },
+    {
+      "path": "evaluation/completion/builder/reports/evidence/field-kit-log-veritas/package/veritas",
+      "bytes": 12841696,
+      "sha256": "08dafd217babdf2e94734d32ed73542356f2926f795d65c3c6b1f4d39c2bf62a",
+      "category": "repeated packaged runtime executable in builder evidence",
+      "evidence_group": "field-kit-log-veritas",
+      "related_report": "evaluation/completion/builder/reports/field-kit-log-veritas.json",
+      "replay": "Exact executable removed from current tree; source package/runtime and recorded report remain. Hash identifies bytes but cannot reconstruct them.",
+      "referenced_by": [
+        "docs/history/migration-retention-manifest.json",
+        "evaluation/completion/builder/reports/evidence/field-kit-log-veritas/report.json",
+        "evaluation/completion/builder/reports/field-kit-log-veritas.json"
+      ]
+    },
+    {
+      "path": "evaluation/completion/builder/reports/evidence/invoice-sentinel-veritas/final-app/veritas",
+      "bytes": 12824672,
+      "sha256": "03be2204f0923684c818a72f823db96ef9a1735741fec7481b0c4c7a69ab7b01",
+      "category": "repeated packaged runtime executable in builder evidence",
+      "evidence_group": "invoice-sentinel-veritas",
+      "related_report": "evaluation/completion/builder/reports/invoice-sentinel-veritas.json",
+      "replay": "Exact executable removed from current tree; source package/runtime and recorded report remain. Hash identifies bytes but cannot reconstruct them.",
+      "referenced_by": [
+        "docs/history/migration-retention-manifest.json"
+      ]
+    },
+    {
+      "path": "evaluation/completion/builder/reports/evidence/invoice-sentinel-veritas/initial-app/veritas",
+      "bytes": 12824672,
+      "sha256": "03be2204f0923684c818a72f823db96ef9a1735741fec7481b0c4c7a69ab7b01",
+      "category": "repeated packaged runtime executable in builder evidence",
+      "evidence_group": "invoice-sentinel-veritas",
+      "related_report": "evaluation/completion/builder/reports/invoice-sentinel-veritas.json",
+      "replay": "Exact executable removed from current tree; source package/runtime and recorded report remain. Hash identifies bytes but cannot reconstruct them.",
+      "referenced_by": [
+        "docs/history/migration-retention-manifest.json"
+      ]
+    },
+    {
+      "path": "evaluation/completion/builder/reports/evidence/invoice-sentinel-veritas/installed/share/veritas/apps/invoice-sentinel/0.1.0/veritas",
+      "bytes": 12824672,
+      "sha256": "03be2204f0923684c818a72f823db96ef9a1735741fec7481b0c4c7a69ab7b01",
+      "category": "repeated packaged runtime executable in builder evidence",
+      "evidence_group": "invoice-sentinel-veritas",
+      "related_report": "evaluation/completion/builder/reports/invoice-sentinel-veritas.json",
+      "replay": "Exact executable removed from current tree; source package/runtime and recorded report remain. Hash identifies bytes but cannot reconstruct them.",
+      "referenced_by": [
+        "docs/history/migration-retention-manifest.json"
+      ]
     }
   ],
   "process_check": {
@@ -6750,7 +6886,8 @@
   "size_budget_check": {
     "git_pack_bytes_before_cleanup": 28154266,
     "limit_bytes": 52428800,
-    "status": "under limit"
+    "status": "under limit",
+    "builder_binary_paths": 10
   },
   "security_review": {
     "scanner": "gitleaks 8.30.1",
@@ -6763,5 +6900,15 @@
       "disposition": "Historical evidence contains absolute paths to the owner’s local workspace. They are retained for provenance in the private repository; the discovered email-shaped strings are generated examples, not account credentials."
     },
     "push_scope": "private repository rmichaelthomas/guion; verified visibility private and size 0 before migration."
+  },
+  "tracked_builder_binary_cleanup": {
+    "count": 10,
+    "file_bytes": 128297792,
+    "unique_sha256": [
+      "03be2204f0923684c818a72f823db96ef9a1735741fec7481b0c4c7a69ab7b01",
+      "08dafd217babdf2e94734d32ed73542356f2926f795d65c3c6b1f4d39c2bf62a"
+    ],
+    "interpretation": "10 paths contain 2 distinct executable builds; only repeated packaged evidence copies are removed from the current tree. Existing Git history remains.",
+    "files_with_recorded_references": 10
   }
 }

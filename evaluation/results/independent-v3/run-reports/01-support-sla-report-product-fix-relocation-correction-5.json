@@ -1,0 +1,113 @@
+{
+  "schema_version": 1,
+  "pair_id": "veritas-runtime-cwd-fix-1",
+  "session_id": "local-maintenance-cwd-20261024",
+  "language": "veritas",
+  "candidate_version": "Veritas 0.1.0 runtime bridge cwd fix; binary sha256 466c357c89f4c184c64e49c73f62075212d04efe710190a5f35e78c2874ca222",
+  "task_id": "01-support-sla-report",
+  "stage": "follow_up",
+  "manifest_sha256": "2c326ad23d3d9ad94efc69b320d60dc3bb43ba2eac178fdd0a61de17eba76f5",
+  "schedule_sha256": "abcc4bb175c51c22251846fc3609c94632123b196d549f1dd0a61de17eba76f5",
+  "candidate_project_sha256": "2bbcde1d9304a75e114942cd69d5cddacbd4f56645af952fef87a3a18fff99d7",
+  "delivery_artifact_path": "01-support-sla-report-product-fix-relocation-correction-5.json.delivery",
+  "delivery_artifact_sha256": null,
+  "delivery_manifest_path": "01-support-sla-report-product-fix-relocation-correction-5.json.delivery-manifest.json",
+  "delivery_manifest_sha256": "28abd473e85c9b389a543ede41aefb840adb092d9149e6f87dc90bccddb52c03",
+  "container": {
+    "image": "veritas-campaign-veritas:file-root-python-cwd1",
+    "image_id": "sha256:2aec2590b26feec259d42e3d89cc05c49a8a4383c2c75a993f122e24a160d6a4",
+    "docker_engine_id": "353e20b3-7c60-48f7-9c98-c6ae7d312a51",
+    "package_archive_sha256": "f6cba12f4ccfcf7c38b3fcd6167b7ac6d137a89f3003eb564fe4dfb733d56635",
+    "runtime_binary_sha256": "466c357c89f4c184c64e49c73f62075212d04efe710190a5f35e78c2874ca222",
+    "python_base_digest": "sha256:44e000a07b48bef1517a2b14adc93c17af728ca98858b5e24c6e1b18de1b2ef2",
+    "shared_dependencies_sha256": "34a2a4d8d157839eea434267f38e475187031f081f358387859181e5be136803",
+    "uv_version": "0.13.4",
+    "candidate_python_version": "3.14.8",
+    "platform": "linux/arm64",
+    "network": "none",
+    "read_only_rootfs": true,
+    "candidate_uid": 10001,
+    "limits": {
+      "cpus": 2,
+      "memory_bytes": 2147483648,
+      "pids": 128,
+      "tmpfs_bytes": 939524096
+    },
+    "source_project_mounted": true,
+    "delivery_source_project_mounted": false
+  },
+  "container_exit_codes": {
+    "source": 0,
+    "delivery": 125,
+    "delivery_stage": 1
+  },
+  "launcher_stderr": {
+    "source": "",
+    "delivery": "[not available: [Errno 2] No such file or directory: '/var/folders/r9/60ct76ks20z0_j2dznkytq940000gn/T/veritas-run-report.P9s9aW/delivery-error.txt']"
+  },
+  "case_report": {
+    "task_id": "01-support-sla-report",
+    "stage": "follow_up",
+    "passed": false,
+    "source": {
+      "cases": [
+        {
+          "candidate": {},
+          "case_id": "sla-follow-up-team-filter",
+          "checks_passed": 4,
+          "checks_total": 4,
+          "elapsed_seconds": 3.728062,
+          "exit_code": 0,
+          "failures": [],
+          "http_fixtures": {},
+          "passed": true,
+          "stderr": "",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 4,
+              "checks_total": 4,
+              "elapsed_seconds": 0.403347,
+              "exit_code": 0,
+              "failures": []
+            }
+          ]
+        },
+        {
+          "candidate": {},
+          "case_id": "sla-follow-up-team-no-match",
+          "checks_passed": 3,
+          "checks_total": 3,
+          "elapsed_seconds": 3.590385,
+          "exit_code": 0,
+          "failures": [],
+          "http_fixtures": {},
+          "passed": true,
+          "stderr": "",
+          "stdout": "",
+          "steps": [
+            {
+              "checks_passed": 3,
+              "checks_total": 3,
+              "elapsed_seconds": 0.43004,
+              "exit_code": 0,
+              "failures": []
+            }
+          ]
+        }
+      ],
+      "passed": true,
+      "stage": "follow_up",
+      "task_id": "01-support-sla-report"
+    },
+    "delivery": {
+      "passed": false,
+      "artifact_sha256": null,
+      "artifact_bytes": null,
+      "source_paths_excluded": null,
+      "original_project_mounted": false,
+      "cases": null,
+      "stage_error": "Traceback (most recent call last):\n  File \"/Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/work/veritas-foundation/evaluation/protocol/stage_delivery.py\", line 38, in <module>\n    raise SystemExit(main())\n                     ~~~~^^\n  File \"/Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/work/veritas-foundation/evaluation/protocol/stage_delivery.py\", line 27, in main\n    _, delivery = _prepare_delivery(source, artifact_root)\n                  ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/work/veritas-foundation/evaluation/protocol/case_runner.py\", line 94, in _prepare_delivery\n    raise ValueError(f\"declared source path is missing: {source_path}\")\nValueError: declared source path is missing: sla-report\n"
+    }
+  }
+}

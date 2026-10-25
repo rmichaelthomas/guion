@@ -1,0 +1,54 @@
+extern python "sla_io:load" fn load_input(arguments: List[Text]) -> Json
+extern python "sla_io:save" fn save_report(path: Text, content: Text) -> Text
+
+fn main() -> Int:
+    let input = load_input(args())
+    if not json_as_bool(json_get(input, "ok")):
+        eprint(json_as_text(json_get(input, "error")))
+        return 2
+    if json_as_bool(json_get(input, "help")):
+        print(json_as_text(json_get(input, "message")))
+        return 0
+    let rows = json_get(input, "tickets")
+    var tickets = json_array()
+    var count = 0
+    var index = 0
+    while index < json_len(rows):
+        let row = json_index(rows, index)
+        let age = json_as_int(json_get(row, "elapsed_microseconds")) // 60000000
+        let limit = json_as_int(json_get(row, "limit_minutes"))
+        let breached = is_breached(age, limit, json_as_text(json_get(row, "status")))
+        var ticket = json_object()
+        set ticket = json_set(ticket, "id", json_get(row, "id"))
+        set ticket = json_set(ticket, "team", json_get(row, "team"))
+        set ticket = json_set(ticket, "priority", json_get(row, "priority"))
+        set ticket = json_set(ticket, "status", json_get(row, "status"))
+        set ticket = json_set(ticket, "age_minutes", json_int(age))
+        set ticket = json_set(ticket, "limit_minutes", json_int(limit))
+        set ticket = json_set(ticket, "breached", json_bool(breached))
+        set tickets = json_push(tickets, ticket)
+        if breached:
+            set count = count + 1
+        set index = index + 1
+    var summary = json_object()
+    set summary = json_set(summary, "total", json_int(json_len(tickets)))
+    set summary = json_set(summary, "breached", json_int(count))
+    var report = json_object()
+    set report = json_set(report, "as_of", json_get(input, "as_of"))
+    set report = json_set(report, "tickets", tickets)
+    set report = json_set(report, "summary", summary)
+    let error = save_report(json_as_text(json_get(input, "output")), json_stringify(report))
+    if error != "":
+        eprint(error)
+        return 2
+    return 0
+
+fn is_breached(age: Int, limit: Int, status: Text) -> Bool:
+    return status == "open" and age > limit
+
+fn test_breach_boundaries() -> Unit:
+    assert(not is_breached(60, 60, "open"))
+    assert(is_breached(61, 60, "open"))
+    assert(not is_breached(1000, 60, "closed"))
+    assert(not is_breached(0, 0, "open"))
+    assert(is_breached(1, 0, "open"))

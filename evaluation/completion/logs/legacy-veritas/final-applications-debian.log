@@ -1,0 +1,89 @@
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.21s
+     Running `/tmp/veritas-target/debug/xtask product --group applications --stage initial,follow-up --target both`
+running check all-nine-applications-initial-and-follow-up: cargo --locked --offline test -p veritas-cli --test application_acceptance
+   Compiling veritas-cli v0.1.0 (/work/crates/cli)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.67s
+     Running tests/application_acceptance.rs (/tmp/veritas-target/debug/deps/application_acceptance-c655c43aa6dd85cd)
+
+running 1 test
+test all_nine_applications_pass_initial_and_follow_up_from_relocated_packages has been running for over 60 seconds
+test all_nine_applications_pass_initial_and_follow_up_from_relocated_packages ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 189.64s
+
+check all-nine-applications-initial-and-follow-up: passed after 191.4s
+{
+  "artifact_identities": {
+    "artifact_schema": "sha256:6f64740e407a17aa4e05665a417149f39522c9d037148e051ccb929e36c29149",
+    "compiler_seed": "sha256:98a89fc23d3f0bf567099e8c01dc3458846d1ec4b4edb5cd77e17c4d29ba6a25",
+    "compiler_seed_manifest": "sha256:f86cbc8f2ef2d43186df964e3bdec42282c168b92199e1c0a889d4847361bf3a",
+    "runtime": "sha256:29013634fdfea9197dabe31d3fc6f3cd84ba899f6b831abc8d617a926d27e749",
+    "stdlib": "sha256:6fc039bd5a6056b9b0791cdb6aba46c21f284326db129595b3a86f9fd89217fc"
+  },
+  "changed_path_count": 4851,
+  "checks": [
+    {
+      "command": [
+        "cargo",
+        "--locked",
+        "--offline",
+        "test",
+        "-p",
+        "veritas-cli",
+        "--test",
+        "application_acceptance"
+      ],
+      "exit_status": 0,
+      "id": "all-nine-applications-initial-and-follow-up",
+      "output": "\nrunning 1 test\ntest all_nine_applications_pass_initial_and_follow_up_from_relocated_packages has been running for over 60 seconds\ntest all_nine_applications_pass_initial_and_follow_up_from_relocated_packages ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 98.51s\n\n\n   Compiling veritas-cli v0.1.0 (/Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/work/veritas-foundation/crates/cli)\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.74s\n     Running tests/application_acceptance.rs (target/debug/deps/application_acceptance-79deaaf12104c7fc)\n",
+      "status": "passed",
+      "target": "macos-aarch64"
+    },
+    {
+      "command": [
+        "cargo",
+        "--locked",
+        "--offline",
+        "test",
+        "-p",
+        "veritas-cli",
+        "--test",
+        "application_acceptance"
+      ],
+      "exit_status": 0,
+      "id": "all-nine-applications-initial-and-follow-up",
+      "output": "\nrunning 1 test\ntest all_nine_applications_pass_initial_and_follow_up_from_relocated_packages has been running for over 60 seconds\ntest all_nine_applications_pass_initial_and_follow_up_from_relocated_packages ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 189.64s\n\n\n   Compiling veritas-cli v0.1.0 (/work/crates/cli)\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.67s\n     Running tests/application_acceptance.rs (/tmp/veritas-target/debug/deps/application_acceptance-c655c43aa6dd85cd)\n",
+      "status": "passed",
+      "target": "debian-aarch64"
+    }
+  ],
+  "command": "product",
+  "completed_targets": [
+    "macos-aarch64",
+    "debian-aarch64"
+  ],
+  "exact_command": "cargo xtask product --group applications --stage initial,follow-up --target both",
+  "exit_status": 0,
+  "message": null,
+  "missing_checks": [],
+  "missing_evidence": [],
+  "report": "product-applications",
+  "required_targets": [
+    "macos-aarch64",
+    "debian-aarch64"
+  ],
+  "runtime_hash": "sha256:29013634fdfea9197dabe31d3fc6f3cd84ba899f6b831abc8d617a926d27e749",
+  "schema_version": 1,
+  "seed_hash": "sha256:98a89fc23d3f0bf567099e8c01dc3458846d1ec4b4edb5cd77e17c4d29ba6a25",
+  "skipped_targets": [],
+  "source_revision": "b8755f08e8c453051572b9e57a34fd1da0a73199",
+  "status": "passed",
+  "stdlib_hash": "sha256:6fc039bd5a6056b9b0791cdb6aba46c21f284326db129595b3a86f9fd89217fc",
+  "target": "both",
+  "unsatisfied_goal_ids": [
+    "G1",
+    "G2",
+    "G3"
+  ],
+  "working_tree_digest": "sha256:8baaf98760519c58747d182d2d06d731259d12d0f28ae3f037d15da82d23a27b"
+}

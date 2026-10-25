@@ -1,0 +1,46 @@
+{
+  "status": "author-run-macos-warm-cache-launcher-timing",
+  "target": "macos-arm64",
+  "workload": "package-analysis bundle, shipped three-row dataset, report generation through orjson/NumPy bridge versus the standard-library Python reference",
+  "pairs": 8,
+  "median_seconds": {
+    "veritas_fast": 0.3373534999554977,
+    "veritas_verify": 1.0744672494474798,
+    "python": 0.09528481250163168
+  },
+  "samples_seconds": {
+    "veritas_fast": [
+      0.3772377090062946,
+      0.35130266612395644,
+      0.3374233329668641,
+      0.34938662499189377,
+      0.33728366694413126,
+      0.33287379215471447,
+      0.3202337089460343,
+      0.33049633307382464
+    ],
+    "veritas_verify": [
+      1.3425912091042846,
+      1.0642912918701768,
+      1.1335399579256773,
+      1.073468541027978,
+      1.0978872911073267,
+      1.0754659578669816,
+      1.0405347500927746,
+      1.0572670840192586
+    ],
+    "python": [
+      0.0955925420857966,
+      0.09672724991105497,
+      0.10003425017930567,
+      0.09497708291746676,
+      0.09702600003220141,
+      0.09395899996161461,
+      0.09352079196833074,
+      0.09263379196636379
+    ]
+  },
+  "semantic_output_and_stdout_match": "passed after each pair",
+  "explicit_package_verification_after_runs": "passed",
+  "environment": "macOS ARM64, fresh processes, alternating order, same bundled CPython, warm filesystem cache"
+}

@@ -1,0 +1,6 @@
+{
+  "launch_command": ["${candidate}/dist/sla-report-cwdfix/run"],
+  "artifact_paths": ["dist/sla-report-cwdfix", "veritas.lock", ".veritas/python-bridge/uv.lock"],
+  "source_paths": ["src", "sla_io.py", "sla-report", "tests"],
+  "dependency_lock_path": "veritas.lock"
+}

@@ -1,0 +1,34 @@
+{
+  "status": "author-run-linux-warm-cache-timing",
+  "target": "linux-aarch64",
+  "package_directory_bytes": 264857029,
+  "pairs": 8,
+  "veritas_median_seconds": 0.2619036635151133,
+  "python_median_seconds": 0.21334763104096055,
+  "ratio_veritas_over_python": 1.2275911489489681,
+  "samples_seconds": {
+    "veritas": [
+      0.5396904998924583,
+      0.28870855015702546,
+      0.2911966040264815,
+      0.2588730971328914,
+      0.25786322983913124,
+      0.26005074800923467,
+      0.2637565790209919,
+      0.2551165041513741
+    ],
+    "python": [
+      0.2386362231336534,
+      0.25318933092057705,
+      0.2647358269896358,
+      0.21770346397534013,
+      0.20874042715877295,
+      0.2081765402108431,
+      0.2087260379921645,
+      0.20899179810658097
+    ]
+  },
+  "output_and_comment_checks": "passed after each invocation",
+  "package_verification_after_runs": "passed",
+  "environment": "Debian 12 ARM64 container, same bundled Python 3.14.8 and tomlkit 0.14.0, warm filesystem cache"
+}

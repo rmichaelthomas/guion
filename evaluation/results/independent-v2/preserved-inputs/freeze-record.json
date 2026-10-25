@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "status": "frozen_for_independent_evaluation",
+  "frozen_at_utc": "2026-10-24T04:17:05.377766Z",
+  "manifest_sha256": "2c326ad23d3d9ad94efc69b320d60dc3bb43ba2eac178bdfc581b5649d5bb949",
+  "product_bundle_sha256": "ce29e2c6b3d73b2c62cc4e2ca5c2f61a2e6757604f7b4ceaf52e483c5bda4772",
+  "campaign_config_sha256": "b936691e5a99a95685de70940cc8ec5a90953dab4d798cf83f372cfe154dacd0",
+  "campaign_lock_sha256": "2d383aec34efb6330eef715c1bc40d6d9666c804d3150b94b40b4c1568506767",
+  "campaign": {
+    "schema_version": 1,
+    "assistant_model": {
+      "provider": "OpenAI Codex",
+      "name": "gpt-6.1-sol",
+      "version": "gpt-6.1-sol",
+      "reasoning_effort": "medium",
+      "version_scope": "The host exposes this model selector alias; it does not expose an immutable backend snapshot identifier."
+    },
+    "choice_budget": {
+      "active_minutes": 5,
+      "tool_calls": 0
+    },
+    "build_budget": {
+      "active_minutes": 45,
+      "tool_calls": 60
+    },
+    "primary_measure": "active_seconds",
+    "budget_accounting": {
+      "active_seconds": "Sum durationMs across terminal turns in the saved read_thread payload, round up to whole seconds, and report setup and runtime separately.",
+      "tool_calls": "Count unique commandExecution and functionCallOutput item IDs in the saved read_thread payload; exclude coordinator create_thread calls and other evaluator operations."
+    }
+  },
+  "schedule_sha256": "a14fdda54b09ea0c5afbdae1b1bb39cdc88abf1ea725aec61fc097cb470f84b0",
+  "schedule_file_sha256": "792909f1d53d5c57396d22d783271cc43ecaad0bd53b807fea65ce1ad15d189e",
+  "review": {
+    "thread_id": "01a16c19-e6de-7191-a9e1-53dec76a8d2d",
+    "verdict": "APPROVE",
+    "packet_sha256": "9a9d9ccc06958f11827aa7bf5efba9b36049c8dd96b85d219176d302509a689d",
+    "independent": true
+  }
+}

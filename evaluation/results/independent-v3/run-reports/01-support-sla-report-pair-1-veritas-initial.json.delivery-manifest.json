@@ -1,0 +1,15 @@
+{
+  "launch_command": [
+    "${candidate}/dist/app/sla-report"
+  ],
+  "artifact_paths": [
+    "dist/app",
+    "veritas.lock"
+  ],
+  "source_paths": [
+    "app/src",
+    "work",
+    "sla-report"
+  ],
+  "dependency_lock_path": "veritas.lock"
+}

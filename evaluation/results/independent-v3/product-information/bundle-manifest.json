@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "bundle_id": "veritas-vs-python-choice-safe-v33",
+  "hash_algorithm": "sha256",
+  "bundle_sha256": "cebd18e725e855c1e9ee5150ef59ba855636b54f71e9daffd9634c59ee1888d5",
+  "digest_definition": "SHA-256 of compact, sorted-key UTF-8 JSON for the artifacts array.",
+  "artifacts": [
+    {
+      "path": "README.md",
+      "sha256": "e2ea8fd16e99218ef2d855a76821531709e3db25455547eecd17c3cd2c72c988",
+      "language": "veritas"
+    },
+    {
+      "path": "architecture.md",
+      "sha256": "986f670b12608185b1868e0a2eaf55ef29eb8700c8b5c6f9688556c2f63c1878",
+      "language": "veritas"
+    },
+    {
+      "path": "compatibility-and-migrations.md",
+      "sha256": "e630f250e738e6db7a258d1776f2413575327cc780cb94f2d90e1a72ff3b3762",
+      "language": "veritas"
+    },
+    {
+      "path": "host-api.md",
+      "sha256": "04624b3c5561726b7af6e1edf8bcde66a58d45a7e915299d938c399d607561d0",
+      "language": "veritas"
+    },
+    {
+      "path": "language-spec.md",
+      "sha256": "07ccf2d138c902f0b26b69070f35ec91c5867c8157df221c256782251356c515",
+      "language": "veritas"
+    },
+    {
+      "path": "python-abi.md",
+      "sha256": "34895345824393832d801485e51f9387d5e86cee6b94abb9be656262af28b4de",
+      "language": "veritas"
+    },
+    {
+      "path": "python-baseline.md",
+      "language": "python",
+      "sha256": "49c8ec87e6fa35de9346f8ef5c62da0afddd821ecf2a0568e54ec72bdf4fc193"
+    },
+    {
+      "path": "reference.md",
+      "sha256": "a11b1c7798d5bbbb39f7f759da87e4fcba7c20b010e9de33fb059d30b4e8b99c",
+      "language": "veritas"
+    },
+    {
+      "path": "setup-guide.md",
+      "sha256": "d335d3e767838934a383be4fa4855eb38e90903c87fcca91a8a3138f8f5bccdc",
+      "language": "veritas"
+    }
+  ]
+}

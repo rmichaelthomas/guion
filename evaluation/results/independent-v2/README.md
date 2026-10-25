@@ -1,10 +1,10 @@
 # Independent campaign v2
 
-Status: preregistered; no formal choice or implementation sessions have been recorded. Pilot runs remain separate and do not count toward this campaign.
+Status: frozen for artifact format 30. Eight formal implementation sessions were started: six completed their candidate work and are pending the official runner, one has an initial implementation awaiting follow-up, and one is recorded as in progress. No formal choice sessions or official runner results are recorded. The registry and raw session evidence are authoritative; these sessions remain bound to the frozen format-30 package and cannot count for a later candidate build.
 
 ## Frozen inputs
 
-- `schedule.json` assigns 18 language choices and 18 matched Python/Veritas build pairs. Its SHA-256 is recorded in the file and freeze record.
+- `schedule.json` assigns 18 language choices and 18 matched Python/Veritas build pairs for artifact format 30. Its SHA-256 is recorded in the file and freeze record. Do not change the schedule or reuse its sessions for a different package identity.
 - `freeze-record.json` records the reviewed packet, pinned candidate package, images, and reviewer decision.
 - `prerun-records.jsonl` binds the schedule and protocol before the first session.
 - Follow the model, time limits, and tool-call limits in the frozen schedule. Run one candidate session at a time. Use the already-built, frozen images; do not rebuild them during the run. The Docker runner needs host socket access, so invoke it through the authorized host execution path on the first attempt rather than retrying once in a restricted shell.

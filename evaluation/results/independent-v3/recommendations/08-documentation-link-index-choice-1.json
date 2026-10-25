@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "decision_id": "08-documentation-link-index-choice-1",
+  "recorded_at_utc": "2026-10-24T13:27:41Z",
+  "task": {
+    "id": "08-documentation-link-index",
+    "class": "maintainable_application",
+    "origin": "independent",
+    "brief_sha256": "ee44276f93e5ec7d007701dbf7eda28ce3b67687f2d7da7bedd932c100c099b4"
+  },
+  "assistant": {
+    "provider": "OpenAI Codex",
+    "name": "gpt-6.1-sol",
+    "version": "gpt-6.1-sol",
+    "reasoning_effort": "medium",
+    "session_id": "01a16e18-1791-7d13-968d-b49cbc3b32dc",
+    "fresh_session": true
+  },
+  "budget": {
+    "active_minutes": 5,
+    "tool_calls": 0
+  },
+  "usage": {
+    "active_seconds": 26,
+    "tool_calls": 0
+  },
+  "evidence": {
+    "prompt_transcript_path": "choice-evidence/08-documentation-link-index-choice-1/prompt.md",
+    "prompt_transcript_sha256": "c68c7711fe69a557a03c5cdb2eb2c67762757d3e9f5b875d601c629374a1813c",
+    "response_transcript_path": "choice-evidence/08-documentation-link-index-choice-1/response.md",
+    "response_transcript_sha256": "12800294acdcd49c1d82fdb183cd5938fe6ebb799af8b678b0b6a7a61b809595",
+    "usage_snapshot_path": "choice-evidence/08-documentation-link-index-choice-1/usage-snapshot.json",
+    "usage_snapshot_sha256": "9d56366e3ff4da98fefe91c352795133927b5e15f0ea42b5b0f7d46a2e959090"
+  },
+  "presentation_order": [
+    "veritas",
+    "python"
+  ],
+  "context": {
+    "mode": "pre-build-recommendation",
+    "veritas_version": "0.1.0 (artifact format 33)",
+    "python_version": "3.14.8",
+    "documentation_sha256": "cebd18e725e855c1e9ee5150ef59ba855636b54f71e9daffd9634c59ee1888d5",
+    "schedule_sha256": "abcc4bb175c51c22251846fc3609c94632123b196d549f1dd0a61de17eba76f5",
+    "schedule_file_sha256": "04d198bcbe77295d2d0a2e413a4ecc24e3b48e12ae28ed4f5741b70b5c6cfd5a",
+    "schedule_entry_id": "08-documentation-link-index-choice-1",
+    "prerun_records_sha256": "a4d6ecff8b4840d60dfa8a881e7c34978c49979147b3f20b2ce398abed004d50",
+    "prerun_recorded_at_utc": "2026-10-24T13:14:17.296495Z",
+    "campaign_config_sha256": "b936691e5a99a95685de70940cc8ec5a90953dab4d798cf83f372cfe154dacd0",
+    "comparative_pair_results_shown": false
+  },
+  "recommendation": {
+    "choice": "python",
+    "rationale": "**Choose python.**\n\nThis task centers on filesystem traversal, precise Unicode normalization, JSON parsing, and transactional SQLite updates. Python’s standard library provides direct facilities for those requirements, including the explicitly permitted SQLite module. That makes it the stronger fit for a maintainable, multi-module CLI with strict edge cases.\n\nThe decisive requirements are:\n\n- **Preserving the previous index after failure.** SQLite transactions support committing a complete rebuild only after document and metadata validation succeeds.\n- **Exact text and ordering behavior.** Unicode case-folding, whitespace handling, strict UTF-8 decoding, and UTF-8 byte tie-breakers can be expressed directly.\n- **Narrow front-matter parsing.** Exact delimiter checks plus JSON parsing support the specified aliases format without introducing a broader YAML interpretation.\n\nVeritas offers useful typed modules, explicit effects, resource limits, and managed packaging. However, the supplied documentation does not establish native SQLite, directory traversal, or full Unicode normalization facilities sufficient for this task. Its Python bridge provides a plausible route, but delegating these central operations to Python adds adapter, locking, packaging, and maintenance work. Veritas’s documented experimental compatibility also matters for a maintainable application.\n\nI would reconsider if Veritas supplied verified native support for these operations, or if integration into an existing Veritas application made its policy controls and packaging especially valuable.\n\nThis is a task-specific capability recommendation. No implementation, correctness result, packaging success, or performance advantage has been demonstrated.",
+    "conditions": []
+  },
+  "exclusion": {
+    "excluded": false,
+    "reason": null
+  }
+}

@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "decision_id": "06-service-health-digest-choice-2",
+  "recorded_at_utc": "2026-10-24T13:26:17Z",
+  "task": {
+    "id": "06-service-health-digest",
+    "class": "concurrent_network_integration",
+    "origin": "independent",
+    "brief_sha256": "1b19df017df73674d30a55ca80fe6ae8693eb50791232135a76f55405d3f790d"
+  },
+  "assistant": {
+    "provider": "OpenAI Codex",
+    "name": "gpt-6.1-sol",
+    "version": "gpt-6.1-sol",
+    "reasoning_effort": "medium",
+    "session_id": "01a16e16-d3d8-7da1-a923-225f5d4f1dc5",
+    "fresh_session": true
+  },
+  "budget": {
+    "active_minutes": 5,
+    "tool_calls": 0
+  },
+  "usage": {
+    "active_seconds": 26,
+    "tool_calls": 0
+  },
+  "evidence": {
+    "prompt_transcript_path": "choice-evidence/06-service-health-digest-choice-2/prompt.md",
+    "prompt_transcript_sha256": "173942eb0517796a3d132dbe09fadfff0e44faa0264ab582f3e6e1f2701977b4",
+    "response_transcript_path": "choice-evidence/06-service-health-digest-choice-2/response.md",
+    "response_transcript_sha256": "c01c968d570120feaacf438515a1e322a97b24170dc4e4d9ab5fa9ffb68381e2",
+    "usage_snapshot_path": "choice-evidence/06-service-health-digest-choice-2/usage-snapshot.json",
+    "usage_snapshot_sha256": "e17e0f7c288f12ee0efa54f51f6200683b8139c836c5de16a9bdf2b74f605f45"
+  },
+  "presentation_order": [
+    "python",
+    "veritas"
+  ],
+  "context": {
+    "mode": "pre-build-recommendation",
+    "veritas_version": "0.1.0 (artifact format 33)",
+    "python_version": "3.14.8",
+    "documentation_sha256": "cebd18e725e855c1e9ee5150ef59ba855636b54f71e9daffd9634c59ee1888d5",
+    "schedule_sha256": "abcc4bb175c51c22251846fc3609c94632123b196d549f1dd0a61de17eba76f5",
+    "schedule_file_sha256": "04d198bcbe77295d2d0a2e413a4ecc24e3b48e12ae28ed4f5741b70b5c6cfd5a",
+    "schedule_entry_id": "06-service-health-digest-choice-2",
+    "prerun_records_sha256": "a4d6ecff8b4840d60dfa8a881e7c34978c49979147b3f20b2ce398abed004d50",
+    "prerun_recorded_at_utc": "2026-10-24T13:14:17.296495Z",
+    "campaign_config_sha256": "b936691e5a99a95685de70940cc8ec5a90953dab4d798cf83f372cfe154dacd0",
+    "comparative_pair_results_shown": false
+  },
+  "recommendation": {
+    "choice": "python",
+    "rationale": "**Choose python.**\n\nThe session contract is open: this recommendation uses only the supplied brief and profiles. No implementation, tests, benchmarks, or tools were used.\n\nPython offers the more direct path for this task’s difficult requirements: strict timestamp validation, recoverable response classification, bounded concurrency, and a deadline covering connection through the complete response body. Its standard library provides building blocks for these, though correctness still requires deliberate implementation. A socket timeout alone would not establish the required total deadline; timestamp parsing must enforce the exact syntax and fractional precision before validating dates and comparing instants.\n\nVeritas has relevant native capabilities: bounded `parallel_map`, request-specific deadlines, recoverable JSON parsing, and atomic file replacement. Its packaging and dependency inventories are also useful. However, the supplied profile says typed JSON access failures remain invocation errors. Safely classifying arbitrary JSON shapes while continuing after endpoint failures therefore warrants particular attention. Runtime endpoint configuration must also fit its exact-host network grants.\n\nThe managed Python bridge provides another route, but introduces a language boundary and additional packaging components without an obvious task-specific benefit over Python directly.\n\nI would change the recommendation to **veritas** if an established Veritas deployment already supplied compatible host grants and reusable, validated handling for response shapes and strict timestamps, and its package verification or effect reporting were a priority. Otherwise, Python is the lower-complexity choice here. Neither profile establishes actual acceptance results, speed, setup time, or package size.",
+    "conditions": []
+  },
+  "exclusion": {
+    "excluded": false,
+    "reason": null
+  }
+}

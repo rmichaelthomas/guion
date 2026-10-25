@@ -1,0 +1,47 @@
+{
+  "status": "author-run-macos-warm-cache-package-analysis-100k",
+  "target": "macos-arm64",
+  "rows": 100000,
+  "input_bytes": 5100867,
+  "pairs": 8,
+  "median_seconds": {
+    "veritas_fast": 0.41475941659882665,
+    "veritas_verify": 1.1861730414675549,
+    "python": 0.16302791656926274
+  },
+  "samples_seconds": {
+    "veritas_fast": [
+      2.238118208013475,
+      0.4279699169564992,
+      0.4122073750477284,
+      0.43466125009581447,
+      0.4047059160657227,
+      0.4173114581499249,
+      0.4086940831039101,
+      0.40884866705164313
+    ],
+    "veritas_verify": [
+      1.4724202081561089,
+      1.1322808749973774,
+      1.190128582995385,
+      1.2124311670195311,
+      1.2029064169619232,
+      1.1822174999397248,
+      1.1586492918431759,
+      1.162999500054866
+    ],
+    "python": [
+      0.16459970804862678,
+      0.16223750007338822,
+      0.16409016703255475,
+      0.17718729190528393,
+      0.16209741705097258,
+      0.16381833306513727,
+      0.15914079220965505,
+      0.15491087501868606
+    ]
+  },
+  "report_bytes_and_stdout_match": "passed for every pair",
+  "explicit_package_verification_after_runs": "passed",
+  "environment": "macOS ARM64, same CPython 3.14.8, NumPy 2.5.4, orjson 3.13.0, alternating fresh processes, warm filesystem cache"
+}
