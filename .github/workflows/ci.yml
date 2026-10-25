@@ -1,0 +1,38 @@
+name: Rust source checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-checks:
+    name: Ubuntu x86_64 source checks (not a release-target gate)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7.0.1
+
+      - name: Install the project Rust toolchain
+        run: |
+          rustup toolchain install 1.97.1 --profile minimal --component rustfmt
+          rustup default 1.97.1
+
+      - name: Record toolchain
+        run: |
+          rustc --version
+          cargo --version
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+      - name: Run workspace tests
+        run: cargo test --workspace --locked
+
+      - name: Check completion report schemas only
+        run: cargo xtask closeout --check-schema

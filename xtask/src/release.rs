@@ -17,6 +17,16 @@ use std::{
 const LINUX_TARGET: &str = "aarch64-unknown-linux-gnu";
 const MAC_TARGET: &str = "aarch64-apple-darwin";
 const LLVM_EXCEPTION_LICENSE: &str = "distribution/licenses/Apache-2.0_WITH_LLVM-exception.txt";
+const RELEASE_DOCS: &[&str] = &[
+    "getting-started.md",
+    "architecture.md",
+    "reference.md",
+    "compatibility-and-migrations.md",
+    "status.md",
+    "self-hosted-compiler.md",
+    "agents/start-here.md",
+    "agents/recipes.md",
+];
 
 #[derive(Clone, Debug)]
 pub struct Check {
@@ -592,13 +602,16 @@ fn release_target(root: &Path, target: &str, slug: &str) -> Result<Vec<Check>, S
         fs::create_dir_all(share.join("stdlib"))
             .map_err(|error| format!("create package standard library: {error}"))?;
         copy_tree(&root.join("language/stdlib"), &share.join("stdlib"))?;
-        copy_tree(&root.join("README.md"), &share.join("README.md"))?;
-        for doc in [
-            "reference.md",
-            "compatibility-and-migrations.md",
-            "self-hosted-compiler.md",
-            "completion-report.md",
-        ] {
+        copy_tree(
+            &root.join("distribution/README.md"),
+            &share.join("README.md"),
+        )?;
+        copy_tree(&root.join("LICENSE"), &share.join("LICENSE"))?;
+        copy_tree(
+            &root.join("THIRD-PARTY-NOTICES.md"),
+            &share.join("THIRD-PARTY-NOTICES.md"),
+        )?;
+        for doc in RELEASE_DOCS {
             let path = root.join("docs").join(doc);
             if path.is_file() {
                 copy_tree(&path, &share.join("docs").join(doc))?;
@@ -1014,7 +1027,9 @@ pub fn run_release(root: &Path, _args: &[String]) -> Vec<Check> {
 
 #[cfg(test)]
 mod tests {
-    use super::{release_binary_path, safe_archive_listing, LINUX_TARGET, MAC_TARGET};
+    use super::{
+        release_binary_path, safe_archive_listing, LINUX_TARGET, MAC_TARGET, RELEASE_DOCS,
+    };
     use std::path::Path;
 
     #[test]
@@ -1046,6 +1061,28 @@ mod tests {
         assert_eq!(
             safe_archive_listing("guion/\nguion/bin/guion\n", "guion").unwrap(),
             2
+        );
+    }
+
+    #[test]
+    fn release_package_selects_current_guion_documentation() {
+        for required in [
+            "getting-started.md",
+            "architecture.md",
+            "reference.md",
+            "compatibility-and-migrations.md",
+            "status.md",
+            "agents/start-here.md",
+            "agents/recipes.md",
+        ] {
+            assert!(
+                RELEASE_DOCS.contains(&required),
+                "release package is missing current Guion document {required}"
+            );
+        }
+        assert!(
+            !RELEASE_DOCS.contains(&"completion-report.md"),
+            "the archived Veritas completion report must not ship as current Guion documentation"
         );
     }
 }

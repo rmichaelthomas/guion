@@ -16,6 +16,10 @@
 - The historical Veritas run found faster results on specified installed compute/data workloads. It also recorded ties or regressions in the broader suite, and the free-threaded Python comparison was unavailable. These results support only those named workloads and conditions; they do not show that Guion is faster than Python in general.
 - The frozen independent recommendation campaign selected Python in all 18 choices for its older candidate. A later three-pair builder study recommended either language for two work classes and Veritas for one. These are separate studies with different questions; neither is a general adoption estimate.
 
+## CI and release gates
+
+GitHub Actions runs formatting, workspace tests, and schema checks on Ubuntu 24.04 x86_64. That job is a source check only; it does not certify Guion's supported release targets. The release gates remain separate and require macOS ARM64 and Debian 12-compatible GNU/Linux ARM64 with glibc. A target that did not run is reported as incomplete.
+
 ## Remaining pre-release work
 
 Full Guion-identity validation, continuous integration, and the handoff report remain to be completed. The [evidence index](history/evidence-index.md) records the historical Veritas cohorts separately from Guion rename acceptance. Required macOS and Debian ARM64 checks must be reported individually; a skipped target cannot be marked green. See the [approved migration plan](superpowers/plans/2026-10-24-veritas-complete-product.md) for the complete task gates.
