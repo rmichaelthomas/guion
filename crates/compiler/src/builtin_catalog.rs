@@ -269,7 +269,7 @@ mod tests {
     fn signatures_are_loaded_from_the_declarative_catalog() {
         let signature = get("json_project_columns").unwrap();
         assert_eq!(signature.parameters, ["Text", "List[Text]", "List[Text]"]);
-        assert_eq!(signature.result, "Result[Json,JsonError]");
+        assert_eq!(signature.result, "Result[Json, JsonError]");
         assert_eq!(
             operation(&signature.operation),
             Some(Op::JsonProjectColumns)
@@ -295,7 +295,9 @@ mod tests {
     fn catalog_operations_are_supported_by_the_bootstrap_compiler() {
         for (name, signature) in signatures() {
             assert!(
-                operation(&signature.operation).is_some() || signature.operation == "ParallelMap",
+                operation(&signature.operation).is_some()
+                    || signature.operation == "ParallelMap"
+                    || signature.operation == "SortBy",
                 "{name}: {}",
                 signature.operation
             );

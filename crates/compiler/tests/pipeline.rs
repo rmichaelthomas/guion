@@ -1,4 +1,4 @@
-use guion_compiler::{compile, Diagnostic};
+use guion_compiler::{compile, compile_project, Diagnostic};
 
 #[test]
 fn compiles_a_general_function_and_rejects_unknown_names_with_a_span() {
@@ -50,4 +50,51 @@ fn compiles_typed_python_declarations_and_rejects_signature_mismatches() {
 
     let mismatch = compile("python-bad.gu", "extern python \"math:factorial\" fn factorial(value: Int) -> Int\n\nfn main() -> Int:\n    return factorial(\"six\")\n").unwrap_err();
     assert_eq!(mismatch.code, "E_TYPE_ARGUMENT");
+}
+
+#[test]
+fn imported_module_instruction_keeps_its_own_source_id() {
+    use guion_model::Op;
+    use std::fs;
+
+    let root = std::env::temp_dir().join(format!(
+        "guion-compiler-source-id-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(
+        root.join("src/main.gu"),
+        "import \"math.gu\"\n\nfn main() -> Int:\n    return divide()\n",
+    )
+    .unwrap();
+    fs::write(
+        root.join("src/math.gu"),
+        "pub fn divide() -> Int:\n    return 1 / 0\n",
+    )
+    .unwrap();
+
+    let artifact = compile_project(&root.join("src/main.gu"), &root).unwrap();
+    let math_source_id = artifact
+        .sources
+        .iter()
+        .position(|source| source == "src/math.gu")
+        .unwrap() as u32;
+    let divide = artifact
+        .functions
+        .iter()
+        .find(|function| function.name == "divide")
+        .unwrap();
+    let divide_by_zero = divide
+        .code
+        .iter()
+        .find(|instruction| matches!(instruction.op, Op::IntegerDivide))
+        .unwrap();
+    assert_eq!(divide_by_zero.span.source_id, math_source_id);
+    assert_eq!(divide_by_zero.span.line, 2);
+
+    let _ = fs::remove_dir_all(root);
 }

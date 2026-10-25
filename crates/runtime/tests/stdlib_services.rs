@@ -337,8 +337,7 @@ fn calendar_parses_utc_event_and_rejects_floating_times() {
 
 #[test]
 fn calendar_parses_an_upstream_libical_sample() {
-    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../native/vendor/libical-4.0.5/test-data/2.ics");
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/libical-2.ics");
     let source = fs::read_to_string(path).unwrap();
     let events = calendar_parse(&source).unwrap();
     assert_eq!(events.len(), 1);

@@ -1386,6 +1386,17 @@ fn module_source(sources: Json, source_name: Text) -> Text:
         set cursor = cursor + 1
     return ""
 
+fn module_source_id(sources: Json, source_name: Text) -> Int:
+    var cursor = 0
+    while cursor < json_len(sources):
+        if json_as_text(json_get(json_index(sources, cursor), "name")) == source_name:
+            return cursor
+        set cursor = cursor + 1
+    return -1
+
+fn function_with_source_id(function: Json, source_id: Int) -> Json:
+    return json_set(function, "source_id", json_int(source_id))
+
 fn failure_at_node(code: Text, message: Text, node: Json, source_name: Text, source: Text, token_length: Int) -> Json:
     let character_index = json_as_int(json_get(node, "character_index"))
     let location = source_line_column(source, character_index)
@@ -2327,7 +2338,9 @@ pub fn compile_source_with_roots(source_name: Text, source: Text, stdlib_root: T
         let function_imports = json_get(function, "imports")
         let visible_functions = function_scope(signatures, function_source_name, function_imports)
         let visible_records = record_scope(records, function_source_name, function_imports)
-        set compiled = json_push(compiled, compile_function(function, visible_functions, visible_records, module_source(sources, function_source_name)))
+        let source_id = module_source_id(sources, function_source_name)
+        let compiled_function = compile_function(function, visible_functions, visible_records, module_source(sources, function_source_name))
+        set compiled = json_push(compiled, function_with_source_id(compiled_function, source_id))
         set cursor = cursor + 1
     var result = json_set(json_object(), "schema", json_text("guion-bytecode-ir/v1"))
     set result = json_set(result, "source_name", json_text(source_name))

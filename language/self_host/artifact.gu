@@ -139,10 +139,11 @@ fn ab_type(value: Text) -> Bytes:
 fn ab_span(value: Json, pc: Int) -> Bytes:
     return ab_join([ab_u32(ab_json_int_or(value, "source_id", 0)), ab_u64(ab_json_int_or(value, "start", 0)), ab_u64(ab_json_int_or(value, "end", 0)), ab_u64(ab_json_int_or(value, "line", 1)), ab_u64(ab_json_int_or(value, "column", pc + 1))])
 
-fn ab_instruction_span(instruction: Json, pc: Int) -> Bytes:
+fn ab_instruction_span(instruction: Json, pc: Int, source_id: Int) -> Bytes:
     if json_has(instruction, "span"):
-        return ab_span(json_get(instruction, "span"), pc)
-    return ab_join([ab_u32(0), ab_u64(0), ab_u64(0), ab_u64(1), ab_u64(pc + 1)])
+        let span = json_set(json_get(instruction, "span"), "source_id", json_int(source_id))
+        return ab_span(span, pc)
+    return ab_join([ab_u32(source_id), ab_u64(0), ab_u64(0), ab_u64(1), ab_u64(pc + 1)])
 
 fn ab_encode_trace(trace: Json) -> Bytes:
     var parts: List[Bytes] = [ab_count(json_len(trace))]
@@ -613,14 +614,14 @@ fn ab_plain_opcode(name: Text) -> Int:
         return 155
     return -1
 
-fn ab_instruction(instruction: Json, pc: Int, functions: Json, records: Json, externals: Json, labels: Json) -> Bytes:
+fn ab_instruction(instruction: Json, pc: Int, functions: Json, records: Json, externals: Json, labels: Json, source_id: Int) -> Bytes:
     let name = json_as_text(json_get(instruction, "op"))
     if name == "ConstInt" or name == "ConstBool" or name == "ConstText" or name == "ConstFloat64" or name == "ConstUnit" or name == "ConstValue":
-        return ab_join([ab_instruction_span(instruction, pc), ab_u8(0), ab_constant(instruction)])
+        return ab_join([ab_instruction_span(instruction, pc, source_id), ab_u8(0), ab_constant(instruction)])
     let tag = ab_plain_opcode(name)
     if tag < 0:
         return ab_u8(255)
-    var parts: List[Bytes] = [ab_instruction_span(instruction, pc), ab_u8(tag)]
+    var parts: List[Bytes] = [ab_instruction_span(instruction, pc, source_id), ab_u8(tag)]
     if name == "Load" or name == "Store" or name == "MakeList" or name == "MakeMap" or name == "ListSetLocal" or name == "ListPushLocal" or name == "JsonPushLocal":
         var field = "local"
         if name == "MakeList" or name == "MakeMap":
@@ -687,6 +688,7 @@ fn ab_encode_external(external: Json) -> Bytes:
 fn ab_encode_function(function: Json, functions: Json, records: Json, externals: Json) -> Bytes:
     let parameters = json_get(function, "parameters")
     let code = json_get(function, "code")
+    let source_id = ab_json_int_or(function, "source_id", 0)
     var labels = json_object()
     var executable_count = 0
     var cursor = 0
@@ -710,7 +712,7 @@ fn ab_encode_function(function: Json, functions: Json, records: Json, externals:
     while cursor < json_len(code):
         let instruction = json_index(code, cursor)
         if json_as_text(json_get(instruction, "op")) != "Label":
-            set parts = list_push(parts, ab_instruction(instruction, cursor, functions, records, externals, labels))
+            set parts = list_push(parts, ab_instruction(instruction, cursor, functions, records, externals, labels, source_id))
         set cursor = cursor + 1
     return ab_join(parts)
 

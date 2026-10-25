@@ -1,5 +1,6 @@
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use xtask::{
@@ -11,11 +12,16 @@ struct TempTree(PathBuf);
 
 impl TempTree {
     fn new() -> Self {
+        static NEXT_ID: AtomicU64 = AtomicU64::new(0);
         let nonce = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .expect("clock is after Unix epoch")
             .as_nanos();
-        let path = std::env::temp_dir().join(format!("guion-xtask-{}-{nonce}", std::process::id()));
+        let unique = NEXT_ID.fetch_add(1, Ordering::Relaxed);
+        let path = std::env::temp_dir().join(format!(
+            "guion-xtask-{}-{nonce}-{unique}",
+            std::process::id()
+        ));
         fs::create_dir_all(&path).expect("create temporary test tree");
         Self(path)
     }

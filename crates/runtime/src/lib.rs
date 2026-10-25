@@ -7759,7 +7759,7 @@ pub(crate) fn escape_reserved_json_keys<'a>(source: &'a str) -> (Cow<'a, str>, O
         .map(|number| {
             format!(
                 "$guion_private_{number:0width$}$",
-                width = RESERVED.len() - 18
+                width = RESERVED.len() - 16
             )
         })
         .find(|candidate| !existing.contains(candidate.as_str()))

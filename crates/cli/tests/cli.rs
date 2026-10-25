@@ -7,6 +7,7 @@ use std::{
     thread,
 };
 
+#[cfg(feature = "python-interop")]
 fn python3_path() -> String {
     let output = Command::new("python3")
         .args(["-c", "import sys; print(sys.executable)"])
@@ -109,6 +110,7 @@ impl Drop for RemoveDirOnDrop {
     }
 }
 
+#[cfg(feature = "python-interop")]
 #[test]
 fn sync_json_reports_arguments_and_missing_python_configuration() {
     let base = std::env::temp_dir().join(format!("guion-json-sync-{}", std::process::id()));
@@ -153,7 +155,7 @@ fn sync_json_reports_arguments_and_missing_python_configuration() {
     let _ = fs::remove_dir_all(base);
 }
 
-#[cfg(unix)]
+#[cfg(all(unix, feature = "python-interop"))]
 #[test]
 fn failed_dependency_update_preserves_the_previous_locked_environment() {
     let base = std::env::temp_dir().join(format!(
@@ -212,7 +214,7 @@ fn failed_dependency_update_preserves_the_previous_locked_environment() {
     let _ = fs::remove_dir_all(base);
 }
 
-#[cfg(unix)]
+#[cfg(all(unix, feature = "python-interop"))]
 #[test]
 fn successful_dependency_update_commits_new_environment_and_matching_locks() {
     let base = std::env::temp_dir().join(format!(
@@ -359,7 +361,7 @@ fn doctor_json_reports_native_and_python_interop_readiness() {
     assert_eq!(report["python"]["interpreter"], "/opt/custom/python3");
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(all(target_os = "macos", feature = "python-interop"))]
 #[test]
 fn run_json_reports_python_native_images_loaded_dynamically() {
     let base = std::env::temp_dir().join(format!(
@@ -425,7 +427,7 @@ fn run_json_reports_python_native_images_loaded_dynamically() {
     let _ = fs::remove_dir_all(base);
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(all(target_os = "macos", feature = "python-interop"))]
 #[test]
 fn run_json_keeps_python_native_images_observed_before_a_call_failure() {
     let base = std::env::temp_dir().join(format!(
@@ -935,6 +937,7 @@ fn package_rejects_resources_that_collide_with_runtime_files() {
     let _ = fs::remove_dir_all(base);
 }
 
+#[cfg(feature = "python-interop")]
 #[test]
 fn package_bundles_python_runtime_and_dependencies_for_offline_relocated_run() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
@@ -1060,6 +1063,7 @@ fn package_bundles_python_runtime_and_dependencies_for_offline_relocated_run() {
     let _ = fs::remove_dir_all(base);
 }
 
+#[cfg(feature = "python-interop")]
 #[test]
 fn package_runs_compiled_python_wheels_after_relocation_without_python_setup() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
@@ -1928,7 +1932,7 @@ fn build_json_reports_artifact_identity_and_source_diagnostics() {
     assert_eq!(report["schema_version"], 1);
     assert_eq!(report["source"], source.to_string_lossy().as_ref());
     assert_eq!(report["artifact"], artifact.to_string_lossy().as_ref());
-    assert_eq!(report["artifact_format"], 33);
+    assert_eq!(report["artifact_format"], 39);
     assert_eq!(
         report["artifact_size_bytes"],
         fs::metadata(&artifact).unwrap().len()
@@ -2268,7 +2272,7 @@ fn guion_source_compiler_compiles_itself_and_real_programs_with_parity() {
     let self_compiled = Command::new(env!("CARGO_BIN_EXE_guion"))
         .args(["run", "--json"])
         .arg(&inventory_stage_two)
-        .arg("main.gu")
+        .arg("main.vr")
         .current_dir(&inventory_self)
         .output()
         .unwrap();
@@ -2837,6 +2841,7 @@ fn built_artifact_carries_runtime_limits_when_moved_outside_project() {
     let _ = fs::remove_dir_all(&base);
 }
 
+#[cfg(feature = "python-interop")]
 #[test]
 fn build_metadata_tracks_python_lock_changes() {
     let base = std::env::temp_dir().join(format!("guion-lock-digest-{}", std::process::id()));
@@ -2847,7 +2852,7 @@ fn build_metadata_tracks_python_lock_changes() {
     fs::create_dir_all(&bridge).unwrap();
     fs::write(
         project.join("guion.toml"),
-        "[project]\nname = \"lock-digest\"\nversion = \"0.1.0\"\nentry = \"src/main.gu\"\n",
+        "[project]\nname = \"lock-digest\"\nversion = \"0.1.0\"\nentry = \"src/main.gu\"\n\n[python]\nversion = \"3.14.8\"\ndependencies = [\"requests==2.32.5\"]\n",
     )
     .unwrap();
     fs::write(
@@ -2860,7 +2865,11 @@ fn build_metadata_tracks_python_lock_changes() {
         "pub fn helper() -> Int:\n    return 0\n",
     )
     .unwrap();
-    fs::write(project.join("guion.lock"), "manifest_sha256 = \"abc\"\n").unwrap();
+    fs::write(
+        project.join("guion.lock"),
+        "format_version = 1\nmanifest_sha256 = \"abc\"\n",
+    )
+    .unwrap();
     fs::write(bridge.join("uv.lock"), "version = 1\npackage = \"one\"\n").unwrap();
 
     let first_artifact = base.join("first.gub");
@@ -2969,9 +2978,22 @@ fn build_metadata_tracks_python_lock_changes() {
         ])
         .output()
         .unwrap();
-    assert!(!incomplete_build.status.success());
-    assert!(String::from_utf8_lossy(&incomplete_build.stderr)
-        .contains("incomplete Python dependency locks"));
+    assert!(
+        incomplete_build.status.success(),
+        "{}",
+        String::from_utf8_lossy(&incomplete_build.stderr)
+    );
+    let incomplete_inspect = Command::new(env!("CARGO_BIN_EXE_guion"))
+        .args(["inspect", base.join("incomplete.gub").to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(incomplete_inspect.status.success());
+    let incomplete_report = String::from_utf8_lossy(&incomplete_inspect.stdout);
+    let incomplete_digest = incomplete_report
+        .lines()
+        .find_map(|line| line.strip_prefix("python dependency locks: "))
+        .expect("inspect reports the remaining dependency lock identity");
+    assert_ne!(second_digest, incomplete_digest);
     let _ = fs::remove_dir_all(&base);
 }
 
@@ -3011,6 +3033,7 @@ fn formatter_normalizes_line_endings_and_trailing_space_without_losing_comments_
     let _ = fs::remove_dir_all(dir);
 }
 
+#[cfg(feature = "python-interop")]
 #[test]
 fn cli_runs_typed_python_imports_only_when_an_interpreter_is_explicitly_configured() {
     let dir = std::env::temp_dir().join(format!("guion-python-cli-{}", std::process::id()));
