@@ -6,7 +6,7 @@
     "runtime": "sha256:2f43071c84548aa37dac0ced5f0b993cb7abf3b3352c5dbd2b038e3de10598a3",
     "stdlib": "sha256:19b745d51f8124fb98e7aec01ae9a2980e14f7fe8a8f8592395d63b807317600"
   },
-  "changed_path_count": 5322,
+  "changed_path_count": 4717,
   "checks": [
     {
       "command": [
@@ -42,7 +42,7 @@
       ],
       "exit_status": 0,
       "id": "release-archive-audit",
-      "output": "/workspace/target/completion/releases/debian-aarch64/veritas-debian-aarch64.tar.gz (5869755 bytes, sha256 4233ff7eb354c4501062d0c6d37356d2b03d1863acadd7e00e1a9ec37f034816)",
+      "output": "/workspace/target/completion/releases/debian-aarch64/veritas-debian-aarch64.tar.gz (5869757 bytes, sha256 75c47c105ec240f7635658b768f35888e3b98af8796658f2795d6f3ec2571f1f)",
       "status": "passed"
     },
     {
@@ -113,7 +113,7 @@
       ],
       "exit_status": 0,
       "id": "dynamic-library-audit",
-      "output": "\tlinux-vdso.so.1 (0x0000f0fb55aed000)\n\tlibm.so.6 => /lib/aarch64-linux-gnu/libm.so.6 (0x0000f0fb54f40000)\n\tlibgcc_s.so.1 => /lib/aarch64-linux-gnu/libgcc_s.so.1 (0x0000f0fb54f00000)\n\tlibc.so.6 => /lib/aarch64-linux-gnu/libc.so.6 (0x0000f0fb54d50000)\n\t/lib/ld-linux-aarch64.so.1 (0x0000f0fb55aa0000)\n",
+      "output": "\tlinux-vdso.so.1 (0x0000e2509a63f000)\n\tlibm.so.6 => /lib/aarch64-linux-gnu/libm.so.6 (0x0000e25099a90000)\n\tlibgcc_s.so.1 => /lib/aarch64-linux-gnu/libgcc_s.so.1 (0x0000e25099a50000)\n\tlibc.so.6 => /lib/aarch64-linux-gnu/libc.so.6 (0x0000e250998a0000)\n\t/lib/ld-linux-aarch64.so.1 (0x0000e2509a5f0000)\n",
       "status": "passed"
     },
     {
@@ -146,12 +146,10 @@
   "skipped_targets": [
     "macos-aarch64"
   ],
-  "source_revision": "b8755f08e8c453051572b9e57a34fd1da0a73199",
+  "source_revision": "cb5587b1f4d48a72b955ad2e6e666cdef28f5373",
   "status": "incomplete",
   "stdlib_hash": "sha256:19b745d51f8124fb98e7aec01ae9a2980e14f7fe8a8f8592395d63b807317600",
   "target": "debian-aarch64",
-  "unsatisfied_goal_ids": [
-    "G2"
-  ],
-  "working_tree_digest": "sha256:388f946adb0ab1d6fbd1e7b88f17e79501b4f6d1a3670014790ca645bb5642e2"
+  "unsatisfied_goal_ids": [],
+  "working_tree_digest": "sha256:4d515d48ba1912119df9cb800cc73d6c1a8ddf02ca25a66de4589b51c9258066"
 }

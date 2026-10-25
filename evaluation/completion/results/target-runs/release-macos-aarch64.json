@@ -6,7 +6,7 @@
     "runtime": "sha256:2f43071c84548aa37dac0ced5f0b993cb7abf3b3352c5dbd2b038e3de10598a3",
     "stdlib": "sha256:19b745d51f8124fb98e7aec01ae9a2980e14f7fe8a8f8592395d63b807317600"
   },
-  "changed_path_count": 5322,
+  "changed_path_count": 4717,
   "checks": [
     {
       "command": [
@@ -40,7 +40,7 @@
       ],
       "exit_status": 0,
       "id": "release-archive-audit",
-      "output": "/Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/work/veritas-foundation/target/completion/releases/macos-aarch64/veritas-macos-aarch64.tar.gz (5414422 bytes, sha256 323755bec4b8ce389e7d01c1793e1d3502497360e10dcd06f21ce6fbcf378d6a)",
+      "output": "/Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/work/veritas-foundation/target/completion/releases/macos-aarch64/veritas-macos-aarch64.tar.gz (5414452 bytes, sha256 286da47c8cdbbb8eaf29bb0710ad60e130e58dfd0df852136c48e471a3e5db37)",
       "status": "passed"
     },
     {
@@ -145,12 +145,10 @@
   "skipped_targets": [
     "debian-aarch64"
   ],
-  "source_revision": "b8755f08e8c453051572b9e57a34fd1da0a73199",
+  "source_revision": "cb5587b1f4d48a72b955ad2e6e666cdef28f5373",
   "status": "incomplete",
   "stdlib_hash": "sha256:19b745d51f8124fb98e7aec01ae9a2980e14f7fe8a8f8592395d63b807317600",
   "target": "macos-aarch64",
-  "unsatisfied_goal_ids": [
-    "G2"
-  ],
-  "working_tree_digest": "sha256:388f946adb0ab1d6fbd1e7b88f17e79501b4f6d1a3670014790ca645bb5642e2"
+  "unsatisfied_goal_ids": [],
+  "working_tree_digest": "sha256:4d515d48ba1912119df9cb800cc73d6c1a8ddf02ca25a66de4589b51c9258066"
 }

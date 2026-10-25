@@ -10,7 +10,7 @@
 
 **Spec:** The binding completion contract below reconciles `docs/north-star-design.md`, `language/spec.md`, `language/host-api.md`, the user's subsequent self-hosting/Python-free requirements, and all 18 rationales under `evaluation/results/independent-v3/recommendations/`. Earlier prototype plans and campaign sequencing are historical. Frozen reports remain unchanged.
 
-**Status:** Complete. Tasks 1–11 passed their verification gates. The final closeout passed with all three goals satisfied on product snapshot `sha256:388f946adb0ab1d6fbd1e7b88f17e79501b4f6d1a3670014790ca645bb5642e2`. The completion report records the target scope, artifact hashes, benchmark limitations, and install/update/removal instructions.
+**Status:** Complete. Tasks 1–11 passed their verification gates. The final closeout passed with all three goals satisfied on product snapshot `sha256:4d515d48ba1912119df9cb800cc73d6c1a8ddf02ca25a66de4589b51c9258066`. The completion report records the target scope, artifact hashes, benchmark limitations, and install/update/removal instructions.
 
 ## 1. Binding completion contract
 

@@ -8,7 +8,7 @@ The shipped Veritas standard library includes bounded file and CSV/JSONL access,
 
 ## Final source and artifact identities
 
-The source revision is `b8755f08e8c453051572b9e57a34fd1da0a73199` on branch `veritas/north-star-sprint`. The final product source snapshot is `sha256:388f946adb0ab1d6fbd1e7b88f17e79501b4f6d1a3670014790ca645bb5642e2`.
+The product source commit is `cb5587b1f4d48a72b955ad2e6e666cdef28f5373` on branch `veritas/north-star-sprint`, based on `b8755f08e8c453051572b9e57a34fd1da0a73199`. The final audited product snapshot is `sha256:4d515d48ba1912119df9cb800cc73d6c1a8ddf02ca25a66de4589b51c9258066`.
 
 | Identity | SHA-256 |
 |---|---|

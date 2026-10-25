@@ -8,15 +8,15 @@
     "richards-scheduler": 41008
   },
   "build_seconds": {
-    "jsonl-summary-data": 1.259829874994466,
-    "mandelbrot-image": 0.06144641600258183,
-    "mandelbrot-image_warm": 0.06705812500149477,
-    "nbody-numeric": 0.2277814160042908,
-    "nbody-numeric_warm": 0.231389249995118,
-    "parallel-cpu-20000": 0.05251637499895878,
-    "parallel-cpu-200000": 0.04560949999722652,
-    "richards-scheduler": 1.2358795409963932,
-    "richards-scheduler_warm": 0.8989450829976704
+    "jsonl-summary-data": 1.2615774590085493,
+    "mandelbrot-image": 0.06104899999627378,
+    "mandelbrot-image_warm": 0.06404262500291225,
+    "nbody-numeric": 0.2289323750010226,
+    "nbody-numeric_warm": 0.23297854101110715,
+    "parallel-cpu-20000": 0.046900000001187436,
+    "parallel-cpu-200000": 0.04541550000431016,
+    "richards-scheduler": 1.0988108330057003,
+    "richards-scheduler_warm": 0.8881394579948392
   },
   "fixed_inputs": {
     "bootstrap_resamples": 20000,
@@ -34,40 +34,40 @@
     "status": "unverified"
   },
   "kind": "veritas-installed-performance-report",
-  "package_archive_sha256": "323755bec4b8ce389e7d01c1793e1d3502497360e10dcd06f21ce6fbcf378d6a",
-  "package_archive_size_bytes": 5414422,
+  "package_archive_sha256": "286da47c8cdbbb8eaf29bb0710ad60e130e58dfd0df852136c48e471a3e5db37",
+  "package_archive_size_bytes": 5414452,
   "package_size_bytes": 15428255,
   "peak_memory_bytes": {
-    "jsonl-summary-data/veritas_artifact": 12468224,
-    "mandelbrot-image/python_reference": 15237120,
-    "mandelbrot-image/python_warm": 15908864,
-    "mandelbrot-image/veritas_artifact": 11714560,
-    "mandelbrot-image/veritas_source": 34996224,
-    "mandelbrot-image/veritas_warm_artifact": 11878400,
-    "nbody-numeric/python_reference": 15466496,
-    "nbody-numeric/python_warm": 16334848,
-    "nbody-numeric/veritas_artifact": 172883968,
-    "nbody-numeric/veritas_source": 205504512,
-    "nbody-numeric/veritas_warm_artifact": 797753344,
-    "parallel-cpu-20000/python_processes": 24248320,
-    "parallel-cpu-20000/python_serial": 22380544,
-    "parallel-cpu-20000/python_threads": 22151168,
-    "parallel-cpu-20000/python_warm": 22315008,
-    "parallel-cpu-20000/veritas_artifact": 10813440,
-    "parallel-cpu-20000/veritas_source": 34799616,
-    "parallel-cpu-20000/veritas_warm_artifact": 11059200,
-    "parallel-cpu-200000/python_processes": 24313856,
-    "parallel-cpu-200000/python_serial": 21938176,
-    "parallel-cpu-200000/python_threads": 22052864,
-    "parallel-cpu-200000/python_warm": 22102016,
-    "parallel-cpu-200000/veritas_artifact": 10911744,
-    "parallel-cpu-200000/veritas_source": 33767424,
-    "parallel-cpu-200000/veritas_warm_artifact": 11141120,
-    "richards-scheduler/python_reference": 19234816,
-    "richards-scheduler/python_warm": 20414464,
-    "richards-scheduler/veritas_artifact": 60768256,
-    "richards-scheduler/veritas_source": 83361792,
-    "richards-scheduler/veritas_warm_artifact": 186777600
+    "jsonl-summary-data/veritas_artifact": 12500992,
+    "mandelbrot-image/python_reference": 15187968,
+    "mandelbrot-image/python_warm": 15859712,
+    "mandelbrot-image/veritas_artifact": 11567104,
+    "mandelbrot-image/veritas_source": 35487744,
+    "mandelbrot-image/veritas_warm_artifact": 11812864,
+    "nbody-numeric/python_reference": 15482880,
+    "nbody-numeric/python_warm": 16351232,
+    "nbody-numeric/veritas_artifact": 170885120,
+    "nbody-numeric/veritas_source": 207519744,
+    "nbody-numeric/veritas_warm_artifact": 797622272,
+    "parallel-cpu-20000/python_processes": 24330240,
+    "parallel-cpu-20000/python_serial": 22233088,
+    "parallel-cpu-20000/python_threads": 21987328,
+    "parallel-cpu-20000/python_warm": 22347776,
+    "parallel-cpu-20000/veritas_artifact": 10878976,
+    "parallel-cpu-20000/veritas_source": 33357824,
+    "parallel-cpu-20000/veritas_warm_artifact": 11173888,
+    "parallel-cpu-200000/python_processes": 24477696,
+    "parallel-cpu-200000/python_serial": 22233088,
+    "parallel-cpu-200000/python_threads": 22151168,
+    "parallel-cpu-200000/python_warm": 22298624,
+    "parallel-cpu-200000/veritas_artifact": 10846208,
+    "parallel-cpu-200000/veritas_source": 35782656,
+    "parallel-cpu-200000/veritas_warm_artifact": 11108352,
+    "richards-scheduler/python_reference": 19120128,
+    "richards-scheduler/python_warm": 20283392,
+    "richards-scheduler/veritas_artifact": 57753600,
+    "richards-scheduler/veritas_source": 82673664,
+    "richards-scheduler/veritas_warm_artifact": 184926208
   },
   "platform": {
     "architecture": "arm64",
@@ -124,28 +124,28 @@
       "comparison": {
         "veritas_artifact_over_python": {
           "ci95_percentile": [
-            0.22709680971591462,
-            0.23583832762872287
+            0.23556457532965588,
+            0.2399584283501452
           ],
-          "median_ratio": 0.23070346160179403,
+          "median_ratio": 0.23820468079432533,
           "ties_or_regressions": 0,
           "win": true
         },
         "veritas_artifact_over_sqlite_native": {
           "ci95_percentile": [
-            0.2268523012331109,
-            0.23410135760515535
+            0.23514943010306785,
+            0.2384103702591633
           ],
-          "median_ratio": 0.23090596987649187,
+          "median_ratio": 0.2376728131734971,
           "ties_or_regressions": 0,
           "win": true
         },
         "veritas_source_over_python": {
           "ci95_percentile": [
-            0.8519695698019059,
-            0.8764291831703085
+            0.8822310220180707,
+            0.8989059503692629
           ],
-          "median_ratio": 0.8714967835053009,
+          "median_ratio": 0.8917600859781801,
           "ties_or_regressions": 0,
           "win": true
         }
@@ -326,137 +326,137 @@
         ]
       ],
       "python_data": {
-        "median_seconds": 1.9828938330028905,
-        "p95_seconds_nearest_rank": 2.3316920409997692,
+        "median_seconds": 1.925191687500046,
+        "p95_seconds_nearest_rank": 2.2540563749935245,
         "samples_seconds": [
-          1.9302832499961369,
-          1.9751665410003625,
-          1.9868121250037802,
-          1.9163378750090487,
-          1.9880014170048526,
-          1.9607548329950077,
-          1.953476665992639,
-          1.9677552500070306,
-          1.9789755410020007,
-          2.044484541998827,
-          2.3316920409997692,
-          2.0378607500024373,
-          2.0055313329939963,
-          2.1771515000000363,
-          2.0062781660089968,
-          1.9749427920032758
+          1.9288204580079764,
+          1.9440744999883464,
+          1.9470799579867162,
+          1.922145416989224,
+          1.9209987909998745,
+          1.9204930000123568,
+          1.9468331250100164,
+          1.9282379580108682,
+          1.901738958011265,
+          1.8972098330123117,
+          2.2540563749935245,
+          1.9194135410070885,
+          1.9483230000041658,
+          2.196187249996001,
+          1.893377790998784,
+          1.8882024999911664
         ]
       },
       "python_sqlite_native": {
-        "median_seconds": 1.986522437495296,
-        "p95_seconds_nearest_rank": 2.140144707998843,
+        "median_seconds": 1.9311072915006662,
+        "p95_seconds_nearest_rank": 2.012696290999884,
         "samples_seconds": [
-          1.975341124998522,
-          2.04687304100662,
-          1.9598756250052247,
-          1.9692857090121834,
-          1.9605391249933746,
-          1.97225870800321,
-          2.0306933340034448,
-          1.977357416995801,
-          2.0141737910016673,
-          2.140144707998843,
-          2.022485207999125,
-          1.949780125010875,
-          1.9899807920010062,
-          1.9830640829895856,
-          2.012996124991332,
-          2.0731470830069156
+          1.9215211249975255,
+          1.9228214169997955,
+          1.988304042009986,
+          1.9301156669971533,
+          1.9227333330054535,
+          1.9159271249955054,
+          1.9831499170104507,
+          1.9628804999956628,
+          2.012696290999884,
+          1.9445878330006963,
+          1.961112167002284,
+          1.9136745410069125,
+          1.9567030409962172,
+          1.912281750002876,
+          1.932098916004179,
+          1.9073750840034336
         ]
       },
       "python_warm": {
-        "median_seconds": 1.9182934791999287,
-        "p95_seconds_nearest_rank": 1.996795541801839,
+        "median_seconds": 1.8629626832989743,
+        "p95_seconds_nearest_rank": 1.946800133198849,
         "samples_seconds": [
-          1.927794541598996,
-          1.9683233499992638,
-          1.9696429584000725,
-          1.9578804165998007,
-          1.9021637249999912,
-          1.8875960999983363,
-          1.9499490833986783,
-          1.88855363339826,
-          1.8991119915997843,
-          1.875449266799842,
-          1.8765564666013232,
-          1.9214838168001733,
-          1.9264419250015634,
-          1.996795541801839,
-          1.915103141599684,
-          1.9124850749998585
+          1.8480214583978523,
+          1.8431082833994878,
+          1.8981454416003545,
+          1.9295775083999616,
+          1.8692305749980733,
+          1.8728332668018992,
+          1.946800133198849,
+          1.86184516659996,
+          1.862368575000437,
+          1.8491565750009613,
+          1.8532467999990332,
+          1.8684303833986633,
+          1.8480808665975927,
+          1.8956827668007463,
+          1.8635567915975115,
+          1.8555292250006459
         ]
       },
       "rows": 20000,
       "timed_trials_per_candidate": 16,
       "veritas_artifact": {
-        "median_seconds": 0.45874058348999824,
-        "p95_seconds_nearest_rank": 0.47494420800649095,
+        "median_seconds": 0.4584019999965676,
+        "p95_seconds_nearest_rank": 0.4718297920044279,
         "samples_seconds": [
-          0.4710059170029126,
-          0.4478741250059102,
-          0.4564754169987282,
-          0.46101245799218304,
-          0.4614367079921067,
-          0.4481804999959422,
-          0.4722675000084564,
-          0.45717841701116413,
-          0.47494420800649095,
-          0.46429591700143646,
-          0.45992312498856336,
-          0.47207908300333656,
-          0.45711533300345764,
-          0.4573048340098467,
-          0.4509034579969011,
-          0.45755804199143313
+          0.4596605420083506,
+          0.4579550839989679,
+          0.4589136670110747,
+          0.4587537500046892,
+          0.4603617090033367,
+          0.4572648329922231,
+          0.4718297920044279,
+          0.45370016600645613,
+          0.4598917499970412,
+          0.45829624999896623,
+          0.4658568330050912,
+          0.45481083300546743,
+          0.458507749994169,
+          0.4577594999864232,
+          0.4543319590011379,
+          0.45473800000036135
         ]
       },
       "veritas_source": {
-        "median_seconds": 1.7239166459985427,
-        "p95_seconds_nearest_rank": 1.7746719580027275,
+        "median_seconds": 1.7146842915026355,
+        "p95_seconds_nearest_rank": 1.7455143749975832,
         "samples_seconds": [
-          1.7120512499968754,
-          1.7746719580027275,
-          1.7335122090007644,
-          1.7078765829937765,
-          1.7288961250014836,
-          1.7068060830060858,
-          1.7197412090026774,
-          1.7203968749963678,
-          1.734244999999646,
-          1.7386171669932082,
-          1.7147226249944651,
-          1.7331839590042364,
-          1.708651666995138,
-          1.7182837919972371,
-          1.7277161249949131,
-          1.7274364170007175
+          1.717255750001641,
+          1.7151228330039885,
+          1.7455143749975832,
+          1.7267352919880068,
+          1.7356929999950808,
+          1.7106705420010258,
+          1.7116381670057308,
+          1.7120330830075545,
+          1.7328052499942714,
+          1.7054132079938427,
+          1.7309679580066586,
+          1.7136037499876693,
+          1.7184335420024581,
+          1.7124790840025526,
+          1.7142457500012824,
+          1.7117734589992324
         ]
       },
       "veritas_warm_artifact": {
-        "median_seconds": 0.44554274169931884,
-        "p95_seconds_nearest_rank": 0.4617201416025637,
+        "median_seconds": 0.44693957079871327,
+        "p95_seconds_nearest_rank": 0.45168345000129195,
         "samples_seconds": [
-          0.43989082500047516,
-          0.4454730750003364,
-          0.44659149179933594,
-          0.45090201679849995,
-          0.4470769334002398,
-          0.44522240000078456,
-          0.4441529167990666,
-          0.44381378339894584,
-          0.4617201416025637,
-          0.4461071666009957,
-          0.44440858319867405,
-          0.44584660000109577,
-          0.44487129179760815,
-          0.44561240839830135,
-          0.4496416417998262,
-          0.44053997500159314
+          0.44683061659743545,
+          0.44378382499853614,
+          0.4507511167990742,
+          0.4448862666002242,
+          0.4416828916000668,
+          0.44922150839993263,
+          0.44395654180261773,
+          0.4455920417996822,
+          0.44838048339879605,
+          0.44704852499999104,
+          0.4490056665992597,
+          0.44518525000021325,
+          0.4479102250013966,
+          0.4461693833989557,
+          0.45168345000129195,
+          0.44843573340040166
         ]
       }
     },
@@ -464,28 +464,28 @@
       "comparison": {
         "veritas_artifact": {
           "ci95_percentile": [
-            0.3694725262041461,
-            0.3832167522737655
+            0.3775833861185155,
+            0.3957670758720807
           ],
-          "median_ratio": 0.37356696733761424,
+          "median_ratio": 0.3847515680111835,
           "ties_or_regressions": 0,
           "win": true
         },
         "veritas_source": {
           "ci95_percentile": [
-            1.5183799845827333,
-            1.5838840552958948
+            1.549988300499707,
+            1.5853701343694888
           ],
-          "median_ratio": 1.5661030150209063,
+          "median_ratio": 1.5684711314241044,
           "ties_or_regressions": 15,
           "win": false
         },
         "veritas_warm_artifact": {
           "ci95_percentile": [
-            0.24421395674303195,
-            0.2472891724107938
+            0.24656435566029503,
+            0.2510575103861557
           ],
-          "median_ratio": 0.2457257957828687,
+          "median_ratio": 0.24827846080781052,
           "ties_or_regressions": 0,
           "win": true
         }
@@ -497,37 +497,37 @@
           "calls": 6146,
           "compilations": 1,
           "compile_profile": {
-            "finalize_nanoseconds": 10041,
+            "finalize_nanoseconds": 11666,
             "functions": [
               {
                 "bytecode_blocks": 7,
                 "bytecode_instructions": 49,
                 "cranelift_ir_blocks": 47,
                 "cranelift_ir_instructions": 586,
-                "define_nanoseconds": 1053833,
-                "lowering_nanoseconds": 153458,
+                "define_nanoseconds": 925250,
+                "lowering_nanoseconds": 141333,
                 "name": "escape_steps",
-                "verification_nanoseconds": 100041
+                "verification_nanoseconds": 94166
               },
               {
                 "bytecode_blocks": 10,
                 "bytecode_instructions": 71,
                 "cranelift_ir_blocks": 61,
                 "cranelift_ir_instructions": 734,
-                "define_nanoseconds": 1220416,
-                "lowering_nanoseconds": 136125,
+                "define_nanoseconds": 1170000,
+                "lowering_nanoseconds": 122334,
                 "name": "calculate",
-                "verification_nanoseconds": 107584
+                "verification_nanoseconds": 95000
               },
               {
                 "bytecode_blocks": 2,
                 "bytecode_instructions": 12,
                 "cranelift_ir_blocks": 24,
                 "cranelift_ir_instructions": 315,
-                "define_nanoseconds": 428208,
-                "lowering_nanoseconds": 40208,
+                "define_nanoseconds": 622291,
+                "lowering_nanoseconds": 40792,
                 "name": "main",
-                "verification_nanoseconds": 38417
+                "verification_nanoseconds": 39833
               }
             ]
           },
@@ -546,37 +546,37 @@
           "calls": 6146,
           "compilations": 1,
           "compile_profile": {
-            "finalize_nanoseconds": 10083,
+            "finalize_nanoseconds": 10208,
             "functions": [
               {
                 "bytecode_blocks": 7,
                 "bytecode_instructions": 49,
                 "cranelift_ir_blocks": 47,
                 "cranelift_ir_instructions": 586,
-                "define_nanoseconds": 954708,
-                "lowering_nanoseconds": 135500,
+                "define_nanoseconds": 927209,
+                "lowering_nanoseconds": 146750,
                 "name": "escape_steps",
-                "verification_nanoseconds": 97375
+                "verification_nanoseconds": 99250
               },
               {
                 "bytecode_blocks": 10,
                 "bytecode_instructions": 71,
                 "cranelift_ir_blocks": 61,
                 "cranelift_ir_instructions": 734,
-                "define_nanoseconds": 1163208,
-                "lowering_nanoseconds": 111167,
+                "define_nanoseconds": 1228875,
+                "lowering_nanoseconds": 119000,
                 "name": "calculate",
-                "verification_nanoseconds": 94750
+                "verification_nanoseconds": 94208
               },
               {
                 "bytecode_blocks": 2,
                 "bytecode_instructions": 12,
                 "cranelift_ir_blocks": 24,
                 "cranelift_ir_instructions": 315,
-                "define_nanoseconds": 396625,
-                "lowering_nanoseconds": 36083,
+                "define_nanoseconds": 393750,
+                "lowering_nanoseconds": 40625,
                 "name": "main",
-                "verification_nanoseconds": 38542
+                "verification_nanoseconds": 38292
               }
             ]
           },
@@ -595,47 +595,47 @@
           "calls": 30731,
           "compilations": 1,
           "compile_profile": {
-            "finalize_nanoseconds": 13250,
+            "finalize_nanoseconds": 11375,
             "functions": [
               {
                 "bytecode_blocks": 7,
                 "bytecode_instructions": 49,
                 "cranelift_ir_blocks": 47,
                 "cranelift_ir_instructions": 586,
-                "define_nanoseconds": 956667,
-                "lowering_nanoseconds": 208458,
+                "define_nanoseconds": 927833,
+                "lowering_nanoseconds": 140875,
                 "name": "escape_steps",
-                "verification_nanoseconds": 99167
+                "verification_nanoseconds": 96542
               },
               {
                 "bytecode_blocks": 10,
                 "bytecode_instructions": 71,
                 "cranelift_ir_blocks": 61,
                 "cranelift_ir_instructions": 734,
-                "define_nanoseconds": 1329708,
-                "lowering_nanoseconds": 136000,
+                "define_nanoseconds": 1171459,
+                "lowering_nanoseconds": 125584,
                 "name": "calculate",
-                "verification_nanoseconds": 97625
+                "verification_nanoseconds": 98584
               },
               {
                 "bytecode_blocks": 2,
                 "bytecode_instructions": 12,
                 "cranelift_ir_blocks": 24,
                 "cranelift_ir_instructions": 315,
-                "define_nanoseconds": 501292,
-                "lowering_nanoseconds": 60917,
+                "define_nanoseconds": 663042,
+                "lowering_nanoseconds": 38542,
                 "name": "benchmark_once",
-                "verification_nanoseconds": 51041
+                "verification_nanoseconds": 38458
               },
               {
                 "bytecode_blocks": 7,
                 "bytecode_instructions": 21,
                 "cranelift_ir_blocks": 41,
                 "cranelift_ir_instructions": 401,
-                "define_nanoseconds": 578833,
-                "lowering_nanoseconds": 59875,
+                "define_nanoseconds": 578375,
+                "lowering_nanoseconds": 68208,
                 "name": "main",
-                "verification_nanoseconds": 66583
+                "verification_nanoseconds": 60917
               }
             ]
           },
@@ -758,108 +758,108 @@
         ]
       ],
       "python_reference": {
-        "median_seconds": 0.0420765000017127,
-        "p95_seconds_nearest_rank": 0.0444329580059275,
+        "median_seconds": 0.04208158400433604,
+        "p95_seconds_nearest_rank": 0.043406959011917934,
         "samples_seconds": [
-          0.042923916000290774,
-          0.043957874993793666,
-          0.043547125009354204,
-          0.0420765000017127,
-          0.04275608299940359,
-          0.0444329580059275,
-          0.0415273340040585,
-          0.04206279100617394,
-          0.041786125002545305,
-          0.04201608400035184,
-          0.041614083005697466,
-          0.04352883300452959,
-          0.042412125010741875,
-          0.04090787500899751,
-          0.04130787501344457
+          0.043406959011917934,
+          0.04208158400433604,
+          0.04165587500028778,
+          0.0419664590008324,
+          0.0412170839990722,
+          0.04095554199011531,
+          0.04096454200043809,
+          0.0426579579943791,
+          0.042567833996145055,
+          0.04264620899630245,
+          0.04237529200327117,
+          0.04245554200315382,
+          0.041028334002476186,
+          0.04216329198970925,
+          0.04192874999716878
         ]
       },
       "python_warm": {
-        "median_seconds": 0.022104891799972392,
-        "p95_seconds_nearest_rank": 0.022477825000532903,
+        "median_seconds": 0.02191501659981441,
+        "p95_seconds_nearest_rank": 0.022384733200306074,
         "samples_seconds": [
-          0.021975058401585555,
-          0.022477825000532903,
-          0.022148716601077468,
-          0.02192404179950245,
-          0.02209230820008088,
-          0.02189083340053912,
-          0.022007025001221335,
-          0.021976016601547597,
-          0.022104891799972392,
-          0.022168508201139046,
-          0.02217110820056405,
-          0.022313916799612345,
-          0.02233012499928009,
-          0.02188019179739058,
-          0.022189300000900403
+          0.02191501659981441,
+          0.022067416799836793,
+          0.022384733200306074,
+          0.021689441800117493,
+          0.021877375000622125,
+          0.02166468320065178,
+          0.02192419999919366,
+          0.02158322499890346,
+          0.02193118340219371,
+          0.021737516598659568,
+          0.02202278339827899,
+          0.022202008200110868,
+          0.021802941599162295,
+          0.021594916601316072,
+          0.021918466800707394
         ]
       },
       "veritas_artifact": {
-        "median_seconds": 0.01596354199864436,
-        "p95_seconds_nearest_rank": 0.01708358399628196,
+        "median_seconds": 0.016282791999401525,
+        "p95_seconds_nearest_rank": 0.016826791004859842,
         "samples_seconds": [
-          0.015934458002448082,
-          0.01567570799670648,
-          0.015981083997758105,
-          0.015224458009470254,
-          0.016126540998811834,
-          0.016323999996529892,
-          0.015343209001002833,
-          0.015676666997023858,
-          0.015609915993991308,
-          0.01606295901001431,
-          0.01596354199864436,
-          0.016288083003018983,
-          0.01708358399628196,
-          0.01567658300336916,
-          0.01634849999391008
+          0.01632749999407679,
+          0.01632650000101421,
+          0.016336624990799464,
+          0.01677216700045392,
+          0.016826791004859842,
+          0.01575770899944473,
+          0.016212417001952417,
+          0.016142499996931292,
+          0.016268833001959138,
+          0.016102499997941777,
+          0.01599754199560266,
+          0.016282791999401525,
+          0.01657658300246112,
+          0.016465750013594516,
+          0.015733708001789637
         ]
       },
       "veritas_source": {
-        "median_seconds": 0.0661210830003256,
-        "p95_seconds_nearest_rank": 0.06820612499723211,
+        "median_seconds": 0.06545691700011957,
+        "p95_seconds_nearest_rank": 0.06677704199682921,
         "samples_seconds": [
-          0.06684391699673142,
-          0.06660454200755339,
-          0.0661210830003256,
-          0.06589045800501481,
-          0.06820612499723211,
-          0.06571462498686742,
-          0.06503608298953623,
-          0.06662258399592247,
-          0.065303125011269,
-          0.06600154099578504,
-          0.06554150000738446,
-          0.06529124999360647,
-          0.06782912500784732,
-          0.06712791600148194,
-          0.06663554199622013
+          0.0646228749974398,
+          0.06677704199682921,
+          0.0654220830037957,
+          0.06542720900324639,
+          0.0653443339979276,
+          0.0651130829937756,
+          0.06545691700011957,
+          0.06430158299917821,
+          0.06610912499309052,
+          0.06610112500493415,
+          0.06539283398888074,
+          0.06659029200091027,
+          0.06583908299217,
+          0.06575666699791327,
+          0.06619825000234414
         ]
       },
       "veritas_warm_artifact": {
-        "median_seconds": 0.005442475000745617,
-        "p95_seconds_nearest_rank": 0.005490975000429899,
+        "median_seconds": 0.005430033398442902,
+        "p95_seconds_nearest_rank": 0.0058535418007522825,
         "samples_seconds": [
-          0.005464124999707565,
-          0.00548175819858443,
-          0.0053968418011209,
-          0.005464291601674632,
-          0.005395249999128282,
-          0.00539394179941155,
-          0.005395766801666468,
-          0.005490975000429899,
-          0.005442850000690669,
-          0.005419200001051649,
-          0.0054826749983476475,
-          0.005397441599052399,
-          0.005441058400901966,
-          0.005442475000745617,
-          0.005452483400586061
+          0.005464641598518938,
+          0.005384033400332555,
+          0.005427591598709114,
+          0.005348833199241199,
+          0.005416025000158697,
+          0.0053412499983096495,
+          0.0058535418007522825,
+          0.005240758199943229,
+          0.005585316798533313,
+          0.005457366799237207,
+          0.005430033398442902,
+          0.005558350001228974,
+          0.005425383200054057,
+          0.0054309167986502874,
+          0.005441883200546727
         ]
       }
     },
@@ -867,29 +867,29 @@
       "comparison": {
         "veritas_artifact": {
           "ci95_percentile": [
-            0.6830034118002172,
-            0.6998636128942355
+            0.6921061800798889,
+            0.7010068674483458
           ],
-          "median_ratio": 0.6930510944555002,
+          "median_ratio": 0.6972494805612952,
           "ties_or_regressions": 0,
           "win": true
         },
         "veritas_source": {
           "ci95_percentile": [
-            1.701033112106495,
-            1.7472154522983556
+            1.7321728430674284,
+            1.7415057347541774
           ],
-          "median_ratio": 1.7252220367339055,
+          "median_ratio": 1.7379001845242217,
           "ties_or_regressions": 15,
           "win": false
         },
         "veritas_warm_artifact": {
           "ci95_percentile": [
-            0.6921746095439208,
-            0.7400068501996115
+            0.6667778051789619,
+            0.685008047461157
           ],
-          "median_ratio": 0.7235416148433806,
-          "ties_or_regressions": 1,
+          "median_ratio": 0.6733659277248647,
+          "ties_or_regressions": 0,
           "win": true
         }
       },
@@ -900,47 +900,47 @@
           "calls": 5,
           "compilations": 1,
           "compile_profile": {
-            "finalize_nanoseconds": 19500,
+            "finalize_nanoseconds": 23416,
             "functions": [
               {
                 "bytecode_blocks": 7,
                 "bytecode_instructions": 135,
                 "cranelift_ir_blocks": 99,
                 "cranelift_ir_instructions": 1399,
-                "define_nanoseconds": 2151667,
-                "lowering_nanoseconds": 306791,
+                "define_nanoseconds": 2105125,
+                "lowering_nanoseconds": 301417,
                 "name": "energy",
-                "verification_nanoseconds": 186625
+                "verification_nanoseconds": 199333
               },
               {
                 "bytecode_blocks": 10,
                 "bytecode_instructions": 242,
                 "cranelift_ir_blocks": 156,
                 "cranelift_ir_instructions": 2380,
-                "define_nanoseconds": 3796959,
-                "lowering_nanoseconds": 474458,
+                "define_nanoseconds": 3292833,
+                "lowering_nanoseconds": 426417,
                 "name": "advance",
-                "verification_nanoseconds": 310792
+                "verification_nanoseconds": 261708
               },
               {
                 "bytecode_blocks": 4,
                 "bytecode_instructions": 182,
                 "cranelift_ir_blocks": 78,
                 "cranelift_ir_instructions": 1719,
-                "define_nanoseconds": 2036334,
-                "lowering_nanoseconds": 265375,
+                "define_nanoseconds": 2013292,
+                "lowering_nanoseconds": 247958,
                 "name": "initial_system",
-                "verification_nanoseconds": 183166
+                "verification_nanoseconds": 180416
               },
               {
                 "bytecode_blocks": 5,
                 "bytecode_instructions": 15,
                 "cranelift_ir_blocks": 48,
                 "cranelift_ir_instructions": 538,
-                "define_nanoseconds": 688875,
-                "lowering_nanoseconds": 59917,
+                "define_nanoseconds": 686000,
+                "lowering_nanoseconds": 56583,
                 "name": "main",
-                "verification_nanoseconds": 63125
+                "verification_nanoseconds": 63459
               }
             ]
           },
@@ -960,47 +960,47 @@
           "calls": 5,
           "compilations": 1,
           "compile_profile": {
-            "finalize_nanoseconds": 18625,
+            "finalize_nanoseconds": 25084,
             "functions": [
               {
                 "bytecode_blocks": 7,
                 "bytecode_instructions": 135,
                 "cranelift_ir_blocks": 99,
                 "cranelift_ir_instructions": 1399,
-                "define_nanoseconds": 2256833,
-                "lowering_nanoseconds": 315083,
+                "define_nanoseconds": 2069041,
+                "lowering_nanoseconds": 289917,
                 "name": "energy",
-                "verification_nanoseconds": 190583
+                "verification_nanoseconds": 180125
               },
               {
                 "bytecode_blocks": 10,
                 "bytecode_instructions": 242,
                 "cranelift_ir_blocks": 156,
                 "cranelift_ir_instructions": 2380,
-                "define_nanoseconds": 3731334,
-                "lowering_nanoseconds": 444875,
+                "define_nanoseconds": 3418000,
+                "lowering_nanoseconds": 411792,
                 "name": "advance",
-                "verification_nanoseconds": 279000
+                "verification_nanoseconds": 258833
               },
               {
                 "bytecode_blocks": 4,
                 "bytecode_instructions": 182,
                 "cranelift_ir_blocks": 78,
                 "cranelift_ir_instructions": 1719,
-                "define_nanoseconds": 2198791,
-                "lowering_nanoseconds": 282333,
+                "define_nanoseconds": 2008708,
+                "lowering_nanoseconds": 253166,
                 "name": "initial_system",
-                "verification_nanoseconds": 187792
+                "verification_nanoseconds": 176125
               },
               {
                 "bytecode_blocks": 5,
                 "bytecode_instructions": 15,
                 "cranelift_ir_blocks": 48,
                 "cranelift_ir_instructions": 538,
-                "define_nanoseconds": 717500,
-                "lowering_nanoseconds": 67167,
+                "define_nanoseconds": 982042,
+                "lowering_nanoseconds": 56375,
                 "name": "main",
-                "verification_nanoseconds": 67792
+                "verification_nanoseconds": 63625
               }
             ]
           },
@@ -1020,57 +1020,57 @@
           "calls": 26,
           "compilations": 1,
           "compile_profile": {
-            "finalize_nanoseconds": 22000,
+            "finalize_nanoseconds": 22666,
             "functions": [
               {
                 "bytecode_blocks": 7,
                 "bytecode_instructions": 135,
                 "cranelift_ir_blocks": 99,
                 "cranelift_ir_instructions": 1399,
-                "define_nanoseconds": 2091625,
-                "lowering_nanoseconds": 309792,
+                "define_nanoseconds": 2312250,
+                "lowering_nanoseconds": 310000,
                 "name": "energy",
-                "verification_nanoseconds": 189083
+                "verification_nanoseconds": 189541
               },
               {
                 "bytecode_blocks": 10,
                 "bytecode_instructions": 242,
                 "cranelift_ir_blocks": 156,
                 "cranelift_ir_instructions": 2380,
-                "define_nanoseconds": 3398375,
-                "lowering_nanoseconds": 408292,
+                "define_nanoseconds": 3600084,
+                "lowering_nanoseconds": 471458,
                 "name": "advance",
-                "verification_nanoseconds": 258250
+                "verification_nanoseconds": 298375
               },
               {
                 "bytecode_blocks": 4,
                 "bytecode_instructions": 182,
                 "cranelift_ir_blocks": 78,
                 "cranelift_ir_instructions": 1719,
-                "define_nanoseconds": 2041209,
-                "lowering_nanoseconds": 261833,
+                "define_nanoseconds": 2085792,
+                "lowering_nanoseconds": 271458,
                 "name": "initial_system",
-                "verification_nanoseconds": 178416
+                "verification_nanoseconds": 181166
               },
               {
                 "bytecode_blocks": 5,
                 "bytecode_instructions": 15,
                 "cranelift_ir_blocks": 48,
                 "cranelift_ir_instructions": 538,
-                "define_nanoseconds": 677416,
-                "lowering_nanoseconds": 65167,
+                "define_nanoseconds": 690833,
+                "lowering_nanoseconds": 67042,
                 "name": "benchmark_once",
-                "verification_nanoseconds": 66417
+                "verification_nanoseconds": 65083
               },
               {
                 "bytecode_blocks": 7,
                 "bytecode_instructions": 21,
                 "cranelift_ir_blocks": 41,
                 "cranelift_ir_instructions": 401,
-                "define_nanoseconds": 510417,
-                "lowering_nanoseconds": 47792,
+                "define_nanoseconds": 537125,
+                "lowering_nanoseconds": 51125,
                 "name": "main",
-                "verification_nanoseconds": 48542
+                "verification_nanoseconds": 50334
               }
             ]
           },
@@ -1194,108 +1194,108 @@
         ]
       ],
       "python_reference": {
-        "median_seconds": 0.2097565830044914,
-        "p95_seconds_nearest_rank": 0.2180891669995617,
+        "median_seconds": 0.20782137500646058,
+        "p95_seconds_nearest_rank": 0.21102195800631307,
         "samples_seconds": [
-          0.2082268749945797,
-          0.2096131250000326,
-          0.2097565830044914,
-          0.21429958399676252,
-          0.20844945799035486,
-          0.21368587500182912,
-          0.20865404199867044,
-          0.206620415992802,
-          0.21136058399861213,
-          0.21000779200403485,
-          0.2078088749985909,
-          0.2180891669995617,
-          0.21708591700007673,
-          0.21125708299223334,
-          0.20865195800433867
+          0.2069017920002807,
+          0.20777054100472014,
+          0.2093386670021573,
+          0.20704433400533162,
+          0.21070758299902081,
+          0.21102195800631307,
+          0.20782137500646058,
+          0.2090652089973446,
+          0.2065695419878466,
+          0.20813329100201372,
+          0.20735875000536907,
+          0.20519520799280144,
+          0.20862774999113753,
+          0.2083978750015376,
+          0.20735916700505186
         ]
       },
       "python_warm": {
-        "median_seconds": 0.19243702499952633,
-        "p95_seconds_nearest_rank": 0.1995513834001031,
+        "median_seconds": 0.19225737499946263,
+        "p95_seconds_nearest_rank": 0.19500623340136372,
         "samples_seconds": [
-          0.19287787500070408,
-          0.19247467500099447,
-          0.19116872499871534,
-          0.1916296750016045,
-          0.19169540820003023,
-          0.194080633399426,
-          0.19243702499952633,
-          0.19200889999920037,
-          0.1912393415987026,
-          0.19318787500087636,
-          0.19159977499803063,
-          0.19692213340022136,
-          0.1970101499988232,
-          0.1995513834001031,
-          0.19219416679989082
+          0.19488621659984345,
+          0.19500623340136372,
+          0.19262250839965417,
+          0.19165957499935757,
+          0.19182921659958083,
+          0.19301435840025077,
+          0.192578308400698,
+          0.19175164999905975,
+          0.19075054999848362,
+          0.1917517333989963,
+          0.19225737499946263,
+          0.19340314159926492,
+          0.19123980820004363,
+          0.19213382500165607,
+          0.1931477083999198
         ]
       },
       "veritas_artifact": {
-        "median_seconds": 0.14449350000359118,
-        "p95_seconds_nearest_rank": 0.15782308299094439,
+        "median_seconds": 0.14483649999601766,
+        "p95_seconds_nearest_rank": 0.1490620420081541,
         "samples_seconds": [
-          0.14428066699474584,
-          0.14629316600621678,
-          0.14680100000987295,
-          0.14417216600850224,
-          0.14446612499887124,
-          0.14289633400039747,
-          0.14552541699958965,
-          0.14490512500924524,
-          0.14435999999113847,
-          0.14397012500558048,
-          0.1416700830013724,
-          0.14449350000359118,
-          0.15782308299094439,
-          0.15435683300893288,
-          0.14651775000675116
+          0.14426216699939687,
+          0.14440208399901167,
+          0.14353662499343045,
+          0.14513950000400655,
+          0.14374166599009186,
+          0.14548233299865387,
+          0.14383445799467154,
+          0.1490620420081541,
+          0.14322583300236147,
+          0.14483649999601766,
+          0.14526375000423286,
+          0.1440154170122696,
+          0.14595308300340548,
+          0.14590483299980406,
+          0.14676474999578204
         ]
       },
       "veritas_source": {
-        "median_seconds": 0.3611600419972092,
-        "p95_seconds_nearest_rank": 0.3917150409979513,
+        "median_seconds": 0.3604561249958351,
+        "p95_seconds_nearest_rank": 0.36638962500728667,
         "samples_seconds": [
-          0.35958058400137816,
-          0.36623929100460373,
-          0.3565158749988768,
-          0.36331429200072307,
-          0.3582643330009887,
-          0.35812679199443664,
-          0.36231237500032876,
-          0.35897683299845085,
-          0.3611600419972092,
-          0.3572302079992369,
-          0.36509787499380764,
-          0.3596622920013033,
-          0.3917150409979513,
-          0.3644653749943245,
-          0.36498829199990723
+          0.3624358750093961,
+          0.36011212501034606,
+          0.3638097080111038,
+          0.3591184160031844,
+          0.3603444159962237,
+          0.3611160000000382,
+          0.35998254199512303,
+          0.3604561249958351,
+          0.3597420419973787,
+          0.36244858300779015,
+          0.3642917499964824,
+          0.35949608399823774,
+          0.3630517090059584,
+          0.36638962500728667,
+          0.35961820800730493
         ]
       },
       "veritas_warm_artifact": {
-        "median_seconds": 0.13899420840025414,
-        "p95_seconds_nearest_rank": 0.20263955839909614,
+        "median_seconds": 0.12917125840031077,
+        "p95_seconds_nearest_rank": 0.14118219160009177,
         "samples_seconds": [
-          0.13899420840025414,
-          0.13931919999886305,
-          0.13893301659845747,
-          0.16735522499948274,
-          0.13469522500236053,
-          0.14381035839905962,
-          0.13189138339948842,
-          0.13392604160180782,
-          0.13237101660051848,
-          0.13188468339794782,
-          0.1322190834005596,
-          0.14248135839879977,
-          0.1572641750011826,
-          0.20263955839909614,
-          0.14222500000032595
+          0.1283869999984745,
+          0.1366895334009314,
+          0.1273322334018303,
+          0.12807292499928735,
+          0.12917125840031077,
+          0.12891729179827963,
+          0.12840694180049467,
+          0.13030565819935874,
+          0.13497410819982178,
+          0.12623955819872207,
+          0.12930499160138426,
+          0.1324827083997661,
+          0.12897470000025352,
+          0.13719029999920168,
+          0.14118219160009177
         ]
       }
     },
@@ -1303,46 +1303,46 @@
       "comparison": {
         "veritas_artifact_over_python_processes": {
           "ci95_percentile": [
-            0.07482383912145532,
-            0.07802652464304051
+            0.07459526989713874,
+            0.07772406735177567
           ],
-          "median_ratio": 0.07666848421935238,
+          "median_ratio": 0.07576161783164123,
           "ties_or_regressions": 0,
           "win": true
         },
         "veritas_artifact_over_python_serial": {
           "ci95_percentile": [
-            0.1994044805282377,
-            0.20628363547645645
+            0.19797486853702467,
+            0.213172904234222
           ],
-          "median_ratio": 0.20285061266229135,
+          "median_ratio": 0.2019216861132205,
           "ties_or_regressions": 0,
           "win": true
         },
         "veritas_artifact_over_python_threads": {
           "ci95_percentile": [
-            0.19800064915978502,
-            0.20316595733887058
+            0.1933027648031269,
+            0.21335929039000026
           ],
-          "median_ratio": 0.20146700746964152,
+          "median_ratio": 0.19895774925471657,
           "ties_or_regressions": 0,
           "win": true
         },
         "veritas_source_over_python_serial": {
           "ci95_percentile": [
-            0.7844509499862887,
-            0.8380021910467774
+            0.7955211023897418,
+            0.8226513653225843
           ],
-          "median_ratio": 0.8138792811743838,
+          "median_ratio": 0.8085967947678218,
           "ties_or_regressions": 1,
           "win": true
         },
         "veritas_warm_over_python_serial": {
           "ci95_percentile": [
-            0.19644520822116593,
-            0.20885845870169809
+            0.19556418969052136,
+            0.21003775979598768
           ],
-          "median_ratio": 0.20279374971428255,
+          "median_ratio": 0.20489369864725024,
           "ties_or_regressions": 0,
           "win": true
         }
@@ -1352,6 +1352,476 @@
           "bytecode_blocks": 4,
           "bytecode_instructions": 21,
           "calls": 4,
+          "compilations": 1,
+          "compile_profile": {
+            "finalize_nanoseconds": 8292,
+            "functions": [
+              {
+                "bytecode_blocks": 4,
+                "bytecode_instructions": 21,
+                "cranelift_ir_blocks": 27,
+                "cranelift_ir_instructions": 308,
+                "define_nanoseconds": 537042,
+                "lowering_nanoseconds": 88583,
+                "name": "work",
+                "verification_nanoseconds": 63958
+              }
+            ]
+          },
+          "compiled_functions": [
+            "work"
+          ],
+          "cranelift_ir_blocks": 27,
+          "cranelift_ir_instructions": 308,
+          "deoptimizations": 0
+        },
+        "veritas_source": {
+          "bytecode_blocks": 4,
+          "bytecode_instructions": 21,
+          "calls": 4,
+          "compilations": 1,
+          "compile_profile": {
+            "finalize_nanoseconds": 7750,
+            "functions": [
+              {
+                "bytecode_blocks": 4,
+                "bytecode_instructions": 21,
+                "cranelift_ir_blocks": 27,
+                "cranelift_ir_instructions": 308,
+                "define_nanoseconds": 540500,
+                "lowering_nanoseconds": 87291,
+                "name": "work",
+                "verification_nanoseconds": 62459
+              }
+            ]
+          },
+          "compiled_functions": [
+            "work"
+          ],
+          "cranelift_ir_blocks": 27,
+          "cranelift_ir_instructions": 308,
+          "deoptimizations": 0
+        },
+        "veritas_warm_artifact": {
+          "bytecode_blocks": 4,
+          "bytecode_instructions": 21,
+          "calls": 20,
+          "compilations": 1,
+          "compile_profile": {
+            "finalize_nanoseconds": 7500,
+            "functions": [
+              {
+                "bytecode_blocks": 4,
+                "bytecode_instructions": 21,
+                "cranelift_ir_blocks": 27,
+                "cranelift_ir_instructions": 308,
+                "define_nanoseconds": 604208,
+                "lowering_nanoseconds": 99958,
+                "name": "work",
+                "verification_nanoseconds": 64666
+              }
+            ]
+          },
+          "compiled_functions": [
+            "work"
+          ],
+          "cranelift_ir_blocks": 27,
+          "cranelift_ir_instructions": 308,
+          "deoptimizations": 0
+        }
+      },
+      "paired_trial_order": [
+        [
+          "veritas_artifact",
+          "python_warm",
+          "veritas_warm_artifact",
+          "python_processes",
+          "python_threads",
+          "python_serial",
+          "veritas_source"
+        ],
+        [
+          "python_threads",
+          "veritas_artifact",
+          "python_warm",
+          "veritas_source",
+          "veritas_warm_artifact",
+          "python_processes",
+          "python_serial"
+        ],
+        [
+          "veritas_artifact",
+          "python_serial",
+          "python_threads",
+          "veritas_warm_artifact",
+          "python_warm",
+          "veritas_source",
+          "python_processes"
+        ],
+        [
+          "python_warm",
+          "veritas_source",
+          "python_processes",
+          "veritas_artifact",
+          "veritas_warm_artifact",
+          "python_threads",
+          "python_serial"
+        ],
+        [
+          "python_warm",
+          "python_processes",
+          "python_threads",
+          "veritas_artifact",
+          "python_serial",
+          "veritas_warm_artifact",
+          "veritas_source"
+        ],
+        [
+          "veritas_warm_artifact",
+          "python_threads",
+          "veritas_source",
+          "veritas_artifact",
+          "python_warm",
+          "python_processes",
+          "python_serial"
+        ],
+        [
+          "python_warm",
+          "python_processes",
+          "veritas_artifact",
+          "python_serial",
+          "veritas_source",
+          "veritas_warm_artifact",
+          "python_threads"
+        ],
+        [
+          "python_threads",
+          "veritas_artifact",
+          "python_warm",
+          "python_serial",
+          "veritas_source",
+          "veritas_warm_artifact",
+          "python_processes"
+        ],
+        [
+          "veritas_source",
+          "veritas_warm_artifact",
+          "veritas_artifact",
+          "python_threads",
+          "python_serial",
+          "python_processes",
+          "python_warm"
+        ],
+        [
+          "veritas_artifact",
+          "veritas_warm_artifact",
+          "python_serial",
+          "veritas_source",
+          "python_threads",
+          "python_processes",
+          "python_warm"
+        ],
+        [
+          "python_serial",
+          "python_processes",
+          "python_threads",
+          "veritas_artifact",
+          "python_warm",
+          "veritas_source",
+          "veritas_warm_artifact"
+        ],
+        [
+          "python_threads",
+          "veritas_source",
+          "veritas_artifact",
+          "veritas_warm_artifact",
+          "python_serial",
+          "python_processes",
+          "python_warm"
+        ],
+        [
+          "python_warm",
+          "veritas_source",
+          "python_processes",
+          "python_threads",
+          "python_serial",
+          "veritas_warm_artifact",
+          "veritas_artifact"
+        ],
+        [
+          "veritas_warm_artifact",
+          "python_threads",
+          "python_serial",
+          "python_warm",
+          "python_processes",
+          "veritas_source",
+          "veritas_artifact"
+        ],
+        [
+          "veritas_source",
+          "veritas_artifact",
+          "python_warm",
+          "python_processes",
+          "python_serial",
+          "python_threads",
+          "veritas_warm_artifact"
+        ]
+      ],
+      "python_processes": {
+        "median_seconds": 0.15796329200384207,
+        "p95_seconds_nearest_rank": 0.17365066599450074,
+        "samples_seconds": [
+          0.1607943749986589,
+          0.17365066599450074,
+          0.16722912499972153,
+          0.15789408300770447,
+          0.15385712499846704,
+          0.16306245898886118,
+          0.15278333400783595,
+          0.1541710419987794,
+          0.16509087500162423,
+          0.15796329200384207,
+          0.1558778749895282,
+          0.16144920799706597,
+          0.15405808298964985,
+          0.15955804201075807,
+          0.15360445799888112
+        ]
+      },
+      "python_serial": {
+        "median_seconds": 0.0595947500114562,
+        "p95_seconds_nearest_rank": 0.10739195799396839,
+        "samples_seconds": [
+          0.10739195799396839,
+          0.059635458994307555,
+          0.06105266700615175,
+          0.05519133299821988,
+          0.058364790995256044,
+          0.05917350000527222,
+          0.059951000002911314,
+          0.058715624996693805,
+          0.05881575000239536,
+          0.059897541999816895,
+          0.06024879199685529,
+          0.058503833002760075,
+          0.059457374998601153,
+          0.05964083399157971,
+          0.0595947500114562
+        ]
+      },
+      "python_threads": {
+        "median_seconds": 0.06075024999154266,
+        "p95_seconds_nearest_rank": 0.07177204098843504,
+        "samples_seconds": [
+          0.06147541699465364,
+          0.07177204098843504,
+          0.06099012499907985,
+          0.059682541992515326,
+          0.056801374987117015,
+          0.05852258300001267,
+          0.06136487500043586,
+          0.05806616699555889,
+          0.06075024999154266,
+          0.05913520899775904,
+          0.060993084000074305,
+          0.06111483299173415,
+          0.06329824999556877,
+          0.05812495898862835,
+          0.06018941699585412
+        ]
+      },
+      "python_warm": {
+        "median_seconds": 0.015095824998570605,
+        "p95_seconds_nearest_rank": 0.015336408201255836,
+        "samples_seconds": [
+          0.01483415839902591,
+          0.015148691600188613,
+          0.015205366601003334,
+          0.015183366800192744,
+          0.014727175000007264,
+          0.014566066602128558,
+          0.015201399999205023,
+          0.015058566600782797,
+          0.015095824998570605,
+          0.015336408201255836,
+          0.015150016799452715,
+          0.014592508401256055,
+          0.015284658200107515,
+          0.015061233399319463,
+          0.01487070839793887
+        ]
+      },
+      "veritas_artifact": {
+        "median_seconds": 0.012039209002978168,
+        "p95_seconds_nearest_rank": 0.01648975000716746,
+        "samples_seconds": [
+          0.012182041988126002,
+          0.01648975000716746,
+          0.01213445799658075,
+          0.01185145799536258,
+          0.0124417920014821,
+          0.012039209002978168,
+          0.011861999999382533,
+          0.01185595800052397,
+          0.011704999997164123,
+          0.011858208003104664,
+          0.013246500006061979,
+          0.012103667002520524,
+          0.011842708001495339,
+          0.012401500003761612,
+          0.01145816600183025
+        ]
+      },
+      "veritas_source": {
+        "median_seconds": 0.04801387499901466,
+        "p95_seconds_nearest_rank": 0.14413666700420436,
+        "samples_seconds": [
+          0.14413666700420436,
+          0.048221040997304954,
+          0.04831195800215937,
+          0.05105345800984651,
+          0.04801387499901466,
+          0.048771458998089656,
+          0.04815341701032594,
+          0.04693791699537542,
+          0.04781662501045503,
+          0.04749479200108908,
+          0.0469739580003079,
+          0.0475172919977922,
+          0.04816679201030638,
+          0.04744554200442508,
+          0.046500374999595806
+        ]
+      },
+      "veritas_warm_artifact": {
+        "median_seconds": 0.0030625168001279235,
+        "p95_seconds_nearest_rank": 0.0032060750003438444,
+        "samples_seconds": [
+          0.003115733398590237,
+          0.0029625415976624937,
+          0.0031588499987265095,
+          0.0031560834002448248,
+          0.0032060750003438444,
+          0.00316249159805011,
+          0.003033524999045767,
+          0.0029389499977696687,
+          0.003175016798195429,
+          0.0031423334003193304,
+          0.0028428332007024437,
+          0.0029259833972901106,
+          0.002938749999157153,
+          0.003047841601073742,
+          0.0030625168001279235
+        ]
+      }
+    },
+    "parallel-cpu-200000": {
+      "comparison": {
+        "veritas_artifact_over_python_processes": {
+          "ci95_percentile": [
+            0.1013522077848373,
+            0.1157909314887722
+          ],
+          "median_ratio": 0.10995976026597833,
+          "ties_or_regressions": 0,
+          "win": true
+        },
+        "veritas_artifact_over_python_serial": {
+          "ci95_percentile": [
+            0.19721661192317988,
+            0.21464129010333236
+          ],
+          "median_ratio": 0.21247351386271587,
+          "ties_or_regressions": 0,
+          "win": true
+        },
+        "veritas_artifact_over_python_threads": {
+          "ci95_percentile": [
+            0.19644725638825725,
+            0.21957180214802094
+          ],
+          "median_ratio": 0.20902327510848262,
+          "ties_or_regressions": 0,
+          "win": true
+        },
+        "veritas_source_over_python_serial": {
+          "ci95_percentile": [
+            0.6110035873574517,
+            0.6278041221747254
+          ],
+          "median_ratio": 0.6200460409097197,
+          "ties_or_regressions": 0,
+          "win": true
+        },
+        "veritas_warm_over_python_serial": {
+          "ci95_percentile": [
+            0.22404400758137671,
+            0.24658486641507826
+          ],
+          "median_ratio": 0.23596852169387536,
+          "ties_or_regressions": 0,
+          "win": true
+        }
+      },
+      "native_backend_reports": {
+        "veritas_artifact": {
+          "bytecode_blocks": 4,
+          "bytecode_instructions": 21,
+          "calls": 4,
+          "compilations": 1,
+          "compile_profile": {
+            "finalize_nanoseconds": 7416,
+            "functions": [
+              {
+                "bytecode_blocks": 4,
+                "bytecode_instructions": 21,
+                "cranelift_ir_blocks": 27,
+                "cranelift_ir_instructions": 308,
+                "define_nanoseconds": 565834,
+                "lowering_nanoseconds": 95458,
+                "name": "work",
+                "verification_nanoseconds": 67166
+              }
+            ]
+          },
+          "compiled_functions": [
+            "work"
+          ],
+          "cranelift_ir_blocks": 27,
+          "cranelift_ir_instructions": 308,
+          "deoptimizations": 0
+        },
+        "veritas_source": {
+          "bytecode_blocks": 4,
+          "bytecode_instructions": 21,
+          "calls": 4,
+          "compilations": 1,
+          "compile_profile": {
+            "finalize_nanoseconds": 7542,
+            "functions": [
+              {
+                "bytecode_blocks": 4,
+                "bytecode_instructions": 21,
+                "cranelift_ir_blocks": 27,
+                "cranelift_ir_instructions": 308,
+                "define_nanoseconds": 573500,
+                "lowering_nanoseconds": 101125,
+                "name": "work",
+                "verification_nanoseconds": 70709
+              }
+            ]
+          },
+          "compiled_functions": [
+            "work"
+          ],
+          "cranelift_ir_blocks": 27,
+          "cranelift_ir_instructions": 308,
+          "deoptimizations": 0
+        },
+        "veritas_warm_artifact": {
+          "bytecode_blocks": 4,
+          "bytecode_instructions": 21,
+          "calls": 20,
           "compilations": 1,
           "compile_profile": {
             "finalize_nanoseconds": 7041,
@@ -1361,64 +1831,10 @@
                 "bytecode_instructions": 21,
                 "cranelift_ir_blocks": 27,
                 "cranelift_ir_instructions": 308,
-                "define_nanoseconds": 611917,
-                "lowering_nanoseconds": 102833,
+                "define_nanoseconds": 595167,
+                "lowering_nanoseconds": 101333,
                 "name": "work",
-                "verification_nanoseconds": 68208
-              }
-            ]
-          },
-          "compiled_functions": [
-            "work"
-          ],
-          "cranelift_ir_blocks": 27,
-          "cranelift_ir_instructions": 308,
-          "deoptimizations": 0
-        },
-        "veritas_source": {
-          "bytecode_blocks": 4,
-          "bytecode_instructions": 21,
-          "calls": 4,
-          "compilations": 1,
-          "compile_profile": {
-            "finalize_nanoseconds": 7833,
-            "functions": [
-              {
-                "bytecode_blocks": 4,
-                "bytecode_instructions": 21,
-                "cranelift_ir_blocks": 27,
-                "cranelift_ir_instructions": 308,
-                "define_nanoseconds": 553000,
-                "lowering_nanoseconds": 91833,
-                "name": "work",
-                "verification_nanoseconds": 63083
-              }
-            ]
-          },
-          "compiled_functions": [
-            "work"
-          ],
-          "cranelift_ir_blocks": 27,
-          "cranelift_ir_instructions": 308,
-          "deoptimizations": 0
-        },
-        "veritas_warm_artifact": {
-          "bytecode_blocks": 4,
-          "bytecode_instructions": 21,
-          "calls": 20,
-          "compilations": 1,
-          "compile_profile": {
-            "finalize_nanoseconds": 9834,
-            "functions": [
-              {
-                "bytecode_blocks": 4,
-                "bytecode_instructions": 21,
-                "cranelift_ir_blocks": 27,
-                "cranelift_ir_instructions": 308,
-                "define_nanoseconds": 558584,
-                "lowering_nanoseconds": 97125,
-                "name": "work",
-                "verification_nanoseconds": 78625
+                "verification_nanoseconds": 67666
               }
             ]
           },
@@ -1568,566 +1984,150 @@
         ]
       ],
       "python_processes": {
-        "median_seconds": 0.15611429199634586,
-        "p95_seconds_nearest_rank": 0.30216983299760614,
+        "median_seconds": 0.1672493329970166,
+        "p95_seconds_nearest_rank": 0.17389683300280012,
         "samples_seconds": [
-          0.15203816699795425,
-          0.16164412500802428,
-          0.15664299999480136,
-          0.15486820800288115,
-          0.1523782080039382,
-          0.15440558298723772,
-          0.1559748750005383,
-          0.1549087919993326,
-          0.15830674998869654,
-          0.17639591699116863,
-          0.15906299999915063,
-          0.1709347500000149,
-          0.30216983299760614,
-          0.15611429199634586,
-          0.1535954589926405
+          0.16669345799891744,
+          0.162804083985975,
+          0.1675761669903295,
+          0.1665494590124581,
+          0.16241925000213087,
+          0.1670584579987917,
+          0.16541795899684075,
+          0.16811100000631995,
+          0.16589829200529493,
+          0.1672493329970166,
+          0.16726308400393464,
+          0.16994958400027826,
+          0.16805249999742955,
+          0.17314683299628086,
+          0.17389683300280012
         ]
       },
       "python_serial": {
-        "median_seconds": 0.05927083399728872,
-        "p95_seconds_nearest_rank": 0.06158758400124498,
+        "median_seconds": 0.08762924998882227,
+        "p95_seconds_nearest_rank": 0.09201166601269506,
         "samples_seconds": [
-          0.0583220410044305,
-          0.06158758400124498,
-          0.05857795900374185,
-          0.060210250012460165,
-          0.05962524999631569,
-          0.06035383400740102,
-          0.05956220900407061,
-          0.06092887501290534,
-          0.05900449999899138,
-          0.056915749999461696,
-          0.057896665995940566,
-          0.06072670899447985,
-          0.057919124999898486,
-          0.05843441699107643,
-          0.05927083399728872
+          0.08566595798765775,
+          0.0880094580061268,
+          0.08901333399990108,
+          0.08708408300299197,
+          0.08651504199951887,
+          0.08558329100196715,
+          0.09201166601269506,
+          0.08688108299975283,
+          0.08880683299503289,
+          0.08660412499739323,
+          0.08897804100706708,
+          0.08562500000698492,
+          0.08938645898888353,
+          0.08762924998882227,
+          0.08817866699246224
         ]
       },
       "python_threads": {
-        "median_seconds": 0.05978620798850898,
-        "p95_seconds_nearest_rank": 0.06226579200301785,
+        "median_seconds": 0.08817987500515301,
+        "p95_seconds_nearest_rank": 0.08972687499772292,
         "samples_seconds": [
-          0.05978620798850898,
-          0.061742041987599805,
-          0.060026459002983756,
-          0.058772666001459584,
-          0.05901483399793506,
-          0.05822412500856444,
-          0.05926816699502524,
-          0.0601265000004787,
-          0.060242749997996725,
-          0.06226579200301785,
-          0.0614168750034878,
-          0.060002166996127926,
-          0.0581682919873856,
-          0.057401792000746354,
-          0.05932924999797251
+          0.08785816699673887,
+          0.08777325000846758,
+          0.08972687499772292,
+          0.08538733400928322,
+          0.08919300000707153,
+          0.08781933400314301,
+          0.08903712499886751,
+          0.08872516699193511,
+          0.08772675000363961,
+          0.08954174999962561,
+          0.0895632920000935,
+          0.08861091600556392,
+          0.08798012499755714,
+          0.08817987500515301,
+          0.08684837500914
         ]
       },
       "python_warm": {
-        "median_seconds": 0.015003058398724534,
-        "p95_seconds_nearest_rank": 0.01715567499923054,
+        "median_seconds": 0.04324507499986794,
+        "p95_seconds_nearest_rank": 0.044013166800141335,
         "samples_seconds": [
-          0.014839283400215208,
-          0.014618408400565386,
-          0.015345341799547895,
-          0.014853216600022279,
-          0.015269908198388294,
-          0.01476961660082452,
-          0.015003058398724534,
-          0.014567441600956955,
-          0.015340400001150556,
-          0.015226116799749435,
-          0.016043316799914463,
-          0.015152466599829495,
-          0.01715567499923054,
-          0.0149563750019297,
-          0.014930399999138899
+          0.0430661999998847,
+          0.043847983400337395,
+          0.044013166800141335,
+          0.04396232500148471,
+          0.04327368339872919,
+          0.043099724999046886,
+          0.04360755819943733,
+          0.04382764180190861,
+          0.04288268320087809,
+          0.043164233397692445,
+          0.04275533320032991,
+          0.043164033399079926,
+          0.043530983399250545,
+          0.04309444999962579,
+          0.04324507499986794
         ]
       },
       "veritas_artifact": {
-        "median_seconds": 0.012051208002958447,
-        "p95_seconds_nearest_rank": 0.012458167009754106,
+        "median_seconds": 0.018396333005512133,
+        "p95_seconds_nearest_rank": 0.02159050000773277,
         "samples_seconds": [
-          0.011837707992526703,
-          0.01209483400452882,
-          0.012195333009003662,
-          0.011364042002242059,
-          0.011889542001881637,
-          0.01183804200263694,
-          0.012286709010368213,
-          0.012458167009754106,
-          0.012168166998890229,
-          0.01228925000759773,
-          0.01217408299271483,
-          0.012051208002958447,
-          0.011713833009707741,
-          0.011792709003202617,
-          0.012023124989354983
+          0.01689474999147933,
+          0.0151081669901032,
+          0.018396333005512133,
+          0.01928491699800361,
+          0.017209165991516784,
+          0.018369707991951145,
+          0.019550041994079947,
+          0.018545624989201315,
+          0.017896790988743305,
+          0.020037041991599835,
+          0.019087916996795684,
+          0.0208297909994144,
+          0.02159050000773277,
+          0.017252624995307997,
+          0.01706112499232404
         ]
       },
       "veritas_source": {
-        "median_seconds": 0.0479193750070408,
-        "p95_seconds_nearest_rank": 0.12977337499614805,
+        "median_seconds": 0.05431449999741744,
+        "p95_seconds_nearest_rank": 0.05746604200976435,
         "samples_seconds": [
-          0.04844166700786445,
-          0.0479193750070408,
-          0.049088457992183976,
-          0.04900387499947101,
-          0.0467730840027798,
-          0.04686533298809081,
-          0.047473209007875994,
-          0.04754037500242703,
-          0.04852391598979011,
-          0.04788516600092407,
-          0.04904458399687428,
-          0.049712209001882,
-          0.12977337499614805,
-          0.04748329101130366,
-          0.04769812499580439
+          0.05360245799238328,
+          0.05456991599930916,
+          0.054068540994194336,
+          0.05746604200976435,
+          0.05431449999741744,
+          0.05440729200199712,
+          0.056219458012492396,
+          0.053144082994549535,
+          0.05336983301094733,
+          0.05307541698857676,
+          0.05669024999951944,
+          0.057424250000622123,
+          0.05578087500180118,
+          0.052931250000256114,
+          0.05389287500292994
         ]
       },
       "veritas_warm_artifact": {
-        "median_seconds": 0.0030302583996672182,
-        "p95_seconds_nearest_rank": 0.0032333832001313566,
+        "median_seconds": 0.010242850001668557,
+        "p95_seconds_nearest_rank": 0.011583341599907726,
         "samples_seconds": [
-          0.0031791832007002085,
-          0.0029916250001406296,
-          0.0032333832001313566,
-          0.0030302583996672182,
-          0.003035800001816824,
-          0.0029768417996820064,
-          0.0031651916011469438,
-          0.003042533400002867,
-          0.003118766599800438,
-          0.002837924999766983,
-          0.0030070084001636134,
-          0.00292828340025153,
-          0.0030591168004320936,
-          0.002938108201487921,
-          0.003027791800559498
-        ]
-      }
-    },
-    "parallel-cpu-200000": {
-      "comparison": {
-        "veritas_artifact_over_python_processes": {
-          "ci95_percentile": [
-            0.10119629289281815,
-            0.1094886328072404
-          ],
-          "median_ratio": 0.10572021203279107,
-          "ties_or_regressions": 0,
-          "win": true
-        },
-        "veritas_artifact_over_python_serial": {
-          "ci95_percentile": [
-            0.19120622743322419,
-            0.2088375575876401
-          ],
-          "median_ratio": 0.2020138810397999,
-          "ties_or_regressions": 0,
-          "win": true
-        },
-        "veritas_artifact_over_python_threads": {
-          "ci95_percentile": [
-            0.19336491739464676,
-            0.20700428598714665
-          ],
-          "median_ratio": 0.20041652182345898,
-          "ties_or_regressions": 0,
-          "win": true
-        },
-        "veritas_source_over_python_serial": {
-          "ci95_percentile": [
-            0.5978918084384296,
-            0.6332489094822172
-          ],
-          "median_ratio": 0.6098892416149064,
-          "ties_or_regressions": 0,
-          "win": true
-        },
-        "veritas_warm_over_python_serial": {
-          "ci95_percentile": [
-            0.192087750883034,
-            0.24426036141254157
-          ],
-          "median_ratio": 0.22454396197871299,
-          "ties_or_regressions": 0,
-          "win": true
-        }
-      },
-      "native_backend_reports": {
-        "veritas_artifact": {
-          "bytecode_blocks": 4,
-          "bytecode_instructions": 21,
-          "calls": 4,
-          "compilations": 1,
-          "compile_profile": {
-            "finalize_nanoseconds": 6958,
-            "functions": [
-              {
-                "bytecode_blocks": 4,
-                "bytecode_instructions": 21,
-                "cranelift_ir_blocks": 27,
-                "cranelift_ir_instructions": 308,
-                "define_nanoseconds": 558708,
-                "lowering_nanoseconds": 94500,
-                "name": "work",
-                "verification_nanoseconds": 62416
-              }
-            ]
-          },
-          "compiled_functions": [
-            "work"
-          ],
-          "cranelift_ir_blocks": 27,
-          "cranelift_ir_instructions": 308,
-          "deoptimizations": 0
-        },
-        "veritas_source": {
-          "bytecode_blocks": 4,
-          "bytecode_instructions": 21,
-          "calls": 4,
-          "compilations": 1,
-          "compile_profile": {
-            "finalize_nanoseconds": 8167,
-            "functions": [
-              {
-                "bytecode_blocks": 4,
-                "bytecode_instructions": 21,
-                "cranelift_ir_blocks": 27,
-                "cranelift_ir_instructions": 308,
-                "define_nanoseconds": 537625,
-                "lowering_nanoseconds": 88000,
-                "name": "work",
-                "verification_nanoseconds": 59500
-              }
-            ]
-          },
-          "compiled_functions": [
-            "work"
-          ],
-          "cranelift_ir_blocks": 27,
-          "cranelift_ir_instructions": 308,
-          "deoptimizations": 0
-        },
-        "veritas_warm_artifact": {
-          "bytecode_blocks": 4,
-          "bytecode_instructions": 21,
-          "calls": 20,
-          "compilations": 1,
-          "compile_profile": {
-            "finalize_nanoseconds": 7875,
-            "functions": [
-              {
-                "bytecode_blocks": 4,
-                "bytecode_instructions": 21,
-                "cranelift_ir_blocks": 27,
-                "cranelift_ir_instructions": 308,
-                "define_nanoseconds": 588875,
-                "lowering_nanoseconds": 99709,
-                "name": "work",
-                "verification_nanoseconds": 64500
-              }
-            ]
-          },
-          "compiled_functions": [
-            "work"
-          ],
-          "cranelift_ir_blocks": 27,
-          "cranelift_ir_instructions": 308,
-          "deoptimizations": 0
-        }
-      },
-      "paired_trial_order": [
-        [
-          "veritas_artifact",
-          "python_warm",
-          "veritas_warm_artifact",
-          "python_processes",
-          "python_threads",
-          "python_serial",
-          "veritas_source"
-        ],
-        [
-          "python_threads",
-          "veritas_artifact",
-          "python_warm",
-          "veritas_source",
-          "veritas_warm_artifact",
-          "python_processes",
-          "python_serial"
-        ],
-        [
-          "veritas_artifact",
-          "python_serial",
-          "python_threads",
-          "veritas_warm_artifact",
-          "python_warm",
-          "veritas_source",
-          "python_processes"
-        ],
-        [
-          "python_warm",
-          "veritas_source",
-          "python_processes",
-          "veritas_artifact",
-          "veritas_warm_artifact",
-          "python_threads",
-          "python_serial"
-        ],
-        [
-          "python_warm",
-          "python_processes",
-          "python_threads",
-          "veritas_artifact",
-          "python_serial",
-          "veritas_warm_artifact",
-          "veritas_source"
-        ],
-        [
-          "veritas_warm_artifact",
-          "python_threads",
-          "veritas_source",
-          "veritas_artifact",
-          "python_warm",
-          "python_processes",
-          "python_serial"
-        ],
-        [
-          "python_warm",
-          "python_processes",
-          "veritas_artifact",
-          "python_serial",
-          "veritas_source",
-          "veritas_warm_artifact",
-          "python_threads"
-        ],
-        [
-          "python_threads",
-          "veritas_artifact",
-          "python_warm",
-          "python_serial",
-          "veritas_source",
-          "veritas_warm_artifact",
-          "python_processes"
-        ],
-        [
-          "veritas_source",
-          "veritas_warm_artifact",
-          "veritas_artifact",
-          "python_threads",
-          "python_serial",
-          "python_processes",
-          "python_warm"
-        ],
-        [
-          "veritas_artifact",
-          "veritas_warm_artifact",
-          "python_serial",
-          "veritas_source",
-          "python_threads",
-          "python_processes",
-          "python_warm"
-        ],
-        [
-          "python_serial",
-          "python_processes",
-          "python_threads",
-          "veritas_artifact",
-          "python_warm",
-          "veritas_source",
-          "veritas_warm_artifact"
-        ],
-        [
-          "python_threads",
-          "veritas_source",
-          "veritas_artifact",
-          "veritas_warm_artifact",
-          "python_serial",
-          "python_processes",
-          "python_warm"
-        ],
-        [
-          "python_warm",
-          "veritas_source",
-          "python_processes",
-          "python_threads",
-          "python_serial",
-          "veritas_warm_artifact",
-          "veritas_artifact"
-        ],
-        [
-          "veritas_warm_artifact",
-          "python_threads",
-          "python_serial",
-          "python_warm",
-          "python_processes",
-          "veritas_source",
-          "veritas_artifact"
-        ],
-        [
-          "veritas_source",
-          "veritas_artifact",
-          "python_warm",
-          "python_processes",
-          "python_serial",
-          "python_threads",
-          "veritas_warm_artifact"
-        ]
-      ],
-      "python_processes": {
-        "median_seconds": 0.1687675409921212,
-        "p95_seconds_nearest_rank": 0.19030054200266022,
-        "samples_seconds": [
-          0.17348633300571237,
-          0.1687675409921212,
-          0.17346070799976587,
-          0.17618441600643564,
-          0.1623980830045184,
-          0.1672874999931082,
-          0.16271708300337195,
-          0.1734915830020327,
-          0.16365245899942238,
-          0.16623516600520816,
-          0.16522687500400934,
-          0.16665341700718272,
-          0.18519354199816007,
-          0.17312633400433697,
-          0.19030054200266022
-        ]
-      },
-      "python_serial": {
-        "median_seconds": 0.08771745799458586,
-        "p95_seconds_nearest_rank": 0.09086870799364988,
-        "samples_seconds": [
-          0.08549262500309851,
-          0.08657466700242367,
-          0.08836270899337251,
-          0.08969945799617562,
-          0.08539820900477935,
-          0.087368291002349,
-          0.09086870799364988,
-          0.08766095800092444,
-          0.08869729099387769,
-          0.08817950000229757,
-          0.08771745799458586,
-          0.0882016669929726,
-          0.08510479200049303,
-          0.09084583299409132,
-          0.08659245799935888
-        ]
-      },
-      "python_threads": {
-        "median_seconds": 0.08864745900791604,
-        "p95_seconds_nearest_rank": 0.09589520799636375,
-        "samples_seconds": [
-          0.0888127079961123,
-          0.09021233300154563,
-          0.0881704999919748,
-          0.08900362500571646,
-          0.09024499999941327,
-          0.08864745900791604,
-          0.08843420800985768,
-          0.08774050000647549,
-          0.08655900000303518,
-          0.09589520799636375,
-          0.08796995900047477,
-          0.08721699999296106,
-          0.08685208301176317,
-          0.0926797909924062,
-          0.08901154200430028
-        ]
-      },
-      "python_warm": {
-        "median_seconds": 0.04321712499950081,
-        "p95_seconds_nearest_rank": 0.044888675000402146,
-        "samples_seconds": [
-          0.04334464159910567,
-          0.04301900840073358,
-          0.043744416601839475,
-          0.04317980000050738,
-          0.043574641799204984,
-          0.04317670839955099,
-          0.043322941599763,
-          0.04308759160048794,
-          0.04287005820078775,
-          0.04351259999966715,
-          0.04319504160084762,
-          0.043353466599364766,
-          0.04321712499950081,
-          0.04320532499987166,
-          0.044888675000402146
-        ]
-      },
-      "veritas_artifact": {
-        "median_seconds": 0.017894082993734628,
-        "p95_seconds_nearest_rank": 0.021628917005728,
-        "samples_seconds": [
-          0.017193749998114072,
-          0.01808004200574942,
-          0.021628917005728,
-          0.017894082993734628,
-          0.015394082991406322,
-          0.0202355829969747,
-          0.016785207990324125,
-          0.02159354199829977,
-          0.01791808399138972,
-          0.01757441699737683,
-          0.018028125006821938,
-          0.016864707999047823,
-          0.02154845799668692,
-          0.01526554200972896,
-          0.017631334005272947
-        ]
-      },
-      "veritas_source": {
-        "median_seconds": 0.05350066599203274,
-        "p95_seconds_nearest_rank": 0.058493417003774084,
-        "samples_seconds": [
-          0.0566307919943938,
-          0.05280095800117124,
-          0.055822249996708706,
-          0.053224083996610716,
-          0.05709879199275747,
-          0.05532587500056252,
-          0.053036792000057176,
-          0.058493417003774084,
-          0.05330908398900647,
-          0.05654395899910014,
-          0.05457037501037121,
-          0.05350066599203274,
-          0.050883457995951176,
-          0.0509721249982249,
-          0.050268334001884796
-        ]
-      },
-      "veritas_warm_artifact": {
-        "median_seconds": 0.009770491599920206,
-        "p95_seconds_nearest_rank": 0.011992691599880345,
-        "samples_seconds": [
-          0.011992691599880345,
-          0.010866925001027993,
-          0.008402766598737798,
-          0.008888508201926016,
-          0.008488341799238696,
-          0.010546358398278244,
-          0.010672658399562352,
-          0.008191683201584966,
-          0.009552341600647196,
-          0.009770491599920206,
-          0.010208774998318404,
-          0.009837466600583867,
-          0.008289483399130404,
-          0.009823883400531485,
-          0.007250650000059977
+          0.008756741601973771,
+          0.010673274999135174,
+          0.011583341599907726,
+          0.010070924999308773,
+          0.010096449998673051,
+          0.010322958399774507,
+          0.009765599999809638,
+          0.010807233199011534,
+          0.009607608200167306,
+          0.011090624998905696,
+          0.010946008199243806,
+          0.010242850001668557,
+          0.01027194180060178,
+          0.007942275001551025,
+          0.009430991800036282
         ]
       }
     },
@@ -2135,28 +2135,28 @@
       "comparison": {
         "veritas_artifact": {
           "ci95_percentile": [
-            0.9337196667099079,
-            0.9785547939716311
+            0.9362753633260532,
+            0.965160742470139
           ],
-          "median_ratio": 0.9524792650027202,
-          "ties_or_regressions": 3,
+          "median_ratio": 0.950151503213786,
+          "ties_or_regressions": 0,
           "win": true
         },
         "veritas_source": {
           "ci95_percentile": [
-            12.90299696732708,
-            13.3794976976847
+            12.688408459781034,
+            13.151273307059189
           ],
-          "median_ratio": 13.08989407870422,
+          "median_ratio": 12.912482750879938,
           "ties_or_regressions": 15,
           "win": false
         },
         "veritas_warm_artifact": {
           "ci95_percentile": [
-            0.8757163003278825,
-            0.8989305274357428
+            0.8926453368330661,
+            0.9141350846586324
           ],
-          "median_ratio": 0.891793328348189,
+          "median_ratio": 0.9089682278272927,
           "ties_or_regressions": 0,
           "win": true
         }
@@ -2168,47 +2168,47 @@
           "calls": 37547,
           "compilations": 1,
           "compile_profile": {
-            "finalize_nanoseconds": 33500,
+            "finalize_nanoseconds": 36250,
             "functions": [
               {
                 "bytecode_blocks": 3,
                 "bytecode_instructions": 10,
                 "cranelift_ir_blocks": 20,
                 "cranelift_ir_instructions": 231,
-                "define_nanoseconds": 442333,
-                "lowering_nanoseconds": 91375,
+                "define_nanoseconds": 477208,
+                "lowering_nanoseconds": 108208,
                 "name": "next_worker_count",
-                "verification_nanoseconds": 55209
+                "verification_nanoseconds": 60875
               },
               {
                 "bytecode_blocks": 9,
                 "bytecode_instructions": 46,
                 "cranelift_ir_blocks": 52,
                 "cranelift_ir_instructions": 575,
-                "define_nanoseconds": 890708,
-                "lowering_nanoseconds": 103042,
+                "define_nanoseconds": 1024375,
+                "lowering_nanoseconds": 120833,
                 "name": "xor_d008",
-                "verification_nanoseconds": 80625
+                "verification_nanoseconds": 87875
               },
               {
                 "bytecode_blocks": 8,
                 "bytecode_instructions": 89,
                 "cranelift_ir_blocks": 66,
                 "cranelift_ir_instructions": 1032,
-                "define_nanoseconds": 1416833,
-                "lowering_nanoseconds": 218125,
+                "define_nanoseconds": 1443875,
+                "lowering_nanoseconds": 228584,
                 "name": "route_packet",
-                "verification_nanoseconds": 135792
+                "verification_nanoseconds": 128916
               },
               {
                 "bytecode_blocks": 98,
                 "bytecode_instructions": 851,
                 "cranelift_ir_blocks": 632,
                 "cranelift_ir_instructions": 7736,
-                "define_nanoseconds": 20399209,
-                "lowering_nanoseconds": 2615583,
+                "define_nanoseconds": 19335417,
+                "lowering_nanoseconds": 2363708,
                 "name": "main",
-                "verification_nanoseconds": 1315042
+                "verification_nanoseconds": 1219042
               }
             ]
           },
@@ -2228,47 +2228,47 @@
           "calls": 37547,
           "compilations": 1,
           "compile_profile": {
-            "finalize_nanoseconds": 33542,
+            "finalize_nanoseconds": 35834,
             "functions": [
               {
                 "bytecode_blocks": 3,
                 "bytecode_instructions": 10,
                 "cranelift_ir_blocks": 20,
                 "cranelift_ir_instructions": 231,
-                "define_nanoseconds": 435917,
-                "lowering_nanoseconds": 110792,
+                "define_nanoseconds": 398459,
+                "lowering_nanoseconds": 81875,
                 "name": "next_worker_count",
-                "verification_nanoseconds": 60333
+                "verification_nanoseconds": 56500
               },
               {
                 "bytecode_blocks": 9,
                 "bytecode_instructions": 46,
                 "cranelift_ir_blocks": 52,
                 "cranelift_ir_instructions": 575,
-                "define_nanoseconds": 861958,
-                "lowering_nanoseconds": 94916,
+                "define_nanoseconds": 831417,
+                "lowering_nanoseconds": 82375,
                 "name": "xor_d008",
-                "verification_nanoseconds": 77625
+                "verification_nanoseconds": 72666
               },
               {
                 "bytecode_blocks": 8,
                 "bytecode_instructions": 89,
                 "cranelift_ir_blocks": 66,
                 "cranelift_ir_instructions": 1032,
-                "define_nanoseconds": 1428625,
-                "lowering_nanoseconds": 197209,
+                "define_nanoseconds": 1313208,
+                "lowering_nanoseconds": 185834,
                 "name": "route_packet",
-                "verification_nanoseconds": 125792
+                "verification_nanoseconds": 120750
               },
               {
                 "bytecode_blocks": 98,
                 "bytecode_instructions": 851,
                 "cranelift_ir_blocks": 632,
                 "cranelift_ir_instructions": 7736,
-                "define_nanoseconds": 18933458,
-                "lowering_nanoseconds": 2473417,
+                "define_nanoseconds": 19490750,
+                "lowering_nanoseconds": 2191708,
                 "name": "main",
-                "verification_nanoseconds": 1219000
+                "verification_nanoseconds": 1100459
               }
             ]
           },
@@ -2288,57 +2288,57 @@
           "calls": 187736,
           "compilations": 1,
           "compile_profile": {
-            "finalize_nanoseconds": 40750,
+            "finalize_nanoseconds": 42709,
             "functions": [
               {
                 "bytecode_blocks": 3,
                 "bytecode_instructions": 10,
                 "cranelift_ir_blocks": 20,
                 "cranelift_ir_instructions": 231,
-                "define_nanoseconds": 479542,
-                "lowering_nanoseconds": 128916,
+                "define_nanoseconds": 437417,
+                "lowering_nanoseconds": 86750,
                 "name": "next_worker_count",
-                "verification_nanoseconds": 60292
+                "verification_nanoseconds": 55834
               },
               {
                 "bytecode_blocks": 9,
                 "bytecode_instructions": 46,
                 "cranelift_ir_blocks": 52,
                 "cranelift_ir_instructions": 575,
-                "define_nanoseconds": 891125,
-                "lowering_nanoseconds": 145084,
+                "define_nanoseconds": 917708,
+                "lowering_nanoseconds": 98292,
                 "name": "xor_d008",
-                "verification_nanoseconds": 86334
+                "verification_nanoseconds": 78583
               },
               {
                 "bytecode_blocks": 8,
                 "bytecode_instructions": 89,
                 "cranelift_ir_blocks": 66,
                 "cranelift_ir_instructions": 1032,
-                "define_nanoseconds": 1315666,
-                "lowering_nanoseconds": 208875,
+                "define_nanoseconds": 1614834,
+                "lowering_nanoseconds": 217458,
                 "name": "route_packet",
-                "verification_nanoseconds": 118500
+                "verification_nanoseconds": 138500
               },
               {
                 "bytecode_blocks": 98,
                 "bytecode_instructions": 851,
                 "cranelift_ir_blocks": 632,
                 "cranelift_ir_instructions": 7736,
-                "define_nanoseconds": 19717291,
-                "lowering_nanoseconds": 2236125,
+                "define_nanoseconds": 20149125,
+                "lowering_nanoseconds": 2460250,
                 "name": "benchmark_once",
-                "verification_nanoseconds": 1092750
+                "verification_nanoseconds": 1225583
               },
               {
                 "bytecode_blocks": 7,
                 "bytecode_instructions": 21,
                 "cranelift_ir_blocks": 41,
                 "cranelift_ir_instructions": 401,
-                "define_nanoseconds": 627916,
-                "lowering_nanoseconds": 85750,
+                "define_nanoseconds": 641000,
+                "lowering_nanoseconds": 93375,
                 "name": "main",
-                "verification_nanoseconds": 66625
+                "verification_nanoseconds": 70792
               }
             ]
           },
@@ -2462,108 +2462,108 @@
         ]
       ],
       "python_reference": {
-        "median_seconds": 0.0724681249994319,
-        "p95_seconds_nearest_rank": 0.07454700001107994,
+        "median_seconds": 0.07301645899133291,
+        "p95_seconds_nearest_rank": 0.07971800000814255,
         "samples_seconds": [
-          0.07079804199747741,
-          0.0724681249994319,
-          0.0727692499931436,
-          0.07264554098946974,
-          0.07454700001107994,
-          0.07254879199899733,
-          0.07210295800177846,
-          0.07027650000236463,
-          0.07271237499662675,
-          0.07264258399663959,
-          0.07106287499482278,
-          0.07097879199136514,
-          0.07314774999395013,
-          0.07150629200623371,
-          0.06996287500078324
+          0.07609183300519362,
+          0.07294179100426845,
+          0.07273370800248813,
+          0.07276749999437016,
+          0.07442308399186004,
+          0.07186508300947025,
+          0.07301645899133291,
+          0.07643758298945613,
+          0.07270174998848233,
+          0.07220083299034741,
+          0.07318370800931007,
+          0.0715530830057105,
+          0.07403854100266472,
+          0.07393045800563414,
+          0.07971800000814255
         ]
       },
       "python_warm": {
-        "median_seconds": 0.043347741800243964,
-        "p95_seconds_nearest_rank": 0.050621741599752565,
+        "median_seconds": 0.043644324998604135,
+        "p95_seconds_nearest_rank": 0.046527541600516996,
         "samples_seconds": [
-          0.04371355840121396,
-          0.043073233199538666,
-          0.04313617500010878,
-          0.0429597415990429,
-          0.04326427500054706,
-          0.043347741800243964,
-          0.04416036660259124,
-          0.050621741599752565,
-          0.042984524997882544,
-          0.04420278320030775,
-          0.04425444160006009,
-          0.04404995839868207,
-          0.04294183340098243,
-          0.043532616799348035,
-          0.043324691799352874
+          0.04359168320079334,
+          0.04382161659887061,
+          0.04339227500022389,
+          0.043644324998604135,
+          0.043324866599868984,
+          0.04326843320159242,
+          0.043498074999661185,
+          0.043701999998302196,
+          0.04343440840020776,
+          0.04442737500066869,
+          0.043219433198100884,
+          0.04400899159954861,
+          0.04475958340044599,
+          0.04380957499961369,
+          0.046527541600516996
         ]
       },
       "veritas_artifact": {
-        "median_seconds": 0.06894079099583905,
-        "p95_seconds_nearest_rank": 0.07467716600513086,
+        "median_seconds": 0.06968050000432413,
+        "p95_seconds_nearest_rank": 0.07325291699089576,
         "samples_seconds": [
-          0.067433667005389,
-          0.06666320899967104,
-          0.06735795800341293,
-          0.06659858299826737,
-          0.06960600000456907,
-          0.0675085420079995,
-          0.06816175000858493,
-          0.07081633398775011,
-          0.06894079099583905,
-          0.07000604100176133,
-          0.06953891699959058,
-          0.06873191600607242,
-          0.06970550000551157,
-          0.0740384590026224,
-          0.07467716600513086
+          0.07008233299711719,
+          0.06935391599836294,
+          0.06910804199287668,
+          0.06849708399386145,
+          0.06968050000432413,
+          0.06862412500777282,
+          0.06929324999509845,
+          0.07325291699089576,
+          0.07016887499776203,
+          0.07145687499723863,
+          0.07208458401146345,
+          0.06779724999796599,
+          0.06910195799719077,
+          0.07283079200715292,
+          0.0720596249884693
         ]
       },
       "veritas_source": {
-        "median_seconds": 0.9423696250014473,
-        "p95_seconds_nearest_rank": 1.0223676250025164,
+        "median_seconds": 0.9501054159918567,
+        "p95_seconds_nearest_rank": 1.0389639159984654,
         "samples_seconds": [
-          0.9600849999987986,
-          0.9369859169964911,
-          0.9343585830065422,
-          0.9564184579940047,
-          0.9407891670125537,
-          0.9457090419891756,
-          0.9438200830045389,
-          0.9499459999933606,
-          0.9407757909939392,
-          0.9373070410074433,
-          0.9312742920010351,
-          0.9423696250014473,
-          0.9428774999978486,
-          1.0223676250025164,
-          0.9360681249963818
+          0.9371034170035273,
+          0.95973616700212,
+          0.939172749989666,
+          0.9381497090071207,
+          0.9526792089891387,
+          0.9360441659955541,
+          0.9435463340050774,
+          0.9509162920003291,
+          0.9561205840000184,
+          1.0389639159984654,
+          0.9463709999981802,
+          0.9501054159918567,
+          0.9394312500080559,
+          0.9501394169928972,
+          0.985987458989257
         ]
       },
       "veritas_warm_artifact": {
-        "median_seconds": 0.0389666083996417,
-        "p95_seconds_nearest_rank": 0.04213525840023067,
+        "median_seconds": 0.03982160820160061,
+        "p95_seconds_nearest_rank": 0.04233735000016168,
         "samples_seconds": [
-          0.03867911660054233,
-          0.03749173340038396,
-          0.038022291599190794,
-          0.039674266599467954,
-          0.03858279180130921,
-          0.0389666083996417,
-          0.03758044999849517,
-          0.03978213340160437,
-          0.039303541599656454,
-          0.03930001679982524,
-          0.039535599999362604,
-          0.038575266598491,
-          0.03845015839906409,
-          0.04153070820029825,
-          0.04213525840023067
+          0.03887946659815498,
+          0.04003409160068259,
+          0.04129874159989413,
+          0.03999932500009891,
+          0.03935326659993734,
+          0.03919143319944851,
+          0.03868372500000987,
+          0.04108562500041444,
+          0.03970491660002153,
+          0.04233735000016168,
+          0.03928509160177782,
+          0.038543399999616666,
+          0.03995443340099882,
+          0.03982160820160061,
+          0.0420523165987106
         ]
       }
     }
