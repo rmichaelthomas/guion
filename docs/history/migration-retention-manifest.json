@@ -5404,7 +5404,9 @@
     {
       "path": "evaluation/results/independent-v3/README.md",
       "bytes": 4731,
-      "sha256": "488fa585ef7f898b89a65fbe0cd799407c3f55eece1da17e575daeb0f359d835"
+      "sha256": "999b0692f691a4e9a4d1e8aac167168706a1ad9e975f5e21e24d1b730ee4c983",
+      "source_sha256_before_migration_addendum": "488fa585ef7f898b89a65fbe0cd799407c3f55eece1da17e575daeb0f359d835",
+      "post_freeze_note": "Migration-retention addendum appended after the source copy was verified; frozen campaign results were not modified."
     },
     {
       "path": "evaluation/results/independent-v3/build-prompts/01-support-sla-report-pair-1-python.md",
@@ -6937,7 +6939,7 @@
     "after_stop": "Docker showed no running project containers. Colima VM remained running and retained only a directory handle to target/completion/releases; it held no open build output files.",
     "disposition": "No active Guion/Veritas build or benchmark remains. Leave the shared Colima VM running; do not stop unrelated Docker services."
   },
-  "deletion_status": "inventory verified; preservation copies verified; deletion pending",
+  "deletion_status": "completed; all inventoried generated deletion targets absent; preserved selected files verified",
   "size_budget_check": {
     "git_pack_bytes_before_cleanup": 28154266,
     "limit_bytes": 52428800,
@@ -7271,5 +7273,249 @@
       "interpretation": "10 paths contain 2 distinct executable builds; only repeated packaged evidence copies are removed from the current tree. Existing Git history remains.",
       "files_with_recorded_references": 10
     }
-  }
+  },
+  "disk_reclamation": {
+    "measurement": "df -Pk available blocks on the shared Documents volume",
+    "free_kib_before_cleanup": 23960000,
+    "free_kib_after_cleanup": 35880000,
+    "net_free_kib": 11920000,
+    "net_free_bytes": 12206080000,
+    "net_free_gib": 11.37,
+    "per_group_measurements": [
+      {
+        "group": "source target Rust build cache",
+        "path": "/Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/work/veritas-foundation/target",
+        "measured_at": "2026-10-25T12:10:34-0700",
+        "du_kib_before": 15573508,
+        "free_kib_before": 23960000,
+        "archive_checksums_verified": true,
+        "unique_logs_copied_and_hashed": 3,
+        "path_exists_after": false,
+        "free_kib_after": 33000000,
+        "free_kib_delta": 9040000
+      },
+      {
+        "group": "independent-v2 remaining workspace and raw evidence",
+        "measured_at": "2026-10-25T12:11:40-0700",
+        "original_workspace_disk_bytes": 949764096,
+        "workspace_bytes_remaining_after_first_attempt": 1945600,
+        "raw_archive_disk_bytes": 1174339584,
+        "raw_archive_sha256": "c458124b129e86075db573f015c693c773ddd4d2025655c4b66538ebf3b30a07",
+        "cause_of_partial_attempt": "some extracted distribution license directories had mode 0555; recursive removal could not unlink entries without writable parent directories",
+        "resolved_by": "owner-writable permission added to directories under the exact approved workspace path, followed by removal",
+        "workspace_exists_after": false,
+        "archive_exists_after": false,
+        "free_kib_before": 33920000,
+        "free_kib_after": 35080000,
+        "free_kib_delta": 1160000,
+        "partial_first_attempt_free_increase_kib": 920000,
+        "loss": "byte-for-byte replay of eight partial format-30 implementation sessions"
+      },
+      {
+        "group": "independent-v3 delivery trees and runtime amendment archive",
+        "measured_at": "2026-10-25T12:11:56-0700",
+        "delivery_directories": [
+          {
+            "path": "evaluation/results/independent-v3/run-reports/01-support-sla-report-pair-1-python-follow-up.json.delivery",
+            "disk_bytes_before": 8192
+          },
+          {
+            "path": "evaluation/results/independent-v3/run-reports/01-support-sla-report-pair-1-python-initial.json.delivery",
+            "disk_bytes_before": 8192
+          },
+          {
+            "path": "evaluation/results/independent-v3/run-reports/01-support-sla-report-pair-1-veritas-follow-up.json.delivery",
+            "disk_bytes_before": 12423168
+          },
+          {
+            "path": "evaluation/results/independent-v3/run-reports/01-support-sla-report-pair-1-veritas-initial.json.delivery",
+            "disk_bytes_before": 12423168
+          },
+          {
+            "path": "evaluation/results/independent-v3/run-reports/01-support-sla-report-pair-2-python-follow-up.json.delivery",
+            "disk_bytes_before": 8192
+          },
+          {
+            "path": "evaluation/results/independent-v3/run-reports/01-support-sla-report-pair-2-python-initial.json.delivery",
+            "disk_bytes_before": 8192
+          },
+          {
+            "path": "evaluation/results/independent-v3/run-reports/01-support-sla-report-pair-2-veritas-follow-up-correction-1.json.delivery",
+            "disk_bytes_before": 135172096
+          },
+          {
+            "path": "evaluation/results/independent-v3/run-reports/01-support-sla-report-pair-2-veritas-follow-up-correction-2.json.delivery",
+            "disk_bytes_before": 135172096
+          },
+          {
+            "path": "evaluation/results/independent-v3/run-reports/01-support-sla-report-pair-2-veritas-follow-up-correction-3.json.delivery",
+            "disk_bytes_before": 135172096
+          },
+          {
+            "path": "evaluation/results/independent-v3/run-reports/01-support-sla-report-pair-2-veritas-follow-up-correction-4.json.delivery",
+            "disk_bytes_before": 133312512
+          },
+          {
+            "path": "evaluation/results/independent-v3/run-reports/01-support-sla-report-pair-2-veritas-follow-up.json.delivery",
+            "disk_bytes_before": 135172096
+          },
+          {
+            "path": "evaluation/results/independent-v3/run-reports/01-support-sla-report-pair-2-veritas-initial.json.delivery",
+            "disk_bytes_before": 135172096
+          },
+          {
+            "path": "evaluation/results/independent-v3/run-reports/01-support-sla-report-product-fix-relocation-correction-6.json.delivery",
+            "disk_bytes_before": 133378048
+          }
+        ],
+        "delivery_disk_bytes": 967430144,
+        "runtime_archive_path": "evaluation/results/independent-v3/runtime-amendment/veritas-format33-file-root-linux-aarch64.tar.gz",
+        "runtime_archive_disk_bytes": 49479680,
+        "runtime_archive_sha256": "f6cba12f4ccfcf7c38b3fcd6167b7ac6d137a89f3003eb564fe4dfb733d56635",
+        "free_kib_before": 35080000,
+        "free_kib_after": 35720000,
+        "free_kib_delta": 640000,
+        "removed_count": 13,
+        "loss": "13 bulky delivered workspaces and exact runtime amendment archive bytes; 14 compact run reports, delivery manifests/hashes, prompts and source remain"
+      },
+      {
+        "group": "nine generated completion application distributions",
+        "measured_at": "2026-10-25T12:12:04-0700",
+        "items": [
+          {
+            "path": "evaluation/completion/applications/calendar-conflicts/dist",
+            "disk_bytes_before": 45973504
+          },
+          {
+            "path": "evaluation/completion/applications/config-migrator/dist",
+            "disk_bytes_before": 45907968
+          },
+          {
+            "path": "evaluation/completion/applications/doc-index/dist",
+            "disk_bytes_before": 46010368
+          },
+          {
+            "path": "evaluation/completion/applications/health-digest/dist",
+            "disk_bytes_before": 45953024
+          },
+          {
+            "path": "evaluation/completion/applications/jsonl-summary/dist",
+            "disk_bytes_before": 45961216
+          },
+          {
+            "path": "evaluation/completion/applications/lockfile-auditor/dist",
+            "disk_bytes_before": 45957120
+          },
+          {
+            "path": "evaluation/completion/applications/release-notes/dist",
+            "disk_bytes_before": 45985792
+          },
+          {
+            "path": "evaluation/completion/applications/sla-report/dist",
+            "disk_bytes_before": 45936640
+          },
+          {
+            "path": "evaluation/completion/applications/webhook-replay/dist",
+            "disk_bytes_before": 45977600
+          }
+        ],
+        "disk_bytes": 413663232,
+        "free_kib_before": 35720000,
+        "free_kib_after": 35720000,
+        "free_kib_delta": 0,
+        "retained": "application source, manifests and structured acceptance reports"
+      },
+      {
+        "group": "temporary workspaces and generated experiment outputs",
+        "path": "/Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/work/veritas-foundation/work",
+        "inventory_disk_bytes_before": 149352448,
+        "retained_file_hashes_verified": 303,
+        "missing_retained_files": 0,
+        "mismatched_retained_files": 0,
+        "free_kib_before": 35720000,
+        "free_kib_after": 35880000,
+        "free_kib_delta": 160000,
+        "path_exists_after": false,
+        "retained": "selected compact reports, source snapshots, inputs and rerun scripts under evaluation/"
+      },
+      {
+        "group": "expanded libical vendor source duplicate",
+        "path": "/Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/work/veritas-foundation/native/vendor/libical-4.0.5",
+        "inventory_disk_bytes_before": 23330816,
+        "preserved_license_sha256": "b05582ea97007616dbbecbc9b8e3d1ddf79ec25280c28abf9e5dd201de082134",
+        "preserved_fixture_sha256": "fbdbecc0105b33e659f0b473432d7cf103f26325f2fea7e2090d2d391a4d0970",
+        "free_kib_before": 35880000,
+        "free_kib_after": 35880000,
+        "free_kib_delta": 0,
+        "path_exists_after": false,
+        "source_of_truth": "tracked native/vendor/libical-4.0.5.tar.gz"
+      },
+      {
+        "group": "crash core, temporary smoke inputs and generated Python bytecode caches",
+        "measured_at": "2026-10-25T12:12:34-0700",
+        "items": [
+          {
+            "path": "crates/cli/core",
+            "disk_bytes_before": 14069760
+          },
+          {
+            "path": ".artifact-writer-smoke-75.vr",
+            "disk_bytes_before": 4096
+          },
+          {
+            "path": "language/self_host/.source-compiler-input-11660.vr",
+            "disk_bytes_before": 4096
+          },
+          {
+            "path": "language/self_host/.source-compiler-input-15342.vr",
+            "disk_bytes_before": 4096
+          },
+          {
+            "path": "evaluation/completion/__pycache__",
+            "disk_bytes_before": 49152
+          },
+          {
+            "path": "evaluation/protocol/__pycache__",
+            "disk_bytes_before": 118784
+          },
+          {
+            "path": "evaluation/completion/performance/__pycache__",
+            "disk_bytes_before": 53248
+          },
+          {
+            "path": "evaluation/completion/builder/reports/evidence/quote-merge-python/fixtures/__pycache__",
+            "disk_bytes_before": 4096
+          },
+          {
+            "path": "evaluation/completion/performance/inputs/__pycache__",
+            "disk_bytes_before": 8192
+          },
+          {
+            "path": "evaluation/development/famous_benchmarks/__pycache__",
+            "disk_bytes_before": 16384
+          },
+          {
+            "path": "evaluation/development/famous_benchmarks/upstream/pyperformance-1.14.0/__pycache__",
+            "disk_bytes_before": 40960
+          }
+        ],
+        "inventory_disk_bytes_before": 14372864,
+        "free_kib_before": 35880000,
+        "free_kib_after": 35880000,
+        "free_kib_delta": 0,
+        "remaining_candidates": []
+      }
+    ],
+    "note": "Directory allocations are listed separately in cleanup_inventory. Several groups produced no visible df change because filesystem allocation/sharing may differ from du totals; the actual net is the df measurement."
+  },
+  "campaign_artifacts_not_retained": [
+    {
+      "campaign": "independent-v3 format-33 candidate",
+      "path": "evaluation/results/independent-v2/workspace/pinned/product/format33/veritas-0.1.0-linux-aarch64-format33.tar.gz",
+      "sha256": "46e22bb115f4ccce767c0e38e29db5cf3012d49f1556054f3f66214e47f30eb8",
+      "bytes": null,
+      "bytes_note": "The archive was inside the workspace deleted during approved cleanup; its byte size was not separately captured before deletion.",
+      "loss": "Exact candidate package bytes are not present. Rebuilding from retained source/provenance may produce a candidate, but exact byte identity is not proven."
+    }
+  ]
 }

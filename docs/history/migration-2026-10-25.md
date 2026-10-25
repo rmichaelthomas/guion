@@ -65,3 +65,11 @@ The original Veritas branch and tag remain historical. The Guion migration creat
 - Guion `main` migration commit: pending
 - Pre-release candidate commit: pending
 - Local/remote parity: pending
+
+## Cleanup result
+
+The ignored Rust `target/` tree (15,947,272,192 allocated bytes) is gone. The v2 workspace and raw archive are gone; all 13 v3 delivery workspaces and the v3 amendment package archive are gone; all nine generated completion `dist/` trees, the 14 MB core dump, temporary smoke inputs, Python bytecode caches, temporary `work/` tree, and expanded libical tree are also gone. Selected final sources, compact outcomes, hashes, logs, and small required license/test files remain as listed in the retention manifest.
+
+`df -Pk` measured available space increasing from 23,960,000 KiB before the first removal to 35,880,000 KiB after cleanup: a net increase of 11,920,000 KiB (12,206,080,000 bytes; about 11.37 GiB). The `target/` removal alone increased the free-space counter by 9,040,000 KiB. Some smaller directory removals showed no separate `df` delta even though their paths are absent; see the per-group log in the JSON manifest.
+
+The first v2 recursive deletion stopped on read-only package-license directories. The workspace was already copied and hash-verified. Only directories under that exact approved workspace were made owner-writable, after which the remaining 1.9 MB and raw archive were removed. This partial attempt and its measured free-space increase are included in the manifest.

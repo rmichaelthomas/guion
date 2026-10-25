@@ -1,6 +1,6 @@
 # Independent campaign v2
 
-Status: frozen for artifact format 30. Eight formal implementation sessions were started: six completed their candidate work and are pending the official runner, one has an initial implementation awaiting follow-up, and one is recorded as in progress. No formal choice sessions or official runner results are recorded. The registry and raw session evidence are authoritative; these sessions remain bound to the frozen format-30 package and cannot count for a later candidate build.
+Status: frozen for artifact format 30. Eight formal implementation sessions were started: six completed their candidate work and are pending the official runner, one has an initial implementation awaiting follow-up, and one is recorded as in progress. No formal choice sessions or official runner results are recorded. The retained schedule, freeze records, setup attempts, and partial session summaries are the available authority; the raw session archive has since been removed, so these sessions cannot be replayed byte for byte. They remain bound to the frozen format-30 package and cannot count for a later candidate build.
 
 ## Frozen inputs
 
@@ -12,11 +12,13 @@ Status: frozen for artifact format 30. Eight formal implementation sessions were
 ## Where campaign records go
 
 - Choice decisions: `recommendations/<decision-id>.json`. Save the exact prompt, response, and complete usage snapshot under `choice-evidence/<decision-id>/`.
-- Build evidence: `run-evidence/<pair-id>/<session-id>/`, including a preserved candidate source tree, task inputs, outputs, runner reports, delivery artifact, and usage snapshot.
+- Historical build-evidence layout: `run-evidence/<pair-id>/<session-id>/`, which formerly held candidate sources, task inputs, outputs, runner reports, delivery artifacts, and usage snapshots. The raw evidence is no longer present; see the migration note below.
 - Build ledger records: `../runs/<run-id>.json` under `evaluation/results/runs/`. Each record points to evidence by path relative to this campaign directory and includes its SHA-256.
 
 Keep both languages in a pair on the same brief, model, host, budgets, and assigned order. Use distinct fresh assistant sessions. Keep choice sessions separate from build sessions. Record failed and incomplete attempts rather than dropping them.
 
 ## Evidence archive and workspace hygiene
 
-The preserved raw `run-evidence/` tree is stored in `run-evidence/evidence.tar.zst` to keep the active workspace smaller. The archive contains the complete original tree: 52,067 tar entries, including 46,260 regular files, with 2.39 GiB uncompressed. Its SHA-256 is `c458124b129e86075db573f015c693c773ddd4d2025655c4b66538ebf3b30a07`. Validate it with `zstd -t run-evidence/evidence.tar.zst`. From this directory, restore the original tree with `zstd -dc run-evidence/evidence.tar.zst | tar -xf -`. The archive remains under the existing Git-ignored evidence path. New campaign outputs may be added beside it; do not overwrite the archive.
+At the frozen v2 checkpoint, `run-evidence/evidence.tar.zst` contained 52,067 tar entries (46,260 regular files, 2.39 GiB uncompressed), with SHA-256 `c458124b129e86075db573f015c693c773ddd4d2025655c4b66538ebf3b30a07`. The archive passed `zstd -t` before migration cleanup. On 2026-10-25, the 1.17 GB archive and 950 MB generated workspace were removed to reclaim disk space. They are not available to restore from this checkout, and the hash is an identifier, not a backup.
+
+The small retained subset of prompts, schedules, setup records, source-information snapshots, and pinned inputs is in [`preserved-inputs/`](preserved-inputs/README.md). The cleanup removes exact byte-for-byte replay of the eight partial format-30 implementation sessions. No official choice outcomes or runner results were recorded. See [`../../docs/history/migration-2026-10-25.md`](../../docs/history/migration-2026-10-25.md) and the retention manifest for the complete disposition.
