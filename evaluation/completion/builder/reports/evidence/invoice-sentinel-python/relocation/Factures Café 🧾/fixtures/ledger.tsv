@@ -1,0 +1,10 @@
+invoice_id	vendor	amount_cents	due_date	state
+a1	Acme	1200	2026-01-01	open
+b1	Beta	500	2026-03-01	open
+a2	Acme	300	2026-02-01	open
+b2	Beta	700	2025-01-01	paid
+c1	Café Supplies	900	2026-04-01	open
+bad1	Acme	12.50	2026-01-01	open
+bad2	Beta	100	2026-02-30	open
+bad3	Acme	100	2026-01-01	unknown
+wrong	width

@@ -1,0 +1,157 @@
+record Quote:
+    carrier: Text
+    service: Text
+    price_cents: Int
+    days: Int
+
+fn request_feed(url: Text) -> Json:
+    let headers: Map[Text, Text] = {}
+    let response_result = http_request_with_timeout("GET", url, headers, "", 2000)
+    if is_ok(response_result):
+        let response = unwrap(response_result)
+        let status = json_as_int(json_get(response, "status"))
+        let body = json_as_text(json_get(response, "body"))
+        if status >= 200 and status < 300:
+            var event: Json = json_object()
+            set event = json_set(event, "url", json_text(url))
+            set event = json_set(event, "status", json_int(status))
+            set event = json_set(event, "body", json_text(body))
+            set event = json_set(event, "error", json_text(""))
+            set event = json_set(event, "http_ok", json_bool(true))
+            return event
+        var event: Json = json_object()
+        set event = json_set(event, "url", json_text(url))
+        set event = json_set(event, "status", json_int(status))
+        set event = json_set(event, "body", json_text(""))
+        set event = json_set(event, "error", json_text("HTTP_ERROR"))
+        set event = json_set(event, "http_ok", json_bool(false))
+        return event
+    let request_error = error(response_result)
+    var event: Json = json_object()
+    set event = json_set(event, "url", json_text(url))
+    set event = json_set(event, "status", json_int(0))
+    set event = json_set(event, "body", json_text(""))
+    set event = json_set(event, "error", json_text(http_error_code(request_error) + ": " + http_error_message(request_error)))
+    set event = json_set(event, "http_ok", json_bool(false))
+    return event
+
+fn before(a: Quote, b: Quote) -> Bool:
+    if a.price_cents < b.price_cents:
+        return true
+    if a.price_cents > b.price_cents:
+        return false
+    if a.carrier < b.carrier:
+        return true
+    if a.carrier > b.carrier:
+        return false
+    return a.service < b.service
+
+fn main() -> Int:
+    let cli = args()
+    var input_path: Text = "feeds.txt"
+    var max_days: Int = -1
+    var arg_index: Int = 0
+    while arg_index < len(cli):
+        if cli[arg_index] == "--max-days":
+            if arg_index + 1 < len(cli):
+                let limit_json = unwrap(json_parse(cli[arg_index + 1]))
+                set max_days = json_as_int(limit_json)
+                set arg_index = arg_index + 1
+        else:
+            if arg_index == 0:
+                set input_path = cli[arg_index]
+        set arg_index = arg_index + 1
+
+    let feed_text = unwrap(read_text(input_path))
+    let chars = text_chars(feed_text)
+    var urls: List[Text] = []
+    var current_line: Text = ""
+    for ch in chars:
+        if ch == "\n":
+            if len(current_line) > 0:
+                set urls = list_push(urls, current_line)
+            set current_line = ""
+        else:
+            if ch != "\r":
+                set current_line = current_line + ch
+    if len(current_line) > 0:
+        set urls = list_push(urls, current_line)
+
+    let fetched_result = parallel_map(urls, request_feed, 4)
+    let fetched = unwrap(fetched_result)
+    var best_by_carrier: Map[Text, Quote] = {}
+    var failures: Json = json_array()
+    var successful_feeds: Int = 0
+
+    for feed in fetched:
+        let url = json_as_text(json_get(feed, "url"))
+        let status = json_as_int(json_get(feed, "status"))
+        let http_ok = json_as_bool(json_get(feed, "http_ok"))
+        let request_error = json_as_text(json_get(feed, "error"))
+        if http_ok:
+            let body = json_as_text(json_get(feed, "body"))
+            let parsed_result = json_parse(body)
+            if is_ok(parsed_result):
+                let parsed = unwrap(parsed_result)
+                let quotes = json_get(parsed, "quotes")
+                var quote_index: Int = 0
+                let quote_count = json_len(quotes)
+                while quote_index < quote_count:
+                    let item = json_index(quotes, quote_index)
+                    let quote = Quote(json_as_text(json_get(item, "carrier")), json_as_text(json_get(item, "service")), json_as_int(json_get(item, "price_cents")), json_as_int(json_get(item, "days")))
+                    if max_days < 0 or quote.days <= max_days:
+                        if map_has(best_by_carrier, quote.carrier):
+                            let prior = best_by_carrier[quote.carrier]
+                            if before(quote, prior):
+                                set best_by_carrier = map_set(best_by_carrier, quote.carrier, quote)
+                        else:
+                            set best_by_carrier = map_set(best_by_carrier, quote.carrier, quote)
+                    set quote_index = quote_index + 1
+                set successful_feeds = successful_feeds + 1
+            else:
+                let parse_error = json_error_code(error(parsed_result)) + ": " + json_error_message(error(parsed_result))
+                var failed: Json = json_object()
+                set failed = json_set(failed, "url", json_text(url))
+                set failed = json_set(failed, "status", json_int(status))
+                set failed = json_set(failed, "error", json_text(parse_error))
+                set failures = json_push(failures, failed)
+        else:
+            var failed: Json = json_object()
+            set failed = json_set(failed, "url", json_text(url))
+            set failed = json_set(failed, "status", json_int(status))
+            set failed = json_set(failed, "error", json_text(request_error))
+            set failures = json_push(failures, failed)
+
+    var ordered: List[Quote] = []
+    for carrier in best_by_carrier:
+        let quote = best_by_carrier[carrier]
+        var position: Int = 0
+        while position < len(ordered) and before(ordered[position], quote):
+            set position = position + 1
+        if position == len(ordered):
+            set ordered = list_push(ordered, quote)
+        else:
+            set ordered = list_push(ordered, ordered[len(ordered) - 1])
+            var shift: Int = len(ordered) - 1
+            while shift > position:
+                set ordered = list_set(ordered, shift, ordered[shift - 1])
+                set shift = shift - 1
+            set ordered = list_set(ordered, position, quote)
+
+    var output_quotes: Json = json_array()
+    for quote in ordered:
+        var q: Json = json_object()
+        set q = json_set(q, "carrier", json_text(quote.carrier))
+        set q = json_set(q, "service", json_text(quote.service))
+        set q = json_set(q, "price_cents", json_int(quote.price_cents))
+        set q = json_set(q, "days", json_int(quote.days))
+        set output_quotes = json_push(output_quotes, q)
+
+    var report: Json = json_object()
+    set report = json_set(report, "quotes", output_quotes)
+    set report = json_set(report, "successful_feeds", json_int(successful_feeds))
+    set report = json_set(report, "failed_feeds", failures)
+    let report_text = json_stringify(report)
+    let saved = unwrap(write_text_atomic("quote-report.json", report_text))
+    print(report_text)
+    return 0

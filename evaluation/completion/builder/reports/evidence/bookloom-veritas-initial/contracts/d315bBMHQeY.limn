@@ -1,0 +1,52 @@
+show "=== Session contract: d315bBMHQeY ==="
+
+remember a string called source-state with "unscanned"
+remember a string called claim-basis with "none"
+remember a list called tracked-decisions with "none"
+remember a list called open-questions with "none"
+remember a list called session-corrections with "none"
+remember a number called decision-count with 0
+remember a string called session-id with "d315bBMHQeY"
+
+when source-state is equal to "unscanned"
+  show "HOLD: source not yet scanned — verify before consequential claims"
+when claim-basis is equal to "inference" unless source-state is equal to "verified"
+  show "WARNING: current claims are inferred, not verified against source"
+when claim-basis is equal to "verified"
+  show "OK: claims grounded in verified source"
+
+
+show source-state
+show claim-basis
+show tracked-decisions
+show open-questions
+remember a source called bookloom-brief with "A TOML configuration file sets checkout_days and the database path. Persist books and checkout state in SQLite. Reject duplicate IDs, unknown IDs, and attempts to check out an already checked-out book without corrupting prior state."
+cite "Persist books and checkout state in SQLite" from bookloom-brief
+cite "Reject duplicate IDs, unknown IDs, and attempts to check out an already checked-out book" from bookloom-brief
+remember a source called veritas-readme with "Implemented: transactional SQLite/TOML services, a self-hosted source-to-artifact compiler, and a Python-free core profile."
+cite "transactional SQLite/TOML services" from veritas-readme
+cite "Python-free core profile" from veritas-readme
+remember a source called acceptance-results with "PASS duplicate-id exit=1 | PASS invalid-date preserved database SHA-256 | PASS relocation database is in separate caller data directory | failed=0"
+cite "PASS duplicate-id exit=1" from acceptance-results
+cite "PASS invalid-date preserved database SHA-256" from acceptance-results
+cite "PASS relocation database is in separate caller data directory" from acceptance-results
+remember a source called timing-evidence with "start_utc=2026-10-25T09:34:31Z | first_successful_check_observed_utc=2026-10-25T09:39:27Z | setup_seconds=296.0 | build_seconds=0.52 | followup_seconds=0.0 | installed_launch_seconds=1.11 | artifact_bytes=12874028 | finish_utc=2026-10-25T09:44:27Z"
+cite "start_utc=2026-10-25T09:34:31Z" from timing-evidence
+cite "build_seconds=0.52" from timing-evidence
+cite "installed_launch_seconds=1.11" from timing-evidence
+cite "artifact_bytes=12874028" from timing-evidence
+remember a string called source-state with "verified"
+remember a string called claim-basis with "verified"
+remember a string called start-utc with "2026-10-25T09:34:31Z"
+remember a string called finish-utc with "2026-10-25T09:44:27Z"
+remember a number called setup-seconds with 296
+remember a number called build-seconds with 0.52
+remember a number called followup-seconds with 0
+remember a number called installed-launch-seconds with 1.11
+remember a number called artifact-bytes with 12874028
+add "decision-native-sqlite-toml-no-python-bridge" to tracked-decisions
+add "decision-caller-selected-external-data-root" to tracked-decisions
+add "decision-utc-checkout-dates-from-native-sqlite" to tracked-decisions
+remember a source called final-time with "finish_utc=2026-10-25T09:44:49Z"
+cite "finish_utc=2026-10-25T09:44:49Z" from final-time
+remember a string called finish-utc with "2026-10-25T09:44:49Z"

@@ -1,0 +1,6 @@
+{
+  "python": "3.14.7 (main, Aug  5 2026, 10:29:49) [Clang 21.0.0 (clang-2100.1.1.101)]",
+  "runtime_ready_utc": "2026-10-25T09:14:51.626304+00:00",
+  "packages_installed": [],
+  "network_scope": "127.0.0.1 fixture traffic only"
+}

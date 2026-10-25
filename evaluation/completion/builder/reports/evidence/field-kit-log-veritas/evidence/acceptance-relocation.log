@@ -1,0 +1,1 @@
+PASS relocated installed app with spaces and Unicode; same separate data directory; lists unchanged; local timezone date (Pacific/Kiritimati); new write survives restart; filter includes new failure

@@ -4,34 +4,22 @@ use std::{
     env, fs,
     path::{Component, Path},
     process::ExitCode,
-    thread,
     time::Duration,
 };
 mod bytecode_ir;
+mod compiler_driver;
+#[cfg(feature = "python-interop")]
 mod dependencies;
 mod native_dependencies;
-use veritas_compiler::compile_project;
+mod native_packages;
 use veritas_model::{Artifact, BuildMetadata, Op, ResourceLimits, Value};
 use veritas_runtime::{EffectKind, EffectOutcome, HostPolicy, Runtime};
 
 fn main() -> ExitCode {
-    // The VM currently maps Veritas calls onto recursive Rust calls; reserve a
-    // bounded execution stack so valid programs cannot overflow the OS main stack.
-    const CLI_EXECUTION_STACK_SIZE: usize = 64 * 1024 * 1024;
     let args = env::args().skip(1).collect();
-    let execution = thread::Builder::new()
-        .name("veritas-cli".into())
-        .stack_size(CLI_EXECUTION_STACK_SIZE)
-        .spawn(move || execute(args))
-        .map_err(|error| format!("could not start Veritas execution thread: {error}"))
-        .and_then(|worker| {
-            worker
-                .join()
-                .map_err(|_| "Veritas execution thread panicked".to_owned())
-        });
-    match execution {
-        Ok(Ok(code)) => code,
-        Ok(Err(message)) | Err(message) => {
+    match execute(args) {
+        Ok(code) => code,
+        Err(message) => {
             eprintln!("{message}");
             ExitCode::from(1)
         }
@@ -39,9 +27,11 @@ fn main() -> ExitCode {
 }
 
 fn execute(args: Vec<String>) -> Result<ExitCode, String> {
+    compiler_driver::verify_embedded_seed()
+        .map_err(|error| render_diagnostic("<compiler-seed>", &error))?;
     let Some(command) = args.first().map(String::as_str) else {
         return Err(
-            "usage: veritas <new|check|fmt|test|run|build|assemble-ir|package|verify-package|sync|inspect|doc|doctor> [path]"
+            "usage: veritas <new|check|fmt|lint|test|run|build|package|verify-package|add|sync|update|inspect|doc|doctor|install> [path]"
                 .into(),
         );
     };
@@ -68,9 +58,10 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
     }
     if command == "doctor" {
         if args.iter().any(|argument| argument == "--json") {
-            println!("{}", dependencies::doctor_report());
+            println!("{}", python_doctor_report());
             return Ok(ExitCode::SUCCESS);
         }
+        #[cfg(feature = "python-interop")]
         let python = env::var_os("VERITAS_PYTHON")
             .map(|path| {
                 format!(
@@ -79,74 +70,106 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
                 )
             })
             .unwrap_or_else(|| "not configured (set VERITAS_PYTHON to opt in)".into());
+        #[cfg(not(feature = "python-interop"))]
+        let python = "disabled (rebuild with --features python-interop to enable)";
         println!(
             "Veritas {}\nHost: {}-{}\nPython sidecar: {python}\n{}",
             env!("CARGO_PKG_VERSION"),
             env::consts::OS,
             env::consts::ARCH,
-            dependencies::doctor_status()
+            python_doctor_status()
         );
         return Ok(ExitCode::SUCCESS);
     }
     if command == "sync" {
-        let update = args.iter().any(|argument| argument == "--update");
-        let json_report = args.iter().any(|argument| argument == "--json");
-        let Some(path) = args
-            .iter()
-            .skip(1)
-            .find(|argument| argument.as_str() != "--update" && argument.as_str() != "--json")
-        else {
-            let message = "usage: veritas sync [--json] [--update] <project>";
-            if json_report {
-                print_sync_failure("E_SYNC_ARGUMENT", message);
-                return Ok(ExitCode::from(1));
+        if args.iter().any(|argument| argument == "--locked") {
+            if !args.iter().any(|argument| argument == "--offline") {
+                return Err("native sync currently requires --locked --offline".into());
             }
-            return Err(message.into());
-        };
-        if !Path::new(path).is_dir() {
-            let message = format!("project directory does not exist: {path}");
-            if json_report {
-                print_sync_failure("E_PROJECT_NOT_FOUND", &message);
-                return Ok(ExitCode::from(1));
-            }
-            return Err(message);
+            let project = std::env::current_dir()
+                .map_err(|error| format!("cannot inspect current directory: {error}"))?;
+            println!("{}", native_packages::sync_locked_offline(&project)?);
+            return Ok(ExitCode::SUCCESS);
         }
-        let (_, root) = match resolve_target(path) {
-            Ok(target) => target,
-            Err(message) if json_report => {
-                print_sync_failure("E_SYNC_PROJECT", &message);
-                return Ok(ExitCode::from(1));
+        #[cfg(not(feature = "python-interop"))]
+        {
+            if !args.iter().any(|argument| argument == "--offline") {
+                return Err("native sync requires `veritas sync --locked --offline`".into());
             }
-            Err(message) => return Err(message),
-        };
-        match dependencies::sync(&root, update) {
-            Ok(message) if json_report => {
-                let lock_path = root.join("veritas.lock");
-                let bridge_lock = root.join(".veritas/python-bridge/uv.lock");
-                let lock_digest = file_sha256(&lock_path).ok();
-                let bridge_lock_digest = file_sha256(&bridge_lock).ok();
-                println!(
-                    "{}",
-                    serde_json::json!({
-                        "schema_version": 1,
-                        "kind": "veritas_sync_report",
-                        "status": "succeeded",
-                        "project": root,
-                        "updated": update,
-                        "lock_sha256": lock_digest,
-                        "bridge_lock_sha256": bridge_lock_digest,
-                        "message": message,
-                    })
+            let project = args
+                .iter()
+                .skip(1)
+                .find(|argument| !argument.starts_with('-'))
+                .map(Path::new)
+                .map(Path::to_path_buf)
+                .unwrap_or(
+                    std::env::current_dir()
+                        .map_err(|error| format!("cannot inspect current directory: {error}"))?,
                 );
-            }
-            Ok(message) => println!("{message}"),
-            Err(error) if json_report => {
-                print_sync_failure(error.code, &error.message);
-                return Ok(ExitCode::from(1));
-            }
-            Err(error) => return Err(error.message),
+            println!("{}", native_packages::sync_locked_offline(&project)?);
+            return Ok(ExitCode::SUCCESS);
         }
-        return Ok(ExitCode::SUCCESS);
+        #[cfg(feature = "python-interop")]
+        {
+            let update = args.iter().any(|argument| argument == "--update");
+            let json_report = args.iter().any(|argument| argument == "--json");
+            let Some(path) = args
+                .iter()
+                .skip(1)
+                .find(|argument| argument.as_str() != "--update" && argument.as_str() != "--json")
+            else {
+                let message = "usage: veritas sync [--json] [--update] <project>";
+                if json_report {
+                    print_sync_failure("E_SYNC_ARGUMENT", message);
+                    return Ok(ExitCode::from(1));
+                }
+                return Err(message.into());
+            };
+            if !Path::new(path).is_dir() {
+                let message = format!("project directory does not exist: {path}");
+                if json_report {
+                    print_sync_failure("E_PROJECT_NOT_FOUND", &message);
+                    return Ok(ExitCode::from(1));
+                }
+                return Err(message);
+            }
+            let (_, root) = match resolve_target(path) {
+                Ok(target) => target,
+                Err(message) if json_report => {
+                    print_sync_failure("E_SYNC_PROJECT", &message);
+                    return Ok(ExitCode::from(1));
+                }
+                Err(message) => return Err(message),
+            };
+            match dependencies::sync(&root, update) {
+                Ok(message) if json_report => {
+                    let lock_path = root.join("veritas.lock");
+                    let bridge_lock = root.join(".veritas/python-bridge/uv.lock");
+                    let lock_digest = file_sha256(&lock_path).ok();
+                    let bridge_lock_digest = file_sha256(&bridge_lock).ok();
+                    println!(
+                        "{}",
+                        serde_json::json!({
+                            "schema_version": 1,
+                            "kind": "veritas_sync_report",
+                            "status": "succeeded",
+                            "project": root,
+                            "updated": update,
+                            "lock_sha256": lock_digest,
+                            "bridge_lock_sha256": bridge_lock_digest,
+                            "message": message,
+                        })
+                    );
+                }
+                Ok(message) => println!("{message}"),
+                Err(error) if json_report => {
+                    print_sync_failure(error.code, &error.message);
+                    return Ok(ExitCode::from(1));
+                }
+                Err(error) => return Err(error.message),
+            }
+            return Ok(ExitCode::SUCCESS);
+        }
     }
     if command == "new" {
         let Some(name) = args.get(1) else {
@@ -166,10 +189,93 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
             format!("[project]\nname = \"{project_name}\"\nversion = \"0.1.0\"\nentry = \"src/main.vr\"\n"),
         )
         .map_err(|e| format!("cannot write project manifest: {e}"))?;
+        fs::write(
+            root.join("README.md"),
+            format!(
+                "# {project_name}\n\nA small Veritas project. Start with `veritas check`, `veritas test`, and `veritas run src/main.vr`. Generate API documentation with `veritas doc src/main.vr`; the language reference is included with your Veritas installation.\n"
+            ),
+        )
+        .map_err(|e| format!("cannot write project guide: {e}"))?;
         println!("created {}", root.display());
         return Ok(ExitCode::SUCCESS);
     }
+    if command == "install" {
+        let Some(package) = args.get(1) else {
+            return Err("usage: veritas install <package-directory> [--prefix DIRECTORY]".into());
+        };
+        let prefix = args
+            .iter()
+            .position(|argument| argument == "--prefix")
+            .and_then(|index| args.get(index + 1))
+            .map(Path::new)
+            .map(Path::to_path_buf)
+            .or_else(|| env::var_os("HOME").map(|home| Path::new(&home).join(".local")))
+            .ok_or("cannot determine install prefix; pass --prefix DIRECTORY")?;
+        let executable = install_application(Path::new(package), &prefix)?;
+        println!("installed application at {}", executable.display());
+        return Ok(ExitCode::SUCCESS);
+    }
+    if command == "add" {
+        let Some(name) = args.get(1) else {
+            return Err(
+                "usage: veritas add NAME --path PATH | --url URL --version VERSION --sha256 HASH"
+                    .into(),
+            );
+        };
+        let project = std::env::current_dir()
+            .map_err(|error| format!("cannot inspect current directory: {error}"))?;
+        let path_index = args.iter().position(|argument| argument == "--path");
+        if let Some(index) = path_index {
+            let path = args.get(index + 1).ok_or("--path requires a directory")?;
+            println!(
+                "{}",
+                native_packages::add_path(&project, name, Path::new(path))?
+            );
+            return Ok(ExitCode::SUCCESS);
+        }
+        let get_option = |option: &str| {
+            args.iter()
+                .position(|argument| argument == option)
+                .and_then(|index| args.get(index + 1))
+        };
+        if let (Some(url), Some(version), Some(sha256)) = (
+            get_option("--url"),
+            get_option("--version"),
+            get_option("--sha256"),
+        ) {
+            println!(
+                "{}",
+                native_packages::add_url(&project, name, url, version, sha256)?
+            );
+            return Ok(ExitCode::SUCCESS);
+        }
+        return Err(
+            "usage: veritas add NAME --path PATH | --url URL --version VERSION --sha256 HASH"
+                .into(),
+        );
+    }
+    if command == "update" {
+        let project = std::env::current_dir()
+            .map_err(|error| format!("cannot inspect current directory: {error}"))?;
+        println!("{}", native_packages::update_paths(&project)?);
+        return Ok(ExitCode::SUCCESS);
+    }
     if command == "package" {
+        if args.iter().any(|argument| argument == "--library") {
+            let source = args
+                .iter()
+                .position(|argument| argument == "--library")
+                .and_then(|index| args.get(index + 1))
+                .ok_or("usage: veritas package --library <source-dir> --output <directory>")?;
+            let output = args
+                .iter()
+                .position(|argument| argument == "--output" || argument == "-o")
+                .and_then(|index| args.get(index + 1))
+                .ok_or("library package output directory is missing")?;
+            let digest = native_packages::package_library(Path::new(source), Path::new(output))?;
+            println!("packaged native library {} ({digest})", output);
+            return Ok(ExitCode::SUCCESS);
+        }
         let json_package = args.iter().any(|argument| argument == "--json");
         let project_index = if args.get(1).is_some_and(|argument| argument == "--json") {
             2
@@ -304,16 +410,56 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
         }
         return Ok(ExitCode::SUCCESS);
     }
-    if !["check", "fmt", "test", "run", "build", "inspect", "doc"].contains(&command) {
-        return Err(format!("unknown command `{command}`\nusage: veritas <new|check|fmt|test|run|build|assemble-ir|package|verify-package|sync|inspect|doc|doctor> [path]"));
+    if ![
+        "check", "fmt", "lint", "test", "run", "build", "inspect", "doc",
+    ]
+    .contains(&command)
+    {
+        return Err(format!("unknown command `{command}`\nusage: veritas <new|check|fmt|lint|test|run|build|package|verify-package|add|sync|update|inspect|doc|doctor|install> [path]"));
     }
-    let json_run = command == "run" && args.get(1).is_some_and(|arg| arg == "--json");
+    let mut json_run = false;
+    let mut file_root_overrides = Vec::new();
+    let mut http_host_overrides = Vec::new();
+    let mut clock_override = false;
     let json_inspect = command == "inspect" && args.iter().any(|argument| argument == "--json");
     let json_doc = command == "doc" && args.get(1).is_some_and(|arg| arg == "--json");
     let json_build = command == "build" && args.get(1).is_some_and(|arg| arg == "--json");
-    let path_index = if (command == "fmt" && args.get(1).is_some_and(|arg| arg == "--check"))
-        || json_run
+    let json_lint = command == "lint" && args.iter().any(|argument| argument == "--json");
+    let json_check = command == "check" && args.iter().any(|argument| argument == "--json");
+    let path_index = if command == "run" {
+        let mut index = 1;
+        while let Some(argument) = args.get(index).map(String::as_str) {
+            match argument {
+                "--json" if !json_run => {
+                    json_run = true;
+                    index += 1;
+                }
+                "--file-root" => {
+                    let Some(root) = args.get(index + 1) else {
+                        return Err("usage: veritas run [--json] [--file-root DIR] <source|artifact|project> [ARGS...]".into());
+                    };
+                    file_root_overrides.push(root.clone());
+                    index += 2;
+                }
+                "--allow-http-host" => {
+                    let Some(host) = args.get(index + 1) else {
+                        return Err("usage: veritas run [--json] [--file-root DIR] [--allow-http-host HOST] [--allow-clock] <source|artifact|project> [ARGS...]".into());
+                    };
+                    http_host_overrides.push(host.clone());
+                    index += 2;
+                }
+                "--allow-clock" => {
+                    clock_override = true;
+                    index += 1;
+                }
+                _ => break,
+            }
+        }
+        index
+    } else if (command == "fmt" && args.get(1).is_some_and(|arg| arg == "--check"))
         || json_doc
+        || (json_check && args.get(1).is_some_and(|arg| arg == "--json"))
+        || (json_lint && args.get(1).is_some_and(|arg| arg == "--json"))
         || json_build
         || (json_inspect && args.get(1).is_some_and(|arg| arg == "--json"))
     {
@@ -324,9 +470,24 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
     let Some(path) = args.get(path_index) else {
         return Err(format!("usage: veritas {command} <source.vr>"));
     };
-    let json_check = command == "check" && args.iter().any(|argument| argument == "--json");
     let (source_path, project_root) = resolve_target(path)?;
     let path = source_path.to_string_lossy().into_owned();
+    let mut runtime_file_roots = Vec::with_capacity(file_root_overrides.len());
+    for root in &file_root_overrides {
+        let root = Path::new(root);
+        if !root.is_dir() {
+            return Err(format!(
+                "file-access root is not a directory: {}",
+                root.display()
+            ));
+        }
+        runtime_file_roots.push(root.canonicalize().map_err(|error| {
+            format!(
+                "cannot resolve file-access root {}: {error}",
+                root.display()
+            )
+        })?);
+    }
     if command == "fmt" {
         let source =
             fs::read_to_string(&path).map_err(|error| format!("cannot read {path}: {error}"))?;
@@ -341,6 +502,45 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
         } else {
             fs::write(&path, formatted).map_err(|error| format!("cannot write {path}: {error}"))?;
             println!("formatted {path}");
+        }
+        return Ok(ExitCode::SUCCESS);
+    }
+    if command == "lint" {
+        let source =
+            fs::read_to_string(&path).map_err(|error| format!("cannot read {path}: {error}"))?;
+        if let Err(error) = compile_project(&source_path, &project_root) {
+            if json_lint {
+                println!("{}", render_diagnostic_json(&path, &error));
+                return Ok(ExitCode::from(1));
+            }
+            return Err(render_diagnostic(&path, &error));
+        }
+        let diagnostics = lint_source(&source, &source_path, &project_root);
+        if json_lint {
+            println!(
+                "{}",
+                serde_json::json!({
+                    "schema_version": 1,
+                    "kind": "veritas_lint_report",
+                    "source": path,
+                    "status": "passed",
+                    "diagnostics": diagnostics,
+                })
+            );
+        } else if diagnostics.is_empty() {
+            println!("linted {path} (no warnings)");
+        } else {
+            for diagnostic in &diagnostics {
+                eprintln!(
+                    "{}:{}:{}: warning[{}]: {}",
+                    path,
+                    diagnostic["line"],
+                    diagnostic["column"],
+                    diagnostic["code"],
+                    diagnostic["message"]
+                );
+            }
+            println!("linted {path} ({} warnings)", diagnostics.len());
         }
         return Ok(ExitCode::SUCCESS);
     }
@@ -384,7 +584,7 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
         fs::read_to_string(&path).map_err(|e| format!("cannot read {path}: {e}"))?;
         match compile_project(&source_path, &project_root) {
             Ok(artifact) => artifact,
-            Err(error) if json_check || json_run || json_build => {
+            Err(error) if json_check || json_run || json_build || json_lint => {
                 println!("{}", render_diagnostic_json(&path, &error));
                 return Ok(ExitCode::from(1));
             }
@@ -544,81 +744,31 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
             }
         }
         "doc" if json_doc => {
-            println!(
-                "{}",
-                serde_json::json!({
-                    "schema_version": 1,
-                    "kind": "veritas_api_report",
-                    "source": path,
-                    "functions": artifact.functions.iter().map(|function| {
-                        serde_json::json!({
-                            "name": function.name,
-                            "parameters": function.parameters.iter().map(|ty| {
-                                serde_json::json!({"type": display_type(ty)})
-                            }).collect::<Vec<_>>(),
-                            "result": display_type(&function.result),
-                        })
-                    }).collect::<Vec<_>>(),
-                    "python_functions": artifact.externals.iter().map(|external| {
-                        serde_json::json!({
-                            "name": external.name,
-                            "module": external.module,
-                            "callable": external.callable,
-                            "parameters": external.parameter_names.iter().zip(&external.parameters).map(|(name, ty)| {
-                                serde_json::json!({"name": name, "type": display_type(ty)})
-                            }).collect::<Vec<_>>(),
-                            "result": display_type(&external.result),
-                            "effect": "opaque_python_call",
-                        })
-                    }).collect::<Vec<_>>(),
-                    "records": artifact.records.iter().map(|record| {
-                        serde_json::json!({
-                            "name": record.name,
-                            "fields": record.fields.iter().map(|field| {
-                                serde_json::json!({"name": field.name, "type": display_type(&field.ty)})
-                            }).collect::<Vec<_>>(),
-                        })
-                    }).collect::<Vec<_>>(),
-                })
-            );
+            println!("{}", api_report(&path, &project_root, &artifact));
         }
         "doc" => {
-            for f in &artifact.functions {
-                println!(
-                    "fn {}({}) -> {}",
-                    f.name,
-                    f.parameters
-                        .iter()
-                        .map(display_type)
-                        .collect::<Vec<_>>()
-                        .join(", "),
-                    display_type(&f.result)
-                );
-            }
-            for external in &artifact.externals {
-                let params = external
-                    .parameter_names
-                    .iter()
-                    .zip(&external.parameters)
-                    .map(|(name, ty)| format!("{name}: {}", display_type(ty)))
-                    .collect::<Vec<_>>()
-                    .join(", ");
-                println!(
-                    "extern python \"{}:{}\" fn {}({params}) -> {} (opaque external effect)",
-                    external.module,
-                    external.callable,
-                    external.name,
-                    display_type(&external.result)
-                );
-            }
+            print_api_report_human(&api_report(&path, &project_root, &artifact));
         }
         "run" => {
+            #[cfg(feature = "python-interop")]
             let managed_interpreter = dependencies::interpreter_for_locked_run(&project_root)?;
             let runtime = Runtime::new();
             let program_args = args.iter().skip(path_index + 1).cloned().collect();
             let mut policy = runtime_policy(&project_root)?
                 .with_file_access(project_root.clone(), true, true)
                 .with_arguments(program_args);
+            for host in http_host_overrides {
+                policy
+                    .allowed_http_hosts
+                    .insert(normalize_http_host(&host)?);
+            }
+            if clock_override {
+                policy = policy.with_clock_access();
+            }
+            for root in runtime_file_roots {
+                policy = policy.with_additional_file_root(root);
+            }
+            #[cfg(feature = "python-interop")]
             if let Some(interpreter) = managed_interpreter {
                 policy = policy.with_python(interpreter, std::time::Duration::from_secs(15));
             } else if let Some(interpreter) = env::var_os("VERITAS_PYTHON") {
@@ -675,6 +825,7 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
                         EffectKind::HttpRequest => "http_request",
                         EffectKind::PythonCall => "python_call",
                         EffectKind::EnvironmentRead => "environment_read",
+                        EffectKind::ClockRead => "clock_read",
                     };
                     let outcome = match effect.outcome {
                         EffectOutcome::Started => "started",
@@ -786,12 +937,16 @@ fn package_project(root: &std::path::Path, output: &std::path::Path) -> Result<(
     let root = root
         .canonicalize()
         .map_err(|error| format!("cannot resolve project root: {error}"))?;
+    let application = project_identity(&root)?;
     let manifest_path = root.join("veritas.toml");
     let manifest_text = fs::read_to_string(&manifest_path)
         .map_err(|error| format!("cannot read {}: {error}", manifest_path.display()))?;
     let manifest: toml::Value = toml::from_str(&manifest_text)
         .map_err(|error| format!("{}: invalid TOML: {error}", manifest_path.display()))?;
     let has_python_project = manifest.get("python").is_some();
+    if has_python_project && !cfg!(feature = "python-interop") {
+        return Err("this project requires optional Python interoperability; rebuild with --features python-interop".into());
+    }
     let resources = package_resources(&manifest, &root)?;
     let (entry, _) = resolve_target(root.to_str().ok_or("project path is not valid Unicode")?)?;
     let entry_text = entry.to_string_lossy().into_owned();
@@ -835,7 +990,27 @@ fn package_project(root: &std::path::Path, output: &std::path::Path) -> Result<(
             .map_err(|error| format!("cannot copy the Veritas runtime: {error}"))?;
         let rust_notices = copy_rust_notices(executable.parent().unwrap(), &stage)?;
         let (runtime_sha256, runtime_size_bytes) = sha256_path(&stage.join("veritas"))?;
+        #[cfg(feature = "python-interop")]
         let python_bundle = dependencies::bundle_python(&root, &stage)?;
+        #[cfg(feature = "python-interop")]
+        let python_runtime = python_bundle
+            .as_ref()
+            .map(|bundle| {
+                serde_json::json!({
+                    "version": bundle.version,
+                    "uv_version": bundle.uv_version,
+                    "uv_sha256": bundle.uv_sha256,
+                    "uv_lock_sha256": bundle.lock_sha256,
+                    "python_runtime_sha256": bundle.python_sha256,
+                    "python_runtime_size_bytes": bundle.python_size_bytes,
+                    "python_cache_sha256": bundle.python_cache_sha256,
+                    "python_cache_size_bytes": bundle.python_cache_size_bytes,
+                    "dependency_report_sha256": bundle.dependency_report_sha256,
+                })
+            })
+            .unwrap_or(serde_json::Value::Null);
+        #[cfg(not(feature = "python-interop"))]
+        let python_runtime = serde_json::Value::Null;
         let mut resource_records = Vec::with_capacity(resources.len());
         for (source, relative) in &resources {
             let destination = stage.join(relative);
@@ -857,7 +1032,7 @@ fn package_project(root: &std::path::Path, output: &std::path::Path) -> Result<(
             }));
         }
         let native_report_sha256 = native_dependencies::write_report(&stage)?;
-        let launcher = "#!/bin/sh\nset -eu\nHERE=$(CDPATH= cd -- \"$(dirname -- \"$0\")\" && pwd)\nif [ \"${VERITAS_VERIFY_PACKAGE:-0}\" = \"1\" ]; then\n  \"$HERE/veritas\" verify-package \"$HERE\" >/dev/null\nfi\nif [ -x \"$HERE/toolchains/uv\" ]; then\n  export VERITAS_UV=\"$HERE/toolchains/uv\"\n  export UV_PYTHON_INSTALL_DIR=\"$HERE/python\"\n  export UV_CACHE_DIR=\"$HERE/.uv-cache\"\n  export UV_OFFLINE=1\nfi\nexec \"$HERE/veritas\" run \"$HERE/app.vrb\" \"$@\"\n";
+        let launcher = "#!/bin/sh\nset -eu\nHERE=$(CDPATH= cd -- \"$(dirname -- \"$0\")\" && pwd)\nif [ \"${VERITAS_VERIFY_PACKAGE:-0}\" = \"1\" ]; then\n  \"$HERE/veritas\" verify-package \"$HERE\" >/dev/null\nfi\nif [ -x \"$HERE/toolchains/uv\" ]; then\n  export VERITAS_UV=\"$HERE/toolchains/uv\"\n  export UV_PYTHON_INSTALL_DIR=\"$HERE/python\"\n  if [ -w \"$HERE/.uv-cache\" ]; then\n    export UV_CACHE_DIR=\"$HERE/.uv-cache\"\n  else\n    UV_CACHE_DIR=$(mktemp -d \"${TMPDIR:-/tmp}/veritas-uv-cache.XXXXXX\")\n    export UV_CACHE_DIR\n    trap 'rm -rf \"$UV_CACHE_DIR\"' EXIT\n  fi\n  export UV_OFFLINE=1\nfi\n\"$HERE/veritas\" run --file-root \"${VERITAS_FILE_ROOT:-$PWD}\" \"$HERE/app.vrb\" \"$@\"\n";
         fs::write(stage.join("run"), launcher)
             .map_err(|error| format!("cannot write package launcher: {error}"))?;
         #[cfg(unix)]
@@ -877,6 +1052,7 @@ fn package_project(root: &std::path::Path, output: &std::path::Path) -> Result<(
         .map_err(|error| format!("cannot write package instructions: {error}"))?;
         let package_metadata = serde_json::json!({
             "schema_version": 2,
+            "application": application,
             "compiler_version": env!("CARGO_PKG_VERSION"),
             "target": format!("{}-{}", env::consts::OS, env::consts::ARCH),
             "artifact_sha256": format!("{:x}", Sha256::digest(&artifact_bytes)),
@@ -889,24 +1065,14 @@ fn package_project(root: &std::path::Path, output: &std::path::Path) -> Result<(
             })),
             "native_dependency_report_sha256": native_report_sha256,
             "source_sha256": artifact.build_metadata.as_ref().and_then(|metadata| metadata.source_sha256.as_deref()),
-            "python_runtime": python_bundle.as_ref().map(|bundle| serde_json::json!({
-                "version": bundle.version,
-                "uv_version": bundle.uv_version,
-                "uv_sha256": bundle.uv_sha256,
-                "uv_lock_sha256": bundle.lock_sha256,
-                "python_runtime_sha256": bundle.python_sha256,
-                "python_runtime_size_bytes": bundle.python_size_bytes,
-                "python_cache_sha256": bundle.python_cache_sha256,
-                "python_cache_size_bytes": bundle.python_cache_size_bytes,
-                "dependency_report_sha256": bundle.dependency_report_sha256,
-            })),
+            "python_runtime": python_runtime,
             "resources": resource_records,
         });
         let package_metadata = serde_json::to_vec_pretty(&package_metadata)
             .map_err(|error| format!("cannot encode package metadata: {error}"))?;
         fs::write(stage.join("PACKAGE.json"), package_metadata)
             .map_err(|error| format!("cannot write package metadata: {error}"))?;
-        Ok::<Option<dependencies::PythonBundle>, String>(python_bundle)
+        Ok::<(), String>(())
     })();
     if let Err(error) = build {
         let _ = fs::remove_dir_all(&stage);
@@ -926,6 +1092,195 @@ fn package_project(root: &std::path::Path, output: &std::path::Path) -> Result<(
         ));
     }
     Ok(())
+}
+
+fn install_application(package: &Path, prefix: &Path) -> Result<std::path::PathBuf, String> {
+    verify_package(package)?;
+    let package = package
+        .canonicalize()
+        .map_err(|error| format!("cannot resolve package directory: {error}"))?;
+    let metadata: serde_json::Value = serde_json::from_slice(
+        &fs::read(package.join("PACKAGE.json"))
+            .map_err(|error| format!("cannot read package metadata: {error}"))?,
+    )
+    .map_err(|error| format!("invalid package metadata: {error}"))?;
+    let application = metadata.get("application").ok_or(
+        "package metadata has no application identity; repackage it with this Veritas version",
+    )?;
+    let name = application
+        .get("name")
+        .and_then(serde_json::Value::as_str)
+        .ok_or("package application name is missing")?;
+    let id = application
+        .get("id")
+        .and_then(serde_json::Value::as_str)
+        .ok_or("package application id is missing")?;
+    let version = application
+        .get("version")
+        .and_then(serde_json::Value::as_str)
+        .ok_or("package application version is missing")?;
+    if safe_application_id(name) != id
+        || id.is_empty()
+        || !version.chars().all(|character| {
+            character.is_ascii_alphanumeric() || matches!(character, '.' | '-' | '+' | '_')
+        })
+        || version.is_empty()
+        || matches!(version, "." | "..")
+    {
+        return Err("package application identity contains an unsafe path component".into());
+    }
+    let prefix = prefix.to_path_buf();
+    let app_parent = prefix.join("share/veritas/apps").join(id);
+    let bin = prefix.join("bin");
+    fs::create_dir_all(&app_parent)
+        .map_err(|error| format!("cannot create application install directory: {error}"))?;
+    fs::create_dir_all(&bin)
+        .map_err(|error| format!("cannot create command install directory: {error}"))?;
+    let executable = bin.join(id);
+    if let Ok(existing) = fs::read_to_string(&executable) {
+        if !existing.contains("# managed by veritas") {
+            return Err(format!(
+                "refusing to replace existing command {}",
+                executable.display()
+            ));
+        }
+    }
+    let destination = app_parent.join(version);
+    if destination.exists() {
+        let (existing_hash, _) = sha256_tree(&destination)?;
+        let (source_hash, _) = sha256_tree(&package)?;
+        if existing_hash != source_hash {
+            return Err(format!(
+                "application {id} version {version} is already installed with different contents"
+            ));
+        }
+    } else {
+        let stage = app_parent.join(format!(
+            ".{version}.stage-{}-{}",
+            std::process::id(),
+            unique_nonce()
+        ));
+        copy_package_contents(&package, &stage)?;
+        if let Err(error) = fs::rename(&stage, &destination) {
+            let _ = fs::remove_dir_all(&stage);
+            return Err(format!("cannot publish installed application: {error}"));
+        }
+    }
+    let temporary_launcher = bin.join(format!(".{id}.veritas-{}.tmp", std::process::id()));
+    let launcher = format!(
+        "#!/bin/sh\n# managed by veritas\nset -eu\nHERE=$(CDPATH= cd -- \"$(dirname -- \"$0\")\" && pwd)\nexec \"$HERE/../share/veritas/apps/{id}/{version}/run\" \"$@\"\n"
+    );
+    fs::write(&temporary_launcher, launcher)
+        .map_err(|error| format!("cannot write app launcher: {error}"))?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut permissions = fs::metadata(&temporary_launcher)
+            .map_err(|error| format!("cannot inspect app launcher: {error}"))?
+            .permissions();
+        permissions.set_mode(0o755);
+        fs::set_permissions(&temporary_launcher, permissions)
+            .map_err(|error| format!("cannot mark app launcher executable: {error}"))?;
+    }
+    if let Err(error) = fs::rename(&temporary_launcher, &executable) {
+        let _ = fs::remove_file(&temporary_launcher);
+        return Err(format!("cannot publish app launcher: {error}"));
+    }
+    Ok(executable)
+}
+
+fn unique_nonce() -> u128 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos()
+}
+
+fn copy_package_contents(source: &Path, destination: &Path) -> Result<(), String> {
+    fs::create_dir(destination)
+        .map_err(|error| format!("cannot create app staging directory: {error}"))?;
+    let result = (|| {
+        for entry in fs::read_dir(source)
+            .map_err(|error| format!("cannot read package directory: {error}"))?
+        {
+            let entry = entry.map_err(|error| format!("cannot read package entry: {error}"))?;
+            let kind = entry
+                .file_type()
+                .map_err(|error| format!("cannot inspect package entry: {error}"))?;
+            let target = destination.join(entry.file_name());
+            if kind.is_dir() {
+                copy_package_contents(&entry.path(), &target)?;
+            } else if kind.is_file() {
+                fs::copy(entry.path(), &target)
+                    .map_err(|error| format!("cannot copy package file: {error}"))?;
+            } else {
+                return Err(format!(
+                    "package contains an unsupported filesystem entry: {}",
+                    entry.path().display()
+                ));
+            }
+        }
+        Ok(())
+    })();
+    if result.is_err() {
+        let _ = fs::remove_dir_all(destination);
+    }
+    result
+}
+
+fn compile_project(
+    entry: &std::path::Path,
+    project_root: &std::path::Path,
+) -> Result<Artifact, veritas_model::Diagnostic> {
+    let package_roots = if project_root.join("veritas.toml").is_file() {
+        native_packages::load_locked_roots(project_root).map_err(|message| {
+            veritas_model::Diagnostic::new(
+                "E_PACKAGE_LOCK",
+                message,
+                veritas_model::Span {
+                    source_id: 0,
+                    start: 0,
+                    end: 0,
+                    line: 1,
+                    column: 1,
+                },
+            )
+        })?
+    } else {
+        std::collections::BTreeMap::new()
+    };
+    let package_roots = package_roots.into_iter().collect();
+    compiler_driver::compile_project_with_roots(
+        entry,
+        project_root,
+        compiler_driver::standard_library_root().as_deref(),
+        &package_roots,
+    )
+}
+
+#[cfg(feature = "python-interop")]
+fn python_doctor_report() -> String {
+    dependencies::doctor_report().to_string()
+}
+
+#[cfg(not(feature = "python-interop"))]
+fn python_doctor_report() -> String {
+    serde_json::json!({
+        "schema_version": 1,
+        "python_interop": "disabled",
+        "message": "Python interoperability is optional; rebuild with --features python-interop to enable it"
+    })
+    .to_string()
+}
+
+#[cfg(feature = "python-interop")]
+fn python_doctor_status() -> String {
+    dependencies::doctor_status()
+}
+
+#[cfg(not(feature = "python-interop"))]
+fn python_doctor_status() -> String {
+    "Python interoperability is disabled in this core build".into()
 }
 
 #[cfg(target_os = "macos")]
@@ -1037,7 +1392,7 @@ fn copy_rust_notices(
         .map_err(|error| format!("cannot copy Rust dependency inventory: {error}"))?;
     copy_notice_tree(&source_files, &destination.join("rust"))?;
     let (inventory_sha256, _) = sha256_path(&destination.join("RUST-DEPENDENCIES.md"))?;
-    let (files_sha256, files_size_bytes) = dependencies::sha256_tree(&destination.join("rust"))?;
+    let (files_sha256, files_size_bytes) = sha256_tree(&destination.join("rust"))?;
     Ok(Some(RustNoticeBundle {
         inventory_sha256,
         files_sha256,
@@ -1097,6 +1452,55 @@ fn sha256_path(path: &std::path::Path) -> Result<(String, u64), String> {
             .ok_or_else(|| format!("package resource {} is too large to report", path.display()))?;
     }
     Ok((format!("{:x}", digest.finalize()), size_bytes))
+}
+
+fn sha256_tree(root: &Path) -> Result<(String, u64), String> {
+    fn visit(root: &Path, path: &Path, digest: &mut Sha256, size: &mut u64) -> Result<(), String> {
+        let relative = path.strip_prefix(root).unwrap_or(path);
+        digest.update(relative.to_string_lossy().as_bytes());
+        digest.update([0]);
+        let metadata = fs::symlink_metadata(path)
+            .map_err(|error| format!("cannot inspect package entry {}: {error}", path.display()))?;
+        let kind = metadata.file_type();
+        if kind.is_symlink() {
+            digest.update(b"L");
+            let target = fs::read_link(path)
+                .map_err(|error| format!("cannot read package link {}: {error}", path.display()))?;
+            digest.update(target.to_string_lossy().as_bytes());
+        } else if kind.is_dir() {
+            digest.update(b"D");
+            let mut entries = fs::read_dir(path)
+                .map_err(|error| {
+                    format!("cannot scan package directory {}: {error}", path.display())
+                })?
+                .map(|entry| entry.map(|entry| entry.path()))
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|error| format!("cannot scan package directory: {error}"))?;
+            entries.sort();
+            for entry in entries {
+                visit(root, &entry, digest, size)?;
+            }
+        } else if kind.is_file() {
+            digest.update(b"F");
+            let bytes = fs::read(path)
+                .map_err(|error| format!("cannot read package file {}: {error}", path.display()))?;
+            digest.update(&bytes);
+            *size = size
+                .checked_add(bytes.len() as u64)
+                .ok_or_else(|| "package directory is too large to report".to_owned())?;
+        } else {
+            return Err(format!(
+                "unsupported special package entry: {}",
+                path.display()
+            ));
+        }
+        digest.update([0xff]);
+        Ok(())
+    }
+    let mut digest = Sha256::new();
+    let mut size = 0;
+    visit(root, root, &mut digest, &mut size)?;
+    Ok((format!("{:x}", digest.finalize()), size))
 }
 
 fn verify_package(directory: &Path) -> Result<(), String> {
@@ -1164,7 +1568,7 @@ fn verify_package(directory: &Path) -> Result<(), String> {
                 "package verification failed: Rust dependency notice directory is missing".into(),
             );
         }
-        let (digest, size) = dependencies::sha256_tree(&rust_root)?;
+        let (digest, size) = sha256_tree(&rust_root)?;
         if Some(digest.as_str()) != notices["files_sha256"].as_str()
             || Some(size) != notices["files_size_bytes"].as_u64()
         {
@@ -1295,146 +1699,158 @@ fn verify_package(directory: &Path) -> Result<(), String> {
         }
     }
     if !metadata["python_runtime"].is_null() {
-        let python = &metadata["python_runtime"];
-        verify_package_file(
-            &root,
-            "toolchains/uv",
-            python["uv_sha256"].as_str(),
-            None,
-            "bundled uv executable",
-        )?;
-        verify_package_file(
-            &root,
-            ".veritas/python-bridge/uv.lock",
-            python["uv_lock_sha256"].as_str(),
-            None,
-            "Python dependency lock",
-        )?;
-        let python_root = package_file(&root, "python", "Python runtime")?;
-        if !python_root.is_dir() {
-            return Err("package verification failed: Python runtime directory is missing".into());
-        }
-        let (digest, size) = dependencies::sha256_tree(&python_root)?;
-        if Some(digest.as_str()) != python["python_runtime_sha256"].as_str()
-            || Some(size) != python["python_runtime_size_bytes"].as_u64()
+        #[cfg(not(feature = "python-interop"))]
         {
             return Err(
-                "package verification failed: Python runtime integrity check failed".into(),
+                "verifying this package requires the optional `python-interop` feature".into(),
             );
         }
-        if package_schema.unwrap_or(1) >= 2 {
-            let cache_root = package_file(&root, ".uv-cache", "offline Python dependency cache")?;
-            if !cache_root.is_dir() {
+        #[cfg(feature = "python-interop")]
+        {
+            let python = &metadata["python_runtime"];
+            verify_package_file(
+                &root,
+                "toolchains/uv",
+                python["uv_sha256"].as_str(),
+                None,
+                "bundled uv executable",
+            )?;
+            verify_package_file(
+                &root,
+                ".veritas/python-bridge/uv.lock",
+                python["uv_lock_sha256"].as_str(),
+                None,
+                "Python dependency lock",
+            )?;
+            let python_root = package_file(&root, "python", "Python runtime")?;
+            if !python_root.is_dir() {
                 return Err(
-                    "package verification failed: offline Python dependency cache is missing"
-                        .into(),
+                    "package verification failed: Python runtime directory is missing".into(),
                 );
             }
-            let (cache_digest, cache_size) =
-                dependencies::sha256_python_cache_payload(&cache_root)?;
-            if Some(cache_digest.as_str()) != python["python_cache_sha256"].as_str()
-                || Some(cache_size) != python["python_cache_size_bytes"].as_u64()
+            let (digest, size) = dependencies::sha256_tree(&python_root)?;
+            if Some(digest.as_str()) != python["python_runtime_sha256"].as_str()
+                || Some(size) != python["python_runtime_size_bytes"].as_u64()
             {
                 return Err(
-                    "package verification failed: offline Python cache integrity check failed"
-                        .into(),
+                    "package verification failed: Python runtime integrity check failed".into(),
                 );
             }
-        }
-        verify_package_file(
-            &root,
-            "PYTHON-DEPENDENCIES.json",
-            python["dependency_report_sha256"].as_str(),
-            None,
-            "Python dependency report",
-        )?;
-        let dependency_report: serde_json::Value = serde_json::from_slice(
-            &fs::read(root.join("PYTHON-DEPENDENCIES.json"))
-                .map_err(|error| format!("cannot read Python dependency report: {error}"))?,
-        )
-        .map_err(|error| format!("invalid Python dependency report: {error}"))?;
-        let packages = dependency_report["packages"]
-            .as_array()
-            .ok_or("invalid Python dependency report: packages must be an array")?;
-        let native_report: serde_json::Value = serde_json::from_slice(
-            &fs::read(root.join("NATIVE-DEPENDENCIES.json"))
-                .map_err(|error| format!("cannot read native dependency report: {error}"))?,
-        )
-        .map_err(|error| format!("invalid native dependency report: {error}"))?;
-        for image in native_report["images"]
-            .as_array()
-            .ok_or("invalid native dependency report: images must be an array")?
-        {
-            let path = image["path"].as_str().unwrap_or_default();
-            if !path.contains("site-packages") {
-                continue;
+            if package_schema.unwrap_or(1) >= 2 {
+                let cache_root =
+                    package_file(&root, ".uv-cache", "offline Python dependency cache")?;
+                if !cache_root.is_dir() {
+                    return Err(
+                        "package verification failed: offline Python dependency cache is missing"
+                            .into(),
+                    );
+                }
+                let (cache_digest, cache_size) =
+                    dependencies::sha256_python_cache_payload(&cache_root)?;
+                if Some(cache_digest.as_str()) != python["python_cache_sha256"].as_str()
+                    || Some(cache_size) != python["python_cache_size_bytes"].as_u64()
+                {
+                    return Err(
+                        "package verification failed: offline Python cache integrity check failed"
+                            .into(),
+                    );
+                }
             }
-            let owner = &image["owner"];
-            let name = owner["name"]
-                .as_str()
-                .ok_or("invalid native dependency report: Python owner name is missing")?;
-            let version = owner["version"]
-                .as_str()
-                .ok_or("invalid native dependency report: Python owner version is missing")?;
-            let environment = owner["environment"]
-                .as_str()
-                .ok_or("invalid native dependency report: Python owner environment is missing")?;
-            let package = packages.iter().find(|package| {
+            verify_package_file(
+                &root,
+                "PYTHON-DEPENDENCIES.json",
+                python["dependency_report_sha256"].as_str(),
+                None,
+                "Python dependency report",
+            )?;
+            let dependency_report: serde_json::Value = serde_json::from_slice(
+                &fs::read(root.join("PYTHON-DEPENDENCIES.json"))
+                    .map_err(|error| format!("cannot read Python dependency report: {error}"))?,
+            )
+            .map_err(|error| format!("invalid Python dependency report: {error}"))?;
+            let packages = dependency_report["packages"]
+                .as_array()
+                .ok_or("invalid Python dependency report: packages must be an array")?;
+            let native_report: serde_json::Value = serde_json::from_slice(
+                &fs::read(root.join("NATIVE-DEPENDENCIES.json"))
+                    .map_err(|error| format!("cannot read native dependency report: {error}"))?,
+            )
+            .map_err(|error| format!("invalid native dependency report: {error}"))?;
+            for image in native_report["images"]
+                .as_array()
+                .ok_or("invalid native dependency report: images must be an array")?
+            {
+                let path = image["path"].as_str().unwrap_or_default();
+                if !path.contains("site-packages") {
+                    continue;
+                }
+                let owner = &image["owner"];
+                let name = owner["name"]
+                    .as_str()
+                    .ok_or("invalid native dependency report: Python owner name is missing")?;
+                let version = owner["version"]
+                    .as_str()
+                    .ok_or("invalid native dependency report: Python owner version is missing")?;
+                let environment = owner["environment"].as_str().ok_or(
+                    "invalid native dependency report: Python owner environment is missing",
+                )?;
+                let package = packages.iter().find(|package| {
                 package["name"].as_str() == Some(name)
                     && package["version"].as_str() == Some(version)
                     && package["environment"].as_str() == Some(environment)
             }).ok_or_else(|| format!(
                 "package verification failed: native image owner {name} {version} is absent from Python dependency report"
             ))?;
-            if owner["license_status"] != package["license_status"]
-                || owner["license_files"] != package["license_files"]
-            {
-                return Err(format!(
+                if owner["license_status"] != package["license_status"]
+                    || owner["license_files"] != package["license_files"]
+                {
+                    return Err(format!(
                     "package verification failed: native image owner license metadata disagrees with Python dependency report for {name} {version}"
                 ));
-            }
-            let record = owner["record"]
-                .as_str()
-                .ok_or("invalid native dependency report: Python owner RECORD path is missing")?;
-            if !package_file(&root, record, "Python distribution RECORD")?.is_file() {
-                return Err(format!(
+                }
+                let record = owner["record"].as_str().ok_or(
+                    "invalid native dependency report: Python owner RECORD path is missing",
+                )?;
+                if !package_file(&root, record, "Python distribution RECORD")?.is_file() {
+                    return Err(format!(
                     "package verification failed: Python distribution RECORD is not a regular file: {record}"
                 ));
+                }
             }
-        }
-        for package in packages {
-            let files = package["license_files"]
+            for package in packages {
+                let files = package["license_files"]
+                    .as_array()
+                    .ok_or("invalid Python dependency report: license_files must be an array")?;
+                for file in files {
+                    verify_package_file(
+                        &root,
+                        file["path"]
+                            .as_str()
+                            .ok_or("invalid Python dependency report: license path is missing")?,
+                        file["sha256"].as_str(),
+                        file["size_bytes"].as_u64(),
+                        "Python dependency license",
+                    )?;
+                }
+            }
+            let runtime_components = dependency_report["runtime_components"]
                 .as_array()
-                .ok_or("invalid Python dependency report: license_files must be an array")?;
-            for file in files {
-                verify_package_file(
-                    &root,
-                    file["path"]
-                        .as_str()
-                        .ok_or("invalid Python dependency report: license path is missing")?,
-                    file["sha256"].as_str(),
-                    file["size_bytes"].as_u64(),
-                    "Python dependency license",
+                .ok_or("invalid Python dependency report: runtime_components must be an array")?;
+            for component in runtime_components {
+                let files = component["license_files"].as_array().ok_or(
+                    "invalid Python dependency report: runtime license_files must be an array",
                 )?;
-            }
-        }
-        let runtime_components = dependency_report["runtime_components"]
-            .as_array()
-            .ok_or("invalid Python dependency report: runtime_components must be an array")?;
-        for component in runtime_components {
-            let files = component["license_files"].as_array().ok_or(
-                "invalid Python dependency report: runtime license_files must be an array",
-            )?;
-            for file in files {
-                verify_package_file(
-                    &root,
-                    file["path"].as_str().ok_or(
-                        "invalid Python dependency report: runtime license path is missing",
-                    )?,
-                    file["sha256"].as_str(),
-                    file["size_bytes"].as_u64(),
-                    "Python runtime license",
-                )?;
+                for file in files {
+                    verify_package_file(
+                        &root,
+                        file["path"].as_str().ok_or(
+                            "invalid Python dependency report: runtime license path is missing",
+                        )?,
+                        file["sha256"].as_str(),
+                        file["size_bytes"].as_u64(),
+                        "Python runtime license",
+                    )?;
+                }
             }
         }
     }
@@ -1598,26 +2014,27 @@ fn build_metadata(
 }
 
 fn dependency_lock_digest(root: &std::path::Path) -> Result<Option<String>, String> {
-    let veritas_lock = root.join("veritas.lock");
-    let python_lock = root.join(".veritas/python-bridge/uv.lock");
-    match (veritas_lock.is_file(), python_lock.is_file()) {
-        (false, false) => Ok(None),
-        (true, true) => {
-            let veritas_bytes = fs::read(&veritas_lock)
-                .map_err(|error| format!("cannot read {}: {error}", veritas_lock.display()))?;
-            let python_bytes = fs::read(&python_lock)
-                .map_err(|error| format!("cannot read {}: {error}", python_lock.display()))?;
-            let mut digest = Sha256::new();
-            digest.update(b"veritas.lock\0");
-            digest.update((veritas_bytes.len() as u64).to_be_bytes());
-            digest.update(veritas_bytes);
-            digest.update(b"uv.lock\0");
-            digest.update((python_bytes.len() as u64).to_be_bytes());
-            digest.update(python_bytes);
-            Ok(Some(format!("{:x}", digest.finalize())))
+    let locks = [
+        ("veritas.lock", root.join("veritas.lock")),
+        (
+            ".veritas/python-bridge/uv.lock",
+            root.join(".veritas/python-bridge/uv.lock"),
+        ),
+    ];
+    let mut digest = Sha256::new();
+    let mut found = false;
+    for (identity, path) in locks {
+        if path.is_file() {
+            let bytes = fs::read(&path)
+                .map_err(|error| format!("cannot read {}: {error}", path.display()))?;
+            digest.update(identity.as_bytes());
+            digest.update([0]);
+            digest.update((bytes.len() as u64).to_be_bytes());
+            digest.update(bytes);
+            found = true;
         }
-        _ => Err("incomplete Python dependency locks; expected both veritas.lock and .veritas/python-bridge/uv.lock".into()),
     }
+    Ok(found.then(|| format!("{:x}", digest.finalize())))
 }
 
 fn display_type(ty: &veritas_model::Type) -> String {
@@ -1635,6 +2052,7 @@ fn display_type(ty: &veritas_model::Type) -> String {
         Type::JsonError => "JsonError".into(),
         Type::FileError => "FileError".into(),
         Type::HttpError => "HttpError".into(),
+        Type::NativeResource(name) => name.clone(),
         Type::List(item) => format!("List[{}]", display_type(item)),
         Type::Map(item) => format!("Map[Text, {}]", display_type(item)),
         Type::Option(item) => format!("Option[{}]", display_type(item)),
@@ -1674,7 +2092,13 @@ fn inspection_report(source: &str, artifact: &Artifact) -> serde_json::Value {
                 Op::Environment => {
                     direct_effects[function_index].insert("process.environment".into());
                 }
-                Op::HttpGet | Op::HttpRequest | Op::HttpRequestWithTimeout => {
+                Op::UnixTimeMs | Op::TimeTodayLocal => {
+                    direct_effects[function_index].insert("clock.read".into());
+                }
+                Op::HttpGet
+                | Op::HttpRequest
+                | Op::HttpRequestWithTimeout
+                | Op::HttpRequestBytes => {
                     direct_effects[function_index].insert("network.http".into());
                 }
                 Op::PythonCall(target, _) | Op::PythonCallKw(target, _, _) => {
@@ -1743,6 +2167,18 @@ fn inspection_report(source: &str, artifact: &Artifact) -> serde_json::Value {
         .flatten()
         .copied()
         .collect::<BTreeSet<_>>();
+    let entry_network_grant_required = artifact
+        .functions
+        .iter()
+        .position(|function| function.name == artifact.entry)
+        .and_then(|index| effects.get(index))
+        .is_some_and(|effects| effects.contains("network.http"));
+    let entry_clock_grant_required = artifact
+        .functions
+        .iter()
+        .position(|function| function.name == artifact.entry)
+        .and_then(|index| effects.get(index))
+        .is_some_and(|effects| effects.contains("clock.read"));
     serde_json::json!({
         "schema_version": 1,
         "kind": "veritas_inspection_report",
@@ -1761,14 +2197,278 @@ fn inspection_report(source: &str, artifact: &Artifact) -> serde_json::Value {
             "declaration_used": used_python.contains(&index),
             "declared_types_are_not_effect_proofs": true,
         })).collect::<Vec<_>>(),
+        "network_grant": {
+            "required_for_entry": entry_network_grant_required,
+            "manifest_key": "[network].hosts",
+            "run_option": "veritas run --allow-http-host HOST",
+            "grant_model": "exact hostname; network access is denied when no grant is present",
+            "runtime_supplied_urls_require_an_explicit_hostname_grant": true,
+        },
+        "clock_grant": {
+            "required_for_entry": entry_clock_grant_required,
+            "manifest_key": "[clock].enabled",
+            "run_option": "veritas run --allow-clock",
+            "grant_model": "wall-clock reads are denied unless explicitly enabled",
+            "local_date_uses_host_process_time_zone": true,
+        },
     })
+}
+
+fn api_report(source: &str, project_root: &Path, artifact: &Artifact) -> serde_json::Value {
+    let package_roots = native_packages::load_locked_roots(project_root).unwrap_or_default();
+    let standard_root = compiler_driver::standard_library_root();
+    let source_texts = artifact
+        .sources
+        .iter()
+        .filter_map(|identity| {
+            let source_path = if let Some(relative) = identity.strip_prefix("std:") {
+                standard_root.as_ref()?.join(relative)
+            } else if let Some(package_path) = identity.strip_prefix("pkg:") {
+                let (package, relative) = package_path.split_once('/')?;
+                package_roots.get(package)?.join(relative)
+            } else {
+                project_root.join(identity)
+            };
+            let source_path = if source_path.extension().is_some() {
+                source_path
+            } else {
+                source_path.with_extension("vr")
+            };
+            Some((identity.clone(), fs::read_to_string(source_path).ok()?))
+        })
+        .collect::<Vec<_>>();
+    let declarations = source_texts
+        .iter()
+        .flat_map(|(identity, text)| {
+            function_declarations(text)
+                .into_iter()
+                .map(move |(name, parameters, public)| (identity.clone(), name, parameters, public))
+        })
+        .collect::<Vec<_>>();
+    let inspected = inspection_report(source, artifact);
+    let functions = artifact.functions.iter().map(|function| {
+        let (module_id, base_name) = if let Some(rest) = function.name.strip_prefix("@module/") {
+            let (module_id, name) = rest.split_once('/').unwrap_or(("", rest));
+            (module_id.parse::<usize>().ok(), name)
+        } else { (None, function.name.as_str()) };
+        let selected = module_id.and_then(|index| artifact.sources.get(index)).and_then(|identity| {
+            declarations.iter().find(|(source, name, _, _)| source == identity && name == base_name)
+        }).or_else(|| declarations.iter().find(|(_, name, _, public)| name == base_name && (*public || module_id.is_none())));
+        let parameter_names = selected.map(|(_, _, names, _)| names.clone()).unwrap_or_default();
+        let parameters = function.parameters.iter().enumerate().map(|(index, ty)| {
+            serde_json::json!({
+                "name": parameter_names.get(index).cloned().unwrap_or_else(|| format!("arg{}", index + 1)),
+                "type": display_type(ty),
+            })
+        }).collect::<Vec<_>>();
+        let effects = inspected["functions"].get(&function.name).and_then(|entry| entry["effects"].as_array()).cloned().unwrap_or_default();
+        serde_json::json!({
+            "name": function.name,
+            "source": selected.map(|(source, _, _, _)| source.as_str()),
+            "parameters": parameters,
+            "result": display_type(&function.result),
+            "effects": effects,
+            "profile_requirements": if artifact.externals.is_empty() { Vec::<String>::new() } else { vec!["python-interop".to_owned()] },
+        })
+    }).collect::<Vec<_>>();
+    let required_stdlib = artifact
+        .sources
+        .iter()
+        .filter_map(|identity| {
+            identity
+                .strip_prefix("std:")
+                .map(|module| module.trim_end_matches(".vr").to_owned())
+        })
+        .collect::<BTreeSet<_>>();
+    let available_stdlib = standard_root
+        .as_deref()
+        .map(list_stdlib_modules)
+        .unwrap_or_default();
+    let packages = artifact
+        .sources
+        .iter()
+        .filter_map(|identity| {
+            identity
+                .strip_prefix("pkg:")
+                .and_then(|name| name.split_once('/').map(|(package, _)| package.to_owned()))
+        })
+        .collect::<BTreeSet<_>>();
+    serde_json::json!({
+        "schema_version": 2,
+        "kind": "veritas_api_report",
+        "source": source,
+        "functions": functions,
+        "python_functions": artifact.externals.iter().map(|external| serde_json::json!({
+            "name": external.name,
+            "module": external.module,
+            "callable": external.callable,
+            "parameters": external.parameter_names.iter().zip(&external.parameters).map(|(name, ty)| serde_json::json!({"name": name, "type": display_type(ty)})).collect::<Vec<_>>(),
+            "result": display_type(&external.result),
+            "effect": "opaque_python_call",
+            "profile_requirement": "python-interop",
+        })).collect::<Vec<_>>(),
+        "records": artifact.records.iter().map(|record| serde_json::json!({
+            "name": record.name,
+            "fields": record.fields.iter().map(|field| serde_json::json!({"name": field.name, "type": display_type(&field.ty)})).collect::<Vec<_>>(),
+        })).collect::<Vec<_>>(),
+        "standard_library": {
+            "profile": "core",
+            "available_modules": available_stdlib,
+            "required_modules": required_stdlib,
+        },
+        "native_packages": packages,
+        "optional_profiles": if artifact.externals.is_empty() { Vec::<String>::new() } else { vec!["python-interop".to_owned()] },
+        "capabilities": inspected["network_grant"],
+    })
+}
+
+fn function_declarations(source: &str) -> Vec<(String, Vec<String>, bool)> {
+    let mut declarations = Vec::new();
+    for line in source.lines() {
+        let trimmed = line.trim_start();
+        let (signature, public) = if let Some(signature) = trimmed.strip_prefix("pub fn ") {
+            (signature, true)
+        } else if let Some(signature) = trimmed.strip_prefix("fn ") {
+            (signature, false)
+        } else {
+            continue;
+        };
+        let Some(open) = signature.find('(') else {
+            continue;
+        };
+        let name = signature[..open].trim();
+        let Some(close) = signature[open + 1..].find(')') else {
+            continue;
+        };
+        let parameter_text = &signature[open + 1..open + 1 + close];
+        let parameters = split_signature_parameters(parameter_text)
+            .into_iter()
+            .filter_map(|parameter| {
+                parameter
+                    .split_once(':')
+                    .map(|(name, _)| name.trim().to_owned())
+            })
+            .collect();
+        declarations.push((name.to_owned(), parameters, public));
+    }
+    declarations
+}
+
+fn split_signature_parameters(parameters: &str) -> Vec<&str> {
+    let mut result = Vec::new();
+    let mut depth = 0usize;
+    let mut start = 0usize;
+    for (index, character) in parameters.char_indices() {
+        match character {
+            '[' => depth += 1,
+            ']' => depth = depth.saturating_sub(1),
+            ',' if depth == 0 => {
+                result.push(parameters[start..index].trim());
+                start = index + 1;
+            }
+            _ => {}
+        }
+    }
+    if !parameters[start..].trim().is_empty() {
+        result.push(parameters[start..].trim());
+    }
+    result
+}
+
+fn list_stdlib_modules(root: &Path) -> Vec<String> {
+    fn visit(root: &Path, current: &Path, output: &mut Vec<String>) {
+        let Ok(entries) = fs::read_dir(current) else {
+            return;
+        };
+        let mut entries = entries.filter_map(Result::ok).collect::<Vec<_>>();
+        entries.sort_by_key(|entry| entry.file_name());
+        for entry in entries {
+            let Ok(kind) = entry.file_type() else {
+                continue;
+            };
+            if kind.is_dir() {
+                visit(root, &entry.path(), output);
+            } else if kind.is_file()
+                && entry
+                    .path()
+                    .extension()
+                    .is_some_and(|extension| extension == "vr")
+            {
+                if let Ok(relative) = entry.path().strip_prefix(root) {
+                    output.push(
+                        relative
+                            .with_extension("")
+                            .to_string_lossy()
+                            .replace('\\', "/"),
+                    );
+                }
+            }
+        }
+    }
+    let mut modules = Vec::new();
+    visit(root, root, &mut modules);
+    modules
+}
+
+fn print_api_report_human(report: &serde_json::Value) {
+    println!("API for {}", report["source"].as_str().unwrap_or("source"));
+    if let Some(functions) = report["functions"].as_array() {
+        for function in functions {
+            let parameters = function["parameters"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .map(|parameter| {
+                    format!(
+                        "{}: {}",
+                        parameter["name"].as_str().unwrap_or("arg"),
+                        parameter["type"].as_str().unwrap_or("?")
+                    )
+                })
+                .collect::<Vec<_>>()
+                .join(", ");
+            let effects = function["effects"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter_map(serde_json::Value::as_str)
+                .collect::<Vec<_>>();
+            println!(
+                "fn {}({parameters}) -> {}{}",
+                function["name"].as_str().unwrap_or("?"),
+                function["result"].as_str().unwrap_or("?"),
+                if effects.is_empty() {
+                    String::new()
+                } else {
+                    format!("  effects: {}", effects.join(", "))
+                }
+            );
+        }
+    }
+    println!("Standard library profile: core");
+    for module in report["standard_library"]["available_modules"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(serde_json::Value::as_str)
+    {
+        println!("  std:{module}");
+    }
+    if let Some(requirements) = report["optional_profiles"].as_array() {
+        for requirement in requirements {
+            println!(
+                "Optional profile required: {}",
+                requirement.as_str().unwrap_or("unknown")
+            );
+        }
+    }
 }
 
 fn format_source(source: &str) -> String {
     let normalized = source.replace("\r\n", "\n").replace('\r', "\n");
     let mut lines = normalized
         .lines()
-        .map(|line| line.trim_end().to_owned())
+        .map(format_source_line)
         .collect::<Vec<_>>();
     while lines.last().is_some_and(String::is_empty) {
         lines.pop();
@@ -1778,6 +2478,328 @@ fn format_source(source: &str) -> String {
     } else {
         format!("{}\n", lines.join("\n"))
     }
+}
+
+fn format_source_line(line: &str) -> String {
+    let indentation_len = line
+        .bytes()
+        .take_while(|byte| matches!(byte, b' ' | b'\t'))
+        .count();
+    let indentation = &line[..indentation_len];
+    let body = &line[indentation_len..];
+    if body.is_empty() {
+        return String::new();
+    }
+    let characters = body.chars().collect::<Vec<_>>();
+    let mut tokens: Vec<(String, u8)> = Vec::new();
+    let mut comment = None;
+    let mut cursor = 0;
+    while cursor < characters.len() {
+        let character = characters[cursor];
+        if character.is_whitespace() {
+            cursor += 1;
+            continue;
+        }
+        if character == '#' {
+            comment = Some(characters[cursor..].iter().collect::<String>());
+            break;
+        }
+        if character == '"' {
+            let start = cursor;
+            cursor += 1;
+            let mut escaped = false;
+            while cursor < characters.len() {
+                let current = characters[cursor];
+                cursor += 1;
+                if escaped {
+                    escaped = false;
+                } else if current == '\\' {
+                    escaped = true;
+                } else if current == '"' {
+                    break;
+                }
+            }
+            tokens.push((characters[start..cursor].iter().collect(), 2));
+            continue;
+        }
+        if character.is_ascii_alphabetic() || character == '_' {
+            let start = cursor;
+            cursor += 1;
+            while cursor < characters.len()
+                && (characters[cursor].is_ascii_alphanumeric() || characters[cursor] == '_')
+            {
+                cursor += 1;
+            }
+            let text = characters[start..cursor].iter().collect::<String>();
+            let kind = if matches!(text.as_str(), "and" | "or" | "not") {
+                3
+            } else {
+                1
+            };
+            tokens.push((text, kind));
+            continue;
+        }
+        if character.is_ascii_digit() {
+            let start = cursor;
+            cursor += 1;
+            while cursor < characters.len() && characters[cursor].is_ascii_digit() {
+                cursor += 1;
+            }
+            if cursor < characters.len() && characters[cursor] == '.' {
+                cursor += 1;
+                while cursor < characters.len() && characters[cursor].is_ascii_digit() {
+                    cursor += 1;
+                }
+            }
+            if cursor < characters.len() && matches!(characters[cursor], 'e' | 'E') {
+                cursor += 1;
+                if cursor < characters.len() && matches!(characters[cursor], '+' | '-') {
+                    cursor += 1;
+                }
+                while cursor < characters.len() && characters[cursor].is_ascii_digit() {
+                    cursor += 1;
+                }
+            }
+            tokens.push((characters[start..cursor].iter().collect(), 1));
+            continue;
+        }
+        let two = if cursor + 1 < characters.len() {
+            [character, characters[cursor + 1]]
+                .iter()
+                .collect::<String>()
+        } else {
+            String::new()
+        };
+        if matches!(two.as_str(), "->" | "==" | "!=" | "<=" | ">=" | "//") {
+            tokens.push((two, 3));
+            cursor += 2;
+        } else {
+            tokens.push((
+                character.to_string(),
+                if "+-*/%=<>".contains(character) { 3 } else { 4 },
+            ));
+            cursor += 1;
+        }
+    }
+
+    let mut formatted = String::from(indentation);
+    let mut previous: Option<(String, u8)> = None;
+    for (text, kind) in &tokens {
+        if let Some((previous_text, previous_kind)) = previous.as_ref() {
+            let needs_space = match text.as_str() {
+                "," | ")" | "]" | "}" | "." | ":" => false,
+                "(" => previous_text == "fn" || previous_text == "record",
+                "[" => false,
+                _ if matches!(text.as_str(), "and" | "or") => true,
+                _ if *kind == 3 || *previous_kind == 3 => true,
+                _ if previous_text == "," || previous_text == ":" => true,
+                _ if previous_text == "(" || previous_text == "[" || previous_text == "." => false,
+                "{" => true,
+                _ if previous_text == "{" => true,
+                _ => matches!((*previous_kind, *kind), (1, 1) | (1, 2) | (2, 1) | (2, 2)),
+            };
+            if needs_space && !formatted.chars().last().is_some_and(char::is_whitespace) {
+                formatted.push(' ');
+            }
+        }
+        formatted.push_str(text);
+        previous = Some((text.clone(), *kind));
+    }
+    if let Some(comment) = comment {
+        if !formatted.is_empty() && !formatted.chars().last().is_some_and(char::is_whitespace) {
+            formatted.push(' ');
+        }
+        formatted.push_str(&comment);
+    }
+    formatted
+}
+
+fn lint_source(source: &str, source_path: &Path, project_root: &Path) -> Vec<serde_json::Value> {
+    let identifiers = source_identifiers(source);
+    let mut diagnostics = Vec::new();
+    let lines = source.lines().collect::<Vec<_>>();
+    for (line_index, line) in lines.iter().enumerate() {
+        let trimmed = line.trim_start();
+        let leading = line.len() - trimmed.len();
+        if let Some(declaration) = trimmed.strip_prefix("let ") {
+            if let Some(name) = declaration
+                .split(|character: char| !character.is_ascii_alphanumeric() && character != '_')
+                .next()
+            {
+                if !name.is_empty()
+                    && identifiers
+                        .iter()
+                        .filter(|(identifier, _)| identifier == name)
+                        .count()
+                        == 1
+                {
+                    diagnostics.push(lint_diagnostic(
+                        "W_UNUSED_LOCAL",
+                        format!("local `{name}` is never used"),
+                        line_index + 1,
+                        leading + 5,
+                    ));
+                }
+            }
+        }
+        if let Some(import_path) = import_path(trimmed) {
+            if let Some(imported_source) =
+                lint_import_source(import_path, source_path, project_root)
+            {
+                let exports = imported_source
+                    .lines()
+                    .filter_map(|import_line| {
+                        let declaration = import_line
+                            .trim_start()
+                            .strip_prefix("pub fn ")
+                            .or_else(|| import_line.trim_start().strip_prefix("pub record "))?;
+                        let name = declaration
+                            .split(|character: char| {
+                                !character.is_ascii_alphanumeric() && character != '_'
+                            })
+                            .next()?;
+                        (!name.is_empty()).then_some(name.to_owned())
+                    })
+                    .collect::<Vec<_>>();
+                if !exports.is_empty()
+                    && exports
+                        .iter()
+                        .all(|name| !identifiers.iter().any(|(identifier, _)| identifier == name))
+                {
+                    diagnostics.push(lint_diagnostic(
+                        "W_UNUSED_IMPORT",
+                        format!("import `{import_path}` provides no symbols used by this module"),
+                        line_index + 1,
+                        leading + 1,
+                    ));
+                }
+            }
+        }
+    }
+    let mut terminating_indent: Option<usize> = None;
+    for (line_index, line) in lines.iter().enumerate() {
+        let trimmed = line.trim_start();
+        let indent = line.len() - trimmed.len();
+        if trimmed.is_empty() || trimmed.starts_with('#') {
+            continue;
+        }
+        if let Some(terminating) = terminating_indent {
+            if indent < terminating {
+                terminating_indent = None;
+            } else if indent == terminating
+                && !trimmed.starts_with("else:")
+                && !trimmed.starts_with("elif ")
+            {
+                diagnostics.push(lint_diagnostic(
+                    "W_UNREACHABLE_STATEMENT",
+                    "statement follows an unconditional exit".into(),
+                    line_index + 1,
+                    indent + 1,
+                ));
+                continue;
+            } else if indent == terminating {
+                terminating_indent = None;
+            }
+        }
+        if trimmed.starts_with("return ")
+            || trimmed == "return"
+            || trimmed == "break"
+            || trimmed == "continue"
+        {
+            terminating_indent = Some(indent);
+        }
+    }
+    diagnostics.sort_by_key(|diagnostic| {
+        (
+            diagnostic["line"].as_u64().unwrap_or(0),
+            diagnostic["column"].as_u64().unwrap_or(0),
+            diagnostic["code"].as_str().unwrap_or("").to_owned(),
+        )
+    });
+    diagnostics
+}
+
+fn lint_diagnostic(code: &str, message: String, line: usize, column: usize) -> serde_json::Value {
+    serde_json::json!({"code": code, "message": message, "line": line, "column": column, "severity": "warning"})
+}
+
+fn source_identifiers(source: &str) -> Vec<(String, usize)> {
+    let mut identifiers = Vec::new();
+    for (line_index, line) in source.lines().enumerate() {
+        let characters = line.chars().collect::<Vec<_>>();
+        let mut cursor = 0;
+        while cursor < characters.len() {
+            if characters[cursor] == '#' {
+                break;
+            }
+            if characters[cursor] == '"' {
+                cursor += 1;
+                let mut escaped = false;
+                while cursor < characters.len() {
+                    let current = characters[cursor];
+                    cursor += 1;
+                    if escaped {
+                        escaped = false;
+                    } else if current == '\\' {
+                        escaped = true;
+                    } else if current == '"' {
+                        break;
+                    }
+                }
+            } else if characters[cursor].is_ascii_alphabetic() || characters[cursor] == '_' {
+                let start = cursor;
+                cursor += 1;
+                while cursor < characters.len()
+                    && (characters[cursor].is_ascii_alphanumeric() || characters[cursor] == '_')
+                {
+                    cursor += 1;
+                }
+                identifiers.push((characters[start..cursor].iter().collect(), line_index + 1));
+            } else {
+                cursor += 1;
+            }
+        }
+    }
+    identifiers
+}
+
+fn import_path(line: &str) -> Option<&str> {
+    let remainder = line.strip_prefix("import ")?;
+    let start = remainder.find('"')? + 1;
+    let end = start + remainder[start..].find('"')?;
+    Some(&remainder[start..end])
+}
+
+fn lint_import_source(import: &str, source_path: &Path, project_root: &Path) -> Option<String> {
+    let path = if let Some(relative) = import.strip_prefix("std:") {
+        let root = compiler_driver::standard_library_root()?;
+        root.join(relative)
+    } else if let Some(package_path) = import.strip_prefix("pkg:") {
+        let (package, relative) = package_path.split_once('/')?;
+        let roots = native_packages::load_locked_roots(project_root).ok()?;
+        roots.get(package)?.join(relative)
+    } else {
+        source_path.parent()?.join(import)
+    };
+    let path = if path.extension().is_some() {
+        path
+    } else {
+        path.with_extension("vr")
+    };
+    fs::read_to_string(path).ok()
+}
+
+fn normalize_http_host(input: &str) -> Result<String, String> {
+    let host = input.trim().trim_end_matches('.').to_ascii_lowercase();
+    let valid = !host.is_empty()
+        && host.is_ascii()
+        && host.bytes().all(|byte| {
+            byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'-' | b':' | b'[' | b']')
+        });
+    if !valid {
+        return Err(format!("invalid exact network host `{host}`"));
+    }
+    Ok(host)
 }
 
 fn runtime_policy(root: &std::path::Path) -> Result<HostPolicy, String> {
@@ -1851,17 +2873,7 @@ fn runtime_policy(root: &std::path::Path) -> Result<HostPolicy, String> {
                 let host = value
                     .as_str()
                     .ok_or("veritas.toml [network].hosts entries must be strings")?;
-                let host = host.trim().trim_end_matches('.').to_ascii_lowercase();
-                let valid = !host.is_empty()
-                    && host.is_ascii()
-                    && host.bytes().all(|byte| {
-                        byte.is_ascii_alphanumeric()
-                            || matches!(byte, b'.' | b'-' | b':' | b'[' | b']')
-                    });
-                if !valid {
-                    return Err(format!("invalid exact network host `{host}`"));
-                }
-                Ok(host)
+                normalize_http_host(host)
             })
             .collect::<Result<Vec<_>, String>>()?;
         policy.http_timeout = Duration::from_millis(runtime_u64(
@@ -1909,6 +2921,18 @@ fn runtime_policy(root: &std::path::Path) -> Result<HostPolicy, String> {
             }
             policy.allowed_environment_variables.insert(name.to_owned());
         }
+    }
+    if let Some(clock) = manifest.get("clock") {
+        let clock = clock
+            .as_table()
+            .ok_or("veritas.toml [clock] must be a table")?;
+        if let Some(key) = clock.keys().find(|key| key.as_str() != "enabled") {
+            return Err(format!("unsupported veritas.toml [clock] field `{key}`"));
+        }
+        policy.allow_clock = clock
+            .get("enabled")
+            .and_then(toml::Value::as_bool)
+            .ok_or("veritas.toml [clock].enabled must be a boolean")?;
     }
     Ok(policy)
 }
@@ -2024,6 +3048,10 @@ fn project_name(path: &std::path::Path) -> String {
         .or_else(|| path.parent().and_then(std::path::Path::file_name))
         .unwrap_or_default()
         .to_string_lossy();
+    safe_application_id(&raw)
+}
+
+fn safe_application_id(raw: &str) -> String {
     let mut result = String::new();
     let mut separator = false;
     for ch in raw.chars() {
@@ -2042,6 +3070,34 @@ fn project_name(path: &std::path::Path) -> String {
     } else {
         result
     }
+}
+
+fn project_identity(root: &Path) -> Result<serde_json::Value, String> {
+    let manifest_path = root.join("veritas.toml");
+    let manifest: toml::Value = toml::from_str(
+        &fs::read_to_string(&manifest_path)
+            .map_err(|error| format!("cannot read {}: {error}", manifest_path.display()))?,
+    )
+    .map_err(|error| format!("{}: invalid TOML: {error}", manifest_path.display()))?;
+    let project = manifest
+        .get("project")
+        .and_then(toml::Value::as_table)
+        .ok_or("veritas.toml must contain a [project] table")?;
+    let name = project
+        .get("name")
+        .and_then(toml::Value::as_str)
+        .ok_or("veritas.toml [project].name must be text")?;
+    let version = project
+        .get("version")
+        .and_then(toml::Value::as_str)
+        .ok_or("veritas.toml [project].version must be text")?;
+    let safe_version = version.chars().all(|character| {
+        character.is_ascii_alphanumeric() || matches!(character, '.' | '-' | '+' | '_')
+    });
+    if !safe_version || version.is_empty() || version == "." || version == ".." {
+        return Err("veritas.toml [project].version must contain only letters, numbers, `.`, `-`, `+`, or `_`".into());
+    }
+    Ok(serde_json::json!({"name": name, "id": safe_application_id(name), "version": version}))
 }
 
 fn run_tests(
@@ -2076,7 +3132,11 @@ fn run_tests(
             failures += 1;
             continue;
         }
+        #[cfg(feature = "python-interop")]
         let mut policy = base_policy.clone();
+        #[cfg(not(feature = "python-interop"))]
+        let policy = base_policy.clone();
+        #[cfg(feature = "python-interop")]
         if let Some(interpreter) = env::var_os("VERITAS_PYTHON") {
             policy = policy.with_python(interpreter, std::time::Duration::from_secs(15));
         }
@@ -2174,6 +3234,7 @@ fn print_cli_diagnostic(code: &str, message: &str) {
     );
 }
 
+#[cfg(feature = "python-interop")]
 fn print_sync_failure(code: &str, message: &str) {
     println!(
         "{}",
@@ -2189,6 +3250,7 @@ fn print_sync_failure(code: &str, message: &str) {
     );
 }
 
+#[cfg(feature = "python-interop")]
 fn file_sha256(path: &Path) -> Result<String, String> {
     let bytes =
         fs::read(path).map_err(|error| format!("cannot read {}: {error}", path.display()))?;

@@ -1,0 +1,2 @@
+veritas run --file-root /private/tmp/veritas-fresh-builders/bookloom-veritas/test-data app add BK-001 "A Long Way to a Small, Angry Planet" "Becky Chambers"
+added BK-001

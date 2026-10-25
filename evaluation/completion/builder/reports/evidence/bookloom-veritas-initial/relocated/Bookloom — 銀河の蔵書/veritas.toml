@@ -1,0 +1,4 @@
+[project]
+name = "bookloom"
+version = "0.1.0"
+entry = "src/main.vr"

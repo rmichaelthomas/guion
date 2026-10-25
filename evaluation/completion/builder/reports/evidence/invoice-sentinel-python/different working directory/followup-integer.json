@@ -1,0 +1,18 @@
+{
+  "as_of": "2026-02-01",
+  "rejected_row_count": 1,
+  "rejected_rows": [
+    {
+      "line": 4,
+      "reason": "amount_cents must be an integer"
+    }
+  ],
+  "vendors": [
+    {
+      "overdue_open_cents": 900719925474099312343,
+      "overdue_open_count": 2,
+      "total_open_cents": 900719925474099312343,
+      "vendor": "Acme"
+    }
+  ]
+}

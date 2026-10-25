@@ -1,0 +1,122 @@
+{
+  "artifact_identities": {
+    "artifact_schema": "sha256:e50354f9431c7e244d093a0a2ad94fa897b91b8eb1793338d9dfce94fe38ce10",
+    "compiler_seed": "sha256:86aa851606f499999af2ad5a30daf708b62b1ecc571904b62896dd2613ed8c20",
+    "compiler_seed_manifest": "sha256:6fa10cb874c55367f61039604c791af8b3622b149673e90219aeafc64615f6de",
+    "runtime": "sha256:2f43071c84548aa37dac0ced5f0b993cb7abf3b3352c5dbd2b038e3de10598a3",
+    "stdlib": "sha256:19b745d51f8124fb98e7aec01ae9a2980e14f7fe8a8f8592395d63b807317600"
+  },
+  "changed_path_count": 5323,
+  "checks": [
+    {
+      "command": [
+        "cargo",
+        "--locked",
+        "--offline",
+        "test",
+        "-p",
+        "veritas-cli",
+        "--test",
+        "cli",
+        "veritas_source_compiler_compiles_itself_and_real_programs_with_parity"
+      ],
+      "exit_status": 0,
+      "id": "self-host-compiler-parity",
+      "output": "\nrunning 1 test\ntest veritas_source_compiler_compiles_itself_and_real_programs_with_parity has been running for over 60 seconds\ntest veritas_source_compiler_compiles_itself_and_real_programs_with_parity ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 47 filtered out; finished in 593.73s\n\n\n   Compiling ring v0.17.14\n   Compiling rustls v0.23.43\n   Compiling rustls-webpki v0.103.15\n   Compiling tokio-rustls v0.26.4\n   Compiling hyper-rustls v0.27.9\n   Compiling reqwest v0.12.28\n   Compiling veritas-runtime v0.1.0 (/Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/work/veritas-foundation/crates/runtime)\n   Compiling veritas-cli v0.1.0 (/Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/work/veritas-foundation/crates/cli)\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 9.18s\n     Running tests/cli.rs (target/debug/deps/cli-fc0a4e6cb1b40c66)\n",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "--locked",
+        "--offline",
+        "run",
+        "-p",
+        "veritas-bootstrap",
+        "--bin",
+        "veritas-stage0",
+        "--",
+        "seed",
+        "."
+      ],
+      "exit_status": 0,
+      "id": "compiler-seed-regeneration",
+      "output": "wrote /Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/work/veritas-foundation/language/self_host/compiler.vrb (940638 bytes); source sha256 2b45479b30856739983d0ce7cfce3ef4fdedb82bb4dd57defc8f7258e2b77def\n\n    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.17s\n     Running `target/debug/veritas-stage0 seed .`\n",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "--locked",
+        "--offline",
+        "test",
+        "-p",
+        "veritas-cli",
+        "--test",
+        "bootstrap"
+      ],
+      "exit_status": 0,
+      "id": "compiler-stage-equality",
+      "output": "\nrunning 1 test\ntest compiler_stage_equality has been running for over 60 seconds\ntest compiler_stage_equality ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 299.61s\n\n\n   Compiling veritas-cli v0.1.0 (/Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/work/veritas-foundation/crates/cli)\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.21s\n     Running tests/bootstrap.rs (target/debug/deps/bootstrap-bdf2ed8e7884bb51)\n",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "--locked",
+        "--offline",
+        "test",
+        "-p",
+        "veritas-cli",
+        "--test",
+        "compiler_driver"
+      ],
+      "exit_status": 0,
+      "id": "default-cli-embedded-selfhost",
+      "output": "\nrunning 3 tests\ntest default_cli_cannot_fallback_to_rust_source_compiler ... ok\ntest default_cli_uses_embedded_compiler_without_stage_zero_files_or_path ... ok\ntest default_cli_resolves_standard_modules_through_their_virtual_grant ... ok\n\ntest result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.80s\n\n\n   Compiling veritas-cli v0.1.0 (/Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/work/veritas-foundation/crates/cli)\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.73s\n     Running tests/compiler_driver.rs (target/debug/deps/compiler_driver-1a1e1ceca5416dd0)\n",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "tree",
+        "--locked",
+        "--offline",
+        "-p",
+        "veritas-cli",
+        "--edges",
+        "normal,build"
+      ],
+      "exit_status": 0,
+      "id": "default-cli-dependency-graph",
+      "output": "veritas-cli v0.1.0 (/Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/work/veritas-foundation/crates/cli)\n├── libc v0.2.189\n├── reqwest v0.12.28\n│   ├── base64 v0.22.1\n│   ├── bytes v1.12.1\n│   ├── futures-core v0.3.34\n│   ├── http v1.5.0\n│   │   ├── bytes v1.12.1\n│   │   └── itoa v1.0.18\n│   ├── http-body v1.1.0\n│   │   ├── bytes v1.12.1\n│   │   └── http v1.5.0 (*)\n│   ├── http-body-util v0.1.5\n│   │   ├── bytes v1.12.1\n│   │   ├── futures-core v0.3.34\n│   │   ├── http v1.5.0 (*)\n│   │   ├── http-body v1.1.0 (*)\n│   │   └── pin-project-lite v0.2.17\n│   ├── hyper v1.11.1\n│   │   ├── atomic-waker v1.1.2\n│   │   ├── bytes v1.12.1\n│   │   ├── futures-channel v0.3.34\n│   │   │   └── futures-core v0.3.34\n│   │   ├── futures-core v0.3.34\n│   │   ├── http v1.5.0 (*)\n│   │   ├── http-body v1.1.0 (*)\n│   │   ├── httparse v1.10.1\n│   │   ├── itoa v1.0.18\n│   │   ├── pin-project-lite v0.2.17\n│   │   ├── smallvec v1.16.3\n│   │   ├── tokio v1.53.2\n│   │   │   ├── bytes v1.12.1\n│   │   │   ├── libc v0.2.189\n│   │   │   ├── mio v1.2.4\n│   │   │   │   └── libc v0.2.189\n│   │   │   ├── pin-project-lite v0.2.17\n│   │   │   ├── socket2 v0.6.5\n│   │   │   │   └── libc v0.2.189\n│   │   │   └── tokio-macros v2.7.2 (proc-macro)\n│   │   │       ├── proc-macro2 v1.0.107\n│   │   │       │   └── unicode-ident v1.0.27\n│   │   │       ├── quote v1.0.47\n│   │   │       │   └── proc-macro2 v1.0.107 (*)\n│   │   │       └── syn v3.0.9\n│   │   │           ├── proc-macro2 v1.0.107 (*)\n│   │   │           ├── quote v1.0.47 (*)\n│   │   │           └── unicode-ident v1.0.27\n│   │   └── want v0.3.1\n│   │       └── try-lock v0.2.5\n│   ├── hyper-rustls v0.27.9\n│   │   ├── http v1.5.0 (*)\n│   │   ├── hyper v1.11.1 (*)\n│   │   ├── hyper-util v0.1.20\n│   │   │   ├── base64 v0.22.1\n│   │   │   ├── bytes v1.12.1\n│   │   │   ├── futures-channel v0.3.34 (*)\n│   │   │   ├── futures-util v0.3.34\n│   │   │   │   ├── futures-core v0.3.34\n│   │   │   │   ├── futures-task v0.3.34\n│   │   │   │   ├── pin-project-lite v0.2.17\n│   │   │   │   └── slab v0.4.12\n│   │   │   ├── http v1.5.0 (*)\n│   │   │   ├── http-body v1.1.0 (*)\n│   │   │   ├── hyper v1.11.1 (*)\n│   │   │   ├── ipnet v2.12.1\n│   │   │   ├── libc v0.2.189\n│   │   │   ├── percent-encoding v2.3.2\n│   │   │   ├── pin-project-lite v0.2.17\n│   │   │   ├── socket2 v0.6.5 (*)\n│   │   │   ├── tokio v1.53.2 (*)\n│   │   │   ├── tower-service v0.3.3\n│   │   │   └── tracing v0.1.44\n│   │   │       ├── pin-project-lite v0.2.17\n│   │   │       └── tracing-core v0.1.36\n│   │   │           └── once_cell v1.21.4\n│   │   ├── rustls v0.23.43\n│   │   │   ├── once_cell v1.21.4\n│   │   │   ├── ring v0.17.14\n│   │   │   │   ├── cfg-if v1.0.5\n│   │   │   │   ├── getrandom v0.2.17\n│   │   │   │   │   ├── cfg-if v1.0.5\n│   │   │   │   │   └── libc v0.2.189\n│   │   │   │   ├── libc v0.2.189\n│   │   │   │   └── untrusted v0.9.0\n│   │   │   │   [build-dependencies]\n│   │   │   │   └── cc v1.8.0\n│   │   │   │       ├── find-msvc-tools v0.1.14\n│   │   │   │       └── shlex v2.0.1\n│   │   │   ├── rustls-pki-types v1.15.1\n│   │   │   │   └── zeroize v1.9.0\n│   │   │   ├── rustls-webpki v0.103.15\n│   │   │   │   ├── ring v0.17.14 (*)\n│   │   │   │   ├── rustls-pki-types v1.15.1 (*)\n│   │   │   │   └── untrusted v0.9.0\n│   │   │   ├── subtle v2.6.1\n│   │   │   └── zeroize v1.9.0\n│   │   ├── tokio v1.53.2 (*)\n│   │   ├── tokio-rustls v0.26.4\n│   │   │   ├── rustls v0.23.43 (*)\n│   │   │   └── tokio v1.53.2 (*)\n│   │   ├── tower-service v0.3.3\n│   │   └── webpki-roots v1.0.9\n│   │       └── rustls-pki-types v1.15.1 (*)\n│   ├── hyper-util v0.1.20 (*)\n│   ├── log v0.4.34\n│   ├── percent-encoding v2.3.2\n│   ├── pin-project-lite v0.2.17\n│   ├── rustls v0.23.43 (*)\n│   ├── rustls-pki-types v1.15.1 (*)\n│   ├── serde v1.0.229\n│   │   └── serde_core v1.0.229\n│   ├── serde_urlencoded v0.7.1\n│   │   ├── form_urlencoded v1.2.2\n│   │   │   └── percent-encoding v2.3.2\n│   │   ├── itoa v1.0.18\n│   │   ├── ryu v1.0.23\n│   │   └── serde v1.0.229 (*)\n│   ├── sync_wrapper v1.0.2\n│   │   └── futures-core v0.3.34\n│   ├── tokio v1.53.2 (*)\n│   ├── tokio-rustls v0.26.4 (*)\n│   ├── tower v0.5.3\n│   │   ├── futures-core v0.3.34\n│   │   ├── futures-util v0.3.34 (*)\n│   │   ├── pin-project-lite v0.2.17\n│   │   ├── sync_wrapper v1.0.2 (*)\n│   │   ├── tokio v1.53.2 (*)\n│   │   ├── tower-layer v0.3.3\n│   │   └── tower-service v0.3.3\n│   ├── tower-http v0.6.11\n│   │   ├── bitflags v2.13.2\n│   │   ├── bytes v1.12.1\n│   │   ├── futures-util v0.3.34 (*)\n│   │   ├── http v1.5.0 (*)\n│   │   ├── http-body v1.1.0 (*)\n│   │   ├── pin-project-lite v0.2.17\n│   │   ├── tower v0.5.3 (*)\n│   │   ├── tower-layer v0.3.3\n│   │   ├── tower-service v0.3.3\n│   │   └── url v2.5.8\n│   │       ├── form_urlencoded v1.2.2 (*)\n│   │       ├── idna v1.1.0\n│   │       │   ├── idna_adapter v1.2.2\n│   │       │   │   ├── icu_normalizer v2.4.0\n│   │       │   │   │   ├── icu_collections v2.4.0\n│   │       │   │   │   │   ├── displaydoc v0.2.7 (proc-macro)\n│   │       │   │   │   │   │   ├── proc-macro2 v1.0.107 (*)\n│   │       │   │   │   │   │   ├── quote v1.0.47 (*)\n│   │       │   │   │   │   │   └── syn v3.0.9 (*)\n│   │       │   │   │   │   ├── potential_utf v0.1.6\n│   │       │   │   │   │   │   ├── writeable v0.6.4\n│   │       │   │   │   │   │   └── zerovec v0.11.9\n│   │       │   │   │   │   │       ├── yoke v0.8.4\n│   │       │   │   │   │   │       │   ├── stable_deref_trait v1.2.1\n│   │       │   │   │   │   │       │   ├── yoke-derive v0.8.4 (proc-macro)\n│   │       │   │   │   │   │       │   │   ├── proc-macro2 v1.0.107 (*)\n│   │       │   │   │   │   │       │   │   ├── quote v1.0.47 (*)\n│   │       │   │   │   │   │       │   │   ├── syn v3.0.9 (*)\n│   │       │   │   │   │   │       │   │   └── synstructure v0.14.0\n│   │       │   │   │   │   │       │   │       ├── proc-macro2 v1.0.107 (*)\n│   │       │   │   │   │   │       │   │       ├── quote v1.0.47 (*)\n│   │       │   │   │   │   │       │   │       └── syn v3.0.9 (*)\n│   │       │   │   │   │   │       │   └── zerofrom v0.1.8\n│   │       │   │   │   │   │       │       └── zerofrom-derive v0.1.8 (proc-macro)\n│   │       │   │   │   │   │       │           ├── proc-macro2 v1.0.107 (*)\n│   │       │   │   │   │   │       │           ├── quote v1.0.47 (*)\n│   │       │   │   │   │   │       │           ├── syn v3.0.9 (*)\n│   │       │   │   │   │   │       │           └── synstructure v0.14.0 (*)\n│   │       │   │   │   │   │       ├── zerofrom v0.1.8 (*)\n│   │       │   │   │   │   │       └── zerovec-derive v0.11.7 (proc-macro)\n│   │       │   │   │   │   │           ├── proc-macro2 v1.0.107 (*)\n│   │       │   │   │   │   │           ├── quote v1.0.47 (*)\n│   │       │   │   │   │   │           └── syn v3.0.9 (*)\n│   │       │   │   │   │   ├── utf8_iter v1.0.4\n│   │       │   │   │   │   ├── yoke v0.8.4 (*)\n│   │       │   │   │   │   ├── zerofrom v0.1.8 (*)\n│   │       │   │   │   │   └── zerovec v0.11.9 (*)\n│   │       │   │   │   ├── icu_normalizer_data v2.4.0\n│   │       │   │   │   ├── icu_provider v2.4.0\n│   │       │   │   │   │   ├── displaydoc v0.2.7 (proc-macro) (*)\n│   │       │   │   │   │   ├── icu_locale_core v2.4.0\n│   │       │   │   │   │   │   ├── displaydoc v0.2.7 (proc-macro) (*)\n│   │       │   │   │   │   │   ├── litemap v0.8.3\n│   │       │   │   │   │   │   ├── tinystr v0.8.5\n│   │       │   │   │   │   │   │   ├── displaydoc v0.2.7 (proc-macro) (*)\n│   │       │   │   │   │   │   │   └── zerovec v0.11.9 (*)\n│   │       │   │   │   │   │   ├── writeable v0.6.4\n│   │       │   │   │   │   │   └── zerovec v0.11.9 (*)\n│   │       │   │   │   │   ├── stable_deref_trait v1.2.1\n│   │       │   │   │   │   ├── writeable v0.6.4\n│   │       │   │   │   │   ├── yoke v0.8.4 (*)\n│   │       │   │   │   │   ├── zerofrom v0.1.8 (*)\n│   │       │   │   │   │   ├── zerotrie v0.2.5\n│   │       │   │   │   │   │   ├── displaydoc v0.2.7 (proc-macro) (*)\n│   │       │   │   │   │   │   ├── yoke v0.8.4 (*)\n│   │       │   │   │   │   │   └── zerofrom v0.1.8 (*)\n│   │       │   │   │   │   └── zerovec v0.11.9 (*)\n│   │       │   │   │   ├── smallvec v1.16.3\n│   │       │   │   │   ├── utf16_iter v1.0.5\n│   │       │   │   │   ├── utf8_iter v1.0.4\n│   │       │   │   │   ├── write16 v1.0.0\n│   │       │   │   │   └── zerovec v0.11.9 (*)\n│   │       │   │   └── icu_properties v2.4.0\n│   │       │   │       ├── displaydoc v0.2.7 (proc-macro) (*)\n│   │       │   │       ├── icu_collections v2.4.0 (*)\n│   │       │   │       ├── icu_locale_core v2.4.0 (*)\n│   │       │   │       ├── icu_properties_data v2.4.0\n│   │       │   │       ├── icu_provider v2.4.0 (*)\n│   │       │   │       ├── zerotrie v0.2.5 (*)\n│   │       │   │       └── zerovec v0.11.9 (*)\n│   │       │   ├── smallvec v1.16.3\n│   │       │   └── utf8_iter v1.0.4\n│   │       └── percent-encoding v2.3.2\n│   ├── tower-service v0.3.3\n│   ├── url v2.5.8 (*)\n│   └── webpki-roots v1.0.9 (*)\n├── serde_json v1.0.151\n│   ├── itoa v1.0.18\n│   ├── memchr v2.8.3\n│   ├── serde_core v1.0.229\n│   └── zmij v1.0.23\n├── sha2 v0.10.9\n│   ├── cfg-if v1.0.5\n│   ├── cpufeatures v0.2.17\n│   │   └── libc v0.2.189\n│   └── digest v0.10.7\n│       ├── block-buffer v0.10.4\n│       │   └── generic-array v0.14.7\n│       │       └── typenum v1.20.1\n│       │       [build-dependencies]\n│       │       └── version_check v0.9.5\n│       ├── crypto-common v0.1.7\n│       │   ├── generic-array v0.14.7 (*)\n│       │   └── typenum v1.20.1\n│       └── subtle v2.6.1\n├── tokio v1.53.2 (*)\n├── toml v1.1.8+spec-1.1.0\n│   ├── serde_core v1.0.229\n│   ├── serde_spanned v1.1.2\n│   │   └── serde_core v1.0.229\n│   ├── toml_datetime v1.1.2+spec-1.1.0\n│   │   └── serde_core v1.0.229\n│   ├── toml_parser v1.1.5+spec-1.1.0\n│   │   └── winnow v1.0.4\n│   ├── toml_writer v1.1.3+spec-1.1.0\n│   └── winnow v1.0.4\n├── veritas-model v0.1.0 (/Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/work/veritas-foundation/crates/model)\n│   └── serde_json v1.0.151 (*)\n└── veritas-runtime v0.1.0 (/Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/work/veritas-foundation/crates/runtime)\n    ├── base64 v0.22.1\n    ├── cranelift-codegen v0.135.0\n    │   ├── bumpalo v3.20.3\n    │   │   └── allocator-api2 v0.2.21\n    │   ├── cranelift-assembler-x64 v0.135.7\n    │   │   [build-dependencies]\n    │   │   └── cranelift-assembler-x64-meta v0.135.7\n    │   │       └── cranelift-srcgen v0.135.7\n    │   ├── cranelift-bforest v0.135.0\n    │   │   ├── cranelift-entity v0.135.0\n    │   │   │   ├── cranelift-bitset v0.135.0\n    │   │   │   │   └── wasmtime-internal-core v48.0.0\n    │   │   │   │       ├── hashbrown v0.17.1\n    │   │   │   │       │   └── foldhash v0.2.0\n    │   │   │   │       └── libm v0.2.16\n    │   │   │   └── wasmtime-internal-core v48.0.0 (*)\n    │   │   └── wasmtime-internal-core v48.0.0 (*)\n    │   ├── cranelift-bitset v0.135.0 (*)\n    │   ├── cranelift-codegen-shared v0.135.7\n    │   ├── cranelift-control v0.135.7\n    │   │   └── arbitrary v1.5.0\n    │   ├── cranelift-entity v0.135.0 (*)\n    │   ├── gimli v0.33.0\n    │   │   ├── fnv v1.0.7\n    │   │   ├── hashbrown v0.16.1\n    │   │   └── indexmap v2.14.2\n    │   │       ├── equivalent v1.0.2\n    │   │       └── hashbrown v0.17.1 (*)\n    │   ├── hashbrown v0.17.1 (*)\n    │   ├── libm v0.2.16\n    │   ├── log v0.4.34\n    │   ├── regalloc2 v0.15.2\n    │   │   ├── allocator-api2 v0.2.21\n    │   │   ├── bumpalo v3.20.3 (*)\n    │   │   ├── hashbrown v0.17.1 (*)\n    │   │   ├── log v0.4.34\n    │   │   ├── rustc-hash v2.1.3\n    │   │   └── smallvec v1.16.3\n    │   ├── rustc-hash v2.1.3\n    │   ├── smallvec v1.16.3\n    │   ├── target-lexicon v0.13.5\n    │   └── wasmtime-internal-core v48.0.0 (*)\n    │   [build-dependencies]\n    │   ├── cranelift-codegen-meta v0.135.7\n    │   │   ├── cranelift-assembler-x64-meta v0.135.7 (*)\n    │   │   ├── cranelift-codegen-shared v0.135.7\n    │   │   ├── cranelift-srcgen v0.135.7\n    │   │   └── heck v0.5.0\n    │   └── cranelift-isle v0.135.0\n    ├── cranelift-frontend v0.135.0\n    │   ├── cranelift-codegen v0.135.0 (*)\n    │   ├── hashbrown v0.17.1 (*)\n    │   ├── log v0.4.34\n    │   ├── smallvec v1.16.3\n    │   └── target-lexicon v0.13.5\n    ├── cranelift-jit v0.135.0\n    │   ├── anyhow v1.0.104\n    │   ├── cranelift-codegen v0.135.0 (*)\n    │   ├── cranelift-control v0.135.7 (*)\n    │   ├── cranelift-entity v0.135.0 (*)\n    │   ├── cranelift-module v0.135.0\n    │   │   ├── anyhow v1.0.104\n    │   │   ├── cranelift-codegen v0.135.0 (*)\n    │   │   └── cranelift-control v0.135.7 (*)\n    │   ├── cranelift-native v0.135.0\n    │   │   ├── cranelift-codegen v0.135.0 (*)\n    │   │   └── target-lexicon v0.13.5\n    │   ├── libc v0.2.189\n    │   ├── log v0.4.34\n    │   ├── memmap2 v0.9.12\n    │   │   └── libc v0.2.189\n    │   ├── region v3.0.2\n    │   │   ├── bitflags v1.3.2\n    │   │   ├── libc v0.2.189\n    │   │   └── mach2 v0.4.3\n    │   │       └── libc v0.2.189\n    │   ├── target-lexicon v0.13.5\n    │   └── wasmtime-internal-jit-icache-coherence v48.0.0\n    │       ├── libc v0.2.189\n    │       └── wasmtime-internal-core v48.0.0 (*)\n    ├── cranelift-module v0.135.0 (*)\n    ├── cranelift-native v0.135.0 (*)\n    ├── hmac v0.12.1\n    │   └── digest v0.10.7 (*)\n    ├── icu_casemap v2.4.0\n    │   ├── icu_casemap_data v2.4.0\n    │   ├── icu_collections v2.4.0 (*)\n    │   ├── icu_locale_core v2.4.0 (*)\n    │   ├── icu_properties v2.4.0 (*)\n    │   ├── icu_provider v2.4.0 (*)\n    │   ├── potential_utf v0.1.6 (*)\n    │   ├── writeable v0.6.4\n    │   └── zerovec v0.11.9 (*)\n    ├── icu_normalizer v2.4.0 (*)\n    ├── icu_properties v2.4.0 (*)\n    ├── libc v0.2.189\n    ├── reqwest v0.12.28 (*)\n    ├── rusqlite v0.37.0\n    │   ├── bitflags v2.13.2\n    │   ├── fallible-iterator v0.3.0\n    │   ├── fallible-streaming-iterator v0.1.9\n    │   ├── hashlink v0.10.0\n    │   │   └── hashbrown v0.15.5\n    │   │       └── foldhash v0.1.5\n    │   ├── libsqlite3-sys v0.35.0\n    │   │   [build-dependencies]\n    │   │   ├── cc v1.8.0 (*)\n    │   │   ├── pkg-config v0.3.34\n    │   │   └── vcpkg v0.2.15\n    │   └── smallvec v1.16.3\n    ├── serde v1.0.229 (*)\n    ├── serde_json v1.0.151 (*)\n    ├── sha2 v0.10.9 (*)\n    ├── tokio v1.53.2 (*)\n    ├── toml_edit v0.25.13+spec-1.1.0\n    │   ├── indexmap v2.14.2 (*)\n    │   ├── toml_datetime v1.1.2+spec-1.1.0 (*)\n    │   ├── toml_parser v1.1.5+spec-1.1.0 (*)\n    │   ├── toml_writer v1.1.3+spec-1.1.0\n    │   └── winnow v1.0.4\n    └── veritas-model v0.1.0 (/Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/work/veritas-foundation/crates/model) (*)\n    [build-dependencies]\n    ├── cc v1.8.0 (*)\n    └── sha2 v0.10.9 (*)\n[build-dependencies]\n├── serde_json v1.0.151 (*)\n└── sha2 v0.10.9 (*)\n",
+      "status": "passed"
+    }
+  ],
+  "command": "bootstrap",
+  "completed_targets": [
+    "macos-aarch64"
+  ],
+  "exact_command": "cargo xtask bootstrap --stages 3",
+  "exit_status": 0,
+  "message": null,
+  "missing_checks": [],
+  "missing_evidence": [],
+  "report": "bootstrap",
+  "required_targets": [
+    "macos-aarch64"
+  ],
+  "runtime_hash": "sha256:2f43071c84548aa37dac0ced5f0b993cb7abf3b3352c5dbd2b038e3de10598a3",
+  "schema_version": 1,
+  "seed_hash": "sha256:86aa851606f499999af2ad5a30daf708b62b1ecc571904b62896dd2613ed8c20",
+  "skipped_targets": [],
+  "source_revision": "b8755f08e8c453051572b9e57a34fd1da0a73199",
+  "status": "passed",
+  "stdlib_hash": "sha256:19b745d51f8124fb98e7aec01ae9a2980e14f7fe8a8f8592395d63b807317600",
+  "target": "macos-aarch64",
+  "unsatisfied_goal_ids": [
+    "G1",
+    "G3"
+  ],
+  "working_tree_digest": "sha256:432b37c7c046959715979016898eec5f91bfd7901212b2d365ba30b41d72e349"
+}

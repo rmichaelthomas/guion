@@ -1,0 +1,76 @@
+{
+  "phase": "initial",
+  "checks": [
+    {
+      "name": "success with malformed rows",
+      "passed": true
+    },
+    {
+      "name": "multiple vendors, paid/open, overdue/future, due today",
+      "passed": true
+    },
+    {
+      "name": "four rejected rows with physical line numbers and reasons",
+      "passed": true
+    },
+    {
+      "name": "each rejection reported on stderr",
+      "passed": true
+    },
+    {
+      "name": "no excluded field without filter",
+      "passed": true
+    },
+    {
+      "name": "deterministic repeat output",
+      "passed": true
+    },
+    {
+      "name": "invalid as-of preserves existing output: 2026-02-30",
+      "passed": true
+    },
+    {
+      "name": "invalid as-of preserves existing output: 20260201",
+      "passed": true
+    },
+    {
+      "name": "invalid as-of preserves existing output: 2026-2-01",
+      "passed": true
+    },
+    {
+      "name": "invalid as-of preserves existing output: nonsense",
+      "passed": true
+    },
+    {
+      "name": "bad header preserves existing output",
+      "passed": true
+    },
+    {
+      "name": "missing input preserves existing output",
+      "passed": true
+    },
+    {
+      "name": "header-only ledger",
+      "passed": true
+    },
+    {
+      "name": "exact large integer arithmetic and rejection of scientific notation",
+      "passed": true
+    }
+  ],
+  "passed": true,
+  "launch_seconds": [
+    0.061194541995064355,
+    0.0570903749903664,
+    0.0554334159969585,
+    0.05817725000088103,
+    0.05445941699144896,
+    0.05213795900635887,
+    0.05265929199231323,
+    0.05136549999588169,
+    0.054520624995348044,
+    0.05424487499112729
+  ],
+  "relocation_path": "/private/tmp/veritas-fresh-builders/invoice-sentinel-python/relocation/Factures Café 🧾",
+  "caller_cwd": "/private/tmp/veritas-fresh-builders/invoice-sentinel-python/different working directory"
+}

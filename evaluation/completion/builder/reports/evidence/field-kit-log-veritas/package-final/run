@@ -1,0 +1,19 @@
+#!/bin/sh
+set -eu
+HERE=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+if [ "${VERITAS_VERIFY_PACKAGE:-0}" = "1" ]; then
+  "$HERE/veritas" verify-package "$HERE" >/dev/null
+fi
+if [ -x "$HERE/toolchains/uv" ]; then
+  export VERITAS_UV="$HERE/toolchains/uv"
+  export UV_PYTHON_INSTALL_DIR="$HERE/python"
+  if [ -w "$HERE/.uv-cache" ]; then
+    export UV_CACHE_DIR="$HERE/.uv-cache"
+  else
+    UV_CACHE_DIR=$(mktemp -d "${TMPDIR:-/tmp}/veritas-uv-cache.XXXXXX")
+    export UV_CACHE_DIR
+    trap 'rm -rf "$UV_CACHE_DIR"' EXIT
+  fi
+  export UV_OFFLINE=1
+fi
+"$HERE/veritas" run --file-root "${VERITAS_FILE_ROOT:-$PWD}" "$HERE/app.vrb" "$@"

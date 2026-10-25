@@ -1,0 +1,1 @@
+Usage: field-kit CONFIG add ID NAME | inspect ID pass|fail NOTE | list [--failed-only]

@@ -1,0 +1,65 @@
+{
+  "stage": "relocated",
+  "checks": [
+    {
+      "name": "best quotes and ordering",
+      "passed": true
+    },
+    {
+      "name": "partial 503 and malformed isolation",
+      "passed": true
+    },
+    {
+      "name": "byte stable repeated output",
+      "passed": true
+    },
+    {
+      "name": "stable winner ordering independent of feed order",
+      "passed": true
+    },
+    {
+      "name": "schema isolation",
+      "passed": true
+    },
+    {
+      "name": "finite timeout reporting",
+      "passed": true
+    },
+    {
+      "name": "HTTP and network error reporting",
+      "passed": true
+    },
+    {
+      "name": "observed concurrent requests exactly bounded at 2",
+      "passed": true
+    },
+    {
+      "name": "deterministic ties",
+      "passed": true
+    },
+    {
+      "name": "invalid options fail clearly",
+      "passed": true
+    },
+    {
+      "name": "empty feed file",
+      "passed": true
+    },
+    {
+      "name": "followup filters quotes and preserves counts",
+      "passed": true
+    },
+    {
+      "name": "zero day filter keeps feed counts",
+      "passed": true
+    },
+    {
+      "name": "followup preserves default output byte for byte",
+      "passed": true
+    }
+  ],
+  "peak_concurrency": 2,
+  "measured_baseline_seconds": 0.5091846670111408,
+  "passed": true,
+  "utc": "2026-10-25T09:17:29.299136+00:00"
+}

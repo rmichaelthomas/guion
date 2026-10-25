@@ -1,0 +1,19 @@
+pub record Date:
+    year: Int
+    month: Int
+    day: Int
+
+pub record Instant:
+    unix_microseconds: Int
+
+pub fn today_local() -> Date:
+    return time_today_local()
+
+pub fn parse_date(value: Text) -> Result[Date, FileError]:
+    return time_parse_date(value)
+
+pub fn parse_timestamp(value: Text) -> Result[Instant, FileError]:
+    return time_parse_timestamp(value)
+
+pub fn format_utc(value: Instant) -> Text:
+    return time_format_utc(value)

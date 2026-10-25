@@ -1,0 +1,17 @@
+123 app-package/bookloom.toml
+45002 app-package/app.vrb
+1562 app-package/PACKAGE.txt
+804 app-package/PACKAGE.json
+109 app-package/veritas.toml
+631 app-package/run
+12824672 app-package/veritas
+1125 app-package/NATIVE-DEPENDENCIES.json
+148 install-root/bin/bookloom
+123 install-root/share/veritas/apps/bookloom/0.1.0/bookloom.toml
+45002 install-root/share/veritas/apps/bookloom/0.1.0/app.vrb
+1562 install-root/share/veritas/apps/bookloom/0.1.0/PACKAGE.txt
+804 install-root/share/veritas/apps/bookloom/0.1.0/PACKAGE.json
+109 install-root/share/veritas/apps/bookloom/0.1.0/veritas.toml
+631 install-root/share/veritas/apps/bookloom/0.1.0/run
+12824672 install-root/share/veritas/apps/bookloom/0.1.0/veritas
+1125 install-root/share/veritas/apps/bookloom/0.1.0/NATIVE-DEPENDENCIES.json

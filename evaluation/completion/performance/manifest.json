@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "kind": "veritas-completion-performance-manifest",
+  "method": {
+    "measured_trials": 15,
+    "data_trials": 16,
+    "warmups": 2,
+    "candidate_order": "deterministic seeded shuffle within each paired trial",
+    "trial_seed": 20261025,
+    "confidence_interval": "paired bootstrap percentile interval for median Veritas/Python elapsed-time ratio; 20000 resamples; seed 20261026",
+    "runtime_modes": ["source end-to-end", "prebuilt artifact", "in-process repeated warm execution"],
+    "additional_metrics": ["peak resident memory", "artifact size", "release package size", "artifact build duration"]
+  },
+  "python_baseline": {
+    "implementation": "CPython",
+    "pinned_version": "3.14.7",
+    "reference_source_probe": "evaluation/results/pyperformance-1.14.0-source-probes.json",
+    "free_threaded_probe": "runtime sys._is_gil_enabled and executable discovery; unavailable means concurrency claim remains unverified"
+  },
+  "workloads": [
+    {"id": "richards-scheduler", "source": "evaluation/development/famous_benchmarks/richards.vr", "python": "evaluation/development/famous_benchmarks/richards_reference.py", "provenance": "canonical Richards task scheduler counts, pinned source probe recorded separately", "correct_output": ["9297", "23246"]},
+    {"id": "nbody-numeric", "source": "evaluation/development/famous_benchmarks/nbody.vr", "python": "evaluation/development/famous_benchmarks/nbody.py", "provenance": "five-body 20000-step symplectic workload; translated Veritas implementation", "absolute_output_tolerance": 1e-12},
+    {"id": "mandelbrot-image", "source": "evaluation/development/famous_benchmarks/mandelbrot.vr", "python": "evaluation/development/famous_benchmarks/mandelbrot.py", "provenance": "96x64 escape-time image kernel, 80-iteration ceiling", "correct_output": ["155052", "1608"]},
+    {"id": "parallel-cpu", "source": "evaluation/development/famous_benchmarks/parallel_cpu.vr", "python": "evaluation/development/famous_benchmarks/parallel_cpu.py", "provenance": "four independent integer loops; serial/thread/process CPython variants", "sizes": [20000, 200000]},
+    {"id": "jsonl-summary-data", "source": "evaluation/completion/applications/jsonl-summary/main.vr", "python": "runner.py independent streaming oracle and sqlite3 baseline", "provenance": "Task 9 shipped application; deterministic generated JSONL, invalid rows, aggregation, and atomic report output. Its optional allow-list branch remains covered by Task 9 acceptance.", "input_generator": "evaluation/completion/performance/inputs/generate_analysis_jsonl.py", "input_seed": 20261025, "row_count": 20000}
+  ],
+  "claims": {
+    "required_compute_wins": ["richards-scheduler", "nbody-numeric", "mandelbrot-image", "parallel-cpu"],
+    "required_data_win": "jsonl-summary-data",
+    "concurrency_modes": ["veritas parallel_map", "CPython serial", "CPython threads", "CPython processes", "free-threaded CPython when installed"]
+  }
+}

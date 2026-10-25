@@ -1,0 +1,9 @@
+package_bytes=12874028
+installed_prefix_bytes=12874176
+compiled_artifact_bytes=45002
+source_bytes=10202
+sample_config_bytes=123
+project_manifest_bytes=109
+operator_guide_bytes=1824
+source_config_manifest_guide_compiled_total_bytes=57260
+Basis: recursive byte totals of app-package and install-root; stat byte counts for source, config, manifest, guide, and .vrb.

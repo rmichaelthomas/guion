@@ -1,0 +1,8 @@
+remember a string called source-state with "verified"
+remember a string called claim-basis with "verified"
+remember a list called tracked-decisions with "none"
+remember a list called open-questions with "none"
+remember a list called session-corrections with "none"
+add "Use only assigned brief and fixture; standard library Python" to tracked-decisions
+add "Initial and max-days follow-up acceptance passed on loopback" to tracked-decisions
+add "Relocated project to spaces and Unicode path; acceptance passed" to tracked-decisions

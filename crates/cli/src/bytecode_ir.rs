@@ -256,6 +256,14 @@ fn parse_instruction(
                 })?;
             Op::ParallelMap(index)
         }
+        "SortBy" => {
+            let name = required_str(object.get("function"), "SortBy.function")?;
+            let index = functions
+                .iter()
+                .position(|function| function == name)
+                .ok_or_else(|| format!("SortBy.function references unknown function `{name}`"))?;
+            Op::SortBy(index)
+        }
         "ListSet" => Op::ListSet,
         "ListSetLocal" => {
             Op::ListSetLocal(required_usize(object.get("local"), "ListSetLocal.local")?)
@@ -285,6 +293,57 @@ fn parse_instruction(
         "JsonAsBool" => Op::JsonAsBool,
         "JsonIsNull" => Op::JsonIsNull,
         "TextChars" => Op::TextChars,
+        "BytesFromInts" => Op::BytesFromInts,
+        "BytesFromText" => Op::BytesFromText,
+        "BytesJoin" => Op::BytesJoin,
+        "Float64Bits" => Op::Float64Bits,
+        "FileOpenLines" => Op::FileOpenLines,
+        "FileNextLine" => Op::FileNextLine,
+        "FileClose" => Op::FileClose,
+        "CsvOpen" => Op::CsvOpen,
+        "CsvNext" => Op::CsvNext,
+        "CsvEncode" => Op::CsvEncode,
+        "JsonTryGet" => Op::JsonTryGet,
+        "JsonTryIndex" => Op::JsonTryIndex,
+        "JsonTryText" => Op::JsonTryText,
+        "JsonTryInt" => Op::JsonTryInt,
+        "JsonTryBool" => Op::JsonTryBool,
+        "JsonTryFloat" => Op::JsonTryFloat,
+        "TimeParseDate" => Op::TimeParseDate,
+        "TimeParseTimestamp" => Op::TimeParseTimestamp,
+        "TimeFormatUtc" => Op::TimeFormatUtc,
+        "UnixTimeMs" => Op::UnixTimeMs,
+        "TimeTodayLocal" => Op::TimeTodayLocal,
+        "SemVerParse" => Op::SemVerParse,
+        "SemVerCompare" => Op::SemVerCompare,
+        "CliParse" => Op::CliParse,
+        "FsWalk" => Op::FsWalk,
+        "ListGetOption" => Op::ListGetOption,
+        "MapGetOption" => Op::MapGetOption,
+        "TextParseInt" => Op::TextParseInt,
+        "TextParseFloat" => Op::TextParseFloat,
+        "TextCaseFold" => Op::TextCaseFold,
+        "TextCollapseWhitespace" => Op::TextCollapseWhitespace,
+        "TextNormalize" => Op::TextNormalize,
+        "CryptoHmacSha256" => Op::CryptoHmacSha256,
+        "CryptoVerifyHmacSha256" => Op::CryptoVerifyHmacSha256,
+        "SqliteOpen" => Op::SqliteOpen,
+        "SqliteBegin" => Op::SqliteBegin,
+        "SqliteExecute" => Op::SqliteExecute,
+        "SqliteQuery" => Op::SqliteQuery,
+        "SqliteCommit" => Op::SqliteCommit,
+        "SqliteRollback" => Op::SqliteRollback,
+        "SqliteClose" => Op::SqliteClose,
+        "TomlParse" => Op::TomlParse,
+        "TomlHas" => Op::TomlHas,
+        "TomlGetText" => Op::TomlGetText,
+        "TomlGetInt" => Op::TomlGetInt,
+        "TomlGetBool" => Op::TomlGetBool,
+        "TomlPutText" => Op::TomlPutText,
+        "TomlPutInt" => Op::TomlPutInt,
+        "TomlPutBool" => Op::TomlPutBool,
+        "TomlRender" => Op::TomlRender,
+        "CalendarParse" => Op::CalendarParse,
         "Args" => Op::Args,
         "ArgsFrom" => Op::ArgsFrom,
         "ReadText" => Op::ReadText,
@@ -314,6 +373,7 @@ fn parse_instruction(
         "HttpGet" => Op::HttpGet,
         "HttpRequest" => Op::HttpRequest,
         "HttpRequestWithTimeout" => Op::HttpRequestWithTimeout,
+        "HttpRequestBytes" => Op::HttpRequestBytes,
         "JsonErrorCode" => Op::JsonErrorCode,
         "JsonErrorMessage" => Op::JsonErrorMessage,
         "JsonErrorLine" => Op::JsonErrorLine,
@@ -380,21 +440,33 @@ fn parse_type(input: &str) -> Result<Type, String> {
         "JsonError" => Ok(Type::JsonError),
         "FileError" => Ok(Type::FileError),
         "HttpError" => Ok(Type::HttpError),
+        "FileReader" | "Db" | "Transaction" | "TomlDocument" => {
+            Ok(Type::NativeResource(input.trim().to_owned()))
+        }
         "TaskError" => Ok(Type::TaskError),
         "Unit" => Ok(Type::Unit),
         other if other.starts_with("List[") && other.ends_with(']') => Ok(Type::List(Box::new(
             parse_type(&other[5..other.len() - 1])?,
         ))),
         other if other.starts_with("Map[") && other.ends_with(']') => {
-            Ok(Type::Map(Box::new(parse_type(&other[4..other.len() - 1])?)))
+            let inner = &other[4..other.len() - 1];
+            let value_type = if let Some(split) = top_level_type_comma(inner) {
+                let key_type = inner[..split].trim();
+                if key_type != "Text" {
+                    return Err(format!("Map key type must be Text, got `{key_type}`"));
+                }
+                &inner[split + 1..]
+            } else {
+                inner
+            };
+            Ok(Type::Map(Box::new(parse_type(value_type)?)))
         }
         other if other.starts_with("Option[") && other.ends_with(']') => Ok(Type::Option(
             Box::new(parse_type(&other[7..other.len() - 1])?),
         )),
         other if other.starts_with("Result[") && other.ends_with(']') => {
             let inner = &other[7..other.len() - 1];
-            let split = inner
-                .find(',')
+            let split = top_level_type_comma(inner)
                 .ok_or_else(|| format!("Result type needs two arguments: `{other}`"))?;
             Ok(Type::Result(
                 Box::new(parse_type(inner[..split].trim())?),
@@ -406,6 +478,19 @@ fn parse_type(input: &str) -> Result<Type, String> {
         }
         other => Err(format!("unsupported IR type `{other}`")),
     }
+}
+
+fn top_level_type_comma(input: &str) -> Option<usize> {
+    let mut depth = 0usize;
+    for (index, byte) in input.bytes().enumerate() {
+        match byte {
+            b'[' => depth += 1,
+            b']' => depth = depth.saturating_sub(1),
+            b',' if depth == 0 => return Some(index),
+            _ => {}
+        }
+    }
+    None
 }
 
 fn parse_records(value: Option<&Json>) -> Result<Vec<RecordDefinition>, String> {

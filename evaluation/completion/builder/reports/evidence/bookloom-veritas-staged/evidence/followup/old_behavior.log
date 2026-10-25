@@ -1,0 +1,37 @@
+UTC 2026-10-25T09:52:09Z
+
+$ veritas run --file-root /private/tmp/veritas-fresh-builders/bookloom-veritas-staged/followup-data /private/tmp/veritas-fresh-builders/bookloom-veritas-staged/project add B001 The\ Left\ Hand\ of\ Darkness
+Added B001
+exit=0
+
+$ veritas run --file-root /private/tmp/veritas-fresh-builders/bookloom-veritas-staged/followup-data /private/tmp/veritas-fresh-builders/bookloom-veritas-staged/project list available
+B001 | The Left Hand of Darkness | available
+exit=0
+
+$ veritas run --file-root /private/tmp/veritas-fresh-builders/bookloom-veritas-staged/followup-data /private/tmp/veritas-fresh-builders/bookloom-veritas-staged/project add B001 Duplicate\ must\ not\ replace
+Bookloom: add failed: Book ID already exists: B001 [DUPLICATE_ID]
+exit=1 (expected nonzero)
+
+$ veritas run --file-root /private/tmp/veritas-fresh-builders/bookloom-veritas-staged/followup-data /private/tmp/veritas-fresh-builders/bookloom-veritas-staged/project checkout UNKNOWN No\ One 2026-10-25
+Bookloom: checkout failed: No book has ID: UNKNOWN [UNKNOWN_ID]
+exit=1 (expected nonzero)
+
+$ veritas run --file-root /private/tmp/veritas-fresh-builders/bookloom-veritas-staged/followup-data /private/tmp/veritas-fresh-builders/bookloom-veritas-staged/project checkout B001 A.\ Reader 2026-10-25
+Checked out B001 to A. Reader
+exit=0
+
+$ veritas run --file-root /private/tmp/veritas-fresh-builders/bookloom-veritas-staged/followup-data /private/tmp/veritas-fresh-builders/bookloom-veritas-staged/project checkout B001 Second\ Reader 2026-10-26
+Bookloom: checkout failed: Book is already checked out: B001 [ALREADY_CHECKED_OUT]
+exit=1 (expected nonzero)
+
+$ veritas run --file-root /private/tmp/veritas-fresh-builders/bookloom-veritas-staged/followup-data /private/tmp/veritas-fresh-builders/bookloom-veritas-staged/project list checked-out
+B001 | The Left Hand of Darkness | checked out to A. Reader | since 2026-10-25
+exit=0
+
+$ veritas run --file-root /private/tmp/veritas-fresh-builders/bookloom-veritas-staged/followup-data /private/tmp/veritas-fresh-builders/bookloom-veritas-staged/project return B001
+Returned B001
+exit=0
+
+$ veritas run --file-root /private/tmp/veritas-fresh-builders/bookloom-veritas-staged/followup-data /private/tmp/veritas-fresh-builders/bookloom-veritas-staged/project list available
+B001 | The Left Hand of Darkness | available
+exit=0

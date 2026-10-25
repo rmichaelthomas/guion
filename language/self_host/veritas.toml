@@ -1,10 +1,14 @@
 [project]
 name = "veritas-self-hosting"
 version = "0.1.0"
-entry = "parser_smoke.vr"
+entry = "compiler.vr"
 
 [runtime]
-instruction_limit = 20000000
-allocation_limit_bytes = 268435456
-call_depth_limit = 34
+# The compiler's own source is parsed and lowered at bootstrap stages; budget
+# those compiler invocations separately from ordinary application programs.
+instruction_limit = 500000000
+# Self-compilation materializes compiler IR and runs the recursive semantic checker.
+allocation_limit_bytes = 8589934592
+# Import resolution permits up to 128 levels and retains one compiler frame per level.
+call_depth_limit = 160
 max_collection_items = 1000000

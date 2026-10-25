@@ -1,0 +1,15 @@
+{
+  "clock_origin": "Persisted contract creation timestamp. Administrative instruction reading preceded this clock origin; total wall time remains safely within the 15-minute limit.",
+  "start_utc": "2026-10-25T09:14:51.537290+00:00",
+  "runtime_ready_utc": "2026-10-25T09:14:51.626304+00:00",
+  "initial_acceptance_complete_utc": "2026-10-25T09:16:21.806844+00:00",
+  "followup_acceptance_complete_utc": "2026-10-25T09:16:43.548481+00:00",
+  "relocation_acceptance_complete_utc": "2026-10-25T09:17:29.299136+00:00",
+  "finish_utc": "2026-10-25T09:18:38.729231+00:00",
+  "measured_baseline_seconds": {
+    "initial": 0.5293424170085927,
+    "final": 0.4722097920021042,
+    "relocated": 0.5091846670111408
+  },
+  "phase_definition": "Setup ends at runtime readiness; build includes initial implementation and acceptance; followup includes max-days implementation and acceptance; relocation/evidence finishing is tracked separately. Durations do not determine correctness."
+}

@@ -1,0 +1,170 @@
+{
+  "schema_version": 1,
+  "kind": "veritas-fresh-builder-assignments",
+  "randomization": {
+    "algorithm": "Python random.Random shuffle, one shuffle per brief, seed 20261025",
+    "seed": 20261025
+  },
+  "model": "gpt-6.1-sol",
+  "reasoning_effort": "medium",
+  "tool_configuration": "same local filesystem and shell tools for every builder; no external network lookups or third-party packages; network brief restricted to loopback fixture server",
+  "python": {
+    "executable": "python3",
+    "required_version": "3.14.7",
+    "dependencies": "standard library only"
+  },
+  "veritas": {
+    "binary": "target/completion/releases/macos-aarch64/current/bin/veritas",
+    "platform": "macos-aarch64",
+    "documentation": "target/completion/releases/macos-aarch64/current/share/veritas/language/host-api.md"
+  },
+  "assignments": [
+    {
+      "assignment_id": "invoice-sentinel-python",
+      "brief_id": "invoice-sentinel",
+      "target_class": "small-automation-cli",
+      "language": "python",
+      "order_in_pair": 1,
+      "context": "fresh",
+      "status": "complete",
+      "private_work_directory": "/private/tmp/veritas-fresh-builders/invoice-sentinel-python",
+      "budget_minutes_including_followup": 15,
+      "start_utc": "2026-10-25T09:06:45.775542+00:00",
+      "finish_utc": "2026-10-25T09:08:40.562841+00:00",
+      "report": "evaluation/completion/builder/reports/invoice-sentinel-python.json"
+    },
+    {
+      "assignment_id": "invoice-sentinel-veritas",
+      "brief_id": "invoice-sentinel",
+      "target_class": "small-automation-cli",
+      "language": "veritas",
+      "order_in_pair": 2,
+      "context": "fresh",
+      "status": "complete",
+      "private_work_directory": "/private/tmp/veritas-fresh-builders/invoice-sentinel-veritas",
+      "budget_minutes_including_followup": 15,
+      "start_utc": "2026-10-25T09:10:43+00:00",
+      "finish_utc": "2026-10-25T09:13:44.926284+00:00",
+      "report": "evaluation/completion/builder/reports/invoice-sentinel-veritas.json"
+    },
+    {
+      "assignment_id": "quote-merge-python",
+      "brief_id": "quote-merge",
+      "target_class": "concurrent-network",
+      "language": "python",
+      "order_in_pair": 1,
+      "context": "fresh",
+      "status": "complete",
+      "private_work_directory": "/private/tmp/veritas-fresh-builders/quote-merge-python",
+      "budget_minutes_including_followup": 15,
+      "start_utc": "2026-10-25T09:14:51.537290+00:00",
+      "finish_utc": "2026-10-25T09:18:38.729231+00:00",
+      "report": "evaluation/completion/builder/reports/quote-merge-python.json"
+    },
+    {
+      "assignment_id": "quote-merge-veritas",
+      "brief_id": "quote-merge",
+      "target_class": "concurrent-network",
+      "language": "veritas",
+      "order_in_pair": 2,
+      "context": "fresh",
+      "status": "complete",
+      "private_work_directory": "/private/tmp/veritas-fresh-builders/quote-merge-veritas",
+      "budget_minutes_including_followup": 15,
+      "start_utc": "2026-10-25T09:20:36Z",
+      "finish_utc": "2026-10-25T09:33:23Z",
+      "report": "evaluation/completion/builder/reports/quote-merge-veritas.json"
+    },
+    {
+      "assignment_id": "bookloom-veritas",
+      "brief_id": "bookloom",
+      "target_class": "maintainable-local-app",
+      "language": "veritas",
+      "order_in_pair": 1,
+      "context": "fresh",
+      "status": "complete",
+      "private_work_directory": "/private/tmp/veritas-fresh-builders/bookloom-veritas-staged",
+      "budget_minutes_including_followup": 15,
+      "start_utc": "2026-10-25T09:46:37Z",
+      "finish_utc": "2026-10-25T09:56:35Z",
+      "report": "evaluation/completion/builder/reports/bookloom-veritas.json",
+      "prior_attempt_reports": [
+        "evaluation/completion/builder/reports/bookloom-veritas-initial-attempt.json"
+      ]
+    },
+    {
+      "assignment_id": "bookloom-python",
+      "brief_id": "bookloom",
+      "target_class": "maintainable-local-app",
+      "language": "python",
+      "order_in_pair": 2,
+      "context": "fresh",
+      "status": "complete",
+      "private_work_directory": "/private/tmp/veritas-fresh-builders/bookloom-python",
+      "budget_minutes_including_followup": 15,
+      "start_utc": "2026-10-25T09:58:59.094268Z",
+      "finish_utc": "2026-10-25T10:08:23Z",
+      "report": "evaluation/completion/builder/reports/bookloom-python.json"
+    }
+  ],
+  "pair_order": {
+    "invoice-sentinel": [
+      "python",
+      "veritas"
+    ],
+    "quote-merge": [
+      "python",
+      "veritas"
+    ],
+    "bookloom": [
+      "veritas",
+      "python"
+    ]
+  },
+  "reevaluation_randomization": {
+    "algorithm": "Python random.Random shuffle over [python, veritas]",
+    "seed": 20261029,
+    "product_change_ready_utc": "2026-10-25T10:40:25Z",
+    "product_change": "clock-local-date"
+  },
+  "reevaluation_pair_order": {
+    "field-kit-log": [
+      "python",
+      "veritas"
+    ]
+  },
+  "reevaluations": [
+    {
+      "assignment_id": "field-kit-log-python",
+      "brief_id": "field-kit-log",
+      "target_class": "maintainable-local-app",
+      "language": "python",
+      "order_in_pair": 1,
+      "context": "fresh",
+      "status": "complete",
+      "private_work_directory": "/private/tmp/veritas-fresh-builders/field-kit-log-python",
+      "budget_minutes_including_followup": 15,
+      "model": "gpt-6.1-sol",
+      "reasoning_effort": "medium",
+      "report": "evaluation/completion/builder/reports/field-kit-log-python.json",
+      "start_utc": "2026-10-25T10:46:30+00:00",
+      "finish_utc": "2026-10-25T10:49:53.351443+00:00"
+    },
+    {
+      "assignment_id": "field-kit-log-veritas",
+      "brief_id": "field-kit-log",
+      "target_class": "maintainable-local-app",
+      "language": "veritas",
+      "order_in_pair": 2,
+      "context": "fresh",
+      "status": "complete",
+      "private_work_directory": "/private/tmp/veritas-fresh-builders/field-kit-log-veritas",
+      "budget_minutes_including_followup": 15,
+      "model": "gpt-6.1-sol",
+      "reasoning_effort": "medium",
+      "report": "evaluation/completion/builder/reports/field-kit-log-veritas.json",
+      "start_utc": "2026-10-25T10:51:47Z",
+      "finish_utc": "2026-10-25T10:57:40Z"
+    }
+  ]
+}

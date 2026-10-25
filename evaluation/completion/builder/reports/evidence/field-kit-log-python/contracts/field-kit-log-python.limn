@@ -1,0 +1,31 @@
+show "=== Session contract: field-kit-log-python ==="
+
+remember a string called source-state with "unscanned"
+remember a string called claim-basis with "none"
+remember a list called tracked-decisions with "none"
+remember a list called open-questions with "none"
+remember a list called session-corrections with "none"
+remember a number called decision-count with 0
+remember a string called session-id with "field-kit-log-python"
+
+when source-state is equal to "unscanned"
+  show "HOLD: source not yet scanned — verify before consequential claims"
+when claim-basis is equal to "inference" unless source-state is equal to "verified"
+  show "WARNING: current claims are inferred, not verified against source"
+when claim-basis is equal to "verified"
+  show "OK: claims grounded in verified source"
+
+
+show source-state
+show claim-basis
+show tracked-decisions
+show open-questions
+
+remember a string called source-state with "verified"
+remember a string called claim-basis with "verified"
+add "python3147-standard-library-only" to tracked-decisions
+add "isolated-field-kit-log-python-directory" to tracked-decisions
+remember a source called acceptance-log with "Python 3.14.7; INITIAL ACCEPTANCE PASSED; FOLLOW-UP AND RELOCATION ACCEPTANCE PASSED"
+cite "INITIAL ACCEPTANCE PASSED" from acceptance-log
+cite "FOLLOW-UP AND RELOCATION ACCEPTANCE PASSED" from acceptance-log
+add "initial-followup-and-unicode-relocation-passed" to tracked-decisions

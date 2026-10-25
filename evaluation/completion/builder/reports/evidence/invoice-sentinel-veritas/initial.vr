@@ -1,0 +1,134 @@
+import "std:text"
+
+fn digits(value: Text) -> Bool:
+    if len(value) == 0:
+        return false
+    for ch in text_chars(value):
+        if ch < "0" or ch > "9":
+            return false
+    return true
+
+fn amount_valid(value: Text) -> Bool:
+    return digits(value)
+
+fn date_valid(value: Text) -> Bool:
+    let parts = text_split(value, "-")
+    if len(parts) != 3:
+        return false
+    if len(parts[0]) != 4 or len(parts[1]) != 2 or len(parts[2]) != 2:
+        return false
+    if not digits(parts[0]) or not digits(parts[1]) or not digits(parts[2]):
+        return false
+    let year = unwrap(text_parse_integer(parts[0]))
+    let month = unwrap(text_parse_integer(parts[1]))
+    let day = unwrap(text_parse_integer(parts[2]))
+    if year < 1 or month < 1 or month > 12 or day < 1:
+        return false
+    var limit = 31
+    if month == 4 or month == 6 or month == 9 or month == 11:
+        set limit = 30
+    if month == 2:
+        set limit = 28
+        if year % 400 == 0 or (year % 4 == 0 and year % 100 != 0):
+            set limit = 29
+    return day <= limit
+
+fn row_error(fields: List[Text]) -> Text:
+    if len(fields) != 5:
+        return "expected 5 tab-separated fields"
+    if fields[0] == "":
+        return "empty invoice_id"
+    if fields[1] == "":
+        return "empty vendor"
+    if not amount_valid(fields[2]):
+        return "invalid amount_cents: expected nonnegative decimal integer"
+    if not date_valid(fields[3]):
+        return "invalid due_date: expected YYYY-MM-DD calendar date"
+    if fields[4] != "open" and fields[4] != "paid":
+        return "invalid state: expected open or paid"
+    return ""
+
+fn main() -> Int:
+    let argv = args()
+    var input = ""
+    var output = ""
+    var asof = ""
+    var index = 0
+    while index < len(argv):
+        if index + 1 >= len(argv):
+            eprint("usage: --input LEDGER --as-of YYYY-MM-DD --output REPORT")
+            return 2
+        let option = argv[index]
+        let value = argv[index + 1]
+        if option == "--input" and input == "":
+            set input = value
+        else:
+            if option == "--output" and output == "":
+                set output = value
+            else:
+                if option == "--as-of" and asof == "":
+                    set asof = value
+                else:
+                    eprint("unknown or duplicate option: " + option)
+                    return 2
+        set index = index + 2
+    if input == "" or output == "" or not date_valid(asof):
+        eprint("input, output, and valid --as-of date required")
+        return 2
+    let loaded = read_text(input)
+    if not is_ok(loaded):
+        eprint(file_error_message(error(loaded)))
+        return 1
+    let lines = text_split(unwrap(loaded), "\n")
+    if len(lines) == 0 or text_replace(lines[0], "\r", "") != "invoice_id\tvendor\tamount_cents\tdue_date\tstate":
+        eprint("invalid ledger header")
+        return 2
+    var totals: Map[Text, Int] = {}
+    var overdue: Map[Text, Int] = {}
+    var counts: Map[Text, Int] = {}
+    var rejected = json_array()
+    var line = 1
+    while line < len(lines):
+        var raw = lines[line]
+        let chars = text_chars(raw)
+        if len(chars) > 0 and chars[len(chars) - 1] == "\r":
+            set raw = text_join(text_split(raw, "\r"), "")
+        if line != len(lines) - 1 or raw != "":
+            let fields = text_split(raw, "\t")
+            let reason = row_error(fields)
+            if reason != "":
+                var rejection = json_object()
+                set rejection = json_set(rejection, "line", json_int(line + 1))
+                set rejection = json_set(rejection, "reason", json_text(reason))
+                set rejected = json_push(rejected, rejection)
+                eprint("rejected row " + json_stringify(json_int(line + 1)) + ": " + reason)
+            else:
+                let vendor = fields[1]
+                let cents = unwrap(text_parse_integer(fields[2]))
+                if not map_has(totals, vendor):
+                    set totals = map_set(totals, vendor, 0)
+                    set overdue = map_set(overdue, vendor, 0)
+                    set counts = map_set(counts, vendor, 0)
+                if fields[4] == "open":
+                    set totals = map_set(totals, vendor, totals[vendor] + cents)
+                    if fields[3] < asof:
+                        set overdue = map_set(overdue, vendor, overdue[vendor] + cents)
+                        set counts = map_set(counts, vendor, counts[vendor] + 1)
+        set line = line + 1
+    var vendors = json_object()
+    for vendor in totals:
+        var summary = json_object()
+        set summary = json_set(summary, "open_cents", json_int(totals[vendor]))
+        set summary = json_set(summary, "overdue_open_cents", json_int(overdue[vendor]))
+        set summary = json_set(summary, "overdue_open_count", json_int(counts[vendor]))
+        set vendors = json_set(vendors, vendor, summary)
+    var report = json_object()
+    set report = json_set(report, "as_of", json_text(asof))
+    set report = json_set(report, "vendors", vendors)
+    set report = json_set(report, "rejected_row_count", json_int(json_len(rejected)))
+    set report = json_set(report, "rejected_rows", rejected)
+    let written = write_text_atomic(output, json_stringify(report) + "\n")
+    if not is_ok(written):
+        eprint(file_error_message(error(written)))
+        return 1
+    return 0

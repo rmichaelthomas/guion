@@ -136,7 +136,7 @@ fn allowed_http_get_runs_through_a_serialized_artifact() {
 }
 
 #[test]
-fn http_cancellation_waits_for_the_blocking_request_and_keeps_its_completed_effect() {
+fn http_cancellation_interrupts_in_flight_requests_and_marks_the_effect_interrupted() {
     for general_request in [false, true] {
         let (url, request_started, server) =
             serve_delayed("HTTP/1.1 200 OK\r\nContent-Length: 5\r\nConnection: close\r\n\r\nhello");
@@ -170,10 +170,10 @@ fn http_cancellation_waits_for_the_blocking_request_and_keeps_its_completed_effe
         server.join().unwrap();
 
         assert_eq!(result.unwrap_err().code, "R_CANCELLED");
-        assert!(cancellation_wait >= Duration::from_millis(150));
+        assert!(cancellation_wait < Duration::from_millis(150));
         assert_eq!(effects.len(), 1);
         assert_eq!(effects[0].kind, EffectKind::HttpRequest);
-        assert_eq!(effects[0].outcome, EffectOutcome::Returned);
+        assert_eq!(effects[0].outcome, EffectOutcome::Interrupted);
     }
 }
 
@@ -327,4 +327,178 @@ fn main() -> Int:
     assert!(format!("{response:?}").contains("R_HTTP_TIMEOUT"));
     assert!(started_at.elapsed() < Duration::from_millis(150));
     server.join().unwrap();
+}
+
+#[test]
+fn byte_http_preserves_binary_request_and_response_bodies() {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let server = thread::spawn(move || {
+        let (mut stream, _) = listener.accept().unwrap();
+        let mut request = Vec::new();
+        let mut buffer = [0; 1024];
+        loop {
+            let read = stream.read(&mut buffer).unwrap();
+            if read == 0 {
+                break;
+            }
+            request.extend_from_slice(&buffer[..read]);
+            if let Some(body_start) = request.windows(4).position(|window| window == b"\r\n\r\n") {
+                let header_end = body_start + 4;
+                let headers = String::from_utf8_lossy(&request[..body_start]).to_ascii_lowercase();
+                let content_length = headers
+                    .lines()
+                    .find_map(|line| line.strip_prefix("content-length: "))
+                    .and_then(|value| value.parse::<usize>().ok())
+                    .unwrap_or(0);
+                if request.len() >= header_end + content_length {
+                    break;
+                }
+            }
+        }
+        let response_body = [0x00, 0xff, 0x80, b'v'];
+        let mut response = b"HTTP/1.1 201 Created\r\nContent-Type: application/octet-stream\r\nContent-Length: 4\r\nConnection: close\r\n\r\n".to_vec();
+        response.extend_from_slice(&response_body);
+        stream.write_all(&response).unwrap();
+        request
+    });
+    let url = format!("http://{address}/webhook");
+    let source = format!(
+        "record HttpResponse:\n    status: Int\n    headers: Map[Text, Text]\n    body: Bytes\n\nfn send(url: Text, payload: Bytes) -> Result[HttpResponse, HttpError]:\n    let headers: Map[Text, Text] = {{\"content-type\": \"application/octet-stream\"}}\n    return http_request_bytes(\"POST\", url, headers, payload, 1000)\n\nfn main() -> Int:\n    return 0\n"
+    );
+    let artifact = compile("http-bytes.vr", &source).expect("byte HTTP is a typed builtin");
+    let policy =
+        HostPolicy::default().with_network_hosts(["127.0.0.1"], Duration::from_secs(2), 64);
+    let mut instance = Runtime::new().load(artifact, policy).unwrap();
+    let payload = vec![0x00, 0xff, 0x80, b'h', b'o', b'o', b'k'];
+    let result = instance
+        .invoke(
+            "send",
+            vec![
+                Value::Text(url),
+                Value::Bytes(std::sync::Arc::new(payload.clone())),
+            ],
+        )
+        .unwrap();
+    let Value::ResultOk(response) = result else {
+        panic!("expected successful byte response: {result:?}");
+    };
+    let Value::Record(name, fields) = *response else {
+        panic!("expected HttpResponse record");
+    };
+    assert_eq!(name, "HttpResponse");
+    assert_eq!(fields[0], Value::Int(BigInt::from_i64(201)));
+    assert!(
+        matches!(&fields[1], Value::Map(headers) if headers.get("content-type") == Some(&Value::Text("application/octet-stream".into())))
+    );
+    assert_eq!(
+        fields[2],
+        Value::Bytes(std::sync::Arc::new(vec![0x00, 0xff, 0x80, b'v']))
+    );
+    let request = server.join().unwrap();
+    assert!(request
+        .windows(payload.len())
+        .any(|window| window == payload));
+}
+
+#[test]
+fn byte_http_cancellation_interrupts_during_response_body_read() {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let (body_started_tx, body_started_rx) = mpsc::channel();
+    let server = thread::spawn(move || {
+        let (mut stream, _) = listener.accept().unwrap();
+        stream
+            .set_read_timeout(Some(Duration::from_secs(2)))
+            .unwrap();
+        let mut request = [0; 1024];
+        let _ = stream.read(&mut request);
+        stream
+            .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 10\r\nConnection: keep-alive\r\n\r\nxy")
+            .unwrap();
+        stream.flush().unwrap();
+        body_started_tx.send(()).unwrap();
+        let mut byte = [0; 1];
+        stream.read(&mut byte).unwrap()
+    });
+    let url = format!("http://{address}/trickle");
+    let source = format!(
+        "record HttpResponse:\n    status: Int\n    headers: Map[Text, Text]\n    body: Bytes\n\nfn response(url: Text) -> Result[HttpResponse, HttpError]:\n    return http_request_bytes(\"GET\", url, {{}}, bytes_from_text(\"\"), 5000)\n\nfn main() -> Int:\n    let result = response({url:?})\n    return 0\n"
+    );
+    let artifact = compile("http-body-cancel.vr", &source).unwrap();
+    let policy =
+        HostPolicy::default().with_network_hosts(["127.0.0.1"], Duration::from_secs(5), 1024);
+    let cancellation = CancellationToken::new();
+    let task_cancellation = cancellation.clone();
+    let invocation = thread::spawn(move || {
+        let mut instance = Runtime::new().load(artifact, policy).unwrap();
+        let result = instance.invoke_with_cancellation("main", vec![], task_cancellation);
+        (result, instance.effect_report().to_vec())
+    });
+    body_started_rx
+        .recv_timeout(Duration::from_secs(2))
+        .unwrap();
+    let cancelled_at = Instant::now();
+    cancellation.cancel();
+    let (result, effects) = invocation.join().unwrap();
+    assert_eq!(result.unwrap_err().code, "R_CANCELLED");
+    assert!(cancelled_at.elapsed() < Duration::from_millis(150));
+    assert_eq!(effects.len(), 1);
+    assert_eq!(effects[0].outcome, EffectOutcome::Interrupted);
+    assert_eq!(
+        server.join().unwrap(),
+        0,
+        "cancelled response socket closes promptly"
+    );
+}
+
+#[test]
+fn byte_http_total_deadline_applies_across_trickled_body_chunks() {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let server = thread::spawn(move || {
+        let (mut stream, _) = listener.accept().unwrap();
+        let mut request = [0; 1024];
+        let _ = stream.read(&mut request);
+        stream
+            .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 8\r\nConnection: close\r\n\r\na")
+            .unwrap();
+        stream.flush().unwrap();
+        for _ in 1..8 {
+            thread::sleep(Duration::from_millis(35));
+            if stream.write_all(b"b").is_err() {
+                break;
+            }
+            let _ = stream.flush();
+        }
+    });
+    let url = format!("http://{address}/trickle");
+    let source = format!(
+        "record HttpResponse:\n    status: Int\n    headers: Map[Text, Text]\n    body: Bytes\n\nfn response(url: Text) -> Result[HttpResponse, HttpError]:\n    return http_request_bytes(\"GET\", url, {{}}, bytes_from_text(\"\"), 120)\n\nfn main() -> Int:\n    return 0\n"
+    );
+    let artifact = compile("http-total-deadline.vr", &source).unwrap();
+    let policy =
+        HostPolicy::default().with_network_hosts(["127.0.0.1"], Duration::from_secs(1), 1024);
+    let mut instance = Runtime::new().load(artifact, policy).unwrap();
+    let started = Instant::now();
+    let result = instance.invoke("response", vec![Value::Text(url)]).unwrap();
+    assert!(
+        format!("{result:?}").contains("R_HTTP_TIMEOUT"),
+        "{result:?}"
+    );
+    assert!(started.elapsed() < Duration::from_millis(250));
+    server.join().unwrap();
+}
+
+#[test]
+fn byte_http_rejects_oversized_response_before_returning_partial_bytes() {
+    let url = serve_once("HTTP/1.1 200 OK\r\nContent-Length: 5\r\nConnection: close\r\n\r\n12345");
+    let source = format!(
+        "record HttpResponse:\n    status: Int\n    headers: Map[Text, Text]\n    body: Bytes\n\nfn response(url: Text) -> Result[HttpResponse, HttpError]:\n    return http_request_bytes(\"GET\", url, {{}}, bytes_from_text(\"\"), 1000)\n\nfn main() -> Int:\n    return 0\n"
+    );
+    let artifact = compile("http-byte-response-limit.vr", &source).unwrap();
+    let policy = HostPolicy::default().with_network_hosts(["127.0.0.1"], Duration::from_secs(2), 4);
+    let mut instance = Runtime::new().load(artifact, policy).unwrap();
+    let result = instance.invoke("response", vec![Value::Text(url)]).unwrap();
+    assert!(format!("{result:?}").contains("R_HTTP_LIMIT"));
 }

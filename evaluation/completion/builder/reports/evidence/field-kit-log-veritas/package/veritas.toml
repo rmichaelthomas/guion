@@ -1,0 +1,7 @@
+[project]
+name = "field-kit-log"
+version = "0.1.0"
+entry = "src/main.vr"
+
+[clock]
+enabled = true

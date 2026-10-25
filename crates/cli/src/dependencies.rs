@@ -53,6 +53,172 @@ pub struct PythonBundle {
     pub dependency_report_sha256: String,
 }
 
+fn copy_python_install_contents(source: &Path, destination: &Path) -> Result<(), String> {
+    if !source.is_dir() {
+        return Err(format!(
+            "managed Python install directory does not exist: {}",
+            source.display()
+        ));
+    }
+    let source_root = fs::canonicalize(source).map_err(|error| {
+        format!(
+            "cannot resolve managed Python install {}: {error}",
+            source.display()
+        )
+    })?;
+    copy_python_install_tree(&source_root, &source_root, destination, destination)
+}
+
+fn copy_python_install_tree(
+    source_root: &Path,
+    source: &Path,
+    destination_root: &Path,
+    destination: &Path,
+) -> Result<(), String> {
+    fs::create_dir_all(destination).map_err(|error| {
+        format!(
+            "cannot create bundled Python install directory {}: {error}",
+            destination.display()
+        )
+    })?;
+    let mut entries = fs::read_dir(source)
+        .map_err(|error| format!("cannot inspect managed Python install: {error}"))?
+        .map(|entry| entry.map(|entry| entry.path()))
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| format!("cannot inspect managed Python install: {error}"))?;
+    entries.sort();
+    for source_path in entries {
+        let name = source_path.file_name().ok_or_else(|| {
+            format!(
+                "managed Python path has no file name: {}",
+                source_path.display()
+            )
+        })?;
+        let destination_path = destination.join(name);
+        let file_type = fs::symlink_metadata(&source_path)
+            .map_err(|error| format!("cannot inspect {}: {error}", source_path.display()))?
+            .file_type();
+        if file_type.is_symlink() {
+            let target = fs::read_link(&source_path)
+                .map_err(|error| format!("cannot read link {}: {error}", source_path.display()))?;
+            let copied_target = if target.is_absolute() {
+                fs::canonicalize(&target)
+                    .ok()
+                    .and_then(|canonical| {
+                        canonical
+                            .strip_prefix(source_root)
+                            .ok()
+                            .map(Path::to_path_buf)
+                    })
+                    .map(|relative| destination_root.join(relative))
+                    .unwrap_or(target)
+            } else {
+                target
+            };
+            create_symlink(&copied_target, &source_path, &destination_path)?;
+        } else if file_type.is_dir() {
+            copy_python_install_tree(
+                source_root,
+                &source_path,
+                destination_root,
+                &destination_path,
+            )?;
+        } else if file_type.is_file() {
+            fs::copy(&source_path, &destination_path).map_err(|error| {
+                format!(
+                    "cannot copy managed Python file {}: {error}",
+                    source_path.display()
+                )
+            })?;
+        } else {
+            return Err(format!(
+                "unsupported entry in managed Python install: {}",
+                source_path.display()
+            ));
+        }
+    }
+    Ok(())
+}
+
+#[cfg(unix)]
+fn create_symlink(target: &Path, _source: &Path, destination: &Path) -> Result<(), String> {
+    std::os::unix::fs::symlink(target, destination).map_err(|error| {
+        format!(
+            "cannot copy managed Python link {}: {error}",
+            destination.display()
+        )
+    })
+}
+
+#[cfg(windows)]
+fn create_symlink(target: &Path, source: &Path, destination: &Path) -> Result<(), String> {
+    let target_path = if target.is_absolute() {
+        target.to_path_buf()
+    } else {
+        source
+            .parent()
+            .unwrap_or_else(|| Path::new("."))
+            .join(target)
+    };
+    if fs::metadata(&target_path).is_ok_and(|metadata| metadata.is_dir()) {
+        std::os::windows::fs::symlink_dir(target, destination)
+    } else {
+        std::os::windows::fs::symlink_file(target, destination)
+    }
+    .map_err(|error| {
+        format!(
+            "cannot copy managed Python link {}: {error}",
+            destination.display()
+        )
+    })
+}
+
+#[cfg(not(any(unix, windows)))]
+fn create_symlink(_target: &Path, _source: &Path, destination: &Path) -> Result<(), String> {
+    Err(format!(
+        "managed Python links are unsupported on this host: {}",
+        destination.display()
+    ))
+}
+
+fn find_installed_python(source: &Path, version: &str) -> Result<Option<PathBuf>, String> {
+    if !source.is_dir() {
+        return Ok(None);
+    }
+    let prefix = format!("cpython-{version}");
+    let major_minor = version.split('.').take(2).collect::<Vec<_>>().join(".");
+    let executable = if cfg!(windows) {
+        PathBuf::from("python.exe")
+    } else {
+        PathBuf::from("bin").join(format!("python{major_minor}"))
+    };
+    let mut entries = fs::read_dir(source)
+        .map_err(|error| {
+            format!(
+                "cannot inspect managed Python install {}: {error}",
+                source.display()
+            )
+        })?
+        .map(|entry| entry.map(|entry| entry.path()))
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| {
+            format!(
+                "cannot inspect managed Python install {}: {error}",
+                source.display()
+            )
+        })?;
+    entries.sort();
+    for entry in entries {
+        let Some(name) = entry.file_name().and_then(|name| name.to_str()) else {
+            continue;
+        };
+        if name.starts_with(&prefix) && entry.join(&executable).is_file() {
+            return Ok(Some(entry.join(executable)));
+        }
+    }
+    Ok(None)
+}
+
 pub fn bundle_python(root: &Path, package_root: &Path) -> Result<Option<PythonBundle>, String> {
     let package_root = fs::canonicalize(package_root).map_err(|error| {
         format!(
@@ -111,24 +277,38 @@ pub fn bundle_python(root: &Path, package_root: &Path) -> Result<Option<PythonBu
     fs::create_dir_all(&uv_cache)
         .map_err(|error| format!("cannot create package dependency cache: {error}"))?;
     let python_install = package_root.join("python");
-    let install = Command::new(&packaged_uv)
-        .args(["python", "install", "--no-bin", "--install-dir"])
-        .arg(&python_install)
-        .arg("--cache-dir")
-        .arg(&uv_cache)
-        .arg(&project.version)
-        .output()
-        .map_err(|error| {
-            format!(
-                "cannot install bundled CPython {}: {error}",
-                project.version
-            )
-        })?;
-    ensure_success(
-        "bundled CPython install",
-        install,
-        "check network access and disk space, then retry `veritas package`",
-    )?;
+    if let Some(source_install) = env::var_os("VERITAS_PYTHON_INSTALL_DIR") {
+        let source_install = PathBuf::from(source_install);
+        let interpreter =
+            find_installed_python(&source_install, &project.version)?.ok_or_else(|| {
+                format!(
+                    "VERITAS_PYTHON_INSTALL_DIR does not contain CPython {}: {}",
+                    project.version,
+                    source_install.display()
+                )
+            })?;
+        verify_interpreter(&interpreter, &project.version)?;
+        copy_python_install_contents(&source_install, &python_install)?;
+    } else {
+        let install = Command::new(&packaged_uv)
+            .args(["python", "install", "--no-bin", "--install-dir"])
+            .arg(&python_install)
+            .arg("--cache-dir")
+            .arg(&uv_cache)
+            .arg(&project.version)
+            .output()
+            .map_err(|error| {
+                format!(
+                    "cannot install bundled CPython {}: {error}",
+                    project.version
+                )
+            })?;
+        ensure_success(
+            "bundled CPython install",
+            install,
+            "check network access and disk space, then retry `veritas package`",
+        )?;
+    }
 
     let sync = Command::new(&packaged_uv)
         .args(["sync", "--project"])
@@ -1856,7 +2036,7 @@ fn ensure_success(label: &str, output: Output, recovery: &str) -> Result<(), Str
 #[cfg(test)]
 mod tests {
     use super::{
-        is_pinned_python_version, normalize_bridge_environment_links,
+        copy_python_install_contents, is_pinned_python_version, normalize_bridge_environment_links,
         normalize_python_install_links, parse_python_project, render_pyproject,
         verify_lock_metadata, write_lock_metadata,
     };
@@ -1868,6 +2048,101 @@ mod tests {
         assert!(!is_pinned_python_version("3.14"));
         assert!(!is_pinned_python_version(">=3.14"));
         assert!(!is_pinned_python_version("3.14.8.1"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn copies_an_installed_python_runtime_without_breaking_relative_links() {
+        use std::os::unix::fs::symlink;
+
+        let root = std::env::temp_dir().join(format!(
+            "veritas python install copy-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let source = root.join("installed");
+        let destination = root.join("package/python");
+        let runtime = source.join("cpython-3.14.8-test");
+        fs::create_dir_all(runtime.join("bin")).unwrap();
+        fs::write(runtime.join("bin/python3.14"), b"runtime").unwrap();
+        fs::write(source.join(".lock"), b"install metadata").unwrap();
+        symlink("cpython-3.14.8-test", source.join("cpython-3.14")).unwrap();
+
+        copy_python_install_contents(&source, &destination).unwrap();
+
+        assert_eq!(
+            fs::read(destination.join("cpython-3.14.8-test/bin/python3.14")).unwrap(),
+            b"runtime"
+        );
+        assert_eq!(
+            fs::read_link(destination.join("cpython-3.14")).unwrap(),
+            std::path::PathBuf::from("cpython-3.14.8-test")
+        );
+        assert_eq!(
+            fs::read(destination.join("cpython-3.14/bin/python3.14")).unwrap(),
+            b"runtime"
+        );
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn rebases_absolute_links_into_the_copied_python_runtime() {
+        use std::os::unix::fs::symlink;
+
+        let root = std::env::temp_dir().join(format!(
+            "veritas python absolute install link-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let source = root.join("installed");
+        let destination = root.join("package/python");
+        let runtime = source.join("cpython-3.14.8-test");
+        fs::create_dir_all(runtime.join("bin")).unwrap();
+        fs::write(runtime.join("bin/python3.14"), b"runtime").unwrap();
+        symlink(&runtime, source.join("cpython-3.14")).unwrap();
+
+        copy_python_install_contents(&source, &destination).unwrap();
+
+        assert_eq!(
+            fs::canonicalize(destination.join("cpython-3.14")).unwrap(),
+            fs::canonicalize(destination.join("cpython-3.14.8-test")).unwrap()
+        );
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn finds_only_a_runtime_install_matching_the_pinned_patch_version() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let root = std::env::temp_dir().join(format!(
+            "veritas python install lookup-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let runtime = root.join("cpython-3.14.8-linux-test/bin/python3.14");
+        fs::create_dir_all(runtime.parent().unwrap()).unwrap();
+        fs::write(&runtime, "#!/bin/sh\nprintf 'Python 3.14.8\\n'\n").unwrap();
+        let mut permissions = fs::metadata(&runtime).unwrap().permissions();
+        permissions.set_mode(0o755);
+        fs::set_permissions(&runtime, permissions).unwrap();
+
+        assert_eq!(
+            super::find_installed_python(&root, "3.14.8").unwrap(),
+            Some(runtime)
+        );
+        assert_eq!(super::find_installed_python(&root, "3.14.9").unwrap(), None);
+        let _ = fs::remove_dir_all(root);
     }
 
     #[test]

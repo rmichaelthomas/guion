@@ -1,0 +1,5 @@
+duplicate exit=2
+unknown exit=2
+invalid exit=2
+empty-note exit=2
+wrong-arity exit=2

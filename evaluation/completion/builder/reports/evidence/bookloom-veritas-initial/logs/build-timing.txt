@@ -1,0 +1,5 @@
+build timing command: /usr/bin/time -p veritas build --json app/src/main.vr
+{"artifact":"/private/tmp/veritas-fresh-builders/bookloom-veritas/app/src/main.vrb","artifact_format":38,"artifact_sha256":"69f8f5cb37f8d0156cee730ea67442dd4dfb39ff6201a31f6ec745854960e305","artifact_size_bytes":45002,"compiler_version":"0.1.0","kind":"veritas_build_report","schema_version":1,"source":"/private/tmp/veritas-fresh-builders/bookloom-veritas/app/src/main.vr","source_sha256":"8f7d7733c7bf7a79de2646a7282beca47b09acfbd4afa86886759b4a80c73833","target":"macos-aarch64"}
+real 0.52
+user 0.48
+sys 0.01

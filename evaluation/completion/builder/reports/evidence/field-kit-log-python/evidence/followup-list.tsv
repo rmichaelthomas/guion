@@ -1,0 +1,5 @@
+inspection_id	item_id	date	result	note
+1	radio-1	2026-10-25	pass	Battery charged
+2	lamp-2	2026-10-25	fail	Lens cracked
+3	meter-3	2026-10-25	pass	Reading stable
+4	meter-3	2026-10-25	fail	Probe loose

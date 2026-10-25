@@ -1,0 +1,289 @@
+import "std:json"
+import "std:semver"
+import "std:time"
+import "std:text"
+
+fn is_container(value: Json, opening: Text) -> Bool:
+    let chars = text_chars(json_stringify(value))
+    return len(chars) > 0 and chars[0] == opening
+
+fn add_diagnostic(records: List[Json], name: Text, rule: Text) -> List[Json]:
+    var item = json_object()
+    set item = json_set(item, "name", json_text(name))
+    set item = json_set(item, "rule", json_text(rule))
+    return list_push(records, item)
+
+fn diagnostic_before(left: Json, right: Json) -> Bool:
+    let left_name = json_as_text(json_get(left, "name"))
+    let right_name = json_as_text(json_get(right, "name"))
+    if left_name != right_name:
+        return text_compare_bytes(left_name, right_name) < 0
+    return text_compare_bytes(json_as_text(json_get(left, "rule")), json_as_text(json_get(right, "rule"))) < 0
+
+fn sort_diagnostics(values: List[Json]) -> List[Json]:
+    var remaining = values
+    var ordered: List[Json] = []
+    while len(remaining) > 0:
+        var best = 0
+        var scan = 1
+        while scan < len(remaining):
+            if diagnostic_before(remaining[scan], remaining[best]):
+                set best = scan
+            set scan = scan + 1
+        set ordered = list_push(ordered, remaining[best])
+        var next: List[Json] = []
+        var copy_index = 0
+        while copy_index < len(remaining):
+            if copy_index != best:
+                set next = list_push(next, remaining[copy_index])
+            set copy_index = copy_index + 1
+        set remaining = next
+    return ordered
+
+fn main() -> Int:
+    let arguments = args()
+    var lockfile_path = ""
+    var policy_path = ""
+    var output_path = ""
+    var as_of = ""
+    var has_as_of = false
+    var index = 0
+    while index < len(arguments):
+        if arguments[index] == "--lockfile" and index + 1 < len(arguments):
+            set lockfile_path = arguments[index + 1]
+            set index = index + 2
+        else:
+            if arguments[index] == "--policy" and index + 1 < len(arguments):
+                set policy_path = arguments[index + 1]
+                set index = index + 2
+            else:
+                if arguments[index] == "--output" and index + 1 < len(arguments):
+                    set output_path = arguments[index + 1]
+                    set index = index + 2
+                else:
+                    if arguments[index] == "--as-of" and index + 1 < len(arguments):
+                        set as_of = arguments[index + 1]
+                        set has_as_of = true
+                        set index = index + 2
+                    else:
+                        eprint("unknown or incomplete argument")
+                        return 2
+    if lockfile_path == "" or policy_path == "" or output_path == "":
+        eprint("usage: lockfile-auditor --lockfile PATH --policy PATH --output PATH [--as-of DATE]")
+        return 2
+    if has_as_of:
+        if as_of == "" or not is_ok(parse_date(as_of)):
+            eprint("invalid --as-of date: expected a valid YYYY-MM-DD date")
+            return 1
+    let lock_text = read_text(lockfile_path)
+    let policy_text = read_text(policy_path)
+    if not is_ok(lock_text) or not is_ok(policy_text):
+        eprint("cannot read lockfile or policy")
+        return 1
+    let lock_result = json_parse(unwrap(lock_text))
+    let policy_result = json_parse(unwrap(policy_text))
+    if not is_ok(lock_result) or not is_ok(policy_result):
+        eprint("invalid lockfile or policy JSON")
+        return 1
+    let lock = unwrap(lock_result)
+    let policy = unwrap(policy_result)
+    if not is_container(lock, "{") or not is_container(policy, "{"):
+        eprint("lockfile and policy roots must be objects")
+        return 1
+    let packages_result = json_get_safe(lock, "packages")
+    if not is_ok(packages_result):
+        eprint("lockfile requires a packages array")
+        return 1
+    let packages = unwrap(packages_result)
+    if not is_container(packages, "["):
+        eprint("lockfile packages must be an array")
+        return 1
+
+    var deny = json_array()
+    var minimum_versions = json_object()
+    var maximum_versions = json_object()
+    var require_source = false
+    var require_checksum = false
+    if json_has(policy, "deny"):
+        set deny = json_get(policy, "deny")
+        if not is_container(deny, "["):
+            eprint("policy deny must be a string array")
+            return 1
+    if json_has(policy, "minimum_versions"):
+        set minimum_versions = json_get(policy, "minimum_versions")
+        if not is_container(minimum_versions, "{"):
+            eprint("minimum_versions must be an object")
+            return 1
+    if json_has(policy, "maximum_versions"):
+        set maximum_versions = json_get(policy, "maximum_versions")
+        if not is_container(maximum_versions, "{"):
+            eprint("maximum_versions must be an object")
+            return 1
+    if json_has(policy, "require_source"):
+        let required = json_bool_safe(json_get(policy, "require_source"))
+        if not is_ok(required):
+            eprint("require_source must be Boolean")
+            return 1
+        set require_source = unwrap(required)
+    if json_has(policy, "require_checksum"):
+        let required = json_bool_safe(json_get(policy, "require_checksum"))
+        if not is_ok(required):
+            eprint("require_checksum must be Boolean")
+            return 1
+        set require_checksum = unwrap(required)
+
+    var exceptions = json_array()
+    if json_has(policy, "exceptions"):
+        set exceptions = json_get(policy, "exceptions")
+        if not is_container(exceptions, "["):
+            eprint("exceptions must be an array")
+            return 1
+    if json_len(exceptions) > 0 and not has_as_of:
+        eprint("--as-of is required when exceptions are configured")
+        return 1
+    var exception_dates: Map[Text, Text] = {}
+    var exception_index = 0
+    while exception_index < json_len(exceptions):
+        let exception = json_index_safe(exceptions, exception_index)
+        if not is_ok(exception):
+            eprint("exceptions must contain objects")
+            return 1
+        let exception_object = unwrap(exception)
+        if not is_container(exception_object, "{"):
+            eprint("exceptions must contain objects")
+            return 1
+        let name_json = json_get_safe(exception_object, "name")
+        let expires_json = json_get_safe(exception_object, "expires")
+        if not is_ok(name_json) or not is_ok(expires_json):
+            eprint("each exception requires name and expires")
+            return 1
+        let name_result = json_text_safe(unwrap(name_json))
+        let expires_result = json_text_safe(unwrap(expires_json))
+        if not is_ok(name_result) or not is_ok(expires_result) or unwrap(name_result) == "":
+            eprint("exception name and expires must be nonempty strings")
+            return 1
+        let exception_name = unwrap(name_result)
+        let expires = unwrap(expires_result)
+        if not is_ok(parse_date(expires)):
+            eprint("invalid exception expiry date: expected YYYY-MM-DD")
+            return 1
+        var normalized_exception = json_object()
+        set normalized_exception = json_set(normalized_exception, "name", json_text(exception_name))
+        set normalized_exception = json_set(normalized_exception, "expires", json_text(expires))
+        if json_stringify(normalized_exception) != json_stringify(exception_object):
+            eprint("invalid exception: objects must contain exactly name and expires")
+            return 1
+        if map_has(exception_dates, exception_name):
+            eprint("duplicate exception name: " + exception_name)
+            return 1
+        set exception_dates = map_set(exception_dates, exception_name, expires)
+        set exception_index = exception_index + 1
+
+    var violations: List[Json] = []
+    var warnings: List[Json] = []
+    var package_index = 0
+    while package_index < json_len(packages):
+        let package_result = json_index_safe(packages, package_index)
+        if not is_ok(package_result):
+            eprint("packages must contain objects")
+            return 1
+        let package = unwrap(package_result)
+        if not is_container(package, "{"):
+            eprint("packages must contain objects")
+            return 1
+        let name_json = json_get_safe(package, "name")
+        let version_json = json_get_safe(package, "version")
+        if not is_ok(name_json) or not is_ok(version_json):
+            eprint("each package requires name and version")
+            return 1
+        let name_result = json_text_safe(unwrap(name_json))
+        let version_result = json_text_safe(unwrap(version_json))
+        if not is_ok(name_result) or not is_ok(version_result) or unwrap(name_result) == "":
+            eprint("package name and version must be nonempty strings")
+            return 1
+        let name = unwrap(name_result)
+        let version_text = unwrap(version_result)
+        let version_parse = parse_version(version_text)
+        if not is_ok(version_parse):
+            eprint("invalid SemVer for package " + name)
+            return 1
+        let version = unwrap(version_parse)
+        var source_present = false
+        var checksum_present = false
+        if json_has(package, "source") and not json_is_null(json_get(package, "source")):
+            let source_value = json_text_safe(json_get(package, "source"))
+            if not is_ok(source_value):
+                eprint("package source must be text or null")
+                return 1
+            set source_present = unwrap(source_value) != ""
+        if json_has(package, "checksum") and not json_is_null(json_get(package, "checksum")):
+            let checksum_value = json_text_safe(json_get(package, "checksum"))
+            if not is_ok(checksum_value):
+                eprint("package checksum must be text or null")
+                return 1
+            set checksum_present = unwrap(checksum_value) != ""
+
+        var exception_active = false
+        if map_has(exception_dates, name):
+            let expires = exception_dates[name]
+            if as_of < expires:
+                set exception_active = true
+            else:
+                set warnings = add_diagnostic(warnings, name, "expired_exception")
+        var denied = false
+        var deny_index = 0
+        while deny_index < json_len(deny):
+            let denied_name = json_text_safe(json_index(deny, deny_index))
+            if not is_ok(denied_name):
+                eprint("policy deny entries must be strings")
+                return 1
+            if unwrap(denied_name) == name:
+                set denied = true
+            set deny_index = deny_index + 1
+        if denied and not exception_active:
+            set violations = add_diagnostic(violations, name, "denied")
+
+        if json_has(minimum_versions, name):
+            let minimum_result = json_text_safe(json_get(minimum_versions, name))
+            if not is_ok(minimum_result):
+                eprint("minimum version entries must be SemVer strings")
+                return 1
+            let minimum_parse = parse_version(unwrap(minimum_result))
+            if not is_ok(minimum_parse):
+                eprint("invalid minimum SemVer for " + name)
+                return 1
+            if compare_versions(version, unwrap(minimum_parse)) < 0:
+                set violations = add_diagnostic(violations, name, "below_minimum")
+        if json_has(maximum_versions, name):
+            let maximum_result = json_text_safe(json_get(maximum_versions, name))
+            if not is_ok(maximum_result):
+                eprint("maximum version entries must be SemVer strings")
+                return 1
+            let maximum_parse = parse_version(unwrap(maximum_result))
+            if not is_ok(maximum_parse):
+                eprint("invalid maximum SemVer for " + name)
+                return 1
+            if compare_versions(version, unwrap(maximum_parse)) > 0:
+                set violations = add_diagnostic(violations, name, "above_maximum")
+        if require_source and not source_present:
+            set violations = add_diagnostic(violations, name, "missing_source")
+        if require_checksum and not checksum_present:
+            set violations = add_diagnostic(violations, name, "missing_checksum")
+        set package_index = package_index + 1
+
+    let sorted_violations = sort_diagnostics(violations)
+    let sorted_warnings = sort_diagnostics(warnings)
+    var violation_array = json_array()
+    for item in sorted_violations:
+        set violation_array = json_push(violation_array, item)
+    var warning_array = json_array()
+    for item in sorted_warnings:
+        set warning_array = json_push(warning_array, item)
+    var report = json_object()
+    set report = json_set(report, "violations", violation_array)
+    set report = json_set(report, "warnings", warning_array)
+    let written = write_text_atomic(output_path, json_stringify(report) + "\n")
+    if not is_ok(written):
+        eprint("cannot write lockfile audit report")
+        return 1
+    return 0

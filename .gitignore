@@ -5,6 +5,7 @@
 /evaluation/results/independent-v2/run-evidence/
 .superpowers/sdd/*
 *.vrb
+!language/self_host/compiler.vrb
 __pycache__/
 *.py[cod]
 .DS_Store

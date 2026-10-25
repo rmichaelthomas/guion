@@ -1,0 +1,760 @@
+# Canonical Veritas artifact encoder. This module owns field ordering and
+# opcode/value encodings; the Rust model remains the independent verifier.
+
+fn ab_join(parts: List[Bytes]) -> Bytes:
+    return bytes_join(parts)
+
+fn ab_u8(value: Int) -> Bytes:
+    return bytes_from_ints([value])
+
+fn ab_u32(value: Int) -> Bytes:
+    return bytes_from_ints([value % 256, (value / 256) % 256, (value / 65536) % 256, (value / 16777216) % 256])
+
+fn ab_u64(value: Int) -> Bytes:
+    return bytes_from_ints([value % 256, (value / 256) % 256, (value / 65536) % 256, (value / 16777216) % 256, (value / 4294967296) % 256, (value / 1099511627776) % 256, (value / 281474976710656) % 256, (value / 72057594037927936) % 256])
+
+fn ab_count(value: Int) -> Bytes:
+    return ab_u32(value)
+
+fn ab_string(value: Text) -> Bytes:
+    let raw = bytes_from_text(value)
+    return ab_join([ab_count(len(raw)), raw])
+
+fn ab_blob(value: Bytes) -> Bytes:
+    return ab_join([ab_u32(len(value)), value])
+
+fn ab_starts(value: Text, prefix: Text) -> Bool:
+    let value_chars = text_chars(value)
+    let prefix_chars = text_chars(prefix)
+    if len(prefix_chars) > len(value_chars):
+        return false
+    var cursor = 0
+    while cursor < len(prefix_chars):
+        if value_chars[cursor] != prefix_chars[cursor]:
+            return false
+        set cursor = cursor + 1
+    return true
+
+fn ab_json_int(value: Json) -> Int:
+    return json_as_int(value)
+
+fn ab_json_int_or(value: Json, key: Text, fallback: Int) -> Int:
+    if json_has(value, key):
+        return json_as_int(json_get(value, key))
+    return fallback
+
+fn ab_type_inner(value: Text, prefix_length: Int) -> Text:
+    let characters = text_chars(value)
+    var result = ""
+    var cursor = prefix_length
+    while cursor < len(characters) - 1:
+        set result = result + characters[cursor]
+        set cursor = cursor + 1
+    return result
+
+fn ab_type_comma(value: Text) -> Int:
+    let characters = text_chars(value)
+    var depth = 0
+    var cursor = 0
+    while cursor < len(characters):
+        if characters[cursor] == "[":
+            set depth = depth + 1
+        else:
+            if characters[cursor] == "]":
+                set depth = depth - 1
+            else:
+                if characters[cursor] == "," and depth == 0:
+                    return cursor
+        set cursor = cursor + 1
+    return -1
+
+fn ab_type_argument(value: Text, wanted: Int) -> Text:
+    let characters = text_chars(value)
+    var result = ""
+    var depth = 0
+    var part = 0
+    var cursor = 0
+    while cursor <= len(characters):
+        if cursor == len(characters) or (characters[cursor] == "," and depth == 0):
+            if part == wanted:
+                return result
+            set result = ""
+            set part = part + 1
+        else:
+            if characters[cursor] == "[":
+                set depth = depth + 1
+            else:
+                if characters[cursor] == "]":
+                    set depth = depth - 1
+            if result != "" or characters[cursor] != " ":
+                set result = result + characters[cursor]
+        set cursor = cursor + 1
+    return result
+
+fn ab_type(value: Text) -> Bytes:
+    if value == "Int":
+        return ab_u8(0)
+    if value == "Bool":
+        return ab_u8(1)
+    if value == "Text":
+        return ab_u8(2)
+    if value == "Unit":
+        return ab_u8(3)
+    if value == "TaskError":
+        return ab_u8(6)
+    if value == "Json":
+        return ab_u8(7)
+    if value == "JsonError":
+        return ab_u8(8)
+    if value == "FileError":
+        return ab_u8(9)
+    if value == "Option[Int]":
+        return ab_join([ab_u8(10), ab_u8(0)])
+    if value == "Float64":
+        return ab_u8(12)
+    if value == "Bytes":
+        return ab_u8(14)
+    if value == "HttpError":
+        return ab_u8(15)
+    if value == "FileReader" or value == "Db" or value == "Transaction" or value == "TomlDocument":
+        return ab_join([ab_u8(17), ab_string(value)])
+    if ab_starts(value, "List["):
+        return ab_join([ab_u8(4), ab_type(ab_type_inner(value, 5))])
+    if ab_starts(value, "Result["):
+        let inner = ab_type_inner(value, 7)
+        return ab_join([ab_u8(5), ab_type(ab_type_argument(inner, 0)), ab_type(ab_type_argument(inner, 1))])
+    if ab_starts(value, "Option["):
+        return ab_join([ab_u8(10), ab_type(ab_type_inner(value, 7))])
+    if ab_starts(value, "Map["):
+        let inner = ab_type_inner(value, 4)
+        let comma = ab_type_comma(inner)
+        var item_type = inner
+        if comma >= 0:
+            set item_type = ab_type_argument(inner, 1)
+        return ab_join([ab_u8(11), ab_type(item_type)])
+    if ab_starts(value, "Record["):
+        return ab_join([ab_u8(13), ab_string(ab_type_inner(value, 7))])
+    return ab_u8(255)
+
+fn ab_span(value: Json, pc: Int) -> Bytes:
+    return ab_join([ab_u32(ab_json_int_or(value, "source_id", 0)), ab_u64(ab_json_int_or(value, "start", 0)), ab_u64(ab_json_int_or(value, "end", 0)), ab_u64(ab_json_int_or(value, "line", 1)), ab_u64(ab_json_int_or(value, "column", pc + 1))])
+
+fn ab_instruction_span(instruction: Json, pc: Int) -> Bytes:
+    if json_has(instruction, "span"):
+        return ab_span(json_get(instruction, "span"), pc)
+    return ab_join([ab_u32(0), ab_u64(0), ab_u64(0), ab_u64(1), ab_u64(pc + 1)])
+
+fn ab_encode_trace(trace: Json) -> Bytes:
+    var parts: List[Bytes] = [ab_count(json_len(trace))]
+    var cursor = 0
+    while cursor < json_len(trace):
+        set parts = list_push(parts, ab_span(json_index(trace, cursor), 0))
+        set cursor = cursor + 1
+    return ab_join(parts)
+
+fn ab_int_items(values: Json) -> List[Int]:
+    var result: List[Int] = []
+    var cursor = 0
+    while cursor < json_len(values):
+        set result = list_push(result, json_as_int(json_index(values, cursor)))
+        set cursor = cursor + 1
+    return result
+
+fn ab_encode_value(value: Json, depth: Int) -> Bytes:
+    if depth > 64:
+        return ab_u8(255)
+    let kind = json_as_text(json_get(value, "kind"))
+    if kind == "Int":
+        return ab_join([ab_u8(0), ab_string(ab_decimal_integer(json_as_text(json_get(value, "value"))))])
+    if kind == "Bool":
+        var bit = 0
+        if json_as_bool(json_get(value, "value")):
+            set bit = 1
+        return ab_join([ab_u8(1), ab_u8(bit)])
+    if kind == "Text":
+        return ab_join([ab_u8(2), ab_string(json_as_text(json_get(value, "value")))])
+    if kind == "Unit":
+        return ab_u8(3)
+    if kind == "List":
+        let items = json_get(value, "items")
+        var parts: List[Bytes] = [ab_u8(4), ab_count(json_len(items))]
+        var cursor = 0
+        while cursor < json_len(items):
+            set parts = list_push(parts, ab_encode_value(json_index(items, cursor), depth + 1))
+            set cursor = cursor + 1
+        return ab_join(parts)
+    if kind == "ResultOk" or kind == "ResultErr" or kind == "OptionSome":
+        var tag = 5
+        if kind == "ResultErr":
+            set tag = 6
+        else:
+            if kind == "OptionSome":
+                set tag = 12
+        return ab_join([ab_u8(tag), ab_encode_value(json_get(value, "value"), depth + 1)])
+    if kind == "TaskError":
+        return ab_join([ab_u8(7), ab_string(ab_decimal_integer(json_as_text(json_get(value, "index")))), ab_string(json_as_text(json_get(value, "code"))), ab_string(json_as_text(json_get(value, "message"))), ab_encode_trace(json_get(value, "trace"))])
+    if kind == "Json":
+        return ab_join([ab_u8(8), ab_string(json_stringify(json_get(value, "value")))])
+    if kind == "JsonError":
+        return ab_join([ab_u8(9), ab_string(json_as_text(json_get(value, "code"))), ab_string(json_as_text(json_get(value, "message"))), ab_count(json_as_int(json_get(value, "line"))), ab_count(json_as_int(json_get(value, "column")))])
+    if kind == "FileError":
+        return ab_join([ab_u8(10), ab_string(json_as_text(json_get(value, "code"))), ab_string(json_as_text(json_get(value, "message"))), ab_encode_trace(json_get(value, "trace"))])
+    if kind == "OptionNone":
+        return ab_u8(11)
+    if kind == "Map":
+        let entries = json_get(value, "entries")
+        var parts: List[Bytes] = [ab_u8(13), ab_count(json_len(entries))]
+        var cursor = 0
+        while cursor < json_len(entries):
+            let item = json_index(entries, cursor)
+            set parts = list_push(parts, ab_string(json_as_text(json_get(item, "key"))))
+            set parts = list_push(parts, ab_encode_value(json_get(item, "value"), depth + 1))
+            set cursor = cursor + 1
+        return ab_join(parts)
+    if kind == "Float64":
+        return ab_join([ab_u8(14), ab_u64(float64_bits(json_as_float(json_get(value, "value"))))])
+    if kind == "Record":
+        let fields = json_get(value, "fields")
+        var parts: List[Bytes] = [ab_u8(15), ab_string(json_as_text(json_get(value, "name"))), ab_count(json_len(fields))]
+        var cursor = 0
+        while cursor < json_len(fields):
+            set parts = list_push(parts, ab_encode_value(json_index(fields, cursor), depth + 1))
+            set cursor = cursor + 1
+        return ab_join(parts)
+    if kind == "Bytes":
+        return ab_join([ab_u8(16), ab_blob(bytes_from_ints(ab_int_items(json_get(value, "items"))))])
+    if kind == "HttpError":
+        return ab_join([ab_u8(17), ab_string(json_as_text(json_get(value, "code"))), ab_string(json_as_text(json_get(value, "message"))), ab_encode_trace(json_get(value, "trace"))])
+    return ab_u8(255)
+
+fn ab_decimal_integer(value: Text) -> Text:
+    return json_stringify(json_int(json_as_int(unwrap(json_parse(value)))))
+
+fn ab_constant(instruction: Json) -> Bytes:
+    let operation = json_as_text(json_get(instruction, "op"))
+    if operation == "ConstInt":
+        let int_value = json_get(instruction, "value")
+        return ab_join([ab_u8(0), ab_string(ab_decimal_integer(json_as_text(int_value)))])
+    if operation == "ConstBool":
+        let bool_value = json_get(instruction, "value")
+        var bit = 0
+        if json_as_bool(bool_value):
+            set bit = 1
+        return ab_join([ab_u8(1), ab_u8(bit)])
+    if operation == "ConstText":
+        let text_value = json_get(instruction, "value")
+        return ab_join([ab_u8(2), ab_string(json_as_text(text_value))])
+    if operation == "ConstFloat64":
+        let float_value = json_get(instruction, "value")
+        let parsed = unwrap(json_parse(json_as_text(float_value)))
+        return ab_join([ab_u8(14), ab_u64(float64_bits(json_as_float(parsed)))])
+    if operation == "ConstUnit":
+        return ab_u8(3)
+    if operation == "ConstValue":
+        let encoded_value = json_get(instruction, "value")
+        return ab_encode_value(encoded_value, 0)
+    return ab_u8(255)
+
+fn ab_function_index(functions: Json, name: Text) -> Int:
+    var cursor = 0
+    while cursor < json_len(functions):
+        if json_as_text(json_get(json_index(functions, cursor), "name")) == name:
+            return cursor
+        set cursor = cursor + 1
+    return -1
+
+fn ab_record_index(records: Json, name: Text) -> Int:
+    var cursor = 0
+    while cursor < json_len(records):
+        if json_as_text(json_get(json_index(records, cursor), "name")) == name:
+            return cursor
+        set cursor = cursor + 1
+    return -1
+
+fn ab_external_index(externals: Json, name: Text) -> Int:
+    var cursor = 0
+    while cursor < json_len(externals):
+        if json_as_text(json_get(json_index(externals, cursor), "name")) == name:
+            return cursor
+        set cursor = cursor + 1
+    return -1
+
+fn ab_field_index(record: Json, name: Text) -> Int:
+    let fields = json_get(record, "fields")
+    var cursor = 0
+    while cursor < json_len(fields):
+        if json_as_text(json_get(json_index(fields, cursor), "name")) == name:
+            return cursor
+        set cursor = cursor + 1
+    return -1
+
+fn ab_label_key(value: Json) -> Text:
+    return json_stringify(json_int(json_as_int(value)))
+
+fn ab_target(instruction: Json, labels: Json) -> Int:
+    if json_has(instruction, "label_id"):
+        return json_as_int(json_get(labels, ab_label_key(json_get(instruction, "label_id"))))
+    return json_as_int(json_get(instruction, "target"))
+
+fn ab_plain_opcode(name: Text) -> Int:
+    if name == "Load":
+        return 1
+    if name == "Store":
+        return 2
+    if name == "Pop":
+        return 3
+    if name == "Add":
+        return 4
+    if name == "Subtract":
+        return 5
+    if name == "Multiply":
+        return 6
+    if name == "Negate":
+        return 7
+    if name == "Not":
+        return 8
+    if name == "Equal":
+        return 9
+    if name == "NotEqual":
+        return 10
+    if name == "Less":
+        return 11
+    if name == "LessEqual":
+        return 12
+    if name == "Greater":
+        return 13
+    if name == "GreaterEqual":
+        return 14
+    if name == "Jump":
+        return 15
+    if name == "JumpIfFalse":
+        return 16
+    if name == "Call":
+        return 17
+    if name == "Print":
+        return 18
+    if name == "Return":
+        return 19
+    if name == "Length":
+        return 20
+    if name == "Index":
+        return 21
+    if name == "MakeList":
+        return 22
+    if name == "ParallelMap":
+        return 23
+    if name == "ReadText":
+        return 24
+    if name == "WriteText":
+        return 25
+    if name == "Args":
+        return 26
+    if name == "Assert":
+        return 27
+    if name == "IsOk":
+        return 28
+    if name == "Unwrap":
+        return 29
+    if name == "GetError":
+        return 30
+    if name == "TaskIndex":
+        return 31
+    if name == "TaskCode":
+        return 32
+    if name == "TaskMessage":
+        return 33
+    if name == "PythonCall":
+        return 34
+    if name == "PythonCallKw":
+        return 72
+    if name == "JsonParse":
+        return 35
+    if name == "JsonStringify":
+        return 36
+    if name == "JsonGet":
+        return 37
+    if name == "JsonIndex":
+        return 38
+    if name == "JsonHas":
+        return 39
+    if name == "JsonLength":
+        return 40
+    if name == "JsonAsText":
+        return 41
+    if name == "JsonAsInt":
+        return 42
+    if name == "JsonAsBool":
+        return 43
+    if name == "JsonIsNull":
+        return 44
+    if name == "JsonErrorMessage":
+        return 45
+    if name == "JsonErrorLine":
+        return 46
+    if name == "JsonErrorColumn":
+        return 47
+    if name == "JsonErrorCode":
+        return 48
+    if name == "FileErrorCode":
+        return 49
+    if name == "FileErrorMessage":
+        return 50
+    if name == "MakeOk":
+        return 51
+    if name == "MakeErr":
+        return 52
+    if name == "TryResult":
+        return 53
+    if name == "FileErrorLine":
+        return 54
+    if name == "FileErrorColumn":
+        return 55
+    if name == "MakeNone":
+        return 56
+    if name == "MakeSome":
+        return 57
+    if name == "IsSome":
+        return 58
+    if name == "MakeMap":
+        return 59
+    if name == "MapKeys":
+        return 60
+    if name == "MapSet":
+        return 61
+    if name == "MapHas":
+        return 62
+    if name == "Divide":
+        return 63
+    if name == "JsonAsFloat":
+        return 64
+    if name == "IntegerDivide":
+        return 65
+    if name == "FloorDivide":
+        return 66
+    if name == "Remainder":
+        return 67
+    if name == "MakeRecord":
+        return 68
+    if name == "GetField":
+        return 69
+    if name == "ReadBytes":
+        return 70
+    if name == "WriteBytes":
+        return 71
+    if name == "HttpGet":
+        return 73
+    if name == "HttpErrorCode":
+        return 74
+    if name == "HttpErrorMessage":
+        return 75
+    if name == "JsonNull":
+        return 76
+    if name == "JsonBool":
+        return 77
+    if name == "JsonInt":
+        return 78
+    if name == "JsonFloat":
+        return 79
+    if name == "JsonText":
+        return 80
+    if name == "JsonArray":
+        return 81
+    if name == "JsonObject":
+        return 82
+    if name == "JsonPush":
+        return 83
+    if name == "JsonSet":
+        return 84
+    if name == "WriteTextAtomic":
+        return 85
+    if name == "ArgsFrom":
+        return 86
+    if name == "HttpRequest":
+        return 87
+    if name == "Environment":
+        return 88
+    if name == "MakeTypedList":
+        return 89
+    if name == "MakeTypedMap":
+        return 90
+    if name == "ListPush":
+        return 91
+    if name == "ListSet":
+        return 92
+    if name == "FloatSqrt":
+        return 93
+    if name == "ListSetLocal":
+        return 94
+    if name == "HttpRequestWithTimeout":
+        return 95
+    if name == "PrintErr":
+        return 96
+    if name == "JsonIntColumn":
+        return 97
+    if name == "JsonTextCategories":
+        return 98
+    if name == "JsonAsIntList":
+        return 99
+    if name == "JsonProjectColumns":
+        return 100
+    if name == "JsonTextCategoriesValues":
+        return 101
+    if name == "TextChars":
+        return 102
+    if name == "ListPushLocal":
+        return 103
+    if name == "JsonPushLocal":
+        return 104
+    if name == "BytesFromInts":
+        return 105
+    if name == "BytesFromText":
+        return 106
+    if name == "BytesJoin":
+        return 107
+    if name == "Float64Bits":
+        return 108
+    if name == "FileOpenLines":
+        return 109
+    if name == "FileNextLine":
+        return 110
+    if name == "FileClose":
+        return 111
+    if name == "CsvOpen":
+        return 112
+    if name == "CsvNext":
+        return 113
+    if name == "CsvEncode":
+        return 114
+    if name == "JsonTryGet":
+        return 115
+    if name == "JsonTryIndex":
+        return 116
+    if name == "JsonTryText":
+        return 117
+    if name == "JsonTryInt":
+        return 118
+    if name == "JsonTryBool":
+        return 119
+    if name == "JsonTryFloat":
+        return 120
+    if name == "TimeParseDate":
+        return 121
+    if name == "TimeParseTimestamp":
+        return 122
+    if name == "TimeFormatUtc":
+        return 123
+    if name == "UnixTimeMs":
+        return 156
+    if name == "TimeTodayLocal":
+        return 157
+    if name == "SemVerParse":
+        return 124
+    if name == "SemVerCompare":
+        return 125
+    if name == "CliParse":
+        return 126
+    if name == "FsWalk":
+        return 127
+    if name == "ListGetOption":
+        return 128
+    if name == "MapGetOption":
+        return 129
+    if name == "TextParseInt":
+        return 130
+    if name == "TextParseFloat":
+        return 131
+    if name == "SortBy":
+        return 132
+    if name == "TextCaseFold":
+        return 133
+    if name == "TextCollapseWhitespace":
+        return 134
+    if name == "TextNormalize":
+        return 135
+    if name == "CryptoHmacSha256":
+        return 136
+    if name == "CryptoVerifyHmacSha256":
+        return 137
+    if name == "SqliteOpen":
+        return 138
+    if name == "SqliteBegin":
+        return 139
+    if name == "SqliteExecute":
+        return 140
+    if name == "SqliteQuery":
+        return 141
+    if name == "SqliteCommit":
+        return 142
+    if name == "SqliteRollback":
+        return 143
+    if name == "SqliteClose":
+        return 144
+    if name == "TomlParse":
+        return 145
+    if name == "TomlHas":
+        return 146
+    if name == "TomlGetText":
+        return 147
+    if name == "TomlGetInt":
+        return 148
+    if name == "TomlGetBool":
+        return 149
+    if name == "TomlPutText":
+        return 150
+    if name == "TomlPutInt":
+        return 151
+    if name == "TomlPutBool":
+        return 152
+    if name == "TomlRender":
+        return 153
+    if name == "CalendarParse":
+        return 154
+    if name == "HttpRequestBytes":
+        return 155
+    return -1
+
+fn ab_instruction(instruction: Json, pc: Int, functions: Json, records: Json, externals: Json, labels: Json) -> Bytes:
+    let name = json_as_text(json_get(instruction, "op"))
+    if name == "ConstInt" or name == "ConstBool" or name == "ConstText" or name == "ConstFloat64" or name == "ConstUnit" or name == "ConstValue":
+        return ab_join([ab_instruction_span(instruction, pc), ab_u8(0), ab_constant(instruction)])
+    let tag = ab_plain_opcode(name)
+    if tag < 0:
+        return ab_u8(255)
+    var parts: List[Bytes] = [ab_instruction_span(instruction, pc), ab_u8(tag)]
+    if name == "Load" or name == "Store" or name == "MakeList" or name == "MakeMap" or name == "ListSetLocal" or name == "ListPushLocal" or name == "JsonPushLocal":
+        var field = "local"
+        if name == "MakeList" or name == "MakeMap":
+            set field = "count"
+        set parts = list_push(parts, ab_count(json_as_int(json_get(instruction, field))))
+    else:
+        if name == "Jump" or name == "JumpIfFalse":
+            set parts = list_push(parts, ab_count(ab_target(instruction, labels)))
+        else:
+            if name == "Call" or name == "ParallelMap" or name == "SortBy":
+                let target = ab_function_index(functions, json_as_text(json_get(instruction, "function")))
+                set parts = list_push(parts, ab_count(target))
+                if name == "Call":
+                    set parts = list_push(parts, ab_count(json_as_int(json_get(instruction, "argc"))))
+            else:
+                if name == "PythonCall" or name == "PythonCallKw":
+                    let target = ab_external_index(externals, json_as_text(json_get(instruction, "function")))
+                    set parts = list_push(parts, ab_count(target))
+                    set parts = list_push(parts, ab_count(json_as_int(json_get(instruction, "argc"))))
+                    if name == "PythonCallKw":
+                        let names = json_get(instruction, "keyword_names")
+                        set parts = list_push(parts, ab_count(json_len(names)))
+                        var name_cursor = 0
+                        while name_cursor < json_len(names):
+                            set parts = list_push(parts, ab_string(json_as_text(json_index(names, name_cursor))))
+                            set name_cursor = name_cursor + 1
+                else:
+                    if name == "MakeRecord" or name == "GetField":
+                        let record_name = json_as_text(json_get(instruction, "record"))
+                        let record_slot = ab_record_index(records, record_name)
+                        set parts = list_push(parts, ab_count(record_slot))
+                        if name == "MakeRecord":
+                            set parts = list_push(parts, ab_count(json_as_int(json_get(instruction, "count"))))
+                        else:
+                            set parts = list_push(parts, ab_count(ab_field_index(json_index(records, record_slot), json_as_text(json_get(instruction, "field")))))
+                    else:
+                        if name == "MakeTypedList" or name == "MakeTypedMap":
+                            set parts = list_push(parts, ab_type(json_as_text(json_get(instruction, "item_type"))))
+    return ab_join(parts)
+
+fn ab_encode_record(record: Json) -> Bytes:
+    let fields = json_get(record, "fields")
+    var parts: List[Bytes] = [ab_string(json_as_text(json_get(record, "name"))), ab_count(json_len(fields))]
+    var cursor = 0
+    while cursor < json_len(fields):
+        let field = json_index(fields, cursor)
+        set parts = list_push(parts, ab_string(json_as_text(json_get(field, "name"))))
+        set parts = list_push(parts, ab_type(json_as_text(json_get(field, "type"))))
+        set cursor = cursor + 1
+    return ab_join(parts)
+
+fn ab_encode_external(external: Json) -> Bytes:
+    let parameters = json_get(external, "parameters")
+    let names = json_get(external, "parameter_names")
+    var parts: List[Bytes] = [ab_string(json_as_text(json_get(external, "name"))), ab_string(json_as_text(json_get(external, "module"))), ab_string(json_as_text(json_get(external, "callable"))), ab_count(json_len(parameters))]
+    var cursor = 0
+    while cursor < json_len(parameters):
+        set parts = list_push(parts, ab_string(json_as_text(json_index(names, cursor))))
+        set parts = list_push(parts, ab_type(json_as_text(json_index(parameters, cursor))))
+        set cursor = cursor + 1
+    set parts = list_push(parts, ab_type(json_as_text(json_get(external, "result"))))
+    return ab_join(parts)
+
+fn ab_encode_function(function: Json, functions: Json, records: Json, externals: Json) -> Bytes:
+    let parameters = json_get(function, "parameters")
+    let code = json_get(function, "code")
+    var labels = json_object()
+    var executable_count = 0
+    var cursor = 0
+    while cursor < json_len(code):
+        let instruction = json_index(code, cursor)
+        let name = json_as_text(json_get(instruction, "op"))
+        if name == "Label":
+            set labels = json_set(labels, ab_label_key(json_get(instruction, "id")), json_int(executable_count))
+        else:
+            set executable_count = executable_count + 1
+        set cursor = cursor + 1
+    var parts: List[Bytes] = [ab_string(json_as_text(json_get(function, "name"))), ab_count(json_len(parameters))]
+    set cursor = 0
+    while cursor < json_len(parameters):
+        set parts = list_push(parts, ab_type(json_as_text(json_index(parameters, cursor))))
+        set cursor = cursor + 1
+    set parts = list_push(parts, ab_type(json_as_text(json_get(function, "result"))))
+    set parts = list_push(parts, ab_count(json_as_int(json_get(function, "local_count"))))
+    set parts = list_push(parts, ab_count(executable_count))
+    set cursor = 0
+    while cursor < json_len(code):
+        let instruction = json_index(code, cursor)
+        if json_as_text(json_get(instruction, "op")) != "Label":
+            set parts = list_push(parts, ab_instruction(instruction, cursor, functions, records, externals, labels))
+        set cursor = cursor + 1
+    return ab_join(parts)
+
+fn ab_optional_string(value: Json, key: Text) -> Bytes:
+    if not json_has(value, key):
+        return ab_u8(0)
+    let item = json_get(value, key)
+    if json_is_null(item):
+        return ab_u8(0)
+    return ab_join([ab_u8(1), ab_string(json_as_text(item))])
+
+fn ab_encode_metadata(metadata: Json) -> Bytes:
+    let limits = json_get(metadata, "resource_limits")
+    return ab_join([ab_u8(1), ab_string(json_as_text(json_get(metadata, "compiler_version"))), ab_string(json_as_text(json_get(metadata, "target"))), ab_u32(ab_json_int_or(metadata, "metadata_schema_version", 1)), ab_optional_string(metadata, "source_sha256"), ab_optional_string(metadata, "dependency_lock_sha256"), ab_u64(json_as_int(json_get(limits, "instruction_limit"))), ab_u64(json_as_int(json_get(limits, "allocation_limit_bytes"))), ab_u64(json_as_int(json_get(limits, "call_depth_limit"))), ab_u64(json_as_int(json_get(limits, "output_limit_bytes"))), ab_u64(json_as_int(json_get(limits, "max_integer_digits"))), ab_u64(json_as_int(json_get(limits, "max_text_bytes"))), ab_u64(json_as_int(json_get(limits, "max_collection_items"))), ab_u64(json_as_int(json_get(limits, "max_parallelism"))), ab_u64(json_as_int(json_get(limits, "max_file_bytes")))])
+
+pub fn artifact_assemble(ir: Json) -> Bytes:
+    let source_name = json_as_text(json_get(ir, "source_name"))
+    let entry = json_as_text(json_get(ir, "entry"))
+    let sources = json_get(ir, "sources")
+    let records = json_get(ir, "records")
+    let externals = json_get(ir, "externals")
+    let functions = json_get(ir, "functions")
+    var parts: List[Bytes] = [bytes_from_text("VRTA"), ab_u32(39), ab_string(source_name), ab_string(entry), ab_count(json_len(sources))]
+    var cursor = 0
+    while cursor < json_len(sources):
+        set parts = list_push(parts, ab_string(json_as_text(json_index(sources, cursor))))
+        set cursor = cursor + 1
+    set parts = list_push(parts, ab_count(json_len(records)))
+    set cursor = 0
+    while cursor < json_len(records):
+        set parts = list_push(parts, ab_encode_record(json_index(records, cursor)))
+        set cursor = cursor + 1
+    set parts = list_push(parts, ab_count(json_len(externals)))
+    set cursor = 0
+    while cursor < json_len(externals):
+        set parts = list_push(parts, ab_encode_external(json_index(externals, cursor)))
+        set cursor = cursor + 1
+    set parts = list_push(parts, ab_count(json_len(functions)))
+    set cursor = 0
+    while cursor < json_len(functions):
+        set parts = list_push(parts, ab_encode_function(json_index(functions, cursor), functions, records, externals))
+        set cursor = cursor + 1
+    if json_has(ir, "build_metadata") and not json_is_null(json_get(ir, "build_metadata")):
+        set parts = list_push(parts, ab_encode_metadata(json_get(ir, "build_metadata")))
+    else:
+        set parts = list_push(parts, ab_u8(0))
+    return ab_join(parts)

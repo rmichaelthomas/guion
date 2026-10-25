@@ -1,0 +1,6 @@
+{
+  "launch_command": ["${candidate}/dist/health-digest/run"],
+  "artifact_paths": ["dist/health-digest", "veritas.lock"],
+  "source_paths": ["main.vr", "veritas.toml"],
+  "dependency_lock_path": "veritas.lock"
+}

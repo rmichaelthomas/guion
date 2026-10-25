@@ -1,0 +1,4 @@
+import "std:types"
+
+pub fn calendar_parse(source: Text) -> Result[List[CalendarEvent], StdError]:
+    return native_calendar_parse(source)

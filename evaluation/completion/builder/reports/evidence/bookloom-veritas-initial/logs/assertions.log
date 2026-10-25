@@ -1,0 +1,35 @@
+PASS add-second exit=0
+PASS add-second contains: added BK-002
+PASS add-available exit=0
+PASS checkout-first exit=0
+PASS persistence-list exit=0
+PASS persistence-list contains: BK-001 | A Long Way to a Small, Angry Planet | Becky Chambers | checked_out | Mira Patel | due 
+PASS persistence-list contains: BK-002 | A Psalm for the Wild-Built | Becky Chambers | available
+PASS duplicate-id exit=1
+PASS duplicate-id contains: book ID already exists: BK-001
+PASS unknown-checkout exit=1
+PASS unknown-checkout contains: unknown book ID: BK-404
+PASS already-checked-out exit=1
+PASS already-checked-out contains: book is already checked out: BK-001
+PASS checkout-second exit=0
+PASS available-filter exit=0
+PASS available-filter contains: BK-003 | The Dispossessed | Ursula K. Le Guin | available
+PASS checked-out-filter exit=0
+PASS checked-out-filter contains: Mira Patel
+PASS checked-out-filter contains: Alex Quinn
+PASS due-soon exit=0
+PASS due-soon contains: BK-001
+PASS due-soon contains: BK-002
+PASS return-first exit=0
+PASS list-after-return exit=0
+PASS list-after-return contains: BK-001 | A Long Way to a Small, Angry Planet | Becky Chambers | available
+PASS unknown-return exit=1
+PASS unknown-return contains: unknown book ID: BK-404
+PASS invalid-date exit=2
+PASS invalid-date contains: invalid date: 2025-02-30
+PASS invalid-date preserved database SHA-256
+PASS relocation-add exit=0
+PASS relocation-restart exit=0
+PASS relocation-restart contains: UNI-001 | The Left Hand of Darkness | Ursula K. Le Guin | available
+PASS relocation database is in separate caller data directory
+failed=0

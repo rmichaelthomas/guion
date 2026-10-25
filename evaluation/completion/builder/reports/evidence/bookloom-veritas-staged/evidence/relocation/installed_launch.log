@@ -1,0 +1,15 @@
+UTC 2026-10-25T09:54:24Z
+
+$ cd $'/private/tmp/veritas-fresh-builders/bookloom-veritas-staged/ð\237\223\232 caller data' && /private/tmp/veritas-fresh-builders/bookloom-veritas-staged/installed/bin/bookloom list checked-out
+R001 | Relocated Book | checked out to Relocation Reader | since 2026-10-25
+exit=0
+
+$ cd $'/private/tmp/veritas-fresh-builders/bookloom-veritas-staged/ð\237\223\232 caller data' && /private/tmp/veritas-fresh-builders/bookloom-veritas-staged/installed/bin/bookloom due-soon --as-of 2026-10-26
+R001 | Relocated Book | Relocation Reader | due 2026-11-08
+exit=0
+
+$ cd $'/private/tmp/veritas-fresh-builders/bookloom-veritas-staged/ð\237\223\232 caller data' && /private/tmp/veritas-fresh-builders/bookloom-veritas-staged/installed/bin/bookloom due-soon --as-of 2026-02-30
+Bookloom: --as-of must be a valid YYYY-MM-DD date
+exit=2 (expected 2)
+database_sha256_before=6f6e7260496cccedaa033da29e86dae6edc9f896642520dfdb4d40e80da8f141  /private/tmp/veritas-fresh-builders/bookloom-veritas-staged/ðŸ“š caller data/bookloom.sqlite
+database_sha256_after=6f6e7260496cccedaa033da29e86dae6edc9f896642520dfdb4d40e80da8f141  /private/tmp/veritas-fresh-builders/bookloom-veritas-staged/ðŸ“š caller data/bookloom.sqlite

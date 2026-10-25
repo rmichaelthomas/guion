@@ -53,13 +53,23 @@ impl PythonBridge {
         working_directory: &Path,
         timeout: Duration,
     ) -> Result<Self, PythonBridgeError> {
+        Self::launch_with_project_root(interpreter, working_directory, working_directory, timeout)
+    }
+
+    /// Launch the bridge with a project import root and an independent process working directory.
+    pub fn launch_with_project_root(
+        interpreter: &Path,
+        project_root: &Path,
+        working_directory: &Path,
+        timeout: Duration,
+    ) -> Result<Self, PythonBridgeError> {
         let mut child = Command::new(interpreter)
             .arg("-I")
             .arg("-B")
             .arg("-u")
             .arg("-c")
             .arg("import sys; sys.path.insert(0, sys.argv.pop(1)); exec(sys.argv.pop(1))")
-            .arg(working_directory)
+            .arg(project_root)
             .arg(SIDECAR)
             .current_dir(working_directory)
             .env("PYTHONIOENCODING", "utf-8")
@@ -371,10 +381,11 @@ fn encode_value_at(value: &Value, depth: usize) -> Result<JsonValue, PythonBridg
         | Value::JsonError(_)
         | Value::FileError(_)
         | Value::HttpError(_)
+        | Value::NativeResource(_)
         | Value::Record(_, _) => {
             return Err(bridge_error(
                 "R_PYTHON_CONVERSION",
-                "Option, Result, and structured error values cannot cross the current Python bridge",
+                "Option, Result, structured errors, and native resources cannot cross the current Python bridge",
             ));
         }
     })

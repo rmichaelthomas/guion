@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "status": "complete",
+  "assignment_id": "quote-merge-python",
+  "language": "python",
+  "brief_id": "quote-merge",
+  "start_utc": "2026-10-25T09:14:51.537290+00:00",
+  "finish_utc": "2026-10-25T09:18:38.729231+00:00",
+  "initial_correct": true,
+  "followup_correct": true,
+  "relocation_passed": true,
+  "setup_seconds": 0.089014,
+  "build_seconds": 90.18054,
+  "followup_seconds": 21.741637,
+  "installed_launch_seconds": null,
+  "artifact_bytes": 8116,
+  "interventions": [
+    {
+      "kind": "environment_permission",
+      "action": "Requested escalation to bind and contact fixture servers only on 127.0.0.1. The rerun passed. No packages installed and no human source edits."
+    }
+  ],
+  "failures": [
+    {
+      "stage": "initial acceptance setup",
+      "description": "Sandbox blocked fixture loopback binding. First runner surfaced ValueError for empty port output; direct fixture check showed PermissionError [Errno 1].",
+      "resolved": true,
+      "evidence_path": "/private/tmp/veritas-fresh-builders/quote-merge-python/evidence/setup-failures.txt"
+    }
+  ],
+  "recommendation": {
+    "preferred_language": "python",
+    "reason": "For this isolated assignment, Python 3.14.7 standard library delivered a directly runnable implementation and the requested follow-up with all assigned checks passing. No cross-language comparison was observed.",
+    "observed_user_benefit": "No dependency installation; simple command invocation, deterministic report, valid feeds preserved during partial failures, and relocation without rebuilding.",
+    "material_regressions": []
+  },
+  "limitations": [
+    "Timeout is a finite socket-operation timeout, not a total deadline against a continuously trickling response.",
+    "No cross-language evidence was accessed.",
+    "Start clock is the persisted contract creation time; preceding administrative skill-reading overhead was not instrumented."
+  ],
+  "evidence_paths": [
+    "/private/tmp/veritas-fresh-builders/quote-merge-python/initial/quote_merge.py",
+    "/private/tmp/veritas-fresh-builders/quote-merge-python/final",
+    "/private/tmp/veritas-fresh-builders/quote-merge-python/Relocated \u03a9 Quote Merge",
+    "/private/tmp/veritas-fresh-builders/quote-merge-python/fixtures",
+    "/private/tmp/veritas-fresh-builders/quote-merge-python/check.py",
+    "/private/tmp/veritas-fresh-builders/quote-merge-python/contracts/quote-merge-python.limn",
+    "/private/tmp/veritas-fresh-builders/quote-merge-python/evidence/initial-checks.json",
+    "/private/tmp/veritas-fresh-builders/quote-merge-python/evidence/final-checks.json",
+    "/private/tmp/veritas-fresh-builders/quote-merge-python/evidence/relocated-checks.json",
+    "/private/tmp/veritas-fresh-builders/quote-merge-python/evidence/initial-commands-results.json",
+    "/private/tmp/veritas-fresh-builders/quote-merge-python/evidence/final-commands-results.json",
+    "/private/tmp/veritas-fresh-builders/quote-merge-python/evidence/relocated-commands-results.json",
+    "/private/tmp/veritas-fresh-builders/quote-merge-python/evidence/environment.json",
+    "/private/tmp/veritas-fresh-builders/quote-merge-python/evidence/setup-failures.txt",
+    "/private/tmp/veritas-fresh-builders/quote-merge-python/evidence/timing.json",
+    "/private/tmp/veritas-fresh-builders/quote-merge-python/evidence/size.json"
+  ]
+}

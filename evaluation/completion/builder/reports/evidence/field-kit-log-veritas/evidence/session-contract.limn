@@ -1,0 +1,9 @@
+remember a string called source-state with "verified"
+remember a string called claim-basis with "verified"
+remember a list called tracked-decisions with "none"
+remember a list called open-questions with "none"
+remember a list called session-corrections with "none"
+add "field-kit-log-veritas isolated build with installed package only and 900 second limit" to tracked-decisions
+add "use native SQLite and TOML with explicitly granted today_local clock reads" to tracked-decisions
+add "relative SQLite filename under caller-selected external file root required by observed runtime" to tracked-decisions
+add "initial acceptance followed by list failed-only source edit and relocated installed app acceptance" to tracked-decisions

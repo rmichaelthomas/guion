@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "status": "complete",
+  "assignment_id": "invoice-sentinel-veritas",
+  "language": "veritas",
+  "brief_id": "invoice-sentinel",
+  "start_utc": "2026-10-25T09:10:43+00:00",
+  "finish_utc": "2026-10-25T09:13:44.926284+00:00",
+  "initial_correct": true,
+  "followup_correct": true,
+  "relocation_passed": true,
+  "setup_seconds": 24.415321,
+  "build_seconds": 55.754771,
+  "followup_seconds": 14.965238,
+  "installed_launch_seconds": 0.46231512499798555,
+  "artifact_bytes": 52769,
+  "interventions": [
+    "No external packages or network requests used. Python3 standard library used only for edit, measurement and acceptance harnesses; delivered app is pure Veritas.",
+    "The bare veritas --help invocation was unsupported; used the installed README/reference instead.",
+    "setup/build/followup phase durations use UTC start plus filesystem creation/modification timestamps; measurements.json separately records a directly timed final compilation.",
+    "Invalid ledger dates/amounts are rejected rows while valid rows contribute. Invalid CLI dates/options preserve an existing report. This resolves the brief wording consistently with its malformed-row requirement."
+  ],
+  "failures": [
+    "Installed CLI does not support --help (exit 1); documented command reference supplied the commands."
+  ],
+  "recommendation": {
+    "preferred_language": "undetermined",
+    "reason": "The isolated Veritas implementation passed the required cases. This assignment did not inspect or execute a Python implementation, so it does not establish a comparative preference.",
+    "observed_user_benefit": "Exact arbitrary-precision cents, deterministic JSON, row diagnostics, atomic output and a relocatable Python-free app were delivered with no third-party dependencies.",
+    "material_regressions": [
+      "The packaged app occupies 12881497 bytes, including its runtime.",
+      "One measured installed launch took about 0.462 seconds.",
+      "Strict calendar validation and flag parsing were implemented manually."
+    ]
+  },
+  "evidence_paths": [
+    "evaluation/completion/builder/reports/evidence/invoice-sentinel-veritas/USAGE.md",
+    "evaluation/completion/builder/reports/evidence/invoice-sentinel-veritas/initial-source.vr",
+    "evaluation/completion/builder/reports/evidence/invoice-sentinel-veritas/final-source.vr",
+    "evaluation/completion/builder/reports/evidence/invoice-sentinel-veritas/project",
+    "evaluation/completion/builder/reports/evidence/invoice-sentinel-veritas/fixtures",
+    "evaluation/completion/builder/reports/evidence/invoice-sentinel-veritas/initial-app",
+    "evaluation/completion/builder/reports/evidence/invoice-sentinel-veritas/final-app",
+    "evaluation/completion/builder/reports/evidence/invoice-sentinel-veritas/installed",
+    "evaluation/completion/builder/reports/evidence/invoice-sentinel-veritas/checks.py",
+    "evaluation/completion/builder/reports/evidence/invoice-sentinel-veritas/measurements.json",
+    "evaluation/completion/builder/reports/evidence/invoice-sentinel-veritas/commands-initial.json",
+    "evaluation/completion/builder/reports/evidence/invoice-sentinel-veritas/commands-followup.json",
+    "evaluation/completion/builder/reports/evidence/invoice-sentinel-veritas/commands-relocated-initial.json",
+    "evaluation/completion/builder/reports/evidence/invoice-sentinel-veritas/commands-relocated-followup.json",
+    "evaluation/completion/builder/reports/evidence/invoice-sentinel-veritas/results-initial.json",
+    "evaluation/completion/builder/reports/evidence/invoice-sentinel-veritas/results-followup.json",
+    "evaluation/completion/builder/reports/evidence/invoice-sentinel-veritas/results-relocated-initial.json",
+    "evaluation/completion/builder/reports/evidence/invoice-sentinel-veritas/results-relocated-followup.json",
+    "evaluation/completion/builder/reports/evidence/invoice-sentinel-veritas/session-contract.limn"
+  ],
+  "budget_minutes": 15,
+  "elapsed_seconds": 181.926284
+}

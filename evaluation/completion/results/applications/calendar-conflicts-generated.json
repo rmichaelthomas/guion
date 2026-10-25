@@ -1,0 +1,87 @@
+{
+  "schema_version": 1,
+  "application": "calendar-conflicts",
+  "mode": "seeded independent-oracle cases against relocated package",
+  "seed": 20261024,
+  "sizes": [
+    24,
+    128
+  ],
+  "case_count": 2,
+  "concurrency": null,
+  "passed": true,
+  "cases": [
+    {
+      "case_id": "generated-calendar-24",
+      "candidate": {},
+      "passed": true,
+      "exit_code": 0,
+      "checks_passed": 2,
+      "checks_total": 2,
+      "steps": [
+        {
+          "exit_code": 0,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "failures": [],
+          "elapsed_seconds": 0.086972
+        }
+      ],
+      "elapsed_seconds": 0.575819,
+      "http_fixtures": {
+        "calendar": {
+          "requests": [
+            {
+              "method": "GET",
+              "path": "/alpha.ics"
+            },
+            {
+              "method": "GET",
+              "path": "/beta.ics"
+            }
+          ],
+          "max_in_flight": 1
+        }
+      },
+      "stdout": "",
+      "stderr": "",
+      "failures": []
+    },
+    {
+      "case_id": "generated-calendar-128",
+      "candidate": {},
+      "passed": true,
+      "exit_code": 0,
+      "checks_passed": 2,
+      "checks_total": 2,
+      "steps": [
+        {
+          "exit_code": 0,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "failures": [],
+          "elapsed_seconds": 0.151291
+        }
+      ],
+      "elapsed_seconds": 0.60051,
+      "http_fixtures": {
+        "calendar": {
+          "requests": [
+            {
+              "method": "GET",
+              "path": "/alpha.ics"
+            },
+            {
+              "method": "GET",
+              "path": "/beta.ics"
+            }
+          ],
+          "max_in_flight": 2
+        }
+      },
+      "stdout": "",
+      "stderr": "",
+      "failures": []
+    }
+  ]
+}

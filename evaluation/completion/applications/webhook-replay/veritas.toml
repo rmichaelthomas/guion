@@ -1,0 +1,14 @@
+[project]
+name = "webhook-replay"
+version = "1.0.0"
+entry = "main.vr"
+
+[network]
+hosts = ["127.0.0.1", "localhost"]
+timeout_ms = 5000
+max_response_bytes = 1048576
+max_request_bytes = 1048576
+max_redirects = 0
+
+[package]
+resources = []

@@ -1,0 +1,132 @@
+[
+  {
+    "command": [
+      "/private/tmp/veritas-fresh-builders/Invoice Sentinel 雪 relocation/initial-app/run",
+      "--input",
+      "ledger.tsv",
+      "--as-of",
+      "2026-01-15",
+      "--output",
+      "report.json"
+    ],
+    "cwd": "/private/tmp/veritas-fresh-builders/Invoice Sentinel 雪 relocation/checks-relocated-initial",
+    "returncode": 0,
+    "stdout": "",
+    "stderr": "rejected row 7: invalid amount_cents: expected nonnegative decimal integer\nrejected row 8: invalid due_date: expected YYYY-MM-DD calendar date\nrejected row 9: expected 5 tab-separated fields\nrejected row 10: invalid state: expected open or paid\n",
+    "elapsed_seconds": 0.35026958299567923
+  },
+  {
+    "command": [
+      "/private/tmp/veritas-fresh-builders/Invoice Sentinel 雪 relocation/initial-app/run",
+      "--input",
+      "ledger.tsv",
+      "--as-of",
+      "2026-01-15",
+      "--output",
+      "report.json"
+    ],
+    "cwd": "/private/tmp/veritas-fresh-builders/Invoice Sentinel 雪 relocation/checks-relocated-initial",
+    "returncode": 0,
+    "stdout": "",
+    "stderr": "rejected row 7: invalid amount_cents: expected nonnegative decimal integer\nrejected row 8: invalid due_date: expected YYYY-MM-DD calendar date\nrejected row 9: expected 5 tab-separated fields\nrejected row 10: invalid state: expected open or paid\n",
+    "elapsed_seconds": 0.033189999987371266
+  },
+  {
+    "command": [
+      "/private/tmp/veritas-fresh-builders/Invoice Sentinel 雪 relocation/initial-app/run",
+      "--input",
+      "ledger.tsv",
+      "--as-of",
+      "2026-02-30",
+      "--output",
+      "report.json"
+    ],
+    "cwd": "/private/tmp/veritas-fresh-builders/Invoice Sentinel 雪 relocation/checks-relocated-initial",
+    "returncode": 2,
+    "stdout": "",
+    "stderr": "input, output, and valid --as-of date required\n",
+    "elapsed_seconds": 0.03417079200153239
+  },
+  {
+    "command": [
+      "/private/tmp/veritas-fresh-builders/Invoice Sentinel 雪 relocation/initial-app/run",
+      "--input",
+      "ledger.tsv",
+      "--as-of",
+      "2026-13-01",
+      "--output",
+      "report.json"
+    ],
+    "cwd": "/private/tmp/veritas-fresh-builders/Invoice Sentinel 雪 relocation/checks-relocated-initial",
+    "returncode": 2,
+    "stdout": "",
+    "stderr": "input, output, and valid --as-of date required\n",
+    "elapsed_seconds": 0.030602458005887456
+  },
+  {
+    "command": [
+      "/private/tmp/veritas-fresh-builders/Invoice Sentinel 雪 relocation/initial-app/run",
+      "--input",
+      "ledger.tsv",
+      "--as-of",
+      "2026-1-01",
+      "--output",
+      "report.json"
+    ],
+    "cwd": "/private/tmp/veritas-fresh-builders/Invoice Sentinel 雪 relocation/checks-relocated-initial",
+    "returncode": 2,
+    "stdout": "",
+    "stderr": "input, output, and valid --as-of date required\n",
+    "elapsed_seconds": 0.02049133399850689
+  },
+  {
+    "command": [
+      "/private/tmp/veritas-fresh-builders/Invoice Sentinel 雪 relocation/initial-app/run",
+      "--input",
+      "ledger.tsv",
+      "--as-of",
+      "0000-01-01",
+      "--output",
+      "report.json"
+    ],
+    "cwd": "/private/tmp/veritas-fresh-builders/Invoice Sentinel 雪 relocation/checks-relocated-initial",
+    "returncode": 2,
+    "stdout": "",
+    "stderr": "input, output, and valid --as-of date required\n",
+    "elapsed_seconds": 0.02070979199197609
+  },
+  {
+    "command": [
+      "/private/tmp/veritas-fresh-builders/Invoice Sentinel 雪 relocation/initial-app/run",
+      "--input",
+      "ledger.tsv",
+      "--as-of",
+      "bad",
+      "--output",
+      "report.json"
+    ],
+    "cwd": "/private/tmp/veritas-fresh-builders/Invoice Sentinel 雪 relocation/checks-relocated-initial",
+    "returncode": 2,
+    "stdout": "",
+    "stderr": "input, output, and valid --as-of date required\n",
+    "elapsed_seconds": 0.019293667006422766
+  },
+  {
+    "command": [
+      "/private/tmp/veritas-fresh-builders/Invoice Sentinel 雪 relocation/initial-app/run",
+      "--input",
+      "ledger.tsv",
+      "--as-of",
+      "2026-01-15",
+      "--output",
+      "report.json",
+      "--amount",
+      "1.5"
+    ],
+    "cwd": "/private/tmp/veritas-fresh-builders/Invoice Sentinel 雪 relocation/checks-relocated-initial",
+    "returncode": 2,
+    "stdout": "",
+    "stderr": "unknown or duplicate option: --amount\n",
+    "elapsed_seconds": 0.022079833011957817
+  }
+]

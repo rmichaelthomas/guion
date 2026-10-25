@@ -1,0 +1,17 @@
+{
+  "artifact_format": 39,
+  "artifact_schema_sha256": "e50354f9431c7e244d093a0a2ad94fa897b91b8eb1793338d9dfce94fe38ce10",
+  "artifact_sha256": "86aa851606f499999af2ad5a30daf708b62b1ecc571904b62896dd2613ed8c20",
+  "compiler_entry": "compiler.vr",
+  "compiler_source_files": [
+    "compiler.vr",
+    "lexer.vr",
+    "parser.vr",
+    "builtin_catalog.vr",
+    "artifact.vr"
+  ],
+  "compiler_source_sha256": "2b45479b30856739983d0ce7cfce3ef4fdedb82bb4dd57defc8f7258e2b77def",
+  "host_abi_version": 1,
+  "regeneration_command": "cargo run --locked --offline -p veritas-bootstrap --bin veritas-stage0 -- seed .",
+  "schema_version": 1
+}

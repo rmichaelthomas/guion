@@ -1,0 +1,9 @@
+remember a string called source-state with "scanned"
+remember a string called claim-basis with "none"
+remember a list called tracked-decisions with "none"
+remember a list called open-questions with "none"
+remember a list called session-corrections with "none"
+add "Independent Python standard-library implementation from the supplied brief" to tracked-decisions
+remember a string called source-state with "verified"
+remember a string called claim-basis with "verified"
+add "Initial 14 checks and follow-up 21 checks passed from a relocated Unicode-and-spaces path" to tracked-decisions

@@ -1,0 +1,27 @@
+show "=== Session contract: invoice-sentinel-veritas ==="
+
+remember a string called source-state with "unscanned"
+remember a string called claim-basis with "none"
+remember a list called tracked-decisions with "none"
+remember a list called open-questions with "none"
+remember a list called session-corrections with "none"
+remember a number called decision-count with 0
+remember a string called session-id with "invoice-sentinel-veritas"
+
+when source-state is equal to "unscanned"
+  show "HOLD: source not yet scanned — verify before consequential claims"
+when claim-basis is equal to "inference" unless source-state is equal to "verified"
+  show "WARNING: current claims are inferred, not verified against source"
+when claim-basis is equal to "verified"
+  show "OK: claims grounded in verified source"
+
+
+show source-state
+show claim-basis
+show tracked-decisions
+show open-questions
+remember a string called source-state with "verified"
+remember a string called claim-basis with "verified"
+add "read-only-installed-docs-and-brief-source-boundary" to tracked-decisions
+add "initial-followup-and-relocation-checks-passed" to tracked-decisions
+add "comparative-language-preference-undetermined" to tracked-decisions

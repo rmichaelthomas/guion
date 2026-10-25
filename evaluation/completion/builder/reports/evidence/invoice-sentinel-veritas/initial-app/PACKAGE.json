@@ -1,0 +1,18 @@
+{
+  "application": {
+    "id": "invoice-sentinel",
+    "name": "invoice-sentinel",
+    "version": "0.1.0"
+  },
+  "artifact_sha256": "b4e187905bcd50f1696bfe5e3e6ffeac831743d0a7ebfbf2389895465effca9e",
+  "compiler_version": "0.1.0",
+  "native_dependency_report_sha256": "8d400d50e6d2618f1bfc1c8c0c4107162517e17fb7d1d15ec1938c0f6ae4fed2",
+  "python_runtime": null,
+  "resources": [],
+  "runtime_sha256": "03be2204f0923684c818a72f823db96ef9a1735741fec7481b0c4c7a69ab7b01",
+  "runtime_size_bytes": 12824672,
+  "rust_notices": null,
+  "schema_version": 2,
+  "source_sha256": "72d3b21bf3d397e1913dbc37a537e822c22f7e35a77f84d8d8cec0ae9c0e42dd",
+  "target": "macos-aarch64"
+}

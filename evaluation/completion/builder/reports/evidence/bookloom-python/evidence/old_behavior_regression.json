@@ -1,0 +1,111 @@
+{
+  "status": "passed",
+  "events": [
+    {
+      "command": "./bookloom --config /private/tmp/veritas-fresh-builders/bookloom-python/initial-project/bookloom-regression.toml add --id bk-2 --title Piranesi --author 'Susanna Clarke'",
+      "returncode": 0,
+      "stdout": "Added 'bk-2'.\n",
+      "stderr": "",
+      "elapsed_seconds": 0.082481
+    },
+    {
+      "command": "./bookloom --config /private/tmp/veritas-fresh-builders/bookloom-python/initial-project/bookloom-regression.toml add --id bk-1 --title Kindred --author 'Octavia E. Butler'",
+      "returncode": 0,
+      "stdout": "Added 'bk-1'.\n",
+      "stderr": "",
+      "elapsed_seconds": 0.058884
+    },
+    {
+      "command": "./bookloom --config /private/tmp/veritas-fresh-builders/bookloom-python/initial-project/bookloom-regression.toml list available",
+      "returncode": 0,
+      "stdout": "bk-1 | Kindred | Octavia E. Butler\nbk-2 | Piranesi | Susanna Clarke\n",
+      "stderr": "",
+      "elapsed_seconds": 0.059418
+    },
+    {
+      "command": "./bookloom --config /private/tmp/veritas-fresh-builders/bookloom-python/initial-project/bookloom-regression.toml checkout --id bk-2 --borrower 'Morgan Lee'",
+      "returncode": 0,
+      "stdout": "Checked out 'bk-2' to Morgan Lee.\n",
+      "stderr": "",
+      "elapsed_seconds": 0.062781
+    },
+    {
+      "command": "./bookloom --config /private/tmp/veritas-fresh-builders/bookloom-python/initial-project/bookloom-regression.toml checkout --id bk-1 --borrower 'Sam Rivera'",
+      "returncode": 0,
+      "stdout": "Checked out 'bk-1' to Sam Rivera.\n",
+      "stderr": "",
+      "elapsed_seconds": 0.066406
+    },
+    {
+      "command": "./bookloom --config /private/tmp/veritas-fresh-builders/bookloom-python/initial-project/bookloom-regression.toml list checked-out",
+      "returncode": 0,
+      "stdout": "bk-1 | Kindred | Octavia E. Butler | borrower: Sam Rivera | due: 2026-11-08\nbk-2 | Piranesi | Susanna Clarke | borrower: Morgan Lee | due: 2026-11-08\n",
+      "stderr": "",
+      "elapsed_seconds": 0.061657
+    },
+    {
+      "command": "./bookloom --config /private/tmp/veritas-fresh-builders/bookloom-python/initial-project/bookloom-regression.toml list checked-out",
+      "returncode": 0,
+      "stdout": "bk-1 | Kindred | Octavia E. Butler | borrower: Sam Rivera | due: 2026-11-08\nbk-2 | Piranesi | Susanna Clarke | borrower: Morgan Lee | due: 2026-11-08\n",
+      "stderr": "",
+      "elapsed_seconds": 0.063515
+    },
+    {
+      "command": "./bookloom --config /private/tmp/veritas-fresh-builders/bookloom-python/initial-project/bookloom-regression.toml add --id bk-1 --title Duplicate",
+      "returncode": 2,
+      "stdout": "",
+      "stderr": "ERROR: book ID 'bk-1' already exists\n",
+      "elapsed_seconds": 0.05875
+    },
+    {
+      "command": "./bookloom --config /private/tmp/veritas-fresh-builders/bookloom-python/initial-project/bookloom-regression.toml checkout --id missing --borrower 'Morgan Lee'",
+      "returncode": 2,
+      "stdout": "",
+      "stderr": "ERROR: unknown book ID 'missing'\n",
+      "elapsed_seconds": 0.061395
+    },
+    {
+      "command": "./bookloom --config /private/tmp/veritas-fresh-builders/bookloom-python/initial-project/bookloom-regression.toml checkout --id bk-1 --borrower 'Different Person'",
+      "returncode": 2,
+      "stdout": "",
+      "stderr": "ERROR: book ID 'bk-1' is already checked out to Sam Rivera\n",
+      "elapsed_seconds": 0.059063
+    },
+    {
+      "command": "./bookloom --config /private/tmp/veritas-fresh-builders/bookloom-python/initial-project/bookloom-regression.toml return --id missing",
+      "returncode": 2,
+      "stdout": "",
+      "stderr": "ERROR: unknown book ID 'missing'\n",
+      "elapsed_seconds": 0.058334
+    },
+    {
+      "command": "./bookloom --config /private/tmp/veritas-fresh-builders/bookloom-python/initial-project/bookloom-regression.toml return --id bk-2",
+      "returncode": 0,
+      "stdout": "Returned 'bk-2'.\n",
+      "stderr": "",
+      "elapsed_seconds": 0.062599
+    },
+    {
+      "command": "./bookloom --config /private/tmp/veritas-fresh-builders/bookloom-python/initial-project/bookloom-regression.toml return --id bk-2",
+      "returncode": 2,
+      "stdout": "",
+      "stderr": "ERROR: book ID 'bk-2' is not checked out\n",
+      "elapsed_seconds": 0.058125
+    },
+    {
+      "command": "./bookloom --config /private/tmp/veritas-fresh-builders/bookloom-python/initial-project/bookloom-regression.toml list available",
+      "returncode": 0,
+      "stdout": "bk-2 | Piranesi | Susanna Clarke\n",
+      "stderr": "",
+      "elapsed_seconds": 0.061159
+    },
+    {
+      "command": "./bookloom --config /private/tmp/veritas-fresh-builders/bookloom-python/initial-project/bookloom-regression.toml list checked-out",
+      "returncode": 0,
+      "stdout": "bk-1 | Kindred | Octavia E. Butler | borrower: Sam Rivera | due: 2026-11-08\n",
+      "stderr": "",
+      "elapsed_seconds": 0.062833
+    }
+  ],
+  "integrity_check": "ok"
+}

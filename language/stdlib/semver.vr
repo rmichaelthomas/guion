@@ -1,0 +1,13 @@
+pub record SemVer:
+    major: Text
+    minor: Text
+    patch: Text
+    prerelease: List[Text]
+    build: List[Text]
+    original: Text
+
+pub fn parse_version(value: Text) -> Result[SemVer, FileError]:
+    return semver_parse(value)
+
+pub fn compare_versions(left: SemVer, right: SemVer) -> Int:
+    return semver_compare(left, right)

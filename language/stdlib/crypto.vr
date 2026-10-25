@@ -1,0 +1,5 @@
+pub fn crypto_hmac_sha256(key: Bytes, body: Bytes) -> Bytes:
+    return native_crypto_hmac_sha256(key, body)
+
+pub fn crypto_verify_hmac_sha256(key: Bytes, body: Bytes, expected: Bytes) -> Bool:
+    return native_crypto_verify_hmac_sha256(key, body, expected)

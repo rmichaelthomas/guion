@@ -1,0 +1,175 @@
+{
+  "status": "passed",
+  "project_path": "/private/tmp/veritas-fresh-builders/bookloom-python/📚 Bookloom – bibliothèque",
+  "database_path": "/private/tmp/veritas-fresh-builders/bookloom-python/caller-data/bookloom.sqlite3",
+  "database_outside_project": true,
+  "fresh_process_persistence": true,
+  "failed_operations_left_rows_unchanged": true,
+  "due_soon_order": [
+    "bk1",
+    "bk2",
+    "edge"
+  ],
+  "due_soon_window_inclusive": [
+    "2026-10-25",
+    "2026-11-08"
+  ],
+  "invalid_dates_left_hash_and_rows_unchanged": true,
+  "integrity_check": "ok",
+  "events": [
+    {
+      "command": "./bookloom add --id bk2 --title 'Title bk2' --author 'Test Author'",
+      "returncode": 0,
+      "stdout": "Added 'bk2'.\n",
+      "stderr": "",
+      "elapsed_seconds": 0.127346
+    },
+    {
+      "command": "./bookloom add --id bk1 --title 'Title bk1' --author 'Test Author'",
+      "returncode": 0,
+      "stdout": "Added 'bk1'.\n",
+      "stderr": "",
+      "elapsed_seconds": 0.070594
+    },
+    {
+      "command": "./bookloom add --id edge --title 'Title edge' --author 'Test Author'",
+      "returncode": 0,
+      "stdout": "Added 'edge'.\n",
+      "stderr": "",
+      "elapsed_seconds": 0.062823
+    },
+    {
+      "command": "./bookloom add --id outside --title 'Title outside' --author 'Test Author'",
+      "returncode": 0,
+      "stdout": "Added 'outside'.\n",
+      "stderr": "",
+      "elapsed_seconds": 0.061081
+    },
+    {
+      "command": "./bookloom add --id overdue --title 'Title overdue' --author 'Test Author'",
+      "returncode": 0,
+      "stdout": "Added 'overdue'.\n",
+      "stderr": "",
+      "elapsed_seconds": 0.06632
+    },
+    {
+      "command": "./bookloom checkout --id bk2 --borrower 'Test Borrower'",
+      "returncode": 0,
+      "stdout": "Checked out 'bk2' to Test Borrower.\n",
+      "stderr": "",
+      "elapsed_seconds": 0.080681
+    },
+    {
+      "command": "./bookloom checkout --id bk1 --borrower 'Test Borrower'",
+      "returncode": 0,
+      "stdout": "Checked out 'bk1' to Test Borrower.\n",
+      "stderr": "",
+      "elapsed_seconds": 0.068941
+    },
+    {
+      "command": "./bookloom checkout --id edge --borrower 'Test Borrower'",
+      "returncode": 0,
+      "stdout": "Checked out 'edge' to Test Borrower.\n",
+      "stderr": "",
+      "elapsed_seconds": 0.062175
+    },
+    {
+      "command": "./bookloom checkout --id outside --borrower 'Test Borrower'",
+      "returncode": 0,
+      "stdout": "Checked out 'outside' to Test Borrower.\n",
+      "stderr": "",
+      "elapsed_seconds": 0.067792
+    },
+    {
+      "command": "./bookloom checkout --id overdue --borrower 'Test Borrower'",
+      "returncode": 0,
+      "stdout": "Checked out 'overdue' to Test Borrower.\n",
+      "stderr": "",
+      "elapsed_seconds": 0.059665
+    },
+    {
+      "command": "./bookloom list available",
+      "returncode": 0,
+      "stdout": "No available books.\n",
+      "stderr": "",
+      "elapsed_seconds": 0.058018
+    },
+    {
+      "command": "./bookloom list checked-out",
+      "returncode": 0,
+      "stdout": "bk1 | Title bk1 | Test Author | borrower: Test Borrower | due: 2026-11-08\nbk2 | Title bk2 | Test Author | borrower: Test Borrower | due: 2026-11-08\nedge | Title edge | Test Author | borrower: Test Borrower | due: 2026-11-08\noutside | Title outside | Test Author | borrower: Test Borrower | due: 2026-11-08\noverdue | Title overdue | Test Author | borrower: Test Borrower | due: 2026-11-08\n",
+      "stderr": "",
+      "elapsed_seconds": 0.065866
+    },
+    {
+      "command": "./bookloom add --id bk1 --title Duplicate",
+      "returncode": 2,
+      "stdout": "",
+      "stderr": "ERROR: book ID 'bk1' already exists\n",
+      "elapsed_seconds": 0.057476
+    },
+    {
+      "command": "./bookloom checkout --id missing --borrower 'Test Borrower'",
+      "returncode": 2,
+      "stdout": "",
+      "stderr": "ERROR: unknown book ID 'missing'\n",
+      "elapsed_seconds": 0.058061
+    },
+    {
+      "command": "./bookloom checkout --id bk1 --borrower 'Different Borrower'",
+      "returncode": 2,
+      "stdout": "",
+      "stderr": "ERROR: book ID 'bk1' is already checked out to Test Borrower\n",
+      "elapsed_seconds": 0.057251
+    },
+    {
+      "command": "./bookloom return --id missing",
+      "returncode": 2,
+      "stdout": "",
+      "stderr": "ERROR: unknown book ID 'missing'\n",
+      "elapsed_seconds": 0.058581
+    },
+    {
+      "command": "./bookloom due-soon --as-of 2026-10-25",
+      "returncode": 0,
+      "stdout": "2026-10-27 | bk1 | Title bk1 | Test Author | borrower: Test Borrower\n2026-10-27 | bk2 | Title bk2 | Test Author | borrower: Test Borrower\n2026-11-08 | edge | Title edge | Test Author | borrower: Test Borrower\n",
+      "stderr": "",
+      "elapsed_seconds": 0.059782
+    },
+    {
+      "command": "./bookloom due-soon --as-of 2026-02-30",
+      "returncode": 2,
+      "stdout": "",
+      "stderr": "ERROR: invalid date '2026-02-30'; expected a real calendar date\n",
+      "elapsed_seconds": 0.059606
+    },
+    {
+      "command": "./bookloom due-soon --as-of 2026-2-3",
+      "returncode": 2,
+      "stdout": "",
+      "stderr": "ERROR: invalid date '2026-2-3'; expected YYYY-MM-DD\n",
+      "elapsed_seconds": 0.056669
+    },
+    {
+      "command": "./bookloom return --id bk2",
+      "returncode": 0,
+      "stdout": "Returned 'bk2'.\n",
+      "stderr": "",
+      "elapsed_seconds": 0.059467
+    },
+    {
+      "command": "./bookloom return --id bk2",
+      "returncode": 2,
+      "stdout": "",
+      "stderr": "ERROR: book ID 'bk2' is not checked out\n",
+      "elapsed_seconds": 0.058958
+    },
+    {
+      "command": "./bookloom list available",
+      "returncode": 0,
+      "stdout": "bk2 | Title bk2 | Test Author\n",
+      "stderr": "",
+      "elapsed_seconds": 0.064431
+    }
+  ]
+}

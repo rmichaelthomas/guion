@@ -24,8 +24,12 @@ else
   PREFIX="$HOME/.local"
 fi
 
-if [ ! -x "$ROOT/veritas" ]; then
-  echo "Veritas runtime is missing or not executable: $ROOT/veritas" >&2
+if [ -x "$ROOT/bin/veritas" ]; then
+  RUNTIME_RELATIVE="bin/veritas"
+elif [ -x "$ROOT/veritas" ]; then
+  RUNTIME_RELATIVE="veritas"
+else
+  echo "Veritas runtime is missing or not executable: $ROOT/bin/veritas" >&2
   exit 1
 fi
 mkdir -p "$PREFIX"
@@ -66,7 +70,7 @@ cat > "$LAUNCHER_TMP" <<LAUNCHER
 # Veritas managed launcher
 set -eu
 HERE=\$(CDPATH= cd -- "\$(dirname -- "\$0")" && pwd)
-exec "\$HERE/../share/veritas/$NAME/veritas" "\$@"
+exec "\$HERE/../share/veritas/$NAME/$RUNTIME_RELATIVE" "\$@"
 LAUNCHER
 chmod 755 "$LAUNCHER_TMP"
 mv -f "$LAUNCHER_TMP" "$LAUNCHER"

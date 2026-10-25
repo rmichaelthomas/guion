@@ -1,0 +1,59 @@
+{
+  "commands": [
+    {
+      "command": [
+        "/Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/work/veritas-foundation/target/completion/releases/macos-aarch64/current/bin/veritas",
+        "build",
+        "--json",
+        "/private/tmp/veritas-fresh-builders/invoice-sentinel-veritas/project/main.vr",
+        "--output",
+        "/private/tmp/veritas-fresh-builders/invoice-sentinel-veritas/invoice-sentinel.vrb"
+      ],
+      "cwd": "/Users/rmichaelthomas/Documents/Codex/2026-10-24/continuing-from-the-verify-veritas-rust",
+      "start_utc": "2026-10-25T09:12:47.845548+00:00",
+      "seconds": 0.9848033750022296,
+      "returncode": 0,
+      "stdout": "{\"artifact\":\"/private/tmp/veritas-fresh-builders/invoice-sentinel-veritas/invoice-sentinel.vrb\",\"artifact_format\":38,\"artifact_sha256\":\"502cfda727f5c8859f589083264dd60dbb4b838637410316aa2fc6725b9b05e7\",\"artifact_size_bytes\":52769,\"compiler_version\":\"0.1.0\",\"kind\":\"veritas_build_report\",\"schema_version\":1,\"source\":\"/private/tmp/veritas-fresh-builders/invoice-sentinel-veritas/project/main.vr\",\"source_sha256\":\"894fc20c749a2c64396aa1404714898e0eb081d1eebee5e1241beabc2f60fb9c\",\"target\":\"macos-aarch64\"}\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "/Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/work/veritas-foundation/target/completion/releases/macos-aarch64/current/bin/veritas",
+        "verify-package",
+        "--json",
+        "/private/tmp/veritas-fresh-builders/invoice-sentinel-veritas/final-app"
+      ],
+      "cwd": "/Users/rmichaelthomas/Documents/Codex/2026-10-24/continuing-from-the-verify-veritas-rust",
+      "start_utc": "2026-10-25T09:12:48.830995+00:00",
+      "seconds": 0.08959558300557546,
+      "returncode": 0,
+      "stdout": "{\"directory\":\"/private/tmp/veritas-fresh-builders/invoice-sentinel-veritas/final-app\",\"kind\":\"veritas_package_verification_report\",\"package_metadata_sha256\":\"5d636e4143a7c0df447381d9065feeb455e9576c8d2d539ccd0d70d828aeb1c3\",\"package_schema_version\":2,\"schema_version\":1,\"status\":\"verified\",\"target\":\"macos-aarch64\"}\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "/private/tmp/veritas-fresh-builders/invoice-sentinel-veritas/installed/bin/invoice-sentinel",
+        "--input",
+        "ledger.tsv",
+        "--as-of",
+        "2026-01-15",
+        "--output",
+        "installed-report.json",
+        "--vendor",
+        "Acme"
+      ],
+      "cwd": "/private/tmp/veritas-fresh-builders/invoice-sentinel-veritas/checks-followup",
+      "start_utc": "2026-10-25T09:12:48.920662+00:00",
+      "seconds": 0.46231512499798555,
+      "returncode": 0,
+      "stdout": "",
+      "stderr": "rejected row 7: invalid amount_cents: expected nonnegative decimal integer\nrejected row 8: invalid due_date: expected YYYY-MM-DD calendar date\nrejected row 9: expected 5 tab-separated fields\nrejected row 10: invalid state: expected open or paid\n"
+    }
+  ],
+  "sizes": {
+    "artifact_bytes": 52769,
+    "initial_source_bytes": 5415,
+    "final_source_bytes": 5968,
+    "package_bytes": 12881497
+  }
+}

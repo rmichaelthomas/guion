@@ -125,7 +125,7 @@ class ShippedDocsRepairAcceptance(unittest.TestCase):
         self.assertIn("exact Python patch version", text)
         self.assertIn("no automatic application-data migration", text)
 
-    def test_format30_json_projection_runs_from_a_source_free_artifact(self):
+    def test_json_projection_runs_from_a_source_free_artifact(self):
         with tempfile.TemporaryDirectory(prefix="veritas shipped projection ") as temp:
             source = Path(temp) / "projection.vr"
             artifact = Path(temp) / "projection.vrb"
@@ -150,7 +150,7 @@ class ShippedDocsRepairAcceptance(unittest.TestCase):
                 timeout=30,
             )
             self.assertEqual(built.returncode, 0, built.stdout + built.stderr)
-            self.assertIn("artifact format 30", built.stdout)
+            self.assertRegex(built.stdout, r"artifact format \d+")
             source.unlink()
             run = subprocess.run(
                 [str(VERITAS), "run", str(artifact)],

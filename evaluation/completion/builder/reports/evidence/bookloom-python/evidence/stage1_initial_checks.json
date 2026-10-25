@@ -1,0 +1,111 @@
+{
+  "status": "passed",
+  "events": [
+    {
+      "command": "./bookloom add --id bk-2 --title Piranesi --author Susanna Clarke",
+      "returncode": 0,
+      "stdout": "Added 'bk-2'.\n",
+      "stderr": "",
+      "elapsed_seconds": 0.156517
+    },
+    {
+      "command": "./bookloom add --id bk-1 --title Kindred --author Octavia E. Butler",
+      "returncode": 0,
+      "stdout": "Added 'bk-1'.\n",
+      "stderr": "",
+      "elapsed_seconds": 0.171046
+    },
+    {
+      "command": "./bookloom list available",
+      "returncode": 0,
+      "stdout": "bk-1 | Kindred | Octavia E. Butler\nbk-2 | Piranesi | Susanna Clarke\n",
+      "stderr": "",
+      "elapsed_seconds": 0.091897
+    },
+    {
+      "command": "./bookloom checkout --id bk-2 --borrower Morgan Lee",
+      "returncode": 0,
+      "stdout": "Checked out 'bk-2' to Morgan Lee.\n",
+      "stderr": "",
+      "elapsed_seconds": 0.086033
+    },
+    {
+      "command": "./bookloom checkout --id bk-1 --borrower Sam Rivera",
+      "returncode": 0,
+      "stdout": "Checked out 'bk-1' to Sam Rivera.\n",
+      "stderr": "",
+      "elapsed_seconds": 0.093023
+    },
+    {
+      "command": "./bookloom list checked-out",
+      "returncode": 0,
+      "stdout": "bk-1 | Kindred | Octavia E. Butler | borrower: Sam Rivera | due: 2026-11-08\nbk-2 | Piranesi | Susanna Clarke | borrower: Morgan Lee | due: 2026-11-08\n",
+      "stderr": "",
+      "elapsed_seconds": 0.086877
+    },
+    {
+      "command": "./bookloom list checked-out",
+      "returncode": 0,
+      "stdout": "bk-1 | Kindred | Octavia E. Butler | borrower: Sam Rivera | due: 2026-11-08\nbk-2 | Piranesi | Susanna Clarke | borrower: Morgan Lee | due: 2026-11-08\n",
+      "stderr": "",
+      "elapsed_seconds": 0.079222
+    },
+    {
+      "command": "./bookloom add --id bk-1 --title Duplicate",
+      "returncode": 2,
+      "stdout": "",
+      "stderr": "ERROR: book ID 'bk-1' already exists\n",
+      "elapsed_seconds": 0.092111
+    },
+    {
+      "command": "./bookloom checkout --id missing --borrower Morgan Lee",
+      "returncode": 2,
+      "stdout": "",
+      "stderr": "ERROR: unknown book ID 'missing'\n",
+      "elapsed_seconds": 0.076616
+    },
+    {
+      "command": "./bookloom checkout --id bk-1 --borrower Different Person",
+      "returncode": 2,
+      "stdout": "",
+      "stderr": "ERROR: book ID 'bk-1' is already checked out to Sam Rivera\n",
+      "elapsed_seconds": 0.068262
+    },
+    {
+      "command": "./bookloom return --id missing",
+      "returncode": 2,
+      "stdout": "",
+      "stderr": "ERROR: unknown book ID 'missing'\n",
+      "elapsed_seconds": 0.071757
+    },
+    {
+      "command": "./bookloom return --id bk-2",
+      "returncode": 0,
+      "stdout": "Returned 'bk-2'.\n",
+      "stderr": "",
+      "elapsed_seconds": 0.084528
+    },
+    {
+      "command": "./bookloom return --id bk-2",
+      "returncode": 2,
+      "stdout": "",
+      "stderr": "ERROR: book ID 'bk-2' is not checked out\n",
+      "elapsed_seconds": 0.082277
+    },
+    {
+      "command": "./bookloom list available",
+      "returncode": 0,
+      "stdout": "bk-2 | Piranesi | Susanna Clarke\n",
+      "stderr": "",
+      "elapsed_seconds": 0.09774
+    },
+    {
+      "command": "./bookloom list checked-out",
+      "returncode": 0,
+      "stdout": "bk-1 | Kindred | Octavia E. Butler | borrower: Sam Rivera | due: 2026-11-08\n",
+      "stderr": "",
+      "elapsed_seconds": 0.136154
+    }
+  ],
+  "integrity_check": "ok"
+}

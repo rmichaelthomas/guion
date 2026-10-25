@@ -1,0 +1,6 @@
+fn main() -> Int:
+    print("Hello, Veritas!")
+    return 0
+
+fn test_starter() -> Unit:
+    assert(1 + 1 == 2)

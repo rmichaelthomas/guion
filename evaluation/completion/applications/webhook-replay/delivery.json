@@ -1,0 +1,6 @@
+{
+  "launch_command": ["${candidate}/dist/webhook-replay/run"],
+  "artifact_paths": ["dist/webhook-replay", "veritas.lock"],
+  "source_paths": ["main.vr", "veritas.toml"],
+  "dependency_lock_path": "veritas.lock"
+}

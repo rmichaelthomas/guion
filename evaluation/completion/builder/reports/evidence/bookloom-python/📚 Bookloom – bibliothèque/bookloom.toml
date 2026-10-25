@@ -1,0 +1,2 @@
+checkout_days = 14
+database_path = "../caller-data/bookloom.sqlite3"

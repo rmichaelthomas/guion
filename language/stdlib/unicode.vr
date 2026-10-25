@@ -1,0 +1,10 @@
+import "std:types"
+
+pub fn unicode_casefold(value: Text) -> Text:
+    return native_text_casefold(value)
+
+pub fn unicode_collapse_whitespace(value: Text) -> Text:
+    return native_text_collapse_whitespace(value)
+
+pub fn unicode_normalize(value: Text, form: Text) -> Result[Text, StdError]:
+    return native_text_normalize(value, form)

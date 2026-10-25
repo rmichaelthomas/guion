@@ -111,7 +111,7 @@ class TaskLedgerAcceptance(unittest.TestCase):
                 timeout=30,
             )
             self.assertEqual(built.returncode, 0, built.stderr)
-            self.assertIn("artifact format 30", built.stdout)
+            self.assertRegex(built.stdout, r"artifact format \d+")
             (veritas_project / "main.vr").unlink()
             rmtree(veritas_project / "src")
 

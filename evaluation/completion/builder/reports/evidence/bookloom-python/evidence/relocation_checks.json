@@ -1,0 +1,124 @@
+{
+  "status": "passed",
+  "project_path": "/private/tmp/veritas-fresh-builders/bookloom-python/📚 Bookloom – bibliothèque",
+  "project_path_has_unicode_and_spaces": true,
+  "database_path": "/private/tmp/veritas-fresh-builders/bookloom-python/caller-data/bookloom.sqlite3",
+  "database_separate_from_project": true,
+  "invalid_date_hash_unchanged": true,
+  "invalid_date_rows_unchanged": true,
+  "installed_launch_seconds": [
+    0.074982,
+    0.072759,
+    0.065996,
+    0.066778,
+    0.06359
+  ],
+  "installed_launch_median_seconds": 0.066778,
+  "integrity_check": "ok",
+  "events": [
+    {
+      "command": "./bookloom add --id rel-2 --title 'A Book in the Café' --author 'M. Étoile'",
+      "cwd": "/private/tmp/veritas-fresh-builders/bookloom-python/📚 Bookloom – bibliothèque",
+      "returncode": 0,
+      "stdout": "Added 'rel-2'.\n",
+      "stderr": "",
+      "elapsed_seconds": 0.092216
+    },
+    {
+      "command": "./bookloom add --id rel-1 --title 'Paper Moons' --author 'N. Rivers'",
+      "cwd": "/private/tmp/veritas-fresh-builders/bookloom-python/📚 Bookloom – bibliothèque",
+      "returncode": 0,
+      "stdout": "Added 'rel-1'.\n",
+      "stderr": "",
+      "elapsed_seconds": 0.081936
+    },
+    {
+      "command": "./bookloom checkout --id rel-2 --borrower 'Zoë Martin'",
+      "cwd": "/private/tmp/veritas-fresh-builders/bookloom-python/📚 Bookloom – bibliothèque",
+      "returncode": 0,
+      "stdout": "Checked out 'rel-2' to Zoë Martin.\n",
+      "stderr": "",
+      "elapsed_seconds": 0.178885
+    },
+    {
+      "command": "./bookloom list checked-out",
+      "cwd": "/private/tmp/veritas-fresh-builders/bookloom-python/📚 Bookloom – bibliothèque",
+      "returncode": 0,
+      "stdout": "rel-2 | A Book in the Café | M. Étoile | borrower: Zoë Martin | due: 2026-11-08\n",
+      "stderr": "",
+      "elapsed_seconds": 0.130403
+    },
+    {
+      "command": "./bookloom due-soon --as-of 2026-10-25",
+      "cwd": "/private/tmp/veritas-fresh-builders/bookloom-python/📚 Bookloom – bibliothèque",
+      "returncode": 0,
+      "stdout": "2026-11-08 | rel-2 | A Book in the Café | M. Étoile | borrower: Zoë Martin\n",
+      "stderr": "",
+      "elapsed_seconds": 0.284424
+    },
+    {
+      "command": "./bookloom return --id rel-2",
+      "cwd": "/private/tmp/veritas-fresh-builders/bookloom-python/📚 Bookloom – bibliothèque",
+      "returncode": 0,
+      "stdout": "Returned 'rel-2'.\n",
+      "stderr": "",
+      "elapsed_seconds": 0.136786
+    },
+    {
+      "command": "./bookloom list available",
+      "cwd": "/private/tmp/veritas-fresh-builders/bookloom-python/📚 Bookloom – bibliothèque",
+      "returncode": 0,
+      "stdout": "rel-1 | Paper Moons | N. Rivers\nrel-2 | A Book in the Café | M. Étoile\n",
+      "stderr": "",
+      "elapsed_seconds": 0.105882
+    },
+    {
+      "command": "./bookloom due-soon --as-of 2026-02-30",
+      "cwd": "/private/tmp/veritas-fresh-builders/bookloom-python/📚 Bookloom – bibliothèque",
+      "returncode": 2,
+      "stdout": "",
+      "stderr": "ERROR: invalid date '2026-02-30'; expected a real calendar date\n",
+      "elapsed_seconds": 0.086921
+    },
+    {
+      "command": "./bookloom list available",
+      "cwd": "/private/tmp/veritas-fresh-builders/bookloom-python/📚 Bookloom – bibliothèque",
+      "returncode": 0,
+      "stdout": "rel-1 | Paper Moons | N. Rivers\nrel-2 | A Book in the Café | M. Étoile\n",
+      "stderr": "",
+      "elapsed_seconds": 0.074982
+    },
+    {
+      "command": "./bookloom list available",
+      "cwd": "/private/tmp/veritas-fresh-builders/bookloom-python/📚 Bookloom – bibliothèque",
+      "returncode": 0,
+      "stdout": "rel-1 | Paper Moons | N. Rivers\nrel-2 | A Book in the Café | M. Étoile\n",
+      "stderr": "",
+      "elapsed_seconds": 0.072759
+    },
+    {
+      "command": "./bookloom list available",
+      "cwd": "/private/tmp/veritas-fresh-builders/bookloom-python/📚 Bookloom – bibliothèque",
+      "returncode": 0,
+      "stdout": "rel-1 | Paper Moons | N. Rivers\nrel-2 | A Book in the Café | M. Étoile\n",
+      "stderr": "",
+      "elapsed_seconds": 0.065996
+    },
+    {
+      "command": "./bookloom list available",
+      "cwd": "/private/tmp/veritas-fresh-builders/bookloom-python/📚 Bookloom – bibliothèque",
+      "returncode": 0,
+      "stdout": "rel-1 | Paper Moons | N. Rivers\nrel-2 | A Book in the Café | M. Étoile\n",
+      "stderr": "",
+      "elapsed_seconds": 0.066778
+    },
+    {
+      "command": "./bookloom list available",
+      "cwd": "/private/tmp/veritas-fresh-builders/bookloom-python/📚 Bookloom – bibliothèque",
+      "returncode": 0,
+      "stdout": "rel-1 | Paper Moons | N. Rivers\nrel-2 | A Book in the Café | M. Étoile\n",
+      "stderr": "",
+      "elapsed_seconds": 0.06359
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+pub fn json_get_safe(value: Json, key: Text) -> Result[Json, JsonError]:
+    return json_try_get(value, key)
+
+pub fn json_index_safe(value: Json, index: Int) -> Result[Json, JsonError]:
+    return json_try_index(value, index)
+
+pub fn json_text_safe(value: Json) -> Result[Text, JsonError]:
+    return json_try_text(value)
+
+pub fn json_int_safe(value: Json) -> Result[Int, JsonError]:
+    return json_try_int(value)
+
+pub fn json_bool_safe(value: Json) -> Result[Bool, JsonError]:
+    return json_try_bool(value)
+
+pub fn json_float_safe(value: Json) -> Result[Float64, JsonError]:
+    return json_try_float(value)

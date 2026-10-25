@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "status": "complete",
+  "assignment_id": "bookloom-veritas",
+  "language": "veritas",
+  "brief_id": "bookloom",
+  "start_utc": "2026-10-25T09:34:31Z",
+  "finish_utc": "2026-10-25T09:44:49Z",
+  "initial_correct": true,
+  "followup_correct": true,
+  "relocation_passed": true,
+  "setup_seconds": 296.0,
+  "build_seconds": 0.52,
+  "followup_seconds": 0.0,
+  "installed_launch_seconds": 1.11,
+  "artifact_bytes": 12874028,
+  "interventions": [
+    "The parent supplied paths to the installed public API reference and standard-library interfaces after the installed README omitted native function signatures; no repository implementation or other builder results were inspected."
+  ],
+  "failures": [
+    "The first contract-helper write to its default ~/.liminate/contracts path was blocked by workspace write permissions; it was reopened under the private workdir's contracts directory.",
+    "Creating a scaffold at the already populated workdir root was rejected; the native scaffold was created in a subdirectory.",
+    "Initial guessed SQLite function names were unresolved; the installed interface files resolved the API before application implementation continued.",
+    "One transient installed-binary path typo returned file-not-found and was corrected before compilation or acceptance runs."
+  ],
+  "recommendation": {
+    "preferred_language": "veritas",
+    "reason": "For this local catalog on the installed Veritas host, the native SQLite/TOML services produced a Python-free app package that installed and ran with an external caller-selected data root. The result is task-specific; no Python comparison was built.",
+    "observed_user_benefit": "Separate process runs preserved book state, rejected operations left prior state intact, invalid dates were rejected before database access, and a project copy with spaces and Unicode used a separate data directory.",
+    "material_regressions": [
+      "The installed README did not include service signatures, so shipped API reference and interface files were needed after initial API guesses failed.",
+      "The typed source is 10,202 bytes for this small catalog; the compiled artifact is 45,002 bytes.",
+      "One installed launch took 1.11 seconds on macOS ARM64; this is a single measurement.",
+      "No paired Python builder or cross-host run was performed."
+    ]
+  },
+  "evidence_paths": [
+    "evaluation/completion/builder/reports/evidence/bookloom-veritas-initial/app/src/main.vr",
+    "evaluation/completion/builder/reports/evidence/bookloom-veritas-initial/app/bookloom.toml",
+    "evaluation/completion/builder/reports/evidence/bookloom-veritas-initial/app/veritas.toml",
+    "evaluation/completion/builder/reports/evidence/bookloom-veritas-initial/operator-guide.md",
+    "evaluation/completion/builder/reports/evidence/bookloom-veritas-initial/app/src/main.vrb",
+    "evaluation/completion/builder/reports/evidence/bookloom-veritas-initial/acceptance.sh",
+    "evaluation/completion/builder/reports/evidence/bookloom-veritas-initial/logs/commands.log",
+    "evaluation/completion/builder/reports/evidence/bookloom-veritas-initial/logs/assertions.log",
+    "evaluation/completion/builder/reports/evidence/bookloom-veritas-initial/logs/invalid-date.before.sha256",
+    "evaluation/completion/builder/reports/evidence/bookloom-veritas-initial/logs/invalid-date.after.sha256",
+    "evaluation/completion/builder/reports/evidence/bookloom-veritas-initial/logs/due-soon.out",
+    "evaluation/completion/builder/reports/evidence/bookloom-veritas-initial/logs/package.json",
+    "evaluation/completion/builder/reports/evidence/bookloom-veritas-initial/logs/package-verify.json",
+    "evaluation/completion/builder/reports/evidence/bookloom-veritas-initial/logs/install.txt",
+    "evaluation/completion/builder/reports/evidence/bookloom-veritas-initial/logs/installed-app-launch.txt",
+    "evaluation/completion/builder/reports/evidence/bookloom-veritas-initial/logs/final-check.json",
+    "evaluation/completion/builder/reports/evidence/bookloom-veritas-initial/logs/final-lint.json",
+    "evaluation/completion/builder/reports/evidence/bookloom-veritas-initial/logs/final-api-report.json",
+    "evaluation/completion/builder/reports/evidence/bookloom-veritas-initial/timing-evidence.txt",
+    "evaluation/completion/builder/reports/evidence/bookloom-veritas-initial/logs/size-evidence.txt",
+    "evaluation/completion/builder/reports/evidence/bookloom-veritas-initial/test-data/bookloom.sqlite",
+    "evaluation/completion/builder/reports/evidence/bookloom-veritas-initial/relocated/Bookloom \u2014 \u9280\u6cb3\u306e\u8535\u66f8",
+    "evaluation/completion/builder/reports/evidence/bookloom-veritas-initial/relocated-data/bookloom.sqlite",
+    "evaluation/completion/builder/reports/evidence/bookloom-veritas-initial/contracts/d315bBMHQeY.limn"
+  ],
+  "limitations": [
+    "The due-soon follow-up was implemented in the first source pass, so followup_seconds is 0.0 incremental post-baseline coding time; the follow-up behavior was exercised independently in the acceptance run.",
+    "setup_seconds is measured from contract opening to the first successful native check and includes API discovery and first implementation, rather than environment setup alone.",
+    "Performance and package-size measurements cover only this macOS ARM64 host; no paired Python implementation was measured."
+  ],
+  "budget_minutes": 15,
+  "elapsed_seconds": 618.0
+}

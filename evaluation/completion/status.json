@@ -1,0 +1,86 @@
+{
+  "schema_version": 1,
+  "current_task": 11,
+  "current_task_status": "complete",
+  "next_command": "complete",
+  "source_state": {
+    "captured_on": "2026-10-24",
+    "branch": "veritas/north-star-sprint",
+    "base_commit": "b8755f08e8c453051572b9e57a34fd1da0a73199",
+    "baseline_worktree_digest": "f4037633a2fe1f473f8aabcbe62fb7ca6be1357f92d646ef3957f9fafac695e9",
+    "baseline_changed_path_count": 2238,
+    "baseline_changed_bytes": 385249016,
+    "preexisting_changes_preserved": true
+  },
+  "evidence_paths": [
+    "evaluation/completion/README.md",
+    "language/conformance/manifest.json",
+    "evaluation/completion/results/conformance-inventory.json",
+    "evaluation/completion/results/conformance.json",
+    "evaluation/completion/results/closeout-schema.json",
+    "evaluation/completion/results/closeout.json",
+    "evaluation/completion/results/bootstrap.json",
+    "evaluation/completion/results/stdlib-data.json",
+    "evaluation/completion/results/stdlib-services.json",
+    "evaluation/completion/results/runtime-macos-aarch64.json",
+    "evaluation/completion/results/runtime-debian-aarch64.json",
+    "evaluation/completion/results/performance.json",
+    "evaluation/completion/results/performance-host.json",
+    "evaluation/completion/results/release.json",
+    "evaluation/completion/results/target-runs/release-macos-aarch64.json",
+    "evaluation/completion/results/target-runs/release-debian-aarch64.json",
+    "docs/completion-report.md"
+  ],
+  "required_evidence": [
+    "evaluation/completion/results/conformance.json",
+    "evaluation/completion/results/bootstrap.json",
+    "evaluation/completion/results/stdlib-data.json",
+    "evaluation/completion/results/stdlib-services.json",
+    "evaluation/completion/results/runtime.json",
+    "evaluation/completion/results/runtime-macos-aarch64.json",
+    "evaluation/completion/results/runtime-debian-aarch64.json",
+    "evaluation/completion/results/product-dependencies.json",
+    "evaluation/completion/results/product-lifecycle.json",
+    "evaluation/completion/results/product-applications.json",
+    "evaluation/completion/results/release.json",
+    "evaluation/completion/results/performance.json",
+    "evaluation/completion/results/builders.json"
+  ],
+  "required_targets": [
+    "macos-aarch64",
+    "debian-aarch64"
+  ],
+  "target_evidence_paths": [
+    "evaluation/completion/results/runtime.json",
+    "evaluation/completion/results/product-lifecycle.json",
+    "evaluation/completion/results/product-applications.json",
+    "evaluation/completion/results/release.json"
+  ],
+  "required_check_ids": [
+    "full-language-conformance",
+    "compiler-stage-equality",
+    "runtime-execution",
+    "runtime-http",
+    "runtime-lifecycle",
+    "all-nine-applications-initial-and-follow-up",
+    "python-free-core-product",
+    "release-target-parity",
+    "performance-correctness-and-confidence",
+    "fresh-builders-three-classes"
+  ],
+  "unsatisfied_goal_ids": [],
+  "open_defects": [],
+  "completed_tasks": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11
+  ]
+}

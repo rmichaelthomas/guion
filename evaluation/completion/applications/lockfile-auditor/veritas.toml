@@ -1,0 +1,7 @@
+[project]
+name = "lockfile-auditor"
+version = "1.0.0"
+entry = "main.vr"
+
+[package]
+resources = []

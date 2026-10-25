@@ -1,0 +1,14 @@
+import "std:fs"
+
+pub record CsvRow:
+    start_line: Int
+    fields: List[Text]
+
+pub fn csv_open_reader(path: Text) -> Result[FileReader, FileError]:
+    return csv_open(path)
+
+pub fn csv_next_row(reader: FileReader) -> Result[Option[CsvRow], FileError]:
+    return csv_next(reader)
+
+pub fn csv_encode_rows(rows: List[List[Text]]) -> Result[Text, FileError]:
+    return csv_encode(rows)

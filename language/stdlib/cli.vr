@@ -1,0 +1,12 @@
+pub record CliOption:
+    name: Text
+    takes_value: Bool
+    repeatable: Bool
+    required: Bool
+
+pub record CliArgs:
+    values: Map[Text, List[Text]]
+    positionals: List[Text]
+
+pub fn parse_cli(arguments: List[Text], options: List[CliOption]) -> Result[CliArgs, FileError]:
+    return cli_parse(arguments, options)

@@ -10,6 +10,8 @@ use veritas_model::{
     RecordField, Span, Type, Value,
 };
 
+mod builtin_catalog;
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum Kind {
     Name,
@@ -222,22 +224,80 @@ fn lex(source: &str, source_id: u32) -> Result<Vec<Token>, Diagnostic> {
                             break;
                         }
                         let escaped = bytes[i] as char;
+                        let escape_start = i - 1;
                         match escaped {
                             'n' => value.push('\n'),
                             'r' => value.push('\r'),
                             't' => value.push('\t'),
                             '"' => value.push('"'),
                             '\\' => value.push('\\'),
+                            'u' => {
+                                let digits_start = i + 2;
+                                if bytes.get(i + 1) != Some(&b'{') {
+                                    return Err(diagnostic(
+                                        "E_STRING_ESCAPE",
+                                        "Unicode escapes must use braces with hexadecimal digits",
+                                        Span {
+                                            source_id,
+                                            start: offset + escape_start,
+                                            end: offset + i + 1,
+                                            line: row + 1,
+                                            column: line[..escape_start].chars().count() + 1,
+                                        },
+                                    ));
+                                }
+                                let mut digits_end = digits_start;
+                                while bytes.get(digits_end).is_some_and(u8::is_ascii_hexdigit) {
+                                    digits_end += 1;
+                                }
+                                let Some(close) =
+                                    bytes.get(digits_end).filter(|byte| **byte == b'}')
+                                else {
+                                    return Err(diagnostic(
+                                        "E_STRING_ESCAPE",
+                                        "Unicode escape must contain hexadecimal digits and a closing brace",
+                                        Span {
+                                            source_id,
+                                            start: offset + escape_start,
+                                            end: offset + digits_end.min(bytes.len()),
+                                            line: row + 1,
+                                            column: line[..escape_start].chars().count() + 1,
+                                        },
+                                    ));
+                                };
+                                let digits = &line[digits_start..digits_end];
+                                let scalar = (1..=6).contains(&digits.len())
+                                    .then(|| u32::from_str_radix(digits, 16).ok())
+                                    .flatten()
+                                    .and_then(char::from_u32)
+                                    .ok_or_else(|| {
+                                        diagnostic(
+                                            "E_STRING_ESCAPE",
+                                            "Unicode escape must identify a valid Unicode scalar value",
+                                            Span {
+                                                source_id,
+                                                start: offset + escape_start,
+                                                end: offset + digits_end + 1,
+                                                line: row + 1,
+                                                column: line[..escape_start].chars().count() + 1,
+                                            },
+                                        )
+                                    })?;
+                                value.push(scalar);
+                                let _ = close;
+                                i = digits_end + 1;
+                                continue;
+                            }
                             _ => {
                                 return Err(diagnostic(
                                     "E_STRING_ESCAPE",
                                     "unsupported string escape",
                                     Span {
                                         source_id,
-                                        start: offset + i - 1,
+                                        start: offset + escape_start,
                                         end: offset + i + 1,
                                         line: row + 1,
-                                        column: line[..i - 1].chars().count() + 1,
+                                        column: line[..escape_start].chars().count() + 1,
                                     },
                                 ))
                             }
@@ -370,6 +430,7 @@ struct ExternalAst {
     params: Vec<(String, Type, Span)>,
     result: Type,
     span: Span,
+    module_id: usize,
 }
 #[derive(Clone, Debug)]
 struct FunctionAst {
@@ -485,6 +546,9 @@ impl Parser {
             "JsonError" => Ok(Type::JsonError),
             "FileError" => Ok(Type::FileError),
             "HttpError" => Ok(Type::HttpError),
+            "FileReader" | "Db" | "Transaction" | "TomlDocument" => {
+                Ok(Type::NativeResource(t.text))
+            }
             "Json" => Ok(Type::Json),
             "List" => {
                 self.expect("[")?;
@@ -675,6 +739,7 @@ impl Parser {
                     params,
                     result,
                     span: start,
+                    module_id: self.module_id,
                 });
                 continue;
             }
@@ -1076,8 +1141,8 @@ struct FnCompiler<'a> {
     signatures: &'a HashMap<String, (usize, Vec<Type>, Type)>,
     external_signatures: &'a HashMap<String, ExternalSignature>,
     records: &'a [RecordAst],
-    visible_functions: &'a HashSet<String>,
-    visible_externals: &'a HashSet<String>,
+    visible_functions: &'a HashMap<String, String>,
+    visible_externals: &'a HashMap<String, String>,
     visible_records: &'a HashSet<String>,
     locals: HashMap<String, Local>,
     next_local: usize,
@@ -1097,6 +1162,54 @@ impl<'a> FnCompiler<'a> {
     }
     fn expr(&mut self, e: &Expr) -> Result<Type, Diagnostic> {
         self.expr_with_expected(e, None)
+    }
+
+    fn catalog_fixed_builtin(
+        &mut self,
+        name: &str,
+        args: &[Expr],
+        span: Span,
+    ) -> Result<Option<Type>, Diagnostic> {
+        let Some(signature) = builtin_catalog::get(name) else {
+            return Ok(None);
+        };
+        let Some(op) = builtin_catalog::operation(&signature.operation) else {
+            return Ok(None);
+        };
+        let Some(parameters) = signature
+            .parameters
+            .iter()
+            .map(|spec| builtin_catalog::concrete_type(spec))
+            .collect::<Option<Vec<_>>>()
+        else {
+            return Ok(None);
+        };
+        let Some(result) = builtin_catalog::concrete_type(&signature.result) else {
+            return Ok(None);
+        };
+        if args.len() != parameters.len() {
+            return Err(diagnostic(
+                "E_CALL_ARITY",
+                format!(
+                    "builtin `{name}` expects {} arguments, got {}",
+                    parameters.len(),
+                    args.len()
+                ),
+                span,
+            ));
+        }
+        for (argument, expected) in args.iter().zip(parameters.iter()) {
+            let actual = self.expr_with_expected(argument, Some(expected))?;
+            if actual != *expected {
+                return Err(diagnostic(
+                    "E_TYPE_ARGUMENT",
+                    format!("argument to `{name}` expects {expected:?}, got {actual:?}"),
+                    argument.span(),
+                ));
+            }
+        }
+        self.emit(op, span);
+        Ok(Some(result))
     }
 
     fn expr_with_expected(
@@ -1313,15 +1426,19 @@ impl<'a> FnCompiler<'a> {
             }
             Expr::Name(n, s) => {
                 if n == "None" {
-                    let Type::Option(_) = &self.ast.result else {
-                        return Err(diagnostic(
-                            "E_OPTION_CONSTRUCTOR_CONTEXT",
-                            "None currently requires an Option-returning function",
-                            *s,
-                        ));
+                    let option_type = match expected {
+                        Some(option @ Type::Option(_)) => option,
+                        None if matches!(self.ast.result, Type::Option(_)) => &self.ast.result,
+                        _ => {
+                            return Err(diagnostic(
+                                "E_OPTION_CONSTRUCTOR_CONTEXT",
+                                "None requires an expected Option type or an Option-returning function",
+                                *s,
+                            ));
+                        }
                     };
                     self.emit(Op::MakeNone, *s);
-                    return Ok(self.ast.result.clone());
+                    return Ok(option_type.clone());
                 }
                 let l = self.locals.get(n).cloned().ok_or_else(|| {
                     diagnostic("E_NAME_UNKNOWN", format!("unknown name `{n}`"), *s)
@@ -1440,6 +1557,29 @@ impl<'a> FnCompiler<'a> {
                 }
             }
             Expr::Call(name, args, keywords, s) => {
+                if let Some(signature) = builtin_catalog::get(name) {
+                    if args.len() != signature.parameters.len() {
+                        return Err(diagnostic(
+                            "E_CALL_ARITY",
+                            format!(
+                                "builtin `{name}` expects {} arguments, got {}",
+                                signature.parameters.len(),
+                                args.len()
+                            ),
+                            *s,
+                        ));
+                    }
+                    if !keywords.is_empty() {
+                        return Err(diagnostic(
+                            "E_CALL_KEYWORD",
+                            "keyword arguments are supported only for declared Python calls",
+                            keywords[0].2,
+                        ));
+                    }
+                    if let Some(result) = self.catalog_fixed_builtin(name, args, *s)? {
+                        return Ok(result);
+                    }
+                }
                 if !keywords.is_empty()
                     && [
                         "Some",
@@ -1452,8 +1592,10 @@ impl<'a> FnCompiler<'a> {
                         "len",
                         "map_set",
                         "map_has",
+                        "map_get",
                         "list_push",
                         "list_set",
+                        "list_get",
                         "sqrt",
                         "print",
                         "eprint",
@@ -1471,14 +1613,19 @@ impl<'a> FnCompiler<'a> {
                     if args.len() != 1 {
                         return Err(diagnostic("E_CALL_ARITY", "Some expects one value", *s));
                     }
-                    let Type::Option(item) = &self.ast.result else {
+                    let option_type = match expected {
+                        Some(option @ Type::Option(_)) => option.clone(),
+                        None => self.ast.result.clone(),
+                        _ => Type::Unit,
+                    };
+                    let Type::Option(item) = &option_type else {
                         return Err(diagnostic(
                             "E_OPTION_CONSTRUCTOR_CONTEXT",
-                            "Some currently requires an Option-returning function",
+                            "Some requires an expected Option type or an Option-returning function",
                             *s,
                         ));
                     };
-                    if self.expr(&args[0])? != **item {
+                    if self.expr_with_expected(&args[0], Some(item))? != **item {
                         return Err(diagnostic(
                             "E_OPTION_CONSTRUCTOR_TYPE",
                             format!("Some value must have type {item:?}"),
@@ -1486,7 +1633,7 @@ impl<'a> FnCompiler<'a> {
                         ));
                     }
                     self.emit(Op::MakeSome, *s);
-                    return Ok(self.ast.result.clone());
+                    return Ok(option_type);
                 }
                 if name == "Ok" || name == "Err" {
                     if args.len() != 1 {
@@ -1496,22 +1643,27 @@ impl<'a> FnCompiler<'a> {
                             *s,
                         ));
                     }
-                    let Type::Result(ok, err) = &self.ast.result else {
+                    let result_type = match expected {
+                        Some(result @ Type::Result(_, _)) => result.clone(),
+                        None => self.ast.result.clone(),
+                        _ => Type::Unit,
+                    };
+                    let Type::Result(ok, err) = &result_type else {
                         return Err(diagnostic(
                             "E_RESULT_CONSTRUCTOR_CONTEXT",
-                            "Ok and Err constructors currently require a Result-returning function",
+                            "Ok and Err require an expected Result type or a Result-returning function",
                             *s,
                         ));
                     };
-                    let expected = if name == "Ok" {
+                    let payload_type = if name == "Ok" {
                         ok.as_ref()
                     } else {
                         err.as_ref()
                     };
-                    if self.expr(&args[0])? != *expected {
+                    if self.expr_with_expected(&args[0], Some(payload_type))? != *payload_type {
                         return Err(diagnostic(
                             "E_RESULT_CONSTRUCTOR_TYPE",
-                            format!("{name} value must have type {expected:?}"),
+                            format!("{name} value must have type {payload_type:?}"),
                             args[0].span(),
                         ));
                     }
@@ -1523,7 +1675,7 @@ impl<'a> FnCompiler<'a> {
                         },
                         *s,
                     );
-                    return Ok(self.ast.result.clone());
+                    return Ok(result_type);
                 }
                 if name == "parallel_map" {
                     if args.len() != 3 {
@@ -1546,8 +1698,15 @@ impl<'a> FnCompiler<'a> {
                             args[1].span(),
                         ));
                     };
+                    let Some(worker_symbol) = self.visible_functions.get(worker_name) else {
+                        return Err(diagnostic(
+                            "E_NAME_UNKNOWN",
+                            format!("unknown worker function `{worker_name}`"),
+                            *worker_span,
+                        ));
+                    };
                     let Some((worker_index, worker_params, worker_result)) =
-                        self.signatures.get(worker_name).cloned()
+                        self.signatures.get(worker_symbol).cloned()
                     else {
                         return Err(diagnostic(
                             "E_NAME_UNKNOWN",
@@ -1555,6 +1714,15 @@ impl<'a> FnCompiler<'a> {
                             *worker_span,
                         ));
                     };
+                    if worker_params.iter().any(type_contains_native_resource)
+                        || type_contains_native_resource(&worker_result)
+                    {
+                        return Err(diagnostic(
+                            "E_PARALLEL_RESOURCE",
+                            "parallel workers cannot accept or return native resources",
+                            *worker_span,
+                        ));
+                    }
                     if worker_params != vec![item_type] {
                         return Err(diagnostic(
                             "E_TYPE_ARGUMENT",
@@ -1574,6 +1742,112 @@ impl<'a> FnCompiler<'a> {
                         Box::new(Type::List(Box::new(worker_result))),
                         Box::new(Type::TaskError),
                     ));
+                }
+                if name == "sort_by" {
+                    if args.len() != 2 {
+                        return Err(diagnostic(
+                            "E_CALL_ARITY",
+                            "sort_by expects a list and a named comparator",
+                            *s,
+                        ));
+                    }
+                    let item_type = match self.expr(&args[0])? {
+                        Type::List(item) => *item,
+                        _ => {
+                            return Err(diagnostic(
+                                "E_TYPE_ARGUMENT",
+                                "sort_by first argument must be a List",
+                                args[0].span(),
+                            ))
+                        }
+                    };
+                    let Expr::Name(comparator_name, comparator_span) = &args[1] else {
+                        return Err(diagnostic(
+                            "E_SORT_COMPARATOR",
+                            "sort_by comparator must be a named function",
+                            args[1].span(),
+                        ));
+                    };
+                    let Some(comparator_symbol) = self.visible_functions.get(comparator_name)
+                    else {
+                        return Err(diagnostic(
+                            "E_NAME_UNKNOWN",
+                            format!("unknown comparator `{comparator_name}`"),
+                            *comparator_span,
+                        ));
+                    };
+                    let Some((comparator_index, parameters, result)) =
+                        self.signatures.get(comparator_symbol).cloned()
+                    else {
+                        return Err(diagnostic(
+                            "E_NAME_UNKNOWN",
+                            format!("unknown comparator `{comparator_name}`"),
+                            *comparator_span,
+                        ));
+                    };
+                    if parameters != vec![item_type.clone(), item_type.clone()]
+                        || result != Type::Int
+                    {
+                        return Err(diagnostic("E_SORT_COMPARATOR", "sort_by comparator must have type (T, T) -> Int for the list item type", *comparator_span));
+                    }
+                    self.emit(Op::SortBy(comparator_index), *s);
+                    return Ok(Type::List(Box::new(item_type)));
+                }
+                if name == "list_get" || name == "map_get" {
+                    if args.len() != 2 {
+                        return Err(diagnostic(
+                            "E_CALL_ARITY",
+                            format!("{name} expects a collection and a key or index"),
+                            *s,
+                        ));
+                    }
+                    let collection = self.expr(&args[0])?;
+                    let item = match (&collection, name.as_str()) {
+                        (Type::List(item), "list_get") => item.as_ref().clone(),
+                        (Type::Map(item), "map_get") => item.as_ref().clone(),
+                        (Type::List(_), "map_get") => {
+                            return Err(diagnostic(
+                                "E_TYPE_ARGUMENT",
+                                "map_get requires a Map",
+                                args[0].span(),
+                            ))
+                        }
+                        (Type::Map(_), "list_get") => {
+                            return Err(diagnostic(
+                                "E_TYPE_ARGUMENT",
+                                "list_get requires a List",
+                                args[0].span(),
+                            ))
+                        }
+                        _ => {
+                            return Err(diagnostic(
+                                "E_TYPE_ARGUMENT",
+                                format!("{name} requires a List or Map as its first argument"),
+                                args[0].span(),
+                            ))
+                        }
+                    };
+                    let expected_key = if name == "list_get" {
+                        Type::Int
+                    } else {
+                        Type::Text
+                    };
+                    if self.expr_with_expected(&args[1], Some(&expected_key))? != expected_key {
+                        return Err(diagnostic(
+                            "E_TYPE_ARGUMENT",
+                            format!("{name} key or index has an incompatible type"),
+                            args[1].span(),
+                        ));
+                    }
+                    self.emit(
+                        if name == "list_get" {
+                            Op::ListGetOption
+                        } else {
+                            Op::MapGetOption
+                        },
+                        *s,
+                    );
+                    return Ok(Type::Option(Box::new(item)));
                 }
                 if ["is_ok", "is_some", "unwrap", "error"].contains(&name.as_str()) {
                     if args.len() != 1 {
@@ -1608,412 +1882,6 @@ impl<'a> FnCompiler<'a> {
                         )),
                     };
                 }
-                if ["task_index", "task_code", "task_message"].contains(&name.as_str()) {
-                    if args.len() != 1 || self.expr(&args[0])? != Type::TaskError {
-                        return Err(diagnostic(
-                            "E_TYPE_ARGUMENT",
-                            format!("{name} expects one TaskError"),
-                            *s,
-                        ));
-                    }
-                    let (op, ty) = match name.as_str() {
-                        "task_index" => (Op::TaskIndex, Type::Int),
-                        "task_code" => (Op::TaskCode, Type::Text),
-                        _ => (Op::TaskMessage, Type::Text),
-                    };
-                    self.emit(op, *s);
-                    return Ok(ty);
-                }
-                if name == "args" {
-                    if !args.is_empty() {
-                        return Err(diagnostic("E_CALL_ARITY", "args expects no arguments", *s));
-                    }
-                    self.emit(Op::Args, *s);
-                    return Ok(Type::List(Box::new(Type::Text)));
-                }
-                if name == "args_from" {
-                    if args.len() != 1 {
-                        return Err(diagnostic(
-                            "E_CALL_ARITY",
-                            "args_from expects one Int start index",
-                            *s,
-                        ));
-                    }
-                    if self.expr(&args[0])? != Type::Int {
-                        return Err(diagnostic(
-                            "E_TYPE_ARGUMENT",
-                            "args_from expects one Int start index",
-                            args[0].span(),
-                        ));
-                    }
-                    self.emit(Op::ArgsFrom, *s);
-                    return Ok(Type::List(Box::new(Type::Text)));
-                }
-                if name == "env" {
-                    if args.len() != 1 {
-                        return Err(diagnostic(
-                            "E_CALL_ARITY",
-                            "env expects one Text variable name",
-                            *s,
-                        ));
-                    }
-                    if self.expr(&args[0])? != Type::Text {
-                        return Err(diagnostic(
-                            "E_TYPE_ARGUMENT",
-                            "env variable name must be Text",
-                            args[0].span(),
-                        ));
-                    }
-                    self.emit(Op::Environment, *s);
-                    return Ok(Type::Option(Box::new(Type::Text)));
-                }
-                let json_builtin = match name.as_str() {
-                    "json_null" => Some((Op::JsonNull, vec![], Type::Json)),
-                    "json_bool" => Some((Op::JsonBool, vec![Type::Bool], Type::Json)),
-                    "json_int" => Some((Op::JsonInt, vec![Type::Int], Type::Json)),
-                    "json_float" => Some((Op::JsonFloat, vec![Type::Float64], Type::Json)),
-                    "json_text" => Some((Op::JsonText, vec![Type::Text], Type::Json)),
-                    "json_array" => Some((Op::JsonArray, vec![], Type::Json)),
-                    "json_object" => Some((Op::JsonObject, vec![], Type::Json)),
-                    "json_push" => Some((Op::JsonPush, vec![Type::Json, Type::Json], Type::Json)),
-                    "json_set" => Some((
-                        Op::JsonSet,
-                        vec![Type::Json, Type::Text, Type::Json],
-                        Type::Json,
-                    )),
-                    "json_parse" => Some((
-                        Op::JsonParse,
-                        vec![Type::Text],
-                        Type::Result(Box::new(Type::Json), Box::new(Type::JsonError)),
-                    )),
-                    "json_stringify" => Some((Op::JsonStringify, vec![Type::Json], Type::Text)),
-                    "json_get" => Some((Op::JsonGet, vec![Type::Json, Type::Text], Type::Json)),
-                    "json_index" => Some((Op::JsonIndex, vec![Type::Json, Type::Int], Type::Json)),
-                    "json_has" => Some((Op::JsonHas, vec![Type::Json, Type::Text], Type::Bool)),
-                    "json_len" => Some((Op::JsonLength, vec![Type::Json], Type::Int)),
-                    "json_as_text" => Some((Op::JsonAsText, vec![Type::Json], Type::Text)),
-                    "json_as_int" => Some((Op::JsonAsInt, vec![Type::Json], Type::Int)),
-                    "json_int_column" => Some((
-                        Op::JsonIntColumn,
-                        vec![Type::Json, Type::Text],
-                        Type::List(Box::new(Type::Int)),
-                    )),
-                    "json_text_categories" => Some((
-                        Op::JsonTextCategories,
-                        vec![Type::Json, Type::Text],
-                        Type::Json,
-                    )),
-                    "json_as_int_list" => Some((
-                        Op::JsonAsIntList,
-                        vec![Type::Json],
-                        Type::List(Box::new(Type::Int)),
-                    )),
-                    "json_project_columns" => Some((
-                        Op::JsonProjectColumns,
-                        vec![
-                            Type::Text,
-                            Type::List(Box::new(Type::Text)),
-                            Type::List(Box::new(Type::Text)),
-                        ],
-                        Type::Result(Box::new(Type::Json), Box::new(Type::JsonError)),
-                    )),
-                    "json_text_categories_values" => {
-                        Some((Op::JsonTextCategoriesValues, vec![Type::Json], Type::Json))
-                    }
-                    "json_as_float" => Some((Op::JsonAsFloat, vec![Type::Json], Type::Float64)),
-                    "json_as_bool" => Some((Op::JsonAsBool, vec![Type::Json], Type::Bool)),
-                    "json_is_null" => Some((Op::JsonIsNull, vec![Type::Json], Type::Bool)),
-                    _ => None,
-                };
-                if let Some((op, parameter_types, result_type)) = json_builtin {
-                    if args.len() != parameter_types.len() {
-                        return Err(diagnostic(
-                            "E_CALL_ARITY",
-                            format!("{name} expects {} arguments", parameter_types.len()),
-                            *s,
-                        ));
-                    }
-                    for (arg, expected) in args.iter().zip(parameter_types.iter()) {
-                        if self.expr(arg)? != *expected {
-                            return Err(diagnostic(
-                                "E_TYPE_ARGUMENT",
-                                format!("{name} expects {expected:?}"),
-                                arg.span(),
-                            ));
-                        }
-                    }
-                    self.emit(op, *s);
-                    return Ok(result_type);
-                }
-                if [
-                    "json_error_code",
-                    "json_error_message",
-                    "json_error_line",
-                    "json_error_column",
-                ]
-                .contains(&name.as_str())
-                {
-                    if args.len() != 1 || self.expr(&args[0])? != Type::JsonError {
-                        return Err(diagnostic(
-                            "E_TYPE_ARGUMENT",
-                            format!("{name} expects one JsonError"),
-                            *s,
-                        ));
-                    }
-                    let (op, ty) = match name.as_str() {
-                        "json_error_code" => (Op::JsonErrorCode, Type::Text),
-                        "json_error_line" => (Op::JsonErrorLine, Type::Int),
-                        "json_error_column" => (Op::JsonErrorColumn, Type::Int),
-                        _ => (Op::JsonErrorMessage, Type::Text),
-                    };
-                    self.emit(op, *s);
-                    return Ok(ty);
-                }
-                if [
-                    "file_error_code",
-                    "file_error_message",
-                    "file_error_line",
-                    "file_error_column",
-                ]
-                .contains(&name.as_str())
-                {
-                    if args.len() != 1 || self.expr(&args[0])? != Type::FileError {
-                        return Err(diagnostic(
-                            "E_TYPE_ARGUMENT",
-                            format!("{name} expects one FileError"),
-                            *s,
-                        ));
-                    }
-                    self.emit(
-                        if name == "file_error_code" {
-                            Op::FileErrorCode
-                        } else if name == "file_error_line" {
-                            Op::FileErrorLine
-                        } else if name == "file_error_column" {
-                            Op::FileErrorColumn
-                        } else {
-                            Op::FileErrorMessage
-                        },
-                        *s,
-                    );
-                    return Ok(
-                        if name == "file_error_line" || name == "file_error_column" {
-                            Type::Int
-                        } else {
-                            Type::Text
-                        },
-                    );
-                }
-                if ["http_error_code", "http_error_message"].contains(&name.as_str()) {
-                    if args.len() != 1 || self.expr(&args[0])? != Type::HttpError {
-                        return Err(diagnostic(
-                            "E_TYPE_ARGUMENT",
-                            format!("{name} expects one HttpError"),
-                            *s,
-                        ));
-                    }
-                    self.emit(
-                        if name == "http_error_code" {
-                            Op::HttpErrorCode
-                        } else {
-                            Op::HttpErrorMessage
-                        },
-                        *s,
-                    );
-                    return Ok(Type::Text);
-                }
-                if name == "assert" {
-                    if args.len() != 1 {
-                        return Err(diagnostic(
-                            "E_CALL_ARITY",
-                            "assert expects one Bool argument",
-                            *s,
-                        ));
-                    }
-                    if self.expr(&args[0])? != Type::Bool {
-                        return Err(diagnostic(
-                            "E_TYPE_ARGUMENT",
-                            "assert argument must be Bool",
-                            args[0].span(),
-                        ));
-                    }
-                    self.emit(Op::Assert, *s);
-                    return Ok(Type::Unit);
-                }
-                if name == "read_text" {
-                    if args.len() != 1 {
-                        return Err(diagnostic(
-                            "E_CALL_ARITY",
-                            "read_text expects one Text path",
-                            *s,
-                        ));
-                    }
-                    if self.expr(&args[0])? != Type::Text {
-                        return Err(diagnostic(
-                            "E_TYPE_ARGUMENT",
-                            "read_text path must be Text",
-                            args[0].span(),
-                        ));
-                    }
-                    self.emit(Op::ReadText, *s);
-                    return Ok(Type::Result(
-                        Box::new(Type::Text),
-                        Box::new(Type::FileError),
-                    ));
-                }
-                if name == "http_get" {
-                    if args.len() != 1 {
-                        return Err(diagnostic(
-                            "E_CALL_ARITY",
-                            "http_get expects one Text URL",
-                            *s,
-                        ));
-                    }
-                    if self.expr(&args[0])? != Type::Text {
-                        return Err(diagnostic(
-                            "E_TYPE_ARGUMENT",
-                            "http_get URL must be Text",
-                            args[0].span(),
-                        ));
-                    }
-                    self.emit(Op::HttpGet, *s);
-                    return Ok(Type::Result(
-                        Box::new(Type::Text),
-                        Box::new(Type::HttpError),
-                    ));
-                }
-                if name == "http_request" {
-                    if args.len() != 4 {
-                        return Err(diagnostic(
-                            "E_CALL_ARITY",
-                            "http_request expects method, URL, Text headers, and Text body",
-                            *s,
-                        ));
-                    }
-                    let method = self.expr(&args[0])?;
-                    let url = self.expr(&args[1])?;
-                    let headers = self.expr(&args[2])?;
-                    let body = self.expr(&args[3])?;
-                    if method != Type::Text
-                        || url != Type::Text
-                        || headers != Type::Map(Box::new(Type::Text))
-                        || body != Type::Text
-                    {
-                        return Err(diagnostic(
-                            "E_TYPE_ARGUMENT",
-                            "http_request requires Text method and URL, Map[Text] headers, and Text body",
-                            *s,
-                        ));
-                    }
-                    self.emit(Op::HttpRequest, *s);
-                    return Ok(Type::Result(
-                        Box::new(Type::Json),
-                        Box::new(Type::HttpError),
-                    ));
-                }
-                if name == "http_request_with_timeout" {
-                    if args.len() != 5 {
-                        return Err(diagnostic(
-                            "E_CALL_ARITY",
-                            "http_request_with_timeout expects method, URL, Text headers, Text body, and timeout_ms",
-                            *s,
-                        ));
-                    }
-                    let method = self.expr(&args[0])?;
-                    let url = self.expr(&args[1])?;
-                    let headers = self.expr(&args[2])?;
-                    let body = self.expr(&args[3])?;
-                    let timeout = self.expr(&args[4])?;
-                    if method != Type::Text
-                        || url != Type::Text
-                        || headers != Type::Map(Box::new(Type::Text))
-                        || body != Type::Text
-                        || timeout != Type::Int
-                    {
-                        return Err(diagnostic(
-                            "E_TYPE_ARGUMENT",
-                            "http_request_with_timeout requires Text method and URL, Map[Text] headers, Text body, and Int timeout_ms",
-                            *s,
-                        ));
-                    }
-                    self.emit(Op::HttpRequestWithTimeout, *s);
-                    return Ok(Type::Result(
-                        Box::new(Type::Json),
-                        Box::new(Type::HttpError),
-                    ));
-                }
-                if name == "write_text" || name == "write_text_atomic" {
-                    if args.len() != 2 {
-                        return Err(diagnostic(
-                            "E_CALL_ARITY",
-                            format!("{name} expects a Text path and Text content"),
-                            *s,
-                        ));
-                    }
-                    for arg in args {
-                        if self.expr(arg)? != Type::Text {
-                            return Err(diagnostic(
-                                "E_TYPE_ARGUMENT",
-                                format!("{name} arguments must be Text"),
-                                arg.span(),
-                            ));
-                        }
-                    }
-                    self.emit(
-                        if name == "write_text_atomic" {
-                            Op::WriteTextAtomic
-                        } else {
-                            Op::WriteText
-                        },
-                        *s,
-                    );
-                    return Ok(Type::Result(
-                        Box::new(Type::Unit),
-                        Box::new(Type::FileError),
-                    ));
-                }
-                if name == "read_bytes" {
-                    if args.len() != 1 {
-                        return Err(diagnostic(
-                            "E_CALL_ARITY",
-                            "read_bytes expects one Text path",
-                            *s,
-                        ));
-                    }
-                    if self.expr(&args[0])? != Type::Text {
-                        return Err(diagnostic(
-                            "E_TYPE_ARGUMENT",
-                            "read_bytes expects one Text path",
-                            *s,
-                        ));
-                    }
-                    self.emit(Op::ReadBytes, *s);
-                    return Ok(Type::Result(
-                        Box::new(Type::Bytes),
-                        Box::new(Type::FileError),
-                    ));
-                }
-                if name == "write_bytes" {
-                    if args.len() != 2 {
-                        return Err(diagnostic(
-                            "E_CALL_ARITY",
-                            "write_bytes expects a Text path and Bytes content",
-                            *s,
-                        ));
-                    }
-                    if self.expr(&args[0])? != Type::Text || self.expr(&args[1])? != Type::Bytes {
-                        return Err(diagnostic(
-                            "E_TYPE_ARGUMENT",
-                            "write_bytes expects a Text path and Bytes content",
-                            *s,
-                        ));
-                    }
-                    self.emit(Op::WriteBytes, *s);
-                    return Ok(Type::Result(
-                        Box::new(Type::Unit),
-                        Box::new(Type::FileError),
-                    ));
-                }
                 if name == "len" {
                     if args.len() != 1 {
                         return Err(diagnostic("E_CALL_ARITY", "len expects one argument", *s));
@@ -2030,24 +1898,6 @@ impl<'a> FnCompiler<'a> {
                     }
                     self.emit(Op::Length, *s);
                     return Ok(Type::Int);
-                }
-                if name == "text_chars" {
-                    if args.len() != 1 {
-                        return Err(diagnostic(
-                            "E_CALL_ARITY",
-                            "text_chars expects one Text argument",
-                            *s,
-                        ));
-                    }
-                    if self.expr(&args[0])? != Type::Text {
-                        return Err(diagnostic(
-                            "E_TYPE_ARGUMENT",
-                            "text_chars expects one Text argument",
-                            args[0].span(),
-                        ));
-                    }
-                    self.emit(Op::TextChars, *s);
-                    return Ok(Type::List(Box::new(Type::Text)));
                 }
                 if name == "map_set" {
                     if args.len() != 3 {
@@ -2141,24 +1991,6 @@ impl<'a> FnCompiler<'a> {
                     self.emit(Op::ListSet, *s);
                     return Ok(Type::List(item));
                 }
-                if name == "sqrt" {
-                    if args.len() != 1 {
-                        return Err(diagnostic(
-                            "E_CALL_ARITY",
-                            "sqrt expects one Float64 value",
-                            *s,
-                        ));
-                    }
-                    if self.expr(&args[0])? != Type::Float64 {
-                        return Err(diagnostic(
-                            "E_TYPE_ARGUMENT",
-                            "sqrt expects a Float64 value",
-                            args[0].span(),
-                        ));
-                    }
-                    self.emit(Op::FloatSqrt, *s);
-                    return Ok(Type::Float64);
-                }
                 if name == "map_has" {
                     if args.len() != 2 {
                         return Err(diagnostic(
@@ -2227,29 +2059,36 @@ impl<'a> FnCompiler<'a> {
                     self.emit(Op::MakeRecord(record_index, args.len()), *s);
                     return Ok(Type::Record(name.clone()));
                 }
-                let (index, params, parameter_names, result, external) =
-                    if let Some((index, params, result)) = self
-                        .signatures
-                        .get(name)
-                        .filter(|_| self.visible_functions.contains(name))
-                        .cloned()
-                    {
-                        (index, params, None, result, false)
-                    } else if let Some((index, params, result)) = self
-                        .external_signatures
-                        .get(name)
-                        .filter(|_| self.visible_externals.contains(name))
-                        .cloned()
-                    {
-                        let (names, types): (Vec<_>, Vec<_>) = params.into_iter().unzip();
-                        (index, types, Some(names), result, true)
-                    } else {
+                let (index, params, parameter_names, result, external) = if let Some(symbol) =
+                    self.visible_functions.get(name)
+                {
+                    let Some((index, params, result)) = self.signatures.get(symbol).cloned() else {
                         return Err(diagnostic(
                             "E_NAME_UNKNOWN",
                             format!("unknown function `{name}`"),
                             *s,
                         ));
                     };
+                    (index, params, None, result, false)
+                } else if let Some(symbol) = self.visible_externals.get(name) {
+                    let Some((index, params, result)) =
+                        self.external_signatures.get(symbol).cloned()
+                    else {
+                        return Err(diagnostic(
+                            "E_NAME_UNKNOWN",
+                            format!("unknown external function `{name}`"),
+                            *s,
+                        ));
+                    };
+                    let (names, types): (Vec<_>, Vec<_>) = params.into_iter().unzip();
+                    (index, types, Some(names), result, true)
+                } else {
+                    return Err(diagnostic(
+                        "E_NAME_UNKNOWN",
+                        format!("unknown function `{name}`"),
+                        *s,
+                    ));
+                };
                 if !external && args.len() != params.len() {
                     return Err(diagnostic(
                         "E_CALL_ARITY",
@@ -2766,13 +2605,14 @@ impl<'a> FnCompiler<'a> {
 }
 
 pub fn compile(source_name: &str, source: &str) -> Result<Artifact, Diagnostic> {
-    let program = parse_program(source, 0)?;
+    let program = parse_program(source, 0).map_err(|error| error.with_source_name(source_name))?;
     if !program.imports.is_empty() {
         return Err(diagnostic(
             "E_IMPORT_PROJECT_REQUIRED",
             "imports require compiling from a project entry file",
             Span::default(),
-        ));
+        )
+        .with_source_name(source_name));
     }
     let scope = module_scope(&program);
     let mut artifact = compile_program(
@@ -2780,22 +2620,35 @@ pub fn compile(source_name: &str, source: &str) -> Result<Artifact, Diagnostic> 
         vec![source_name.to_owned()],
         program,
         HashMap::from([(0, scope)]),
-    )?;
+    )
+    .map_err(|error| error.with_source_name(source_name))?;
     artifact.compiled_source_sha256 = Some(digest_sources(vec![(source_name.to_owned(), source)]));
     Ok(artifact)
 }
 
 #[derive(Default)]
 struct ModuleScope {
-    functions: HashSet<String>,
-    externals: HashSet<String>,
+    functions: HashMap<String, usize>,
+    externals: HashMap<String, usize>,
     records: HashSet<String>,
+}
+
+fn function_symbol(module_id: usize, name: &str) -> String {
+    format!("$module{module_id}::{name}")
 }
 
 fn module_scope(program: &Program) -> ModuleScope {
     ModuleScope {
-        functions: program.functions.iter().map(|f| f.name.clone()).collect(),
-        externals: program.externals.iter().map(|f| f.name.clone()).collect(),
+        functions: program
+            .functions
+            .iter()
+            .map(|f| (f.name.clone(), f.module_id))
+            .collect(),
+        externals: program
+            .externals
+            .iter()
+            .map(|f| (f.name.clone(), f.module_id))
+            .collect(),
         records: program.records.iter().map(|r| r.name.clone()).collect(),
     }
 }
@@ -2812,9 +2665,12 @@ fn parse_program(source: &str, source_id: u32) -> Result<Program, Diagnostic> {
 
 struct ModuleNode {
     path: PathBuf,
+    module_root: PathBuf,
+    root_label: String,
+    source_name: String,
     source: String,
     program: Program,
-    imports: Vec<usize>,
+    imports: Vec<(usize, Span)>,
 }
 
 const MAX_MODULE_COUNT: usize = 512;
@@ -2823,7 +2679,8 @@ const MAX_MODULE_SOURCE_BYTES: u64 = 8 * 1024 * 1024;
 const MAX_GRAPH_SOURCE_BYTES: usize = 64 * 1024 * 1024;
 
 struct ModuleLoader {
-    root: PathBuf,
+    stdlib_root: Option<PathBuf>,
+    package_roots: HashMap<String, PathBuf>,
     nodes: Vec<ModuleNode>,
     by_path: HashMap<PathBuf, usize>,
     active: HashSet<PathBuf>,
@@ -2834,6 +2691,9 @@ impl ModuleLoader {
     fn load(
         &mut self,
         path: &Path,
+        module_root: &Path,
+        root_label: &str,
+        source_name: String,
         importer: Option<(u32, String)>,
         depth: usize,
     ) -> Result<usize, Diagnostic> {
@@ -2852,10 +2712,10 @@ impl ModuleLoader {
                     .map_or_else(|| path.display().to_string(), |(_, name)| name.clone()),
             )
         })?;
-        if !canonical.starts_with(&self.root) || !canonical.is_file() {
+        if !canonical.starts_with(module_root) || !canonical.is_file() {
             return Err(diagnostic(
                 "E_IMPORT_ESCAPE",
-                "imported module must be a file inside the project root",
+                "imported module must be a file inside its permitted module root",
                 Span {
                     source_id: importer.as_ref().map_or(0, |(source_id, _)| *source_id),
                     ..Span::default()
@@ -2887,7 +2747,7 @@ impl ModuleLoader {
         }
 
         let source_id = importer.as_ref().map_or(0, |(source_id, _)| *source_id);
-        let source_name = importer
+        let diagnostic_source_name = importer
             .as_ref()
             .map_or_else(|| canonical.display().to_string(), |(_, name)| name.clone());
         if depth > MAX_MODULE_DEPTH {
@@ -2899,7 +2759,7 @@ impl ModuleLoader {
                     ..Span::default()
                 },
             )
-            .with_source_name(source_name));
+            .with_source_name(diagnostic_source_name.clone()));
         }
         if self.nodes.len() >= MAX_MODULE_COUNT {
             return Err(diagnostic(
@@ -2910,7 +2770,7 @@ impl ModuleLoader {
                     ..Span::default()
                 },
             )
-            .with_source_name(source_name));
+            .with_source_name(diagnostic_source_name.clone()));
         }
         let file_bytes = fs::metadata(&canonical)
             .map_err(|error| {
@@ -2922,7 +2782,7 @@ impl ModuleLoader {
                         ..Span::default()
                     },
                 )
-                .with_source_name(source_name.clone())
+                .with_source_name(diagnostic_source_name.clone())
             })?
             .len();
         if file_bytes > MAX_MODULE_SOURCE_BYTES {
@@ -2934,7 +2794,7 @@ impl ModuleLoader {
                     ..Span::default()
                 },
             )
-            .with_source_name(source_name));
+            .with_source_name(diagnostic_source_name.clone()));
         }
         self.total_source_bytes = self
             .total_source_bytes
@@ -2955,7 +2815,7 @@ impl ModuleLoader {
                     ..Span::default()
                 },
             )
-            .with_source_name(source_name));
+            .with_source_name(diagnostic_source_name));
         }
 
         let source = fs::read_to_string(&canonical).map_err(|error| {
@@ -2967,11 +2827,14 @@ impl ModuleLoader {
         })?;
         let index = self.nodes.len();
         let mut program = parse_program(&source, index as u32)
-            .map_err(|error| error.with_source_name(canonical.display().to_string()))?;
+            .map_err(|error| error.with_source_name(source_name.clone()))?;
         let import_paths = std::mem::take(&mut program.imports);
         self.by_path.insert(canonical.clone(), index);
         self.nodes.push(ModuleNode {
             path: canonical.clone(),
+            module_root: module_root.to_path_buf(),
+            root_label: root_label.to_string(),
+            source_name,
             source: source.clone(),
             program,
             imports: Vec::new(),
@@ -2979,31 +2842,123 @@ impl ModuleLoader {
         self.active.insert(canonical.clone());
         let mut imports = Vec::new();
         for import in import_paths {
-            let requested = Path::new(&import.path);
-            if requested.is_absolute()
-                || requested
-                    .components()
-                    .any(|component| !matches!(component, Component::Normal(_)))
-            {
-                return Err(diagnostic(
-                    "E_IMPORT_PATH",
-                    "import paths must be relative and cannot contain `.` or `..` components",
-                    import.span,
-                )
-                .with_source_name(canonical.display().to_string()));
-            }
-            let imported = canonical.parent().unwrap_or(&self.root).join(requested);
-            let source_name = canonical
-                .strip_prefix(&self.root)
-                .unwrap_or(&canonical)
-                .to_string_lossy()
-                .into_owned();
-            let child_index = self.load(&imported, Some((index as u32, source_name)), depth + 1)?;
-            imports.push(child_index);
+            let (imported, child_root, child_label, child_name) =
+                self.resolve_import(index, &import.path, import.span)?;
+            let importer_name = self.nodes[index].source_name.clone();
+            let child_index = self.load(
+                &imported,
+                &child_root,
+                &child_label,
+                child_name,
+                Some((index as u32, importer_name)),
+                depth + 1,
+            )?;
+            imports.push((child_index, import.span));
         }
         self.active.remove(&canonical);
         self.nodes[index].imports = imports;
         Ok(index)
+    }
+
+    fn resolve_import(
+        &self,
+        importer_index: usize,
+        value: &str,
+        span: Span,
+    ) -> Result<(PathBuf, PathBuf, String, String), Diagnostic> {
+        let importer = &self.nodes[importer_index];
+        let fail = |code: &str, message: String| {
+            diagnostic(code, message, span).with_source_name(importer.source_name.clone())
+        };
+        if let Some(module) = value.strip_prefix("std:") {
+            if module.is_empty()
+                || module.starts_with('/')
+                || module
+                    .split('/')
+                    .any(|part| part.is_empty() || part == "." || part == "..")
+                || module.contains('\\')
+            {
+                return Err(fail("E_IMPORT_PATH", "standard-library import must name a module inside the shipped standard library".into()));
+            }
+            let root = self.stdlib_root.as_ref().ok_or_else(|| {
+                fail(
+                    "E_IMPORT_ROOT",
+                    "no verified standard-library root was supplied".into(),
+                )
+            })?;
+            let path = if module.ends_with(".vr") {
+                root.join(module)
+            } else {
+                root.join(format!("{module}.vr"))
+            };
+            return Ok((path, root.clone(), "std".into(), format!("std:{module}")));
+        }
+        if let Some(package_path) = value.strip_prefix("pkg:") {
+            let Some((package, relative)) = package_path.split_once('/') else {
+                return Err(fail(
+                    "E_IMPORT_PATH",
+                    "package import must use `pkg:name/path.vr`".into(),
+                ));
+            };
+            let requested = Path::new(relative);
+            if package.is_empty()
+                || requested.is_absolute()
+                || requested
+                    .components()
+                    .any(|part| !matches!(part, Component::Normal(_)))
+            {
+                return Err(fail(
+                    "E_IMPORT_PATH",
+                    "package import path must stay inside the named package root".into(),
+                ));
+            }
+            let root = self.package_roots.get(package).ok_or_else(|| {
+                fail(
+                    "E_PACKAGE_NOT_LOCKED",
+                    format!("package `{package}` is not present in the resolved dependency roots"),
+                )
+            })?;
+            return Ok((
+                root.join(requested),
+                root.clone(),
+                format!("pkg:{package}"),
+                value.to_string(),
+            ));
+        }
+        let requested = Path::new(value);
+        if requested.is_absolute()
+            || requested
+                .components()
+                .any(|part| !matches!(part, Component::Normal(_)))
+        {
+            return Err(fail(
+                "E_IMPORT_PATH",
+                "import paths must be relative and cannot contain `.` or `..` components".into(),
+            ));
+        }
+        let path = importer
+            .path
+            .parent()
+            .unwrap_or(&importer.module_root)
+            .join(requested);
+        let relative = path
+            .strip_prefix(&importer.module_root)
+            .unwrap_or(&path)
+            .to_string_lossy()
+            .into_owned();
+        let source_name = if importer.root_label.is_empty() {
+            relative
+        } else if importer.root_label == "std" {
+            format!("std:{relative}")
+        } else {
+            format!("{}/{relative}", importer.root_label)
+        };
+        Ok((
+            path,
+            importer.module_root.clone(),
+            importer.root_label.clone(),
+            source_name,
+        ))
     }
 }
 
@@ -3011,6 +2966,17 @@ impl ModuleLoader {
 /// Imported functions and records must be declared `pub`; their dependencies remain scoped to
 /// their own module and direct imports.
 pub fn compile_project(entry: &Path, project_root: &Path) -> Result<Artifact, Diagnostic> {
+    compile_project_with_roots(entry, project_root, None, &HashMap::new())
+}
+
+/// Compile a project with explicit, independently supplied standard-library and package roots.
+/// All imported paths are canonicalized and confined to their selected root before parsing.
+pub fn compile_project_with_roots(
+    entry: &Path,
+    project_root: &Path,
+    stdlib_root: Option<&Path>,
+    package_roots: &HashMap<String, PathBuf>,
+) -> Result<Artifact, Diagnostic> {
     let root = project_root.canonicalize().map_err(|error| {
         diagnostic(
             "E_PROJECT_ROOT",
@@ -3039,41 +3005,67 @@ pub fn compile_project(entry: &Path, project_root: &Path) -> Result<Artifact, Di
             Span::default(),
         ));
     }
+    let stdlib_root = stdlib_root
+        .map(Path::canonicalize)
+        .transpose()
+        .map_err(|error| {
+            diagnostic(
+                "E_IMPORT_ROOT",
+                format!("cannot resolve standard-library root: {error}"),
+                Span::default(),
+            )
+        })?;
+    let mut canonical_packages = HashMap::new();
+    for (name, path) in package_roots {
+        if name.is_empty() || name.contains('/') || name.contains('\\') {
+            return Err(diagnostic(
+                "E_IMPORT_ROOT",
+                format!("invalid package root name `{name}`"),
+                Span::default(),
+            ));
+        }
+        let canonical = path.canonicalize().map_err(|error| {
+            diagnostic(
+                "E_IMPORT_ROOT",
+                format!("cannot resolve package root `{name}`: {error}"),
+                Span::default(),
+            )
+        })?;
+        if !canonical.is_dir() {
+            return Err(diagnostic(
+                "E_IMPORT_ROOT",
+                format!("package root `{name}` is not a directory"),
+                Span::default(),
+            ));
+        }
+        canonical_packages.insert(name.clone(), canonical);
+    }
     let mut loader = ModuleLoader {
-        root: root.clone(),
+        stdlib_root: stdlib_root.clone(),
+        package_roots: canonical_packages,
         nodes: Vec::new(),
         by_path: HashMap::new(),
         active: HashSet::new(),
         total_source_bytes: 0,
     };
-    loader.load(&entry, None, 0)?;
+    let entry_name = entry
+        .strip_prefix(&root)
+        .unwrap_or(&entry)
+        .to_string_lossy()
+        .into_owned();
+    loader.load(&entry, &root, "", entry_name, None, 0)?;
     let compiled_source_sha256 = digest_sources(
         loader
             .nodes
             .iter()
-            .map(|node| {
-                (
-                    node.path
-                        .strip_prefix(&root)
-                        .unwrap_or(&node.path)
-                        .to_string_lossy()
-                        .into_owned(),
-                    node.source.as_str(),
-                )
-            })
+            .map(|node| (node.source_name.clone(), node.source.as_str()))
             .collect(),
     );
     let nodes = loader.nodes;
 
     let sources = nodes
         .iter()
-        .map(|node| {
-            node.path
-                .strip_prefix(&root)
-                .unwrap_or(&node.path)
-                .to_string_lossy()
-                .into_owned()
-        })
+        .map(|node| node.source_name.clone())
         .collect::<Vec<_>>();
     let mut program = Program {
         functions: Vec::new(),
@@ -3089,15 +3081,35 @@ pub fn compile_project(entry: &Path, project_root: &Path) -> Result<Artifact, Di
     let mut scopes = HashMap::new();
     for (module_id, node) in nodes.iter().enumerate() {
         let mut scope = module_scope(&node.program);
-        for imported_id in &node.imports {
+        let mut imported_functions = HashMap::<String, usize>::new();
+        for (imported_id, import_span) in &node.imports {
             let imported = &nodes[*imported_id].program;
-            scope.functions.extend(
-                imported
-                    .functions
-                    .iter()
-                    .filter(|function| function.public)
-                    .map(|function| function.name.clone()),
-            );
+            for function in imported.functions.iter().filter(|function| function.public) {
+                if let Some(previous_owner) = imported_functions.get(&function.name) {
+                    if *previous_owner != function.module_id
+                        && !module_scope(&node.program)
+                            .functions
+                            .contains_key(&function.name)
+                    {
+                        return Err(diagnostic(
+                            "E_NAME_AMBIGUOUS",
+                            format!(
+                                "public function {} is exported by more than one direct import",
+                                function.name
+                            ),
+                            *import_span,
+                        )
+                        .with_source_name(sources[module_id].clone()));
+                    }
+                } else {
+                    imported_functions.insert(function.name.clone(), function.module_id);
+                }
+                if !scope.functions.contains_key(&function.name) {
+                    scope
+                        .functions
+                        .insert(function.name.clone(), function.module_id);
+                }
+            }
             scope.records.extend(
                 imported
                     .records
@@ -3181,6 +3193,7 @@ fn compile_program(
         }
     }
     let mut signatures: HashMap<String, (usize, Vec<Type>, Type)> = HashMap::new();
+    let mut declared_function_names = HashSet::new();
     for (idx, f) in program.functions.iter().enumerate() {
         let scope = &scopes[&f.module_id];
         if record_names.contains(&f.name) {
@@ -3206,50 +3219,69 @@ fn compile_program(
                 f.span,
             ));
         }
-        if signatures
-            .insert(
-                f.name.clone(),
-                (
-                    idx,
-                    f.params.iter().map(|p| p.1.clone()).collect(),
-                    f.result.clone(),
-                ),
-            )
-            .is_some()
-        {
+        if !declared_function_names.insert((f.module_id, f.name.clone())) {
             return Err(diagnostic(
                 "E_NAME_DUPLICATE",
-                format!("function `{}` is declared more than once", f.name),
+                format!(
+                    "function {} is declared more than once in this module",
+                    f.name
+                ),
                 f.span,
             ));
         }
+        signatures.insert(
+            function_symbol(f.module_id, &f.name),
+            (
+                idx,
+                f.params.iter().map(|p| p.1.clone()).collect(),
+                f.result.clone(),
+            ),
+        );
     }
     let mut external_signatures: HashMap<String, ExternalSignature> = HashMap::new();
+    let mut declared_external_names = HashSet::new();
     for (idx, external) in program.externals.iter().enumerate() {
         let name = &external.name;
-        if signatures.contains_key(name)
+        let module_scope = &scopes[&external.module_id];
+        if declared_function_names.contains(&(external.module_id, name.clone()))
             || record_names.contains(name)
-            || external_signatures
-                .insert(
-                    name.clone(),
-                    (
-                        idx,
-                        external
-                            .params
-                            .iter()
-                            .map(|p| (p.0.clone(), p.1.clone()))
-                            .collect(),
-                        external.result.clone(),
-                    ),
-                )
-                .is_some()
+            || !declared_external_names.insert((external.module_id, name.clone()))
         {
             return Err(diagnostic(
                 "E_NAME_DUPLICATE",
-                format!("function `{name}` is declared more than once"),
+                format!(
+                    "function {} is declared more than once in this module",
+                    name
+                ),
                 external.span,
             ));
         }
+        if module_scope
+            .functions
+            .get(name)
+            .is_some_and(|owner| *owner != external.module_id)
+        {
+            return Err(diagnostic(
+                "E_NAME_AMBIGUOUS",
+                format!(
+                    "external function {} conflicts with an imported function",
+                    name
+                ),
+                external.span,
+            ));
+        }
+        external_signatures.insert(
+            function_symbol(external.module_id, name),
+            (
+                idx,
+                external
+                    .params
+                    .iter()
+                    .map(|p| (p.0.clone(), p.1.clone()))
+                    .collect(),
+                external.result.clone(),
+            ),
+        );
         let mut names = HashMap::new();
         if external
             .params
@@ -3285,19 +3317,59 @@ fn compile_program(
             }
         }
     }
-    let Some((entry, params, result)) = signatures.get("main") else {
+    let Some(entry) = program
+        .functions
+        .iter()
+        .position(|function| function.module_id == 0 && function.name == "main")
+    else {
         return Err(diagnostic(
             "E_ENTRY_MISSING",
-            "module must define `main`",
-            Span::default(),
+            "module must define main",
+            Span {
+                line: 1,
+                column: 1,
+                ..Span::default()
+            },
         ));
     };
-    if !params.is_empty() || !matches!(result, Type::Int | Type::Unit) {
+    let entry_function = &program.functions[entry];
+    if !entry_function.params.is_empty() || !matches!(entry_function.result, Type::Int | Type::Unit)
+    {
         return Err(diagnostic(
             "E_ENTRY_SIGNATURE",
             "main must have no parameters and return Int or Unit",
-            program.functions[*entry].span,
+            entry_function.span,
         ));
+    }
+    let visible_functions_by_module: HashMap<usize, HashMap<String, String>> = scopes
+        .iter()
+        .map(|(module_id, scope)| {
+            (
+                *module_id,
+                scope
+                    .functions
+                    .iter()
+                    .map(|(name, owner)| (name.clone(), function_symbol(*owner, name)))
+                    .collect(),
+            )
+        })
+        .collect();
+    let visible_externals_by_module: HashMap<usize, HashMap<String, String>> = scopes
+        .iter()
+        .map(|(module_id, scope)| {
+            (
+                *module_id,
+                scope
+                    .externals
+                    .iter()
+                    .map(|(name, owner)| (name.clone(), function_symbol(*owner, name)))
+                    .collect(),
+            )
+        })
+        .collect();
+    let mut global_name_counts = HashMap::<&str, usize>::new();
+    for function in &program.functions {
+        *global_name_counts.entry(&function.name).or_default() += 1;
     }
     let mut functions = Vec::new();
     for f in &program.functions {
@@ -3306,8 +3378,8 @@ fn compile_program(
             signatures: &signatures,
             external_signatures: &external_signatures,
             records: &program.records,
-            visible_functions: &scopes[&f.module_id].functions,
-            visible_externals: &scopes[&f.module_id].externals,
+            visible_functions: &visible_functions_by_module[&f.module_id],
+            visible_externals: &visible_externals_by_module[&f.module_id],
             visible_records: &scopes[&f.module_id].records,
             locals: HashMap::new(),
             next_local: 0,
@@ -3346,15 +3418,26 @@ fn compile_program(
                 f.span,
             ));
         }
+        let display_name = if global_name_counts
+            .get(f.name.as_str())
+            .copied()
+            .unwrap_or(0)
+            > 1
+            && !(f.module_id == 0 && f.name == "main")
+        {
+            format!("@module/{}/{}", f.module_id, f.name)
+        } else {
+            f.name.clone()
+        };
         functions.push(Function {
-            name: f.name.clone(),
+            name: display_name,
             parameters: f.params.iter().map(|p| p.1.clone()).collect(),
             result: f.result.clone(),
             local_count: compiler.next_local,
             code: compiler.code,
         });
     }
-    Ok(Artifact {
+    let artifact = Artifact {
         format_version: Artifact::CURRENT_VERSION,
         build_metadata: None,
         compiled_source_sha256: None,
@@ -3397,12 +3480,19 @@ fn compile_program(
                     .collect(),
             })
             .collect(),
-    })
+    };
+    veritas_model::validate_sort_comparator_effects(&artifact)
+        .map_err(|message| diagnostic("E_SORT_EFFECT", message, Span::default()))?;
+    Ok(artifact)
 }
 
 fn type_is_known(ty: &Type, records: &std::collections::HashSet<String>) -> bool {
     match ty {
         Type::Record(name) => records.contains(name),
+        Type::NativeResource(name) => matches!(
+            name.as_str(),
+            "FileReader" | "Db" | "Transaction" | "TomlDocument"
+        ),
         Type::List(item) | Type::Map(item) | Type::Option(item) => type_is_known(item, records),
         Type::Result(ok, err) => type_is_known(ok, records) && type_is_known(err, records),
         _ => true,
@@ -3412,6 +3502,10 @@ fn type_is_known(ty: &Type, records: &std::collections::HashSet<String>) -> bool
 fn type_is_visible(ty: &Type, records: &HashSet<String>) -> bool {
     match ty {
         Type::Record(name) => records.contains(name),
+        Type::NativeResource(name) => matches!(
+            name.as_str(),
+            "FileReader" | "Db" | "Transaction" | "TomlDocument"
+        ),
         Type::List(item) | Type::Map(item) | Type::Option(item) => type_is_visible(item, records),
         Type::Result(ok, err) => type_is_visible(ok, records) && type_is_visible(err, records),
         _ => true,
@@ -3430,12 +3524,26 @@ fn python_bridge_type(ty: &Type) -> bool {
         Type::List(item) => python_bridge_type(item),
         Type::Map(item) => python_bridge_type(item),
         Type::Record(_) => false,
+        Type::NativeResource(_) => false,
         Type::Option(_)
         | Type::Result(_, _)
         | Type::TaskError
         | Type::JsonError
         | Type::FileError
         | Type::HttpError => false,
+    }
+}
+
+fn type_contains_native_resource(ty: &Type) -> bool {
+    match ty {
+        Type::NativeResource(_) => true,
+        Type::List(item) | Type::Map(item) | Type::Option(item) => {
+            type_contains_native_resource(item)
+        }
+        Type::Result(ok, err) => {
+            type_contains_native_resource(ok) || type_contains_native_resource(err)
+        }
+        _ => false,
     }
 }
 

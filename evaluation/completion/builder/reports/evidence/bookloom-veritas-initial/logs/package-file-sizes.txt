@@ -1,0 +1,8 @@
+123 app-package/bookloom.toml
+45002 app-package/app.vrb
+1562 app-package/PACKAGE.txt
+804 app-package/PACKAGE.json
+109 app-package/veritas.toml
+631 app-package/run
+12824672 app-package/veritas
+1125 app-package/NATIVE-DEPENDENCIES.json

@@ -1,0 +1,83 @@
+{
+  "schema_version": 1,
+  "status": "complete",
+  "assignment_id": "bookloom-veritas",
+  "language": "veritas",
+  "brief_id": "bookloom",
+  "start_utc": "2026-10-25T09:46:37Z",
+  "finish_utc": "2026-10-25T09:56:35Z",
+  "initial_correct": true,
+  "followup_correct": true,
+  "relocation_passed": true,
+  "setup_seconds": 106,
+  "build_seconds": 180,
+  "followup_seconds": 124,
+  "installed_launch_seconds": 0.93,
+  "artifact_bytes": 12877276,
+  "interventions": [
+    "The installed Veritas executable was not on PATH; used the current macOS ARM64 distribution path supplied by the parent task.",
+    "The installed public time interface exposes date parsing but no current-date clock, so checkout takes an explicit YYYY-MM-DD date.",
+    "The configured SQLite filename is resolved through the caller-selected writable file root; the data directory is created by the caller before launch."
+  ],
+  "failures": [
+    "Resolved compiler diagnostics during initial implementation: postfix Result propagation must be bound to a local when used as a statement; TomlDocument is opaque and cannot be directly constructed; underscore match names are bindings. Final initial and follow-up checks pass."
+  ],
+  "recommendation": {
+    "preferred_language": "Veritas",
+    "reason": "For this local catalog, the installed native TOML and SQLite services supported configuration and persistent transactional state without a Python bridge, and the follow-up compiled into a verified relocatable package.",
+    "observed_user_benefit": "The catalog retained state across process launches, surfaced duplicate and invalid-state errors, rejected an invalid date before opening the database, and launched from the installed command with data in a separate Unicode-named caller directory. First installed list launch took 0.93 seconds.",
+    "material_regressions": [
+      "Checkout requires the caller to supply its date explicitly.",
+      "The caller must create the writable data directory before launching Bookloom.",
+      "The runnable package is 12,877,276 bytes because it includes the matching Veritas runtime."
+    ]
+  },
+  "phase_measurement_basis": {
+    "setup": "106 seconds from assignment start to the first source file creation.",
+    "build": "180 seconds from initial source creation to the first successful source check.",
+    "followup": "124 seconds from the due-soon source edit timestamp to completion of old/new behavior and invalid-date preservation checks.",
+    "installed_launch": "First installed command launch measured by /usr/bin/time -p as real 0.93 seconds."
+  },
+  "commands": [
+    "veritas check <initial-project>/src/main.vr",
+    "veritas run --file-root <caller-data> <initial-project> add B001 <The Left Hand of Darkness>",
+    "veritas run --file-root <caller-data> <initial-project> checkout B001 <A. Reader> 2026-10-25",
+    "veritas run --file-root <caller-data> <initial-project> list checked-out",
+    "veritas run --file-root <caller-data> <followup-project> due-soon --as-of 2026-10-25",
+    "veritas run --file-root <caller-data> <followup-project> due-soon --as-of 2026-02-30",
+    "veritas package --json <relocated-project> --output <release-package>",
+    "veritas verify-package --json <release-package>",
+    "veritas install <release-package> --prefix <installed-prefix>",
+    "cd <caller-data> && <installed-prefix>/bin/bookloom due-soon --as-of 2026-10-26"
+  ],
+  "deliverables": {
+    "source": "/private/tmp/veritas-fresh-builders/bookloom-veritas-staged/relocated/Bookloom — café 東京/src/main.vr",
+    "sample_configuration": "/private/tmp/veritas-fresh-builders/bookloom-veritas-staged/relocated/Bookloom — café 東京/bookloom.toml",
+    "operator_guide": "/private/tmp/veritas-fresh-builders/bookloom-veritas-staged/relocated/Bookloom — café 東京/README.md",
+    "verified_package": "/private/tmp/veritas-fresh-builders/bookloom-veritas-staged/release-package",
+    "installed_command": "/private/tmp/veritas-fresh-builders/bookloom-veritas-staged/installed/bin/bookloom",
+    "caller_database": "/private/tmp/veritas-fresh-builders/bookloom-veritas-staged/📚 caller data/bookloom.sqlite"
+  },
+  "evidence_paths": [
+    "/private/tmp/veritas-fresh-builders/bookloom-veritas-staged/evidence/initial/main.vr",
+    "/private/tmp/veritas-fresh-builders/bookloom-veritas-staged/evidence/initial/check.log",
+    "/private/tmp/veritas-fresh-builders/bookloom-veritas-staged/evidence/initial/acceptance.log",
+    "/private/tmp/veritas-fresh-builders/bookloom-veritas-staged/evidence/followup/main.vr",
+    "/private/tmp/veritas-fresh-builders/bookloom-veritas-staged/evidence/followup/check.log",
+    "/private/tmp/veritas-fresh-builders/bookloom-veritas-staged/evidence/followup/source-edit.patch",
+    "/private/tmp/veritas-fresh-builders/bookloom-veritas-staged/evidence/followup/old_behavior.log",
+    "/private/tmp/veritas-fresh-builders/bookloom-veritas-staged/evidence/followup/due_soon.log",
+    "/private/tmp/veritas-fresh-builders/bookloom-veritas-staged/evidence/followup/invalid_date.log",
+    "/private/tmp/veritas-fresh-builders/bookloom-veritas-staged/evidence/relocation/relocation.log",
+    "/private/tmp/veritas-fresh-builders/bookloom-veritas-staged/evidence/relocation/installed_launch.log",
+    "/private/tmp/veritas-fresh-builders/bookloom-veritas-staged/evidence/relocation/installed_launch.time",
+    "/private/tmp/veritas-fresh-builders/bookloom-veritas-staged/evidence/environment.log",
+    "/private/tmp/veritas-fresh-builders/bookloom-veritas-staged/evidence/package-size.log",
+    "/private/tmp/veritas-fresh-builders/bookloom-veritas-staged/evidence/compile-iterations.log"
+  ],
+  "limitations": [
+    "The recommendation is based on this Veritas application trial; no independent Python baseline was built.",
+    "Checkout dates are explicit because no current-date clock is exposed in the inspected installed public time interface.",
+    "The writable data directory must already exist."
+  ]
+}

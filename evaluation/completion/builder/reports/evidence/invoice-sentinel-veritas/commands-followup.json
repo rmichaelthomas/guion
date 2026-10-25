@@ -1,0 +1,186 @@
+[
+  {
+    "command": [
+      "/private/tmp/veritas-fresh-builders/invoice-sentinel-veritas/final-app/run",
+      "--input",
+      "ledger.tsv",
+      "--as-of",
+      "2026-01-15",
+      "--output",
+      "report.json"
+    ],
+    "cwd": "/private/tmp/veritas-fresh-builders/invoice-sentinel-veritas/checks-followup",
+    "returncode": 0,
+    "stdout": "",
+    "stderr": "rejected row 7: invalid amount_cents: expected nonnegative decimal integer\nrejected row 8: invalid due_date: expected YYYY-MM-DD calendar date\nrejected row 9: expected 5 tab-separated fields\nrejected row 10: invalid state: expected open or paid\n",
+    "elapsed_seconds": 0.2577915000001667
+  },
+  {
+    "command": [
+      "/private/tmp/veritas-fresh-builders/invoice-sentinel-veritas/final-app/run",
+      "--input",
+      "ledger.tsv",
+      "--as-of",
+      "2026-01-15",
+      "--output",
+      "report.json"
+    ],
+    "cwd": "/private/tmp/veritas-fresh-builders/invoice-sentinel-veritas/checks-followup",
+    "returncode": 0,
+    "stdout": "",
+    "stderr": "rejected row 7: invalid amount_cents: expected nonnegative decimal integer\nrejected row 8: invalid due_date: expected YYYY-MM-DD calendar date\nrejected row 9: expected 5 tab-separated fields\nrejected row 10: invalid state: expected open or paid\n",
+    "elapsed_seconds": 0.02885833301115781
+  },
+  {
+    "command": [
+      "/private/tmp/veritas-fresh-builders/invoice-sentinel-veritas/final-app/run",
+      "--input",
+      "ledger.tsv",
+      "--as-of",
+      "2026-02-30",
+      "--output",
+      "report.json"
+    ],
+    "cwd": "/private/tmp/veritas-fresh-builders/invoice-sentinel-veritas/checks-followup",
+    "returncode": 2,
+    "stdout": "",
+    "stderr": "input, output, and valid --as-of date required\n",
+    "elapsed_seconds": 0.02059012500103563
+  },
+  {
+    "command": [
+      "/private/tmp/veritas-fresh-builders/invoice-sentinel-veritas/final-app/run",
+      "--input",
+      "ledger.tsv",
+      "--as-of",
+      "2026-13-01",
+      "--output",
+      "report.json"
+    ],
+    "cwd": "/private/tmp/veritas-fresh-builders/invoice-sentinel-veritas/checks-followup",
+    "returncode": 2,
+    "stdout": "",
+    "stderr": "input, output, and valid --as-of date required\n",
+    "elapsed_seconds": 0.021491209001396783
+  },
+  {
+    "command": [
+      "/private/tmp/veritas-fresh-builders/invoice-sentinel-veritas/final-app/run",
+      "--input",
+      "ledger.tsv",
+      "--as-of",
+      "2026-1-01",
+      "--output",
+      "report.json"
+    ],
+    "cwd": "/private/tmp/veritas-fresh-builders/invoice-sentinel-veritas/checks-followup",
+    "returncode": 2,
+    "stdout": "",
+    "stderr": "input, output, and valid --as-of date required\n",
+    "elapsed_seconds": 0.019905542008928023
+  },
+  {
+    "command": [
+      "/private/tmp/veritas-fresh-builders/invoice-sentinel-veritas/final-app/run",
+      "--input",
+      "ledger.tsv",
+      "--as-of",
+      "0000-01-01",
+      "--output",
+      "report.json"
+    ],
+    "cwd": "/private/tmp/veritas-fresh-builders/invoice-sentinel-veritas/checks-followup",
+    "returncode": 2,
+    "stdout": "",
+    "stderr": "input, output, and valid --as-of date required\n",
+    "elapsed_seconds": 0.02066325000487268
+  },
+  {
+    "command": [
+      "/private/tmp/veritas-fresh-builders/invoice-sentinel-veritas/final-app/run",
+      "--input",
+      "ledger.tsv",
+      "--as-of",
+      "bad",
+      "--output",
+      "report.json"
+    ],
+    "cwd": "/private/tmp/veritas-fresh-builders/invoice-sentinel-veritas/checks-followup",
+    "returncode": 2,
+    "stdout": "",
+    "stderr": "input, output, and valid --as-of date required\n",
+    "elapsed_seconds": 0.02006924999295734
+  },
+  {
+    "command": [
+      "/private/tmp/veritas-fresh-builders/invoice-sentinel-veritas/final-app/run",
+      "--input",
+      "ledger.tsv",
+      "--as-of",
+      "2026-01-15",
+      "--output",
+      "report.json",
+      "--amount",
+      "1.5"
+    ],
+    "cwd": "/private/tmp/veritas-fresh-builders/invoice-sentinel-veritas/checks-followup",
+    "returncode": 2,
+    "stdout": "",
+    "stderr": "unknown or duplicate option: --amount\n",
+    "elapsed_seconds": 0.020296625007176772
+  },
+  {
+    "command": [
+      "/private/tmp/veritas-fresh-builders/invoice-sentinel-veritas/final-app/run",
+      "--input",
+      "ledger.tsv",
+      "--as-of",
+      "2026-01-15",
+      "--output",
+      "report.json",
+      "--vendor",
+      "Acme"
+    ],
+    "cwd": "/private/tmp/veritas-fresh-builders/invoice-sentinel-veritas/checks-followup",
+    "returncode": 0,
+    "stdout": "",
+    "stderr": "rejected row 7: invalid amount_cents: expected nonnegative decimal integer\nrejected row 8: invalid due_date: expected YYYY-MM-DD calendar date\nrejected row 9: expected 5 tab-separated fields\nrejected row 10: invalid state: expected open or paid\n",
+    "elapsed_seconds": 0.028104291995987296
+  },
+  {
+    "command": [
+      "/private/tmp/veritas-fresh-builders/invoice-sentinel-veritas/final-app/run",
+      "--input",
+      "ledger.tsv",
+      "--as-of",
+      "2026-01-15",
+      "--output",
+      "report.json",
+      "--vendor",
+      "acme"
+    ],
+    "cwd": "/private/tmp/veritas-fresh-builders/invoice-sentinel-veritas/checks-followup",
+    "returncode": 0,
+    "stdout": "",
+    "stderr": "rejected row 7: invalid amount_cents: expected nonnegative decimal integer\nrejected row 8: invalid due_date: expected YYYY-MM-DD calendar date\nrejected row 9: expected 5 tab-separated fields\nrejected row 10: invalid state: expected open or paid\n",
+    "elapsed_seconds": 0.028039166005328298
+  },
+  {
+    "command": [
+      "/private/tmp/veritas-fresh-builders/invoice-sentinel-veritas/final-app/run",
+      "--input",
+      "ledger.tsv",
+      "--as-of",
+      "2026-01-15",
+      "--output",
+      "report.json",
+      "--vendor",
+      "Café 雪"
+    ],
+    "cwd": "/private/tmp/veritas-fresh-builders/invoice-sentinel-veritas/checks-followup",
+    "returncode": 0,
+    "stdout": "",
+    "stderr": "rejected row 7: invalid amount_cents: expected nonnegative decimal integer\nrejected row 8: invalid due_date: expected YYYY-MM-DD calendar date\nrejected row 9: expected 5 tab-separated fields\nrejected row 10: invalid state: expected open or paid\n",
+    "elapsed_seconds": 0.028823707994888537
+  }
+]

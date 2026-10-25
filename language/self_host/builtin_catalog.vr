@@ -1,0 +1,310 @@
+# Generated from language/builtin-signatures.json by `cargo xtask catalog --write`.
+pub fn builtin_catalog_signature(name: Text) -> Text:
+    if len(name) == 0:
+        return ""
+    if name[0] == "E":
+        if name == "Err":
+            return "1:MakeErr:Result[$T, $E]:"
+    if name[0] == "O":
+        if name == "Ok":
+            return "1:MakeOk:Result[$T, $E]:"
+    if name[0] == "S":
+        if name == "Some":
+            return "1:MakeSome:Option[$T]:"
+    if name[0] == "a":
+        if name == "args":
+            return "0:Args:List[Text]:"
+        if name == "args_from":
+            return "1:ArgsFrom:List[Text]:Int"
+        if name == "assert":
+            return "1:Assert:Unit:Bool"
+    if name[0] == "b":
+        if name == "bytes_from_ints":
+            return "1:BytesFromInts:Bytes:List[Int]"
+        if name == "bytes_from_text":
+            return "1:BytesFromText:Bytes:Text"
+        if name == "bytes_join":
+            return "1:BytesJoin:Bytes:List[Bytes]"
+    if name[0] == "c":
+        if name == "cli_parse":
+            return "2:CliParse:Result[Record[CliArgs], FileError]:List[Text];List[Record[CliOption]]"
+        if name == "csv_encode":
+            return "1:CsvEncode:Result[Text, FileError]:List[List[Text]]"
+        if name == "csv_next":
+            return "1:CsvNext:Result[Option[Record[CsvRow]], FileError]:FileReader"
+        if name == "csv_open":
+            return "1:CsvOpen:Result[FileReader, FileError]:Text"
+    if name[0] == "e":
+        if name == "env":
+            return "1:Environment:Option[Text]:Text"
+        if name == "eprint":
+            return "1:PrintErr:Unit:"
+        if name == "error":
+            return "1:GetError:$E:"
+    if name[0] == "f":
+        if name == "file_close":
+            return "1:FileClose:Result[Unit, FileError]:FileReader"
+        if name == "file_error_code":
+            return "1:FileErrorCode:Text:FileError"
+        if name == "file_error_column":
+            return "1:FileErrorColumn:Int:FileError"
+        if name == "file_error_line":
+            return "1:FileErrorLine:Int:FileError"
+        if name == "file_error_message":
+            return "1:FileErrorMessage:Text:FileError"
+        if name == "file_next_line":
+            return "1:FileNextLine:Result[Option[Record[SourceLine]], FileError]:FileReader"
+        if name == "file_open_lines":
+            return "1:FileOpenLines:Result[FileReader, FileError]:Text"
+        if name == "float64_bits":
+            return "1:Float64Bits:Int:Float64"
+        if name == "fs_walk":
+            return "1:FsWalk:Result[List[Record[DirectoryEntry]], FileError]:Text"
+    if name[0] == "h":
+        if name == "http_error_code":
+            return "1:HttpErrorCode:Text:HttpError"
+        if name == "http_error_message":
+            return "1:HttpErrorMessage:Text:HttpError"
+        if name == "http_get":
+            return "1:HttpGet:Result[Text, HttpError]:Text"
+        if name == "http_request":
+            return "4:HttpRequest:Result[Json, HttpError]:Text;Text;Map[Text, Text];Text"
+        if name == "http_request_bytes":
+            return "5:HttpRequestBytes:Result[Record[HttpResponse], HttpError]:Text;Text;Map[Text, Text];Bytes;Int"
+        if name == "http_request_with_timeout":
+            return "5:HttpRequestWithTimeout:Result[Json, HttpError]:Text;Text;Map[Text, Text];Text;Int"
+    if name[0] == "i":
+        if name == "is_ok":
+            return "1:IsOk:Bool:"
+        if name == "is_some":
+            return "1:IsSome:Bool:"
+    if name[0] == "j":
+        if name == "json_array":
+            return "0:JsonArray:Json:"
+        if name == "json_as_bool":
+            return "1:JsonAsBool:Bool:Json"
+        if name == "json_as_float":
+            return "1:JsonAsFloat:Float64:Json"
+        if name == "json_as_int":
+            return "1:JsonAsInt:Int:Json"
+        if name == "json_as_int_list":
+            return "1:JsonAsIntList:List[Int]:Json"
+        if name == "json_as_text":
+            return "1:JsonAsText:Text:Json"
+        if name == "json_bool":
+            return "1:JsonBool:Json:Bool"
+        if name == "json_error_code":
+            return "1:JsonErrorCode:Text:JsonError"
+        if name == "json_error_column":
+            return "1:JsonErrorColumn:Int:JsonError"
+        if name == "json_error_line":
+            return "1:JsonErrorLine:Int:JsonError"
+        if name == "json_error_message":
+            return "1:JsonErrorMessage:Text:JsonError"
+        if name == "json_float":
+            return "1:JsonFloat:Json:Float64"
+        if name == "json_get":
+            return "2:JsonGet:Json:Json;Text"
+        if name == "json_has":
+            return "2:JsonHas:Bool:Json;Text"
+        if name == "json_index":
+            return "2:JsonIndex:Json:Json;Int"
+        if name == "json_int":
+            return "1:JsonInt:Json:Int"
+        if name == "json_int_column":
+            return "2:JsonIntColumn:List[Int]:Json;Text"
+        if name == "json_is_null":
+            return "1:JsonIsNull:Bool:Json"
+        if name == "json_len":
+            return "1:JsonLength:Int:Json"
+        if name == "json_null":
+            return "0:JsonNull:Json:"
+        if name == "json_object":
+            return "0:JsonObject:Json:"
+        if name == "json_parse":
+            return "1:JsonParse:Result[Json, JsonError]:Text"
+        if name == "json_project_columns":
+            return "3:JsonProjectColumns:Result[Json, JsonError]:Text;List[Text];List[Text]"
+        if name == "json_push":
+            return "2:JsonPush:Json:Json;Json"
+        if name == "json_set":
+            return "3:JsonSet:Json:Json;Text;Json"
+        if name == "json_stringify":
+            return "1:JsonStringify:Text:Json"
+        if name == "json_text":
+            return "1:JsonText:Json:Text"
+        if name == "json_text_categories":
+            return "2:JsonTextCategories:Json:Json;Text"
+        if name == "json_text_categories_values":
+            return "1:JsonTextCategoriesValues:Json:Json"
+        if name == "json_try_bool":
+            return "1:JsonTryBool:Result[Bool, JsonError]:Json"
+        if name == "json_try_float":
+            return "1:JsonTryFloat:Result[Float64, JsonError]:Json"
+        if name == "json_try_get":
+            return "2:JsonTryGet:Result[Json, JsonError]:Json;Text"
+        if name == "json_try_index":
+            return "2:JsonTryIndex:Result[Json, JsonError]:Json;Int"
+        if name == "json_try_int":
+            return "1:JsonTryInt:Result[Int, JsonError]:Json"
+        if name == "json_try_text":
+            return "1:JsonTryText:Result[Text, JsonError]:Json"
+    if name[0] == "l":
+        if name == "len":
+            return "1:Length:Int:"
+        if name == "list_get":
+            return "2:ListGetOption:Option[$T]:;Int"
+        if name == "list_push":
+            return "2:ListPush:List[$T]:;"
+        if name == "list_set":
+            return "3:ListSet:List[$T]:;Int;"
+    if name[0] == "m":
+        if name == "map_get":
+            return "2:MapGetOption:Option[$T]:;Text"
+        if name == "map_has":
+            return "2:MapHas:Bool:;Text"
+        if name == "map_set":
+            return "3:MapSet:Map[$T]:;Text;"
+    if name[0] == "n":
+        if name == "native_calendar_parse":
+            return "1:CalendarParse:Result[List[Record[CalendarEvent]], Record[StdError]]:Text"
+        if name == "native_crypto_hmac_sha256":
+            return "2:CryptoHmacSha256:Bytes:Bytes;Bytes"
+        if name == "native_crypto_verify_hmac_sha256":
+            return "3:CryptoVerifyHmacSha256:Bool:Bytes;Bytes;Bytes"
+        if name == "native_sqlite_begin":
+            return "1:SqliteBegin:Result[Transaction, Record[StdError]]:Db"
+        if name == "native_sqlite_close":
+            return "1:SqliteClose:Result[Unit, Record[StdError]]:Db"
+        if name == "native_sqlite_commit":
+            return "1:SqliteCommit:Result[Unit, Record[StdError]]:Transaction"
+        if name == "native_sqlite_execute":
+            return "3:SqliteExecute:Result[Int, Record[StdError]]:Transaction;Text;List[Record[SqlValue]]"
+        if name == "native_sqlite_open":
+            return "1:SqliteOpen:Result[Db, Record[StdError]]:Text"
+        if name == "native_sqlite_query":
+            return "3:SqliteQuery:Result[List[Record[SqlRow]], Record[StdError]]:Transaction;Text;List[Record[SqlValue]]"
+        if name == "native_sqlite_rollback":
+            return "1:SqliteRollback:Result[Unit, Record[StdError]]:Transaction"
+        if name == "native_text_casefold":
+            return "1:TextCaseFold:Text:Text"
+        if name == "native_text_collapse_whitespace":
+            return "1:TextCollapseWhitespace:Text:Text"
+        if name == "native_text_normalize":
+            return "2:TextNormalize:Result[Text, Record[StdError]]:Text;Text"
+        if name == "native_toml_get_bool":
+            return "2:TomlGetBool:Result[Bool, Record[StdError]]:TomlDocument;List[Text]"
+        if name == "native_toml_get_int":
+            return "2:TomlGetInt:Result[Int, Record[StdError]]:TomlDocument;List[Text]"
+        if name == "native_toml_get_text":
+            return "2:TomlGetText:Result[Text, Record[StdError]]:TomlDocument;List[Text]"
+        if name == "native_toml_has":
+            return "2:TomlHas:Bool:TomlDocument;List[Text]"
+        if name == "native_toml_parse":
+            return "1:TomlParse:Result[TomlDocument, Record[StdError]]:Text"
+        if name == "native_toml_put_bool":
+            return "3:TomlPutBool:Result[Unit, Record[StdError]]:TomlDocument;List[Text];Bool"
+        if name == "native_toml_put_int":
+            return "3:TomlPutInt:Result[Unit, Record[StdError]]:TomlDocument;List[Text];Int"
+        if name == "native_toml_put_text":
+            return "3:TomlPutText:Result[Unit, Record[StdError]]:TomlDocument;List[Text];Text"
+        if name == "native_toml_render":
+            return "1:TomlRender:Text:TomlDocument"
+    if name[0] == "p":
+        if name == "parallel_map":
+            return "3:ParallelMap:Result[List[$R], TaskError]:;;Int"
+        if name == "print":
+            return "1:Print:Unit:"
+    if name[0] == "r":
+        if name == "read_bytes":
+            return "1:ReadBytes:Result[Bytes, FileError]:Text"
+        if name == "read_text":
+            return "1:ReadText:Result[Text, FileError]:Text"
+    if name[0] == "s":
+        if name == "semver_compare":
+            return "2:SemVerCompare:Int:Record[SemVer];Record[SemVer]"
+        if name == "semver_parse":
+            return "1:SemVerParse:Result[Record[SemVer], FileError]:Text"
+        if name == "sort_by":
+            return "2:SortBy:List[$T]:;"
+        if name == "sqrt":
+            return "1:FloatSqrt:Float64:Float64"
+    if name[0] == "t":
+        if name == "task_code":
+            return "1:TaskCode:Text:TaskError"
+        if name == "task_index":
+            return "1:TaskIndex:Int:TaskError"
+        if name == "task_message":
+            return "1:TaskMessage:Text:TaskError"
+        if name == "text_chars":
+            return "1:TextChars:List[Text]:Text"
+        if name == "text_parse_float":
+            return "1:TextParseFloat:Result[Float64, FileError]:Text"
+        if name == "text_parse_int":
+            return "1:TextParseInt:Result[Int, FileError]:Text"
+        if name == "time_format_utc":
+            return "1:TimeFormatUtc:Text:Record[Instant]"
+        if name == "time_parse_date":
+            return "1:TimeParseDate:Result[Record[Date], FileError]:Text"
+        if name == "time_parse_timestamp":
+            return "1:TimeParseTimestamp:Result[Record[Instant], FileError]:Text"
+        if name == "time_today_local":
+            return "0:TimeTodayLocal:Record[Date]:"
+    if name[0] == "u":
+        if name == "unix_time_ms":
+            return "0:UnixTimeMs:Int:"
+        if name == "unwrap":
+            return "1:Unwrap:$T:"
+    if name[0] == "w":
+        if name == "write_bytes":
+            return "2:WriteBytes:Result[Unit, FileError]:Text;Bytes"
+        if name == "write_text":
+            return "2:WriteText:Result[Unit, FileError]:Text;Text"
+        if name == "write_text_atomic":
+            return "2:WriteTextAtomic:Result[Unit, FileError]:Text;Text"
+    return ""
+
+fn builtin_catalog_part(value: Text, delimiter: Text, wanted: Int) -> Text:
+    var cursor = 0
+    var part = 0
+    var result = ""
+    while cursor <= len(value):
+        if cursor == len(value) or value[cursor] == delimiter:
+            if part == wanted:
+                return result
+            set part = part + 1
+            set result = ""
+        else:
+            if part == wanted:
+                set result = result + value[cursor]
+        set cursor = cursor + 1
+    return ""
+
+pub fn builtin_catalog_has(name: Text) -> Bool:
+    return builtin_catalog_signature(name) != ""
+
+pub fn builtin_catalog_arity(name: Text) -> Int:
+    let value = builtin_catalog_part(builtin_catalog_signature(name), ":", 0)
+    if value == "0":
+        return 0
+    if value == "1":
+        return 1
+    if value == "2":
+        return 2
+    if value == "3":
+        return 3
+    if value == "4":
+        return 4
+    if value == "5":
+        return 5
+    return -1
+
+pub fn builtin_catalog_operation(name: Text) -> Text:
+    return builtin_catalog_part(builtin_catalog_signature(name), ":", 1)
+
+pub fn builtin_catalog_result(name: Text) -> Text:
+    return builtin_catalog_part(builtin_catalog_signature(name), ":", 2)
+
+pub fn builtin_catalog_parameter_type(name: Text, index: Int) -> Text:
+    let parameters = builtin_catalog_part(builtin_catalog_signature(name), ":", 3)
+    return builtin_catalog_part(parameters, ";", index)

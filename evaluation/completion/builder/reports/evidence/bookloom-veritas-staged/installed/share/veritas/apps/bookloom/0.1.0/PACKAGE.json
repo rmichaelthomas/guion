@@ -1,0 +1,24 @@
+{
+  "application": {
+    "id": "bookloom",
+    "name": "bookloom",
+    "version": "0.1.0"
+  },
+  "artifact_sha256": "1f931f45d9b4cf20e4ca9dff4dedcc7763078a2f041f84277f3a2d5bb141b7ec",
+  "compiler_version": "0.1.0",
+  "native_dependency_report_sha256": "8d400d50e6d2618f1bfc1c8c0c4107162517e17fb7d1d15ec1938c0f6ae4fed2",
+  "python_runtime": null,
+  "resources": [
+    {
+      "path": "bookloom.toml",
+      "sha256": "abd900292d809176db3a199e1821c6d107c38fbf67ad2ec6385989cfa2986c65",
+      "size_bytes": 48
+    }
+  ],
+  "runtime_sha256": "03be2204f0923684c818a72f823db96ef9a1735741fec7481b0c4c7a69ab7b01",
+  "runtime_size_bytes": 12824672,
+  "rust_notices": null,
+  "schema_version": 2,
+  "source_sha256": "633355eda38bc3d135368e2220d5966e6825672a5309cea056e74f5a21c15140",
+  "target": "macos-aarch64"
+}

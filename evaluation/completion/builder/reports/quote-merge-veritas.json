@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "status": "complete",
+  "assignment_id": "quote-merge-veritas",
+  "language": "veritas",
+  "brief_id": "quote-merge",
+  "start_utc": "2026-10-25T09:20:36Z",
+  "finish_utc": "2026-10-25T09:33:23Z",
+  "initial_correct": true,
+  "followup_correct": true,
+  "relocation_passed": true,
+  "setup_seconds": 5.1,
+  "build_seconds": 0.4140785,
+  "followup_seconds": 0.799605875,
+  "installed_launch_seconds": 0.832838583,
+  "artifact_bytes": 36267,
+  "interventions": [
+    "Started the supplied fixture with python3; it bound only to 127.0.0.1 and printed dynamic port 53272.",
+    "Used the escalation path only for the local fixture bind and Veritas runs against 127.0.0.1:53272; the app manifest grants only 127.0.0.1.",
+    "The coordinator supplied the fixture location and endpoint paths because they were not present in the brief."
+  ],
+  "failures": [
+    "The default sandbox blocked the fixture bind and the first Veritas network run; both succeeded after loopback-only escalation.",
+    "An unsupported timeout_seconds manifest field was rejected; changed to the documented timeout_ms field.",
+    "The first veritas new --help invocation created a --help scaffold directory; it was removed immediately.",
+    "Early speculative API and map-literal syntax attempts failed compilation; the final source passes check and build."
+  ],
+  "recommendation": {
+    "preferred_language": "veritas",
+    "reason": "The app uses the Python-free native HTTP, JSON, file, and bounded-parallel APIs and requires no third-party packages.",
+    "observed_user_benefit": "A four-worker cap, a 1500 ms manifest timeout, and a 127.0.0.1-only host grant are explicit; malformed and 503 feeds do not discard valid quotes; output stays deterministic and the day filter preserves feed counts.",
+    "material_regressions": [
+      "API discoverability cost time: the README named capabilities but not all signatures, so the product reference and compiler diagnostics were needed. No direct Python comparison was run in this builder session."
+    ]
+  },
+  "evidence_paths": [
+    "evaluation/completion/builder/reports/evidence/quote-merge-veritas/quote-merge/src/main.vr",
+    "evaluation/completion/builder/reports/evidence/quote-merge-veritas/quote-merge/src/main.vrb",
+    "evaluation/completion/builder/reports/evidence/quote-merge-veritas/quote-merge/README.md",
+    "evaluation/completion/builder/reports/evidence/quote-merge-veritas/quote-merge/veritas.toml",
+    "evaluation/completion/builder/reports/evidence/quote-merge-veritas/quote-merge/feeds.txt",
+    "evaluation/completion/builder/reports/evidence/quote-merge-veritas/quote-merge/quote-report.json",
+    "evaluation/completion/builder/reports/evidence/quote-merge-veritas/quote-merge/evidence/initial-output.json",
+    "evaluation/completion/builder/reports/evidence/quote-merge-veritas/quote-merge/evidence/followup-output.json",
+    "evaluation/completion/builder/reports/evidence/quote-merge-veritas/quote-merge/evidence/project-output.json",
+    "evaluation/completion/builder/reports/evidence/quote-merge-veritas/quote-merge/evidence/check-output.txt",
+    "evaluation/completion/builder/reports/evidence/quote-merge-veritas/quote-merge/evidence/build-output.txt",
+    "evaluation/completion/builder/reports/evidence/quote-merge-veritas/quote-merge/evidence/build-timing.txt",
+    "evaluation/completion/builder/reports/evidence/quote-merge-veritas/quote-merge/evidence/initial-timing.txt",
+    "evaluation/completion/builder/reports/evidence/quote-merge-veritas/quote-merge/evidence/followup-timing.txt",
+    "evaluation/completion/builder/reports/evidence/quote-merge-veritas/evidence/timeout-output.json",
+    "evaluation/completion/builder/reports/evidence/quote-merge-veritas/evidence/timeout-timing.txt",
+    "evaluation/completion/builder/reports/evidence/quote-merge-veritas/evidence/timeout-veritas.toml",
+    "evaluation/completion/builder/reports/evidence/quote-merge-veritas/evidence/relocated-initial-output.json",
+    "evaluation/completion/builder/reports/evidence/quote-merge-veritas/evidence/relocated-initial-timing.txt",
+    "evaluation/completion/builder/reports/evidence/quote-merge-veritas/evidence/relocated-followup-output.json",
+    "evaluation/completion/builder/reports/evidence/quote-merge-veritas/evidence/relocated-followup-timing.txt",
+    "evaluation/completion/builder/reports/evidence/quote-merge-veritas/evidence/acceptance.txt",
+    "evaluation/completion/builder/reports/evidence/quote-merge-veritas/evidence/size.txt",
+    "evaluation/completion/builder/reports/evidence/quote-merge-veritas/evidence/timing.txt",
+    "evaluation/completion/builder/reports/evidence/quote-merge-veritas/session-contract.limn"
+  ],
+  "limitations": [
+    "No direct Python implementation was built in this blinded builder session; the recommendation reflects the observed Veritas workflow and user-facing behavior."
+  ],
+  "elapsed_seconds": 767.0,
+  "budget_minutes": 15
+}

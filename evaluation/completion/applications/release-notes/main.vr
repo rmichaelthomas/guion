@@ -1,0 +1,254 @@
+import "std:fs"
+import "std:json"
+import "std:semver"
+import "std:text"
+import "std:time"
+
+fn fail(message: Text) -> Int:
+    eprint(message)
+    return 1
+
+fn contains_text(value: Text, needle: Text) -> Bool:
+    let characters = text_chars(value)
+    var index = 0
+    while index < len(characters):
+        if characters[index] == needle:
+            return true
+        set index = index + 1
+    return false
+
+fn is_punctuation(value: Text) -> Bool:
+    return value == "!" or value == "\"" or value == "#" or value == "$" or value == "%" or value == "&" or value == "'" or value == "(" or value == ")" or value == "*" or value == "+" or value == "," or value == "-" or value == "." or value == "/" or value == ":" or value == ";" or value == "<" or value == "=" or value == ">" or value == "?" or value == "@" or value == "[" or value == "\\" or value == "]" or value == "^" or value == "_" or value == "`" or value == "{" or value == "|" or value == "}" or value == "~"
+
+fn escape_text(value: Text) -> Text:
+    let characters = text_chars(value)
+    var result = ""
+    var index = 0
+    while index < len(characters):
+        if is_punctuation(characters[index]):
+            set result = result + "\\"
+        set result = result + characters[index]
+        set index = index + 1
+    return result
+
+fn main() -> Int:
+    let arguments = args()
+    var changes_dir = ""
+    var config_path = ""
+    var markdown_path = ""
+    var summary_path = ""
+    var since = ""
+    var index = 0
+    while index < len(arguments):
+        if arguments[index] == "--changes" and index + 1 < len(arguments):
+            set changes_dir = arguments[index + 1]
+            set index = index + 2
+        else:
+            if arguments[index] == "--config" and index + 1 < len(arguments):
+                set config_path = arguments[index + 1]
+                set index = index + 2
+            else:
+                if arguments[index] == "--markdown" and index + 1 < len(arguments):
+                    set markdown_path = arguments[index + 1]
+                    set index = index + 2
+                else:
+                    if arguments[index] == "--summary" and index + 1 < len(arguments):
+                        set summary_path = arguments[index + 1]
+                        set index = index + 2
+                    else:
+                        if arguments[index] == "--since" and index + 1 < len(arguments):
+                            set since = arguments[index + 1]
+                            set index = index + 2
+                        else:
+                            eprint("unknown or incomplete argument")
+                            return 2
+    if changes_dir == "" or config_path == "" or markdown_path == "" or summary_path == "":
+        eprint("usage: release-notes --changes DIR --config PATH --markdown PATH --summary PATH [--since VERSION]")
+        return 2
+    if markdown_path == summary_path:
+        return fail("Markdown and summary output paths must be different")
+    var since_version: SemVer = SemVer("0", "0", "0", [], [], "0.0.0")
+    if since != "":
+        let parsed_since = parse_version(since)
+        if not is_ok(parsed_since):
+            return fail("invalid --since version: " + since)
+        set since_version = unwrap(parsed_since)
+
+    let config_source = read_text(config_path)
+    if not is_ok(config_source):
+        return fail("cannot read release configuration")
+    let config_result = json_parse(unwrap(config_source))
+    if not is_ok(config_result):
+        return fail("release configuration must be valid JSON")
+    let config = unwrap(config_result)
+    let date_json = json_get_safe(config, "date")
+    let categories_value = json_get_safe(config, "category_order")
+    if not is_ok(date_json) or not is_ok(categories_value):
+        return fail("configuration requires date and category_order")
+    let date_value = json_text_safe(unwrap(date_json))
+    if not is_ok(date_value):
+        return fail("configuration date must be text")
+    let release_date = unwrap(date_value)
+    let parsed_date = parse_date(release_date)
+    if not is_ok(parsed_date):
+        return fail("configuration date must be a valid YYYY-MM-DD date")
+    let categories_json = unwrap(categories_value)
+    var category_names: List[Text] = []
+    var category_seen: Map[Text, Bool] = {}
+    if json_len(categories_json) == 0:
+        return fail("category_order must be a nonempty array")
+    var category_index = 0
+    while category_index < json_len(categories_json):
+        let category_value = json_text_safe(json_index(categories_json, category_index))
+        if not is_ok(category_value):
+            return fail("category_order entries must be nonempty text")
+        let category = unwrap(category_value)
+        if category == "" or contains_text(category, "\n") or contains_text(category, "\r"):
+            return fail("category names must be nonempty single-line text")
+        if map_has(category_seen, category):
+            return fail("category_order contains a duplicate category")
+        set category_seen = map_set(category_seen, category, true)
+        set category_names = list_push(category_names, category)
+        set category_index = category_index + 1
+    var checked_config = json_object()
+    set checked_config = json_set(checked_config, "date", json_text(release_date))
+    set checked_config = json_set(checked_config, "category_order", categories_json)
+    if json_stringify(checked_config) != json_stringify(config):
+        return fail("configuration must contain exactly date and category_order")
+
+    let walked = fs_walk(changes_dir)
+    if not is_ok(walked):
+        return fail("cannot scan changes directory")
+    var release_entries: Map[Text, Map[Text, Json]] = {}
+    var versions: Map[Text, SemVer] = {}
+    var seen_ids: Map[Text, Bool] = {}
+    for file in unwrap(walked):
+        let relative = file.relative_path
+        let path_parts = text_split(relative, "/")
+        let chars = text_chars(relative)
+        if file.kind == "file" and len(path_parts) == 1 and len(chars) > 5 and chars[len(chars) - 5] == "." and chars[len(chars) - 4] == "j" and chars[len(chars) - 3] == "s" and chars[len(chars) - 2] == "o" and chars[len(chars) - 1] == "n":
+            var version = ""
+            var char_index = 0
+            while char_index < len(chars) - 5:
+                set version = version + chars[char_index]
+                set char_index = char_index + 1
+            let parsed_version = parse_version(version)
+            if not is_ok(parsed_version):
+                return fail("invalid semantic version filename: " + relative)
+            let source_path = changes_dir + "/" + relative
+            let full_path = changes_dir + "/" + relative
+            let content = read_text(full_path)
+            if not is_ok(content):
+                return fail("cannot read change file " + source_path)
+            let entry_result = json_parse(unwrap(content))
+            if not is_ok(entry_result):
+                return fail(source_path + ": invalid JSON")
+            let entry = unwrap(entry_result)
+            let id_json = json_get_safe(entry, "id")
+            let category_json = json_get_safe(entry, "category")
+            let text_json = json_get_safe(entry, "text")
+            if not is_ok(id_json):
+                return fail(source_path + ": missing field id")
+            if not is_ok(category_json):
+                return fail(source_path + ": missing field category")
+            if not is_ok(text_json):
+                return fail(source_path + ": missing field text")
+            let id_result = json_text_safe(unwrap(id_json))
+            if not is_ok(id_result):
+                return fail(source_path + ": field id must be text")
+            let category_result = json_text_safe(unwrap(category_json))
+            if not is_ok(category_result):
+                return fail(source_path + ": field category must be text")
+            let text_result = json_text_safe(unwrap(text_json))
+            if not is_ok(text_result):
+                return fail(source_path + ": field text must be text")
+            let id = unwrap(id_result)
+            let category = unwrap(category_result)
+            let text = unwrap(text_result)
+            if id == "" or category == "" or text == "":
+                return fail(source_path + ": id, category, and text must be nonempty")
+            if contains_text(category, "\n") or contains_text(category, "\r") or contains_text(text, "\n") or contains_text(text, "\r"):
+                return fail(source_path + ": category and text must be single-line values")
+            if not map_has(category_seen, category):
+                return fail(source_path + ": unconfigured category " + category)
+            if map_has(seen_ids, id):
+                return fail(source_path + ": duplicate change id " + id)
+            set seen_ids = map_set(seen_ids, id, true)
+            var checked_entry = json_object()
+            set checked_entry = json_set(checked_entry, "id", json_text(id))
+            set checked_entry = json_set(checked_entry, "category", json_text(category))
+            set checked_entry = json_set(checked_entry, "text", json_text(text))
+            if json_stringify(checked_entry) != json_stringify(entry):
+                return fail(source_path + ": change object must contain exactly id, category, and text")
+            var by_id: Map[Text, Json] = {}
+            if map_has(release_entries, version):
+                set by_id = release_entries[version]
+            set by_id = map_set(by_id, id, checked_entry)
+            set release_entries = map_set(release_entries, version, by_id)
+            set versions = map_set(versions, version, unwrap(parsed_version))
+
+    var selected_versions: List[Text] = []
+    for version in versions:
+        var include = true
+        if since != "" and compare_versions(versions[version], since_version) <= 0:
+            set include = false
+        if include:
+            set selected_versions = list_push(selected_versions, version)
+    var ordered_versions: List[Text] = []
+    while len(selected_versions) > 0:
+        var best_index = 0
+        var candidate_index = 1
+        while candidate_index < len(selected_versions):
+            let candidate = selected_versions[candidate_index]
+            let best = selected_versions[best_index]
+            let order = compare_versions(versions[candidate], versions[best])
+            if order > 0 or (order == 0 and text_compare_bytes(candidate, best) < 0):
+                set best_index = candidate_index
+            set candidate_index = candidate_index + 1
+        set ordered_versions = list_push(ordered_versions, selected_versions[best_index])
+        var remaining: List[Text] = []
+        var version_index = 0
+        while version_index < len(selected_versions):
+            if version_index != best_index:
+                set remaining = list_push(remaining, selected_versions[version_index])
+            set version_index = version_index + 1
+        set selected_versions = remaining
+
+    var markdown = "# Release notes (" + release_date + ")"
+    var summary_releases = json_array()
+    var release_index = 0
+    while release_index < len(ordered_versions):
+        let version = ordered_versions[release_index]
+        let by_id = release_entries[version]
+        var entry_count = 0
+        set markdown = markdown + "\n\n## " + version
+        var render_category_index = 0
+        while render_category_index < len(category_names):
+            let category = category_names[render_category_index]
+            var category_items = json_array()
+            for id in by_id:
+                let entry = by_id[id]
+                if json_as_text(json_get(entry, "category")) == category:
+                    set category_items = json_push(category_items, entry)
+            if json_len(category_items) > 0:
+                set markdown = markdown + "\n\n### " + category
+                var item_index = 0
+                while item_index < json_len(category_items):
+                    let entry = json_index(category_items, item_index)
+                    set markdown = markdown + "\n- " + escape_text(json_as_text(json_get(entry, "text")))
+                    set entry_count = entry_count + 1
+                    set item_index = item_index + 1
+            set render_category_index = render_category_index + 1
+        var summary_item = json_object()
+        set summary_item = json_set(summary_item, "version", json_text(version))
+        set summary_item = json_set(summary_item, "entry_count", json_int(entry_count))
+        set summary_releases = json_push(summary_releases, summary_item)
+        set release_index = release_index + 1
+    let report = json_set(json_object(), "releases", summary_releases)
+    let markdown_write = write_text_atomic(markdown_path, markdown + "\n")
+    if not is_ok(markdown_write):
+        return fail("cannot write Markdown release notes")
+    let summary_write = write_text_atomic(summary_path, json_stringify(report) + "\n")
+    if not is_ok(summary_write):
+        return fail("cannot write release summary")
+    return 0

@@ -1,0 +1,24 @@
+{
+  "as_of": "2026-02-01",
+  "excluded_row_count": 5,
+  "rejected_row_count": 4,
+  "rejected_rows": [
+    {
+      "line": 7,
+      "reason": "amount_cents must be an integer"
+    },
+    {
+      "line": 8,
+      "reason": "due_date: date must be a valid calendar date"
+    },
+    {
+      "line": 9,
+      "reason": "state must be open or paid"
+    },
+    {
+      "line": 10,
+      "reason": "expected 5 tab-separated fields; got 2"
+    }
+  ],
+  "vendors": []
+}

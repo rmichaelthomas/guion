@@ -1,0 +1,6 @@
+{
+  "launch_command": ["${candidate}/dist/jsonl-summary/run"],
+  "artifact_paths": ["dist/jsonl-summary", "veritas.lock"],
+  "source_paths": ["main.vr", "veritas.toml"],
+  "dependency_lock_path": "veritas.lock"
+}

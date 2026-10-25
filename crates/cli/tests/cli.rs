@@ -736,6 +736,61 @@ fn package_builds_a_relocatable_app_with_declared_resources() {
 }
 
 #[test]
+fn packaged_cli_can_read_inputs_from_its_invocation_directory() {
+    let base =
+        std::env::temp_dir().join(format!("veritas-package-input-root-{}", std::process::id()));
+    let project = base.join("project");
+    let package = base.join("bundle");
+    let _ = fs::remove_dir_all(&base);
+    fs::create_dir_all(&project).unwrap();
+    fs::write(
+        project.join("veritas.toml"),
+        "[project]\nname = \"input-root\"\nversion = \"0.1.0\"\nentry = \"main.vr\"\n",
+    )
+    .unwrap();
+    fs::write(
+        project.join("main.vr"),
+        "fn main() -> Int:\n    let values = args()\n    print(unwrap(read_text(values[0])))\n    unwrap(write_text(values[1], \"saved output\\n\"))\n    return 0\n",
+    )
+    .unwrap();
+    fs::write(base.join("input.txt"), "caller data\n").unwrap();
+
+    let packaged = Command::new(env!("CARGO_BIN_EXE_veritas"))
+        .args([
+            "package",
+            project.to_str().unwrap(),
+            "--output",
+            package.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        packaged.status.success(),
+        "{}{}",
+        String::from_utf8_lossy(&packaged.stdout),
+        String::from_utf8_lossy(&packaged.stderr)
+    );
+
+    let launched = Command::new(package.join("run"))
+        .current_dir(&base)
+        .args(["input.txt", "output.txt"])
+        .output()
+        .unwrap();
+    assert!(
+        launched.status.success(),
+        "{}{}",
+        String::from_utf8_lossy(&launched.stdout),
+        String::from_utf8_lossy(&launched.stderr)
+    );
+    assert_eq!(String::from_utf8_lossy(&launched.stdout), "caller data\n\n");
+    assert_eq!(
+        fs::read_to_string(base.join("output.txt")).unwrap(),
+        "saved output\n"
+    );
+    let _ = fs::remove_dir_all(base);
+}
+
+#[test]
 fn package_rejects_python_calls_instead_of_emitting_a_broken_bundle() {
     let base = std::env::temp_dir().join(format!("veritas-package-python-{}", std::process::id()));
     let project = base.join("project");
@@ -902,12 +957,13 @@ fn package_bundles_python_runtime_and_dependencies_for_offline_relocated_run() {
         "New items:\n2\nTotal items:\n2\n"
     );
     assert_eq!(
-        fs::read_to_string(relocated.join("inbox.json"))
+        fs::read_to_string(base.join("inbox.json"))
             .unwrap()
             .matches("https://example.test/")
             .count(),
         2
     );
+    assert!(!relocated.join("inbox.json").exists());
     let repeated = Command::new(relocated.join("run"))
         .arg("summary")
         .current_dir(&base)
@@ -1195,6 +1251,91 @@ fn package_runs_compiled_python_wheels_after_relocation_without_python_setup() {
     let _ = fs::remove_dir_all(base);
 }
 
+#[cfg(unix)]
+#[test]
+fn package_launcher_uses_and_cleans_a_temporary_uv_cache_when_bundle_is_read_only() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let base = std::env::temp_dir().join(format!(
+        "veritas readonly package cache-{}",
+        std::process::id()
+    ));
+    let project = base.join("project");
+    let package = base.join("package");
+    let tmp = base.join("tmp");
+    let _ = fs::remove_dir_all(&base);
+    fs::create_dir_all(&project).unwrap();
+    fs::create_dir_all(&tmp).unwrap();
+    fs::write(
+        project.join("veritas.toml"),
+        "[project]\nname = \"readonly-package\"\nversion = \"0.1.0\"\nentry = \"main.vr\"\n",
+    )
+    .unwrap();
+    fs::write(project.join("main.vr"), "fn main() -> Int:\n    return 0\n").unwrap();
+
+    let packaged = Command::new(env!("CARGO_BIN_EXE_veritas"))
+        .args([
+            "package",
+            project.to_str().unwrap(),
+            "--output",
+            package.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        packaged.status.success(),
+        "{}{}",
+        String::from_utf8_lossy(&packaged.stdout),
+        String::from_utf8_lossy(&packaged.stderr)
+    );
+
+    let toolchains = package.join("toolchains");
+    fs::create_dir_all(&toolchains).unwrap();
+    let fake_uv = toolchains.join("uv");
+    fs::write(&fake_uv, "#!/bin/sh\nexit 0\n").unwrap();
+    fs::set_permissions(&fake_uv, fs::Permissions::from_mode(0o555)).unwrap();
+    fs::create_dir_all(package.join(".uv-cache")).unwrap();
+    fs::write(
+        package.join("veritas"),
+        "#!/bin/sh\nset -eu\nprintf '%s\\n' \"${UV_CACHE_DIR:?}\"\ntouch \"$UV_CACHE_DIR/write-probe\"\n",
+    )
+    .unwrap();
+    fs::set_permissions(package.join("veritas"), fs::Permissions::from_mode(0o555)).unwrap();
+    fs::set_permissions(package.join(".uv-cache"), fs::Permissions::from_mode(0o555)).unwrap();
+    fs::set_permissions(&package, fs::Permissions::from_mode(0o555)).unwrap();
+
+    let launched = Command::new(package.join("run"))
+        .env("TMPDIR", &tmp)
+        .output()
+        .unwrap();
+
+    fs::set_permissions(&package, fs::Permissions::from_mode(0o755)).unwrap();
+    fs::set_permissions(package.join(".uv-cache"), fs::Permissions::from_mode(0o755)).unwrap();
+
+    assert!(
+        launched.status.success(),
+        "{}",
+        String::from_utf8_lossy(&launched.stderr)
+    );
+    let cache = std::path::PathBuf::from(
+        String::from_utf8(launched.stdout)
+            .unwrap()
+            .trim()
+            .to_owned(),
+    );
+    assert!(
+        cache.starts_with(&tmp),
+        "cache was not outside the package: {cache:?}"
+    );
+    assert!(!cache.starts_with(&package));
+    assert!(
+        !cache.exists(),
+        "temporary cache was not cleaned up: {cache:?}"
+    );
+
+    let _ = fs::remove_dir_all(&base);
+}
+
 #[test]
 fn project_network_manifest_grants_only_the_listed_host() {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
@@ -1233,6 +1374,157 @@ fn project_network_manifest_grants_only_the_listed_host() {
         String::from_utf8_lossy(&output.stderr)
     );
     assert_eq!(String::from_utf8_lossy(&output.stdout), "feed\n");
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
+fn run_accepts_an_explicit_one_invocation_http_host_grant() {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let server = thread::spawn(move || {
+        let (mut stream, _) = listener.accept().unwrap();
+        let mut request = Vec::new();
+        let mut buffer = [0; 1024];
+        loop {
+            let read = stream.read(&mut buffer).unwrap();
+            if read == 0 {
+                break;
+            }
+            request.extend_from_slice(&buffer[..read]);
+            if let Some(body_start) = request.windows(4).position(|window| window == b"\r\n\r\n") {
+                let header_end = body_start + 4;
+                let headers = String::from_utf8_lossy(&request[..body_start]).to_ascii_lowercase();
+                let content_length = headers
+                    .lines()
+                    .find_map(|line| line.strip_prefix("content-length: "))
+                    .and_then(|value| value.parse::<usize>().ok())
+                    .unwrap_or(0);
+                if request.len() >= header_end + content_length {
+                    break;
+                }
+            }
+        }
+        let mut response = b"HTTP/1.1 201 Created\r\nContent-Type: application/octet-stream\r\nContent-Length: 4\r\nConnection: close\r\n\r\n".to_vec();
+        response.extend_from_slice(&[0, 0xff, 0x80, b'v']);
+        stream.write_all(&response).unwrap();
+        request
+    });
+    let dir = std::env::temp_dir().join(format!("veritas-cli-http-grant-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(&dir).unwrap();
+    let file = dir.join("main.vr");
+    fs::write(
+        &file,
+        format!(
+            "import \"std:types\"\n\nfn main() -> Int:\n    let response = http_request_bytes(\"POST\", \"http://{address}/feed\", {{\"content-type\": \"application/octet-stream\"}}, bytes_from_ints([0, 255, 128]), 1000)\n    if is_ok(response):\n        let value = unwrap(response)\n        if value.status == 201 and value.body == bytes_from_ints([0, 255, 128, 118]):\n            return 0\n    return 1\n"
+        ),
+    )
+    .unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_veritas"))
+        .args([
+            "run",
+            "--allow-http-host",
+            "127.0.0.1",
+            file.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let request = server.join().unwrap();
+    assert!(request.windows(3).any(|window| window == [0, 0xff, 0x80]));
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
+fn inspect_json_explains_exact_http_grants_for_runtime_urls() {
+    let dir = std::env::temp_dir().join(format!("veritas-inspect-network-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(&dir).unwrap();
+    let file = dir.join("main.vr");
+    fs::write(
+        &file,
+        "fn main() -> Int:\n    let result = http_get(\"http://example.invalid/feed\")\n    return 0\n",
+    )
+    .unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_veritas"))
+        .args(["inspect", "--json", file.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let report: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(report["network_grant"]["required_for_entry"], true);
+    assert_eq!(report["network_grant"]["manifest_key"], "[network].hosts");
+    assert_eq!(
+        report["network_grant"]["run_option"],
+        "veritas run --allow-http-host HOST"
+    );
+    assert_eq!(
+        report["network_grant"]["runtime_supplied_urls_require_an_explicit_hostname_grant"],
+        true
+    );
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
+fn clock_grant_is_reported_and_can_be_enabled_by_manifest_or_run_option() {
+    let dir = std::env::temp_dir().join(format!("veritas-cli-clock-grant-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(&dir).unwrap();
+    let file = dir.join("main.vr");
+    fs::write(
+        &file,
+        "import \"std:time\"\n\nfn main() -> Int:\n    let current = today_local()\n    if current.year > 1970:\n        return 0\n    else:\n        return 1\n",
+    )
+    .unwrap();
+
+    let denied = Command::new(env!("CARGO_BIN_EXE_veritas"))
+        .args(["run", file.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(!denied.status.success());
+    assert!(String::from_utf8_lossy(&denied.stderr).contains("R_CLOCK_DENIED"));
+
+    let granted = Command::new(env!("CARGO_BIN_EXE_veritas"))
+        .args(["run", "--allow-clock", file.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(
+        granted.status.success(),
+        "{}",
+        String::from_utf8_lossy(&granted.stderr)
+    );
+
+    let inspect = Command::new(env!("CARGO_BIN_EXE_veritas"))
+        .args(["inspect", "--json", file.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(inspect.status.success());
+    let report: serde_json::Value = serde_json::from_slice(&inspect.stdout).unwrap();
+    assert_eq!(report["clock_grant"]["required_for_entry"], true);
+    assert_eq!(report["clock_grant"]["manifest_key"], "[clock].enabled");
+    assert_eq!(
+        report["clock_grant"]["run_option"],
+        "veritas run --allow-clock"
+    );
+
+    fs::write(dir.join("veritas.toml"), "[clock]\nenabled = true\n").unwrap();
+    let manifest_granted = Command::new(env!("CARGO_BIN_EXE_veritas"))
+        .args(["run", file.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(
+        manifest_granted.status.success(),
+        "{}",
+        String::from_utf8_lossy(&manifest_granted.stderr)
+    );
     let _ = fs::remove_dir_all(dir);
 }
 
@@ -1738,7 +2030,14 @@ fn veritas_source_compiler_compiles_itself_and_real_programs_with_parity() {
     let _ = fs::remove_dir_all(&base);
     let _cleanup = RemoveDirOnDrop(base.clone());
     fs::create_dir_all(&base).unwrap();
-    for filename in ["veritas.toml", "compiler.vr", "lexer.vr", "parser.vr"] {
+    for filename in [
+        "veritas.toml",
+        "compiler.vr",
+        "lexer.vr",
+        "parser.vr",
+        "builtin_catalog.vr",
+        "artifact.vr",
+    ] {
         fs::copy(source_project.join(filename), base.join(filename)).unwrap();
     }
 

@@ -1,0 +1,156 @@
+{
+  "artifact_identities": {
+    "artifact_schema": "sha256:e50354f9431c7e244d093a0a2ad94fa897b91b8eb1793338d9dfce94fe38ce10",
+    "compiler_seed": "sha256:86aa851606f499999af2ad5a30daf708b62b1ecc571904b62896dd2613ed8c20",
+    "compiler_seed_manifest": "sha256:6fa10cb874c55367f61039604c791af8b3622b149673e90219aeafc64615f6de",
+    "runtime": "sha256:2f43071c84548aa37dac0ced5f0b993cb7abf3b3352c5dbd2b038e3de10598a3",
+    "stdlib": "sha256:19b745d51f8124fb98e7aec01ae9a2980e14f7fe8a8f8592395d63b807317600"
+  },
+  "changed_path_count": 5322,
+  "checks": [
+    {
+      "command": [
+        "cargo",
+        "build",
+        "--locked",
+        "--offline",
+        "--release",
+        "-p",
+        "veritas-cli",
+        "--bin",
+        "veritas"
+      ],
+      "exit_status": 0,
+      "id": "release-binary-build",
+      "output": "built /Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/work/veritas-foundation/target/release/veritas (0.1.0-macos-aarch64-38147dcadf3c)",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo xtask release"
+      ],
+      "exit_status": 0,
+      "id": "release-package-contents",
+      "output": "compiler seed, standard library, docs, native component manifest, installer, 169 dependency license sets; archive has 487 safe members",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "Rust path/type audit + tar listing"
+      ],
+      "exit_status": 0,
+      "id": "release-archive-audit",
+      "output": "/Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/work/veritas-foundation/target/completion/releases/macos-aarch64/veritas-macos-aarch64.tar.gz (5414422 bytes, sha256 323755bec4b8ce389e7d01c1793e1d3502497360e10dcd06f21ce6fbcf378d6a)",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "Rust release manifest verification"
+      ],
+      "exit_status": 0,
+      "id": "release-tamper-rejected",
+      "output": "modified compiler seed rejected by SHA-256 manifest verification",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "Rust release target verification"
+      ],
+      "exit_status": 0,
+      "id": "release-dependency-target-mismatch",
+      "output": "package built for a different target (aarch64-unknown-linux-gnu) rejected",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "/Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/work/veritas-foundation/target/completion/releases/macos-aarch64/relocated ✓ package/bin/veritas",
+        "--version"
+      ],
+      "exit_status": 0,
+      "id": "source-free-readonly-relocation",
+      "output": "PATH=/nonexistent; package tree read-only; cwd=/var/folders/r9/60ct76ks20z0_j2dznkytq940000gn/T/; veritas 0.1.0 (artifact format 39)\n",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "sh",
+        "/Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/work/veritas-foundation/target/completion/releases/macos-aarch64/current/install.sh",
+        "/Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/work/veritas-foundation/target/completion/releases/macos-aarch64/install-prefix ✓"
+      ],
+      "exit_status": 0,
+      "id": "release-installer-clean-room",
+      "output": "installer and installed command use PATH=/usr/bin:/bin (no Python/uv path); Installed Veritas current\nCommand: /Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/work/veritas-foundation/target/completion/releases/macos-aarch64/install-prefix ✓/bin/veritas\nAdd /Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/work/veritas-foundation/target/completion/releases/macos-aarch64/install-prefix ✓/bin to PATH to invoke `veritas` from any directory.\nveritas 0.1.0 (artifact format 39)\n",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "/Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/work/veritas-foundation/target/completion/releases/macos-aarch64/relocated ✓ package/bin/veritas",
+        "new",
+        "example app"
+      ],
+      "exit_status": 0,
+      "id": "readonly-install-writable-caller-data",
+      "output": "read-only install; writable project created at /Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/work/veritas-foundation/target/completion/releases/macos-aarch64/caller-data ✓/example app/src/main.vr; created example app\n",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "/Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/work/veritas-foundation/target/completion/releases/macos-aarch64/relocated ✓ package/bin/veritas",
+        "check",
+        "/Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/work/veritas-foundation/target/completion/releases/macos-aarch64/caller-data ✓/example app/src/main.vr"
+      ],
+      "exit_status": 0,
+      "id": "bundled-stdlib-from-relocated-install",
+      "output": "checked /Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/work/veritas-foundation/target/completion/releases/macos-aarch64/caller-data ✓/example app/src/main.vr (2 functions)\n",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "otool",
+        "-L",
+        "/Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/work/veritas-foundation/target/completion/releases/macos-aarch64/relocated ✓ package/bin/veritas"
+      ],
+      "exit_status": 0,
+      "id": "dynamic-library-audit",
+      "output": "/Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/work/veritas-foundation/target/completion/releases/macos-aarch64/relocated ✓ package/bin/veritas:\n\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1359.0.0)\n\t/usr/lib/libiconv.2.dylib (compatibility version 7.0.0, current version 7.0.0)\n",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "Rust release manifest verification"
+      ],
+      "exit_status": 0,
+      "id": "release-hashes-stable-after-execution",
+      "output": "immutable current package hashes remain unchanged after relocation and launches",
+      "status": "passed"
+    }
+  ],
+  "command": "release",
+  "completed_targets": [
+    "macos-aarch64"
+  ],
+  "exact_command": "cargo xtask release --target both",
+  "exit_status": 0,
+  "message": null,
+  "missing_checks": [],
+  "missing_evidence": [],
+  "report": "release",
+  "required_targets": [
+    "macos-aarch64",
+    "debian-aarch64"
+  ],
+  "runtime_hash": "sha256:2f43071c84548aa37dac0ced5f0b993cb7abf3b3352c5dbd2b038e3de10598a3",
+  "schema_version": 1,
+  "seed_hash": "sha256:86aa851606f499999af2ad5a30daf708b62b1ecc571904b62896dd2613ed8c20",
+  "skipped_targets": [
+    "debian-aarch64"
+  ],
+  "source_revision": "b8755f08e8c453051572b9e57a34fd1da0a73199",
+  "status": "incomplete",
+  "stdlib_hash": "sha256:19b745d51f8124fb98e7aec01ae9a2980e14f7fe8a8f8592395d63b807317600",
+  "target": "macos-aarch64",
+  "unsatisfied_goal_ids": [
+    "G2"
+  ],
+  "working_tree_digest": "sha256:388f946adb0ab1d6fbd1e7b88f17e79501b4f6d1a3670014790ca645bb5642e2"
+}

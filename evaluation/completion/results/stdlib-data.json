@@ -1,0 +1,71 @@
+{
+  "artifact_identities": {
+    "artifact_schema": "sha256:0005ab478d431147c139ca5a91b77cb9c227bc4f070cd941c80ded4447528348",
+    "compiler_seed": "sha256:70e743ea7111708b7fbc721fbae63e4483293a020616f948a479e5856354d9b2",
+    "compiler_seed_manifest": "sha256:b09a0e3d839544a4bfdfbd4b18bbf4cdbeda2d8c4fc4616983bca5650e9df6fd",
+    "runtime": "sha256:44e7d7c72fc0017aa704804872415a48aaa823ad046aedd836cd086c2da35fd0",
+    "stdlib": "sha256:e7701907c81833396c582551be4d22ee61e070bf4f11c9555aa698ad4d17f1b9"
+  },
+  "changed_path_count": 2301,
+  "checks": [
+    {
+      "command": [
+        "cargo",
+        "--locked",
+        "--offline",
+        "test",
+        "-p",
+        "veritas-runtime",
+        "--test",
+        "stdlib_data"
+      ],
+      "exit_status": 0,
+      "id": "stdlib-data",
+      "output": "\nrunning 12 tests\ntest json_safe_accessors_keep_missing_null_and_boolean_types_distinct ... ok\ntest cli_option_map_distinguishes_missing_from_supplied_empty ... ok\ntest semver_supports_huge_components_and_full_prerelease_precedence ... ok\ntest strict_timestamps_validate_gregorian_dates_and_normalize_offsets_exactly ... ok\ntest reader_handles_are_owned_typed_and_closed_with_registry ... ok\ntest fs_walk_is_sorted_bounded_and_does_not_follow_symlink_directories ... ok\ntest invalid_data_keeps_existing_output_untouched ... ok\ntest csv_reader_handles_multiline_quotes_empty_fields_and_malformed_rows ... ok\ntest veritas_line_and_csv_builtins_stream_records_through_owned_handles ... ok\ntest sort_by_is_stable_preserves_aliases_and_rejects_transitive_effects ... ok\ntest every_shipped_data_module_compiles_as_an_independent_std_import ... ok\ntest line_reader_is_incremental_strict_utf8_and_tracks_physical_lines ... ok\n\ntest result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s\n\n\n   Compiling ring v0.17.14\n   Compiling rustls v0.23.43\n   Compiling rustls-webpki v0.103.15\n   Compiling tokio-rustls v0.26.4\n   Compiling hyper-rustls v0.27.9\n   Compiling reqwest v0.12.28\n   Compiling veritas-runtime v0.1.0 (/Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/work/veritas-foundation/crates/runtime)\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 7.57s\n     Running tests/stdlib_data.rs (target/debug/deps/stdlib_data-3380c387c4d8056e)\n",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "--locked",
+        "--offline",
+        "test",
+        "-p",
+        "veritas-cli",
+        "--test",
+        "stdlib_data"
+      ],
+      "exit_status": 0,
+      "id": "stdlib-data-embedded-selfhost",
+      "output": "\nrunning 1 test\ntest embedded_self_host_compiler_runs_shipped_data_modules_and_streams ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 14.17s\n\n\n   Compiling reqwest v0.12.28\n   Compiling veritas-runtime v0.1.0 (/Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/work/veritas-foundation/crates/runtime)\n   Compiling veritas-cli v0.1.0 (/Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/work/veritas-foundation/crates/cli)\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.46s\n     Running tests/stdlib_data.rs (target/debug/deps/stdlib_data-4503c31a465ed86b)\n",
+      "status": "passed"
+    }
+  ],
+  "command": "stdlib",
+  "completed_targets": [
+    "macos-aarch64"
+  ],
+  "exact_command": "cargo xtask stdlib --group data",
+  "exit_status": 0,
+  "message": null,
+  "missing_checks": [],
+  "missing_evidence": [],
+  "report": "stdlib-data",
+  "required_targets": [
+    "macos-aarch64"
+  ],
+  "runtime_hash": "sha256:44e7d7c72fc0017aa704804872415a48aaa823ad046aedd836cd086c2da35fd0",
+  "schema_version": 1,
+  "seed_hash": "sha256:70e743ea7111708b7fbc721fbae63e4483293a020616f948a479e5856354d9b2",
+  "skipped_targets": [],
+  "source_revision": "b8755f08e8c453051572b9e57a34fd1da0a73199",
+  "status": "passed",
+  "stdlib_hash": "sha256:e7701907c81833396c582551be4d22ee61e070bf4f11c9555aa698ad4d17f1b9",
+  "target": "macos-aarch64",
+  "unsatisfied_goal_ids": [
+    "G1",
+    "G2",
+    "G3"
+  ],
+  "working_tree_digest": "sha256:47d1664e053669c67e650a51c0b762ad046445f357c0f67d7fd72c66c1c54d8d"
+}

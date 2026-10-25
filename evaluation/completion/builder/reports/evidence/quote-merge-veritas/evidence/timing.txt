@@ -1,0 +1,7 @@
+start_utc=2026-10-25T09:20:36Z
+finish_utc=2026-10-25T09:33:23Z
+setup_seconds=5.1 (veritas new scaffold command wall time)
+build_seconds=0.4140785 (veritas build command wall time)
+followup_seconds=0.799605875 (follow-up app run wall time)
+installed_launch_seconds=0.832838583 (baseline app run via installed Veritas binary)
+artifact_bytes=36267

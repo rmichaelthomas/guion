@@ -1,0 +1,163 @@
+import "std:csv"
+import "std:fs"
+import "std:json"
+import "std:time"
+
+fn fail(message: Text) -> Int:
+    eprint(message)
+    return 1
+
+fn main() -> Int:
+    let arguments = args()
+    var tickets_path = ""
+    var policy_path = ""
+    var as_of_text = ""
+    var output_path = ""
+    var team_filter = ""
+    var index = 0
+    while index < len(arguments):
+        if arguments[index] == "--tickets" and index + 1 < len(arguments):
+            set tickets_path = arguments[index + 1]
+            set index = index + 2
+        else:
+            if arguments[index] == "--policy" and index + 1 < len(arguments):
+                set policy_path = arguments[index + 1]
+                set index = index + 2
+            else:
+                if arguments[index] == "--as-of" and index + 1 < len(arguments):
+                    set as_of_text = arguments[index + 1]
+                    set index = index + 2
+                else:
+                    if arguments[index] == "--output" and index + 1 < len(arguments):
+                        set output_path = arguments[index + 1]
+                        set index = index + 2
+                    else:
+                        if arguments[index] == "--team" and index + 1 < len(arguments):
+                            set team_filter = arguments[index + 1]
+                            set index = index + 2
+                        else:
+                            eprint("unknown or incomplete argument")
+                            return 2
+    if tickets_path == "" or policy_path == "" or as_of_text == "" or output_path == "":
+        eprint("usage: sla-report --tickets PATH --policy PATH --as-of RFC3339 --output PATH [--team NAME]")
+        return 2
+
+    let as_of_result = parse_timestamp(as_of_text)
+    if not is_ok(as_of_result):
+        return fail("invalid_timestamp: --as-of must be RFC3339")
+    let as_of = unwrap(as_of_result)
+    let policy_source = read_text(policy_path)
+    if not is_ok(policy_source):
+        return fail("cannot read policy file")
+    let policy_result = json_parse(unwrap(policy_source))
+    if not is_ok(policy_result):
+        return fail("invalid_policy: policy must be valid JSON")
+    let policy = unwrap(policy_result)
+    let limits_result = json_get_safe(policy, "response_minutes")
+    if not is_ok(limits_result):
+        return fail("invalid_policy: response_minutes must be an object")
+    let limits = unwrap(limits_result)
+    var canonical_limits = json_object()
+    let high_result = json_get_safe(limits, "high")
+    if is_ok(high_result):
+        let high_value = json_int_safe(unwrap(high_result))
+        if not is_ok(high_value) or unwrap(high_value) < 0:
+            return fail("policy limits must be nonnegative integers")
+        set canonical_limits = json_set(canonical_limits, "high", json_int(unwrap(high_value)))
+    let low_result = json_get_safe(limits, "low")
+    if is_ok(low_result):
+        let low_value = json_int_safe(unwrap(low_result))
+        if not is_ok(low_value) or unwrap(low_value) < 0:
+            return fail("policy limits must be nonnegative integers")
+        set canonical_limits = json_set(canonical_limits, "low", json_int(unwrap(low_value)))
+    if json_stringify(canonical_limits) != json_stringify(limits):
+        return fail("policy limits allow only high and low nonnegative integers")
+
+    let reader_result = csv_open_reader(tickets_path)
+    if not is_ok(reader_result):
+        return fail("cannot read tickets CSV")
+    let reader = unwrap(reader_result)
+    let header_result = csv_next_row(reader)
+    if not is_ok(header_result) or not is_some(unwrap(header_result)):
+        return fail("malformed_csv: required header is missing")
+    let header = unwrap(unwrap(header_result)).fields
+    if len(header) != 5 or header[0] != "id" or header[1] != "team" or header[2] != "priority" or header[3] != "status" or header[4] != "created_at":
+        return fail("malformed_csv: header must be id,team,priority,status,created_at")
+
+    var seen_ids: Map[Text, Bool] = {}
+    var ordered: Map[Text, Map[Text, Json]] = {}
+    var total = 0
+    var breached_count = 0
+    var done = false
+    while not done:
+        let next_result = csv_next_row(reader)
+        if not is_ok(next_result):
+            return fail("malformed_csv: cannot parse CSV record")
+        let maybe_row = unwrap(next_result)
+        if not is_some(maybe_row):
+            set done = true
+        else:
+            let row = unwrap(maybe_row)
+            let fields = row.fields
+            if len(fields) != 5 or fields[0] == "" or fields[1] == "" or fields[2] == "" or fields[3] == "" or fields[4] == "":
+                return fail("malformed_csv: each data row must have five nonempty fields")
+            let id = fields[0]
+            let team = fields[1]
+            let priority = fields[2]
+            let status = fields[3]
+            if map_has(seen_ids, id):
+                return fail("duplicate_id: duplicate ticket id " + id)
+            set seen_ids = map_set(seen_ids, id, true)
+            if priority != "high" and priority != "low":
+                return fail("unknown_priority: " + priority)
+            if status != "open" and status != "closed":
+                return fail("unknown_status: " + status)
+            let limit_result = json_get_safe(limits, priority)
+            if not is_ok(limit_result):
+                return fail("missing_policy_entry: " + priority)
+            let limit_value = json_int_safe(unwrap(limit_result))
+            if not is_ok(limit_value):
+                return fail("invalid_policy: response limit must be an integer")
+            let created_result = parse_timestamp(fields[4])
+            if not is_ok(created_result):
+                return fail("timestamp must use RFC3339 date-time syntax: ticket " + id)
+            let created = unwrap(created_result)
+            if created.unix_microseconds > as_of.unix_microseconds:
+                return fail("ticket timestamp is after --as-of: " + id)
+            let age = (as_of.unix_microseconds - created.unix_microseconds) / 60000000
+            let breached = status == "open" and age > unwrap(limit_value)
+            if team_filter == "" or team_filter == team:
+                var ticket = json_object()
+                set ticket = json_set(ticket, "id", json_text(id))
+                set ticket = json_set(ticket, "team", json_text(team))
+                set ticket = json_set(ticket, "priority", json_text(priority))
+                set ticket = json_set(ticket, "status", json_text(status))
+                set ticket = json_set(ticket, "age_minutes", json_int(age))
+                set ticket = json_set(ticket, "limit_minutes", json_int(unwrap(limit_value)))
+                set ticket = json_set(ticket, "breached", json_bool(breached))
+                var by_id: Map[Text, Json] = {}
+                if map_has(ordered, team):
+                    set by_id = ordered[team]
+                set by_id = map_set(by_id, id, ticket)
+                set ordered = map_set(ordered, team, by_id)
+                set total = total + 1
+                if breached:
+                    set breached_count = breached_count + 1
+
+    let ignored_close = fs_close_reader(reader)
+    var tickets = json_array()
+    for sorted_team in ordered:
+        let by_id = ordered[sorted_team]
+        for sorted_id in by_id:
+            set tickets = json_push(tickets, by_id[sorted_id])
+    var summary = json_object()
+    set summary = json_set(summary, "total", json_int(total))
+    set summary = json_set(summary, "breached", json_int(breached_count))
+    var report = json_object()
+    set report = json_set(report, "as_of", json_text(as_of_text))
+    set report = json_set(report, "tickets", tickets)
+    set report = json_set(report, "summary", summary)
+    let written = write_text_atomic(output_path, json_stringify(report) + "\n")
+    if not is_ok(written):
+        return fail("cannot write report")
+    return 0

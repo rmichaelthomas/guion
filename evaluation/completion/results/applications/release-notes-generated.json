@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "application": "release-notes",
+  "mode": "seeded independent-oracle cases against relocated package",
+  "seed": 20261024,
+  "sizes": [
+    24,
+    128
+  ],
+  "case_count": 2,
+  "concurrency": null,
+  "passed": true,
+  "cases": [
+    {
+      "case_id": "generated-release-notes-24",
+      "candidate": {},
+      "passed": true,
+      "exit_code": 0,
+      "checks_passed": 2,
+      "checks_total": 2,
+      "steps": [
+        {
+          "exit_code": 0,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "failures": [],
+          "elapsed_seconds": 0.109036
+        }
+      ],
+      "elapsed_seconds": 0.115851,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "",
+      "failures": []
+    },
+    {
+      "case_id": "generated-release-notes-128",
+      "candidate": {},
+      "passed": true,
+      "exit_code": 0,
+      "checks_passed": 2,
+      "checks_total": 2,
+      "steps": [
+        {
+          "exit_code": 0,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "failures": [],
+          "elapsed_seconds": 0.391552
+        }
+      ],
+      "elapsed_seconds": 0.434561,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "",
+      "failures": []
+    }
+  ]
+}

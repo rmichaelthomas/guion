@@ -1,0 +1,4 @@
+# Relative paths resolve beside this configuration file.
+# Create this directory before running the app; keep it outside the app directory.
+[storage]
+database = "operator data/field-kit.sqlite3"

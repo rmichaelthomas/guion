@@ -1,0 +1,149 @@
+{
+  "schema_version": 1,
+  "status": "complete",
+  "target_class": "concurrent-network",
+  "assessed_after_both_outputs": true,
+  "recommendation": "veritas",
+  "reason": "Both programs passed the required quote selection, partial-failure, concurrency, follow-up, and relocation checks. For this network task, Veritas's explicit 1,500 ms request deadline and 127.0.0.1-only host grant provide a concrete user benefit: the Python implementation documents a per-socket-operation timeout that does not bound a response that continuously trickles data.",
+  "observed_user_benefit": "The Veritas project made the four-worker ceiling, response deadline, response-size cap, and allowed host explicit in its manifest while retaining valid quotes across a 503 and malformed feed.",
+  "material_regressions": [
+    "Veritas onboarding took 767 seconds end to end versus 227.192 seconds for Python. The reported phase values are not comparable: Python's build/follow-up include implementation and checks, while the Veritas 5.1-second setup, 0.414-second build, and 0.800-second follow-up are individual scaffold, compiler, and app-run command times.",
+    "The Veritas README named capabilities but omitted several exact API signatures. The builder spent time on guessed APIs and compile errors before using the installed reference and compiler diagnostics; the first `veritas new --help` also created and then required removal of a `--help` scaffold directory.",
+    "The Veritas 0.833-second run used the installed Veritas CLI on the delayed fixture, while Python's reported 0.110-second median used five empty-feed launches. These installed-launch figures are different workloads and should not be treated as a speed ratio.",
+    "The Veritas 36,267-byte footprint is a project/artifact set, not a standalone app package. The brief required source, usage, fixtures, and relocation, which passed; package/install behavior for this app was not demonstrated.",
+    "The Python app needed only the already-present CPython 3.14.7 standard library and no installation, but its socket timeout is not a total wall-clock deadline against a continuously trickling server."
+  ],
+  "product_context": {
+    "plan_task_status": {
+      "tasks_2_to_7": "All listed plan checks are marked complete.",
+      "task_8": "The minimal-new-project-template check remains open; the other listed workflow checks are marked complete.",
+      "task_9": "The listed application-set checks remain open.",
+      "task_10": "The listed release and performance checks are marked complete."
+    },
+    "closeout_status": "incomplete",
+    "closeout_unsatisfied_goals": [
+      "G1",
+      "G2",
+      "G3"
+    ],
+    "closeout_missing_checks": [
+      "all-nine-applications-initial-and-follow-up",
+      "compiler-stage-equality",
+      "fresh-builders-three-classes",
+      "full-language-conformance",
+      "performance-correctness-and-confidence",
+      "python-free-core-product",
+      "release-target-parity"
+    ],
+    "scope_note": "These three Task 11 pairs are narrow, task-specific evidence. They do not by themselves satisfy the broader release closeout."
+  },
+  "paired_observations": {
+    "pair_order": [
+      "python",
+      "veritas"
+    ],
+    "sample_limit": "One matched task pair; network wait times and these few launch samples do not establish a general performance claim.",
+    "python": {
+      "report": "evaluation/completion/builder/reports/quote-merge-python.json",
+      "correctness": {
+        "initial": true,
+        "followup": true,
+        "relocation": true,
+        "final_checks": "14 checks passed, including best-quote ordering, 503/malformed isolation, exact concurrency bound of two, finite socket timeout, filter behavior, and unchanged default output."
+      },
+      "phase_seconds": {
+        "setup": 0.089014,
+        "build": 90.18054,
+        "followup": 21.741637,
+        "elapsed": 227.191941,
+        "measurement_note": "Setup ended at runtime readiness; build includes initial implementation and acceptance; follow-up includes implementation and acceptance; relocation/evidence finishing was tracked separately."
+      },
+      "installed_launch": {
+        "seconds": 0.1101455,
+        "samples": 5,
+        "scope": "Median of five python3 launches with an empty feed file. Timed fixture runs were 0.529 seconds initial, 0.472 seconds final, and 0.509 seconds relocated."
+      },
+      "footprint": {
+        "final_project_bytes": 8116,
+        "standalone_package_bytes": null,
+        "contents": "README, quote_merge.py, and unchanged fixture server."
+      },
+      "runtime_provisioning": "CPython 3.14.7 was already available; standard library only, no third-party install.",
+      "interventions": [
+        "Requested loopback-only permission escalation to bind/contact the fixture server; no packages or human source edits.",
+        "A first setup runner failed after sandbox loopback binding was blocked; direct fixture diagnosis identified the PermissionError, and the rerun passed."
+      ],
+      "failures": [
+        "One resolved fixture setup failure: the sandbox denied loopback binding and the first runner surfaced an empty-port ValueError."
+      ],
+      "behavior": [
+        "Bounds concurrency at two or more workers and isolates HTTP, malformed, and network failures.",
+        "README explicitly warns that the finite socket timeout is not a total deadline for a continuously trickling response."
+      ]
+    },
+    "veritas": {
+      "report": "evaluation/completion/builder/reports/quote-merge-veritas.json",
+      "correctness": {
+        "initial": true,
+        "followup": true,
+        "relocation": true,
+        "acceptance": "Three valid feeds contribute; the 503 and malformed HTTP 200 feed remain reported; follow-up filters quotes without changing feed counts; timeout check reports R_HTTP_TIMEOUT."
+      },
+      "phase_seconds": {
+        "setup": 5.1,
+        "build": 0.4140785,
+        "followup": 0.799605875,
+        "elapsed": 767,
+        "measurement_note": "The first three values are scaffold/build/follow-up command wall times, not implementation time; the full assignment elapsed 12 minutes 47 seconds."
+      },
+      "installed_launch": {
+        "seconds": 0.832838583,
+        "samples": 1,
+        "scope": "One baseline app run through the installed Veritas binary against the fixture."
+      },
+      "footprint": {
+        "project_artifact_bytes": 36267,
+        "standalone_package_bytes": null,
+        "contents": "Veritas source, compiled .vrb, README, manifest, feeds, and report. No app package/install was produced."
+      },
+      "runtime_provisioning": "Requires the installed Veritas distribution/runtime. The app itself uses no Python bridge or third-party packages; this trial did not create a standalone app package.",
+      "interventions": [
+        "Started the supplied fixture with python3 on 127.0.0.1 and used loopback-only escalation for fixture and app access.",
+        "The parent supplied the fixture path and endpoint names absent from the brief.",
+        "Changed unsupported `timeout_seconds` to documented `timeout_ms`.",
+        "Removed the `--help` scaffold directory created by the unsupported `veritas new --help` invocation."
+      ],
+      "failures": [
+        "Loopback fixture bind and first app network request were denied by the default sandbox, then passed after scoped escalation.",
+        "An unsupported manifest key, early API guesses, and map-literal syntax attempts failed before the final source compiled."
+      ],
+      "behavior": [
+        "Manifest grants only 127.0.0.1, sets a 1,500 ms request deadline, and caps response bytes at 1 MiB; application requests are bounded to four workers.",
+        "Source inspection shows unknown options are not rejected comprehensively and `--max-days` is parsed with an unwrapped JSON conversion; the acceptance evidence did not exercise malformed/missing option values."
+      ]
+    }
+  },
+  "evidence": [
+    "evaluation/completion/builder/assignments.json",
+    "evaluation/completion/builder/briefs/quote-merge.md",
+    "evaluation/completion/builder/reports/quote-merge-python.json",
+    "evaluation/completion/builder/reports/quote-merge-veritas.json",
+    "evaluation/completion/builder/reports/evidence/quote-merge-python/Relocated Ω Quote Merge/README.md",
+    "evaluation/completion/builder/reports/evidence/quote-merge-python/Relocated Ω Quote Merge/quote_merge.py",
+    "evaluation/completion/builder/reports/evidence/quote-merge-python/evidence/final-checks.json",
+    "evaluation/completion/builder/reports/evidence/quote-merge-python/evidence/relocated-checks.json",
+    "evaluation/completion/builder/reports/evidence/quote-merge-python/evidence/timing.json",
+    "evaluation/completion/builder/reports/evidence/quote-merge-python/evidence/size.json",
+    "evaluation/completion/builder/reports/evidence/quote-merge-python/evidence/installed-launch.json",
+    "evaluation/completion/builder/reports/evidence/quote-merge-veritas/quote-merge/src/main.vr",
+    "evaluation/completion/builder/reports/evidence/quote-merge-veritas/quote-merge/src/main.vrb",
+    "evaluation/completion/builder/reports/evidence/quote-merge-veritas/quote-merge/README.md",
+    "evaluation/completion/builder/reports/evidence/quote-merge-veritas/quote-merge/veritas.toml",
+    "evaluation/completion/builder/reports/evidence/quote-merge-veritas/evidence/acceptance.txt",
+    "evaluation/completion/builder/reports/evidence/quote-merge-veritas/evidence/timing.txt",
+    "evaluation/completion/builder/reports/evidence/quote-merge-veritas/evidence/size.txt",
+    "evaluation/completion/builder/reports/evidence/quote-merge-veritas/evidence/timeout-output.json",
+    "docs/superpowers/plans/2026-10-24-veritas-complete-product.md",
+    "evaluation/completion/results/closeout.json"
+  ]
+}

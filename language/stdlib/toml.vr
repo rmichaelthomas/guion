@@ -1,0 +1,28 @@
+import "std:types"
+
+pub fn toml_parse(source: Text) -> Result[TomlDocument, StdError]:
+    return native_toml_parse(source)
+
+pub fn toml_has(document: TomlDocument, path: List[Text]) -> Bool:
+    return native_toml_has(document, path)
+
+pub fn toml_get_text(document: TomlDocument, path: List[Text]) -> Result[Text, StdError]:
+    return native_toml_get_text(document, path)
+
+pub fn toml_get_int(document: TomlDocument, path: List[Text]) -> Result[Int, StdError]:
+    return native_toml_get_int(document, path)
+
+pub fn toml_get_bool(document: TomlDocument, path: List[Text]) -> Result[Bool, StdError]:
+    return native_toml_get_bool(document, path)
+
+pub fn toml_put_text(document: TomlDocument, path: List[Text], value: Text) -> Result[Unit, StdError]:
+    return native_toml_put_text(document, path, value)
+
+pub fn toml_put_int(document: TomlDocument, path: List[Text], value: Int) -> Result[Unit, StdError]:
+    return native_toml_put_int(document, path, value)
+
+pub fn toml_put_bool(document: TomlDocument, path: List[Text], value: Bool) -> Result[Unit, StdError]:
+    return native_toml_put_bool(document, path, value)
+
+pub fn toml_render(document: TomlDocument) -> Text:
+    return native_toml_render(document)

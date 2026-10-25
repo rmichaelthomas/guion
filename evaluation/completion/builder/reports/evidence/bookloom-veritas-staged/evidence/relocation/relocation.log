@@ -1,0 +1,22 @@
+UTC 2026-10-25T09:54:06Z
+$ /Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/work/veritas-foundation/target/completion/releases/macos-aarch64/current/bin/veritas check /private/tmp/veritas-fresh-builders/bookloom-veritas-staged/relocated/Bookloom — café 東京/src/main.vr
+checked /private/tmp/veritas-fresh-builders/bookloom-veritas-staged/relocated/Bookloom — café 東京/src/main.vr (34 functions)
+
+$ /Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/work/veritas-foundation/target/completion/releases/macos-aarch64/current/bin/veritas run --file-root /private/tmp/veritas-fresh-builders/bookloom-veritas-staged/📚 caller data /private/tmp/veritas-fresh-builders/bookloom-veritas-staged/relocated/Bookloom — café 東京 add R001 "Relocated Book"
+Added R001
+
+$ /Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/work/veritas-foundation/target/completion/releases/macos-aarch64/current/bin/veritas run --file-root /private/tmp/veritas-fresh-builders/bookloom-veritas-staged/📚 caller data /private/tmp/veritas-fresh-builders/bookloom-veritas-staged/relocated/Bookloom — café 東京 checkout R001 "Relocation Reader" 2026-10-25
+Checked out R001 to Relocation Reader
+
+$ /Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/work/veritas-foundation/target/completion/releases/macos-aarch64/current/bin/veritas run --file-root /private/tmp/veritas-fresh-builders/bookloom-veritas-staged/📚 caller data /private/tmp/veritas-fresh-builders/bookloom-veritas-staged/relocated/Bookloom — café 東京 due-soon --as-of 2026-10-26
+R001 | Relocated Book | Relocation Reader | due 2026-11-08
+
+UTC 2026-10-25T09:54:15Z
+$ /Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/work/veritas-foundation/target/completion/releases/macos-aarch64/current/bin/veritas package --json /private/tmp/veritas-fresh-builders/bookloom-veritas-staged/relocated/Bookloom — café 東京 --output /private/tmp/veritas-fresh-builders/bookloom-veritas-staged/release-package
+{"artifact_sha256":"1f931f45d9b4cf20e4ca9dff4dedcc7763078a2f041f84277f3a2d5bb141b7ec","directory":"/private/tmp/veritas-fresh-builders/bookloom-veritas-staged/release-package","kind":"veritas_package_report","package_metadata_sha256":"ec36d642ea8ab6e1cb52fe7f446935bbf23539cd95b9da559c5d5d2fa79658f8","package_schema_version":2,"python_runtime_included":false,"resource_count":1,"schema_version":1,"status":"packaged","target":"macos-aarch64"}
+
+$ /Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/work/veritas-foundation/target/completion/releases/macos-aarch64/current/bin/veritas verify-package --json /private/tmp/veritas-fresh-builders/bookloom-veritas-staged/release-package
+{"directory":"/private/tmp/veritas-fresh-builders/bookloom-veritas-staged/release-package","kind":"veritas_package_verification_report","package_metadata_sha256":"ec36d642ea8ab6e1cb52fe7f446935bbf23539cd95b9da559c5d5d2fa79658f8","package_schema_version":2,"schema_version":1,"status":"verified","target":"macos-aarch64"}
+
+$ /Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/work/veritas-foundation/target/completion/releases/macos-aarch64/current/bin/veritas install /private/tmp/veritas-fresh-builders/bookloom-veritas-staged/release-package --prefix /private/tmp/veritas-fresh-builders/bookloom-veritas-staged/installed
+installed application at /private/tmp/veritas-fresh-builders/bookloom-veritas-staged/installed/bin/bookloom

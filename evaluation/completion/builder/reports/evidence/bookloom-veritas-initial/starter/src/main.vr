@@ -1,0 +1,4 @@
+external "sqlite" fn sqlite_open(path: String) -> Int
+
+fn main() -> Int:
+    return 0

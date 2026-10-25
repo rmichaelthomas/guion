@@ -1,0 +1,4 @@
+invoice_id	vendor	amount_cents	due_date	state
+x	Acme	900719925474099312345	2026-01-01	open
+y	Acme	-2	2026-01-01	open
+z	Acme	1e2	2026-01-01	open

@@ -1,0 +1,9 @@
+[project]
+name = "quote-merge-timeout-check"
+version = "0.1.0"
+entry = "src/main.vr"
+
+[network]
+hosts = ["127.0.0.1"]
+timeout_ms = 20
+max_response_bytes = 1048576

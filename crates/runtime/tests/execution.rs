@@ -1,6 +1,6 @@
 use std::time::Duration;
 use veritas_compiler::compile;
-use veritas_model::{Artifact, BigInt, Float64, Op, Value};
+use veritas_model::{Artifact, BigInt, Float64, Op, SharedJson, Value};
 use veritas_runtime::{
     CancellationToken, EffectKind, EffectOutcome, EffectRecord, HostPolicy, Runtime,
 };
@@ -17,6 +17,20 @@ fn text_length_and_index_use_unicode_scalar_positions() {
     instance.invoke("main", vec![]).expect("program runs");
 
     assert_eq!(instance.take_output(), "3\n🙂\n");
+}
+
+#[cfg(not(feature = "python-interop"))]
+#[test]
+fn core_profile_reports_python_externals_as_unavailable_without_launching_them() {
+    let source = "extern python \"builtins:pow\" fn power(base: Int, exponent: Int) -> Int\n\nfn main() -> Int:\n    return power(2, 10)\n";
+    let artifact = compile("python-optional-profile.vr", source)
+        .expect("optional external declarations remain type checked");
+    let mut instance = Runtime::new()
+        .load(artifact, HostPolicy::default())
+        .expect("core runtime loads external declarations");
+    let error = instance.invoke("main", vec![]).unwrap_err();
+    assert_eq!(error.code, "R_PYTHON_UNAVAILABLE");
+    assert!(error.message.contains("python-interop"));
 }
 
 #[test]
@@ -38,6 +52,43 @@ fn text_chars_materializes_unicode_scalars_for_linear_scanning() {
     instance.invoke("main", vec![]).expect("program runs");
 
     assert_eq!(instance.take_output(), "3\n🙂\n");
+}
+
+#[test]
+fn bounded_byte_construction_primitives_remain_compatible_with_format_34() {
+    let source = "fn main() -> Int:\n    let raw = bytes_from_ints([0, 255])\n    let utf8 = bytes_from_text(\"é\")\n    let joined = bytes_join([raw, utf8])\n    print(len(joined))\n    print(float64_bits(1.0))\n    return 0\n";
+    let artifact =
+        compile("artifact-byte-primitives.vr", source).expect("byte construction source compiles");
+    assert_eq!(artifact.format_version, 38);
+    let mut previous_format = artifact.clone();
+    previous_format.format_version = 33;
+    assert_eq!(
+        previous_format.to_bytes().unwrap_err().code,
+        "E_ARTIFACT_VERSION"
+    );
+    let mut format_34 = artifact;
+    format_34.format_version = 34;
+    let artifact = Artifact::from_bytes(&format_34.to_bytes().unwrap())
+        .expect("format 34 preserves bounded byte operations");
+    let mut instance = Runtime::new()
+        .load(artifact, HostPolicy::default())
+        .expect("runtime verifies bounded byte operations");
+    instance.invoke("main", vec![]).expect("program runs");
+    assert_eq!(instance.take_output(), "4\n4607182418800017408\n");
+}
+
+#[test]
+fn bytes_from_ints_rejects_values_outside_byte_range() {
+    let source = "fn main() -> Int:\n    let invalid = bytes_from_ints([256])\n    return 0\n";
+    let artifact = compile("artifact-byte-range.vr", source)
+        .expect("range is checked by the bounded byte constructor");
+    let mut instance = Runtime::new()
+        .load(artifact, HostPolicy::default())
+        .expect("runtime loads byte constructor");
+    assert_eq!(
+        instance.invoke("main", vec![]).unwrap_err().code,
+        "R_BYTE_RANGE"
+    );
 }
 
 #[test]
@@ -1398,6 +1449,62 @@ fn environment_access_requires_a_grant_and_preserves_unicode_values() {
 }
 
 #[test]
+fn clock_access_requires_an_explicit_grant_and_can_be_pinned() {
+    let source = "record Date:\n    year: Int\n    month: Int\n    day: Int\n\nfn read_time() -> Int:\n    return unix_time_ms()\n\nfn read_date() -> Date:\n    return time_today_local()\n\nfn main() -> Int:\n    return 0\n";
+    let artifact = compile("clock-grant.vr", source).expect("clock operations compile");
+    let mut legacy = artifact.clone();
+    legacy.format_version = 38;
+    assert_eq!(legacy.to_bytes().unwrap_err().code, "E_ARTIFACT_VERSION");
+
+    let mut denied = Runtime::new()
+        .load(artifact.clone(), HostPolicy::default())
+        .expect("artifact loads without a clock grant");
+    assert_eq!(
+        denied.invoke("read_time", vec![]).unwrap_err().code,
+        "R_CLOCK_DENIED"
+    );
+    assert_eq!(
+        denied.invoke("read_date", vec![]).unwrap_err().code,
+        "R_CLOCK_DENIED"
+    );
+
+    let mut granted = Runtime::new()
+        .load(
+            artifact,
+            HostPolicy::default().with_clock_unix_time_ms(1_579_089_600_000),
+        )
+        .expect("fixed clock grants access");
+    assert_eq!(
+        granted.invoke("read_time", vec![]).unwrap(),
+        Value::Int(BigInt::from_i64(1_579_089_600_000))
+    );
+    let timestamp = libc::time_t::try_from(1_579_089_600_i64).unwrap();
+    let mut expected_local = unsafe { std::mem::zeroed::<libc::tm>() };
+    assert!(!unsafe { libc::localtime_r(&timestamp, &mut expected_local) }.is_null());
+    let Value::Record(name, fields) = granted.invoke("read_date", vec![]).unwrap() else {
+        panic!("local date operation should return Date")
+    };
+    assert_eq!(name, "Date");
+    assert_eq!(fields.len(), 3);
+    assert_eq!(
+        fields[0],
+        Value::Int(BigInt::from_i64(i64::from(expected_local.tm_year + 1900)))
+    );
+    assert_eq!(
+        fields[1],
+        Value::Int(BigInt::from_i64(i64::from(expected_local.tm_mon + 1)))
+    );
+    assert_eq!(
+        fields[2],
+        Value::Int(BigInt::from_i64(i64::from(expected_local.tm_mday)))
+    );
+    assert!(granted
+        .effect_report()
+        .iter()
+        .any(|effect| effect.kind == EffectKind::ClockRead));
+}
+
+#[test]
 fn native_nested_failure_keeps_every_call_site_in_the_runtime_trace() {
     let source = "fn leaf(value: Int) -> Int:\n    return value + 1\n\nfn middle(value: Int) -> Int:\n    return leaf(value)\n\nfn main() -> Int:\n    return middle(1)\n";
     let artifact = compile("native-trace.vr", source).expect("source compiles");
@@ -1478,6 +1585,150 @@ fn native_backend_calls_native_functions_and_obeys_call_depth_limit() {
             .unwrap_err()
             .code,
         "R_CALL_DEPTH"
+    );
+}
+
+#[test]
+fn vm_guest_recursion_uses_heap_frames_and_enforces_one_beyond_depth() {
+    let source = "fn descend(remaining: Int) -> Int:\n    if remaining <= 0:\n        return 0\n    return descend(remaining - 1) + 1\n\nfn main() -> Int:\n    return 0\n";
+    let artifact = compile("vm-guest-frames.vr", source).expect("recursive source compiles");
+    let policy = HostPolicy {
+        call_depth_limit: 512,
+        ..HostPolicy::default()
+    };
+    let mut vm = Runtime::vm_only()
+        .load(artifact.clone(), policy.clone())
+        .expect("artifact loads");
+    let mut automatic = Runtime::new()
+        .load(artifact, policy)
+        .expect("artifact loads with native execution enabled");
+
+    let result = vm
+        .invoke("descend", vec![Value::Int(BigInt::parse("400").unwrap())])
+        .expect("deep valid recursion stays within the guest call limit");
+    assert_eq!(result, Value::Int(BigInt::parse("400").unwrap()));
+    assert_eq!(
+        automatic
+            .invoke("descend", vec![Value::Int(BigInt::parse("400").unwrap())])
+            .expect("native-enabled recursion falls back to heap frames"),
+        result
+    );
+    assert!(!automatic
+        .native_function_names()
+        .iter()
+        .any(|name| name == "descend"));
+
+    let error = vm
+        .invoke("descend", vec![Value::Int(BigInt::parse("512").unwrap())])
+        .expect_err("the first call beyond the limit is rejected");
+    assert_eq!(error.code, "R_CALL_DEPTH");
+    assert_eq!(error.trace.len(), 513);
+    assert_eq!(
+        error.trace[0].line, 2,
+        "depth error starts at the rejected function"
+    );
+    assert!(error.trace.iter().skip(1).all(|span| span.line == 4));
+    assert_eq!(
+        automatic
+            .invoke("descend", vec![Value::Int(BigInt::parse("512").unwrap())])
+            .expect_err("native-enabled recursion preserves the same depth outcome"),
+        error
+    );
+}
+
+#[test]
+fn nested_calls_keep_exact_instruction_budget_parity_across_vm_jit_and_fallback() {
+    let source = "fn leaf(value: Int) -> Int:\n    return value + 1\n\nfn descend(remaining: Int) -> Int:\n    if remaining <= 0:\n        return 0\n    return descend(remaining - 1) + 1\n\nfn twice(value: Int) -> Int:\n    return leaf(value) * 2\n\nfn combined(depth: Int) -> Int:\n    return twice(descend(depth))\n\nfn main() -> Int:\n    return combined(3)\n";
+    let artifact = compile("nested-fuel-parity.vr", source).expect("nested source compiles");
+
+    let mut exact_budget = 1;
+    loop {
+        let mut vm = Runtime::vm_only()
+            .load(
+                artifact.clone(),
+                HostPolicy {
+                    instruction_limit: exact_budget,
+                    ..HostPolicy::default()
+                },
+            )
+            .expect("artifact loads in VM mode");
+        match vm.invoke("combined", vec![Value::Int(BigInt::from_usize(3))]) {
+            Ok(value) => {
+                assert_eq!(value, Value::Int(BigInt::from_usize(8)));
+                break;
+            }
+            Err(error) => {
+                assert_eq!(error.code, "R_STEP_LIMIT");
+                exact_budget += 1;
+                assert!(
+                    exact_budget < 256,
+                    "nested call budget stayed unexpectedly high"
+                );
+            }
+        }
+    }
+
+    let mut vm_exact = Runtime::vm_only()
+        .load(
+            artifact.clone(),
+            HostPolicy {
+                instruction_limit: exact_budget,
+                ..HostPolicy::default()
+            },
+        )
+        .unwrap();
+    let vm_success = vm_exact.invoke("combined", vec![Value::Int(BigInt::from_usize(3))]);
+    let mut jit_exact = Runtime::new()
+        .load(
+            artifact.clone(),
+            HostPolicy {
+                instruction_limit: exact_budget,
+                ..HostPolicy::default()
+            },
+        )
+        .unwrap();
+    let jit_success = jit_exact.invoke("combined", vec![Value::Int(BigInt::from_usize(3))]);
+    assert!(jit_exact
+        .native_function_names()
+        .iter()
+        .any(|name| name == "twice"));
+    assert!(!jit_exact
+        .native_function_names()
+        .iter()
+        .any(|name| name == "descend"));
+    assert_eq!(jit_success, vm_success);
+    assert!(
+        jit_exact.native_calls() > 0,
+        "the nested invocation exercised JIT code"
+    );
+
+    let mut vm_below = Runtime::vm_only()
+        .load(
+            artifact.clone(),
+            HostPolicy {
+                instruction_limit: exact_budget - 1,
+                ..HostPolicy::default()
+            },
+        )
+        .unwrap();
+    let vm_failure = vm_below
+        .invoke("combined", vec![Value::Int(BigInt::from_usize(3))])
+        .unwrap_err();
+    assert_eq!(vm_failure.code, "R_STEP_LIMIT");
+    let mut jit_below = Runtime::new()
+        .load(
+            artifact,
+            HostPolicy {
+                instruction_limit: exact_budget - 1,
+                ..HostPolicy::default()
+            },
+        )
+        .unwrap();
+    assert_eq!(
+        jit_below
+            .invoke("combined", vec![Value::Int(BigInt::from_usize(3))])
+            .unwrap_err(),
+        vm_failure
     );
 }
 
@@ -1634,6 +1885,48 @@ fn artifact_loader_rejects_invalid_stack_control_flow_before_execution() {
     assert_eq!(
         Runtime::new()
             .load(artifact, HostPolicy::default())
+            .unwrap_err()
+            .code,
+        "R_ARTIFACT_INVALID"
+    );
+}
+
+#[test]
+fn artifact_loader_rejects_forged_function_references_and_invalid_branches() {
+    let mut forged_reference = compile(
+        "forged-reference.vr",
+        "fn identity(value: Int) -> Int:\n    return value\nfn main() -> Int:\n    return identity(1)\n",
+    )
+    .unwrap();
+    let call = forged_reference
+        .functions
+        .iter_mut()
+        .flat_map(|function| function.code.iter_mut())
+        .find(|instruction| matches!(instruction.op, Op::Call(_, _)))
+        .expect("compiled program contains a function reference");
+    call.op = Op::Call(usize::MAX, 1);
+    assert_eq!(
+        Runtime::new()
+            .load(forged_reference, HostPolicy::default())
+            .unwrap_err()
+            .code,
+        "R_ARTIFACT_INVALID"
+    );
+
+    let mut invalid_branch = compile(
+        "invalid-branch.vr",
+        "fn main() -> Int:\n    if true:\n        return 1\n    else:\n        return 0\n",
+    )
+    .unwrap();
+    let branch = invalid_branch.functions[0]
+        .code
+        .iter_mut()
+        .find(|instruction| matches!(instruction.op, Op::JumpIfFalse(_)))
+        .expect("compiled conditional contains a branch");
+    branch.op = Op::JumpIfFalse(usize::MAX);
+    assert_eq!(
+        Runtime::new()
+            .load(invalid_branch, HostPolicy::default())
             .unwrap_err()
             .code,
         "R_ARTIFACT_INVALID"
@@ -1991,6 +2284,73 @@ fn json_values_obey_integer_and_collection_limits() {
 }
 
 #[test]
+fn host_supplied_json_obeys_depth_size_and_collection_limits() {
+    let artifact = compile(
+        "host-json-limits.vr",
+        "fn identity(value: Json) -> Json:\n    return value\n\nfn main() -> Int:\n    return 0\n",
+    )
+    .unwrap();
+
+    let oversized_collection = Value::Json(SharedJson::from_serde(serde_json::json!([1, 2, 3])));
+    let policy = HostPolicy {
+        max_collection_items: 2,
+        ..HostPolicy::default()
+    };
+    let mut instance = Runtime::new().load(artifact.clone(), policy).unwrap();
+    assert_eq!(
+        instance
+            .invoke("identity", vec![oversized_collection])
+            .unwrap_err()
+            .code,
+        "R_COLLECTION_LIMIT"
+    );
+
+    let oversized_text = Value::Json(SharedJson::from_serde(serde_json::json!({ "a": "b" })));
+    let policy = HostPolicy {
+        max_text_bytes: 8,
+        ..HostPolicy::default()
+    };
+    let mut instance = Runtime::new().load(artifact.clone(), policy).unwrap();
+    assert_eq!(
+        instance
+            .invoke("identity", vec![oversized_text])
+            .unwrap_err()
+            .code,
+        "R_TEXT_LIMIT"
+    );
+
+    let escaped_text = Value::Json(SharedJson::from_serde(serde_json::json!("\n\u{1}")));
+    let policy = HostPolicy {
+        max_text_bytes: 9,
+        ..HostPolicy::default()
+    };
+    let mut instance = Runtime::new().load(artifact.clone(), policy).unwrap();
+    assert_eq!(
+        instance
+            .invoke("identity", vec![escaped_text])
+            .unwrap_err()
+            .code,
+        "R_TEXT_LIMIT"
+    );
+
+    let mut too_deep = serde_json::Value::Null;
+    for _ in 0..65 {
+        too_deep = serde_json::json!([too_deep]);
+    }
+    let too_deep = Value::Json(SharedJson::from_serde(too_deep));
+    let mut instance = Runtime::new()
+        .load(artifact, HostPolicy::default())
+        .unwrap();
+    assert_eq!(
+        instance
+            .invoke("identity", vec![too_deep])
+            .unwrap_err()
+            .code,
+        "R_JSON_DEPTH"
+    );
+}
+
+#[test]
 fn runtime_enforces_a_configurable_integer_size_limit() {
     let digits = "9".repeat(5_000);
     let source = format!("fn main() -> Int:\n    print({digits})\n    return 0\n");
@@ -2210,6 +2570,29 @@ fn file_host_calls_need_a_root_and_cannot_escape_it() {
     escaped.invoke("main", vec![]).unwrap();
     assert_eq!(escaped.take_output(), "R_HOST_DENIED\n");
     let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn named_file_root_aliases_cannot_fall_through_to_another_grant_or_escape() {
+    let root = std::env::temp_dir().join(format!("veritas-file-alias-{}", std::process::id()));
+    let project = root.join("project");
+    let standard = root.join("standard");
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(project.join("std")).unwrap();
+    std::fs::create_dir_all(&standard).unwrap();
+    std::fs::write(project.join("std/input.txt"), "shadow").unwrap();
+    std::fs::write(standard.join("input.txt"), "trusted").unwrap();
+    std::fs::write(project.join("secret.txt"), "private").unwrap();
+
+    let source = "fn main() -> Int:\n    print(unwrap(read_text(\"std/input.txt\")))\n    let escape = read_text(\"std/../secret.txt\")\n    assert(not is_ok(escape))\n    print(file_error_code(error(escape)))\n    return 0\n";
+    let artifact = compile("file-root-alias.vr", source).unwrap();
+    let policy = HostPolicy::default()
+        .with_file_access(&project, true, false)
+        .with_file_root_alias("std", &standard);
+    let mut instance = Runtime::new().load(artifact, policy).unwrap();
+    instance.invoke("main", vec![]).unwrap();
+    assert_eq!(instance.take_output(), "trusted\nR_HOST_DENIED\n");
+    let _ = std::fs::remove_dir_all(root);
 }
 
 #[test]

@@ -1,0 +1,11 @@
+pub fn list_get_text(values: List[Text], index: Int) -> Option[Text]:
+    return list_get(values, index)
+
+pub fn list_get_int(values: List[Int], index: Int) -> Option[Int]:
+    return list_get(values, index)
+
+pub fn map_get_text(values: Map[Text, Text], key: Text) -> Option[Text]:
+    return map_get(values, key)
+
+pub fn map_get_int(values: Map[Text, Int], key: Text) -> Option[Int]:
+    return map_get(values, key)

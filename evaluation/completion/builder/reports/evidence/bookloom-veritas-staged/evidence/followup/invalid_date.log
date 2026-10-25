@@ -1,0 +1,13 @@
+UTC 2026-10-25T09:53:47Z
+
+$ veritas run --file-root /private/tmp/veritas-fresh-builders/bookloom-veritas-staged/followup-due-data /private/tmp/veritas-fresh-builders/bookloom-veritas-staged/project due-soon --as-of 2026-02-30
+Bookloom: --as-of must be a valid YYYY-MM-DD date
+exit=2 (expected 2)
+database_sha256_before=55eb02b1f0f0e5c188d5ed93274c73c1828dff9c91f7dc24b675524254640c16  /private/tmp/veritas-fresh-builders/bookloom-veritas-staged/followup-due-data/bookloom.sqlite
+database_sha256_after=55eb02b1f0f0e5c188d5ed93274c73c1828dff9c91f7dc24b675524254640c16  /private/tmp/veritas-fresh-builders/bookloom-veritas-staged/followup-due-data/bookloom.sqlite
+
+$ veritas run --file-root /private/tmp/veritas-fresh-builders/bookloom-veritas-staged/followup-due-data /private/tmp/veritas-fresh-builders/bookloom-veritas-staged/project list checked-out
+B001 | A Book | checked out to Reader One | since 2026-10-25
+B002 | Another Book | checked out to Reader Two | since 2026-10-25
+B003 | Overdue Book | checked out to Reader Three | since 2026-10-01
+exit=0

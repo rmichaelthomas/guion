@@ -1,0 +1,6 @@
+{
+  "multiple_vendors_states_dates_malformed_exact_integer": true,
+  "deterministic_repeat": true,
+  "invalid_arguments_preserve_output": true,
+  "passed": true
+}

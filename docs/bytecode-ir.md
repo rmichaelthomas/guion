@@ -1,6 +1,6 @@
 # Veritas bytecode IR interchange
 
-`veritas assemble-ir <input.vri.json> --output <program.vrb>` is the stage-zero artifact writer interface for a compiler implemented in Veritas. The producer owns source loading, lexing, parsing, semantic analysis, and bytecode lowering. The Rust command validates the interchange object and serializes it using the current portable artifact format; it is not a source compiler and does not infer types or repair invalid control flow.
+`veritas-stage0 assemble-ir <input.vri.json> <program.vrb>` is a developer-only compatibility tool for comparing the Veritas artifact writer with the native model writer. The installed `veritas` source-compilation path does not call it: the embedded Veritas compiler owns source loading, lexing, parsing, semantic analysis, lowering, and artifact emission. Stage-zero source compilation is available separately as `veritas-stage0 seed [repository-root]`.
 
 The JSON document has schema `veritas-bytecode-ir/v1`:
 
@@ -30,4 +30,4 @@ Each instruction has an `op` name and opcode-specific fields. Optional `span` is
 
 Control-flow targets may be numeric instruction offsets in the current function or symbolic labels. A `{ "op": "Label", "id": 10 }` marker declares a label at that point and is removed during assembly; `Jump` and `JumpIfFalse` can use `label_id` instead of `target`. Duplicate and unresolved labels fail before an artifact is written. `Call.function` names another function in the same `functions` array and carries `argc`. `PythonCall.function` and `PythonCallKw.function` name an entry in `externals`; keyword calls also carry `keyword_names`. `MakeRecord.record` names a record and carries a field-value `count`; `GetField` carries a record name and field name. `Load.local`, `Store.local`, and local-mutating append operations carry a zero-based local slot. Collection construction/update operations carry `count`, `item_type`, or `local` as shown by the operation. All instruction references, function signatures, and artifact invariants are checked by the artifact model before bytes are written.
 
-This interchange is an internal bootstrap boundary, not a stable public bytecode API. Its schema version and artifact format version are distinct: the former describes the compiler-to-assembler JSON, while the latter is embedded in the produced `.vrb`.
+This interchange is an internal bootstrap boundary, not a stable public bytecode API. Its schema version and artifact format version are distinct: the former describes the compiler-to-assembler JSON, while the latter is embedded in the produced `.vrb`. See `docs/self-hosted-compiler.md` for the acyclic seed-update procedure and `language/artifact-format.md` for the portable artifact contract.

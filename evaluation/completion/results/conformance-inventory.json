@@ -1,0 +1,61 @@
+{
+  "artifact_identities": {
+    "compiler_seed": null,
+    "runtime": "sha256:549f39686f74c906767841400ec881c3c32db993d5317f8ab13e3e4f9d36b378",
+    "stdlib": null
+  },
+  "changed_path_count": 2263,
+  "checks": [
+    {
+      "command": [
+        "cargo",
+        "xtask",
+        "catalog",
+        "--check"
+      ],
+      "exit_status": 0,
+      "id": "builtin-signature-catalog",
+      "output": "declarative builtin signatures validate and generated Veritas catalog is current",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "xtask",
+        "conformance",
+        "--inventory-only"
+      ],
+      "exit_status": 0,
+      "id": "inventory-complete",
+      "output": "all current Type, Op, host API and CLI entries are mapped",
+      "status": "passed"
+    }
+  ],
+  "command": "conformance",
+  "completed_targets": [
+    "debian-aarch64"
+  ],
+  "exact_command": "cargo xtask conformance --inventory-only",
+  "exit_status": 0,
+  "message": null,
+  "missing_checks": [],
+  "missing_evidence": [],
+  "report": "conformance-inventory",
+  "required_targets": [
+    "debian-aarch64"
+  ],
+  "runtime_hash": "sha256:549f39686f74c906767841400ec881c3c32db993d5317f8ab13e3e4f9d36b378",
+  "schema_version": 1,
+  "seed_hash": null,
+  "skipped_targets": [],
+  "source_revision": "b8755f08e8c453051572b9e57a34fd1da0a73199",
+  "status": "passed",
+  "stdlib_hash": null,
+  "target": "debian-aarch64",
+  "unsatisfied_goal_ids": [
+    "G1",
+    "G2",
+    "G3"
+  ],
+  "working_tree_digest": "sha256:6e3d8a72ccece5d0fd5a6ffe4ba063b492c9bdd8dbed933990db840332a8d872"
+}

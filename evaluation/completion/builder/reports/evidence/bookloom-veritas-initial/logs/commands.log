@@ -1,0 +1,108 @@
+case=add-second
+expected_exit=0
+veritas run --file-root /private/tmp/veritas-fresh-builders/bookloom-veritas/test-data /private/tmp/veritas-fresh-builders/bookloom-veritas/app [add] [BK-002] [A Psalm for the Wild-Built] [Becky Chambers]
+actual_exit=0
+added BK-002
+
+case=add-available
+expected_exit=0
+veritas run --file-root /private/tmp/veritas-fresh-builders/bookloom-veritas/test-data /private/tmp/veritas-fresh-builders/bookloom-veritas/app [add] [BK-003] [The Dispossessed] [Ursula K. Le Guin]
+actual_exit=0
+added BK-003
+
+case=checkout-first
+expected_exit=0
+veritas run --file-root /private/tmp/veritas-fresh-builders/bookloom-veritas/test-data /private/tmp/veritas-fresh-builders/bookloom-veritas/app [checkout] [BK-001] [Mira Patel]
+actual_exit=0
+checked out BK-001 to Mira Patel
+
+case=persistence-list
+expected_exit=0
+veritas run --file-root /private/tmp/veritas-fresh-builders/bookloom-veritas/test-data /private/tmp/veritas-fresh-builders/bookloom-veritas/app [list]
+actual_exit=0
+BK-001 | A Long Way to a Small, Angry Planet | Becky Chambers | checked_out | Mira Patel | due 2026-11-08
+BK-002 | A Psalm for the Wild-Built | Becky Chambers | available
+BK-003 | The Dispossessed | Ursula K. Le Guin | available
+
+case=duplicate-id
+expected_exit=1
+veritas run --file-root /private/tmp/veritas-fresh-builders/bookloom-veritas/test-data /private/tmp/veritas-fresh-builders/bookloom-veritas/app [add] [BK-001] [Replacement title] [Other Author]
+actual_exit=1
+error: book ID already exists: BK-001
+
+case=unknown-checkout
+expected_exit=1
+veritas run --file-root /private/tmp/veritas-fresh-builders/bookloom-veritas/test-data /private/tmp/veritas-fresh-builders/bookloom-veritas/app [checkout] [BK-404] [Mira Patel]
+actual_exit=1
+error: unknown book ID: BK-404
+
+case=already-checked-out
+expected_exit=1
+veritas run --file-root /private/tmp/veritas-fresh-builders/bookloom-veritas/test-data /private/tmp/veritas-fresh-builders/bookloom-veritas/app [checkout] [BK-001] [Another Borrower]
+actual_exit=1
+error: book is already checked out: BK-001
+
+case=checkout-second
+expected_exit=0
+veritas run --file-root /private/tmp/veritas-fresh-builders/bookloom-veritas/test-data /private/tmp/veritas-fresh-builders/bookloom-veritas/app [checkout] [BK-002] [Alex Quinn]
+actual_exit=0
+checked out BK-002 to Alex Quinn
+
+case=available-filter
+expected_exit=0
+veritas run --file-root /private/tmp/veritas-fresh-builders/bookloom-veritas/test-data /private/tmp/veritas-fresh-builders/bookloom-veritas/app [list] [available]
+actual_exit=0
+BK-003 | The Dispossessed | Ursula K. Le Guin | available
+
+case=checked-out-filter
+expected_exit=0
+veritas run --file-root /private/tmp/veritas-fresh-builders/bookloom-veritas/test-data /private/tmp/veritas-fresh-builders/bookloom-veritas/app [list] [checked-out]
+actual_exit=0
+BK-001 | A Long Way to a Small, Angry Planet | Becky Chambers | checked_out | Mira Patel | due 2026-11-08
+BK-002 | A Psalm for the Wild-Built | Becky Chambers | checked_out | Alex Quinn | due 2026-11-08
+
+case=due-soon
+expected_exit=0
+veritas run --file-root /private/tmp/veritas-fresh-builders/bookloom-veritas/test-data /private/tmp/veritas-fresh-builders/bookloom-veritas/app [due-soon] [--as-of] [2026-10-25]
+actual_exit=0
+BK-001 | A Long Way to a Small, Angry Planet | Becky Chambers | checked_out | Mira Patel | due 2026-11-08
+BK-002 | A Psalm for the Wild-Built | Becky Chambers | checked_out | Alex Quinn | due 2026-11-08
+
+case=return-first
+expected_exit=0
+veritas run --file-root /private/tmp/veritas-fresh-builders/bookloom-veritas/test-data /private/tmp/veritas-fresh-builders/bookloom-veritas/app [return] [BK-001]
+actual_exit=0
+returned BK-001
+
+case=list-after-return
+expected_exit=0
+veritas run --file-root /private/tmp/veritas-fresh-builders/bookloom-veritas/test-data /private/tmp/veritas-fresh-builders/bookloom-veritas/app [list]
+actual_exit=0
+BK-001 | A Long Way to a Small, Angry Planet | Becky Chambers | available
+BK-002 | A Psalm for the Wild-Built | Becky Chambers | checked_out | Alex Quinn | due 2026-11-08
+BK-003 | The Dispossessed | Ursula K. Le Guin | available
+
+case=unknown-return
+expected_exit=1
+veritas run --file-root /private/tmp/veritas-fresh-builders/bookloom-veritas/test-data /private/tmp/veritas-fresh-builders/bookloom-veritas/app [return] [BK-404]
+actual_exit=1
+error: unknown book ID: BK-404
+
+case=invalid-date
+expected_exit=2
+veritas run --file-root /private/tmp/veritas-fresh-builders/bookloom-veritas/test-data /private/tmp/veritas-fresh-builders/bookloom-veritas/app [due-soon] [--as-of] [2025-02-30]
+actual_exit=2
+error: invalid date: 2025-02-30
+
+case=relocation-add
+expected_exit=0
+veritas run --file-root /private/tmp/veritas-fresh-builders/bookloom-veritas/relocated-data /private/tmp/veritas-fresh-builders/bookloom-veritas/relocated/Bookloom — 銀河の蔵書 [add] [UNI-001] [The Left Hand of Darkness] [Ursula K. Le Guin]
+actual_exit=0
+added UNI-001
+
+case=relocation-restart
+expected_exit=0
+veritas run --file-root /private/tmp/veritas-fresh-builders/bookloom-veritas/relocated-data /private/tmp/veritas-fresh-builders/bookloom-veritas/relocated/Bookloom — 銀河の蔵書 [list]
+actual_exit=0
+UNI-001 | The Left Hand of Darkness | Ursula K. Le Guin | available
+

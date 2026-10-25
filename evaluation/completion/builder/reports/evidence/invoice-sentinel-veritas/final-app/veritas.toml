@@ -1,0 +1,4 @@
+[project]
+name = "invoice-sentinel"
+version = "0.1.0"
+entry = "main.vr"

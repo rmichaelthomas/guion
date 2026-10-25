@@ -1,0 +1,184 @@
+import "std:sqlite"
+import "std:toml"
+import "std:types"
+import "std:time"
+
+record Config:
+    checkout_days: Int
+    database_path: Text
+
+fn file_error(error: FileError) -> StdError:
+    return std_error(file_error_code(error), file_error_message(error))
+
+fn load_config(path: Text) -> Result[Config, StdError]:
+    let source_result = read_text(path)
+    match source_result:
+        Ok(source):
+            let document = toml_parse(source)?
+            let days = toml_get_int(document, ["checkout_days"])?
+            let database_path = toml_get_text(document, ["database_path"])?
+            if days < 1:
+                return Err(std_error("E_CONFIG", "checkout_days must be at least 1"))
+            if database_path == "":
+                return Err(std_error("E_CONFIG", "database_path must not be empty"))
+            return Ok(Config(days, database_path))
+        Err(error):
+            return Err(file_error(error))
+
+fn valid_date(value: Text) -> Bool:
+    match parse_date(value):
+        Ok(_date):
+            return true
+        Err(_error):
+            return false
+
+fn ensure_schema(transaction: Transaction) -> Result[Int, StdError]:
+    return sqlite_execute(transaction, "CREATE TABLE IF NOT EXISTS books (id TEXT PRIMARY KEY NOT NULL, title TEXT NOT NULL, author TEXT NOT NULL, status TEXT NOT NULL CHECK(status IN ('available','checked_out')), borrower TEXT NOT NULL DEFAULT '', checked_out_on TEXT NOT NULL DEFAULT '', due_date TEXT NOT NULL DEFAULT '')", [])
+
+fn add_book(transaction: Transaction, arguments: List[Text]) -> Result[Int, StdError]:
+    if len(arguments) != 4:
+        return Err(std_error("E_USAGE", "usage: add ID TITLE AUTHOR"))
+    if arguments[1] == "" or arguments[2] == "" or arguments[3] == "":
+        return Err(std_error("E_USAGE", "book ID, title, and author must not be empty"))
+    let existing = sqlite_query(transaction, "SELECT id FROM books WHERE id = ?", [sql_text(arguments[1])])?
+    if len(existing) > 0:
+        return Err(std_error("E_DUPLICATE", "book ID already exists: " + arguments[1]))
+    let inserted = sqlite_execute(transaction, "INSERT INTO books (id, title, author, status) VALUES (?, ?, ?, 'available')", [sql_text(arguments[1]), sql_text(arguments[2]), sql_text(arguments[3])])?
+    print("added " + arguments[1])
+    return Ok(inserted)
+
+fn checkout_book(transaction: Transaction, arguments: List[Text], checkout_days: Int) -> Result[Int, StdError]:
+    if len(arguments) != 3:
+        return Err(std_error("E_USAGE", "usage: checkout ID BORROWER"))
+    if arguments[1] == "" or arguments[2] == "":
+        return Err(std_error("E_USAGE", "book ID and borrower must not be empty"))
+    let books = sqlite_query(transaction, "SELECT status FROM books WHERE id = ?", [sql_text(arguments[1])])?
+    if len(books) == 0:
+        return Err(std_error("E_UNKNOWN_BOOK", "unknown book ID: " + arguments[1]))
+    if books[0].values[0].text != "available":
+        return Err(std_error("E_ALREADY_CHECKED_OUT", "book is already checked out: " + arguments[1]))
+    let updated = sqlite_execute(transaction, "UPDATE books SET status = 'checked_out', borrower = ?, checked_out_on = date('now'), due_date = date('now', '+' || ? || ' days') WHERE id = ? AND status = 'available'", [sql_text(arguments[2]), sql_integer(checkout_days), sql_text(arguments[1])])?
+    print("checked out " + arguments[1] + " to " + arguments[2])
+    return Ok(updated)
+
+fn return_book(transaction: Transaction, arguments: List[Text]) -> Result[Int, StdError]:
+    if len(arguments) != 2:
+        return Err(std_error("E_USAGE", "usage: return ID"))
+    let books = sqlite_query(transaction, "SELECT status FROM books WHERE id = ?", [sql_text(arguments[1])])?
+    if len(books) == 0:
+        return Err(std_error("E_UNKNOWN_BOOK", "unknown book ID: " + arguments[1]))
+    if books[0].values[0].text != "checked_out":
+        return Err(std_error("E_NOT_CHECKED_OUT", "book is not checked out: " + arguments[1]))
+    let updated = sqlite_execute(transaction, "UPDATE books SET status = 'available', borrower = '', checked_out_on = '', due_date = '' WHERE id = ? AND status = 'checked_out'", [sql_text(arguments[1])])?
+    print("returned " + arguments[1])
+    return Ok(updated)
+
+fn print_books(rows: List[SqlRow]) -> Int:
+    if len(rows) == 0:
+        print("no books")
+        return 0
+    for row in rows:
+        var line = row.values[0].text + " | " + row.values[1].text + " | " + row.values[2].text + " | " + row.values[3].text
+        if row.values[3].text == "checked_out":
+            set line = line + " | " + row.values[4].text + " | due " + row.values[5].text
+        print(line)
+    return len(rows)
+
+fn list_books(transaction: Transaction, arguments: List[Text]) -> Result[Int, StdError]:
+    if len(arguments) > 2:
+        return Err(std_error("E_USAGE", "usage: list [available|checked-out|all]"))
+    if len(arguments) == 1 or arguments[1] == "all":
+        let rows = sqlite_query(transaction, "SELECT id, title, author, status, borrower, due_date FROM books ORDER BY title COLLATE NOCASE, id", [])?
+        return Ok(print_books(rows))
+    if arguments[1] == "available":
+        let rows = sqlite_query(transaction, "SELECT id, title, author, status, borrower, due_date FROM books WHERE status = 'available' ORDER BY title COLLATE NOCASE, id", [])?
+        return Ok(print_books(rows))
+    if arguments[1] == "checked-out":
+        let rows = sqlite_query(transaction, "SELECT id, title, author, status, borrower, due_date FROM books WHERE status = 'checked_out' ORDER BY title COLLATE NOCASE, id", [])?
+        return Ok(print_books(rows))
+    return Err(std_error("E_USAGE", "list filter must be available, checked-out, or all"))
+
+fn due_soon(transaction: Transaction, as_of: Text, checkout_days: Int) -> Result[Int, StdError]:
+    let rows = sqlite_query(transaction, "SELECT id, title, author, status, borrower, due_date FROM books WHERE status = 'checked_out' AND date(due_date) >= date(?) AND date(due_date) <= date(?, '+' || ? || ' days') ORDER BY date(due_date), title COLLATE NOCASE, id", [sql_text(as_of), sql_text(as_of), sql_integer(checkout_days)])?
+    return Ok(print_books(rows))
+
+fn execute_command(transaction: Transaction, arguments: List[Text], config: Config) -> Result[Int, StdError]:
+    if len(arguments) == 0:
+        return Err(std_error("E_USAGE", "commands: add, checkout, return, list, due-soon"))
+    if arguments[0] == "add":
+        return add_book(transaction, arguments)
+    if arguments[0] == "checkout":
+        return checkout_book(transaction, arguments, config.checkout_days)
+    if arguments[0] == "return":
+        return return_book(transaction, arguments)
+    if arguments[0] == "list":
+        return list_books(transaction, arguments)
+    if arguments[0] == "due-soon":
+        if len(arguments) != 3 or arguments[1] != "--as-of":
+            return Err(std_error("E_USAGE", "usage: due-soon --as-of YYYY-MM-DD"))
+        return due_soon(transaction, arguments[2], config.checkout_days)
+    return Err(std_error("E_USAGE", "unknown command: " + arguments[0]))
+
+fn close_with_code(database: Db, code: Int) -> Int:
+    let close_result = sqlite_close(database)
+    match close_result:
+        Ok(_unit):
+            return code
+        Err(error):
+            eprint("error closing database: " + error.message)
+            return 1
+
+fn rollback_failure(database: Db, transaction: Transaction, message: Text) -> Int:
+    eprint("error: " + message)
+    let rollback_result = sqlite_rollback(transaction)
+    match rollback_result:
+        Ok(_unit):
+            return close_with_code(database, 1)
+        Err(error):
+            eprint("error rolling back: " + error.message)
+            return close_with_code(database, 1)
+
+fn main() -> Int:
+    let arguments = args()
+    let config_result = load_config("bookloom.toml")
+    match config_result:
+        Err(error):
+            eprint("error loading bookloom.toml: " + error.message)
+            return 2
+        Ok(config):
+            if len(arguments) > 0 and arguments[0] == "due-soon":
+                if len(arguments) != 3 or arguments[1] != "--as-of":
+                    eprint("usage: due-soon --as-of YYYY-MM-DD")
+                    return 2
+                if not valid_date(arguments[2]):
+                    eprint("error: invalid date: " + arguments[2])
+                    return 2
+            let database_result = sqlite_open(config.database_path)
+            match database_result:
+                Err(error):
+                    eprint("error opening database: " + error.message)
+                    return 1
+                Ok(database):
+                    let transaction_result = sqlite_begin(database)
+                    match transaction_result:
+                        Err(error):
+                            eprint("error starting transaction: " + error.message)
+                            return close_with_code(database, 1)
+                        Ok(transaction):
+                            let schema_result = ensure_schema(transaction)
+                            match schema_result:
+                                Err(error):
+                                    return rollback_failure(database, transaction, error.message)
+                                Ok(_created):
+                                    let command_result = execute_command(transaction, arguments, config)
+                                    match command_result:
+                                        Err(error):
+                                            return rollback_failure(database, transaction, error.message)
+                                        Ok(_count):
+                                            let commit_result = sqlite_commit(transaction)
+                                            match commit_result:
+                                                Err(error):
+                                                    eprint("error committing transaction: " + error.message)
+                                                    return close_with_code(database, 1)
+                                                Ok(_unit):
+                                                    return close_with_code(database, 0)

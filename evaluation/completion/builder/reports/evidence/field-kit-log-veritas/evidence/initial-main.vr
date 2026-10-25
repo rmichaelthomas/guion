@@ -1,0 +1,90 @@
+import "std:time"
+import "std:sqlite"
+import "std:toml"
+import "std:types"
+
+fn pad(value: Int) -> Text:
+    if value < 10:
+        return "0" + json_stringify(json_int(value))
+    return json_stringify(json_int(value))
+
+fn usage() -> Int:
+    eprint("Usage: field-kit CONFIG add ID NAME | inspect ID pass|fail NOTE | list")
+    return 2
+
+fn main() -> Int:
+    let argv = args()
+    if len(argv) < 2:
+        return usage()
+    let command = argv[1]
+    if command == "add":
+        if len(argv) != 4:
+            return usage()
+    else:
+        if command == "inspect":
+            if len(argv) != 5:
+                return usage()
+            if argv[3] != "pass" and argv[3] != "fail":
+                eprint("Invalid result: expected pass or fail")
+                return 2
+        else:
+            if command != "list" or len(argv) != 2:
+                return usage()
+    let config_read = read_text(argv[0])
+    if not is_ok(config_read):
+        eprint("Cannot read configuration")
+        return 2
+    let config = toml_parse(unwrap(config_read))
+    if not is_ok(config):
+        eprint("Invalid TOML configuration")
+        return 2
+    let path = toml_get_text(unwrap(config), ["database", "path"])
+    if not is_ok(path):
+        eprint("Configuration requires database.path text")
+        return 2
+    let opened = sqlite_open(unwrap(path))
+    if not is_ok(opened):
+        eprint("Cannot open database in granted data directory")
+        eprint(error(opened))
+        return 2
+    let db = unwrap(opened)
+    let tx = unwrap(sqlite_begin(db))
+    unwrap(sqlite_execute(tx, "CREATE TABLE IF NOT EXISTS items (id TEXT PRIMARY KEY, name TEXT NOT NULL)", []))
+    unwrap(sqlite_execute(tx, "CREATE TABLE IF NOT EXISTS inspections (seq INTEGER PRIMARY KEY, item_id TEXT NOT NULL, day TEXT NOT NULL, result TEXT NOT NULL CHECK(result IN ('pass','fail')), note TEXT NOT NULL)", []))
+    if command == "add":
+        if len(argv[2]) == 0 or len(argv[3]) == 0:
+            eprint("Item ID and name must be nonempty")
+            unwrap(sqlite_rollback(tx))
+            unwrap(sqlite_close(db))
+            return 2
+        let existing = unwrap(sqlite_query(tx, "SELECT id FROM items WHERE id = ?", [sql_text(argv[2])]))
+        if len(existing) > 0:
+            eprint("Duplicate item ID")
+            unwrap(sqlite_rollback(tx))
+            unwrap(sqlite_close(db))
+            return 2
+        unwrap(sqlite_execute(tx, "INSERT INTO items (id, name) VALUES (?, ?)", [sql_text(argv[2]), sql_text(argv[3])]))
+        print("Added " + argv[2])
+    if command == "inspect":
+        let existing = unwrap(sqlite_query(tx, "SELECT id FROM items WHERE id = ?", [sql_text(argv[2])]))
+        if len(existing) == 0:
+            eprint("Unknown item ID")
+            unwrap(sqlite_rollback(tx))
+            unwrap(sqlite_close(db))
+            return 2
+        if len(argv[4]) == 0 or len(argv[4]) > 500:
+            eprint("Note must contain 1 to 500 characters")
+            unwrap(sqlite_rollback(tx))
+            unwrap(sqlite_close(db))
+            return 2
+        let today = today_local()
+        let day = json_stringify(json_int(today.year)) + "-" + pad(today.month) + "-" + pad(today.day)
+        unwrap(sqlite_execute(tx, "INSERT INTO inspections (item_id, day, result, note) VALUES (?, ?, ?, ?)", [sql_text(argv[2]), sql_text(day), sql_text(argv[3]), sql_text(argv[4])]))
+        print("Recorded " + argv[2] + " " + argv[3] + " " + day)
+    if command == "list":
+        let rows = unwrap(sqlite_query(tx, "SELECT seq, item_id, day, result, note FROM inspections ORDER BY seq", []))
+        for row in rows:
+            print(json_stringify(json_int(row.values[0].integer)) + "\t" + row.values[1].text + "\t" + row.values[2].text + "\t" + row.values[3].text + "\t" + row.values[4].text)
+    unwrap(sqlite_commit(tx))
+    unwrap(sqlite_close(db))
+    return 0

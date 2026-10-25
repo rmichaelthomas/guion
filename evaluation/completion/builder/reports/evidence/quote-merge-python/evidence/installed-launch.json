@@ -1,0 +1,11 @@
+{
+  "runs_seconds": [
+    0.43021400000725407,
+    0.10961883299751207,
+    0.12391579100221861,
+    0.10801541600085329,
+    0.1101455000025453
+  ],
+  "median_seconds": 0.1101455000025453,
+  "method": "five python3 launches against an empty feed file in a temporary working directory"
+}

@@ -1,0 +1,63 @@
+{
+  "artifact_identities": {
+    "artifact_schema": "sha256:e50354f9431c7e244d093a0a2ad94fa897b91b8eb1793338d9dfce94fe38ce10",
+    "compiler_seed": "sha256:86aa851606f499999af2ad5a30daf708b62b1ecc571904b62896dd2613ed8c20",
+    "compiler_seed_manifest": "sha256:6fa10cb874c55367f61039604c791af8b3622b149673e90219aeafc64615f6de",
+    "runtime": "sha256:2f43071c84548aa37dac0ced5f0b993cb7abf3b3352c5dbd2b038e3de10598a3",
+    "stdlib": "sha256:19b745d51f8124fb98e7aec01ae9a2980e14f7fe8a8f8592395d63b807317600"
+  },
+  "changed_path_count": 5322,
+  "checks": [
+    {
+      "command": [
+        "python3",
+        "evaluation/completion/performance/runner.py",
+        "--installed",
+        "--binary",
+        "/Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/work/veritas-foundation/target/completion/releases/macos-aarch64/current/bin/veritas"
+      ],
+      "exit_status": 0,
+      "id": "performance-correctness-and-confidence",
+      "output": "installed performance report: /Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/work/veritas-foundation/evaluation/completion/results/performance-host.json; required speed wins: true; Python: 3.14.7 (main, Aug  5 2026, 10:29:49) [Clang 21.0.0 (clang-2100.1.1.101)]; free-threaded CPython: unverified",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "python3",
+        "evaluation/completion/performance/runner.py",
+        "--installed",
+        "--binary",
+        "/Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/work/veritas-foundation/target/completion/releases/macos-aarch64/current/bin/veritas"
+      ],
+      "exit_status": 0,
+      "id": "performance-pinned-cpython",
+      "output": "CPython 3.14.7 (main, Aug  5 2026, 10:29:49) [Clang 21.0.0 (clang-2100.1.1.101)] (required baseline 3.14.7)",
+      "status": "passed"
+    }
+  ],
+  "command": "performance",
+  "completed_targets": [
+    "macos-aarch64"
+  ],
+  "exact_command": "cargo xtask performance --installed",
+  "exit_status": 0,
+  "message": null,
+  "missing_checks": [],
+  "missing_evidence": [],
+  "report": "performance",
+  "required_targets": [
+    "macos-aarch64"
+  ],
+  "runtime_hash": "sha256:2f43071c84548aa37dac0ced5f0b993cb7abf3b3352c5dbd2b038e3de10598a3",
+  "schema_version": 1,
+  "seed_hash": "sha256:86aa851606f499999af2ad5a30daf708b62b1ecc571904b62896dd2613ed8c20",
+  "skipped_targets": [],
+  "source_revision": "b8755f08e8c453051572b9e57a34fd1da0a73199",
+  "status": "passed",
+  "stdlib_hash": "sha256:19b745d51f8124fb98e7aec01ae9a2980e14f7fe8a8f8592395d63b807317600",
+  "target": "macos-aarch64",
+  "unsatisfied_goal_ids": [
+    "G2"
+  ],
+  "working_tree_digest": "sha256:388f946adb0ab1d6fbd1e7b88f17e79501b4f6d1a3670014790ca645bb5642e2"
+}

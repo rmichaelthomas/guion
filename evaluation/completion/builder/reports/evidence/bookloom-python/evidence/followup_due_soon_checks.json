@@ -1,0 +1,142 @@
+{
+  "status": "passed",
+  "as_of": "2026-10-25",
+  "checkout_days": 14,
+  "window_inclusive": [
+    "2026-10-25",
+    "2026-11-08"
+  ],
+  "fixture_due_dates": {
+    "due-today": "2026-10-25",
+    "due-a": "2026-10-27",
+    "due-z": "2026-10-27",
+    "edge": "2026-11-08",
+    "outside": "2026-11-09",
+    "overdue": "2026-10-24"
+  },
+  "expected_order": [
+    "due-today",
+    "due-a",
+    "due-z",
+    "edge"
+  ],
+  "invalid_date_hash_unchanged": true,
+  "invalid_date_rows_unchanged": true,
+  "invalid_date_did_not_create_database_directory": true,
+  "integrity_check": "ok",
+  "fixture_method": "Books were added and checked out through the CLI; due_on values were then seeded with SQL to exercise deterministic date-window boundaries and tie ordering.",
+  "events": [
+    {
+      "command": "./bookloom --config /private/tmp/veritas-fresh-builders/bookloom-python/initial-project/bookloom-due-soon-test.toml add --id due-today --title Due-Today --author 'Fixture Author'",
+      "returncode": 0,
+      "stdout": "Added 'due-today'.\n",
+      "stderr": "",
+      "elapsed_seconds": 0.081325
+    },
+    {
+      "command": "./bookloom --config /private/tmp/veritas-fresh-builders/bookloom-python/initial-project/bookloom-due-soon-test.toml checkout --id due-today --borrower 'Fixture Borrower'",
+      "returncode": 0,
+      "stdout": "Checked out 'due-today' to Fixture Borrower.\n",
+      "stderr": "",
+      "elapsed_seconds": 0.057146
+    },
+    {
+      "command": "./bookloom --config /private/tmp/veritas-fresh-builders/bookloom-python/initial-project/bookloom-due-soon-test.toml add --id due-a --title Due-A --author 'Fixture Author'",
+      "returncode": 0,
+      "stdout": "Added 'due-a'.\n",
+      "stderr": "",
+      "elapsed_seconds": 0.06018
+    },
+    {
+      "command": "./bookloom --config /private/tmp/veritas-fresh-builders/bookloom-python/initial-project/bookloom-due-soon-test.toml checkout --id due-a --borrower 'Fixture Borrower'",
+      "returncode": 0,
+      "stdout": "Checked out 'due-a' to Fixture Borrower.\n",
+      "stderr": "",
+      "elapsed_seconds": 0.064167
+    },
+    {
+      "command": "./bookloom --config /private/tmp/veritas-fresh-builders/bookloom-python/initial-project/bookloom-due-soon-test.toml add --id due-z --title Due-Z --author 'Fixture Author'",
+      "returncode": 0,
+      "stdout": "Added 'due-z'.\n",
+      "stderr": "",
+      "elapsed_seconds": 0.066725
+    },
+    {
+      "command": "./bookloom --config /private/tmp/veritas-fresh-builders/bookloom-python/initial-project/bookloom-due-soon-test.toml checkout --id due-z --borrower 'Fixture Borrower'",
+      "returncode": 0,
+      "stdout": "Checked out 'due-z' to Fixture Borrower.\n",
+      "stderr": "",
+      "elapsed_seconds": 0.063406
+    },
+    {
+      "command": "./bookloom --config /private/tmp/veritas-fresh-builders/bookloom-python/initial-project/bookloom-due-soon-test.toml add --id edge --title Edge --author 'Fixture Author'",
+      "returncode": 0,
+      "stdout": "Added 'edge'.\n",
+      "stderr": "",
+      "elapsed_seconds": 0.063468
+    },
+    {
+      "command": "./bookloom --config /private/tmp/veritas-fresh-builders/bookloom-python/initial-project/bookloom-due-soon-test.toml checkout --id edge --borrower 'Fixture Borrower'",
+      "returncode": 0,
+      "stdout": "Checked out 'edge' to Fixture Borrower.\n",
+      "stderr": "",
+      "elapsed_seconds": 0.060137
+    },
+    {
+      "command": "./bookloom --config /private/tmp/veritas-fresh-builders/bookloom-python/initial-project/bookloom-due-soon-test.toml add --id outside --title Outside --author 'Fixture Author'",
+      "returncode": 0,
+      "stdout": "Added 'outside'.\n",
+      "stderr": "",
+      "elapsed_seconds": 0.058037
+    },
+    {
+      "command": "./bookloom --config /private/tmp/veritas-fresh-builders/bookloom-python/initial-project/bookloom-due-soon-test.toml checkout --id outside --borrower 'Fixture Borrower'",
+      "returncode": 0,
+      "stdout": "Checked out 'outside' to Fixture Borrower.\n",
+      "stderr": "",
+      "elapsed_seconds": 0.060888
+    },
+    {
+      "command": "./bookloom --config /private/tmp/veritas-fresh-builders/bookloom-python/initial-project/bookloom-due-soon-test.toml add --id overdue --title Overdue --author 'Fixture Author'",
+      "returncode": 0,
+      "stdout": "Added 'overdue'.\n",
+      "stderr": "",
+      "elapsed_seconds": 0.060522
+    },
+    {
+      "command": "./bookloom --config /private/tmp/veritas-fresh-builders/bookloom-python/initial-project/bookloom-due-soon-test.toml checkout --id overdue --borrower 'Fixture Borrower'",
+      "returncode": 0,
+      "stdout": "Checked out 'overdue' to Fixture Borrower.\n",
+      "stderr": "",
+      "elapsed_seconds": 0.062712
+    },
+    {
+      "command": "./bookloom --config /private/tmp/veritas-fresh-builders/bookloom-python/initial-project/bookloom-due-soon-test.toml due-soon --as-of 2026-10-25",
+      "returncode": 0,
+      "stdout": "2026-10-25 | due-today | Due-Today | Fixture Author | borrower: Fixture Borrower\n2026-10-27 | due-a | Due-A | Fixture Author | borrower: Fixture Borrower\n2026-10-27 | due-z | Due-Z | Fixture Author | borrower: Fixture Borrower\n2026-11-08 | edge | Edge | Fixture Author | borrower: Fixture Borrower\n",
+      "stderr": "",
+      "elapsed_seconds": 0.056378
+    },
+    {
+      "command": "./bookloom --config /private/tmp/veritas-fresh-builders/bookloom-python/initial-project/bookloom-due-soon-test.toml due-soon --as-of 2026-02-30",
+      "returncode": 2,
+      "stdout": "",
+      "stderr": "ERROR: invalid date '2026-02-30'; expected a real calendar date\n",
+      "elapsed_seconds": 0.059538
+    },
+    {
+      "command": "./bookloom --config /private/tmp/veritas-fresh-builders/bookloom-python/initial-project/bookloom-due-soon-test.toml due-soon --as-of 2026-2-3",
+      "returncode": 2,
+      "stdout": "",
+      "stderr": "ERROR: invalid date '2026-2-3'; expected YYYY-MM-DD\n",
+      "elapsed_seconds": 0.063722
+    },
+    {
+      "command": "./bookloom --config /private/tmp/veritas-fresh-builders/bookloom-python/initial-project/bookloom-missing-db-test.toml due-soon --as-of 2026-02-30",
+      "returncode": 2,
+      "stdout": "",
+      "stderr": "ERROR: invalid date '2026-02-30'; expected a real calendar date\n",
+      "elapsed_seconds": 0.064371
+    }
+  ]
+}

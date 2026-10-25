@@ -146,6 +146,43 @@ fn isolated_bridge_can_import_python_modules_from_the_project_root() {
 }
 
 #[test]
+fn python_bridge_imports_from_project_but_uses_last_file_root_for_relative_paths() {
+    let root = std::env::temp_dir().join(format!(
+        "veritas-python-file-roots-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    let project = root.join("project");
+    let caller = root.join("caller");
+    std::fs::create_dir_all(&project).unwrap();
+    std::fs::create_dir_all(&caller).unwrap();
+    std::fs::write(
+        project.join("local_adapter.py"),
+        "from pathlib import Path\ndef read_policy():\n    return Path('policy.json').read_text(encoding='utf-8')\n",
+    )
+    .unwrap();
+    std::fs::write(caller.join("policy.json"), "caller policy\n").unwrap();
+
+    let source = "extern python \"local_adapter:read_policy\" fn read_policy() -> Text\n\nfn main() -> Int:\n    print(read_policy())\n    return 0\n";
+    let artifact = compile("bridge-roots.vr", source).unwrap();
+    let policy = HostPolicy::default()
+        .with_file_access(&project, true, true)
+        .with_additional_file_root(&caller)
+        .with_python(interpreter(), Duration::from_secs(5));
+    let mut instance = Runtime::new().load(artifact, policy).unwrap();
+
+    assert_eq!(
+        instance.invoke("main", vec![]).unwrap(),
+        Value::Int(BigInt::zero())
+    );
+    assert_eq!(instance.take_output(), "caller policy\n\n");
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
 fn source_programs_can_call_python_with_maps_and_receive_typed_maps() {
     let source = "extern python \"builtins:dict\" fn copy_map(values: Map[Text, Int]) -> Map[Text, Int]\n\nfn main() -> Int:\n    let values = {\"y\": 2, \"x\": 1}\n    let copied = copy_map(values)\n    print(copied[\"x\"])\n    return len(copied)\n";
     let artifact = compile("python-map.vr", source).expect("typed Map ABI compiles");

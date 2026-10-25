@@ -1,0 +1,16 @@
+pub record SourceLine:
+    number: Int
+    text: Text
+
+pub record DirectoryEntry:
+    relative_path: Text
+    kind: Text
+
+pub fn fs_open_lines(path: Text) -> Result[FileReader, FileError]:
+    return file_open_lines(path)
+
+pub fn fs_next_line(reader: FileReader) -> Result[Option[SourceLine], FileError]:
+    return file_next_line(reader)
+
+pub fn fs_close_reader(reader: FileReader) -> Result[Unit, FileError]:
+    return file_close(reader)

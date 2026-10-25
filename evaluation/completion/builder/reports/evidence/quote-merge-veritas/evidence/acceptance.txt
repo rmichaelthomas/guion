@@ -1,0 +1,10 @@
+Acceptance record
+
+- Initial report: 3 valid feeds; best quotes are Cedar 900, Aster 1100, Birch 1900, in ascending price order.
+- Partial success: `/slow-503` retained with HTTP status 503; the malformed HTTP 200 feed retained with a JSON parse error; three valid feeds still contribute quotes.
+- Ordering: report output is deterministically ordered by price, carrier, and service; JSON keys are serialized deterministically.
+- Concurrency: `parallel_map(urls, request_feed, 4)` applies a four-worker bound.
+- Timeout: project manifest caps requests at 1500 ms; a separate timeout check used a 20 ms manifest cap against `/slow-503` and emitted `R_HTTP_TIMEOUT` with status 0 and the URL.
+- Follow-up: `--max-days 3` removes quotes over three days while `successful_feeds` remains 3 and both feed failures remain present.
+- Relocation: baseline and follow-up both passed from `/private/tmp/veritas-fresh-builders/quote-merge-veritas/relocated/📦 Quote Merge_日本語/Quote Merge`.
+- Network grant: manifest allows only `127.0.0.1`; the fixture bound to that loopback host.

@@ -1,0 +1,3 @@
+# Relative database paths are resolved through the Veritas file root.
+checkout_days = 14
+database_path = "bookloom.sqlite"

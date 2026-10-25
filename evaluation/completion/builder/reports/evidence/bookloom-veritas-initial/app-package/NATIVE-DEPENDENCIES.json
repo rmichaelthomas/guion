@@ -1,0 +1,40 @@
+{
+  "bundled_libraries": [],
+  "cached_images": [],
+  "images": [
+    {
+      "architectures": [
+        "arm64"
+      ],
+      "dependencies": [
+        {
+          "kind": "system",
+          "load_name": "/usr/lib/libSystem.B.dylib",
+          "resolved_path": "/usr/lib/libSystem.B.dylib"
+        },
+        {
+          "kind": "system",
+          "load_name": "/usr/lib/libiconv.2.dylib",
+          "resolved_path": "/usr/lib/libiconv.2.dylib"
+        }
+      ],
+      "owner": {
+        "component": "Veritas",
+        "kind": "veritas_runtime"
+      },
+      "path": "veritas",
+      "sha256": "03be2204f0923684c818a72f823db96ef9a1735741fec7481b0c4c7a69ab7b01",
+      "size_bytes": 12824672
+    }
+  ],
+  "scanner": "macOS otool -L/-D/-l plus lipo -archs",
+  "schema_version": 1,
+  "scope": "app runtime images, managed Python, installed Python extensions, declared resources, and native files in extracted offline uv wheel-cache distributions",
+  "system_libraries": [
+    "/usr/lib/libSystem.B.dylib",
+    "/usr/lib/libiconv.2.dylib"
+  ],
+  "target": "macos-aarch64",
+  "unattributed_images": [],
+  "unresolved": []
+}

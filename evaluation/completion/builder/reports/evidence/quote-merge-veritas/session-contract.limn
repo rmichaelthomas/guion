@@ -1,0 +1,20 @@
+show "Session contract: quote-merge-veritas"
+remember a source called assignment-brief with "The report lists the cheapest eligible quote per carrier, ordered by price then carrier and service, the number of successful feeds, and failed feeds with their URL and HTTP/error status."
+remember a source called product-readme with "http_request_with_timeout supports a per-request deadline capped by the manifest's network timeout."
+remember a string called source-state with "verified"
+remember a string called claim-basis with "verified"
+remember a list called tracked-decisions with "none"
+remember a list called open-questions with "none"
+remember a list called session-corrections with "none"
+remember a number called decision-count with 0
+remember a string called start-utc with "2026-10-25T09:20:36Z"
+remember a string called finish-utc with "2026-10-25T09:33:23Z"
+remember a string called initial-correct with "true"
+remember a string called followup-correct with "true"
+remember a string called relocation-passed with "true"
+cite "ordered by price then carrier and service" from assignment-brief
+cite "failed feeds with their URL and HTTP/error status" from assignment-brief
+cite "per-request deadline capped by the manifest's network timeout" from product-readme
+add "four-worker-bound" to tracked-decisions
+add "loopback-host-only" to tracked-decisions
+add "finite-1500-ms-timeout" to tracked-decisions

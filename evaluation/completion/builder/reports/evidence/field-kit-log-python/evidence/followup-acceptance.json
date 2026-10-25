@@ -1,0 +1,323 @@
+[
+  {
+    "command": [
+      "/opt/homebrew/opt/python@3.14/bin/python3.14",
+      "/private/tmp/veritas-fresh-builders/field-kit-log-python/runtime/field_kit_log.py",
+      "--config",
+      "/private/tmp/veritas-fresh-builders/field-kit-log-python/acceptance.toml",
+      "list"
+    ],
+    "exit_code": 0,
+    "stdout": "inspection_id\titem_id\tdate\tresult\tnote\n1\tradio-1\t2026-10-25\tpass\tBattery charged\n2\tlamp-2\t2026-10-25\tfail\tLens cracked\n",
+    "stderr": "",
+    "seconds": 0.05856662499718368,
+    "utc": "2026-10-25T10:48:10.556411+00:00"
+  },
+  {
+    "command": [
+      "/opt/homebrew/opt/python@3.14/bin/python3.14",
+      "/private/tmp/veritas-fresh-builders/field-kit-log-python/runtime/field_kit_log.py",
+      "--config",
+      "/private/tmp/veritas-fresh-builders/field-kit-log-python/acceptance.toml",
+      "list",
+      "--failed-only"
+    ],
+    "exit_code": 0,
+    "stdout": "inspection_id\titem_id\tdate\tresult\tnote\n2\tlamp-2\t2026-10-25\tfail\tLens cracked\n",
+    "stderr": "",
+    "seconds": 0.05128154199337587,
+    "utc": "2026-10-25T10:48:10.608171+00:00"
+  },
+  {
+    "command": [
+      "/opt/homebrew/opt/python@3.14/bin/python3.14",
+      "/private/tmp/veritas-fresh-builders/field-kit-log-python/runtime/field_kit_log.py",
+      "--config",
+      "/private/tmp/veritas-fresh-builders/field-kit-log-python/acceptance.toml",
+      "add",
+      "meter-3",
+      "Test meter"
+    ],
+    "exit_code": 0,
+    "stdout": "Added meter-3: Test meter\n",
+    "stderr": "",
+    "seconds": 0.05271074999473058,
+    "utc": "2026-10-25T10:48:10.661076+00:00"
+  },
+  {
+    "command": [
+      "/opt/homebrew/opt/python@3.14/bin/python3.14",
+      "/private/tmp/veritas-fresh-builders/field-kit-log-python/runtime/field_kit_log.py",
+      "--config",
+      "/private/tmp/veritas-fresh-builders/field-kit-log-python/acceptance.toml",
+      "inspect",
+      "meter-3",
+      "pass",
+      "Reading stable"
+    ],
+    "exit_code": 0,
+    "stdout": "Recorded pass for meter-3 on 2026-10-25\n",
+    "stderr": "",
+    "seconds": 0.05317329200624954,
+    "utc": "2026-10-25T10:48:10.714354+00:00"
+  },
+  {
+    "command": [
+      "/opt/homebrew/opt/python@3.14/bin/python3.14",
+      "/private/tmp/veritas-fresh-builders/field-kit-log-python/runtime/field_kit_log.py",
+      "--config",
+      "/private/tmp/veritas-fresh-builders/field-kit-log-python/acceptance.toml",
+      "inspect",
+      "meter-3",
+      "fail",
+      "Probe loose"
+    ],
+    "exit_code": 0,
+    "stdout": "Recorded fail for meter-3 on 2026-10-25\n",
+    "stderr": "",
+    "seconds": 0.053503957999055274,
+    "utc": "2026-10-25T10:48:10.767956+00:00"
+  },
+  {
+    "command": [
+      "/opt/homebrew/opt/python@3.14/bin/python3.14",
+      "/private/tmp/veritas-fresh-builders/field-kit-log-python/runtime/field_kit_log.py",
+      "--config",
+      "/private/tmp/veritas-fresh-builders/field-kit-log-python/acceptance.toml",
+      "list"
+    ],
+    "exit_code": 0,
+    "stdout": "inspection_id\titem_id\tdate\tresult\tnote\n1\tradio-1\t2026-10-25\tpass\tBattery charged\n2\tlamp-2\t2026-10-25\tfail\tLens cracked\n3\tmeter-3\t2026-10-25\tpass\tReading stable\n4\tmeter-3\t2026-10-25\tfail\tProbe loose\n",
+    "stderr": "",
+    "seconds": 0.05047404200013261,
+    "utc": "2026-10-25T10:48:10.818527+00:00"
+  },
+  {
+    "command": [
+      "/opt/homebrew/opt/python@3.14/bin/python3.14",
+      "/private/tmp/veritas-fresh-builders/field-kit-log-python/runtime/field_kit_log.py",
+      "--config",
+      "/private/tmp/veritas-fresh-builders/field-kit-log-python/acceptance.toml",
+      "list"
+    ],
+    "exit_code": 0,
+    "stdout": "inspection_id\titem_id\tdate\tresult\tnote\n1\tradio-1\t2026-10-25\tpass\tBattery charged\n2\tlamp-2\t2026-10-25\tfail\tLens cracked\n3\tmeter-3\t2026-10-25\tpass\tReading stable\n4\tmeter-3\t2026-10-25\tfail\tProbe loose\n",
+    "stderr": "",
+    "seconds": 0.05311112498748116,
+    "utc": "2026-10-25T10:48:10.872237+00:00"
+  },
+  {
+    "command": [
+      "/opt/homebrew/opt/python@3.14/bin/python3.14",
+      "/private/tmp/veritas-fresh-builders/field-kit-log-python/runtime/field_kit_log.py",
+      "--config",
+      "/private/tmp/veritas-fresh-builders/field-kit-log-python/acceptance.toml",
+      "list",
+      "--failed-only"
+    ],
+    "exit_code": 0,
+    "stdout": "inspection_id\titem_id\tdate\tresult\tnote\n2\tlamp-2\t2026-10-25\tfail\tLens cracked\n4\tmeter-3\t2026-10-25\tfail\tProbe loose\n",
+    "stderr": "",
+    "seconds": 0.05631449999054894,
+    "utc": "2026-10-25T10:48:10.928649+00:00"
+  },
+  {
+    "command": [
+      "/opt/homebrew/opt/python@3.14/bin/python3.14",
+      "/private/tmp/veritas-fresh-builders/field-kit-log-python/runtime/field_kit_log.py",
+      "--config",
+      "/private/tmp/veritas-fresh-builders/field-kit-log-python/acceptance.toml",
+      "add",
+      "radio-1",
+      "Duplicate"
+    ],
+    "exit_code": 1,
+    "stdout": "",
+    "stderr": "Error: duplicate item ID: radio-1\n",
+    "seconds": 0.05182912499003578,
+    "utc": "2026-10-25T10:48:10.980691+00:00"
+  },
+  {
+    "command": [
+      "/opt/homebrew/opt/python@3.14/bin/python3.14",
+      "/private/tmp/veritas-fresh-builders/field-kit-log-python/runtime/field_kit_log.py",
+      "--config",
+      "/private/tmp/veritas-fresh-builders/field-kit-log-python/acceptance.toml",
+      "list"
+    ],
+    "exit_code": 0,
+    "stdout": "inspection_id\titem_id\tdate\tresult\tnote\n1\tradio-1\t2026-10-25\tpass\tBattery charged\n2\tlamp-2\t2026-10-25\tfail\tLens cracked\n3\tmeter-3\t2026-10-25\tpass\tReading stable\n4\tmeter-3\t2026-10-25\tfail\tProbe loose\n",
+    "stderr": "",
+    "seconds": 0.05357483300031163,
+    "utc": "2026-10-25T10:48:11.034463+00:00"
+  },
+  {
+    "command": [
+      "/opt/homebrew/opt/python@3.14/bin/python3.14",
+      "/private/tmp/veritas-fresh-builders/field-kit-log-python/runtime/field_kit_log.py",
+      "--config",
+      "/private/tmp/veritas-fresh-builders/field-kit-log-python/acceptance.toml",
+      "inspect",
+      "unknown",
+      "pass",
+      "Missing"
+    ],
+    "exit_code": 1,
+    "stdout": "",
+    "stderr": "Error: unknown item: unknown\n",
+    "seconds": 0.051045332991634496,
+    "utc": "2026-10-25T10:48:11.085702+00:00"
+  },
+  {
+    "command": [
+      "/opt/homebrew/opt/python@3.14/bin/python3.14",
+      "/private/tmp/veritas-fresh-builders/field-kit-log-python/runtime/field_kit_log.py",
+      "--config",
+      "/private/tmp/veritas-fresh-builders/field-kit-log-python/acceptance.toml",
+      "list"
+    ],
+    "exit_code": 0,
+    "stdout": "inspection_id\titem_id\tdate\tresult\tnote\n1\tradio-1\t2026-10-25\tpass\tBattery charged\n2\tlamp-2\t2026-10-25\tfail\tLens cracked\n3\tmeter-3\t2026-10-25\tpass\tReading stable\n4\tmeter-3\t2026-10-25\tfail\tProbe loose\n",
+    "stderr": "",
+    "seconds": 0.052893625004799105,
+    "utc": "2026-10-25T10:48:11.138814+00:00"
+  },
+  {
+    "command": [
+      "/opt/homebrew/opt/python@3.14/bin/python3.14",
+      "/private/tmp/veritas-fresh-builders/field-kit-log-python/runtime/field_kit_log.py",
+      "--config",
+      "/private/tmp/veritas-fresh-builders/field-kit-log-python/acceptance.toml",
+      "inspect",
+      "radio-1",
+      "invalid",
+      "Invalid"
+    ],
+    "exit_code": 2,
+    "stdout": "",
+    "stderr": "usage: field_kit_log.py inspect [-h] item_id {pass,fail} note\nfield_kit_log.py inspect: error: argument result: invalid choice: 'invalid' (choose from 'pass', 'fail')\n",
+    "seconds": 0.051773792001768015,
+    "utc": "2026-10-25T10:48:11.190798+00:00"
+  },
+  {
+    "command": [
+      "/opt/homebrew/opt/python@3.14/bin/python3.14",
+      "/private/tmp/veritas-fresh-builders/field-kit-log-python/runtime/field_kit_log.py",
+      "--config",
+      "/private/tmp/veritas-fresh-builders/field-kit-log-python/acceptance.toml",
+      "list"
+    ],
+    "exit_code": 0,
+    "stdout": "inspection_id\titem_id\tdate\tresult\tnote\n1\tradio-1\t2026-10-25\tpass\tBattery charged\n2\tlamp-2\t2026-10-25\tfail\tLens cracked\n3\tmeter-3\t2026-10-25\tpass\tReading stable\n4\tmeter-3\t2026-10-25\tfail\tProbe loose\n",
+    "stderr": "",
+    "seconds": 0.05733158400107641,
+    "utc": "2026-10-25T10:48:11.248337+00:00"
+  },
+  {
+    "command": [
+      "/opt/homebrew/opt/python@3.14/bin/python3.14",
+      "/private/tmp/veritas-fresh-builders/field-kit-log-python/Relocated kit café Δ/installed app/field-kit-log.pyz",
+      "--config",
+      "/private/tmp/veritas-fresh-builders/field-kit-log-python/Relocated kit café Δ/operator config.toml",
+      "add",
+      "équipement-1",
+      "Radio Δ"
+    ],
+    "exit_code": 0,
+    "stdout": "Added équipement-1: Radio Δ\n",
+    "stderr": "",
+    "seconds": 0.05673974999808706,
+    "utc": "2026-10-25T10:48:11.307814+00:00"
+  },
+  {
+    "command": [
+      "/opt/homebrew/opt/python@3.14/bin/python3.14",
+      "/private/tmp/veritas-fresh-builders/field-kit-log-python/Relocated kit café Δ/installed app/field-kit-log.pyz",
+      "--config",
+      "/private/tmp/veritas-fresh-builders/field-kit-log-python/Relocated kit café Δ/operator config.toml",
+      "inspect",
+      "équipement-1",
+      "pass",
+      "Chargée"
+    ],
+    "exit_code": 0,
+    "stdout": "Recorded pass for équipement-1 on 2026-10-25\n",
+    "stderr": "",
+    "seconds": 0.05314195799292065,
+    "utc": "2026-10-25T10:48:11.360992+00:00"
+  },
+  {
+    "command": [
+      "/opt/homebrew/opt/python@3.14/bin/python3.14",
+      "/private/tmp/veritas-fresh-builders/field-kit-log-python/Relocated kit café Δ/installed app/field-kit-log.pyz",
+      "--config",
+      "/private/tmp/veritas-fresh-builders/field-kit-log-python/Relocated kit café Δ/operator config.toml",
+      "inspect",
+      "équipement-1",
+      "fail",
+      "Antenne cassée"
+    ],
+    "exit_code": 0,
+    "stdout": "Recorded fail for équipement-1 on 2026-10-25\n",
+    "stderr": "",
+    "seconds": 0.05498887501016725,
+    "utc": "2026-10-25T10:48:11.416036+00:00"
+  },
+  {
+    "command": [
+      "/opt/homebrew/opt/python@3.14/bin/python3.14",
+      "/private/tmp/veritas-fresh-builders/field-kit-log-python/Relocated kit café Δ/installed app/field-kit-log.pyz",
+      "--config",
+      "/private/tmp/veritas-fresh-builders/field-kit-log-python/Relocated kit café Δ/operator config.toml",
+      "list"
+    ],
+    "exit_code": 0,
+    "stdout": "inspection_id\titem_id\tdate\tresult\tnote\n1\téquipement-1\t2026-10-25\tpass\tChargée\n2\téquipement-1\t2026-10-25\tfail\tAntenne cassée\n",
+    "stderr": "",
+    "seconds": 0.05424154100182932,
+    "utc": "2026-10-25T10:48:11.470328+00:00"
+  },
+  {
+    "command": [
+      "/opt/homebrew/opt/python@3.14/bin/python3.14",
+      "/private/tmp/veritas-fresh-builders/field-kit-log-python/Relocated kit café Δ/installed app/field-kit-log.pyz",
+      "--config",
+      "/private/tmp/veritas-fresh-builders/field-kit-log-python/Relocated kit café Δ/operator config.toml",
+      "list"
+    ],
+    "exit_code": 0,
+    "stdout": "inspection_id\titem_id\tdate\tresult\tnote\n1\téquipement-1\t2026-10-25\tpass\tChargée\n2\téquipement-1\t2026-10-25\tfail\tAntenne cassée\n",
+    "stderr": "",
+    "seconds": 0.0529503330035368,
+    "utc": "2026-10-25T10:48:11.523341+00:00"
+  },
+  {
+    "command": [
+      "/opt/homebrew/opt/python@3.14/bin/python3.14",
+      "/private/tmp/veritas-fresh-builders/field-kit-log-python/Relocated kit café Δ/installed app/field-kit-log.pyz",
+      "--config",
+      "/private/tmp/veritas-fresh-builders/field-kit-log-python/Relocated kit café Δ/operator config.toml",
+      "list",
+      "--failed-only"
+    ],
+    "exit_code": 0,
+    "stdout": "inspection_id\titem_id\tdate\tresult\tnote\n2\téquipement-1\t2026-10-25\tfail\tAntenne cassée\n",
+    "stderr": "",
+    "seconds": 0.056169957999372855,
+    "utc": "2026-10-25T10:48:11.579560+00:00"
+  },
+  {
+    "command": [
+      "/opt/homebrew/opt/python@3.14/bin/python3.14",
+      "/private/tmp/veritas-fresh-builders/field-kit-log-python/Relocated kit café Δ/Moved runtime Ω/field-kit-log.pyz",
+      "--config",
+      "/private/tmp/veritas-fresh-builders/field-kit-log-python/Relocated kit café Δ/operator config.toml",
+      "list"
+    ],
+    "exit_code": 0,
+    "stdout": "inspection_id\titem_id\tdate\tresult\tnote\n1\téquipement-1\t2026-10-25\tpass\tChargée\n2\téquipement-1\t2026-10-25\tfail\tAntenne cassée\n",
+    "stderr": "",
+    "seconds": 0.055776708002667874,
+    "utc": "2026-10-25T10:48:11.636295+00:00"
+  }
+]

@@ -1,5 +1,7 @@
 import "lexer.vr"
 import "parser.vr"
+import "builtin_catalog.vr"
+import "artifact.vr"
 
 record CompilerState:
     code: CodeTree
@@ -7,6 +9,7 @@ record CompilerState:
     next_local: Int
     returned: Bool
     return_type: Text
+    source: Json
 
 record ExpressionResult:
     code: CodeTree
@@ -14,7 +17,16 @@ record ExpressionResult:
 
 record FunctionSignature:
     name: Text
+    symbol: Text
+    source_module: Text
+    imports: Json
+    public: Bool
     result: Json
+    parameters: List[Text]
+    external: Bool
+    module: Text
+    callable: Text
+    parameter_names: List[Text]
 
 record RecordField:
     name: Text
@@ -23,6 +35,9 @@ record RecordField:
 record RecordSignature:
     name: Text
     fields: List[RecordField]
+    source_module: Text
+    imports: Json
+    public: Bool
 
 record CodeTree:
     left: Option[CodeTree]
@@ -173,37 +188,280 @@ fn import_path(source_name: Text, relative: Text) -> Text:
         set cursor = cursor + 1
     return directory + relative
 
-fn load_program(source_name: Text, source: Text, seen: Json) -> Json:
-    if contains_text(seen, source_name):
+fn safe_relative_path(value: Text) -> Bool:
+    let characters = text_chars(value)
+    if len(characters) == 0 or characters[0] == "/":
+        return false
+    var segment = ""
+    var cursor = 0
+    while cursor <= len(characters):
+        if cursor == len(characters) or characters[cursor] == "/":
+            if segment == "" or segment == "." or segment == "..":
+                return false
+            set segment = ""
+        else:
+            if characters[cursor] == "\\":
+                return false
+            set segment = segment + characters[cursor]
+        set cursor = cursor + 1
+    return true
+
+fn import_escapes_root(source_name: Text, relative: Text) -> Bool:
+    let characters = text_chars(relative)
+    if not safe_relative_path(relative):
+        return true
+    if len(characters) > 0 and characters[0] == "/":
+        return true
+    return false
+
+fn join_root_path(root: Text, relative: Text) -> Text:
+    if root == "" or root == ".":
+        return relative
+    let characters = text_chars(root)
+    if len(characters) > 0 and characters[len(characters) - 1] == "/":
+        return root + relative
+    return root + "/" + relative
+
+fn strip_root_path(path: Text, root: Text) -> Text:
+    if root == "" or root == ".":
+        return path
+    let prefix = root + "/"
+    let path_characters = text_chars(path)
+    let prefix_characters = text_chars(prefix)
+    if len(path_characters) < len(prefix_characters):
+        return path
+    var matches = true
+    var cursor = 0
+    while cursor < len(prefix_characters):
+        if path_characters[cursor] != prefix_characters[cursor]:
+            set matches = false
+        set cursor = cursor + 1
+    if not matches:
+        return path
+    var result = ""
+    while cursor < len(path_characters):
+        set result = result + path_characters[cursor]
+        set cursor = cursor + 1
+    return result
+
+fn prefix_before(value: Text, delimiter: Text) -> Text:
+    let characters = text_chars(value)
+    var cursor = 0
+    var result = ""
+    while cursor < len(characters) and characters[cursor] != delimiter:
+        set result = result + characters[cursor]
+        set cursor = cursor + 1
+    return result
+
+fn suffix_after(value: Text, delimiter: Text) -> Text:
+    let characters = text_chars(value)
+    var cursor = 0
+    while cursor < len(characters) and characters[cursor] != delimiter:
+        set cursor = cursor + 1
+    if cursor >= len(characters):
+        return ""
+    set cursor = cursor + 1
+    var result = ""
+    while cursor < len(characters):
+        set result = result + characters[cursor]
+        set cursor = cursor + 1
+    return result
+
+fn starts_with(value: Text, prefix: Text) -> Bool:
+    let value_characters = text_chars(value)
+    let prefix_characters = text_chars(prefix)
+    if len(value_characters) < len(prefix_characters):
+        return false
+    var cursor = 0
+    while cursor < len(prefix_characters):
+        if value_characters[cursor] != prefix_characters[cursor]:
+            return false
+        set cursor = cursor + 1
+    return true
+
+fn ends_with(value: Text, suffix: Text) -> Bool:
+    let value_characters = text_chars(value)
+    let suffix_characters = text_chars(suffix)
+    if len(value_characters) < len(suffix_characters):
+        return false
+    var value_cursor = len(value_characters) - len(suffix_characters)
+    var suffix_cursor = 0
+    while suffix_cursor < len(suffix_characters):
+        if value_characters[value_cursor] != suffix_characters[suffix_cursor]:
+            return false
+        set value_cursor = value_cursor + 1
+        set suffix_cursor = suffix_cursor + 1
+    return true
+
+fn module_display_name(root_label: Text, root: Text, path: Text) -> Text:
+    if root_label == "":
+        return path
+    if root_label == "std":
+        return "std:" + strip_root_path(path, root)
+    return root_label + "/" + strip_root_path(path, root)
+
+fn compile_failure(code: Text, message: Text, source_name: Text, start: Int, end: Int, line: Int, column: Int) -> Json:
+    var span = json_set(json_object(), "start", json_int(start))
+    set span = json_set(span, "end", json_int(end))
+    set span = json_set(span, "line", json_int(line))
+    set span = json_set(span, "column", json_int(column))
+    var diagnostic = json_set(json_object(), "code", json_text(code))
+    set diagnostic = json_set(diagnostic, "message", json_text(message))
+    set diagnostic = json_set(diagnostic, "source_name", json_text(source_name))
+    set diagnostic = json_set(diagnostic, "span", span)
+    var failure = json_set(json_object(), "schema", json_text("veritas-compile-failure/v1"))
+    return json_set(failure, "diagnostic", diagnostic)
+
+fn internal_symbol(source_module: Text, name: Text, entry_module: Text) -> Text:
+    return name
+
+fn load_program(source_name: Text, source_path: Text, module_root: Text, root_label: Text, source: Text, visiting: Json, resolved: Json, total_source_bytes: Int, entry_module: Text, stdlib_root: Text, package_roots: Json) -> Json:
+    if contains_text(visiting, source_path):
+        var failed = json_set(json_object(), "compile_error", compile_failure("E_MODULE_CYCLE", "module import graph contains a cycle", source_name, 0, 0, 1, 1))
+        return failed
+    if contains_text(resolved, source_path):
         var skipped = json_set(json_set(json_object(), "functions", json_array()), "records", json_array())
-        return json_set(skipped, "seen", seen)
-    var next_seen = json_push(seen, json_text(source_name))
-    let parsed = parse_program(scan(source))
-    assert(parsed.ok)
+        set skipped = json_set(skipped, "externals", json_array())
+        set skipped = json_set(skipped, "sources", json_array())
+        set skipped = json_set(skipped, "source_bytes", json_int(total_source_bytes))
+        return json_set(skipped, "resolved", resolved)
+    if json_len(visiting) > 128:
+        return json_set(json_object(), "compile_error", compile_failure("E_MODULE_DEPTH", "module import depth exceeds 128", source_name, 0, 0, 1, 1))
+    if json_len(visiting) + json_len(resolved) >= 512:
+        return json_set(json_object(), "compile_error", compile_failure("E_MODULE_COUNT", "module graph exceeds 512 files", source_name, 0, 0, 1, 1))
+    let source_bytes_read = read_bytes(source_path)
+    if not is_ok(source_bytes_read):
+        return json_set(json_object(), "compile_error", compile_failure("E_IMPORT_READ", file_error_message(error(source_bytes_read)), source_name, 0, 0, 1, 1))
+    let source_byte_count = len(unwrap(source_bytes_read))
+    if source_byte_count > 8388608:
+        return json_set(json_object(), "compile_error", compile_failure("E_MODULE_SIZE", "module exceeds the 8388608-byte source limit", source_name, 0, 0, 1, 1))
+    if total_source_bytes + source_byte_count > 67108864:
+        return json_set(json_object(), "compile_error", compile_failure("E_MODULE_SIZE", "module graph exceeds the 67108864-byte source limit", source_name, 0, 0, 1, 1))
+    var current_source_bytes = total_source_bytes + source_byte_count
+    let next_visiting = json_push(visiting, json_text(source_path))
+    let tokens = scan(source)
+    var token_cursor = 0
+    while token_cursor < len(tokens):
+        let lex_error = tokens[token_cursor]
+        if lex_error.kind == "Error":
+            var diagnostic_code = lex_error.code
+            if diagnostic_code == "":
+                set diagnostic_code = "E_SYNTAX"
+            let failure = compile_failure(diagnostic_code, lex_error.text, source_name, lex_error.character_index, lex_error.character_index + lex_error.span_length, lex_error.line, lex_error.column)
+            return json_set(json_object(), "compile_error", failure)
+        set token_cursor = token_cursor + 1
+    let parsed = parse_program(tokens)
+    if not parsed.ok:
+        var failure_index = parsed.next
+        if failure_index >= len(tokens):
+            set failure_index = len(tokens) - 1
+        let error_token = tokens[failure_index]
+        var diagnostic_code = parsed.code
+        if diagnostic_code == "":
+            set diagnostic_code = "E_SYNTAX"
+        return json_set(json_object(), "compile_error", compile_failure(diagnostic_code, parsed.message, source_name, error_token.character_index, error_token.character_index + len(text_chars(error_token.text)), error_token.line, error_token.column))
     var functions = json_array()
     var records = json_array()
+    var externals = json_array()
+    var sources = json_array()
+    var module_imports = json_array()
+    var source_entry = json_set(json_object(), "name", json_text(source_name))
+    set source_entry = json_set(source_entry, "source", json_text(source))
+    set sources = json_push(sources, source_entry)
+    var current_resolved = resolved
     let imports = json_get(parsed.value, "imports")
     var cursor = 0
     while cursor < json_len(imports):
-        let relative = json_as_text(json_index(imports, cursor))
-        let path = import_path(source_name, relative)
-        let imported_source = unwrap(read_text(path))
-        let imported = load_program(path, imported_source, next_seen)
-        set next_seen = json_get(imported, "seen")
+        let requested = json_as_text(json_index(imports, cursor))
+        var path = ""
+        var child_root = module_root
+        var child_label = root_label
+        var child_name = ""
+        if starts_with(requested, "std:"):
+            let module = suffix_after(requested, ":")
+            if stdlib_root == "" or not safe_relative_path(module):
+                return json_set(json_object(), "compile_error", compile_failure("E_IMPORT_ROOT", "standard-library import requires a valid verified standard-library root", source_name, 0, 0, 1, 1))
+            var module_file = module
+            if not ends_with(module_file, ".vr"):
+                set module_file = module_file + ".vr"
+            set child_root = stdlib_root
+            set child_label = "std"
+            set path = join_root_path(child_root, module_file)
+            set child_name = "std:" + module
+        else:
+            if starts_with(requested, "pkg:"):
+                let package_path = suffix_after(requested, ":")
+                let package = prefix_before(package_path, "/")
+                let relative = suffix_after(package_path, "/")
+                if package == "" or relative == "" or not safe_relative_path(relative):
+                    return json_set(json_object(), "compile_error", compile_failure("E_IMPORT_PATH", "package import must use `pkg:name/path.vr` inside a package root", source_name, 0, 0, 1, 1))
+                if not json_has(package_roots, package):
+                    return json_set(json_object(), "compile_error", compile_failure("E_PACKAGE_NOT_LOCKED", "package `" + package + "` is not present in the resolved dependency roots", source_name, 0, 0, 1, 1))
+                set child_root = json_as_text(json_get(package_roots, package))
+                if child_root == "" or not safe_relative_path(child_root):
+                    return json_set(json_object(), "compile_error", compile_failure("E_IMPORT_ROOT", "package root is invalid", source_name, 0, 0, 1, 1))
+                set child_label = "pkg:" + package
+                set path = join_root_path(child_root, relative)
+                set child_name = "pkg:" + package + "/" + relative
+            else:
+                if import_escapes_root(source_path, requested):
+                    return json_set(json_object(), "compile_error", compile_failure("E_IMPORT_PATH", "import path escapes its permitted module root", source_name, 0, 0, 1, 1))
+                set path = import_path(source_path, requested)
+                set child_name = module_display_name(root_label, module_root, path)
+        set module_imports = json_push(module_imports, json_text(child_name))
+        let imported_read = read_text(path)
+        if not is_ok(imported_read):
+            return json_set(json_object(), "compile_error", compile_failure("E_IMPORT_READ", file_error_message(error(imported_read)), source_name, 0, 0, 1, 1))
+        let imported_source = unwrap(imported_read)
+        let imported = load_program(child_name, path, child_root, child_label, imported_source, next_visiting, current_resolved, current_source_bytes, entry_module, stdlib_root, package_roots)
+        if json_has(imported, "compile_error"):
+            return imported
+        set current_resolved = json_get(imported, "resolved")
+        set current_source_bytes = json_as_int(json_get(imported, "source_bytes"))
+        set sources = append_array(sources, json_get(imported, "sources"))
         let imported_functions = json_get(imported, "functions")
         var function_cursor = 0
         while function_cursor < json_len(imported_functions):
             let imported_function = json_index(imported_functions, function_cursor)
-            if json_as_text(json_get(imported_function, "name")) != "main":
-                set functions = json_push(functions, imported_function)
+            set functions = json_push(functions, imported_function)
             set function_cursor = function_cursor + 1
         set records = append_array(records, json_get(imported, "records"))
+        set externals = append_array(externals, json_get(imported, "externals"))
         set cursor = cursor + 1
-    set records = append_array(records, json_get(parsed.value, "records"))
-    set functions = append_array(functions, json_get(parsed.value, "functions"))
+    let own_records = json_get(parsed.value, "records")
+    var own_record_cursor = 0
+    while own_record_cursor < json_len(own_records):
+        var record = json_index(own_records, own_record_cursor)
+        set record = json_set(record, "source_module", json_text(source_name))
+        set record = json_set(record, "imports", module_imports)
+        set records = json_push(records, record)
+        set own_record_cursor = own_record_cursor + 1
+    let own_functions = json_get(parsed.value, "functions")
+    var own_function_cursor = 0
+    while own_function_cursor < json_len(own_functions):
+        var function = json_index(own_functions, own_function_cursor)
+        set function = json_set(function, "source_name", json_text(source_name))
+        set function = json_set(function, "imports", module_imports)
+        set function = json_set(function, "symbol", json_text(internal_symbol(source_name, json_as_text(json_get(function, "name")), entry_module)))
+        set functions = json_push(functions, function)
+        set own_function_cursor = own_function_cursor + 1
+    let own_externals = json_get(parsed.value, "externals")
+    var own_external_cursor = 0
+    while own_external_cursor < json_len(own_externals):
+        var external = json_index(own_externals, own_external_cursor)
+        let external_name = json_as_text(json_get(external, "name"))
+        set external = json_set(external, "source_name", json_text(source_name))
+        set external = json_set(external, "imports", module_imports)
+        set external = json_set(external, "symbol", json_text(external_name))
+        set externals = json_push(externals, external)
+        set own_external_cursor = own_external_cursor + 1
     var loaded = json_set(json_object(), "functions", functions)
     set loaded = json_set(loaded, "records", records)
-    return json_set(loaded, "seen", next_seen)
+    set loaded = json_set(loaded, "externals", externals)
+    set loaded = json_set(loaded, "sources", sources)
+    set loaded = json_set(loaded, "source_bytes", json_int(current_source_bytes))
+    set current_resolved = json_push(current_resolved, json_text(source_path))
+    return json_set(loaded, "resolved", current_resolved)
 
 fn is_record(records: List[RecordSignature], name: Text) -> Bool:
     var cursor = 0
@@ -268,6 +526,18 @@ fn list_element_type(ty: Text, records: List[RecordSignature]) -> Text:
         return "Record[" + inner + "]"
     return inner
 
+fn is_map_type(ty: Text) -> Bool:
+    let characters = text_chars(ty)
+    return len(characters) >= 4 and characters[0] == "M" and characters[1] == "a" and characters[2] == "p" and characters[3] == "["
+
+fn is_list_type(ty: Text) -> Bool:
+    let characters = text_chars(ty)
+    return len(characters) >= 5 and characters[0] == "L" and characters[1] == "i" and characters[2] == "s" and characters[3] == "t" and characters[4] == "["
+
+fn is_record_type(ty: Text) -> Bool:
+    let characters = text_chars(ty)
+    return len(characters) >= 7 and characters[0] == "R" and characters[1] == "e" and characters[2] == "c" and characters[3] == "o" and characters[4] == "r" and characters[5] == "d" and characters[6] == "["
+
 fn record_index(records: List[RecordSignature], name: Text) -> Int:
     var cursor = 0
     while cursor < len(records):
@@ -303,17 +573,17 @@ fn record_name_from_type(ty: Text) -> Text:
         set cursor = cursor + 1
     return result
 
-fn new_state(return_type: Text) -> CompilerState:
-    return CompilerState(empty_code(), empty_json_values(), 0, false, return_type)
+fn new_state(return_type: Text, source: Text) -> CompilerState:
+    return CompilerState(empty_code(), empty_json_values(), 0, false, return_type, json_text(source))
 
 fn state_with_code(state: CompilerState, code: CodeTree) -> CompilerState:
-    return CompilerState(code, state.locals, state.next_local, state.returned, state.return_type)
+    return CompilerState(code, state.locals, state.next_local, state.returned, state.return_type, state.source)
 
 fn state_with_locals(state: CompilerState, locals: List[Json], next_local: Int) -> CompilerState:
-    return CompilerState(state.code, locals, next_local, state.returned, state.return_type)
+    return CompilerState(state.code, locals, next_local, state.returned, state.return_type, state.source)
 
 fn state_with_returned(state: CompilerState, returned: Bool) -> CompilerState:
-    return CompilerState(state.code, state.locals, state.next_local, returned, state.return_type)
+    return CompilerState(state.code, state.locals, state.next_local, returned, state.return_type, state.source)
 
 fn local_index(locals: List[Json], name: Text) -> Int:
     var cursor = 0
@@ -333,11 +603,21 @@ fn local_type(locals: List[Json], name: Text) -> Text:
         set cursor = cursor + 1
     return "Unit"
 
-fn add_local(locals: List[Json], name: Text, slot: Int, ty: Text) -> List[Json]:
+fn add_local(locals: List[Json], name: Text, slot: Int, ty: Text, mutable: Bool) -> List[Json]:
     var local = json_set(json_object(), "name", json_text(name))
     set local = json_set(local, "slot", json_int(slot))
     set local = json_set(local, "type", json_text(ty))
+    set local = json_set(local, "mutable", json_bool(mutable))
     return list_push(locals, local)
+
+fn local_is_mutable(locals: List[Json], name: Text) -> Bool:
+    var cursor = 0
+    while cursor < len(locals):
+        let local = locals[cursor]
+        if json_as_text(json_get(local, "name")) == name:
+            return json_as_bool(json_get(local, "mutable"))
+        set cursor = cursor + 1
+    return false
 
 fn function_index(functions: List[FunctionSignature], name: Text) -> Int:
     var cursor = 0
@@ -347,8 +627,152 @@ fn function_index(functions: List[FunctionSignature], name: Text) -> Int:
         set cursor = cursor + 1
     return -1
 
-fn function_result(functions: List[FunctionSignature], name: Text, records: List[RecordSignature]) -> Text:
-    let index = function_index(functions, name)
+fn function_scope(functions: List[FunctionSignature], source_module: Text, imports: Json) -> List[FunctionSignature]:
+    var scope: List[FunctionSignature] = []
+    var cursor = 0
+    while cursor < len(functions):
+        if functions[cursor].source_module == source_module:
+            set scope = list_push(scope, functions[cursor])
+        set cursor = cursor + 1
+    set cursor = 0
+    while cursor < len(functions):
+        let function = functions[cursor]
+        if function.public and function.source_module != source_module and contains_text(imports, function.source_module):
+            if function_index(scope, function.name) < 0:
+                set scope = list_push(scope, function)
+        set cursor = cursor + 1
+    return scope
+
+fn function_scope_failure(functions: List[FunctionSignature], source_module: Text, imports: Json) -> Json:
+    var cursor = 0
+    while cursor < len(functions):
+        let candidate = functions[cursor]
+        if candidate.public and candidate.source_module != source_module and contains_text(imports, candidate.source_module):
+            var local_shadow = false
+            var local_cursor = 0
+            while local_cursor < len(functions):
+                if functions[local_cursor].source_module == source_module and functions[local_cursor].name == candidate.name:
+                    set local_shadow = true
+                set local_cursor = local_cursor + 1
+            if not local_shadow:
+                var previous = 0
+                while previous < cursor:
+                    let other = functions[previous]
+                    if other.public and other.name == candidate.name and other.source_module != candidate.source_module and other.source_module != source_module and contains_text(imports, other.source_module):
+                        return compile_failure("E_NAME_AMBIGUOUS", "public function " + candidate.name + " is exported by more than one direct import", source_module, 0, 0, 1, 1)
+                    set previous = previous + 1
+        set cursor = cursor + 1
+    return json_null()
+
+fn record_scope(records: List[RecordSignature], source_module: Text, imports: Json) -> List[RecordSignature]:
+    var scope: List[RecordSignature] = []
+    var cursor = 0
+    while cursor < len(records):
+        let record = records[cursor]
+        if record.source_module == source_module or (record.public and contains_text(imports, record.source_module)):
+            set scope = list_push(scope, record)
+        set cursor = cursor + 1
+    return scope
+
+fn known_primitive_type(name: Text) -> Bool:
+    if name == "Int" or name == "Float64" or name == "Bool" or name == "Text" or name == "Bytes" or name == "Unit":
+        return true
+    if name == "Json" or name == "JsonError" or name == "FileError" or name == "HttpError" or name == "TaskError":
+        return true
+    if name == "FileReader" or name == "Db" or name == "Transaction" or name == "TomlDocument":
+        return true
+    return false
+
+fn contains_native_resource_type(type_node: Json) -> Bool:
+    let name = json_as_text(json_get(type_node, "name"))
+    if name == "FileReader" or name == "Db" or name == "Transaction" or name == "TomlDocument":
+        return true
+    let arguments = json_get(type_node, "arguments")
+    var cursor = 0
+    while cursor < json_len(arguments):
+        if contains_native_resource_type(json_index(arguments, cursor)):
+            return true
+        set cursor = cursor + 1
+    return false
+
+fn native_resource_name(name: Text) -> Bool:
+    return name == "FileReader" or name == "Db" or name == "Transaction" or name == "TomlDocument"
+
+fn contains_native_resource_type_name(type_name_text: Text) -> Bool:
+    let characters = text_chars(type_name_text)
+    var token = ""
+    var cursor = 0
+    while cursor < len(characters):
+        let character = characters[cursor]
+        if (character >= "A" and character <= "Z") or (character >= "a" and character <= "z") or (character >= "0" and character <= "9") or character == "_":
+            set token = token + character
+        else:
+            if native_resource_name(token):
+                return true
+            set token = ""
+        set cursor = cursor + 1
+    return native_resource_name(token)
+
+fn valid_type(type_node: Json, records: List[RecordSignature]) -> Bool:
+    let name = json_as_text(json_get(type_node, "name"))
+    let arguments = json_get(type_node, "arguments")
+    let count = json_len(arguments)
+    if count == 0:
+        return known_primitive_type(name) or record_index(records, name) >= 0
+    if name == "List" or name == "Option":
+        return count == 1 and valid_type(json_index(arguments, 0), records)
+    if name == "Map":
+        if count != 2:
+            return false
+        let key = json_index(arguments, 0)
+        return json_as_text(json_get(key, "name")) == "Text" and json_len(json_get(key, "arguments")) == 0 and valid_type(json_index(arguments, 1), records)
+    if name == "Result":
+        return count == 2 and valid_type(json_index(arguments, 0), records) and valid_type(json_index(arguments, 1), records)
+    return false
+
+fn python_bridge_type(type_node: Json) -> Bool:
+    let name = json_as_text(json_get(type_node, "name"))
+    let arguments = json_get(type_node, "arguments")
+    let count = json_len(arguments)
+    if count == 0:
+        return name == "Int" or name == "Float64" or name == "Bool" or name == "Text" or name == "Bytes" or name == "Unit" or name == "Json"
+    if name == "List":
+        return count == 1 and python_bridge_type(json_index(arguments, 0))
+    if name == "Map":
+        if count != 2:
+            return false
+        let key = json_index(arguments, 0)
+        return json_as_text(json_get(key, "name")) == "Text" and json_len(json_get(key, "arguments")) == 0 and python_bridge_type(json_index(arguments, 1))
+    return false
+
+fn declaration_name_count(nodes: Json, name: Text, source_module: Text, source_field: Text) -> Int:
+    var count = 0
+    var cursor = 0
+    while cursor < json_len(nodes):
+        let node = json_index(nodes, cursor)
+        if json_as_text(json_get(node, "name")) == name and json_as_text(json_get(node, source_field)) == source_module:
+            set count = count + 1
+        set cursor = cursor + 1
+    return count
+
+fn function_entry_failure(functions: Json, entry_module: Text, records: List[RecordSignature], sources: Json) -> Json:
+    var found = false
+    var cursor = 0
+    while cursor < json_len(functions):
+        let function = json_index(functions, cursor)
+        if json_as_text(json_get(function, "name")) == "main" and json_as_text(json_get(function, "source_name")) == entry_module:
+            set found = true
+            let parameters = json_get(function, "parameters")
+            let result = type_name(json_get(function, "result"), records)
+            if json_len(parameters) != 0 or (result != "Int" and result != "Unit"):
+                let source = module_source(sources, entry_module)
+                return failure_at_node("E_ENTRY_SIGNATURE", "main must have no parameters and return Int or Unit", function, entry_module, source, 4)
+        set cursor = cursor + 1
+    if not found:
+        return compile_failure("E_ENTRY_MISSING", "module must define main", entry_module, 0, 0, 1, 1)
+    return json_null()
+
+fn function_result_at(functions: List[FunctionSignature], index: Int, records: List[RecordSignature]) -> Text:
     if index < 0:
         return "Unit"
     return type_name(functions[index].result, records)
@@ -419,6 +843,10 @@ fn is_option_type(ty: Text) -> Bool:
     let characters = text_chars(ty)
     return len(characters) >= 8 and characters[0] == "O" and characters[1] == "p" and characters[2] == "t" and characters[3] == "i" and characters[4] == "o" and characters[5] == "n" and characters[6] == "["
 
+fn is_result_type(ty: Text) -> Bool:
+    let characters = text_chars(ty)
+    return len(characters) >= 8 and characters[0] == "R" and characters[1] == "e" and characters[2] == "s" and characters[3] == "u" and characters[4] == "l" and characters[5] == "t" and characters[6] == "["
+
 fn result_error_type(ty: Text) -> Text:
     let characters = text_chars(ty)
     var opening = -1
@@ -463,10 +891,15 @@ fn expression(node: Json, state: CompilerState, functions: List[FunctionSignatur
     let kind = json_as_text(json_get(node, "kind"))
     if kind == "Number":
         return expression_result(singleton(ir_text("ConstInt", "value", json_as_text(json_get(node, "text")))), "Int")
+    if kind == "Float":
+        return expression_result(singleton(ir_text("ConstFloat64", "value", json_as_text(json_get(node, "text")))), "Float64")
     if kind == "Text":
         return expression_result(singleton(ir_text("ConstText", "value", json_as_text(json_get(node, "text")))), "Text")
     if kind == "Bool":
         return expression_result(singleton(ir_field("ConstBool", "value", json_get(node, "value"))), "Bool")
+    if kind == "Try":
+        let result = expression(json_get(node, "value"), state, functions, records, "")
+        return expression_result(append_code(expression_code(result), singleton(ir_instruction("TryResult"))), list_element_type(expression_type(result), records))
     if kind == "Name":
         let name = json_as_text(json_get(node, "text"))
         if name == "None":
@@ -506,7 +939,10 @@ fn expression(node: Json, state: CompilerState, functions: List[FunctionSignatur
         if operator == "*":
             set operation = "Multiply"
         if operator == "/":
-            set operation = "Divide"
+            if expression_type(left) == "Int":
+                set operation = "IntegerDivide"
+            else:
+                set operation = "Divide"
         if operator == "//":
             set operation = "FloorDivide"
         if operator == "%":
@@ -530,7 +966,11 @@ fn expression(node: Json, state: CompilerState, functions: List[FunctionSignatur
     if kind == "Index":
         let value = expression(json_get(node, "value"), state, functions, records, "")
         let index = expression(json_get(node, "index"), state, functions, records, "")
-        return expression_result(append_code(append_code(expression_code(value), expression_code(index)), singleton(ir_instruction("Index"))), list_element_type(expression_type(value), records))
+        let value_type = expression_type(value)
+        var item_type = list_element_type(value_type, records)
+        if is_map_type(value_type):
+            set item_type = result_error_type(value_type)
+        return expression_result(append_code(append_code(expression_code(value), expression_code(index)), singleton(ir_instruction("Index"))), item_type)
     if kind == "Field":
         let value = expression(json_get(node, "value"), state, functions, records, "")
         let record_name = record_name_from_type(expression_type(value))
@@ -554,153 +994,133 @@ fn expression(node: Json, state: CompilerState, functions: List[FunctionSignatur
         if json_len(items) == 0 and expected != "":
             return expression_result(append_code(code, singleton(ir_text("MakeTypedList", "item_type", list_element_type(expected, records)))), expected)
         return expression_result(append_code(code, singleton(ir_integer("MakeList", "count", json_len(items)))), "List[" + item_type + "]")
+    if kind == "Map":
+        let items = json_get(node, "items")
+        var code = empty_code()
+        var cursor = 0
+        var item_type = "Unit"
+        var expected_item = ""
+        if is_map_type(expected):
+            set expected_item = result_error_type(expected)
+        while cursor < json_len(items):
+            let entry = json_index(items, cursor)
+            let key = expression(json_get(entry, "key"), state, functions, records, "Text")
+            let value = expression(json_get(entry, "value"), state, functions, records, expected_item)
+            set code = append_code(code, expression_code(key))
+            set code = append_code(code, expression_code(value))
+            set item_type = expression_type(value)
+            set cursor = cursor + 1
+        if json_len(items) == 0 and expected_item != "":
+            return expression_result(append_code(code, singleton(ir_text("MakeTypedMap", "item_type", expected_item))), expected)
+        return expression_result(append_code(code, singleton(ir_integer("MakeMap", "count", json_len(items)))), "Map[Text, " + item_type + "]")
     if kind == "Call":
         let callee = json_as_text(json_get(node, "callee"))
         let arguments = json_get(node, "arguments")
+        let keywords = json_get(node, "keywords")
+        let known_index = function_index(functions, callee)
+        let record = record_index(records, callee)
+        if callee == "list_get" or callee == "map_get":
+            let collection = expression(json_index(arguments, 0), state, functions, records, "")
+            let collection_type = expression_type(collection)
+            var expected_key = "Int"
+            var item_type = list_element_type(collection_type, records)
+            if callee == "map_get":
+                set expected_key = "Text"
+                set item_type = result_error_type(collection_type)
+            let key = expression(json_index(arguments, 1), state, functions, records, expected_key)
+            var code = append_code(expression_code(collection), expression_code(key))
+            set code = append_code(code, singleton(ir_instruction(builtin_catalog_operation(callee))))
+            return expression_result(code, "Option[" + item_type + "]")
+        if callee == "parallel_map":
+            let values = expression(json_index(arguments, 0), state, functions, records, "")
+            let worker_node = json_index(arguments, 1)
+            let worker_name = json_as_text(json_get(worker_node, "text"))
+            let worker_index = function_index(functions, worker_name)
+            let worker_result = type_name(functions[worker_index].result, records)
+            let worker_limit = expression(json_index(arguments, 2), state, functions, records, "Int")
+            var parallel_code = append_code(expression_code(values), expression_code(worker_limit))
+            set parallel_code = append_code(parallel_code, singleton(ir_text("ParallelMap", "function", functions[worker_index].symbol)))
+            return expression_result(parallel_code, "Result[List[" + worker_result + "], TaskError]")
+        if callee == "sort_by":
+            let values = expression(json_index(arguments, 0), state, functions, records, "")
+            let comparator_name = json_as_text(json_get(json_index(arguments, 1), "text"))
+            let comparator_index = function_index(functions, comparator_name)
+            var sort_code = expression_code(values)
+            set sort_code = append_code(sort_code, singleton(ir_text("SortBy", "function", functions[comparator_index].symbol)))
+            return expression_result(sort_code, expression_type(values))
         var code = empty_code()
         var cursor = 0
         while cursor < json_len(arguments):
-            let argument = expression(json_index(arguments, cursor), state, functions, records, "")
+            var argument_expected = ""
+            if callee == "Some" and is_option_type(expected):
+                set argument_expected = list_element_type(expected, records)
+            if callee == "Ok" and is_result_type(expected):
+                set argument_expected = list_element_type(expected, records)
+            if callee == "Err" and is_result_type(expected):
+                set argument_expected = result_error_type(expected)
+            if known_index >= 0 and cursor < len(functions[known_index].parameters):
+                set argument_expected = functions[known_index].parameters[cursor]
+            if record >= 0 and cursor < len(records[record].fields):
+                set argument_expected = type_name(records[record].fields[cursor].type, records)
+            let catalog_expected = builtin_catalog_parameter_type(callee, cursor)
+            if argument_expected == "" and catalog_expected != "":
+                set argument_expected = catalog_expected
+            let argument = expression(json_index(arguments, cursor), state, functions, records, argument_expected)
             set code = append_code(code, expression_code(argument))
             set cursor = cursor + 1
         if is_record(records, callee):
             var instruction = ir_text("MakeRecord", "record", callee)
             set instruction = json_set(instruction, "count", json_int(json_len(arguments)))
             return expression_result(append_code(code, singleton(instruction)), "Record[" + callee + "]")
-        var operation = ""
-        if callee == "Some":
-            set operation = "MakeSome"
-        if callee == "len":
-            set operation = "Length"
-        if callee == "list_push":
-            set operation = "ListPush"
-        if callee == "list_set":
-            set operation = "ListSet"
-        if callee == "json_null":
-            set operation = "JsonNull"
-        if callee == "json_bool":
-            set operation = "JsonBool"
-        if callee == "json_int":
-            set operation = "JsonInt"
-        if callee == "json_float":
-            set operation = "JsonFloat"
-        if callee == "json_text":
-            set operation = "JsonText"
-        if callee == "json_array":
-            set operation = "JsonArray"
-        if callee == "json_object":
-            set operation = "JsonObject"
-        if callee == "json_push":
-            set operation = "JsonPush"
-        if callee == "json_set":
-            set operation = "JsonSet"
-        if callee == "json_get":
-            set operation = "JsonGet"
-        if callee == "json_index":
-            set operation = "JsonIndex"
-        if callee == "json_has":
-            set operation = "JsonHas"
-        if callee == "json_len":
-            set operation = "JsonLength"
-        if callee == "json_as_text":
-            set operation = "JsonAsText"
-        if callee == "json_as_int":
-            set operation = "JsonAsInt"
-        if callee == "json_as_bool":
-            set operation = "JsonAsBool"
-        if callee == "json_is_null":
-            set operation = "JsonIsNull"
-        if callee == "json_stringify":
-            set operation = "JsonStringify"
-        if callee == "json_parse":
-            set operation = "JsonParse"
-        if callee == "sqrt":
-            set operation = "FloatSqrt"
-        if callee == "read_text":
-            set operation = "ReadText"
-        if callee == "write_text":
-            set operation = "WriteText"
-        if callee == "write_text_atomic":
-            set operation = "WriteTextAtomic"
-        if callee == "unwrap":
-            set operation = "Unwrap"
-        if callee == "error":
-            set operation = "GetError"
-        if callee == "is_ok":
-            set operation = "IsOk"
-        if callee == "is_some":
-            set operation = "IsSome"
-        if callee == "json_error_code":
-            set operation = "JsonErrorCode"
-        if callee == "json_error_message":
-            set operation = "JsonErrorMessage"
-        if callee == "json_error_line":
-            set operation = "JsonErrorLine"
-        if callee == "json_error_column":
-            set operation = "JsonErrorColumn"
-        if callee == "file_error_code":
-            set operation = "FileErrorCode"
-        if callee == "file_error_message":
-            set operation = "FileErrorMessage"
-        if callee == "file_error_line":
-            set operation = "FileErrorLine"
-        if callee == "file_error_column":
-            set operation = "FileErrorColumn"
-        if callee == "args":
-            set operation = "Args"
-        if callee == "text_chars":
-            set operation = "TextChars"
-        if callee == "assert":
-            set operation = "Assert"
-        if callee == "print":
-            set operation = "Print"
-        if callee == "eprint":
-            set operation = "PrintErr"
+        var operation = builtin_catalog_operation(callee)
         if operation != "":
-            var result_type = "Unit"
-            if callee == "len" or callee == "json_len" or callee == "json_as_int":
-                set result_type = "Int"
-            if callee == "json_as_bool" or callee == "json_has":
-                set result_type = "Bool"
-            if callee == "json_is_null" or callee == "is_ok":
-                set result_type = "Bool"
-            if callee == "is_some":
-                set result_type = "Bool"
-            if callee == "json_as_text" or callee == "json_stringify" or callee == "json_error_code" or callee == "json_error_message" or callee == "file_error_code" or callee == "file_error_message":
-                set result_type = "Text"
-            if is_json_constructor(callee):
-                set result_type = "Json"
-            if callee == "list_push":
-                set result_type = expression_type(expression(json_index(arguments, 0), state, functions, records, ""))
-            if callee == "list_set":
-                set result_type = expression_type(expression(json_index(arguments, 0), state, functions, records, ""))
+            var result_type = builtin_catalog_result(callee)
             if callee == "Some":
                 set result_type = "Option[" + expression_type(expression(json_index(arguments, 0), state, functions, records, "")) + "]"
-            if callee == "sqrt":
-                set result_type = "Float64"
-            if callee == "read_text":
-                set result_type = "Result[Text, FileError]"
-            if callee == "json_parse":
-                set result_type = "Result[Json, JsonError]"
-            if callee == "write_text" or callee == "write_text_atomic":
-                set result_type = "Result[Unit, FileError]"
-            if callee == "json_error_line" or callee == "json_error_column" or callee == "file_error_line" or callee == "file_error_column":
-                set result_type = "Int"
-            if callee == "args":
-                set result_type = "List[Text]"
-            if callee == "text_chars":
-                set result_type = "List[Text]"
+                if is_option_type(expected):
+                    set result_type = expected
+            if callee == "Ok":
+                set result_type = "Result[" + expression_type(expression(json_index(arguments, 0), state, functions, records, "")) + ", Unit]"
+                if is_result_type(expected):
+                    set result_type = expected
+            if callee == "Err":
+                set result_type = "Result[Unit, " + expression_type(expression(json_index(arguments, 0), state, functions, records, "")) + "]"
+                if is_result_type(expected):
+                    set result_type = expected
+            if callee == "list_push" or callee == "list_set" or callee == "map_set":
+                set result_type = expression_type(expression(json_index(arguments, 0), state, functions, records, ""))
             if callee == "unwrap":
                 set result_type = list_element_type(expression_type(expression(json_index(arguments, 0), state, functions, records, "")), records)
             if callee == "error":
                 set result_type = result_error_type(expression_type(expression(json_index(arguments, 0), state, functions, records, "")))
-            return expression_result(append_code(code, singleton(ir_instruction(operation))), result_type)
-        let known_function = function_index(functions, callee)
-        if known_function < 0:
-            assert(known_function >= 0)
-        var instruction = ir_text("Call", "function", callee)
+            var instruction = ir_instruction(operation)
+            if operation == "ReadText" or operation == "WriteText" or operation == "WriteTextAtomic" or operation == "ReadBytes" or operation == "WriteBytes":
+                set instruction = ir_call_with_span(operation, node, state)
+            return expression_result(append_code(code, singleton(instruction)), result_type)
+        if known_index < 0:
+            assert(known_index >= 0)
+        let signature = functions[known_index]
+        if signature.external:
+            var external_code = code
+            var keyword_names = json_array()
+            var keyword_cursor = 0
+            while keyword_cursor < json_len(keywords):
+                let keyword = json_index(keywords, keyword_cursor)
+                let keyword_value = expression(json_get(keyword, "value"), state, functions, records, "")
+                set external_code = append_code(external_code, expression_code(keyword_value))
+                set keyword_names = json_push(keyword_names, json_text(json_as_text(json_get(keyword, "name"))))
+                set keyword_cursor = keyword_cursor + 1
+            if json_len(keywords) > 0:
+                var keyword_call = ir_text("PythonCallKw", "function", signature.symbol)
+                set keyword_call = json_set(keyword_call, "argc", json_int(json_len(arguments)))
+                set keyword_call = json_set(keyword_call, "keyword_names", keyword_names)
+                return expression_result(append_code(external_code, singleton(keyword_call)), type_name(signature.result, records))
+            var external_call = ir_text("PythonCall", "function", signature.symbol)
+            set external_call = json_set(external_call, "argc", json_int(json_len(arguments)))
+            return expression_result(append_code(external_code, singleton(external_call)), type_name(signature.result, records))
+        var instruction = ir_text("Call", "function", signature.symbol)
         set instruction = json_set(instruction, "argc", json_int(json_len(arguments)))
-        return expression_result(append_code(code, singleton(instruction)), function_result(functions, callee, records))
+        return expression_result(append_code(code, singleton(instruction)), function_result_at(functions, known_index, records))
     return expression_result(empty_code(), "Unit")
 
 fn compile_block(statements: Json, state: CompilerState, functions: List[FunctionSignature], records: List[RecordSignature]) -> CompilerState:
@@ -728,7 +1148,7 @@ fn compile_statement(statement: Json, state: CompilerState, functions: List[Func
         let slot = state.next_local
         var next_code = append_code(code, expression_code(value))
         set next_code = append_code(next_code, singleton(ir_integer("Store", "local", slot)))
-        return CompilerState(next_code, add_local(locals, name, slot, expected), slot + 1, state.returned, state.return_type)
+        return CompilerState(next_code, add_local(locals, name, slot, expected, json_as_bool(json_get(statement, "mutable"))), slot + 1, state.returned, state.return_type, state.source)
     if kind == "Set":
         let name = json_as_text(json_get(statement, "name"))
         let locals = state.locals
@@ -756,7 +1176,7 @@ fn compile_statement(statement: Json, state: CompilerState, functions: List[Func
     if kind == "Return":
         var next_code = append_code(code, expression_code(expression(json_get(statement, "value"), state, functions, records, state.return_type)))
         set next_code = append_code(next_code, singleton(ir_instruction("Return")))
-        return CompilerState(next_code, state.locals, state.next_local, true, state.return_type)
+        return CompilerState(next_code, state.locals, state.next_local, true, state.return_type, state.source)
     if kind == "CallStatement":
         let call = json_get(statement, "call")
         let callee = json_as_text(json_get(call, "callee"))
@@ -785,7 +1205,7 @@ fn compile_statement(statement: Json, state: CompilerState, functions: List[Func
             set next_code = append_code(no_state.code, singleton(ir_label(skip_else)))
         else:
             set next_code = append_code(next_code, singleton(ir_label(branch)))
-        return CompilerState(next_code, state.locals, next_local, returned, state.return_type)
+        return CompilerState(next_code, state.locals, next_local, returned, state.return_type, state.source)
     if kind == "While":
         let start = json_as_int(json_get(statement, "character_index")) * 4
         var next_code = append_code(code, singleton(ir_label(start)))
@@ -799,13 +1219,113 @@ fn compile_statement(statement: Json, state: CompilerState, functions: List[Func
         var next_local = state.next_local
         if body_state.next_local > next_local:
             set next_local = body_state.next_local
-        return CompilerState(next_code, state.locals, next_local, state.returned, state.return_type)
+        return CompilerState(next_code, state.locals, next_local, state.returned, state.return_type, state.source)
+    if kind == "For":
+        let iterable = expression(json_get(statement, "values"), state, functions, records, "")
+        let iterable_type = expression_type(iterable)
+        var iterable_code = expression_code(iterable)
+        var item_type = list_element_type(iterable_type, records)
+        if is_map_type(iterable_type):
+            set iterable_code = append_code(iterable_code, singleton(ir_instruction("MapKeys")))
+            set item_type = "Text"
+        let list_slot = state.next_local
+        let index_slot = list_slot + 1
+        let item_slot = list_slot + 2
+        var next_code = append_code(code, iterable_code)
+        set next_code = append_code(next_code, singleton(ir_integer("Store", "local", list_slot)))
+        set next_code = append_code(next_code, singleton(ir_text("ConstInt", "value", "0")))
+        set next_code = append_code(next_code, singleton(ir_integer("Store", "local", index_slot)))
+        let start = json_as_int(json_get(statement, "character_index")) * 4
+        set next_code = append_code(next_code, singleton(ir_label(start)))
+        set next_code = append_code(next_code, singleton(ir_integer("Load", "local", index_slot)))
+        set next_code = append_code(next_code, singleton(ir_integer("Load", "local", list_slot)))
+        set next_code = append_code(next_code, singleton(ir_instruction("Length")))
+        set next_code = append_code(next_code, singleton(ir_instruction("Less")))
+        let exit = start + 1
+        set next_code = append_code(next_code, singleton(ir_jump("JumpIfFalse", exit)))
+        set next_code = append_code(next_code, singleton(ir_integer("Load", "local", list_slot)))
+        set next_code = append_code(next_code, singleton(ir_integer("Load", "local", index_slot)))
+        set next_code = append_code(next_code, singleton(ir_instruction("Index")))
+        set next_code = append_code(next_code, singleton(ir_integer("Store", "local", item_slot)))
+        let name = json_as_text(json_get(statement, "name"))
+        let loop_locals = add_local(state.locals, name, item_slot, item_type, false)
+        var body_state = CompilerState(next_code, loop_locals, item_slot + 1, state.returned, state.return_type, state.source)
+        set body_state = compile_block(json_get(statement, "body"), body_state, functions, records)
+        set next_code = append_code(body_state.code, singleton(ir_integer("Load", "local", index_slot)))
+        set next_code = append_code(next_code, singleton(ir_text("ConstInt", "value", "1")))
+        set next_code = append_code(next_code, singleton(ir_instruction("Add")))
+        set next_code = append_code(next_code, singleton(ir_integer("Store", "local", index_slot)))
+        set next_code = append_code(next_code, singleton(ir_jump("Jump", start)))
+        set next_code = append_code(next_code, singleton(ir_label(exit)))
+        var next_local = body_state.next_local
+        if next_local < item_slot + 1:
+            set next_local = item_slot + 1
+        return CompilerState(next_code, state.locals, next_local, state.returned, state.return_type, state.source)
+    if kind == "Match":
+        let matched = expression(json_get(statement, "value"), state, functions, records, "")
+        let matched_type = expression_type(matched)
+        let arms = json_get(statement, "arms")
+        var true_arm = json_null()
+        var false_arm = json_null()
+        var cursor = 0
+        while cursor < json_len(arms):
+            let arm = json_index(arms, cursor)
+            let variant = json_as_text(json_get(arm, "variant"))
+            if variant == "Some" or variant == "Ok":
+                set true_arm = arm
+            else:
+                set false_arm = arm
+            set cursor = cursor + 1
+        let value_slot = state.next_local
+        let binding_slot = value_slot + 1
+        let branch = json_as_int(json_get(statement, "character_index")) * 4 + 1
+        let ending = branch + 1
+        var next_code = append_code(code, expression_code(matched))
+        set next_code = append_code(next_code, singleton(ir_integer("Store", "local", value_slot)))
+        set next_code = append_code(next_code, singleton(ir_integer("Load", "local", value_slot)))
+        var predicate = "IsOk"
+        if is_option_type(matched_type):
+            set predicate = "IsSome"
+        set next_code = append_code(next_code, singleton(ir_instruction(predicate)))
+        set next_code = append_code(next_code, singleton(ir_jump("JumpIfFalse", branch)))
+        let true_binding = json_get(true_arm, "binding")
+        var true_locals = state.locals
+        var true_next_local = binding_slot
+        if not json_is_null(true_binding):
+            set next_code = append_code(next_code, singleton(ir_integer("Load", "local", value_slot)))
+            set next_code = append_code(next_code, singleton(ir_instruction("Unwrap")))
+            set next_code = append_code(next_code, singleton(ir_integer("Store", "local", binding_slot)))
+            set true_locals = add_local(true_locals, json_as_text(true_binding), binding_slot, list_element_type(matched_type, records), false)
+            set true_next_local = binding_slot + 1
+        var true_state = CompilerState(next_code, true_locals, true_next_local, state.returned, state.return_type, state.source)
+        set true_state = compile_block(json_get(true_arm, "body"), true_state, functions, records)
+        set next_code = append_code(true_state.code, singleton(ir_jump("Jump", ending)))
+        set next_code = append_code(next_code, singleton(ir_label(branch)))
+        let false_binding = json_get(false_arm, "binding")
+        var false_locals = state.locals
+        var false_next_local = binding_slot
+        if not json_is_null(false_binding):
+            set next_code = append_code(next_code, singleton(ir_integer("Load", "local", value_slot)))
+            var unwrap_operation = "GetError"
+            if is_option_type(matched_type):
+                set unwrap_operation = "Unwrap"
+            set next_code = append_code(next_code, singleton(ir_instruction(unwrap_operation)))
+            set next_code = append_code(next_code, singleton(ir_integer("Store", "local", binding_slot)))
+            set false_locals = add_local(false_locals, json_as_text(false_binding), binding_slot, result_error_type(matched_type), false)
+            set false_next_local = binding_slot + 1
+        var false_state = CompilerState(next_code, false_locals, false_next_local, state.returned, state.return_type, state.source)
+        set false_state = compile_block(json_get(false_arm, "body"), false_state, functions, records)
+        set next_code = append_code(false_state.code, singleton(ir_label(ending)))
+        var next_local = true_state.next_local
+        if false_state.next_local > next_local:
+            set next_local = false_state.next_local
+        return CompilerState(next_code, state.locals, next_local, true_state.returned and false_state.returned, state.return_type, state.source)
     return state
 
-fn compile_function(function: Json, functions: List[FunctionSignature], records: List[RecordSignature]) -> Json:
+fn compile_function(function: Json, functions: List[FunctionSignature], records: List[RecordSignature], source: Text) -> Json:
     let parameters = json_get(function, "parameters")
     let result_type = type_name(json_get(function, "result"), records)
-    var state = new_state(result_type)
+    var state = new_state(result_type, source)
     var parameter_types = json_array()
     var cursor = 0
     while cursor < json_len(parameters):
@@ -813,7 +1333,7 @@ fn compile_function(function: Json, functions: List[FunctionSignature], records:
         let name = json_as_text(json_get(parameter, "name"))
         let ty = type_name(json_get(parameter, "type"), records)
         set parameter_types = json_push(parameter_types, json_text(ty))
-        let locals = add_local(state.locals, name, cursor, ty)
+        let locals = add_local(state.locals, name, cursor, ty, false)
         set state = state_with_locals(state, locals, cursor + 1)
         set cursor = cursor + 1
     set state = compile_block(json_get(function, "body"), state, functions, records)
@@ -821,45 +1341,1026 @@ fn compile_function(function: Json, functions: List[FunctionSignature], records:
         var code = append_code(state.code, singleton(ir_instruction("ConstUnit")))
         set code = append_code(code, singleton(ir_instruction("Return")))
         set state = state_with_code(state, code)
-    var result = ir_text("Function", "name", json_as_text(json_get(function, "name")))
+    var result = ir_text("Function", "name", json_as_text(json_get(function, "symbol")))
     set result = json_set(result, "parameters", parameter_types)
     set result = json_set(result, "result", json_text(result_type))
     set result = json_set(result, "local_count", json_int(state.next_local))
     set result = json_set(result, "code", json_from_list(flatten_code(state.code)))
     return result
 
-pub fn compile_source(source_name: Text, source: Text) -> Json:
-    let program = load_program(source_name, source, json_array())
-    let functions = json_get(program, "functions")
+fn known_builtin_name(name: Text) -> Bool:
+    return builtin_catalog_has(name)
+
+fn source_line_column(source: Text, character_index: Int) -> List[Int]:
+    let characters = text_chars(source)
+    var line = 1
+    var column = 1
+    var cursor = 0
+    while cursor < character_index and cursor < len(characters):
+        if characters[cursor] == "\n":
+            set line = line + 1
+            set column = 1
+        else:
+            set column = column + 1
+        set cursor = cursor + 1
+    return [line, column]
+
+fn ir_call_with_span(opcode: Text, node: Json, state: CompilerState) -> Json:
+    let character_index = json_as_int(json_get(node, "character_index"))
+    let source = json_as_text(state.source)
+    let location = source_line_column(source, character_index)
+    let callee = json_as_text(json_get(node, "callee"))
+    var span = json_set(json_object(), "source_id", json_int(0))
+    set span = json_set(span, "start", json_int(character_index))
+    set span = json_set(span, "end", json_int(character_index + len(callee)))
+    set span = json_set(span, "line", json_int(location[0]))
+    set span = json_set(span, "column", json_int(location[1]))
+    return json_set(ir_instruction(opcode), "span", span)
+
+fn module_source(sources: Json, source_name: Text) -> Text:
+    var cursor = 0
+    while cursor < json_len(sources):
+        let entry = json_index(sources, cursor)
+        if json_as_text(json_get(entry, "name")) == source_name:
+            return json_as_text(json_get(entry, "source"))
+        set cursor = cursor + 1
+    return ""
+
+fn failure_at_node(code: Text, message: Text, node: Json, source_name: Text, source: Text, token_length: Int) -> Json:
+    let character_index = json_as_int(json_get(node, "character_index"))
+    let location = source_line_column(source, character_index)
+    return compile_failure(code, message, source_name, character_index, character_index + token_length, location[0], location[1])
+
+fn parameter_name_index(names: List[Text], name: Text) -> Int:
+    var cursor = 0
+    while cursor < len(names):
+        if names[cursor] == name:
+            return cursor
+        set cursor = cursor + 1
+    return -1
+
+fn find_unknown_call(node: Json, functions: List[FunctionSignature], records: List[RecordSignature], source_name: Text, source: Text) -> Json:
+    let kind = json_as_text(json_get(node, "kind"))
+    if kind == "Call":
+        let callee = json_as_text(json_get(node, "callee"))
+        let arguments = json_get(node, "arguments")
+        let keywords = json_get(node, "keywords")
+        let known_index = function_index(functions, callee)
+        if known_index < 0 and not is_record(records, callee) and not known_builtin_name(callee):
+            return failure_at_node("E_NAME_UNKNOWN", "unknown function `" + callee + "`", node, source_name, source, len(callee))
+        if known_builtin_name(callee):
+            let expected_arity = builtin_catalog_arity(callee)
+            if expected_arity >= 0 and json_len(arguments) != expected_arity:
+                return failure_at_node("E_CALL_ARITY", "builtin `" + callee + "` has the wrong number of arguments", node, source_name, source, len(callee))
+            if json_len(keywords) > 0:
+                return failure_at_node("E_CALL_KEYWORD", "keyword arguments require a declared Python external", node, source_name, source, len(callee))
+        if is_record(records, callee) and json_len(keywords) > 0:
+            return failure_at_node("E_CALL_KEYWORD", "record constructors do not accept keyword arguments", node, source_name, source, len(callee))
+        if is_record(records, callee):
+            let constructor_index = record_index(records, callee)
+            if json_len(arguments) != len(records[constructor_index].fields):
+                return failure_at_node("E_CALL_ARITY", "record constructor has the wrong number of fields", node, source_name, source, len(callee))
+        if known_index >= 0:
+            let signature = functions[known_index]
+            if not signature.external and json_len(arguments) != len(signature.parameters):
+                return failure_at_node("E_CALL_ARITY", "function `" + callee + "` has the wrong number of arguments", node, source_name, source, len(callee))
+            if not signature.external and json_len(keywords) > 0:
+                return failure_at_node("E_CALL_KEYWORD", "keyword arguments require a declared Python external", node, source_name, source, len(callee))
+            if signature.external and json_len(arguments) > len(signature.parameters):
+                return failure_at_node("E_CALL_ARITY", "Python function `" + callee + "` accepts at most its declared arguments", node, source_name, source, len(callee))
+            if signature.external:
+                var keyword_cursor = 0
+                while keyword_cursor < json_len(keywords):
+                    let keyword = json_index(keywords, keyword_cursor)
+                    let keyword_name = json_as_text(json_get(keyword, "name"))
+                    let parameter_index = parameter_name_index(signature.parameter_names, keyword_name)
+                    if parameter_index < 0:
+                        return failure_at_node("E_PYTHON_KEYWORD", "`" + keyword_name + "` is not a declared Python parameter", keyword, source_name, source, len(keyword_name))
+                    if parameter_index < json_len(arguments):
+                        return failure_at_node("E_PYTHON_KEYWORD_DUPLICATE", "Python parameter `" + keyword_name + "` is supplied positionally and by name", keyword, source_name, source, len(keyword_name))
+                    var prior = 0
+                    while prior < keyword_cursor:
+                        let prior_name = json_as_text(json_get(json_index(keywords, prior), "name"))
+                        if prior_name == keyword_name:
+                            return failure_at_node("E_PYTHON_KEYWORD_DUPLICATE", "Python parameter `" + keyword_name + "` is supplied more than once", keyword, source_name, source, len(keyword_name))
+                        set prior = prior + 1
+                    set keyword_cursor = keyword_cursor + 1
+        if callee == "parallel_map":
+            let worker = json_index(arguments, 1)
+            if json_as_text(json_get(worker, "kind")) != "Name":
+                return failure_at_node("E_PARALLEL_WORKER", "parallel worker must be a named function", worker, source_name, source, 1)
+            let worker_name = json_as_text(json_get(worker, "text"))
+            let worker_index = function_index(functions, worker_name)
+            if worker_index < 0:
+                return failure_at_node("E_NAME_UNKNOWN", "unknown parallel worker `" + worker_name + "`", worker, source_name, source, len(worker_name))
+            if len(functions[worker_index].parameters) != 1:
+                return failure_at_node("E_TYPE_ARGUMENT", "parallel worker must accept exactly one argument", worker, source_name, source, len(worker_name))
+            if contains_native_resource_type_name(functions[worker_index].parameters[0]) or contains_native_resource_type_name(type_name(functions[worker_index].result, records)):
+                return failure_at_node("E_PARALLEL_RESOURCE", "parallel workers cannot accept or return native resources", worker, source_name, source, len(worker_name))
+        if callee == "sort_by":
+            let comparator = json_index(arguments, 1)
+            if json_as_text(json_get(comparator, "kind")) != "Name":
+                return failure_at_node("E_SORT_COMPARATOR", "sort_by comparator must be a named function", comparator, source_name, source, 1)
+            let comparator_name = json_as_text(json_get(comparator, "text"))
+            let comparator_index = function_index(functions, comparator_name)
+            if comparator_index < 0:
+                return failure_at_node("E_NAME_UNKNOWN", "unknown sort comparator `" + comparator_name + "`", comparator, source_name, source, len(comparator_name))
+            if len(functions[comparator_index].parameters) != 2:
+                return failure_at_node("E_SORT_COMPARATOR", "sort comparator must accept exactly two values", comparator, source_name, source, len(comparator_name))
+        var cursor = 0
+        while cursor < json_len(arguments):
+            let failure = find_unknown_call(json_index(arguments, cursor), functions, records, source_name, source)
+            if not json_is_null(failure):
+                return failure
+            set cursor = cursor + 1
+        set cursor = 0
+        while cursor < json_len(keywords):
+            let failure = find_unknown_call(json_get(json_index(keywords, cursor), "value"), functions, records, source_name, source)
+            if not json_is_null(failure):
+                return failure
+            set cursor = cursor + 1
+        return json_null()
+    if kind == "Try":
+        return find_unknown_call(json_get(node, "value"), functions, records, source_name, source)
+    if kind == "Unary":
+        return find_unknown_call(json_get(node, "operand"), functions, records, source_name, source)
+    if kind == "Binary":
+        let left_failure = find_unknown_call(json_get(node, "left"), functions, records, source_name, source)
+        if not json_is_null(left_failure):
+            return left_failure
+        return find_unknown_call(json_get(node, "right"), functions, records, source_name, source)
+    if kind == "Index":
+        let value_failure = find_unknown_call(json_get(node, "value"), functions, records, source_name, source)
+        if not json_is_null(value_failure):
+            return value_failure
+        return find_unknown_call(json_get(node, "index"), functions, records, source_name, source)
+    if kind == "Field":
+        return find_unknown_call(json_get(node, "value"), functions, records, source_name, source)
+    if kind == "List":
+        let items = json_get(node, "items")
+        var cursor = 0
+        while cursor < json_len(items):
+            let failure = find_unknown_call(json_index(items, cursor), functions, records, source_name, source)
+            if not json_is_null(failure):
+                return failure
+            set cursor = cursor + 1
+    if kind == "Map":
+        let items = json_get(node, "items")
+        var cursor = 0
+        while cursor < json_len(items):
+            let entry = json_index(items, cursor)
+            let key_failure = find_unknown_call(json_get(entry, "key"), functions, records, source_name, source)
+            if not json_is_null(key_failure):
+                return key_failure
+            let value_failure = find_unknown_call(json_get(entry, "value"), functions, records, source_name, source)
+            if not json_is_null(value_failure):
+                return value_failure
+            set cursor = cursor + 1
+    return json_null()
+
+fn find_unknown_call_in_block(statements: Json, functions: List[FunctionSignature], records: List[RecordSignature], source_name: Text, source: Text) -> Json:
+    var cursor = 0
+    while cursor < json_len(statements):
+        let statement = json_index(statements, cursor)
+        let kind = json_as_text(json_get(statement, "kind"))
+        var failure = json_null()
+        if kind == "Let" or kind == "Set" or kind == "Return":
+            set failure = find_unknown_call(json_get(statement, "value"), functions, records, source_name, source)
+        if kind == "CallStatement":
+            set failure = find_unknown_call(json_get(statement, "call"), functions, records, source_name, source)
+        if kind == "If" or kind == "While":
+            set failure = find_unknown_call(json_get(statement, "condition"), functions, records, source_name, source)
+            if json_is_null(failure):
+                set failure = find_unknown_call_in_block(json_get(statement, "body"), functions, records, source_name, source)
+            if json_is_null(failure) and json_has(statement, "alternate"):
+                set failure = find_unknown_call_in_block(json_get(statement, "alternate"), functions, records, source_name, source)
+        if kind == "For":
+            set failure = find_unknown_call(json_get(statement, "values"), functions, records, source_name, source)
+            if json_is_null(failure):
+                set failure = find_unknown_call_in_block(json_get(statement, "body"), functions, records, source_name, source)
+        if kind == "Match":
+            set failure = find_unknown_call(json_get(statement, "value"), functions, records, source_name, source)
+            let arms = json_get(statement, "arms")
+            var arm_cursor = 0
+            while json_is_null(failure) and arm_cursor < json_len(arms):
+                set failure = find_unknown_call_in_block(json_get(json_index(arms, arm_cursor), "body"), functions, records, source_name, source)
+                set arm_cursor = arm_cursor + 1
+        if not json_is_null(failure):
+            return failure
+        set cursor = cursor + 1
+    return json_null()
+
+fn add_validation_local(locals: List[Json], name: Text, mutable: Bool) -> List[Json]:
+    return add_local(locals, name, len(locals), "Unit", mutable)
+
+fn find_unbound_name(node: Json, locals: List[Json], functions: List[FunctionSignature], records: List[RecordSignature], source_name: Text, source: Text) -> Json:
+    let kind = json_as_text(json_get(node, "kind"))
+    if kind == "Name":
+        let name = json_as_text(json_get(node, "text"))
+        if name == "None" or local_index(locals, name) >= 0:
+            return json_null()
+        let character_index = json_as_int(json_get(node, "character_index"))
+        let location = source_line_column(source, character_index)
+        return compile_failure("E_NAME_UNKNOWN", "unknown name `" + name + "`", source_name, character_index, character_index + len(name), location[0], location[1])
+    if kind == "Call":
+        let callee = json_as_text(json_get(node, "callee"))
+        let arguments = json_get(node, "arguments")
+        var cursor = 0
+        while cursor < json_len(arguments):
+            if (callee != "parallel_map" and callee != "sort_by") or cursor != 1:
+                let failure = find_unbound_name(json_index(arguments, cursor), locals, functions, records, source_name, source)
+                if not json_is_null(failure):
+                    return failure
+            set cursor = cursor + 1
+        let keywords = json_get(node, "keywords")
+        set cursor = 0
+        while cursor < json_len(keywords):
+            let failure = find_unbound_name(json_get(json_index(keywords, cursor), "value"), locals, functions, records, source_name, source)
+            if not json_is_null(failure):
+                return failure
+            set cursor = cursor + 1
+        return json_null()
+    if kind == "Try":
+        return find_unbound_name(json_get(node, "value"), locals, functions, records, source_name, source)
+    if kind == "Unary":
+        return find_unbound_name(json_get(node, "operand"), locals, functions, records, source_name, source)
+    if kind == "Binary":
+        let left_failure = find_unbound_name(json_get(node, "left"), locals, functions, records, source_name, source)
+        if not json_is_null(left_failure):
+            return left_failure
+        return find_unbound_name(json_get(node, "right"), locals, functions, records, source_name, source)
+    if kind == "Index":
+        let value_failure = find_unbound_name(json_get(node, "value"), locals, functions, records, source_name, source)
+        if not json_is_null(value_failure):
+            return value_failure
+        return find_unbound_name(json_get(node, "index"), locals, functions, records, source_name, source)
+    if kind == "Field":
+        return find_unbound_name(json_get(node, "value"), locals, functions, records, source_name, source)
+    if kind == "List":
+        let items = json_get(node, "items")
+        var cursor = 0
+        while cursor < json_len(items):
+            let failure = find_unbound_name(json_index(items, cursor), locals, functions, records, source_name, source)
+            if not json_is_null(failure):
+                return failure
+            set cursor = cursor + 1
+    if kind == "Map":
+        let items = json_get(node, "items")
+        var cursor = 0
+        while cursor < json_len(items):
+            let entry = json_index(items, cursor)
+            let key_failure = find_unbound_name(json_get(entry, "key"), locals, functions, records, source_name, source)
+            if not json_is_null(key_failure):
+                return key_failure
+            let value_failure = find_unbound_name(json_get(entry, "value"), locals, functions, records, source_name, source)
+            if not json_is_null(value_failure):
+                return value_failure
+            set cursor = cursor + 1
+    return json_null()
+
+fn find_unbound_name_in_block(statements: Json, locals: List[Json], functions: List[FunctionSignature], records: List[RecordSignature], source_name: Text, source: Text) -> Json:
+    var current_locals = locals
+    var cursor = 0
+    while cursor < json_len(statements):
+        let statement = json_index(statements, cursor)
+        let kind = json_as_text(json_get(statement, "kind"))
+        var failure = json_null()
+        if kind == "Let":
+            let name = json_as_text(json_get(statement, "name"))
+            if local_index(current_locals, name) >= 0:
+                let character_index = json_as_int(json_get(statement, "character_index"))
+                let location = source_line_column(source, character_index)
+                set failure = compile_failure("E_NAME_DUPLICATE", "local `" + name + "` is already defined", source_name, character_index, character_index + len(name), location[0], location[1])
+            else:
+                set failure = find_unbound_name(json_get(statement, "value"), current_locals, functions, records, source_name, source)
+                if json_is_null(failure):
+                    set current_locals = add_validation_local(current_locals, name, json_as_bool(json_get(statement, "mutable")))
+        if kind == "Set":
+            let name = json_as_text(json_get(statement, "name"))
+            if local_index(current_locals, name) < 0:
+                let character_index = json_as_int(json_get(statement, "character_index"))
+                let location = source_line_column(source, character_index)
+                set failure = compile_failure("E_NAME_UNKNOWN", "unknown local `" + name + "`", source_name, character_index, character_index + len(name), location[0], location[1])
+            else:
+                if not local_is_mutable(current_locals, name):
+                    let character_index = json_as_int(json_get(statement, "character_index"))
+                    let location = source_line_column(source, character_index)
+                    set failure = compile_failure("E_ASSIGN_IMMUTABLE", "`" + name + "` is immutable; declare it with `var` to assign it", source_name, character_index, character_index + len(name), location[0], location[1])
+                else:
+                    set failure = find_unbound_name(json_get(statement, "value"), current_locals, functions, records, source_name, source)
+        if kind == "Return":
+            set failure = find_unbound_name(json_get(statement, "value"), current_locals, functions, records, source_name, source)
+        if kind == "CallStatement":
+            set failure = find_unbound_name(json_get(statement, "call"), current_locals, functions, records, source_name, source)
+        if kind == "If" or kind == "While":
+            set failure = find_unbound_name(json_get(statement, "condition"), current_locals, functions, records, source_name, source)
+            if json_is_null(failure):
+                set failure = find_unbound_name_in_block(json_get(statement, "body"), current_locals, functions, records, source_name, source)
+            if json_is_null(failure) and json_has(statement, "alternate"):
+                set failure = find_unbound_name_in_block(json_get(statement, "alternate"), current_locals, functions, records, source_name, source)
+        if kind == "For":
+            set failure = find_unbound_name(json_get(statement, "values"), current_locals, functions, records, source_name, source)
+            if json_is_null(failure):
+                let name = json_as_text(json_get(statement, "name"))
+                if local_index(current_locals, name) >= 0:
+                    set failure = failure_at_node("E_NAME_DUPLICATE", "loop variable `" + name + "` is already defined", statement, source_name, source, len(name))
+                else:
+                    let loop_locals = add_validation_local(current_locals, name, false)
+                    set failure = find_unbound_name_in_block(json_get(statement, "body"), loop_locals, functions, records, source_name, source)
+        if kind == "Match":
+            set failure = find_unbound_name(json_get(statement, "value"), current_locals, functions, records, source_name, source)
+            let arms = json_get(statement, "arms")
+            var arm_cursor = 0
+            while json_is_null(failure) and arm_cursor < json_len(arms):
+                let arm = json_index(arms, arm_cursor)
+                var arm_locals = current_locals
+                let binding = json_get(arm, "binding")
+                if not json_is_null(binding):
+                    let name = json_as_text(binding)
+                    if local_index(arm_locals, name) >= 0:
+                        set failure = failure_at_node("E_NAME_DUPLICATE", "match binding `" + name + "` is already defined", arm, source_name, source, len(name))
+                    else:
+                        set arm_locals = add_validation_local(arm_locals, name, false)
+                if json_is_null(failure):
+                    set failure = find_unbound_name_in_block(json_get(arm, "body"), arm_locals, functions, records, source_name, source)
+                set arm_cursor = arm_cursor + 1
+        if not json_is_null(failure):
+            return failure
+        set cursor = cursor + 1
+    return json_null()
+
+fn find_type_error_expression(node: Json, state: CompilerState, functions: List[FunctionSignature], records: List[RecordSignature], source_name: Text, source: Text, expected: Text) -> Json:
+    let kind = json_as_text(json_get(node, "kind"))
+    if kind == "Name" and json_as_text(json_get(node, "text")) == "None":
+        if not is_option_type(expected):
+            return failure_at_node("E_OPTION_CONSTRUCTOR_CONTEXT", "None requires an expected Option type", node, source_name, source, 4)
+        return json_null()
+    if kind == "Field":
+        let value = json_get(node, "value")
+        let value_failure = find_type_error_expression(value, state, functions, records, source_name, source, "")
+        if not json_is_null(value_failure):
+            return value_failure
+        let value_result = expression(value, state, functions, records, "")
+        let record_name = record_name_from_type(expression_type(value_result))
+        let record = record_index(records, record_name)
+        let field_name = json_as_text(json_get(node, "name"))
+        if record < 0 or record_field_index(records, record_name, field_name) < 0:
+            return failure_at_node("E_FIELD_UNKNOWN", "record has no field `" + field_name + "`", node, source_name, source, len(field_name))
+        return json_null()
+    if kind == "Call":
+        let callee = json_as_text(json_get(node, "callee"))
+        let arguments = json_get(node, "arguments")
+        let keywords = json_get(node, "keywords")
+        let known_index = function_index(functions, callee)
+        let record = record_index(records, callee)
+        if callee == "Some" and not is_option_type(expected):
+            return failure_at_node("E_OPTION_CONSTRUCTOR_CONTEXT", "Some requires an expected Option type", node, source_name, source, len(callee))
+        if (callee == "Ok" or callee == "Err") and not is_result_type(expected):
+            return failure_at_node("E_RESULT_CONSTRUCTOR_CONTEXT", "Ok and Err require an expected Result type", node, source_name, source, len(callee))
+        var cursor = 0
+        while cursor < json_len(arguments):
+            var argument_expected = ""
+            if callee == "Some" and is_option_type(expected):
+                set argument_expected = list_element_type(expected, records)
+            if callee == "Ok" and is_result_type(expected):
+                set argument_expected = list_element_type(expected, records)
+            if callee == "Err" and is_result_type(expected):
+                set argument_expected = result_error_type(expected)
+            if known_index >= 0 and cursor < len(functions[known_index].parameters):
+                set argument_expected = functions[known_index].parameters[cursor]
+            if record >= 0 and cursor < len(records[record].fields):
+                set argument_expected = type_name(records[record].fields[cursor].type, records)
+            let catalog_expected = builtin_catalog_parameter_type(callee, cursor)
+            if argument_expected == "" and catalog_expected != "":
+                set argument_expected = catalog_expected
+            if callee == "list_get" or callee == "map_get":
+                if cursor == 0:
+                    set argument_expected = ""
+                if cursor == 1:
+                    if callee == "list_get":
+                        set argument_expected = "Int"
+                    else:
+                        set argument_expected = "Text"
+            if callee == "list_push" and cursor == 1 or callee == "list_set" and cursor == 2:
+                let list_type = expression_type(expression(json_index(arguments, 0), state, functions, records, ""))
+                if not is_list_type(list_type):
+                    return failure_at_node("E_TYPE_ARGUMENT", "list operation requires a List first argument", json_index(arguments, 0), source_name, source, 1)
+                set argument_expected = list_element_type(list_type, records)
+            if callee == "list_set" and cursor == 1:
+                set argument_expected = "Int"
+            if callee == "map_set" and cursor == 1 or callee == "map_has" and cursor == 1:
+                set argument_expected = "Text"
+            if callee == "map_set" and cursor == 2:
+                let map_type = expression_type(expression(json_index(arguments, 0), state, functions, records, ""))
+                if not is_map_type(map_type):
+                    return failure_at_node("E_TYPE_ARGUMENT", "map_set requires a Map first argument", json_index(arguments, 0), source_name, source, 1)
+                set argument_expected = result_error_type(map_type)
+            if callee == "map_has" and cursor == 0:
+                let map_type = expression_type(expression(json_index(arguments, 0), state, functions, records, ""))
+                if not is_map_type(map_type):
+                    return failure_at_node("E_TYPE_ARGUMENT", "map_has requires a Map first argument", json_index(arguments, 0), source_name, source, 1)
+            if callee == "map_set" and cursor == 0:
+                let map_type = expression_type(expression(json_index(arguments, 0), state, functions, records, ""))
+                if not is_map_type(map_type):
+                    return failure_at_node("E_TYPE_ARGUMENT", "map_set requires a Map first argument", json_index(arguments, 0), source_name, source, 1)
+            if callee == "map_has" and cursor == 0 or callee == "map_set" and cursor == 0:
+                set argument_expected = ""
+            if callee == "len" and cursor == 0:
+                let len_type = expression_type(expression(json_index(arguments, 0), state, functions, records, ""))
+                if not is_list_type(len_type) and not is_map_type(len_type) and len_type != "Text" and len_type != "Bytes":
+                    return failure_at_node("E_TYPE_ARGUMENT", "len requires List, Map, Bytes, or Text", json_index(arguments, 0), source_name, source, 1)
+            if (callee == "parallel_map" or callee == "sort_by") and cursor == 0:
+                set argument_expected = ""
+            let argument = json_index(arguments, cursor)
+            let failure = find_type_error_expression(argument, state, functions, records, source_name, source, argument_expected)
+            if not json_is_null(failure):
+                return failure
+            if argument_expected != "":
+                let actual = expression_type(expression(argument, state, functions, records, argument_expected))
+                if actual != argument_expected:
+                    var diagnostic_code = "E_TYPE_ARGUMENT"
+                    var diagnostic_message = "argument to `" + callee + "` has an incompatible type"
+                    if callee == "Some":
+                        set diagnostic_code = "E_OPTION_CONSTRUCTOR_TYPE"
+                        set diagnostic_message = "Some value has an incompatible type"
+                    if callee == "Ok" or callee == "Err":
+                        set diagnostic_code = "E_RESULT_CONSTRUCTOR_TYPE"
+                        set diagnostic_message = "Result constructor value has an incompatible type"
+                    return failure_at_node(diagnostic_code, diagnostic_message, argument, source_name, source, 1)
+            set cursor = cursor + 1
+        if callee == "parallel_map":
+            let values_type = expression_type(expression(json_index(arguments, 0), state, functions, records, ""))
+            if not is_list_type(values_type):
+                return failure_at_node("E_TYPE_ARGUMENT", "parallel_map first argument must be a List", json_index(arguments, 0), source_name, source, 1)
+            let worker_name = json_as_text(json_get(json_index(arguments, 1), "text"))
+            let worker_index = function_index(functions, worker_name)
+            let expected_worker_type = list_element_type(values_type, records)
+            if functions[worker_index].parameters[0] != expected_worker_type:
+                return failure_at_node("E_TYPE_ARGUMENT", "parallel worker parameter must match the List item type", json_index(arguments, 1), source_name, source, len(worker_name))
+            if expression_type(expression(json_index(arguments, 2), state, functions, records, "Int")) != "Int":
+                return failure_at_node("E_TYPE_ARGUMENT", "parallel_map worker limit must be Int", json_index(arguments, 2), source_name, source, 1)
+        if callee == "sort_by":
+            let values_type = expression_type(expression(json_index(arguments, 0), state, functions, records, ""))
+            if not is_list_type(values_type):
+                return failure_at_node("E_TYPE_ARGUMENT", "sort_by first argument must be a List", json_index(arguments, 0), source_name, source, 1)
+            let comparator = json_index(arguments, 1)
+            let comparator_name = json_as_text(json_get(comparator, "text"))
+            let comparator_index = function_index(functions, comparator_name)
+            let expected_item_type = list_element_type(values_type, records)
+            if functions[comparator_index].parameters[0] != expected_item_type or functions[comparator_index].parameters[1] != expected_item_type or type_name(functions[comparator_index].result, records) != "Int":
+                return failure_at_node("E_SORT_COMPARATOR", "sort comparator must have type (T, T) -> Int for the list item type", comparator, source_name, source, len(comparator_name))
+        if callee == "list_get" or callee == "map_get":
+            let collection_type = expression_type(expression(json_index(arguments, 0), state, functions, records, ""))
+            if callee == "list_get" and not is_list_type(collection_type):
+                return failure_at_node("E_TYPE_ARGUMENT", "list_get requires a List", json_index(arguments, 0), source_name, source, 1)
+            if callee == "map_get" and not is_map_type(collection_type):
+                return failure_at_node("E_TYPE_ARGUMENT", "map_get requires a Map", json_index(arguments, 0), source_name, source, 1)
+            var expected_key_type = "Text"
+            if callee == "list_get":
+                set expected_key_type = "Int"
+            if expression_type(expression(json_index(arguments, 1), state, functions, records, expected_key_type)) != expected_key_type:
+                return failure_at_node("E_TYPE_ARGUMENT", callee + " key or index has an incompatible type", json_index(arguments, 1), source_name, source, 1)
+        if callee == "is_some" or callee == "is_ok" or callee == "unwrap" or callee == "error":
+            let operand_type = expression_type(expression(json_index(arguments, 0), state, functions, records, ""))
+            if callee == "is_some" and not is_option_type(operand_type):
+                return failure_at_node("E_TYPE_ARGUMENT", "is_some expects an Option", json_index(arguments, 0), source_name, source, 1)
+            if (callee == "is_ok" or callee == "error") and not is_result_type(operand_type):
+                return failure_at_node("E_TYPE_ARGUMENT", callee + " expects a Result", json_index(arguments, 0), source_name, source, 1)
+            if callee == "unwrap" and not is_result_type(operand_type) and not is_option_type(operand_type):
+                return failure_at_node("E_TYPE_ARGUMENT", "unwrap expects a Result or Option", json_index(arguments, 0), source_name, source, 1)
+        if callee == "len":
+            let len_type = expression_type(expression(json_index(arguments, 0), state, functions, records, ""))
+            if not is_list_type(len_type) and not is_map_type(len_type) and len_type != "Text" and len_type != "Bytes":
+                return failure_at_node("E_TYPE_ARGUMENT", "len requires List, Map, Bytes, or Text", json_index(arguments, 0), source_name, source, 1)
+        if known_index >= 0 and functions[known_index].external:
+            var keyword_cursor = 0
+            while keyword_cursor < json_len(keywords):
+                let keyword = json_index(keywords, keyword_cursor)
+                let keyword_name = json_as_text(json_get(keyword, "name"))
+                let parameter_index = parameter_name_index(functions[known_index].parameter_names, keyword_name)
+                let keyword_value = json_get(keyword, "value")
+                let keyword_expected = functions[known_index].parameters[parameter_index]
+                let keyword_failure = find_type_error_expression(keyword_value, state, functions, records, source_name, source, keyword_expected)
+                if not json_is_null(keyword_failure):
+                    return keyword_failure
+                if expression_type(expression(keyword_value, state, functions, records, keyword_expected)) != keyword_expected:
+                    return failure_at_node("E_TYPE_ARGUMENT", "Python keyword argument has an incompatible type", keyword, source_name, source, len(keyword_name))
+                set keyword_cursor = keyword_cursor + 1
+        else:
+            var keyword_cursor = 0
+            while keyword_cursor < json_len(keywords):
+                let keyword_value = json_get(json_index(keywords, keyword_cursor), "value")
+                let failure = find_type_error_expression(keyword_value, state, functions, records, source_name, source, "")
+                if not json_is_null(failure):
+                    return failure
+                set keyword_cursor = keyword_cursor + 1
+        return json_null()
+    if kind == "List":
+        let items = json_get(node, "items")
+        if json_len(items) == 0 and not is_list_type(expected):
+            return failure_at_node("E_TYPE_LIST_EMPTY", "an empty list needs an expected List[T] type", node, source_name, source, 1)
+        var item_expected = ""
+        if is_list_type(expected):
+            set item_expected = list_element_type(expected, records)
+        var inferred_item = ""
+        var cursor = 0
+        while cursor < json_len(items):
+            let item = json_index(items, cursor)
+            let failure = find_type_error_expression(item, state, functions, records, source_name, source, item_expected)
+            if not json_is_null(failure):
+                return failure
+            let actual = expression_type(expression(item, state, functions, records, item_expected))
+            if inferred_item == "":
+                set inferred_item = actual
+            else:
+                if actual != inferred_item:
+                    return failure_at_node("E_TYPE_LIST_ITEM", "all list items must have the same type", item, source_name, source, 1)
+            set cursor = cursor + 1
+    if kind == "Map":
+        let items = json_get(node, "items")
+        if json_len(items) == 0 and not is_map_type(expected):
+            return failure_at_node("E_TYPE_MAP_EMPTY", "an empty map needs an expected Map[Text, T] type", node, source_name, source, 1)
+        var item_expected = ""
+        if is_map_type(expected):
+            set item_expected = result_error_type(expected)
+        var inferred_item = ""
+        var seen_keys = json_array()
+        var cursor = 0
+        while cursor < json_len(items):
+            let entry = json_index(items, cursor)
+            let key = json_get(entry, "key")
+            let key_type = expression_type(expression(key, state, functions, records, "Text"))
+            if key_type != "Text" or json_as_text(json_get(key, "kind")) != "Text":
+                return failure_at_node("E_TYPE_MAP_KEY", "map keys must be text literals", key, source_name, source, 1)
+            let key_value = json_as_text(json_get(key, "text"))
+            if contains_text(seen_keys, key_value):
+                return failure_at_node("E_MAP_DUPLICATE_KEY", "duplicate map key `" + key_value + "`", key, source_name, source, len(key_value))
+            set seen_keys = json_push(seen_keys, json_text(key_value))
+            let value = json_get(entry, "value")
+            let failure = find_type_error_expression(value, state, functions, records, source_name, source, item_expected)
+            if not json_is_null(failure):
+                return failure
+            let actual = expression_type(expression(value, state, functions, records, item_expected))
+            if inferred_item == "":
+                set inferred_item = actual
+            else:
+                if actual != inferred_item:
+                    return failure_at_node("E_TYPE_MAP_VALUE", "all map values must have the same type", value, source_name, source, 1)
+            set cursor = cursor + 1
+    if kind == "Binary":
+        let left = json_get(node, "left")
+        let right = json_get(node, "right")
+        let left_failure = find_type_error_expression(left, state, functions, records, source_name, source, "")
+        if not json_is_null(left_failure):
+            return left_failure
+        let right_failure = find_type_error_expression(right, state, functions, records, source_name, source, "")
+        if not json_is_null(right_failure):
+            return right_failure
+        let left_type = expression_type(expression(left, state, functions, records, ""))
+        let right_type = expression_type(expression(right, state, functions, records, ""))
+        let operator = json_as_text(json_get(node, "operator"))
+        if operator == "and" or operator == "or":
+            if left_type != "Bool":
+                return failure_at_node("E_TYPE_OPERATOR", "logical operators require Bool values", left, source_name, source, 1)
+            if right_type != "Bool":
+                return failure_at_node("E_TYPE_OPERATOR", "logical operators require Bool values", right, source_name, source, 1)
+        var valid = left_type == right_type
+        if operator == "and" or operator == "or":
+            set valid = left_type == "Bool" and right_type == "Bool"
+        else:
+            if operator == "+":
+                set valid = left_type == right_type and (left_type == "Int" or left_type == "Float64" or left_type == "Text")
+            else:
+                if operator == "-" or operator == "*" or operator == "/":
+                    set valid = left_type == right_type and (left_type == "Int" or left_type == "Float64")
+                else:
+                    if operator == "//" or operator == "%":
+                        set valid = left_type == "Int" and right_type == "Int"
+                    else:
+                        if operator == "<" or operator == "<=" or operator == ">" or operator == ">=":
+                            set valid = left_type == right_type and (left_type == "Int" or left_type == "Float64" or left_type == "Text")
+        if not valid:
+            return failure_at_node("E_TYPE_OPERATOR", "operator `" + operator + "` does not accept these operand types", node, source_name, source, len(operator))
+    if kind == "Unary":
+        let operand = json_get(node, "operand")
+        let failure = find_type_error_expression(operand, state, functions, records, source_name, source, "")
+        if not json_is_null(failure):
+            return failure
+        let operand_type = expression_type(expression(operand, state, functions, records, ""))
+        let operator = json_as_text(json_get(node, "operator"))
+        if operator == "-" and operand_type != "Int" and operand_type != "Float64":
+            return failure_at_node("E_TYPE_OPERATOR", "unary `-` requires Int or Float64", node, source_name, source, 1)
+        if operator == "not" and operand_type != "Bool":
+            return failure_at_node("E_TYPE_OPERATOR", "`not` requires Bool", node, source_name, source, 3)
+    if kind == "Index":
+        let value = json_get(node, "value")
+        let index = json_get(node, "index")
+        let value_failure = find_type_error_expression(value, state, functions, records, source_name, source, "")
+        if not json_is_null(value_failure):
+            return value_failure
+        let index_failure = find_type_error_expression(index, state, functions, records, source_name, source, "")
+        if not json_is_null(index_failure):
+            return index_failure
+        let value_type = expression_type(expression(value, state, functions, records, ""))
+        let index_type = expression_type(expression(index, state, functions, records, ""))
+        if (is_list_type(value_type) or value_type == "Text") and index_type != "Int":
+            return failure_at_node("E_TYPE_INDEX", "list and text indexes must be Int", index, source_name, source, 1)
+        if is_map_type(value_type) and index_type != "Text":
+            return failure_at_node("E_TYPE_INDEX", "map indexes must be Text", index, source_name, source, 1)
+        if not is_list_type(value_type) and not is_map_type(value_type) and value_type != "Text":
+            return failure_at_node("E_TYPE_INDEX", "value is not indexable", node, source_name, source, 1)
+    if kind == "Try":
+        let value = json_get(node, "value")
+        let failure = find_type_error_expression(value, state, functions, records, source_name, source, "")
+        if not json_is_null(failure):
+            return failure
+        let value_type = expression_type(expression(value, state, functions, records, ""))
+        if not is_result_type(value_type):
+            return failure_at_node("E_RESULT_TRY_TYPE", "`?` requires a Result expression", node, source_name, source, 1)
+        if not is_result_type(state.return_type):
+            return failure_at_node("E_RESULT_TRY_FUNCTION", "`?` can only be used in a function that returns Result", node, source_name, source, 1)
+        if result_error_type(value_type) != result_error_type(state.return_type):
+            return failure_at_node("E_RESULT_TRY_ERROR", "the Result error type must match the enclosing function", node, source_name, source, 1)
+    return json_null()
+
+fn find_type_error_in_block(statements: Json, state: CompilerState, functions: List[FunctionSignature], records: List[RecordSignature], source_name: Text, source: Text) -> Json:
+    var current = state
+    var cursor = 0
+    while cursor < json_len(statements):
+        let statement = json_index(statements, cursor)
+        let kind = json_as_text(json_get(statement, "kind"))
+        var failure = json_null()
+        if kind == "Let":
+            let annotation = json_get(statement, "annotation")
+            var expected = ""
+            if not json_is_null(annotation):
+                set expected = type_name(annotation, records)
+            let value = json_get(statement, "value")
+            set failure = find_type_error_expression(value, current, functions, records, source_name, source, expected)
+            if json_is_null(failure):
+                let actual = expression_type(expression(value, current, functions, records, expected))
+                if expected != "" and actual != expected:
+                    set failure = failure_at_node("E_TYPE_ANNOTATION", "local annotation does not match its value", statement, source_name, source, len(json_as_text(json_get(statement, "name"))))
+                else:
+                    let slot = current.next_local
+                    let locals = add_local(current.locals, json_as_text(json_get(statement, "name")), slot, actual, json_as_bool(json_get(statement, "mutable")))
+                    set current = state_with_locals(current, locals, slot + 1)
+        if kind == "Set":
+            let name = json_as_text(json_get(statement, "name"))
+            let expected = local_type(current.locals, name)
+            let value = json_get(statement, "value")
+            set failure = find_type_error_expression(value, current, functions, records, source_name, source, expected)
+            if json_is_null(failure):
+                let actual = expression_type(expression(value, current, functions, records, expected))
+                if actual != expected:
+                    set failure = failure_at_node("E_TYPE_ASSIGN", "assignment value does not match the local type", statement, source_name, source, len(name))
+        if kind == "Return":
+            let value = json_get(statement, "value")
+            set failure = find_type_error_expression(value, current, functions, records, source_name, source, current.return_type)
+            if json_is_null(failure):
+                let actual = expression_type(expression(value, current, functions, records, current.return_type))
+                if actual != current.return_type:
+                    set failure = failure_at_node("E_TYPE_RETURN", "return expression does not match the function result type", statement, source_name, source, 6)
+        if kind == "CallStatement":
+            set failure = find_type_error_expression(json_get(statement, "call"), current, functions, records, source_name, source, "")
+        if kind == "If" or kind == "While":
+            let condition = json_get(statement, "condition")
+            set failure = find_type_error_expression(condition, current, functions, records, source_name, source, "")
+            if json_is_null(failure) and expression_type(expression(condition, current, functions, records, "")) != "Bool":
+                set failure = failure_at_node("E_TYPE_CONDITION", "condition must be Bool", condition, source_name, source, 1)
+            if json_is_null(failure):
+                set failure = find_type_error_in_block(json_get(statement, "body"), current, functions, records, source_name, source)
+            if json_is_null(failure) and json_has(statement, "alternate"):
+                set failure = find_type_error_in_block(json_get(statement, "alternate"), current, functions, records, source_name, source)
+        if kind == "For":
+            let values = json_get(statement, "values")
+            set failure = find_type_error_expression(values, current, functions, records, source_name, source, "")
+            if json_is_null(failure):
+                let values_type = expression_type(expression(values, current, functions, records, ""))
+                if not is_list_type(values_type) and not is_map_type(values_type):
+                    set failure = failure_at_node("E_TYPE_ITERATION", "for loops iterate over a List or Map", values, source_name, source, 1)
+                else:
+                    var item_type = list_element_type(values_type, records)
+                    if is_map_type(values_type):
+                        set item_type = "Text"
+                    let name = json_as_text(json_get(statement, "name"))
+                    let loop_local = add_local(current.locals, name, current.next_local, item_type, false)
+                    let loop_state = state_with_locals(current, loop_local, current.next_local + 1)
+                    set failure = find_type_error_in_block(json_get(statement, "body"), loop_state, functions, records, source_name, source)
+        if kind == "Match":
+            let value = json_get(statement, "value")
+            set failure = find_type_error_expression(value, current, functions, records, source_name, source, "")
+            if json_is_null(failure):
+                let matched_type = expression_type(expression(value, current, functions, records, ""))
+                if not is_option_type(matched_type) and not is_result_type(matched_type):
+                    set failure = failure_at_node("E_MATCH_TYPE", "match currently supports Option and Result values", value, source_name, source, 1)
+                else:
+                    let arms = json_get(statement, "arms")
+                    var saw_true = false
+                    var saw_false = false
+                    var arm_cursor = 0
+                    while json_is_null(failure) and arm_cursor < json_len(arms):
+                        let arm = json_index(arms, arm_cursor)
+                        let variant = json_as_text(json_get(arm, "variant"))
+                        let is_true = variant == "Some" or variant == "Ok"
+                        if (is_option_type(matched_type) and variant != "Some" and variant != "None") or (is_result_type(matched_type) and variant != "Ok" and variant != "Err"):
+                            set failure = failure_at_node("E_MATCH_VARIANT", "match variant does not belong to the matched type", arm, source_name, source, len(variant))
+                        else:
+                            if is_true and saw_true or not is_true and saw_false:
+                                set failure = failure_at_node("E_MATCH_DUPLICATE", "match contains a duplicate variant", arm, source_name, source, len(variant))
+                            else:
+                                if is_true:
+                                    set saw_true = true
+                                else:
+                                    set saw_false = true
+                                var arm_state = current
+                                let binding = json_get(arm, "binding")
+                                if not json_is_null(binding):
+                                    var binding_type = list_element_type(matched_type, records)
+                                    if not is_true:
+                                        set binding_type = result_error_type(matched_type)
+                                    let binding_name = json_as_text(binding)
+                                    let arm_locals = add_local(current.locals, binding_name, current.next_local, binding_type, false)
+                                    set arm_state = state_with_locals(current, arm_locals, current.next_local + 1)
+                                set failure = find_type_error_in_block(json_get(arm, "body"), arm_state, functions, records, source_name, source)
+                        set arm_cursor = arm_cursor + 1
+                    if json_is_null(failure) and (not saw_true or not saw_false or json_len(arms) != 2):
+                        set failure = failure_at_node("E_MATCH_NONEXHAUSTIVE", "match must contain exactly one arm for each variant", statement, source_name, source, 5)
+        if not json_is_null(failure):
+            return failure
+        set cursor = cursor + 1
+    return json_null()
+
+fn block_always_returns(statements: Json) -> Bool:
+    var cursor = 0
+    while cursor < json_len(statements):
+        let statement = json_index(statements, cursor)
+        let kind = json_as_text(json_get(statement, "kind"))
+        if kind == "Return":
+            return true
+        if kind == "If" and json_has(statement, "alternate"):
+            if block_always_returns(json_get(statement, "body")) and block_always_returns(json_get(statement, "alternate")):
+                return true
+        if kind == "Match":
+            let arms = json_get(statement, "arms")
+            var all_return = json_len(arms) == 2
+            var arm_cursor = 0
+            while all_return and arm_cursor < json_len(arms):
+                if not block_always_returns(json_get(json_index(arms, arm_cursor), "body")):
+                    set all_return = false
+                set arm_cursor = arm_cursor + 1
+            if all_return:
+                return true
+        set cursor = cursor + 1
+    return false
+
+fn module_index(sources: Json, source_module: Text) -> Int:
+    var cursor = 0
+    while cursor < json_len(sources):
+        if json_as_text(json_get(json_index(sources, cursor), "name")) == source_module:
+            return cursor
+        set cursor = cursor + 1
+    return -1
+
+fn function_name_count(functions: Json, name: Text) -> Int:
+    var count = 0
+    var cursor = 0
+    while cursor < json_len(functions):
+        if json_as_text(json_get(json_index(functions, cursor), "name")) == name:
+            set count = count + 1
+        set cursor = cursor + 1
+    return count
+
+pub fn compile_source_with_roots(source_name: Text, source: Text, stdlib_root: Text, package_roots: Json) -> Json:
+    let program = load_program(source_name, source_name, "", "", source, json_array(), json_array(), 0, source_name, stdlib_root, package_roots)
+    if json_has(program, "compile_error"):
+        return json_get(program, "compile_error")
+    let loaded_functions = json_get(program, "functions")
+    let external_nodes = json_get(program, "externals")
     let record_nodes = json_get(program, "records")
+    let sources = json_get(program, "sources")
+    var functions = json_array()
+    var symbol_cursor = 0
+    while symbol_cursor < json_len(loaded_functions):
+        var function = json_index(loaded_functions, symbol_cursor)
+        let function_name = json_as_text(json_get(function, "name"))
+        let function_module = json_as_text(json_get(function, "source_name"))
+        let name_count = function_name_count(loaded_functions, function_name)
+        if name_count > 1 and not (function_module == source_name and function_name == "main"):
+            let identifier = module_index(sources, function_module)
+            set function = json_set(function, "symbol", json_text("@module/" + json_stringify(json_int(identifier)) + "/" + function_name))
+        else:
+            set function = json_set(function, "symbol", json_text(function_name))
+        set functions = json_push(functions, function)
+        set symbol_cursor = symbol_cursor + 1
     var records: List[RecordSignature] = []
     var record_cursor = 0
     while record_cursor < json_len(record_nodes):
         let record_node = json_index(record_nodes, record_cursor)
+        let record_name = json_as_text(json_get(record_node, "name"))
+        if is_record(records, record_name):
+            return failure_at_node("E_RECORD_NAME", "record name `" + record_name + "` is already declared", record_node, source_name, source, len(record_name))
+        if known_primitive_type(record_name) or record_name == "List" or record_name == "Map" or record_name == "Option" or record_name == "Result":
+            return failure_at_node("E_RECORD_NAME", "record name `" + record_name + "` is reserved", record_node, source_name, source, len(record_name))
         let field_nodes = json_get(record_node, "fields")
         var fields: List[RecordField] = []
         var field_cursor = 0
         while field_cursor < json_len(field_nodes):
             let field_node = json_index(field_nodes, field_cursor)
-            set fields = list_push(fields, RecordField(json_as_text(json_get(field_node, "name")), json_get(field_node, "type")))
+            let field_name = json_as_text(json_get(field_node, "name"))
+            var prior_field = 0
+            while prior_field < field_cursor:
+                if json_as_text(json_get(json_index(field_nodes, prior_field), "name")) == field_name:
+                    let record_source_name = json_as_text(json_get(record_node, "source_module"))
+                    let record_source = module_source(sources, record_source_name)
+                    return failure_at_node("E_RECORD_FIELD_DUPLICATE", "record field `" + field_name + "` is declared more than once", field_node, record_source_name, record_source, len(field_name))
+                set prior_field = prior_field + 1
+            set fields = list_push(fields, RecordField(field_name, json_get(field_node, "type")))
             set field_cursor = field_cursor + 1
-        set records = list_push(records, RecordSignature(json_as_text(json_get(record_node, "name")), fields))
+        set records = list_push(records, RecordSignature(json_as_text(json_get(record_node, "name")), fields, json_as_text(json_get(record_node, "source_module")), json_get(record_node, "imports"), json_as_bool(json_get(record_node, "public"))))
         set record_cursor = record_cursor + 1
     var signatures: List[FunctionSignature] = []
     var signature_cursor = 0
     while signature_cursor < json_len(functions):
         let function = json_index(functions, signature_cursor)
-        set signatures = list_push(signatures, FunctionSignature(json_as_text(json_get(function, "name")), json_get(function, "result")))
+        let parameter_nodes = json_get(function, "parameters")
+        var parameter_types: List[Text] = []
+        var parameter_names: List[Text] = []
+        var parameter_cursor = 0
+        while parameter_cursor < json_len(parameter_nodes):
+            let parameter = json_index(parameter_nodes, parameter_cursor)
+            set parameter_types = list_push(parameter_types, type_name(json_get(parameter, "type"), records))
+            set parameter_names = list_push(parameter_names, json_as_text(json_get(parameter, "name")))
+            set parameter_cursor = parameter_cursor + 1
+        set signatures = list_push(signatures, FunctionSignature(json_as_text(json_get(function, "name")), json_as_text(json_get(function, "symbol")), json_as_text(json_get(function, "source_name")), json_get(function, "imports"), json_as_bool(json_get(function, "public")), json_get(function, "result"), parameter_types, false, "", "", parameter_names))
         set signature_cursor = signature_cursor + 1
+    var external_cursor = 0
+    while external_cursor < json_len(external_nodes):
+        let external = json_index(external_nodes, external_cursor)
+        let parameter_nodes = json_get(external, "parameters")
+        var parameter_types: List[Text] = []
+        var parameter_names: List[Text] = []
+        var parameter_cursor = 0
+        while parameter_cursor < json_len(parameter_nodes):
+            let parameter = json_index(parameter_nodes, parameter_cursor)
+            set parameter_types = list_push(parameter_types, type_name(json_get(parameter, "type"), records))
+            set parameter_names = list_push(parameter_names, json_as_text(json_get(parameter, "name")))
+            set parameter_cursor = parameter_cursor + 1
+        set signatures = list_push(signatures, FunctionSignature(json_as_text(json_get(external, "name")), json_as_text(json_get(external, "symbol")), json_as_text(json_get(external, "source_name")), json_get(external, "imports"), false, json_get(external, "result"), parameter_types, true, json_as_text(json_get(external, "module")), json_as_text(json_get(external, "callable")), parameter_names))
+        set external_cursor = external_cursor + 1
+    var validation_cursor = 0
+    let entry_failure = function_entry_failure(functions, source_name, records, sources)
+    if not json_is_null(entry_failure):
+        return entry_failure
+    var record_type_cursor = 0
+    while record_type_cursor < json_len(record_nodes):
+        let record_node = json_index(record_nodes, record_type_cursor)
+        let record_source_name = json_as_text(json_get(record_node, "source_module"))
+        let record_source = module_source(sources, record_source_name)
+        let visible_records = record_scope(records, record_source_name, json_get(record_node, "imports"))
+        let fields = json_get(record_node, "fields")
+        var field_cursor = 0
+        while field_cursor < json_len(fields):
+            let field = json_index(fields, field_cursor)
+            let field_type = json_get(field, "type")
+            if not valid_type(field_type, visible_records):
+                let unknown = json_as_text(json_get(field_type, "name"))
+                return failure_at_node("E_TYPE_UNKNOWN", "unknown or inaccessible type `" + unknown + "`", field_type, record_source_name, record_source, len(unknown))
+            set field_cursor = field_cursor + 1
+        set record_type_cursor = record_type_cursor + 1
+    var external_type_cursor = 0
+    while external_type_cursor < json_len(external_nodes):
+        let external = json_index(external_nodes, external_type_cursor)
+        let external_source_name = json_as_text(json_get(external, "source_name"))
+        let external_source = module_source(sources, external_source_name)
+        let visible_records = record_scope(records, external_source_name, json_get(external, "imports"))
+        let external_name = json_as_text(json_get(external, "name"))
+        let external_params = json_get(external, "parameters")
+        if declaration_name_count(external_nodes, external_name, external_source_name, "source_name") > 1 or declaration_name_count(loaded_functions, external_name, external_source_name, "source_name") > 0 or is_record(records, external_name):
+            return failure_at_node("E_NAME_DUPLICATE", "external function `" + external_name + "` conflicts with another declaration", external, external_source_name, external_source, len(external_name))
+        var external_parameter_cursor = 0
+        while external_parameter_cursor < json_len(external_params):
+            let parameter = json_index(external_params, external_parameter_cursor)
+            let parameter_name = json_as_text(json_get(parameter, "name"))
+            var previous_parameter = 0
+            while previous_parameter < external_parameter_cursor:
+                if json_as_text(json_get(json_index(external_params, previous_parameter), "name")) == parameter_name:
+                    return failure_at_node("E_NAME_DUPLICATE", "external parameter `" + parameter_name + "` is declared more than once", parameter, external_source_name, external_source, len(parameter_name))
+                set previous_parameter = previous_parameter + 1
+            let parameter_type = json_get(parameter, "type")
+            if not valid_type(parameter_type, visible_records):
+                let unknown = json_as_text(json_get(parameter_type, "name"))
+                return failure_at_node("E_TYPE_UNKNOWN", "unknown or inaccessible type `" + unknown + "`", parameter_type, external_source_name, external_source, len(unknown))
+            if not python_bridge_type(parameter_type):
+                return failure_at_node("E_EXTERN_TYPE", "external declarations support scalar values, Json, and nested List/Map values", parameter_type, external_source_name, external_source, len(json_as_text(json_get(parameter_type, "name"))))
+            set external_parameter_cursor = external_parameter_cursor + 1
+        let external_result = json_get(external, "result")
+        if not valid_type(external_result, visible_records):
+            let unknown = json_as_text(json_get(external_result, "name"))
+            return failure_at_node("E_TYPE_UNKNOWN", "unknown or inaccessible type `" + unknown + "`", external_result, external_source_name, external_source, len(unknown))
+        if not python_bridge_type(external_result):
+            return failure_at_node("E_EXTERN_TYPE", "external declarations support scalar values, Json, and nested List/Map values", external_result, external_source_name, external_source, len(json_as_text(json_get(external_result, "name"))))
+        set external_type_cursor = external_type_cursor + 1
+    while validation_cursor < json_len(functions):
+        let function = json_index(functions, validation_cursor)
+        let function_source_name = json_as_text(json_get(function, "source_name"))
+        let function_source = module_source(sources, function_source_name)
+        let function_imports = json_get(function, "imports")
+        let function_name = json_as_text(json_get(function, "name"))
+        if declaration_name_count(loaded_functions, function_name, function_source_name, "source_name") > 1:
+            return failure_at_node("E_NAME_DUPLICATE", "function `" + function_name + "` is declared more than once in this module", function, function_source_name, function_source, len(function_name))
+        if is_record(records, function_name):
+            return failure_at_node("E_NAME_DUPLICATE", "function and record declarations cannot share a name", function, function_source_name, function_source, len(function_name))
+        let ambiguity = function_scope_failure(signatures, function_source_name, function_imports)
+        if not json_is_null(ambiguity):
+            return ambiguity
+        let visible_functions = function_scope(signatures, function_source_name, function_imports)
+        let visible_records = record_scope(records, function_source_name, function_imports)
+        let parameters = json_get(function, "parameters")
+        var type_cursor = 0
+        while type_cursor < json_len(parameters):
+            let parameter = json_index(parameters, type_cursor)
+            let parameter_type = json_get(parameter, "type")
+            if not valid_type(parameter_type, visible_records):
+                let unknown = json_as_text(json_get(parameter_type, "name"))
+                return failure_at_node("E_TYPE_UNKNOWN", "unknown or inaccessible type `" + unknown + "`", parameter_type, function_source_name, function_source, len(unknown))
+            set type_cursor = type_cursor + 1
+        let result_type_node = json_get(function, "result")
+        if not valid_type(result_type_node, visible_records):
+            let unknown = json_as_text(json_get(result_type_node, "name"))
+            return failure_at_node("E_TYPE_UNKNOWN", "unknown or inaccessible type `" + unknown + "`", result_type_node, function_source_name, function_source, len(unknown))
+        let failure = find_unknown_call_in_block(json_get(function, "body"), visible_functions, visible_records, function_source_name, function_source)
+        if not json_is_null(failure):
+            return failure
+        var function_locals: List[Json] = []
+        var parameter_cursor = 0
+        while parameter_cursor < json_len(parameters):
+            let parameter_name = json_as_text(json_get(json_index(parameters, parameter_cursor), "name"))
+            if local_index(function_locals, parameter_name) >= 0:
+                return failure_at_node("E_NAME_DUPLICATE", "parameter `" + parameter_name + "` is already defined", json_index(parameters, parameter_cursor), function_source_name, function_source, len(parameter_name))
+            set function_locals = add_validation_local(function_locals, parameter_name, false)
+            set parameter_cursor = parameter_cursor + 1
+        let name_failure = find_unbound_name_in_block(json_get(function, "body"), function_locals, visible_functions, visible_records, function_source_name, function_source)
+        if not json_is_null(name_failure):
+            return name_failure
+        let result_type = type_name(json_get(function, "result"), visible_records)
+        var typed_state = new_state(result_type, function_source)
+        set parameter_cursor = 0
+        while parameter_cursor < json_len(parameters):
+            let parameter = json_index(parameters, parameter_cursor)
+            let parameter_name = json_as_text(json_get(parameter, "name"))
+            let parameter_type = type_name(json_get(parameter, "type"), visible_records)
+            let parameter_locals = add_local(typed_state.locals, parameter_name, parameter_cursor, parameter_type, false)
+            set typed_state = state_with_locals(typed_state, parameter_locals, parameter_cursor + 1)
+            set parameter_cursor = parameter_cursor + 1
+        let type_failure = find_type_error_in_block(json_get(function, "body"), typed_state, visible_functions, visible_records, function_source_name, function_source)
+        if not json_is_null(type_failure):
+            return type_failure
+        if result_type != "Unit" and not block_always_returns(json_get(function, "body")):
+            return failure_at_node("E_RETURN_MISSING", "function does not return a value on every path", function, function_source_name, function_source, 2)
+        set validation_cursor = validation_cursor + 1
     var compiled = json_array()
     var cursor = 0
     while cursor < json_len(functions):
-        set compiled = json_push(compiled, compile_function(json_index(functions, cursor), signatures, records))
+        let function = json_index(functions, cursor)
+        let function_source_name = json_as_text(json_get(function, "source_name"))
+        let function_imports = json_get(function, "imports")
+        let visible_functions = function_scope(signatures, function_source_name, function_imports)
+        let visible_records = record_scope(records, function_source_name, function_imports)
+        set compiled = json_push(compiled, compile_function(function, visible_functions, visible_records, module_source(sources, function_source_name)))
         set cursor = cursor + 1
     var result = json_set(json_object(), "schema", json_text("veritas-bytecode-ir/v1"))
     set result = json_set(result, "source_name", json_text(source_name))
     set result = json_set(result, "entry", json_text("main"))
+    var compiled_sources = json_array()
+    var source_cursor = 0
+    while source_cursor < json_len(sources):
+        set compiled_sources = json_push(compiled_sources, json_text(json_as_text(json_get(json_index(sources, source_cursor), "name"))))
+        set source_cursor = source_cursor + 1
+    set result = json_set(result, "sources", compiled_sources)
     set result = json_set(result, "functions", compiled)
+    var compiled_externals = json_array()
+    set external_cursor = 0
+    while external_cursor < json_len(external_nodes):
+        let external = json_index(external_nodes, external_cursor)
+        let parameter_nodes = json_get(external, "parameters")
+        var parameter_types = json_array()
+        var parameter_names = json_array()
+        var parameter_cursor = 0
+        while parameter_cursor < json_len(parameter_nodes):
+            let parameter = json_index(parameter_nodes, parameter_cursor)
+            set parameter_types = json_push(parameter_types, json_text(type_name(json_get(parameter, "type"), records)))
+            set parameter_names = json_push(parameter_names, json_text(json_as_text(json_get(parameter, "name"))))
+            set parameter_cursor = parameter_cursor + 1
+        var compiled_external = json_set(json_object(), "name", json_text(json_as_text(json_get(external, "symbol"))))
+        set compiled_external = json_set(compiled_external, "module", json_text(json_as_text(json_get(external, "module"))))
+        set compiled_external = json_set(compiled_external, "callable", json_text(json_as_text(json_get(external, "callable"))))
+        set compiled_external = json_set(compiled_external, "parameters", parameter_types)
+        set compiled_external = json_set(compiled_external, "parameter_names", parameter_names)
+        set compiled_external = json_set(compiled_external, "result", json_text(type_name(json_get(external, "result"), records)))
+        set compiled_externals = json_push(compiled_externals, compiled_external)
+        set external_cursor = external_cursor + 1
+    set result = json_set(result, "externals", compiled_externals)
     var compiled_records = json_array()
     set cursor = 0
     while cursor < len(records):
@@ -870,7 +2371,8 @@ pub fn compile_source(source_name: Text, source: Text) -> Json:
         while field_cursor < len(fields):
             let field = fields[field_cursor]
             var compiled_field = json_set(json_object(), "name", json_text(field.name))
-            set compiled_field = json_set(compiled_field, "type", json_text(type_name(field.type, records)))
+            let visible_records = record_scope(records, record.source_module, record.imports)
+            set compiled_field = json_set(compiled_field, "type", json_text(type_name(field.type, visible_records)))
             set compiled_fields = json_push(compiled_fields, compiled_field)
             set field_cursor = field_cursor + 1
         var compiled_record = json_set(json_object(), "name", json_text(record.name))
@@ -880,10 +2382,58 @@ pub fn compile_source(source_name: Text, source: Text) -> Json:
     set result = json_set(result, "records", compiled_records)
     return result
 
+pub fn compile_source(source_name: Text, source: Text) -> Json:
+    return compile_source_with_roots(source_name, source, "", json_object())
+
+pub fn compiler_assemble(ir: Json) -> Bytes:
+    return artifact_assemble(ir)
+
+pub fn compiler_compile_project(source_name: Text, source: Text, stdlib_root: Text, package_roots: Json) -> Result[Bytes, Json]:
+    let compiled = compile_source_with_roots(source_name, source, stdlib_root, package_roots)
+    if json_as_text(json_get(compiled, "schema")) == "veritas-compile-failure/v1":
+        return Err(compiled)
+    return Ok(artifact_assemble(compiled))
+
 fn main() -> Int:
     let arguments = args()
-    assert(len(arguments) == 1)
+    if len(arguments) < 1:
+        print(json_stringify(compile_failure("E_COMPILE_ARGUMENTS", "compiler expects a source path", "<arguments>", 0, 0, 1, 1)))
+        return 0
     let path = arguments[0]
-    let source = unwrap(read_text(path))
-    print(json_stringify(compile_source(path, source)))
+    var stdlib_root = ""
+    var package_roots = json_object()
+    var argument_cursor = 1
+    while argument_cursor < len(arguments):
+        let option = arguments[argument_cursor]
+        if option == "--stdlib-root":
+            if argument_cursor + 1 >= len(arguments):
+                print(json_stringify(compile_failure("E_COMPILE_ARGUMENTS", "--stdlib-root requires a relative directory", "<arguments>", 0, 0, 1, 1)))
+                return 0
+            let root = arguments[argument_cursor + 1]
+            if root != "." and not safe_relative_path(root):
+                print(json_stringify(compile_failure("E_IMPORT_ROOT", "standard-library root must be a safe relative directory", "<arguments>", 0, 0, 1, 1)))
+                return 0
+            set stdlib_root = root
+            set argument_cursor = argument_cursor + 2
+        else:
+            if option == "--package-root":
+                if argument_cursor + 1 >= len(arguments):
+                    print(json_stringify(compile_failure("E_COMPILE_ARGUMENTS", "--package-root requires name=relative-directory", "<arguments>", 0, 0, 1, 1)))
+                    return 0
+                let assignment = arguments[argument_cursor + 1]
+                let package = prefix_before(assignment, "=")
+                let root = suffix_after(assignment, "=")
+                if package == "" or root == "" or contains_text(package_roots, package) or not safe_relative_path(root):
+                    print(json_stringify(compile_failure("E_IMPORT_ROOT", "package root must be a unique name=relative-directory assignment", "<arguments>", 0, 0, 1, 1)))
+                    return 0
+                set package_roots = json_set(package_roots, package, json_text(root))
+                set argument_cursor = argument_cursor + 2
+            else:
+                print(json_stringify(compile_failure("E_COMPILE_ARGUMENTS", "unknown compiler root option `" + option + "`", "<arguments>", 0, 0, 1, 1)))
+                return 0
+    let source_result = read_text(path)
+    if is_ok(source_result):
+        print(json_stringify(compile_source_with_roots(path, unwrap(source_result), stdlib_root, package_roots)))
+    else:
+        print(json_stringify(compile_failure("E_SOURCE_READ", file_error_message(error(source_result)), path, 0, 0, 1, 1)))
     return 0

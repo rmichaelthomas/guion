@@ -1,0 +1,2 @@
+relocated_project=/private/tmp/veritas-fresh-builders/bookloom-veritas/relocated/Bookloom — 銀河の蔵書
+relocated_data=/private/tmp/veritas-fresh-builders/bookloom-veritas/relocated-data

@@ -1,0 +1,21 @@
+{
+  "artifact_bytes": 8116,
+  "scope": "Final runnable project including usage note and unchanged fixture; excludes acceptance logs, initial copy, relocated duplicate and interpreter caches.",
+  "files": [
+    {
+      "path": "README.md",
+      "bytes": 1864,
+      "sha256": "99bae9721b3e7af5650391710d46111c76020c43e5cd528f083a1a0718299935"
+    },
+    {
+      "path": "fixtures/quote_server.py",
+      "bytes": 1657,
+      "sha256": "e3f1fd3543366ab947ea5d689ee2f131dce1ad69ec802b1707155be10f5f6c25"
+    },
+    {
+      "path": "quote_merge.py",
+      "bytes": 4595,
+      "sha256": "566eb9b6cb10de8d7614cef52f10a1c109fcc9bdab751ed29ac541a5e8094014"
+    }
+  ]
+}

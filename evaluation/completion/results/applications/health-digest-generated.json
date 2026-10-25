@@ -1,0 +1,679 @@
+{
+  "schema_version": 1,
+  "application": "health-digest",
+  "mode": "seeded independent-oracle cases against relocated package",
+  "seed": 20261024,
+  "sizes": [
+    24,
+    128
+  ],
+  "case_count": 2,
+  "concurrency": null,
+  "passed": true,
+  "cases": [
+    {
+      "case_id": "generated-health-24",
+      "candidate": {},
+      "passed": true,
+      "exit_code": 0,
+      "checks_passed": 4,
+      "checks_total": 4,
+      "steps": [
+        {
+          "exit_code": 0,
+          "checks_passed": 4,
+          "checks_total": 4,
+          "failures": [],
+          "elapsed_seconds": 0.095031
+        }
+      ],
+      "elapsed_seconds": 0.597184,
+      "http_fixtures": {
+        "health": {
+          "requests": [
+            {
+              "method": "GET",
+              "path": "/probe/0000"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0001"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0003"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0005"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0002"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0004"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0006"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0007"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0008"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0010"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0009"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0011"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0014"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0012"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0013"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0016"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0017"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0015"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0018"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0020"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0019"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0021"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0022"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0023"
+            }
+          ],
+          "max_in_flight": 3
+        }
+      },
+      "stdout": "",
+      "stderr": "",
+      "failures": []
+    },
+    {
+      "case_id": "generated-health-128",
+      "candidate": {},
+      "passed": true,
+      "exit_code": 0,
+      "checks_passed": 4,
+      "checks_total": 4,
+      "steps": [
+        {
+          "exit_code": 0,
+          "checks_passed": 4,
+          "checks_total": 4,
+          "failures": [],
+          "elapsed_seconds": 0.186526
+        }
+      ],
+      "elapsed_seconds": 0.658628,
+      "http_fixtures": {
+        "health": {
+          "requests": [
+            {
+              "method": "GET",
+              "path": "/probe/0003"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0001"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0000"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0002"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0005"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0004"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0006"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0008"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0007"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0009"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0010"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0011"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0012"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0014"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0013"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0015"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0016"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0017"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0018"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0019"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0021"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0020"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0022"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0023"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0024"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0025"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0026"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0027"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0030"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0031"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0029"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0028"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0032"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0033"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0035"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0034"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0036"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0037"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0038"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0039"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0040"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0042"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0041"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0043"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0044"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0046"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0045"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0047"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0049"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0048"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0050"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0051"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0052"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0054"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0053"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0055"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0056"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0057"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0058"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0059"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0060"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0062"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0061"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0064"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0063"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0066"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0067"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0065"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0068"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0069"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0070"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0071"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0072"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0073"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0074"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0075"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0076"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0077"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0078"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0079"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0080"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0081"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0084"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0083"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0082"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0086"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0085"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0087"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0088"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0089"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0090"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0091"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0092"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0093"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0094"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0095"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0097"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0096"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0098"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0100"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0099"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0101"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0102"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0103"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0105"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0104"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0106"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0107"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0108"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0109"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0110"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0111"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0112"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0113"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0116"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0115"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0114"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0117"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0119"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0120"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0118"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0121"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0123"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0122"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0124"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0125"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0127"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0126"
+            }
+          ],
+          "max_in_flight": 3
+        }
+      },
+      "stdout": "",
+      "stderr": "",
+      "failures": []
+    }
+  ]
+}

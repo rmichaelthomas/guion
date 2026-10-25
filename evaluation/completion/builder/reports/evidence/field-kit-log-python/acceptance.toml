@@ -1,0 +1,2 @@
+[storage]
+database = "/private/tmp/veritas-fresh-builders/field-kit-log-python/operator data/kit.sqlite3"

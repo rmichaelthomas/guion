@@ -1,0 +1,249 @@
+[
+  {
+    "command": [
+      "/opt/homebrew/opt/python@3.14/bin/python3.14",
+      "/private/tmp/veritas-fresh-builders/field-kit-log-python/runtime/field_kit_log.py",
+      "--config",
+      "/private/tmp/veritas-fresh-builders/field-kit-log-python/acceptance.toml",
+      "add",
+      "radio-1",
+      "Field radio"
+    ],
+    "exit_code": 0,
+    "stdout": "Added radio-1: Field radio\n",
+    "stderr": "",
+    "seconds": 0.06449254200560972,
+    "utc": "2026-10-25T10:47:39.377931+00:00"
+  },
+  {
+    "command": [
+      "/opt/homebrew/opt/python@3.14/bin/python3.14",
+      "/private/tmp/veritas-fresh-builders/field-kit-log-python/runtime/field_kit_log.py",
+      "--config",
+      "/private/tmp/veritas-fresh-builders/field-kit-log-python/acceptance.toml",
+      "add",
+      "lamp-2",
+      "Portable lamp"
+    ],
+    "exit_code": 0,
+    "stdout": "Added lamp-2: Portable lamp\n",
+    "stderr": "",
+    "seconds": 0.053414916998008266,
+    "utc": "2026-10-25T10:47:39.431574+00:00"
+  },
+  {
+    "command": [
+      "/opt/homebrew/opt/python@3.14/bin/python3.14",
+      "/private/tmp/veritas-fresh-builders/field-kit-log-python/runtime/field_kit_log.py",
+      "--config",
+      "/private/tmp/veritas-fresh-builders/field-kit-log-python/acceptance.toml",
+      "inspect",
+      "radio-1",
+      "pass",
+      "Battery charged"
+    ],
+    "exit_code": 0,
+    "stdout": "Recorded pass for radio-1 on 2026-10-25\n",
+    "stderr": "",
+    "seconds": 0.0571399580076104,
+    "utc": "2026-10-25T10:47:39.488795+00:00"
+  },
+  {
+    "command": [
+      "/opt/homebrew/opt/python@3.14/bin/python3.14",
+      "/private/tmp/veritas-fresh-builders/field-kit-log-python/runtime/field_kit_log.py",
+      "--config",
+      "/private/tmp/veritas-fresh-builders/field-kit-log-python/acceptance.toml",
+      "inspect",
+      "lamp-2",
+      "fail",
+      "Lens cracked"
+    ],
+    "exit_code": 0,
+    "stdout": "Recorded fail for lamp-2 on 2026-10-25\n",
+    "stderr": "",
+    "seconds": 0.05128662500646897,
+    "utc": "2026-10-25T10:47:39.540185+00:00"
+  },
+  {
+    "command": [
+      "/opt/homebrew/opt/python@3.14/bin/python3.14",
+      "/private/tmp/veritas-fresh-builders/field-kit-log-python/runtime/field_kit_log.py",
+      "--config",
+      "/private/tmp/veritas-fresh-builders/field-kit-log-python/acceptance.toml",
+      "list"
+    ],
+    "exit_code": 0,
+    "stdout": "inspection_id\titem_id\tdate\tresult\tnote\n1\tradio-1\t2026-10-25\tpass\tBattery charged\n2\tlamp-2\t2026-10-25\tfail\tLens cracked\n",
+    "stderr": "",
+    "seconds": 0.05639358299958985,
+    "utc": "2026-10-25T10:47:39.596670+00:00"
+  },
+  {
+    "command": [
+      "/opt/homebrew/opt/python@3.14/bin/python3.14",
+      "/private/tmp/veritas-fresh-builders/field-kit-log-python/runtime/field_kit_log.py",
+      "--config",
+      "/private/tmp/veritas-fresh-builders/field-kit-log-python/acceptance.toml",
+      "list"
+    ],
+    "exit_code": 0,
+    "stdout": "inspection_id\titem_id\tdate\tresult\tnote\n1\tradio-1\t2026-10-25\tpass\tBattery charged\n2\tlamp-2\t2026-10-25\tfail\tLens cracked\n",
+    "stderr": "",
+    "seconds": 0.057248334007454105,
+    "utc": "2026-10-25T10:47:39.654350+00:00"
+  },
+  {
+    "command": [
+      "/opt/homebrew/opt/python@3.14/bin/python3.14",
+      "/private/tmp/veritas-fresh-builders/field-kit-log-python/runtime/field_kit_log.py",
+      "--config",
+      "/private/tmp/veritas-fresh-builders/field-kit-log-python/acceptance.toml",
+      "add",
+      "radio-1",
+      "Duplicate"
+    ],
+    "exit_code": 1,
+    "stdout": "",
+    "stderr": "Error: duplicate item ID: radio-1\n",
+    "seconds": 0.06001366699638311,
+    "utc": "2026-10-25T10:47:39.714632+00:00"
+  },
+  {
+    "command": [
+      "/opt/homebrew/opt/python@3.14/bin/python3.14",
+      "/private/tmp/veritas-fresh-builders/field-kit-log-python/runtime/field_kit_log.py",
+      "--config",
+      "/private/tmp/veritas-fresh-builders/field-kit-log-python/acceptance.toml",
+      "list"
+    ],
+    "exit_code": 0,
+    "stdout": "inspection_id\titem_id\tdate\tresult\tnote\n1\tradio-1\t2026-10-25\tpass\tBattery charged\n2\tlamp-2\t2026-10-25\tfail\tLens cracked\n",
+    "stderr": "",
+    "seconds": 0.06200775000615977,
+    "utc": "2026-10-25T10:47:39.776869+00:00"
+  },
+  {
+    "command": [
+      "/opt/homebrew/opt/python@3.14/bin/python3.14",
+      "/private/tmp/veritas-fresh-builders/field-kit-log-python/runtime/field_kit_log.py",
+      "--config",
+      "/private/tmp/veritas-fresh-builders/field-kit-log-python/acceptance.toml",
+      "inspect",
+      "unknown",
+      "pass",
+      "Missing"
+    ],
+    "exit_code": 1,
+    "stdout": "",
+    "stderr": "Error: unknown item: unknown\n",
+    "seconds": 0.05872087499301415,
+    "utc": "2026-10-25T10:47:39.835815+00:00"
+  },
+  {
+    "command": [
+      "/opt/homebrew/opt/python@3.14/bin/python3.14",
+      "/private/tmp/veritas-fresh-builders/field-kit-log-python/runtime/field_kit_log.py",
+      "--config",
+      "/private/tmp/veritas-fresh-builders/field-kit-log-python/acceptance.toml",
+      "list"
+    ],
+    "exit_code": 0,
+    "stdout": "inspection_id\titem_id\tdate\tresult\tnote\n1\tradio-1\t2026-10-25\tpass\tBattery charged\n2\tlamp-2\t2026-10-25\tfail\tLens cracked\n",
+    "stderr": "",
+    "seconds": 0.06418941600713879,
+    "utc": "2026-10-25T10:47:39.900206+00:00"
+  },
+  {
+    "command": [
+      "/opt/homebrew/opt/python@3.14/bin/python3.14",
+      "/private/tmp/veritas-fresh-builders/field-kit-log-python/runtime/field_kit_log.py",
+      "--config",
+      "/private/tmp/veritas-fresh-builders/field-kit-log-python/acceptance.toml",
+      "inspect",
+      "radio-1",
+      "maybe",
+      "Invalid"
+    ],
+    "exit_code": 2,
+    "stdout": "",
+    "stderr": "usage: field_kit_log.py inspect [-h] item_id {pass,fail} note\nfield_kit_log.py inspect: error: argument result: invalid choice: 'maybe' (choose from 'pass', 'fail')\n",
+    "seconds": 0.08546000000205822,
+    "utc": "2026-10-25T10:47:39.985887+00:00"
+  },
+  {
+    "command": [
+      "/opt/homebrew/opt/python@3.14/bin/python3.14",
+      "/private/tmp/veritas-fresh-builders/field-kit-log-python/runtime/field_kit_log.py",
+      "--config",
+      "/private/tmp/veritas-fresh-builders/field-kit-log-python/acceptance.toml",
+      "list"
+    ],
+    "exit_code": 0,
+    "stdout": "inspection_id\titem_id\tdate\tresult\tnote\n1\tradio-1\t2026-10-25\tpass\tBattery charged\n2\tlamp-2\t2026-10-25\tfail\tLens cracked\n",
+    "stderr": "",
+    "seconds": 0.06364233299973421,
+    "utc": "2026-10-25T10:47:40.049736+00:00"
+  },
+  {
+    "command": [
+      "/opt/homebrew/opt/python@3.14/bin/python3.14",
+      "/private/tmp/veritas-fresh-builders/field-kit-log-python/runtime/field_kit_log.py",
+      "--config",
+      "/private/tmp/veritas-fresh-builders/field-kit-log-python/acceptance.toml",
+      "add",
+      "",
+      "Blank ID"
+    ],
+    "exit_code": 2,
+    "stdout": "",
+    "stderr": "usage: field_kit_log.py add [-h] item_id name\nfield_kit_log.py add: error: argument item_id: use 1\u2013280 characters without tabs or newlines\n",
+    "seconds": 0.05275962500309106,
+    "utc": "2026-10-25T10:47:40.102724+00:00"
+  },
+  {
+    "command": [
+      "/opt/homebrew/opt/python@3.14/bin/python3.14",
+      "/private/tmp/veritas-fresh-builders/field-kit-log-python/runtime/field_kit_log.py",
+      "--config",
+      "/private/tmp/veritas-fresh-builders/field-kit-log-python/acceptance.toml",
+      "list"
+    ],
+    "exit_code": 0,
+    "stdout": "inspection_id\titem_id\tdate\tresult\tnote\n1\tradio-1\t2026-10-25\tpass\tBattery charged\n2\tlamp-2\t2026-10-25\tfail\tLens cracked\n",
+    "stderr": "",
+    "seconds": 0.05103258299641311,
+    "utc": "2026-10-25T10:47:40.153962+00:00"
+  },
+  {
+    "command": [
+      "/opt/homebrew/opt/python@3.14/bin/python3.14",
+      "/private/tmp/veritas-fresh-builders/field-kit-log-python/runtime/field_kit_log.py",
+      "--config",
+      "/private/tmp/veritas-fresh-builders/field-kit-log-python/acceptance.toml",
+      "inspect",
+      "radio-1",
+      "pass",
+      ""
+    ],
+    "exit_code": 2,
+    "stdout": "",
+    "stderr": "usage: field_kit_log.py inspect [-h] item_id {pass,fail} note\nfield_kit_log.py inspect: error: argument note: use 1\u2013280 characters without tabs or newlines\n",
+    "seconds": 0.050819249998312443,
+    "utc": "2026-10-25T10:47:40.204971+00:00"
+  },
+  {
+    "command": [
+      "/opt/homebrew/opt/python@3.14/bin/python3.14",
+      "/private/tmp/veritas-fresh-builders/field-kit-log-python/runtime/field_kit_log.py",
+      "--config",
+      "/private/tmp/veritas-fresh-builders/field-kit-log-python/acceptance.toml",
+      "list"
+    ],
+    "exit_code": 0,
+    "stdout": "inspection_id\titem_id\tdate\tresult\tnote\n1\tradio-1\t2026-10-25\tpass\tBattery charged\n2\tlamp-2\t2026-10-25\tfail\tLens cracked\n",
+    "stderr": "",
+    "seconds": 0.05243424999935087,
+    "utc": "2026-10-25T10:47:40.257605+00:00"
+  }
+]

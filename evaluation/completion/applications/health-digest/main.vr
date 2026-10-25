@@ -1,0 +1,252 @@
+import "std:json"
+import "std:text"
+import "std:time"
+
+fn maintenance_adjusted(service: Json, fallback: Text) -> Text:
+    if json_as_bool(json_get(service, "in_maintenance")) and fallback != "healthy":
+        return "maintenance"
+    return fallback
+
+fn service_name_before(left: Text, right: Text) -> Bool:
+    let left_folded = text_casefold(left)
+    let right_folded = text_casefold(right)
+    if left_folded != right_folded:
+        return text_compare_bytes(left_folded, right_folded) < 0
+    return text_compare_bytes(left, right) < 0
+
+fn sort_service_names(values: List[Text]) -> List[Text]:
+    var ordered = values
+    var width = 1
+    while width < len(ordered):
+        var merged: List[Text] = []
+        var merge_start = 0
+        while merge_start < len(ordered):
+            var left_index = merge_start
+            var middle = merge_start + width
+            if middle > len(ordered):
+                set middle = len(ordered)
+            var right_index = middle
+            var end_index = middle + width
+            if end_index > len(ordered):
+                set end_index = len(ordered)
+            while left_index < middle and right_index < end_index:
+                if service_name_before(ordered[left_index], ordered[right_index]):
+                    set merged = list_push(merged, ordered[left_index])
+                    set left_index = left_index + 1
+                else:
+                    set merged = list_push(merged, ordered[right_index])
+                    set right_index = right_index + 1
+            while left_index < middle:
+                set merged = list_push(merged, ordered[left_index])
+                set left_index = left_index + 1
+            while right_index < end_index:
+                set merged = list_push(merged, ordered[right_index])
+                set right_index = right_index + 1
+            set merge_start = end_index
+        set ordered = merged
+        set width = width * 2
+    return ordered
+
+fn probe_service(service: Json) -> Json:
+    let name = json_as_text(json_get(service, "name"))
+    let url = json_as_text(json_get(service, "url"))
+    let timeout = json_as_int(json_get(service, "timeout_ms"))
+    let headers: Map[Text, Text] = {}
+    let response = http_request_with_timeout("GET", url, headers, "", timeout)
+    var result = json_object()
+    set result = json_set(result, "service", json_text(name))
+    if not is_ok(response):
+        let problem = error(response)
+        var state = maintenance_adjusted(service, "unhealthy")
+        if http_error_code(problem) == "R_HTTP_TIMEOUT":
+            set state = "timeout"
+        set result = json_set(result, "status", json_text(state))
+        set result = json_set(result, "raw_status", json_null())
+        return result
+    let envelope = unwrap(response)
+    let status_code = json_as_int(json_get(envelope, "status"))
+    if status_code < 200 or status_code >= 300:
+        set result = json_set(result, "status", json_text(maintenance_adjusted(service, "unhealthy")))
+        set result = json_set(result, "raw_status", json_null())
+        return result
+    let parsed = json_parse(json_as_text(json_get(envelope, "body")))
+    if not is_ok(parsed):
+        set result = json_set(result, "status", json_text(maintenance_adjusted(service, "invalid_response")))
+        set result = json_set(result, "raw_status", json_null())
+        return result
+    let document = unwrap(parsed)
+    let raw_status_result = json_get_safe(document, "status")
+    if not is_ok(raw_status_result):
+        set result = json_set(result, "status", json_text(maintenance_adjusted(service, "invalid_response")))
+        set result = json_set(result, "raw_status", json_null())
+        return result
+    let raw_status = json_text_safe(unwrap(raw_status_result))
+    if not is_ok(raw_status):
+        set result = json_set(result, "status", json_text(maintenance_adjusted(service, "invalid_response")))
+        set result = json_set(result, "raw_status", json_null())
+        return result
+    let raw_value = unwrap(raw_status)
+    var state = "unhealthy"
+    if raw_value == "ok":
+        set state = "healthy"
+    set state = maintenance_adjusted(service, state)
+    set result = json_set(result, "status", json_text(state))
+    set result = json_set(result, "raw_status", json_text(raw_value))
+    return result
+
+fn main() -> Int:
+    let arguments = args()
+    var config_path = ""
+    var json_path = ""
+    var text_path = ""
+    var now_text = ""
+    var concurrency = 4
+    var timeout_ms = 1000
+    var index = 0
+    while index < len(arguments):
+        if arguments[index] == "--config" and index + 1 < len(arguments):
+            set config_path = arguments[index + 1]
+            set index = index + 2
+        else:
+            if arguments[index] == "--json" and index + 1 < len(arguments):
+                set json_path = arguments[index + 1]
+                set index = index + 2
+            else:
+                if arguments[index] == "--text" and index + 1 < len(arguments):
+                    set text_path = arguments[index + 1]
+                    set index = index + 2
+                else:
+                    if arguments[index] == "--concurrency" and index + 1 < len(arguments):
+                        let parsed = text_parse_integer(arguments[index + 1])
+                        if not is_ok(parsed):
+                            eprint("concurrency must be a positive integer")
+                            return 2
+                        set concurrency = unwrap(parsed)
+                        set index = index + 2
+                    else:
+                        if arguments[index] == "--timeout-ms" and index + 1 < len(arguments):
+                            let parsed = text_parse_integer(arguments[index + 1])
+                            if not is_ok(parsed):
+                                eprint("timeout-ms must be a positive integer")
+                                return 2
+                            set timeout_ms = unwrap(parsed)
+                            set index = index + 2
+                        else:
+                            if arguments[index] == "--now" and index + 1 < len(arguments):
+                                set now_text = arguments[index + 1]
+                                set index = index + 2
+                            else:
+                                eprint("unknown or incomplete argument")
+                                return 2
+    if config_path == "" or json_path == "" or text_path == "" or json_path == text_path or concurrency < 1 or timeout_ms < 1:
+        eprint("usage: health-digest --config PATH --json PATH --text PATH --concurrency N --timeout-ms N [--now RFC3339]")
+        return 2
+    var now = Instant(0)
+    if now_text != "":
+        let now_result = parse_timestamp(now_text)
+        if not is_ok(now_result):
+            eprint("--now must be an RFC3339 timestamp")
+            return 1
+        set now = unwrap(now_result)
+    let config_source = read_text(config_path)
+    if not is_ok(config_source):
+        eprint("cannot read service config")
+        return 1
+    let config_result = json_parse(unwrap(config_source))
+    if not is_ok(config_result):
+        eprint("invalid service config JSON")
+        return 1
+    let config = unwrap(config_result)
+    let services_result = json_get_safe(config, "services")
+    if not is_ok(services_result):
+        eprint("service config requires a services array")
+        return 1
+    let services = unwrap(services_result)
+    var names: Map[Text, Bool] = {}
+    var work_items: List[Json] = []
+    var requires_now = false
+    var service_index = 0
+    while service_index < json_len(services):
+        let service = json_index(services, service_index)
+        let name_json = json_get_safe(service, "name")
+        let url_json = json_get_safe(service, "url")
+        if not is_ok(name_json) or not is_ok(url_json):
+            eprint("each service requires name and url")
+            return 1
+        let name_result = json_text_safe(unwrap(name_json))
+        let url_result = json_text_safe(unwrap(url_json))
+        if not is_ok(name_result) or not is_ok(url_result) or unwrap(name_result) == "" or unwrap(url_result) == "":
+            eprint("service name and url must be nonempty strings")
+            return 1
+        let name = unwrap(name_result)
+        if map_has(names, name):
+            eprint("service names must be unique: " + name)
+            return 1
+        set names = map_set(names, name, true)
+        var maintenance = false
+        if json_has(service, "maintenance"):
+            set requires_now = true
+            let window = json_get(service, "maintenance")
+            let start_json = json_get_safe(window, "start")
+            let end_json = json_get_safe(window, "end")
+            if not is_ok(start_json) or not is_ok(end_json):
+                eprint("maintenance requires start and end timestamps")
+                return 1
+            let start_text_result = json_text_safe(unwrap(start_json))
+            let end_text_result = json_text_safe(unwrap(end_json))
+            if not is_ok(start_text_result) or not is_ok(end_text_result):
+                eprint("maintenance start and end must be RFC3339 text")
+                return 1
+            let start_result = parse_timestamp(unwrap(start_text_result))
+            let end_result = parse_timestamp(unwrap(end_text_result))
+            if not is_ok(start_result) or not is_ok(end_result):
+                eprint("timestamp must use RFC3339 date-time syntax")
+                return 1
+            let start = unwrap(start_result)
+            let end = unwrap(end_result)
+            if start.unix_microseconds > end.unix_microseconds:
+                eprint("maintenance start must not be after end")
+                return 1
+            if now_text != "" and now.unix_microseconds >= start.unix_microseconds and now.unix_microseconds <= end.unix_microseconds:
+                set maintenance = true
+        var work = json_set(service, "timeout_ms", json_int(timeout_ms))
+        set work = json_set(work, "in_maintenance", json_bool(maintenance))
+        set work_items = list_push(work_items, work)
+        set service_index = service_index + 1
+    if requires_now and now_text == "":
+        eprint("--now is required when maintenance windows are configured")
+        return 1
+    let fetched = parallel_map(work_items, probe_service, concurrency)
+    if not is_ok(fetched):
+        let problem = error(fetched)
+        eprint("health checks failed: " + task_code(problem))
+        return 1
+    var ordered: Map[Text, Json] = {}
+    for result in unwrap(fetched):
+        let name = json_as_text(json_get(result, "service"))
+        set ordered = map_set(ordered, name, result)
+    var rows = json_array()
+    var text_report = ""
+    var service_names: List[Text] = []
+    for name in ordered:
+        set service_names = list_push(service_names, name)
+    let sorted_names = sort_service_names(service_names)
+    for name in sorted_names:
+        let result = ordered[name]
+        let state = json_as_text(json_get(result, "status"))
+        var row = json_object()
+        set row = json_set(row, "service", json_text(name))
+        set row = json_set(row, "status", json_text(state))
+        set row = json_set(row, "raw_status", json_get(result, "raw_status"))
+        set rows = json_push(rows, row)
+        set text_report = text_report + name + " " + state + "\n"
+    let report = json_set(json_object(), "results", rows)
+    let json_written = write_text_atomic(json_path, json_stringify(report) + "\n")
+    if not is_ok(json_written):
+        eprint("cannot write health JSON report")
+        return 1
+    let text_written = write_text_atomic(text_path, text_report)
+    if not is_ok(text_written):
+        eprint("cannot write health text report")
+        return 1
+    return 0

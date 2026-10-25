@@ -1,0 +1,39 @@
+UTC 2026-10-25T09:53:18Z
+
+$ veritas run --file-root /private/tmp/veritas-fresh-builders/bookloom-veritas-staged/followup-due-data /private/tmp/veritas-fresh-builders/bookloom-veritas-staged/project add B001 A\ Book
+Added B001
+exit=0
+
+$ veritas run --file-root /private/tmp/veritas-fresh-builders/bookloom-veritas-staged/followup-due-data /private/tmp/veritas-fresh-builders/bookloom-veritas-staged/project add B002 Another\ Book
+Added B002
+exit=0
+
+$ veritas run --file-root /private/tmp/veritas-fresh-builders/bookloom-veritas-staged/followup-due-data /private/tmp/veritas-fresh-builders/bookloom-veritas-staged/project add B003 Overdue\ Book
+Added B003
+exit=0
+
+$ veritas run --file-root /private/tmp/veritas-fresh-builders/bookloom-veritas-staged/followup-due-data /private/tmp/veritas-fresh-builders/bookloom-veritas-staged/project checkout B002 Reader\ Two 2026-10-25
+Checked out B002 to Reader Two
+exit=0
+
+$ veritas run --file-root /private/tmp/veritas-fresh-builders/bookloom-veritas-staged/followup-due-data /private/tmp/veritas-fresh-builders/bookloom-veritas-staged/project checkout B001 Reader\ One 2026-10-25
+Checked out B001 to Reader One
+exit=0
+
+$ veritas run --file-root /private/tmp/veritas-fresh-builders/bookloom-veritas-staged/followup-due-data /private/tmp/veritas-fresh-builders/bookloom-veritas-staged/project checkout B003 Reader\ Three 2026-10-01
+Checked out B003 to Reader Three
+exit=0
+
+$ veritas run --file-root /private/tmp/veritas-fresh-builders/bookloom-veritas-staged/followup-due-data /private/tmp/veritas-fresh-builders/bookloom-veritas-staged/project due-soon --as-of 2026-10-25
+B001 | A Book | Reader One | due 2026-11-08
+B002 | Another Book | Reader Two | due 2026-11-08
+exit=0
+
+$ veritas run --file-root /private/tmp/veritas-fresh-builders/bookloom-veritas-staged/followup-due-data /private/tmp/veritas-fresh-builders/bookloom-veritas-staged/project due-soon --as-of 2026-11-02
+B001 | A Book | Reader One | due 2026-11-08
+B002 | Another Book | Reader Two | due 2026-11-08
+exit=0
+
+$ veritas run --file-root /private/tmp/veritas-fresh-builders/bookloom-veritas-staged/followup-due-data /private/tmp/veritas-fresh-builders/bookloom-veritas-staged/project due-soon --as-of 2026-11-09
+No books due in the configured window
+exit=0

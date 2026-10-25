@@ -1,0 +1,5 @@
+#!/bin/sh
+# managed by veritas
+set -eu
+HERE=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+exec "$HERE/../share/veritas/apps/field-kit-log/0.1.0/run" "$@"

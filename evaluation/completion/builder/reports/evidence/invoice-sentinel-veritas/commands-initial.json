@@ -1,0 +1,132 @@
+[
+  {
+    "command": [
+      "/private/tmp/veritas-fresh-builders/invoice-sentinel-veritas/initial-app/run",
+      "--input",
+      "ledger.tsv",
+      "--as-of",
+      "2026-01-15",
+      "--output",
+      "report.json"
+    ],
+    "cwd": "/private/tmp/veritas-fresh-builders/invoice-sentinel-veritas/checks-initial",
+    "returncode": 0,
+    "stdout": "",
+    "stderr": "rejected row 7: invalid amount_cents: expected nonnegative decimal integer\nrejected row 8: invalid due_date: expected YYYY-MM-DD calendar date\nrejected row 9: expected 5 tab-separated fields\nrejected row 10: invalid state: expected open or paid\n",
+    "elapsed_seconds": 0.6273634170065634
+  },
+  {
+    "command": [
+      "/private/tmp/veritas-fresh-builders/invoice-sentinel-veritas/initial-app/run",
+      "--input",
+      "ledger.tsv",
+      "--as-of",
+      "2026-01-15",
+      "--output",
+      "report.json"
+    ],
+    "cwd": "/private/tmp/veritas-fresh-builders/invoice-sentinel-veritas/checks-initial",
+    "returncode": 0,
+    "stdout": "",
+    "stderr": "rejected row 7: invalid amount_cents: expected nonnegative decimal integer\nrejected row 8: invalid due_date: expected YYYY-MM-DD calendar date\nrejected row 9: expected 5 tab-separated fields\nrejected row 10: invalid state: expected open or paid\n",
+    "elapsed_seconds": 0.027796291004051454
+  },
+  {
+    "command": [
+      "/private/tmp/veritas-fresh-builders/invoice-sentinel-veritas/initial-app/run",
+      "--input",
+      "ledger.tsv",
+      "--as-of",
+      "2026-02-30",
+      "--output",
+      "report.json"
+    ],
+    "cwd": "/private/tmp/veritas-fresh-builders/invoice-sentinel-veritas/checks-initial",
+    "returncode": 2,
+    "stdout": "",
+    "stderr": "input, output, and valid --as-of date required\n",
+    "elapsed_seconds": 0.020676000000094064
+  },
+  {
+    "command": [
+      "/private/tmp/veritas-fresh-builders/invoice-sentinel-veritas/initial-app/run",
+      "--input",
+      "ledger.tsv",
+      "--as-of",
+      "2026-13-01",
+      "--output",
+      "report.json"
+    ],
+    "cwd": "/private/tmp/veritas-fresh-builders/invoice-sentinel-veritas/checks-initial",
+    "returncode": 2,
+    "stdout": "",
+    "stderr": "input, output, and valid --as-of date required\n",
+    "elapsed_seconds": 0.019029667004360817
+  },
+  {
+    "command": [
+      "/private/tmp/veritas-fresh-builders/invoice-sentinel-veritas/initial-app/run",
+      "--input",
+      "ledger.tsv",
+      "--as-of",
+      "2026-1-01",
+      "--output",
+      "report.json"
+    ],
+    "cwd": "/private/tmp/veritas-fresh-builders/invoice-sentinel-veritas/checks-initial",
+    "returncode": 2,
+    "stdout": "",
+    "stderr": "input, output, and valid --as-of date required\n",
+    "elapsed_seconds": 0.01949649999733083
+  },
+  {
+    "command": [
+      "/private/tmp/veritas-fresh-builders/invoice-sentinel-veritas/initial-app/run",
+      "--input",
+      "ledger.tsv",
+      "--as-of",
+      "0000-01-01",
+      "--output",
+      "report.json"
+    ],
+    "cwd": "/private/tmp/veritas-fresh-builders/invoice-sentinel-veritas/checks-initial",
+    "returncode": 2,
+    "stdout": "",
+    "stderr": "input, output, and valid --as-of date required\n",
+    "elapsed_seconds": 0.021305292000761256
+  },
+  {
+    "command": [
+      "/private/tmp/veritas-fresh-builders/invoice-sentinel-veritas/initial-app/run",
+      "--input",
+      "ledger.tsv",
+      "--as-of",
+      "bad",
+      "--output",
+      "report.json"
+    ],
+    "cwd": "/private/tmp/veritas-fresh-builders/invoice-sentinel-veritas/checks-initial",
+    "returncode": 2,
+    "stdout": "",
+    "stderr": "input, output, and valid --as-of date required\n",
+    "elapsed_seconds": 0.019104874998447485
+  },
+  {
+    "command": [
+      "/private/tmp/veritas-fresh-builders/invoice-sentinel-veritas/initial-app/run",
+      "--input",
+      "ledger.tsv",
+      "--as-of",
+      "2026-01-15",
+      "--output",
+      "report.json",
+      "--amount",
+      "1.5"
+    ],
+    "cwd": "/private/tmp/veritas-fresh-builders/invoice-sentinel-veritas/checks-initial",
+    "returncode": 2,
+    "stdout": "",
+    "stderr": "unknown or duplicate option: --amount\n",
+    "elapsed_seconds": 0.019094417002634145
+  }
+]

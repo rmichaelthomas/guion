@@ -3,7 +3,7 @@ use std::{
     collections::{BTreeMap, HashMap, HashSet, VecDeque},
     fmt::Write as _,
     fs,
-    io::{Read, Write as IoWrite},
+    io::Write as IoWrite,
     mem::size_of,
     path::{Path, PathBuf},
     sync::{
@@ -11,15 +11,18 @@ use std::{
         mpsc, Arc,
     },
     thread,
-    time::Duration,
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 use veritas_model::{
-    Artifact, BigInt, FileErrorValue, Float64, HttpErrorValue, JsonErrorValue, Op, RuntimeError,
-    SharedJson, Span, TaskErrorValue, Type, Value,
+    Artifact, BigInt, FileErrorValue, Float64, HttpErrorValue, JsonErrorValue, NativeResourceValue,
+    Op, RuntimeError, SharedJson, Span, TaskErrorValue, Type, Value,
 };
 mod json_projection;
 mod native_backend;
+#[cfg(feature = "python-interop")]
 pub mod python_bridge;
+pub mod stdlib_data;
+pub mod stdlib_services;
 use native_backend::{
     NativeBackend, NativeCode, NativeFloatList, NativeIntList, NativeRecord, NativeSymbols,
 };
@@ -133,6 +136,7 @@ pub enum EffectKind {
     HttpRequest,
     PythonCall,
     EnvironmentRead,
+    ClockRead,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -164,12 +168,21 @@ pub struct HostPolicy {
     pub max_collection_items: usize,
     pub max_parallelism: usize,
     pub file_root: Option<PathBuf>,
+    pub additional_file_roots: Vec<PathBuf>,
+    /// Virtual path prefixes mapped to independently granted, root-confined file areas.
+    pub file_root_aliases: HashMap<String, PathBuf>,
     pub allow_file_read: bool,
     pub allow_file_write: bool,
     pub max_file_bytes: usize,
     pub arguments: Vec<String>,
     pub allowed_environment_variables: HashSet<String>,
+    /// Whether wall-clock reads are explicitly granted to the guest.
+    pub allow_clock: bool,
+    /// Optional fixed Unix-millisecond value for deterministic embedders and tests.
+    pub clock_unix_time_ms_override: Option<i64>,
+    #[cfg(feature = "python-interop")]
     pub python_interpreter: Option<PathBuf>,
+    #[cfg(feature = "python-interop")]
     pub python_timeout: Duration,
     pub allowed_http_hosts: HashSet<String>,
     pub http_timeout: Duration,
@@ -192,12 +205,18 @@ impl Default for HostPolicy {
                 .unwrap_or(1)
                 .min(64),
             file_root: None,
+            additional_file_roots: Vec::new(),
+            file_root_aliases: HashMap::new(),
             allow_file_read: false,
             allow_file_write: false,
             max_file_bytes: 16 * 1024 * 1024,
             arguments: Vec::new(),
             allowed_environment_variables: HashSet::new(),
+            allow_clock: false,
+            clock_unix_time_ms_override: None,
+            #[cfg(feature = "python-interop")]
             python_interpreter: None,
+            #[cfg(feature = "python-interop")]
             python_timeout: Duration::from_secs(15),
             allowed_http_hosts: HashSet::new(),
             http_timeout: Duration::from_secs(15),
@@ -214,10 +233,38 @@ impl HostPolicy {
         self.allow_file_write = write;
         self
     }
+    /// Add a secondary relative-path root. Reads search the primary root first;
+    /// writes and Python bridge relative paths use the last granted root.
+    pub fn with_additional_file_root(mut self, root: impl Into<PathBuf>) -> Self {
+        self.additional_file_roots.push(root.into());
+        self
+    }
+    /// Map a virtual relative-path prefix (for example `std` or `pkg:codec`)
+    /// to its own granted root. Paths under that prefix never fall through to
+    /// the project root or another additional root.
+    pub fn with_file_root_alias(
+        mut self,
+        alias: impl Into<String>,
+        root: impl Into<PathBuf>,
+    ) -> Self {
+        self.file_root_aliases.insert(alias.into(), root.into());
+        self
+    }
     pub fn with_arguments(mut self, arguments: Vec<String>) -> Self {
         self.arguments = arguments;
         self
     }
+    pub fn with_clock_access(mut self) -> Self {
+        self.allow_clock = true;
+        self
+    }
+    /// Grant clock access and provide a fixed Unix-millisecond value.
+    pub fn with_clock_unix_time_ms(mut self, unix_time_ms: i64) -> Self {
+        self.allow_clock = true;
+        self.clock_unix_time_ms_override = Some(unix_time_ms);
+        self
+    }
+    #[cfg(feature = "python-interop")]
     pub fn with_python(mut self, interpreter: impl Into<PathBuf>, timeout: Duration) -> Self {
         self.python_interpreter = Some(interpreter.into());
         self.python_timeout = timeout;
@@ -246,6 +293,50 @@ impl HostPolicy {
 pub struct Runtime {
     native_enabled: bool,
 }
+
+fn current_unix_time_ms() -> Result<i64, String> {
+    match SystemTime::now().duration_since(UNIX_EPOCH) {
+        Ok(duration) => i64::try_from(duration.as_millis())
+            .map_err(|_| "system clock is outside the supported millisecond range".into()),
+        Err(error) => {
+            let milliseconds = i64::try_from(error.duration().as_millis()).map_err(|_| {
+                "system clock is outside the supported millisecond range".to_string()
+            })?;
+            Ok(-milliseconds)
+        }
+    }
+}
+
+#[cfg(unix)]
+fn local_date_from_unix_time_ms(unix_time_ms: i64) -> Result<(i32, i32, i32), String> {
+    let seconds = unix_time_ms.div_euclid(1_000);
+    let timestamp = libc::time_t::try_from(seconds)
+        .map_err(|_| "timestamp is outside the host local-time range".to_string())?;
+    // localtime_r writes to the supplied tm and does not expose shared static storage.
+    let mut local = unsafe { std::mem::zeroed::<libc::tm>() };
+    if unsafe { libc::localtime_r(&timestamp, &mut local) }.is_null() {
+        return Err("host could not convert the timestamp to local time".into());
+    }
+    let year = local
+        .tm_year
+        .checked_add(1_900)
+        .ok_or_else(|| "local year is outside the supported range".to_string())?;
+    let month = local
+        .tm_mon
+        .checked_add(1)
+        .ok_or_else(|| "local month is outside the supported range".to_string())?;
+    Ok((year, month, local.tm_mday))
+}
+
+#[cfg(not(unix))]
+fn local_date_from_unix_time_ms(_unix_time_ms: i64) -> Result<(i32, i32, i32), String> {
+    Err("local date lookup is supported on Unix hosts only".into())
+}
+
+fn share_artifact(artifact: Artifact) -> Arc<Artifact> {
+    Arc::new(artifact)
+}
+
 impl Default for Runtime {
     fn default() -> Self {
         Self::new()
@@ -286,6 +377,15 @@ impl Runtime {
             policy.max_parallelism = policy.max_parallelism.min(limits.max_parallelism);
             policy.max_file_bytes = policy.max_file_bytes.min(limits.max_file_bytes);
         }
+        let mut database_roots = Vec::with_capacity(
+            1 + policy.additional_file_roots.len() + policy.file_root_aliases.len(),
+        );
+        if let Some(root) = &policy.file_root {
+            database_roots.push(root.clone());
+        }
+        database_roots.extend(policy.additional_file_roots.iter().cloned());
+        database_roots.extend(policy.file_root_aliases.values().cloned());
+        let artifact = share_artifact(artifact);
         Ok(Instance {
             artifact,
             native: None,
@@ -294,12 +394,25 @@ impl Runtime {
             native_calls: Arc::new(AtomicUsize::new(0)),
             native_deoptimizations: Arc::new(AtomicUsize::new(0)),
             native_compilations: Arc::new(AtomicUsize::new(0)),
+            readers: stdlib_data::FileReaderRegistry::new(
+                policy.max_file_bytes,
+                policy.max_file_bytes,
+            ),
+            databases: stdlib_services::DatabaseRegistry::with_roots(
+                database_roots,
+                policy.max_file_bytes,
+                policy.max_collection_items,
+                2_000,
+            ),
+            http: None,
+            toml_documents: stdlib_services::TomlRegistry::new(policy.max_text_bytes),
             policy,
             output: String::new(),
             program_stderr: String::new(),
             closed: false,
             worker_threads: HashSet::new(),
             cancelled: None,
+            #[cfg(feature = "python-interop")]
             python_bridge: None,
             host_stderr: String::new(),
             effect_report: Vec::new(),
@@ -312,7 +425,7 @@ impl Runtime {
 
 #[derive(Debug)]
 pub struct Instance {
-    artifact: Artifact,
+    artifact: Arc<Artifact>,
     native: Option<NativeBackend>,
     native_code: Option<Arc<NativeCode>>,
     native_enabled: bool,
@@ -320,11 +433,16 @@ pub struct Instance {
     native_deoptimizations: Arc<AtomicUsize>,
     native_compilations: Arc<AtomicUsize>,
     policy: HostPolicy,
+    readers: stdlib_data::FileReaderRegistry,
+    databases: stdlib_services::DatabaseRegistry,
+    http: Option<Arc<HostHttpClient>>,
+    toml_documents: stdlib_services::TomlRegistry,
     output: String,
     program_stderr: String,
     closed: bool,
     worker_threads: HashSet<String>,
     cancelled: Option<Arc<AtomicBool>>,
+    #[cfg(feature = "python-interop")]
     python_bridge: Option<python_bridge::PythonBridge>,
     host_stderr: String,
     effect_report: Vec<EffectRecord>,
@@ -332,6 +450,46 @@ pub struct Instance {
     python_native_image_observation: String,
     python_native_images: Vec<String>,
 }
+
+struct VmFrame {
+    function_index: usize,
+    depth: usize,
+    call_site: Option<Span>,
+    locals: Vec<Value>,
+    stack: Vec<Value>,
+    ip: usize,
+}
+
+enum FrameStart {
+    Returned(Value),
+    Vm(VmFrame),
+}
+
+enum VmStep {
+    Call {
+        frame: VmFrame,
+        target: usize,
+        args: Vec<Value>,
+        span: Span,
+    },
+    Return(Value),
+}
+
+fn append_guest_call_trace(
+    error: &mut RuntimeError,
+    call_site: Option<Span>,
+    ancestors: &[VmFrame],
+) {
+    if let Some(span) = call_site {
+        error.trace.push(span);
+    }
+    for frame in ancestors.iter().rev() {
+        if let Some(span) = frame.call_site {
+            error.trace.push(span);
+        }
+    }
+}
+
 impl Instance {
     pub fn native_function_count(&self) -> usize {
         self.native
@@ -357,6 +515,28 @@ impl Instance {
 
     pub fn native_compilations(&self) -> usize {
         self.native_compilations.load(Ordering::Relaxed)
+    }
+
+    /// Number of native file readers still owned by this instance.
+    pub fn open_file_reader_count(&self) -> usize {
+        self.readers.open_count()
+    }
+
+    /// Number of native filesystem, database, and TOML handles owned by this instance.
+    pub fn open_native_resource_count(&self) -> usize {
+        self.readers.open_count() + self.databases.open_count() + self.toml_documents.open_count()
+    }
+
+    fn shared_http_client(&mut self, span: Span) -> Result<Arc<HostHttpClient>, RuntimeError> {
+        if self.http.is_none() {
+            let client = HostHttpClient::new(self.policy.max_parallelism)
+                .map_err(|error| RuntimeError::new("R_HTTP_CLIENT", error, span))?;
+            self.http = Some(Arc::new(client));
+        }
+        self.http
+            .as_ref()
+            .cloned()
+            .ok_or_else(|| RuntimeError::new("R_HTTP_CLIENT", "HTTP client is unavailable", span))
     }
 
     pub fn native_bytecode_instructions(&self) -> usize {
@@ -427,6 +607,9 @@ impl Instance {
         self.effect_report.clear();
         self.omitted_effects = 0;
         self.worker_threads.clear();
+        self.readers.close_all();
+        self.databases.close_all();
+        self.toml_documents.close_all();
         if args.len() != self.artifact.functions[index].parameters.len() {
             return Err(RuntimeError::new(
                 "R_CALL_ARITY",
@@ -469,7 +652,8 @@ impl Instance {
                     Span::default(),
                 ));
             }
-            if let Some(error) = value_limit_error(value, &self.policy, Span::default()) {
+            if let Some(error) = value_limit_error_at_boundary(value, &self.policy, Span::default())
+            {
                 return Err(error);
             }
             charge_allocation(
@@ -478,7 +662,11 @@ impl Instance {
                 Span::default(),
             )?;
         }
-        self.invoke_inner(index, args, 0, budget)
+        let result = self.invoke_inner(index, args, 0, budget);
+        self.readers.close_all();
+        self.databases.close_all();
+        self.toml_documents.close_all();
+        result
     }
     pub fn take_output(&mut self) -> String {
         std::mem::take(&mut self.output)
@@ -491,9 +679,14 @@ impl Instance {
         if let Some(cancelled) = &self.cancelled {
             cancelled.store(true, Ordering::Relaxed);
         }
+        self.readers.close_all();
+        self.databases.close_all();
+        self.toml_documents.close_all();
+        self.http = None;
         self.output.clear();
         self.program_stderr.clear();
         self.host_stderr.clear();
+        #[cfg(feature = "python-interop")]
         if let Some(bridge) = &mut self.python_bridge {
             bridge.close();
         }
@@ -554,6 +747,7 @@ impl Instance {
         }
     }
 
+    #[cfg(feature = "python-interop")]
     fn record_python_native_images(&mut self, observation: &str, images: &[String]) {
         self.python_native_image_observation = observation.to_owned();
         for image in images {
@@ -570,7 +764,22 @@ impl Instance {
         depth: usize,
         budget: Arc<Budget>,
     ) -> Result<Value, RuntimeError> {
-        let f = self.artifact.functions[index].clone();
+        match self.start_guest_frame(index, args, depth, budget.clone(), None)? {
+            FrameStart::Returned(value) => Ok(value),
+            FrameStart::Vm(frame) => self.run_guest_frames(frame, budget),
+        }
+    }
+
+    fn start_guest_frame(
+        &mut self,
+        index: usize,
+        args: Vec<Value>,
+        depth: usize,
+        budget: Arc<Budget>,
+        call_site: Option<Span>,
+    ) -> Result<FrameStart, RuntimeError> {
+        let artifact = Arc::clone(&self.artifact);
+        let f = &artifact.functions[index];
         if depth >= self.policy.call_depth_limit {
             return Err(RuntimeError::new(
                 "R_CALL_DEPTH",
@@ -961,7 +1170,7 @@ impl Instance {
                                 .begin_effect(EffectKind::ProgramOutput, format!("{bytes} bytes"));
                             self.finish_effect(effect, EffectOutcome::Returned);
                         }
-                        return Ok(value);
+                        return Ok(FrameStart::Returned(value));
                     }
                     1 => {
                         self.native_deoptimizations.fetch_add(1, Ordering::Relaxed);
@@ -1062,8 +1271,83 @@ impl Instance {
         for (i, arg) in args.into_iter().enumerate() {
             locals[i] = arg;
         }
-        let mut stack: Vec<Value> = Vec::new();
-        let mut ip = 0usize;
+        Ok(FrameStart::Vm(VmFrame {
+            function_index: index,
+            depth,
+            call_site,
+            locals,
+            stack: Vec::new(),
+            ip: 0,
+        }))
+    }
+
+    fn run_guest_frames(
+        &mut self,
+        initial: VmFrame,
+        budget: Arc<Budget>,
+    ) -> Result<Value, RuntimeError> {
+        let mut frames = vec![initial];
+        loop {
+            let frame = frames.pop().expect("guest frame stack is non-empty");
+            let current_call_site = frame.call_site;
+            match self.execute_vm_frame(frame, budget.clone()) {
+                Err(mut error) => {
+                    append_guest_call_trace(&mut error, current_call_site, &frames);
+                    return Err(error);
+                }
+                Ok(VmStep::Return(value)) => {
+                    if let Some(mut parent) = frames.pop() {
+                        parent.stack.push(value);
+                        frames.push(parent);
+                    } else {
+                        return Ok(value);
+                    }
+                }
+                Ok(VmStep::Call {
+                    mut frame,
+                    target,
+                    args,
+                    span,
+                }) => match self.start_guest_frame(
+                    target,
+                    args,
+                    frame.depth.saturating_add(1),
+                    budget.clone(),
+                    Some(span),
+                ) {
+                    Ok(FrameStart::Returned(value)) => {
+                        frame.stack.push(value);
+                        frames.push(frame);
+                    }
+                    Ok(FrameStart::Vm(child)) => {
+                        frames.push(frame);
+                        frames.push(child);
+                    }
+                    Err(mut error) => {
+                        error.trace.push(span);
+                        append_guest_call_trace(&mut error, frame.call_site, &frames);
+                        return Err(error);
+                    }
+                },
+            }
+        }
+    }
+
+    fn execute_vm_frame(
+        &mut self,
+        frame: VmFrame,
+        budget: Arc<Budget>,
+    ) -> Result<VmStep, RuntimeError> {
+        let VmFrame {
+            function_index,
+            depth,
+            call_site,
+            mut locals,
+            mut stack,
+            mut ip,
+        } = frame;
+        let artifact = Arc::clone(&self.artifact);
+        let f = &artifact.functions[function_index];
         loop {
             if budget.is_cancelled()
                 || self
@@ -1120,7 +1404,9 @@ impl Instance {
             }
             match instruction.op {
                 Op::Const(v) => {
-                    if let Some(error) = value_limit_error(&v, &self.policy, instruction.span) {
+                    if let Some(error) =
+                        value_limit_error_at_boundary(&v, &self.policy, instruction.span)
+                    {
                         return Err(error);
                     }
                     charge_allocation(
@@ -1674,6 +1960,136 @@ impl Instance {
                         .collect::<Vec<_>>();
                     push_stack!(Value::from_list_items(values));
                 }
+                Op::BytesFromInts => {
+                    let values = match pop!() {
+                        Value::List(values) => values,
+                        _ => {
+                            return Err(RuntimeError::new(
+                                "R_TYPE_INVALID",
+                                "bytes_from_ints requires List[Int]",
+                                instruction.span,
+                            ))
+                        }
+                    };
+                    if values.len() > self.policy.max_collection_items {
+                        return Err(RuntimeError::new(
+                            "R_COLLECTION_LIMIT",
+                            "bytes_from_ints exceeds the configured item limit",
+                            instruction.span,
+                        ));
+                    }
+                    if values.len() > 64 * 1024 * 1024 {
+                        return Err(RuntimeError::new(
+                            "R_ALLOCATION_LIMIT",
+                            "byte value exceeds the 64 MiB limit",
+                            instruction.span,
+                        ));
+                    }
+                    let mut bytes = Vec::with_capacity(values.len());
+                    for value in values.iter() {
+                        let Value::Int(value) = value else {
+                            return Err(RuntimeError::new(
+                                "R_TYPE_INVALID",
+                                "bytes_from_ints requires List[Int]",
+                                instruction.span,
+                            ));
+                        };
+                        let Some(byte) = value.to_usize().filter(|byte| *byte <= 255) else {
+                            return Err(RuntimeError::new(
+                                "R_BYTE_RANGE",
+                                "bytes_from_ints items must be between 0 and 255",
+                                instruction.span,
+                            ));
+                        };
+                        bytes.push(byte as u8);
+                    }
+                    charge_allocation(budget.as_ref(), bytes.capacity(), instruction.span)?;
+                    push_stack!(Value::Bytes(Arc::new(bytes)));
+                }
+                Op::BytesFromText => {
+                    let text = match pop!() {
+                        Value::Text(text) => text,
+                        _ => {
+                            return Err(RuntimeError::new(
+                                "R_TYPE_INVALID",
+                                "bytes_from_text requires Text",
+                                instruction.span,
+                            ))
+                        }
+                    };
+                    if text.len() > 64 * 1024 * 1024 {
+                        return Err(RuntimeError::new(
+                            "R_ALLOCATION_LIMIT",
+                            "byte value exceeds the 64 MiB limit",
+                            instruction.span,
+                        ));
+                    }
+                    charge_allocation(budget.as_ref(), text.len(), instruction.span)?;
+                    push_stack!(Value::Bytes(Arc::new(text.into_bytes())));
+                }
+                Op::BytesJoin => {
+                    let values = match pop!() {
+                        Value::List(values) => values,
+                        _ => {
+                            return Err(RuntimeError::new(
+                                "R_TYPE_INVALID",
+                                "bytes_join requires List[Bytes]",
+                                instruction.span,
+                            ))
+                        }
+                    };
+                    if values.len() > self.policy.max_collection_items {
+                        return Err(RuntimeError::new(
+                            "R_COLLECTION_LIMIT",
+                            "bytes_join exceeds the configured item limit",
+                            instruction.span,
+                        ));
+                    }
+                    let mut total = 0usize;
+                    for value in values.iter() {
+                        let Value::Bytes(bytes) = value else {
+                            return Err(RuntimeError::new(
+                                "R_TYPE_INVALID",
+                                "bytes_join requires List[Bytes]",
+                                instruction.span,
+                            ));
+                        };
+                        total = total.checked_add(bytes.len()).ok_or_else(|| {
+                            RuntimeError::new(
+                                "R_ALLOCATION_LIMIT",
+                                "joined byte value length overflow",
+                                instruction.span,
+                            )
+                        })?;
+                        if total > 64 * 1024 * 1024 {
+                            return Err(RuntimeError::new(
+                                "R_ALLOCATION_LIMIT",
+                                "joined byte value exceeds the 64 MiB limit",
+                                instruction.span,
+                            ));
+                        }
+                    }
+                    charge_allocation(budget.as_ref(), total, instruction.span)?;
+                    let mut bytes = Vec::with_capacity(total);
+                    for value in values.iter() {
+                        if let Value::Bytes(part) = value {
+                            bytes.extend_from_slice(part);
+                        }
+                    }
+                    push_stack!(Value::Bytes(Arc::new(bytes)));
+                }
+                Op::Float64Bits => match pop!() {
+                    Value::Float64(value) => {
+                        push_stack!(Value::Int(BigInt::from_u64(value.get().to_bits())))
+                    }
+                    _ => {
+                        return Err(RuntimeError::new(
+                            "R_TYPE_INVALID",
+                            "float64_bits requires Float64",
+                            instruction.span,
+                        ))
+                    }
+                },
                 Op::Index => {
                     let index = pop!();
                     let values = pop!();
@@ -2189,13 +2605,19 @@ impl Instance {
                         call_args.push(pop!());
                     }
                     call_args.reverse();
-                    match self.invoke_inner(target, call_args, depth + 1, budget.clone()) {
-                        Ok(v) => push_stack!(v),
-                        Err(mut e) => {
-                            e.trace.push(instruction.span);
-                            return Err(e);
-                        }
-                    }
+                    return Ok(VmStep::Call {
+                        frame: VmFrame {
+                            function_index,
+                            depth,
+                            call_site,
+                            locals,
+                            stack,
+                            ip,
+                        },
+                        target,
+                        args: call_args,
+                        span: instruction.span,
+                    });
                 }
                 Op::ParallelMap(target) => {
                     let limit = match pop!() {
@@ -2262,6 +2684,63 @@ impl Instance {
                         }
                     }
                 }
+                Op::SortBy(target) => {
+                    let mut values = match pop!() {
+                        Value::List(values) => values.as_ref().clone(),
+                        Value::Float64List(values) => {
+                            values.iter().copied().map(Value::Float64).collect()
+                        }
+                        _ => {
+                            return Err(RuntimeError::new(
+                                "R_TYPE_INVALID",
+                                "sort_by requires a List",
+                                instruction.span,
+                            ))
+                        }
+                    };
+                    let allocation = size_of::<Vec<Value>>()
+                        .saturating_add(values.len().saturating_mul(size_of::<Value>()))
+                        .saturating_add(
+                            values
+                                .iter()
+                                .map(cloned_value_allocation)
+                                .fold(0usize, usize::saturating_add),
+                        );
+                    charge_allocation(budget.as_ref(), allocation, instruction.span)?;
+                    for index in 1..values.len() {
+                        let value = values[index].clone();
+                        let mut position = index;
+                        while position > 0 {
+                            let ordering = match self.invoke_inner(
+                                target,
+                                vec![value.clone(), values[position - 1].clone()],
+                                depth + 1,
+                                budget.clone(),
+                            ) {
+                                Ok(Value::Int(ordering)) => ordering,
+                                Ok(_) => {
+                                    return Err(RuntimeError::new(
+                                        "R_TYPE_INVALID",
+                                        "sort comparator must return Int",
+                                        instruction.span,
+                                    ))
+                                }
+                                Err(mut error) => {
+                                    error.trace.push(instruction.span);
+                                    return Err(error);
+                                }
+                            };
+                            if ordering.is_negative() {
+                                values[position] = values[position - 1].clone();
+                                position -= 1;
+                            } else {
+                                break;
+                            }
+                        }
+                        values[position] = value;
+                    }
+                    push_stack!(Value::from_list_items(values));
+                }
                 Op::HttpGet => {
                     let url = match pop!() {
                         Value::Text(url) => url,
@@ -2273,9 +2752,10 @@ impl Instance {
                             ))
                         }
                     };
+                    let http = self.shared_http_client(instruction.span)?;
                     let effect =
                         self.begin_effect(EffectKind::HttpRequest, http_effect_target("GET", &url));
-                    match perform_http_get(&self.policy, &url) {
+                    match perform_http_get(&http, &self.policy, &url, budget.as_ref()) {
                         Ok(text) => {
                             self.finish_effect(effect, EffectOutcome::Returned);
                             charge_allocation(
@@ -2286,14 +2766,23 @@ impl Instance {
                             push_stack!(Value::ResultOk(Box::new(Value::Text(text))));
                         }
                         Err(mut error) => {
+                            if budget.is_cancelled() {
+                                self.finish_effect(effect, EffectOutcome::Interrupted);
+                                continue;
+                            }
                             self.finish_effect(effect, EffectOutcome::ReturnedError);
                             error.trace.push(instruction.span);
                             push_stack!(Value::ResultErr(Box::new(Value::HttpError(error))));
                         }
                     }
                 }
-                Op::HttpRequest | Op::HttpRequestWithTimeout => {
-                    let request_timeout = if matches!(&instruction.op, Op::HttpRequestWithTimeout) {
+                Op::HttpRequest | Op::HttpRequestWithTimeout | Op::HttpRequestBytes => {
+                    let byte_response = matches!(&instruction.op, Op::HttpRequestBytes);
+                    let has_timeout = matches!(
+                        &instruction.op,
+                        Op::HttpRequestWithTimeout | Op::HttpRequestBytes
+                    );
+                    let request_timeout = if has_timeout {
                         match pop!() {
                             Value::Int(milliseconds) => match milliseconds
                                 .to_usize()
@@ -2317,7 +2806,7 @@ impl Instance {
                             _ => {
                                 return Err(RuntimeError::new(
                                     "R_TYPE_INVALID",
-                                    "http_request_with_timeout timeout_ms must be Int",
+                                    "HTTP timeout_ms must be Int",
                                     instruction.span,
                                 ))
                             }
@@ -2326,11 +2815,16 @@ impl Instance {
                         self.policy.http_timeout
                     };
                     let body = match pop!() {
-                        Value::Text(body) => body,
+                        Value::Text(body) if !byte_response => body.into_bytes(),
+                        Value::Bytes(body) if byte_response => body.as_ref().clone(),
                         _ => {
                             return Err(RuntimeError::new(
                                 "R_TYPE_INVALID",
-                                "http_request body must be Text",
+                                if byte_response {
+                                    "http_request_bytes body must be Bytes"
+                                } else {
+                                    "http_request body must be Text"
+                                },
                                 instruction.span,
                             ))
                         }
@@ -2378,31 +2872,1106 @@ impl Instance {
                             ))
                         }
                     };
+                    let http = self.shared_http_client(instruction.span)?;
                     let effect = self
                         .begin_effect(EffectKind::HttpRequest, http_effect_target(&method, &url));
-                    match perform_http_request(
+                    match perform_http_request_bytes(
+                        &http,
                         &self.policy,
                         &method,
                         &url,
                         &headers,
                         &body,
                         request_timeout,
+                        budget.as_ref(),
                     ) {
                         Ok(response) => {
-                            self.finish_effect(effect, EffectOutcome::Returned);
-                            charge_allocation(
-                                budget.as_ref(),
-                                response.to_string().len(),
-                                instruction.span,
-                            )?;
-                            push_stack!(Value::ResultOk(Box::new(Value::Json(
-                                SharedJson::from_serde(response)
-                            ))));
+                            if byte_response {
+                                self.finish_effect(effect, EffectOutcome::Returned);
+                                let size = response.body.len().saturating_add(
+                                    response
+                                        .headers
+                                        .iter()
+                                        .map(|(k, v)| k.len() + v.len())
+                                        .sum::<usize>(),
+                                );
+                                charge_allocation(budget.as_ref(), size, instruction.span)?;
+                                let response_headers = response
+                                    .headers
+                                    .into_iter()
+                                    .map(|(key, value)| (key, Value::Text(value)))
+                                    .collect();
+                                push_stack!(Value::ResultOk(Box::new(Value::Record(
+                                    "HttpResponse".into(),
+                                    Arc::new(vec![
+                                        Value::Int(BigInt::from_i64(response.status as i64)),
+                                        Value::Map(Arc::new(response_headers)),
+                                        Value::Bytes(Arc::new(response.body)),
+                                    ]),
+                                ))));
+                            } else {
+                                match response.into_text_json(self.policy.max_text_bytes) {
+                                    Ok(response) => {
+                                        self.finish_effect(effect, EffectOutcome::Returned);
+                                        let value = finish_json_value(
+                                            response,
+                                            &self.policy,
+                                            budget.as_ref(),
+                                            instruction.span,
+                                        )?;
+                                        push_stack!(Value::ResultOk(Box::new(value)));
+                                    }
+                                    Err(mut error) => {
+                                        self.finish_effect(effect, EffectOutcome::ReturnedError);
+                                        error.trace.push(instruction.span);
+                                        push_stack!(Value::ResultErr(Box::new(Value::HttpError(
+                                            error
+                                        ))));
+                                    }
+                                }
+                            }
                         }
                         Err(mut error) => {
+                            if budget.is_cancelled() {
+                                self.finish_effect(effect, EffectOutcome::Interrupted);
+                                continue;
+                            }
                             self.finish_effect(effect, EffectOutcome::ReturnedError);
                             error.trace.push(instruction.span);
                             push_stack!(Value::ResultErr(Box::new(Value::HttpError(error))));
+                        }
+                    }
+                }
+                Op::FileOpenLines | Op::CsvOpen => {
+                    let path = match pop!() {
+                        Value::Text(path) => path,
+                        _ => {
+                            return Err(RuntimeError::new(
+                                "R_TYPE_INVALID",
+                                "file reader path must be Text",
+                                instruction.span,
+                            ))
+                        }
+                    };
+                    let resolved =
+                        match host_file_path(&self.policy, &path, false, instruction.span) {
+                            Ok(path) => path,
+                            Err(error) => {
+                                push_stack!(file_error_result(error));
+                                continue;
+                            }
+                        };
+                    let effect = self.begin_effect(EffectKind::FileRead, path.as_str());
+                    let opened = if instruction.op == Op::FileOpenLines {
+                        self.readers.open_lines(resolved)
+                    } else {
+                        self.readers.open_csv(resolved)
+                    };
+                    match opened {
+                        Ok(handle) => {
+                            self.finish_effect(effect, EffectOutcome::Returned);
+                            let (owner, id) = handle.parts();
+                            push_stack!(Value::ResultOk(Box::new(Value::NativeResource(
+                                NativeResourceValue::new("FileReader", owner, id),
+                            ))));
+                        }
+                        Err(error) => {
+                            self.finish_effect(effect, EffectOutcome::ReturnedError);
+                            let code = match error.kind {
+                                stdlib_data::ReaderErrorKind::InvalidUtf8 => "R_FILE_UTF8",
+                                stdlib_data::ReaderErrorKind::Limit => "R_FILE_LIMIT",
+                                stdlib_data::ReaderErrorKind::ForeignOwner => "R_RESOURCE_OWNER",
+                                stdlib_data::ReaderErrorKind::Closed => "R_RESOURCE_CLOSED",
+                                stdlib_data::ReaderErrorKind::Stale => "R_RESOURCE_STALE",
+                                stdlib_data::ReaderErrorKind::Mode => "R_RESOURCE_MODE",
+                                stdlib_data::ReaderErrorKind::Io => "R_FILE_READ",
+                            };
+                            push_stack!(file_error_result(RuntimeError::new(
+                                code,
+                                error.message,
+                                instruction.span
+                            )));
+                        }
+                    }
+                }
+                Op::FileNextLine | Op::CsvNext | Op::FileClose => {
+                    let value = pop!();
+                    let handle = match runtime_reader_handle(&value, instruction.span) {
+                        Ok(handle) => handle,
+                        Err(error) => return Err(error),
+                    };
+                    if instruction.op == Op::FileClose {
+                        match self.readers.close(handle) {
+                            Ok(()) => push_stack!(Value::ResultOk(Box::new(Value::Unit))),
+                            Err(error) => {
+                                let error = reader_runtime_error(
+                                    error.kind,
+                                    error.message,
+                                    error.line,
+                                    error.column,
+                                    instruction.span,
+                                );
+                                if error.code == "R_FILE_LIMIT" {
+                                    return Err(error);
+                                }
+                                push_stack!(file_error_result(error));
+                            }
+                        }
+                    } else if instruction.op == Op::FileNextLine {
+                        match self.readers.next_line(handle) {
+                            Ok(Some(line)) => push_stack!(Value::ResultOk(Box::new(
+                                Value::OptionSome(Box::new(Value::Record(
+                                    "SourceLine".into(),
+                                    Arc::new(vec![
+                                        Value::Int(BigInt::from_usize(line.number)),
+                                        Value::Text(line.text)
+                                    ]),
+                                )))
+                            ))),
+                            Ok(None) => push_stack!(Value::ResultOk(Box::new(Value::OptionNone))),
+                            Err(error) => push_stack!(file_error_result(reader_runtime_error(
+                                error.kind,
+                                error.message,
+                                error.line,
+                                error.column,
+                                instruction.span
+                            ))),
+                        }
+                    } else {
+                        match self.readers.next_csv(handle) {
+                            Ok(Some(row)) => push_stack!(Value::ResultOk(Box::new(
+                                Value::OptionSome(Box::new(Value::Record(
+                                    "CsvRow".into(),
+                                    Arc::new(vec![
+                                        Value::Int(BigInt::from_usize(row.start_line)),
+                                        Value::from_list_items(
+                                            row.fields.into_iter().map(Value::Text).collect()
+                                        )
+                                    ]),
+                                )))
+                            ))),
+                            Ok(None) => push_stack!(Value::ResultOk(Box::new(Value::OptionNone))),
+                            Err(error) => {
+                                let (code, line, column, message) = match error {
+                                    stdlib_data::CsvError::Reader(error) => {
+                                        let error = reader_runtime_error(
+                                            error.kind,
+                                            error.message,
+                                            error.line,
+                                            error.column,
+                                            instruction.span,
+                                        );
+                                        if error.code == "R_FILE_LIMIT" {
+                                            return Err(error);
+                                        }
+                                        push_stack!(file_error_result(error));
+                                        continue;
+                                    }
+                                    stdlib_data::CsvError::Mode => (
+                                        "R_RESOURCE_MODE",
+                                        0,
+                                        0,
+                                        "CSV operation requires a CSV reader".into(),
+                                    ),
+                                    stdlib_data::CsvError::Malformed {
+                                        line,
+                                        column,
+                                        message,
+                                    } => ("R_CSV_MALFORMED", line, column, message),
+                                };
+                                let mut error = RuntimeError::new(code, message, instruction.span);
+                                if line > 0 {
+                                    error.trace.push(Span {
+                                        line,
+                                        column,
+                                        ..instruction.span
+                                    });
+                                }
+                                push_stack!(file_error_result(error));
+                            }
+                        }
+                    }
+                }
+                Op::CsvEncode => {
+                    let rows = match pop!() {
+                        Value::List(rows) => rows,
+                        _ => {
+                            return Err(RuntimeError::new(
+                                "R_TYPE_INVALID",
+                                "csv_encode requires List[List[Text]]",
+                                instruction.span,
+                            ))
+                        }
+                    };
+                    let mut encoded_rows = Vec::with_capacity(rows.len());
+                    for row in rows.iter() {
+                        let Value::List(fields) = row else {
+                            return Err(RuntimeError::new(
+                                "R_TYPE_INVALID",
+                                "csv_encode row requires List[Text]",
+                                instruction.span,
+                            ));
+                        };
+                        let fields = fields
+                            .iter()
+                            .map(|value| match value {
+                                Value::Text(text) => Ok(text.clone()),
+                                _ => Err(RuntimeError::new(
+                                    "R_TYPE_INVALID",
+                                    "csv_encode field requires Text",
+                                    instruction.span,
+                                )),
+                            })
+                            .collect::<Result<Vec<_>, _>>()?;
+                        encoded_rows.push(fields);
+                    }
+                    let text = stdlib_data::csv_encode(&encoded_rows);
+                    if text.len() > self.policy.max_file_bytes
+                        || text.len() > self.policy.max_text_bytes
+                    {
+                        return Err(RuntimeError::new(
+                            "R_TEXT_LIMIT",
+                            "CSV output exceeds the configured text limit",
+                            instruction.span,
+                        ));
+                    }
+                    charge_allocation(budget.as_ref(), text.len(), instruction.span)?;
+                    push_stack!(Value::ResultOk(Box::new(Value::Text(text))));
+                }
+                Op::TimeParseDate | Op::TimeParseTimestamp | Op::SemVerParse => {
+                    let text = match pop!() {
+                        Value::Text(text) => text,
+                        _ => {
+                            return Err(RuntimeError::new(
+                                "R_TYPE_INVALID",
+                                "data parser requires Text",
+                                instruction.span,
+                            ))
+                        }
+                    };
+                    if text.len() > self.policy.max_text_bytes {
+                        return Err(RuntimeError::new(
+                            "R_TEXT_LIMIT",
+                            "data parser input exceeds the configured text limit",
+                            instruction.span,
+                        ));
+                    }
+                    let parsed: Result<Value, stdlib_data::DataError> = match instruction.op {
+                        Op::TimeParseDate => stdlib_data::Date::parse(&text).map(|date| {
+                            Value::Record(
+                                "Date".into(),
+                                Arc::new(vec![
+                                    Value::Int(BigInt::from_i64(date.year as i64)),
+                                    Value::Int(BigInt::from_u64(date.month as u64)),
+                                    Value::Int(BigInt::from_u64(date.day as u64)),
+                                ]),
+                            )
+                        }),
+                        Op::TimeParseTimestamp => {
+                            stdlib_data::parse_timestamp(&text).map(|micros| {
+                                Value::Record(
+                                    "Instant".into(),
+                                    Arc::new(vec![Value::Int(BigInt::from_i64(micros))]),
+                                )
+                            })
+                        }
+                        Op::SemVerParse => stdlib_data::parse_semver(&text).map(|version| {
+                            Value::Record(
+                                "SemVer".into(),
+                                Arc::new(vec![
+                                    Value::Text(version.major),
+                                    Value::Text(version.minor),
+                                    Value::Text(version.patch),
+                                    Value::from_list_items(
+                                        version.prerelease.into_iter().map(Value::Text).collect(),
+                                    ),
+                                    Value::from_list_items(
+                                        version.build.into_iter().map(Value::Text).collect(),
+                                    ),
+                                    Value::Text(version.original),
+                                ]),
+                            )
+                        }),
+                        _ => unreachable!(),
+                    };
+                    match parsed {
+                        Ok(value) => push_stack!(Value::ResultOk(Box::new(value))),
+                        Err(error) => push_stack!(file_error_result(RuntimeError::new(
+                            error.code,
+                            error.message,
+                            instruction.span
+                        ))),
+                    }
+                }
+                Op::TimeFormatUtc => {
+                    let value = pop!();
+                    let Value::Record(name, fields) = value else {
+                        return Err(RuntimeError::new(
+                            "R_TYPE_INVALID",
+                            "time_format_utc requires Instant",
+                            instruction.span,
+                        ));
+                    };
+                    if name != "Instant" || fields.len() != 1 {
+                        return Err(RuntimeError::new(
+                            "R_TYPE_INVALID",
+                            "invalid Instant record",
+                            instruction.span,
+                        ));
+                    }
+                    let Value::Int(micros) = &fields[0] else {
+                        return Err(RuntimeError::new(
+                            "R_TYPE_INVALID",
+                            "invalid Instant value",
+                            instruction.span,
+                        ));
+                    };
+                    let micros = micros.to_i64().ok_or_else(|| {
+                        RuntimeError::new(
+                            "R_TIME_RANGE",
+                            "instant is outside supported range",
+                            instruction.span,
+                        )
+                    })?;
+                    let text = stdlib_data::format_utc(stdlib_data::Instant {
+                        unix_microseconds: micros,
+                    });
+                    if text.len() > self.policy.max_text_bytes {
+                        return Err(RuntimeError::new(
+                            "R_TEXT_LIMIT",
+                            "formatted timestamp exceeds configured text limit",
+                            instruction.span,
+                        ));
+                    }
+                    charge_allocation(budget.as_ref(), text.len(), instruction.span)?;
+                    push_stack!(Value::Text(text));
+                }
+                Op::UnixTimeMs | Op::TimeTodayLocal => {
+                    if !self.policy.allow_clock {
+                        return Err(RuntimeError::new(
+                            "R_CLOCK_DENIED",
+                            "wall-clock access is not granted",
+                            instruction.span,
+                        ));
+                    }
+                    let effect = self.begin_effect(EffectKind::ClockRead, "system-clock");
+                    let unix_time_ms = match self.policy.clock_unix_time_ms_override {
+                        Some(value) => value,
+                        None => match current_unix_time_ms() {
+                            Ok(value) => value,
+                            Err(message) => {
+                                self.finish_effect(effect, EffectOutcome::ReturnedError);
+                                return Err(RuntimeError::new(
+                                    "R_CLOCK_UNAVAILABLE",
+                                    message,
+                                    instruction.span,
+                                ));
+                            }
+                        },
+                    };
+                    if matches!(instruction.op, Op::UnixTimeMs) {
+                        self.finish_effect(effect, EffectOutcome::Returned);
+                        push_stack!(Value::Int(BigInt::from_i64(unix_time_ms)));
+                    } else {
+                        match local_date_from_unix_time_ms(unix_time_ms) {
+                            Ok((year, month, day)) => {
+                                self.finish_effect(effect, EffectOutcome::Returned);
+                                push_stack!(Value::Record(
+                                    "Date".into(),
+                                    Arc::new(vec![
+                                        Value::Int(BigInt::from_i64(year as i64)),
+                                        Value::Int(BigInt::from_i64(month as i64)),
+                                        Value::Int(BigInt::from_i64(day as i64)),
+                                    ]),
+                                ));
+                            }
+                            Err(message) => {
+                                self.finish_effect(effect, EffectOutcome::ReturnedError);
+                                return Err(RuntimeError::new(
+                                    "R_CLOCK_RANGE",
+                                    message,
+                                    instruction.span,
+                                ));
+                            }
+                        }
+                    }
+                }
+                Op::SemVerCompare => {
+                    let right = pop!();
+                    let left = pop!();
+                    let parse_record =
+                        |value: &Value| -> Result<stdlib_data::SemVer, RuntimeError> {
+                            let Value::Record(name, fields) = value else {
+                                return Err(RuntimeError::new(
+                                    "R_TYPE_INVALID",
+                                    "semver_compare requires SemVer records",
+                                    instruction.span,
+                                ));
+                            };
+                            if name != "SemVer" || fields.len() != 6 {
+                                return Err(RuntimeError::new(
+                                    "R_TYPE_INVALID",
+                                    "invalid SemVer record",
+                                    instruction.span,
+                                ));
+                            }
+                            let Value::Text(original) = &fields[5] else {
+                                return Err(RuntimeError::new(
+                                    "R_TYPE_INVALID",
+                                    "invalid SemVer source text",
+                                    instruction.span,
+                                ));
+                            };
+                            stdlib_data::parse_semver(original).map_err(|error| {
+                                RuntimeError::new("R_TYPE_INVALID", error.message, instruction.span)
+                            })
+                        };
+                    let left = parse_record(&left)?;
+                    let right = parse_record(&right)?;
+                    let ordering = stdlib_data::compare_semver(&left, &right);
+                    push_stack!(Value::Int(BigInt::from_i64(match ordering {
+                        std::cmp::Ordering::Less => -1,
+                        std::cmp::Ordering::Equal => 0,
+                        std::cmp::Ordering::Greater => 1,
+                    })));
+                }
+                Op::CliParse => {
+                    let options = match pop!() {
+                        Value::List(values) => values,
+                        _ => {
+                            return Err(RuntimeError::new(
+                                "R_TYPE_INVALID",
+                                "cli_parse options must be a list",
+                                instruction.span,
+                            ))
+                        }
+                    };
+                    let arguments = match pop!() {
+                        Value::List(values) => values,
+                        _ => {
+                            return Err(RuntimeError::new(
+                                "R_TYPE_INVALID",
+                                "cli_parse arguments must be a list",
+                                instruction.span,
+                            ))
+                        }
+                    };
+                    let arguments = arguments
+                        .iter()
+                        .map(|value| match value {
+                            Value::Text(value) => Ok(value.clone()),
+                            _ => Err(RuntimeError::new(
+                                "R_TYPE_INVALID",
+                                "cli_parse argument must be Text",
+                                instruction.span,
+                            )),
+                        })
+                        .collect::<Result<Vec<_>, _>>()?;
+                    let mut parsed_options = Vec::with_capacity(options.len());
+                    for option in options.iter() {
+                        let Value::Record(name, fields) = option else {
+                            return Err(RuntimeError::new(
+                                "R_TYPE_INVALID",
+                                "cli_parse option must be CliOption",
+                                instruction.span,
+                            ));
+                        };
+                        if name != "CliOption" || fields.len() != 4 {
+                            return Err(RuntimeError::new(
+                                "R_TYPE_INVALID",
+                                "invalid CliOption record",
+                                instruction.span,
+                            ));
+                        }
+                        let (
+                            Value::Text(name),
+                            Value::Bool(takes_value),
+                            Value::Bool(repeatable),
+                            Value::Bool(required),
+                        ) = (&fields[0], &fields[1], &fields[2], &fields[3])
+                        else {
+                            return Err(RuntimeError::new(
+                                "R_TYPE_INVALID",
+                                "invalid CliOption fields",
+                                instruction.span,
+                            ));
+                        };
+                        parsed_options.push(stdlib_data::CliOption::new(
+                            name.clone(),
+                            *takes_value,
+                            *repeatable,
+                            *required,
+                        ));
+                    }
+                    match stdlib_data::CliArguments::parse(&arguments, &parsed_options) {
+                        Ok(parsed) => {
+                            let values = parsed
+                                .values
+                                .into_iter()
+                                .map(|(key, values)| {
+                                    (
+                                        key,
+                                        Value::from_list_items(
+                                            values.into_iter().map(Value::Text).collect(),
+                                        ),
+                                    )
+                                })
+                                .collect::<BTreeMap<_, _>>();
+                            let result = Value::Record(
+                                "CliArgs".into(),
+                                Arc::new(vec![
+                                    Value::Map(Arc::new(values)),
+                                    Value::from_list_items(
+                                        parsed.positionals.into_iter().map(Value::Text).collect(),
+                                    ),
+                                ]),
+                            );
+                            push_stack!(Value::ResultOk(Box::new(result)));
+                        }
+                        Err(error) => push_stack!(file_error_result(RuntimeError::new(
+                            error.code,
+                            error.message,
+                            instruction.span
+                        ))),
+                    }
+                }
+                Op::FsWalk => {
+                    let path = match pop!() {
+                        Value::Text(path) => path,
+                        _ => {
+                            return Err(RuntimeError::new(
+                                "R_TYPE_INVALID",
+                                "fs_walk path must be Text",
+                                instruction.span,
+                            ))
+                        }
+                    };
+                    let resolved =
+                        match host_file_path_no_follow(&self.policy, &path, instruction.span) {
+                            Ok(path) => path,
+                            Err(error) => {
+                                push_stack!(file_error_result(error));
+                                continue;
+                            }
+                        };
+                    match stdlib_data::fs_walk(&resolved, self.policy.max_collection_items) {
+                        Ok(entries) => {
+                            let allocated = entries
+                                .iter()
+                                .map(|entry| {
+                                    std::mem::size_of::<stdlib_data::DirectoryEntry>()
+                                        .saturating_add(entry.relative_path.len())
+                                        .saturating_add(entry.kind.len())
+                                })
+                                .sum::<usize>();
+                            charge_allocation(budget.as_ref(), allocated, instruction.span)?;
+                            let values = entries
+                                .into_iter()
+                                .map(|entry| {
+                                    Value::Record(
+                                        "DirectoryEntry".into(),
+                                        Arc::new(vec![
+                                            Value::Text(entry.relative_path),
+                                            Value::Text(entry.kind),
+                                        ]),
+                                    )
+                                })
+                                .collect();
+                            push_stack!(Value::ResultOk(Box::new(Value::from_list_items(values))));
+                        }
+                        Err(error) if error.code == "E_FS_WALK_LIMIT" => {
+                            return Err(RuntimeError::new(
+                                "R_COLLECTION_LIMIT",
+                                error.message,
+                                instruction.span,
+                            ))
+                        }
+                        Err(error) => push_stack!(file_error_result(RuntimeError::new(
+                            error.code,
+                            error.message,
+                            instruction.span
+                        ))),
+                    }
+                }
+                Op::ListGetOption => {
+                    let index = match pop!() {
+                        Value::Int(index) => index.to_usize(),
+                        _ => None,
+                    };
+                    let list = pop!();
+                    let Some(index) = index else {
+                        push_stack!(Value::OptionNone);
+                        continue;
+                    };
+                    let value = list.list_item(index);
+                    push_stack!(value
+                        .map(|value| Value::OptionSome(Box::new(value)))
+                        .unwrap_or(Value::OptionNone));
+                }
+                Op::MapGetOption => {
+                    let key = match pop!() {
+                        Value::Text(key) => key,
+                        _ => {
+                            return Err(RuntimeError::new(
+                                "R_TYPE_INVALID",
+                                "map_get key must be Text",
+                                instruction.span,
+                            ))
+                        }
+                    };
+                    let map = match pop!() {
+                        Value::Map(map) => map,
+                        _ => {
+                            return Err(RuntimeError::new(
+                                "R_TYPE_INVALID",
+                                "map_get requires Map",
+                                instruction.span,
+                            ))
+                        }
+                    };
+                    push_stack!(map
+                        .get(&key)
+                        .cloned()
+                        .map(|value| Value::OptionSome(Box::new(value)))
+                        .unwrap_or(Value::OptionNone));
+                }
+                Op::TextParseInt | Op::TextParseFloat => {
+                    let text = match pop!() {
+                        Value::Text(text) => text,
+                        _ => {
+                            return Err(RuntimeError::new(
+                                "R_TYPE_INVALID",
+                                "numeric parser requires Text",
+                                instruction.span,
+                            ))
+                        }
+                    };
+                    let parsed: Result<Value, stdlib_data::DataError> =
+                        if instruction.op == Op::TextParseInt {
+                            stdlib_data::text_parse_int(&text).map(Value::Int)
+                        } else {
+                            stdlib_data::text_parse_float(&text).and_then(|value| {
+                                Float64::new(value).map(Value::Float64).ok_or_else(|| {
+                                    stdlib_data::DataError {
+                                        code: "E_FLOAT_PARSE",
+                                        message: "floating-point value must be finite".into(),
+                                    }
+                                })
+                            })
+                        };
+                    match parsed {
+                        Ok(value) => {
+                            if let Value::Int(integer) = &value {
+                                if integer.digit_count() > self.policy.max_integer_digits {
+                                    return Err(RuntimeError::new(
+                                        "R_INTEGER_LIMIT",
+                                        "parsed integer exceeds the configured digit limit",
+                                        instruction.span,
+                                    ));
+                                }
+                            }
+                            push_stack!(Value::ResultOk(Box::new(value)));
+                        }
+                        Err(error) => push_stack!(file_error_result(RuntimeError::new(
+                            error.code,
+                            error.message,
+                            instruction.span
+                        ))),
+                    }
+                }
+                Op::TextCaseFold | Op::TextCollapseWhitespace => {
+                    let text = match pop!() {
+                        Value::Text(text) => text,
+                        _ => {
+                            return Err(RuntimeError::new(
+                                "R_TYPE_INVALID",
+                                "Unicode operation requires Text",
+                                instruction.span,
+                            ))
+                        }
+                    };
+                    let output = if instruction.op == Op::TextCaseFold {
+                        stdlib_services::text_casefold(&text)
+                    } else {
+                        stdlib_services::text_collapse_whitespace(&text)
+                    };
+                    if output.len() > self.policy.max_text_bytes {
+                        return Err(RuntimeError::new(
+                            "R_TEXT_LIMIT",
+                            "Unicode result exceeds the configured text limit",
+                            instruction.span,
+                        ));
+                    }
+                    charge_allocation(budget.as_ref(), output.len(), instruction.span)?;
+                    push_stack!(Value::Text(output));
+                }
+                Op::TextNormalize => {
+                    let form = match pop!() {
+                        Value::Text(value) => value,
+                        _ => {
+                            return Err(RuntimeError::new(
+                                "R_TYPE_INVALID",
+                                "normalization form must be Text",
+                                instruction.span,
+                            ))
+                        }
+                    };
+                    let text = match pop!() {
+                        Value::Text(value) => value,
+                        _ => {
+                            return Err(RuntimeError::new(
+                                "R_TYPE_INVALID",
+                                "normalization input must be Text",
+                                instruction.span,
+                            ))
+                        }
+                    };
+                    match stdlib_services::text_normalize(&text, &form) {
+                        Ok(output) if output.len() <= self.policy.max_text_bytes => {
+                            charge_allocation(budget.as_ref(), output.len(), instruction.span)?;
+                            push_stack!(Value::ResultOk(Box::new(Value::Text(output))));
+                        }
+                        Ok(_) => {
+                            return Err(RuntimeError::new(
+                                "R_TEXT_LIMIT",
+                                "normalized text exceeds the configured text limit",
+                                instruction.span,
+                            ))
+                        }
+                        Err(error) => {
+                            push_stack!(Value::ResultErr(Box::new(service_error_value(error))))
+                        }
+                    }
+                }
+                Op::CryptoHmacSha256 => {
+                    let body = match pop!() {
+                        Value::Bytes(value) => value,
+                        _ => {
+                            return Err(RuntimeError::new(
+                                "R_TYPE_INVALID",
+                                "HMAC body must be Bytes",
+                                instruction.span,
+                            ))
+                        }
+                    };
+                    let key = match pop!() {
+                        Value::Bytes(value) => value,
+                        _ => {
+                            return Err(RuntimeError::new(
+                                "R_TYPE_INVALID",
+                                "HMAC key must be Bytes",
+                                instruction.span,
+                            ))
+                        }
+                    };
+                    push_stack!(Value::Bytes(Arc::new(stdlib_services::crypto_hmac_sha256(
+                        &key, &body
+                    ))));
+                }
+                Op::CryptoVerifyHmacSha256 => {
+                    let expected = match pop!() {
+                        Value::Bytes(value) => value,
+                        _ => {
+                            return Err(RuntimeError::new(
+                                "R_TYPE_INVALID",
+                                "HMAC digest must be Bytes",
+                                instruction.span,
+                            ))
+                        }
+                    };
+                    let body = match pop!() {
+                        Value::Bytes(value) => value,
+                        _ => {
+                            return Err(RuntimeError::new(
+                                "R_TYPE_INVALID",
+                                "HMAC body must be Bytes",
+                                instruction.span,
+                            ))
+                        }
+                    };
+                    let key = match pop!() {
+                        Value::Bytes(value) => value,
+                        _ => {
+                            return Err(RuntimeError::new(
+                                "R_TYPE_INVALID",
+                                "HMAC key must be Bytes",
+                                instruction.span,
+                            ))
+                        }
+                    };
+                    push_stack!(Value::Bool(stdlib_services::crypto_verify_hmac_sha256(
+                        &key, &body, &expected
+                    )));
+                }
+                Op::SqliteOpen => {
+                    let path = match pop!() {
+                        Value::Text(path) => path,
+                        _ => {
+                            return Err(RuntimeError::new(
+                                "R_TYPE_INVALID",
+                                "sqlite_open path must be Text",
+                                instruction.span,
+                            ))
+                        }
+                    };
+                    let result = if !self.policy.allow_file_read || !self.policy.allow_file_write {
+                        Err(stdlib_services::ServiceError::new(
+                            "E_SQLITE_CAPABILITY",
+                            "SQLite requires both file read and file write grants",
+                        ))
+                    } else {
+                        match host_file_path(&self.policy, &path, true, instruction.span) {
+                            Ok(path) => self.databases.open(path).map(|handle| {
+                                let (owner, id) = handle.parts();
+                                Value::NativeResource(NativeResourceValue::new("Db", owner, id))
+                            }),
+                            Err(error) => Err(stdlib_services::ServiceError::new(
+                                "E_SQLITE_PATH",
+                                error.message,
+                            )
+                            .at_path(path.clone())),
+                        }
+                    };
+                    push_stack!(service_result_value(result));
+                }
+                Op::SqliteBegin => {
+                    let (owner, id) = runtime_service_resource(&pop!(), "Db", instruction.span)?;
+                    let result = self
+                        .databases
+                        .begin(stdlib_services::DbHandle::from_parts(owner, id))
+                        .and_then(|handle| {
+                            let cancellation = budget.cancellation.cancelled.clone();
+                            self.databases.set_cancelled(handle, cancellation)?;
+                            let (owner, id) = handle.parts();
+                            Ok(Value::NativeResource(NativeResourceValue::new(
+                                "Transaction",
+                                owner,
+                                id,
+                            )))
+                        });
+                    push_stack!(service_result_value(result));
+                }
+                Op::SqliteExecute | Op::SqliteQuery => {
+                    let values = runtime_sql_values(&pop!(), instruction.span)?;
+                    let sql = match pop!() {
+                        Value::Text(sql) => sql,
+                        _ => {
+                            return Err(RuntimeError::new(
+                                "R_TYPE_INVALID",
+                                "SQLite query must be Text",
+                                instruction.span,
+                            ))
+                        }
+                    };
+                    let (owner, id) =
+                        runtime_service_resource(&pop!(), "Transaction", instruction.span)?;
+                    let transaction = stdlib_services::TransactionHandle::from_parts(owner, id);
+                    if instruction.op == Op::SqliteExecute {
+                        let result = self
+                            .databases
+                            .execute(transaction, &sql, &values)
+                            .map(|affected| Value::Int(BigInt::from_i64(affected)));
+                        push_stack!(service_result_value(result));
+                    } else {
+                        let result =
+                            self.databases
+                                .query(transaction, &sql, &values)
+                                .and_then(|rows| {
+                                    if rows.len() > self.policy.max_collection_items {
+                                        return Err(stdlib_services::ServiceError::new(
+                                            "E_SQLITE_RESULT_LIMIT",
+                                            "SQLite query exceeded the configured collection limit",
+                                        ));
+                                    }
+                                    let values = rows
+                                        .into_iter()
+                                        .map(|row| {
+                                            Value::Record(
+                                                "SqlRow".into(),
+                                                Arc::new(vec![
+                                                    Value::from_list_items(
+                                                        row.columns
+                                                            .into_iter()
+                                                            .map(Value::Text)
+                                                            .collect(),
+                                                    ),
+                                                    Value::from_list_items(
+                                                        row.values
+                                                            .into_iter()
+                                                            .map(service_sql_value)
+                                                            .collect(),
+                                                    ),
+                                                ]),
+                                            )
+                                        })
+                                        .collect::<Vec<_>>();
+                                    let bytes = values
+                                        .iter()
+                                        .map(cloned_value_allocation)
+                                        .fold(0usize, usize::saturating_add);
+                                    charge_allocation(budget.as_ref(), bytes, instruction.span)
+                                        .map_err(|error| {
+                                            stdlib_services::ServiceError::new(
+                                                error.code.as_str(),
+                                                error.message,
+                                            )
+                                        })?;
+                                    Ok(Value::from_list_items(values))
+                                });
+                        push_stack!(service_result_value(result));
+                    }
+                }
+                Op::SqliteCommit | Op::SqliteRollback => {
+                    let (owner, id) =
+                        runtime_service_resource(&pop!(), "Transaction", instruction.span)?;
+                    let transaction = stdlib_services::TransactionHandle::from_parts(owner, id);
+                    let result = if instruction.op == Op::SqliteCommit {
+                        self.databases.commit(transaction)
+                    } else {
+                        self.databases.rollback(transaction)
+                    }
+                    .map(|()| Value::Unit);
+                    push_stack!(service_result_value(result));
+                }
+                Op::SqliteClose => {
+                    let (owner, id) = runtime_service_resource(&pop!(), "Db", instruction.span)?;
+                    let result = self
+                        .databases
+                        .close(stdlib_services::DbHandle::from_parts(owner, id))
+                        .map(|()| Value::Unit);
+                    push_stack!(service_result_value(result));
+                }
+                Op::TomlParse => {
+                    let source = match pop!() {
+                        Value::Text(source) => source,
+                        _ => {
+                            return Err(RuntimeError::new(
+                                "R_TYPE_INVALID",
+                                "toml_parse input must be Text",
+                                instruction.span,
+                            ))
+                        }
+                    };
+                    let result = self.toml_documents.parse(&source).map(|handle| {
+                        let (owner, id) = handle.parts();
+                        Value::NativeResource(NativeResourceValue::new("TomlDocument", owner, id))
+                    });
+                    push_stack!(service_result_value(result));
+                }
+                Op::TomlHas | Op::TomlGetText | Op::TomlGetInt | Op::TomlGetBool => {
+                    let path = runtime_text_path(&pop!(), instruction.span)?;
+                    let (owner, id) =
+                        runtime_service_resource(&pop!(), "TomlDocument", instruction.span)?;
+                    let handle = stdlib_services::TomlHandle::from_parts(owner, id);
+                    let result = match instruction.op {
+                        Op::TomlHas => self.toml_documents.has(handle, &path).map(Value::Bool),
+                        Op::TomlGetText => {
+                            self.toml_documents.get_text(handle, &path).map(Value::Text)
+                        }
+                        Op::TomlGetInt => self
+                            .toml_documents
+                            .get_integer(handle, &path)
+                            .map(|value| Value::Int(BigInt::from_i64(value))),
+                        Op::TomlGetBool => {
+                            self.toml_documents.get_bool(handle, &path).map(Value::Bool)
+                        }
+                        _ => unreachable!(),
+                    };
+                    if instruction.op == Op::TomlHas {
+                        let value = result.map_err(|error| {
+                            RuntimeError::new(error.code, error.message, instruction.span)
+                        })?;
+                        push_stack!(value);
+                    } else {
+                        push_stack!(service_result_value(result));
+                    }
+                }
+                Op::TomlPutText | Op::TomlPutInt | Op::TomlPutBool => {
+                    let replacement = pop!();
+                    let path = runtime_text_path(&pop!(), instruction.span)?;
+                    let (owner, id) =
+                        runtime_service_resource(&pop!(), "TomlDocument", instruction.span)?;
+                    let handle = stdlib_services::TomlHandle::from_parts(owner, id);
+                    let result = match (instruction.op, replacement) {
+                        (Op::TomlPutText, Value::Text(value)) => {
+                            self.toml_documents.put_text(handle, &path, &value)
+                        }
+                        (Op::TomlPutInt, Value::Int(value)) => value
+                            .to_i64()
+                            .ok_or_else(|| {
+                                stdlib_services::ServiceError::new(
+                                    "E_TOML_INTEGER_RANGE",
+                                    "TOML integers must fit signed 64-bit range",
+                                )
+                            })
+                            .and_then(|value| {
+                                self.toml_documents.put_integer(handle, &path, value)
+                            }),
+                        (Op::TomlPutBool, Value::Bool(value)) => {
+                            self.toml_documents.put_bool(handle, &path, value)
+                        }
+                        _ => {
+                            return Err(RuntimeError::new(
+                                "R_TYPE_INVALID",
+                                "TOML value type does not match the edit operation",
+                                instruction.span,
+                            ))
+                        }
+                    }
+                    .map(|()| Value::Unit);
+                    push_stack!(service_result_value(result));
+                }
+                Op::TomlRender => {
+                    let (owner, id) =
+                        runtime_service_resource(&pop!(), "TomlDocument", instruction.span)?;
+                    let text = self
+                        .toml_documents
+                        .render(stdlib_services::TomlHandle::from_parts(owner, id))
+                        .map_err(|error| {
+                            RuntimeError::new("R_TOML_RENDER", error.to_string(), instruction.span)
+                        })?;
+                    if text.len() > self.policy.max_text_bytes {
+                        return Err(RuntimeError::new(
+                            "R_TEXT_LIMIT",
+                            "rendered TOML exceeds the configured text limit",
+                            instruction.span,
+                        ));
+                    }
+                    charge_allocation(budget.as_ref(), text.len(), instruction.span)?;
+                    push_stack!(Value::Text(text));
+                }
+                Op::CalendarParse => {
+                    let source = match pop!() {
+                        Value::Text(source) => source,
+                        _ => {
+                            return Err(RuntimeError::new(
+                                "R_TYPE_INVALID",
+                                "calendar_parse input must be Text",
+                                instruction.span,
+                            ))
+                        }
+                    };
+                    match stdlib_services::calendar_parse(&source) {
+                        Ok(events) if events.len() <= self.policy.max_collection_items => {
+                            let values = events
+                                .into_iter()
+                                .map(service_calendar_event)
+                                .collect::<Vec<_>>();
+                            let bytes = values
+                                .iter()
+                                .map(cloned_value_allocation)
+                                .fold(0usize, usize::saturating_add);
+                            charge_allocation(budget.as_ref(), bytes, instruction.span)?;
+                            push_stack!(Value::ResultOk(Box::new(Value::from_list_items(values))));
+                        }
+                        Ok(_) => push_stack!(Value::ResultErr(Box::new(service_error_value(
+                            stdlib_services::ServiceError::new(
+                                "E_ICAL_LIMIT",
+                                "calendar event count exceeds the configured collection limit"
+                            )
+                        )))),
+                        Err(error) => {
+                            push_stack!(Value::ResultErr(Box::new(service_error_value(error))))
                         }
                     }
                 }
@@ -2912,7 +4481,7 @@ impl Instance {
                 }
                 Op::TryResult => match pop!() {
                     Value::ResultOk(value) => push_stack!(*value),
-                    Value::ResultErr(error) => return Ok(Value::ResultErr(error)),
+                    Value::ResultErr(error) => return Ok(VmStep::Return(Value::ResultErr(error))),
                     _ => {
                         return Err(RuntimeError::new(
                             "R_TYPE_INVALID",
@@ -3306,32 +4875,9 @@ impl Instance {
                             continue;
                         }
                     };
-                    let metrics = json_metrics(&value, self.policy.max_integer_digits);
-                    if metrics.depth > 64 {
-                        return Err(RuntimeError::new(
-                            "R_JSON_DEPTH",
-                            "JSON nesting exceeds 64 levels",
-                            instruction.span,
-                        ));
-                    }
-                    if metrics.oversized_integer {
-                        return Err(RuntimeError::new(
-                            "R_INTEGER_LIMIT",
-                            "JSON integer exceeds the configured digit limit",
-                            instruction.span,
-                        ));
-                    }
-                    if metrics.item_count > self.policy.max_collection_items {
-                        return Err(RuntimeError::new(
-                            "R_COLLECTION_LIMIT",
-                            "JSON collection exceeds the configured item limit",
-                            instruction.span,
-                        ));
-                    }
-                    charge_allocation(budget.as_ref(), metrics.allocation_bytes, instruction.span)?;
-                    push_stack!(Value::ResultOk(Box::new(Value::Json(
-                        SharedJson::from_serde(value)
-                    ))));
+                    let value =
+                        finish_json_value(value, &self.policy, budget.as_ref(), instruction.span)?;
+                    push_stack!(Value::ResultOk(Box::new(value)));
                 }
                 Op::JsonStringify => {
                     let value = match pop!() {
@@ -3360,6 +4906,130 @@ impl Instance {
                         instruction.span,
                     )?;
                     push_stack!(Value::Text(text));
+                }
+                Op::JsonTryGet
+                | Op::JsonTryIndex
+                | Op::JsonTryText
+                | Op::JsonTryInt
+                | Op::JsonTryBool
+                | Op::JsonTryFloat => {
+                    let outcome: Result<Value, JsonErrorValue> = match instruction.op {
+                        Op::JsonTryGet => {
+                            let key = match pop!() {
+                                Value::Text(key) => key,
+                                _ => {
+                                    return Err(RuntimeError::new(
+                                        "R_TYPE_INVALID",
+                                        "json_try_get key must be Text",
+                                        instruction.span,
+                                    ))
+                                }
+                            };
+                            if key.len() > self.policy.max_text_bytes {
+                                return Err(RuntimeError::new(
+                                    "R_TEXT_LIMIT",
+                                    "JSON key exceeds the configured byte limit",
+                                    instruction.span,
+                                ));
+                            }
+                            let value = match pop!() {
+                                Value::Json(value) => value,
+                                _ => {
+                                    return Err(RuntimeError::new(
+                                        "R_TYPE_INVALID",
+                                        "json_try_get requires Json",
+                                        instruction.span,
+                                    ))
+                                }
+                            };
+                            stdlib_data::json_try_get(&value, &key).map(Value::Json)
+                        }
+                        Op::JsonTryIndex => {
+                            let index = match pop!() {
+                                Value::Int(index) => index.to_i64().unwrap_or(-1),
+                                _ => {
+                                    return Err(RuntimeError::new(
+                                        "R_TYPE_INVALID",
+                                        "json_try_index index must be Int",
+                                        instruction.span,
+                                    ))
+                                }
+                            };
+                            let value = match pop!() {
+                                Value::Json(value) => value,
+                                _ => {
+                                    return Err(RuntimeError::new(
+                                        "R_TYPE_INVALID",
+                                        "json_try_index requires Json",
+                                        instruction.span,
+                                    ))
+                                }
+                            };
+                            stdlib_data::json_try_index(&value, index).map(Value::Json)
+                        }
+                        Op::JsonTryText | Op::JsonTryInt | Op::JsonTryBool | Op::JsonTryFloat => {
+                            let value = match pop!() {
+                                Value::Json(value) => value,
+                                _ => {
+                                    return Err(RuntimeError::new(
+                                        "R_TYPE_INVALID",
+                                        "JSON conversion requires Json",
+                                        instruction.span,
+                                    ))
+                                }
+                            };
+                            match instruction.op {
+                                Op::JsonTryText => {
+                                    stdlib_data::json_try_text(value.as_ref()).map(Value::Text)
+                                }
+                                Op::JsonTryInt => {
+                                    stdlib_data::json_try_int(value.as_ref()).map(Value::Int)
+                                }
+                                Op::JsonTryBool => {
+                                    stdlib_data::json_try_bool(value.as_ref()).map(Value::Bool)
+                                }
+                                Op::JsonTryFloat => stdlib_data::json_try_float(value.as_ref())
+                                    .and_then(|number| {
+                                        Float64::new(number).map(Value::Float64).ok_or_else(|| {
+                                            JsonErrorValue {
+                                                code: "E_JSON_TYPE".into(),
+                                                message:
+                                                    "JSON number is outside finite Float64 range"
+                                                        .into(),
+                                                line: 0,
+                                                column: 0,
+                                            }
+                                        })
+                                    }),
+                                _ => unreachable!(),
+                            }
+                        }
+                        _ => unreachable!(),
+                    };
+                    match outcome {
+                        Ok(value) => {
+                            if let Value::Int(integer) = &value {
+                                if integer.digit_count() > self.policy.max_integer_digits {
+                                    return Err(RuntimeError::new(
+                                        "R_INTEGER_LIMIT",
+                                        "JSON integer exceeds the configured digit limit",
+                                        instruction.span,
+                                    ));
+                                }
+                            }
+                            if let Value::Text(text) = &value {
+                                charge_allocation(
+                                    budget.as_ref(),
+                                    size_of::<String>().saturating_add(text.len()),
+                                    instruction.span,
+                                )?;
+                            }
+                            push_stack!(Value::ResultOk(Box::new(value)));
+                        }
+                        Err(error) => {
+                            push_stack!(Value::ResultErr(Box::new(Value::JsonError(error))))
+                        }
+                    }
                 }
                 Op::JsonGet => {
                     let key = match pop!() {
@@ -4035,7 +5705,7 @@ impl Instance {
                     {
                         return Err(error);
                     }
-                    return Ok(result);
+                    return Ok(VmStep::Return(result));
                 }
             }
         }
@@ -4049,119 +5719,144 @@ impl Instance {
         budget: &Budget,
         span: Span,
     ) -> Result<Value, RuntimeError> {
-        let external = self
-            .artifact
-            .externals
-            .get(target)
-            .cloned()
-            .ok_or_else(|| {
-                RuntimeError::new(
-                    "R_ARTIFACT_INVALID",
-                    "Python call references a missing declaration",
-                    span,
-                )
-            })?;
-        let interpreter = self.policy.python_interpreter.clone().ok_or_else(|| {
+        #[cfg(not(feature = "python-interop"))]
+        {
+            let _ = (target, args, kwargs, budget);
+            return Err(RuntimeError::new(
+                "R_PYTHON_UNAVAILABLE",
+                "this external call requires the optional `python-interop` feature",
+                span,
+            ));
+        }
+        #[cfg(feature = "python-interop")]
+        {
+            let external = self
+                .artifact
+                .externals
+                .get(target)
+                .cloned()
+                .ok_or_else(|| {
+                    RuntimeError::new(
+                        "R_ARTIFACT_INVALID",
+                        "Python call references a missing declaration",
+                        span,
+                    )
+                })?;
+            let interpreter = self.policy.python_interpreter.clone().ok_or_else(|| {
             RuntimeError::new(
                 "R_PYTHON_UNCONFIGURED",
                 "this project declares a Python call; configure an explicit interpreter or install the managed bridge",
                 span,
             )
         })?;
-        if self.python_bridge.is_none() {
-            let root = self
-                .policy
-                .file_root
-                .as_deref()
-                .unwrap_or_else(|| std::path::Path::new("."));
-            self.python_bridge = Some(
-                python_bridge::PythonBridge::launch(&interpreter, root, self.policy.python_timeout)
+            if self.python_bridge.is_none() {
+                let project_root = self
+                    .policy
+                    .file_root
+                    .as_deref()
+                    .unwrap_or_else(|| std::path::Path::new("."));
+                let working_directory = self
+                    .policy
+                    .additional_file_roots
+                    .last()
+                    .map(std::path::PathBuf::as_path)
+                    .unwrap_or(project_root);
+                self.python_bridge = Some(
+                    python_bridge::PythonBridge::launch_with_project_root(
+                        &interpreter,
+                        project_root,
+                        working_directory,
+                        self.policy.python_timeout,
+                    )
                     .map_err(|error| RuntimeError::new(error.code, error.message, span))?,
-            );
-        }
-        let effect = self.begin_effect(
-            EffectKind::PythonCall,
-            format!("{}:{}", external.module, external.callable),
-        );
-        let call = self.python_bridge.as_mut().unwrap().call_with_cancellation(
-            &external.module,
-            &external.callable,
-            args,
-            kwargs,
-            &external.result,
-            &budget.cancellation,
-        );
-        self.finish_effect(
-            effect,
-            match &call {
-                Ok(_) => EffectOutcome::Returned,
-                Err(error) if error.code == "R_CANCELLED" => EffectOutcome::Interrupted,
-                Err(_) => EffectOutcome::ReturnedError,
-            },
-        );
-        if let Some(bridge) = &self.python_bridge {
-            let observation = bridge.native_image_observation().to_owned();
-            let images = bridge.native_images().to_vec();
-            self.record_python_native_images(&observation, &images);
-        }
-        match call {
-            Ok(result) => {
-                charge_allocation(
-                    budget,
-                    input_value_allocation(&result.value)
-                        .saturating_add(result.stdout.len())
-                        .saturating_add(result.stderr.len()),
-                    span,
-                )?;
-                if self.output.len().saturating_add(result.stdout.len())
-                    > self.policy.output_limit_bytes
-                {
-                    return Err(RuntimeError::new(
-                        "R_OUTPUT_LIMIT",
-                        "Python output exceeds the configured limit",
-                        span,
-                    ));
-                }
-                self.output.push_str(&result.stdout);
-                if self.host_stderr.len().saturating_add(result.stderr.len())
-                    > self.policy.output_limit_bytes
-                {
-                    return Err(RuntimeError::new(
-                        "R_OUTPUT_LIMIT",
-                        "Python stderr exceeds the configured limit",
-                        span,
-                    ));
-                }
-                self.host_stderr.push_str(&result.stderr);
-                if let Some(error) = value_limit_error(&result.value, &self.policy, span) {
-                    return Err(error);
-                }
-                Ok(result.value)
+                );
             }
-            Err(error) => {
-                if self.output.len().saturating_add(error.stdout.len())
-                    <= self.policy.output_limit_bytes
-                {
-                    self.output.push_str(&error.stdout);
+            let effect = self.begin_effect(
+                EffectKind::PythonCall,
+                format!("{}:{}", external.module, external.callable),
+            );
+            let call = self.python_bridge.as_mut().unwrap().call_with_cancellation(
+                &external.module,
+                &external.callable,
+                args,
+                kwargs,
+                &external.result,
+                &budget.cancellation,
+            );
+            self.finish_effect(
+                effect,
+                match &call {
+                    Ok(_) => EffectOutcome::Returned,
+                    Err(error) if error.code == "R_CANCELLED" => EffectOutcome::Interrupted,
+                    Err(_) => EffectOutcome::ReturnedError,
+                },
+            );
+            if let Some(bridge) = &self.python_bridge {
+                let observation = bridge.native_image_observation().to_owned();
+                let images = bridge.native_images().to_vec();
+                self.record_python_native_images(&observation, &images);
+            }
+            match call {
+                Ok(result) => {
+                    charge_allocation(
+                        budget,
+                        input_value_allocation(&result.value)
+                            .saturating_add(result.stdout.len())
+                            .saturating_add(result.stderr.len()),
+                        span,
+                    )?;
+                    if self.output.len().saturating_add(result.stdout.len())
+                        > self.policy.output_limit_bytes
+                    {
+                        return Err(RuntimeError::new(
+                            "R_OUTPUT_LIMIT",
+                            "Python output exceeds the configured limit",
+                            span,
+                        ));
+                    }
+                    self.output.push_str(&result.stdout);
+                    if self.host_stderr.len().saturating_add(result.stderr.len())
+                        > self.policy.output_limit_bytes
+                    {
+                        return Err(RuntimeError::new(
+                            "R_OUTPUT_LIMIT",
+                            "Python stderr exceeds the configured limit",
+                            span,
+                        ));
+                    }
+                    self.host_stderr.push_str(&result.stderr);
+                    if let Some(error) =
+                        value_limit_error_at_boundary(&result.value, &self.policy, span)
+                    {
+                        return Err(error);
+                    }
+                    Ok(result.value)
                 }
-                if self.host_stderr.len().saturating_add(error.stderr.len())
-                    <= self.policy.output_limit_bytes
-                {
-                    self.host_stderr.push_str(&error.stderr);
+                Err(error) => {
+                    if self.output.len().saturating_add(error.stdout.len())
+                        <= self.policy.output_limit_bytes
+                    {
+                        self.output.push_str(&error.stdout);
+                    }
+                    if self.host_stderr.len().saturating_add(error.stderr.len())
+                        <= self.policy.output_limit_bytes
+                    {
+                        self.host_stderr.push_str(&error.stderr);
+                    }
+                    let detail = error
+                        .python_type
+                        .map(|kind| format!("Python {kind}: "))
+                        .unwrap_or_default();
+                    let trace = error
+                        .traceback
+                        .map(|trace| format!("\n{trace}"))
+                        .unwrap_or_default();
+                    Err(RuntimeError::new(
+                        error.code,
+                        format!("{detail}{}{trace}", error.message),
+                        span,
+                    ))
                 }
-                let detail = error
-                    .python_type
-                    .map(|kind| format!("Python {kind}: "))
-                    .unwrap_or_default();
-                let trace = error
-                    .traceback
-                    .map(|trace| format!("\n{trace}"))
-                    .unwrap_or_default();
-                Err(RuntimeError::new(
-                    error.code,
-                    format!("{detail}{}{trace}", error.message),
-                    span,
-                ))
             }
         }
     }
@@ -4232,7 +5927,7 @@ impl Instance {
         )?;
         let next = Arc::new(AtomicUsize::new(worker_count));
         let cancelled = Arc::new(AtomicBool::new(false));
-        let artifact = Arc::new(self.artifact.clone());
+        let artifact = Arc::clone(&self.artifact);
         let policy = self.policy.clone();
         let native_enabled = self.native_enabled;
         let native_code = self.native_code.clone();
@@ -4263,6 +5958,7 @@ impl Instance {
             let native_deoptimizations = native_deoptimizations.clone();
             let native_compilations = native_compilations.clone();
             let native_code = native_code.clone();
+            let http = self.http.clone();
             let sender = sender.clone();
             handles.push(thread::spawn(move || {
                 let mut assigned_index = Some(initial_index);
@@ -4277,8 +5973,16 @@ impl Instance {
                         break;
                     }
                     let thread_id = format!("{:?}", thread::current().id());
+                    let mut database_roots = Vec::with_capacity(
+                        1 + policy.additional_file_roots.len() + policy.file_root_aliases.len(),
+                    );
+                    if let Some(root) = &policy.file_root {
+                        database_roots.push(root.clone());
+                    }
+                    database_roots.extend(policy.additional_file_roots.iter().cloned());
+                    database_roots.extend(policy.file_root_aliases.values().cloned());
                     let mut worker = Instance {
-                        artifact: (*artifact).clone(),
+                        artifact: Arc::clone(&artifact),
                         native: None,
                         native_code: native_code.clone(),
                         native_enabled,
@@ -4286,11 +5990,24 @@ impl Instance {
                         native_deoptimizations: native_deoptimizations.clone(),
                         native_compilations: native_compilations.clone(),
                         policy: policy.clone(),
+                        http: http.clone(),
+                        readers: stdlib_data::FileReaderRegistry::new(
+                            policy.max_file_bytes,
+                            policy.max_file_bytes,
+                        ),
+                        databases: stdlib_services::DatabaseRegistry::with_roots(
+                            database_roots,
+                            policy.max_file_bytes,
+                            policy.max_collection_items,
+                            2_000,
+                        ),
+                        toml_documents: stdlib_services::TomlRegistry::new(policy.max_text_bytes),
                         output: String::new(),
                         program_stderr: String::new(),
                         closed: false,
                         worker_threads: HashSet::new(),
                         cancelled: Some(cancelled.clone()),
+                        #[cfg(feature = "python-interop")]
                         python_bridge: None,
                         host_stderr: String::new(),
                         effect_report: Vec::new(),
@@ -4870,6 +6587,7 @@ fn input_value_allocation(value: &Value) -> usize {
                 + error.message.len()
                 + error.trace.len().saturating_mul(size_of::<Span>())
         }
+        Value::NativeResource(resource) => size_of::<Value>() + resource.kind().len(),
         Value::Float64(_) | Value::Bool(_) | Value::OptionNone | Value::Unit => size_of::<Value>(),
     }
 }
@@ -4897,6 +6615,9 @@ fn cloned_value_allocation(value: &Value) -> usize {
             .saturating_add(error.code.len())
             .saturating_add(error.message.len())
             .saturating_add(error.trace.len().saturating_mul(size_of::<Span>())),
+        Value::NativeResource(resource) => {
+            size_of::<NativeResourceValue>().saturating_add(resource.kind().len())
+        }
         // Lists, maps, and JSON trees use shared immutable storage.
         Value::List(_) | Value::Float64List(_) | Value::Map(_) | Value::Json(_) => 0,
         _ => 0,
@@ -4933,6 +6654,17 @@ struct JsonMetrics {
     item_count: usize,
     oversized_integer: bool,
     allocation_bytes: usize,
+    encoded_len: usize,
+}
+
+fn encoded_json_string_len(value: &str) -> usize {
+    value.bytes().fold(2usize, |size, byte| {
+        size.saturating_add(match byte {
+            b'"' | b'\\' | b'\x08' | b'\t' | b'\n' | b'\x0c' | b'\r' => 2,
+            0..=0x1f => 6,
+            _ => 1,
+        })
+    })
 }
 
 fn json_metrics(value: &serde_json::Value, max_integer_digits: usize) -> JsonMetrics {
@@ -4943,6 +6675,11 @@ fn json_metrics(value: &serde_json::Value, max_integer_digits: usize) -> JsonMet
             item_count: 0,
             oversized_integer: false,
             allocation_bytes: size_of::<JsonValue>(),
+            encoded_len: match value {
+                JsonValue::Null | JsonValue::Bool(true) => 4,
+                JsonValue::Bool(false) => 5,
+                _ => unreachable!(),
+            },
         },
         JsonValue::Number(number) => {
             let text = number.to_string();
@@ -4953,6 +6690,7 @@ fn json_metrics(value: &serde_json::Value, max_integer_digits: usize) -> JsonMet
                 item_count: 0,
                 oversized_integer: is_integer && digits.len() > max_integer_digits,
                 allocation_bytes: size_of::<JsonValue>().saturating_add(text.len()),
+                encoded_len: text.len(),
             }
         }
         JsonValue::String(text) => JsonMetrics {
@@ -4962,6 +6700,7 @@ fn json_metrics(value: &serde_json::Value, max_integer_digits: usize) -> JsonMet
             allocation_bytes: size_of::<JsonValue>()
                 .saturating_add(size_of::<String>())
                 .saturating_add(text.len()),
+            encoded_len: encoded_json_string_len(text),
         },
         JsonValue::Array(items) => {
             let mut metrics = JsonMetrics {
@@ -4971,6 +6710,7 @@ fn json_metrics(value: &serde_json::Value, max_integer_digits: usize) -> JsonMet
                 allocation_bytes: size_of::<JsonValue>()
                     .saturating_add(size_of::<Vec<JsonValue>>())
                     .saturating_add(items.capacity().saturating_mul(size_of::<JsonValue>())),
+                encoded_len: 2usize.saturating_add(items.len().saturating_sub(1)),
             };
             for item in items {
                 let child = json_metrics(item, max_integer_digits);
@@ -4980,6 +6720,7 @@ fn json_metrics(value: &serde_json::Value, max_integer_digits: usize) -> JsonMet
                 metrics.allocation_bytes = metrics
                     .allocation_bytes
                     .saturating_add(child.allocation_bytes);
+                metrics.encoded_len = metrics.encoded_len.saturating_add(child.encoded_len);
             }
             metrics
         }
@@ -4990,6 +6731,7 @@ fn json_metrics(value: &serde_json::Value, max_integer_digits: usize) -> JsonMet
                 oversized_integer: false,
                 allocation_bytes: size_of::<JsonValue>()
                     .saturating_add(size_of::<serde_json::Map<String, JsonValue>>()),
+                encoded_len: 2usize.saturating_add(items.len().saturating_sub(1)),
             };
             for (key, child_value) in items {
                 let child = json_metrics(child_value, max_integer_digits);
@@ -5002,6 +6744,11 @@ fn json_metrics(value: &serde_json::Value, max_integer_digits: usize) -> JsonMet
                     .saturating_add(key.len())
                     .saturating_add(size_of::<JsonValue>() * 3)
                     .saturating_add(child.allocation_bytes);
+                metrics.encoded_len = metrics
+                    .encoded_len
+                    .saturating_add(encoded_json_string_len(key))
+                    .saturating_add(1)
+                    .saturating_add(child.encoded_len);
             }
             metrics
         }
@@ -5026,27 +6773,7 @@ fn finish_json_value(
     span: Span,
 ) -> Result<Value, RuntimeError> {
     let metrics = json_metrics(&value, policy.max_integer_digits);
-    if metrics.depth > 64 {
-        return Err(RuntimeError::new(
-            "R_JSON_DEPTH",
-            "JSON nesting exceeds 64 levels",
-            span,
-        ));
-    }
-    if metrics.oversized_integer {
-        return Err(RuntimeError::new(
-            "R_INTEGER_LIMIT",
-            "JSON integer exceeds the configured digit limit",
-            span,
-        ));
-    }
-    if metrics.item_count > policy.max_collection_items {
-        return Err(RuntimeError::new(
-            "R_COLLECTION_LIMIT",
-            "JSON collection exceeds the configured item limit",
-            span,
-        ));
-    }
+    validate_json_metrics(&metrics, policy, span)?;
     charge_allocation(budget, metrics.allocation_bytes, span)?;
     Ok(Value::Json(SharedJson::from_serde(value)))
 }
@@ -5058,6 +6785,11 @@ fn shared_json_metrics(value: &SharedJson, max_integer_digits: usize) -> JsonMet
             item_count: 0,
             oversized_integer: false,
             allocation_bytes: size_of::<SharedJson>(),
+            encoded_len: match value {
+                SharedJson::Null | SharedJson::Bool(true) => 4,
+                SharedJson::Bool(false) => 5,
+                _ => unreachable!(),
+            },
         },
         SharedJson::Number(number) => {
             let text = number.to_string();
@@ -5068,6 +6800,7 @@ fn shared_json_metrics(value: &SharedJson, max_integer_digits: usize) -> JsonMet
                 item_count: 0,
                 oversized_integer: is_integer && digits.len() > max_integer_digits,
                 allocation_bytes: size_of::<SharedJson>().saturating_add(text.len()),
+                encoded_len: text.len(),
             }
         }
         SharedJson::String(text) => JsonMetrics {
@@ -5075,6 +6808,7 @@ fn shared_json_metrics(value: &SharedJson, max_integer_digits: usize) -> JsonMet
             item_count: 0,
             oversized_integer: false,
             allocation_bytes: size_of::<SharedJson>().saturating_add(text.len()),
+            encoded_len: encoded_json_string_len(text),
         },
         SharedJson::Array(items) => {
             let mut metrics = JsonMetrics {
@@ -5088,12 +6822,14 @@ fn shared_json_metrics(value: &SharedJson, max_integer_digits: usize) -> JsonMet
                             .capacity()
                             .saturating_mul(size_of::<Arc<SharedJson>>()),
                     ),
+                encoded_len: 2usize.saturating_add(items.len().saturating_sub(1)),
             };
             for item in items.iter() {
                 let child = shared_json_metrics(item, max_integer_digits);
                 metrics.depth = metrics.depth.max(child.depth.saturating_add(1));
                 metrics.item_count = metrics.item_count.saturating_add(child.item_count);
                 metrics.oversized_integer |= child.oversized_integer;
+                metrics.encoded_len = metrics.encoded_len.saturating_add(child.encoded_len);
             }
             metrics
         }
@@ -5104,6 +6840,7 @@ fn shared_json_metrics(value: &SharedJson, max_integer_digits: usize) -> JsonMet
                 oversized_integer: false,
                 allocation_bytes: size_of::<SharedJson>()
                     .saturating_add(size_of::<BTreeMap<String, Arc<SharedJson>>>()),
+                encoded_len: 2usize.saturating_add(items.len().saturating_sub(1)),
             };
             for (key, child_value) in items.iter() {
                 let child = shared_json_metrics(child_value, max_integer_digits);
@@ -5114,6 +6851,11 @@ fn shared_json_metrics(value: &SharedJson, max_integer_digits: usize) -> JsonMet
                     .allocation_bytes
                     .saturating_add(size_of::<String>() + key.len())
                     .saturating_add(size_of::<Arc<SharedJson>>() * 3);
+                metrics.encoded_len = metrics
+                    .encoded_len
+                    .saturating_add(encoded_json_string_len(key))
+                    .saturating_add(1)
+                    .saturating_add(child.encoded_len);
             }
             metrics
         }
@@ -5127,10 +6869,27 @@ fn finish_shared_json(
     span: Span,
 ) -> Result<Value, RuntimeError> {
     let metrics = shared_json_metrics(&value, policy.max_integer_digits);
+    validate_json_metrics(&metrics, policy, span)?;
+    charge_allocation(budget, metrics.allocation_bytes, span)?;
+    Ok(Value::Json(Arc::new(value)))
+}
+
+fn validate_json_metrics(
+    metrics: &JsonMetrics,
+    policy: &HostPolicy,
+    span: Span,
+) -> Result<(), RuntimeError> {
     if metrics.depth > 64 {
         return Err(RuntimeError::new(
             "R_JSON_DEPTH",
             "JSON nesting exceeds 64 levels",
+            span,
+        ));
+    }
+    if metrics.encoded_len > policy.max_text_bytes {
+        return Err(RuntimeError::new(
+            "R_TEXT_LIMIT",
+            "JSON value exceeds the configured byte limit",
             span,
         ));
     }
@@ -5148,35 +6907,7 @@ fn finish_shared_json(
             span,
         ));
     }
-    charge_allocation(budget, metrics.allocation_bytes, span)?;
-    Ok(Value::Json(Arc::new(value)))
-}
-
-fn shared_json_encoded_len(value: &SharedJson) -> Option<usize> {
-    match value {
-        SharedJson::Null => Some(4),
-        SharedJson::Bool(true) => Some(4),
-        SharedJson::Bool(false) => Some(5),
-        SharedJson::Number(number) => Some(number.to_string().len()),
-        SharedJson::String(text) => serde_json::to_string(text.as_ref()).ok().map(|s| s.len()),
-        SharedJson::Array(items) => {
-            let mut size = 2usize.saturating_add(items.len().saturating_sub(1));
-            for item in items.iter() {
-                size = size.saturating_add(shared_json_encoded_len(item)?);
-            }
-            Some(size)
-        }
-        SharedJson::Object(items) => {
-            let mut size = 2usize.saturating_add(items.len().saturating_sub(1));
-            for (key, item) in items.iter() {
-                size = size
-                    .saturating_add(serde_json::to_string(key).ok()?.len())
-                    .saturating_add(1)
-                    .saturating_add(shared_json_encoded_len(item)?);
-            }
-            Some(size)
-        }
-    }
+    Ok(())
 }
 
 fn shared_json_push_local_allocation(value: &Arc<SharedJson>) -> usize {
@@ -5243,6 +6974,9 @@ fn value_matches(value: &Value, ty: &Type, records: &[veritas_model::RecordDefin
         (Value::JsonError(_), Type::JsonError) => true,
         (Value::FileError(_), Type::FileError) => true,
         (Value::HttpError(_), Type::HttpError) => true,
+        (Value::NativeResource(resource), Type::NativeResource(expected)) => {
+            resource.kind() == expected
+        }
         _ => false,
     }
 }
@@ -5255,6 +6989,259 @@ fn file_error_result(error: RuntimeError) -> Value {
     })))
 }
 
+fn runtime_reader_handle(
+    value: &Value,
+    span: Span,
+) -> Result<stdlib_data::FileReaderHandle, RuntimeError> {
+    let Value::NativeResource(resource) = value else {
+        return Err(RuntimeError::new(
+            "R_TYPE_INVALID",
+            "file reader operation requires FileReader",
+            span,
+        ));
+    };
+    let (kind, owner, id) = resource.parts();
+    if kind != "FileReader" {
+        return Err(RuntimeError::new(
+            "R_TYPE_INVALID",
+            "resource is not a FileReader",
+            span,
+        ));
+    }
+    Ok(stdlib_data::FileReaderHandle::from_parts(owner, id))
+}
+
+fn runtime_service_resource(
+    value: &Value,
+    expected_kind: &str,
+    span: Span,
+) -> Result<(u64, u64), RuntimeError> {
+    let Value::NativeResource(resource) = value else {
+        return Err(RuntimeError::new(
+            "R_TYPE_INVALID",
+            format!("operation requires {expected_kind}"),
+            span,
+        ));
+    };
+    let (kind, owner, id) = resource.parts();
+    if kind != expected_kind {
+        return Err(RuntimeError::new(
+            "R_TYPE_INVALID",
+            format!("operation requires {expected_kind}"),
+            span,
+        ));
+    }
+    Ok((owner, id))
+}
+
+fn runtime_text_path(value: &Value, span: Span) -> Result<Vec<String>, RuntimeError> {
+    let Value::List(items) = value else {
+        return Err(RuntimeError::new(
+            "R_TYPE_INVALID",
+            "TOML path must be List[Text]",
+            span,
+        ));
+    };
+    items
+        .iter()
+        .map(|item| match item {
+            Value::Text(text) => Ok(text.clone()),
+            _ => Err(RuntimeError::new(
+                "R_TYPE_INVALID",
+                "TOML path must contain only Text",
+                span,
+            )),
+        })
+        .collect()
+}
+
+fn runtime_sql_values(
+    value: &Value,
+    span: Span,
+) -> Result<Vec<stdlib_services::SqlValue>, RuntimeError> {
+    let Value::List(items) = value else {
+        return Err(RuntimeError::new(
+            "R_TYPE_INVALID",
+            "SQLite parameters must be List[SqlValue]",
+            span,
+        ));
+    };
+    items
+        .iter()
+        .map(|item| {
+            let Value::Record(name, fields) = item else {
+                return Err(RuntimeError::new(
+                    "R_TYPE_INVALID",
+                    "SQLite parameter must be SqlValue",
+                    span,
+                ));
+            };
+            if name != "SqlValue" || fields.len() != 5 {
+                return Err(RuntimeError::new(
+                    "R_TYPE_INVALID",
+                    "invalid SqlValue record",
+                    span,
+                ));
+            }
+            let (
+                Value::Text(kind),
+                Value::Int(integer),
+                Value::Float64(real),
+                Value::Text(text),
+                Value::Bytes(blob),
+            ) = (&fields[0], &fields[1], &fields[2], &fields[3], &fields[4])
+            else {
+                return Err(RuntimeError::new(
+                    "R_TYPE_INVALID",
+                    "invalid SqlValue payload",
+                    span,
+                ));
+            };
+            let integer_i64 = integer.to_i64();
+            let zero_integer = integer == &BigInt::zero();
+            let zero_real = real.get() == 0.0;
+            let empty_text = text.is_empty();
+            let empty_blob = blob.is_empty();
+            let decoded = match kind.as_str() {
+                "null" if zero_integer && zero_real && empty_text && empty_blob => {
+                    stdlib_services::SqlValue::Null
+                }
+                "integer" if integer_i64.is_some() && zero_real && empty_text && empty_blob => {
+                    stdlib_services::SqlValue::Integer(integer_i64.unwrap())
+                }
+                "real" if zero_integer && real.get().is_finite() && empty_text && empty_blob => {
+                    stdlib_services::SqlValue::Real(real.get())
+                }
+                "text" if zero_integer && zero_real && empty_blob => {
+                    stdlib_services::SqlValue::Text(text.clone())
+                }
+                "blob" if zero_integer && zero_real && empty_text => {
+                    stdlib_services::SqlValue::Blob(blob.as_ref().clone())
+                }
+                _ => return Err(RuntimeError::new(
+                    "R_SQLITE_VALUE",
+                    "SqlValue kind and payload fields are inconsistent or outside SQLite's range",
+                    span,
+                )),
+            };
+            Ok(decoded)
+        })
+        .collect()
+}
+
+fn service_error_value(error: stdlib_services::ServiceError) -> Value {
+    Value::Record(
+        "StdError".into(),
+        Arc::new(vec![
+            Value::Text(error.code),
+            Value::Text(error.message),
+            Value::Text(error.path),
+            Value::Int(BigInt::from_usize(error.line)),
+            Value::Int(BigInt::from_usize(error.column)),
+        ]),
+    )
+}
+
+fn service_result_value(result: Result<Value, stdlib_services::ServiceError>) -> Value {
+    match result {
+        Ok(value) => Value::ResultOk(Box::new(value)),
+        Err(error) => Value::ResultErr(Box::new(service_error_value(error))),
+    }
+}
+
+fn service_sql_value(value: stdlib_services::SqlValue) -> Value {
+    let (kind, integer, real, text, blob) = match value {
+        stdlib_services::SqlValue::Null => ("null", 0, 0.0, String::new(), Vec::new()),
+        stdlib_services::SqlValue::Integer(value) => {
+            ("integer", value, 0.0, String::new(), Vec::new())
+        }
+        stdlib_services::SqlValue::Real(value) => ("real", 0, value, String::new(), Vec::new()),
+        stdlib_services::SqlValue::Text(value) => ("text", 0, 0.0, value, Vec::new()),
+        stdlib_services::SqlValue::Blob(value) => ("blob", 0, 0.0, String::new(), value),
+    };
+    Value::Record(
+        "SqlValue".into(),
+        Arc::new(vec![
+            Value::Text(kind.into()),
+            Value::Int(BigInt::from_i64(integer)),
+            Value::Float64(Float64::new(real).expect("SQLite service returns finite reals")),
+            Value::Text(text),
+            Value::Bytes(Arc::new(blob)),
+        ]),
+    )
+}
+
+fn service_calendar_event(event: stdlib_services::CalendarEvent) -> Value {
+    let instant = |seconds: Option<i64>| {
+        seconds
+            .map(|seconds| {
+                let microseconds = &BigInt::from_i64(seconds) * &BigInt::from_i64(1_000_000);
+                Value::OptionSome(Box::new(Value::Record(
+                    "Instant".into(),
+                    Arc::new(vec![Value::Int(microseconds)]),
+                )))
+            })
+            .unwrap_or(Value::OptionNone)
+    };
+    let date = |date: Option<(i32, u8, u8)>| {
+        date.map(|(year, month, day)| {
+            Value::OptionSome(Box::new(Value::Record(
+                "Date".into(),
+                Arc::new(vec![
+                    Value::Int(BigInt::from_i64(i64::from(year))),
+                    Value::Int(BigInt::from_i64(i64::from(month))),
+                    Value::Int(BigInt::from_i64(i64::from(day))),
+                ]),
+            )))
+        })
+        .unwrap_or(Value::OptionNone)
+    };
+    let recurrence = event
+        .recurrence_rule
+        .map(|rule| Value::OptionSome(Box::new(Value::Text(rule))))
+        .unwrap_or(Value::OptionNone);
+    Value::Record(
+        "CalendarEvent".into(),
+        Arc::new(vec![
+            Value::Text(event.uid),
+            instant(event.start_unix_seconds),
+            instant(event.end_unix_seconds),
+            date(event.start_date),
+            date(event.end_date),
+            Value::Text(event.status),
+            Value::Bool(event.all_day),
+            recurrence,
+        ]),
+    )
+}
+
+fn reader_runtime_error(
+    kind: stdlib_data::ReaderErrorKind,
+    message: String,
+    line: usize,
+    column: usize,
+    span: Span,
+) -> RuntimeError {
+    let code = match kind {
+        stdlib_data::ReaderErrorKind::Closed => "R_RESOURCE_CLOSED",
+        stdlib_data::ReaderErrorKind::Stale => "R_RESOURCE_STALE",
+        stdlib_data::ReaderErrorKind::ForeignOwner => "R_RESOURCE_OWNER",
+        stdlib_data::ReaderErrorKind::Mode => "R_RESOURCE_MODE",
+        stdlib_data::ReaderErrorKind::InvalidUtf8 => "R_FILE_UTF8",
+        stdlib_data::ReaderErrorKind::Limit => "R_FILE_LIMIT",
+        stdlib_data::ReaderErrorKind::Io => "R_FILE_READ",
+    };
+    let mut error = RuntimeError::new(code, message, span);
+    if line > 0 {
+        error.trace.push(Span {
+            line,
+            column,
+            ..span
+        });
+    }
+    error
+}
+
 fn http_error(code: &str, message: impl Into<String>) -> HttpErrorValue {
     HttpErrorValue {
         code: code.into(),
@@ -5263,118 +7250,54 @@ fn http_error(code: &str, message: impl Into<String>) -> HttpErrorValue {
     }
 }
 
-fn perform_http_get(policy: &HostPolicy, input: &str) -> Result<String, HttpErrorValue> {
-    let url = reqwest::Url::parse(input).map_err(|_| http_error("R_HTTP_URL", "URL is invalid"))?;
-    if !matches!(url.scheme(), "http" | "https")
-        || !url.username().is_empty()
-        || url.password().is_some()
-    {
-        return Err(http_error(
-            "R_HTTP_URL",
-            "only HTTP and HTTPS URLs without embedded credentials are allowed",
-        ));
-    }
-    let host = url
-        .host_str()
-        .map(|host| host.trim_end_matches('.').to_ascii_lowercase())
-        .ok_or_else(|| http_error("R_HTTP_URL", "URL has no host"))?;
-    if policy.allowed_http_hosts.is_empty() || !policy.allowed_http_hosts.contains(&host) {
-        return Err(http_error(
-            "R_NETWORK_DENIED",
-            "network access to this host is not granted",
-        ));
-    }
-
-    let allowed_hosts = policy.allowed_http_hosts.clone();
-    let max_redirects = policy.max_http_redirects;
-    let redirect_policy = reqwest::redirect::Policy::custom(move |attempt| {
-        if attempt.previous().len() > max_redirects {
-            return attempt.error(std::io::Error::other("redirect limit exceeded"));
-        }
-        let redirect_host = attempt
-            .url()
-            .host_str()
-            .map(|host| host.trim_end_matches('.').to_ascii_lowercase());
-        if redirect_host.is_some_and(|host| allowed_hosts.contains(&host)) {
-            attempt.follow()
-        } else {
-            attempt.error(std::io::Error::other("redirect host is not granted"))
-        }
-    });
-    let client = reqwest::blocking::Client::builder()
-        .no_proxy()
-        .connect_timeout(policy.http_timeout.min(Duration::from_secs(5)))
-        .timeout(policy.http_timeout)
-        .redirect(redirect_policy)
-        .build()
-        .map_err(|_| http_error("R_HTTP_CLIENT", "could not initialize HTTP client"))?;
-    let mut response = client.get(url).send().map_err(|error| {
-        if error.is_redirect() {
-            http_error(
-                "R_HTTP_REDIRECT",
-                "HTTP redirect exceeded the limit or targeted a host without a grant",
-            )
-        } else if error.is_timeout() {
-            http_error("R_HTTP_TIMEOUT", "HTTP request timed out")
-        } else {
-            http_error("R_HTTP_REQUEST", "HTTP request failed")
-        }
-    })?;
-    if !response.status().is_success() {
-        return Err(http_error(
-            "R_HTTP_STATUS",
-            format!("HTTP server returned status {}", response.status().as_u16()),
-        ));
-    }
-    if response
-        .content_length()
-        .is_some_and(|length| length > policy.max_http_response_bytes as u64)
-    {
-        return Err(http_error(
-            "R_HTTP_LIMIT",
-            "HTTP response exceeds the configured byte limit",
-        ));
-    }
-    let read_limit = policy.max_http_response_bytes.min(policy.max_text_bytes);
-    let mut bytes = Vec::with_capacity(read_limit.min(64 * 1024));
-    response
-        .by_ref()
-        .take(read_limit.saturating_add(1) as u64)
-        .read_to_end(&mut bytes)
-        .map_err(|_| http_error("R_HTTP_REQUEST", "could not read HTTP response"))?;
-    if bytes.len() > read_limit {
-        return Err(http_error(
-            "R_HTTP_LIMIT",
-            "HTTP response exceeds the configured byte limit",
-        ));
-    }
-    String::from_utf8(bytes)
-        .map_err(|_| http_error("R_HTTP_ENCODING", "HTTP response body is not valid UTF-8"))
+#[derive(Debug)]
+struct HostHttpClient {
+    client: reqwest::Client,
+    executor: tokio::runtime::Runtime,
 }
 
-fn perform_http_request(
-    policy: &HostPolicy,
-    method: &str,
-    input: &str,
-    headers: &BTreeMap<String, String>,
-    body: &str,
-    request_timeout: Duration,
-) -> Result<serde_json::Value, HttpErrorValue> {
-    if body.len() > policy.max_http_request_bytes {
-        return Err(http_error(
-            "R_HTTP_LIMIT",
-            "HTTP request body exceeds the configured byte limit",
-        ));
+impl HostHttpClient {
+    fn new(max_parallelism: usize) -> Result<Self, String> {
+        let client = reqwest::Client::builder()
+            .no_proxy()
+            .redirect(reqwest::redirect::Policy::none())
+            .build()
+            .map_err(|error| error.to_string())?;
+        let executor = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(max_parallelism.clamp(1, 8))
+            .enable_all()
+            .build()
+            .map_err(|error| error.to_string())?;
+        Ok(Self { client, executor })
     }
-    let method = reqwest::Method::from_bytes(method.as_bytes())
-        .map_err(|_| http_error("R_HTTP_METHOD", "HTTP method is invalid"))?;
-    if !matches!(
-        method.as_str(),
-        "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "HEAD" | "OPTIONS"
-    ) {
-        return Err(http_error("R_HTTP_METHOD", "HTTP method is not supported"));
+}
+
+#[derive(Debug)]
+struct HttpBytesResponse {
+    status: u16,
+    headers: BTreeMap<String, String>,
+    body: Vec<u8>,
+}
+
+impl HttpBytesResponse {
+    fn into_text_json(self, max_text_bytes: usize) -> Result<serde_json::Value, HttpErrorValue> {
+        if self.body.len() > max_text_bytes {
+            return Err(http_error(
+                "R_HTTP_LIMIT",
+                "HTTP response exceeds the configured text byte limit",
+            ));
+        }
+        let body = String::from_utf8(self.body)
+            .map_err(|_| http_error("R_HTTP_ENCODING", "HTTP response body is not valid UTF-8"))?;
+        Ok(serde_json::json!({
+            "status": self.status,
+            "headers": self.headers,
+            "body": body,
+        }))
     }
-    let url = reqwest::Url::parse(input).map_err(|_| http_error("R_HTTP_URL", "URL is invalid"))?;
+}
+
+fn validate_http_url(url: &reqwest::Url, policy: &HostPolicy) -> Result<String, HttpErrorValue> {
     if !matches!(url.scheme(), "http" | "https")
         || !url.username().is_empty()
         || url.password().is_some()
@@ -5394,7 +7317,14 @@ fn perform_http_request(
             "network access to this host is not granted",
         ));
     }
-    let mut request_headers = reqwest::header::HeaderMap::new();
+    Ok(host)
+}
+
+fn request_headers(
+    headers: &BTreeMap<String, String>,
+    policy: &HostPolicy,
+) -> Result<reqwest::header::HeaderMap, HttpErrorValue> {
+    let mut result = reqwest::header::HeaderMap::new();
     let mut header_bytes = 0usize;
     for (name, value) in headers {
         header_bytes = header_bytes
@@ -5419,94 +7349,254 @@ fn perform_http_request(
         }
         let value = reqwest::header::HeaderValue::from_str(value)
             .map_err(|_| http_error("R_HTTP_HEADER", "request header value is invalid"))?;
-        request_headers.insert(name, value);
+        result.insert(name, value);
     }
-    let allowed_hosts = policy.allowed_http_hosts.clone();
-    let initial_host = host.clone();
-    let max_redirects = policy.max_http_redirects;
-    let redirect_policy = reqwest::redirect::Policy::custom(move |attempt| {
-        if attempt.previous().len() > max_redirects {
-            return attempt.error(std::io::Error::other("redirect limit exceeded"));
+    Ok(result)
+}
+
+async fn execute_http_bytes(
+    client: &reqwest::Client,
+    policy: &HostPolicy,
+    method: &str,
+    input: &str,
+    headers: &BTreeMap<String, String>,
+    body: &[u8],
+    deadline: Instant,
+) -> Result<HttpBytesResponse, HttpErrorValue> {
+    if body.len() > policy.max_http_request_bytes {
+        return Err(http_error(
+            "R_HTTP_LIMIT",
+            "HTTP request body exceeds the configured byte limit",
+        ));
+    }
+    let mut method = reqwest::Method::from_bytes(method.as_bytes())
+        .map_err(|_| http_error("R_HTTP_METHOD", "HTTP method is invalid"))?;
+    if !matches!(
+        method.as_str(),
+        "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "HEAD" | "OPTIONS"
+    ) {
+        return Err(http_error("R_HTTP_METHOD", "HTTP method is not supported"));
+    }
+    let mut url =
+        reqwest::Url::parse(input).map_err(|_| http_error("R_HTTP_URL", "URL is invalid"))?;
+    let initial_host = validate_http_url(&url, policy)?;
+    let initial_origin = url.origin().ascii_serialization();
+    let mut headers = request_headers(headers, policy)?;
+    let mut body = body.to_vec();
+
+    for redirect_count in 0..=policy.max_http_redirects {
+        let host = validate_http_url(&url, policy)?;
+        if host != initial_host || url.origin().ascii_serialization() != initial_origin {
+            return Err(http_error(
+                "R_HTTP_REDIRECT",
+                "redirect changed origin; credentials were not forwarded",
+            ));
         }
-        let redirect_host = attempt
-            .url()
-            .host_str()
-            .map(|host| host.trim_end_matches('.').to_ascii_lowercase());
-        if redirect_host.as_deref() == Some(initial_host.as_str())
-            && redirect_host.is_some_and(|host| allowed_hosts.contains(&host))
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        if remaining.is_zero() {
+            return Err(http_error("R_HTTP_TIMEOUT", "HTTP request timed out"));
+        }
+        let response = client
+            .request(method.clone(), url.clone())
+            .headers(headers.clone())
+            .timeout(remaining)
+            .body(body.clone())
+            .send()
+            .await
+            .map_err(|error| {
+                if error.is_timeout() {
+                    http_error("R_HTTP_TIMEOUT", "HTTP request timed out")
+                } else {
+                    http_error("R_HTTP_REQUEST", "HTTP request failed")
+                }
+            })?;
+
+        let status = response.status();
+        if matches!(status.as_u16(), 301 | 302 | 303 | 307 | 308) {
+            if let Some(location) = response.headers().get(reqwest::header::LOCATION) {
+                if redirect_count == policy.max_http_redirects {
+                    return Err(http_error(
+                        "R_HTTP_REDIRECT",
+                        "HTTP redirect limit exceeded",
+                    ));
+                }
+                let location = location.to_str().map_err(|_| {
+                    http_error("R_HTTP_REDIRECT", "HTTP redirect location is invalid")
+                })?;
+                let next_url = url
+                    .join(location)
+                    .map_err(|_| http_error("R_HTTP_REDIRECT", "HTTP redirect URL is invalid"))?;
+                let next_host = validate_http_url(&next_url, policy)
+                    .map_err(|_| http_error("R_HTTP_REDIRECT", "redirect host is not granted"))?;
+                if next_host != initial_host
+                    || next_url.origin().ascii_serialization() != initial_origin
+                {
+                    return Err(http_error(
+                        "R_HTTP_REDIRECT",
+                        "redirect changed origin; credentials were not forwarded",
+                    ));
+                }
+                if (status.as_u16() == 303 && method != reqwest::Method::HEAD)
+                    || (matches!(status.as_u16(), 301 | 302) && method == reqwest::Method::POST)
+                {
+                    method = reqwest::Method::GET;
+                    body.clear();
+                    for name in [
+                        "content-type",
+                        "content-encoding",
+                        "content-language",
+                        "content-location",
+                    ] {
+                        headers.remove(name);
+                    }
+                }
+                url = next_url;
+                continue;
+            }
+        }
+
+        if response
+            .content_length()
+            .is_some_and(|length| length > policy.max_http_response_bytes as u64)
         {
-            attempt.follow()
-        } else {
-            // Never forward caller-supplied credentials across host boundaries.
-            attempt.error(std::io::Error::other("cross-host redirect is not allowed"))
+            return Err(http_error(
+                "R_HTTP_LIMIT",
+                "HTTP response exceeds the configured byte limit",
+            ));
         }
-    });
-    let client = reqwest::blocking::Client::builder()
-        .no_proxy()
-        .connect_timeout(request_timeout.min(Duration::from_secs(5)))
-        .timeout(request_timeout)
-        .redirect(redirect_policy)
-        .build()
-        .map_err(|_| http_error("R_HTTP_CLIENT", "could not initialize HTTP client"))?;
-    let mut response = client
-        .request(method, url)
-        .headers(request_headers)
-        .body(body.to_owned())
-        .send()
-        .map_err(|error| {
-            if error.is_redirect() {
-                http_error(
-                    "R_HTTP_REDIRECT",
-                    "HTTP redirect exceeded its limit or changed host",
-                )
-            } else if error.is_timeout() {
+        let response_headers = response
+            .headers()
+            .iter()
+            .filter_map(|(name, value)| {
+                value
+                    .to_str()
+                    .ok()
+                    .map(|value| (name.as_str().to_ascii_lowercase(), value.to_owned()))
+            })
+            .fold(
+                BTreeMap::<String, String>::new(),
+                |mut result, (name, value)| {
+                    result
+                        .entry(name)
+                        .and_modify(|existing| {
+                            existing.push_str(", ");
+                            existing.push_str(&value);
+                        })
+                        .or_insert(value);
+                    result
+                },
+            );
+        let mut response = response;
+        let reserve = response
+            .content_length()
+            .unwrap_or(0)
+            .min(policy.max_http_response_bytes as u64)
+            .min(64 * 1024) as usize;
+        let mut bytes = Vec::with_capacity(reserve);
+        while let Some(chunk) = response.chunk().await.map_err(|error| {
+            if error.is_timeout() {
                 http_error("R_HTTP_TIMEOUT", "HTTP request timed out")
             } else {
-                http_error("R_HTTP_REQUEST", "HTTP request failed")
+                http_error("R_HTTP_REQUEST", "could not read HTTP response")
             }
-        })?;
-    if response
-        .content_length()
-        .is_some_and(|length| length > policy.max_http_response_bytes as u64)
-    {
+        })? {
+            if bytes.len().saturating_add(chunk.len()) > policy.max_http_response_bytes {
+                return Err(http_error(
+                    "R_HTTP_LIMIT",
+                    "HTTP response exceeds the configured byte limit",
+                ));
+            }
+            bytes.extend_from_slice(&chunk);
+        }
+        return Ok(HttpBytesResponse {
+            status: status.as_u16(),
+            headers: response_headers,
+            body: bytes,
+        });
+    }
+    Err(http_error(
+        "R_HTTP_REDIRECT",
+        "HTTP redirect limit exceeded",
+    ))
+}
+
+fn perform_http_request_bytes(
+    host: &HostHttpClient,
+    policy: &HostPolicy,
+    method: &str,
+    input: &str,
+    headers: &BTreeMap<String, String>,
+    body: &[u8],
+    request_timeout: Duration,
+    budget: &Budget,
+) -> Result<HttpBytesResponse, HttpErrorValue> {
+    let deadline = Instant::now().checked_add(request_timeout).ok_or_else(|| {
+        http_error(
+            "R_HTTP_TIMEOUT",
+            "HTTP timeout is outside the supported range",
+        )
+    })?;
+    host.executor.block_on(async {
+        let request = execute_http_bytes(
+            &host.client,
+            policy,
+            method,
+            input,
+            headers,
+            body,
+            deadline,
+        );
+        tokio::pin!(request);
+        let cancellation = async {
+            loop {
+                if budget.is_cancelled() {
+                    break;
+                }
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+        };
+        tokio::pin!(cancellation);
+        tokio::select! {
+            biased;
+            _ = &mut cancellation => Err(http_error("R_HTTP_CANCELLED", "HTTP request was cancelled")),
+            _ = tokio::time::sleep_until(tokio::time::Instant::from_std(deadline)) => {
+                Err(http_error("R_HTTP_TIMEOUT", "HTTP request timed out"))
+            },
+            result = &mut request => result,
+        }
+    })
+}
+
+fn perform_http_get(
+    host: &HostHttpClient,
+    policy: &HostPolicy,
+    input: &str,
+    budget: &Budget,
+) -> Result<String, HttpErrorValue> {
+    let response = perform_http_request_bytes(
+        host,
+        policy,
+        "GET",
+        input,
+        &BTreeMap::new(),
+        &[],
+        policy.http_timeout,
+        budget,
+    )?;
+    if !(200..300).contains(&response.status) {
         return Err(http_error(
-            "R_HTTP_LIMIT",
-            "HTTP response exceeds the configured byte limit",
+            "R_HTTP_STATUS",
+            format!("HTTP server returned status {}", response.status),
         ));
     }
-    let read_limit = policy.max_http_response_bytes.min(policy.max_text_bytes);
-    let status = response.status().as_u16();
-    let response_headers: serde_json::Map<String, serde_json::Value> = response
-        .headers()
-        .iter()
-        .filter_map(|(name, value)| {
-            value.to_str().ok().map(|value| {
-                (
-                    name.as_str().to_ascii_lowercase(),
-                    serde_json::Value::String(value.into()),
-                )
-            })
-        })
-        .collect();
-    let mut bytes = Vec::with_capacity(read_limit.min(64 * 1024));
-    response
-        .by_ref()
-        .take(read_limit.saturating_add(1) as u64)
-        .read_to_end(&mut bytes)
-        .map_err(|_| http_error("R_HTTP_REQUEST", "could not read HTTP response"))?;
-    if bytes.len() > read_limit {
+    if response.body.len() > policy.max_text_bytes {
         return Err(http_error(
             "R_HTTP_LIMIT",
-            "HTTP response exceeds the configured byte limit",
+            "HTTP response exceeds the configured text byte limit",
         ));
     }
-    let body = String::from_utf8(bytes)
-        .map_err(|_| http_error("R_HTTP_ENCODING", "HTTP response body is not valid UTF-8"))?;
-    Ok(serde_json::json!({
-        "status": status,
-        "headers": response_headers,
-        "body": body,
-    }))
+    String::from_utf8(response.body)
+        .map_err(|_| http_error("R_HTTP_ENCODING", "HTTP response body is not valid UTF-8"))
 }
 
 #[derive(Debug)]
@@ -5985,6 +8075,42 @@ mod unique_json_parser_tests {
     }
 }
 
+#[cfg(test)]
+mod function_cache_tests {
+    use super::share_artifact;
+    use std::sync::Arc;
+    use veritas_model::{Artifact, Function, Type};
+
+    #[test]
+    fn frame_and_worker_owners_share_immutable_artifact_storage() {
+        let function = Function {
+            name: "work".into(),
+            parameters: vec![],
+            result: Type::Int,
+            local_count: 0,
+            code: vec![],
+        };
+        let artifact = Artifact {
+            format_version: Artifact::CURRENT_VERSION,
+            build_metadata: None,
+            compiled_source_sha256: None,
+            source_name: "cache-test".into(),
+            sources: vec![],
+            entry: "work".into(),
+            functions: vec![function],
+            externals: vec![],
+            records: vec![],
+        };
+        let shared = share_artifact(artifact);
+
+        let first_frame = Arc::clone(&shared);
+        let second_worker = Arc::clone(&shared);
+
+        assert!(Arc::ptr_eq(&first_frame, &second_worker));
+        assert_eq!(Arc::strong_count(&shared), 3);
+    }
+}
+
 fn source_position(source: &str, offset: usize) -> (usize, usize) {
     let prefix = &source[..offset.min(source.len())];
     let line = prefix.bytes().filter(|byte| *byte == b'\n').count() + 1;
@@ -6051,6 +8177,24 @@ fn host_file_path(
     write: bool,
     span: Span,
 ) -> Result<PathBuf, RuntimeError> {
+    host_file_path_with_walk_root(policy, requested, write, span, false)
+}
+
+fn host_file_path_no_follow(
+    policy: &HostPolicy,
+    requested: &str,
+    span: Span,
+) -> Result<PathBuf, RuntimeError> {
+    host_file_path_with_walk_root(policy, requested, false, span, true)
+}
+
+fn host_file_path_with_walk_root(
+    policy: &HostPolicy,
+    requested: &str,
+    write: bool,
+    span: Span,
+    preserve_walk_root: bool,
+) -> Result<PathBuf, RuntimeError> {
     let allowed = if write {
         policy.allow_file_write
     } else {
@@ -6067,33 +8211,53 @@ fn host_file_path(
             span,
         ));
     }
-    let root = policy
-        .file_root
-        .as_ref()
-        .ok_or_else(|| {
-            RuntimeError::new(
-                "R_HOST_DENIED",
-                "file access has no configured project root",
-                span,
-            )
-        })?
-        .canonicalize()
-        .map_err(|error| {
-            RuntimeError::new(
-                "R_HOST_DENIED",
-                format!("cannot resolve file capability root: {error}"),
-                span,
-            )
-        })?;
-    let requested = Path::new(requested);
-    if requested.is_absolute() {
+    let alias = policy
+        .file_root_aliases
+        .iter()
+        .filter_map(|(alias, root)| {
+            requested
+                .strip_prefix(alias)
+                .and_then(|suffix| suffix.strip_prefix('/'))
+                .map(|relative| (alias, root, relative))
+        })
+        .max_by_key(|(alias, _, _)| alias.len());
+    let (requested_path, roots) = if let Some((_, root, relative)) = alias {
+        (Path::new(relative), vec![root])
+    } else {
+        let mut roots = Vec::with_capacity(1 + policy.additional_file_roots.len());
+        if let Some(root) = &policy.file_root {
+            roots.push(root);
+        }
+        roots.extend(policy.additional_file_roots.iter());
+        (Path::new(requested), roots)
+    };
+    if roots.is_empty() {
+        return Err(RuntimeError::new(
+            "R_HOST_DENIED",
+            "file access has no configured project root",
+            span,
+        ));
+    }
+    let roots = roots
+        .into_iter()
+        .map(|root| {
+            root.canonicalize().map_err(|error| {
+                RuntimeError::new(
+                    "R_HOST_DENIED",
+                    format!("cannot resolve file capability root: {error}"),
+                    span,
+                )
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    if requested_path.is_absolute() {
         return Err(RuntimeError::new(
             "R_HOST_DENIED",
             "file paths must be relative to the granted project root",
             span,
         ));
     }
-    if requested.components().any(|component| {
+    if requested_path.components().any(|component| {
         matches!(
             component,
             std::path::Component::ParentDir
@@ -6107,14 +8271,100 @@ fn host_file_path(
             span,
         ));
     }
-    let candidate = root.join(requested);
-    let resolved = if write && !candidate.exists() {
+
+    if !write {
+        let mut missing_error = None;
+        for root in &roots {
+            if preserve_walk_root {
+                let candidate = root.join(requested_path);
+                let components = requested_path
+                    .components()
+                    .filter(|component| matches!(component, std::path::Component::Normal(_)))
+                    .collect::<Vec<_>>();
+                let mut current = root.clone();
+                let mut failure = None;
+                let mut candidate_missing = false;
+                for (index, component) in components.iter().enumerate() {
+                    current.push(component);
+                    match fs::symlink_metadata(&current) {
+                        Ok(metadata)
+                            if metadata.file_type().is_symlink()
+                                && index + 1 < components.len() =>
+                        {
+                            failure = Some(RuntimeError::new(
+                                "R_HOST_DENIED",
+                                "fs_walk root cannot pass through a symlink directory",
+                                span,
+                            ));
+                            break;
+                        }
+                        Ok(_) => {}
+                        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                            missing_error = Some(error);
+                            candidate_missing = true;
+                            break;
+                        }
+                        Err(error) => {
+                            failure = Some(RuntimeError::new(
+                                file_io_error_code(&error, "R_FILE_READ"),
+                                format!("cannot inspect `{requested}`: {error}"),
+                                span,
+                            ));
+                            break;
+                        }
+                    }
+                }
+                if let Some(error) = failure {
+                    return Err(error);
+                }
+                if candidate_missing {
+                    continue;
+                }
+                return Ok(candidate);
+            }
+            match root.join(requested_path).canonicalize() {
+                Ok(resolved) if resolved.starts_with(root) => return Ok(resolved),
+                Ok(_) => {
+                    return Err(RuntimeError::new(
+                        "R_HOST_DENIED",
+                        "file path escapes the granted project root",
+                        span,
+                    ));
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                    missing_error = Some(error);
+                }
+                Err(error) => {
+                    return Err(RuntimeError::new(
+                        file_io_error_code(&error, "R_FILE_READ"),
+                        format!("cannot resolve `{requested:?}`: {error}"),
+                        span,
+                    ));
+                }
+            }
+        }
+        let error = missing_error.unwrap_or_else(|| {
+            std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                "no granted root contains this path",
+            )
+        });
+        return Err(RuntimeError::new(
+            file_io_error_code(&error, "R_FILE_READ"),
+            format!("cannot resolve `{requested:?}`: {error}"),
+            span,
+        ));
+    }
+
+    let root = roots.last().expect("at least one file root was checked");
+    let candidate = root.join(requested_path);
+    let resolved = if !candidate.exists() {
         let name = candidate.file_name().ok_or_else(|| {
             RuntimeError::new("R_HOST_DENIED", "file path must name a file", span)
         })?;
         let parent = candidate
             .parent()
-            .unwrap_or(&root)
+            .unwrap_or(root)
             .canonicalize()
             .map_err(|error| {
                 RuntimeError::new(
@@ -6123,7 +8373,7 @@ fn host_file_path(
                     span,
                 )
             })?;
-        if !parent.starts_with(&root) {
+        if !parent.starts_with(root) {
             return Err(RuntimeError::new(
                 "R_HOST_DENIED",
                 "file path escapes the granted project root",
@@ -6134,13 +8384,13 @@ fn host_file_path(
     } else {
         candidate.canonicalize().map_err(|error| {
             RuntimeError::new(
-                file_io_error_code(&error, if write { "R_FILE_WRITE" } else { "R_FILE_READ" }),
+                file_io_error_code(&error, "R_FILE_WRITE"),
                 format!("cannot resolve `{requested:?}`: {error}"),
                 span,
             )
         })?
     };
-    if !resolved.starts_with(&root) {
+    if !resolved.starts_with(root) {
         return Err(RuntimeError::new(
             "R_HOST_DENIED",
             "file path escapes the granted project root",
@@ -6151,10 +8401,27 @@ fn host_file_path(
 }
 
 fn value_limit_error(value: &Value, policy: &HostPolicy, span: Span) -> Option<RuntimeError> {
+    value_limit_error_with_json(value, policy, span, false)
+}
+
+fn value_limit_error_at_boundary(
+    value: &Value,
+    policy: &HostPolicy,
+    span: Span,
+) -> Option<RuntimeError> {
+    value_limit_error_with_json(value, policy, span, true)
+}
+
+fn value_limit_error_with_json(
+    value: &Value,
+    policy: &HostPolicy,
+    span: Span,
+    check_json: bool,
+) -> Option<RuntimeError> {
     match value {
         Value::Record(_, fields) => fields
             .iter()
-            .find_map(|field| value_limit_error(field, policy, span)),
+            .find_map(|field| value_limit_error_with_json(field, policy, span, check_json)),
         Value::Int(i) if i.digit_count() > policy.max_integer_digits => Some(RuntimeError::new(
             "R_INTEGER_LIMIT",
             format!(
@@ -6193,7 +8460,7 @@ fn value_limit_error(value: &Value, policy: &HostPolicy, span: Span) -> Option<R
         )),
         Value::List(items) => items
             .iter()
-            .find_map(|item| value_limit_error(item, policy, span)),
+            .find_map(|item| value_limit_error_with_json(item, policy, span, check_json)),
         Value::Float64List(items) if items.len() > policy.max_collection_items => {
             Some(RuntimeError::new(
                 "R_COLLECTION_LIMIT",
@@ -6223,44 +8490,18 @@ fn value_limit_error(value: &Value, policy: &HostPolicy, span: Span) -> Option<R
                     span,
                 ))
             } else {
-                value_limit_error(value, policy, span)
+                value_limit_error_with_json(value, policy, span, check_json)
             }
         }),
-        Value::OptionSome(value) => value_limit_error(value, policy, span),
-        Value::ResultOk(value) | Value::ResultErr(value) => value_limit_error(value, policy, span),
-        Value::Json(value) => {
-            let metrics = shared_json_metrics(value, policy.max_integer_digits);
-            if metrics.depth > 64 {
-                Some(RuntimeError::new(
-                    "R_JSON_DEPTH",
-                    "JSON nesting exceeds 64 levels",
-                    span,
-                ))
-            } else if shared_json_encoded_len(value)
-                .map(|bytes| bytes > policy.max_text_bytes)
-                .unwrap_or(true)
-            {
-                Some(RuntimeError::new(
-                    "R_TEXT_LIMIT",
-                    "JSON value exceeds the configured byte limit",
-                    span,
-                ))
-            } else if metrics.oversized_integer {
-                Some(RuntimeError::new(
-                    "R_INTEGER_LIMIT",
-                    "JSON integer exceeds the configured digit limit",
-                    span,
-                ))
-            } else if metrics.item_count > policy.max_collection_items {
-                Some(RuntimeError::new(
-                    "R_COLLECTION_LIMIT",
-                    "JSON collection exceeds the configured item limit",
-                    span,
-                ))
-            } else {
-                None
-            }
+        Value::OptionSome(value) => value_limit_error_with_json(value, policy, span, check_json),
+        Value::ResultOk(value) | Value::ResultErr(value) => {
+            value_limit_error_with_json(value, policy, span, check_json)
         }
+        Value::Json(value) if check_json => {
+            let metrics = shared_json_metrics(value, policy.max_integer_digits);
+            validate_json_metrics(&metrics, policy, span).err()
+        }
+        Value::Json(_) => None,
         Value::TaskError(error)
             if error.message.len() > policy.max_text_bytes
                 || error.code.len() > policy.max_text_bytes =>
@@ -6455,6 +8696,18 @@ fn verify(artifact: &Artifact) -> Result<(), RuntimeError> {
                         f.name
                     )))
                 }
+                Op::SortBy(target)
+                    if target >= artifact.functions.len()
+                        || artifact.functions[target].parameters.len() != 2
+                        || artifact.functions[target].parameters[0]
+                            != artifact.functions[target].parameters[1]
+                        || artifact.functions[target].result != Type::Int =>
+                {
+                    return Err(fail(format!(
+                        "function `{}` contains an invalid sort comparator",
+                        f.name
+                    )))
+                }
                 Op::PythonCall(target, argc)
                     if target >= artifact.externals.len()
                         || argc != artifact.externals[target].parameters.len() =>
@@ -6488,12 +8741,17 @@ fn verify(artifact: &Artifact) -> Result<(), RuntimeError> {
         }
         verify_stack(f, artifact).map_err(|m| fail(format!("function `{}`: {m}", f.name)))?;
     }
+    veritas_model::validate_sort_comparator_effects(artifact).map_err(fail)?;
     Ok(())
 }
 
 fn artifact_type_known(ty: &Type, record_names: &HashSet<String>) -> bool {
     match ty {
         Type::Record(name) => record_names.contains(name),
+        Type::NativeResource(name) => matches!(
+            name.as_str(),
+            "FileReader" | "Db" | "Transaction" | "TomlDocument"
+        ),
         Type::List(item) | Type::Map(item) | Type::Option(item) => {
             artifact_type_known(item, record_names)
         }
@@ -6514,6 +8772,19 @@ fn artifact_type_known(ty: &Type, record_names: &HashSet<String>) -> bool {
     }
 }
 
+fn type_contains_native_resource(ty: &Type) -> bool {
+    match ty {
+        Type::NativeResource(_) => true,
+        Type::List(item) | Type::Map(item) | Type::Option(item) => {
+            type_contains_native_resource(item)
+        }
+        Type::Result(ok, err) => {
+            type_contains_native_resource(ok) || type_contains_native_resource(err)
+        }
+        _ => false,
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct FlowState {
     stack: Vec<Type>,
@@ -6531,6 +8802,7 @@ fn value_type(value: &Value) -> Option<Type> {
         Value::Int(_) => Type::Int,
         Value::Float64(_) => Type::Float64,
         Value::Record(name, _) => Type::Record(name.clone()),
+        Value::NativeResource(resource) => Type::NativeResource(resource.kind().to_owned()),
         Value::Bool(_) => Type::Bool,
         Value::Text(_) => Type::Text,
         Value::Bytes(_) => Type::Bytes,
@@ -6891,6 +9163,39 @@ fn verify_stack(function: &veritas_model::Function, artifact: &Artifact) -> Resu
                 }
                 state.stack.push(Type::Json);
             }
+            Op::JsonTryGet | Op::JsonTryIndex => {
+                let expected = if instruction.op == Op::JsonTryGet {
+                    Type::Text
+                } else {
+                    Type::Int
+                };
+                if pop_type(&mut state.stack, pc)? != expected
+                    || pop_type(&mut state.stack, pc)? != Type::Json
+                {
+                    return Err(format!(
+                        "JSON accessor argument types do not match at instruction {pc}"
+                    ));
+                }
+                state.stack.push(Type::Result(
+                    Box::new(Type::Json),
+                    Box::new(Type::JsonError),
+                ));
+            }
+            Op::JsonTryText | Op::JsonTryInt | Op::JsonTryBool | Op::JsonTryFloat => {
+                if pop_type(&mut state.stack, pc)? != Type::Json {
+                    return Err(format!("JSON conversion requires Json at instruction {pc}"));
+                }
+                let result = match instruction.op {
+                    Op::JsonTryText => Type::Text,
+                    Op::JsonTryInt => Type::Int,
+                    Op::JsonTryBool => Type::Bool,
+                    Op::JsonTryFloat => Type::Float64,
+                    _ => unreachable!(),
+                };
+                state
+                    .stack
+                    .push(Type::Result(Box::new(result), Box::new(Type::JsonError)));
+            }
             Op::JsonAsText | Op::JsonAsInt | Op::JsonAsFloat | Op::JsonAsBool | Op::JsonIsNull => {
                 if pop_type(&mut state.stack, pc)? != Type::Json {
                     return Err(format!("JSON conversion requires Json at instruction {pc}"));
@@ -7050,6 +9355,34 @@ fn verify_stack(function: &veritas_model::Function, artifact: &Artifact) -> Resu
                     return Err(format!("text_chars requires Text at instruction {pc}"));
                 }
                 state.stack.push(Type::List(Box::new(Type::Text)));
+            }
+            Op::BytesFromInts => {
+                if pop_type(&mut state.stack, pc)? != Type::List(Box::new(Type::Int)) {
+                    return Err(format!(
+                        "bytes_from_ints requires List[Int] at instruction {pc}"
+                    ));
+                }
+                state.stack.push(Type::Bytes);
+            }
+            Op::BytesFromText => {
+                if pop_type(&mut state.stack, pc)? != Type::Text {
+                    return Err(format!("bytes_from_text requires Text at instruction {pc}"));
+                }
+                state.stack.push(Type::Bytes);
+            }
+            Op::BytesJoin => {
+                if pop_type(&mut state.stack, pc)? != Type::List(Box::new(Type::Bytes)) {
+                    return Err(format!(
+                        "bytes_join requires List[Bytes] at instruction {pc}"
+                    ));
+                }
+                state.stack.push(Type::Bytes);
+            }
+            Op::Float64Bits => {
+                if pop_type(&mut state.stack, pc)? != Type::Float64 {
+                    return Err(format!("float64_bits requires Float64 at instruction {pc}"));
+                }
+                state.stack.push(Type::Int);
             }
             Op::Index => {
                 let index = pop_type(&mut state.stack, pc)?;
@@ -7256,6 +9589,11 @@ fn verify_stack(function: &veritas_model::Function, artifact: &Artifact) -> Resu
                         "parallel worker must take one argument at instruction {pc}"
                     ));
                 }
+                if type_contains_native_resource(&callee.parameters[0])
+                    || type_contains_native_resource(&callee.result)
+                {
+                    return Err(format!("parallel workers cannot accept or return native resources at instruction {pc}"));
+                }
                 if pop_type(&mut state.stack, pc)? != Type::Int {
                     return Err(format!(
                         "parallel worker limit must be Int at instruction {pc}"
@@ -7269,9 +9607,205 @@ fn verify_stack(function: &veritas_model::Function, artifact: &Artifact) -> Resu
                         "parallel input type differs from worker parameter at instruction {pc}"
                     ));
                 }
+                if type_contains_native_resource(&item) {
+                    return Err(format!(
+                        "parallel inputs cannot contain native resources at instruction {pc}"
+                    ));
+                }
                 state.stack.push(Type::Result(
                     Box::new(Type::List(Box::new(callee.result.clone()))),
                     Box::new(Type::TaskError),
+                ));
+            }
+            Op::SortBy(target) => {
+                let comparator = artifact.functions.get(*target).ok_or_else(|| {
+                    format!("sort_by references missing comparator at instruction {pc}")
+                })?;
+                if comparator.parameters.len() != 2
+                    || comparator.parameters[0] != comparator.parameters[1]
+                    || comparator.result != Type::Int
+                {
+                    return Err(format!(
+                        "sort comparator must have type (T, T) -> Int at instruction {pc}"
+                    ));
+                }
+                let Type::List(item) = pop_type(&mut state.stack, pc)? else {
+                    return Err(format!("sort_by input must be a List at instruction {pc}"));
+                };
+                if *item != comparator.parameters[0] {
+                    return Err(format!(
+                        "sort comparator parameter type differs from list item at instruction {pc}"
+                    ));
+                }
+                state.stack.push(Type::List(item));
+            }
+            Op::TextCaseFold | Op::TextCollapseWhitespace => {
+                if pop_type(&mut state.stack, pc)? != Type::Text {
+                    return Err(format!(
+                        "Unicode text operation requires Text at instruction {pc}"
+                    ));
+                }
+                state.stack.push(Type::Text);
+            }
+            Op::TextNormalize => {
+                if pop_type(&mut state.stack, pc)? != Type::Text
+                    || pop_type(&mut state.stack, pc)? != Type::Text
+                {
+                    return Err(format!(
+                        "text_normalize requires Text value and form at instruction {pc}"
+                    ));
+                }
+                state.stack.push(Type::Result(
+                    Box::new(Type::Text),
+                    Box::new(Type::Record("StdError".into())),
+                ));
+            }
+            Op::CryptoHmacSha256 => {
+                if pop_type(&mut state.stack, pc)? != Type::Bytes
+                    || pop_type(&mut state.stack, pc)? != Type::Bytes
+                {
+                    return Err(format!(
+                        "crypto_hmac_sha256 requires key and body Bytes at instruction {pc}"
+                    ));
+                }
+                state.stack.push(Type::Bytes);
+            }
+            Op::CryptoVerifyHmacSha256 => {
+                if pop_type(&mut state.stack, pc)? != Type::Bytes
+                    || pop_type(&mut state.stack, pc)? != Type::Bytes
+                    || pop_type(&mut state.stack, pc)? != Type::Bytes
+                {
+                    return Err(format!(
+                        "crypto_verify_hmac_sha256 requires three Bytes values at instruction {pc}"
+                    ));
+                }
+                state.stack.push(Type::Bool);
+            }
+            Op::SqliteOpen => {
+                if pop_type(&mut state.stack, pc)? != Type::Text {
+                    return Err(format!(
+                        "sqlite_open requires Text path at instruction {pc}"
+                    ));
+                }
+                state.stack.push(Type::Result(
+                    Box::new(Type::NativeResource("Db".into())),
+                    Box::new(Type::Record("StdError".into())),
+                ));
+            }
+            Op::SqliteBegin => {
+                if pop_type(&mut state.stack, pc)? != Type::NativeResource("Db".into()) {
+                    return Err(format!("sqlite_begin requires Db at instruction {pc}"));
+                }
+                state.stack.push(Type::Result(
+                    Box::new(Type::NativeResource("Transaction".into())),
+                    Box::new(Type::Record("StdError".into())),
+                ));
+            }
+            Op::SqliteExecute | Op::SqliteQuery => {
+                if pop_type(&mut state.stack, pc)?
+                    != Type::List(Box::new(Type::Record("SqlValue".into())))
+                    || pop_type(&mut state.stack, pc)? != Type::Text
+                    || pop_type(&mut state.stack, pc)? != Type::NativeResource("Transaction".into())
+                {
+                    return Err(format!("SQLite execution requires Transaction, Text SQL, and List[SqlValue] at instruction {pc}"));
+                }
+                let result = if instruction.op == Op::SqliteExecute {
+                    Type::Int
+                } else {
+                    Type::List(Box::new(Type::Record("SqlRow".into())))
+                };
+                state.stack.push(Type::Result(
+                    Box::new(result),
+                    Box::new(Type::Record("StdError".into())),
+                ));
+            }
+            Op::SqliteCommit | Op::SqliteRollback => {
+                if pop_type(&mut state.stack, pc)? != Type::NativeResource("Transaction".into()) {
+                    return Err(format!(
+                        "SQLite transaction finalizer requires Transaction at instruction {pc}"
+                    ));
+                }
+                state.stack.push(Type::Result(
+                    Box::new(Type::Unit),
+                    Box::new(Type::Record("StdError".into())),
+                ));
+            }
+            Op::SqliteClose => {
+                if pop_type(&mut state.stack, pc)? != Type::NativeResource("Db".into()) {
+                    return Err(format!("sqlite_close requires Db at instruction {pc}"));
+                }
+                state.stack.push(Type::Result(
+                    Box::new(Type::Unit),
+                    Box::new(Type::Record("StdError".into())),
+                ));
+            }
+            Op::TomlParse => {
+                if pop_type(&mut state.stack, pc)? != Type::Text {
+                    return Err(format!("toml_parse requires Text at instruction {pc}"));
+                }
+                state.stack.push(Type::Result(
+                    Box::new(Type::NativeResource("TomlDocument".into())),
+                    Box::new(Type::Record("StdError".into())),
+                ));
+            }
+            Op::TomlHas | Op::TomlGetText | Op::TomlGetInt | Op::TomlGetBool => {
+                if pop_type(&mut state.stack, pc)? != Type::List(Box::new(Type::Text))
+                    || pop_type(&mut state.stack, pc)?
+                        != Type::NativeResource("TomlDocument".into())
+                {
+                    return Err(format!(
+                        "TOML lookup requires TomlDocument and List[Text] path at instruction {pc}"
+                    ));
+                }
+                if instruction.op == Op::TomlHas {
+                    state.stack.push(Type::Bool);
+                } else {
+                    let result = match instruction.op {
+                        Op::TomlGetText => Type::Text,
+                        Op::TomlGetInt => Type::Int,
+                        Op::TomlGetBool => Type::Bool,
+                        _ => unreachable!(),
+                    };
+                    state.stack.push(Type::Result(
+                        Box::new(result),
+                        Box::new(Type::Record("StdError".into())),
+                    ));
+                }
+            }
+            Op::TomlPutText | Op::TomlPutInt | Op::TomlPutBool => {
+                let value_type = match instruction.op {
+                    Op::TomlPutText => Type::Text,
+                    Op::TomlPutInt => Type::Int,
+                    Op::TomlPutBool => Type::Bool,
+                    _ => unreachable!(),
+                };
+                if pop_type(&mut state.stack, pc)? != value_type
+                    || pop_type(&mut state.stack, pc)? != Type::List(Box::new(Type::Text))
+                    || pop_type(&mut state.stack, pc)?
+                        != Type::NativeResource("TomlDocument".into())
+                {
+                    return Err(format!("TOML edit requires matching document, path, and value types at instruction {pc}"));
+                }
+                state.stack.push(Type::Result(
+                    Box::new(Type::Unit),
+                    Box::new(Type::Record("StdError".into())),
+                ));
+            }
+            Op::TomlRender => {
+                if pop_type(&mut state.stack, pc)? != Type::NativeResource("TomlDocument".into()) {
+                    return Err(format!(
+                        "toml_render requires TomlDocument at instruction {pc}"
+                    ));
+                }
+                state.stack.push(Type::Text);
+            }
+            Op::CalendarParse => {
+                if pop_type(&mut state.stack, pc)? != Type::Text {
+                    return Err(format!("calendar_parse requires Text at instruction {pc}"));
+                }
+                state.stack.push(Type::Result(
+                    Box::new(Type::List(Box::new(Type::Record("CalendarEvent".into())))),
+                    Box::new(Type::Record("StdError".into())),
                 ));
             }
             Op::ReadText => {
@@ -7319,6 +9853,20 @@ fn verify_stack(function: &veritas_model::Function, artifact: &Artifact) -> Resu
                     Box::new(Type::HttpError),
                 ));
             }
+            Op::HttpRequestBytes => {
+                if pop_type(&mut state.stack, pc)? != Type::Int
+                    || pop_type(&mut state.stack, pc)? != Type::Bytes
+                    || pop_type(&mut state.stack, pc)? != Type::Map(Box::new(Type::Text))
+                    || pop_type(&mut state.stack, pc)? != Type::Text
+                    || pop_type(&mut state.stack, pc)? != Type::Text
+                {
+                    return Err(format!("http_request_bytes requires Text method and URL, Map[Text] headers, Bytes body, and Int timeout_ms at instruction {pc}"));
+                }
+                state.stack.push(Type::Result(
+                    Box::new(Type::Record("HttpResponse".into())),
+                    Box::new(Type::HttpError),
+                ));
+            }
             Op::WriteText => {
                 if pop_type(&mut state.stack, pc)? != Type::Text
                     || pop_type(&mut state.stack, pc)? != Type::Text
@@ -7353,6 +9901,135 @@ fn verify_stack(function: &veritas_model::Function, artifact: &Artifact) -> Resu
                     Box::new(Type::Bytes),
                     Box::new(Type::FileError),
                 ));
+            }
+            Op::FileOpenLines | Op::CsvOpen => {
+                if pop_type(&mut state.stack, pc)? != Type::Text {
+                    return Err(format!("file reader path must be Text at instruction {pc}"));
+                }
+                state.stack.push(Type::Result(
+                    Box::new(Type::NativeResource("FileReader".into())),
+                    Box::new(Type::FileError),
+                ));
+            }
+            Op::FileNextLine | Op::CsvNext | Op::FileClose => {
+                if pop_type(&mut state.stack, pc)? != Type::NativeResource("FileReader".into()) {
+                    return Err(format!(
+                        "file reader operation requires FileReader at instruction {pc}"
+                    ));
+                }
+                let result = match instruction.op {
+                    Op::FileNextLine => Type::Option(Box::new(Type::Record("SourceLine".into()))),
+                    Op::CsvNext => Type::Option(Box::new(Type::Record("CsvRow".into()))),
+                    Op::FileClose => Type::Unit,
+                    _ => unreachable!(),
+                };
+                state
+                    .stack
+                    .push(Type::Result(Box::new(result), Box::new(Type::FileError)));
+            }
+            Op::CsvEncode => {
+                if pop_type(&mut state.stack, pc)?
+                    != Type::List(Box::new(Type::List(Box::new(Type::Text))))
+                {
+                    return Err(format!(
+                        "csv_encode requires List[List[Text]] at instruction {pc}"
+                    ));
+                }
+                state.stack.push(Type::Result(
+                    Box::new(Type::Text),
+                    Box::new(Type::FileError),
+                ));
+            }
+            Op::TimeParseDate | Op::TimeParseTimestamp | Op::SemVerParse => {
+                if pop_type(&mut state.stack, pc)? != Type::Text {
+                    return Err(format!("data parser requires Text at instruction {pc}"));
+                }
+                let record = match instruction.op {
+                    Op::TimeParseDate => "Date",
+                    Op::TimeParseTimestamp => "Instant",
+                    Op::SemVerParse => "SemVer",
+                    _ => unreachable!(),
+                };
+                state.stack.push(Type::Result(
+                    Box::new(Type::Record(record.into())),
+                    Box::new(Type::FileError),
+                ));
+            }
+            Op::TimeFormatUtc => {
+                if pop_type(&mut state.stack, pc)? != Type::Record("Instant".into()) {
+                    return Err(format!(
+                        "time_format_utc requires Instant at instruction {pc}"
+                    ));
+                }
+                state.stack.push(Type::Text);
+            }
+            Op::UnixTimeMs => state.stack.push(Type::Int),
+            Op::TimeTodayLocal => state.stack.push(Type::Record("Date".into())),
+            Op::SemVerCompare => {
+                if pop_type(&mut state.stack, pc)? != Type::Record("SemVer".into())
+                    || pop_type(&mut state.stack, pc)? != Type::Record("SemVer".into())
+                {
+                    return Err(format!(
+                        "semver_compare requires two SemVer records at instruction {pc}"
+                    ));
+                }
+                state.stack.push(Type::Int);
+            }
+            Op::CliParse => {
+                if pop_type(&mut state.stack, pc)?
+                    != Type::List(Box::new(Type::Record("CliOption".into())))
+                    || pop_type(&mut state.stack, pc)? != Type::List(Box::new(Type::Text))
+                {
+                    return Err(format!(
+                        "cli_parse requires List[Text] and List[CliOption] at instruction {pc}"
+                    ));
+                }
+                state.stack.push(Type::Result(
+                    Box::new(Type::Record("CliArgs".into())),
+                    Box::new(Type::FileError),
+                ));
+            }
+            Op::FsWalk => {
+                if pop_type(&mut state.stack, pc)? != Type::Text {
+                    return Err(format!("fs_walk requires Text at instruction {pc}"));
+                }
+                state.stack.push(Type::Result(
+                    Box::new(Type::List(Box::new(Type::Record("DirectoryEntry".into())))),
+                    Box::new(Type::FileError),
+                ));
+            }
+            Op::ListGetOption => {
+                if pop_type(&mut state.stack, pc)? != Type::Int {
+                    return Err(format!("list_get index must be Int at instruction {pc}"));
+                }
+                let Type::List(item) = pop_type(&mut state.stack, pc)? else {
+                    return Err(format!("list_get requires List at instruction {pc}"));
+                };
+                state.stack.push(Type::Option(item));
+            }
+            Op::MapGetOption => {
+                if pop_type(&mut state.stack, pc)? != Type::Text {
+                    return Err(format!("map_get key must be Text at instruction {pc}"));
+                }
+                let Type::Map(item) = pop_type(&mut state.stack, pc)? else {
+                    return Err(format!("map_get requires Map at instruction {pc}"));
+                };
+                state.stack.push(Type::Option(item));
+            }
+            Op::TextParseInt | Op::TextParseFloat => {
+                if pop_type(&mut state.stack, pc)? != Type::Text {
+                    return Err(format!(
+                        "text numeric parser requires Text at instruction {pc}"
+                    ));
+                }
+                let parsed = if instruction.op == Op::TextParseInt {
+                    Type::Int
+                } else {
+                    Type::Float64
+                };
+                state
+                    .stack
+                    .push(Type::Result(Box::new(parsed), Box::new(Type::FileError)));
             }
             Op::WriteBytes => {
                 if pop_type(&mut state.stack, pc)? != Type::Bytes

@@ -1,0 +1,375 @@
+{
+  "schema_version": 1,
+  "task_id": "01-support-sla-report",
+  "application": "sla-report",
+  "mode": "source-free relocated package",
+  "relocation_path": "Moved package – Veritas",
+  "artifact_sha256": "4b01f711cd8fd5051af8275fa838c6d217e80200e5d3121244c3d9823a954252",
+  "artifact_bytes": 147583046,
+  "source_paths_excluded": [
+    "main.vr",
+    "veritas.toml"
+  ],
+  "stages": {
+    "initial": {
+      "passed": true,
+      "elapsed_seconds": 0.8323535600065952,
+      "case_count": 11,
+      "cases": [
+        {
+          "case_id": "sla-initial-report",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 0,
+          "checks_passed": 9,
+          "checks_total": 9,
+          "steps": [
+            {
+              "exit_code": 0,
+              "checks_passed": 9,
+              "checks_total": 9,
+              "failures": [],
+              "elapsed_seconds": 0.10617
+            }
+          ],
+          "elapsed_seconds": 0.107544,
+          "http_fixtures": {},
+          "stdout": "",
+          "stderr": "",
+          "failures": []
+        },
+        {
+          "case_id": "sla-duplicate-id-preserves-output",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 1,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "steps": [
+            {
+              "exit_code": 1,
+              "checks_passed": 2,
+              "checks_total": 2,
+              "failures": [],
+              "elapsed_seconds": 0.072843
+            }
+          ],
+          "elapsed_seconds": 0.074445,
+          "http_fixtures": {},
+          "stdout": "",
+          "stderr": "duplicate_id: duplicate ticket id D-1\n",
+          "failures": []
+        },
+        {
+          "case_id": "sla-missing-policy-entry-preserves-output",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 1,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "steps": [
+            {
+              "exit_code": 1,
+              "checks_passed": 2,
+              "checks_total": 2,
+              "failures": [],
+              "elapsed_seconds": 0.069717
+            }
+          ],
+          "elapsed_seconds": 0.070723,
+          "http_fixtures": {},
+          "stdout": "",
+          "stderr": "missing_policy_entry: low\n",
+          "failures": []
+        },
+        {
+          "case_id": "sla-malformed-csv-preserves-output",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 1,
+          "checks_passed": 1,
+          "checks_total": 1,
+          "steps": [
+            {
+              "exit_code": 1,
+              "checks_passed": 1,
+              "checks_total": 1,
+              "failures": [],
+              "elapsed_seconds": 0.129861
+            }
+          ],
+          "elapsed_seconds": 0.131073,
+          "http_fixtures": {},
+          "stdout": "",
+          "stderr": "malformed_csv: header must be id,team,priority,status,created_at\n",
+          "failures": []
+        },
+        {
+          "case_id": "sla-unknown-priority-preserves-output",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 1,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "steps": [
+            {
+              "exit_code": 1,
+              "checks_passed": 2,
+              "checks_total": 2,
+              "failures": [],
+              "elapsed_seconds": 0.06486
+            }
+          ],
+          "elapsed_seconds": 0.065716,
+          "http_fixtures": {},
+          "stdout": "",
+          "stderr": "unknown_priority: urgent\n",
+          "failures": []
+        },
+        {
+          "case_id": "sla-invalid-timestamp-preserves-output",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 1,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "steps": [
+            {
+              "exit_code": 1,
+              "checks_passed": 2,
+              "checks_total": 2,
+              "failures": [],
+              "elapsed_seconds": 0.067522
+            }
+          ],
+          "elapsed_seconds": 0.068354,
+          "http_fixtures": {},
+          "stdout": "",
+          "stderr": "timestamp must use RFC3339 date-time syntax: ticket X-1\n",
+          "failures": []
+        },
+        {
+          "case_id": "sla-policy-boolean-preserves-output",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 1,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "steps": [
+            {
+              "exit_code": 1,
+              "checks_passed": 2,
+              "checks_total": 2,
+              "failures": [],
+              "elapsed_seconds": 0.06189
+            }
+          ],
+          "elapsed_seconds": 0.064191,
+          "http_fixtures": {},
+          "stdout": "",
+          "stderr": "policy limits must be nonnegative integers\n",
+          "failures": []
+        },
+        {
+          "case_id": "sla-policy-negative-preserves-output",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 1,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "steps": [
+            {
+              "exit_code": 1,
+              "checks_passed": 2,
+              "checks_total": 2,
+              "failures": [],
+              "elapsed_seconds": 0.061313
+            }
+          ],
+          "elapsed_seconds": 0.062111,
+          "http_fixtures": {},
+          "stdout": "",
+          "stderr": "policy limits must be nonnegative integers\n",
+          "failures": []
+        },
+        {
+          "case_id": "sla-policy-unknown-key-preserves-output",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 1,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "steps": [
+            {
+              "exit_code": 1,
+              "checks_passed": 2,
+              "checks_total": 2,
+              "failures": [],
+              "elapsed_seconds": 0.06214
+            }
+          ],
+          "elapsed_seconds": 0.062887,
+          "http_fixtures": {},
+          "stdout": "",
+          "stderr": "policy limits allow only high and low nonnegative integers\n",
+          "failures": []
+        },
+        {
+          "case_id": "sla-unknown-status-preserves-output",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 1,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "steps": [
+            {
+              "exit_code": 1,
+              "checks_passed": 2,
+              "checks_total": 2,
+              "failures": [],
+              "elapsed_seconds": 0.0611
+            }
+          ],
+          "elapsed_seconds": 0.061802,
+          "http_fixtures": {},
+          "stdout": "",
+          "stderr": "unknown_status: pending\n",
+          "failures": []
+        },
+        {
+          "case_id": "sla-future-ticket-timestamp-preserves-output",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 1,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "steps": [
+            {
+              "exit_code": 1,
+              "checks_passed": 2,
+              "checks_total": 2,
+              "failures": [],
+              "elapsed_seconds": 0.062522
+            }
+          ],
+          "elapsed_seconds": 0.063278,
+          "http_fixtures": {},
+          "stdout": "",
+          "stderr": "ticket timestamp is after --as-of: T-1\n",
+          "failures": []
+        }
+      ]
+    },
+    "follow_up": {
+      "passed": true,
+      "elapsed_seconds": 0.13587836700025946,
+      "case_count": 2,
+      "cases": [
+        {
+          "case_id": "sla-follow-up-team-filter",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 0,
+          "checks_passed": 4,
+          "checks_total": 4,
+          "steps": [
+            {
+              "exit_code": 0,
+              "checks_passed": 4,
+              "checks_total": 4,
+              "failures": [],
+              "elapsed_seconds": 0.065576
+            }
+          ],
+          "elapsed_seconds": 0.066235,
+          "http_fixtures": {},
+          "stdout": "",
+          "stderr": "",
+          "failures": []
+        },
+        {
+          "case_id": "sla-follow-up-team-no-match",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 0,
+          "checks_passed": 3,
+          "checks_total": 3,
+          "steps": [
+            {
+              "exit_code": 0,
+              "checks_passed": 3,
+              "checks_total": 3,
+              "failures": [],
+              "elapsed_seconds": 0.068286
+            }
+          ],
+          "elapsed_seconds": 0.06961,
+          "http_fixtures": {},
+          "stdout": "",
+          "stderr": "",
+          "failures": []
+        }
+      ]
+    }
+  },
+  "passed": true,
+  "generated": {
+    "schema_version": 1,
+    "application": "sla-report",
+    "mode": "seeded independent-oracle cases against relocated package",
+    "seed": 20261024,
+    "sizes": [
+      24,
+      128
+    ],
+    "case_count": 2,
+    "concurrency": null,
+    "passed": true,
+    "cases": [
+      {
+        "case_id": "generated-sla-24",
+        "candidate": {},
+        "passed": true,
+        "exit_code": 0,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "steps": [
+          {
+            "exit_code": 0,
+            "checks_passed": 1,
+            "checks_total": 1,
+            "failures": [],
+            "elapsed_seconds": 0.074352
+          }
+        ],
+        "elapsed_seconds": 0.074934,
+        "http_fixtures": {},
+        "stdout": "",
+        "stderr": "",
+        "failures": []
+      },
+      {
+        "case_id": "generated-sla-128",
+        "candidate": {},
+        "passed": true,
+        "exit_code": 0,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "steps": [
+          {
+            "exit_code": 0,
+            "checks_passed": 1,
+            "checks_total": 1,
+            "failures": [],
+            "elapsed_seconds": 0.239258
+          }
+        ],
+        "elapsed_seconds": 0.239947,
+        "http_fixtures": {},
+        "stdout": "",
+        "stderr": "",
+        "failures": []
+      }
+    ]
+  }
+}

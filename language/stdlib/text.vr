@@ -1,0 +1,103 @@
+import "std:unicode"
+import "std:types"
+
+fn text_has_space(value: Text) -> Bool:
+    return value == " " or value == "\t" or value == "\n" or value == "\r" or value == "\u{000b}" or value == "\u{000c}" or value == "\u{0085}" or value == "\u{00a0}" or value == "\u{1680}" or value == "\u{2000}" or value == "\u{2001}" or value == "\u{2002}" or value == "\u{2003}" or value == "\u{2004}" or value == "\u{2005}" or value == "\u{2006}" or value == "\u{2007}" or value == "\u{2008}" or value == "\u{2009}" or value == "\u{200a}" or value == "\u{2028}" or value == "\u{2029}" or value == "\u{202f}" or value == "\u{205f}" or value == "\u{3000}"
+
+fn text_matches_at(source: List[Text], needle: List[Text], start: Int) -> Bool:
+    if len(needle) == 0 or start + len(needle) > len(source):
+        return false
+    var index = 0
+    while index < len(needle):
+        if source[start + index] != needle[index]:
+            return false
+        set index = index + 1
+    return true
+
+pub fn text_compare_scalar(left: Text, right: Text) -> Int:
+    if left < right:
+        return -1
+    if left > right:
+        return 1
+    return 0
+
+pub fn text_compare_bytes(left: Text, right: Text) -> Int:
+    if left < right:
+        return -1
+    if left > right:
+        return 1
+    return 0
+
+pub fn text_trim(value: Text) -> Text:
+    let characters = text_chars(value)
+    var start = 0
+    var end = len(characters)
+    while start < end and text_has_space(characters[start]):
+        set start = start + 1
+    while end > start and text_has_space(characters[end - 1]):
+        set end = end - 1
+    var result = ""
+    while start < end:
+        set result = result + characters[start]
+        set start = start + 1
+    return result
+
+pub fn text_split(value: Text, delimiter: Text) -> List[Text]:
+    if delimiter == "":
+        return [value]
+    let characters = text_chars(value)
+    let needle = text_chars(delimiter)
+    var fields: List[Text] = []
+    var field = ""
+    var cursor = 0
+    while cursor < len(characters):
+        if text_matches_at(characters, needle, cursor):
+            set fields = list_push(fields, field)
+            set field = ""
+            set cursor = cursor + len(needle)
+        else:
+            set field = field + characters[cursor]
+            set cursor = cursor + 1
+    set fields = list_push(fields, field)
+    return fields
+
+pub fn text_join(values: List[Text], delimiter: Text) -> Text:
+    var result = ""
+    var index = 0
+    while index < len(values):
+        if index > 0:
+            set result = result + delimiter
+        set result = result + values[index]
+        set index = index + 1
+    return result
+
+pub fn text_replace(value: Text, needle: Text, replacement: Text) -> Text:
+    if needle == "":
+        return value
+    let characters = text_chars(value)
+    let match = text_chars(needle)
+    var result = ""
+    var cursor = 0
+    while cursor < len(characters):
+        if text_matches_at(characters, match, cursor):
+            set result = result + replacement
+            set cursor = cursor + len(match)
+        else:
+            set result = result + characters[cursor]
+            set cursor = cursor + 1
+    return result
+
+pub fn text_parse_integer(value: Text) -> Result[Int, FileError]:
+    return text_parse_int(value)
+
+pub fn text_parse_decimal(value: Text) -> Result[Float64, FileError]:
+    return text_parse_float(value)
+
+pub fn text_casefold(value: Text) -> Text:
+    return unicode_casefold(value)
+
+pub fn text_collapse_whitespace(value: Text) -> Text:
+    return unicode_collapse_whitespace(value)
+
+pub fn text_normalize(value: Text, form: Text) -> Result[Text, StdError]:
+    return unicode_normalize(value, form)

@@ -8,12 +8,30 @@ license.workspace = true
 name = "veritas"
 path = "src/main.rs"
 
+[features]
+default = []
+python-interop = ["veritas-runtime/python-interop"]
+
 [dependencies]
 veritas-model.workspace = true
-veritas-compiler.workspace = true
 veritas-runtime.workspace = true
 toml.workspace = true
 sha2.workspace = true
 libc.workspace = true
 serde_json.workspace = true
+reqwest.workspace = true
+tokio.workspace = true
+
+[dev-dependencies]
+veritas-compiler.workspace = true
+veritas-bootstrap = { path = "../bootstrap" }
+
+[build-dependencies]
+serde_json.workspace = true
+sha2.workspace = true
+
+[[test]]
+name = "python_dependencies"
+path = "tests/python_dependencies.rs"
+required-features = ["python-interop"]
 

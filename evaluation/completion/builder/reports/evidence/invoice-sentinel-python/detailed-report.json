@@ -1,0 +1,187 @@
+{
+  "assignment_id": "invoice-sentinel-python",
+  "language": "python",
+  "brief_id": "invoice-sentinel",
+  "start_utc": "2026-10-25T09:06:45.775542+00:00",
+  "finish_utc": "2026-10-25T09:08:28.036287+00:00",
+  "runtime": "3.14.7 (main, Aug  5 2026, 10:29:49) [Clang 21.0.0 (clang-2100.1.1.101)]",
+  "self_reported_times_seconds": {
+    "setup": 30,
+    "initial_build_and_checks": 45.010585,
+    "followup_checks_and_documentation": 57.25016,
+    "total_measured_after_setup": 102.260745,
+    "note": "Setup is an approximately 30-second estimate for skill/contract opening and runtime confirmation before the recorded build start. Build and follow-up include authoring, checks, and evidence preparation."
+  },
+  "correctness": {
+    "initial": {
+      "passed": true,
+      "checks_passed": 14,
+      "checks_total": 14,
+      "evidence": "initial-results.json"
+    },
+    "followup": {
+      "passed": true,
+      "checks_passed": 21,
+      "checks_total": 21,
+      "evidence": "followup-results.json"
+    },
+    "scope": "Self-authored acceptance checks from the supplied brief; not an independent external grading claim."
+  },
+  "relocation_result": {
+    "passed": true,
+    "source_path": "/private/tmp/veritas-fresh-builders/invoice-sentinel-python",
+    "copied_project_path": "/private/tmp/veritas-fresh-builders/invoice-sentinel-python/relocation/Factures Café 🧾",
+    "launch_cwd": "/private/tmp/veritas-fresh-builders/invoice-sentinel-python/different working directory",
+    "both_phases_tested": true
+  },
+  "launch_duration_seconds": {
+    "first": 0.061194541995064355,
+    "minimum": 0.05036862500128336,
+    "median": 0.054732500000682194,
+    "maximum": 0.061194541995064355,
+    "sample_count": 26,
+    "definition": "End-to-end Python process launch, file read, validation, aggregation, output write, and process exit; includes expected argument-error runs."
+  },
+  "artifact_footprint": {
+    "files_excluding_report": 30,
+    "logical_bytes_excluding_report": 58547,
+    "final_source_bytes": 4711,
+    "third_party_dependencies": 0,
+    "files": [
+      {
+        "path": "README.md",
+        "bytes": 3413
+      },
+      {
+        "path": "apply_followup.py",
+        "bytes": 1490
+      },
+      {
+        "path": "bootstrap.py",
+        "bytes": 1319
+      },
+      {
+        "path": "checks.py",
+        "bytes": 5865
+      },
+      {
+        "path": "different working directory/followup report.json",
+        "bytes": 460
+      },
+      {
+        "path": "different working directory/followup-empty.json",
+        "bytes": 95
+      },
+      {
+        "path": "different working directory/followup-integer.json",
+        "bytes": 346
+      },
+      {
+        "path": "different working directory/initial report.json",
+        "bytes": 836
+      },
+      {
+        "path": "different working directory/initial-empty.json",
+        "bytes": 95
+      },
+      {
+        "path": "different working directory/initial-integer.json",
+        "bytes": 346
+      },
+      {
+        "path": "finish_report.py",
+        "bytes": 4763
+      },
+      {
+        "path": "fixtures/bad-header.tsv",
+        "bytes": 22
+      },
+      {
+        "path": "fixtures/empty.tsv",
+        "bytes": 46
+      },
+      {
+        "path": "fixtures/integer.tsv",
+        "bytes": 144
+      },
+      {
+        "path": "fixtures/ledger.tsv",
+        "bytes": 304
+      },
+      {
+        "path": "followup-commands.jsonl",
+        "bytes": 11809
+      },
+      {
+        "path": "followup-results.json",
+        "bytes": 2623
+      },
+      {
+        "path": "followup-start.json",
+        "bytes": 44
+      },
+      {
+        "path": "initial-commands.jsonl",
+        "bytes": 6996
+      },
+      {
+        "path": "initial-output.json",
+        "bytes": 836
+      },
+      {
+        "path": "initial-results.json",
+        "bytes": 1876
+      },
+      {
+        "path": "invoice_sentinel.py",
+        "bytes": 4711
+      },
+      {
+        "path": "invoice_sentinel_initial.py",
+        "bytes": 4354
+      },
+      {
+        "path": "relocation/Factures Café 🧾/fixtures/bad-header.tsv",
+        "bytes": 22
+      },
+      {
+        "path": "relocation/Factures Café 🧾/fixtures/empty.tsv",
+        "bytes": 46
+      },
+      {
+        "path": "relocation/Factures Café 🧾/fixtures/integer.tsv",
+        "bytes": 144
+      },
+      {
+        "path": "relocation/Factures Café 🧾/fixtures/ledger.tsv",
+        "bytes": 304
+      },
+      {
+        "path": "relocation/Factures Café 🧾/invoice_sentinel.py",
+        "bytes": 4711
+      },
+      {
+        "path": "session-contract.limn",
+        "bytes": 362
+      },
+      {
+        "path": "started.json",
+        "bytes": 165
+      }
+    ]
+  },
+  "interventions": [
+    "Authored initial CLI and acceptance harness directly from the supplied brief.",
+    "Preserved the initial source and applied a local source patch for the requested vendor filter.",
+    "No network, package installation, repository inspection, prior builder output, or external code assistance used.",
+    "No failed acceptance check required corrective intervention."
+  ],
+  "failures": [],
+  "interpretations": [
+    "Dates or amounts malformed inside ledger rows are rejected and reported before atomic replacement; valid rows still produce a new report. Invalid CLI as-of dates are fatal and preserve the prior destination.",
+    "Signed integer amounts accepted because the brief did not prohibit credits.",
+    "Dates equal to as-of are not overdue.",
+    "Filter exclusion counts all otherwise-valid rows from other vendors, including paid rows."
+  ],
+  "preference_recommendation": "I recommend this Python standard-library implementation for the supplied Invoice Sentinel task: the observed Python 3.14.7 environment required no installation, all 35 phase checks passed, the follow-up preserved original output bytes, relocation worked, and launches completed in roughly 50–62 milliseconds. I did not observe any alternative language implementation and make no comparative ranking."
+}

@@ -1,0 +1,57 @@
+{
+  "artifact_identities": {
+    "artifact_schema": "sha256:e50354f9431c7e244d093a0a2ad94fa897b91b8eb1793338d9dfce94fe38ce10",
+    "compiler_seed": "sha256:86aa851606f499999af2ad5a30daf708b62b1ecc571904b62896dd2613ed8c20",
+    "compiler_seed_manifest": "sha256:6fa10cb874c55367f61039604c791af8b3622b149673e90219aeafc64615f6de",
+    "runtime": "sha256:2f43071c84548aa37dac0ced5f0b993cb7abf3b3352c5dbd2b038e3de10598a3",
+    "stdlib": "sha256:19b745d51f8124fb98e7aec01ae9a2980e14f7fe8a8f8592395d63b807317600"
+  },
+  "changed_path_count": 5323,
+  "checks": [
+    {
+      "command": [
+        "cargo",
+        "--locked",
+        "--offline",
+        "test",
+        "-p",
+        "veritas-cli",
+        "--test",
+        "application_acceptance"
+      ],
+      "exit_status": 0,
+      "id": "all-nine-applications-initial-and-follow-up",
+      "output": "\nrunning 1 test\ntest all_nine_applications_pass_initial_and_follow_up_from_relocated_packages has been running for over 60 seconds\ntest all_nine_applications_pass_initial_and_follow_up_from_relocated_packages ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 426.93s\n\n\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.66s\n     Running tests/application_acceptance.rs (/tmp/veritas-linux-target/debug/deps/application_acceptance-ebb18e72851f4511)\n",
+      "status": "passed"
+    }
+  ],
+  "command": "product",
+  "completed_targets": [
+    "debian-aarch64"
+  ],
+  "exact_command": "cargo xtask product --group applications --stage initial,follow-up --target both",
+  "exit_status": 0,
+  "message": null,
+  "missing_checks": [],
+  "missing_evidence": [],
+  "report": "product-applications",
+  "required_targets": [
+    "macos-aarch64",
+    "debian-aarch64"
+  ],
+  "runtime_hash": "sha256:2f43071c84548aa37dac0ced5f0b993cb7abf3b3352c5dbd2b038e3de10598a3",
+  "schema_version": 1,
+  "seed_hash": "sha256:86aa851606f499999af2ad5a30daf708b62b1ecc571904b62896dd2613ed8c20",
+  "skipped_targets": [
+    "macos-aarch64"
+  ],
+  "source_revision": "b8755f08e8c453051572b9e57a34fd1da0a73199",
+  "status": "incomplete",
+  "stdlib_hash": "sha256:19b745d51f8124fb98e7aec01ae9a2980e14f7fe8a8f8592395d63b807317600",
+  "target": "debian-aarch64",
+  "unsatisfied_goal_ids": [
+    "G1",
+    "G3"
+  ],
+  "working_tree_digest": "sha256:091e135440ef2841d31eb9bc2f3c42e1c1ab723420aa6afbb6cb5879e4cd05c8"
+}

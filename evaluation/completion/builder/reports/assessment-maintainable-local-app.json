@@ -1,0 +1,220 @@
+{
+  "schema_version": 1,
+  "status": "complete",
+  "target_class": "maintainable-local-app",
+  "assessed_after_both_outputs": true,
+  "reevaluation_brief_id": "field-kit-log",
+  "product_change": "clock-local-date",
+  "recommendation": "either",
+  "reason": "Both fresh Field Kit Log implementations deliver the requested operator workflow, automatic local dates, durable SQLite state, a real failed-only maintenance edit, preserved old behavior and Unicode relocation within budget. The earlier Bookloom disadvantage of requiring an operator-entered date is resolved in the installed format-39 Veritas trial. Python offers the smaller application and lower recorded builder effort when CPython 3.14.7 is already available; Veritas offers a verified current-host installation with its matching runtime and no Python requirement. These are meaningful deployment tradeoffs, with no remaining required functional gap shown by this pair that justifies a universal language preference. The Veritas builder did encounter a material installed-documentation/runtime mismatch; the subsequent source documentation fix is acknowledged but does not erase that observed regression or establish that corrected docs have shipped.",
+  "observed_user_benefit": "Both apps let a field team add equipment, record pass/fail inspections without entering dates, retain ordered history across new processes, reject invalid mutations without altering existing database bytes, and isolate failed inspections after a later source edit. Both run after moving the installed artifact to a path with spaces and Unicode while keeping caller data separate. Veritas additionally delivers a verified bundled-runtime application with explicit clock permission and demonstrated Pacific/Kiritimati date behavior; Python delivers a compact zipapp using an existing standard-library-only interpreter, familiar argument help and validation of single-line tabular text.",
+  "material_regressions": [
+    "Historical installed format-39 builder regression: the supplied host-api.md required absolute SQLite paths, while the runtime rejected them with E_SQLITE_PATH and required a relative filename under a granted root. Initial package add/inspect/list attempts failed without creating records; the builder discovered the correct relative-path configuration and reran successful acceptance. Source language/host-api.md was subsequently corrected to describe relative paths and VERITAS_FILE_ROOT. That source fix improves final shipping documentation but is not a retrospective fix to this builder experience, and this assessment does not claim a rebuilt distribution containing it was tested.",
+    "Veritas discovery required failed help, entry-file, import and integer-conversion probes. The builder specifically disclosed the lack of a compact syntax/conversion reference in its allowed documentation. Final behavior passed, but this is additional newcomer effort that the date API alone does not resolve.",
+    "Veritas's final runnable package is 12,872,255 regular-file bytes including a 12,841,696-byte runtime; its reported full deliverable is 12,880,529 bytes. Python's 4,477-byte zipapp excludes CPython and is not a standalone-runtime size comparison. Bundling benefits users without Python and adds per-app disk cost in this delivered form.",
+    "The Veritas installed list command has one recorded 0.39-second launch; Python's median is 0.05396 seconds across five --help launches. The observations suggest startup overhead worth measuring but differ in work and sample count, so no precise relative launch-speed claim is justified.",
+    "Python requires externally installed CPython 3.14.7. Its delivered zipapp, relocation and size results do not demonstrate clean-host interpreter provisioning or a standalone installation.",
+    "The delivered Veritas guide permits literal text and asks operators to avoid tabs and line breaks for readable TSV; its source validates note length but does not reject these characters. Python rejects tabs/newlines and trims text. This is a disclosed output robustness difference outside the specified acceptance inputs; no additional adversarial run was performed."
+  ],
+  "prior_date_gap_reconciliation": {
+    "prior_assessment": "evaluation/completion/builder/reports/assessment-maintainable-local-app-before-clock.json",
+    "prior_recommendation": "python",
+    "prior_observation": "Both Bookloom reports passed their recorded behavior, but Veritas checkout required YYYY-MM-DD because the installed public time API then lacked a current-local-date service. Python used date.today(). The canonical assessment read at assessment start was byte-identical to the preserved before-clock assessment.",
+    "post_change_observation": "Field Kit Log is a materially different fresh paired brief. Its Veritas source imports std:time, calls today_local() for each inspection and grants [clock].enabled=true. Captured records match the normal local day and a Pacific/Kiritimati run records 2026-10-26 when original records are 2026-10-25. Python uses date.today().isoformat() and its recorded checks compare against the local date.",
+    "conclusion": "The specific absent-local-date capability gap is closed for this installed format-39 consumer. Do not repeat it as an outstanding product defect. The historical Bookloom app and reports were not retroactively changed, and this pair does not verify a revised Bookloom checkout or its date arithmetic.",
+    "limits": "The pair does not independently exercise deterministic clock injection, denied clock access, DST boundaries, all supported targets or the broader nine-application acceptance gate. Those remain separate product verification obligations, not failures inferred from these outputs."
+  },
+  "paired_observations": {
+    "pair_order": [
+      "python",
+      "veritas"
+    ],
+    "order_basis": "assignments.json records reevaluation seed 20261029 and Python then Veritas. Python finished 10:49:53.351443 UTC; Veritas started 10:51:47 UTC. Both and all original six assignments are recorded complete before this assessment.",
+    "conditions": "Separate fresh contexts; gpt-6.1-sol with medium reasoning; same brief; 15-minute budget including follow-up; local filesystem/shell; pinned Python standard library or installed Veritas native services; no third-party packages or network lookups. Builder preferences are self-reports, not independent comparative votes.",
+    "assessment_method": "Read protocol, assignments, both Bookloom reports, the preserved and canonical prior assessment, both final Field Kit Log reports, implementation source, guides, acceptance drivers and captured outputs, phase/footprint data and Veritas package/dependency metadata. No implementation, benchmark or acceptance suite was rerun or modified, and no comparative finding was supplied to either builder.",
+    "python": {
+      "report": "evaluation/completion/builder/reports/field-kit-log-python.json",
+      "runtime": "CPython 3.14.7, standard library only",
+      "correctness": {
+        "initial": true,
+        "followup": true,
+        "relocation": true,
+        "basis": "Recorded initial and follow-up subprocess acceptance covers item creation, pass/fail dates, ordered list, process restart, duplicate/unknown/invalid inputs and byte-identical existing database after rejection. The follow-up adds --failed-only, retains old output and permits additional valid writes. Unicode relocation creates new caller data, then a second move of the same runtime retains access to that data."
+      },
+      "sqlite_and_date": "Parameterized SQLite mutations; context-managed transaction commit/rollback; foreign keys enabled; date.today().isoformat() supplies each inspection date. Config accepts absolute paths or paths relative to its TOML file. The parent data directory must exist, and resolved database paths inside the runtime directory are rejected. This brief deliberately requires a preexisting directory for both implementations, so the older Bookloom auto-directory difference is not a new regression here.",
+      "installation_and_relocation": "A standard-library zipapp is copied to a dedicated runtime directory and invoked through the pinned external interpreter. Unicode-named data remains outside it. The app directory is moved again with the same config and database. No system installer or bundled interpreter was produced.",
+      "phase_seconds": {
+        "setup": 10.551646,
+        "build": 89.868677,
+        "followup": 0.828337,
+        "elapsed": 203.351443
+      },
+      "timing_caveat": "Captured UTC boundaries separate initial source/check completion from later failed-only edits and checks. The very small follow-up is a small filter change, not a general maintenance estimate. Total elapsed includes delivery/evidence/reporting beyond phase totals.",
+      "installed_launch": {
+        "seconds": 0.05395999999018386,
+        "samples": 5,
+        "statistic": "median",
+        "command_work": "zipapp --help, through externally installed CPython"
+      },
+      "footprint": {
+        "zipapp_bytes": 4477,
+        "source_bytes": 4334,
+        "operator_guide_bytes": 3140,
+        "sample_configuration_bytes": 195,
+        "bundled_runtime": false,
+        "definition": "Reported artifact includes zipapp only. Source, guide, sample config and zipapp sum to 12,146 bytes, excluding data, evidence and CPython; this derived sum still does not supply a standalone-runtime comparison."
+      },
+      "interventions": [
+        "The first fixture selected data inside the source/runtime directory and triggered the intended guard. The builder moved the app into a dedicated runtime subdirectory, retained the separate preexisting data directory and reran checks.",
+        "No human application repair, author rescue, network access or dependency installation was recorded."
+      ],
+      "failures": "One resolved setup-fixture rejection; no unresolved required acceptance failure recorded.",
+      "self_preference": "python"
+    },
+    "veritas": {
+      "report": "evaluation/completion/builder/reports/field-kit-log-veritas.json",
+      "runtime": "Installed format-39 macos-aarch64 core package; no Python bridge",
+      "correctness": {
+        "initial": true,
+        "followup": true,
+        "relocation": true,
+        "basis": "Captured shell acceptance checks ordered history, separate launches, nonzero rejection statuses and unchanged database hashes. Follow-up output is compared against the original list and failed-only selects the recorded failure; an unknown flag is rejected without a database change. The relocated installation reads the same data and a new timezone-specific failure persists and appears in the filter."
+      },
+      "sqlite_and_date": "Native std:sqlite/std:toml; bound parameters and explicit transaction begin/commit/rollback; caller-owned data root selected by VERITAS_FILE_ROOT with relative config/database filenames. std:time.today_local() automatically records date with an explicit manifest clock grant. Pacific/Kiritimati output verifies that this is a local calendar date rather than a forced UTC date.",
+      "installation_and_relocation": "Normal package, verify-package and install produced a generated app command. The complete installation prefix was relocated to Field Kit – café and the relocated package verified; the data stayed at the same separate preexisting directory. Package metadata records python_runtime=null and the native scan lists system libraries only, with no unresolved images.",
+      "phase_seconds": {
+        "setup": 25,
+        "build": 105,
+        "followup": 11,
+        "elapsed": 353
+      },
+      "timing_caveat": "Setup/build are self-reported wall-clock estimates; follow-up is bounded by captured 10:54:11–10:54:22 UTC timestamps. Contract opening immediately preceded the first task-log start and is disclosed within the dispatch budget. Parent confirmation concerned timestamp reporting only, not application repair. Phase totals do not include all delivery/evidence/reporting time.",
+      "installed_launch": {
+        "seconds": 0.39,
+        "samples": 1,
+        "statistic": "single observation",
+        "command_work": "installed list against caller database"
+      },
+      "footprint": {
+        "reported_deliverable_bytes": 12880529,
+        "package_regular_file_bytes": 12872255,
+        "bundled_runtime_bytes": 12841696,
+        "bundled_runtime": true,
+        "definition": "Deliverable adds 8,274 bytes of source, manifest, sample config and guide to package bytes; excludes database, evidence and duplicate snapshots."
+      },
+      "interventions": [
+        "No human application repair or author rescue recorded. Parent confirmed start timestamp reporting with immediately preceding contract setup disclosed.",
+        "Builder independently changed the incorrect documented absolute SQLite path to a relative filename and reran acceptance."
+      ],
+      "failures": [
+        "Historical SQLite documentation/runtime mismatch blocked initial package operations before any records were created; repaired by configuration and explicit external root, with successful acceptance afterward.",
+        "Resolved CLI --help, generated-entry, import and integer-conversion discovery failures.",
+        "macOS plutil rejected the JSON report as a property list; installed Veritas JSON parsing and key validation passed. This was an evidence-tool mismatch, not an application failure."
+      ],
+      "self_preference": "veritas",
+      "package_identity": {
+        "target": "macos-aarch64",
+        "artifact_sha256": "7014a6ceb15c33c5b53e6dbe1faeeccadfc92aa02678d31901582e1f66e69510",
+        "runtime_sha256": "08dafd217babdf2e94734d32ed73542356f2926f795d65c3c6b1f4d39c2bf62a",
+        "python_runtime": null
+      }
+    },
+    "comparison_limits": [
+      "One materially different paired reevaluation supports this bounded class recommendation, not statistical adoption or general superiority.",
+      "The brief's required initial/follow-up outputs are satisfied by both. Veritas's stronger recorded timezone check and Python's second runtime move are evidence differences, not failures assigned to the other app.",
+      "Python build/phase times are lower in this pair, but phase definitions and self-report precision differ. Launch commands and bundled-runtime footprint scopes differ; do not turn these into controlled performance or whole-runtime size ratios.",
+      "The broader Tasks 2–10 gates are not closed by these two small applications, and older product_context checklist snapshots are historical."
+    ]
+  },
+  "remaining_product_work": {
+    "exact_gap": "The observed remaining builder gap is discoverability and consistency of the installed builder contract: the tested format-39 host API documentation contradicted SQLite path enforcement, and the builder needed failed import/conversion probes. The SQLite source wording is now corrected; the remaining delivery action is to ship and verify that correction and provide concise syntax/conversion guidance. This is distinct from the resolved clock capability gap.",
+    "task_mapping": [
+      {
+        "task": 2,
+        "mapping": "Use the recorded E_SYNTAX/E_NAME_UNKNOWN discovery experience to assess actionable diagnostics; the final pair does not demonstrate a compiler semantics defect."
+      },
+      {
+        "task": 3,
+        "mapping": "Preserve format-39 artifact/stdlib/compiler compatibility for clock calls; no new missing self-host or artifact capability is established by this pair."
+      },
+      {
+        "task": 4,
+        "mapping": "Retain the demonstrated today_local service and its explicit timezone/clock semantics. Do not reopen the absent-local-date gap; date/integer rendering ergonomics may be documented or supplied by reusable APIs."
+      },
+      {
+        "task": 5,
+        "mapping": "Keep SQLite root rules identical in runtime and docs: relative database path plus granted caller root. The corrected source text describes the behavior that passed, with parameterized transactions and restart durability."
+      },
+      {
+        "task": 6,
+        "mapping": "Retain transaction cleanup and error behavior; these short-lived commands do not supply long-lived lifecycle evidence or reveal a new lifecycle defect."
+      },
+      {
+        "task": 7,
+        "mapping": "Retain Python-free packaged operation and declared native dependencies. This pair demonstrates the deployment benefit on this host, not the full dependency-management gate."
+      },
+      {
+        "task": 8,
+        "mapping": "Publish compact accepted import/conversion examples and ship the corrected SQLite host contract. A fresh installed-doc-only builder should reach caller-data use without discovering the opposite of the documented path rule."
+      },
+      {
+        "task": 9,
+        "mapping": "Keep this consumer and its real failed-only edit as bounded maintenance evidence. Finish the independent nine-application initial/follow-up gate separately; no Field Kit success substitutes for it."
+      },
+      {
+        "task": 10,
+        "mapping": "Regenerate and verify final distributions with corrected docs, preserve source-free relocation/runtime identity, and measure matched installed operations with equal work and repeated samples before advertising startup comparisons. Supported-target parity remains a separate gate."
+      }
+    ],
+    "recommendation_conditions": "Choose Python for teams with the pinned interpreter already provisioned that value the compact artifact and familiar CLI tooling. Choose Veritas when a verified Python-free current-host app delivery and explicit capability grants are the stronger requirement. Either meets this tested brief; source documentation corrections should be present in the final shipped Veritas distribution."
+  },
+  "evidence": [
+    "evaluation/completion/builder/protocol.md",
+    "evaluation/completion/builder/assignments.json",
+    "evaluation/completion/builder/briefs/field-kit-log.md",
+    "evaluation/completion/builder/reports/bookloom-python.json",
+    "evaluation/completion/builder/reports/bookloom-veritas.json",
+    "evaluation/completion/builder/reports/bookloom-veritas-initial-attempt.json",
+    "evaluation/completion/builder/reports/assessment-maintainable-local-app-before-clock.json",
+    "evaluation/completion/builder/reports/field-kit-log-python.json",
+    "evaluation/completion/builder/reports/field-kit-log-veritas.json",
+    "evaluation/completion/builder/reports/evidence/field-kit-log-python/field_kit_log.py",
+    "evaluation/completion/builder/reports/evidence/field-kit-log-python/OPERATOR.md",
+    "evaluation/completion/builder/reports/evidence/field-kit-log-python/verify.py",
+    "evaluation/completion/builder/reports/evidence/field-kit-log-python/followup.py",
+    "evaluation/completion/builder/reports/evidence/field-kit-log-python/evidence/initial-source.py",
+    "evaluation/completion/builder/reports/evidence/field-kit-log-python/evidence/initial-acceptance.json",
+    "evaluation/completion/builder/reports/evidence/field-kit-log-python/evidence/followup-acceptance.json",
+    "evaluation/completion/builder/reports/evidence/field-kit-log-python/evidence/setup-path-rejection.json",
+    "evaluation/completion/builder/reports/evidence/field-kit-log-python/evidence/metrics.json",
+    "evaluation/completion/builder/reports/evidence/field-kit-log-python/evidence/phase-times.json",
+    "evaluation/completion/builder/reports/evidence/field-kit-log-python/evidence/acceptance-summary.txt",
+    "evaluation/completion/builder/reports/evidence/field-kit-log-python/evidence/relocated-list.tsv",
+    "evaluation/completion/builder/reports/evidence/field-kit-log-python/runtime/field-kit-log.pyz",
+    "evaluation/completion/builder/reports/evidence/field-kit-log-veritas/app/src/main.vr",
+    "evaluation/completion/builder/reports/evidence/field-kit-log-veritas/app/README.md",
+    "evaluation/completion/builder/reports/evidence/field-kit-log-veritas/app/veritas.toml",
+    "evaluation/completion/builder/reports/evidence/field-kit-log-veritas/evidence/initial-main.vr",
+    "evaluation/completion/builder/reports/evidence/field-kit-log-veritas/acceptance-initial.sh",
+    "evaluation/completion/builder/reports/evidence/field-kit-log-veritas/acceptance-followup.sh",
+    "evaluation/completion/builder/reports/evidence/field-kit-log-veritas/acceptance-relocation.sh",
+    "evaluation/completion/builder/reports/evidence/field-kit-log-veritas/evidence/acceptance-initial.log",
+    "evaluation/completion/builder/reports/evidence/field-kit-log-veritas/evidence/acceptance-followup.log",
+    "evaluation/completion/builder/reports/evidence/field-kit-log-veritas/evidence/acceptance-relocation.log",
+    "evaluation/completion/builder/reports/evidence/field-kit-log-veritas/evidence/development-notes.md",
+    "evaluation/completion/builder/reports/evidence/field-kit-log-veritas/evidence/db-before-errors.sha256",
+    "evaluation/completion/builder/reports/evidence/field-kit-log-veritas/evidence/db-after-followup.sha256",
+    "evaluation/completion/builder/reports/evidence/field-kit-log-veritas/evidence/db-after-relocation.sha256",
+    "evaluation/completion/builder/reports/evidence/field-kit-log-veritas/evidence/installed-launch-time.log",
+    "evaluation/completion/builder/reports/evidence/field-kit-log-veritas/evidence/timezone-expected.txt",
+    "evaluation/completion/builder/reports/evidence/field-kit-log-veritas/evidence/relocated-restart.tsv",
+    "evaluation/completion/builder/reports/evidence/field-kit-log-veritas/evidence/verify-package.log",
+    "evaluation/completion/builder/reports/evidence/field-kit-log-veritas/evidence/verify-relocated-package.log",
+    "evaluation/completion/builder/reports/evidence/field-kit-log-veritas/package-final/PACKAGE.json",
+    "evaluation/completion/builder/reports/evidence/field-kit-log-veritas/package-final/NATIVE-DEPENDENCIES.json",
+    "target/completion/releases/macos-aarch64/current/share/veritas/language/host-api.md",
+    "language/host-api.md",
+    "language/stdlib/time.vr",
+    "docs/superpowers/plans/2026-10-24-veritas-complete-product.md"
+  ]
+}

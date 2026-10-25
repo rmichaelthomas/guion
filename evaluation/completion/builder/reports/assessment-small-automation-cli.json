@@ -1,0 +1,148 @@
+{
+  "schema_version": 1,
+  "status": "complete",
+  "target_class": "small-automation-cli",
+  "assessed_after_both_outputs": true,
+  "recommendation": "either",
+  "reason": "Both implementations passed the supplied invoice-audit behavior and relocation checks. The Veritas follow-up was quicker in the recorded phase timings and runs without Python; Python has much faster measured launches and avoids shipping a large runtime. The paired evidence does not justify a clear language winner for this small task.",
+  "observed_user_benefit": "Veritas produced a relocatable Python-free command and applied the vendor-filter change quickly; Python delivered the same core audit with a standard-library script and roughly 55 ms median process time in this run.",
+  "material_regressions": [
+    "The installed Veritas CLI rejected bare `veritas --help` with exit 1; the builder recovered using the shipped usage note and product reference.",
+    "The paired Python source accepts signed cents as credit amounts, while the Veritas source rejects negative amounts. The brief does not define whether credits are valid, so this is a real behavior difference but not a failed stated acceptance case.",
+    "The Veritas app package measured 12,881,497 bytes, including a 12,824,672-byte runtime; the Python implementation instead requires CPython 3.14.7 to be present. No third-party Python packages were installed.",
+    "Python timing records disagree on the follow-up boundary: the normalized report records 69.777 seconds, while the detailed self-report records 57.250 seconds. Treat phase timings as builder records, not a controlled cross-language benchmark."
+  ],
+  "product_context": {
+    "plan_task_status": {
+      "tasks_2_to_7": "All listed plan checks are marked complete.",
+      "task_8": "The minimal-new-project-template check remains open; the other listed workflow checks are marked complete.",
+      "task_9": "The listed application-set checks remain open.",
+      "task_10": "The listed release and performance checks are marked complete."
+    },
+    "closeout_status": "incomplete",
+    "closeout_unsatisfied_goals": [
+      "G1",
+      "G2",
+      "G3"
+    ],
+    "closeout_missing_checks": [
+      "all-nine-applications-initial-and-follow-up",
+      "compiler-stage-equality",
+      "fresh-builders-three-classes",
+      "full-language-conformance",
+      "performance-correctness-and-confidence",
+      "python-free-core-product",
+      "release-target-parity"
+    ],
+    "scope_note": "These three Task 11 pairs are narrow, task-specific evidence. They do not by themselves satisfy the broader release closeout."
+  },
+  "paired_observations": {
+    "pair_order": [
+      "python",
+      "veritas"
+    ],
+    "sample_limit": "One matched task pair; no general or statistical language claim is made.",
+    "python": {
+      "report": "evaluation/completion/builder/reports/invoice-sentinel-python.json",
+      "correctness": {
+        "initial": true,
+        "followup": true,
+        "relocation": true,
+        "checks": "14 initial and 21 follow-up checks passed, including deterministic output, invalid-input preservation, exact filtering, and Unicode-path relocation."
+      },
+      "phase_seconds": {
+        "setup": 30,
+        "build": 45.010585,
+        "followup": 69.777026,
+        "elapsed": 114.787299,
+        "measurement_note": "Normalized values. The detailed report gives a 57.25016-second follow-up and says build/follow-up include authoring, checks, and evidence preparation."
+      },
+      "installed_launch": {
+        "seconds": 0.0547325,
+        "samples": 26,
+        "scope": "End-to-end Python process, input, validation, aggregation, output, and exit; includes expected argument-error runs."
+      },
+      "footprint": {
+        "final_source_bytes": 4711,
+        "normalized_artifact_bytes": 66923,
+        "detailed_evidence_bundle_bytes_excluding_report": 58547,
+        "standalone_package_bytes": null,
+        "note": "The footprint records the source/evidence bundle; no standalone runtime package was produced."
+      },
+      "runtime_provisioning": "CPython 3.14.7 was already available; standard library only, with no dependency installation.",
+      "interventions": [
+        "The builder authored the CLI and harness, then applied a local source patch for --vendor.",
+        "No failed acceptance check required an application correction."
+      ],
+      "failures": [],
+      "behavior": [
+        "Accepts signed integer cents, including negative credit amounts.",
+        "Validates all rows, continues with valid rows after row errors, and atomically replaces output only after successful input and serialization."
+      ]
+    },
+    "veritas": {
+      "report": "evaluation/completion/builder/reports/invoice-sentinel-veritas.json",
+      "correctness": {
+        "initial": true,
+        "followup": true,
+        "relocation": true,
+        "checks": "Recorded initial, follow-up, and relocated acceptance result objects all report passed."
+      },
+      "phase_seconds": {
+        "setup": 24.415321,
+        "build": 55.754771,
+        "followup": 14.965238,
+        "elapsed": 181.926284,
+        "direct_build_command": 0.984803375,
+        "measurement_note": "Phase values use recorded phase timestamps; the separately timed build command is the compiler invocation."
+      },
+      "installed_launch": {
+        "seconds": 0.462315125,
+        "samples": 1,
+        "scope": "One installed invoice-sentinel run against the follow-up fixture."
+      },
+      "footprint": {
+        "source_bytes": 5968,
+        "compiled_artifact_bytes": 52769,
+        "package_bytes": 12881497,
+        "bundled_runtime_bytes": 12824672
+      },
+      "runtime_provisioning": "The app package bundles the matching Veritas runtime and has no Python runtime or third-party application dependency.",
+      "interventions": [
+        "Python 3 standard-library helpers were used for editing, measurement, and the acceptance harness; the delivered application is pure Veritas.",
+        "After bare `veritas --help` failed, the builder used the installed README/reference.",
+        "The builder interpreted malformed amount/date rows as rejected rows while preserving valid-row contributions, consistent with the brief's malformed-row rule."
+      ],
+      "failures": [
+        "Bare `veritas --help` returned exit 1."
+      ],
+      "behavior": [
+        "Uses arbitrary-precision integer cents, deterministic JSON, row diagnostics, atomic output, and an exact Unicode vendor filter.",
+        "Its amount validator permits only decimal digits and rejects negative credits accepted by Python."
+      ]
+    }
+  },
+  "evidence": [
+    "evaluation/completion/builder/assignments.json",
+    "evaluation/completion/builder/briefs/invoice-sentinel.md",
+    "evaluation/completion/builder/reports/invoice-sentinel-python.json",
+    "evaluation/completion/builder/reports/invoice-sentinel-veritas.json",
+    "evaluation/completion/builder/reports/evidence/invoice-sentinel-python/invoice_sentinel.py",
+    "evaluation/completion/builder/reports/evidence/invoice-sentinel-python/README.md",
+    "evaluation/completion/builder/reports/evidence/invoice-sentinel-python/initial-results.json",
+    "evaluation/completion/builder/reports/evidence/invoice-sentinel-python/followup-results.json",
+    "evaluation/completion/builder/reports/evidence/invoice-sentinel-python/detailed-report.json",
+    "evaluation/completion/builder/reports/evidence/invoice-sentinel-veritas/initial-source.vr",
+    "evaluation/completion/builder/reports/evidence/invoice-sentinel-veritas/final-source.vr",
+    "evaluation/completion/builder/reports/evidence/invoice-sentinel-veritas/USAGE.md",
+    "evaluation/completion/builder/reports/evidence/invoice-sentinel-veritas/project/veritas.toml",
+    "evaluation/completion/builder/reports/evidence/invoice-sentinel-veritas/results-initial.json",
+    "evaluation/completion/builder/reports/evidence/invoice-sentinel-veritas/results-followup.json",
+    "evaluation/completion/builder/reports/evidence/invoice-sentinel-veritas/results-relocated-followup.json",
+    "evaluation/completion/builder/reports/evidence/invoice-sentinel-veritas/measurements.json",
+    "evaluation/completion/builder/reports/evidence/invoice-sentinel-veritas/final-app/PACKAGE.json",
+    "evaluation/completion/builder/reports/evidence/invoice-sentinel-veritas/final-app/NATIVE-DEPENDENCIES.json",
+    "docs/superpowers/plans/2026-10-24-veritas-complete-product.md",
+    "evaluation/completion/results/closeout.json"
+  ]
+}

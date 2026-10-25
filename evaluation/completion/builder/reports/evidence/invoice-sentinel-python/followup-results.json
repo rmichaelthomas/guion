@@ -1,0 +1,110 @@
+{
+  "phase": "followup",
+  "checks": [
+    {
+      "name": "success with malformed rows",
+      "passed": true
+    },
+    {
+      "name": "multiple vendors, paid/open, overdue/future, due today",
+      "passed": true
+    },
+    {
+      "name": "four rejected rows with physical line numbers and reasons",
+      "passed": true
+    },
+    {
+      "name": "each rejection reported on stderr",
+      "passed": true
+    },
+    {
+      "name": "no excluded field without filter",
+      "passed": true
+    },
+    {
+      "name": "deterministic repeat output",
+      "passed": true
+    },
+    {
+      "name": "invalid as-of preserves existing output: 2026-02-30",
+      "passed": true
+    },
+    {
+      "name": "invalid as-of preserves existing output: 20260201",
+      "passed": true
+    },
+    {
+      "name": "invalid as-of preserves existing output: 2026-2-01",
+      "passed": true
+    },
+    {
+      "name": "invalid as-of preserves existing output: nonsense",
+      "passed": true
+    },
+    {
+      "name": "bad header preserves existing output",
+      "passed": true
+    },
+    {
+      "name": "missing input preserves existing output",
+      "passed": true
+    },
+    {
+      "name": "header-only ledger",
+      "passed": true
+    },
+    {
+      "name": "exact large integer arithmetic and rejection of scientific notation",
+      "passed": true
+    },
+    {
+      "name": "no-option bytes identical to initial version",
+      "passed": true
+    },
+    {
+      "name": "exact vendor filter",
+      "passed": true
+    },
+    {
+      "name": "filtered repeat deterministic",
+      "passed": true
+    },
+    {
+      "name": "case-sensitive absent vendor",
+      "passed": true
+    },
+    {
+      "name": "Unicode vendor with spaces",
+      "passed": true
+    },
+    {
+      "name": "empty exact filter excludes every valid row",
+      "passed": true
+    },
+    {
+      "name": "invalid date with filter preserves output",
+      "passed": true
+    }
+  ],
+  "passed": true,
+  "launch_seconds": [
+    0.05233187500562053,
+    0.05036862500128336,
+    0.05288020899752155,
+    0.05085191699618008,
+    0.05760074999125209,
+    0.05766370899800677,
+    0.05736087499826681,
+    0.05825474999437574,
+    0.05348362500080839,
+    0.05335216700041201,
+    0.05351262498879805,
+    0.055585458991117775,
+    0.056488709000404924,
+    0.0584480419929605,
+    0.05746125000587199,
+    0.054944375006016344
+  ],
+  "relocation_path": "/private/tmp/veritas-fresh-builders/invoice-sentinel-python/relocation/Factures Café 🧾",
+  "caller_cwd": "/private/tmp/veritas-fresh-builders/invoice-sentinel-python/different working directory"
+}

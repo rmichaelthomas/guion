@@ -1,0 +1,184 @@
+[
+  {
+    "name": "baseline",
+    "command": [
+      "/opt/homebrew/opt/python@3.14/bin/python3.14",
+      "/private/tmp/veritas-fresh-builders/quote-merge-python/final/quote_merge.py",
+      "/private/tmp/veritas-fresh-builders/quote-merge-python/evidence/final-baseline-feeds.txt"
+    ],
+    "exit_code": 0,
+    "stdout": "{\n  \"failed_feeds\": [\n    {\n      \"status\": 503,\n      \"url\": \"http://127.0.0.1:52985/slow-503\"\n    },\n    {\n      \"status\": \"malformed\",\n      \"url\": \"http://127.0.0.1:52985/malformed\"\n    }\n  ],\n  \"quotes\": [\n    {\n      \"carrier\": \"Cedar\",\n      \"days\": 5,\n      \"price_cents\": 900,\n      \"service\": \"ground\"\n    },\n    {\n      \"carrier\": \"Aster\",\n      \"days\": 2,\n      \"price_cents\": 1100,\n      \"service\": \"air\"\n    },\n    {\n      \"carrier\": \"Birch\",\n      \"days\": 3,\n      \"price_cents\": 1900,\n      \"service\": \"ground\"\n    }\n  ],\n  \"successful_feeds\": 3\n}\n",
+    "stderr": "",
+    "elapsed_seconds": 0.4722097920021042
+  },
+  {
+    "name": "repeat",
+    "command": [
+      "/opt/homebrew/opt/python@3.14/bin/python3.14",
+      "/private/tmp/veritas-fresh-builders/quote-merge-python/final/quote_merge.py",
+      "/private/tmp/veritas-fresh-builders/quote-merge-python/evidence/final-repeat-feeds.txt"
+    ],
+    "exit_code": 0,
+    "stdout": "{\n  \"failed_feeds\": [\n    {\n      \"status\": 503,\n      \"url\": \"http://127.0.0.1:52985/slow-503\"\n    },\n    {\n      \"status\": \"malformed\",\n      \"url\": \"http://127.0.0.1:52985/malformed\"\n    }\n  ],\n  \"quotes\": [\n    {\n      \"carrier\": \"Cedar\",\n      \"days\": 5,\n      \"price_cents\": 900,\n      \"service\": \"ground\"\n    },\n    {\n      \"carrier\": \"Aster\",\n      \"days\": 2,\n      \"price_cents\": 1100,\n      \"service\": \"air\"\n    },\n    {\n      \"carrier\": \"Birch\",\n      \"days\": 3,\n      \"price_cents\": 1900,\n      \"service\": \"ground\"\n    }\n  ],\n  \"successful_feeds\": 3\n}\n",
+    "stderr": "",
+    "elapsed_seconds": 0.46174208298907615
+  },
+  {
+    "name": "reversed",
+    "command": [
+      "/opt/homebrew/opt/python@3.14/bin/python3.14",
+      "/private/tmp/veritas-fresh-builders/quote-merge-python/final/quote_merge.py",
+      "/private/tmp/veritas-fresh-builders/quote-merge-python/evidence/final-reversed-feeds.txt"
+    ],
+    "exit_code": 0,
+    "stdout": "{\n  \"failed_feeds\": [\n    {\n      \"status\": \"malformed\",\n      \"url\": \"http://127.0.0.1:52985/malformed\"\n    },\n    {\n      \"status\": 503,\n      \"url\": \"http://127.0.0.1:52985/slow-503\"\n    }\n  ],\n  \"quotes\": [\n    {\n      \"carrier\": \"Cedar\",\n      \"days\": 5,\n      \"price_cents\": 900,\n      \"service\": \"ground\"\n    },\n    {\n      \"carrier\": \"Aster\",\n      \"days\": 2,\n      \"price_cents\": 1100,\n      \"service\": \"air\"\n    },\n    {\n      \"carrier\": \"Birch\",\n      \"days\": 3,\n      \"price_cents\": 1900,\n      \"service\": \"ground\"\n    }\n  ],\n  \"successful_feeds\": 3\n}\n",
+    "stderr": "",
+    "elapsed_seconds": 0.46464050000940915
+  },
+  {
+    "name": "schema",
+    "command": [
+      "/opt/homebrew/opt/python@3.14/bin/python3.14",
+      "/private/tmp/veritas-fresh-builders/quote-merge-python/final/quote_merge.py",
+      "/private/tmp/veritas-fresh-builders/quote-merge-python/evidence/final-schema-feeds.txt"
+    ],
+    "exit_code": 0,
+    "stdout": "{\n  \"failed_feeds\": [\n    {\n      \"status\": \"malformed\",\n      \"url\": \"http://127.0.0.1:52986/invalid-schema\"\n    }\n  ],\n  \"quotes\": [\n    {\n      \"carrier\": \"Aster\",\n      \"days\": 4,\n      \"price_cents\": 1220,\n      \"service\": \"ground\"\n    },\n    {\n      \"carrier\": \"Birch\",\n      \"days\": 1,\n      \"price_cents\": 2500,\n      \"service\": \"air\"\n    }\n  ],\n  \"successful_feeds\": 1\n}\n",
+    "stderr": "",
+    "elapsed_seconds": 0.12877341599960346
+  },
+  {
+    "name": "timeout",
+    "command": [
+      "/opt/homebrew/opt/python@3.14/bin/python3.14",
+      "/private/tmp/veritas-fresh-builders/quote-merge-python/final/quote_merge.py",
+      "/private/tmp/veritas-fresh-builders/quote-merge-python/evidence/final-timeout-feeds.txt",
+      "--timeout",
+      "0.03"
+    ],
+    "exit_code": 0,
+    "stdout": "{\n  \"failed_feeds\": [\n    {\n      \"status\": \"timeout\",\n      \"url\": \"http://127.0.0.1:52985/slow-503\"\n    }\n  ],\n  \"quotes\": [\n    {\n      \"carrier\": \"Aster\",\n      \"days\": 4,\n      \"price_cents\": 1220,\n      \"service\": \"ground\"\n    },\n    {\n      \"carrier\": \"Birch\",\n      \"days\": 1,\n      \"price_cents\": 2500,\n      \"service\": \"air\"\n    }\n  ],\n  \"successful_feeds\": 1\n}\n",
+    "stderr": "",
+    "elapsed_seconds": 0.14856945800420363
+  },
+  {
+    "name": "errors",
+    "command": [
+      "/opt/homebrew/opt/python@3.14/bin/python3.14",
+      "/private/tmp/veritas-fresh-builders/quote-merge-python/final/quote_merge.py",
+      "/private/tmp/veritas-fresh-builders/quote-merge-python/evidence/final-errors-feeds.txt"
+    ],
+    "exit_code": 0,
+    "stdout": "{\n  \"failed_feeds\": [\n    {\n      \"status\": 404,\n      \"url\": \"http://127.0.0.1:52985/missing\"\n    },\n    {\n      \"status\": \"invalid_url\",\n      \"url\": \"file:///etc/hosts\"\n    },\n    {\n      \"status\": \"network_error\",\n      \"url\": \"http://127.0.0.1:0/error\"\n    }\n  ],\n  \"quotes\": [],\n  \"successful_feeds\": 0\n}\n",
+    "stderr": "",
+    "elapsed_seconds": 0.10824958399462048
+  },
+  {
+    "name": "concurrency",
+    "command": [
+      "/opt/homebrew/opt/python@3.14/bin/python3.14",
+      "/private/tmp/veritas-fresh-builders/quote-merge-python/final/quote_merge.py",
+      "/private/tmp/veritas-fresh-builders/quote-merge-python/evidence/final-concurrency-feeds.txt",
+      "--workers",
+      "2"
+    ],
+    "exit_code": 0,
+    "stdout": "{\n  \"failed_feeds\": [],\n  \"quotes\": [],\n  \"successful_feeds\": 6\n}\n",
+    "stderr": "",
+    "elapsed_seconds": 0.36947270900418516
+  },
+  {
+    "name": "tie",
+    "command": [
+      "/opt/homebrew/opt/python@3.14/bin/python3.14",
+      "/private/tmp/veritas-fresh-builders/quote-merge-python/final/quote_merge.py",
+      "/private/tmp/veritas-fresh-builders/quote-merge-python/evidence/final-tie-feeds.txt"
+    ],
+    "exit_code": 0,
+    "stdout": "{\n  \"failed_feeds\": [],\n  \"quotes\": [\n    {\n      \"carrier\": \"Cedar\",\n      \"days\": 5,\n      \"price_cents\": 900,\n      \"service\": \"ground\"\n    },\n    {\n      \"carrier\": \"Zed\",\n      \"days\": 1,\n      \"price_cents\": 900,\n      \"service\": \"z\"\n    },\n    {\n      \"carrier\": \"Aster\",\n      \"days\": 2,\n      \"price_cents\": 1100,\n      \"service\": \"air\"\n    }\n  ],\n  \"successful_feeds\": 2\n}\n",
+    "stderr": "",
+    "elapsed_seconds": 0.10476400000334252
+  },
+  {
+    "name": "bad-workers",
+    "command": [
+      "/opt/homebrew/opt/python@3.14/bin/python3.14",
+      "/private/tmp/veritas-fresh-builders/quote-merge-python/final/quote_merge.py",
+      "/private/tmp/veritas-fresh-builders/quote-merge-python/evidence/final-bad-workers-feeds.txt",
+      "--workers",
+      "1"
+    ],
+    "exit_code": 2,
+    "stdout": "",
+    "stderr": "usage: quote_merge.py [-h] [--workers WORKERS] [--timeout TIMEOUT]\n                      [--output OUTPUT] [--max-days MAX_DAYS]\n                      feeds\nquote_merge.py: error: argument --workers: must be at least 2\n",
+    "elapsed_seconds": 0.08365304200560786
+  },
+  {
+    "name": "bad-timeout",
+    "command": [
+      "/opt/homebrew/opt/python@3.14/bin/python3.14",
+      "/private/tmp/veritas-fresh-builders/quote-merge-python/final/quote_merge.py",
+      "/private/tmp/veritas-fresh-builders/quote-merge-python/evidence/final-bad-timeout-feeds.txt",
+      "--timeout",
+      "nan"
+    ],
+    "exit_code": 2,
+    "stdout": "",
+    "stderr": "usage: quote_merge.py [-h] [--workers WORKERS] [--timeout TIMEOUT]\n                      [--output OUTPUT] [--max-days MAX_DAYS]\n                      feeds\nquote_merge.py: error: argument --timeout: must be finite and greater than zero\n",
+    "elapsed_seconds": 0.08419370799674653
+  },
+  {
+    "name": "empty",
+    "command": [
+      "/opt/homebrew/opt/python@3.14/bin/python3.14",
+      "/private/tmp/veritas-fresh-builders/quote-merge-python/final/quote_merge.py",
+      "/private/tmp/veritas-fresh-builders/quote-merge-python/evidence/final-empty-feeds.txt"
+    ],
+    "exit_code": 0,
+    "stdout": "{\n  \"failed_feeds\": [],\n  \"quotes\": [],\n  \"successful_feeds\": 0\n}\n",
+    "stderr": "",
+    "elapsed_seconds": 0.0842525000043679
+  },
+  {
+    "name": "max-days",
+    "command": [
+      "/opt/homebrew/opt/python@3.14/bin/python3.14",
+      "/private/tmp/veritas-fresh-builders/quote-merge-python/final/quote_merge.py",
+      "/private/tmp/veritas-fresh-builders/quote-merge-python/evidence/final-max-days-feeds.txt",
+      "--max-days",
+      "2"
+    ],
+    "exit_code": 0,
+    "stdout": "{\n  \"failed_feeds\": [\n    {\n      \"status\": 503,\n      \"url\": \"http://127.0.0.1:52985/slow-503\"\n    },\n    {\n      \"status\": \"malformed\",\n      \"url\": \"http://127.0.0.1:52985/malformed\"\n    }\n  ],\n  \"quotes\": [\n    {\n      \"carrier\": \"Aster\",\n      \"days\": 2,\n      \"price_cents\": 1100,\n      \"service\": \"air\"\n    },\n    {\n      \"carrier\": \"Cedar\",\n      \"days\": 1,\n      \"price_cents\": 1300,\n      \"service\": \"air\"\n    },\n    {\n      \"carrier\": \"Birch\",\n      \"days\": 1,\n      \"price_cents\": 2500,\n      \"service\": \"air\"\n    }\n  ],\n  \"successful_feeds\": 3\n}\n",
+    "stderr": "",
+    "elapsed_seconds": 0.46353762500802986
+  },
+  {
+    "name": "max-days-zero",
+    "command": [
+      "/opt/homebrew/opt/python@3.14/bin/python3.14",
+      "/private/tmp/veritas-fresh-builders/quote-merge-python/final/quote_merge.py",
+      "/private/tmp/veritas-fresh-builders/quote-merge-python/evidence/final-max-days-zero-feeds.txt",
+      "--max-days",
+      "0"
+    ],
+    "exit_code": 0,
+    "stdout": "{\n  \"failed_feeds\": [\n    {\n      \"status\": 503,\n      \"url\": \"http://127.0.0.1:52985/slow-503\"\n    },\n    {\n      \"status\": \"malformed\",\n      \"url\": \"http://127.0.0.1:52985/malformed\"\n    }\n  ],\n  \"quotes\": [],\n  \"successful_feeds\": 3\n}\n",
+    "stderr": "",
+    "elapsed_seconds": 0.4590641249960754
+  },
+  {
+    "name": "negative-days",
+    "command": [
+      "/opt/homebrew/opt/python@3.14/bin/python3.14",
+      "/private/tmp/veritas-fresh-builders/quote-merge-python/final/quote_merge.py",
+      "/private/tmp/veritas-fresh-builders/quote-merge-python/evidence/final-negative-days-feeds.txt",
+      "--max-days",
+      "-1"
+    ],
+    "exit_code": 2,
+    "stdout": "",
+    "stderr": "usage: quote_merge.py [-h] [--workers WORKERS] [--timeout TIMEOUT]\n                      [--output OUTPUT] [--max-days MAX_DAYS]\n                      feeds\nquote_merge.py: error: argument --max-days: must be nonnegative\n",
+    "elapsed_seconds": 0.08982583299803082
+  }
+]

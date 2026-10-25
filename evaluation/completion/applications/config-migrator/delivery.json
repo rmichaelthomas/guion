@@ -1,0 +1,6 @@
+{
+  "launch_command": ["${candidate}/dist/config-migrator/run"],
+  "artifact_paths": ["dist/config-migrator", "veritas.lock"],
+  "source_paths": ["main.vr", "veritas.toml"],
+  "dependency_lock_path": "veritas.lock"
+}

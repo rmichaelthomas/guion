@@ -1,0 +1,578 @@
+import "std:fs"
+import "std:json"
+import "std:sqlite"
+import "std:text"
+import "std:types"
+import "std:unicode"
+
+fn normalize_title(value: Text) -> Text:
+    return unicode_casefold(unicode_collapse_whitespace(value))
+
+fn body_after_front_matter(source: Text) -> Text:
+    let lines = text_split(source, "\n")
+    if len(lines) == 0 or text_trim(lines[0]) != "---":
+        return source
+    var closing = 1
+    while closing < len(lines) and text_trim(lines[closing]) != "---":
+        set closing = closing + 1
+    if closing >= len(lines):
+        return source
+    var body = ""
+    var index = closing + 1
+    while index < len(lines):
+        set body = body + lines[index]
+        if index + 1 < len(lines):
+            set body = body + "\n"
+        set index = index + 1
+    return body
+
+fn has_prefix(value: Text, prefix: Text) -> Bool:
+    let chars = text_chars(value)
+    let expected = text_chars(prefix)
+    if len(chars) < len(expected):
+        return false
+    var index = 0
+    while index < len(expected):
+        if chars[index] != expected[index]:
+            return false
+        set index = index + 1
+    return true
+
+fn document_title(body: Text, relative_path: Text) -> Text:
+    let lines = text_split(body, "\n")
+    for line in lines:
+        if has_prefix(line, "# "):
+            let chars = text_chars(line)
+            var title = ""
+            var index = 2
+            while index < len(chars):
+                set title = title + chars[index]
+                set index = index + 1
+            return text_trim(title)
+    let parts = text_split(relative_path, "/")
+    let filename = parts[len(parts) - 1]
+    let chars = text_chars(filename)
+    var stem = ""
+    var index = 0
+    while index < len(chars) - 3:
+        set stem = stem + chars[index]
+        set index = index + 1
+    return stem
+
+fn markdown_file(relative_path: Text) -> Bool:
+    let chars = text_chars(unicode_casefold(relative_path))
+    if len(chars) < 3:
+        return false
+    return chars[len(chars) - 3] == "." and chars[len(chars) - 2] == "m" and chars[len(chars) - 1] == "d"
+
+fn aliases_from_front_matter(lines: List[Text]) -> Json:
+    var result = json_object()
+    var aliases = json_array()
+    var first = -1
+    var last = -1
+    if len(lines) > 0 and lines[0] == "---":
+        var delimiter_scan_index = 1
+        while delimiter_scan_index < len(lines) and last < 0:
+            if lines[delimiter_scan_index] == "---":
+                set last = delimiter_scan_index
+            set delimiter_scan_index = delimiter_scan_index + 1
+        if last > 0:
+            set first = 1
+    var alias_field_seen = false
+    var error_message = ""
+    if first >= 0:
+        var frontmatter_index = first
+        while frontmatter_index < last:
+            let line = text_trim(lines[frontmatter_index])
+            let chars = text_chars(line)
+            var colon = -1
+            var char_index = 0
+            while char_index < len(chars) and colon < 0:
+                if chars[char_index] == ":":
+                    set colon = char_index
+                set char_index = char_index + 1
+            if colon >= 0:
+                var key = ""
+                set char_index = 0
+                while char_index < colon:
+                    set key = key + chars[char_index]
+                    set char_index = char_index + 1
+                if text_trim(key) == "aliases":
+                    if alias_field_seen:
+                        set error_message = "front matter contains duplicate aliases fields"
+                    else:
+                        set alias_field_seen = true
+                        var raw = ""
+                        set char_index = colon + 1
+                        while char_index < len(chars):
+                            set raw = raw + chars[char_index]
+                            set char_index = char_index + 1
+                        let raw_trimmed = text_trim(raw)
+                        let raw_chars = text_chars(raw_trimmed)
+                        if len(raw_chars) == 0 or raw_chars[0] != "[":
+                            set error_message = "aliases must be a one-line JSON array"
+                        else:
+                            let parsed = json_parse(raw_trimmed)
+                            if not is_ok(parsed):
+                                set error_message = "aliases must be valid JSON"
+                            else:
+                                let array = unwrap(parsed)
+                                var canonical_array = json_array()
+                                var alias_index = 0
+                                while alias_index < json_len(array):
+                                    let alias_item_result = json_index_safe(array, alias_index)
+                                    if not is_ok(alias_item_result):
+                                        set error_message = "aliases must contain only strings"
+                                    else:
+                                        let alias_result = json_text_safe(unwrap(alias_item_result))
+                                        if not is_ok(alias_result):
+                                            set error_message = "aliases must contain only strings"
+                                        else:
+                                            set canonical_array = json_push(canonical_array, json_text(unwrap(alias_result)))
+                                    set alias_index = alias_index + 1
+                                if error_message == "":
+                                    set aliases = canonical_array
+            set frontmatter_index = frontmatter_index + 1
+    set result = json_set(result, "ok", json_bool(error_message == ""))
+    set result = json_set(result, "aliases", aliases)
+    set result = json_set(result, "error", json_text(error_message))
+    return result
+
+fn link_targets(source: Text) -> Json:
+    let chars = text_chars(source)
+    var targets = json_array()
+    var index = 0
+    while index + 1 < len(chars):
+        if chars[index] == "[" and chars[index + 1] == "[":
+            var end = index + 2
+            var found = false
+            while end + 1 < len(chars) and not found:
+                if chars[end] == "]" and chars[end + 1] == "]":
+                    set found = true
+                else:
+                    set end = end + 1
+            if found and end > index + 2:
+                var target = ""
+                var target_index = index + 2
+                while target_index < end:
+                    set target = target + chars[target_index]
+                    set target_index = target_index + 1
+                set targets = json_push(targets, json_text(target))
+                set index = end + 2
+            else:
+                set index = index + 2
+        else:
+            set index = index + 1
+    return targets
+
+fn scan_document(root: Text, relative_path: Text) -> Json:
+    let source_result = read_text(root + "/" + relative_path)
+    if not is_ok(source_result):
+        var failed = json_object()
+        set failed = json_set(failed, "ok", json_bool(false))
+        set failed = json_set(failed, "error", json_text("cannot read UTF-8 Markdown file " + relative_path))
+        return failed
+    let source = unwrap(source_result)
+    let lines = text_split(source, "\n")
+    let parsed_aliases = aliases_from_front_matter(lines)
+    if not json_as_bool(json_get(parsed_aliases, "ok")):
+        var failed = json_object()
+        set failed = json_set(failed, "ok", json_bool(false))
+        set failed = json_set(failed, "error", json_text(relative_path + ": " + json_as_text(json_get(parsed_aliases, "error"))))
+        return failed
+    var document = json_object()
+    let body = body_after_front_matter(source)
+    set document = json_set(document, "path", json_text(relative_path))
+    set document = json_set(document, "title", json_text(document_title(body, relative_path)))
+    set document = json_set(document, "aliases", json_get(parsed_aliases, "aliases"))
+    set document = json_set(document, "links", link_targets(body))
+    set document = json_set(document, "ok", json_bool(true))
+    return document
+
+fn scan_documents(root: Text) -> Json:
+    let walked = fs_walk(root)
+    if not is_ok(walked):
+        var failed = json_object()
+        set failed = json_set(failed, "ok", json_bool(false))
+        set failed = json_set(failed, "error", json_text("cannot walk documentation root"))
+        return failed
+    var documents = json_array()
+    for entry in unwrap(walked):
+        if entry.kind == "file" and markdown_file(entry.relative_path):
+            let document = scan_document(root, entry.relative_path)
+            if not json_as_bool(json_get(document, "ok")):
+                return document
+            set documents = json_push(documents, document)
+    var result = json_object()
+    set result = json_set(result, "ok", json_bool(true))
+    set result = json_set(result, "documents", documents)
+    return result
+
+fn insert_batch_sql(table: Text, columns: Text, rows: Int) -> Text:
+    var statement = "INSERT INTO " + table + "(" + columns + ") VALUES "
+    var row = 0
+    while row < rows:
+        if row > 0:
+            set statement = statement + ","
+        set statement = statement + "(?,?)"
+        set row = row + 1
+    return statement
+
+fn store_insert_batch(transaction: Transaction, table: Text, columns: Text, values: List[SqlValue], rows: Int) -> Bool:
+    if rows == 0:
+        return true
+    return is_ok(sqlite_execute(transaction, insert_batch_sql(table, columns, rows), values))
+
+fn add_choice(choices: Map[Text, Map[Text, Bool]], name: Text, path: Text) -> Map[Text, Map[Text, Bool]]:
+    let key = normalize_title(name)
+    var pages: Map[Text, Bool] = {}
+    if map_has(choices, key):
+        set pages = choices[key]
+    set pages = map_set(pages, path, true)
+    return map_set(choices, key, pages)
+
+fn path_before(left: Text, right: Text) -> Bool:
+    let left_normalized = normalize_title(left)
+    let right_normalized = normalize_title(right)
+    if left_normalized != right_normalized:
+        return text_compare_bytes(left_normalized, right_normalized) < 0
+    return text_compare_bytes(left, right) < 0
+
+fn sort_paths(values: List[Text]) -> List[Text]:
+    var remaining = values
+    var result: List[Text] = []
+    while len(remaining) > 0:
+        var best = 0
+        var index = 1
+        while index < len(remaining):
+            if path_before(remaining[index], remaining[best]):
+                set best = index
+            set index = index + 1
+        set result = list_push(result, remaining[best])
+        var next: List[Text] = []
+        set index = 0
+        while index < len(remaining):
+            if index != best:
+                set next = list_push(next, remaining[index])
+            set index = index + 1
+        set remaining = next
+    return result
+
+fn issue_before(left: Json, right: Json) -> Bool:
+    let left_source_norm = json_as_text(json_get(left, "source_norm"))
+    let right_source_norm = json_as_text(json_get(right, "source_norm"))
+    if left_source_norm != right_source_norm:
+        return text_compare_bytes(left_source_norm, right_source_norm) < 0
+    let left_source = json_as_text(json_get(left, "source"))
+    let right_source = json_as_text(json_get(right, "source"))
+    if left_source != right_source:
+        return text_compare_bytes(left_source, right_source) < 0
+    let left_target_norm = json_as_text(json_get(left, "target_norm"))
+    let right_target_norm = json_as_text(json_get(right, "target_norm"))
+    if left_target_norm != right_target_norm:
+        return text_compare_bytes(left_target_norm, right_target_norm) < 0
+    return text_compare_bytes(json_as_text(json_get(left, "target")), json_as_text(json_get(right, "target"))) < 0
+
+fn sort_issues(values: List[Json]) -> List[Json]:
+    var remaining = values
+    var result: List[Json] = []
+    while len(remaining) > 0:
+        var best = 0
+        var index = 1
+        while index < len(remaining):
+            if issue_before(remaining[index], remaining[best]):
+                set best = index
+            set index = index + 1
+        set result = list_push(result, remaining[best])
+        var next: List[Json] = []
+        set index = 0
+        while index < len(remaining):
+            if index != best:
+                set next = list_push(next, remaining[index])
+            set index = index + 1
+        set remaining = next
+    return result
+
+fn load_index(database: Db) -> Json:
+    let transaction_result = sqlite_begin(database)
+    if not is_ok(transaction_result):
+        var failed = json_object()
+        set failed = json_set(failed, "ok", json_bool(false))
+        return failed
+    let transaction = unwrap(transaction_result)
+    let documents_result = sqlite_query(transaction, "SELECT path,title FROM documents", [])
+    let aliases_result = sqlite_query(transaction, "SELECT path,name FROM aliases", [])
+    let links_result = sqlite_query(transaction, "SELECT source,target FROM links", [])
+    if not is_ok(documents_result) or not is_ok(aliases_result) or not is_ok(links_result):
+        let rollback = sqlite_rollback(transaction)
+        var failed = json_object()
+        set failed = json_set(failed, "ok", json_bool(false))
+        return failed
+    var documents = json_array()
+    for row in unwrap(documents_result):
+        var document = json_object()
+        set document = json_set(document, "path", json_text(row.values[0].text))
+        set document = json_set(document, "title", json_text(row.values[1].text))
+        set documents = json_push(documents, document)
+    var aliases = json_array()
+    for row in unwrap(aliases_result):
+        var alias = json_object()
+        set alias = json_set(alias, "path", json_text(row.values[0].text))
+        set alias = json_set(alias, "name", json_text(row.values[1].text))
+        set aliases = json_push(aliases, alias)
+    var links = json_array()
+    for row in unwrap(links_result):
+        var link = json_object()
+        set link = json_set(link, "source", json_text(row.values[0].text))
+        set link = json_set(link, "target", json_text(row.values[1].text))
+        set links = json_push(links, link)
+    let committed = sqlite_commit(transaction)
+    var result = json_object()
+    set result = json_set(result, "ok", json_bool(true))
+    set result = json_set(result, "documents", documents)
+    set result = json_set(result, "aliases", aliases)
+    set result = json_set(result, "links", links)
+    return result
+
+fn main() -> Int:
+    let arguments = args()
+    if len(arguments) < 1:
+        eprint("usage: doc-index build|check|backlinks --database PATH [options]")
+        return 2
+    let command = arguments[0]
+    var root = ""
+    var database_path = ""
+    var json_path = ""
+    var query_title = ""
+    var index = 1
+    while index < len(arguments):
+        if arguments[index] == "--root" and index + 1 < len(arguments):
+            set root = arguments[index + 1]
+            set index = index + 2
+        else:
+            if arguments[index] == "--database" and index + 1 < len(arguments):
+                set database_path = arguments[index + 1]
+                set index = index + 2
+            else:
+                if arguments[index] == "--json" and index + 1 < len(arguments):
+                    set json_path = arguments[index + 1]
+                    set index = index + 2
+                else:
+                    if command == "backlinks":
+                        if query_title == "":
+                            set query_title = arguments[index]
+                        else:
+                            set query_title = query_title + " " + arguments[index]
+                        set index = index + 1
+                    else:
+                        eprint("unknown or incomplete argument")
+                        return 2
+    if database_path == "":
+        eprint("--database PATH is required")
+        return 2
+
+    if command == "build":
+        if root == "":
+            eprint("build requires --root PATH")
+            return 2
+        let scanned = scan_documents(root)
+        if not json_as_bool(json_get(scanned, "ok")):
+            eprint("cannot index documentation: " + json_as_text(json_get(scanned, "error")))
+            return 1
+        let database_result = sqlite_open(database_path)
+        if not is_ok(database_result):
+            eprint("cannot open documentation database")
+            return 1
+        let database = unwrap(database_result)
+        let transaction_result = sqlite_begin(database)
+        if not is_ok(transaction_result):
+            eprint("cannot begin documentation index transaction")
+            return 1
+        let transaction = unwrap(transaction_result)
+        let create_documents = sqlite_execute(transaction, "CREATE TABLE IF NOT EXISTS documents(path TEXT PRIMARY KEY,title TEXT NOT NULL)", [])
+        let create_aliases = sqlite_execute(transaction, "CREATE TABLE IF NOT EXISTS aliases(path TEXT NOT NULL,name TEXT NOT NULL)", [])
+        let create_links = sqlite_execute(transaction, "CREATE TABLE IF NOT EXISTS links(source TEXT NOT NULL,target TEXT NOT NULL)", [])
+        let delete_links = sqlite_execute(transaction, "DELETE FROM links", [])
+        let delete_aliases = sqlite_execute(transaction, "DELETE FROM aliases", [])
+        let delete_documents = sqlite_execute(transaction, "DELETE FROM documents", [])
+        if not is_ok(create_documents) or not is_ok(create_aliases) or not is_ok(create_links) or not is_ok(delete_links) or not is_ok(delete_aliases) or not is_ok(delete_documents):
+            let rollback = sqlite_rollback(transaction)
+            let closed = sqlite_close(database)
+            eprint("cannot reset documentation index")
+            return 1
+        let documents = json_get(scanned, "documents")
+        var build_document_index = 0
+        var document_values: List[SqlValue] = []
+        var document_rows = 0
+        var alias_values: List[SqlValue] = []
+        var alias_rows = 0
+        var link_values: List[SqlValue] = []
+        var link_rows = 0
+        while build_document_index < json_len(documents):
+            let document = json_index(documents, build_document_index)
+            let path = json_as_text(json_get(document, "path"))
+            let title = json_as_text(json_get(document, "title"))
+            set document_values = list_push(document_values, sql_text(path))
+            set document_values = list_push(document_values, sql_text(title))
+            set document_rows = document_rows + 1
+            if document_rows == 400:
+                if not store_insert_batch(transaction, "documents", "path,title", document_values, document_rows):
+                    let rollback = sqlite_rollback(transaction)
+                    let closed = sqlite_close(database)
+                    eprint("cannot store documentation page")
+                    return 1
+                set document_values = []
+                set document_rows = 0
+            let aliases = json_get(document, "aliases")
+            var alias_index = 0
+            while alias_index < json_len(aliases):
+                let alias = json_as_text(json_index(aliases, alias_index))
+                set alias_values = list_push(alias_values, sql_text(path))
+                set alias_values = list_push(alias_values, sql_text(alias))
+                set alias_rows = alias_rows + 1
+                if alias_rows == 400:
+                    if not store_insert_batch(transaction, "aliases", "path,name", alias_values, alias_rows):
+                        let rollback = sqlite_rollback(transaction)
+                        let closed = sqlite_close(database)
+                        eprint("cannot store documentation alias")
+                        return 1
+                    set alias_values = []
+                    set alias_rows = 0
+                set alias_index = alias_index + 1
+            let links = json_get(document, "links")
+            var link_index = 0
+            while link_index < json_len(links):
+                let target = json_as_text(json_index(links, link_index))
+                set link_values = list_push(link_values, sql_text(path))
+                set link_values = list_push(link_values, sql_text(target))
+                set link_rows = link_rows + 1
+                if link_rows == 400:
+                    if not store_insert_batch(transaction, "links", "source,target", link_values, link_rows):
+                        let rollback = sqlite_rollback(transaction)
+                        let closed = sqlite_close(database)
+                        eprint("cannot store documentation link")
+                        return 1
+                    set link_values = []
+                    set link_rows = 0
+                set link_index = link_index + 1
+            set build_document_index = build_document_index + 1
+        if not store_insert_batch(transaction, "documents", "path,title", document_values, document_rows):
+            let rollback = sqlite_rollback(transaction)
+            let closed = sqlite_close(database)
+            eprint("cannot store documentation page")
+            return 1
+        if not store_insert_batch(transaction, "aliases", "path,name", alias_values, alias_rows):
+            let rollback = sqlite_rollback(transaction)
+            let closed = sqlite_close(database)
+            eprint("cannot store documentation alias")
+            return 1
+        if not store_insert_batch(transaction, "links", "source,target", link_values, link_rows):
+            let rollback = sqlite_rollback(transaction)
+            let closed = sqlite_close(database)
+            eprint("cannot store documentation link")
+            return 1
+        let committed = sqlite_commit(transaction)
+        let closed = sqlite_close(database)
+        if not is_ok(committed):
+            eprint("cannot commit documentation index")
+            return 1
+        return 0
+
+    if command == "check" or command == "backlinks":
+        if json_path == "":
+            eprint("check and backlinks require --json PATH")
+            return 2
+        if command == "backlinks" and query_title == "":
+            eprint("backlinks requires a title query")
+            return 2
+        let database_result = sqlite_open(database_path)
+        if not is_ok(database_result):
+            eprint("cannot open documentation database")
+            return 1
+        let database = unwrap(database_result)
+        let index_data = load_index(database)
+        let closed = sqlite_close(database)
+        if not json_as_bool(json_get(index_data, "ok")):
+            eprint("cannot read documentation index")
+            return 1
+        let documents = json_get(index_data, "documents")
+        let aliases = json_get(index_data, "aliases")
+        let links = json_get(index_data, "links")
+        var choices: Map[Text, Map[Text, Bool]] = {}
+        var lookup_document_index = 0
+        while lookup_document_index < json_len(documents):
+            let document = json_index(documents, lookup_document_index)
+            let path = json_as_text(json_get(document, "path"))
+            set choices = add_choice(choices, json_as_text(json_get(document, "title")), path)
+            set lookup_document_index = lookup_document_index + 1
+        var alias_index = 0
+        while alias_index < json_len(aliases):
+            let alias = json_index(aliases, alias_index)
+            set choices = add_choice(choices, json_as_text(json_get(alias, "name")), json_as_text(json_get(alias, "path")))
+            set alias_index = alias_index + 1
+        if command == "check":
+            var missing: List[Json] = []
+            var ambiguous: List[Json] = []
+            var check_link_index = 0
+            while check_link_index < json_len(links):
+                let link = json_index(links, check_link_index)
+                let source = json_as_text(json_get(link, "source"))
+                let target = json_as_text(json_get(link, "target"))
+                let normalized = normalize_title(target)
+                var issue = json_object()
+                set issue = json_set(issue, "source", json_text(source))
+                set issue = json_set(issue, "target", json_text(target))
+                set issue = json_set(issue, "source_norm", json_text(normalize_title(source)))
+                set issue = json_set(issue, "target_norm", json_text(normalized))
+                if not map_has(choices, normalized):
+                    set missing = list_push(missing, issue)
+                else:
+                    if len(choices[normalized]) > 1:
+                        set ambiguous = list_push(ambiguous, issue)
+                set check_link_index = check_link_index + 1
+            let sorted_missing = sort_issues(missing)
+            let sorted_ambiguous = sort_issues(ambiguous)
+            var missing_json = json_array()
+            for issue in sorted_missing:
+                var item = json_object()
+                set item = json_set(item, "source", json_get(issue, "source"))
+                set item = json_set(item, "target", json_get(issue, "target"))
+                set missing_json = json_push(missing_json, item)
+            var ambiguous_json = json_array()
+            for issue in sorted_ambiguous:
+                var item = json_object()
+                set item = json_set(item, "source", json_get(issue, "source"))
+                set item = json_set(item, "target", json_get(issue, "target"))
+                set ambiguous_json = json_push(ambiguous_json, item)
+            var report = json_object()
+            set report = json_set(report, "missing", missing_json)
+            set report = json_set(report, "ambiguous", ambiguous_json)
+            let written = write_text_atomic(json_path, json_stringify(report) + "\n")
+            if not is_ok(written):
+                eprint("cannot write documentation check report")
+                return 1
+            return 0
+
+        let normalized_query = normalize_title(query_title)
+        var backlink_set: Map[Text, Bool] = {}
+        var backlink_link_index = 0
+        while backlink_link_index < json_len(links):
+            let link = json_index(links, backlink_link_index)
+            if normalize_title(json_as_text(json_get(link, "target"))) == normalized_query:
+                set backlink_set = map_set(backlink_set, json_as_text(json_get(link, "source")), true)
+            set backlink_link_index = backlink_link_index + 1
+        var paths: List[Text] = []
+        for source in backlink_set:
+            set paths = list_push(paths, source)
+        let sorted_paths = sort_paths(paths)
+        var backlinks = json_array()
+        for source in sorted_paths:
+            set backlinks = json_push(backlinks, json_text(source))
+        let report = json_set(json_object(), "backlinks", backlinks)
+        let written = write_text_atomic(json_path, json_stringify(report) + "\n")
+        if not is_ok(written):
+            eprint("cannot write backlinks report")
+            return 1
+        return 0
+    eprint("unknown documentation command")
+    return 2

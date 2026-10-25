@@ -5,12 +5,16 @@ pub record ParseStep:
     next: Int
     ok: Bool
     message: Text
+    code: Text
 
 fn parsed(value: Json, next: Int) -> ParseStep:
-    return ParseStep(value, next, true, "")
+    return ParseStep(value, next, true, "", "")
 
 fn rejected(message: Text, next: Int) -> ParseStep:
-    return ParseStep(json_null(), next, false, message)
+    return ParseStep(json_null(), next, false, message, "E_SYNTAX")
+
+fn rejected_code(code: Text, message: Text, next: Int) -> ParseStep:
+    return ParseStep(json_null(), next, false, message, code)
 
 fn node(kind: Text, character_index: Int) -> Json:
     let tagged = json_set(json_object(), "kind", json_text(kind))
@@ -67,15 +71,31 @@ fn precedence(operator: Text) -> Int:
 
 fn parse_arguments(tokens: List[Token], opening: Int, callee: Text, character_index: Int) -> ParseStep:
     var arguments: Json = json_array()
+    var keywords: Json = json_array()
     var cursor = opening + 1
     if not is_token(tokens, cursor, "Symbol", ")"):
         var reading = true
+        var saw_keyword = false
         while reading:
-            let argument = parse_expr(tokens, cursor, 0)
-            if not argument.ok:
-                return argument
-            set arguments = json_push(arguments, argument.value)
-            set cursor = argument.next
+            let is_keyword = tokens[cursor].kind == "Name" and is_token(tokens, cursor + 1, "Symbol", "=")
+            if is_keyword:
+                set saw_keyword = true
+                let name = tokens[cursor]
+                let value = parse_expr(tokens, cursor + 2, 0)
+                if not value.ok:
+                    return value
+                var keyword = attach_text(node("KeywordArgument", name.character_index), "name", name.text)
+                set keyword = attach_node(keyword, "value", value.value)
+                set keywords = json_push(keywords, keyword)
+                set cursor = value.next
+            else:
+                if saw_keyword:
+                    return rejected("positional arguments must come before keyword arguments", cursor)
+                let argument = parse_expr(tokens, cursor, 0)
+                if not argument.ok:
+                    return argument
+                set arguments = json_push(arguments, argument.value)
+                set cursor = argument.next
             if is_token(tokens, cursor, "Symbol", ","):
                 set cursor = cursor + 1
             else:
@@ -85,6 +105,7 @@ fn parse_arguments(tokens: List[Token], opening: Int, callee: Text, character_in
     set cursor = cursor + 1
     var call = attach_text(node("Call", character_index), "callee", callee)
     set call = attach_node(call, "arguments", arguments)
+    set call = attach_node(call, "keywords", keywords)
     return parsed(call, cursor)
 
 fn parse_primary(tokens: List[Token], start: Int) -> ParseStep:
@@ -94,6 +115,8 @@ fn parse_primary(tokens: List[Token], start: Int) -> ParseStep:
     let cursor = start + 1
     if first.kind == "Number":
         return parsed(attach_text(node("Number", first.character_index), "text", first.text), cursor)
+    if first.kind == "Float":
+        return parsed(attach_text(node("Float", first.character_index), "text", first.text), cursor)
     if first.kind == "Text":
         return parsed(attach_text(node("Text", first.character_index), "text", first.text), cursor)
     if first.kind == "Name" and first.text == "true":
@@ -141,6 +164,31 @@ fn parse_primary(tokens: List[Token], start: Int) -> ParseStep:
         if not is_token(tokens, next, "Symbol", "]"):
             return rejected("expected `]` after list values", next)
         return parsed(attach_node(node("List", first.character_index), "items", values), next + 1)
+    if first.kind == "Symbol" and first.text == "{":
+        var entries: Json = json_array()
+        var next = cursor
+        if not is_token(tokens, next, "Symbol", "}"):
+            var reading = true
+            while reading:
+                let key = parse_expr(tokens, next, 0)
+                if not key.ok:
+                    return key
+                if not is_token(tokens, key.next, "Symbol", ":"):
+                    return rejected("expected `:` after map key", key.next)
+                let value = parse_expr(tokens, key.next + 1, 0)
+                if not value.ok:
+                    return value
+                var entry = attach_node(node("MapEntry", key.next), "key", key.value)
+                set entry = attach_node(entry, "value", value.value)
+                set entries = json_push(entries, entry)
+                set next = value.next
+                if is_token(tokens, next, "Symbol", ","):
+                    set next = next + 1
+                else:
+                    set reading = false
+        if not is_token(tokens, next, "Symbol", "}"):
+            return rejected("expected `}` after map entries", next)
+        return parsed(attach_node(node("Map", first.character_index), "items", entries), next + 1)
     return rejected("expected an expression", start)
 
 fn parse_expr(tokens: List[Token], start: Int, minimum: Int) -> ParseStep:
@@ -382,6 +430,51 @@ fn parse_conditional(tokens: List[Token], start: Int) -> ParseStep:
         return parse_alternate(tokens, statement, body.next)
     return parsed(statement, body.next)
 
+fn parse_match(tokens: List[Token], start: Int) -> ParseStep:
+    let value = parse_expr(tokens, start + 1, 0)
+    if not value.ok:
+        return value
+    if not is_token(tokens, value.next, "Symbol", ":"):
+        return rejected("expected `:` before match arms", value.next)
+    if not is_token(tokens, value.next + 1, "Newline", ""):
+        return rejected("expected a newline after match `:`", value.next + 1)
+    if not is_token(tokens, value.next + 2, "Indent", ""):
+        return rejected("match requires indented arms", value.next + 2)
+    var arms: Json = json_array()
+    var cursor = value.next + 3
+    while cursor < len(tokens) and tokens[cursor].kind != "Dedent" and tokens[cursor].kind != "End":
+        if tokens[cursor].kind == "Newline":
+            set cursor = cursor + 1
+        else:
+            let variant = tokens[cursor]
+            var binding = json_null()
+            var pattern_next = cursor + 1
+            if variant.text == "Some" or variant.text == "Ok" or variant.text == "Err":
+                if not is_token(tokens, pattern_next, "Symbol", "("):
+                    return rejected("expected a binding after match variant", pattern_next)
+                if not is_token(tokens, pattern_next + 1, "Name", tokens[pattern_next + 1].text):
+                    return rejected("expected a match binding name", pattern_next + 1)
+                set binding = json_text(tokens[pattern_next + 1].text)
+                if not is_token(tokens, pattern_next + 2, "Symbol", ")"):
+                    return rejected("expected `)` after match binding", pattern_next + 2)
+                set pattern_next = pattern_next + 3
+            else:
+                if variant.text != "None":
+                    return rejected("expected Some(name), None, Ok(name), or Err(name)", cursor)
+            let body = parse_body(tokens, pattern_next)
+            if not body.ok:
+                return body
+            var arm = attach_text(node("MatchArm", variant.character_index), "variant", variant.text)
+            set arm = attach_node(arm, "binding", binding)
+            set arm = attach_node(arm, "body", body.value)
+            set arms = json_push(arms, arm)
+            set cursor = body.next
+    if not is_token(tokens, cursor, "Dedent", ""):
+        return rejected("match arms did not end with a dedent", cursor)
+    var statement = attach_node(node("Match", tokens[start].character_index), "value", value.value)
+    set statement = attach_node(statement, "arms", arms)
+    return parsed(statement, cursor + 1)
+
 fn parse_statement(tokens: List[Token], start: Int) -> ParseStep:
     let first = tokens[start]
     if first.text == "let" or first.text == "var":
@@ -392,6 +485,8 @@ fn parse_statement(tokens: List[Token], start: Int) -> ParseStep:
         return parse_return(tokens, start)
     if first.text == "if" or first.text == "while":
         return parse_conditional(tokens, start)
+    if first.text == "match":
+        return parse_match(tokens, start)
     if first.text == "for":
         return parse_for(tokens, start)
     return parse_call_statement(tokens, start)
@@ -457,8 +552,70 @@ fn parse_record(tokens: List[Token], start: Int, public: Bool) -> ParseStep:
     set record = attach_node(record, "fields", fields)
     return parsed(record, cursor + 1)
 
+fn parse_external(tokens: List[Token], start: Int) -> ParseStep:
+    if not is_token(tokens, start + 1, "Name", "python"):
+        return rejected_code("E_EXTERN_LANGUAGE", "only `extern python` declarations are supported", start + 1)
+    if not is_token(tokens, start + 2, "Text", tokens[start + 2].text):
+        return rejected_code("E_EXTERN_TARGET", "expected a quoted Python module and callable", start + 2)
+    let target = text_chars(tokens[start + 2].text)
+    var colon = -1
+    var cursor = 0
+    while cursor < len(target) and colon < 0:
+        if target[cursor] == ":":
+            set colon = cursor
+        set cursor = cursor + 1
+    if colon <= 0 or colon >= len(target) - 1:
+        return rejected_code("E_EXTERN_TARGET", "Python target must use `module:callable`", start + 2)
+    var module = ""
+    set cursor = 0
+    while cursor < colon:
+        set module = module + target[cursor]
+        set cursor = cursor + 1
+    var callable = ""
+    set cursor = colon + 1
+    while cursor < len(target):
+        set callable = callable + target[cursor]
+        set cursor = cursor + 1
+    let callable_characters = text_chars(callable)
+    var callable_cursor = 0
+    var previous_dot = true
+    while callable_cursor < len(callable_characters):
+        if callable_characters[callable_cursor] == ".":
+            if previous_dot:
+                return rejected_code("E_EXTERN_TARGET", "Python callable contains an empty name segment", start + 2)
+            set previous_dot = true
+        else:
+            set previous_dot = false
+        set callable_cursor = callable_cursor + 1
+    if previous_dot:
+        return rejected_code("E_EXTERN_TARGET", "Python callable contains an empty name segment", start + 2)
+    if not is_token(tokens, start + 3, "Name", "fn"):
+        return rejected("expected `fn` after Python target", start + 3)
+    if not is_token(tokens, start + 4, "Name", tokens[start + 4].text):
+        return rejected("expected external function name", start + 4)
+    let name = tokens[start + 4]
+    if not is_token(tokens, start + 5, "Symbol", "("):
+        return rejected("expected `(` after external function name", start + 5)
+    let parameters = parse_parameters(tokens, start + 5)
+    if not parameters.ok:
+        return parameters
+    if not is_token(tokens, parameters.next, "Symbol", "->"):
+        return rejected("expected `->` before external result type", parameters.next)
+    let result_type = parse_type(tokens, parameters.next + 1)
+    if not result_type.ok:
+        return result_type
+    if not is_token(tokens, result_type.next, "Newline", ""):
+        return rejected("expected newline after external declaration", result_type.next)
+    var external = attach_text(node("External", tokens[start].character_index), "name", name.text)
+    set external = attach_text(external, "module", module)
+    set external = attach_text(external, "callable", callable)
+    set external = attach_node(external, "parameters", parameters.value)
+    set external = attach_node(external, "result", result_type.value)
+    return parsed(external, result_type.next + 1)
+
 pub fn parse_program(tokens: List[Token]) -> ParseStep:
     var functions: Json = json_array()
+    var externals: Json = json_array()
     var records: Json = json_array()
     var imports: Json = json_array()
     var cursor = 0
@@ -487,6 +644,15 @@ pub fn parse_program(tokens: List[Token]) -> ParseStep:
                 set records = json_push(records, record.value)
                 set cursor = record.next
                 set handled = true
+            if not handled and is_token(tokens, cursor, "Name", "extern"):
+                if public:
+                    return rejected_code("E_EXTERN_PUBLIC", "Python external declarations cannot be exported yet", cursor)
+                let external = parse_external(tokens, cursor)
+                if not external.ok:
+                    return external
+                set externals = json_push(externals, external.value)
+                set cursor = external.next
+                set handled = true
             if not handled and is_token(tokens, cursor, "Name", "fn"):
                 let function = parse_function(tokens, cursor, public)
                 if not function.ok:
@@ -495,8 +661,9 @@ pub fn parse_program(tokens: List[Token]) -> ParseStep:
                 set cursor = function.next
                 set handled = true
             if not handled:
-                return rejected("expected import, record, or function declaration", cursor)
+                return rejected("expected import, record, external, or function declaration", cursor)
     var program = attach_node(node("Program", 0), "imports", imports)
+    set program = attach_node(program, "externals", externals)
     set program = attach_node(program, "records", records)
     set program = attach_node(program, "functions", functions)
     return parsed(program, cursor)

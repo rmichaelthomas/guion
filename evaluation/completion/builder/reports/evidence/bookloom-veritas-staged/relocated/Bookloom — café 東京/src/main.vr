@@ -1,0 +1,218 @@
+import "std:sqlite"
+import "std:toml"
+import "std:time"
+import "std:types"
+
+fn db_error(action: Text, error: StdError) -> Unit:
+    eprint("Bookloom: " + action + ": " + error.message + " [" + error.code + "]")
+
+fn initialize(database: Db) -> Result[Unit, StdError]:
+    let transaction = sqlite_begin(database)?
+    let created = sqlite_execute(transaction, "CREATE TABLE IF NOT EXISTS books (book_id TEXT PRIMARY KEY, title TEXT NOT NULL, borrower TEXT, checked_out_on TEXT)", [])?
+    return sqlite_commit(transaction)
+
+fn add_book(database: Db, book_id: Text, title: Text) -> Result[Unit, StdError]:
+    let transaction = sqlite_begin(database)?
+    let found = sqlite_query(transaction, "SELECT book_id FROM books WHERE book_id = ?", [sql_text(book_id)])?
+    if len(found) > 0:
+        let rolled_back = sqlite_rollback(transaction)?
+        return Err(std_error("DUPLICATE_ID", "Book ID already exists: " + book_id))
+    let inserted = sqlite_execute(transaction, "INSERT INTO books (book_id, title) VALUES (?, ?)", [sql_text(book_id), sql_text(title)])
+    match inserted:
+        Ok(insert_result):
+            return sqlite_commit(transaction)
+        Err(error):
+            let rolled_back = sqlite_rollback(transaction)?
+            return Err(error)
+
+fn checkout_book(database: Db, book_id: Text, borrower: Text, checkout_date: Text) -> Result[Unit, StdError]:
+    let transaction = sqlite_begin(database)?
+    let found = sqlite_query(transaction, "SELECT borrower FROM books WHERE book_id = ?", [sql_text(book_id)])?
+    if len(found) == 0:
+        let rolled_back = sqlite_rollback(transaction)?
+        return Err(std_error("UNKNOWN_ID", "No book has ID: " + book_id))
+    if found[0].values[0].kind != "null":
+        let rolled_back = sqlite_rollback(transaction)?
+        return Err(std_error("ALREADY_CHECKED_OUT", "Book is already checked out: " + book_id))
+    let updated = sqlite_execute(transaction, "UPDATE books SET borrower = ?, checked_out_on = ? WHERE book_id = ?", [sql_text(borrower), sql_text(checkout_date), sql_text(book_id)])
+    match updated:
+        Ok(checkout_result):
+            return sqlite_commit(transaction)
+        Err(error):
+            let rolled_back = sqlite_rollback(transaction)?
+            return Err(error)
+
+fn return_book(database: Db, book_id: Text) -> Result[Unit, StdError]:
+    let transaction = sqlite_begin(database)?
+    let found = sqlite_query(transaction, "SELECT borrower FROM books WHERE book_id = ?", [sql_text(book_id)])?
+    if len(found) == 0:
+        let rolled_back = sqlite_rollback(transaction)?
+        return Err(std_error("UNKNOWN_ID", "No book has ID: " + book_id))
+    if found[0].values[0].kind == "null":
+        let rolled_back = sqlite_rollback(transaction)?
+        return Err(std_error("NOT_CHECKED_OUT", "Book is already available: " + book_id))
+    let updated = sqlite_execute(transaction, "UPDATE books SET borrower = NULL, checked_out_on = NULL WHERE book_id = ?", [sql_text(book_id)])
+    match updated:
+        Ok(return_result):
+            return sqlite_commit(transaction)
+        Err(error):
+            let rolled_back = sqlite_rollback(transaction)?
+            return Err(error)
+
+fn list_books(database: Db, filter: Text) -> Result[Unit, StdError]:
+    let transaction = sqlite_begin(database)?
+    var sql = "SELECT book_id, title, borrower, checked_out_on FROM books"
+    if filter == "available":
+        set sql = sql + " WHERE borrower IS NULL"
+    if filter == "checked-out":
+        set sql = sql + " WHERE borrower IS NOT NULL"
+    set sql = sql + " ORDER BY book_id ASC"
+    let rows = sqlite_query(transaction, sql, [])?
+    var index = 0
+    while index < len(rows):
+        let row = rows[index]
+        if row.values[2].kind == "null":
+            print(row.values[0].text + " | " + row.values[1].text + " | available")
+        else:
+            print(row.values[0].text + " | " + row.values[1].text + " | checked out to " + row.values[2].text + " | since " + row.values[3].text)
+        set index = index + 1
+    return sqlite_commit(transaction)
+
+fn due_soon(database: Db, as_of: Text, checkout_days: Int) -> Result[Unit, StdError]:
+    let transaction = sqlite_begin(database)?
+    let sql = "SELECT book_id, title, borrower, date(checked_out_on, '+' || ? || ' days') AS due_on FROM books WHERE borrower IS NOT NULL AND date(checked_out_on, '+' || ? || ' days') >= ? AND date(checked_out_on, '+' || ? || ' days') <= date(?, '+' || ? || ' days') ORDER BY due_on ASC, book_id ASC"
+    let rows = sqlite_query(transaction, sql, [sql_integer(checkout_days), sql_integer(checkout_days), sql_text(as_of), sql_integer(checkout_days), sql_text(as_of), sql_integer(checkout_days)])?
+    if len(rows) == 0:
+        print("No books due in the configured window")
+    var index = 0
+    while index < len(rows):
+        let row = rows[index]
+        print(row.values[0].text + " | " + row.values[1].text + " | " + row.values[2].text + " | due " + row.values[3].text)
+        set index = index + 1
+    return sqlite_commit(transaction)
+
+fn run_with_config(config: TomlDocument, arguments: List[Text], command: Text, checkout_date: Text, as_of: Text) -> Int:
+    var checkout_days = 0
+    match toml_get_int(config, ["checkout_days"]):
+        Ok(configured_days):
+            set checkout_days = configured_days
+        Err(checkout_days_error):
+            eprint("Bookloom: bookloom.toml needs integer checkout_days")
+            return 2
+    if checkout_days <= 0:
+        eprint("Bookloom: checkout_days must be positive")
+        return 2
+    var database_path = ""
+    match toml_get_text(config, ["database"]):
+        Ok(configured_path):
+            set database_path = configured_path
+        Err(database_config_error):
+            eprint("Bookloom: bookloom.toml needs text database")
+            return 2
+    match sqlite_open(database_path):
+        Ok(database):
+            match initialize(database):
+                Ok(initialized):
+                    if command == "add":
+                        match add_book(database, arguments[1], arguments[2]):
+                            Ok(added):
+                                print("Added " + arguments[1])
+                                return 0
+                            Err(add_error):
+                                db_error("add failed", add_error)
+                                return 1
+                    if command == "checkout":
+                        match checkout_book(database, arguments[1], arguments[2], checkout_date):
+                            Ok(checked_out):
+                                print("Checked out " + arguments[1] + " to " + arguments[2])
+                                return 0
+                            Err(checkout_error):
+                                db_error("checkout failed", checkout_error)
+                                return 1
+                    if command == "return":
+                        match return_book(database, arguments[1]):
+                            Ok(returned):
+                                print("Returned " + arguments[1])
+                                return 0
+                            Err(return_error):
+                                db_error("return failed", return_error)
+                                return 1
+                    if command == "due-soon":
+                        match due_soon(database, as_of, checkout_days):
+                            Ok(due_listed):
+                                return 0
+                            Err(due_error):
+                                db_error("due-soon failed", due_error)
+                                return 1
+                    var filter = "all"
+                    if len(arguments) == 2:
+                        set filter = arguments[1]
+                    if filter != "all" and filter != "available" and filter != "checked-out":
+                        eprint("Bookloom: list filter must be available, checked-out, or all")
+                        return 2
+                    match list_books(database, filter):
+                        Ok(listed):
+                            return 0
+                        Err(list_error):
+                            db_error("list failed", list_error)
+                            return 1
+                Err(error):
+                    db_error("database setup failed", error)
+                    return 1
+        Err(error):
+            db_error("cannot open database", error)
+            return 1
+
+fn main() -> Int:
+    let arguments = args()
+    if len(arguments) == 0:
+        eprint("Usage: bookloom add ID TITLE | checkout ID BORROWER YYYY-MM-DD | return ID | list [available|checked-out|all]")
+        return 2
+    let command = arguments[0]
+    if command != "add" and command != "checkout" and command != "return" and command != "list" and command != "due-soon":
+        eprint("Bookloom: unknown command: " + command)
+        return 2
+    if command == "add" and len(arguments) != 3:
+        eprint("Usage: bookloom add ID TITLE")
+        return 2
+    if command == "checkout" and len(arguments) != 4:
+        eprint("Usage: bookloom checkout ID BORROWER YYYY-MM-DD")
+        return 2
+    if command == "return" and len(arguments) != 2:
+        eprint("Usage: bookloom return ID")
+        return 2
+    if command == "list" and len(arguments) > 2:
+        eprint("Usage: bookloom list [available|checked-out|all]")
+        return 2
+    if command == "due-soon" and (len(arguments) != 3 or arguments[1] != "--as-of"):
+        eprint("Usage: bookloom due-soon --as-of YYYY-MM-DD")
+        return 2
+    var checkout_date = ""
+    var as_of = ""
+    if command == "checkout":
+        match parse_date(arguments[3]):
+            Ok(validated_date):
+                set checkout_date = arguments[3]
+            Err(invalid_date):
+                eprint("Bookloom: checkout date must be a valid YYYY-MM-DD date")
+                return 2
+    if command == "due-soon":
+        match parse_date(arguments[2]):
+            Ok(valid_as_of):
+                set as_of = arguments[2]
+            Err(invalid_as_of):
+                eprint("Bookloom: --as-of must be a valid YYYY-MM-DD date")
+                return 2
+    var config_text = ""
+    match read_text("bookloom.toml"):
+        Ok(config_source):
+            set config_text = config_source
+        Err(config_read_error):
+            eprint("Bookloom: cannot read bookloom.toml")
+            return 2
+    match toml_parse(config_text):
+        Ok(config_document):
+            return run_with_config(config_document, arguments, command, checkout_date, as_of)
+        Err(config_parse_error):
+            eprint("Bookloom: invalid bookloom.toml: " + config_parse_error.message)
+            return 2

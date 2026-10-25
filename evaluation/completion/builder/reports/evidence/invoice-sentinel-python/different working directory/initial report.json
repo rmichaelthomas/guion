@@ -1,0 +1,42 @@
+{
+  "as_of": "2026-02-01",
+  "rejected_row_count": 4,
+  "rejected_rows": [
+    {
+      "line": 7,
+      "reason": "amount_cents must be an integer"
+    },
+    {
+      "line": 8,
+      "reason": "due_date: date must be a valid calendar date"
+    },
+    {
+      "line": 9,
+      "reason": "state must be open or paid"
+    },
+    {
+      "line": 10,
+      "reason": "expected 5 tab-separated fields; got 2"
+    }
+  ],
+  "vendors": [
+    {
+      "overdue_open_cents": 1200,
+      "overdue_open_count": 1,
+      "total_open_cents": 1500,
+      "vendor": "Acme"
+    },
+    {
+      "overdue_open_cents": 0,
+      "overdue_open_count": 0,
+      "total_open_cents": 500,
+      "vendor": "Beta"
+    },
+    {
+      "overdue_open_cents": 0,
+      "overdue_open_count": 0,
+      "total_open_cents": 900,
+      "vendor": "Café Supplies"
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+[
+  {
+    "command": [
+      "/opt/homebrew/opt/python@3.14/bin/python3.14",
+      "/private/tmp/veritas-fresh-builders/field-kit-log-python/field_kit_log.py",
+      "--config",
+      "/private/tmp/veritas-fresh-builders/field-kit-log-python/acceptance.toml",
+      "add",
+      "radio-1",
+      "Field radio"
+    ],
+    "exit_code": 1,
+    "stdout": "",
+    "stderr": "Error: database must be outside the installed runtime directory\n",
+    "seconds": 0.07868383299501147,
+    "utc": "2026-10-25T10:47:24.307200+00:00"
+  }
+]

@@ -1,0 +1,32 @@
+show "=== Session contract: aQmgaS5t0B4 ==="
+
+remember a string called source-state with "unscanned"
+remember a string called claim-basis with "none"
+remember a list called tracked-decisions with "none"
+remember a list called open-questions with "none"
+remember a list called session-corrections with "none"
+remember a number called decision-count with 0
+remember a string called session-id with "aQmgaS5t0B4"
+
+when source-state is equal to "unscanned"
+  show "HOLD: source not yet scanned — verify before consequential claims"
+when claim-basis is equal to "inference" unless source-state is equal to "verified"
+  show "WARNING: current claims are inferred, not verified against source"
+when claim-basis is equal to "verified"
+  show "OK: claims grounded in verified source"
+
+
+show source-state
+show claim-basis
+show tracked-decisions
+show open-questions
+
+remember a string called source-state with "verified"
+remember a string called claim-basis with "verified"
+remember a string called completion-evidence with "initial_correct=true; followup_correct=true; relocation_passed=true; final 22 CLI invocations passed; Python 3.14.7; standard library only"
+remember a string called timing-evidence with "start_utc=2026-10-25T09:58:59.094268Z; setup_seconds=51.495298; build_seconds=93.668499; followup_seconds=73.560170; installed_launch_seconds=0.066778"
+remember a string called artifact-footprint with "artifact_bytes=12263; source_bytes=10798; Unicode relocation path; separate caller-data directory"
+
+show completion-evidence
+show timing-evidence
+show artifact-footprint

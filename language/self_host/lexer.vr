@@ -4,9 +4,19 @@ pub record Token:
     character_index: Int
     line: Int
     column: Int
+    code: Text
+    span_length: Int
+
+record UnicodeEscape:
+    text: Text
+    next: Int
+    valid: Bool
 
 fn token(kind: Text, text: Text, character_index: Int, line: Int, column: Int) -> Token:
-    return Token(kind, text, character_index, line, column)
+    return Token(kind, text, character_index, line, column, "", len(text))
+
+fn error_token(message: Text, character_index: Int, line: Int, column: Int, code: Text, span_length: Int) -> Token:
+    return Token("Error", message, character_index, line, column, code, span_length)
 
 fn is_digit(character: Text) -> Bool:
     return character >= "0" and character <= "9"
@@ -28,6 +38,105 @@ fn one_of(value: Text, choices: List[Text]) -> Bool:
 fn is_space(character: Text) -> Bool:
     return character == " " or character == "\t" or character == "\r"
 
+fn hexadecimal_value(character: Text) -> Int:
+    let decimal = "0123456789"
+    var cursor = 0
+    while cursor < len(decimal):
+        if character == decimal[cursor]:
+            return cursor
+        set cursor = cursor + 1
+    let lowercase = "abcdef"
+    set cursor = 0
+    while cursor < len(lowercase):
+        if character == lowercase[cursor]:
+            return cursor + 10
+        set cursor = cursor + 1
+    let uppercase = "ABCDEF"
+    set cursor = 0
+    while cursor < len(uppercase):
+        if character == uppercase[cursor]:
+            return cursor + 10
+        set cursor = cursor + 1
+    return -1
+
+fn hexadecimal_quad(value: Int) -> Text:
+    let digits = "0123456789ABCDEF"
+    let places: List[Int] = [4096, 256, 16, 1]
+    var remaining = value
+    var result = ""
+    var cursor = 0
+    while cursor < len(places):
+        let digit = remaining // places[cursor]
+        set remaining = remaining % places[cursor]
+        set result = result + digits[digit]
+        set cursor = cursor + 1
+    return result
+
+fn unicode_scalar_from_json_escape(value: Int) -> Text:
+    let prefix = "\"" + "\\" + "u"
+    let suffix = "\""
+    if value <= 65535:
+        let parsed = json_parse(prefix + hexadecimal_quad(value) + suffix)
+        let decoded = unwrap(parsed)
+        return json_as_text(decoded)
+    let offset = value - 65536
+    let high = 55296 + offset // 1024
+    let low = 56320 + offset % 1024
+    let escaped = prefix + hexadecimal_quad(high) + "\\" + "u" + hexadecimal_quad(low) + suffix
+    let parsed = json_parse(escaped)
+    let decoded = unwrap(parsed)
+    return json_as_text(decoded)
+
+fn parse_unicode_escape(characters: List[Text], start: Int) -> UnicodeEscape:
+    if start + 1 >= len(characters) or characters[start + 1] != "{":
+        return UnicodeEscape("", start + 1, false)
+    var cursor = start + 2
+    var scalar = 0
+    var digit_count = 0
+    var valid = true
+    while cursor < len(characters) and characters[cursor] != "}":
+        let digit = hexadecimal_value(characters[cursor])
+        if digit < 0 or digit_count >= 6:
+            set valid = false
+        else:
+            set scalar = scalar * 16 + digit
+            set digit_count = digit_count + 1
+        set cursor = cursor + 1
+    if cursor >= len(characters):
+        set valid = false
+    if digit_count == 0:
+        set valid = false
+    if scalar > 1114111:
+        set valid = false
+    if scalar >= 55296 and scalar <= 57343:
+        set valid = false
+    if cursor < len(characters) and characters[cursor] == "}":
+        set cursor = cursor + 1
+    else:
+        set valid = false
+    if valid:
+        let decoded = unicode_scalar_from_json_escape(scalar)
+        return UnicodeEscape(decoded, cursor, true)
+    return UnicodeEscape("", cursor, false)
+
+fn decode_escape(characters: List[Text], start: Int) -> UnicodeEscape:
+    if start >= len(characters):
+        return UnicodeEscape("", start, false)
+    let escaped = characters[start]
+    if escaped == "n":
+        return UnicodeEscape("\n", start + 1, true)
+    if escaped == "r":
+        return UnicodeEscape("\r", start + 1, true)
+    if escaped == "t":
+        return UnicodeEscape("\t", start + 1, true)
+    if escaped == "\"":
+        return UnicodeEscape("\"", start + 1, true)
+    if escaped == "\\":
+        return UnicodeEscape("\\", start + 1, true)
+    if escaped == "u":
+        return parse_unicode_escape(characters, start)
+    return UnicodeEscape("", start + 1, false)
+
 pub fn scan(source: Text) -> List[Token]:
     let characters = text_chars(source)
     var tokens: List[Token] = []
@@ -44,7 +153,7 @@ pub fn scan(source: Text) -> List[Token]:
         var handled = false
 
         if line_start and character == "\t":
-            set tokens = list_push(tokens, token("Error", "tabs are not allowed for indentation", cursor, line, column))
+            set tokens = list_push(tokens, error_token("tabs are not allowed for indentation", cursor, line, column, "E_INDENT_TAB", 1))
             set cursor = cursor + 1
             set column = column + 1
             set handled = true
@@ -73,7 +182,7 @@ pub fn scan(source: Text) -> List[Token]:
             let previous_indent = indentation[indentation_depth - 1]
             if indentation_width > previous_indent:
                 if indentation_width != previous_indent + 4:
-                    set tokens = list_push(tokens, token("Error", "indentation must increase by four spaces", cursor, line, column))
+                    set tokens = list_push(tokens, error_token("indentation must increase by four spaces", cursor - indentation_width, line, 1, "E_INDENT_WIDTH", indentation_width))
                 if indentation_depth < len(indentation):
                     set indentation = list_set(indentation, indentation_depth, indentation_width)
                 else:
@@ -85,7 +194,7 @@ pub fn scan(source: Text) -> List[Token]:
                     set indentation_depth = indentation_depth - 1
                     set tokens = list_push(tokens, token("Dedent", "", cursor, line, column))
                 if indentation_width != indentation[indentation_depth - 1]:
-                    set tokens = list_push(tokens, token("Error", "indentation does not match an outer level", cursor, line, column))
+                    set tokens = list_push(tokens, error_token("indentation does not match an outer level", cursor - indentation_width, line, 1, "E_INDENT_WIDTH", indentation_width))
             set line_start = false
             set handled = true
 
@@ -124,11 +233,34 @@ pub fn scan(source: Text) -> List[Token]:
             let start = cursor
             let start_column = column
             var number = ""
+            var number_kind = "Number"
             while cursor < len(characters) and is_digit(characters[cursor]):
                 set number = number + characters[cursor]
                 set cursor = cursor + 1
                 set column = column + 1
-            set tokens = list_push(tokens, token("Number", number, start, line, start_column))
+            if cursor < len(characters) and characters[cursor] == ".":
+                set number_kind = "Float"
+                set number = number + characters[cursor]
+                set cursor = cursor + 1
+                set column = column + 1
+                while cursor < len(characters) and is_digit(characters[cursor]):
+                    set number = number + characters[cursor]
+                    set cursor = cursor + 1
+                    set column = column + 1
+            if cursor < len(characters) and (characters[cursor] == "e" or characters[cursor] == "E"):
+                set number_kind = "Float"
+                set number = number + characters[cursor]
+                set cursor = cursor + 1
+                set column = column + 1
+                if cursor < len(characters) and (characters[cursor] == "+" or characters[cursor] == "-"):
+                    set number = number + characters[cursor]
+                    set cursor = cursor + 1
+                    set column = column + 1
+                while cursor < len(characters) and is_digit(characters[cursor]):
+                    set number = number + characters[cursor]
+                    set cursor = cursor + 1
+                    set column = column + 1
+            set tokens = list_push(tokens, token(number_kind, number, start, line, start_column))
             set handled = true
 
         if not handled and character == "\"":
@@ -138,6 +270,10 @@ pub fn scan(source: Text) -> List[Token]:
             set column = column + 1
             var value = ""
             var closed = false
+            var escape_error = false
+            var escape_error_index = start
+            var escape_error_column = start_column
+            var escape_error_length = 0
             while cursor < len(characters) and not closed:
                 let current = characters[cursor]
                 if current == "\"":
@@ -146,31 +282,30 @@ pub fn scan(source: Text) -> List[Token]:
                     set closed = true
                 else:
                     if current == "\\" and cursor + 1 < len(characters):
+                        let escape_start = cursor
+                        let escape_column = column
                         set cursor = cursor + 1
                         set column = column + 1
-                        let escaped = characters[cursor]
-                        var recognized = false
-                        if escaped == "n":
-                            set value = value + "\n"
-                            set recognized = true
-                        if escaped == "r":
-                            set value = value + "\r"
-                            set recognized = true
-                        if escaped == "t":
-                            set value = value + "\t"
-                            set recognized = true
-                        if not recognized:
-                            set value = value + escaped
-                        set cursor = cursor + 1
-                        set column = column + 1
+                        let escape = decode_escape(characters, cursor)
+                        set value = value + escape.text
+                        set column = column + escape.next - cursor
+                        set cursor = escape.next
+                        if not escape.valid and not escape_error:
+                            set escape_error_index = escape_start
+                            set escape_error_column = escape_column
+                            set escape_error_length = escape.next - escape_start
+                        set escape_error = escape_error or not escape.valid
                     else:
                         set value = value + current
                         set cursor = cursor + 1
                         set column = column + 1
-            if closed:
-                set tokens = list_push(tokens, token("Text", value, start, line, start_column))
+            if escape_error:
+                set tokens = list_push(tokens, error_token("invalid string escape", escape_error_index, line, escape_error_column, "E_STRING_ESCAPE", escape_error_length))
             else:
-                set tokens = list_push(tokens, token("Error", "unterminated text literal", start, line, start_column))
+                if closed:
+                    set tokens = list_push(tokens, token("Text", value, start, line, start_column))
+                else:
+                    set tokens = list_push(tokens, error_token("unterminated text literal", start, line, start_column, "E_STRING_UNCLOSED", cursor - start))
             set handled = true
 
         if not handled:
@@ -186,7 +321,7 @@ pub fn scan(source: Text) -> List[Token]:
             if one_of(symbol, [":", ",", ".", "(", ")", "[", "]", "{", "}", "+", "-", "*", "/", "//", "%", "=", "==", "!=", "<", "<=", ">", ">=", "->", "?"]):
                 set tokens = list_push(tokens, token("Symbol", symbol, start, line, start_column))
             else:
-                set tokens = list_push(tokens, token("Error", "unsupported character " + symbol, start, line, start_column))
+                set tokens = list_push(tokens, error_token("unsupported character " + symbol, start, line, start_column, "E_SYNTAX", len(symbol)))
             set cursor = cursor + 1
             set column = column + 1
 

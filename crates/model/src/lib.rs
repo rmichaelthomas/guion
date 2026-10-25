@@ -114,6 +114,145 @@ mod tests {
     }
 
     #[test]
+    fn task5_service_opcodes_and_resource_types_round_trip_only_in_format_37() {
+        let operations = [
+            Op::TextCaseFold,
+            Op::TextCollapseWhitespace,
+            Op::TextNormalize,
+            Op::CryptoHmacSha256,
+            Op::CryptoVerifyHmacSha256,
+            Op::SqliteOpen,
+            Op::SqliteBegin,
+            Op::SqliteExecute,
+            Op::SqliteQuery,
+            Op::SqliteCommit,
+            Op::SqliteRollback,
+            Op::SqliteClose,
+            Op::TomlParse,
+            Op::TomlHas,
+            Op::TomlGetText,
+            Op::TomlGetInt,
+            Op::TomlGetBool,
+            Op::TomlPutText,
+            Op::TomlPutInt,
+            Op::TomlPutBool,
+            Op::TomlRender,
+            Op::CalendarParse,
+        ];
+        let artifact = Artifact {
+            format_version: Artifact::CURRENT_VERSION,
+            build_metadata: None,
+            compiled_source_sha256: None,
+            source_name: "services.vr".into(),
+            sources: vec!["services.vr".into()],
+            entry: "main".into(),
+            functions: vec![Function {
+                name: "main".into(),
+                parameters: vec![],
+                result: Type::NativeResource("TomlDocument".into()),
+                local_count: 0,
+                code: operations
+                    .into_iter()
+                    .map(|op| Instruction {
+                        op,
+                        span: Span::default(),
+                    })
+                    .chain([Instruction {
+                        op: Op::Return,
+                        span: Span::default(),
+                    }])
+                    .collect(),
+            }],
+            externals: vec![],
+            records: vec![],
+        };
+
+        assert_eq!(
+            Artifact::from_bytes(&artifact.to_bytes().unwrap()).unwrap(),
+            artifact
+        );
+        let mut legacy = artifact;
+        legacy.format_version = 36;
+        assert_eq!(legacy.to_bytes().unwrap_err().code, "E_ARTIFACT_VERSION");
+    }
+
+    #[test]
+    fn byte_http_opcode_round_trips_only_in_format_38() {
+        let artifact = Artifact {
+            format_version: Artifact::CURRENT_VERSION,
+            build_metadata: None,
+            compiled_source_sha256: None,
+            source_name: "http-bytes.vr".into(),
+            sources: vec!["http-bytes.vr".into()],
+            entry: "main".into(),
+            functions: vec![Function {
+                name: "main".into(),
+                parameters: vec![],
+                result: Type::Int,
+                local_count: 5,
+                code: vec![Instruction {
+                    op: Op::HttpRequestBytes,
+                    span: Span::default(),
+                }],
+            }],
+            externals: vec![],
+            records: vec![],
+        };
+        assert_eq!(
+            Artifact::from_bytes(&artifact.to_bytes().unwrap()).unwrap(),
+            artifact
+        );
+        let mut previous = artifact;
+        previous.format_version = 37;
+        assert_eq!(previous.to_bytes().unwrap_err().code, "E_ARTIFACT_VERSION");
+    }
+
+    #[test]
+    fn clock_opcodes_round_trip_only_in_format_39() {
+        let artifact = Artifact {
+            format_version: Artifact::CURRENT_VERSION,
+            build_metadata: None,
+            compiled_source_sha256: None,
+            source_name: "clock.vr".into(),
+            sources: vec!["clock.vr".into()],
+            entry: "main".into(),
+            functions: vec![Function {
+                name: "main".into(),
+                parameters: vec![],
+                result: Type::Int,
+                local_count: 0,
+                code: vec![
+                    Instruction {
+                        op: Op::UnixTimeMs,
+                        span: Span::default(),
+                    },
+                    Instruction {
+                        op: Op::TimeTodayLocal,
+                        span: Span::default(),
+                    },
+                    Instruction {
+                        op: Op::Pop,
+                        span: Span::default(),
+                    },
+                    Instruction {
+                        op: Op::Return,
+                        span: Span::default(),
+                    },
+                ],
+            }],
+            externals: vec![],
+            records: vec![],
+        };
+        assert_eq!(
+            Artifact::from_bytes(&artifact.to_bytes().unwrap()).unwrap(),
+            artifact
+        );
+        let mut previous = artifact;
+        previous.format_version = 38;
+        assert_eq!(previous.to_bytes().unwrap_err().code, "E_ARTIFACT_VERSION");
+    }
+
+    #[test]
     fn http_bytecode_round_trips_only_in_format_19() {
         let artifact = Artifact {
             format_version: Artifact::CURRENT_VERSION,
@@ -466,6 +605,78 @@ mod tests {
     }
 
     #[test]
+    fn artifact_reader_rejects_truncation_and_oversized_fields() {
+        let artifact = Artifact {
+            format_version: Artifact::CURRENT_VERSION,
+            build_metadata: None,
+            compiled_source_sha256: None,
+            source_name: "x".into(),
+            sources: vec!["x".into()],
+            entry: "main".into(),
+            functions: vec![Function {
+                name: "main".into(),
+                parameters: vec![],
+                result: Type::Unit,
+                local_count: 0,
+                code: vec![Instruction {
+                    op: Op::Return,
+                    span: Span::default(),
+                }],
+            }],
+            externals: vec![],
+            records: vec![],
+        };
+        let bytes = artifact.to_bytes().unwrap();
+
+        let mut truncated = bytes.clone();
+        truncated.pop();
+        assert_eq!(
+            Artifact::from_bytes(&truncated).unwrap_err().code,
+            "E_ARTIFACT_TRUNCATED"
+        );
+
+        let mut oversized_string = bytes.clone();
+        oversized_string[8..12].copy_from_slice(&u32::MAX.to_le_bytes());
+        assert_eq!(
+            Artifact::from_bytes(&oversized_string).unwrap_err().code,
+            "E_ARTIFACT_SIZE"
+        );
+
+        // The source count follows the source name and entry strings.
+        let source_count_offset = 8 + 4 + artifact.source_name.len() + 4 + artifact.entry.len();
+        let mut oversized_count = bytes.clone();
+        oversized_count[source_count_offset..source_count_offset + 4]
+            .copy_from_slice(&1_000_001_u32.to_le_bytes());
+        assert_eq!(
+            Artifact::from_bytes(&oversized_count).unwrap_err().code,
+            "E_ARTIFACT_SIZE"
+        );
+
+        // This fixture has a fixed header through instruction count, then the
+        // 36-byte span, followed by the one-byte Return opcode.
+        let mut opcode_offset = 8;
+        opcode_offset += 4 + artifact.source_name.len();
+        opcode_offset += 4 + artifact.entry.len();
+        opcode_offset += 4; // source count
+        opcode_offset += 4 + artifact.sources[0].len();
+        opcode_offset += 4; // record count
+        opcode_offset += 4; // external count
+        opcode_offset += 4; // function count
+        opcode_offset += 4 + "main".len();
+        opcode_offset += 4; // parameter count
+        opcode_offset += 1; // result type
+        opcode_offset += 4; // local count
+        opcode_offset += 4; // instruction count
+        opcode_offset += 36; // source span
+        let mut bad_opcode = bytes;
+        bad_opcode[opcode_offset] = u8::MAX;
+        assert_eq!(
+            Artifact::from_bytes(&bad_opcode).unwrap_err().code,
+            "E_ARTIFACT_OPCODE"
+        );
+    }
+
+    #[test]
     fn cloning_json_values_shares_immutable_storage() {
         let original = Value::Json(SharedJson::from_serde(serde_json::json!({
             "rows": [{"amount": 10}, {"amount": 20}]
@@ -488,7 +699,7 @@ mod tests {
 
 use std::{
     cmp::Ordering,
-    collections::BTreeMap,
+    collections::{BTreeMap, HashSet},
     fmt,
     ops::{Add, Mul, Sub},
     sync::Arc,
@@ -617,6 +828,9 @@ impl BigInt {
     }
     pub fn is_zero(&self) -> bool {
         self.sign == 0
+    }
+    pub fn is_negative(&self) -> bool {
+        self.sign < 0
     }
     pub fn digit_count(&self) -> usize {
         self.digits.len()
@@ -1005,6 +1219,7 @@ pub enum Value {
     JsonError(JsonErrorValue),
     FileError(FileErrorValue),
     HttpError(HttpErrorValue),
+    NativeResource(NativeResourceValue),
     Unit,
 }
 
@@ -1079,6 +1294,7 @@ impl PartialEq for Value {
             (Value::JsonError(left), Value::JsonError(right)) => left == right,
             (Value::FileError(left), Value::FileError(right)) => left == right,
             (Value::HttpError(left), Value::HttpError(right)) => left == right,
+            (Value::NativeResource(left), Value::NativeResource(right)) => left == right,
             (Value::Unit, Value::Unit) => true,
             _ => false,
         }
@@ -1115,6 +1331,29 @@ pub struct HttpErrorValue {
     pub code: String,
     pub message: String,
     pub trace: Vec<Span>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct NativeResourceValue {
+    kind: String,
+    owner: u64,
+    id: u64,
+}
+
+impl NativeResourceValue {
+    pub fn new(kind: impl Into<String>, owner: u64, id: u64) -> Self {
+        Self {
+            kind: kind.into(),
+            owner,
+            id,
+        }
+    }
+    pub fn kind(&self) -> &str {
+        &self.kind
+    }
+    pub fn parts(&self) -> (&str, u64, u64) {
+        (&self.kind, self.owner, self.id)
+    }
 }
 
 impl fmt::Display for Value {
@@ -1178,6 +1417,7 @@ impl fmt::Display for Value {
             Value::JsonError(error) => write!(f, "JsonError({}, {})", error.code, error.message),
             Value::FileError(error) => write!(f, "FileError({}, {})", error.code, error.message),
             Value::HttpError(error) => write!(f, "HttpError({}, {})", error.code, error.message),
+            Value::NativeResource(resource) => write!(f, "<{} resource>", resource.kind()),
             Value::Unit => f.write_str("()"),
         }
     }
@@ -1200,6 +1440,7 @@ pub enum Type {
     JsonError,
     FileError,
     HttpError,
+    NativeResource(String),
     Unit,
 }
 
@@ -1308,8 +1549,61 @@ pub enum Op {
     TryResult,
     HttpRequest,
     HttpRequestWithTimeout,
+    HttpRequestBytes,
     Environment,
     TextChars,
+    BytesFromInts,
+    BytesFromText,
+    BytesJoin,
+    Float64Bits,
+    FileOpenLines,
+    FileNextLine,
+    FileClose,
+    CsvOpen,
+    CsvNext,
+    CsvEncode,
+    JsonTryGet,
+    JsonTryIndex,
+    JsonTryText,
+    JsonTryInt,
+    JsonTryBool,
+    JsonTryFloat,
+    TimeParseDate,
+    TimeParseTimestamp,
+    TimeFormatUtc,
+    UnixTimeMs,
+    TimeTodayLocal,
+    SemVerParse,
+    SemVerCompare,
+    CliParse,
+    FsWalk,
+    ListGetOption,
+    MapGetOption,
+    TextParseInt,
+    TextParseFloat,
+    SortBy(usize),
+    TextCaseFold,
+    TextCollapseWhitespace,
+    TextNormalize,
+    CryptoHmacSha256,
+    CryptoVerifyHmacSha256,
+    SqliteOpen,
+    SqliteBegin,
+    SqliteExecute,
+    SqliteQuery,
+    SqliteCommit,
+    SqliteRollback,
+    SqliteClose,
+    TomlParse,
+    TomlHas,
+    TomlGetText,
+    TomlGetInt,
+    TomlGetBool,
+    TomlPutText,
+    TomlPutInt,
+    TomlPutBool,
+    TomlRender,
+    CalendarParse,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -1387,7 +1681,7 @@ pub struct Artifact {
 }
 
 impl Artifact {
-    pub const CURRENT_VERSION: u32 = 33;
+    pub const CURRENT_VERSION: u32 = 39;
     pub fn entry(&self) -> &str {
         &self.entry
     }
@@ -1501,6 +1795,44 @@ impl Artifact {
                 "in-place JSON array push requires artifact format 33",
             ));
         }
+        if self.format_version < 34 && artifact_uses_byte_construction(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "bounded byte construction operations require artifact format 34",
+            ));
+        }
+        if self.format_version < 35 && artifact_uses_task4_data(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "Task 4 data operations require artifact format 35",
+            ));
+        }
+        if self.format_version < 36 && artifact_uses_sort_by(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "stable generic sorting requires artifact format 36",
+            ));
+        }
+        if self.format_version < 37 && artifact_uses_task5_services(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "Unicode, cryptography, SQLite, TOML, calendar, and native resource types require artifact format 37",
+            ));
+        }
+        if self.format_version < 38 && artifact_uses_http_request_bytes(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "byte HTTP requests require artifact format 38",
+            ));
+        }
+        if self.format_version < 39 && artifact_uses_clock(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "clock operations require artifact format 39",
+            ));
+        }
+        validate_sort_comparator_effects(self)
+            .map_err(|message| ArtifactError::new("E_SORT_EFFECT", message))?;
         let mut w = Writer(Vec::new());
         w.0.extend_from_slice(b"VRTA");
         w.u32(self.format_version);
@@ -1718,6 +2050,62 @@ impl Artifact {
                         w.u8(104);
                         w.count(*slot)?;
                     }
+                    Op::BytesFromInts => w.u8(105),
+                    Op::BytesFromText => w.u8(106),
+                    Op::BytesJoin => w.u8(107),
+                    Op::Float64Bits => w.u8(108),
+                    Op::FileOpenLines => w.u8(109),
+                    Op::FileNextLine => w.u8(110),
+                    Op::FileClose => w.u8(111),
+                    Op::CsvOpen => w.u8(112),
+                    Op::CsvNext => w.u8(113),
+                    Op::CsvEncode => w.u8(114),
+                    Op::JsonTryGet => w.u8(115),
+                    Op::JsonTryIndex => w.u8(116),
+                    Op::JsonTryText => w.u8(117),
+                    Op::JsonTryInt => w.u8(118),
+                    Op::JsonTryBool => w.u8(119),
+                    Op::JsonTryFloat => w.u8(120),
+                    Op::TimeParseDate => w.u8(121),
+                    Op::TimeParseTimestamp => w.u8(122),
+                    Op::TimeFormatUtc => w.u8(123),
+                    Op::SemVerParse => w.u8(124),
+                    Op::SemVerCompare => w.u8(125),
+                    Op::CliParse => w.u8(126),
+                    Op::FsWalk => w.u8(127),
+                    Op::ListGetOption => w.u8(128),
+                    Op::MapGetOption => w.u8(129),
+                    Op::TextParseInt => w.u8(130),
+                    Op::TextParseFloat => w.u8(131),
+                    Op::SortBy(target) => {
+                        w.u8(132);
+                        w.count(*target)?;
+                    }
+                    Op::TextCaseFold => w.u8(133),
+                    Op::TextCollapseWhitespace => w.u8(134),
+                    Op::TextNormalize => w.u8(135),
+                    Op::CryptoHmacSha256 => w.u8(136),
+                    Op::CryptoVerifyHmacSha256 => w.u8(137),
+                    Op::SqliteOpen => w.u8(138),
+                    Op::SqliteBegin => w.u8(139),
+                    Op::SqliteExecute => w.u8(140),
+                    Op::SqliteQuery => w.u8(141),
+                    Op::SqliteCommit => w.u8(142),
+                    Op::SqliteRollback => w.u8(143),
+                    Op::SqliteClose => w.u8(144),
+                    Op::TomlParse => w.u8(145),
+                    Op::TomlHas => w.u8(146),
+                    Op::TomlGetText => w.u8(147),
+                    Op::TomlGetInt => w.u8(148),
+                    Op::TomlGetBool => w.u8(149),
+                    Op::TomlPutText => w.u8(150),
+                    Op::TomlPutInt => w.u8(151),
+                    Op::TomlPutBool => w.u8(152),
+                    Op::TomlRender => w.u8(153),
+                    Op::CalendarParse => w.u8(154),
+                    Op::HttpRequestBytes => w.u8(155),
+                    Op::UnixTimeMs => w.u8(156),
+                    Op::TimeTodayLocal => w.u8(157),
                 }
             }
         }
@@ -1975,6 +2363,59 @@ impl Artifact {
                     102 => Op::TextChars,
                     103 => Op::ListPushLocal(r.count()?),
                     104 => Op::JsonPushLocal(r.count()?),
+                    105 => Op::BytesFromInts,
+                    106 => Op::BytesFromText,
+                    107 => Op::BytesJoin,
+                    108 => Op::Float64Bits,
+                    109 => Op::FileOpenLines,
+                    110 => Op::FileNextLine,
+                    111 => Op::FileClose,
+                    112 => Op::CsvOpen,
+                    113 => Op::CsvNext,
+                    114 => Op::CsvEncode,
+                    115 => Op::JsonTryGet,
+                    116 => Op::JsonTryIndex,
+                    117 => Op::JsonTryText,
+                    118 => Op::JsonTryInt,
+                    119 => Op::JsonTryBool,
+                    120 => Op::JsonTryFloat,
+                    121 => Op::TimeParseDate,
+                    122 => Op::TimeParseTimestamp,
+                    123 => Op::TimeFormatUtc,
+                    124 => Op::SemVerParse,
+                    125 => Op::SemVerCompare,
+                    126 => Op::CliParse,
+                    127 => Op::FsWalk,
+                    128 => Op::ListGetOption,
+                    129 => Op::MapGetOption,
+                    130 => Op::TextParseInt,
+                    131 => Op::TextParseFloat,
+                    132 => Op::SortBy(r.count()?),
+                    133 => Op::TextCaseFold,
+                    134 => Op::TextCollapseWhitespace,
+                    135 => Op::TextNormalize,
+                    136 => Op::CryptoHmacSha256,
+                    137 => Op::CryptoVerifyHmacSha256,
+                    138 => Op::SqliteOpen,
+                    139 => Op::SqliteBegin,
+                    140 => Op::SqliteExecute,
+                    141 => Op::SqliteQuery,
+                    142 => Op::SqliteCommit,
+                    143 => Op::SqliteRollback,
+                    144 => Op::SqliteClose,
+                    145 => Op::TomlParse,
+                    146 => Op::TomlHas,
+                    147 => Op::TomlGetText,
+                    148 => Op::TomlGetInt,
+                    149 => Op::TomlGetBool,
+                    150 => Op::TomlPutText,
+                    151 => Op::TomlPutInt,
+                    152 => Op::TomlPutBool,
+                    153 => Op::TomlRender,
+                    154 => Op::CalendarParse,
+                    155 => Op::HttpRequestBytes,
+                    156 => Op::UnixTimeMs,
+                    157 => Op::TimeTodayLocal,
                     _ => {
                         return Err(ArtifactError::new(
                             "E_ARTIFACT_OPCODE",
@@ -2171,6 +2612,44 @@ impl Artifact {
                 "in-place JSON array push requires artifact format 33",
             ));
         }
+        if format_version < 34 && artifact_uses_byte_construction(&artifact) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "bounded byte construction operations require artifact format 34",
+            ));
+        }
+        if format_version < 35 && artifact_uses_task4_data(&artifact) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "Task 4 data operations require artifact format 35",
+            ));
+        }
+        if format_version < 36 && artifact_uses_sort_by(&artifact) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "stable generic sorting requires artifact format 36",
+            ));
+        }
+        if format_version < 37 && artifact_uses_task5_services(&artifact) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "artifact uses Task 5 services or native resource types before format 37",
+            ));
+        }
+        if format_version < 38 && artifact_uses_http_request_bytes(&artifact) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "artifact uses byte HTTP requests before format 38",
+            ));
+        }
+        if format_version < 39 && artifact_uses_clock(&artifact) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "artifact uses clock operations before format 39",
+            ));
+        }
+        validate_sort_comparator_effects(&artifact)
+            .map_err(|message| ArtifactError::new("E_SORT_EFFECT", message))?;
         Ok(artifact)
     }
 }
@@ -2232,7 +2711,7 @@ fn artifact_uses_http(artifact: &Artifact) -> bool {
             || function.code.iter().any(|instruction| {
                 matches!(
                     instruction.op,
-                    Op::HttpGet | Op::HttpErrorCode | Op::HttpErrorMessage
+                    Op::HttpGet | Op::HttpErrorCode | Op::HttpErrorMessage | Op::HttpRequestBytes
                 ) || matches!(&instruction.op, Op::Const(Value::HttpError(_)))
             })
     })
@@ -2241,7 +2720,10 @@ fn artifact_uses_http(artifact: &Artifact) -> bool {
 fn artifact_uses_http_request(artifact: &Artifact) -> bool {
     artifact.functions.iter().any(|function| {
         function.code.iter().any(|instruction| {
-            matches!(instruction.op, Op::HttpRequest | Op::HttpRequestWithTimeout)
+            matches!(
+                instruction.op,
+                Op::HttpRequest | Op::HttpRequestWithTimeout | Op::HttpRequestBytes
+            )
         })
     })
 }
@@ -2252,6 +2734,24 @@ fn artifact_uses_http_request_timeout(artifact: &Artifact) -> bool {
             .code
             .iter()
             .any(|instruction| matches!(instruction.op, Op::HttpRequestWithTimeout))
+    })
+}
+
+fn artifact_uses_http_request_bytes(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function
+            .code
+            .iter()
+            .any(|instruction| matches!(instruction.op, Op::HttpRequestBytes))
+    })
+}
+
+fn artifact_uses_clock(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function
+            .code
+            .iter()
+            .any(|instruction| matches!(instruction.op, Op::UnixTimeMs | Op::TimeTodayLocal))
     })
 }
 
@@ -2359,6 +2859,166 @@ fn artifact_uses_json_push_local(artifact: &Artifact) -> bool {
             .iter()
             .any(|instruction| matches!(instruction.op, Op::JsonPushLocal(_)))
     })
+}
+
+fn artifact_uses_byte_construction(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function.code.iter().any(|instruction| {
+            matches!(
+                instruction.op,
+                Op::BytesFromInts | Op::BytesFromText | Op::BytesJoin | Op::Float64Bits
+            )
+        })
+    })
+}
+
+fn artifact_uses_task4_data(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function.code.iter().any(|instruction| {
+            matches!(
+                instruction.op,
+                Op::FileOpenLines
+                    | Op::FileNextLine
+                    | Op::FileClose
+                    | Op::CsvOpen
+                    | Op::CsvNext
+                    | Op::CsvEncode
+                    | Op::JsonTryGet
+                    | Op::JsonTryIndex
+                    | Op::JsonTryText
+                    | Op::JsonTryInt
+                    | Op::JsonTryBool
+                    | Op::JsonTryFloat
+                    | Op::TimeParseDate
+                    | Op::TimeParseTimestamp
+                    | Op::TimeFormatUtc
+                    | Op::SemVerParse
+                    | Op::SemVerCompare
+                    | Op::CliParse
+                    | Op::FsWalk
+                    | Op::ListGetOption
+                    | Op::MapGetOption
+                    | Op::TextParseInt
+                    | Op::TextParseFloat
+            )
+        })
+    })
+}
+
+fn artifact_uses_sort_by(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function
+            .code
+            .iter()
+            .any(|instruction| matches!(instruction.op, Op::SortBy(_)))
+    })
+}
+
+fn artifact_uses_task5_services(artifact: &Artifact) -> bool {
+    fn has_resource_type(ty: &Type) -> bool {
+        match ty {
+            Type::NativeResource(_) => true,
+            Type::List(item) | Type::Map(item) | Type::Option(item) => has_resource_type(item),
+            Type::Result(ok, err) => has_resource_type(ok) || has_resource_type(err),
+            _ => false,
+        }
+    }
+
+    artifact.records.iter().any(|record| {
+        record
+            .fields
+            .iter()
+            .any(|field| has_resource_type(&field.ty))
+    }) || artifact.externals.iter().any(|external| {
+        external.parameters.iter().any(has_resource_type) || has_resource_type(&external.result)
+    }) || artifact.functions.iter().any(|function| {
+        function.parameters.iter().any(has_resource_type)
+            || has_resource_type(&function.result)
+            || function.code.iter().any(|instruction| {
+                matches!(
+                    instruction.op,
+                    Op::TextCaseFold
+                        | Op::TextCollapseWhitespace
+                        | Op::TextNormalize
+                        | Op::CryptoHmacSha256
+                        | Op::CryptoVerifyHmacSha256
+                        | Op::SqliteOpen
+                        | Op::SqliteBegin
+                        | Op::SqliteExecute
+                        | Op::SqliteQuery
+                        | Op::SqliteCommit
+                        | Op::SqliteRollback
+                        | Op::SqliteClose
+                        | Op::TomlParse
+                        | Op::TomlHas
+                        | Op::TomlGetText
+                        | Op::TomlGetInt
+                        | Op::TomlGetBool
+                        | Op::TomlPutText
+                        | Op::TomlPutInt
+                        | Op::TomlPutBool
+                        | Op::TomlRender
+                        | Op::CalendarParse
+                )
+            })
+    })
+}
+
+/// Validates that each named sort comparator and its transitive call graph are pure.
+pub fn validate_sort_comparator_effects(artifact: &Artifact) -> Result<(), String> {
+    for caller in &artifact.functions {
+        for instruction in &caller.code {
+            let Op::SortBy(root) = instruction.op else {
+                continue;
+            };
+            let mut pending = vec![root];
+            let mut seen = HashSet::new();
+            while let Some(index) = pending.pop() {
+                if !seen.insert(index) {
+                    continue;
+                }
+                let Some(callee) = artifact.functions.get(index) else {
+                    return Err(format!(
+                        "sort comparator references missing function {index}"
+                    ));
+                };
+                for instruction in &callee.code {
+                    match instruction.op {
+                        Op::Call(target, _) | Op::SortBy(target) => pending.push(target),
+                        Op::Print
+                        | Op::PrintErr
+                        | Op::ReadText
+                        | Op::WriteText
+                        | Op::WriteTextAtomic
+                        | Op::ReadBytes
+                        | Op::WriteBytes
+                        | Op::Args
+                        | Op::ArgsFrom
+                        | Op::Environment
+                        | Op::PythonCall(_, _)
+                        | Op::PythonCallKw(_, _, _)
+                        | Op::HttpGet
+                        | Op::HttpRequest
+                        | Op::HttpRequestWithTimeout
+                        | Op::FileOpenLines
+                        | Op::FileNextLine
+                        | Op::FileClose
+                        | Op::CsvOpen
+                        | Op::CsvNext
+                        | Op::FsWalk
+                        | Op::ParallelMap(_) => {
+                            return Err(format!(
+                                "sort comparator `{}` reaches an effectful operation",
+                                callee.name
+                            ));
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+    }
+    Ok(())
 }
 
 fn artifact_uses_atomic_text_write(artifact: &Artifact) -> bool {
@@ -2506,6 +3166,10 @@ impl Writer {
             Type::JsonError => self.u8(8),
             Type::FileError => self.u8(9),
             Type::HttpError => self.u8(15),
+            Type::NativeResource(name) => {
+                self.u8(17);
+                self.string(name)?;
+            }
         }
         Ok(())
     }
@@ -2638,6 +3302,12 @@ impl Writer {
                     self.span(*span);
                 }
             }
+            Value::NativeResource(_) => {
+                return Err(ArtifactError::new(
+                    "E_ARTIFACT_RESOURCE",
+                    "native resource handles cannot be serialized as constants",
+                ))
+            }
         }
         Ok(())
     }
@@ -2730,6 +3400,7 @@ impl<'a> Reader<'a> {
             13 => Ok(Type::Record(self.string()?)),
             14 => Ok(Type::Bytes),
             15 => Ok(Type::HttpError),
+            17 => Ok(Type::NativeResource(self.string()?)),
             _ => Err(ArtifactError::new("E_ARTIFACT_TYPE", "unknown type tag")),
         }
     }

@@ -1,0 +1,45 @@
+import "std:fs"
+import "std:json"
+
+pub record JsonlLine:
+    number: Int
+    raw: Text
+    value: Option[Json]
+    error: Option[JsonError]
+
+pub fn jsonl_open(path: Text) -> Result[FileReader, FileError]:
+    return fs_open_lines(path)
+
+fn jsonl_no_line() -> Option[JsonlLine]:
+    return None
+
+fn jsonl_no_value() -> Option[Json]:
+    return None
+
+fn jsonl_no_error() -> Option[JsonError]:
+    return None
+
+fn jsonl_some_line(value: JsonlLine) -> Option[JsonlLine]:
+    return Some(value)
+
+fn jsonl_some_value(value: Json) -> Option[Json]:
+    return Some(value)
+
+fn jsonl_some_error(value: JsonError) -> Option[JsonError]:
+    return Some(value)
+
+pub fn jsonl_next(reader: FileReader) -> Result[Option[JsonlLine], FileError]:
+    let next_line = fs_next_line(reader)
+    if not is_ok(next_line):
+        return Err(error(next_line))
+    let maybe_line = unwrap(next_line)
+    if not is_some(maybe_line):
+        return Ok(jsonl_no_line())
+    let line = unwrap(maybe_line)
+    let parsed = json_parse(line.text)
+    if is_ok(parsed):
+        return Ok(jsonl_some_line(JsonlLine(line.number, line.text, jsonl_some_value(unwrap(parsed)), jsonl_no_error())))
+    return Ok(jsonl_some_line(JsonlLine(line.number, line.text, jsonl_no_value(), jsonl_some_error(error(parsed)))))
+
+pub fn jsonl_close(reader: FileReader) -> Result[Unit, FileError]:
+    return fs_close_reader(reader)

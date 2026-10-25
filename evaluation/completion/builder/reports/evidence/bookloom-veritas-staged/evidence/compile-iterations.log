@@ -1,0 +1,5 @@
+Resolved compiler diagnostics from iterative implementation:
+1. E_SYNTAX, only a call may be an expression statement: native Result calls using postfix ? were bound to locals.
+2. E_NAME_UNKNOWN, unknown function TomlDocument: the parsed opaque document was passed from the Result match into a helper rather than constructed.
+3. E_NAME_DUPLICATE, match binding _ is already defined: each Result arm now uses a distinct binding name.
+Final initial check passed with 33 functions. Final follow-up check passed with 34 functions.

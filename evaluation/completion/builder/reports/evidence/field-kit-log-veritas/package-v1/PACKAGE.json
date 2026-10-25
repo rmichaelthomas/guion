@@ -1,0 +1,18 @@
+{
+  "application": {
+    "id": "field-kit-log",
+    "name": "field-kit-log",
+    "version": "0.1.0"
+  },
+  "artifact_sha256": "1ec0d03ed4dea72d446d671a0c2bd3ce6b447344ebcb664289143e6b6146fcbf",
+  "compiler_version": "0.1.0",
+  "native_dependency_report_sha256": "ffafef0affc854f4fc4235000dc7faaf425a17985fda0f1f7b38631ff48bae79",
+  "python_runtime": null,
+  "resources": [],
+  "runtime_sha256": "08dafd217babdf2e94734d32ed73542356f2926f795d65c3c6b1f4d39c2bf62a",
+  "runtime_size_bytes": 12841696,
+  "rust_notices": null,
+  "schema_version": 2,
+  "source_sha256": "e35d654a2f4cef7c23456aa2be393257aaf5ab11a617d2524464ddac270a93c4",
+  "target": "macos-aarch64"
+}

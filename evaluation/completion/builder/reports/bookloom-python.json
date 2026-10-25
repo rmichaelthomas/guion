@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "status": "complete",
+  "assignment_id": "bookloom-python",
+  "language": "python",
+  "brief_id": "bookloom",
+  "start_utc": "2026-10-25T09:58:59.094268Z",
+  "finish_utc": "2026-10-25T10:08:23Z",
+  "initial_correct": true,
+  "followup_correct": true,
+  "relocation_passed": true,
+  "python_version": "3.14.7",
+  "standard_library_only": true,
+  "setup_seconds": 51.495298,
+  "build_seconds": 93.668499,
+  "followup_seconds": 73.56017,
+  "installed_launch_seconds": 0.066778,
+  "installed_launch_samples_seconds": [
+    0.074982,
+    0.072759,
+    0.065996,
+    0.066778,
+    0.06359
+  ],
+  "installed_launch_measurement": "Median of five fresh ./bookloom list available invocations from the relocated project.",
+  "artifact_bytes": 12263,
+  "source_bytes": 10798,
+  "interventions": [
+    "Corrected an inverted availability assertion in the initial check harness, reset the scratch database, and reran all 15 initial CLI checks.",
+    "Seeded due_on values directly with SQL after CLI checkout to make date-window, boundary, overdue, and stable-order fixtures deterministic without adding a backdate command option.",
+    "Resolved the relative .. database path before the final evidence containment check; reran all 22 final CLI checks and confirmed the database is outside the relocated project."
+  ],
+  "failures": [
+    "The first initial harness attempt failed at its final availability assertion because the assertion expected a still-checked-out book in the available list. The application state was correct; the assertion was corrected and the full sequence passed.",
+    "The first final evidence read used a lexical path check and reported database_outside_project=false for a path containing .. . The check was corrected to resolve the path, then the full final verification passed with database_outside_project=true."
+  ],
+  "recommendation": {
+    "preferred_language": "Python",
+    "reason": "In this build, Python 3.14.7 and its standard library were sufficient for a local SQLite catalog, TOML configuration, clear CLI errors, and transaction-safe mutations without dependency installation.",
+    "observed_user_benefit": "Catalog state persisted across fresh CLI processes; failed mutations left rows unchanged; due-soon rejected invalid dates before opening the database; the data directory remained caller-selected and separate from the relocated program.",
+    "material_regressions": []
+  },
+  "evidence_paths": [
+    "evaluation/completion/builder/reports/evidence/bookloom-python/\ud83d\udcda Bookloom \u2013 biblioth\u00e8que/bookloom.py",
+    "evaluation/completion/builder/reports/evidence/bookloom-python/\ud83d\udcda Bookloom \u2013 biblioth\u00e8que/bookloom",
+    "evaluation/completion/builder/reports/evidence/bookloom-python/\ud83d\udcda Bookloom \u2013 biblioth\u00e8que/bookloom.toml",
+    "evaluation/completion/builder/reports/evidence/bookloom-python/\ud83d\udcda Bookloom \u2013 biblioth\u00e8que/OPERATOR.md",
+    "evaluation/completion/builder/reports/evidence/bookloom-python/evidence/stage1.md",
+    "evaluation/completion/builder/reports/evidence/bookloom-python/evidence/stage1_initial_checks.json",
+    "evaluation/completion/builder/reports/evidence/bookloom-python/evidence/old_behavior_regression.json",
+    "evaluation/completion/builder/reports/evidence/bookloom-python/evidence/followup_due_soon_checks.json",
+    "evaluation/completion/builder/reports/evidence/bookloom-python/evidence/relocation_checks.json",
+    "evaluation/completion/builder/reports/evidence/bookloom-python/evidence/final_verification.json",
+    "evaluation/completion/builder/reports/evidence/bookloom-python/evidence/stage2_and_relocation.md",
+    "evaluation/completion/builder/reports/evidence/bookloom-python/evidence/timing-evidence.md",
+    "evaluation/completion/builder/reports/evidence/bookloom-python/contracts/aQmgaS5t0B4.limn",
+    "evaluation/completion/builder/reports/evidence/bookloom-python/report.json"
+  ],
+  "limitations": [
+    "The launch measurement invokes the executable launcher with the installed Python runtime; no pip or operating-system package installation was created.",
+    "Due-date ordering fixtures used direct SQL to set deterministic due_on values after exercising checkout through the CLI.",
+    "This isolated builder run does not contain a direct comparative Veritas execution."
+  ],
+  "budget_minutes": 15,
+  "elapsed_seconds": 563.905732
+}

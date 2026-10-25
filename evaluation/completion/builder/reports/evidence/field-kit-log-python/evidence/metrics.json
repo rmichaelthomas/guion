@@ -1,0 +1,23 @@
+{
+  "initial_correct": true,
+  "followup_correct": true,
+  "relocation_passed": true,
+  "installed_launch_seconds": 0.05395999999018386,
+  "launch_samples_seconds": [
+    0.05395999999018386,
+    0.05554037500405684,
+    0.05384037499607075,
+    0.052955124992877245,
+    0.05423112500284333
+  ],
+  "launch_definition": "median of five fresh Python processes invoking installed zipapp --help",
+  "artifact_bytes": 4477,
+  "data_directory_preexisted_install": true,
+  "relocated_runtime": "/private/tmp/veritas-fresh-builders/field-kit-log-python/Relocated kit caf\u00e9 \u0394/Moved runtime \u03a9/field-kit-log.pyz",
+  "separate_data_directory": "/private/tmp/veritas-fresh-builders/field-kit-log-python/Relocated kit caf\u00e9 \u0394/Team data Z\u00fcrich",
+  "relocation_complete_utc": "2026-10-25T10:48:11.906971+00:00",
+  "artifact_definition": "Installed field-kit-log.pyz only; excludes the shared CPython interpreter, operator data, documentation, source, and acceptance evidence.",
+  "source_bytes": 4334,
+  "operator_guide_bytes": 3140,
+  "sample_configuration_bytes": 195
+}

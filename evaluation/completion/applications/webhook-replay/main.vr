@@ -1,0 +1,417 @@
+import "std:crypto"
+import "std:json"
+import "std:sqlite"
+import "std:text"
+import "std:types"
+
+fn ascii_space(value: Text) -> Bool:
+    return value == " " or value == "\t" or value == "\r" or value == "\n" or value == "\u{000b}" or value == "\u{000c}"
+
+fn trim_ascii(value: Text) -> Text:
+    let characters = text_chars(value)
+    var start = 0
+    var end = len(characters)
+    while start < end and ascii_space(characters[start]):
+        set start = start + 1
+    while end > start and ascii_space(characters[end - 1]):
+        set end = end - 1
+    var result = ""
+    while start < end:
+        set result = result + characters[start]
+        set start = start + 1
+    return result
+
+fn hex_digit(value: Text) -> Int:
+    if value >= "0" and value <= "9":
+        let parsed = text_parse_integer(value)
+        if is_ok(parsed):
+            return unwrap(parsed)
+    if value >= "a" and value <= "f":
+        if value == "a":
+            return 10
+        if value == "b":
+            return 11
+        if value == "c":
+            return 12
+        if value == "d":
+            return 13
+        if value == "e":
+            return 14
+        return 15
+    if value >= "A" and value <= "F":
+        if value == "A":
+            return 10
+        if value == "B":
+            return 11
+        if value == "C":
+            return 12
+        if value == "D":
+            return 13
+        if value == "E":
+            return 14
+        return 15
+    return -1
+
+fn rejected_result(path: Text, reason: Text) -> Int:
+    var result = json_object()
+    set result = json_set(result, "accepted", json_bool(false))
+    set result = json_set(result, "reason", json_text(reason))
+    let written = write_text_atomic(path, json_stringify(result) + "\n")
+    if not is_ok(written):
+        eprint("cannot write ingest result")
+    return 1
+
+fn main() -> Int:
+    let arguments = args()
+    if len(arguments) < 1:
+        eprint("usage: webhook-replay init|ingest|deliver|status|dead-letters [options]")
+        return 2
+    let command = arguments[0]
+    var db_path = ""
+    var secret_path = ""
+    var body_path = ""
+    var signature = ""
+    var result_path = ""
+    var output_path = ""
+    var target = ""
+    var max_attempts = 0
+    var has_max_attempts = false
+    var index = 1
+    while index < len(arguments):
+        if arguments[index] == "--db" and index + 1 < len(arguments):
+            set db_path = arguments[index + 1]
+            set index = index + 2
+        else:
+            if arguments[index] == "--secret-file" and index + 1 < len(arguments):
+                set secret_path = arguments[index + 1]
+                set index = index + 2
+            else:
+                if arguments[index] == "--body" and index + 1 < len(arguments):
+                    set body_path = arguments[index + 1]
+                    set index = index + 2
+                else:
+                    if arguments[index] == "--signature" and index + 1 < len(arguments):
+                        set signature = arguments[index + 1]
+                        set index = index + 2
+                    else:
+                        if arguments[index] == "--result" and index + 1 < len(arguments):
+                            set result_path = arguments[index + 1]
+                            set index = index + 2
+                        else:
+                            if arguments[index] == "--output" and index + 1 < len(arguments):
+                                set output_path = arguments[index + 1]
+                                set index = index + 2
+                            else:
+                                if arguments[index] == "--target" and index + 1 < len(arguments):
+                                    set target = arguments[index + 1]
+                                    set index = index + 2
+                                else:
+                                    if arguments[index] == "--max-attempts" and index + 1 < len(arguments):
+                                        let parsed = text_parse_integer(arguments[index + 1])
+                                        if not is_ok(parsed):
+                                            eprint("--max-attempts must be a positive integer")
+                                            return 2
+                                        set max_attempts = unwrap(parsed)
+                                        set has_max_attempts = true
+                                        set index = index + 2
+                                    else:
+                                        eprint("unknown or incomplete argument")
+                                        return 2
+    if db_path == "":
+        eprint("--db PATH is required")
+        return 2
+
+    if command == "init":
+        if secret_path == "":
+            eprint("init requires --secret-file PATH")
+            return 2
+        let secret_result = read_text(secret_path)
+        if not is_ok(secret_result):
+            eprint("invalid_secret")
+            return 1
+        let secret_text = trim_ascii(unwrap(secret_result))
+        if secret_text == "":
+            eprint("invalid_secret")
+            return 1
+        let database_result = sqlite_open(db_path)
+        if not is_ok(database_result):
+            eprint("cannot initialize webhook state")
+            return 1
+        let database = unwrap(database_result)
+        let transaction_result = sqlite_begin(database)
+        if not is_ok(transaction_result):
+            eprint("cannot initialize webhook state")
+            return 1
+        let transaction = unwrap(transaction_result)
+        let created = sqlite_execute(transaction, "CREATE TABLE IF NOT EXISTS events (id TEXT PRIMARY KEY, body BLOB NOT NULL, state TEXT NOT NULL, attempts INTEGER NOT NULL DEFAULT 0, category TEXT)", [])
+        if not is_ok(created):
+            let rollback = sqlite_rollback(transaction)
+            eprint("cannot initialize webhook state")
+            return 1
+        let committed = sqlite_commit(transaction)
+        let closed = sqlite_close(database)
+        if not is_ok(committed):
+            eprint("cannot initialize webhook state")
+            return 1
+        return 0
+
+    if command == "ingest":
+        if secret_path == "" or body_path == "" or signature == "" or result_path == "":
+            eprint("ingest requires --secret-file, --body, --signature, and --result")
+            return 2
+        let secret_result = read_text(secret_path)
+        if not is_ok(secret_result):
+            return rejected_result(result_path, "invalid_secret")
+        let secret_text = trim_ascii(unwrap(secret_result))
+        if secret_text == "":
+            return rejected_result(result_path, "invalid_secret")
+        let body_bytes_result = read_bytes(body_path)
+        if not is_ok(body_bytes_result):
+            return rejected_result(result_path, "invalid_body")
+        let body_bytes = unwrap(body_bytes_result)
+        let signature_chars = text_chars(signature)
+        if len(signature_chars) != 64:
+            return rejected_result(result_path, "invalid_signature")
+        var expected_bytes: List[Int] = []
+        var signature_index = 0
+        while signature_index < 64:
+            let high = hex_digit(signature_chars[signature_index])
+            let low = hex_digit(signature_chars[signature_index + 1])
+            if high < 0 or low < 0:
+                return rejected_result(result_path, "invalid_signature")
+            set expected_bytes = list_push(expected_bytes, high * 16 + low)
+            set signature_index = signature_index + 2
+        let expected = bytes_from_ints(expected_bytes)
+        let secret = bytes_from_text(secret_text)
+        if not crypto_verify_hmac_sha256(secret, body_bytes, expected):
+            return rejected_result(result_path, "invalid_signature")
+        let body_text_result = read_text(body_path)
+        if not is_ok(body_text_result):
+            return rejected_result(result_path, "invalid_body")
+        let event_result = json_parse(unwrap(body_text_result))
+        if not is_ok(event_result):
+            return rejected_result(result_path, "invalid_body")
+        let event = unwrap(event_result)
+        let id_json = json_get_safe(event, "id")
+        let payload_exists = json_has(event, "payload")
+        if not is_ok(id_json) or not payload_exists:
+            return rejected_result(result_path, "invalid_body")
+        let id_result = json_text_safe(unwrap(id_json))
+        if not is_ok(id_result) or unwrap(id_result) == "":
+            return rejected_result(result_path, "invalid_body")
+        let event_id = unwrap(id_result)
+        let database_result = sqlite_open(db_path)
+        if not is_ok(database_result):
+            eprint("cannot open webhook state")
+            return 1
+        let database = unwrap(database_result)
+        let transaction_result = sqlite_begin(database)
+        if not is_ok(transaction_result):
+            eprint("cannot begin webhook transaction")
+            return 1
+        let transaction = unwrap(transaction_result)
+        let existing = sqlite_query(transaction, "SELECT id FROM events WHERE id=?", [sql_text(event_id)])
+        if not is_ok(existing):
+            let rollback = sqlite_rollback(transaction)
+            eprint("cannot query webhook state")
+            return 1
+        if len(unwrap(existing)) > 0:
+            let rollback = sqlite_rollback(transaction)
+            let closed = sqlite_close(database)
+            return rejected_result(result_path, "duplicate_id")
+        let inserted = sqlite_execute(transaction, "INSERT INTO events(id,body,state,attempts) VALUES(?,?,?,0)", [sql_text(event_id), sql_blob(body_bytes), sql_text("pending")])
+        if not is_ok(inserted):
+            let rollback = sqlite_rollback(transaction)
+            eprint("cannot store webhook event")
+            return 1
+        let committed = sqlite_commit(transaction)
+        let closed = sqlite_close(database)
+        if not is_ok(committed):
+            eprint("cannot store webhook event")
+            return 1
+        var result = json_object()
+        set result = json_set(result, "accepted", json_bool(true))
+        set result = json_set(result, "id", json_text(event_id))
+        let written = write_text_atomic(result_path, json_stringify(result) + "\n")
+        if not is_ok(written):
+            eprint("cannot write ingest result")
+            return 1
+        return 0
+
+    if command == "deliver":
+        if target == "" or result_path == "":
+            eprint("deliver requires --target URL and --result PATH")
+            return 2
+        if has_max_attempts and max_attempts < 1:
+            eprint("--max-attempts must be a positive integer")
+            return 2
+        let database_result = sqlite_open(db_path)
+        if not is_ok(database_result):
+            eprint("cannot open webhook state")
+            return 1
+        let database = unwrap(database_result)
+        let snapshot_result = sqlite_begin(database)
+        if not is_ok(snapshot_result):
+            eprint("cannot read webhook state")
+            return 1
+        let snapshot = unwrap(snapshot_result)
+        let pending_result = sqlite_query(snapshot, "SELECT id,body,attempts FROM events WHERE state='pending' ORDER BY id", [])
+        if not is_ok(pending_result):
+            let rollback = sqlite_rollback(snapshot)
+            eprint("cannot read webhook state")
+            return 1
+        let pending_rows = unwrap(pending_result)
+        let snapshot_commit = sqlite_commit(snapshot)
+        var pending_ids = json_array()
+        var delivered_ids = json_array()
+        var dead_lettered_ids = json_array()
+        var delivery_failed = false
+        var row_index = 0
+        while row_index < len(pending_rows):
+            let row = pending_rows[row_index]
+            let event_id = row.values[0].text
+            let body = row.values[1].blob
+            let prior_attempts = row.values[2].integer
+            var delivered = false
+            if has_max_attempts and prior_attempts >= max_attempts:
+                set dead_lettered_ids = json_push(dead_lettered_ids, json_text(event_id))
+                set delivery_failed = true
+                let update_result = sqlite_begin(database)
+                if not is_ok(update_result):
+                    eprint("cannot update webhook delivery state")
+                    return 1
+                let update = unwrap(update_result)
+                let moved = sqlite_execute(update, "UPDATE events SET state='dead_letter',category='http_failure' WHERE id=? AND state='pending' AND attempts>=?", [sql_text(event_id), sql_integer(max_attempts)])
+                if not is_ok(moved):
+                    let rollback = sqlite_rollback(update)
+                    eprint("cannot update webhook delivery state")
+                    return 1
+                let moved_commit = sqlite_commit(update)
+                if not is_ok(moved_commit):
+                    eprint("cannot commit webhook delivery state")
+                    return 1
+            else:
+                let headers: Map[Text, Text] = {"content-type": "application/json"}
+                let response = http_request_bytes("POST", target, headers, body, 2000)
+                if is_ok(response):
+                    let status = unwrap(response).status
+                    if status >= 200 and status < 300:
+                        set delivered = true
+                if not delivered:
+                    set delivery_failed = true
+                let update_result = sqlite_begin(database)
+                if not is_ok(update_result):
+                    eprint("cannot update webhook delivery state")
+                    return 1
+                let update = unwrap(update_result)
+                let attempts = prior_attempts + 1
+                var state = "pending"
+                var category = ""
+                if delivered:
+                    set state = "delivered"
+                    set delivered_ids = json_push(delivered_ids, json_text(event_id))
+                else:
+                    if has_max_attempts and attempts >= max_attempts:
+                        set state = "dead_letter"
+                        set category = "http_failure"
+                        set dead_lettered_ids = json_push(dead_lettered_ids, json_text(event_id))
+                    else:
+                        set pending_ids = json_push(pending_ids, json_text(event_id))
+                var updated = sqlite_execute(update, "UPDATE events SET attempts=?,state=?,category=? WHERE id=? AND state='pending'", [sql_integer(attempts), sql_text(state), sql_text(category), sql_text(event_id)])
+                if not is_ok(updated):
+                    let rollback = sqlite_rollback(update)
+                    eprint("cannot update webhook delivery state")
+                    return 1
+                let update_commit = sqlite_commit(update)
+                if not is_ok(update_commit):
+                    eprint("cannot commit webhook delivery state")
+                    return 1
+            set row_index = row_index + 1
+        let closed = sqlite_close(database)
+        var result = json_object()
+        set result = json_set(result, "pending", pending_ids)
+        set result = json_set(result, "delivered", delivered_ids)
+        if has_max_attempts:
+            set result = json_set(result, "dead_lettered", dead_lettered_ids)
+        let written = write_text_atomic(result_path, json_stringify(result) + "\n")
+        if not is_ok(written):
+            eprint("cannot write delivery result")
+            return 1
+        if delivery_failed:
+            return 1
+        return 0
+
+    if command == "status":
+        if output_path == "":
+            eprint("status requires --output PATH")
+            return 2
+        let database_result = sqlite_open(db_path)
+        if not is_ok(database_result):
+            eprint("cannot open webhook state")
+            return 1
+        let database = unwrap(database_result)
+        let transaction_result = sqlite_begin(database)
+        if not is_ok(transaction_result):
+            eprint("cannot read webhook state")
+            return 1
+        let transaction = unwrap(transaction_result)
+        let rows = sqlite_query(transaction, "SELECT id,state FROM events WHERE state IN ('pending','delivered') ORDER BY id", [])
+        if not is_ok(rows):
+            let rollback = sqlite_rollback(transaction)
+            eprint("cannot read webhook state")
+            return 1
+        var pending = json_array()
+        var delivered = json_array()
+        for row in unwrap(rows):
+            if row.values[1].text == "pending":
+                set pending = json_push(pending, json_text(row.values[0].text))
+            else:
+                set delivered = json_push(delivered, json_text(row.values[0].text))
+        let committed = sqlite_commit(transaction)
+        let closed = sqlite_close(database)
+        var result = json_object()
+        set result = json_set(result, "pending", pending)
+        set result = json_set(result, "delivered", delivered)
+        let written = write_text_atomic(output_path, json_stringify(result) + "\n")
+        if not is_ok(written):
+            eprint("cannot write status")
+            return 1
+        return 0
+
+    if command == "dead-letters":
+        if output_path == "":
+            eprint("dead-letters requires --output PATH")
+            return 2
+        let database_result = sqlite_open(db_path)
+        if not is_ok(database_result):
+            eprint("cannot open webhook state")
+            return 1
+        let database = unwrap(database_result)
+        let transaction_result = sqlite_begin(database)
+        if not is_ok(transaction_result):
+            eprint("cannot read webhook state")
+            return 1
+        let transaction = unwrap(transaction_result)
+        let rows = sqlite_query(transaction, "SELECT id,category,attempts FROM events WHERE state='dead_letter' ORDER BY id", [])
+        if not is_ok(rows):
+            let rollback = sqlite_rollback(transaction)
+            eprint("cannot read dead-letter state")
+            return 1
+        var dead_letters = json_array()
+        for row in unwrap(rows):
+            var item = json_object()
+            set item = json_set(item, "id", json_text(row.values[0].text))
+            set item = json_set(item, "category", json_text(row.values[1].text))
+            set item = json_set(item, "attempts", json_int(row.values[2].integer))
+            set dead_letters = json_push(dead_letters, item)
+        let committed = sqlite_commit(transaction)
+        let closed = sqlite_close(database)
+        var result = json_object()
+        set result = json_set(result, "dead_letters", dead_letters)
+        let written = write_text_atomic(output_path, json_stringify(result) + "\n")
+        if not is_ok(written):
+            eprint("cannot write dead-letter report")
+            return 1
+        return 0
+    eprint("unknown webhook command")
+    return 2

@@ -1,0 +1,1 @@
+{"artifact_sha256":"69f8f5cb37f8d0156cee730ea67442dd4dfb39ff6201a31f6ec745854960e305","directory":"app-package","kind":"veritas_package_report","package_metadata_sha256":"6fe254b997bb325c7e1e126747c9278726d186cd02ffce135936dc1a2a37ad06","package_schema_version":2,"python_runtime_included":false,"resource_count":1,"schema_version":1,"status":"packaged","target":"macos-aarch64"}

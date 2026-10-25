@@ -1,0 +1,11 @@
+invoice_id	vendor	amount_cents	due_date	state
+A1	Acme	100	2026-01-01	open
+B1	Beta	250	2026-01-10	open
+A2	Acme	300	2026-02-01	open
+B2	Beta	999	2025-12-01	paid
+U1	Café 雪	9007199254740993	2026-01-14	open
+X1	Acme	bad	2026-01-01	open
+X2	Beta	10	2026-02-30	open
+malformed
+X3	Beta	10	2026-01-01	unknown
+A3	Acme	50	2026-01-15	open

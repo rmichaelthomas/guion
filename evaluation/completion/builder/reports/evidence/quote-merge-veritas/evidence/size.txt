@@ -1,0 +1,2 @@
+artifact_bytes=36267
+files=quote-merge/src/main.vr, quote-merge/src/main.vrb, quote-merge/README.md, quote-merge/veritas.toml, quote-merge/feeds.txt, quote-merge/quote-report.json

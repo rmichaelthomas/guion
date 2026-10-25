@@ -1,0 +1,7 @@
+installed launch timing command: /usr/bin/time -p veritas run --file-root /private/tmp/veritas-fresh-builders/bookloom-veritas/test-data /private/tmp/veritas-fresh-builders/bookloom-veritas/app list
+BK-001 | A Long Way to a Small, Angry Planet | Becky Chambers | available
+BK-002 | A Psalm for the Wild-Built | Becky Chambers | checked_out | Alex Quinn | due 2026-11-08
+BK-003 | The Dispossessed | Ursula K. Le Guin | available
+real 0.48
+user 0.46
+sys 0.01

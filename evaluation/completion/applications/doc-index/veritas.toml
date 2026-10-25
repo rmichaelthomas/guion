@@ -1,0 +1,10 @@
+[project]
+name = "doc-index"
+version = "1.0.0"
+entry = "main.vr"
+
+[package]
+resources = []
+
+[runtime]
+instruction_limit = 4000000

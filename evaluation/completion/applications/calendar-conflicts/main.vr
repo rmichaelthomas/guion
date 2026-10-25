@@ -1,0 +1,368 @@
+import "std:calendar"
+import "std:json"
+import "std:text"
+import "std:time"
+import "std:types"
+
+fn failed_source(name: Text, category: Text) -> Json:
+    var value = json_object()
+    set value = json_set(value, "name", json_text(name))
+    set value = json_set(value, "error", json_text(category))
+    return value
+
+fn fetch_calendar(source: Json) -> Json:
+    let name = json_as_text(json_get(source, "name"))
+    let url = json_as_text(json_get(source, "url"))
+    let deadline = json_as_int(json_get(source, "timeout_ms"))
+    let headers: Map[Text, Text] = {}
+    let response = http_request_with_timeout("GET", url, headers, "", deadline)
+    if not is_ok(response):
+        let problem = error(response)
+        if http_error_code(problem) == "R_HTTP_TIMEOUT":
+            return failed_source(name, "timeout")
+        return failed_source(name, "http")
+    let envelope = unwrap(response)
+    let status = json_as_int(json_get(envelope, "status"))
+    if status < 200 or status >= 300:
+        return failed_source(name, "http")
+    let content = json_as_text(json_get(envelope, "body"))
+    let parsed = calendar_parse(content)
+    if not is_ok(parsed):
+        return failed_source(name, "invalid_calendar")
+
+    let window_start = unwrap(parse_timestamp(json_as_text(json_get(source, "window_start"))))
+    let window_end = unwrap(parse_timestamp(json_as_text(json_get(source, "window_end"))))
+    let include_tentative = json_as_bool(json_get(source, "include_tentative"))
+    var events = json_array()
+    for event in unwrap(parsed):
+        let ignored = event.all_day or event.status == "CANCELLED" or (event.status == "TENTATIVE" and not include_tentative)
+        if not ignored:
+            if not is_some(event.start) or not is_some(event.end):
+                return failed_source(name, "invalid_calendar")
+            let start = unwrap(event.start)
+            let end = unwrap(event.end)
+            if event.uid == "" or end.unix_microseconds <= start.unix_microseconds:
+                return failed_source(name, "invalid_calendar")
+            let outside_window = start.unix_microseconds >= window_end.unix_microseconds or end.unix_microseconds <= window_start.unix_microseconds
+            if not outside_window:
+                var clipped_start = start
+                var clipped_end = end
+                if clipped_start.unix_microseconds < window_start.unix_microseconds:
+                    set clipped_start = window_start
+                if clipped_end.unix_microseconds > window_end.unix_microseconds:
+                    set clipped_end = window_end
+                var value = json_object()
+                set value = json_set(value, "calendar", json_text(name))
+                set value = json_set(value, "id", json_text(event.uid))
+                set value = json_set(value, "start", json_text(format_utc(clipped_start)))
+                set value = json_set(value, "end", json_text(format_utc(clipped_end)))
+                set value = json_set(value, "start_us", json_int(clipped_start.unix_microseconds))
+                set value = json_set(value, "end_us", json_int(clipped_end.unix_microseconds))
+                set events = json_push(events, value)
+    var result = json_object()
+    set result = json_set(result, "name", json_text(name))
+    set result = json_set(result, "ok", json_bool(true))
+    set result = json_set(result, "events", events)
+    return result
+
+fn conflict_before(left: Json, right: Json) -> Bool:
+    let left_start = json_as_int(json_get(left, "start_us"))
+    let right_start = json_as_int(json_get(right, "start_us"))
+    if left_start != right_start:
+        return left_start < right_start
+    let left_end = json_as_int(json_get(left, "end_us"))
+    let right_end = json_as_int(json_get(right, "end_us"))
+    if left_end != right_end:
+        return left_end < right_end
+    let left_ids = json_get(left, "event_ids")
+    let right_ids = json_get(right, "event_ids")
+    let first_left = json_as_text(json_index(left_ids, 0))
+    let first_right = json_as_text(json_index(right_ids, 0))
+    if first_left != first_right:
+        return first_left < first_right
+    return json_as_text(json_index(left_ids, 1)) < json_as_text(json_index(right_ids, 1))
+
+fn event_before(left: Json, right: Json) -> Bool:
+    let left_start = json_as_int(json_get(left, "start_us"))
+    let right_start = json_as_int(json_get(right, "start_us"))
+    if left_start != right_start:
+        return left_start < right_start
+    let left_end = json_as_int(json_get(left, "end_us"))
+    let right_end = json_as_int(json_get(right, "end_us"))
+    if left_end != right_end:
+        return left_end < right_end
+    let left_id = json_as_text(json_get(left, "id"))
+    let right_id = json_as_text(json_get(right, "id"))
+    if left_id != right_id:
+        return text_compare_bytes(left_id, right_id) < 0
+    return text_compare_bytes(json_as_text(json_get(left, "calendar")), json_as_text(json_get(right, "calendar"))) < 0
+
+fn sort_events(values: List[Json]) -> List[Json]:
+    var ordered = values
+    var width = 1
+    while width < len(ordered):
+        var merged: List[Json] = []
+        var merge_start = 0
+        while merge_start < len(ordered):
+            var left_index = merge_start
+            var middle = merge_start + width
+            if middle > len(ordered):
+                set middle = len(ordered)
+            var right_index = middle
+            var end_index = middle + width
+            if end_index > len(ordered):
+                set end_index = len(ordered)
+            while left_index < middle and right_index < end_index:
+                if event_before(ordered[left_index], ordered[right_index]):
+                    set merged = list_push(merged, ordered[left_index])
+                    set left_index = left_index + 1
+                else:
+                    set merged = list_push(merged, ordered[right_index])
+                    set right_index = right_index + 1
+            while left_index < middle:
+                set merged = list_push(merged, ordered[left_index])
+                set left_index = left_index + 1
+            while right_index < end_index:
+                set merged = list_push(merged, ordered[right_index])
+                set right_index = right_index + 1
+            set merge_start = end_index
+        set ordered = merged
+        set width = width * 2
+    return ordered
+
+fn sort_conflicts(values: List[Json]) -> List[Json]:
+    var ordered = values
+    var width = 1
+    while width < len(ordered):
+        var merged: List[Json] = []
+        var merge_start = 0
+        while merge_start < len(ordered):
+            var left_index = merge_start
+            var middle = merge_start + width
+            if middle > len(ordered):
+                set middle = len(ordered)
+            var right_index = middle
+            var end_index = middle + width
+            if end_index > len(ordered):
+                set end_index = len(ordered)
+            while left_index < middle and right_index < end_index:
+                if conflict_before(ordered[left_index], ordered[right_index]):
+                    set merged = list_push(merged, ordered[left_index])
+                    set left_index = left_index + 1
+                else:
+                    set merged = list_push(merged, ordered[right_index])
+                    set right_index = right_index + 1
+            while left_index < middle:
+                set merged = list_push(merged, ordered[left_index])
+                set left_index = left_index + 1
+            while right_index < end_index:
+                set merged = list_push(merged, ordered[right_index])
+                set right_index = right_index + 1
+            set merge_start = end_index
+        set ordered = merged
+        set width = width * 2
+    return ordered
+
+fn main() -> Int:
+    let arguments = args()
+    var sources_path = ""
+    var window_start_text = ""
+    var window_end_text = ""
+    var output_path = ""
+    var concurrency = 4
+    var timeout_ms = 1000
+    var include_tentative = false
+    var index = 0
+    while index < len(arguments):
+        if arguments[index] == "--sources" and index + 1 < len(arguments):
+            set sources_path = arguments[index + 1]
+            set index = index + 2
+        else:
+            if arguments[index] == "--window-start" and index + 1 < len(arguments):
+                set window_start_text = arguments[index + 1]
+                set index = index + 2
+            else:
+                if arguments[index] == "--window-end" and index + 1 < len(arguments):
+                    set window_end_text = arguments[index + 1]
+                    set index = index + 2
+                else:
+                    if arguments[index] == "--output" and index + 1 < len(arguments):
+                        set output_path = arguments[index + 1]
+                        set index = index + 2
+                    else:
+                        if arguments[index] == "--concurrency" and index + 1 < len(arguments):
+                            let parsed = text_parse_integer(arguments[index + 1])
+                            if not is_ok(parsed):
+                                eprint("concurrency must be a positive integer")
+                                return 2
+                            set concurrency = unwrap(parsed)
+                            set index = index + 2
+                        else:
+                            if arguments[index] == "--timeout-ms" and index + 1 < len(arguments):
+                                let parsed = text_parse_integer(arguments[index + 1])
+                                if not is_ok(parsed):
+                                    eprint("timeout-ms must be a positive integer")
+                                    return 2
+                                set timeout_ms = unwrap(parsed)
+                                set index = index + 2
+                            else:
+                                if arguments[index] == "--include-tentative":
+                                    set include_tentative = true
+                                    set index = index + 1
+                                else:
+                                    eprint("unknown or incomplete argument")
+                                    return 2
+    if sources_path == "" or window_start_text == "" or window_end_text == "" or output_path == "":
+        eprint("usage: calendar-conflicts --sources PATH --window-start RFC3339 --window-end RFC3339 --output PATH --concurrency N --timeout-ms N [--include-tentative]")
+        return 2
+    if concurrency < 1 or timeout_ms < 1:
+        eprint("concurrency and timeout must be positive")
+        return 2
+    let start_result = parse_timestamp(window_start_text)
+    let end_result = parse_timestamp(window_end_text)
+    if not is_ok(start_result) or not is_ok(end_result):
+        eprint("timestamp must use RFC3339 date-time syntax")
+        return 1
+    let window_start = unwrap(start_result)
+    let window_end = unwrap(end_result)
+    if window_start.unix_microseconds >= window_end.unix_microseconds:
+        eprint("window start must be before window end")
+        return 1
+
+    let sources_text = read_text(sources_path)
+    if not is_ok(sources_text):
+        eprint("cannot read sources file")
+        return 1
+    let sources_result = json_parse(unwrap(sources_text))
+    if not is_ok(sources_result):
+        eprint("sources must be valid JSON")
+        return 1
+    let source_doc = unwrap(sources_result)
+    let calendars_result = json_get_safe(source_doc, "calendars")
+    if not is_ok(calendars_result):
+        eprint("sources must include a calendars array")
+        return 1
+    let calendars = unwrap(calendars_result)
+    var seen_names: Map[Text, Bool] = {}
+    var work: List[Json] = []
+    var calendar_index = 0
+    while calendar_index < json_len(calendars):
+        let source = json_index(calendars, calendar_index)
+        let name_json = json_get_safe(source, "name")
+        let url_json = json_get_safe(source, "url")
+        if not is_ok(name_json) or not is_ok(url_json):
+            eprint("each calendar requires nonempty name and url fields")
+            return 1
+        let name_result = json_text_safe(unwrap(name_json))
+        let url_result = json_text_safe(unwrap(url_json))
+        if not is_ok(name_result) or not is_ok(url_result) or unwrap(name_result) == "" or unwrap(url_result) == "":
+            eprint("each calendar requires nonempty name and url fields")
+            return 1
+        let name = unwrap(name_result)
+        if map_has(seen_names, name):
+            eprint("calendar names must be unique: " + name)
+            return 1
+        set seen_names = map_set(seen_names, name, true)
+        var item = json_set(source, "timeout_ms", json_int(timeout_ms))
+        set item = json_set(item, "window_start", json_text(window_start_text))
+        set item = json_set(item, "window_end", json_text(window_end_text))
+        set item = json_set(item, "include_tentative", json_bool(include_tentative))
+        set work = list_push(work, item)
+        set calendar_index = calendar_index + 1
+    let fetched = parallel_map(work, fetch_calendar, concurrency)
+    if not is_ok(fetched):
+        let problem = error(fetched)
+        eprint("calendar requests failed: " + task_code(problem))
+        return 1
+
+    var events: List[Json] = []
+    var source_errors: Map[Text, Text] = {}
+    for result in unwrap(fetched):
+        let name = json_as_text(json_get(result, "name"))
+        if json_has(result, "error"):
+            set source_errors = map_set(source_errors, name, json_as_text(json_get(result, "error")))
+        else:
+            let found = json_get(result, "events")
+            var event_index = 0
+            while event_index < json_len(found):
+                set events = list_push(events, json_index(found, event_index))
+                set event_index = event_index + 1
+
+    let sorted_events = sort_events(events)
+    var conflicts: List[Json] = []
+    var left_index = 0
+    while left_index < len(sorted_events):
+        let left = sorted_events[left_index]
+        let left_start = json_as_int(json_get(left, "start_us"))
+        let left_end = json_as_int(json_get(left, "end_us"))
+        let left_calendar = json_as_text(json_get(left, "calendar"))
+        let left_id = json_as_text(json_get(left, "id"))
+        var right_index = left_index + 1
+        var within_left_window = true
+        while right_index < len(sorted_events) and within_left_window:
+            let right = sorted_events[right_index]
+            let right_start = json_as_int(json_get(right, "start_us"))
+            if right_start >= left_end:
+                set within_left_window = false
+            else:
+                let right_calendar = json_as_text(json_get(right, "calendar"))
+                if left_calendar != right_calendar:
+                    let right_end = json_as_int(json_get(right, "end_us"))
+                    let overlap_start = right_start
+                    var overlap_end = left_end
+                    var end_text = json_as_text(json_get(left, "end"))
+                    if right_end < overlap_end:
+                        set overlap_end = right_end
+                        set end_text = json_as_text(json_get(right, "end"))
+                    if overlap_start < overlap_end:
+                        let right_id = json_as_text(json_get(right, "id"))
+                        var first_id = left_id
+                        var second_id = right_id
+                        if right_id < left_id:
+                            set first_id = right_id
+                            set second_id = left_id
+                        var first_calendar = left_calendar
+                        var second_calendar = right_calendar
+                        if right_calendar < left_calendar:
+                            set first_calendar = right_calendar
+                            set second_calendar = left_calendar
+                        var ids = json_array()
+                        set ids = json_push(ids, json_text(first_id))
+                        set ids = json_push(ids, json_text(second_id))
+                        var names = json_array()
+                        set names = json_push(names, json_text(first_calendar))
+                        set names = json_push(names, json_text(second_calendar))
+                        var conflict = json_object()
+                        set conflict = json_set(conflict, "start", json_get(right, "start"))
+                        set conflict = json_set(conflict, "end", json_text(end_text))
+                        set conflict = json_set(conflict, "start_us", json_int(overlap_start))
+                        set conflict = json_set(conflict, "end_us", json_int(overlap_end))
+                        set conflict = json_set(conflict, "event_ids", ids)
+                        set conflict = json_set(conflict, "calendars", names)
+                        set conflicts = list_push(conflicts, conflict)
+            set right_index = right_index + 1
+        set left_index = left_index + 1
+
+    let sorted_conflicts = sort_conflicts(conflicts)
+    var conflict_output = json_array()
+    for conflict in sorted_conflicts:
+        var public_conflict = json_object()
+        set public_conflict = json_set(public_conflict, "start", json_get(conflict, "start"))
+        set public_conflict = json_set(public_conflict, "end", json_get(conflict, "end"))
+        set public_conflict = json_set(public_conflict, "event_ids", json_get(conflict, "event_ids"))
+        set public_conflict = json_set(public_conflict, "calendars", json_get(conflict, "calendars"))
+        set conflict_output = json_push(conflict_output, public_conflict)
+    var errors = json_array()
+    for name in source_errors:
+        var item = json_object()
+        set item = json_set(item, "calendar", json_text(name))
+        set item = json_set(item, "category", json_text(source_errors[name]))
+        set errors = json_push(errors, item)
+    var report = json_object()
+    set report = json_set(report, "conflicts", conflict_output)
+    set report = json_set(report, "source_errors", errors)
+    let written = write_text_atomic(output_path, json_stringify(report) + "\n")
+    if not is_ok(written):
+        eprint("cannot write conflict report")
+        return 1
+    return 0

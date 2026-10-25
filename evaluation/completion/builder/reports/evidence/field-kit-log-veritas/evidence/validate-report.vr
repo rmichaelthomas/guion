@@ -1,0 +1,14 @@
+fn main() -> Int:
+    let argv = args()
+    let parsed = json_parse(unwrap(read_text(argv[0])))
+    assert(is_ok(parsed))
+    let report = unwrap(parsed)
+    assert(json_as_int(json_get(report, "schema_version")) == 1)
+    assert(json_as_text(json_get(report, "assignment_id")) == "field-kit-log-veritas")
+    assert(json_as_text(json_get(report, "status")) == "complete")
+    assert(json_as_int(json_get(report, "elapsed_seconds")) <= 900)
+    assert(json_as_bool(json_get(report, "initial_correct")))
+    assert(json_as_bool(json_get(report, "followup_correct")))
+    assert(json_as_bool(json_get(report, "relocation_passed")))
+    print("PASS report parses as JSON with expected identity, completion and timing fields")
+    return 0

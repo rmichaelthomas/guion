@@ -1,0 +1,52 @@
+import "std:time"
+
+pub record StdError:
+    code: Text
+    message: Text
+    path: Text
+    line: Int
+    column: Int
+
+pub record SqlValue:
+    kind: Text
+    integer: Int
+    real: Float64
+    text: Text
+    blob: Bytes
+
+pub record SqlRow:
+    columns: List[Text]
+    values: List[SqlValue]
+
+pub record CalendarEvent:
+    uid: Text
+    start: Option[Instant]
+    end: Option[Instant]
+    start_date: Option[Date]
+    end_date: Option[Date]
+    status: Text
+    all_day: Bool
+    recurrence_rule: Option[Text]
+
+pub record HttpResponse:
+    status: Int
+    headers: Map[Text, Text]
+    body: Bytes
+
+pub fn std_error(code: Text, message: Text) -> StdError:
+    return StdError(code, message, "", 0, 0)
+
+pub fn sql_null() -> SqlValue:
+    return SqlValue("null", 0, 0.0, "", bytes_from_text(""))
+
+pub fn sql_integer(value: Int) -> SqlValue:
+    return SqlValue("integer", value, 0.0, "", bytes_from_text(""))
+
+pub fn sql_real(value: Float64) -> SqlValue:
+    return SqlValue("real", 0, value, "", bytes_from_text(""))
+
+pub fn sql_text(value: Text) -> SqlValue:
+    return SqlValue("text", 0, 0.0, value, bytes_from_text(""))
+
+pub fn sql_blob(value: Bytes) -> SqlValue:
+    return SqlValue("blob", 0, 0.0, "", value)

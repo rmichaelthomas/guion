@@ -1,0 +1,22 @@
+import "std:types"
+
+pub fn sqlite_open(path: Text) -> Result[Db, StdError]:
+    return native_sqlite_open(path)
+
+pub fn sqlite_begin(database: Db) -> Result[Transaction, StdError]:
+    return native_sqlite_begin(database)
+
+pub fn sqlite_execute(transaction: Transaction, sql: Text, values: List[SqlValue]) -> Result[Int, StdError]:
+    return native_sqlite_execute(transaction, sql, values)
+
+pub fn sqlite_query(transaction: Transaction, sql: Text, values: List[SqlValue]) -> Result[List[SqlRow], StdError]:
+    return native_sqlite_query(transaction, sql, values)
+
+pub fn sqlite_commit(transaction: Transaction) -> Result[Unit, StdError]:
+    return native_sqlite_commit(transaction)
+
+pub fn sqlite_rollback(transaction: Transaction) -> Result[Unit, StdError]:
+    return native_sqlite_rollback(transaction)
+
+pub fn sqlite_close(database: Db) -> Result[Unit, StdError]:
+    return native_sqlite_close(database)

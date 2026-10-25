@@ -1,0 +1,3 @@
+exec_wall_time_seconds=1.179403167
+exit_code=0
+workdir=/private/tmp/veritas-fresh-builders/quote-merge-veritas/relocated/📦 Quote Merge_日本語/Quote Merge

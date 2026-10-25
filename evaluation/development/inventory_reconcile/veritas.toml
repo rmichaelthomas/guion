@@ -2,3 +2,6 @@
 name = "inventory-reconcile"
 version = "0.1.0"
 entry = "main.vr"
+
+[runtime]
+instruction_limit = 500000000

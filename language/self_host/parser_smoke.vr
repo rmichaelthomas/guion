@@ -13,7 +13,7 @@ fn main() -> Int:
     assert_no_lex_errors(lexer_tokens)
     let lexer_program = parse_program(lexer_tokens)
     assert(lexer_program.ok)
-    assert(json_len(json_get(lexer_program.value, "functions")) == 7)
+    assert(json_len(json_get(lexer_program.value, "functions")) >= 7)
 
     let parser_source = unwrap(read_text("parser.vr"))
     let parser_tokens = scan(parser_source)

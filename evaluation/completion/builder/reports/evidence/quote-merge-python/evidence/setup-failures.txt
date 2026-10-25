@@ -1,0 +1,1 @@
+First check.py initial invocation exited 1 because fixture subprocess could not bind loopback in sandbox. Harness saw empty port output and raised ValueError. Direct fixture invocation confirmed PermissionError: [Errno 1] Operation not permitted at socket.bind((127.0.0.1,0)). The same checks passed after requesting local network elevation. No source correction was needed.

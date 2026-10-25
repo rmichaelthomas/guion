@@ -1,0 +1,2571 @@
+{
+  "artifact_bytes": {
+    "jsonl-summary-data": 58199,
+    "mandelbrot-image": 5674,
+    "nbody-numeric": 23606,
+    "parallel-cpu-20000": 2896,
+    "parallel-cpu-200000": 2900,
+    "richards-scheduler": 41008
+  },
+  "build_seconds": {
+    "jsonl-summary-data": 1.259829874994466,
+    "mandelbrot-image": 0.06144641600258183,
+    "mandelbrot-image_warm": 0.06705812500149477,
+    "nbody-numeric": 0.2277814160042908,
+    "nbody-numeric_warm": 0.231389249995118,
+    "parallel-cpu-20000": 0.05251637499895878,
+    "parallel-cpu-200000": 0.04560949999722652,
+    "richards-scheduler": 1.2358795409963932,
+    "richards-scheduler_warm": 0.8989450829976704
+  },
+  "fixed_inputs": {
+    "bootstrap_resamples": 20000,
+    "bootstrap_seed": 20261026,
+    "candidate_order": "seeded shuffle per paired trial",
+    "compute_trials": 15,
+    "data_trials": 16,
+    "seed": 20261025,
+    "warm_repetitions": 5,
+    "warmups": 2
+  },
+  "free_threaded_python": {
+    "available": false,
+    "reason": "No python3.14t or python3t executable is installed; free-threaded concurrency comparison cannot be measured on this host.",
+    "status": "unverified"
+  },
+  "kind": "veritas-installed-performance-report",
+  "package_archive_sha256": "323755bec4b8ce389e7d01c1793e1d3502497360e10dcd06f21ce6fbcf378d6a",
+  "package_archive_size_bytes": 5414422,
+  "package_size_bytes": 15428255,
+  "peak_memory_bytes": {
+    "jsonl-summary-data/veritas_artifact": 12468224,
+    "mandelbrot-image/python_reference": 15237120,
+    "mandelbrot-image/python_warm": 15908864,
+    "mandelbrot-image/veritas_artifact": 11714560,
+    "mandelbrot-image/veritas_source": 34996224,
+    "mandelbrot-image/veritas_warm_artifact": 11878400,
+    "nbody-numeric/python_reference": 15466496,
+    "nbody-numeric/python_warm": 16334848,
+    "nbody-numeric/veritas_artifact": 172883968,
+    "nbody-numeric/veritas_source": 205504512,
+    "nbody-numeric/veritas_warm_artifact": 797753344,
+    "parallel-cpu-20000/python_processes": 24248320,
+    "parallel-cpu-20000/python_serial": 22380544,
+    "parallel-cpu-20000/python_threads": 22151168,
+    "parallel-cpu-20000/python_warm": 22315008,
+    "parallel-cpu-20000/veritas_artifact": 10813440,
+    "parallel-cpu-20000/veritas_source": 34799616,
+    "parallel-cpu-20000/veritas_warm_artifact": 11059200,
+    "parallel-cpu-200000/python_processes": 24313856,
+    "parallel-cpu-200000/python_serial": 21938176,
+    "parallel-cpu-200000/python_threads": 22052864,
+    "parallel-cpu-200000/python_warm": 22102016,
+    "parallel-cpu-200000/veritas_artifact": 10911744,
+    "parallel-cpu-200000/veritas_source": 33767424,
+    "parallel-cpu-200000/veritas_warm_artifact": 11141120,
+    "richards-scheduler/python_reference": 19234816,
+    "richards-scheduler/python_warm": 20414464,
+    "richards-scheduler/veritas_artifact": 60768256,
+    "richards-scheduler/veritas_source": 83361792,
+    "richards-scheduler/veritas_warm_artifact": 186777600
+  },
+  "platform": {
+    "architecture": "arm64",
+    "platform": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+    "release_binary": "/Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/work/veritas-foundation/target/completion/releases/macos-aarch64/current/bin/veritas",
+    "release_binary_sha256": "38147dcadf3ca138d4f863ea5acdb615b6f4cd513bef293f7ddf60627f32eee1"
+  },
+  "python": {
+    "executable": "/opt/homebrew/opt/python@3.14/bin/python3.14",
+    "gil_enabled": true,
+    "matches_pinned": true,
+    "pinned_version": "3.14.7",
+    "version": "3.14.7 (main, Aug  5 2026, 10:29:49) [Clang 21.0.0 (clang-2100.1.1.101)]"
+  },
+  "required_speed_wins": {
+    "all_required_wins_observed": true,
+    "comparisons": {
+      "jsonl-summary-data": {
+        "python_data": true
+      },
+      "mandelbrot-image": {
+        "python_reference": true
+      },
+      "nbody-numeric": {
+        "python_reference": true
+      },
+      "parallel-cpu-200000": {
+        "python_processes": true,
+        "python_serial": true,
+        "python_threads": true
+      },
+      "richards-scheduler": {
+        "python_reference": true
+      }
+    },
+    "required_workloads": [
+      "richards-scheduler",
+      "nbody-numeric",
+      "mandelbrot-image",
+      "parallel-cpu-200000",
+      "jsonl-summary-data"
+    ]
+  },
+  "resource_policy": {
+    "allocation_limit_bytes": 8589934592,
+    "instruction_limits_are_workload_specific": true,
+    "reason": "same declared ceiling for each paired candidate and repeated in-process warm run; peak resident memory is measured separately",
+    "warm_instruction_budget_multiplier": 5
+  },
+  "schema_version": 1,
+  "status": "passed",
+  "workloads": {
+    "jsonl-summary-data": {
+      "comparison": {
+        "veritas_artifact_over_python": {
+          "ci95_percentile": [
+            0.22709680971591462,
+            0.23583832762872287
+          ],
+          "median_ratio": 0.23070346160179403,
+          "ties_or_regressions": 0,
+          "win": true
+        },
+        "veritas_artifact_over_sqlite_native": {
+          "ci95_percentile": [
+            0.2268523012331109,
+            0.23410135760515535
+          ],
+          "median_ratio": 0.23090596987649187,
+          "ties_or_regressions": 0,
+          "win": true
+        },
+        "veritas_source_over_python": {
+          "ci95_percentile": [
+            0.8519695698019059,
+            0.8764291831703085
+          ],
+          "median_ratio": 0.8714967835053009,
+          "ties_or_regressions": 0,
+          "win": true
+        }
+      },
+      "generator_seed": 20261025,
+      "native_backend_reports": {
+        "veritas_artifact": {
+          "bytecode_blocks": 0,
+          "bytecode_instructions": 0,
+          "calls": 0,
+          "compilations": 0,
+          "compile_profile": {
+            "finalize_nanoseconds": 0,
+            "functions": []
+          },
+          "compiled_functions": [],
+          "cranelift_ir_blocks": 0,
+          "cranelift_ir_instructions": 0,
+          "deoptimizations": 0
+        },
+        "veritas_source": {
+          "bytecode_blocks": 0,
+          "bytecode_instructions": 0,
+          "calls": 0,
+          "compilations": 0,
+          "compile_profile": {
+            "finalize_nanoseconds": 0,
+            "functions": []
+          },
+          "compiled_functions": [],
+          "cranelift_ir_blocks": 0,
+          "cranelift_ir_instructions": 0,
+          "deoptimizations": 0
+        },
+        "veritas_warm_artifact": {
+          "bytecode_blocks": 0,
+          "bytecode_instructions": 0,
+          "calls": 0,
+          "compilations": 0,
+          "compile_profile": {
+            "finalize_nanoseconds": 0,
+            "functions": []
+          },
+          "compiled_functions": [],
+          "cranelift_ir_blocks": 0,
+          "cranelift_ir_instructions": 0,
+          "deoptimizations": 0
+        }
+      },
+      "paired_trial_order": [
+        [
+          "veritas_warm_artifact",
+          "python_warm",
+          "veritas_artifact",
+          "python_sqlite_native",
+          "python_data",
+          "veritas_source"
+        ],
+        [
+          "python_sqlite_native",
+          "veritas_artifact",
+          "python_warm",
+          "veritas_source",
+          "veritas_warm_artifact",
+          "python_data"
+        ],
+        [
+          "veritas_artifact",
+          "python_data",
+          "python_sqlite_native",
+          "python_warm",
+          "veritas_source",
+          "veritas_warm_artifact"
+        ],
+        [
+          "python_warm",
+          "veritas_artifact",
+          "veritas_source",
+          "veritas_warm_artifact",
+          "python_sqlite_native",
+          "python_data"
+        ],
+        [
+          "python_sqlite_native",
+          "veritas_artifact",
+          "veritas_warm_artifact",
+          "python_data",
+          "python_warm",
+          "veritas_source"
+        ],
+        [
+          "veritas_source",
+          "veritas_artifact",
+          "python_warm",
+          "python_data",
+          "python_sqlite_native",
+          "veritas_warm_artifact"
+        ],
+        [
+          "python_data",
+          "veritas_source",
+          "veritas_warm_artifact",
+          "python_sqlite_native",
+          "python_warm",
+          "veritas_artifact"
+        ],
+        [
+          "python_sqlite_native",
+          "veritas_source",
+          "veritas_warm_artifact",
+          "veritas_artifact",
+          "python_warm",
+          "python_data"
+        ],
+        [
+          "veritas_source",
+          "veritas_warm_artifact",
+          "python_sqlite_native",
+          "python_warm",
+          "veritas_artifact",
+          "python_data"
+        ],
+        [
+          "veritas_source",
+          "veritas_artifact",
+          "python_warm",
+          "veritas_warm_artifact",
+          "python_data",
+          "python_sqlite_native"
+        ],
+        [
+          "veritas_artifact",
+          "python_data",
+          "python_sqlite_native",
+          "veritas_warm_artifact",
+          "python_warm",
+          "veritas_source"
+        ],
+        [
+          "python_warm",
+          "veritas_artifact",
+          "python_data",
+          "veritas_source",
+          "veritas_warm_artifact",
+          "python_sqlite_native"
+        ],
+        [
+          "veritas_artifact",
+          "python_warm",
+          "veritas_source",
+          "python_sqlite_native",
+          "python_data",
+          "veritas_warm_artifact"
+        ],
+        [
+          "veritas_artifact",
+          "veritas_source",
+          "veritas_warm_artifact",
+          "python_sqlite_native",
+          "python_data",
+          "python_warm"
+        ],
+        [
+          "veritas_warm_artifact",
+          "python_sqlite_native",
+          "python_data",
+          "python_warm",
+          "veritas_source",
+          "veritas_artifact"
+        ],
+        [
+          "veritas_source",
+          "veritas_warm_artifact",
+          "veritas_artifact",
+          "python_data",
+          "python_sqlite_native",
+          "python_warm"
+        ]
+      ],
+      "python_data": {
+        "median_seconds": 1.9828938330028905,
+        "p95_seconds_nearest_rank": 2.3316920409997692,
+        "samples_seconds": [
+          1.9302832499961369,
+          1.9751665410003625,
+          1.9868121250037802,
+          1.9163378750090487,
+          1.9880014170048526,
+          1.9607548329950077,
+          1.953476665992639,
+          1.9677552500070306,
+          1.9789755410020007,
+          2.044484541998827,
+          2.3316920409997692,
+          2.0378607500024373,
+          2.0055313329939963,
+          2.1771515000000363,
+          2.0062781660089968,
+          1.9749427920032758
+        ]
+      },
+      "python_sqlite_native": {
+        "median_seconds": 1.986522437495296,
+        "p95_seconds_nearest_rank": 2.140144707998843,
+        "samples_seconds": [
+          1.975341124998522,
+          2.04687304100662,
+          1.9598756250052247,
+          1.9692857090121834,
+          1.9605391249933746,
+          1.97225870800321,
+          2.0306933340034448,
+          1.977357416995801,
+          2.0141737910016673,
+          2.140144707998843,
+          2.022485207999125,
+          1.949780125010875,
+          1.9899807920010062,
+          1.9830640829895856,
+          2.012996124991332,
+          2.0731470830069156
+        ]
+      },
+      "python_warm": {
+        "median_seconds": 1.9182934791999287,
+        "p95_seconds_nearest_rank": 1.996795541801839,
+        "samples_seconds": [
+          1.927794541598996,
+          1.9683233499992638,
+          1.9696429584000725,
+          1.9578804165998007,
+          1.9021637249999912,
+          1.8875960999983363,
+          1.9499490833986783,
+          1.88855363339826,
+          1.8991119915997843,
+          1.875449266799842,
+          1.8765564666013232,
+          1.9214838168001733,
+          1.9264419250015634,
+          1.996795541801839,
+          1.915103141599684,
+          1.9124850749998585
+        ]
+      },
+      "rows": 20000,
+      "timed_trials_per_candidate": 16,
+      "veritas_artifact": {
+        "median_seconds": 0.45874058348999824,
+        "p95_seconds_nearest_rank": 0.47494420800649095,
+        "samples_seconds": [
+          0.4710059170029126,
+          0.4478741250059102,
+          0.4564754169987282,
+          0.46101245799218304,
+          0.4614367079921067,
+          0.4481804999959422,
+          0.4722675000084564,
+          0.45717841701116413,
+          0.47494420800649095,
+          0.46429591700143646,
+          0.45992312498856336,
+          0.47207908300333656,
+          0.45711533300345764,
+          0.4573048340098467,
+          0.4509034579969011,
+          0.45755804199143313
+        ]
+      },
+      "veritas_source": {
+        "median_seconds": 1.7239166459985427,
+        "p95_seconds_nearest_rank": 1.7746719580027275,
+        "samples_seconds": [
+          1.7120512499968754,
+          1.7746719580027275,
+          1.7335122090007644,
+          1.7078765829937765,
+          1.7288961250014836,
+          1.7068060830060858,
+          1.7197412090026774,
+          1.7203968749963678,
+          1.734244999999646,
+          1.7386171669932082,
+          1.7147226249944651,
+          1.7331839590042364,
+          1.708651666995138,
+          1.7182837919972371,
+          1.7277161249949131,
+          1.7274364170007175
+        ]
+      },
+      "veritas_warm_artifact": {
+        "median_seconds": 0.44554274169931884,
+        "p95_seconds_nearest_rank": 0.4617201416025637,
+        "samples_seconds": [
+          0.43989082500047516,
+          0.4454730750003364,
+          0.44659149179933594,
+          0.45090201679849995,
+          0.4470769334002398,
+          0.44522240000078456,
+          0.4441529167990666,
+          0.44381378339894584,
+          0.4617201416025637,
+          0.4461071666009957,
+          0.44440858319867405,
+          0.44584660000109577,
+          0.44487129179760815,
+          0.44561240839830135,
+          0.4496416417998262,
+          0.44053997500159314
+        ]
+      }
+    },
+    "mandelbrot-image": {
+      "comparison": {
+        "veritas_artifact": {
+          "ci95_percentile": [
+            0.3694725262041461,
+            0.3832167522737655
+          ],
+          "median_ratio": 0.37356696733761424,
+          "ties_or_regressions": 0,
+          "win": true
+        },
+        "veritas_source": {
+          "ci95_percentile": [
+            1.5183799845827333,
+            1.5838840552958948
+          ],
+          "median_ratio": 1.5661030150209063,
+          "ties_or_regressions": 15,
+          "win": false
+        },
+        "veritas_warm_artifact": {
+          "ci95_percentile": [
+            0.24421395674303195,
+            0.2472891724107938
+          ],
+          "median_ratio": 0.2457257957828687,
+          "ties_or_regressions": 0,
+          "win": true
+        }
+      },
+      "native_backend_reports": {
+        "veritas_artifact": {
+          "bytecode_blocks": 19,
+          "bytecode_instructions": 132,
+          "calls": 6146,
+          "compilations": 1,
+          "compile_profile": {
+            "finalize_nanoseconds": 10041,
+            "functions": [
+              {
+                "bytecode_blocks": 7,
+                "bytecode_instructions": 49,
+                "cranelift_ir_blocks": 47,
+                "cranelift_ir_instructions": 586,
+                "define_nanoseconds": 1053833,
+                "lowering_nanoseconds": 153458,
+                "name": "escape_steps",
+                "verification_nanoseconds": 100041
+              },
+              {
+                "bytecode_blocks": 10,
+                "bytecode_instructions": 71,
+                "cranelift_ir_blocks": 61,
+                "cranelift_ir_instructions": 734,
+                "define_nanoseconds": 1220416,
+                "lowering_nanoseconds": 136125,
+                "name": "calculate",
+                "verification_nanoseconds": 107584
+              },
+              {
+                "bytecode_blocks": 2,
+                "bytecode_instructions": 12,
+                "cranelift_ir_blocks": 24,
+                "cranelift_ir_instructions": 315,
+                "define_nanoseconds": 428208,
+                "lowering_nanoseconds": 40208,
+                "name": "main",
+                "verification_nanoseconds": 38417
+              }
+            ]
+          },
+          "compiled_functions": [
+            "escape_steps",
+            "calculate",
+            "main"
+          ],
+          "cranelift_ir_blocks": 132,
+          "cranelift_ir_instructions": 1635,
+          "deoptimizations": 0
+        },
+        "veritas_source": {
+          "bytecode_blocks": 19,
+          "bytecode_instructions": 132,
+          "calls": 6146,
+          "compilations": 1,
+          "compile_profile": {
+            "finalize_nanoseconds": 10083,
+            "functions": [
+              {
+                "bytecode_blocks": 7,
+                "bytecode_instructions": 49,
+                "cranelift_ir_blocks": 47,
+                "cranelift_ir_instructions": 586,
+                "define_nanoseconds": 954708,
+                "lowering_nanoseconds": 135500,
+                "name": "escape_steps",
+                "verification_nanoseconds": 97375
+              },
+              {
+                "bytecode_blocks": 10,
+                "bytecode_instructions": 71,
+                "cranelift_ir_blocks": 61,
+                "cranelift_ir_instructions": 734,
+                "define_nanoseconds": 1163208,
+                "lowering_nanoseconds": 111167,
+                "name": "calculate",
+                "verification_nanoseconds": 94750
+              },
+              {
+                "bytecode_blocks": 2,
+                "bytecode_instructions": 12,
+                "cranelift_ir_blocks": 24,
+                "cranelift_ir_instructions": 315,
+                "define_nanoseconds": 396625,
+                "lowering_nanoseconds": 36083,
+                "name": "main",
+                "verification_nanoseconds": 38542
+              }
+            ]
+          },
+          "compiled_functions": [
+            "escape_steps",
+            "calculate",
+            "main"
+          ],
+          "cranelift_ir_blocks": 132,
+          "cranelift_ir_instructions": 1635,
+          "deoptimizations": 0
+        },
+        "veritas_warm_artifact": {
+          "bytecode_blocks": 26,
+          "bytecode_instructions": 153,
+          "calls": 30731,
+          "compilations": 1,
+          "compile_profile": {
+            "finalize_nanoseconds": 13250,
+            "functions": [
+              {
+                "bytecode_blocks": 7,
+                "bytecode_instructions": 49,
+                "cranelift_ir_blocks": 47,
+                "cranelift_ir_instructions": 586,
+                "define_nanoseconds": 956667,
+                "lowering_nanoseconds": 208458,
+                "name": "escape_steps",
+                "verification_nanoseconds": 99167
+              },
+              {
+                "bytecode_blocks": 10,
+                "bytecode_instructions": 71,
+                "cranelift_ir_blocks": 61,
+                "cranelift_ir_instructions": 734,
+                "define_nanoseconds": 1329708,
+                "lowering_nanoseconds": 136000,
+                "name": "calculate",
+                "verification_nanoseconds": 97625
+              },
+              {
+                "bytecode_blocks": 2,
+                "bytecode_instructions": 12,
+                "cranelift_ir_blocks": 24,
+                "cranelift_ir_instructions": 315,
+                "define_nanoseconds": 501292,
+                "lowering_nanoseconds": 60917,
+                "name": "benchmark_once",
+                "verification_nanoseconds": 51041
+              },
+              {
+                "bytecode_blocks": 7,
+                "bytecode_instructions": 21,
+                "cranelift_ir_blocks": 41,
+                "cranelift_ir_instructions": 401,
+                "define_nanoseconds": 578833,
+                "lowering_nanoseconds": 59875,
+                "name": "main",
+                "verification_nanoseconds": 66583
+              }
+            ]
+          },
+          "compiled_functions": [
+            "escape_steps",
+            "calculate",
+            "benchmark_once",
+            "main"
+          ],
+          "cranelift_ir_blocks": 173,
+          "cranelift_ir_instructions": 2036,
+          "deoptimizations": 0
+        }
+      },
+      "paired_trial_order": [
+        [
+          "veritas_warm_artifact",
+          "veritas_source",
+          "python_warm",
+          "veritas_artifact",
+          "python_reference"
+        ],
+        [
+          "python_warm",
+          "veritas_warm_artifact",
+          "veritas_artifact",
+          "python_reference",
+          "veritas_source"
+        ],
+        [
+          "veritas_artifact",
+          "python_warm",
+          "veritas_warm_artifact",
+          "python_reference",
+          "veritas_source"
+        ],
+        [
+          "veritas_artifact",
+          "python_warm",
+          "python_reference",
+          "veritas_source",
+          "veritas_warm_artifact"
+        ],
+        [
+          "veritas_warm_artifact",
+          "python_reference",
+          "veritas_artifact",
+          "python_warm",
+          "veritas_source"
+        ],
+        [
+          "python_reference",
+          "veritas_source",
+          "python_warm",
+          "veritas_artifact",
+          "veritas_warm_artifact"
+        ],
+        [
+          "veritas_warm_artifact",
+          "veritas_artifact",
+          "python_warm",
+          "python_reference",
+          "veritas_source"
+        ],
+        [
+          "veritas_source",
+          "python_reference",
+          "veritas_artifact",
+          "veritas_warm_artifact",
+          "python_warm"
+        ],
+        [
+          "veritas_source",
+          "python_reference",
+          "veritas_warm_artifact",
+          "python_warm",
+          "veritas_artifact"
+        ],
+        [
+          "veritas_warm_artifact",
+          "python_warm",
+          "veritas_artifact",
+          "python_reference",
+          "veritas_source"
+        ],
+        [
+          "python_reference",
+          "veritas_warm_artifact",
+          "veritas_artifact",
+          "veritas_source",
+          "python_warm"
+        ],
+        [
+          "veritas_source",
+          "veritas_warm_artifact",
+          "veritas_artifact",
+          "python_warm",
+          "python_reference"
+        ],
+        [
+          "veritas_source",
+          "veritas_artifact",
+          "veritas_warm_artifact",
+          "python_reference",
+          "python_warm"
+        ],
+        [
+          "veritas_artifact",
+          "veritas_warm_artifact",
+          "python_reference",
+          "python_warm",
+          "veritas_source"
+        ],
+        [
+          "python_reference",
+          "python_warm",
+          "veritas_warm_artifact",
+          "veritas_artifact",
+          "veritas_source"
+        ]
+      ],
+      "python_reference": {
+        "median_seconds": 0.0420765000017127,
+        "p95_seconds_nearest_rank": 0.0444329580059275,
+        "samples_seconds": [
+          0.042923916000290774,
+          0.043957874993793666,
+          0.043547125009354204,
+          0.0420765000017127,
+          0.04275608299940359,
+          0.0444329580059275,
+          0.0415273340040585,
+          0.04206279100617394,
+          0.041786125002545305,
+          0.04201608400035184,
+          0.041614083005697466,
+          0.04352883300452959,
+          0.042412125010741875,
+          0.04090787500899751,
+          0.04130787501344457
+        ]
+      },
+      "python_warm": {
+        "median_seconds": 0.022104891799972392,
+        "p95_seconds_nearest_rank": 0.022477825000532903,
+        "samples_seconds": [
+          0.021975058401585555,
+          0.022477825000532903,
+          0.022148716601077468,
+          0.02192404179950245,
+          0.02209230820008088,
+          0.02189083340053912,
+          0.022007025001221335,
+          0.021976016601547597,
+          0.022104891799972392,
+          0.022168508201139046,
+          0.02217110820056405,
+          0.022313916799612345,
+          0.02233012499928009,
+          0.02188019179739058,
+          0.022189300000900403
+        ]
+      },
+      "veritas_artifact": {
+        "median_seconds": 0.01596354199864436,
+        "p95_seconds_nearest_rank": 0.01708358399628196,
+        "samples_seconds": [
+          0.015934458002448082,
+          0.01567570799670648,
+          0.015981083997758105,
+          0.015224458009470254,
+          0.016126540998811834,
+          0.016323999996529892,
+          0.015343209001002833,
+          0.015676666997023858,
+          0.015609915993991308,
+          0.01606295901001431,
+          0.01596354199864436,
+          0.016288083003018983,
+          0.01708358399628196,
+          0.01567658300336916,
+          0.01634849999391008
+        ]
+      },
+      "veritas_source": {
+        "median_seconds": 0.0661210830003256,
+        "p95_seconds_nearest_rank": 0.06820612499723211,
+        "samples_seconds": [
+          0.06684391699673142,
+          0.06660454200755339,
+          0.0661210830003256,
+          0.06589045800501481,
+          0.06820612499723211,
+          0.06571462498686742,
+          0.06503608298953623,
+          0.06662258399592247,
+          0.065303125011269,
+          0.06600154099578504,
+          0.06554150000738446,
+          0.06529124999360647,
+          0.06782912500784732,
+          0.06712791600148194,
+          0.06663554199622013
+        ]
+      },
+      "veritas_warm_artifact": {
+        "median_seconds": 0.005442475000745617,
+        "p95_seconds_nearest_rank": 0.005490975000429899,
+        "samples_seconds": [
+          0.005464124999707565,
+          0.00548175819858443,
+          0.0053968418011209,
+          0.005464291601674632,
+          0.005395249999128282,
+          0.00539394179941155,
+          0.005395766801666468,
+          0.005490975000429899,
+          0.005442850000690669,
+          0.005419200001051649,
+          0.0054826749983476475,
+          0.005397441599052399,
+          0.005441058400901966,
+          0.005442475000745617,
+          0.005452483400586061
+        ]
+      }
+    },
+    "nbody-numeric": {
+      "comparison": {
+        "veritas_artifact": {
+          "ci95_percentile": [
+            0.6830034118002172,
+            0.6998636128942355
+          ],
+          "median_ratio": 0.6930510944555002,
+          "ties_or_regressions": 0,
+          "win": true
+        },
+        "veritas_source": {
+          "ci95_percentile": [
+            1.701033112106495,
+            1.7472154522983556
+          ],
+          "median_ratio": 1.7252220367339055,
+          "ties_or_regressions": 15,
+          "win": false
+        },
+        "veritas_warm_artifact": {
+          "ci95_percentile": [
+            0.6921746095439208,
+            0.7400068501996115
+          ],
+          "median_ratio": 0.7235416148433806,
+          "ties_or_regressions": 1,
+          "win": true
+        }
+      },
+      "native_backend_reports": {
+        "veritas_artifact": {
+          "bytecode_blocks": 26,
+          "bytecode_instructions": 574,
+          "calls": 5,
+          "compilations": 1,
+          "compile_profile": {
+            "finalize_nanoseconds": 19500,
+            "functions": [
+              {
+                "bytecode_blocks": 7,
+                "bytecode_instructions": 135,
+                "cranelift_ir_blocks": 99,
+                "cranelift_ir_instructions": 1399,
+                "define_nanoseconds": 2151667,
+                "lowering_nanoseconds": 306791,
+                "name": "energy",
+                "verification_nanoseconds": 186625
+              },
+              {
+                "bytecode_blocks": 10,
+                "bytecode_instructions": 242,
+                "cranelift_ir_blocks": 156,
+                "cranelift_ir_instructions": 2380,
+                "define_nanoseconds": 3796959,
+                "lowering_nanoseconds": 474458,
+                "name": "advance",
+                "verification_nanoseconds": 310792
+              },
+              {
+                "bytecode_blocks": 4,
+                "bytecode_instructions": 182,
+                "cranelift_ir_blocks": 78,
+                "cranelift_ir_instructions": 1719,
+                "define_nanoseconds": 2036334,
+                "lowering_nanoseconds": 265375,
+                "name": "initial_system",
+                "verification_nanoseconds": 183166
+              },
+              {
+                "bytecode_blocks": 5,
+                "bytecode_instructions": 15,
+                "cranelift_ir_blocks": 48,
+                "cranelift_ir_instructions": 538,
+                "define_nanoseconds": 688875,
+                "lowering_nanoseconds": 59917,
+                "name": "main",
+                "verification_nanoseconds": 63125
+              }
+            ]
+          },
+          "compiled_functions": [
+            "energy",
+            "advance",
+            "initial_system",
+            "main"
+          ],
+          "cranelift_ir_blocks": 381,
+          "cranelift_ir_instructions": 6036,
+          "deoptimizations": 0
+        },
+        "veritas_source": {
+          "bytecode_blocks": 26,
+          "bytecode_instructions": 574,
+          "calls": 5,
+          "compilations": 1,
+          "compile_profile": {
+            "finalize_nanoseconds": 18625,
+            "functions": [
+              {
+                "bytecode_blocks": 7,
+                "bytecode_instructions": 135,
+                "cranelift_ir_blocks": 99,
+                "cranelift_ir_instructions": 1399,
+                "define_nanoseconds": 2256833,
+                "lowering_nanoseconds": 315083,
+                "name": "energy",
+                "verification_nanoseconds": 190583
+              },
+              {
+                "bytecode_blocks": 10,
+                "bytecode_instructions": 242,
+                "cranelift_ir_blocks": 156,
+                "cranelift_ir_instructions": 2380,
+                "define_nanoseconds": 3731334,
+                "lowering_nanoseconds": 444875,
+                "name": "advance",
+                "verification_nanoseconds": 279000
+              },
+              {
+                "bytecode_blocks": 4,
+                "bytecode_instructions": 182,
+                "cranelift_ir_blocks": 78,
+                "cranelift_ir_instructions": 1719,
+                "define_nanoseconds": 2198791,
+                "lowering_nanoseconds": 282333,
+                "name": "initial_system",
+                "verification_nanoseconds": 187792
+              },
+              {
+                "bytecode_blocks": 5,
+                "bytecode_instructions": 15,
+                "cranelift_ir_blocks": 48,
+                "cranelift_ir_instructions": 538,
+                "define_nanoseconds": 717500,
+                "lowering_nanoseconds": 67167,
+                "name": "main",
+                "verification_nanoseconds": 67792
+              }
+            ]
+          },
+          "compiled_functions": [
+            "energy",
+            "advance",
+            "initial_system",
+            "main"
+          ],
+          "cranelift_ir_blocks": 381,
+          "cranelift_ir_instructions": 6036,
+          "deoptimizations": 0
+        },
+        "veritas_warm_artifact": {
+          "bytecode_blocks": 33,
+          "bytecode_instructions": 595,
+          "calls": 26,
+          "compilations": 1,
+          "compile_profile": {
+            "finalize_nanoseconds": 22000,
+            "functions": [
+              {
+                "bytecode_blocks": 7,
+                "bytecode_instructions": 135,
+                "cranelift_ir_blocks": 99,
+                "cranelift_ir_instructions": 1399,
+                "define_nanoseconds": 2091625,
+                "lowering_nanoseconds": 309792,
+                "name": "energy",
+                "verification_nanoseconds": 189083
+              },
+              {
+                "bytecode_blocks": 10,
+                "bytecode_instructions": 242,
+                "cranelift_ir_blocks": 156,
+                "cranelift_ir_instructions": 2380,
+                "define_nanoseconds": 3398375,
+                "lowering_nanoseconds": 408292,
+                "name": "advance",
+                "verification_nanoseconds": 258250
+              },
+              {
+                "bytecode_blocks": 4,
+                "bytecode_instructions": 182,
+                "cranelift_ir_blocks": 78,
+                "cranelift_ir_instructions": 1719,
+                "define_nanoseconds": 2041209,
+                "lowering_nanoseconds": 261833,
+                "name": "initial_system",
+                "verification_nanoseconds": 178416
+              },
+              {
+                "bytecode_blocks": 5,
+                "bytecode_instructions": 15,
+                "cranelift_ir_blocks": 48,
+                "cranelift_ir_instructions": 538,
+                "define_nanoseconds": 677416,
+                "lowering_nanoseconds": 65167,
+                "name": "benchmark_once",
+                "verification_nanoseconds": 66417
+              },
+              {
+                "bytecode_blocks": 7,
+                "bytecode_instructions": 21,
+                "cranelift_ir_blocks": 41,
+                "cranelift_ir_instructions": 401,
+                "define_nanoseconds": 510417,
+                "lowering_nanoseconds": 47792,
+                "name": "main",
+                "verification_nanoseconds": 48542
+              }
+            ]
+          },
+          "compiled_functions": [
+            "energy",
+            "advance",
+            "initial_system",
+            "benchmark_once",
+            "main"
+          ],
+          "cranelift_ir_blocks": 422,
+          "cranelift_ir_instructions": 6437,
+          "deoptimizations": 0
+        }
+      },
+      "paired_trial_order": [
+        [
+          "veritas_warm_artifact",
+          "veritas_source",
+          "python_warm",
+          "veritas_artifact",
+          "python_reference"
+        ],
+        [
+          "python_warm",
+          "veritas_warm_artifact",
+          "veritas_artifact",
+          "python_reference",
+          "veritas_source"
+        ],
+        [
+          "veritas_artifact",
+          "python_warm",
+          "veritas_warm_artifact",
+          "python_reference",
+          "veritas_source"
+        ],
+        [
+          "veritas_artifact",
+          "python_warm",
+          "python_reference",
+          "veritas_source",
+          "veritas_warm_artifact"
+        ],
+        [
+          "veritas_warm_artifact",
+          "python_reference",
+          "veritas_artifact",
+          "python_warm",
+          "veritas_source"
+        ],
+        [
+          "python_reference",
+          "veritas_source",
+          "python_warm",
+          "veritas_artifact",
+          "veritas_warm_artifact"
+        ],
+        [
+          "veritas_warm_artifact",
+          "veritas_artifact",
+          "python_warm",
+          "python_reference",
+          "veritas_source"
+        ],
+        [
+          "veritas_source",
+          "python_reference",
+          "veritas_artifact",
+          "veritas_warm_artifact",
+          "python_warm"
+        ],
+        [
+          "veritas_source",
+          "python_reference",
+          "veritas_warm_artifact",
+          "python_warm",
+          "veritas_artifact"
+        ],
+        [
+          "veritas_warm_artifact",
+          "python_warm",
+          "veritas_artifact",
+          "python_reference",
+          "veritas_source"
+        ],
+        [
+          "python_reference",
+          "veritas_warm_artifact",
+          "veritas_artifact",
+          "veritas_source",
+          "python_warm"
+        ],
+        [
+          "veritas_source",
+          "veritas_warm_artifact",
+          "veritas_artifact",
+          "python_warm",
+          "python_reference"
+        ],
+        [
+          "veritas_source",
+          "veritas_artifact",
+          "veritas_warm_artifact",
+          "python_reference",
+          "python_warm"
+        ],
+        [
+          "veritas_artifact",
+          "veritas_warm_artifact",
+          "python_reference",
+          "python_warm",
+          "veritas_source"
+        ],
+        [
+          "python_reference",
+          "python_warm",
+          "veritas_warm_artifact",
+          "veritas_artifact",
+          "veritas_source"
+        ]
+      ],
+      "python_reference": {
+        "median_seconds": 0.2097565830044914,
+        "p95_seconds_nearest_rank": 0.2180891669995617,
+        "samples_seconds": [
+          0.2082268749945797,
+          0.2096131250000326,
+          0.2097565830044914,
+          0.21429958399676252,
+          0.20844945799035486,
+          0.21368587500182912,
+          0.20865404199867044,
+          0.206620415992802,
+          0.21136058399861213,
+          0.21000779200403485,
+          0.2078088749985909,
+          0.2180891669995617,
+          0.21708591700007673,
+          0.21125708299223334,
+          0.20865195800433867
+        ]
+      },
+      "python_warm": {
+        "median_seconds": 0.19243702499952633,
+        "p95_seconds_nearest_rank": 0.1995513834001031,
+        "samples_seconds": [
+          0.19287787500070408,
+          0.19247467500099447,
+          0.19116872499871534,
+          0.1916296750016045,
+          0.19169540820003023,
+          0.194080633399426,
+          0.19243702499952633,
+          0.19200889999920037,
+          0.1912393415987026,
+          0.19318787500087636,
+          0.19159977499803063,
+          0.19692213340022136,
+          0.1970101499988232,
+          0.1995513834001031,
+          0.19219416679989082
+        ]
+      },
+      "veritas_artifact": {
+        "median_seconds": 0.14449350000359118,
+        "p95_seconds_nearest_rank": 0.15782308299094439,
+        "samples_seconds": [
+          0.14428066699474584,
+          0.14629316600621678,
+          0.14680100000987295,
+          0.14417216600850224,
+          0.14446612499887124,
+          0.14289633400039747,
+          0.14552541699958965,
+          0.14490512500924524,
+          0.14435999999113847,
+          0.14397012500558048,
+          0.1416700830013724,
+          0.14449350000359118,
+          0.15782308299094439,
+          0.15435683300893288,
+          0.14651775000675116
+        ]
+      },
+      "veritas_source": {
+        "median_seconds": 0.3611600419972092,
+        "p95_seconds_nearest_rank": 0.3917150409979513,
+        "samples_seconds": [
+          0.35958058400137816,
+          0.36623929100460373,
+          0.3565158749988768,
+          0.36331429200072307,
+          0.3582643330009887,
+          0.35812679199443664,
+          0.36231237500032876,
+          0.35897683299845085,
+          0.3611600419972092,
+          0.3572302079992369,
+          0.36509787499380764,
+          0.3596622920013033,
+          0.3917150409979513,
+          0.3644653749943245,
+          0.36498829199990723
+        ]
+      },
+      "veritas_warm_artifact": {
+        "median_seconds": 0.13899420840025414,
+        "p95_seconds_nearest_rank": 0.20263955839909614,
+        "samples_seconds": [
+          0.13899420840025414,
+          0.13931919999886305,
+          0.13893301659845747,
+          0.16735522499948274,
+          0.13469522500236053,
+          0.14381035839905962,
+          0.13189138339948842,
+          0.13392604160180782,
+          0.13237101660051848,
+          0.13188468339794782,
+          0.1322190834005596,
+          0.14248135839879977,
+          0.1572641750011826,
+          0.20263955839909614,
+          0.14222500000032595
+        ]
+      }
+    },
+    "parallel-cpu-20000": {
+      "comparison": {
+        "veritas_artifact_over_python_processes": {
+          "ci95_percentile": [
+            0.07482383912145532,
+            0.07802652464304051
+          ],
+          "median_ratio": 0.07666848421935238,
+          "ties_or_regressions": 0,
+          "win": true
+        },
+        "veritas_artifact_over_python_serial": {
+          "ci95_percentile": [
+            0.1994044805282377,
+            0.20628363547645645
+          ],
+          "median_ratio": 0.20285061266229135,
+          "ties_or_regressions": 0,
+          "win": true
+        },
+        "veritas_artifact_over_python_threads": {
+          "ci95_percentile": [
+            0.19800064915978502,
+            0.20316595733887058
+          ],
+          "median_ratio": 0.20146700746964152,
+          "ties_or_regressions": 0,
+          "win": true
+        },
+        "veritas_source_over_python_serial": {
+          "ci95_percentile": [
+            0.7844509499862887,
+            0.8380021910467774
+          ],
+          "median_ratio": 0.8138792811743838,
+          "ties_or_regressions": 1,
+          "win": true
+        },
+        "veritas_warm_over_python_serial": {
+          "ci95_percentile": [
+            0.19644520822116593,
+            0.20885845870169809
+          ],
+          "median_ratio": 0.20279374971428255,
+          "ties_or_regressions": 0,
+          "win": true
+        }
+      },
+      "native_backend_reports": {
+        "veritas_artifact": {
+          "bytecode_blocks": 4,
+          "bytecode_instructions": 21,
+          "calls": 4,
+          "compilations": 1,
+          "compile_profile": {
+            "finalize_nanoseconds": 7041,
+            "functions": [
+              {
+                "bytecode_blocks": 4,
+                "bytecode_instructions": 21,
+                "cranelift_ir_blocks": 27,
+                "cranelift_ir_instructions": 308,
+                "define_nanoseconds": 611917,
+                "lowering_nanoseconds": 102833,
+                "name": "work",
+                "verification_nanoseconds": 68208
+              }
+            ]
+          },
+          "compiled_functions": [
+            "work"
+          ],
+          "cranelift_ir_blocks": 27,
+          "cranelift_ir_instructions": 308,
+          "deoptimizations": 0
+        },
+        "veritas_source": {
+          "bytecode_blocks": 4,
+          "bytecode_instructions": 21,
+          "calls": 4,
+          "compilations": 1,
+          "compile_profile": {
+            "finalize_nanoseconds": 7833,
+            "functions": [
+              {
+                "bytecode_blocks": 4,
+                "bytecode_instructions": 21,
+                "cranelift_ir_blocks": 27,
+                "cranelift_ir_instructions": 308,
+                "define_nanoseconds": 553000,
+                "lowering_nanoseconds": 91833,
+                "name": "work",
+                "verification_nanoseconds": 63083
+              }
+            ]
+          },
+          "compiled_functions": [
+            "work"
+          ],
+          "cranelift_ir_blocks": 27,
+          "cranelift_ir_instructions": 308,
+          "deoptimizations": 0
+        },
+        "veritas_warm_artifact": {
+          "bytecode_blocks": 4,
+          "bytecode_instructions": 21,
+          "calls": 20,
+          "compilations": 1,
+          "compile_profile": {
+            "finalize_nanoseconds": 9834,
+            "functions": [
+              {
+                "bytecode_blocks": 4,
+                "bytecode_instructions": 21,
+                "cranelift_ir_blocks": 27,
+                "cranelift_ir_instructions": 308,
+                "define_nanoseconds": 558584,
+                "lowering_nanoseconds": 97125,
+                "name": "work",
+                "verification_nanoseconds": 78625
+              }
+            ]
+          },
+          "compiled_functions": [
+            "work"
+          ],
+          "cranelift_ir_blocks": 27,
+          "cranelift_ir_instructions": 308,
+          "deoptimizations": 0
+        }
+      },
+      "paired_trial_order": [
+        [
+          "veritas_artifact",
+          "python_warm",
+          "veritas_warm_artifact",
+          "python_processes",
+          "python_threads",
+          "python_serial",
+          "veritas_source"
+        ],
+        [
+          "python_threads",
+          "veritas_artifact",
+          "python_warm",
+          "veritas_source",
+          "veritas_warm_artifact",
+          "python_processes",
+          "python_serial"
+        ],
+        [
+          "veritas_artifact",
+          "python_serial",
+          "python_threads",
+          "veritas_warm_artifact",
+          "python_warm",
+          "veritas_source",
+          "python_processes"
+        ],
+        [
+          "python_warm",
+          "veritas_source",
+          "python_processes",
+          "veritas_artifact",
+          "veritas_warm_artifact",
+          "python_threads",
+          "python_serial"
+        ],
+        [
+          "python_warm",
+          "python_processes",
+          "python_threads",
+          "veritas_artifact",
+          "python_serial",
+          "veritas_warm_artifact",
+          "veritas_source"
+        ],
+        [
+          "veritas_warm_artifact",
+          "python_threads",
+          "veritas_source",
+          "veritas_artifact",
+          "python_warm",
+          "python_processes",
+          "python_serial"
+        ],
+        [
+          "python_warm",
+          "python_processes",
+          "veritas_artifact",
+          "python_serial",
+          "veritas_source",
+          "veritas_warm_artifact",
+          "python_threads"
+        ],
+        [
+          "python_threads",
+          "veritas_artifact",
+          "python_warm",
+          "python_serial",
+          "veritas_source",
+          "veritas_warm_artifact",
+          "python_processes"
+        ],
+        [
+          "veritas_source",
+          "veritas_warm_artifact",
+          "veritas_artifact",
+          "python_threads",
+          "python_serial",
+          "python_processes",
+          "python_warm"
+        ],
+        [
+          "veritas_artifact",
+          "veritas_warm_artifact",
+          "python_serial",
+          "veritas_source",
+          "python_threads",
+          "python_processes",
+          "python_warm"
+        ],
+        [
+          "python_serial",
+          "python_processes",
+          "python_threads",
+          "veritas_artifact",
+          "python_warm",
+          "veritas_source",
+          "veritas_warm_artifact"
+        ],
+        [
+          "python_threads",
+          "veritas_source",
+          "veritas_artifact",
+          "veritas_warm_artifact",
+          "python_serial",
+          "python_processes",
+          "python_warm"
+        ],
+        [
+          "python_warm",
+          "veritas_source",
+          "python_processes",
+          "python_threads",
+          "python_serial",
+          "veritas_warm_artifact",
+          "veritas_artifact"
+        ],
+        [
+          "veritas_warm_artifact",
+          "python_threads",
+          "python_serial",
+          "python_warm",
+          "python_processes",
+          "veritas_source",
+          "veritas_artifact"
+        ],
+        [
+          "veritas_source",
+          "veritas_artifact",
+          "python_warm",
+          "python_processes",
+          "python_serial",
+          "python_threads",
+          "veritas_warm_artifact"
+        ]
+      ],
+      "python_processes": {
+        "median_seconds": 0.15611429199634586,
+        "p95_seconds_nearest_rank": 0.30216983299760614,
+        "samples_seconds": [
+          0.15203816699795425,
+          0.16164412500802428,
+          0.15664299999480136,
+          0.15486820800288115,
+          0.1523782080039382,
+          0.15440558298723772,
+          0.1559748750005383,
+          0.1549087919993326,
+          0.15830674998869654,
+          0.17639591699116863,
+          0.15906299999915063,
+          0.1709347500000149,
+          0.30216983299760614,
+          0.15611429199634586,
+          0.1535954589926405
+        ]
+      },
+      "python_serial": {
+        "median_seconds": 0.05927083399728872,
+        "p95_seconds_nearest_rank": 0.06158758400124498,
+        "samples_seconds": [
+          0.0583220410044305,
+          0.06158758400124498,
+          0.05857795900374185,
+          0.060210250012460165,
+          0.05962524999631569,
+          0.06035383400740102,
+          0.05956220900407061,
+          0.06092887501290534,
+          0.05900449999899138,
+          0.056915749999461696,
+          0.057896665995940566,
+          0.06072670899447985,
+          0.057919124999898486,
+          0.05843441699107643,
+          0.05927083399728872
+        ]
+      },
+      "python_threads": {
+        "median_seconds": 0.05978620798850898,
+        "p95_seconds_nearest_rank": 0.06226579200301785,
+        "samples_seconds": [
+          0.05978620798850898,
+          0.061742041987599805,
+          0.060026459002983756,
+          0.058772666001459584,
+          0.05901483399793506,
+          0.05822412500856444,
+          0.05926816699502524,
+          0.0601265000004787,
+          0.060242749997996725,
+          0.06226579200301785,
+          0.0614168750034878,
+          0.060002166996127926,
+          0.0581682919873856,
+          0.057401792000746354,
+          0.05932924999797251
+        ]
+      },
+      "python_warm": {
+        "median_seconds": 0.015003058398724534,
+        "p95_seconds_nearest_rank": 0.01715567499923054,
+        "samples_seconds": [
+          0.014839283400215208,
+          0.014618408400565386,
+          0.015345341799547895,
+          0.014853216600022279,
+          0.015269908198388294,
+          0.01476961660082452,
+          0.015003058398724534,
+          0.014567441600956955,
+          0.015340400001150556,
+          0.015226116799749435,
+          0.016043316799914463,
+          0.015152466599829495,
+          0.01715567499923054,
+          0.0149563750019297,
+          0.014930399999138899
+        ]
+      },
+      "veritas_artifact": {
+        "median_seconds": 0.012051208002958447,
+        "p95_seconds_nearest_rank": 0.012458167009754106,
+        "samples_seconds": [
+          0.011837707992526703,
+          0.01209483400452882,
+          0.012195333009003662,
+          0.011364042002242059,
+          0.011889542001881637,
+          0.01183804200263694,
+          0.012286709010368213,
+          0.012458167009754106,
+          0.012168166998890229,
+          0.01228925000759773,
+          0.01217408299271483,
+          0.012051208002958447,
+          0.011713833009707741,
+          0.011792709003202617,
+          0.012023124989354983
+        ]
+      },
+      "veritas_source": {
+        "median_seconds": 0.0479193750070408,
+        "p95_seconds_nearest_rank": 0.12977337499614805,
+        "samples_seconds": [
+          0.04844166700786445,
+          0.0479193750070408,
+          0.049088457992183976,
+          0.04900387499947101,
+          0.0467730840027798,
+          0.04686533298809081,
+          0.047473209007875994,
+          0.04754037500242703,
+          0.04852391598979011,
+          0.04788516600092407,
+          0.04904458399687428,
+          0.049712209001882,
+          0.12977337499614805,
+          0.04748329101130366,
+          0.04769812499580439
+        ]
+      },
+      "veritas_warm_artifact": {
+        "median_seconds": 0.0030302583996672182,
+        "p95_seconds_nearest_rank": 0.0032333832001313566,
+        "samples_seconds": [
+          0.0031791832007002085,
+          0.0029916250001406296,
+          0.0032333832001313566,
+          0.0030302583996672182,
+          0.003035800001816824,
+          0.0029768417996820064,
+          0.0031651916011469438,
+          0.003042533400002867,
+          0.003118766599800438,
+          0.002837924999766983,
+          0.0030070084001636134,
+          0.00292828340025153,
+          0.0030591168004320936,
+          0.002938108201487921,
+          0.003027791800559498
+        ]
+      }
+    },
+    "parallel-cpu-200000": {
+      "comparison": {
+        "veritas_artifact_over_python_processes": {
+          "ci95_percentile": [
+            0.10119629289281815,
+            0.1094886328072404
+          ],
+          "median_ratio": 0.10572021203279107,
+          "ties_or_regressions": 0,
+          "win": true
+        },
+        "veritas_artifact_over_python_serial": {
+          "ci95_percentile": [
+            0.19120622743322419,
+            0.2088375575876401
+          ],
+          "median_ratio": 0.2020138810397999,
+          "ties_or_regressions": 0,
+          "win": true
+        },
+        "veritas_artifact_over_python_threads": {
+          "ci95_percentile": [
+            0.19336491739464676,
+            0.20700428598714665
+          ],
+          "median_ratio": 0.20041652182345898,
+          "ties_or_regressions": 0,
+          "win": true
+        },
+        "veritas_source_over_python_serial": {
+          "ci95_percentile": [
+            0.5978918084384296,
+            0.6332489094822172
+          ],
+          "median_ratio": 0.6098892416149064,
+          "ties_or_regressions": 0,
+          "win": true
+        },
+        "veritas_warm_over_python_serial": {
+          "ci95_percentile": [
+            0.192087750883034,
+            0.24426036141254157
+          ],
+          "median_ratio": 0.22454396197871299,
+          "ties_or_regressions": 0,
+          "win": true
+        }
+      },
+      "native_backend_reports": {
+        "veritas_artifact": {
+          "bytecode_blocks": 4,
+          "bytecode_instructions": 21,
+          "calls": 4,
+          "compilations": 1,
+          "compile_profile": {
+            "finalize_nanoseconds": 6958,
+            "functions": [
+              {
+                "bytecode_blocks": 4,
+                "bytecode_instructions": 21,
+                "cranelift_ir_blocks": 27,
+                "cranelift_ir_instructions": 308,
+                "define_nanoseconds": 558708,
+                "lowering_nanoseconds": 94500,
+                "name": "work",
+                "verification_nanoseconds": 62416
+              }
+            ]
+          },
+          "compiled_functions": [
+            "work"
+          ],
+          "cranelift_ir_blocks": 27,
+          "cranelift_ir_instructions": 308,
+          "deoptimizations": 0
+        },
+        "veritas_source": {
+          "bytecode_blocks": 4,
+          "bytecode_instructions": 21,
+          "calls": 4,
+          "compilations": 1,
+          "compile_profile": {
+            "finalize_nanoseconds": 8167,
+            "functions": [
+              {
+                "bytecode_blocks": 4,
+                "bytecode_instructions": 21,
+                "cranelift_ir_blocks": 27,
+                "cranelift_ir_instructions": 308,
+                "define_nanoseconds": 537625,
+                "lowering_nanoseconds": 88000,
+                "name": "work",
+                "verification_nanoseconds": 59500
+              }
+            ]
+          },
+          "compiled_functions": [
+            "work"
+          ],
+          "cranelift_ir_blocks": 27,
+          "cranelift_ir_instructions": 308,
+          "deoptimizations": 0
+        },
+        "veritas_warm_artifact": {
+          "bytecode_blocks": 4,
+          "bytecode_instructions": 21,
+          "calls": 20,
+          "compilations": 1,
+          "compile_profile": {
+            "finalize_nanoseconds": 7875,
+            "functions": [
+              {
+                "bytecode_blocks": 4,
+                "bytecode_instructions": 21,
+                "cranelift_ir_blocks": 27,
+                "cranelift_ir_instructions": 308,
+                "define_nanoseconds": 588875,
+                "lowering_nanoseconds": 99709,
+                "name": "work",
+                "verification_nanoseconds": 64500
+              }
+            ]
+          },
+          "compiled_functions": [
+            "work"
+          ],
+          "cranelift_ir_blocks": 27,
+          "cranelift_ir_instructions": 308,
+          "deoptimizations": 0
+        }
+      },
+      "paired_trial_order": [
+        [
+          "veritas_artifact",
+          "python_warm",
+          "veritas_warm_artifact",
+          "python_processes",
+          "python_threads",
+          "python_serial",
+          "veritas_source"
+        ],
+        [
+          "python_threads",
+          "veritas_artifact",
+          "python_warm",
+          "veritas_source",
+          "veritas_warm_artifact",
+          "python_processes",
+          "python_serial"
+        ],
+        [
+          "veritas_artifact",
+          "python_serial",
+          "python_threads",
+          "veritas_warm_artifact",
+          "python_warm",
+          "veritas_source",
+          "python_processes"
+        ],
+        [
+          "python_warm",
+          "veritas_source",
+          "python_processes",
+          "veritas_artifact",
+          "veritas_warm_artifact",
+          "python_threads",
+          "python_serial"
+        ],
+        [
+          "python_warm",
+          "python_processes",
+          "python_threads",
+          "veritas_artifact",
+          "python_serial",
+          "veritas_warm_artifact",
+          "veritas_source"
+        ],
+        [
+          "veritas_warm_artifact",
+          "python_threads",
+          "veritas_source",
+          "veritas_artifact",
+          "python_warm",
+          "python_processes",
+          "python_serial"
+        ],
+        [
+          "python_warm",
+          "python_processes",
+          "veritas_artifact",
+          "python_serial",
+          "veritas_source",
+          "veritas_warm_artifact",
+          "python_threads"
+        ],
+        [
+          "python_threads",
+          "veritas_artifact",
+          "python_warm",
+          "python_serial",
+          "veritas_source",
+          "veritas_warm_artifact",
+          "python_processes"
+        ],
+        [
+          "veritas_source",
+          "veritas_warm_artifact",
+          "veritas_artifact",
+          "python_threads",
+          "python_serial",
+          "python_processes",
+          "python_warm"
+        ],
+        [
+          "veritas_artifact",
+          "veritas_warm_artifact",
+          "python_serial",
+          "veritas_source",
+          "python_threads",
+          "python_processes",
+          "python_warm"
+        ],
+        [
+          "python_serial",
+          "python_processes",
+          "python_threads",
+          "veritas_artifact",
+          "python_warm",
+          "veritas_source",
+          "veritas_warm_artifact"
+        ],
+        [
+          "python_threads",
+          "veritas_source",
+          "veritas_artifact",
+          "veritas_warm_artifact",
+          "python_serial",
+          "python_processes",
+          "python_warm"
+        ],
+        [
+          "python_warm",
+          "veritas_source",
+          "python_processes",
+          "python_threads",
+          "python_serial",
+          "veritas_warm_artifact",
+          "veritas_artifact"
+        ],
+        [
+          "veritas_warm_artifact",
+          "python_threads",
+          "python_serial",
+          "python_warm",
+          "python_processes",
+          "veritas_source",
+          "veritas_artifact"
+        ],
+        [
+          "veritas_source",
+          "veritas_artifact",
+          "python_warm",
+          "python_processes",
+          "python_serial",
+          "python_threads",
+          "veritas_warm_artifact"
+        ]
+      ],
+      "python_processes": {
+        "median_seconds": 0.1687675409921212,
+        "p95_seconds_nearest_rank": 0.19030054200266022,
+        "samples_seconds": [
+          0.17348633300571237,
+          0.1687675409921212,
+          0.17346070799976587,
+          0.17618441600643564,
+          0.1623980830045184,
+          0.1672874999931082,
+          0.16271708300337195,
+          0.1734915830020327,
+          0.16365245899942238,
+          0.16623516600520816,
+          0.16522687500400934,
+          0.16665341700718272,
+          0.18519354199816007,
+          0.17312633400433697,
+          0.19030054200266022
+        ]
+      },
+      "python_serial": {
+        "median_seconds": 0.08771745799458586,
+        "p95_seconds_nearest_rank": 0.09086870799364988,
+        "samples_seconds": [
+          0.08549262500309851,
+          0.08657466700242367,
+          0.08836270899337251,
+          0.08969945799617562,
+          0.08539820900477935,
+          0.087368291002349,
+          0.09086870799364988,
+          0.08766095800092444,
+          0.08869729099387769,
+          0.08817950000229757,
+          0.08771745799458586,
+          0.0882016669929726,
+          0.08510479200049303,
+          0.09084583299409132,
+          0.08659245799935888
+        ]
+      },
+      "python_threads": {
+        "median_seconds": 0.08864745900791604,
+        "p95_seconds_nearest_rank": 0.09589520799636375,
+        "samples_seconds": [
+          0.0888127079961123,
+          0.09021233300154563,
+          0.0881704999919748,
+          0.08900362500571646,
+          0.09024499999941327,
+          0.08864745900791604,
+          0.08843420800985768,
+          0.08774050000647549,
+          0.08655900000303518,
+          0.09589520799636375,
+          0.08796995900047477,
+          0.08721699999296106,
+          0.08685208301176317,
+          0.0926797909924062,
+          0.08901154200430028
+        ]
+      },
+      "python_warm": {
+        "median_seconds": 0.04321712499950081,
+        "p95_seconds_nearest_rank": 0.044888675000402146,
+        "samples_seconds": [
+          0.04334464159910567,
+          0.04301900840073358,
+          0.043744416601839475,
+          0.04317980000050738,
+          0.043574641799204984,
+          0.04317670839955099,
+          0.043322941599763,
+          0.04308759160048794,
+          0.04287005820078775,
+          0.04351259999966715,
+          0.04319504160084762,
+          0.043353466599364766,
+          0.04321712499950081,
+          0.04320532499987166,
+          0.044888675000402146
+        ]
+      },
+      "veritas_artifact": {
+        "median_seconds": 0.017894082993734628,
+        "p95_seconds_nearest_rank": 0.021628917005728,
+        "samples_seconds": [
+          0.017193749998114072,
+          0.01808004200574942,
+          0.021628917005728,
+          0.017894082993734628,
+          0.015394082991406322,
+          0.0202355829969747,
+          0.016785207990324125,
+          0.02159354199829977,
+          0.01791808399138972,
+          0.01757441699737683,
+          0.018028125006821938,
+          0.016864707999047823,
+          0.02154845799668692,
+          0.01526554200972896,
+          0.017631334005272947
+        ]
+      },
+      "veritas_source": {
+        "median_seconds": 0.05350066599203274,
+        "p95_seconds_nearest_rank": 0.058493417003774084,
+        "samples_seconds": [
+          0.0566307919943938,
+          0.05280095800117124,
+          0.055822249996708706,
+          0.053224083996610716,
+          0.05709879199275747,
+          0.05532587500056252,
+          0.053036792000057176,
+          0.058493417003774084,
+          0.05330908398900647,
+          0.05654395899910014,
+          0.05457037501037121,
+          0.05350066599203274,
+          0.050883457995951176,
+          0.0509721249982249,
+          0.050268334001884796
+        ]
+      },
+      "veritas_warm_artifact": {
+        "median_seconds": 0.009770491599920206,
+        "p95_seconds_nearest_rank": 0.011992691599880345,
+        "samples_seconds": [
+          0.011992691599880345,
+          0.010866925001027993,
+          0.008402766598737798,
+          0.008888508201926016,
+          0.008488341799238696,
+          0.010546358398278244,
+          0.010672658399562352,
+          0.008191683201584966,
+          0.009552341600647196,
+          0.009770491599920206,
+          0.010208774998318404,
+          0.009837466600583867,
+          0.008289483399130404,
+          0.009823883400531485,
+          0.007250650000059977
+        ]
+      }
+    },
+    "richards-scheduler": {
+      "comparison": {
+        "veritas_artifact": {
+          "ci95_percentile": [
+            0.9337196667099079,
+            0.9785547939716311
+          ],
+          "median_ratio": 0.9524792650027202,
+          "ties_or_regressions": 3,
+          "win": true
+        },
+        "veritas_source": {
+          "ci95_percentile": [
+            12.90299696732708,
+            13.3794976976847
+          ],
+          "median_ratio": 13.08989407870422,
+          "ties_or_regressions": 15,
+          "win": false
+        },
+        "veritas_warm_artifact": {
+          "ci95_percentile": [
+            0.8757163003278825,
+            0.8989305274357428
+          ],
+          "median_ratio": 0.891793328348189,
+          "ties_or_regressions": 0,
+          "win": true
+        }
+      },
+      "native_backend_reports": {
+        "veritas_artifact": {
+          "bytecode_blocks": 118,
+          "bytecode_instructions": 996,
+          "calls": 37547,
+          "compilations": 1,
+          "compile_profile": {
+            "finalize_nanoseconds": 33500,
+            "functions": [
+              {
+                "bytecode_blocks": 3,
+                "bytecode_instructions": 10,
+                "cranelift_ir_blocks": 20,
+                "cranelift_ir_instructions": 231,
+                "define_nanoseconds": 442333,
+                "lowering_nanoseconds": 91375,
+                "name": "next_worker_count",
+                "verification_nanoseconds": 55209
+              },
+              {
+                "bytecode_blocks": 9,
+                "bytecode_instructions": 46,
+                "cranelift_ir_blocks": 52,
+                "cranelift_ir_instructions": 575,
+                "define_nanoseconds": 890708,
+                "lowering_nanoseconds": 103042,
+                "name": "xor_d008",
+                "verification_nanoseconds": 80625
+              },
+              {
+                "bytecode_blocks": 8,
+                "bytecode_instructions": 89,
+                "cranelift_ir_blocks": 66,
+                "cranelift_ir_instructions": 1032,
+                "define_nanoseconds": 1416833,
+                "lowering_nanoseconds": 218125,
+                "name": "route_packet",
+                "verification_nanoseconds": 135792
+              },
+              {
+                "bytecode_blocks": 98,
+                "bytecode_instructions": 851,
+                "cranelift_ir_blocks": 632,
+                "cranelift_ir_instructions": 7736,
+                "define_nanoseconds": 20399209,
+                "lowering_nanoseconds": 2615583,
+                "name": "main",
+                "verification_nanoseconds": 1315042
+              }
+            ]
+          },
+          "compiled_functions": [
+            "next_worker_count",
+            "xor_d008",
+            "route_packet",
+            "main"
+          ],
+          "cranelift_ir_blocks": 770,
+          "cranelift_ir_instructions": 9574,
+          "deoptimizations": 0
+        },
+        "veritas_source": {
+          "bytecode_blocks": 118,
+          "bytecode_instructions": 996,
+          "calls": 37547,
+          "compilations": 1,
+          "compile_profile": {
+            "finalize_nanoseconds": 33542,
+            "functions": [
+              {
+                "bytecode_blocks": 3,
+                "bytecode_instructions": 10,
+                "cranelift_ir_blocks": 20,
+                "cranelift_ir_instructions": 231,
+                "define_nanoseconds": 435917,
+                "lowering_nanoseconds": 110792,
+                "name": "next_worker_count",
+                "verification_nanoseconds": 60333
+              },
+              {
+                "bytecode_blocks": 9,
+                "bytecode_instructions": 46,
+                "cranelift_ir_blocks": 52,
+                "cranelift_ir_instructions": 575,
+                "define_nanoseconds": 861958,
+                "lowering_nanoseconds": 94916,
+                "name": "xor_d008",
+                "verification_nanoseconds": 77625
+              },
+              {
+                "bytecode_blocks": 8,
+                "bytecode_instructions": 89,
+                "cranelift_ir_blocks": 66,
+                "cranelift_ir_instructions": 1032,
+                "define_nanoseconds": 1428625,
+                "lowering_nanoseconds": 197209,
+                "name": "route_packet",
+                "verification_nanoseconds": 125792
+              },
+              {
+                "bytecode_blocks": 98,
+                "bytecode_instructions": 851,
+                "cranelift_ir_blocks": 632,
+                "cranelift_ir_instructions": 7736,
+                "define_nanoseconds": 18933458,
+                "lowering_nanoseconds": 2473417,
+                "name": "main",
+                "verification_nanoseconds": 1219000
+              }
+            ]
+          },
+          "compiled_functions": [
+            "next_worker_count",
+            "xor_d008",
+            "route_packet",
+            "main"
+          ],
+          "cranelift_ir_blocks": 770,
+          "cranelift_ir_instructions": 9574,
+          "deoptimizations": 0
+        },
+        "veritas_warm_artifact": {
+          "bytecode_blocks": 125,
+          "bytecode_instructions": 1017,
+          "calls": 187736,
+          "compilations": 1,
+          "compile_profile": {
+            "finalize_nanoseconds": 40750,
+            "functions": [
+              {
+                "bytecode_blocks": 3,
+                "bytecode_instructions": 10,
+                "cranelift_ir_blocks": 20,
+                "cranelift_ir_instructions": 231,
+                "define_nanoseconds": 479542,
+                "lowering_nanoseconds": 128916,
+                "name": "next_worker_count",
+                "verification_nanoseconds": 60292
+              },
+              {
+                "bytecode_blocks": 9,
+                "bytecode_instructions": 46,
+                "cranelift_ir_blocks": 52,
+                "cranelift_ir_instructions": 575,
+                "define_nanoseconds": 891125,
+                "lowering_nanoseconds": 145084,
+                "name": "xor_d008",
+                "verification_nanoseconds": 86334
+              },
+              {
+                "bytecode_blocks": 8,
+                "bytecode_instructions": 89,
+                "cranelift_ir_blocks": 66,
+                "cranelift_ir_instructions": 1032,
+                "define_nanoseconds": 1315666,
+                "lowering_nanoseconds": 208875,
+                "name": "route_packet",
+                "verification_nanoseconds": 118500
+              },
+              {
+                "bytecode_blocks": 98,
+                "bytecode_instructions": 851,
+                "cranelift_ir_blocks": 632,
+                "cranelift_ir_instructions": 7736,
+                "define_nanoseconds": 19717291,
+                "lowering_nanoseconds": 2236125,
+                "name": "benchmark_once",
+                "verification_nanoseconds": 1092750
+              },
+              {
+                "bytecode_blocks": 7,
+                "bytecode_instructions": 21,
+                "cranelift_ir_blocks": 41,
+                "cranelift_ir_instructions": 401,
+                "define_nanoseconds": 627916,
+                "lowering_nanoseconds": 85750,
+                "name": "main",
+                "verification_nanoseconds": 66625
+              }
+            ]
+          },
+          "compiled_functions": [
+            "next_worker_count",
+            "xor_d008",
+            "route_packet",
+            "benchmark_once",
+            "main"
+          ],
+          "cranelift_ir_blocks": 811,
+          "cranelift_ir_instructions": 9975,
+          "deoptimizations": 0
+        }
+      },
+      "paired_trial_order": [
+        [
+          "veritas_warm_artifact",
+          "veritas_source",
+          "python_warm",
+          "veritas_artifact",
+          "python_reference"
+        ],
+        [
+          "python_warm",
+          "veritas_warm_artifact",
+          "veritas_artifact",
+          "python_reference",
+          "veritas_source"
+        ],
+        [
+          "veritas_artifact",
+          "python_warm",
+          "veritas_warm_artifact",
+          "python_reference",
+          "veritas_source"
+        ],
+        [
+          "veritas_artifact",
+          "python_warm",
+          "python_reference",
+          "veritas_source",
+          "veritas_warm_artifact"
+        ],
+        [
+          "veritas_warm_artifact",
+          "python_reference",
+          "veritas_artifact",
+          "python_warm",
+          "veritas_source"
+        ],
+        [
+          "python_reference",
+          "veritas_source",
+          "python_warm",
+          "veritas_artifact",
+          "veritas_warm_artifact"
+        ],
+        [
+          "veritas_warm_artifact",
+          "veritas_artifact",
+          "python_warm",
+          "python_reference",
+          "veritas_source"
+        ],
+        [
+          "veritas_source",
+          "python_reference",
+          "veritas_artifact",
+          "veritas_warm_artifact",
+          "python_warm"
+        ],
+        [
+          "veritas_source",
+          "python_reference",
+          "veritas_warm_artifact",
+          "python_warm",
+          "veritas_artifact"
+        ],
+        [
+          "veritas_warm_artifact",
+          "python_warm",
+          "veritas_artifact",
+          "python_reference",
+          "veritas_source"
+        ],
+        [
+          "python_reference",
+          "veritas_warm_artifact",
+          "veritas_artifact",
+          "veritas_source",
+          "python_warm"
+        ],
+        [
+          "veritas_source",
+          "veritas_warm_artifact",
+          "veritas_artifact",
+          "python_warm",
+          "python_reference"
+        ],
+        [
+          "veritas_source",
+          "veritas_artifact",
+          "veritas_warm_artifact",
+          "python_reference",
+          "python_warm"
+        ],
+        [
+          "veritas_artifact",
+          "veritas_warm_artifact",
+          "python_reference",
+          "python_warm",
+          "veritas_source"
+        ],
+        [
+          "python_reference",
+          "python_warm",
+          "veritas_warm_artifact",
+          "veritas_artifact",
+          "veritas_source"
+        ]
+      ],
+      "python_reference": {
+        "median_seconds": 0.0724681249994319,
+        "p95_seconds_nearest_rank": 0.07454700001107994,
+        "samples_seconds": [
+          0.07079804199747741,
+          0.0724681249994319,
+          0.0727692499931436,
+          0.07264554098946974,
+          0.07454700001107994,
+          0.07254879199899733,
+          0.07210295800177846,
+          0.07027650000236463,
+          0.07271237499662675,
+          0.07264258399663959,
+          0.07106287499482278,
+          0.07097879199136514,
+          0.07314774999395013,
+          0.07150629200623371,
+          0.06996287500078324
+        ]
+      },
+      "python_warm": {
+        "median_seconds": 0.043347741800243964,
+        "p95_seconds_nearest_rank": 0.050621741599752565,
+        "samples_seconds": [
+          0.04371355840121396,
+          0.043073233199538666,
+          0.04313617500010878,
+          0.0429597415990429,
+          0.04326427500054706,
+          0.043347741800243964,
+          0.04416036660259124,
+          0.050621741599752565,
+          0.042984524997882544,
+          0.04420278320030775,
+          0.04425444160006009,
+          0.04404995839868207,
+          0.04294183340098243,
+          0.043532616799348035,
+          0.043324691799352874
+        ]
+      },
+      "veritas_artifact": {
+        "median_seconds": 0.06894079099583905,
+        "p95_seconds_nearest_rank": 0.07467716600513086,
+        "samples_seconds": [
+          0.067433667005389,
+          0.06666320899967104,
+          0.06735795800341293,
+          0.06659858299826737,
+          0.06960600000456907,
+          0.0675085420079995,
+          0.06816175000858493,
+          0.07081633398775011,
+          0.06894079099583905,
+          0.07000604100176133,
+          0.06953891699959058,
+          0.06873191600607242,
+          0.06970550000551157,
+          0.0740384590026224,
+          0.07467716600513086
+        ]
+      },
+      "veritas_source": {
+        "median_seconds": 0.9423696250014473,
+        "p95_seconds_nearest_rank": 1.0223676250025164,
+        "samples_seconds": [
+          0.9600849999987986,
+          0.9369859169964911,
+          0.9343585830065422,
+          0.9564184579940047,
+          0.9407891670125537,
+          0.9457090419891756,
+          0.9438200830045389,
+          0.9499459999933606,
+          0.9407757909939392,
+          0.9373070410074433,
+          0.9312742920010351,
+          0.9423696250014473,
+          0.9428774999978486,
+          1.0223676250025164,
+          0.9360681249963818
+        ]
+      },
+      "veritas_warm_artifact": {
+        "median_seconds": 0.0389666083996417,
+        "p95_seconds_nearest_rank": 0.04213525840023067,
+        "samples_seconds": [
+          0.03867911660054233,
+          0.03749173340038396,
+          0.038022291599190794,
+          0.039674266599467954,
+          0.03858279180130921,
+          0.0389666083996417,
+          0.03758044999849517,
+          0.03978213340160437,
+          0.039303541599656454,
+          0.03930001679982524,
+          0.039535599999362604,
+          0.038575266598491,
+          0.03845015839906409,
+          0.04153070820029825,
+          0.04213525840023067
+        ]
+      }
+    }
+  }
+}
