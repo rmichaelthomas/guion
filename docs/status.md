@@ -12,12 +12,12 @@
 ## Current evidence and its limits
 
 - Task 4 produced 18 Guion-named application reports across nine retained regression applications and initial/follow-up variants. All 18 report `passed: true`. The preserved inputs and original Veritas reports were not rewritten.
-- The complete installed-performance and builder records under `evaluation/completion/results/` belong to the earlier Veritas-named build. They contain matched measurements, raw samples, intervals, correctness checks, and unfavorable outcomes. They are useful historical evidence, but they are not a finished Guion-identity performance rerun.
+- The complete installed-performance and builder records under `evaluation/completion/results/` belong to the earlier Veritas-named build. They contain matched measurements, raw samples, intervals, correctness checks, and unfavorable outcomes. They are useful historical evidence, but they are not a finished Guion-identity performance rerun. See the [evidence index](history/evidence-index.md) for the separate campaign identities and exact report links.
 - The historical Veritas run found faster results on specified installed compute/data workloads. It also recorded ties or regressions in the broader suite, and the free-threaded Python comparison was unavailable. These results support only those named workloads and conditions; they do not show that Guion is faster than Python in general.
 - The frozen independent recommendation campaign selected Python in all 18 choices for its older candidate. A later three-pair builder study recommended either language for two work classes and Veritas for one. These are separate studies with different questions; neither is a general adoption estimate.
 
 ## Remaining pre-release work
 
-Evidence indexing, full final validation, continuous integration, and the handoff report remain to be completed. Required macOS and Debian ARM64 checks must be reported individually; a skipped target cannot be marked green. See the [approved migration plan](superpowers/plans/2026-10-24-veritas-complete-product.md) for the complete task gates.
+Full Guion-identity validation, continuous integration, and the handoff report remain to be completed. The [evidence index](history/evidence-index.md) records the historical Veritas cohorts separately from Guion rename acceptance. Required macOS and Debian ARM64 checks must be reported individually; a skipped target cannot be marked green. See the [approved migration plan](superpowers/plans/2026-10-24-veritas-complete-product.md) for the complete task gates.
 
 This status page is a current summary, not the test record. The [historical index](history/README.md) links to the original completion report, checkpoints, campaigns, and preserved results.

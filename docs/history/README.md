@@ -68,3 +68,7 @@ Each checkpoint documents one implementation/evidence increment. The sequence ha
 - [47 static capability inspection](../veritas_checkpoint_v1_47_static_capability_inspection.md)
 - [48 benchmark evaluation](../veritas_checkpoint_v1_48_benchmark_evaluation.md)
 - [49 compiler](../veritas_checkpoint_v1_49_compiler.md)
+
+## Evidence index
+
+- [Guion and Veritas evidence index](evidence-index.md) — exact paths and identities for the frozen recommendation campaigns, nine regression applications, matched builder pairs, final installed performance suite, and completion report set.

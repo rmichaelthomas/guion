@@ -1,5 +1,7 @@
 # Veritas product completion evidence
 
+The final Veritas evidence and the later Guion rename acceptance results have distinct product identities. Use the [evidence index](../../docs/history/evidence-index.md) for their exact report paths and scope.
+
 This directory records completion work for the Veritas build plan. It is a new evidence stream for Tasks 1–11, separate from the frozen independent-v1, independent-v2 and independent-v3 campaign records. The frozen result remains 18 Python choices and 0 Veritas choices; those records are not revised or re-scored here.
 
 The nine existing application briefs are known regression applications. Each brief registers both its initial behavior and its follow-up change. They measure product correctness and maintainability during implementation; they are not presented as unfamiliar builder evidence.
