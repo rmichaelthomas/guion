@@ -58,13 +58,13 @@ Two idle project containers, `veritas-release-linux-20261025` and `veritas-task6
 
 ## Migration mapping
 
-The original Veritas branch and tag remain historical. The Guion migration creates `main` from the frozen ancestry, preserves the final pre-rename state with an archival Veritas tag, and records later Guion rename and documentation commits in Git history. The exact resulting commit IDs, measured post-cleanup sizes, and final remote parity are appended below after those gates complete.
+The original Veritas branch and tag remain historical. The canonical checkout is `/Users/rmichaelthomas/guion`. The source branch `veritas/north-star-sprint` began at `3ece1ce19a5d2aa8443491ab58c39873a45af1a9`; migration commits preserve that ancestry and the final Veritas-era working changes. Local `main` was created from `da37fc24e0993eb57b14cd2908813af083ed76ca`; this migration-mapping record is the final documentation step before the archival tag is placed and before executable surfaces are renamed. `origin` is `https://github.com/rmichaelthomas/guion.git`; GitHub was rechecked as private and empty before the first push.
 
-- Pre-rename source commit: `3ece1ce19a5d2aa8443491ab58c39873a45af1a9`
-- Archival tag: pending
-- Guion `main` migration commit: pending
+- Pre-rename source base: `3ece1ce19a5d2aa8443491ab58c39873a45af1a9`
+- `main` creation point: `da37fc24e0993eb57b14cd2908813af083ed76ca`
+- Archival tag name: `veritas-final-2026-10-25` (will point at the final migration-mapping commit)
 - Pre-release candidate commit: pending
-- Local/remote parity: pending
+- Local/remote parity: pending until the verified push
 
 ## Cleanup result
 
