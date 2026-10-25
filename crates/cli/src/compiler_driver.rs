@@ -72,8 +72,8 @@ pub fn compile_project_with_roots(
     }
     let package_json = serde_json::Value::Object(
         canonical_packages
-            .iter()
-            .map(|(name, _path)| {
+            .keys()
+            .map(|name| {
                 (
                     name.clone(),
                     serde_json::Value::String(format!("pkg:{name}")),

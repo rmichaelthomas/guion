@@ -1009,7 +1009,7 @@ impl Instance {
                     .artifact
                     .functions
                     .get(outcome.fault_function)
-                    .unwrap_or(&f);
+                    .unwrap_or(f);
                 match outcome.status {
                     0 => {
                         let value = match &f.result {
@@ -2878,11 +2878,13 @@ impl Instance {
                     match perform_http_request_bytes(
                         &http,
                         &self.policy,
-                        &method,
-                        &url,
-                        &headers,
-                        &body,
-                        request_timeout,
+                        HttpRequestBytes {
+                            method: &method,
+                            input: &url,
+                            headers: &headers,
+                            body: &body,
+                            timeout: request_timeout,
+                        },
                         budget.as_ref(),
                     ) {
                         Ok(response) => {
@@ -2996,10 +2998,7 @@ impl Instance {
                 }
                 Op::FileNextLine | Op::CsvNext | Op::FileClose => {
                     let value = pop!();
-                    let handle = match runtime_reader_handle(&value, instruction.span) {
-                        Ok(handle) => handle,
-                        Err(error) => return Err(error),
-                    };
+                    let handle = runtime_reader_handle(&value, instruction.span)?;
                     if instruction.op == Op::FileClose {
                         match self.readers.close(handle) {
                             Ok(()) => push_stack!(Value::ResultOk(Box::new(Value::Unit))),
@@ -5722,11 +5721,11 @@ impl Instance {
         #[cfg(not(feature = "python-interop"))]
         {
             let _ = (target, args, kwargs, budget);
-            return Err(RuntimeError::new(
+            Err(RuntimeError::new(
                 "R_PYTHON_UNAVAILABLE",
                 "this external call requires the optional `python-interop` feature",
                 span,
-            ));
+            ))
         }
         #[cfg(feature = "python-interop")]
         {
@@ -7520,16 +7519,27 @@ async fn execute_http_bytes(
     ))
 }
 
+struct HttpRequestBytes<'a> {
+    method: &'a str,
+    input: &'a str,
+    headers: &'a BTreeMap<String, String>,
+    body: &'a [u8],
+    timeout: Duration,
+}
+
 fn perform_http_request_bytes(
     host: &HostHttpClient,
     policy: &HostPolicy,
-    method: &str,
-    input: &str,
-    headers: &BTreeMap<String, String>,
-    body: &[u8],
-    request_timeout: Duration,
+    request: HttpRequestBytes<'_>,
     budget: &Budget,
 ) -> Result<HttpBytesResponse, HttpErrorValue> {
+    let HttpRequestBytes {
+        method,
+        input,
+        headers,
+        body,
+        timeout: request_timeout,
+    } = request;
     let deadline = Instant::now().checked_add(request_timeout).ok_or_else(|| {
         http_error(
             "R_HTTP_TIMEOUT",
@@ -7576,11 +7586,13 @@ fn perform_http_get(
     let response = perform_http_request_bytes(
         host,
         policy,
-        "GET",
-        input,
-        &BTreeMap::new(),
-        &[],
-        policy.http_timeout,
+        HttpRequestBytes {
+            method: "GET",
+            input,
+            headers: &BTreeMap::new(),
+            body: &[],
+            timeout: policy.http_timeout,
+        },
         budget,
     )?;
     if !(200..300).contains(&response.status) {

@@ -126,10 +126,7 @@ fn catalog_wrong_example(expression_type: &str) -> String {
 
 fn catalog_language_type(type_name: &str) -> String {
     let mut result = type_name.to_owned();
-    loop {
-        let Some(start) = result.find("Record[") else {
-            break;
-        };
+    while let Some(start) = result.find("Record[") {
         let inner_start = start + "Record[".len();
         let mut depth = 0usize;
         let mut closing = None;

@@ -227,7 +227,7 @@ impl DatabaseRegistry {
             max_result_bytes,
             max_rows,
             busy_deadline: Duration::from_millis(
-                busy_deadline_ms.min(SQLITE_BUSY_DEADLINE_MS).max(1),
+                busy_deadline_ms.clamp(1, SQLITE_BUSY_DEADLINE_MS),
             ),
             closed_databases: HashSet::new(),
             closed_transactions: HashSet::new(),
@@ -1114,7 +1114,7 @@ fn table_at_path<'a>(
     path: &[&str],
 ) -> Result<&'a mut Table, ServiceError> {
     for key in path {
-        let item = table.entry(*key).or_insert(Item::None);
+        let item = table.entry(key).or_insert(Item::None);
         if item.is_none() {
             *item = Item::Table(Table::new());
         }

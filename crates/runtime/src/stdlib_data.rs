@@ -591,7 +591,7 @@ pub fn fs_walk(root: &Path, max_entries: usize) -> Result<Vec<DirectoryEntry>, D
                 format!("cannot read a directory entry: {error}"),
             )
         })?;
-        children.sort_by(|left, right| left.file_name().cmp(&right.file_name()));
+        children.sort_by_key(|child| child.file_name());
         for child in children {
             let name = child.file_name().into_string().map_err(|_| {
                 DataError::invalid("E_FS_WALK_UTF8", "walk path is not valid UTF-8")

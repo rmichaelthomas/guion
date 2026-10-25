@@ -326,7 +326,7 @@ fn extract_tar_safely(bytes: &[u8], destination: &Path) -> Result<(), String> {
         fs::write(&path, &bytes[offset..offset + size])
             .map_err(|error| format!("cannot extract package file {}: {error}", path.display()))?;
         expanded += size as u64;
-        offset += (size + 511) / 512 * 512;
+        offset += size.div_ceil(512) * 512;
     }
     if zero_blocks < 2 {
         return Err("package archive has no complete tar terminator".into());
@@ -1023,7 +1023,7 @@ pub fn load_locked_roots(project: &Path) -> Result<BTreeMap<String, PathBuf>, St
             .ok_or_else(|| format!("locked package `{name}` has no SHA-256 identity"))?;
         validate_package_name(name)?;
         validate_exact_version(version)?;
-        let cache = project.join(CACHE_DIRECTORY).join(&name).join(version);
+        let cache = project.join(CACHE_DIRECTORY).join(name).join(version);
         verify_cached_library(&cache, name, version, digest)?;
         let manifest = read_library_manifest(&cache, Some(name))?;
         let locked_dependencies = package
@@ -1141,7 +1141,7 @@ fn read_library_manifest(
             root.display()
         ));
     }
-    let path = project_manifest_path(&root);
+    let path = project_manifest_path(root);
     let text = fs::read_to_string(&path).map_err(|error| {
         format!(
             "cannot read native package manifest {}: {error}",
@@ -1323,7 +1323,7 @@ fn locked_library_value(manifest: &LibraryManifest, digest: &str, source: &Path)
 }
 
 fn read_lock(project: &Path) -> Result<LockState, String> {
-    let path = project_lock_path(&project);
+    let path = project_lock_path(project);
     if !path.is_file() {
         return Ok(LockState {
             native: BTreeMap::new(),
@@ -1428,7 +1428,7 @@ fn verify_declared_digest(manifest: &LibraryManifest, actual: &str) -> Result<()
 }
 
 fn content_sha256(root: &Path) -> Result<String, String> {
-    let manifest_path = project_manifest_path(&root);
+    let manifest_path = project_manifest_path(root);
     let text = fs::read_to_string(&manifest_path).map_err(|error| {
         format!(
             "cannot read native package manifest {}: {error}",
@@ -1701,7 +1701,7 @@ mod archive_tests {
         header[148..156].copy_from_slice(encoded.as_bytes());
         let mut archive = header.to_vec();
         archive.extend_from_slice(data);
-        archive.resize(512 + (data.len() + 511) / 512 * 512, 0);
+        archive.resize(512 + data.len().div_ceil(512) * 512, 0);
         archive.extend_from_slice(&[0; 1024]);
         archive
     }

@@ -18,7 +18,7 @@
 
 ## CI and release gates
 
-GitHub Actions runs formatting, workspace tests, and schema checks on Ubuntu 24.04 x86_64. That job is a source check only; it does not certify Guion's supported release targets. The release gates remain separate and require macOS ARM64 and Debian 12-compatible GNU/Linux ARM64 with glibc. A target that did not run is reported as incomplete.
+GitHub Actions runs formatting, strict Clippy, workspace tests, and schema checks on Ubuntu 24.04 x86_64. That job is a source check only; it does not certify Guion's supported release targets. The release gates remain separate and require macOS ARM64 and Debian 12-compatible GNU/Linux ARM64 with glibc. A target that did not run is reported as incomplete.
 
 ## Remaining pre-release work
 

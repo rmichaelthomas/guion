@@ -655,7 +655,7 @@ fn release_target(root: &Path, target: &str, slug: &str) -> Result<Vec<Check>, S
         let mut stdlib_hash = Sha256::new();
         for path in stdlib_files {
             let relative = path
-                .strip_prefix(&share.join("stdlib"))
+                .strip_prefix(share.join("stdlib"))
                 .map_err(|_| "stdlib path escaped package")?
                 .to_string_lossy();
             stdlib_hash.update((relative.len() as u64).to_le_bytes());
@@ -802,10 +802,7 @@ fn release_target(root: &Path, target: &str, slug: &str) -> Result<Vec<Check>, S
         return Ok(checks);
     }
     let candidate_bin = candidate.join("bin/guion");
-    let read_only = set_readonly(&candidate);
-    if let Err(error) = read_only {
-        return Err(error);
-    }
+    set_readonly(&candidate)?;
     let smoke = Command::new(&candidate_bin)
         .arg("--version")
         .current_dir(std::env::temp_dir())

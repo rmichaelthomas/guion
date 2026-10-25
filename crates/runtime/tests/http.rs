@@ -363,9 +363,7 @@ fn byte_http_preserves_binary_request_and_response_bodies() {
         request
     });
     let url = format!("http://{address}/webhook");
-    let source = format!(
-        "record HttpResponse:\n    status: Int\n    headers: Map[Text, Text]\n    body: Bytes\n\nfn send(url: Text, payload: Bytes) -> Result[HttpResponse, HttpError]:\n    let headers: Map[Text, Text] = {{\"content-type\": \"application/octet-stream\"}}\n    return http_request_bytes(\"POST\", url, headers, payload, 1000)\n\nfn main() -> Int:\n    return 0\n"
-    );
+    let source = "record HttpResponse:\n    status: Int\n    headers: Map[Text, Text]\n    body: Bytes\n\nfn send(url: Text, payload: Bytes) -> Result[HttpResponse, HttpError]:\n    let headers: Map[Text, Text] = {\"content-type\": \"application/octet-stream\"}\n    return http_request_bytes(\"POST\", url, headers, payload, 1000)\n\nfn main() -> Int:\n    return 0\n".to_string();
     let artifact = compile("http-bytes.gu", &source).expect("byte HTTP is a typed builtin");
     let policy =
         HostPolicy::default().with_network_hosts(["127.0.0.1"], Duration::from_secs(2), 64);
@@ -473,9 +471,7 @@ fn byte_http_total_deadline_applies_across_trickled_body_chunks() {
         }
     });
     let url = format!("http://{address}/trickle");
-    let source = format!(
-        "record HttpResponse:\n    status: Int\n    headers: Map[Text, Text]\n    body: Bytes\n\nfn response(url: Text) -> Result[HttpResponse, HttpError]:\n    return http_request_bytes(\"GET\", url, {{}}, bytes_from_text(\"\"), 120)\n\nfn main() -> Int:\n    return 0\n"
-    );
+    let source = "record HttpResponse:\n    status: Int\n    headers: Map[Text, Text]\n    body: Bytes\n\nfn response(url: Text) -> Result[HttpResponse, HttpError]:\n    return http_request_bytes(\"GET\", url, {}, bytes_from_text(\"\"), 120)\n\nfn main() -> Int:\n    return 0\n".to_string();
     let artifact = compile("http-total-deadline.gu", &source).unwrap();
     let policy =
         HostPolicy::default().with_network_hosts(["127.0.0.1"], Duration::from_secs(1), 1024);
@@ -493,9 +489,7 @@ fn byte_http_total_deadline_applies_across_trickled_body_chunks() {
 #[test]
 fn byte_http_rejects_oversized_response_before_returning_partial_bytes() {
     let url = serve_once("HTTP/1.1 200 OK\r\nContent-Length: 5\r\nConnection: close\r\n\r\n12345");
-    let source = format!(
-        "record HttpResponse:\n    status: Int\n    headers: Map[Text, Text]\n    body: Bytes\n\nfn response(url: Text) -> Result[HttpResponse, HttpError]:\n    return http_request_bytes(\"GET\", url, {{}}, bytes_from_text(\"\"), 1000)\n\nfn main() -> Int:\n    return 0\n"
-    );
+    let source = "record HttpResponse:\n    status: Int\n    headers: Map[Text, Text]\n    body: Bytes\n\nfn response(url: Text) -> Result[HttpResponse, HttpError]:\n    return http_request_bytes(\"GET\", url, {}, bytes_from_text(\"\"), 1000)\n\nfn main() -> Int:\n    return 0\n".to_string();
     let artifact = compile("http-byte-response-limit.gu", &source).unwrap();
     let policy = HostPolicy::default().with_network_hosts(["127.0.0.1"], Duration::from_secs(2), 4);
     let mut instance = Runtime::new().load(artifact, policy).unwrap();

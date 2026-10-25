@@ -20,7 +20,7 @@ jobs:
 
       - name: Install the project Rust toolchain
         run: |
-          rustup toolchain install 1.97.1 --profile minimal --component rustfmt
+          rustup toolchain install 1.97.1 --profile minimal --component rustfmt --component clippy
           rustup default 1.97.1
 
       - name: Record toolchain
@@ -30,6 +30,9 @@ jobs:
 
       - name: Check formatting
         run: cargo fmt --all -- --check
+
+      - name: Lint the workspace
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
 
       - name: Run workspace tests
         run: cargo test --workspace --locked

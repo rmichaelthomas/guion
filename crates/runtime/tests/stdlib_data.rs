@@ -202,10 +202,7 @@ fn json_safe_accessors_keep_missing_null_and_boolean_types_distinct() {
             .code,
         "E_JSON_MISSING"
     );
-    assert_eq!(
-        guion_runtime::stdlib_data::json_try_bool(&SharedJson::Bool(true)).unwrap(),
-        true
-    );
+    assert!(guion_runtime::stdlib_data::json_try_bool(&SharedJson::Bool(true)).unwrap());
     assert_eq!(
         guion_runtime::stdlib_data::json_try_int(&SharedJson::Bool(true))
             .unwrap_err()
