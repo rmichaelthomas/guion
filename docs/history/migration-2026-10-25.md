@@ -62,9 +62,10 @@ The original Veritas branch and tag remain historical. The canonical checkout is
 
 - Pre-rename source base: `3ece1ce19a5d2aa8443491ab58c39873a45af1a9`
 - `main` creation point: `da37fc24e0993eb57b14cd2908813af083ed76ca`
-- Archival tag name: `veritas-final-2026-10-25` (will point at the final migration-mapping commit)
-- Pre-release candidate commit: pending
-- Local/remote parity: pending until the verified push
+- Archival tag: `veritas-final-2026-10-25`, annotated tag object `8cadc056479524b330189043f7aa89fceb9bd97e`, peeled to commit `c14c766dfb40d2d429c7188e3635e5c4b7ae1897`.
+- Initial private `main` push: `c14c766dfb40d2d429c7188e3635e5c4b7ae1897`; `git ls-remote` matched local `main` and the peeled archival tag.
+- Subsequent Guion commits and pre-release candidate commit: pending.
+- GitHub visibility at push: private; the repository was empty immediately before the push.
 
 ## Cleanup result
 
