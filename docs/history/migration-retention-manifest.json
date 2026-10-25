@@ -6372,6 +6372,61 @@
       "path": "crates/runtime/tests/fixtures/libical-2.ics",
       "bytes": 594,
       "sha256": "fbdbecc0105b33e659f0b473432d7cf103f26325f2fea7e2090d2d391a4d0970"
+    },
+    {
+      "path": "evaluation/development/experiments/2026-10-25/config-migrator-linux/main.vr",
+      "bytes": 1341,
+      "sha256": "13d519cce6422a540cd45a874b1681e1c29c193c6c61ed7adae7e6c8567c0ddd"
+    },
+    {
+      "path": "evaluation/development/experiments/2026-10-25/config-migrator-linux/python_main.py",
+      "bytes": 1305,
+      "sha256": "2c3a2ab4dbf6bad8302673b0aa58590e75ab4ab0688e723c0f95649a00e0ce1c"
+    },
+    {
+      "path": "evaluation/development/experiments/2026-10-25/config-migrator-linux/config_support.py",
+      "bytes": 2997,
+      "sha256": "6c0751d821bcd60ca0df984fbfb6bfc59840db719e3654ef4bccc586e64a33fa"
+    },
+    {
+      "path": "evaluation/development/experiments/2026-10-25/config-migrator-linux/veritas.toml",
+      "bytes": 194,
+      "sha256": "78a4c4a8b4ed2cb351a87dbdffdaf581c5189dd90d0629c892d051cb99d68eda"
+    },
+    {
+      "path": "evaluation/development/experiments/2026-10-25/config-migrator-linux/veritas.lock",
+      "bytes": 261,
+      "sha256": "72ecd287e0c53754b3b8c3e3e56ea82ffd8df9ea62a5a5af3ddfe31e3170cdeb"
+    },
+    {
+      "path": "evaluation/development/experiments/2026-10-25/config-migrator-linux/.veritas/python-bridge/pyproject.toml",
+      "bytes": 123,
+      "sha256": "42e14fef24f3bb6a58c702ee49bd05c65d1b65b70043723998ee3f3813de4530"
+    },
+    {
+      "path": "evaluation/development/experiments/2026-10-25/scripts/config_migrator_linux_timing.py",
+      "bytes": 2639,
+      "sha256": "caf54ceb0aa34b60cc4be78f3caf5cf833ef8791e52658d57236931bda21fdfe"
+    },
+    {
+      "path": "evaluation/development/experiments/2026-10-25/scripts/veritas-config-migrator-linux-driver.py",
+      "bytes": 2603,
+      "sha256": "b75652139e1c638748a3fb85a52cbdf141ab6f1c475b0ea8b45da3e137240f0d"
+    },
+    {
+      "path": "evaluation/development/experiments/2026-10-25/python-lock-smoke/main.py",
+      "bytes": 31403,
+      "sha256": "4a6a80bc109513c111aaa63458fb03c4fcc8dc4d1a86470b13b3fef41d5ceb89"
+    },
+    {
+      "path": "evaluation/development/experiments/2026-10-25/python-lock-smoke/pyproject.toml",
+      "bytes": 114,
+      "sha256": "633a62c63eead29d29ef6c7a85b8c8aec3f60484b3f33fe52ab87a24a5072705"
+    },
+    {
+      "path": "evaluation/development/experiments/2026-10-25/python-lock-smoke/delivery.json",
+      "bytes": 314,
+      "sha256": "a5781f9d4d776d866884d5ed0394ad32cdc68fc8a8dbc541f66891c0623e081d"
     }
   ],
   "campaigns": {
@@ -6910,5 +6965,311 @@
     ],
     "interpretation": "10 paths contain 2 distinct executable builds; only repeated packaged evidence copies are removed from the current tree. Existing Git history remains.",
     "files_with_recorded_references": 10
+  },
+  "retained_generated_source": {
+    "config_migrator_linux": "The final source and scripts used for the exploratory Linux timing note are retained without copied virtual environments. The completed application source remains in evaluation/completion/applications/config-migrator/.",
+    "python_lock_smoke": "The latest small Python comparison source and lock metadata are retained; generated delivery bundles are not.",
+    "veritas_v3_pair2": "The retained independent-v3/source-amendment tree matches work/veritas-v3-pair2-amended-candidate when generated dist and Python environment files are excluded."
+  },
+  "cleanup_inventory": {
+    "measured_at": "2026-10-25",
+    "source_checkout": "/Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/work/veritas-foundation",
+    "groups": [
+      {
+        "path": "target",
+        "disk_bytes": 15947272192,
+        "file_count": 133303,
+        "reason": "Generated Rust build/cache and release staging; two pre-rename archives and three small final logs are preserved externally/in-repo."
+      },
+      {
+        "path": "evaluation/results/independent-v2/workspace",
+        "disk_bytes": 949764096,
+        "file_count": 14798,
+        "reason": "Pinned workspace products are bulky; selected prompts, setup records and product snapshot are preserved."
+      },
+      {
+        "path": "evaluation/results/independent-v2/run-evidence/evidence.tar.zst",
+        "disk_bytes": 1174339584,
+        "file_count": 1,
+        "reason": "Raw archive is hash-verified; compact records remain; exact replay of eight partial sessions will be lost.",
+        "sha256": "c458124b129e86075db573f015c693c773ddd4d2025655c4b66538ebf3b30a07"
+      },
+      {
+        "path": "evaluation/results/independent-v3/runtime-amendment/veritas-format33-file-root-linux-aarch64.tar.gz",
+        "disk_bytes": 49479680,
+        "file_count": 1,
+        "reason": "Generated runtime amendment package; compact metadata and final source are preserved; archive can be rebuilt but exact bytes will be lost.",
+        "sha256": "f6cba12f4ccfcf7c38b3fcd6167b7ac6d137a89f3003eb564fe4dfb733d56635"
+      },
+      {
+        "path": "work",
+        "disk_bytes": 149352448,
+        "file_count": 6558,
+        "reason": "Temporary experiments/build outputs; selected reports, final source, input data and rerun scripts copied under evaluation/development and independent-v3.",
+        "children": [
+          {
+            "path": "work/config-macos-launcher-timing.json",
+            "disk_bytes": 4096,
+            "file_count": 1
+          },
+          {
+            "path": "work/config-macos-package-analysis-100k-timing.json",
+            "disk_bytes": 4096,
+            "file_count": 1
+          },
+          {
+            "path": "work/config-migrator-linux",
+            "disk_bytes": 307200,
+            "file_count": 42
+          },
+          {
+            "path": "work/config-migrator-linux-pilot",
+            "disk_bytes": 307200,
+            "file_count": 42
+          },
+          {
+            "path": "work/config-migrator-linux-timing.json",
+            "disk_bytes": 4096,
+            "file_count": 1
+          },
+          {
+            "path": "work/config_migrator_linux_timing.py",
+            "disk_bytes": 4096,
+            "file_count": 1
+          },
+          {
+            "path": "work/native-package-analysis",
+            "disk_bytes": 5246976,
+            "file_count": 15
+          },
+          {
+            "path": "work/native-package-analysis-column-cow-comparison.json",
+            "disk_bytes": 4096,
+            "file_count": 1
+          },
+          {
+            "path": "work/native-package-analysis-column-timing.json",
+            "disk_bytes": 4096,
+            "file_count": 1
+          },
+          {
+            "path": "work/native-package-analysis-timing.json",
+            "disk_bytes": 4096,
+            "file_count": 1
+          },
+          {
+            "path": "work/native_package_analysis_acceptance.py",
+            "disk_bytes": 4096,
+            "file_count": 1
+          },
+          {
+            "path": "work/native_package_analysis_column_acceptance.py",
+            "disk_bytes": 4096,
+            "file_count": 1
+          },
+          {
+            "path": "work/package-refresh-candidates",
+            "disk_bytes": 9777152,
+            "file_count": 1798
+          },
+          {
+            "path": "work/python-lock-smoke",
+            "disk_bytes": 180224,
+            "file_count": 13
+          },
+          {
+            "path": "work/veritas-config-migrator-linux-driver.py",
+            "disk_bytes": 4096,
+            "file_count": 1
+          },
+          {
+            "path": "work/veritas-v3-pair2-amended-candidate",
+            "disk_bytes": 133492736,
+            "file_count": 4638
+          }
+        ]
+      },
+      {
+        "path": "native/vendor/libical-4.0.5",
+        "disk_bytes": 23330816,
+        "file_count": 2437,
+        "reason": "Expanded copy generated from tracked archive; license text and 2.ics test sample preserved separately."
+      },
+      {
+        "path": "crates/cli/core",
+        "disk_bytes": 14069760,
+        "file_count": 1,
+        "reason": "Crash dump; no retained report depends on it and the exact bytes cannot be recreated."
+      },
+      {
+        "path": "evaluation/completion/applications/*/dist",
+        "disk_bytes": 413663232,
+        "file_count": 63,
+        "directories": [
+          {
+            "path": "evaluation/completion/applications/calendar-conflicts/dist",
+            "disk_bytes": 45973504,
+            "file_count": 7
+          },
+          {
+            "path": "evaluation/completion/applications/config-migrator/dist",
+            "disk_bytes": 45907968,
+            "file_count": 7
+          },
+          {
+            "path": "evaluation/completion/applications/doc-index/dist",
+            "disk_bytes": 46010368,
+            "file_count": 7
+          },
+          {
+            "path": "evaluation/completion/applications/health-digest/dist",
+            "disk_bytes": 45953024,
+            "file_count": 7
+          },
+          {
+            "path": "evaluation/completion/applications/jsonl-summary/dist",
+            "disk_bytes": 45961216,
+            "file_count": 7
+          },
+          {
+            "path": "evaluation/completion/applications/lockfile-auditor/dist",
+            "disk_bytes": 45957120,
+            "file_count": 7
+          },
+          {
+            "path": "evaluation/completion/applications/release-notes/dist",
+            "disk_bytes": 45985792,
+            "file_count": 7
+          },
+          {
+            "path": "evaluation/completion/applications/sla-report/dist",
+            "disk_bytes": 45936640,
+            "file_count": 7
+          },
+          {
+            "path": "evaluation/completion/applications/webhook-replay/dist",
+            "disk_bytes": 45977600,
+            "file_count": 7
+          }
+        ],
+        "reason": "Nine generated bundles; their sources and structured acceptance outcomes are retained."
+      }
+    ],
+    "v3_delivery_directory_inventory": [
+      {
+        "path": "evaluation/results/independent-v3/run-reports/01-support-sla-report-pair-1-python-follow-up.json.delivery",
+        "disk_bytes": 8192,
+        "report": "evaluation/results/independent-v3/run-reports/01-support-sla-report-pair-1-python-follow-up.json",
+        "report_sha256": "c89b90b360164b09731427121356a316b9730eb9456c714afec4f2a0fb61c63f",
+        "delivery_manifest": "evaluation/results/independent-v3/run-reports/01-support-sla-report-pair-1-python-follow-up.json.delivery-manifest.json",
+        "delivery_manifest_sha256": "7e9be04d45b9464d06b2275ff0711a710b758edd3b8b82c925aed3127b38b7ce"
+      },
+      {
+        "path": "evaluation/results/independent-v3/run-reports/01-support-sla-report-pair-1-python-initial.json.delivery",
+        "disk_bytes": 8192,
+        "report": "evaluation/results/independent-v3/run-reports/01-support-sla-report-pair-1-python-initial.json",
+        "report_sha256": "403be2d7975749bc875174fec9dd7ad96e72ba1da3664262d7825c7433293aea",
+        "delivery_manifest": "evaluation/results/independent-v3/run-reports/01-support-sla-report-pair-1-python-initial.json.delivery-manifest.json",
+        "delivery_manifest_sha256": "7e9be04d45b9464d06b2275ff0711a710b758edd3b8b82c925aed3127b38b7ce"
+      },
+      {
+        "path": "evaluation/results/independent-v3/run-reports/01-support-sla-report-pair-1-veritas-follow-up.json.delivery",
+        "disk_bytes": 12423168,
+        "report": "evaluation/results/independent-v3/run-reports/01-support-sla-report-pair-1-veritas-follow-up.json",
+        "report_sha256": "39eefa934ba14a3146ef6d910eee0cbd5559a0e69948b477529594fe231a70d9",
+        "delivery_manifest": "evaluation/results/independent-v3/run-reports/01-support-sla-report-pair-1-veritas-follow-up.json.delivery-manifest.json",
+        "delivery_manifest_sha256": "7d1d7285efc4e0f2e14d7b9c3603514654968ab2d93f2a9a4398a62215899c67"
+      },
+      {
+        "path": "evaluation/results/independent-v3/run-reports/01-support-sla-report-pair-1-veritas-initial.json.delivery",
+        "disk_bytes": 12423168,
+        "report": "evaluation/results/independent-v3/run-reports/01-support-sla-report-pair-1-veritas-initial.json",
+        "report_sha256": "69940d085a01d4080d05bb183fc8c632165fe5525e2b79cb84aa20b94b85242d",
+        "delivery_manifest": "evaluation/results/independent-v3/run-reports/01-support-sla-report-pair-1-veritas-initial.json.delivery-manifest.json",
+        "delivery_manifest_sha256": "7d1d7285efc4e0f2e14d7b9c3603514654968ab2d93f2a9a4398a62215899c67"
+      },
+      {
+        "path": "evaluation/results/independent-v3/run-reports/01-support-sla-report-pair-2-python-follow-up.json.delivery",
+        "disk_bytes": 8192,
+        "report": "evaluation/results/independent-v3/run-reports/01-support-sla-report-pair-2-python-follow-up.json",
+        "report_sha256": "210716c3ff12ca503a84808f16af4b3ddd637ae3db53c692aee2b5024bd3255a",
+        "delivery_manifest": "evaluation/results/independent-v3/run-reports/01-support-sla-report-pair-2-python-follow-up.json.delivery-manifest.json",
+        "delivery_manifest_sha256": "85b5e7642221bee939aa5e9de80c17005c90e901b77181c49e2084bde14b918f"
+      },
+      {
+        "path": "evaluation/results/independent-v3/run-reports/01-support-sla-report-pair-2-python-initial.json.delivery",
+        "disk_bytes": 8192,
+        "report": "evaluation/results/independent-v3/run-reports/01-support-sla-report-pair-2-python-initial.json",
+        "report_sha256": "9f1c8c9a70b90e7d469807d63c40a99123171e11ad504e07326d20215e61b060",
+        "delivery_manifest": "evaluation/results/independent-v3/run-reports/01-support-sla-report-pair-2-python-initial.json.delivery-manifest.json",
+        "delivery_manifest_sha256": "85b5e7642221bee939aa5e9de80c17005c90e901b77181c49e2084bde14b918f"
+      },
+      {
+        "path": "evaluation/results/independent-v3/run-reports/01-support-sla-report-pair-2-veritas-follow-up-correction-1.json.delivery",
+        "disk_bytes": 135172096,
+        "report": "evaluation/results/independent-v3/run-reports/01-support-sla-report-pair-2-veritas-follow-up-correction-1.json",
+        "report_sha256": "1a5de412cf47f8943858e8e5d6bf48414e1bf324bd063c668f175b643f1d9a39",
+        "delivery_manifest": "evaluation/results/independent-v3/run-reports/01-support-sla-report-pair-2-veritas-follow-up-correction-1.json.delivery-manifest.json",
+        "delivery_manifest_sha256": "86060dca9941df3328db82c5303de5c35e48c371df6ce19644723db00c75656e"
+      },
+      {
+        "path": "evaluation/results/independent-v3/run-reports/01-support-sla-report-pair-2-veritas-follow-up-correction-2.json.delivery",
+        "disk_bytes": 135172096,
+        "report": "evaluation/results/independent-v3/run-reports/01-support-sla-report-pair-2-veritas-follow-up-correction-2.json",
+        "report_sha256": "b108d5173b768f766f9531e1bf701333a3f28bf9ae06d93ec07e5f97f11f2d94",
+        "delivery_manifest": "evaluation/results/independent-v3/run-reports/01-support-sla-report-pair-2-veritas-follow-up-correction-2.json.delivery-manifest.json",
+        "delivery_manifest_sha256": "86060dca9941df3328db82c5303de5c35e48c371df6ce19644723db00c75656e"
+      },
+      {
+        "path": "evaluation/results/independent-v3/run-reports/01-support-sla-report-pair-2-veritas-follow-up-correction-3.json.delivery",
+        "disk_bytes": 135172096,
+        "report": "evaluation/results/independent-v3/run-reports/01-support-sla-report-pair-2-veritas-follow-up-correction-3.json",
+        "report_sha256": "db7224afba00568cbc01e26f815e6c3ae5c101046ae9fa2ca7930bb3ef9bfa93",
+        "delivery_manifest": "evaluation/results/independent-v3/run-reports/01-support-sla-report-pair-2-veritas-follow-up-correction-3.json.delivery-manifest.json",
+        "delivery_manifest_sha256": "86060dca9941df3328db82c5303de5c35e48c371df6ce19644723db00c75656e"
+      },
+      {
+        "path": "evaluation/results/independent-v3/run-reports/01-support-sla-report-pair-2-veritas-follow-up-correction-4.json.delivery",
+        "disk_bytes": 133312512,
+        "report": "evaluation/results/independent-v3/run-reports/01-support-sla-report-pair-2-veritas-follow-up-correction-4.json",
+        "report_sha256": "718b5d96affb17e2b45e65bbdbc0d0b07386ec442f0333c1c89df3b5cc505f13",
+        "delivery_manifest": "evaluation/results/independent-v3/run-reports/01-support-sla-report-pair-2-veritas-follow-up-correction-4.json.delivery-manifest.json",
+        "delivery_manifest_sha256": "44e5c14725d671256966a3f3bb755415b4606a3d63129451e9720df4cf44ee24"
+      },
+      {
+        "path": "evaluation/results/independent-v3/run-reports/01-support-sla-report-pair-2-veritas-follow-up.json.delivery",
+        "disk_bytes": 135172096,
+        "report": "evaluation/results/independent-v3/run-reports/01-support-sla-report-pair-2-veritas-follow-up.json",
+        "report_sha256": "36e68ce1da93aa28d9e2a7165f43ab7970b9bc5c74df7df33d013f172510f742",
+        "delivery_manifest": "evaluation/results/independent-v3/run-reports/01-support-sla-report-pair-2-veritas-follow-up.json.delivery-manifest.json",
+        "delivery_manifest_sha256": "86060dca9941df3328db82c5303de5c35e48c371df6ce19644723db00c75656e"
+      },
+      {
+        "path": "evaluation/results/independent-v3/run-reports/01-support-sla-report-pair-2-veritas-initial.json.delivery",
+        "disk_bytes": 135172096,
+        "report": "evaluation/results/independent-v3/run-reports/01-support-sla-report-pair-2-veritas-initial.json",
+        "report_sha256": "03a75ed2f269f56264b2e7ea600160d445fc55dbf656b121e9aec1e1ab4056e9",
+        "delivery_manifest": "evaluation/results/independent-v3/run-reports/01-support-sla-report-pair-2-veritas-initial.json.delivery-manifest.json",
+        "delivery_manifest_sha256": "86060dca9941df3328db82c5303de5c35e48c371df6ce19644723db00c75656e"
+      },
+      {
+        "path": "evaluation/results/independent-v3/run-reports/01-support-sla-report-product-fix-relocation-correction-6.json.delivery",
+        "disk_bytes": 133378048,
+        "report": "evaluation/results/independent-v3/run-reports/01-support-sla-report-product-fix-relocation-correction-6.json",
+        "report_sha256": "48906be0b6ff39bcc7d031872b079ec2311bc8b0ef3b73eb7a30376d58f6b313",
+        "delivery_manifest": "evaluation/results/independent-v3/run-reports/01-support-sla-report-product-fix-relocation-correction-6.json.delivery-manifest.json",
+        "delivery_manifest_sha256": "28abd473e85c9b389a543ede41aefb840adb092d9149e6f87dc90bccddb52c03"
+      }
+    ],
+    "builder_executable_cleanup": {
+      "count": 10,
+      "file_bytes": 128297792,
+      "unique_sha256": [
+        "03be2204f0923684c818a72f823db96ef9a1735741fec7481b0c4c7a69ab7b01",
+        "08dafd217babdf2e94734d32ed73542356f2926f795d65c3c6b1f4d39c2bf62a"
+      ],
+      "interpretation": "10 paths contain 2 distinct executable builds; only repeated packaged evidence copies are removed from the current tree. Existing Git history remains.",
+      "files_with_recorded_references": 10
+    }
   }
 }

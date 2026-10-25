@@ -1,0 +1,6 @@
+format_version = 1
+manifest_sha256 = "78a4c4a8b4ed2cb351a87dbdffdaf581c5189dd90d0629c892d051cb99d68eda"
+python_version = "3.14.8"
+target = "linux-aarch64"
+uv_lock_sha256 = "994c802321c86adc2a75b4180b8c8fcd8823eea3b8e0f319bb90b8d9ecc550d9"
+uv_version = "0.13.4"

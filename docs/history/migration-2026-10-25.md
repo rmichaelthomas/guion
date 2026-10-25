@@ -42,6 +42,12 @@ Replay losses are explicit:
 
 The current source branch is retained unchanged as a small historical checkout until the new local and private remote state pass final parity. No blanket process kill was used.
 
+## Additional generated outputs in the cleanup inventory
+
+The exact inventory includes all nine generated application `dist/` trees (seven files each), every top-level temporary `work/` group, the v2 workspace, the 13 v3 delivery directories, the crash core and the expanded libical tree. The source `work/veritas-v3-pair2-amended-candidate` source-only tree was compared with the retained independent-v3 source amendment; they match when generated distribution and Python environment files are excluded. Selected Linux config-migration and Python lock-smoke source plus their rerun scripts were copied into `evaluation/development/experiments/2026-10-25/`. Other generated package-refresh candidates and copied virtual environments are removed as superseded outputs.
+
+The v3 runtime amendment archive (`veritas-format33-file-root-linux-aarch64.tar.gz`, 49,477,829 bytes, SHA-256 `f6cba12f4ccfcf7c38b3fcd6167b7ac6d137a89f3003eb564fe4dfb733d56635`) is not copied into the ordinary repo. Its source and package metadata remain; exact package bytes are not recoverable from the hash. Ten tracked builder evidence runtime executables (128,297,792 bytes across two SHA-256 identities) are removed from the current tree after their exact paths, hashes and referring reports were recorded. Their Git history remains.
+
 ## Process inspection
 
 Two idle project containers, `veritas-release-linux-20261025` and `veritas-task6-linux`, were confirmed by their mounts and command lines to belong to this checkout and were stopped. Both were running only `sleep infinity`; their exit code 137 followed the stop grace period and is not evidence of an out-of-memory failure. A shared Colima virtual machine remains running. Inspection found it held only a directory handle into the old release staging tree, with no open build-output file handles. It is shared infrastructure, not a Guion build process, and was left running.

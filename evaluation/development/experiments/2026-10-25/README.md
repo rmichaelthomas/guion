@@ -17,3 +17,7 @@ These measurements show workload-specific wins and losses. They do not support a
 The directory retains the small JSON result files, source programs, acceptance scripts, and the 100,000-row input. The input is stored as `native-package-analysis/dataset.json.zst` to keep the repository small. Its compressed file passed `zstd -t`; decompressing it produces SHA-256 `7c34a5aeb714026e2624d64980999cc40612b6f230843516d5b6b9f59279a40b`, matching the original dataset.
 
 Compiled `.vrb` files and packaged runtime copies were omitted because the retained source can regenerate them. Two source-free Python lock smoke reports remain as JSON; their delivery folders were omitted, so the report-recorded artifact hashes cannot restore those files.
+
+## Retained source for exploratory runs
+
+The Linux config-migration source and timing drivers are retained under [`config-migrator-linux/`](config-migrator-linux/) and [`scripts/`](scripts/). The latest lock smoke's small Python project source and manifest are under [`python-lock-smoke/`](python-lock-smoke/); its generated delivery folders are omitted. The final independent-v3 candidate source is retained separately at [`evaluation/results/independent-v3/source-amendment/`](../../../results/independent-v3/source-amendment/). These files support inspection and rerunning selected cases; they do not turn the exploratory timings into the formal completion suite.

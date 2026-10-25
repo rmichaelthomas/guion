@@ -1,0 +1,21 @@
+{
+  "launch_command": [
+    "uv",
+    "run",
+    "--locked",
+    "--offline",
+    "--project",
+    "${candidate}",
+    "python3",
+    "${candidate}/main.py"
+  ],
+  "artifact_paths": [
+    "main.py",
+    "pyproject.toml",
+    "uv.lock"
+  ],
+  "source_paths": [
+    "dev/"
+  ],
+  "dependency_lock_path": "uv.lock"
+}
