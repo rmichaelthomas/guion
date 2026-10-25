@@ -1,5 +1,5 @@
-import "lexer.vr"
-import "parser.vr"
+import "lexer.gu"
+import "parser.gu"
 
 fn assert_no_lex_errors(tokens: List[Token]) -> Unit:
     var cursor = 0
@@ -8,14 +8,14 @@ fn assert_no_lex_errors(tokens: List[Token]) -> Unit:
         set cursor = cursor + 1
 
 fn main() -> Int:
-    let lexer_source = unwrap(read_text("lexer.vr"))
+    let lexer_source = unwrap(read_text("lexer.gu"))
     let lexer_tokens = scan(lexer_source)
     assert_no_lex_errors(lexer_tokens)
     let lexer_program = parse_program(lexer_tokens)
     assert(lexer_program.ok)
     assert(json_len(json_get(lexer_program.value, "functions")) >= 7)
 
-    let parser_source = unwrap(read_text("parser.vr"))
+    let parser_source = unwrap(read_text("parser.gu"))
     let parser_tokens = scan(parser_source)
     assert_no_lex_errors(parser_tokens)
     let parser_program = parse_program(parser_tokens)

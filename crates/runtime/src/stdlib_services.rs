@@ -1,4 +1,4 @@
-//! Native services backing Veritas' durable-state and interoperability APIs.
+//! Native services backing Guion' durable-state and interoperability APIs.
 use std::{
     collections::{HashMap, HashSet},
     path::{Component, Path, PathBuf},
@@ -1180,14 +1180,14 @@ impl CalendarEvent {
 }
 
 unsafe extern "C" {
-    fn veritas_ical_parse(
+    fn guion_ical_parse(
         source: *const std::ffi::c_char,
         error: *mut std::ffi::c_char,
         error_capacity: usize,
         error_code: *mut i32,
     ) -> *mut std::ffi::c_void;
-    fn veritas_ical_event_count(calendar: *mut std::ffi::c_void) -> usize;
-    fn veritas_ical_event(
+    fn guion_ical_event_count(calendar: *mut std::ffi::c_void) -> usize;
+    fn guion_ical_event(
         calendar: *mut std::ffi::c_void,
         index: usize,
         uid: *mut *const std::ffi::c_char,
@@ -1206,14 +1206,14 @@ unsafe extern "C" {
         error: *mut std::ffi::c_char,
         error_capacity: usize,
     ) -> i32;
-    fn veritas_ical_free_text(text: *mut std::ffi::c_char);
-    fn veritas_ical_free(calendar: *mut std::ffi::c_void);
+    fn guion_ical_free_text(text: *mut std::ffi::c_char);
+    fn guion_ical_free(calendar: *mut std::ffi::c_void);
 }
 
 struct IcalCalendar(std::ptr::NonNull<std::ffi::c_void>);
 impl Drop for IcalCalendar {
     fn drop(&mut self) {
-        unsafe { veritas_ical_free(self.0.as_ptr()) };
+        unsafe { guion_ical_free(self.0.as_ptr()) };
     }
 }
 
@@ -1221,7 +1221,7 @@ struct IcalText(*mut std::ffi::c_char);
 impl Drop for IcalText {
     fn drop(&mut self) {
         if !self.0.is_null() {
-            unsafe { veritas_ical_free_text(self.0) };
+            unsafe { guion_ical_free_text(self.0) };
         }
     }
 }
@@ -1238,7 +1238,7 @@ pub fn calendar_parse(source: &str) -> Result<Vec<CalendarEvent>, ServiceError> 
     let mut error = [0 as std::ffi::c_char; 256];
     let mut error_code = 0;
     let calendar = unsafe {
-        veritas_ical_parse(
+        guion_ical_parse(
             input.as_ptr(),
             error.as_mut_ptr(),
             error.len(),
@@ -1254,7 +1254,7 @@ pub fn calendar_parse(source: &str) -> Result<Vec<CalendarEvent>, ServiceError> 
         ServiceError::new(code, message.into_owned())
     })?;
     let calendar = IcalCalendar(calendar);
-    let count = unsafe { veritas_ical_event_count(calendar.0.as_ptr()) };
+    let count = unsafe { guion_ical_event_count(calendar.0.as_ptr()) };
     let mut events = Vec::with_capacity(count);
     for index in 0..count {
         let mut uid = std::ptr::null();
@@ -1272,7 +1272,7 @@ pub fn calendar_parse(source: &str) -> Result<Vec<CalendarEvent>, ServiceError> 
         let mut end_day = 0;
         error.fill(0);
         let result = unsafe {
-            veritas_ical_event(
+            guion_ical_event(
                 calendar.0.as_ptr(),
                 index,
                 &mut uid,

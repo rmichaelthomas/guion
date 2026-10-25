@@ -1,15 +1,15 @@
 [package]
-name = "veritas-bootstrap"
+name = "guion-bootstrap"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 
 [[bin]]
-name = "veritas-stage0"
+name = "guion-stage0"
 path = "src/main.rs"
 
 [dependencies]
-veritas-compiler.workspace = true
-veritas-model.workspace = true
+guion-compiler.workspace = true
+guion-model.workspace = true
 serde_json.workspace = true
 sha2.workspace = true

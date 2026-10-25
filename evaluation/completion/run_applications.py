@@ -1,4 +1,4 @@
-"""Execute the frozen application regression cases against staged Veritas packages."""
+"""Execute the frozen application regression cases against staged Guion packages."""
 
 from __future__ import annotations
 
@@ -38,10 +38,10 @@ def run_concurrent_webhook_check(launch: list[str], timeout: float, parent: Path
     """Race independent processes against one SQLite event id and verify one winner."""
     root = parent / "concurrent-webhook"
     root.mkdir()
-    secret = b"veritas-concurrent-test-secret-20261024"
+    secret = b"guion-concurrent-test-secret-20261024"
     (root / "secret.txt").write_bytes(secret)
     environment = os.environ.copy()
-    environment["VERITAS_FILE_ROOT"] = str(root)
+    environment["GUION_FILE_ROOT"] = str(root)
     initialized = subprocess.run(
         [*launch, "init", "--db", "state.sqlite", "--secret-file", "secret.txt"],
         cwd=root,
@@ -165,9 +165,9 @@ def run_application(
     app_root = applications_root / name
     delivery_path = app_root / "delivery.json"
     delivery_spec = json.loads(delivery_path.read_text(encoding="utf-8"))
-    with tempfile.TemporaryDirectory(prefix="veritas-completion-移動-") as scratch:
+    with tempfile.TemporaryDirectory(prefix="guion-completion-移動-") as scratch:
         scratch_root = Path(scratch)
-        relocated_root = scratch_root / "Moved package – Veritas"
+        relocated_root = scratch_root / "Moved package – Guion"
         relocated_root.mkdir()
         artifact_root, delivery = case_runner._prepare_delivery(
             app_root, artifact_root=relocated_root
@@ -178,7 +178,7 @@ def run_application(
         ]
         candidate = {
             "command": launch,
-            "env": {"VERITAS_FILE_ROOT": "${workspace}"},
+            "env": {"GUION_FILE_ROOT": "${workspace}"},
         }
         empty_candidate = scratch_root / "empty-candidate"
         empty_candidate.mkdir()
@@ -217,6 +217,7 @@ def run_application(
         generated_report = {
             "schema_version": 1,
             "application": name,
+            "product": "Guion",
             "mode": "seeded independent-oracle cases against relocated package",
             "seed": generated_applications.SEED,
             "sizes": list(generated_applications.SIZES),
@@ -232,7 +233,8 @@ def run_application(
             "task_id": task_id,
             "application": name,
             "mode": "source-free relocated package",
-            "relocation_path": "Moved package – Veritas",
+            "relocation_path": "Moved package – Guion",
+            "product": "Guion",
             "artifact_sha256": delivery["metadata"]["artifact_sha256"],
             "artifact_bytes": delivery["metadata"]["artifact_bytes"],
             "source_paths_excluded": delivery["metadata"]["source_paths"],
@@ -254,7 +256,7 @@ def main() -> int:
     parser.add_argument(
         "--output",
         type=Path,
-        default=ROOT / "evaluation" / "completion" / "results" / "applications",
+        default=ROOT / "evaluation" / "completion" / "results" / "guion-applications",
     )
     args = parser.parse_args()
     manifest_path = ROOT / "evaluation" / "fixtures" / "independent-v1" / "manifest.json"

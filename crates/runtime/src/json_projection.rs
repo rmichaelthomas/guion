@@ -5,8 +5,8 @@ use std::{
     rc::Rc,
 };
 
+use guion_model::JsonErrorValue;
 use serde::de::{DeserializeSeed, Error as DeError, MapAccess, SeqAccess, Visitor};
-use veritas_model::JsonErrorValue;
 
 use crate::{
     duplicate_json_key, escape_reserved_json_keys, restore_reserved_json_keys, source_position,

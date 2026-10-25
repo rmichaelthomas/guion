@@ -174,7 +174,7 @@ fn collect_licenses(root: &Path, target: &str, stage: &Path) -> Result<usize, St
             package["version"].as_str().unwrap_or("").to_owned(),
         )
     });
-    let licenses = stage.join("share/veritas/licenses/rust");
+    let licenses = stage.join("share/guion/licenses/rust");
     fs::create_dir_all(&licenses)
         .map_err(|error| format!("create {}: {error}", licenses.display()))?;
     let mut inventory = format!(
@@ -246,15 +246,15 @@ fn collect_licenses(root: &Path, target: &str, stage: &Path) -> Result<usize, St
         ));
     }
     fs::write(
-        stage.join("share/veritas/licenses/RUST-DEPENDENCIES.md"),
+        stage.join("share/guion/licenses/RUST-DEPENDENCIES.md"),
         inventory,
     )
     .map_err(|error| format!("write license inventory: {error}"))?;
-    let native = stage.join("share/veritas/licenses/native");
+    let native = stage.join("share/guion/licenses/native");
     fs::create_dir_all(&native).map_err(|error| format!("create native licenses: {error}"))?;
     copy_tree(
         &root.join("distribution/native-components.lock.json"),
-        &stage.join("share/veritas/native-components.lock.json"),
+        &stage.join("share/guion/native-components.lock.json"),
     )?;
     copy_tree(
         &root.join("distribution/licenses/UPSTREAM-NOTICES.md"),
@@ -299,7 +299,7 @@ fn safe_archive_listing(text: &str, expected_root: &str) -> Result<usize, String
 }
 
 fn verify_package_manifest(package: &Path, expected_target: &str) -> Result<(), String> {
-    let manifest_path = package.join("share/veritas/release-manifest.json");
+    let manifest_path = package.join("share/guion/release-manifest.json");
     let manifest: Value = serde_json::from_slice(
         &fs::read(&manifest_path)
             .map_err(|error| format!("read {}: {error}", manifest_path.display()))?,
@@ -416,7 +416,7 @@ fn set_readonly(root: &Path) -> Result<(), String> {
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
-            permissions.set_mode(if path.ends_with("bin/veritas") {
+            permissions.set_mode(if path.ends_with("bin/guion") {
                 0o555
             } else {
                 0o444
@@ -511,9 +511,9 @@ fn release_binary_path(
         .map(Path::to_path_buf)
         .unwrap_or_else(|| root.join("target"));
     if target == MAC_TARGET {
-        target_root.join("release/veritas")
+        target_root.join("release/guion")
     } else {
-        target_root.join(target).join("release/veritas")
+        target_root.join(target).join("release/guion")
     }
 }
 
@@ -526,9 +526,9 @@ fn release_target(root: &Path, target: &str, slug: &str) -> Result<Vec<Check>, S
             "--offline",
             "--release",
             "-p",
-            "veritas-cli",
+            "guion-cli",
             "--bin",
-            "veritas",
+            "guion",
         ]
     } else {
         vec![
@@ -539,9 +539,9 @@ fn release_target(root: &Path, target: &str, slug: &str) -> Result<Vec<Check>, S
             "--target",
             target,
             "-p",
-            "veritas-cli",
+            "guion-cli",
             "--bin",
-            "veritas",
+            "guion",
         ]
     };
     eprintln!("building release CLI for {target}");
@@ -584,11 +584,11 @@ fn release_target(root: &Path, target: &str, slug: &str) -> Result<Vec<Check>, S
     let stage = output.join(format!(".stage-{nonce}"));
     fs::create_dir_all(stage.join("bin"))
         .map_err(|error| format!("create package stage: {error}"))?;
-    let package_name = format!("veritas-{slug}");
+    let package_name = format!("guion-{slug}");
     let result = (|| {
-        fs::copy(&binary, stage.join("bin/veritas"))
+        fs::copy(&binary, stage.join("bin/guion"))
             .map_err(|error| format!("copy release binary: {error}"))?;
-        let share = stage.join("share/veritas");
+        let share = stage.join("share/guion");
         fs::create_dir_all(share.join("stdlib"))
             .map_err(|error| format!("create package standard library: {error}"))?;
         copy_tree(&root.join("language/stdlib"), &share.join("stdlib"))?;
@@ -605,8 +605,8 @@ fn release_target(root: &Path, target: &str, slug: &str) -> Result<Vec<Check>, S
             }
         }
         copy_tree(
-            &root.join("language/self_host/compiler.vrb"),
-            &share.join("compiler.vrb"),
+            &root.join("language/self_host/compiler.gub"),
+            &share.join("compiler.gub"),
         )?;
         copy_tree(
             &root.join("language/self_host/compiler-seed.json"),
@@ -636,8 +636,8 @@ fn release_target(root: &Path, target: &str, slug: &str) -> Result<Vec<Check>, S
                 .replace('\\', "/");
             hashes.insert(relative, sha256(&path)?);
         }
-        let seed_hash = sha256(&share.join("compiler.vrb"))?;
-        let runtime_hash = sha256(&stage.join("bin/veritas"))?;
+        let seed_hash = sha256(&share.join("compiler.gub"))?;
+        let runtime_hash = sha256(&stage.join("bin/guion"))?;
         let stdlib_files = files(&share.join("stdlib"))?;
         let mut stdlib_hash = Sha256::new();
         for path in stdlib_files {
@@ -652,9 +652,9 @@ fn release_target(root: &Path, target: &str, slug: &str) -> Result<Vec<Check>, S
             );
             stdlib_hash.update([0]);
         }
-        let minimum_os = os_floor(root, target, &stage.join("bin/veritas"))?;
+        let minimum_os = os_floor(root, target, &stage.join("bin/guion"))?;
         let manifest = json!({
-            "schema_version": 1, "product": "Veritas core", "target": target,
+            "schema_version": 1, "product": "Guion core", "target": target,
             "release_id": format!("{}-{slug}-{}", env!("CARGO_PKG_VERSION"), &runtime_hash[..12]),
             "minimum_os": minimum_os,
             "architecture": "aarch64", "python_or_uv_required": false,
@@ -748,13 +748,13 @@ fn release_target(root: &Path, target: &str, slug: &str) -> Result<Vec<Check>, S
             .map_err(|error| format!("remove old tamper fixture: {error}"))?;
     }
     copy_tree(&current, &tampered)?;
-    let mut seed = fs::read(tampered.join("share/veritas/compiler.vrb"))
+    let mut seed = fs::read(tampered.join("share/guion/compiler.gub"))
         .map_err(|error| format!("read tamper fixture: {error}"))?;
     if seed.is_empty() {
         return Err("embedded compiler seed package is empty".into());
     }
     seed[0] ^= 1;
-    fs::write(tampered.join("share/veritas/compiler.vrb"), seed)
+    fs::write(tampered.join("share/guion/compiler.gub"), seed)
         .map_err(|error| format!("write tamper fixture: {error}"))?;
     let tamper_rejected = verify_package_manifest(&tampered, target).is_err();
     fs::remove_dir_all(&tampered).map_err(|error| format!("remove tamper fixture: {error}"))?;
@@ -788,7 +788,7 @@ fn release_target(root: &Path, target: &str, slug: &str) -> Result<Vec<Check>, S
     if !mismatch_rejected {
         return Ok(checks);
     }
-    let candidate_bin = candidate.join("bin/veritas");
+    let candidate_bin = candidate.join("bin/guion");
     let read_only = set_readonly(&candidate);
     if let Err(error) = read_only {
         return Err(error);
@@ -797,7 +797,7 @@ fn release_target(root: &Path, target: &str, slug: &str) -> Result<Vec<Check>, S
         .arg("--version")
         .current_dir(std::env::temp_dir())
         .env("PATH", "/nonexistent")
-        .env_remove("VERITAS_STDLIB_ROOT")
+        .env_remove("GUION_STDLIB_ROOT")
         .output();
     let smoke = match smoke {
         Ok(output) => output,
@@ -808,7 +808,7 @@ fn release_target(root: &Path, target: &str, slug: &str) -> Result<Vec<Check>, S
         String::from_utf8_lossy(&smoke.stdout),
         String::from_utf8_lossy(&smoke.stderr)
     );
-    let version_ok = smoke.status.success() && smoke_text.to_ascii_lowercase().contains("veritas");
+    let version_ok = smoke.status.success() && smoke_text.to_ascii_lowercase().contains("guion");
     checks.push(check(
         "source-free-readonly-relocation",
         if version_ok { "passed" } else { "failed" },
@@ -835,16 +835,16 @@ fn release_target(root: &Path, target: &str, slug: &str) -> Result<Vec<Check>, S
         .env("PATH", "/usr/bin:/bin")
         .output()
         .map_err(|error| format!("start release installer: {error}"))?;
-    let installed_command = installer_prefix.join("bin/veritas");
+    let installed_command = installer_prefix.join("bin/guion");
     let install_smoke = Command::new(&installed_command)
         .arg("--version")
         .env("PATH", "/usr/bin:/bin")
-        .env_remove("VERITAS_STDLIB_ROOT")
+        .env_remove("GUION_STDLIB_ROOT")
         .output()
         .map_err(|error| format!("launch installed command: {error}"))?;
     let installed_ok = install.status.success()
         && install_smoke.status.success()
-        && String::from_utf8_lossy(&install_smoke.stdout).contains("veritas");
+        && String::from_utf8_lossy(&install_smoke.stdout).contains("guion");
     checks.push(check(
         "release-installer-clean-room",
         if installed_ok { "passed" } else { "failed" },
@@ -871,10 +871,10 @@ fn release_target(root: &Path, target: &str, slug: &str) -> Result<Vec<Check>, S
         .args(["new", "example app"])
         .current_dir(&caller_data)
         .env("PATH", "/nonexistent")
-        .env_remove("VERITAS_STDLIB_ROOT")
+        .env_remove("GUION_STDLIB_ROOT")
         .output()
         .map_err(|error| format!("launch installed builder: {error}"))?;
-    let source_file = caller_data.join("example app/src/main.vr");
+    let source_file = caller_data.join("example app/src/main.gu");
     let caller_ok = new_project.status.success() && source_file.is_file();
     checks.push(check(
         "readonly-install-writable-caller-data",
@@ -900,7 +900,7 @@ fn release_target(root: &Path, target: &str, slug: &str) -> Result<Vec<Check>, S
         .arg(&source_file)
         .current_dir(&caller_data)
         .env("PATH", "/nonexistent")
-        .env_remove("VERITAS_STDLIB_ROOT")
+        .env_remove("GUION_STDLIB_ROOT")
         .output()
         .map_err(|error| format!("compile relocated project: {error}"))?;
     checks.push(check(
@@ -1020,35 +1020,31 @@ mod tests {
     #[test]
     fn release_binary_path_respects_cargo_target_directory() {
         let root = Path::new("/repo");
-        let override_root = Path::new("/tmp/veritas-target");
+        let override_root = Path::new("/tmp/guion-target");
         assert_eq!(
             release_binary_path(root, MAC_TARGET, Some(override_root)),
-            override_root.join("release/veritas")
+            override_root.join("release/guion")
         );
         assert_eq!(
             release_binary_path(root, LINUX_TARGET, Some(override_root)),
-            override_root.join(LINUX_TARGET).join("release/veritas")
+            override_root.join(LINUX_TARGET).join("release/guion")
         );
         assert_eq!(
             release_binary_path(root, LINUX_TARGET, None),
-            root.join("target")
-                .join(LINUX_TARGET)
-                .join("release/veritas")
+            root.join("target").join(LINUX_TARGET).join("release/guion")
         );
     }
 
     #[test]
     fn release_listing_rejects_traversal_and_wrong_roots() {
-        assert!(
-            safe_archive_listing("veritas/bin/veritas\nveritas/bin/veritas\n", "veritas").is_err()
-        );
-        assert!(safe_archive_listing("veritas/../escape\n", "veritas").is_err());
-        assert!(safe_archive_listing("other/file\n", "veritas").is_err());
+        assert!(safe_archive_listing("guion/bin/guion\nguion/bin/guion\n", "guion").is_err());
+        assert!(safe_archive_listing("guion/../escape\n", "guion").is_err());
+        assert!(safe_archive_listing("other/file\n", "guion").is_err());
     }
     #[test]
     fn release_listing_accepts_created_package_layout() {
         assert_eq!(
-            safe_archive_listing("veritas/\nveritas/bin/veritas\n", "veritas").unwrap(),
+            safe_archive_listing("guion/\nguion/bin/guion\n", "guion").unwrap(),
             2
         );
     }

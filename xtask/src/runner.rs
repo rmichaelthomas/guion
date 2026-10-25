@@ -368,7 +368,7 @@ fn expected_task_checks(root: &Path, invocation: &mut Invocation) -> Result<(), 
                 vec![
                     "test".into(),
                     "-p".into(),
-                    "veritas-cli".into(),
+                    "guion-cli".into(),
                     "--test".into(),
                     "compiler_conformance".into(),
                 ],
@@ -379,7 +379,7 @@ fn expected_task_checks(root: &Path, invocation: &mut Invocation) -> Result<(), 
                 vec![
                     "test".into(),
                     "-p".into(),
-                    "veritas-cli".into(),
+                    "guion-cli".into(),
                     "--test".into(),
                     "language_conformance".into(),
                     "--".into(),
@@ -396,9 +396,9 @@ fn expected_task_checks(root: &Path, invocation: &mut Invocation) -> Result<(), 
                 vec![
                     "run".into(),
                     "-p".into(),
-                    "veritas-bootstrap".into(),
+                    "guion-bootstrap".into(),
                     "--bin".into(),
-                    "veritas-stage0".into(),
+                    "guion-stage0".into(),
                     "--".into(),
                     "seed".into(),
                     ".".into(),
@@ -410,7 +410,7 @@ fn expected_task_checks(root: &Path, invocation: &mut Invocation) -> Result<(), 
                 vec![
                     "test".into(),
                     "-p".into(),
-                    "veritas-cli".into(),
+                    "guion-cli".into(),
                     "--test".into(),
                     "bootstrap".into(),
                 ],
@@ -421,7 +421,7 @@ fn expected_task_checks(root: &Path, invocation: &mut Invocation) -> Result<(), 
                 vec![
                     "test".into(),
                     "-p".into(),
-                    "veritas-cli".into(),
+                    "guion-cli".into(),
                     "--test".into(),
                     "compiler_driver".into(),
                 ],
@@ -434,7 +434,7 @@ fn expected_task_checks(root: &Path, invocation: &mut Invocation) -> Result<(), 
                 vec![
                     "test".into(),
                     "-p".into(),
-                    "veritas-runtime".into(),
+                    "guion-runtime".into(),
                     "--test".into(),
                     "stdlib_data".into(),
                 ],
@@ -445,7 +445,7 @@ fn expected_task_checks(root: &Path, invocation: &mut Invocation) -> Result<(), 
                 vec![
                     "test".into(),
                     "-p".into(),
-                    "veritas-cli".into(),
+                    "guion-cli".into(),
                     "--test".into(),
                     "stdlib_data".into(),
                 ],
@@ -457,7 +457,7 @@ fn expected_task_checks(root: &Path, invocation: &mut Invocation) -> Result<(), 
             vec![
                 "test".into(),
                 "-p".into(),
-                "veritas-runtime".into(),
+                "guion-runtime".into(),
                 "--test".into(),
                 "stdlib_services".into(),
             ],
@@ -469,7 +469,7 @@ fn expected_task_checks(root: &Path, invocation: &mut Invocation) -> Result<(), 
                 vec![
                     "test".into(),
                     "-p".into(),
-                    "veritas-runtime".into(),
+                    "guion-runtime".into(),
                     "--test".into(),
                     "execution".into(),
                 ],
@@ -480,7 +480,7 @@ fn expected_task_checks(root: &Path, invocation: &mut Invocation) -> Result<(), 
                 vec![
                     "test".into(),
                     "-p".into(),
-                    "veritas-runtime".into(),
+                    "guion-runtime".into(),
                     "--test".into(),
                     "http".into(),
                 ],
@@ -491,7 +491,7 @@ fn expected_task_checks(root: &Path, invocation: &mut Invocation) -> Result<(), 
                 vec![
                     "test".into(),
                     "-p".into(),
-                    "veritas-runtime".into(),
+                    "guion-runtime".into(),
                     "--test".into(),
                     "lifecycle".into(),
                 ],
@@ -503,7 +503,7 @@ fn expected_task_checks(root: &Path, invocation: &mut Invocation) -> Result<(), 
             vec![
                 "test".into(),
                 "-p".into(),
-                "veritas-cli".into(),
+                "guion-cli".into(),
                 "--test".into(),
                 "native_packages".into(),
             ],
@@ -514,7 +514,7 @@ fn expected_task_checks(root: &Path, invocation: &mut Invocation) -> Result<(), 
             vec![
                 "test".into(),
                 "-p".into(),
-                "veritas-cli".into(),
+                "guion-cli".into(),
                 "--test".into(),
                 "builder_lifecycle".into(),
             ],
@@ -525,7 +525,7 @@ fn expected_task_checks(root: &Path, invocation: &mut Invocation) -> Result<(), 
             vec![
                 "test".into(),
                 "-p".into(),
-                "veritas-cli".into(),
+                "guion-cli".into(),
                 "--test".into(),
                 "application_acceptance".into(),
             ],
@@ -546,7 +546,7 @@ fn expected_task_checks(root: &Path, invocation: &mut Invocation) -> Result<(), 
             vec![
                 "test".into(),
                 "-p".into(),
-                "veritas-cli".into(),
+                "guion-cli".into(),
                 "--test".into(),
                 "language_conformance".into(),
                 "compiler_stages_compile_full_task_two_corpus_and_locked_roots".into(),
@@ -582,7 +582,7 @@ fn expected_task_checks(root: &Path, invocation: &mut Invocation) -> Result<(), 
             "--locked".into(),
             "--offline".into(),
             "-p".into(),
-            "veritas-cli".into(),
+            "guion-cli".into(),
             "--edges".into(),
             "normal,build,features".into(),
         ];
@@ -598,7 +598,7 @@ fn expected_task_checks(root: &Path, invocation: &mut Invocation) -> Result<(), 
                     String::from_utf8_lossy(&output.stderr)
                 );
                 let clean = output.status.success()
-                    && !text.contains("veritas-compiler")
+                    && !text.contains("guion-compiler")
                     && !text.contains("python-interop");
                 if !clean {
                     invocation.exit_status = 1;
@@ -629,7 +629,7 @@ fn expected_task_checks(root: &Path, invocation: &mut Invocation) -> Result<(), 
             "--locked".into(),
             "--offline".into(),
             "-p".into(),
-            "veritas-cli".into(),
+            "guion-cli".into(),
             "--edges".into(),
             "normal,build".into(),
         ];
@@ -646,7 +646,7 @@ fn expected_task_checks(root: &Path, invocation: &mut Invocation) -> Result<(), 
                     }
                     text.push_str(&stderr);
                 }
-                let clean = output.status.success() && !text.contains("veritas-compiler");
+                let clean = output.status.success() && !text.contains("guion-compiler");
                 if !clean {
                     invocation.exit_status = 1;
                 }
@@ -811,7 +811,7 @@ fn build_report(root: &Path, invocation: &mut Invocation) -> Result<Value, Strin
     let mut artifacts = BTreeMap::new();
     artifacts.insert(
         "compiler_seed",
-        file_digest(root, "language/self_host/compiler.vrb"),
+        file_digest(root, "language/self_host/compiler.gub"),
     );
     artifacts.insert(
         "compiler_seed_manifest",
@@ -1164,7 +1164,20 @@ pub fn run(root: &Path, args: &[String]) -> i32 {
                 output: error,
             });
         } else {
-            invocation.checks.push(CheckResult { id: "builtin-signature-catalog".into(), status: "passed".into(), command: vec!["cargo".into(), "xtask".into(), "catalog".into(), "--check".into()], exit_status: Some(0), output: "declarative builtin signatures validate and generated Veritas catalog is current".into() });
+            invocation.checks.push(CheckResult {
+                id: "builtin-signature-catalog".into(),
+                status: "passed".into(),
+                command: vec![
+                    "cargo".into(),
+                    "xtask".into(),
+                    "catalog".into(),
+                    "--check".into(),
+                ],
+                exit_status: Some(0),
+                output:
+                    "declarative builtin signatures validate and generated Guion catalog is current"
+                        .into(),
+            });
         }
     } else {
         if command == "conformance" {
@@ -1350,7 +1363,7 @@ mod target_report_tests {
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_nanos();
-        let root = std::env::temp_dir().join(format!("veritas-target-report-{nonce}"));
+        let root = std::env::temp_dir().join(format!("guion-target-report-{nonce}"));
         std::fs::create_dir_all(&root).unwrap();
 
         let first = aggregate_target_reports(&root, "sample", report("macos-aarch64")).unwrap();
@@ -1384,7 +1397,7 @@ mod target_report_tests {
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_nanos();
-        let root = std::env::temp_dir().join(format!("veritas-stale-target-report-{nonce}"));
+        let root = std::env::temp_dir().join(format!("guion-stale-target-report-{nonce}"));
         std::fs::create_dir_all(&root).unwrap();
 
         let first = aggregate_target_reports(&root, "sample", report("macos-aarch64")).unwrap();

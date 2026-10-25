@@ -87,7 +87,7 @@ def decode(value, depth=0):
         return {key: decode(child, depth + 1) for key, child in item.items()}
     if tag == "json":
         return encode_json(item)
-    raise ValueError("unsupported or malformed Veritas value tag")
+    raise ValueError("unsupported or malformed Guion value tag")
 
 
 def encode(value, depth=0):
@@ -109,7 +109,7 @@ def encode(value, depth=0):
         return {"t": "list", "v": [encode(child, depth + 1) for child in value]}
     if type(value) is dict and all(isinstance(key, str) for key in value):
         return {"t": "map", "v": {key: encode(child, depth + 1) for key, child in value.items()}}
-    raise TypeError("Python return type is not supported by the Veritas bridge")
+    raise TypeError("Python return type is not supported by the Guion bridge")
 
 
 def encode_json(value, depth=0, ancestors=None):

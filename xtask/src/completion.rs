@@ -231,7 +231,7 @@ fn validate_final_artifact_snapshot(
         }
         let actual = match field {
             "artifact_schema" => file_digest(root, "language/artifact-format.md"),
-            "compiler_seed" => file_digest(root, "language/self_host/compiler.vrb"),
+            "compiler_seed" => file_digest(root, "language/self_host/compiler.gub"),
             "compiler_seed_manifest" => file_digest(root, "language/self_host/compiler-seed.json"),
             "runtime" => directory_digest(root, "crates/runtime"),
             "stdlib" => directory_digest(root, "language/stdlib"),

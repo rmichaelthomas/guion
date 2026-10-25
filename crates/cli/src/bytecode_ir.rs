@@ -1,12 +1,12 @@
-//! JSON interchange format used by a Veritas-written compiler to hand verified
+//! JSON interchange format used by a Guion-written compiler to hand verified
 //! bytecode IR to the stage-zero artifact writer.
 use std::{collections::BTreeMap, fs};
 
-use serde_json::Value as Json;
-use veritas_model::{
+use guion_model::{
     Artifact, BigInt, ExternalFunction, Float64, Function, Instruction, Op, RecordDefinition,
     RecordField, Span, Type, Value,
 };
+use serde_json::Value as Json;
 
 pub fn assemble_file(input: &str, output: &str) -> Result<(), String> {
     let bytes = fs::read(input).map_err(|error| format!("cannot read IR `{input}`: {error}"))?;
@@ -21,10 +21,10 @@ pub fn assemble_file(input: &str, output: &str) -> Result<(), String> {
 
 fn assemble(json: &Json) -> Result<Artifact, String> {
     let object = json.as_object().ok_or("IR root must be an object")?;
-    if required_str(object.get("schema"), "schema")? != "veritas-bytecode-ir/v1" {
-        return Err("unsupported IR schema; expected `veritas-bytecode-ir/v1`".into());
+    if required_str(object.get("schema"), "schema")? != "guion-bytecode-ir/v1" {
+        return Err("unsupported IR schema; expected `guion-bytecode-ir/v1`".into());
     }
-    let source_name = optional_str(object.get("source_name"), "generated.vr")?;
+    let source_name = optional_str(object.get("source_name"), "generated.gu")?;
     let entry = required_str(object.get("entry"), "entry")?.to_owned();
     let records = parse_records(object.get("records"))?;
     let externals = parse_externals(object.get("externals"))?;

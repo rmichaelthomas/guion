@@ -12,7 +12,7 @@ impl TempProject {
         static NEXT_ID: AtomicU64 = AtomicU64::new(0);
         loop {
             let path = std::env::temp_dir().join(format!(
-                "veritas-embedded-compiler-{}-{}-{}",
+                "guion-embedded-compiler-{}-{}-{}",
                 std::process::id(),
                 std::time::SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)
@@ -30,7 +30,7 @@ impl TempProject {
 
     fn write(&self, name: &str, source: &str) -> PathBuf {
         let path = self.0.join(name);
-        fs::write(&path, source).expect("write temporary Veritas source");
+        fs::write(&path, source).expect("write temporary Guion source");
         path
     }
 }
@@ -45,16 +45,16 @@ impl Drop for TempProject {
 fn default_cli_uses_embedded_compiler_without_stage_zero_files_or_path() {
     let project = TempProject::new();
     let source = project.write(
-        "main.vr",
+        "main.gu",
         "fn main() -> Int:\n    print(\"embedded\")\n    return 0\n",
     );
     let empty_path = project.0.join("empty-path");
     fs::create_dir(&empty_path).unwrap();
-    let output = Command::new(env!("CARGO_BIN_EXE_veritas"))
+    let output = Command::new(env!("CARGO_BIN_EXE_guion"))
         .args(["check", source.to_str().unwrap()])
         .current_dir(&project.0)
         .env("PATH", empty_path)
-        .env_remove("VERITAS_STDLIB_ROOT")
+        .env_remove("GUION_STDLIB_ROOT")
         .output()
         .expect("launch installed CLI without stage-zero tools on PATH");
     assert!(
@@ -71,18 +71,18 @@ fn default_cli_resolves_standard_modules_through_their_virtual_grant() {
     let standard = project.0.join("standard-library");
     fs::create_dir_all(&standard).unwrap();
     fs::write(
-        standard.join("greeting.vr"),
+        standard.join("greeting.gu"),
         "pub fn greeting() -> Text:\n    return \"from std\"\n",
     )
     .unwrap();
     let source = project.write(
-        "main.vr",
+        "main.gu",
         "import \"std:greeting\"\n\nfn main() -> Int:\n    print(greeting())\n    return 0\n",
     );
-    let output = Command::new(env!("CARGO_BIN_EXE_veritas"))
+    let output = Command::new(env!("CARGO_BIN_EXE_guion"))
         .args(["run", source.to_str().unwrap()])
         .current_dir(&project.0)
-        .env("VERITAS_STDLIB_ROOT", &standard)
+        .env("GUION_STDLIB_ROOT", &standard)
         .output()
         .expect("compile and run a project with an independently granted standard module");
     assert!(
@@ -98,10 +98,10 @@ fn default_cli_resolves_standard_modules_through_their_virtual_grant() {
 fn default_cli_cannot_fallback_to_rust_source_compiler() {
     let project = TempProject::new();
     let source = project.write(
-        "main.vr",
-        "import \"missing.vr\"\n\nfn main() -> Int:\n    return 0\n",
+        "main.gu",
+        "import \"missing.gu\"\n\nfn main() -> Int:\n    return 0\n",
     );
-    let output = Command::new(env!("CARGO_BIN_EXE_veritas"))
+    let output = Command::new(env!("CARGO_BIN_EXE_guion"))
         .args(["check", source.to_str().unwrap(), "--json"])
         .current_dir(&project.0)
         .output()
@@ -112,7 +112,7 @@ fn default_cli_cannot_fallback_to_rust_source_compiler() {
     );
     let report: serde_json::Value = serde_json::from_slice(&output.stdout)
         .expect("self-hosted compiler returns the structured diagnostic schema");
-    assert_eq!(report["kind"], "veritas_diagnostic");
+    assert_eq!(report["kind"], "guion_diagnostic");
     assert_eq!(report["diagnostic"]["code"], "E_IMPORT_READ");
     assert!(
         !String::from_utf8_lossy(&output.stderr).contains("stage zero"),

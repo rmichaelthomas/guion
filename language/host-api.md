@@ -1,10 +1,10 @@
-# Veritas host API contract
+# Guion host API contract
 
 Status: executable contract for the current build. `print`, `args`, `args_from`, exact-grant environment reads, text and byte file operations, default-deny bounded HTTP requests, explicitly granted clock reads, `assert`, `len`, JSON operations, and the initial bounded `parallel_map` are implemented.
 
 ## Capabilities and policy
 
-The runtime receives a `HostPolicy` when an artifact is loaded. It grants individual capabilities and resource ceilings. Guest source cannot expand those grants. The embedding API and CLI use the same host service implementations. The CLI reads optional ceilings from `[runtime]` in `veritas.toml`; embedders can set the same fields in `HostPolicy`. The CLI's default file root is the project root; path checks are defense in depth and do not isolate a process from the operating system.
+The runtime receives a `HostPolicy` when an artifact is loaded. It grants individual capabilities and resource ceilings. Guest source cannot expand those grants. The embedding API and CLI use the same host service implementations. The CLI reads optional ceilings from `[runtime]` in `guion.toml`; embedders can set the same fields in `HostPolicy`. The CLI's default file root is the project root; path checks are defense in depth and do not isolate a process from the operating system.
 
 The runtime has a default cumulative allocation budget of 268435456 estimated bytes per invocation. The estimate is charged for input values, collection and record construction, text/byte/JSON values, file and Python return values, output rendering, and parallel work. Interpreter/JIT frames, operand stacks, and scalar arithmetic temporaries are excluded so backend selection does not change this limit. Integer growth is bounded separately by the digit ceiling. Nested functions share the invocation budget. Parallel workers share the same counter while preserving a quarter of the remaining allowance for the calling VM to receive and handle the group's result. Exhaustion reports `R_ALLOCATION_LIMIT`. This estimates language-level allocations; it is not exact allocator accounting, an RSS ceiling, or an operating-system sandbox. Output, source/artifact size, file size, collection count, integer digits, text size, call depth and instruction work keep their separate limits.
 
@@ -23,7 +23,7 @@ max_parallelism = 8
 max_file_bytes = 16777216
 ```
 
-Unknown `[runtime]` fields are errors so spelling mistakes do not silently select defaults. These limits apply to `veritas run` and discovered tests; compile-time source and artifact limits are enforced separately.
+Unknown `[runtime]` fields are errors so spelling mistakes do not silently select defaults. These limits apply to `guion run` and discovered tests; compile-time source and artifact limits are enforced separately.
 
 Environment reads are denied by default. A project opts in to individual variable names with `[environment].variables`; values remain process-provided at launch and are never copied into the project manifest or artifact.
 
@@ -32,7 +32,7 @@ Environment reads are denied by default. A project opts in to individual variabl
 variables = ["API_TOKEN"]
 ```
 
-Wall-clock access is denied by default. A project opts in with `[clock].enabled = true`, an embedding host uses `HostPolicy::with_clock_access()`, or a single CLI run uses `veritas run --allow-clock`. Clock reads are nondeterministic and are reported as `clock.read` by `veritas inspect --json`. `time_today_local()` follows the host process time zone; the time zone and daylight-saving database come from the host operating system.
+Wall-clock access is denied by default. A project opts in with `[clock].enabled = true`, an embedding host uses `HostPolicy::with_clock_access()`, or a single CLI run uses `guion run --allow-clock`. Clock reads are nondeterministic and are reported as `clock.read` by `guion inspect --json`. `time_today_local()` follows the host process time zone; the time zone and daylight-saving database come from the host operating system.
 
 Each operation has an explicit failure result. Host failures carry a stable code, message, and source trace. Partial writes or other completed external effects are reported as completed effects; errors do not imply rollback. A host call that blocks must have a deadline and a cancellation policy or be rejected by the current target.
 
@@ -63,17 +63,17 @@ Each operation has an explicit failure result. Host failures carry a stable code
 
 `HttpError` is an implemented structured error with stable code/message and a source span; inspect it with `http_error_code` and `http_error_message`. `HttpResponse` is declared in `std:types` and contains integer `status`, lowercase text `headers`, and a byte-preserving `body`. The legacy general HTTP API uses a checked UTF-8 `Json` envelope. `Bytes` is an immutable byte-preserving value introduced in artifact format 17. `len` accepts Bytes and returns the byte count. Foreign calls are recorded as opaque effects even when declarations include types.
 
-CLI projects grant exact HTTP hostnames in `veritas.toml` under `[network].hosts`. A one-run grant can be added with `veritas run --allow-http-host api.example.test`; repeated options add multiple explicit hostnames. `veritas inspect --json` reports whether the entry reaches HTTP and points to the manifest key and run option. Runtime URL hosts still require an explicit grant; no arbitrary host is granted automatically.
+CLI projects grant exact HTTP hostnames in `guion.toml` under `[network].hosts`. A one-run grant can be added with `guion run --allow-http-host api.example.test`; repeated options add multiple explicit hostnames. `guion inspect --json` reports whether the entry reaches HTTP and points to the manifest key and run option. Runtime URL hosts still require an explicit grant; no arbitrary host is granted automatically.
 
 `Json`, `JsonError`, and `FileError` are implemented value types. `json_parse`, `read_text`, `write_text`, and `write_text_atomic` return typed Results for syntax/duplicate-key and filesystem access failures; `is_ok`, `unwrap`, and generic `error` inspect them. Missing files return `R_FILE_NOT_FOUND`; permission failures return `R_FILE_PERMISSION`; other read/write failures keep their operation code. `json_error_code/message/line/column` and `file_error_code/message/line/column` expose details. File error locations point to the source host call and survive `?` propagation. `json_get`, `json_index`, `json_has`, `json_len`, `json_as_text`, `json_as_int`, `json_as_bool`, and `json_is_null` access parsed values. Artifact format 20 adds typed JSON constructors and immutable `json_push`/`json_set` updates so programs can create and persist JSON state without a Python bridge. Format 21 adds atomic text replacement. Format 22 adds `args_from(start)` for subcommand-based CLI programs. It prevents readers from observing a partially written replacement but does not coordinate concurrent read-modify-write sequences; simultaneous writers remain last-complete-rename wins. A process crash can leave the sibling temporary file, and directory-entry crash durability is not promised. Missing-key, wrong-container, conversion, and resource-limit errors still fail the invocation.
 
 ## File behavior
 
-Paths are interpreted relative to a granted policy root. Absolute paths, parent components, non-UTF-8 names, and canonicalized symlink escapes are rejected. Read and write permissions are independent. Directories, metadata, deletion, and arbitrary file descriptors are not exposed in the first surface. The default CLI grants only the project root; `veritas run --file-root DIRECTORY` adds a secondary root, with reads searching the project root first and writes directed to the last granted root. This protects against accidental path traversal; it is not a sandbox against malicious source or native code.
+Paths are interpreted relative to a granted policy root. Absolute paths, parent components, non-UTF-8 names, and canonicalized symlink escapes are rejected. Read and write permissions are independent. Directories, metadata, deletion, and arbitrary file descriptors are not exposed in the first surface. The default CLI grants only the project root; `guion run --file-root DIRECTORY` adds a secondary root, with reads searching the project root first and writes directed to the last granted root. This protects against accidental path traversal; it is not a sandbox against malicious source or native code.
 
 ## HTTP behavior
 
-Network access is denied unless the exact hostname is granted. CLI projects configure this in `veritas.toml`:
+Network access is denied unless the exact hostname is granted. CLI projects configure this in `guion.toml`:
 
 ```toml
 [network]
@@ -119,7 +119,7 @@ toml_render(TomlDocument) -> Text
 calendar_parse(Text) -> Result[List[CalendarEvent], StdError]
 ```
 
-SQLite paths must be relative to an explicitly granted file root; absolute paths and parent-directory traversal are rejected. For an installed app, `VERITAS_FILE_ROOT` selects an additional caller-owned data directory, and the SQLite path can be a filename such as `field.sqlite3`. SQLite opens only read-write databases, loads no extensions, and rejects `ATTACH`, `DETACH`, `VACUUM`, `PRAGMA`, and extension-loading SQL. `sqlite_begin` opens one `BEGIN IMMEDIATE` transaction per database; nested transactions are rejected. Query parameters are bound values, result rows and bytes are bounded, and each operation uses a finite busy deadline and cancellation/progress checks. Dropping or closing a database with an open transaction rolls it back. The standard module provides `sqlite_open`, `sqlite_begin`, `sqlite_execute`, `sqlite_query`, `sqlite_commit`, `sqlite_rollback`, and `sqlite_close`.
+SQLite paths must be relative to an explicitly granted file root; absolute paths and parent-directory traversal are rejected. For an installed app, `GUION_FILE_ROOT` selects an additional caller-owned data directory, and the SQLite path can be a filename such as `field.sqlite3`. SQLite opens only read-write databases, loads no extensions, and rejects `ATTACH`, `DETACH`, `VACUUM`, `PRAGMA`, and extension-loading SQL. `sqlite_begin` opens one `BEGIN IMMEDIATE` transaction per database; nested transactions are rejected. Query parameters are bound values, result rows and bytes are bounded, and each operation uses a finite busy deadline and cancellation/progress checks. Dropping or closing a database with an open transaction rolls it back. The standard module provides `sqlite_open`, `sqlite_begin`, `sqlite_execute`, `sqlite_query`, `sqlite_commit`, `sqlite_rollback`, and `sqlite_close`.
 
 HMAC operations consume exact `Bytes` without text conversion. `crypto_hmac_sha256(key, body)` returns a 32-byte digest; `crypto_verify_hmac_sha256(key, body, expected)` returns false for any digest whose length is not 32 and uses the crypto library's verification routine for a candidate digest. Secret material is not included in service errors. Unicode operations use ICU4X full locale-independent case folding and its Unicode `White_Space` property; whitespace collapse trims the ends and replaces each internal run with one ASCII space. Neither operation normalizes text. `text_normalize(text, form)` accepts only `NFC`, `NFD`, `NFKC`, and `NFKD`. The shipped Unicode data version is 18.0.0. Python comparisons record `unicodedata.unidata_version`; differences caused by Unicode data releases are reported separately from case-folding algorithm mismatches.
 

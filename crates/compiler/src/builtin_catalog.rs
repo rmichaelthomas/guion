@@ -1,6 +1,6 @@
+use guion_model::{Op, Type};
 use std::collections::HashMap;
 use std::sync::OnceLock;
-use veritas_model::{Op, Type};
 
 #[derive(Clone, Debug)]
 pub(crate) struct BuiltinSignature {
@@ -263,7 +263,7 @@ pub(crate) fn operation(name: &str) -> Option<Op> {
 #[cfg(test)]
 mod tests {
     use super::{concrete_type, get, operation, signatures};
-    use veritas_model::{Op, Type};
+    use guion_model::{Op, Type};
 
     #[test]
     fn signatures_are_loaded_from_the_declarative_catalog() {

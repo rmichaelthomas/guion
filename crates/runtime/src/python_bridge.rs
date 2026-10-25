@@ -1,5 +1,6 @@
 use super::CancellationToken;
 use base64::{engine::general_purpose::STANDARD, Engine as _};
+use guion_model::{BigInt, Float64, Type, Value};
 use serde_json::{json, Map as JsonObject, Value as JsonValue};
 use std::{
     io::{self, Read, Write},
@@ -12,7 +13,6 @@ use std::{
     thread,
     time::{Duration, Instant},
 };
-use veritas_model::{BigInt, Float64, Type, Value};
 
 const MAX_FRAME: usize = 24 * 1024 * 1024;
 const SIDECAR: &str = include_str!("../python/sidecar.py");
@@ -404,7 +404,7 @@ fn decode_value(value: &JsonValue, expected: &Type) -> Result<Value, PythonBridg
         ("unit", Type::Unit) => Ok(Value::Unit),
         ("json", Type::Json) => {
             validate_json_depth(payload, 0)?;
-            Ok(Value::Json(veritas_model::SharedJson::from_serde(
+            Ok(Value::Json(guion_model::SharedJson::from_serde(
                 payload.clone(),
             )))
         }

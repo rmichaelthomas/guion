@@ -1,8 +1,8 @@
+use guion_bootstrap::assemble_ir_file;
+use guion_compiler::compile_project;
+use guion_model::{Artifact, BuildMetadata, ResourceLimits};
 use sha2::{Digest, Sha256};
 use std::{env, fs, path::Path};
-use veritas_bootstrap::assemble_ir_file;
-use veritas_compiler::compile_project;
-use veritas_model::{Artifact, BuildMetadata, ResourceLimits};
 
 fn main() {
     if let Err(error) = run() {
@@ -40,9 +40,9 @@ fn build_seed(repository: &Path) -> Result<(), String> {
         .canonicalize()
         .map_err(|error| format!("cannot resolve repository root: {error}"))?;
     let self_host = repository.join("language/self_host");
-    let entry = self_host.join("compiler.vr");
+    let entry = self_host.join("compiler.gu");
     let mut artifact = compile_project(&entry, &self_host).map_err(|diagnostic| {
-        let source = diagnostic.source_name.as_deref().unwrap_or("compiler.vr");
+        let source = diagnostic.source_name.as_deref().unwrap_or("compiler.gu");
         format!(
             "{source}:{}:{}: error[{}]: {}",
             diagnostic.span.line, diagnostic.span.column, diagnostic.code, diagnostic.message
@@ -57,7 +57,7 @@ fn build_seed(repository: &Path) -> Result<(), String> {
     artifact.build_metadata = Some(BuildMetadata {
         metadata_schema_version: 1,
         compiler_version: env!("CARGO_PKG_VERSION").to_owned(),
-        target: "veritas-host-abi-1".into(),
+        target: "guion-host-abi-1".into(),
         source_sha256: Some(source_sha256.clone()),
         dependency_lock_sha256: None,
         resource_limits: ResourceLimits {
@@ -77,19 +77,19 @@ fn build_seed(repository: &Path) -> Result<(), String> {
         .map_err(|error| format!("error[{}]: {}", error.code, error.message))?;
     let artifact_sha256 = format!("{:x}", Sha256::digest(&bytes));
     let artifact_schema_sha256 = format!("{:x}", Sha256::digest(&schema));
-    let artifact_path = self_host.join("compiler.vrb");
+    let artifact_path = self_host.join("compiler.gub");
     let manifest_path = self_host.join("compiler-seed.json");
     write_if_changed(&artifact_path, &bytes)?;
     let manifest = serde_json::json!({
         "schema_version": 1,
         "artifact_format": Artifact::CURRENT_VERSION,
         "host_abi_version": 1,
-        "compiler_entry": "compiler.vr",
+        "compiler_entry": "compiler.gu",
         "compiler_source_files": artifact.sources,
         "compiler_source_sha256": source_sha256,
         "artifact_sha256": artifact_sha256,
         "artifact_schema_sha256": artifact_schema_sha256,
-        "regeneration_command": "cargo run --locked --offline -p veritas-bootstrap --bin veritas-stage0 -- seed .",
+        "regeneration_command": "cargo run --locked --offline -p guion-bootstrap --bin guion-stage0 -- seed .",
     });
     let manifest_bytes = serde_json::to_vec_pretty(&manifest)
         .map_err(|error| format!("cannot encode seed manifest: {error}"))?;
@@ -111,6 +111,5 @@ fn write_if_changed(path: &Path, bytes: &[u8]) -> Result<(), String> {
 }
 
 fn usage() -> String {
-    "usage: veritas-stage0 seed [repository-root] | assemble-ir <input.vri.json> <output.vrb>"
-        .into()
+    "usage: guion-stage0 seed [repository-root] | assemble-ir <input.gui.json> <output.gub>".into()
 }

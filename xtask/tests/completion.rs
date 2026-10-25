@@ -15,8 +15,7 @@ impl TempTree {
             .duration_since(UNIX_EPOCH)
             .expect("clock is after Unix epoch")
             .as_nanos();
-        let path =
-            std::env::temp_dir().join(format!("veritas-xtask-{}-{nonce}", std::process::id()));
+        let path = std::env::temp_dir().join(format!("guion-xtask-{}-{nonce}", std::process::id()));
         fs::create_dir_all(&path).expect("create temporary test tree");
         Self(path)
     }

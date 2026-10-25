@@ -1,13 +1,13 @@
+pub use guion_model::Diagnostic;
+use guion_model::{
+    Artifact, BigInt, ExternalFunction, Float64, Function, Instruction, Op, RecordDefinition,
+    RecordField, Span, Type, Value,
+};
 use sha2::{Digest, Sha256};
 use std::{
     collections::{HashMap, HashSet},
     fs,
     path::{Component, Path, PathBuf},
-};
-pub use veritas_model::Diagnostic;
-use veritas_model::{
-    Artifact, BigInt, ExternalFunction, Float64, Function, Instruction, Op, RecordDefinition,
-    RecordField, Span, Type, Value,
 };
 
 mod builtin_catalog;
@@ -2886,10 +2886,10 @@ impl ModuleLoader {
                     "no verified standard-library root was supplied".into(),
                 )
             })?;
-            let path = if module.ends_with(".vr") {
+            let path = if module.ends_with(".gu") || module.ends_with(".vr") {
                 root.join(module)
             } else {
-                root.join(format!("{module}.vr"))
+                root.join(format!("{module}.gu"))
             };
             return Ok((path, root.clone(), "std".into(), format!("std:{module}")));
         }
@@ -2897,7 +2897,7 @@ impl ModuleLoader {
             let Some((package, relative)) = package_path.split_once('/') else {
                 return Err(fail(
                     "E_IMPORT_PATH",
-                    "package import must use `pkg:name/path.vr`".into(),
+                    "package import must use `pkg:name/path.gu`".into(),
                 ));
             };
             let requested = Path::new(relative);
@@ -3481,7 +3481,7 @@ fn compile_program(
             })
             .collect(),
     };
-    veritas_model::validate_sort_comparator_effects(&artifact)
+    guion_model::validate_sort_comparator_effects(&artifact)
         .map_err(|message| diagnostic("E_SORT_EFFECT", message, Span::default()))?;
     Ok(artifact)
 }

@@ -28,9 +28,9 @@ pub fn run_performance(root: &Path) -> Vec<Check> {
         }
     };
     let binary = root.join(format!(
-        "target/completion/releases/{slug}/current/bin/veritas"
+        "target/completion/releases/{slug}/current/bin/guion"
     ));
-    let report = root.join("evaluation/completion/results/performance-host.json");
+    let report = root.join("evaluation/completion/results/performance-guion.json");
     let command = vec![
         "python3".into(),
         "evaluation/completion/performance/runner.py".into(),

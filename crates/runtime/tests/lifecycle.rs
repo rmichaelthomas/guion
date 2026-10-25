@@ -1,3 +1,6 @@
+use guion_compiler::compile;
+use guion_model::{BigInt, Value};
+use guion_runtime::{HostPolicy, Runtime};
 use std::{
     fs,
     io::{Read, Write},
@@ -6,9 +9,6 @@ use std::{
     thread,
     time::Duration,
 };
-use veritas_compiler::compile;
-use veritas_model::{BigInt, Value};
-use veritas_runtime::{HostPolicy, Runtime};
 
 fn resident_bytes() -> usize {
     let output = Command::new("ps")
@@ -36,7 +36,7 @@ fn host_description() -> String {
 
 #[test]
 fn repeated_invocation_closes_native_resources_and_reaches_a_memory_plateau() {
-    let root = std::env::temp_dir().join(format!("veritas-lifecycle-{}", std::process::id()));
+    let root = std::env::temp_dir().join(format!("guion-lifecycle-{}", std::process::id()));
     let _ = fs::remove_dir_all(&root);
     fs::create_dir_all(&root).unwrap();
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
@@ -71,7 +71,7 @@ fn main() -> Int:
     return exercise({url:?})
 "#
     );
-    let artifact = compile("lifecycle.vr", &source).unwrap();
+    let artifact = compile("lifecycle.gu", &source).unwrap();
     let policy = HostPolicy::default()
         .with_file_access(&root, true, true)
         .with_network_hosts(["127.0.0.1"], Duration::from_secs(2), 64);

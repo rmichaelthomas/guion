@@ -1,10 +1,10 @@
+use guion_compiler::compile;
+use guion_model::{BigInt, Value};
+use guion_runtime::{HostPolicy, Runtime};
 use std::{
     env, process, thread,
     time::{Duration, Instant},
 };
-use veritas_compiler::compile;
-use veritas_model::{BigInt, Value};
-use veritas_runtime::{HostPolicy, Runtime};
 
 const SOURCE: &str = r#"
 extern python "numpy:arange" fn vector(length: Int) -> List[Int]
@@ -50,7 +50,7 @@ fn main() {
     });
     let warmups = positive_usize(&args[6], "warmups");
 
-    let artifact = compile("runtime-lifecycle-stress.vr", SOURCE).unwrap_or_else(|diagnostic| {
+    let artifact = compile("runtime-lifecycle-stress.gu", SOURCE).unwrap_or_else(|diagnostic| {
         eprintln!("compile failed: {diagnostic:?}");
         process::exit(1)
     });
@@ -128,7 +128,7 @@ fn main() {
     );
 }
 
-fn invoke_checked(instance: &mut veritas_runtime::Instance, array_size: usize, expected: &BigInt) {
+fn invoke_checked(instance: &mut guion_runtime::Instance, array_size: usize, expected: &BigInt) {
     let result = instance
         .invoke(
             "sum_array",

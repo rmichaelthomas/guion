@@ -8,7 +8,7 @@ const CLASSES: [&str; 3] = [
     "concurrent-network",
     "maintainable-local-app",
 ];
-const LANGUAGES: [&str; 2] = ["python", "veritas"];
+const LANGUAGES: [&str; 2] = ["python", "guion"];
 const REEVALUATION_BRIEF: &str = "field-kit-log";
 
 fn read_json(path: &Path) -> Result<Value, String> {
@@ -184,7 +184,7 @@ pub fn audit(root: &Path) -> Result<Vec<String>, String> {
             return Err(format!("{id}: context must be fresh"));
         }
         let private_directory = required_text(assignment, "private_work_directory")?;
-        if !private_directory.starts_with("/private/tmp/veritas-fresh-builders/") {
+        if !private_directory.starts_with("/private/tmp/guion-fresh-builders/") {
             return Err(format!(
                 "{id}: private_work_directory must be under the fresh-builder root"
             ));
@@ -280,7 +280,7 @@ pub fn audit(root: &Path) -> Result<Vec<String>, String> {
             || pair[0].1 == pair[1].1
         {
             return Err(format!(
-                "{brief}: expected Python and Veritas once in pair order 1, 2"
+                "{brief}: expected Python and Guion once in pair order 1, 2"
             ));
         }
         let recorded = recorded_pair_order
@@ -289,8 +289,8 @@ pub fn audit(root: &Path) -> Result<Vec<String>, String> {
             .ok_or_else(|| format!("{brief}: missing recorded pair order"))?;
         let actual = [pair[0].1.as_str(), pair[1].1.as_str()];
         let seeded_order = match brief.as_str() {
-            "invoice-sentinel" | "quote-merge" => ["python", "veritas"],
-            "bookloom" => ["veritas", "python"],
+            "invoice-sentinel" | "quote-merge" => ["python", "guion"],
+            "bookloom" => ["guion", "python"],
             _ => unreachable!("unknown briefs are rejected below"),
         };
         if actual != seeded_order {
@@ -353,7 +353,7 @@ pub fn audit(root: &Path) -> Result<Vec<String>, String> {
     if reevaluation_pair_order.len() != 1
         || recorded_order.len() != LANGUAGES.len()
         || recorded_order[0].as_str() != Some("python")
-        || recorded_order[1].as_str() != Some("veritas")
+        || recorded_order[1].as_str() != Some("guion")
     {
         return Err("clock remediation pair order must match seed 20261029".into());
     }
@@ -383,7 +383,7 @@ pub fn audit(root: &Path) -> Result<Vec<String>, String> {
             return Err(format!("{id}: reevaluation context or status is invalid"));
         }
         let private_directory = required_text(assignment, "private_work_directory")?;
-        if !private_directory.starts_with("/private/tmp/veritas-fresh-builders/") {
+        if !private_directory.starts_with("/private/tmp/guion-fresh-builders/") {
             return Err(format!(
                 "{id}: private work directory is outside the fresh-builder root"
             ));
@@ -455,7 +455,7 @@ pub fn audit(root: &Path) -> Result<Vec<String>, String> {
         }
     }
     if seen_reevaluation_languages.len() != LANGUAGES.len() {
-        return Err("clock remediation pair must contain Python and Veritas".into());
+        return Err("clock remediation pair must contain Python and Guion".into());
     }
     let assessment =
         read_json(&builder_root.join("reports/assessment-maintainable-local-app.json"))?;
@@ -488,9 +488,9 @@ pub fn audit(root: &Path) -> Result<Vec<String>, String> {
             return Err(format!("{class}: final assessment is incomplete"));
         }
         let recommendation = required_text(&assessment, "recommendation")?;
-        if !["veritas", "python", "either"].contains(&recommendation) {
+        if !["guion", "python", "either"].contains(&recommendation) {
             return Err(format!(
-                "{class}: recommendation must be veritas, python, or either"
+                "{class}: recommendation must be guion, python, or either"
             ));
         }
         if recommendation == "python" {
@@ -530,10 +530,10 @@ mod tests {
             (
                 "small-automation-cli",
                 "invoice-sentinel",
-                ["python", "veritas"],
+                ["python", "guion"],
             ),
-            ("concurrent-network", "quote-merge", ["python", "veritas"]),
-            ("maintainable-local-app", "bookloom", ["veritas", "python"]),
+            ("concurrent-network", "quote-merge", ["python", "guion"]),
+            ("maintainable-local-app", "bookloom", ["guion", "python"]),
         ];
         let mut assignments = Vec::new();
         for (class, brief, languages) in classes {
@@ -548,7 +548,7 @@ mod tests {
                     "order_in_pair": index + 1,
                     "context": "fresh",
                     "status": "complete",
-                    "private_work_directory": format!("/private/tmp/veritas-fresh-builders/{id}"),
+                    "private_work_directory": format!("/private/tmp/guion-fresh-builders/{id}"),
                     "start_utc": "2026-10-25T09:00:00Z",
                     "finish_utc": "2026-10-25T09:05:00Z",
                     "budget_minutes_including_followup": 15,
@@ -577,7 +577,7 @@ mod tests {
                         "interventions": [],
                         "failures": [],
                         "recommendation": {
-                            "preferred_language": "veritas",
+                            "preferred_language": "guion",
                             "reason": "less setup",
                             "observed_user_benefit": "one installed command",
                             "material_regressions": []
@@ -595,7 +595,7 @@ mod tests {
                     "status": "complete",
                     "target_class": class,
                     "assessed_after_both_outputs": true,
-                    "recommendation": "veritas",
+                    "recommendation": "guion",
                     "observed_user_benefit": "lower setup effort",
                     "material_regressions": [],
                     "evidence": ["both installed applications"],
@@ -607,7 +607,7 @@ mod tests {
             .unwrap();
         }
         let mut reevaluations = Vec::new();
-        for (order, language) in [(1, "python"), (2, "veritas")] {
+        for (order, language) in [(1, "python"), (2, "guion")] {
             let id = format!("field-kit-log-{language}");
             let report_path = format!("evaluation/completion/builder/reports/{id}.json");
             let start = format!("2026-10-26T10:0{order}:00Z");
@@ -620,7 +620,7 @@ mod tests {
                 "order_in_pair": order,
                 "context": "fresh",
                 "status": "complete",
-                "private_work_directory": format!("/private/tmp/veritas-fresh-builders/{id}"),
+                "private_work_directory": format!("/private/tmp/guion-fresh-builders/{id}"),
                 "budget_minutes_including_followup": 15,
                 "start_utc": start,
                 "finish_utc": finish,
@@ -678,7 +678,7 @@ mod tests {
                     "seed": 20261029,
                     "product_change_ready_utc": "2026-10-26T10:00:00Z"
                 },
-                "reevaluation_pair_order": {"field-kit-log": ["python", "veritas"]},
+                "reevaluation_pair_order": {"field-kit-log": ["python", "guion"]},
                 "reevaluations": reevaluations
             })
             .to_string(),
@@ -691,8 +691,8 @@ mod tests {
         let report = json!({
             "schema_version": 1,
             "status": "complete",
-            "assignment_id": "invoice-sentinel-veritas",
-            "language": "veritas",
+            "assignment_id": "invoice-sentinel-guion",
+            "language": "guion",
             "brief_id": "invoice-sentinel",
             "start_utc": "2026-10-25T09:00:00Z",
             "finish_utc": "2026-10-25T09:01:00Z",
@@ -701,11 +701,11 @@ mod tests {
             "initial_correct": true,
             "followup_correct": true,
             "relocation_passed": false,
-            "recommendation": "veritas"
+            "recommendation": "guion"
         });
 
         assert!(
-            super::validate_builder_report(&report, "invoice-sentinel-veritas")
+            super::validate_builder_report(&report, "invoice-sentinel-guion")
                 .unwrap_err()
                 .contains("relocation")
         );
@@ -716,8 +716,8 @@ mod tests {
         let report = json!({
             "schema_version": 1,
             "status": "complete",
-            "assignment_id": "invoice-sentinel-veritas",
-            "language": "veritas",
+            "assignment_id": "invoice-sentinel-guion",
+            "language": "guion",
             "brief_id": "invoice-sentinel",
             "start_utc": "2026-10-25T09:00:00Z",
             "finish_utc": "2026-10-25T09:08:00Z",
@@ -734,14 +734,14 @@ mod tests {
             "interventions": [],
             "failures": [],
             "recommendation": {
-                "preferred_language": "veritas",
+                "preferred_language": "guion",
                 "reason": "The delivered build is portable.",
                 "observed_user_benefit": "One installed command builds and runs the app.",
                 "material_regressions": []
             },
             "evidence_paths": ["evaluation/completion/builder/reports/evidence/sample"]
         });
-        assert!(super::validate_builder_report(&report, "invoice-sentinel-veritas").is_ok());
+        assert!(super::validate_builder_report(&report, "invoice-sentinel-guion").is_ok());
     }
 
     #[test]
@@ -750,11 +750,11 @@ mod tests {
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_nanos();
-        let root = std::env::temp_dir().join(format!("veritas-builder-audit-{nonce}"));
+        let root = std::env::temp_dir().join(format!("guion-builder-audit-{nonce}"));
         let wrong_order = json!({
-            "invoice-sentinel": ["veritas", "python"],
-            "quote-merge": ["python", "veritas"],
-            "bookloom": ["python", "veritas"]
+            "invoice-sentinel": ["guion", "python"],
+            "quote-merge": ["python", "guion"],
+            "bookloom": ["python", "guion"]
         });
         write_audit_fixture(&root, wrong_order);
 
@@ -769,11 +769,11 @@ mod tests {
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_nanos();
-        let root = std::env::temp_dir().join(format!("veritas-builder-audit-valid-{nonce}"));
+        let root = std::env::temp_dir().join(format!("guion-builder-audit-valid-{nonce}"));
         let order = json!({
-            "invoice-sentinel": ["python", "veritas"],
-            "quote-merge": ["python", "veritas"],
-            "bookloom": ["veritas", "python"]
+            "invoice-sentinel": ["python", "guion"],
+            "quote-merge": ["python", "guion"],
+            "bookloom": ["guion", "python"]
         });
         write_audit_fixture(&root, order);
 

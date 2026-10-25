@@ -1,4 +1,4 @@
-# Canonical Veritas artifact encoder. This module owns field ordering and
+# Canonical Guion artifact encoder. This module owns field ordering and
 # opcode/value encodings; the Rust model remains the independent verifier.
 
 fn ab_join(parts: List[Bytes]) -> Bytes:

@@ -2,13 +2,12 @@ use std::process::Command;
 
 #[test]
 fn embedded_self_host_compiler_runs_shipped_data_modules_and_streams() {
-    let root =
-        std::env::temp_dir().join(format!("veritas stdlib data 東京 {}", std::process::id()));
+    let root = std::env::temp_dir().join(format!("guion stdlib data 東京 {}", std::process::id()));
     let _ = std::fs::remove_dir_all(&root);
     std::fs::create_dir_all(root.join("src")).unwrap();
     std::fs::write(
-        root.join("veritas.toml"),
-        "[project]\nname = \"stdlib-data-check\"\nversion = \"0.1.0\"\nentry = \"src/main.vr\"\n",
+        root.join("guion.toml"),
+        "[project]\nname = \"stdlib-data-check\"\nversion = \"0.1.0\"\nentry = \"src/main.gu\"\n",
     )
     .unwrap();
     std::fs::write(root.join("lines.txt"), "first\r\nsecond\n").unwrap();
@@ -58,14 +57,14 @@ fn main() -> Int:
     assert(flags.positionals[1] == "--literal")
     return 0
 "#;
-    std::fs::write(root.join("src/main.vr"), source).unwrap();
+    std::fs::write(root.join("src/main.gu"), source).unwrap();
 
-    let output = Command::new(env!("CARGO_BIN_EXE_veritas"))
+    let output = Command::new(env!("CARGO_BIN_EXE_guion"))
         .arg("run")
         .arg(&root)
         .current_dir(&root)
         .output()
-        .expect("embedded Veritas CLI starts");
+        .expect("embedded Guion CLI starts");
     assert!(
         output.status.success(),
         "{}",
@@ -77,7 +76,7 @@ fn main() -> Int:
     );
 
     std::fs::write(
-        root.join("src/main.vr"),
+        root.join("src/main.gu"),
         r#"fn effect(value: Int) -> Int:
     print(value)
     return value
@@ -89,12 +88,12 @@ fn main() -> Int:
 "#,
     )
     .unwrap();
-    let rejected = Command::new(env!("CARGO_BIN_EXE_veritas"))
+    let rejected = Command::new(env!("CARGO_BIN_EXE_guion"))
         .arg("check")
         .arg(&root)
         .current_dir(&root)
         .output()
-        .expect("embedded Veritas CLI checks effectful comparator");
+        .expect("embedded Guion CLI checks effectful comparator");
     assert!(!rejected.status.success());
     assert!(String::from_utf8_lossy(&rejected.stderr).contains("E_SORT_EFFECT"));
     let _ = std::fs::remove_dir_all(root);

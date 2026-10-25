@@ -4,7 +4,7 @@ use std::fs;
 use std::path::Path;
 
 const CATALOG: &str = "language/builtin-signatures.json";
-const GENERATED: &str = "language/self_host/builtin_catalog.vr";
+const GENERATED: &str = "language/self_host/builtin_catalog.gu";
 
 fn catalog_entries(root: &Path) -> Result<Vec<Value>, String> {
     let path = root.join(CATALOG);
@@ -49,7 +49,7 @@ fn catalog_entries(root: &Path) -> Result<Vec<Value>, String> {
     Ok(entries.clone())
 }
 
-pub fn render_veritas(root: &Path) -> Result<String, String> {
+pub fn render_guion(root: &Path) -> Result<String, String> {
     let entries = catalog_entries(root)?;
     let mut output = String::from("# Generated from language/builtin-signatures.json by `cargo xtask catalog --write`.\npub fn builtin_catalog_signature(name: Text) -> Text:\n    if len(name) == 0:\n        return \"\"\n");
     let mut initial = String::new();
@@ -94,7 +94,7 @@ pub fn render_veritas(root: &Path) -> Result<String, String> {
 }
 
 pub fn validate(root: &Path) -> Result<(), String> {
-    let expected = render_veritas(root)?;
+    let expected = render_guion(root)?;
     let generated = root.join(GENERATED);
     let actual = fs::read_to_string(&generated).map_err(|error| {
         format!(
@@ -113,13 +113,13 @@ pub fn validate(root: &Path) -> Result<(), String> {
 
 pub fn write(root: &Path) -> Result<(), String> {
     let generated = root.join(GENERATED);
-    fs::write(&generated, render_veritas(root)?)
+    fs::write(&generated, render_guion(root)?)
         .map_err(|error| format!("write {}: {error}", generated.display()))
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{render_veritas, validate};
+    use super::{render_guion, validate};
     use std::fs;
     use std::path::PathBuf;
 
@@ -129,7 +129,7 @@ mod tests {
             .unwrap_or("unknown")
             .replace(':', "_");
         let root = std::env::temp_dir().join(format!(
-            "veritas-builtin-catalog-{}-{thread}",
+            "guion-builtin-catalog-{}-{thread}",
             std::process::id()
         ));
         let _ = fs::remove_dir_all(&root);
@@ -139,14 +139,14 @@ mod tests {
     }
 
     #[test]
-    fn renders_stable_veritas_signatures_from_catalog() {
+    fn renders_stable_guion_signatures_from_catalog() {
         let root = fixture();
-        let rendered = render_veritas(&root).unwrap();
+        let rendered = render_guion(&root).unwrap();
         assert!(rendered.contains("builtin_catalog_arity(name: Text)"));
         assert!(rendered.contains("return \"1:Test:Int:Text\""));
         assert!(rendered.contains("builtin_catalog_parameter_type(name: Text, index: Int)"));
         fs::write(
-            root.join("language/self_host/builtin_catalog.vr"),
+            root.join("language/self_host/builtin_catalog.gu"),
             &rendered,
         )
         .unwrap();
@@ -159,7 +159,7 @@ mod tests {
         let root = fixture();
         let path = root.join("language/builtin-signatures.json");
         fs::write(path, r#"{"schema_version":1,"entries":[{"name":"test","parameters":[],"result":"Int","operation":"Test"},{"name":"test","parameters":[],"result":"Int","operation":"Test"}]}"#).unwrap();
-        assert!(render_veritas(&root)
+        assert!(render_guion(&root)
             .unwrap_err()
             .contains("duplicate builtin signature"));
         fs::remove_dir_all(root).unwrap();

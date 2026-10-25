@@ -1,15 +1,15 @@
-use std::io::Write;
-use veritas_compiler::compile;
-use veritas_model::{Artifact, SharedJson};
-use veritas_runtime::stdlib_data::{
+use guion_compiler::compile;
+use guion_model::{Artifact, SharedJson};
+use guion_runtime::stdlib_data::{
     compare_semver, parse_semver, parse_timestamp, CsvError, Date, FileReaderRegistry,
     ReaderErrorKind, TextOptionMap,
 };
-use veritas_runtime::{HostPolicy, Runtime};
+use guion_runtime::{HostPolicy, Runtime};
+use std::io::Write;
 
 fn temp_file(contents: &[u8]) -> std::path::PathBuf {
     let path = std::env::temp_dir().join(format!(
-        "veritas-stdlib-data-{}-{}",
+        "guion-stdlib-data-{}-{}",
         std::process::id(),
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -180,8 +180,8 @@ fn cli_option_map_distinguishes_missing_from_supplied_empty() {
             "--literal".into(),
         ],
         &[
-            veritas_runtime::stdlib_data::CliOption::new("tag", true, true, true),
-            veritas_runtime::stdlib_data::CliOption::new("flag", false, false, false),
+            guion_runtime::stdlib_data::CliOption::new("tag", true, true, true),
+            guion_runtime::stdlib_data::CliOption::new("flag", false, false, false),
         ],
     )
     .unwrap();
@@ -193,38 +193,34 @@ fn cli_option_map_distinguishes_missing_from_supplied_empty() {
 fn json_safe_accessors_keep_missing_null_and_boolean_types_distinct() {
     let value =
         SharedJson::from_serde(serde_json::json!({"present": null, "truth": true, "count": 5}));
-    assert!(
-        veritas_runtime::stdlib_data::json_try_get(&value, "present")
-            .unwrap()
-            .is_null()
-    );
+    assert!(guion_runtime::stdlib_data::json_try_get(&value, "present")
+        .unwrap()
+        .is_null());
     assert_eq!(
-        veritas_runtime::stdlib_data::json_try_get(&value, "missing")
+        guion_runtime::stdlib_data::json_try_get(&value, "missing")
             .unwrap_err()
             .code,
         "E_JSON_MISSING"
     );
     assert_eq!(
-        veritas_runtime::stdlib_data::json_try_bool(&SharedJson::Bool(true)).unwrap(),
+        guion_runtime::stdlib_data::json_try_bool(&SharedJson::Bool(true)).unwrap(),
         true
     );
     assert_eq!(
-        veritas_runtime::stdlib_data::json_try_int(&SharedJson::Bool(true))
+        guion_runtime::stdlib_data::json_try_int(&SharedJson::Bool(true))
             .unwrap_err()
             .code,
         "E_JSON_TYPE"
     );
     assert_eq!(
-        veritas_runtime::stdlib_data::json_try_int(&SharedJson::Number(serde_json::Number::from(
-            5
-        )))
-        .unwrap()
-        .to_string(),
+        guion_runtime::stdlib_data::json_try_int(&SharedJson::Number(serde_json::Number::from(5)))
+            .unwrap()
+            .to_string(),
         "5"
     );
     let scalar = SharedJson::from_serde(serde_json::Value::Null);
     assert_eq!(
-        veritas_runtime::stdlib_data::json_try_get(&scalar, "x")
+        guion_runtime::stdlib_data::json_try_get(&scalar, "x")
             .unwrap_err()
             .code,
         "E_JSON_SHAPE"
@@ -233,7 +229,7 @@ fn json_safe_accessors_keep_missing_null_and_boolean_types_distinct() {
 
 #[test]
 fn fs_walk_is_sorted_bounded_and_does_not_follow_symlink_directories() {
-    let root = std::env::temp_dir().join(format!("veritas-walk-{}", std::process::id()));
+    let root = std::env::temp_dir().join(format!("guion-walk-{}", std::process::id()));
     let outside = root.with_extension("outside");
     let _ = std::fs::remove_dir_all(&root);
     let _ = std::fs::remove_dir_all(&outside);
@@ -243,7 +239,7 @@ fn fs_walk_is_sorted_bounded_and_does_not_follow_symlink_directories() {
     std::fs::write(outside.join("secret.txt"), "secret").unwrap();
     #[cfg(unix)]
     std::os::unix::fs::symlink(&outside, root.join("a-link")).unwrap();
-    let entries = veritas_runtime::stdlib_data::fs_walk(&root, 8).unwrap();
+    let entries = guion_runtime::stdlib_data::fs_walk(&root, 8).unwrap();
     assert_eq!(
         entries
             .iter()
@@ -264,13 +260,13 @@ fn fs_walk_is_sorted_bounded_and_does_not_follow_symlink_directories() {
             }
         }
     );
-    assert!(veritas_runtime::stdlib_data::fs_walk(&root, 1).is_err());
+    assert!(guion_runtime::stdlib_data::fs_walk(&root, 1).is_err());
     #[cfg(unix)]
     {
         let root_link = root.with_extension("link");
         std::os::unix::fs::symlink(&root, &root_link).unwrap();
         assert_eq!(
-            veritas_runtime::stdlib_data::fs_walk(&root_link, 8)
+            guion_runtime::stdlib_data::fs_walk(&root_link, 8)
                 .unwrap_err()
                 .code,
             "E_FS_WALK_ROOT"
@@ -282,8 +278,8 @@ fn fs_walk_is_sorted_bounded_and_does_not_follow_symlink_directories() {
 }
 
 #[test]
-fn veritas_line_and_csv_builtins_stream_records_through_owned_handles() {
-    let root = std::env::temp_dir().join(format!("veritas-stdlib-vm-{}", std::process::id()));
+fn guion_line_and_csv_builtins_stream_records_through_owned_handles() {
+    let root = std::env::temp_dir().join(format!("guion-stdlib-vm-{}", std::process::id()));
     std::fs::create_dir_all(&root).unwrap();
     std::fs::write(root.join("lines.txt"), "alpha\r\nbeta\n").unwrap();
     std::fs::write(root.join("rows.csv"), "a,,\n\"b,b\",\"two\nlines\"\n").unwrap();
@@ -357,7 +353,7 @@ fn main() -> Int:
     assert(not(is_ok(fs_walk("root-link"))))
     return 0
 "#;
-    let artifact = compile("stdlib-data.vr", source).expect("data builtins compile");
+    let artifact = compile("stdlib-data.gu", source).expect("data builtins compile");
     assert_eq!(artifact.format_version, Artifact::CURRENT_VERSION);
     let mut old_artifact = artifact.clone();
     old_artifact.format_version = 34;
@@ -386,7 +382,7 @@ fn main() -> Int:
 
 #[test]
 fn every_shipped_data_module_compiles_as_an_independent_std_import() {
-    let root = std::env::temp_dir().join(format!("veritas-stdlib-modules-{}", std::process::id()));
+    let root = std::env::temp_dir().join(format!("guion-stdlib-modules-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&root);
     std::fs::create_dir_all(&root).unwrap();
     let source = r#"import "std:cli"
@@ -413,10 +409,10 @@ fn main() -> Int:
     assert(compare_versions(unwrap(parse_version("1.0.0-alpha")), unwrap(parse_version("1.0.0"))) < 0)
     return 0
 "#;
-    let entry = root.join("main.vr");
+    let entry = root.join("main.gu");
     std::fs::write(&entry, source).unwrap();
     let stdlib = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../language/stdlib");
-    let artifact = veritas_compiler::compile_project_with_roots(
+    let artifact = guion_compiler::compile_project_with_roots(
         &entry,
         &root,
         Some(&stdlib),
@@ -439,7 +435,7 @@ fn main() -> Int:
 
 #[test]
 fn invalid_data_keeps_existing_output_untouched() {
-    let root = std::env::temp_dir().join(format!("veritas-invalid-data-{}", std::process::id()));
+    let root = std::env::temp_dir().join(format!("guion-invalid-data-{}", std::process::id()));
     std::fs::create_dir_all(&root).unwrap();
     std::fs::write(root.join("report.txt"), "existing report\n").unwrap();
     let source = r#"fn main() -> Int:
@@ -448,7 +444,7 @@ fn invalid_data_keeps_existing_output_untouched() {
         unwrap(write_text_atomic("report.txt", "invalid output\n"))
     return 0
 "#;
-    let artifact = compile("invalid-data.vr", source).unwrap();
+    let artifact = compile("invalid-data.gu", source).unwrap();
     let mut runtime = Runtime::vm_only()
         .load(
             artifact,
@@ -479,7 +475,7 @@ fn main() -> Int:
     assert(items[0].order == 1)
     return 0
 "#;
-    let artifact = compile("sort-by.vr", source).expect("named comparator compiles");
+    let artifact = compile("sort-by.gu", source).expect("named comparator compiles");
     assert_eq!(artifact.format_version, Artifact::CURRENT_VERSION);
     let mut too_old = artifact.clone();
     too_old.format_version = 35;
@@ -504,6 +500,6 @@ fn main() -> Int:
     let values = sort_by([2, 1], compare)
     return values[0]
 "#;
-    let error = compile("sort-effect.vr", effectful).unwrap_err();
+    let error = compile("sort-effect.gu", effectful).unwrap_err();
     assert_eq!(error.code, "E_SORT_EFFECT");
 }

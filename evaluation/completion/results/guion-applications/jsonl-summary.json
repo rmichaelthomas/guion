@@ -1,0 +1,333 @@
+{
+  "schema_version": 1,
+  "task_id": "02-jsonl-retention",
+  "application": "jsonl-summary",
+  "mode": "source-free relocated package",
+  "relocation_path": "Moved package – Guion",
+  "product": "Guion",
+  "artifact_sha256": "dae68a9648c30e30f423d1196905119f6248699b7ebf1bf3c9bb88a47bdecde4",
+  "artifact_bytes": 45783989,
+  "source_paths_excluded": [
+    "main.vr",
+    "veritas.toml"
+  ],
+  "stages": {
+    "initial": {
+      "passed": true,
+      "elapsed_seconds": 1.1269127919804305,
+      "case_count": 6,
+      "cases": [
+        {
+          "case_id": "jsonl-normal-summary",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 0,
+          "checks_passed": 4,
+          "checks_total": 4,
+          "steps": [
+            {
+              "exit_code": 0,
+              "checks_passed": 4,
+              "checks_total": 4,
+              "failures": [],
+              "elapsed_seconds": 0.609631
+            }
+          ],
+          "elapsed_seconds": 0.611819,
+          "http_fixtures": {},
+          "stdout": "",
+          "stderr": "",
+          "failures": []
+        },
+        {
+          "case_id": "jsonl-strict-does-not-publish",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 1,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "steps": [
+            {
+              "exit_code": 1,
+              "checks_passed": 2,
+              "checks_total": 2,
+              "failures": [],
+              "elapsed_seconds": 0.106402
+            }
+          ],
+          "elapsed_seconds": 0.108597,
+          "http_fixtures": {},
+          "stdout": "",
+          "stderr": "invalid JSONL event at physical line 2\n",
+          "failures": []
+        },
+        {
+          "case_id": "jsonl-empty-input",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 0,
+          "checks_passed": 4,
+          "checks_total": 4,
+          "steps": [
+            {
+              "exit_code": 0,
+              "checks_passed": 4,
+              "checks_total": 4,
+              "failures": [],
+              "elapsed_seconds": 0.122521
+            }
+          ],
+          "elapsed_seconds": 0.124192,
+          "http_fixtures": {},
+          "stdout": "",
+          "stderr": "",
+          "failures": []
+        },
+        {
+          "case_id": "jsonl-missing-required-field",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 0,
+          "checks_passed": 4,
+          "checks_total": 4,
+          "steps": [
+            {
+              "exit_code": 0,
+              "checks_passed": 4,
+              "checks_total": 4,
+              "failures": [],
+              "elapsed_seconds": 0.110635
+            }
+          ],
+          "elapsed_seconds": 0.112532,
+          "http_fixtures": {},
+          "stdout": "",
+          "stderr": "",
+          "failures": []
+        },
+        {
+          "case_id": "jsonl-malformed-rfc3339-normal-mode",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 0,
+          "checks_passed": 4,
+          "checks_total": 4,
+          "steps": [
+            {
+              "exit_code": 0,
+              "checks_passed": 4,
+              "checks_total": 4,
+              "failures": [],
+              "elapsed_seconds": 0.08836
+            }
+          ],
+          "elapsed_seconds": 0.089674,
+          "http_fixtures": {},
+          "stdout": "",
+          "stderr": "",
+          "failures": []
+        },
+        {
+          "case_id": "jsonl-malformed-rfc3339-strict-preserves-output",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 1,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "steps": [
+            {
+              "exit_code": 1,
+              "checks_passed": 2,
+              "checks_total": 2,
+              "failures": [],
+              "elapsed_seconds": 0.077719
+            }
+          ],
+          "elapsed_seconds": 0.079663,
+          "http_fixtures": {},
+          "stdout": "",
+          "stderr": "invalid JSONL event at physical line 1\n",
+          "failures": []
+        }
+      ]
+    },
+    "follow_up": {
+      "passed": true,
+      "elapsed_seconds": 0.4767406659957487,
+      "case_count": 5,
+      "cases": [
+        {
+          "case_id": "jsonl-follow-up-allow-list",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 0,
+          "checks_passed": 5,
+          "checks_total": 5,
+          "steps": [
+            {
+              "exit_code": 0,
+              "checks_passed": 5,
+              "checks_total": 5,
+              "failures": [],
+              "elapsed_seconds": 0.095656
+            }
+          ],
+          "elapsed_seconds": 0.097614,
+          "http_fixtures": {},
+          "stdout": "",
+          "stderr": "",
+          "failures": []
+        },
+        {
+          "case_id": "jsonl-follow-up-empty-allow-list",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 0,
+          "checks_passed": 4,
+          "checks_total": 4,
+          "steps": [
+            {
+              "exit_code": 0,
+              "checks_passed": 4,
+              "checks_total": 4,
+              "failures": [],
+              "elapsed_seconds": 0.099473
+            }
+          ],
+          "elapsed_seconds": 0.106869,
+          "http_fixtures": {},
+          "stdout": "",
+          "stderr": "",
+          "failures": []
+        },
+        {
+          "case_id": "jsonl-follow-up-nonmatching-allow-list",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 0,
+          "checks_passed": 5,
+          "checks_total": 5,
+          "steps": [
+            {
+              "exit_code": 0,
+              "checks_passed": 5,
+              "checks_total": 5,
+              "failures": [],
+              "elapsed_seconds": 0.091343
+            }
+          ],
+          "elapsed_seconds": 0.093297,
+          "http_fixtures": {},
+          "stdout": "",
+          "stderr": "",
+          "failures": []
+        },
+        {
+          "case_id": "jsonl-fractional-offset-uses-canonical-utc",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 0,
+          "checks_passed": 4,
+          "checks_total": 4,
+          "steps": [
+            {
+              "exit_code": 0,
+              "checks_passed": 4,
+              "checks_total": 4,
+              "failures": [],
+              "elapsed_seconds": 0.086478
+            }
+          ],
+          "elapsed_seconds": 0.087786,
+          "http_fixtures": {},
+          "stdout": "",
+          "stderr": "",
+          "failures": []
+        },
+        {
+          "case_id": "jsonl-rejects-fraction-over-six-digits",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 0,
+          "checks_passed": 4,
+          "checks_total": 4,
+          "steps": [
+            {
+              "exit_code": 0,
+              "checks_passed": 4,
+              "checks_total": 4,
+              "failures": [],
+              "elapsed_seconds": 0.089435
+            }
+          ],
+          "elapsed_seconds": 0.090868,
+          "http_fixtures": {},
+          "stdout": "",
+          "stderr": "",
+          "failures": []
+        }
+      ]
+    }
+  },
+  "passed": true,
+  "generated": {
+    "schema_version": 1,
+    "application": "jsonl-summary",
+    "product": "Guion",
+    "mode": "seeded independent-oracle cases against relocated package",
+    "seed": 20261024,
+    "sizes": [
+      24,
+      128
+    ],
+    "case_count": 2,
+    "concurrency": null,
+    "passed": true,
+    "cases": [
+      {
+        "case_id": "generated-jsonl-24",
+        "candidate": {},
+        "passed": true,
+        "exit_code": 0,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "steps": [
+          {
+            "exit_code": 0,
+            "checks_passed": 1,
+            "checks_total": 1,
+            "failures": [],
+            "elapsed_seconds": 0.095482
+          }
+        ],
+        "elapsed_seconds": 0.097368,
+        "http_fixtures": {},
+        "stdout": "",
+        "stderr": "",
+        "failures": []
+      },
+      {
+        "case_id": "generated-jsonl-128",
+        "candidate": {},
+        "passed": true,
+        "exit_code": 0,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "steps": [
+          {
+            "exit_code": 0,
+            "checks_passed": 1,
+            "checks_total": 1,
+            "failures": [],
+            "elapsed_seconds": 0.112927
+          }
+        ],
+        "elapsed_seconds": 0.114827,
+        "http_fixtures": {},
+        "stdout": "",
+        "stderr": "",
+        "failures": []
+      }
+    ]
+  }
+}

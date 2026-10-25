@@ -1,7 +1,7 @@
 [project]
-name = "veritas-self-hosting"
+name = "guion-self-hosting"
 version = "0.1.0"
-entry = "compiler.vr"
+entry = "compiler.gu"
 
 [runtime]
 # The compiler's own source is parsed and lowered at bootstrap stages; budget

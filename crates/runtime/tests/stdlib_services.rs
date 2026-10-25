@@ -4,22 +4,22 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
-use veritas_model::{Artifact, BigInt, SharedJson, Value};
-use veritas_runtime::stdlib_services::{
+use guion_model::{Artifact, BigInt, SharedJson, Value};
+use guion_runtime::stdlib_services::{
     calendar_parse, crypto_hmac_sha256, crypto_verify_hmac_sha256, text_casefold,
     text_collapse_whitespace, text_normalize, CalendarEvent, DatabaseRegistry, SqlValue,
     TomlDocument, TomlRegistry,
 };
-use veritas_runtime::{HostPolicy, Runtime};
+use guion_runtime::{HostPolicy, Runtime};
 
-const SELF_HOSTED_COMPILER: &[u8] = include_bytes!("../../../language/self_host/compiler.vrb");
+const SELF_HOSTED_COMPILER: &[u8] = include_bytes!("../../../language/self_host/compiler.gub");
 
 fn temp_path(name: &str) -> PathBuf {
     let nonce = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap()
         .as_nanos();
-    std::env::temp_dir().join(format!("veritas-{name}-{}-{nonce}", std::process::id()))
+    std::env::temp_dir().join(format!("guion-{name}-{}-{nonce}", std::process::id()))
 }
 
 fn hex(bytes: &[u8]) -> String {
@@ -100,7 +100,7 @@ fn sqlite_rejects_nested_and_cross_registry_handles() {
     first.close(db).unwrap();
     assert_eq!(first.rollback(tx).unwrap_err().code, "E_RESOURCE_CLOSED");
     let (owner, id) = db.parts();
-    let stale = veritas_runtime::stdlib_services::DbHandle::from_parts(owner, id + 10_000);
+    let stale = guion_runtime::stdlib_services::DbHandle::from_parts(owner, id + 10_000);
     assert_eq!(first.begin(stale).unwrap_err().code, "E_RESOURCE_STALE");
     let _ = fs::remove_file(path);
 }
@@ -114,7 +114,7 @@ fn toml_resources_reject_foreign_and_invocation_stale_handles() {
     first.close_all();
     assert_eq!(first.render(handle).unwrap_err().code, "E_RESOURCE_STALE");
     let (owner, id) = handle.parts();
-    let stale = veritas_runtime::stdlib_services::TomlHandle::from_parts(owner, id + 1);
+    let stale = guion_runtime::stdlib_services::TomlHandle::from_parts(owner, id + 1);
     assert_eq!(first.render(stale).unwrap_err().code, "E_RESOURCE_STALE");
 }
 
@@ -122,7 +122,7 @@ fn toml_resources_reject_foreign_and_invocation_stale_handles() {
 fn sqlite_denies_paths_and_sql_that_escape_the_granted_database_root() {
     let path = temp_path("denied.sqlite");
     let mut databases = DatabaseRegistry::with_roots(
-        [std::env::temp_dir().join("veritas-no-such-root")],
+        [std::env::temp_dir().join("guion-no-such-root")],
         1024,
         10,
         50,
@@ -413,7 +413,7 @@ fn embedded_vtimezone_takes_precedence_over_the_matching_iana_identifier() {
 }
 
 #[test]
-fn veritas_public_service_modules_call_typed_native_apis() {
+fn guion_public_service_modules_call_typed_native_apis() {
     let project = temp_path("service-program");
     fs::create_dir_all(&project).unwrap();
     let source = r##"
@@ -442,12 +442,12 @@ pub fn main() -> Int:
         return 1
     return 0
 "##;
-    fs::write(project.join("main.vr"), source).unwrap();
+    fs::write(project.join("main.gu"), source).unwrap();
     let stdlib = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../language/stdlib");
     let compiler_artifact =
         Artifact::from_bytes(SELF_HOSTED_COMPILER).expect("read checked self-host compiler");
     let compiler_args = vec![
-        Value::Text("main.vr".into()),
+        Value::Text("main.gu".into()),
         Value::Text(source.into()),
         Value::Text("std".into()),
         Value::Json(SharedJson::from_serde(serde_json::json!({}))),

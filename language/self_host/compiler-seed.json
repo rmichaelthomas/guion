@@ -1,17 +1,17 @@
 {
   "artifact_format": 39,
-  "artifact_schema_sha256": "e50354f9431c7e244d093a0a2ad94fa897b91b8eb1793338d9dfce94fe38ce10",
-  "artifact_sha256": "86aa851606f499999af2ad5a30daf708b62b1ecc571904b62896dd2613ed8c20",
-  "compiler_entry": "compiler.vr",
+  "artifact_schema_sha256": "7c91c82c3ff2a1351fe30dc9bd3350eb1d88dc914b59f3a34cc288858a94958f",
+  "artifact_sha256": "f4d40b4c9e61ae099d51cb5022b2b89806b9dd88640be65e22e1aa213bc5d268",
+  "compiler_entry": "compiler.gu",
   "compiler_source_files": [
-    "compiler.vr",
-    "lexer.vr",
-    "parser.vr",
-    "builtin_catalog.vr",
-    "artifact.vr"
+    "compiler.gu",
+    "lexer.gu",
+    "parser.gu",
+    "builtin_catalog.gu",
+    "artifact.gu"
   ],
-  "compiler_source_sha256": "2b45479b30856739983d0ce7cfce3ef4fdedb82bb4dd57defc8f7258e2b77def",
+  "compiler_source_sha256": "884dde59d1a7a72e960260f128ff8b60ee14328a7a9ef2843a58a4da10990d4e",
   "host_abi_version": 1,
-  "regeneration_command": "cargo run --locked --offline -p veritas-bootstrap --bin veritas-stage0 -- seed .",
+  "regeneration_command": "cargo run --locked --offline -p guion-bootstrap --bin guion-stage0 -- seed .",
   "schema_version": 1
 }

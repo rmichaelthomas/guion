@@ -1,12 +1,12 @@
+use guion_compiler::compile;
+use guion_model::{BigInt, Float64, Type, Value};
+use guion_runtime::{python_bridge::PythonBridge, CancellationToken, HostPolicy, Runtime};
 use std::{collections::BTreeMap, path::PathBuf, process::Command, sync::Arc, time::Duration};
-use veritas_compiler::compile;
-use veritas_model::{BigInt, Float64, Type, Value};
-use veritas_runtime::{python_bridge::PythonBridge, CancellationToken, HostPolicy, Runtime};
 
 #[test]
 fn cancellation_terminates_a_running_python_call() {
     let root = std::env::temp_dir().join(format!(
-        "veritas-python-cancel-{}-{}",
+        "guion-python-cancel-{}-{}",
         std::process::id(),
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -123,7 +123,7 @@ fn bridge_round_trips_typed_maps_as_python_dictionaries() {
 #[test]
 fn isolated_bridge_can_import_python_modules_from_the_project_root() {
     let root = std::env::temp_dir().join(format!(
-        "veritas-python-project-{}-{}",
+        "guion-python-project-{}-{}",
         std::process::id(),
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -148,7 +148,7 @@ fn isolated_bridge_can_import_python_modules_from_the_project_root() {
 #[test]
 fn python_bridge_imports_from_project_but_uses_last_file_root_for_relative_paths() {
     let root = std::env::temp_dir().join(format!(
-        "veritas-python-file-roots-{}-{}",
+        "guion-python-file-roots-{}-{}",
         std::process::id(),
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -167,7 +167,7 @@ fn python_bridge_imports_from_project_but_uses_last_file_root_for_relative_paths
     std::fs::write(caller.join("policy.json"), "caller policy\n").unwrap();
 
     let source = "extern python \"local_adapter:read_policy\" fn read_policy() -> Text\n\nfn main() -> Int:\n    print(read_policy())\n    return 0\n";
-    let artifact = compile("bridge-roots.vr", source).unwrap();
+    let artifact = compile("bridge-roots.gu", source).unwrap();
     let policy = HostPolicy::default()
         .with_file_access(&project, true, true)
         .with_additional_file_root(&caller)
@@ -185,7 +185,7 @@ fn python_bridge_imports_from_project_but_uses_last_file_root_for_relative_paths
 #[test]
 fn source_programs_can_call_python_with_maps_and_receive_typed_maps() {
     let source = "extern python \"builtins:dict\" fn copy_map(values: Map[Text, Int]) -> Map[Text, Int]\n\nfn main() -> Int:\n    let values = {\"y\": 2, \"x\": 1}\n    let copied = copy_map(values)\n    print(copied[\"x\"])\n    return len(copied)\n";
-    let artifact = compile("python-map.vr", source).expect("typed Map ABI compiles");
+    let artifact = compile("python-map.gu", source).expect("typed Map ABI compiles");
     let policy = HostPolicy::default().with_python(interpreter(), Duration::from_secs(5));
     let mut instance = Runtime::new().load(artifact, policy).unwrap();
     assert_eq!(
@@ -212,8 +212,8 @@ fn main() -> Int:
     print(json_stringify(copied))
     return 0
 "#;
-    let artifact = compile("python-json.vr", source).expect("Json ABI should typecheck");
-    let artifact = veritas_model::Artifact::from_bytes(&artifact.to_bytes().unwrap()).unwrap();
+    let artifact = compile("python-json.gu", source).expect("Json ABI should typecheck");
+    let artifact = guion_model::Artifact::from_bytes(&artifact.to_bytes().unwrap()).unwrap();
     let policy = HostPolicy::default().with_python(interpreter(), Duration::from_secs(5));
     let mut instance = Runtime::new().load(artifact, policy).unwrap();
     assert_eq!(
@@ -227,9 +227,9 @@ fn main() -> Int:
 }
 
 #[test]
-fn numpy_arrays_convert_to_their_declared_veritas_list_shape() {
+fn numpy_arrays_convert_to_their_declared_guion_list_shape() {
     let source = "extern python \"numpy:arange\" fn sequence(stop: Int) -> List[Int]\nextern python \"numpy:eye\" fn identity(size: Int) -> List[List[Float64]]\n\nfn main() -> Int:\n    let values = sequence(6)\n    let matrix = identity(2)\n    assert(len(values) == 6)\n    assert(values[5] == 5)\n    assert(matrix[0][0] == 1.0)\n    assert(matrix[0][1] == 0.0)\n    assert(matrix[1][1] == 1.0)\n    return values[0] + values[1] + values[2] + values[3] + values[4] + values[5]\n";
-    let artifact = compile("python-numpy.vr", source).expect("NumPy List ABI should typecheck");
+    let artifact = compile("python-numpy.gu", source).expect("NumPy List ABI should typecheck");
     let policy = HostPolicy::default().with_python(interpreter(), Duration::from_secs(5));
     let mut instance = Runtime::new().load(artifact, policy).unwrap();
     assert_eq!(
@@ -241,7 +241,7 @@ fn numpy_arrays_convert_to_their_declared_veritas_list_shape() {
 #[test]
 fn numpy_array_materialization_rejects_oversized_temporary_values() {
     let root = std::env::temp_dir().join(format!(
-        "veritas-python-numpy-size-{}-{}",
+        "guion-python-numpy-size-{}-{}",
         std::process::id(),
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -280,7 +280,7 @@ fn numpy_array_materialization_rejects_oversized_temporary_values() {
 #[test]
 fn python_json_results_reject_non_json_values_and_cycles() {
     let root = std::env::temp_dir().join(format!(
-        "veritas-python-json-boundary-{}-{}",
+        "guion-python-json-boundary-{}-{}",
         std::process::id(),
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -313,7 +313,7 @@ fn python_json_results_reject_non_json_values_and_cycles() {
 #[test]
 fn float64_values_cross_python_calls_and_return_with_exact_binary64_value() {
     let source = "extern python \"builtins:float\" fn echo(value: Float64) -> Float64\n\nfn main() -> Int:\n    let value = echo(0.125)\n    assert(value == 0.125)\n    return 0\n";
-    let artifact = compile("python-float.vr", source).expect("Float64 ABI compiles");
+    let artifact = compile("python-float.gu", source).expect("Float64 ABI compiles");
     let policy = HostPolicy::default().with_python(interpreter(), Duration::from_secs(5));
     let mut instance = Runtime::new().load(artifact, policy).unwrap();
     assert_eq!(
@@ -417,9 +417,9 @@ fn bridge_timeout_terminates_the_sidecar() {
 #[test]
 fn source_external_calls_run_through_the_artifact_runtime_path() {
     let source = "extern python \"builtins:pow\" fn pow(base: Int, exponent: Int) -> Int\n\nfn main() -> Int:\n    let answer = pow(2, 80)\n    print(answer)\n    return 0\n";
-    let artifact = compile("interop.vr", source).unwrap();
+    let artifact = compile("interop.gu", source).unwrap();
     let bytes = artifact.to_bytes().unwrap();
-    let artifact = veritas_model::Artifact::from_bytes(&bytes).unwrap();
+    let artifact = guion_model::Artifact::from_bytes(&bytes).unwrap();
     let policy = HostPolicy::default().with_python(interpreter(), Duration::from_secs(5));
     let mut instance = Runtime::new().load(artifact, policy).unwrap();
     assert_eq!(
@@ -434,7 +434,7 @@ fn source_external_calls_run_through_the_artifact_runtime_path() {
 #[test]
 fn source_external_calls_require_an_explicit_interpreter() {
     let source = "extern python \"math:factorial\" fn factorial(value: Int) -> Int\n\nfn main() -> Int:\n    return factorial(6)\n";
-    let artifact = compile("interop-unconfigured.vr", source).unwrap();
+    let artifact = compile("interop-unconfigured.gu", source).unwrap();
     let mut instance = Runtime::new()
         .load(artifact, HostPolicy::default())
         .unwrap();
@@ -446,14 +446,14 @@ fn source_external_calls_require_an_explicit_interpreter() {
 
 #[test]
 fn binary_bytes_round_trip_through_file_host_calls_and_python_bridge() {
-    let root = std::env::temp_dir().join(format!("veritas-bytes-{}", std::process::id()));
+    let root = std::env::temp_dir().join(format!("guion-bytes-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&root);
     std::fs::create_dir_all(&root).unwrap();
     let input = [0, 0xff, 0x80, b'a', b'\n', 0, 0xc3];
     std::fs::write(root.join("input.bin"), input).unwrap();
     let source = "extern python \"builtins:bytes\" fn echo(data: Bytes) -> Bytes\n\nfn main() -> Int:\n    let raw = unwrap(read_bytes(\"input.bin\"))\n    assert(len(raw) == 7)\n    let copied = echo(raw)\n    unwrap(write_bytes(\"output.bin\", copied))\n    return 0\n";
-    let artifact = compile("bytes.vr", source).expect("Bytes program should typecheck");
-    let artifact = veritas_model::Artifact::from_bytes(&artifact.to_bytes().unwrap()).unwrap();
+    let artifact = compile("bytes.gu", source).expect("Bytes program should typecheck");
+    let artifact = guion_model::Artifact::from_bytes(&artifact.to_bytes().unwrap()).unwrap();
     let policy = HostPolicy::default()
         .with_file_access(root.clone(), true, true)
         .with_python(interpreter(), Duration::from_secs(5));
@@ -469,8 +469,8 @@ fn binary_bytes_round_trip_through_file_host_calls_and_python_bridge() {
 #[test]
 fn source_python_calls_accept_keyword_arguments_and_python_defaults() {
     let source = "extern python \"builtins:pow\" fn power(base: Int, exp: Int, mod: Int) -> Int\n\nfn main() -> Int:\n    return power(2, exp=10)\n";
-    let artifact = compile("python-keywords.vr", source).expect("keyword call should typecheck");
-    let artifact = veritas_model::Artifact::from_bytes(&artifact.to_bytes().unwrap()).unwrap();
+    let artifact = compile("python-keywords.gu", source).expect("keyword call should typecheck");
+    let artifact = guion_model::Artifact::from_bytes(&artifact.to_bytes().unwrap()).unwrap();
     let policy = HostPolicy::default().with_python(interpreter(), Duration::from_secs(5));
     let mut instance = Runtime::new().load(artifact, policy).unwrap();
     assert_eq!(
@@ -482,7 +482,7 @@ fn source_python_calls_accept_keyword_arguments_and_python_defaults() {
 #[test]
 fn source_python_calls_report_missing_required_python_arguments_at_runtime() {
     let source = "extern python \"builtins:pow\" fn power(base: Int, exp: Int) -> Int\n\nfn main() -> Int:\n    return power(2)\n";
-    let artifact = compile("python-required-argument.vr", source)
+    let artifact = compile("python-required-argument.gu", source)
         .expect("external signatures leave Python defaults to the runtime");
     let policy = HostPolicy::default().with_python(interpreter(), Duration::from_secs(5));
     let mut instance = Runtime::new().load(artifact, policy).unwrap();
@@ -500,7 +500,7 @@ fn source_python_calls_reject_unknown_duplicate_and_misordered_arguments() {
         ("power(2, exp=10, exp=11)", "E_PYTHON_KEYWORD_DUPLICATE"),
         ("power(exp=10, 2)", "E_PYTHON_ARGUMENT_ORDER"),
     ] {
-        let error = compile("python-keyword-error.vr", &format!("{prefix}{args}\n")).unwrap_err();
+        let error = compile("python-keyword-error.gu", &format!("{prefix}{args}\n")).unwrap_err();
         assert_eq!(error.code, expected, "unexpected diagnostic for {args}");
     }
 }
@@ -509,7 +509,7 @@ fn source_python_calls_reject_unknown_duplicate_and_misordered_arguments() {
 #[test]
 fn bridge_reports_native_images_loaded_dynamically_by_python() {
     let root = std::env::temp_dir().join(format!(
-        "veritas-python-native-image-{}-{}",
+        "guion-python-native-image-{}-{}",
         std::process::id(),
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -518,8 +518,8 @@ fn bridge_reports_native_images_loaded_dynamically_by_python() {
     ));
     std::fs::create_dir_all(&root).unwrap();
     let source = root.join("probe.c");
-    let library = root.join("libveritas_probe.dylib");
-    std::fs::write(&source, "int veritas_probe(void) { return 42; }\n").unwrap();
+    let library = root.join("libguion_probe.dylib");
+    std::fs::write(&source, "int guion_probe(void) { return 42; }\n").unwrap();
     let status = Command::new("cc")
         .args(["-dynamiclib", "-o"])
         .arg(&library)
@@ -529,7 +529,7 @@ fn bridge_reports_native_images_loaded_dynamically_by_python() {
     assert!(status.success(), "the native probe library should compile");
     std::fs::write(
         root.join("native_loader.py"),
-        "import ctypes\ndef load(path):\n    library = ctypes.CDLL(path)\n    return library.veritas_probe()\n",
+        "import ctypes\ndef load(path):\n    library = ctypes.CDLL(path)\n    return library.guion_probe()\n",
     )
     .unwrap();
     let mut bridge = PythonBridge::launch(&interpreter(), &root, Duration::from_secs(5)).unwrap();

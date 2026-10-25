@@ -20,7 +20,7 @@ mod tests {
         for path in [
             "evaluation/completion/results/release.json",
             "evaluation/completion/status.json",
-            "docs/superpowers/plans/2026-10-24-veritas-complete-product.md",
+            "docs/superpowers/plans/2026-10-24-guion-complete-product.md",
             "docs/completion-report.md",
         ] {
             assert!(
@@ -28,7 +28,11 @@ mod tests {
                 "completion metadata unexpectedly affects the product snapshot: {path}"
             );
         }
-        for path in ["crates/runtime/src/lib.rs", "README.md", "docs/reference.md"] {
+        for path in [
+            "crates/runtime/src/lib.rs",
+            "README.md",
+            "docs/reference.md",
+        ] {
             assert!(
                 include_in_product_snapshot(Path::new(path)),
                 "product input was unexpectedly excluded from the snapshot: {path}"

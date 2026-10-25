@@ -25,6 +25,34 @@ fn repository_root() -> PathBuf {
         .to_path_buf()
 }
 
+struct RemoveDirOnDrop(PathBuf);
+
+impl Drop for RemoveDirOnDrop {
+    fn drop(&mut self) {
+        let _ = fs::remove_dir_all(&self.0);
+    }
+}
+
+fn copy_fixture_tree(source: &Path, destination: &Path) {
+    fs::create_dir_all(destination).unwrap();
+    for entry in fs::read_dir(source).unwrap() {
+        let entry = entry.unwrap();
+        if entry.file_name() == "dist" {
+            continue;
+        }
+        let from = entry.path();
+        let to = destination.join(entry.file_name());
+        let kind = entry.file_type().unwrap();
+        if kind.is_dir() {
+            copy_fixture_tree(&from, &to);
+        } else if kind.is_file() {
+            fs::copy(&from, &to).unwrap();
+        } else {
+            panic!("unsupported frozen application entry: {}", from.display());
+        }
+    }
+}
+
 fn run(command: &mut Command, description: &str) -> std::process::Output {
     let output = command
         .output()
@@ -41,10 +69,24 @@ fn run(command: &mut Command, description: &str) -> std::process::Output {
 #[test]
 fn all_nine_applications_pass_initial_and_follow_up_from_relocated_packages() {
     let root = repository_root();
-    let cli = PathBuf::from(env!("CARGO_BIN_EXE_veritas"));
-    let applications_root = std::env::var_os("VERITAS_APPLICATIONS_ROOT")
+    let cli = PathBuf::from(env!("CARGO_BIN_EXE_guion"));
+    let source_applications_root = std::env::var_os("GUION_APPLICATIONS_ROOT")
         .map(PathBuf::from)
         .unwrap_or_else(|| root.join("evaluation/completion/applications"));
+    let scratch = std::env::temp_dir().join(format!(
+        "guion-application-acceptance-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&scratch);
+    let _cleanup = RemoveDirOnDrop(scratch.clone());
+    let applications_root = scratch.join("applications");
+    for name in APPLICATIONS {
+        copy_fixture_tree(
+            &source_applications_root.join(name),
+            &applications_root.join(name),
+        );
+    }
+    let applications_root = applications_root.canonicalize().unwrap();
 
     for name in APPLICATIONS {
         let application = applications_root.join(name);
@@ -87,8 +129,9 @@ fn all_nine_applications_pass_initial_and_follow_up_from_relocated_packages() {
                     .current_dir(&application),
                 &format!("offline lock validation for {name}"),
             );
-            let lock = fs::read_to_string(&lock_path)
-                .unwrap_or_else(|error| panic!("{name} did not write veritas.lock: {error}"));
+            let lock = fs::read_to_string(&lock_path).unwrap_or_else(|error| {
+                panic!("{name} did not write legacy veritas.lock: {error}")
+            });
             assert!(
                 lock.contains("format_version = 2"),
                 "{name} lock must be native"
@@ -110,7 +153,7 @@ fn all_nine_applications_pass_initial_and_follow_up_from_relocated_packages() {
             );
         }
         let lock = fs::read_to_string(&lock_path)
-            .unwrap_or_else(|error| panic!("{name} did not retain veritas.lock: {error}"));
+            .unwrap_or_else(|error| panic!("{name} did not retain legacy veritas.lock: {error}"));
         assert!(
             lock.contains("format_version = 2"),
             "{name} lock must be native"
@@ -133,7 +176,7 @@ fn all_nine_applications_pass_initial_and_follow_up_from_relocated_packages() {
             "{name} package embeds Python"
         );
         assert!(
-            package.join("app.vrb").is_file(),
+            package.join("app.gub").is_file(),
             "{name} has no compiled artifact"
         );
         assert!(
@@ -143,9 +186,9 @@ fn all_nine_applications_pass_initial_and_follow_up_from_relocated_packages() {
     }
 
     let runner = root.join("evaluation/completion/run_applications.py");
-    let reports_root = std::env::var_os("VERITAS_APPLICATION_RESULTS")
+    let reports_root = std::env::var_os("GUION_APPLICATION_RESULTS")
         .map(PathBuf::from)
-        .unwrap_or_else(|| root.join("evaluation/completion/results/applications"));
+        .unwrap_or_else(|| root.join("evaluation/completion/results/guion-applications"));
     let output = run(
         Command::new("python3")
             .arg(runner)

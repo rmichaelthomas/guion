@@ -1,5 +1,5 @@
 [package]
-name = "veritas-runtime"
+name = "guion-runtime"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -10,7 +10,7 @@ default = []
 python-interop = []
 
 [dependencies]
-veritas-model.workspace = true
+guion-model.workspace = true
 libc.workspace = true
 serde_json.workspace = true
 serde.workspace = true
@@ -31,7 +31,7 @@ cranelift-module = "=0.135.0"
 cranelift-native = "=0.135.0"
 
 [dev-dependencies]
-veritas-compiler.workspace = true
+guion-compiler.workspace = true
 
 [build-dependencies]
 cc = "=1.8.0"

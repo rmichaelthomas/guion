@@ -6,7 +6,45 @@ use std::{
     process::{Command, Output},
 };
 
-const BRIDGE_DIRECTORY: &str = ".veritas/python-bridge";
+const BRIDGE_DIRECTORY: &str = ".guion/python-bridge";
+
+fn project_manifest_path(root: &Path) -> PathBuf {
+    let current = root.join("guion.toml");
+    if current.is_file() {
+        current
+    } else {
+        let legacy = root.join("veritas.toml");
+        if legacy.is_file() {
+            legacy
+        } else {
+            current
+        }
+    }
+}
+
+fn project_lock_path(root: &Path) -> PathBuf {
+    let current = root.join("guion.lock");
+    if current.is_file() {
+        current
+    } else {
+        let legacy = root.join("veritas.lock");
+        if legacy.is_file() {
+            legacy
+        } else {
+            current
+        }
+    }
+}
+
+fn project_bridge_root(root: &Path) -> PathBuf {
+    let current = root.join(BRIDGE_DIRECTORY);
+    let legacy = root.join(".veritas/python-bridge");
+    if current.exists() || !legacy.exists() {
+        current
+    } else {
+        legacy
+    }
+}
 
 #[derive(Clone, Debug)]
 pub struct SyncError {
@@ -226,7 +264,7 @@ pub fn bundle_python(root: &Path, package_root: &Path) -> Result<Option<PythonBu
             package_root.display()
         )
     })?;
-    let manifest_path = root.join("veritas.toml");
+    let manifest_path = project_manifest_path(root);
     let manifest_bytes = fs::read(&manifest_path)
         .map_err(|error| format!("cannot read {}: {error}", manifest_path.display()))?;
     let manifest_text = std::str::from_utf8(&manifest_bytes)
@@ -235,9 +273,9 @@ pub fn bundle_python(root: &Path, package_root: &Path) -> Result<Option<PythonBu
         return Ok(None);
     };
     let manifest_digest = sha256_bytes(&manifest_bytes)?;
-    let source_bridge = root.join(BRIDGE_DIRECTORY);
+    let source_bridge = project_bridge_root(root);
     let source_uv_lock = source_bridge.join("uv.lock");
-    let source_lock = root.join("veritas.lock");
+    let source_lock = project_lock_path(root);
     verify_lock_metadata(
         &source_lock,
         &manifest_digest,
@@ -247,7 +285,7 @@ pub fn bundle_python(root: &Path, package_root: &Path) -> Result<Option<PythonBu
     let source_pyproject = source_bridge.join("pyproject.toml");
     if !source_pyproject.is_file() {
         return Err(format!(
-            "managed Python bridge project is missing {}; run `veritas sync <project>`",
+            "managed Python bridge project is missing {}; run `guion sync <project>`",
             source_pyproject.display()
         ));
     }
@@ -263,8 +301,8 @@ pub fn bundle_python(root: &Path, package_root: &Path) -> Result<Option<PythonBu
         .map_err(|error| format!("cannot copy managed Python project: {error}"))?;
     fs::copy(&source_uv_lock, package_bridge.join("uv.lock"))
         .map_err(|error| format!("cannot copy managed Python lock: {error}"))?;
-    fs::copy(&source_lock, package_root.join("veritas.lock"))
-        .map_err(|error| format!("cannot copy Veritas lock: {error}"))?;
+    fs::copy(&source_lock, package_root.join("guion.lock"))
+        .map_err(|error| format!("cannot copy Guion lock: {error}"))?;
 
     let source_uv = find_uv()?;
     verify_uv(&source_uv)?;
@@ -277,12 +315,12 @@ pub fn bundle_python(root: &Path, package_root: &Path) -> Result<Option<PythonBu
     fs::create_dir_all(&uv_cache)
         .map_err(|error| format!("cannot create package dependency cache: {error}"))?;
     let python_install = package_root.join("python");
-    if let Some(source_install) = env::var_os("VERITAS_PYTHON_INSTALL_DIR") {
+    if let Some(source_install) = env::var_os("GUION_PYTHON_INSTALL_DIR") {
         let source_install = PathBuf::from(source_install);
         let interpreter =
             find_installed_python(&source_install, &project.version)?.ok_or_else(|| {
                 format!(
-                    "VERITAS_PYTHON_INSTALL_DIR does not contain CPython {}: {}",
+                    "GUION_PYTHON_INSTALL_DIR does not contain CPython {}: {}",
                     project.version,
                     source_install.display()
                 )
@@ -306,7 +344,7 @@ pub fn bundle_python(root: &Path, package_root: &Path) -> Result<Option<PythonBu
         ensure_success(
             "bundled CPython install",
             install,
-            "check network access and disk space, then retry `veritas package`",
+            "check network access and disk space, then retry `guion package`",
         )?;
     }
 
@@ -322,7 +360,7 @@ pub fn bundle_python(root: &Path, package_root: &Path) -> Result<Option<PythonBu
     ensure_success(
         "packaged Python dependency sync",
         sync,
-        "check network access and the project's locked wheel availability, then retry `veritas package`",
+        "check network access and the project's locked wheel availability, then retry `guion package`",
     )?;
     // `uv sync` may replace its own parent directory with a link to the
     // configured Python install directory. Restore the package toolchain as a
@@ -1354,7 +1392,7 @@ pub fn sha256_python_cache_payload(root: &Path) -> Result<(String, u64), String>
 }
 
 pub fn sync(root: &Path, update: bool) -> Result<String, SyncError> {
-    let manifest_path = root.join("veritas.toml");
+    let manifest_path = project_manifest_path(root);
     let manifest_bytes = fs::read(&manifest_path)
         .map_err(|error| format!("cannot read {}: {error}", manifest_path.display()))?;
     let manifest_text = std::str::from_utf8(&manifest_bytes)
@@ -1364,13 +1402,13 @@ pub fn sync(root: &Path, update: bool) -> Result<String, SyncError> {
         .ok_or_else(|| {
             SyncError::new(
                 "E_SYNC_CONFIGURATION",
-                "project has no [python] table in veritas.toml",
+                "project has no [python] table in guion.toml",
             )
         })?;
     let manifest_digest = sha256_bytes(&manifest_bytes)?;
-    let bridge_root = root.join(BRIDGE_DIRECTORY);
+    let bridge_root = project_bridge_root(root);
     let uv_lock_path = bridge_root.join("uv.lock");
-    let lock_path = root.join("veritas.lock");
+    let lock_path = project_lock_path(root);
     let uv = find_uv().map_err(|message| SyncError::new("E_UV_NOT_FOUND", message))?;
     verify_uv_for_sync(&uv)?;
 
@@ -1421,7 +1459,7 @@ pub fn sync(root: &Path, update: bool) -> Result<String, SyncError> {
         lock_command
             .output()
             .map_err(|error| format!("cannot start managed resolver {}: {error}", uv.display()))?,
-        "lock verification failed; run `veritas sync --update <project>` to change dependencies",
+        "lock verification failed; run `guion sync --update <project>` to change dependencies",
     )
     .map_err(|message| SyncError::new("E_DEPENDENCY_RESOLUTION_FAILED", message))?;
 
@@ -1434,7 +1472,7 @@ pub fn sync(root: &Path, update: bool) -> Result<String, SyncError> {
     ensure_success(
         "uv sync",
         sync,
-        "dependency installation failed; check the network or uv cache and retry `veritas sync`",
+        "dependency installation failed; check the network or uv cache and retry `guion sync`",
     )
     .map_err(|message| SyncError::new("E_DEPENDENCY_INSTALL_FAILED", message))?;
 
@@ -1601,7 +1639,7 @@ fn remove_path(path: &Path) -> Result<(), String> {
 }
 
 pub fn interpreter_for_locked_run(root: &Path) -> Result<Option<PathBuf>, String> {
-    let manifest_path = root.join("veritas.toml");
+    let manifest_path = project_manifest_path(root);
     let manifest_text = match fs::read_to_string(&manifest_path) {
         Ok(text) => text,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
@@ -1612,9 +1650,9 @@ pub fn interpreter_for_locked_run(root: &Path) -> Result<Option<PathBuf>, String
     };
 
     let manifest_digest = sha256_bytes(manifest_text.as_bytes())?;
-    let bridge_root = root.join(BRIDGE_DIRECTORY);
+    let bridge_root = project_bridge_root(root);
     let uv_lock_path = bridge_root.join("uv.lock");
-    let lock_path = root.join("veritas.lock");
+    let lock_path = project_lock_path(root);
     verify_lock_metadata(
         &lock_path,
         &manifest_digest,
@@ -1639,7 +1677,7 @@ pub fn interpreter_for_locked_run(root: &Path) -> Result<Option<PathBuf>, String
     ensure_success(
         "offline uv sync",
         sync,
-        "locked Python environment is incomplete offline; run `veritas sync <project>` first",
+        "locked Python environment is incomplete offline; run `guion sync <project>` first",
     )?;
 
     let interpreter = interpreter_path(&bridge_root);
@@ -1682,7 +1720,7 @@ pub fn doctor_report() -> serde_json::Value {
             }),
         ),
     };
-    let python = env::var_os("VERITAS_PYTHON");
+    let python = env::var_os("GUION_PYTHON");
     let (sidecar_mode, interpreter) = match python {
         Some(path) => ("explicit", Some(path.to_string_lossy().into_owned())),
         None if toolchain_status == "available" => ("managed", None),
@@ -1690,10 +1728,10 @@ pub fn doctor_report() -> serde_json::Value {
     };
     serde_json::json!({
         "schema_version": 1,
-        "kind": "veritas_doctor_report",
-        "veritas": {
+        "kind": "guion_doctor_report",
+        "guion": {
             "version": env!("CARGO_PKG_VERSION"),
-            "artifact_format": veritas_model::Artifact::CURRENT_VERSION,
+            "artifact_format": guion_model::Artifact::CURRENT_VERSION,
         },
         "host": {
             "os": env::consts::OS,
@@ -1709,7 +1747,7 @@ pub fn doctor_report() -> serde_json::Value {
         },
         "managed_toolchain": toolchain_record,
         "capabilities": {
-            "pure_veritas": true,
+            "pure_guion": true,
             "python_calls": sidecar_mode == "explicit" || toolchain_status == "available",
         },
     })
@@ -1717,17 +1755,17 @@ pub fn doctor_report() -> serde_json::Value {
 
 fn parse_python_project(manifest: &str) -> Result<Option<PythonProject>, String> {
     let value: toml::Value =
-        toml::from_str(manifest).map_err(|error| format!("invalid veritas.toml: {error}"))?;
+        toml::from_str(manifest).map_err(|error| format!("invalid guion.toml: {error}"))?;
     let Some(python) = value.get("python") else {
         return Ok(None);
     };
     let table = python
         .as_table()
-        .ok_or("veritas.toml [python] must be a table")?;
+        .ok_or("guion.toml [python] must be a table")?;
     let version = table
         .get("version")
         .and_then(toml::Value::as_str)
-        .ok_or("veritas.toml [python] requires a pinned `version` such as `3.14.8`")?
+        .ok_or("guion.toml [python] requires a pinned `version` such as `3.14.8`")?
         .to_owned();
     if !is_pinned_python_version(&version) {
         return Err(format!(
@@ -1738,7 +1776,7 @@ fn parse_python_project(manifest: &str) -> Result<Option<PythonProject>, String>
         None => Vec::new(),
         Some(value) => value
             .as_array()
-            .ok_or("veritas.toml [python].dependencies must be an array of package requirements")?
+            .ok_or("guion.toml [python].dependencies must be an array of package requirements")?
             .iter()
             .map(|value| {
                 value
@@ -1776,7 +1814,7 @@ fn render_pyproject(project: &PythonProject) -> String {
     let mut metadata = toml::map::Map::new();
     metadata.insert(
         "name".into(),
-        toml::Value::String("veritas-python-bridge".into()),
+        toml::Value::String("guion-python-bridge".into()),
     );
     metadata.insert("version".into(), toml::Value::String("0.0.0".into()));
     metadata.insert(
@@ -1800,7 +1838,7 @@ fn render_pyproject(project: &PythonProject) -> String {
 }
 
 fn find_uv() -> Result<PathBuf, String> {
-    if let Some(path) = env::var_os("VERITAS_UV") {
+    if let Some(path) = env::var_os("GUION_UV") {
         return Ok(PathBuf::from(path));
     }
     if let Ok(executable) = env::current_exe() {
@@ -1814,7 +1852,7 @@ fn find_uv() -> Result<PathBuf, String> {
     if Command::new("uv").arg("--version").output().is_ok() {
         return Ok(PathBuf::from("uv"));
     }
-    Err("uv is not bundled or available on PATH; set VERITAS_UV to the pinned uv executable".into())
+    Err("uv is not bundled or available on PATH; set GUION_UV to the pinned uv executable".into())
 }
 
 fn verify_uv(uv: &Path) -> Result<(), String> {
@@ -1882,7 +1920,7 @@ fn verify_interpreter(interpreter: &Path, expected: &str) -> Result<(), String> 
         .output()
         .map_err(|error| {
             format!(
-                "managed CPython is missing at {}: {error}; run `veritas sync`",
+                "managed CPython is missing at {}: {error}; run `guion sync`",
                 interpreter.display()
             )
         })?;
@@ -1910,13 +1948,13 @@ fn verify_lock_metadata(
     python_version: &str,
 ) -> Result<(), String> {
     if !uv_lock_path.is_file() || !lock_path.is_file() {
-        return Err("managed Python lock is missing; run `veritas sync <project>`".into());
+        return Err("managed Python lock is missing; run `guion sync <project>`".into());
     }
     let lock_text = fs::read_to_string(lock_path)
         .map_err(|error| format!("cannot read {}: {error}", lock_path.display()))?;
     let lock: toml::Value = toml::from_str(&lock_text).map_err(|error| {
         format!(
-            "{} is invalid: {error}; run `veritas sync --update`",
+            "{} is invalid: {error}; run `guion sync --update`",
             lock_path.display()
         )
     })?;
@@ -1935,7 +1973,7 @@ fn verify_lock_metadata(
         || recorded_manifest != Some(manifest_digest)
         || recorded_uv_lock != Some(current_uv_lock.as_str())
     {
-        return Err("managed Python lock does not match this target, veritas.toml, or uv.lock; run `veritas sync --update <project>` to refresh it".into());
+        return Err("managed Python lock does not match this target, guion.toml, or uv.lock; run `guion sync --update <project>` to refresh it".into());
     }
     Ok(())
 }
@@ -1993,7 +2031,7 @@ fn pinned_uv_version() -> Result<String, String> {
 
 fn sha256_bytes(bytes: &[u8]) -> Result<String, String> {
     let directory = env::temp_dir();
-    let path = directory.join(format!("veritas-manifest-{}.tmp", std::process::id()));
+    let path = directory.join(format!("guion-manifest-{}.tmp", std::process::id()));
     fs::write(&path, bytes)
         .map_err(|error| format!("cannot stage manifest for hashing: {error}"))?;
     let digest = sha256_file(&path);
@@ -2056,7 +2094,7 @@ mod tests {
         use std::os::unix::fs::symlink;
 
         let root = std::env::temp_dir().join(format!(
-            "veritas python install copy-{}-{}",
+            "guion python install copy-{}-{}",
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
@@ -2094,7 +2132,7 @@ mod tests {
         use std::os::unix::fs::symlink;
 
         let root = std::env::temp_dir().join(format!(
-            "veritas python absolute install link-{}-{}",
+            "guion python absolute install link-{}-{}",
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
@@ -2123,7 +2161,7 @@ mod tests {
         use std::os::unix::fs::PermissionsExt;
 
         let root = std::env::temp_dir().join(format!(
-            "veritas python install lookup-{}-{}",
+            "guion python install lookup-{}-{}",
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
@@ -2146,7 +2184,7 @@ mod tests {
     }
 
     #[test]
-    fn renders_a_uv_project_from_veritas_dependencies() {
+    fn renders_a_uv_project_from_guion_dependencies() {
         let project = parse_python_project(
             "[python]\nversion = \"3.14.8\"\ndependencies = [\"requests==2.32.5\"]\n",
         )
@@ -2167,10 +2205,10 @@ mod tests {
     #[test]
     fn locked_environment_rejects_a_different_host_target() {
         let root =
-            std::env::temp_dir().join(format!("veritas-target-lock-test-{}", std::process::id()));
+            std::env::temp_dir().join(format!("guion-target-lock-test-{}", std::process::id()));
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(&root).unwrap();
-        let lock_path = root.join("veritas.lock");
+        let lock_path = root.join("guion.lock");
         let uv_lock_path = root.join("uv.lock");
         fs::write(&uv_lock_path, "version = 1\n").unwrap();
         write_lock_metadata(
@@ -2205,7 +2243,7 @@ mod tests {
         use std::os::unix::fs::symlink;
 
         let root = std::env::temp_dir().join(format!(
-            "veritas bridge relocation Ω-{}-{}",
+            "guion bridge relocation Ω-{}-{}",
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
@@ -2213,7 +2251,7 @@ mod tests {
                 .as_nanos()
         ));
         let package = root.join("package");
-        let environment = package.join(".veritas/python-bridge/.venv");
+        let environment = package.join(".guion/python-bridge/.venv");
         let binary_directory = environment.join("bin");
         let bundled_python = package.join("python/cpython/bin/python3.14");
         fs::create_dir_all(&binary_directory).unwrap();
@@ -2239,7 +2277,7 @@ mod tests {
         use std::os::unix::fs::symlink;
 
         let root = std::env::temp_dir().join(format!(
-            "veritas Python terminfo links-{}-{}",
+            "guion Python terminfo links-{}-{}",
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
@@ -2274,7 +2312,7 @@ mod tests {
         use std::os::unix::fs::symlink;
 
         let root = std::env::temp_dir().join(format!(
-            "veritas dangling Python link-{}-{}",
+            "guion dangling Python link-{}-{}",
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)

@@ -9,12 +9,12 @@ from distribution.audit_linux_dependencies import AuditError, audit_tree
 
 class LinuxDependencyAuditTests(unittest.TestCase):
     def setUp(self):
-        self.temp = tempfile.TemporaryDirectory(prefix="veritas ELF audit ")
+        self.temp = tempfile.TemporaryDirectory(prefix="guion ELF audit ")
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
         self.bin_dir = self.root / "bin"
         self.bin_dir.mkdir()
-        self.binary = self.bin_dir / "veritas"
+        self.binary = self.bin_dir / "guion"
         self.binary.write_bytes(b"\x7fELFfixture")
         self.tools = self.root / "tools"
         self.tools.mkdir()

@@ -7,7 +7,37 @@ use std::{
 };
 
 const LOCK_FORMAT_VERSION: i64 = 2;
-const CACHE_DIRECTORY: &str = ".veritas/packages";
+const CACHE_DIRECTORY: &str = ".guion/packages";
+
+fn project_manifest_path(root: impl AsRef<Path>) -> PathBuf {
+    let root = root.as_ref();
+    let current = root.join("guion.toml");
+    if current.is_file() {
+        current
+    } else {
+        let legacy = root.join("veritas.toml");
+        if legacy.is_file() {
+            legacy
+        } else {
+            current
+        }
+    }
+}
+
+fn project_lock_path(root: impl AsRef<Path>) -> PathBuf {
+    let root = root.as_ref();
+    let current = root.join("guion.lock");
+    if current.is_file() {
+        current
+    } else {
+        let legacy = root.join("veritas.lock");
+        if legacy.is_file() {
+            legacy
+        } else {
+            current
+        }
+    }
+}
 
 #[derive(Clone, Debug)]
 struct LibraryManifest {
@@ -69,7 +99,7 @@ pub fn package_library(source: &Path, output: &Path) -> Result<String, String> {
         .map_err(|error| format!("cannot create package stage {}: {error}", stage.display()))?;
     let result = (|| {
         copy_library_tree(&source, &stage)?;
-        set_manifest_digest(&stage.join("veritas.toml"), &digest)?;
+        set_manifest_digest(&stage.join("guion.toml"), &digest)?;
         fs::rename(&stage, output)
             .map_err(|error| format!("cannot publish package {}: {error}", output.display()))?;
         Ok(digest.clone())
@@ -131,7 +161,7 @@ fn add_url_internal(
     let project = fs::canonicalize(project)
         .map_err(|error| format!("cannot resolve project {}: {error}", project.display()))?;
     let transaction = project.join(format!(
-        ".veritas/acquire-{}-{}",
+        ".guion/acquire-{}-{}",
         std::process::id(),
         nonce()?
     ));
@@ -400,11 +430,7 @@ fn install_package_graph(
             source_root.display()
         )
     })?;
-    let stage = project.join(format!(
-        ".veritas/graph-{}-{}",
-        std::process::id(),
-        nonce()?
-    ));
+    let stage = project.join(format!(".guion/graph-{}-{}", std::process::id(), nonce()?));
     fs::create_dir_all(&stage)
         .map_err(|error| format!("cannot create dependency resolution stage: {error}"))?;
     let mut visiting = BTreeSet::new();
@@ -429,8 +455,8 @@ fn install_package_graph(
         return Err(error);
     }
 
-    let manifest_path = project.join("veritas.toml");
-    let lock_path = project.join("veritas.lock");
+    let manifest_path = project_manifest_path(&project);
+    let lock_path = project_lock_path(&project);
     let old_manifest = fs::read(&manifest_path)
         .map_err(|error| format!("cannot preserve project manifest: {error}"))?;
     let old_lock = fs::read(&lock_path).ok();
@@ -729,7 +755,7 @@ fn add_path_internal(
     let package_lock = locked_library_value(&manifest, &digest, &source);
     lock.native.insert(manifest.name.clone(), package_lock);
 
-    let manifest_path = project.join("veritas.toml");
+    let manifest_path = project_manifest_path(&project);
     let manifest_text = fs::read_to_string(&manifest_path)
         .map_err(|error| format!("cannot read {}: {error}", manifest_path.display()))?;
     let project_manifest: toml::Value = toml::from_str(&manifest_text)
@@ -765,7 +791,7 @@ fn add_path_internal(
     dependencies.insert(manifest.name.clone(), toml::Value::Table(requirement));
 
     let staged_cache_root = project.join(format!(
-        ".veritas/native-stage-{}-{}",
+        ".guion/native-stage-{}-{}",
         std::process::id(),
         nonce()?
     ));
@@ -807,17 +833,17 @@ fn add_path_internal(
         };
         let old_manifest = fs::read(&manifest_path)
             .map_err(|error| format!("cannot preserve project manifest: {error}"))?;
-        let old_lock = fs::read(project.join("veritas.lock")).ok();
+        let old_lock = fs::read(project_lock_path(&project)).ok();
         let commit = atomic_write(&manifest_path, new_manifest.as_bytes())
-            .and_then(|_| atomic_write(&project.join("veritas.lock"), new_lock.as_bytes()));
+            .and_then(|_| atomic_write(&project_lock_path(&project), new_lock.as_bytes()));
         if let Err(error) = commit {
             let _ = atomic_write(&manifest_path, &old_manifest);
             match old_lock {
                 Some(contents) => {
-                    let _ = atomic_write(&project.join("veritas.lock"), &contents);
+                    let _ = atomic_write(&project_lock_path(&project), &contents);
                 }
                 None => {
-                    let _ = fs::remove_file(project.join("veritas.lock"));
+                    let _ = fs::remove_file(project_lock_path(&project));
                 }
             }
             if installed {
@@ -838,7 +864,7 @@ fn add_path_internal(
 pub fn update_paths(project: &Path) -> Result<String, String> {
     let project = fs::canonicalize(project)
         .map_err(|error| format!("cannot resolve project {}: {error}", project.display()))?;
-    let manifest_path = project.join("veritas.toml");
+    let manifest_path = project_manifest_path(&project);
     let manifest_text = fs::read_to_string(&manifest_path)
         .map_err(|error| format!("cannot read {}: {error}", manifest_path.display()))?;
     let manifest: toml::Value = toml::from_str(&manifest_text)
@@ -878,7 +904,7 @@ pub fn update_paths(project: &Path) -> Result<String, String> {
         return Err("no native dependencies are configured for update".into());
     }
     let backup_root = project.join(format!(
-        ".veritas/update-backup-{}-{}",
+        ".guion/update-backup-{}-{}",
         std::process::id(),
         nonce()?
     ));
@@ -886,7 +912,7 @@ pub fn update_paths(project: &Path) -> Result<String, String> {
         .map_err(|error| format!("cannot create update transaction: {error}"))?;
     let old_manifest = fs::read(&manifest_path)
         .map_err(|error| format!("cannot preserve project manifest: {error}"))?;
-    let lock_path = project.join("veritas.lock");
+    let lock_path = project_lock_path(&project);
     let old_lock = fs::read(&lock_path).ok();
     let package_cache = project.join(CACHE_DIRECTORY);
     let cache_snapshot = backup_root.join("packages");
@@ -959,7 +985,7 @@ pub fn load_locked_roots(project: &Path) -> Result<BTreeMap<String, PathBuf>, St
     let project = fs::canonicalize(project)
         .map_err(|error| format!("cannot resolve project {}: {error}", project.display()))?;
     let lock = read_lock(&project)?;
-    let manifest_path = project.join("veritas.toml");
+    let manifest_path = project_manifest_path(&project);
     let manifest: toml::Value = toml::from_str(
         &fs::read_to_string(&manifest_path)
             .map_err(|error| format!("cannot read {}: {error}", manifest_path.display()))?,
@@ -967,19 +993,19 @@ pub fn load_locked_roots(project: &Path) -> Result<BTreeMap<String, PathBuf>, St
     .map_err(|error| format!("{}: invalid TOML: {error}", manifest_path.display()))?;
     let direct = manifest.get("dependencies").and_then(toml::Value::as_table);
     if direct.is_some_and(|dependencies| !dependencies.is_empty()) && lock.native.is_empty() {
-        return Err("native dependencies are declared but veritas.lock has no native package graph; run `veritas sync --locked --offline` after acquisition".into());
+        return Err("native dependencies are declared but guion.lock has no native package graph; run `guion sync --locked --offline` after acquisition".into());
     }
     if let Some(direct) = direct {
         for (name, requirement) in direct {
             let version = requirement_version(requirement)?;
             let Some(locked) = lock.native.get(name) else {
                 return Err(format!(
-                    "native dependency `{name}` is absent from veritas.lock"
+                    "native dependency `{name}` is absent from guion.lock"
                 ));
             };
             if locked.get("version").and_then(toml::Value::as_str) != Some(version.as_str()) {
                 return Err(format!(
-                    "native dependency `{name}` version does not match veritas.lock"
+                    "native dependency `{name}` version does not match guion.lock"
                 ));
             }
         }
@@ -1077,7 +1103,7 @@ pub fn sync_locked_offline(project: &Path) -> Result<String, String> {
     let project = fs::canonicalize(project)
         .map_err(|error| format!("cannot resolve project {}: {error}", project.display()))?;
     let roots = load_locked_roots(&project)?;
-    let lock_path = project.join("veritas.lock");
+    let lock_path = project_lock_path(&project);
     let previous_format = if lock_path.is_file() {
         let text = fs::read_to_string(&lock_path)
             .map_err(|error| format!("cannot read {}: {error}", lock_path.display()))?;
@@ -1115,7 +1141,7 @@ fn read_library_manifest(
             root.display()
         ));
     }
-    let path = root.join("veritas.toml");
+    let path = project_manifest_path(&root);
     let text = fs::read_to_string(&path).map_err(|error| {
         format!(
             "cannot read native package manifest {}: {error}",
@@ -1297,7 +1323,7 @@ fn locked_library_value(manifest: &LibraryManifest, digest: &str, source: &Path)
 }
 
 fn read_lock(project: &Path) -> Result<LockState, String> {
-    let path = project.join("veritas.lock");
+    let path = project_lock_path(&project);
     if !path.is_file() {
         return Ok(LockState {
             native: BTreeMap::new(),
@@ -1364,7 +1390,7 @@ fn serialize_lock(lock: &LockState) -> Result<String, String> {
         root.insert("python".into(), python.clone());
     }
     toml::to_string_pretty(&toml::Value::Table(root))
-        .map_err(|error| format!("cannot serialize veritas.lock: {error}"))
+        .map_err(|error| format!("cannot serialize guion.lock: {error}"))
 }
 
 fn verify_cached_library(
@@ -1402,7 +1428,7 @@ fn verify_declared_digest(manifest: &LibraryManifest, actual: &str) -> Result<()
 }
 
 fn content_sha256(root: &Path) -> Result<String, String> {
-    let manifest_path = root.join("veritas.toml");
+    let manifest_path = project_manifest_path(&root);
     let text = fs::read_to_string(&manifest_path).map_err(|error| {
         format!(
             "cannot read native package manifest {}: {error}",
@@ -1422,11 +1448,11 @@ fn content_sha256(root: &Path) -> Result<String, String> {
     collect_files(root, root, &mut files)?;
     files.sort();
     let mut digest = Sha256::new();
-    digest.update(b"veritas-native-package-v1\0");
+    digest.update(b"guion-native-package-v1\0");
     digest.update((canonical_manifest.len() as u64).to_le_bytes());
     digest.update(canonical_manifest.as_bytes());
     for relative in files {
-        if relative == Path::new("veritas.toml") {
+        if relative == Path::new("guion.toml") {
             continue;
         }
         let bytes = fs::read(root.join(&relative)).map_err(|error| {
@@ -1542,7 +1568,7 @@ fn excluded_path(path: &Path) -> bool {
                 name.to_str(),
                 Some(
                     ".git"
-                        | ".veritas"
+                        | ".guion"
                         | "target"
                         | "dist"
                         | "node_modules"
@@ -1634,11 +1660,7 @@ fn atomic_write(path: &Path, contents: &[u8]) -> Result<(), String> {
         .ok_or_else(|| format!("{} has no parent directory", path.display()))?;
     fs::create_dir_all(parent)
         .map_err(|error| format!("cannot create {}: {error}", parent.display()))?;
-    let temporary = parent.join(format!(
-        ".veritas-write-{}-{}",
-        std::process::id(),
-        nonce()?
-    ));
+    let temporary = parent.join(format!(".guion-write-{}-{}", std::process::id(), nonce()?));
     fs::write(&temporary, contents)
         .map_err(|error| format!("cannot write {}: {error}", temporary.display()))?;
     fs::rename(&temporary, path).map_err(|error| {
@@ -1687,7 +1709,7 @@ mod archive_tests {
     #[test]
     fn package_tar_extraction_accepts_files_and_rejects_escape_or_links() {
         let root = std::env::temp_dir().join(format!(
-            "veritas-tar-safety-{}-{}",
+            "guion-tar-safety-{}-{}",
             std::process::id(),
             nonce().unwrap()
         ));
@@ -1695,7 +1717,7 @@ mod archive_tests {
         let safe = root.join("safe");
         extract_tar_safely(
             &tar_entry(
-                "src/lib.vr",
+                "src/lib.gu",
                 b'0',
                 b"pub fn answer() -> Int:\n    return 42\n",
             ),
@@ -1703,7 +1725,7 @@ mod archive_tests {
         )
         .unwrap();
         assert_eq!(
-            fs::read(safe.join("src/lib.vr")).unwrap(),
+            fs::read(safe.join("src/lib.gu")).unwrap(),
             b"pub fn answer() -> Int:\n    return 42\n"
         );
 
@@ -1727,7 +1749,7 @@ mod archive_tests {
     #[test]
     fn url_package_dependency_paths_stay_in_archive_and_local_paths_may_be_external() {
         let root = std::env::temp_dir().join(format!(
-            "veritas-package-path-boundary-{}-{}",
+            "guion-package-path-boundary-{}-{}",
             std::process::id(),
             nonce().unwrap()
         ));
@@ -1740,23 +1762,23 @@ mod archive_tests {
         fs::create_dir_all(&outside).unwrap();
         fs::create_dir_all(package.join("src")).unwrap();
         fs::write(
-            package.join("veritas.toml"),
-            "[package]\nname = \"top-lib\"\nversion = \"1.0.0\"\nentry = \"src/lib.vr\"\nexports = [\"src/lib.vr\"]\n\n[dependencies.outside-lib]\nversion = \"1.0.0\"\npath = \"../../../outside\"\n",
+            package.join("guion.toml"),
+            "[package]\nname = \"top-lib\"\nversion = \"1.0.0\"\nentry = \"src/lib.gu\"\nexports = [\"src/lib.gu\"]\n\n[dependencies.outside-lib]\nversion = \"1.0.0\"\npath = \"../../../outside\"\n",
         )
         .unwrap();
         fs::write(
-            package.join("src/lib.vr"),
+            package.join("src/lib.gu"),
             "pub fn top() -> Int:\n    return 1\n",
         )
         .unwrap();
         fs::create_dir_all(outside.join("src")).unwrap();
         fs::write(
-            outside.join("veritas.toml"),
-            "[package]\nname = \"outside-lib\"\nversion = \"1.0.0\"\nentry = \"src/lib.vr\"\nexports = [\"src/lib.vr\"]\n",
+            outside.join("guion.toml"),
+            "[package]\nname = \"outside-lib\"\nversion = \"1.0.0\"\nentry = \"src/lib.gu\"\nexports = [\"src/lib.gu\"]\n",
         )
         .unwrap();
         fs::write(
-            outside.join("src/lib.vr"),
+            outside.join("src/lib.gu"),
             "pub fn outside() -> Int:\n    return 2\n",
         )
         .unwrap();

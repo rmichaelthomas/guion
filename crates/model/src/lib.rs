@@ -143,8 +143,8 @@ mod tests {
             format_version: Artifact::CURRENT_VERSION,
             build_metadata: None,
             compiled_source_sha256: None,
-            source_name: "services.vr".into(),
-            sources: vec!["services.vr".into()],
+            source_name: "services.gu".into(),
+            sources: vec!["services.gu".into()],
             entry: "main".into(),
             functions: vec![Function {
                 name: "main".into(),
@@ -182,8 +182,8 @@ mod tests {
             format_version: Artifact::CURRENT_VERSION,
             build_metadata: None,
             compiled_source_sha256: None,
-            source_name: "http-bytes.vr".into(),
-            sources: vec!["http-bytes.vr".into()],
+            source_name: "http-bytes.gu".into(),
+            sources: vec!["http-bytes.gu".into()],
             entry: "main".into(),
             functions: vec![Function {
                 name: "main".into(),
@@ -213,8 +213,8 @@ mod tests {
             format_version: Artifact::CURRENT_VERSION,
             build_metadata: None,
             compiled_source_sha256: None,
-            source_name: "clock.vr".into(),
-            sources: vec!["clock.vr".into()],
+            source_name: "clock.gu".into(),
+            sources: vec!["clock.gu".into()],
             entry: "main".into(),
             functions: vec![Function {
                 name: "main".into(),
@@ -258,8 +258,8 @@ mod tests {
             format_version: Artifact::CURRENT_VERSION,
             build_metadata: None,
             compiled_source_sha256: None,
-            source_name: "http.vr".into(),
-            sources: vec!["http.vr".into()],
+            source_name: "http.gu".into(),
+            sources: vec!["http.gu".into()],
             entry: "main".into(),
             functions: vec![Function {
                 name: "main".into(),
@@ -299,8 +299,8 @@ mod tests {
             format_version: Artifact::CURRENT_VERSION,
             build_metadata: None,
             compiled_source_sha256: None,
-            source_name: "json-builder.vr".into(),
-            sources: vec!["json-builder.vr".into()],
+            source_name: "json-builder.gu".into(),
+            sources: vec!["json-builder.gu".into()],
             entry: "main".into(),
             functions: vec![Function {
                 name: "main".into(),
@@ -340,8 +340,8 @@ mod tests {
             format_version: Artifact::CURRENT_VERSION,
             build_metadata: None,
             compiled_source_sha256: None,
-            source_name: "atomic.vr".into(),
-            sources: vec!["atomic.vr".into()],
+            source_name: "atomic.gu".into(),
+            sources: vec!["atomic.gu".into()],
             entry: "main".into(),
             functions: vec![Function {
                 name: "main".into(),
@@ -406,8 +406,8 @@ mod tests {
                 },
             }),
             compiled_source_sha256: Some("a".repeat(64)),
-            source_name: "sum.vr".into(),
-            sources: vec!["sum.vr".into()],
+            source_name: "sum.gu".into(),
+            sources: vec!["sum.gu".into()],
             entry: "main".into(),
             functions: vec![Function {
                 name: "main".into(),
@@ -484,7 +484,7 @@ mod tests {
                     Instruction {
                         op: Op::Const(Value::Json(SharedJson::from_serde(
                             serde_json::from_str(
-                                "{\"count\":123456789012345678901,\"name\":\"Veritas\"}",
+                                "{\"count\":123456789012345678901,\"name\":\"Guion\"}",
                             )
                             .unwrap(),
                         ))),
@@ -2178,7 +2178,7 @@ impl Artifact {
         if r.take(4)? != b"VRTA" {
             return Err(ArtifactError::new(
                 "E_ARTIFACT_MAGIC",
-                "not a Veritas artifact",
+                "not a Guion artifact",
             ));
         }
         let format_version = r.u32()?;

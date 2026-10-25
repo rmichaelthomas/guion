@@ -2,9 +2,9 @@
 #[path = "resources.rs"]
 pub mod resources;
 
+use guion_model::{BigInt, JsonErrorValue, SharedJson};
 use std::sync::Arc;
 use std::{cmp::Ordering, collections::BTreeMap, path::Path};
-use veritas_model::{BigInt, JsonErrorValue, SharedJson};
 
 pub use resources::{
     CsvError, CsvRow, FileReaderHandle, FileReaderRegistry, ReaderError, ReaderErrorKind,

@@ -24,33 +24,33 @@ else
   PREFIX="$HOME/.local"
 fi
 
-if [ -x "$ROOT/bin/veritas" ]; then
-  RUNTIME_RELATIVE="bin/veritas"
-elif [ -x "$ROOT/veritas" ]; then
-  RUNTIME_RELATIVE="veritas"
+if [ -x "$ROOT/bin/guion" ]; then
+  RUNTIME_RELATIVE="bin/guion"
+elif [ -x "$ROOT/guion" ]; then
+  RUNTIME_RELATIVE="guion"
 else
-  echo "Veritas runtime is missing or not executable: $ROOT/bin/veritas" >&2
+  echo "Guion runtime is missing or not executable: $ROOT/bin/guion" >&2
   exit 1
 fi
 mkdir -p "$PREFIX"
 PREFIX=$(CDPATH= cd -- "$PREFIX" && pwd)
 BIN="$PREFIX/bin"
-DATA_PARENT="$PREFIX/share/veritas"
+DATA_PARENT="$PREFIX/share/guion"
 DEST="$DATA_PARENT/$NAME"
-LAUNCHER="$BIN/veritas"
+LAUNCHER="$BIN/guion"
 
 if [ -e "$DEST" ]; then
-  echo "Veritas $NAME already exists at $DEST; choose another prefix or remove that version deliberately" >&2
+  echo "Guion $NAME already exists at $DEST; choose another prefix or remove that version deliberately" >&2
   exit 1
 fi
-if [ -L "$LAUNCHER" ] || { [ -e "$LAUNCHER" ] && { [ ! -f "$LAUNCHER" ] || ! grep -q '# Veritas managed launcher' "$LAUNCHER"; }; }; then
+if [ -L "$LAUNCHER" ] || { [ -e "$LAUNCHER" ] && { [ ! -f "$LAUNCHER" ] || ! grep -q '# Guion managed launcher' "$LAUNCHER"; }; }; then
   echo "refusing to replace an existing command at $LAUNCHER" >&2
   exit 1
 fi
 
 mkdir -p "$BIN" "$DATA_PARENT"
 STAGE=$(mktemp -d "$DATA_PARENT/.$NAME.install.XXXXXX")
-LAUNCHER_TMP="$BIN/.veritas-launcher.$$"
+LAUNCHER_TMP="$BIN/.guion-launcher.$$"
 cleanup() {
   if [ -n "${STAGE:-}" ] && [ -d "$STAGE" ]; then
     rm -rf "$STAGE"
@@ -67,18 +67,18 @@ STAGE=
 
 cat > "$LAUNCHER_TMP" <<LAUNCHER
 #!/bin/sh
-# Veritas managed launcher
+# Guion managed launcher
 set -eu
 HERE=\$(CDPATH= cd -- "\$(dirname -- "\$0")" && pwd)
-exec "\$HERE/../share/veritas/$NAME/$RUNTIME_RELATIVE" "\$@"
+exec "\$HERE/../share/guion/$NAME/$RUNTIME_RELATIVE" "\$@"
 LAUNCHER
 chmod 755 "$LAUNCHER_TMP"
 mv -f "$LAUNCHER_TMP" "$LAUNCHER"
 LAUNCHER_TMP=
 
-printf 'Installed Veritas %s\n' "$NAME"
+printf 'Installed Guion %s\n' "$NAME"
 printf 'Command: %s\n' "$LAUNCHER"
 case ":${PATH:-}:" in
   *":$BIN:"*) ;;
-  *) printf 'Add %s to PATH to invoke `veritas` from any directory.\n' "$BIN" ;;
+  *) printf 'Add %s to PATH to invoke `guion` from any directory.\n' "$BIN" ;;
 esac

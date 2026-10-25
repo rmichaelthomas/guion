@@ -179,10 +179,10 @@ pub fn validate_inventory(root: &Path) -> Result<Vec<String>, String> {
     let cli_source = read(root, "crates/cli/src/main.rs")?;
     let usage = cli_source
         .lines()
-        .find(|line| line.contains("usage: veritas <"))
+        .find(|line| line.contains("usage: guion <"))
         .ok_or("could not find CLI command inventory in usage string")?;
     let usage = usage
-        .split("usage: veritas <")
+        .split("usage: guion <")
         .nth(1)
         .and_then(|part| part.split('>').next())
         .unwrap_or_default();

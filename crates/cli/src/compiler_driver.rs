@@ -1,16 +1,16 @@
+use guion_model::{Artifact, Diagnostic, RuntimeError, SharedJson, Span, Value};
+use guion_runtime::{HostPolicy, Runtime};
 use sha2::{Digest, Sha256};
 use std::{
     collections::HashMap,
     env, fs,
     path::{Path, PathBuf},
 };
-use veritas_model::{Artifact, Diagnostic, RuntimeError, SharedJson, Span, Value};
-use veritas_runtime::{HostPolicy, Runtime};
 
-const COMPILER_SEED: &[u8] = include_bytes!("../../../language/self_host/compiler.vrb");
+const COMPILER_SEED: &[u8] = include_bytes!("../../../language/self_host/compiler.gub");
 const COMPILER_SEED_MANIFEST: &str = include_str!("../../../language/self_host/compiler-seed.json");
 const ARTIFACT_SCHEMA: &str = include_str!("../../../language/artifact-format.md");
-const COMPILER_ENTRY: &str = "compiler.vr";
+const COMPILER_ENTRY: &str = "compiler.gu";
 const HOST_ABI_VERSION: u64 = 1;
 
 pub fn compile_project_with_roots(
@@ -183,7 +183,7 @@ fn validate_seed(
     {
         return Err(failure(
             "E_COMPILER_SEED",
-            "embedded compiler seed identity does not match its manifest or artifact contract; regenerate it with veritas-stage0",
+            "embedded compiler seed identity does not match its manifest or artifact contract; regenerate it with guion-stage0",
             None,
         ));
     }
@@ -205,7 +205,7 @@ fn validate_seed(
             .iter()
             .any(|source| source == COMPILER_ENTRY)
         || metadata.is_none_or(|metadata| {
-            metadata.target != format!("veritas-host-abi-{HOST_ABI_VERSION}")
+            metadata.target != format!("guion-host-abi-{HOST_ABI_VERSION}")
                 || metadata.source_sha256.as_deref() != manifest["compiler_source_sha256"].as_str()
         })
     {
@@ -316,8 +316,8 @@ fn source_graph_digest(
     for name in &artifact.sources {
         let path = if let Some(relative) = name.strip_prefix("std:") {
             let mut module_path = relative.to_owned();
-            if !module_path.ends_with(".vr") {
-                module_path.push_str(".vr");
+            if !module_path.ends_with(".gu") && !module_path.ends_with(".vr") {
+                module_path.push_str(".gu");
             }
             stdlib_root
                 .ok_or_else(|| failure("E_IMPORT_ROOT", "standard-library root is missing", None))?
@@ -416,14 +416,14 @@ fn hex_sha256(bytes: &[u8]) -> String {
 }
 
 pub fn standard_library_root() -> Option<PathBuf> {
-    if let Some(path) = env::var_os("VERITAS_STDLIB_ROOT") {
+    if let Some(path) = env::var_os("GUION_STDLIB_ROOT") {
         return Some(PathBuf::from(path));
     }
     if let Ok(executable) = env::current_exe() {
         if let Some(directory) = executable.parent() {
             for candidate in [
                 directory.join("stdlib"),
-                directory.join("../share/veritas/stdlib"),
+                directory.join("../share/guion/stdlib"),
             ] {
                 if candidate.is_dir() {
                     return candidate.canonicalize().ok();

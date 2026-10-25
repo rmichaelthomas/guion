@@ -1,4 +1,4 @@
-import "modules_math.vr"
+import "modules_math.gu"
 
 fn main() -> Int:
     let input = Sample(20)

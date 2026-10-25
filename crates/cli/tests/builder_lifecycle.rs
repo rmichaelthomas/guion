@@ -13,10 +13,8 @@ struct Fixture(PathBuf);
 impl Fixture {
     fn new() -> Self {
         let nonce = NEXT_ROOT.fetch_add(1, Ordering::Relaxed);
-        let path = std::env::temp_dir().join(format!(
-            "veritas lifecycle Ω-{}-{nonce}",
-            std::process::id()
-        ));
+        let path =
+            std::env::temp_dir().join(format!("guion lifecycle Ω-{}-{nonce}", std::process::id()));
         fs::create_dir_all(&path).unwrap();
         Self(path)
     }
@@ -47,10 +45,10 @@ fn copy_tree(source: &Path, destination: &Path) {
 
 fn prepare_installed_core(root: &Path, clean_path: &Path) -> PathBuf {
     let bin = root.join("bin");
-    let shared = root.join("share/veritas");
+    let shared = root.join("share/guion");
     fs::create_dir_all(&bin).unwrap();
     fs::create_dir_all(&shared).unwrap();
-    fs::copy(env!("CARGO_BIN_EXE_veritas"), bin.join("veritas")).unwrap();
+    fs::copy(env!("CARGO_BIN_EXE_guion"), bin.join("guion")).unwrap();
     let stdlib = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../language/stdlib");
     copy_tree(&stdlib, &shared.join("stdlib"));
     fs::create_dir_all(clean_path).unwrap();
@@ -61,18 +59,18 @@ fn prepare_installed_core(root: &Path, clean_path: &Path) -> PathBuf {
             std::os::unix::fs::symlink(candidate, clean_path.join(tool)).unwrap();
         }
     }
-    bin.join("veritas")
+    bin.join("guion")
 }
 
-fn invoke(veritas: &Path, args: &[&str], directory: &Path, path: &Path) -> Output {
-    Command::new(veritas)
+fn invoke(guion: &Path, args: &[&str], directory: &Path, path: &Path) -> Output {
+    Command::new(guion)
         .args(args)
         .current_dir(directory)
         .env("PATH", path)
-        .env_remove("VERITAS_STDLIB_ROOT")
-        .env_remove("VERITAS_PYTHON")
-        .env_remove("VERITAS_UV")
-        .env_remove("VERITAS_PYTHON_INSTALL_DIR")
+        .env_remove("GUION_STDLIB_ROOT")
+        .env_remove("GUION_PYTHON")
+        .env_remove("GUION_UV")
+        .env_remove("GUION_PYTHON_INSTALL_DIR")
         .env_remove("PYTHONHOME")
         .env_remove("VIRTUAL_ENV")
         .output()
@@ -94,50 +92,50 @@ fn success(output: Output) -> String {
 fn installed_core_completes_new_repair_format_lint_build_package_install_and_run() {
     let fixture = Fixture::new();
     let clean_path = fixture.path().join("clean PATH");
-    let installed_root = fixture.path().join("installed Veritas Ω");
-    let veritas = prepare_installed_core(&installed_root, &clean_path);
-    let project = fixture.path().join("Veritas Ω project with spaces");
+    let installed_root = fixture.path().join("installed Guion Ω");
+    let guion = prepare_installed_core(&installed_root, &clean_path);
+    let project = fixture.path().join("Guion Ω project with spaces");
 
     success(invoke(
-        &veritas,
+        &guion,
         &["new", project.to_str().unwrap()],
         fixture.path(),
         &clean_path,
     ));
     let project_guide = fs::read_to_string(project.join("README.md")).unwrap();
-    assert!(project_guide.contains("veritas check"));
+    assert!(project_guide.contains("guion check"));
 
     let library = fixture.path().join("greeting library");
     fs::create_dir_all(library.join("src")).unwrap();
     fs::write(
-        library.join("veritas.toml"),
-        "[package]\nname = \"greeting\"\nversion = \"1.0.0\"\nentry = \"src/lib.vr\"\nexports = [\"src/lib.vr\"]\n",
+        library.join("guion.toml"),
+        "[package]\nname = \"greeting\"\nversion = \"1.0.0\"\nentry = \"src/lib.gu\"\nexports = [\"src/lib.gu\"]\n",
     )
     .unwrap();
     fs::write(
-        library.join("src/lib.vr"),
+        library.join("src/lib.gu"),
         "pub fn greeting(name: Text) -> Text:\n    return \"hello \" + name\n",
     )
     .unwrap();
     success(invoke(
-        &veritas,
+        &guion,
         &["add", "greeting", "--path", library.to_str().unwrap()],
         &project,
         &clean_path,
     ));
     success(invoke(
-        &veritas,
+        &guion,
         &["sync", "--locked", "--offline"],
         &project,
         &clean_path,
     ));
-    success(invoke(&veritas, &["update"], &project, &clean_path));
+    success(invoke(&guion, &["update"], &project, &clean_path));
 
-    let source_path = project.join("src/main.vr");
-    let broken = "import \"pkg:greeting/src/lib.vr\"\n\nfn main() -> Int:\n    print(no_such_function())\n    return 0\n\nfn test_starter() -> Unit:\n    assert(1 + 1 == 2)\n";
+    let source_path = project.join("src/main.gu");
+    let broken = "import \"pkg:greeting/src/lib.gu\"\n\nfn main() -> Int:\n    print(no_such_function())\n    return 0\n\nfn test_starter() -> Unit:\n    assert(1 + 1 == 2)\n";
     fs::write(&source_path, broken).unwrap();
     let rejected = invoke(
-        &veritas,
+        &guion,
         &["check", "--json", source_path.to_str().unwrap()],
         &project,
         &clean_path,
@@ -146,7 +144,7 @@ fn installed_core_completes_new_repair_format_lint_build_package_install_and_run
     let diagnostic: Value = serde_json::from_slice(&rejected.stdout).unwrap();
     assert_eq!(diagnostic["diagnostic"]["code"], "E_NAME_UNKNOWN");
     let lint_rejected = invoke(
-        &veritas,
+        &guion,
         &["lint", "--json", source_path.to_str().unwrap()],
         &project,
         &clean_path,
@@ -155,12 +153,12 @@ fn installed_core_completes_new_repair_format_lint_build_package_install_and_run
     let lint_diagnostic: Value = serde_json::from_slice(&lint_rejected.stdout).unwrap();
     assert_eq!(lint_diagnostic["diagnostic"]["code"], "E_NAME_UNKNOWN");
 
-    let source = "import \"pkg:greeting/src/lib.vr\"\nimport \"unused.vr\"\n\nfn main()   ->   Int: # preserve comment  tail  \n    let abandoned   = \"  literal  # text \"\n    print( greeting(\"Veritas\") )\n    return   0\n    print(\"unreachable\")\n\nfn test_starter() -> Unit:\n    assert(1 + 1 == 2)\n";
-    let unused = project.join("src/unused.vr");
+    let source = "import \"pkg:greeting/src/lib.gu\"\nimport \"unused.gu\"\n\nfn main()   ->   Int: # preserve comment  tail  \n    let abandoned   = \"  literal  # text \"\n    print( greeting(\"Guion\") )\n    return   0\n    print(\"unreachable\")\n\nfn test_starter() -> Unit:\n    assert(1 + 1 == 2)\n";
+    let unused = project.join("src/unused.gu");
     fs::write(unused, "pub fn unused() -> Int:\n    return 1\n").unwrap();
     fs::write(&source_path, source).unwrap();
     let lint = invoke(
-        &veritas,
+        &guion,
         &["lint", "--json", source_path.to_str().unwrap()],
         &project,
         &clean_path,
@@ -183,7 +181,7 @@ fn installed_core_completes_new_repair_format_lint_build_package_install_and_run
 
     let unchanged = fs::read(&source_path).unwrap();
     let fmt_check = invoke(
-        &veritas,
+        &guion,
         &["fmt", "--check", source_path.to_str().unwrap()],
         &project,
         &clean_path,
@@ -191,13 +189,13 @@ fn installed_core_completes_new_repair_format_lint_build_package_install_and_run
     assert!(!fmt_check.status.success());
     assert_eq!(fs::read(&source_path).unwrap(), unchanged);
     success(invoke(
-        &veritas,
+        &guion,
         &["fmt", source_path.to_str().unwrap()],
         &project,
         &clean_path,
     ));
     success(invoke(
-        &veritas,
+        &guion,
         &["fmt", "--check", source_path.to_str().unwrap()],
         &project,
         &clean_path,
@@ -205,30 +203,30 @@ fn installed_core_completes_new_repair_format_lint_build_package_install_and_run
     let formatted = fs::read_to_string(&source_path).unwrap();
     assert!(formatted.contains("\"  literal  # text \""));
     assert!(formatted.contains("# preserve comment  tail  "));
-    let clean_source = "import \"pkg:greeting/src/lib.vr\"\n\nfn main() -> Int:\n    print(greeting(\"Veritas\"))\n    return 0\n\nfn test_starter() -> Unit:\n    assert(1 + 1 == 2)\n";
+    let clean_source = "import \"pkg:greeting/src/lib.gu\"\n\nfn main() -> Int:\n    print(greeting(\"Guion\"))\n    return 0\n\nfn test_starter() -> Unit:\n    assert(1 + 1 == 2)\n";
     fs::write(&source_path, clean_source).unwrap();
     let clean_lint = invoke(
-        &veritas,
+        &guion,
         &["lint", source_path.to_str().unwrap()],
         &project,
         &clean_path,
     );
     assert!(success(clean_lint).contains("no warnings"));
     success(invoke(
-        &veritas,
+        &guion,
         &["check", project.to_str().unwrap()],
         &project,
         &clean_path,
     ));
     let run = invoke(
-        &veritas,
+        &guion,
         &["run", project.to_str().unwrap()],
         &project,
         &clean_path,
     );
-    assert_eq!(String::from_utf8_lossy(&run.stdout), "hello Veritas\n");
+    assert_eq!(String::from_utf8_lossy(&run.stdout), "hello Guion\n");
     assert!(success(invoke(
-        &veritas,
+        &guion,
         &["test", project.to_str().unwrap()],
         &project,
         &clean_path
@@ -236,7 +234,7 @@ fn installed_core_completes_new_repair_format_lint_build_package_install_and_run
     .contains("ok test_starter"));
     let api: Value = serde_json::from_slice(
         &invoke(
-            &veritas,
+            &guion,
             &["doc", "--json", source_path.to_str().unwrap()],
             &project,
             &clean_path,
@@ -256,7 +254,7 @@ fn installed_core_completes_new_repair_format_lint_build_package_install_and_run
         .is_some());
     let capabilities: Value = serde_json::from_slice(
         &invoke(
-            &veritas,
+            &guion,
             &["inspect", "--json", source_path.to_str().unwrap()],
             &project,
             &clean_path,
@@ -266,20 +264,20 @@ fn installed_core_completes_new_repair_format_lint_build_package_install_and_run
     .unwrap();
     assert_eq!(capabilities["schema_version"], 1);
     let doctor: Value = serde_json::from_slice(
-        &invoke(&veritas, &["doctor", "--json"], &project, &clean_path).stdout,
+        &invoke(&guion, &["doctor", "--json"], &project, &clean_path).stdout,
     )
     .unwrap();
     assert_eq!(doctor["python_interop"], "disabled");
 
     success(invoke(
-        &veritas,
+        &guion,
         &["build", "--json", source_path.to_str().unwrap()],
         &project,
         &clean_path,
     ));
     let package = fixture.path().join("deliverable app Ω");
     success(invoke(
-        &veritas,
+        &guion,
         &[
             "package",
             project.to_str().unwrap(),
@@ -290,14 +288,14 @@ fn installed_core_completes_new_repair_format_lint_build_package_install_and_run
         &clean_path,
     ));
     success(invoke(
-        &veritas,
+        &guion,
         &["verify-package", package.to_str().unwrap()],
         &project,
         &clean_path,
     ));
     let prefix = fixture.path().join("install prefix with spaces");
     success(invoke(
-        &veritas,
+        &guion,
         &[
             "install",
             package.to_str().unwrap(),
@@ -313,8 +311,8 @@ fn installed_core_completes_new_repair_format_lint_build_package_install_and_run
     let launched = Command::new(prefix.join("bin").join(app_id))
         .current_dir(fixture.path())
         .env("PATH", &clean_path)
-        .env_remove("VERITAS_PYTHON")
-        .env_remove("VERITAS_UV")
+        .env_remove("GUION_PYTHON")
+        .env_remove("GUION_UV")
         .output()
         .unwrap();
     assert!(
@@ -322,11 +320,11 @@ fn installed_core_completes_new_repair_format_lint_build_package_install_and_run
         "{}",
         String::from_utf8_lossy(&launched.stderr)
     );
-    assert_eq!(String::from_utf8_lossy(&launched.stdout), "hello Veritas\n");
+    assert_eq!(String::from_utf8_lossy(&launched.stdout), "hello Guion\n");
     let installed_command = prefix.join("bin").join(app_id);
     fs::write(&installed_command, "keep unrelated command\n").unwrap();
     let protected = invoke(
-        &veritas,
+        &guion,
         &[
             "install",
             package.to_str().unwrap(),
@@ -344,15 +342,15 @@ fn installed_core_completes_new_repair_format_lint_build_package_install_and_run
 
     let examples = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../language/examples");
     for example in [
-        "sum.vr",
-        "records.vr",
-        "matching.vr",
-        "option.vr",
-        "modules_main.vr",
+        "sum.gu",
+        "records.gu",
+        "matching.gu",
+        "option.gu",
+        "modules_main.gu",
     ] {
         let example = examples.join(example);
         success(invoke(
-            &veritas,
+            &guion,
             &["check", example.to_str().unwrap()],
             fixture.path(),
             &clean_path,

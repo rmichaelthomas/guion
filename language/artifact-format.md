@@ -1,6 +1,6 @@
-# Veritas artifact format
+# Guion artifact format
 
-This document specifies the canonical artifact encoding currently emitted by the Veritas compiler and accepted by the native model reader. The current format is **39**. Multi-byte integers are unsigned little-endian unless a value is explicitly described as signed or textual. Strings are UTF-8 prefixed by a `u32` byte length; counts use a `u32` and are bounded to 1,000,000. A complete artifact is at most 64 MiB. Recursive values and types are limited to 64 nested levels. Readers reject truncation, overflow, unknown tags, invalid indexes, trailing bytes, and version-incompatible instructions.
+This document specifies the canonical artifact encoding currently emitted by the Guion compiler and accepted by the native model reader. The current format is **39**. Multi-byte integers are unsigned little-endian unless a value is explicitly described as signed or textual. Strings are UTF-8 prefixed by a `u32` byte length; counts use a `u32` and are bounded to 1,000,000. A complete artifact is at most 64 MiB. Recursive values and types are limited to 64 nested levels. Readers reject truncation, overflow, unknown tags, invalid indexes, trailing bytes, and version-incompatible instructions.
 
 ## Top-level layout
 
@@ -8,7 +8,7 @@ Fields occur in this order, without padding:
 
 | Field | Encoding | Meaning |
 |---|---|---|
-| Magic | 4 bytes `VRTA` | Identifies a Veritas artifact. |
+| Magic | 4 bytes `VRTA` | Identifies a Guion artifact. |
 | Format version | `u32` | Reader accepts versions 14 through 39. The current writer emits 39. |
 | Source name | string | Entry source identity; relative names are portable. |
 | Entry function | string | Name of the entry function, normally `main`. |

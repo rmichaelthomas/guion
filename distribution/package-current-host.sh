@@ -10,7 +10,7 @@ esac
 OS=$(uname -s | tr '[:upper:]' '[:lower:]')
 ARCH=$(uname -m | tr '[:upper:]' '[:lower:]')
 VERSION=$(sed -n 's/^version = "\([^"]*\)"/\1/p' "$ROOT/Cargo.toml" | head -n 1)
-NAME="veritas-$VERSION-$OS-$ARCH"
+NAME="guion-$VERSION-$OS-$ARCH"
 BUILD_DIR=${CARGO_TARGET_DIR:-"$ROOT/target"}
 case "$BUILD_DIR" in
   /*) ;;
@@ -37,8 +37,8 @@ UV_TARGET=$(sed -n 's/^target = "\([^\"]*\)"/\1/p' "$MANIFEST")
 UV_ARCHIVE_SHA256=$(sed -n 's/^archive_sha256 = "\([^\"]*\)"/\1/p' "$MANIFEST")
 UV_BINARY_SHA256=$(sed -n 's/^binary_sha256 = "\([^\"]*\)"/\1/p' "$MANIFEST")
 UV_ARCHIVE_BINARY=$(sed -n 's/^archive_binary_path = "\([^\"]*\)"/\1/p' "$MANIFEST")
-UV_ARCHIVE=${VERITAS_UV_ARCHIVE:-"$ROOT/distribution/toolchains/cache/$UV_ARCHIVE_NAME"}
-UV_BINARY=${VERITAS_UV_BINARY:-}
+UV_ARCHIVE=${GUION_UV_ARCHIVE:-"$ROOT/distribution/toolchains/cache/$UV_ARCHIVE_NAME"}
+UV_BINARY=${GUION_UV_BINARY:-}
 if [ -z "$UV_VERSION" ] || [ -z "$UV_TARGET" ] || [ -z "$UV_ARCHIVE_SHA256" ] || [ -z "$UV_BINARY_SHA256" ] || [ -z "$UV_ARCHIVE_BINARY" ]; then
   echo "release toolchain manifest is incomplete: $MANIFEST" >&2
   exit 1
@@ -63,8 +63,8 @@ if [ -n "$UV_BINARY" ]; then
 else
   if [ ! -f "$UV_ARCHIVE" ]; then
     echo "pinned uv $UV_VERSION archive is missing: $UV_ARCHIVE" >&2
-    echo "download the archive URL in distribution/toolchains/manifest.toml and set VERITAS_UV_ARCHIVE" >&2
-    echo "or provide a binary matching binary_sha256 with VERITAS_UV_BINARY" >&2
+    echo "download the archive URL in distribution/toolchains/manifest.toml and set GUION_UV_ARCHIVE" >&2
+    echo "or provide a binary matching binary_sha256 with GUION_UV_BINARY" >&2
     exit 1
   fi
   if [ "$(sha256 "$UV_ARCHIVE")" != "$UV_ARCHIVE_SHA256" ]; then
@@ -75,7 +75,7 @@ fi
 sh "$ROOT/distribution/tests/test_install.sh"
 (cd "$ROOT" && python3 -m unittest discover -s distribution/tests -p 'test_*.py')
 CARGO_TARGET_DIR="$BUILD_DIR" cargo build --release --offline --workspace --manifest-path "$ROOT/Cargo.toml"
-CARGO_TARGET_DIR="$BUILD_DIR" cargo build --release --offline -p veritas-runtime --example runtime_lifecycle_stress --manifest-path "$ROOT/Cargo.toml"
+CARGO_TARGET_DIR="$BUILD_DIR" cargo build --release --offline -p guion-runtime --example runtime_lifecycle_stress --manifest-path "$ROOT/Cargo.toml"
 mkdir -p "$OUT"
 if [ -e "$OUT/$NAME" ] || [ -e "$OUT/$NAME.tar.gz" ] || [ -e "$OUT/$NAME.tar.gz.sha256" ]; then
   echo "refusing to overwrite an existing package in $OUT" >&2
@@ -84,7 +84,7 @@ fi
 TEMP=$(mktemp -d "$OUT/.$NAME.staging.XXXXXX")
 trap 'rm -rf "$TEMP"' EXIT HUP INT TERM
 STAGING="$TEMP/$NAME"
-mkdir -p "$STAGING/distribution" "$STAGING/docs" "$STAGING/language/examples" "$STAGING/toolchains" "$STAGING/licenses" "$STAGING/evaluation/development/famous_benchmarks/upstream/pyperformance-1.14.0" "$STAGING/evaluation/bin" "$STAGING/evaluation/briefs" "$STAGING/evaluation/results" "$STAGING/evaluation/tests" "$STAGING/examples/python_interop/.veritas/python-bridge" "$STAGING/examples/feed_digest/.veritas/python-bridge" "$STAGING/examples/task_ledger/src" "$STAGING/examples/task_graph" "$STAGING/examples/feed_inbox/.veritas/python-bridge" "$STAGING/examples/feed_inbox/src" "$STAGING/examples/feed_inbox/examples" "$STAGING/examples/inventory_reconcile/src" "$STAGING/examples/api_sync/src" "$STAGING/examples/package_analysis/.veritas/python-bridge"
+mkdir -p "$STAGING/distribution" "$STAGING/docs" "$STAGING/language/examples" "$STAGING/toolchains" "$STAGING/licenses" "$STAGING/evaluation/development/famous_benchmarks/upstream/pyperformance-1.14.0" "$STAGING/evaluation/bin" "$STAGING/evaluation/briefs" "$STAGING/evaluation/results" "$STAGING/evaluation/tests" "$STAGING/examples/python_interop/.guion/python-bridge" "$STAGING/examples/feed_digest/.guion/python-bridge" "$STAGING/examples/task_ledger/src" "$STAGING/examples/task_graph" "$STAGING/examples/feed_inbox/.guion/python-bridge" "$STAGING/examples/feed_inbox/src" "$STAGING/examples/feed_inbox/examples" "$STAGING/examples/inventory_reconcile/src" "$STAGING/examples/api_sync/src" "$STAGING/examples/package_analysis/.guion/python-bridge"
 mkdir -p "$STAGING/evaluation/protocol" "$STAGING/evaluation/fixtures" "$STAGING/evaluation/review/independent-v1/product-information" "$STAGING/evaluation/protocol/prompts" "$STAGING/evaluation/sandbox"
 mkdir -p "$STAGING/evaluation/calibration/python-reference" "$STAGING/evaluation/calibration/results"
 python3 "$ROOT/distribution/collect-rust-licenses.py" "$STAGING/licenses/rust" "$RUST_TARGET"
@@ -101,7 +101,7 @@ if [ "$UV_INSTALLED_VERSION" != "$UV_VERSION" ]; then
   echo "pinned uv archive contains version $UV_INSTALLED_VERSION, expected $UV_VERSION" >&2
   exit 1
 fi
-cp "$BUILD_DIR/release/veritas" "$STAGING/veritas"
+cp "$BUILD_DIR/release/guion" "$STAGING/guion"
 cp "$MANIFEST" "$STAGING/toolchains/manifest.toml"
 cp "$ROOT/distribution/package-current-host.sh" "$STAGING/distribution/package-current-host.sh"
 cp "$ROOT/distribution/licenses/uv-LICENSE-MIT.txt" "$ROOT/distribution/licenses/uv-LICENSE-APACHE.txt" "$ROOT/distribution/licenses/tcl-license.terms" "$ROOT/distribution/licenses/tk-license.terms" "$ROOT/distribution/licenses/UPSTREAM-NOTICES.md" "$STAGING/licenses/"
@@ -159,11 +159,11 @@ cp "$ROOT/evaluation/development/README.md" "$ROOT/evaluation/development/benchm
 cp "$ROOT/crates/runtime/examples/runtime_lifecycle_stress.rs" "$STAGING/evaluation/development/"
 cp "$BUILD_DIR/release/examples/runtime_lifecycle_stress" "$STAGING/evaluation/bin/"
 cp "$ROOT/language/spec.md" "$ROOT/language/host-api.md" "$ROOT/language/python-abi.md" "$STAGING/language/"
-cp "$ROOT/language/examples/"*.vr "$ROOT/language/examples/input.txt" "$STAGING/language/examples/"
+cp "$ROOT/language/examples/"*.gu "$ROOT/language/examples/input.txt" "$STAGING/language/examples/"
 cp "$ROOT/evaluation/development/python_interop/README.md" "$ROOT/evaluation/development/python_interop/main.vr" "$ROOT/evaluation/development/python_interop/veritas.toml" "$ROOT/evaluation/development/python_interop/veritas.lock" "$STAGING/examples/python_interop/"
-cp "$ROOT/evaluation/development/python_interop/.veritas/python-bridge/pyproject.toml" "$ROOT/evaluation/development/python_interop/.veritas/python-bridge/uv.lock" "$STAGING/examples/python_interop/.veritas/python-bridge/"
+cp "$ROOT/evaluation/development/python_interop/.veritas/python-bridge/pyproject.toml" "$ROOT/evaluation/development/python_interop/.veritas/python-bridge/uv.lock" "$STAGING/examples/python_interop/.guion/python-bridge/"
 cp "$ROOT/evaluation/development/feed_digest/README.md" "$ROOT/evaluation/development/feed_digest/main.vr" "$ROOT/evaluation/development/feed_digest/veritas_feed.py" "$ROOT/evaluation/development/feed_digest/python_baseline.py" "$ROOT/evaluation/development/feed_digest/veritas.toml" "$ROOT/evaluation/development/feed_digest/veritas.lock" "$STAGING/examples/feed_digest/"
-cp "$ROOT/evaluation/development/feed_digest/.veritas/python-bridge/pyproject.toml" "$ROOT/evaluation/development/feed_digest/.veritas/python-bridge/uv.lock" "$STAGING/examples/feed_digest/.veritas/python-bridge/"
+cp "$ROOT/evaluation/development/feed_digest/.veritas/python-bridge/pyproject.toml" "$ROOT/evaluation/development/feed_digest/.veritas/python-bridge/uv.lock" "$STAGING/examples/feed_digest/.guion/python-bridge/"
 cp "$ROOT/evaluation/development/task_ledger/README.md" "$ROOT/evaluation/development/task_ledger/.gitignore" "$ROOT/evaluation/development/task_ledger/main.vr" "$ROOT/evaluation/development/task_ledger/veritas.toml" "$STAGING/examples/task_ledger/"
 cp "$ROOT/evaluation/development/task_ledger/python_baseline.py" "$STAGING/examples/task_ledger/"
 cp "$ROOT/evaluation/development/task_ledger/src/"*.vr "$STAGING/examples/task_ledger/src/"
@@ -173,20 +173,63 @@ cp "$ROOT/evaluation/development/inventory_reconcile/src/"*.vr "$STAGING/example
 cp "$ROOT/evaluation/development/api_sync/README.md" "$ROOT/evaluation/development/api_sync/main.vr" "$ROOT/evaluation/development/api_sync/reference.py" "$ROOT/evaluation/development/api_sync/veritas.toml" "$STAGING/examples/api_sync/"
 cp "$ROOT/evaluation/development/api_sync/src/"*.vr "$STAGING/examples/api_sync/src/"
 cp "$ROOT/evaluation/development/package_analysis/README.md" "$ROOT/evaluation/development/package_analysis/main.vr" "$ROOT/evaluation/development/package_analysis/analysis.py" "$ROOT/evaluation/development/package_analysis/reference.py" "$ROOT/evaluation/development/package_analysis/dataset.json" "$ROOT/evaluation/development/package_analysis/veritas.toml" "$ROOT/evaluation/development/package_analysis/veritas.lock" "$STAGING/examples/package_analysis/"
-cp "$ROOT/evaluation/development/package_analysis/.veritas/python-bridge/pyproject.toml" "$ROOT/evaluation/development/package_analysis/.veritas/python-bridge/uv.lock" "$STAGING/examples/package_analysis/.veritas/python-bridge/"
+cp "$ROOT/evaluation/development/package_analysis/.veritas/python-bridge/pyproject.toml" "$ROOT/evaluation/development/package_analysis/.veritas/python-bridge/uv.lock" "$STAGING/examples/package_analysis/.guion/python-bridge/"
+rename_legacy_examples() {
+  python3 - "$STAGING/examples" <<'PY'
+from pathlib import Path
+import os
+import sys
+
+root = Path(sys.argv[1])
+for current, directories, files in os.walk(root, topdown=False):
+    base = Path(current)
+    for name in files:
+        source = base / name
+        target_name = name
+        if target_name.endswith('.vr'):
+            target_name = target_name[:-3] + '.gu'
+        elif target_name == 'veritas.toml':
+            target_name = 'guion.toml'
+        elif target_name == 'veritas.lock':
+            target_name = 'guion.lock'
+        elif target_name == 'veritas_feed.py':
+            target_name = 'guion_feed.py'
+        target = base / target_name
+        if target != source:
+            source.rename(target)
+    for name in directories:
+        if name == '.veritas':
+            (base / name).rename(base / '.guion')
+
+for path in root.rglob('*'):
+    if not path.is_file() or path.suffix not in {'.gu', '.toml', '.md', '.py', '.json', '.txt'} and path.name != '.gitignore':
+        continue
+    try:
+        text = path.read_text(encoding='utf-8')
+    except (UnicodeDecodeError, OSError):
+        continue
+    updated = (text.replace('VERITAS', 'GUION')
+                   .replace('Veritas', 'Guion')
+                   .replace('veritas', 'guion')
+                   .replace('.vrb', '.gub')
+                   .replace('.vr', '.gu')
+                   .replace('.veritas', '.guion'))
+    if updated != text:
+        path.write_text(updated, encoding='utf-8')
+PY
+}
+rename_legacy_examples
 (
   cd "$STAGING"
-  if [ "$OS-$ARCH" = "linux-aarch64" ]; then
-    for PROJECT in examples/*; do
-      if [ -f "$PROJECT/veritas.toml" ] && grep -q '^\[python\]' "$PROJECT/veritas.toml"; then
-        VERITAS_UV=toolchains/uv ./veritas sync --update "$PROJECT"
-      fi
-    done
-  fi
-  ./veritas package examples/task_ledger --output examples/task_ledger_bundle
-  ./veritas verify-package examples/task_ledger_bundle
-  ./veritas package examples/task_graph --output examples/task_graph_bundle
-  ./veritas verify-package examples/task_graph_bundle
+  for PROJECT in examples/*; do
+    if [ -f "$PROJECT/guion.toml" ] && grep -q '^\[python\]' "$PROJECT/guion.toml"; then
+      GUION_UV=toolchains/uv ./guion sync --update "$PROJECT"
+    fi
+  done
+  ./guion package examples/task_ledger --output examples/task_ledger_bundle
+  ./guion verify-package examples/task_ledger_bundle
+  ./guion package examples/task_graph --output examples/task_graph_bundle
+  ./guion verify-package examples/task_graph_bundle
   printf '%s\n' '{"tasks":[{"id":"ship","depends_on":["build"]},{"id":"build","depends_on":[]}]}' > examples/task_graph_bundle/tasks.json
   (cd examples/task_graph_bundle && ./run tasks.json plan.json > /dev/null)
   python3 -c 'import json; assert json.load(open("examples/task_graph_bundle/plan.json")) == {"order": ["build", "ship"], "count": 2}'
@@ -199,7 +242,7 @@ cp "$ROOT/evaluation/development/package_analysis/.veritas/python-bridge/pyproje
     exit 1
   fi
   printf '%s\n' 'tampered notice' >> "$NOTICE_FILE"
-  if ./veritas verify-package "$TEMP/task-ledger-tampered" > /dev/null 2> "$TEMP/tamper-error.txt"; then
+  if ./guion verify-package "$TEMP/task-ledger-tampered" > /dev/null 2> "$TEMP/tamper-error.txt"; then
     echo "tampered Rust notice unexpectedly passed package verification" >&2
     exit 1
   fi
@@ -208,24 +251,25 @@ cp "$ROOT/evaluation/development/package_analysis/.veritas/python-bridge/pyproje
     echo "Rust notice tampering failed for an unexpected reason" >&2
     exit 1
   fi
-  VERITAS_UV="$STAGING/toolchains/uv" ./veritas package examples/python_interop --output examples/python_interop_bundle
-  VERITAS_UV="$STAGING/toolchains/uv" ./veritas verify-package examples/python_interop_bundle
-  VERITAS_UV="$STAGING/toolchains/uv" ./veritas package examples/package_analysis --output examples/package_analysis_bundle
-  VERITAS_UV="$STAGING/toolchains/uv" ./veritas verify-package examples/package_analysis_bundle
+  GUION_UV="$STAGING/toolchains/uv" ./guion package examples/python_interop --output examples/python_interop_bundle
+  GUION_UV="$STAGING/toolchains/uv" ./guion verify-package examples/python_interop_bundle
+  GUION_UV="$STAGING/toolchains/uv" ./guion package examples/package_analysis --output examples/package_analysis_bundle
+  GUION_UV="$STAGING/toolchains/uv" ./guion verify-package examples/package_analysis_bundle
 )
 cp "$ROOT/evaluation/development/feed_inbox/README.md" "$ROOT/evaluation/development/feed_inbox/feed_inbox.py" "$ROOT/evaluation/development/feed_inbox/python_baseline.py" "$ROOT/evaluation/development/feed_inbox/main.vr" "$ROOT/evaluation/development/feed_inbox/veritas.toml" "$ROOT/evaluation/development/feed_inbox/veritas.lock" "$STAGING/examples/feed_inbox/"
-cp "$ROOT/evaluation/development/feed_inbox/.veritas/python-bridge/pyproject.toml" "$ROOT/evaluation/development/feed_inbox/.veritas/python-bridge/uv.lock" "$STAGING/examples/feed_inbox/.veritas/python-bridge/"
+cp "$ROOT/evaluation/development/feed_inbox/.veritas/python-bridge/pyproject.toml" "$ROOT/evaluation/development/feed_inbox/.veritas/python-bridge/uv.lock" "$STAGING/examples/feed_inbox/.guion/python-bridge/"
 cp "$ROOT/evaluation/development/feed_inbox/src/"*.vr "$STAGING/examples/feed_inbox/src/"
 cp "$ROOT/evaluation/development/feed_inbox/examples/"*.xml "$STAGING/examples/feed_inbox/examples/"
+rename_legacy_examples
 (
   cd "$STAGING"
-  VERITAS_UV=toolchains/uv ./veritas build examples/feed_inbox
+  GUION_UV=toolchains/uv ./guion build examples/feed_inbox
 )
 for PROJECT in "$STAGING"/examples/*; do
   case "$(basename "$PROJECT")" in
     *_bundle) continue ;;
   esac
-  PYTHON_ENV="$PROJECT/.veritas/python-bridge/.venv"
+  PYTHON_ENV="$PROJECT/.guion/python-bridge/.venv"
   if [ -d "$PYTHON_ENV" ]; then
     rm -rf "$PYTHON_ENV"
   fi
@@ -241,9 +285,9 @@ printf '%s\n' \
   "Host: $OS-$ARCH" \
   "$PLATFORM_NOTE" \
   "Pinned toolchain: uv $UV_VERSION ($UV_TARGET)" \
-  "Runtime: Rust-hosted Veritas bytecode VM" \
+  "Runtime: Rust-hosted Guion bytecode VM" \
   "Included: CLI binary, local reference/specification, executable examples including reconciliation, API sync, package-backed analysis, feeds, task ledger and task graph planning; source-free task-ledger, task-graph, NumPy/orjson interop and analysis app bundles" \
-  "Python interop: bundled uv $UV_VERSION provisions the pinned managed CPython bridge on veritas sync" \
+  "Python interop: bundled uv $UV_VERSION provisions the pinned managed CPython bridge on guion sync" \
   "Evaluation: review-pending briefs and executable cases, candidate-agnostic runner with source-free delivery acceptance, reviewer packet, choice-safe product-information bundle, matched-build and choice prompts, evidence protocols, and Python/NumPy FFI stress runner included under evaluation/" \
   "Managed environments: per-project uv.lock and veritas.lock; CPython is acquired on first sync" \
   "Cross-host portability: not included; package requires its named operating system, architecture, and runtime ABI" \
@@ -254,12 +298,12 @@ printf '%s\n' \
   "Verification: see doctor.txt; this package is not signed or notarized" \
   > "$STAGING/PACKAGE.txt"
 mv "$STAGING" "$OUT/$NAME"
-(cd "$OUT/$NAME" && VERITAS_UV=toolchains/uv ./veritas doctor) > "$OUT/$NAME/doctor.txt"
-INSTALL_PREFIX="$TEMP/Veritas install 🔬"
+(cd "$OUT/$NAME" && GUION_UV=toolchains/uv ./guion doctor) > "$OUT/$NAME/doctor.txt"
+INSTALL_PREFIX="$TEMP/Guion install 🔬"
 sh "$OUT/$NAME/install.sh" "$INSTALL_PREFIX"
-INSTALLED_ROOT="$INSTALL_PREFIX/share/veritas/$NAME"
-"$INSTALL_PREFIX/bin/veritas" verify-package "$INSTALLED_ROOT/examples/python_interop_bundle"
-"$INSTALL_PREFIX/bin/veritas" verify-package "$INSTALLED_ROOT/examples/package_analysis_bundle"
+INSTALLED_ROOT="$INSTALL_PREFIX/share/guion/$NAME"
+"$INSTALL_PREFIX/bin/guion" verify-package "$INSTALLED_ROOT/examples/python_interop_bundle"
+"$INSTALL_PREFIX/bin/guion" verify-package "$INSTALLED_ROOT/examples/package_analysis_bundle"
 "$INSTALLED_ROOT/examples/python_interop_bundle/run" > "$TEMP/installed-run-1.txt"
 "$INSTALLED_ROOT/examples/python_interop_bundle/run" > "$TEMP/installed-run-2.txt"
 cmp "$TEMP/installed-run-1.txt" "$TEMP/installed-run-2.txt"
@@ -277,12 +321,12 @@ assert report["count"] == 3 and report["total"] == 41, report
 PY
 rm "$INSTALLED_ROOT/examples/package_analysis_bundle/.acceptance-report.json"
 (cd "$INSTALLED_ROOT" && \
-  VERITAS_BINARY="$INSTALLED_ROOT/veritas" \
-  VERITAS_INSTALL_ROOT="$INSTALLED_ROOT" \
-  VERITAS_UV="$INSTALLED_ROOT/toolchains/uv" \
-  UV_CACHE_DIR="${UV_CACHE_DIR:-${TMPDIR:-/tmp}/veritas-uv-interop}" \
-  VERITAS_PACKAGE_UV_CACHE="${VERITAS_PACKAGE_UV_CACHE:-${TMPDIR:-/tmp}/veritas-package-uv-cache}" \
-  UV_PYTHON_INSTALL_DIR="${UV_PYTHON_INSTALL_DIR:-${TMPDIR:-/tmp}/veritas-uv-python}" \
+  GUION_BINARY="$INSTALLED_ROOT/guion" \
+  GUION_INSTALL_ROOT="$INSTALLED_ROOT" \
+  GUION_UV="$INSTALLED_ROOT/toolchains/uv" \
+  UV_CACHE_DIR="${UV_CACHE_DIR:-${TMPDIR:-/tmp}/guion-uv-interop}" \
+  GUION_PACKAGE_UV_CACHE="${GUION_PACKAGE_UV_CACHE:-${TMPDIR:-/tmp}/guion-package-uv-cache}" \
+  UV_PYTHON_INSTALL_DIR="${UV_PYTHON_INSTALL_DIR:-${TMPDIR:-/tmp}/guion-uv-python}" \
   python3 -m unittest \
     evaluation.tests.test_shipped_docs_repair \
     evaluation.tests.test_independent_kit \

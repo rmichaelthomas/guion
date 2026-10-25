@@ -1,7 +1,7 @@
-import "lexer.vr"
-import "parser.vr"
-import "builtin_catalog.vr"
-import "artifact.vr"
+import "lexer.gu"
+import "parser.gu"
+import "builtin_catalog.gu"
+import "artifact.gu"
 
 record CompilerState:
     code: CodeTree
@@ -309,7 +309,7 @@ fn compile_failure(code: Text, message: Text, source_name: Text, start: Int, end
     set diagnostic = json_set(diagnostic, "message", json_text(message))
     set diagnostic = json_set(diagnostic, "source_name", json_text(source_name))
     set diagnostic = json_set(diagnostic, "span", span)
-    var failure = json_set(json_object(), "schema", json_text("veritas-compile-failure/v1"))
+    var failure = json_set(json_object(), "schema", json_text("guion-compile-failure/v1"))
     return json_set(failure, "diagnostic", diagnostic)
 
 fn internal_symbol(source_module: Text, name: Text, entry_module: Text) -> Text:
@@ -382,8 +382,8 @@ fn load_program(source_name: Text, source_path: Text, module_root: Text, root_la
             if stdlib_root == "" or not safe_relative_path(module):
                 return json_set(json_object(), "compile_error", compile_failure("E_IMPORT_ROOT", "standard-library import requires a valid verified standard-library root", source_name, 0, 0, 1, 1))
             var module_file = module
-            if not ends_with(module_file, ".vr"):
-                set module_file = module_file + ".vr"
+            if not ends_with(module_file, ".gu"):
+                set module_file = module_file + ".gu"
             set child_root = stdlib_root
             set child_label = "std"
             set path = join_root_path(child_root, module_file)
@@ -394,7 +394,7 @@ fn load_program(source_name: Text, source_path: Text, module_root: Text, root_la
                 let package = prefix_before(package_path, "/")
                 let relative = suffix_after(package_path, "/")
                 if package == "" or relative == "" or not safe_relative_path(relative):
-                    return json_set(json_object(), "compile_error", compile_failure("E_IMPORT_PATH", "package import must use `pkg:name/path.vr` inside a package root", source_name, 0, 0, 1, 1))
+                    return json_set(json_object(), "compile_error", compile_failure("E_IMPORT_PATH", "package import must use `pkg:name/path.gu` inside a package root", source_name, 0, 0, 1, 1))
                 if not json_has(package_roots, package):
                     return json_set(json_object(), "compile_error", compile_failure("E_PACKAGE_NOT_LOCKED", "package `" + package + "` is not present in the resolved dependency roots", source_name, 0, 0, 1, 1))
                 set child_root = json_as_text(json_get(package_roots, package))
@@ -2329,7 +2329,7 @@ pub fn compile_source_with_roots(source_name: Text, source: Text, stdlib_root: T
         let visible_records = record_scope(records, function_source_name, function_imports)
         set compiled = json_push(compiled, compile_function(function, visible_functions, visible_records, module_source(sources, function_source_name)))
         set cursor = cursor + 1
-    var result = json_set(json_object(), "schema", json_text("veritas-bytecode-ir/v1"))
+    var result = json_set(json_object(), "schema", json_text("guion-bytecode-ir/v1"))
     set result = json_set(result, "source_name", json_text(source_name))
     set result = json_set(result, "entry", json_text("main"))
     var compiled_sources = json_array()
@@ -2390,7 +2390,7 @@ pub fn compiler_assemble(ir: Json) -> Bytes:
 
 pub fn compiler_compile_project(source_name: Text, source: Text, stdlib_root: Text, package_roots: Json) -> Result[Bytes, Json]:
     let compiled = compile_source_with_roots(source_name, source, stdlib_root, package_roots)
-    if json_as_text(json_get(compiled, "schema")) == "veritas-compile-failure/v1":
+    if json_as_text(json_get(compiled, "schema")) == "guion-compile-failure/v1":
         return Err(compiled)
     return Ok(artifact_assemble(compiled))
 

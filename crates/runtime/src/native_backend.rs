@@ -2,7 +2,7 @@
 //!
 //! The first backend slice compiles verified integer bytecode to machine code.
 //! Functions that exceed the machine integer range deopt to the VM, which keeps
-//! Veritas's arbitrary-precision integer behavior.
+//! Guion's arbitrary-precision integer behavior.
 
 use std::collections::VecDeque;
 use std::sync::Arc;
@@ -20,8 +20,8 @@ use cranelift_codegen::{
 use cranelift_frontend::{FunctionBuilder, FunctionBuilderContext, Variable};
 use cranelift_jit::{JITBuilder, JITModule};
 use cranelift_module::{default_libcall_names, FuncId, Linkage, Module};
+use guion_model::{Artifact, Function, Op, Type, Value};
 use std::fmt;
-use veritas_model::{Artifact, Function, Op, Type, Value};
 
 type NativeFunction = unsafe extern "C" fn(
     *const i64,
@@ -135,13 +135,13 @@ impl fmt::Debug for NativeBackend {
 impl NativeBackend {
     pub(crate) fn compile(artifact: &Artifact, symbols: NativeSymbols) -> Option<Self> {
         let mut builder = JITBuilder::new(default_libcall_names()).ok()?;
-        builder.symbol("veritas_reserve_fuel", symbols.reserve_fuel);
-        builder.symbol("veritas_release_fuel", symbols.release_fuel);
-        builder.symbol("veritas_poll_cancellation", symbols.poll_cancellation);
-        builder.symbol("veritas_make_list", symbols.make_list);
-        builder.symbol("veritas_list_set", symbols.list_set);
-        builder.symbol("veritas_charge_record", symbols.charge_record);
-        builder.symbol("veritas_print", symbols.print);
+        builder.symbol("guion_reserve_fuel", symbols.reserve_fuel);
+        builder.symbol("guion_release_fuel", symbols.release_fuel);
+        builder.symbol("guion_poll_cancellation", symbols.poll_cancellation);
+        builder.symbol("guion_make_list", symbols.make_list);
+        builder.symbol("guion_list_set", symbols.list_set);
+        builder.symbol("guion_charge_record", symbols.charge_record);
+        builder.symbol("guion_print", symbols.print);
         let mut module = JITModule::new(builder);
         let pointer_type = module.target_config().pointer_type();
         if pointer_type != types::I64 {
@@ -152,20 +152,20 @@ impl NativeBackend {
         reserve_signature.params.push(AbiParam::new(types::I64));
         reserve_signature.returns.push(AbiParam::new(types::I64));
         let reserve_fuel_id = module
-            .declare_function("veritas_reserve_fuel", Linkage::Import, &reserve_signature)
+            .declare_function("guion_reserve_fuel", Linkage::Import, &reserve_signature)
             .ok()?;
         let mut release_signature = Signature::new(module.target_config().default_call_conv);
         release_signature.params.push(AbiParam::new(pointer_type));
         release_signature.params.push(AbiParam::new(types::I64));
         let release_fuel_id = module
-            .declare_function("veritas_release_fuel", Linkage::Import, &release_signature)
+            .declare_function("guion_release_fuel", Linkage::Import, &release_signature)
             .ok()?;
         let mut cancel_signature = Signature::new(module.target_config().default_call_conv);
         cancel_signature.params.push(AbiParam::new(pointer_type));
         cancel_signature.returns.push(AbiParam::new(types::I32));
         let poll_cancellation_id = module
             .declare_function(
-                "veritas_poll_cancellation",
+                "guion_poll_cancellation",
                 Linkage::Import,
                 &cancel_signature,
             )
@@ -180,7 +180,7 @@ impl NativeBackend {
             .returns
             .push(AbiParam::new(pointer_type));
         let make_list_id = module
-            .declare_function("veritas_make_list", Linkage::Import, &make_list_signature)
+            .declare_function("guion_make_list", Linkage::Import, &make_list_signature)
             .ok()?;
         let mut list_set_signature = Signature::new(module.target_config().default_call_conv);
         list_set_signature.params.push(AbiParam::new(pointer_type));
@@ -191,7 +191,7 @@ impl NativeBackend {
         list_set_signature.params.push(AbiParam::new(types::I64));
         list_set_signature.returns.push(AbiParam::new(pointer_type));
         let list_set_id = module
-            .declare_function("veritas_list_set", Linkage::Import, &list_set_signature)
+            .declare_function("guion_list_set", Linkage::Import, &list_set_signature)
             .ok()?;
         let mut charge_record_signature = Signature::new(module.target_config().default_call_conv);
         charge_record_signature
@@ -205,7 +205,7 @@ impl NativeBackend {
             .push(AbiParam::new(types::I32));
         let charge_record_id = module
             .declare_function(
-                "veritas_charge_record",
+                "guion_charge_record",
                 Linkage::Import,
                 &charge_record_signature,
             )
@@ -216,7 +216,7 @@ impl NativeBackend {
         print_signature.params.push(AbiParam::new(types::I64));
         print_signature.returns.push(AbiParam::new(types::I32));
         let print_id = module
-            .declare_function("veritas_print", Linkage::Import, &print_signature)
+            .declare_function("guion_print", Linkage::Import, &print_signature)
             .ok()?;
         let mut backend = Self {
             module,
@@ -308,7 +308,7 @@ impl NativeBackend {
             function_ids[index] = backend
                 .module
                 .declare_function(
-                    &format!("veritas_native_{index}"),
+                    &format!("guion_native_{index}"),
                     Linkage::Local,
                     &native_signature,
                 )
@@ -489,7 +489,7 @@ impl NativeBackend {
         function: &Function,
         function_ids: &[Option<FuncId>],
         all_functions: &[Function],
-        records: &[veritas_model::RecordDefinition],
+        records: &[guion_model::RecordDefinition],
         max_result_words: usize,
     ) -> Result<NativeFunctionCompileProfile, String> {
         let lowering_start = Instant::now();
@@ -1846,7 +1846,7 @@ fn recursive_functions(functions: &[Function]) -> Vec<bool> {
 fn infer_native_types(
     function: &Function,
     functions: &[Function],
-    records: &[veritas_model::RecordDefinition],
+    records: &[guion_model::RecordDefinition],
 ) -> Option<Vec<Option<Vec<Type>>>> {
     if let Some(first_update) = function
         .code
@@ -2155,7 +2155,7 @@ fn infer_native_types(
 
 fn native_result_types(
     result: &Type,
-    records: &[veritas_model::RecordDefinition],
+    records: &[guion_model::RecordDefinition],
 ) -> Option<Vec<Type>> {
     let is_numeric = |ty: &Type| matches!(ty, Type::Int | Type::Float64);
     let is_native_item = |ty: &Type| is_numeric(ty) || *ty == Type::Bool;

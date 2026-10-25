@@ -1,3 +1,7 @@
+use guion_model::{
+    Artifact, BigInt, FileErrorValue, Float64, HttpErrorValue, JsonErrorValue, NativeResourceValue,
+    Op, RuntimeError, SharedJson, Span, TaskErrorValue, Type, Value,
+};
 use std::{
     borrow::Cow,
     collections::{BTreeMap, HashMap, HashSet, VecDeque},
@@ -12,10 +16,6 @@ use std::{
     },
     thread,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
-};
-use veritas_model::{
-    Artifact, BigInt, FileErrorValue, Float64, HttpErrorValue, JsonErrorValue, NativeResourceValue,
-    Op, RuntimeError, SharedJson, Span, TaskErrorValue, Type, Value,
 };
 mod json_projection;
 mod native_backend;
@@ -6940,7 +6940,7 @@ fn shared_json_push_local_allocation(value: &Arc<SharedJson>) -> usize {
     allocation
 }
 
-fn value_matches(value: &Value, ty: &Type, records: &[veritas_model::RecordDefinition]) -> bool {
+fn value_matches(value: &Value, ty: &Type, records: &[guion_model::RecordDefinition]) -> bool {
     match (value, ty) {
         (Value::Int(_), Type::Int)
         | (Value::Float64(_), Type::Float64)
@@ -7746,7 +7746,7 @@ pub(crate) fn escape_reserved_json_keys<'a>(source: &'a str) -> (Cow<'a, str>, O
     let reserved_key = (0_u64..)
         .map(|number| {
             format!(
-                "$veritas_private_{number:0width$}$",
+                "$guion_private_{number:0width$}$",
                 width = RESERVED.len() - 18
             )
         })
@@ -8078,8 +8078,8 @@ mod unique_json_parser_tests {
 #[cfg(test)]
 mod function_cache_tests {
     use super::share_artifact;
+    use guion_model::{Artifact, Function, Type};
     use std::sync::Arc;
-    use veritas_model::{Artifact, Function, Type};
 
     #[test]
     fn frame_and_worker_owners_share_immutable_artifact_storage() {
@@ -8131,7 +8131,7 @@ fn atomic_replace_text(path: &Path, content: &str) -> std::io::Result<()> {
 
     for _ in 0..32 {
         let id = NEXT_TEMP_ID.fetch_add(1, Ordering::Relaxed);
-        let temporary = parent.join(format!(".{name}.veritas-tmp-{}-{id}", std::process::id()));
+        let temporary = parent.join(format!(".{name}.guion-tmp-{}-{id}", std::process::id()));
         let mut file = match fs::OpenOptions::new()
             .write(true)
             .create_new(true)
@@ -8741,7 +8741,7 @@ fn verify(artifact: &Artifact) -> Result<(), RuntimeError> {
         }
         verify_stack(f, artifact).map_err(|m| fail(format!("function `{}`: {m}", f.name)))?;
     }
-    veritas_model::validate_sort_comparator_effects(artifact).map_err(fail)?;
+    guion_model::validate_sort_comparator_effects(artifact).map_err(fail)?;
     Ok(())
 }
 
@@ -8846,7 +8846,7 @@ fn value_type(value: &Value) -> Option<Type> {
     })
 }
 
-fn verify_stack(function: &veritas_model::Function, artifact: &Artifact) -> Result<(), String> {
+fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result<(), String> {
     if function.code.is_empty() {
         return Err("function has no instructions".into());
     }

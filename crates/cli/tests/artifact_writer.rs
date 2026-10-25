@@ -1,16 +1,16 @@
 #![recursion_limit = "256"]
 
+use guion_compiler::compile_project;
+use guion_model::{Artifact, BigInt, Function, Instruction, Op, Span, Type, Value};
+use guion_runtime::{HostPolicy, Runtime};
 use std::{fs, path::PathBuf, process::Command};
-use veritas_compiler::compile_project;
-use veritas_model::{Artifact, BigInt, Function, Instruction, Op, Span, Type, Value};
-use veritas_runtime::{HostPolicy, Runtime};
 
 #[test]
-fn veritas_artifact_writer_matches_native_writer_and_reader() {
+fn guion_artifact_writer_matches_native_writer_and_reader() {
     let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let compiler_source = repository.join("language/self_host/compiler.vr");
+    let compiler_source = repository.join("language/self_host/compiler.gu");
     let compiler_artifact = compile_project(&compiler_source, &repository)
-        .expect("stage-zero compiler builds the Veritas artifact writer");
+        .expect("stage-zero compiler builds the Guion artifact writer");
     let smoke_compiler_artifact = compiler_artifact.clone();
     let mut compiler_runtime = Runtime::new()
         .load(
@@ -19,10 +19,10 @@ fn veritas_artifact_writer_matches_native_writer_and_reader() {
         )
         .expect("compiler artifact verifies");
     let ir = serde_json::json!({
-        "schema": "veritas-bytecode-ir/v1",
-        "source_name": "sample.vr",
+        "schema": "guion-bytecode-ir/v1",
+        "source_name": "sample.gu",
         "entry": "main",
-        "sources": ["sample.vr"],
+        "sources": ["sample.gu"],
         "records": [],
         "externals": [],
         "functions": [{
@@ -39,19 +39,19 @@ fn veritas_artifact_writer_matches_native_writer_and_reader() {
     let encoded = compiler_runtime
         .invoke(
             "compiler_assemble",
-            vec![Value::Json(veritas_model::SharedJson::from_serde(ir))],
+            vec![Value::Json(guion_model::SharedJson::from_serde(ir))],
         )
-        .expect("Veritas writer returns artifact bytes");
+        .expect("Guion writer returns artifact bytes");
     let Value::Bytes(encoded) = encoded else {
-        panic!("Veritas writer must return Bytes");
+        panic!("Guion writer must return Bytes");
     };
 
     let native = Artifact {
         format_version: Artifact::CURRENT_VERSION,
         build_metadata: None,
         compiled_source_sha256: None,
-        source_name: "sample.vr".into(),
-        sources: vec!["sample.vr".into()],
+        source_name: "sample.gu".into(),
+        sources: vec!["sample.gu".into()],
         entry: "main".into(),
         functions: vec![Function {
             name: "main".into(),
@@ -93,10 +93,10 @@ fn veritas_artifact_writer_matches_native_writer_and_reader() {
     );
 
     let ir_json = serde_json::json!({
-        "schema": "veritas-bytecode-ir/v1",
-        "source_name": "complex.vr",
+        "schema": "guion-bytecode-ir/v1",
+        "source_name": "complex.gu",
         "entry": "main",
-        "sources": ["complex.vr"],
+        "sources": ["complex.gu"],
         "records": [{"name":"Point","fields":[{"name":"x","type":"Int"},{"name":"y","type":"Int"},{"name":"payload","type":"Result[List[Map[Text, Json]], TaskError]"}]}],
         "externals": [{"name":"python_power","module":"math","callable":"pow","parameter_names":["x","y"],"parameters":["Float64","Float64"],"result":"Float64"}],
         "functions": [
@@ -117,21 +117,21 @@ fn veritas_artifact_writer_matches_native_writer_and_reader() {
     let encoded = compiler_runtime
         .invoke(
             "compiler_assemble",
-            vec![Value::Json(veritas_model::SharedJson::from_serde(
+            vec![Value::Json(guion_model::SharedJson::from_serde(
                 ir_json.clone(),
             ))],
         )
-        .expect("Veritas assembler accepts compiler IR");
+        .expect("Guion assembler accepts compiler IR");
     let Value::Bytes(encoded) = encoded else {
-        panic!("Veritas assembler must return Bytes");
+        panic!("Guion assembler must return Bytes");
     };
     let directory =
-        std::env::temp_dir().join(format!("veritas-artifact-writer-{}", std::process::id()));
+        std::env::temp_dir().join(format!("guion-artifact-writer-{}", std::process::id()));
     fs::create_dir_all(&directory).unwrap();
-    let ir_path = directory.join("complex.vri.json");
-    let artifact_path = directory.join("complex.vrb");
+    let ir_path = directory.join("complex.gui.json");
+    let artifact_path = directory.join("complex.gub");
     fs::write(&ir_path, serde_json::to_vec(&ir_json).unwrap()).unwrap();
-    let native = Command::new(env!("CARGO_BIN_EXE_veritas"))
+    let native = Command::new(env!("CARGO_BIN_EXE_guion"))
         .args([
             "assemble-ir",
             ir_path.to_str().unwrap(),
@@ -153,7 +153,7 @@ fn veritas_artifact_writer_matches_native_writer_and_reader() {
             .position(|(left, right)| left != right)
             .unwrap_or_else(|| encoded.len().min(native_bytes.len()));
         panic!(
-            "writer mismatch at byte {mismatch}: Veritas {:?}, native {:?}; lengths {} and {}",
+            "writer mismatch at byte {mismatch}: Guion {:?}, native {:?}; lengths {} and {}",
             &encoded[mismatch.saturating_sub(12)..(mismatch + 20).min(encoded.len())],
             &native_bytes[mismatch.saturating_sub(12)..(mismatch + 20).min(native_bytes.len())],
             encoded.len(),
@@ -163,7 +163,7 @@ fn veritas_artifact_writer_matches_native_writer_and_reader() {
     Artifact::from_bytes(encoded.as_ref()).expect("native reader accepts full writer output");
     fs::remove_dir_all(directory).unwrap();
 
-    let smoke_name = format!(".artifact-writer-smoke-{}.vr", std::process::id());
+    let smoke_name = format!(".artifact-writer-smoke-{}.gu", std::process::id());
     let smoke_path = repository.join(&smoke_name);
     let smoke_source = "fn main() -> Int:\n    return 0\n";
     fs::write(&smoke_path, smoke_source).unwrap();
@@ -171,11 +171,11 @@ fn veritas_artifact_writer_matches_native_writer_and_reader() {
         Value::Text(smoke_name),
         Value::Text(smoke_source.into()),
         Value::Text(String::new()),
-        Value::Json(veritas_model::SharedJson::from_serde(serde_json::json!({}))),
+        Value::Json(guion_model::SharedJson::from_serde(serde_json::json!({}))),
     ];
     let smoke_policy = HostPolicy::default().with_file_access(&repository, true, false);
     let compiled = std::thread::Builder::new()
-        .name("veritas-artifact-writer-smoke".into())
+        .name("guion-artifact-writer-smoke".into())
         .spawn(move || {
             let mut runtime = Runtime::new()
                 .load(smoke_compiler_artifact, smoke_policy)
@@ -185,13 +185,13 @@ fn veritas_artifact_writer_matches_native_writer_and_reader() {
         .unwrap()
         .join()
         .expect("source compilation thread completes")
-        .expect("Veritas source-to-artifact entry returns a Result");
+        .expect("Guion source-to-artifact entry returns a Result");
     fs::remove_file(&smoke_path).unwrap();
     let Value::ResultOk(bytes) = compiled else {
-        panic!("Veritas source-to-artifact entry must succeed for a valid source: {compiled:?}");
+        panic!("Guion source-to-artifact entry must succeed for a valid source: {compiled:?}");
     };
     let Value::Bytes(bytes) = *bytes else {
-        panic!("Veritas source-to-artifact success must contain Bytes");
+        panic!("Guion source-to-artifact success must contain Bytes");
     };
     let compiled_artifact = Artifact::from_bytes(bytes.as_ref())
         .expect("native reader verifies the compiler's complete output");
@@ -209,8 +209,8 @@ fn minimal_artifact(code: Vec<Instruction>) -> Artifact {
         format_version: Artifact::CURRENT_VERSION,
         build_metadata: None,
         compiled_source_sha256: None,
-        source_name: "malformed.vr".into(),
-        sources: vec!["malformed.vr".into()],
+        source_name: "malformed.gu".into(),
+        sources: vec!["malformed.gu".into()],
         entry: "main".into(),
         functions: vec![Function {
             name: "main".into(),

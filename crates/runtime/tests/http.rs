@@ -1,3 +1,6 @@
+use guion_compiler::compile;
+use guion_model::{BigInt, Value};
+use guion_runtime::{CancellationToken, EffectKind, EffectOutcome, HostPolicy, Runtime};
 use std::{
     io::{Read, Write},
     net::TcpListener,
@@ -5,9 +8,6 @@ use std::{
     thread,
     time::{Duration, Instant},
 };
-use veritas_compiler::compile;
-use veritas_model::{BigInt, Value};
-use veritas_runtime::{CancellationToken, EffectKind, EffectOutcome, HostPolicy, Runtime};
 
 fn serve_once(response: &'static str) -> String {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
@@ -92,7 +92,7 @@ fn serve_delayed(response: &'static str) -> (String, mpsc::Receiver<()>, thread:
 #[test]
 fn http_is_denied_by_default_with_a_typed_result() {
     let source = "fn response() -> Result[Text, HttpError]:\n    return http_get(\"http://127.0.0.1:1/not-contacted\")\n\nfn main() -> Int:\n    return 0\n";
-    let artifact = compile("http-denied.vr", source)
+    let artifact = compile("http-denied.gu", source)
         .expect("http_get and HttpError are part of the public language surface");
     let mut instance = Runtime::new()
         .load(artifact, HostPolicy::default())
@@ -119,8 +119,8 @@ fn allowed_http_get_runs_through_a_serialized_artifact() {
     let source = format!(
         "fn response() -> Result[Text, HttpError]:\n    return http_get({url:?})\n\nfn main() -> Int:\n    return 0\n"
     );
-    let artifact = compile("http-success.vr", &source).unwrap();
-    let artifact = veritas_model::Artifact::from_bytes(&artifact.to_bytes().unwrap()).unwrap();
+    let artifact = compile("http-success.gu", &source).unwrap();
+    let artifact = guion_model::Artifact::from_bytes(&artifact.to_bytes().unwrap()).unwrap();
     let policy =
         HostPolicy::default().with_network_hosts(["127.0.0.1"], Duration::from_secs(2), 64);
     let mut instance = Runtime::new().load(artifact, policy).unwrap();
@@ -149,7 +149,7 @@ fn http_cancellation_interrupts_in_flight_requests_and_marks_the_effect_interrup
                 "fn response() -> Result[Text, HttpError]:\n    return http_get({url:?})\n\nfn main() -> Int:\n    let result = response()\n    return 0\n"
             )
         };
-        let artifact = compile("http-cancel-boundary.vr", &source).unwrap();
+        let artifact = compile("http-cancel-boundary.gu", &source).unwrap();
         let policy =
             HostPolicy::default().with_network_hosts(["127.0.0.1"], Duration::from_secs(2), 64);
         let cancellation = CancellationToken::new();
@@ -196,7 +196,7 @@ fn http_get_returns_typed_status_and_body_limit_errors() {
         let source = format!(
             "fn response() -> Result[Text, HttpError]:\n    return http_get({url:?})\n\nfn main() -> Int:\n    return 0\n"
         );
-        let artifact = compile("http-errors.vr", &source).unwrap();
+        let artifact = compile("http-errors.gu", &source).unwrap();
         let policy =
             HostPolicy::default().with_network_hosts(["127.0.0.1"], Duration::from_secs(2), cap);
         let mut instance = Runtime::new().load(artifact, policy).unwrap();
@@ -215,7 +215,7 @@ fn http_redirect_limit_allows_only_the_configured_number_of_hops() {
     let source = format!(
         "fn response() -> Result[Text, HttpError]:\n    return http_get({url:?})\n\nfn main() -> Int:\n    return 0\n"
     );
-    let artifact = compile("http-redirect-limit.vr", &source).unwrap();
+    let artifact = compile("http-redirect-limit.gu", &source).unwrap();
     let mut policy =
         HostPolicy::default().with_network_hosts(["127.0.0.1"], Duration::from_secs(2), 64);
     policy.max_http_redirects = 1;
@@ -237,8 +237,8 @@ fn general_http_request_sends_method_headers_and_runtime_body_and_returns_status
 fn main() -> Int:
     return 0
 "#;
-    let artifact = compile("http-request.vr", source).unwrap();
-    let artifact = veritas_model::Artifact::from_bytes(&artifact.to_bytes().unwrap()).unwrap();
+    let artifact = compile("http-request.gu", source).unwrap();
+    let artifact = guion_model::Artifact::from_bytes(&artifact.to_bytes().unwrap()).unwrap();
     let policy =
         HostPolicy::default().with_network_hosts(["127.0.0.1"], Duration::from_secs(2), 1024);
     let mut instance = Runtime::new().load(artifact, policy).unwrap();
@@ -269,7 +269,7 @@ fn main() -> Int:
 #[test]
 fn general_http_request_rejects_oversized_request_body_before_network_access() {
     let source = "fn send() -> Result[Json, HttpError]:\n    return http_request(\"POST\", \"http://127.0.0.1:1/sync\", {\"content-type\": \"application/json\"}, \"12345\")\n\nfn main() -> Int:\n    return 0\n";
-    let artifact = compile("http-request-limit.vr", source).unwrap();
+    let artifact = compile("http-request-limit.gu", source).unwrap();
     let mut policy =
         HostPolicy::default().with_network_hosts(["127.0.0.1"], Duration::from_secs(2), 1024);
     policy.max_http_request_bytes = 4;
@@ -289,8 +289,8 @@ fn per_request_http_timeout_is_enforced_below_the_manifest_ceiling() {
 fn main() -> Int:
     return 0
 "#;
-    let artifact = compile("http-request-timeout.vr", source).unwrap();
-    let artifact = veritas_model::Artifact::from_bytes(&artifact.to_bytes().unwrap()).unwrap();
+    let artifact = compile("http-request-timeout.gu", source).unwrap();
+    let artifact = guion_model::Artifact::from_bytes(&artifact.to_bytes().unwrap()).unwrap();
     let policy =
         HostPolicy::default().with_network_hosts(["127.0.0.1"], Duration::from_secs(1), 1024);
     let mut instance = Runtime::new().load(artifact, policy).unwrap();
@@ -315,7 +315,7 @@ fn per_request_http_timeout_cannot_exceed_the_manifest_ceiling() {
 fn main() -> Int:
     return 0
 "#;
-    let artifact = compile("http-request-timeout-cap.vr", source).unwrap();
+    let artifact = compile("http-request-timeout-cap.gu", source).unwrap();
     let policy =
         HostPolicy::default().with_network_hosts(["127.0.0.1"], Duration::from_millis(40), 1024);
     let mut instance = Runtime::new().load(artifact, policy).unwrap();
@@ -366,7 +366,7 @@ fn byte_http_preserves_binary_request_and_response_bodies() {
     let source = format!(
         "record HttpResponse:\n    status: Int\n    headers: Map[Text, Text]\n    body: Bytes\n\nfn send(url: Text, payload: Bytes) -> Result[HttpResponse, HttpError]:\n    let headers: Map[Text, Text] = {{\"content-type\": \"application/octet-stream\"}}\n    return http_request_bytes(\"POST\", url, headers, payload, 1000)\n\nfn main() -> Int:\n    return 0\n"
     );
-    let artifact = compile("http-bytes.vr", &source).expect("byte HTTP is a typed builtin");
+    let artifact = compile("http-bytes.gu", &source).expect("byte HTTP is a typed builtin");
     let policy =
         HostPolicy::default().with_network_hosts(["127.0.0.1"], Duration::from_secs(2), 64);
     let mut instance = Runtime::new().load(artifact, policy).unwrap();
@@ -425,7 +425,7 @@ fn byte_http_cancellation_interrupts_during_response_body_read() {
     let source = format!(
         "record HttpResponse:\n    status: Int\n    headers: Map[Text, Text]\n    body: Bytes\n\nfn response(url: Text) -> Result[HttpResponse, HttpError]:\n    return http_request_bytes(\"GET\", url, {{}}, bytes_from_text(\"\"), 5000)\n\nfn main() -> Int:\n    let result = response({url:?})\n    return 0\n"
     );
-    let artifact = compile("http-body-cancel.vr", &source).unwrap();
+    let artifact = compile("http-body-cancel.gu", &source).unwrap();
     let policy =
         HostPolicy::default().with_network_hosts(["127.0.0.1"], Duration::from_secs(5), 1024);
     let cancellation = CancellationToken::new();
@@ -476,7 +476,7 @@ fn byte_http_total_deadline_applies_across_trickled_body_chunks() {
     let source = format!(
         "record HttpResponse:\n    status: Int\n    headers: Map[Text, Text]\n    body: Bytes\n\nfn response(url: Text) -> Result[HttpResponse, HttpError]:\n    return http_request_bytes(\"GET\", url, {{}}, bytes_from_text(\"\"), 120)\n\nfn main() -> Int:\n    return 0\n"
     );
-    let artifact = compile("http-total-deadline.vr", &source).unwrap();
+    let artifact = compile("http-total-deadline.gu", &source).unwrap();
     let policy =
         HostPolicy::default().with_network_hosts(["127.0.0.1"], Duration::from_secs(1), 1024);
     let mut instance = Runtime::new().load(artifact, policy).unwrap();
@@ -496,7 +496,7 @@ fn byte_http_rejects_oversized_response_before_returning_partial_bytes() {
     let source = format!(
         "record HttpResponse:\n    status: Int\n    headers: Map[Text, Text]\n    body: Bytes\n\nfn response(url: Text) -> Result[HttpResponse, HttpError]:\n    return http_request_bytes(\"GET\", url, {{}}, bytes_from_text(\"\"), 1000)\n\nfn main() -> Int:\n    return 0\n"
     );
-    let artifact = compile("http-byte-response-limit.vr", &source).unwrap();
+    let artifact = compile("http-byte-response-limit.gu", &source).unwrap();
     let policy = HostPolicy::default().with_network_hosts(["127.0.0.1"], Duration::from_secs(2), 4);
     let mut instance = Runtime::new().load(artifact, policy).unwrap();
     let result = instance.invoke("response", vec![Value::Text(url)]).unwrap();

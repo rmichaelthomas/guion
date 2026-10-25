@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use veritas_compiler::{compile, compile_project, Diagnostic};
+use guion_compiler::{compile, compile_project, Diagnostic};
 
 struct TempProject(PathBuf);
 
@@ -14,14 +14,14 @@ impl TempProject {
             .expect("clock is after Unix epoch")
             .as_nanos();
         let path = std::env::temp_dir().join(format!(
-            "veritas-compiler-conformance-{}-{nonce}",
+            "guion-compiler-conformance-{}-{nonce}",
             std::process::id()
         ));
         fs::create_dir_all(&path).expect("create temporary project");
         let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
         fs::copy(
-            repository.join("language/self_host/compiler.vrb"),
-            path.join("compiler.vrb"),
+            repository.join("language/self_host/compiler.gub"),
+            path.join("compiler.gub"),
         )
         .expect("copy checked self-host compiler artifact");
         Self(path)
@@ -34,8 +34,8 @@ impl TempProject {
         fs::write(target, source).expect("write source");
     }
 
-    fn compile(&self) -> Result<veritas_model::Artifact, Diagnostic> {
-        compile_project(&self.0.join("main.vr"), &self.0)
+    fn compile(&self) -> Result<guion_model::Artifact, Diagnostic> {
+        compile_project(&self.0.join("main.gu"), &self.0)
     }
 }
 
@@ -47,12 +47,12 @@ impl Drop for TempProject {
 
 fn assert_self_host_diagnostic(project: &TempProject, entry: &str, source: &str, code: &str) {
     project.write(entry, source);
-    let bootstrap_error = veritas_compiler::compile_project(&project.0.join(entry), &project.0)
+    let bootstrap_error = guion_compiler::compile_project(&project.0.join(entry), &project.0)
         .expect_err("bootstrap compiler must reject the invalid program");
     assert_eq!(bootstrap_error.code, code);
 
-    let output = Command::new(env!("CARGO_BIN_EXE_veritas"))
-        .args(["run", "compiler.vrb", entry])
+    let output = Command::new(env!("CARGO_BIN_EXE_guion"))
+        .args(["run", "compiler.gub", entry])
         .current_dir(&project.0)
         .output()
         .expect("run self-host compiler");
@@ -70,12 +70,12 @@ fn install_self_host_compiler(project: &TempProject) {
     let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
     let self_host = repository.join("language/self_host");
     for filename in [
-        "veritas.toml",
-        "compiler.vr",
-        "lexer.vr",
-        "parser.vr",
-        "builtin_catalog.vr",
-        "artifact.vr",
+        "guion.toml",
+        "compiler.gu",
+        "lexer.gu",
+        "parser.gu",
+        "builtin_catalog.gu",
+        "artifact.gu",
     ] {
         fs::copy(self_host.join(filename), project.0.join(filename))
             .expect("copy self-host compiler source");
@@ -87,8 +87,8 @@ fn run_self_host(project: &TempProject, entry: &str) -> std::process::Output {
 }
 
 fn run_self_host_args(project: &TempProject, args: &[&str]) -> std::process::Output {
-    Command::new(env!("CARGO_BIN_EXE_veritas"))
-        .args(["run", "compiler.vrb"])
+    Command::new(env!("CARGO_BIN_EXE_guion"))
+        .args(["run", "compiler.gub"])
         .args(args)
         .current_dir(&project.0)
         .output()
@@ -228,14 +228,14 @@ fn rejects_the_current_type_and_control_flow_failures_with_stable_codes() {
     ];
 
     for (label, source, expected_code) in cases {
-        let error = match compile("conformance.vr", source) {
+        let error = match compile("conformance.gu", source) {
             Err(error) => error,
             Ok(_) => panic!("{label} must be rejected"),
         };
         assert_eq!(error.code, expected_code, "{label}: {error:?}");
         assert_eq!(
             error.source_name.as_deref(),
-            Some("conformance.vr"),
+            Some("conformance.gu"),
             "{label}"
         );
         assert!(error.span.line > 0, "{label} must identify a source line");
@@ -248,26 +248,26 @@ fn self_host_compiler_accepts_unicode_scalar_escapes() {
     let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
     let self_host = repository.join("language/self_host");
     for filename in [
-        "veritas.toml",
-        "compiler.vr",
-        "lexer.vr",
-        "parser.vr",
-        "builtin_catalog.vr",
-        "artifact.vr",
+        "guion.toml",
+        "compiler.gu",
+        "lexer.gu",
+        "parser.gu",
+        "builtin_catalog.gu",
+        "artifact.gu",
     ] {
         fs::copy(self_host.join(filename), project.0.join(filename))
             .expect("copy self-host compiler source");
     }
     project.write(
-        "unicode.vr",
+        "unicode.gu",
         r#"fn main() -> Int:
     print("\u{1F642}")
     return 0
 "#,
     );
 
-    let output = Command::new(env!("CARGO_BIN_EXE_veritas"))
-        .args(["run", "compiler.vrb", "unicode.vr"])
+    let output = Command::new(env!("CARGO_BIN_EXE_guion"))
+        .args(["run", "compiler.gub", "unicode.gu"])
         .current_dir(&project.0)
         .output()
         .expect("run self-host compiler");
@@ -288,7 +288,7 @@ fn self_host_lexer_preserves_unicode_escape_diagnostic_code_and_span() {
     install_self_host_compiler(&project);
     assert_self_host_diagnostic(
         &project,
-        "invalid-escape.vr",
+        "invalid-escape.gu",
         r#"fn main() -> Int:
     return len("\u{D800}")
 "#,
@@ -302,7 +302,7 @@ fn self_host_duplicate_map_keys_use_the_stable_duplicate_key_code() {
     install_self_host_compiler(&project);
     assert_self_host_diagnostic(
         &project,
-        "duplicate-map-key.vr",
+        "duplicate-map-key.gu",
         "fn main() -> Int:\n    let values = {\"answer\": 1, \"answer\": 2}\n    return len(values)\n",
         "E_MAP_DUPLICATE_KEY",
     );
@@ -314,19 +314,19 @@ fn self_host_compiler_lowers_list_for_loops() {
     let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
     let self_host = repository.join("language/self_host");
     for filename in [
-        "veritas.toml",
-        "compiler.vr",
-        "lexer.vr",
-        "parser.vr",
-        "builtin_catalog.vr",
-        "artifact.vr",
+        "guion.toml",
+        "compiler.gu",
+        "lexer.gu",
+        "parser.gu",
+        "builtin_catalog.gu",
+        "artifact.gu",
     ] {
         fs::copy(self_host.join(filename), project.0.join(filename))
             .expect("copy self-host compiler source");
     }
     let source = "fn sum(values: List[Int]) -> Int:\n    var total = 0\n    for item in values:\n        set total = total + item\n    return total\n\nfn key_width(values: Map[Text, Int]) -> Int:\n    var total = 0\n    for key in values:\n        set total = total + len(key) + values[key]\n    return total\n\nfn empty_collections() -> Int:\n    let numbers: List[Int] = []\n    let values: Map[Text, Int] = {}\n    return len(numbers) + len(values)\n\nfn main() -> Int:\n    return sum([20, 22]) + key_width({\"ab\": 1}) + empty_collections()\n";
     let bootstrap =
-        compile("loops.vr", source).expect("bootstrap compiler accepts list and map loops");
+        compile("loops.gu", source).expect("bootstrap compiler accepts list and map loops");
     let bootstrap_ir = format!("{:?}", bootstrap.functions);
     assert!(
         bootstrap_ir.contains("MapKeys"),
@@ -336,10 +336,10 @@ fn self_host_compiler_lowers_list_for_loops() {
         bootstrap_ir.contains("Length"),
         "bootstrap compiler must lower list iteration"
     );
-    project.write("loops.vr", source);
+    project.write("loops.gu", source);
 
-    let output = Command::new(env!("CARGO_BIN_EXE_veritas"))
-        .args(["run", "compiler.vrb", "loops.vr"])
+    let output = Command::new(env!("CARGO_BIN_EXE_guion"))
+        .args(["run", "compiler.gub", "loops.gu"])
         .current_dir(&project.0)
         .output()
         .expect("run self-host compiler");
@@ -385,22 +385,22 @@ fn self_host_compiler_lowers_exhaustive_option_match() {
     let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
     let self_host = repository.join("language/self_host");
     for filename in [
-        "veritas.toml",
-        "compiler.vr",
-        "lexer.vr",
-        "parser.vr",
-        "builtin_catalog.vr",
-        "artifact.vr",
+        "guion.toml",
+        "compiler.gu",
+        "lexer.gu",
+        "parser.gu",
+        "builtin_catalog.gu",
+        "artifact.gu",
     ] {
         fs::copy(self_host.join(filename), project.0.join(filename))
             .expect("copy self-host compiler source");
     }
     let source = "fn choose(value: Option[Int]) -> Int:\n    match value:\n        Some(number):\n            return number\n        None:\n            return 0\n\nfn main() -> Int:\n    return choose(Some(42))\n";
-    compile("match.vr", source).expect("bootstrap compiler accepts exhaustive Option match");
-    project.write("match.vr", source);
+    compile("match.gu", source).expect("bootstrap compiler accepts exhaustive Option match");
+    project.write("match.gu", source);
 
-    let output = Command::new(env!("CARGO_BIN_EXE_veritas"))
-        .args(["run", "compiler.vrb", "match.vr"])
+    let output = Command::new(env!("CARGO_BIN_EXE_guion"))
+        .args(["run", "compiler.gub", "match.gu"])
         .current_dir(&project.0)
         .output()
         .expect("run self-host compiler");
@@ -430,22 +430,22 @@ fn self_host_compiler_lowers_result_match_and_propagation() {
     let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
     let self_host = repository.join("language/self_host");
     for filename in [
-        "veritas.toml",
-        "compiler.vr",
-        "lexer.vr",
-        "parser.vr",
-        "builtin_catalog.vr",
-        "artifact.vr",
+        "guion.toml",
+        "compiler.gu",
+        "lexer.gu",
+        "parser.gu",
+        "builtin_catalog.gu",
+        "artifact.gu",
     ] {
         fs::copy(self_host.join(filename), project.0.join(filename))
             .expect("copy self-host compiler source");
     }
     let source = "fn source_result() -> Result[List[Int], Text]:\n    return Ok([])\n\nfn propagate() -> Result[List[Int], Text]:\n    let value = source_result()?\n    return Ok(value)\n\nfn main() -> Int:\n    match propagate():\n        Ok(values):\n            return len(values)\n        Err(message):\n            return len(message)\n";
-    compile("result.vr", source).expect("bootstrap compiler accepts Result propagation and match");
-    project.write("result.vr", source);
+    compile("result.gu", source).expect("bootstrap compiler accepts Result propagation and match");
+    project.write("result.gu", source);
 
-    let output = Command::new(env!("CARGO_BIN_EXE_veritas"))
-        .args(["run", "compiler.vrb", "result.vr"])
+    let output = Command::new(env!("CARGO_BIN_EXE_guion"))
+        .args(["run", "compiler.gub", "result.gu"])
         .current_dir(&project.0)
         .output()
         .expect("run self-host compiler");
@@ -483,22 +483,22 @@ fn self_host_compiler_emits_float64_literals() {
     let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
     let self_host = repository.join("language/self_host");
     for filename in [
-        "veritas.toml",
-        "compiler.vr",
-        "lexer.vr",
-        "parser.vr",
-        "builtin_catalog.vr",
-        "artifact.vr",
+        "guion.toml",
+        "compiler.gu",
+        "lexer.gu",
+        "parser.gu",
+        "builtin_catalog.gu",
+        "artifact.gu",
     ] {
         fs::copy(self_host.join(filename), project.0.join(filename))
             .expect("copy self-host compiler source");
     }
     let source = "fn calculate(value: Float64) -> Float64:\n    return value * 2.5 + 0.5\n\nfn main() -> Int:\n    if calculate(1.5) == 3.5:\n        return 0\n    else:\n        return 1\n";
-    compile("float.vr", source).expect("bootstrap compiler accepts Float64 arithmetic");
-    project.write("float.vr", source);
+    compile("float.gu", source).expect("bootstrap compiler accepts Float64 arithmetic");
+    project.write("float.gu", source);
 
-    let output = Command::new(env!("CARGO_BIN_EXE_veritas"))
-        .args(["run", "compiler.vrb", "float.vr"])
+    let output = Command::new(env!("CARGO_BIN_EXE_guion"))
+        .args(["run", "compiler.gub", "float.gu"])
         .current_dir(&project.0)
         .output()
         .expect("run self-host compiler");
@@ -520,22 +520,22 @@ fn self_host_compiler_lowers_parallel_map_with_a_named_worker() {
     let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
     let self_host = repository.join("language/self_host");
     for filename in [
-        "veritas.toml",
-        "compiler.vr",
-        "lexer.vr",
-        "parser.vr",
-        "builtin_catalog.vr",
-        "artifact.vr",
+        "guion.toml",
+        "compiler.gu",
+        "lexer.gu",
+        "parser.gu",
+        "builtin_catalog.gu",
+        "artifact.gu",
     ] {
         fs::copy(self_host.join(filename), project.0.join(filename))
             .expect("copy self-host compiler source");
     }
     let source = "fn double(value: Int) -> Int:\n    return value * 2\n\nfn map_values(values: List[Int]) -> Result[List[Int], TaskError]:\n    return parallel_map(values, double, 4)\n\nfn main() -> Int:\n    match map_values([21]):\n        Ok(values):\n            return values[0]\n        Err(problem):\n            return 0\n";
-    compile("parallel.vr", source).expect("bootstrap compiler accepts a named parallel worker");
-    project.write("parallel.vr", source);
+    compile("parallel.gu", source).expect("bootstrap compiler accepts a named parallel worker");
+    project.write("parallel.gu", source);
 
-    let output = Command::new(env!("CARGO_BIN_EXE_veritas"))
-        .args(["run", "compiler.vrb", "parallel.vr"])
+    let output = Command::new(env!("CARGO_BIN_EXE_guion"))
+        .args(["run", "compiler.gub", "parallel.gu"])
         .current_dir(&project.0)
         .output()
         .expect("run self-host compiler");
@@ -554,10 +554,10 @@ fn self_host_compiler_lowers_parallel_map_with_a_named_worker() {
         "parallel worker identity must be preserved: {ir}"
     );
 
-    let ir_path = project.0.join("parallel.vri.json");
-    let artifact_path = project.0.join("parallel.vrb");
+    let ir_path = project.0.join("parallel.gui.json");
+    let artifact_path = project.0.join("parallel.gub");
     fs::write(&ir_path, output.stdout).expect("save self-hosted IR");
-    let assembled = Command::new(env!("CARGO_BIN_EXE_veritas"))
+    let assembled = Command::new(env!("CARGO_BIN_EXE_guion"))
         .args(["assemble-ir", ir_path.to_str().unwrap(), "--output"])
         .arg(&artifact_path)
         .output()
@@ -567,7 +567,7 @@ fn self_host_compiler_lowers_parallel_map_with_a_named_worker() {
         "{}",
         String::from_utf8_lossy(&assembled.stderr)
     );
-    let run = Command::new(env!("CARGO_BIN_EXE_veritas"))
+    let run = Command::new(env!("CARGO_BIN_EXE_guion"))
         .args(["run", artifact_path.to_str().unwrap()])
         .output()
         .expect("run parallel_map program");
@@ -578,7 +578,7 @@ fn self_host_compiler_lowers_parallel_map_with_a_named_worker() {
 fn parallel_workers_cannot_accept_or_return_native_resources() {
     let project = TempProject::new();
     let source = "fn identity(value: Db) -> Db:\n    return value\n\nfn map_databases(values: List[Db]) -> Result[List[Db], TaskError]:\n    return parallel_map(values, identity, 2)\n\nfn main() -> Int:\n    return 0\n";
-    project.write("main.vr", source);
+    project.write("main.gu", source);
     let error = project
         .compile()
         .expect_err("native handles cannot cross worker boundaries");
@@ -591,19 +591,19 @@ fn self_host_compiler_rejects_native_resource_parallel_workers() {
     let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
     let self_host = repository.join("language/self_host");
     for filename in [
-        "veritas.toml",
-        "compiler.vr",
-        "lexer.vr",
-        "parser.vr",
-        "builtin_catalog.vr",
-        "artifact.vr",
+        "guion.toml",
+        "compiler.gu",
+        "lexer.gu",
+        "parser.gu",
+        "builtin_catalog.gu",
+        "artifact.gu",
     ] {
         fs::copy(self_host.join(filename), project.0.join(filename))
             .expect("copy self-host compiler source");
     }
     assert_self_host_diagnostic(
         &project,
-        "parallel-resource.vr",
+        "parallel-resource.gu",
         "fn identity(value: Db) -> Db:\n    return value\n\nfn map_databases(values: List[Db]) -> Result[List[Db], TaskError]:\n    return parallel_map(values, identity, 2)\n\nfn main() -> Int:\n    return 0\n",
         "E_PARALLEL_RESOURCE",
     );
@@ -615,23 +615,23 @@ fn self_host_compiler_preserves_python_external_declarations() {
     let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
     let self_host = repository.join("language/self_host");
     for filename in [
-        "veritas.toml",
-        "compiler.vr",
-        "lexer.vr",
-        "parser.vr",
-        "builtin_catalog.vr",
-        "artifact.vr",
+        "guion.toml",
+        "compiler.gu",
+        "lexer.gu",
+        "parser.gu",
+        "builtin_catalog.gu",
+        "artifact.gu",
     ] {
         fs::copy(self_host.join(filename), project.0.join(filename))
             .expect("copy self-host compiler source");
     }
     let source = "extern python \"math:pow\" fn python_power(x: Float64, y: Float64) -> Float64\n\nfn main() -> Int:\n    let result = python_power(y=3.0, x=2.0)\n    return 0\n";
-    compile("external.vr", source)
+    compile("external.gu", source)
         .expect("bootstrap compiler accepts a Python external declaration");
-    project.write("external.vr", source);
+    project.write("external.gu", source);
 
-    let output = Command::new(env!("CARGO_BIN_EXE_veritas"))
-        .args(["run", "compiler.vrb", "external.vr"])
+    let output = Command::new(env!("CARGO_BIN_EXE_guion"))
+        .args(["run", "compiler.gub", "external.gu"])
         .current_dir(&project.0)
         .output()
         .expect("run self-host compiler");
@@ -661,10 +661,10 @@ fn self_host_compiler_preserves_python_external_declarations() {
         ir.contains("\"callable\":\"pow\""),
         "external callable target must be retained: {ir}"
     );
-    let ir_path = project.0.join("external.vri.json");
-    let artifact_path = project.0.join("external.vrb");
+    let ir_path = project.0.join("external.gui.json");
+    let artifact_path = project.0.join("external.gub");
     fs::write(&ir_path, output.stdout).expect("save self-hosted external IR");
-    let assembled = Command::new(env!("CARGO_BIN_EXE_veritas"))
+    let assembled = Command::new(env!("CARGO_BIN_EXE_guion"))
         .args(["assemble-ir", ir_path.to_str().unwrap(), "--output"])
         .arg(&artifact_path)
         .output()
@@ -682,22 +682,22 @@ fn self_host_compiler_lowers_bytes_file_operations_and_result_propagation() {
     let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
     let self_host = repository.join("language/self_host");
     for filename in [
-        "veritas.toml",
-        "compiler.vr",
-        "lexer.vr",
-        "parser.vr",
-        "builtin_catalog.vr",
-        "artifact.vr",
+        "guion.toml",
+        "compiler.gu",
+        "lexer.gu",
+        "parser.gu",
+        "builtin_catalog.gu",
+        "artifact.gu",
     ] {
         fs::copy(self_host.join(filename), project.0.join(filename))
             .expect("copy self-host compiler source");
     }
     let source = "fn copy_bytes(source: Text, destination: Text) -> Result[Unit, FileError]:\n    let bytes = read_bytes(source)?\n    return write_bytes(destination, bytes)\n\nfn main() -> Int:\n    return 0\n";
-    compile("bytes.vr", source).expect("bootstrap compiler accepts byte file operations");
-    project.write("bytes.vr", source);
+    compile("bytes.gu", source).expect("bootstrap compiler accepts byte file operations");
+    project.write("bytes.gu", source);
 
-    let output = Command::new(env!("CARGO_BIN_EXE_veritas"))
-        .args(["run", "compiler.vrb", "bytes.vr"])
+    let output = Command::new(env!("CARGO_BIN_EXE_guion"))
+        .args(["run", "compiler.gub", "bytes.gu"])
         .current_dir(&project.0)
         .output()
         .expect("run self-host compiler");
@@ -727,12 +727,12 @@ fn self_host_compiler_lowers_remaining_public_host_builtins() {
     let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
     let self_host = repository.join("language/self_host");
     for filename in [
-        "veritas.toml",
-        "compiler.vr",
-        "lexer.vr",
-        "parser.vr",
-        "builtin_catalog.vr",
-        "artifact.vr",
+        "guion.toml",
+        "compiler.gu",
+        "lexer.gu",
+        "parser.gu",
+        "builtin_catalog.gu",
+        "artifact.gu",
     ] {
         fs::copy(self_host.join(filename), project.0.join(filename))
             .expect("copy self-host compiler source");
@@ -770,12 +770,12 @@ fn main() -> Int:
     let has_first = map_has(flags, "first")
     return len(arguments) + task_index_value
 "#;
-    compile("builtins.vr", source)
+    compile("builtins.gu", source)
         .expect("bootstrap compiler accepts the builtin conformance source");
-    project.write("builtins.vr", source);
+    project.write("builtins.gu", source);
 
-    let output = Command::new(env!("CARGO_BIN_EXE_veritas"))
-        .args(["run", "compiler.vrb", "builtins.vr"])
+    let output = Command::new(env!("CARGO_BIN_EXE_guion"))
+        .args(["run", "compiler.gub", "builtins.gu"])
         .current_dir(&project.0)
         .output()
         .expect("run self-host compiler");
@@ -817,22 +817,22 @@ fn self_host_compiler_returns_a_source_diagnostic_for_parse_errors() {
     let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
     let self_host = repository.join("language/self_host");
     for filename in [
-        "veritas.toml",
-        "compiler.vr",
-        "lexer.vr",
-        "parser.vr",
-        "builtin_catalog.vr",
-        "artifact.vr",
+        "guion.toml",
+        "compiler.gu",
+        "lexer.gu",
+        "parser.gu",
+        "builtin_catalog.gu",
+        "artifact.gu",
     ] {
         fs::copy(self_host.join(filename), project.0.join(filename))
             .expect("copy self-host compiler source");
     }
     let source = "fn main() -> Int:\n    return 1 trailing\n";
-    assert!(compile("invalid.vr", source).is_err());
-    project.write("invalid.vr", source);
+    assert!(compile("invalid.gu", source).is_err());
+    project.write("invalid.gu", source);
 
-    let output = Command::new(env!("CARGO_BIN_EXE_veritas"))
-        .args(["run", "compiler.vrb", "invalid.vr"])
+    let output = Command::new(env!("CARGO_BIN_EXE_guion"))
+        .args(["run", "compiler.gub", "invalid.gu"])
         .current_dir(&project.0)
         .output()
         .expect("run self-host compiler");
@@ -843,7 +843,7 @@ fn self_host_compiler_returns_a_source_diagnostic_for_parse_errors() {
     );
     let diagnostic = String::from_utf8_lossy(&output.stdout);
     assert!(
-        diagnostic.contains("veritas-compile-failure/v1"),
+        diagnostic.contains("guion-compile-failure/v1"),
         "failure must be structured: {diagnostic}"
     );
     assert!(
@@ -851,7 +851,7 @@ fn self_host_compiler_returns_a_source_diagnostic_for_parse_errors() {
         "failure must carry a stable code: {diagnostic}"
     );
     assert!(
-        diagnostic.contains("invalid.vr"),
+        diagnostic.contains("invalid.gu"),
         "failure must identify its source: {diagnostic}"
     );
     assert!(
@@ -866,8 +866,8 @@ fn self_host_compiler_driver_reports_source_and_argument_errors_without_assertio
     let project = TempProject::new();
     install_self_host_compiler(&project);
 
-    let missing = Command::new(env!("CARGO_BIN_EXE_veritas"))
-        .args(["run", "compiler.vrb", "missing.vr"])
+    let missing = Command::new(env!("CARGO_BIN_EXE_guion"))
+        .args(["run", "compiler.gub", "missing.gu"])
         .current_dir(&project.0)
         .output()
         .expect("run self-host compiler with a missing source");
@@ -881,9 +881,9 @@ fn self_host_compiler_driver_reports_source_and_argument_errors_without_assertio
     assert!(!missing_output.contains("R_ASSERTION"), "{missing_output}");
     assert!(!String::from_utf8_lossy(&missing.stderr).contains("R_ASSERTION"));
 
-    project.write("one.vr", "fn main() -> Int:\n    return 0\n");
-    let extra = Command::new(env!("CARGO_BIN_EXE_veritas"))
-        .args(["run", "compiler.vrb", "one.vr", "two.vr"])
+    project.write("one.gu", "fn main() -> Int:\n    return 0\n");
+    let extra = Command::new(env!("CARGO_BIN_EXE_guion"))
+        .args(["run", "compiler.gub", "one.gu", "two.gu"])
         .current_dir(&project.0)
         .output()
         .expect("run self-host compiler with an extra argument");
@@ -907,71 +907,71 @@ fn self_host_compiler_checks_entry_declarations_and_visible_types() {
     install_self_host_compiler(&project);
     assert_self_host_diagnostic(
         &project,
-        "missing-main.vr",
+        "missing-main.gu",
         "fn helper() -> Int:\n    return 0\n",
         "E_ENTRY_MISSING",
     );
     assert_self_host_diagnostic(
         &project,
-        "main-parameters.vr",
+        "main-parameters.gu",
         "fn main(value: Int) -> Int:\n    return value\n",
         "E_ENTRY_SIGNATURE",
     );
     assert_self_host_diagnostic(
         &project,
-        "main-result.vr",
+        "main-result.gu",
         "fn main() -> Bool:\n    return true\n",
         "E_ENTRY_SIGNATURE",
     );
     assert_self_host_diagnostic(
         &project,
-        "unknown-type.vr",
+        "unknown-type.gu",
         "fn take(value: MissingType) -> Int:\n    return 0\n\nfn main() -> Int:\n    return 0\n",
         "E_TYPE_UNKNOWN",
     );
     project.write(
-        "private_record.vr",
+        "private_record.gu",
         "record Hidden:\n    value: Int\n\npub fn make() -> Int:\n    return 0\n",
     );
     assert_self_host_diagnostic(
         &project,
-        "private-record-type.vr",
-        "import \"private_record.vr\"\n\nfn accept(value: Hidden) -> Int:\n    return 0\n\nfn main() -> Int:\n    return 0\n",
+        "private-record-type.gu",
+        "import \"private_record.gu\"\n\nfn accept(value: Hidden) -> Int:\n    return 0\n\nfn main() -> Int:\n    return 0\n",
         "E_TYPE_UNKNOWN",
     );
     assert_self_host_diagnostic(
         &project,
-        "duplicate-functions.vr",
+        "duplicate-functions.gu",
         "fn helper() -> Int:\n    return 1\n\nfn helper() -> Int:\n    return 2\n\nfn main() -> Int:\n    return helper()\n",
         "E_NAME_DUPLICATE",
     );
     assert_self_host_diagnostic(
         &project,
-        "duplicate-fields.vr",
+        "duplicate-fields.gu",
         "record Point:\n    x: Int\n    x: Int\n\nfn main() -> Int:\n    return 0\n",
         "E_RECORD_FIELD_DUPLICATE",
     );
     assert_self_host_diagnostic(
         &project,
-        "unsupported-external-type.vr",
+        "unsupported-external-type.gu",
         "extern python \"example:call\" fn call(value: Option[Int]) -> Text\n\nfn main() -> Int:\n    return 0\n",
         "E_EXTERN_TYPE",
     );
     assert_self_host_diagnostic(
         &project,
-        "duplicate-external-parameters.vr",
+        "duplicate-external-parameters.gu",
         "extern python \"example:call\" fn call(value: Int, value: Int) -> Int\n\nfn main() -> Int:\n    return 0\n",
         "E_NAME_DUPLICATE",
     );
     assert_self_host_diagnostic(
         &project,
-        "invalid-external-target.vr",
+        "invalid-external-target.gu",
         "extern python \"example:call..bad\" fn call() -> Int\n\nfn main() -> Int:\n    return 0\n",
         "E_EXTERN_TARGET",
     );
     assert_self_host_diagnostic(
         &project,
-        "public-external.vr",
+        "public-external.gu",
         "pub extern python \"example:call\" fn call() -> Int\n\nfn main() -> Int:\n    return 0\n",
         "E_EXTERN_PUBLIC",
     );
@@ -983,25 +983,25 @@ fn self_host_compiler_returns_a_source_diagnostic_for_unknown_functions() {
     let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
     let self_host = repository.join("language/self_host");
     for filename in [
-        "veritas.toml",
-        "compiler.vr",
-        "lexer.vr",
-        "parser.vr",
-        "builtin_catalog.vr",
-        "artifact.vr",
+        "guion.toml",
+        "compiler.gu",
+        "lexer.gu",
+        "parser.gu",
+        "builtin_catalog.gu",
+        "artifact.gu",
     ] {
         fs::copy(self_host.join(filename), project.0.join(filename))
             .expect("copy self-host compiler source");
     }
     let source = "fn main() -> Int:\n    return missing()\n";
     assert_eq!(
-        compile("invalid.vr", source).unwrap_err().code,
+        compile("invalid.gu", source).unwrap_err().code,
         "E_NAME_UNKNOWN"
     );
-    project.write("invalid.vr", source);
+    project.write("invalid.gu", source);
 
-    let output = Command::new(env!("CARGO_BIN_EXE_veritas"))
-        .args(["run", "compiler.vrb", "invalid.vr"])
+    let output = Command::new(env!("CARGO_BIN_EXE_guion"))
+        .args(["run", "compiler.gub", "invalid.gu"])
         .current_dir(&project.0)
         .output()
         .expect("run self-host compiler");
@@ -1016,7 +1016,7 @@ fn self_host_compiler_returns_a_source_diagnostic_for_unknown_functions() {
         "unknown function must produce a diagnostic: {diagnostic}"
     );
     assert!(
-        diagnostic.contains("invalid.vr"),
+        diagnostic.contains("invalid.gu"),
         "diagnostic must retain its source name: {diagnostic}"
     );
     assert!(
@@ -1027,12 +1027,12 @@ fn self_host_compiler_returns_a_source_diagnostic_for_unknown_functions() {
 
     let source = "fn main() -> Int:\n    return absent\n";
     assert_eq!(
-        compile("invalid.vr", source).unwrap_err().code,
+        compile("invalid.gu", source).unwrap_err().code,
         "E_NAME_UNKNOWN"
     );
-    project.write("invalid.vr", source);
-    let output = Command::new(env!("CARGO_BIN_EXE_veritas"))
-        .args(["run", "compiler.vrb", "invalid.vr"])
+    project.write("invalid.gu", source);
+    let output = Command::new(env!("CARGO_BIN_EXE_guion"))
+        .args(["run", "compiler.gub", "invalid.gu"])
         .current_dir(&project.0)
         .output()
         .expect("rerun self-host compiler");
@@ -1059,25 +1059,25 @@ fn self_host_compiler_checks_builtin_arity_and_parallel_worker_names() {
     let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
     let self_host = repository.join("language/self_host");
     for filename in [
-        "veritas.toml",
-        "compiler.vr",
-        "lexer.vr",
-        "parser.vr",
-        "builtin_catalog.vr",
-        "artifact.vr",
+        "guion.toml",
+        "compiler.gu",
+        "lexer.gu",
+        "parser.gu",
+        "builtin_catalog.gu",
+        "artifact.gu",
     ] {
         fs::copy(self_host.join(filename), project.0.join(filename))
             .expect("copy self-host compiler source");
     }
     assert_self_host_diagnostic(
         &project,
-        "wrong-arity.vr",
+        "wrong-arity.gu",
         "fn main() -> Int:\n    return len()\n",
         "E_CALL_ARITY",
     );
     assert_self_host_diagnostic(
         &project,
-        "unknown-worker.vr",
+        "unknown-worker.gu",
         "fn main() -> Int:\n    let values: List[Int] = []\n    let result = parallel_map(values, missing_worker, 1)\n    return 0\n",
         "E_NAME_UNKNOWN",
     );
@@ -1089,25 +1089,25 @@ fn self_host_compiler_rejects_immutable_assignment_and_duplicate_locals() {
     let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
     let self_host = repository.join("language/self_host");
     for filename in [
-        "veritas.toml",
-        "compiler.vr",
-        "lexer.vr",
-        "parser.vr",
-        "builtin_catalog.vr",
-        "artifact.vr",
+        "guion.toml",
+        "compiler.gu",
+        "lexer.gu",
+        "parser.gu",
+        "builtin_catalog.gu",
+        "artifact.gu",
     ] {
         fs::copy(self_host.join(filename), project.0.join(filename))
             .expect("copy self-host compiler source");
     }
     assert_self_host_diagnostic(
         &project,
-        "immutable.vr",
+        "immutable.gu",
         "fn main() -> Int:\n    let value = 1\n    set value = 2\n    return value\n",
         "E_ASSIGN_IMMUTABLE",
     );
     assert_self_host_diagnostic(
         &project,
-        "duplicate.vr",
+        "duplicate.gu",
         "fn main() -> Int:\n    let value = 1\n    let value = 2\n    return value\n",
         "E_NAME_DUPLICATE",
     );
@@ -1119,97 +1119,97 @@ fn self_host_compiler_returns_type_and_field_diagnostics() {
     let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
     let self_host = repository.join("language/self_host");
     for filename in [
-        "veritas.toml",
-        "compiler.vr",
-        "lexer.vr",
-        "parser.vr",
-        "builtin_catalog.vr",
-        "artifact.vr",
+        "guion.toml",
+        "compiler.gu",
+        "lexer.gu",
+        "parser.gu",
+        "builtin_catalog.gu",
+        "artifact.gu",
     ] {
         fs::copy(self_host.join(filename), project.0.join(filename))
             .expect("copy self-host compiler source");
     }
     assert_self_host_diagnostic(
         &project,
-        "wrong-return.vr",
+        "wrong-return.gu",
         "fn main() -> Int:\n    return \"one\"\n",
         "E_TYPE_RETURN",
     );
     assert_self_host_diagnostic(
         &project,
-        "missing-return.vr",
+        "missing-return.gu",
         "fn main() -> Int:\n    let value = 1\n",
         "E_RETURN_MISSING",
     );
     assert_self_host_diagnostic(
         &project,
-        "wrong-condition.vr",
+        "wrong-condition.gu",
         "fn main() -> Int:\n    if 1:\n        return 1\n    else:\n        return 2\n",
         "E_TYPE_CONDITION",
     );
     assert_self_host_diagnostic(
         &project,
-        "wrong-argument.vr",
+        "wrong-argument.gu",
         "fn take(value: Int) -> Int:\n    return value\n\nfn main() -> Int:\n    return take(\"one\")\n",
         "E_TYPE_ARGUMENT",
     );
     assert_self_host_diagnostic(
         &project,
-        "wrong-assignment.vr",
+        "wrong-assignment.gu",
         "fn main() -> Int:\n    var value: Int = 1\n    set value = \"two\"\n    return value\n",
         "E_TYPE_ASSIGN",
     );
     assert_self_host_diagnostic(
         &project,
-        "wrong-field.vr",
+        "wrong-field.gu",
         "record Point:\n    x: Int\n\nfn main() -> Int:\n    let point = Point(1)\n    return point.y\n",
         "E_FIELD_UNKNOWN",
     );
     assert_self_host_diagnostic(
         &project,
-        "wrong-builtin.vr",
+        "wrong-builtin.gu",
         "fn main() -> Int:\n    return len(1)\n",
         "E_TYPE_ARGUMENT",
     );
     assert_self_host_diagnostic(
         &project,
-        "wrong-environment.vr",
+        "wrong-environment.gu",
         "fn main() -> Int:\n    let value = env(1)\n    return 0\n",
         "E_TYPE_ARGUMENT",
     );
     assert_self_host_diagnostic(
         &project,
-        "wrong-byte-write.vr",
+        "wrong-byte-write.gu",
         "fn main() -> Int:\n    let result = write_bytes(\"out.bin\", \"text\")\n    return 0\n",
         "E_TYPE_ARGUMENT",
     );
     assert_self_host_diagnostic(
         &project,
-        "uncontextual-none.vr",
+        "uncontextual-none.gu",
         "fn main() -> Int:\n    let value = None\n    return 0\n",
         "E_OPTION_CONSTRUCTOR_CONTEXT",
     );
     assert_self_host_diagnostic(
         &project,
-        "wrong-some.vr",
+        "wrong-some.gu",
         "fn maybe() -> Option[Int]:\n    return Some(\"text\")\n\nfn main() -> Int:\n    return 0\n",
         "E_OPTION_CONSTRUCTOR_TYPE",
     );
     assert_self_host_diagnostic(
         &project,
-        "mixed-list.vr",
+        "mixed-list.gu",
         "fn main() -> Int:\n    let values = [1, \"two\"]\n    return 0\n",
         "E_TYPE_LIST_ITEM",
     );
     assert_self_host_diagnostic(
         &project,
-        "mixed-map.vr",
+        "mixed-map.gu",
         "fn main() -> Int:\n    let values = {\"one\": 1, \"two\": \"two\"}\n    return 0\n",
         "E_TYPE_MAP_VALUE",
     );
     assert_self_host_diagnostic(
         &project,
-        "invalid-try.vr",
+        "invalid-try.gu",
         "fn main() -> Int:\n    return 1?\n",
         "E_RESULT_TRY_TYPE",
     );
@@ -1220,12 +1220,12 @@ fn self_host_resolver_enforces_direct_public_visibility_and_qualifies_private_he
     let project = TempProject::new();
     install_self_host_compiler(&project);
 
-    project.write("private.vr", "fn hidden() -> Int:\n    return 7\n");
+    project.write("private.gu", "fn hidden() -> Int:\n    return 7\n");
     project.write(
-        "main.vr",
-        "import \"private.vr\"\n\nfn main() -> Int:\n    return hidden()\n",
+        "main.gu",
+        "import \"private.gu\"\n\nfn main() -> Int:\n    return hidden()\n",
     );
-    let private = run_self_host(&project, "main.vr");
+    let private = run_self_host(&project, "main.gu");
     assert!(
         private.status.success(),
         "{}",
@@ -1234,18 +1234,18 @@ fn self_host_resolver_enforces_direct_public_visibility_and_qualifies_private_he
     assert!(String::from_utf8_lossy(&private.stdout).contains("E_NAME_UNKNOWN"));
 
     project.write(
-        "left.vr",
+        "left.gu",
         "fn helper() -> Int:\n    return 2\n\npub fn left() -> Int:\n    return helper()\n",
     );
     project.write(
-        "right.vr",
+        "right.gu",
         "fn helper() -> Int:\n    return 3\n\npub fn right() -> Int:\n    return helper()\n",
     );
     project.write(
-        "main.vr",
-        "import \"left.vr\"\nimport \"right.vr\"\n\nfn main() -> Int:\n    return left() + right()\n",
+        "main.gu",
+        "import \"left.gu\"\nimport \"right.gu\"\n\nfn main() -> Int:\n    return left() + right()\n",
     );
-    let duplicate_private = run_self_host(&project, "main.vr");
+    let duplicate_private = run_self_host(&project, "main.gu");
     assert!(
         duplicate_private.status.success(),
         "{}",
@@ -1262,13 +1262,13 @@ fn self_host_resolver_enforces_direct_public_visibility_and_qualifies_private_he
     assert!(names.contains(&"@module/1/helper"), "{names:?}");
     assert!(names.contains(&"@module/2/helper"), "{names:?}");
 
-    project.write("left_public.vr", "pub fn value() -> Int:\n    return 1\n");
-    project.write("right_public.vr", "pub fn value() -> Int:\n    return 2\n");
+    project.write("left_public.gu", "pub fn value() -> Int:\n    return 1\n");
+    project.write("right_public.gu", "pub fn value() -> Int:\n    return 2\n");
     project.write(
-        "main.vr",
-        "import \"left_public.vr\"\nimport \"right_public.vr\"\n\nfn main() -> Int:\n    return value()\n",
+        "main.gu",
+        "import \"left_public.gu\"\nimport \"right_public.gu\"\n\nfn main() -> Int:\n    return value()\n",
     );
-    let ambiguous = run_self_host(&project, "main.vr");
+    let ambiguous = run_self_host(&project, "main.gu");
     assert!(
         ambiguous.status.success(),
         "{}",
@@ -1283,28 +1283,28 @@ fn self_host_module_loader_reports_import_cycles() {
     let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
     let self_host = repository.join("language/self_host");
     for filename in [
-        "veritas.toml",
-        "compiler.vr",
-        "lexer.vr",
-        "parser.vr",
-        "builtin_catalog.vr",
-        "artifact.vr",
+        "guion.toml",
+        "compiler.gu",
+        "lexer.gu",
+        "parser.gu",
+        "builtin_catalog.gu",
+        "artifact.gu",
     ] {
         fs::copy(self_host.join(filename), project.0.join(filename))
             .expect("copy self-host compiler source");
     }
     project.write(
-        "main.vr",
-        "import \"helper.vr\"\n\nfn main() -> Int:\n    return helper()\n",
+        "main.gu",
+        "import \"helper.gu\"\n\nfn main() -> Int:\n    return helper()\n",
     );
     project.write(
-        "helper.vr",
-        "import \"main.vr\"\n\npub fn helper() -> Int:\n    return 42\n",
+        "helper.gu",
+        "import \"main.gu\"\n\npub fn helper() -> Int:\n    return 42\n",
     );
     assert_eq!(project.compile().unwrap_err().code, "E_MODULE_CYCLE");
 
-    let output = Command::new(env!("CARGO_BIN_EXE_veritas"))
-        .args(["run", "compiler.vrb", "main.vr"])
+    let output = Command::new(env!("CARGO_BIN_EXE_guion"))
+        .args(["run", "compiler.gub", "main.gu"])
         .current_dir(&project.0)
         .output()
         .expect("run self-host compiler");
@@ -1327,25 +1327,24 @@ fn self_host_module_loader_rejects_project_root_escapes() {
     let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
     let self_host = repository.join("language/self_host");
     for filename in [
-        "veritas.toml",
-        "compiler.vr",
-        "lexer.vr",
-        "parser.vr",
-        "builtin_catalog.vr",
-        "artifact.vr",
+        "guion.toml",
+        "compiler.gu",
+        "lexer.gu",
+        "parser.gu",
+        "builtin_catalog.gu",
+        "artifact.gu",
     ] {
         fs::copy(self_host.join(filename), project.0.join(filename))
             .expect("copy self-host compiler source");
     }
-    let source = "import \"../outside.vr\"\n\nfn main() -> Int:\n    return 0\n";
-    project.write("escape.vr", source);
-    let bootstrap_error =
-        veritas_compiler::compile_project(&project.0.join("escape.vr"), &project.0)
-            .expect_err("bootstrap compiler must reject a project-root escape");
+    let source = "import \"../outside.gu\"\n\nfn main() -> Int:\n    return 0\n";
+    project.write("escape.gu", source);
+    let bootstrap_error = guion_compiler::compile_project(&project.0.join("escape.gu"), &project.0)
+        .expect_err("bootstrap compiler must reject a project-root escape");
     assert_eq!(bootstrap_error.code, "E_IMPORT_PATH");
 
-    let output = Command::new(env!("CARGO_BIN_EXE_veritas"))
-        .args(["run", "compiler.vrb", "escape.vr"])
+    let output = Command::new(env!("CARGO_BIN_EXE_guion"))
+        .args(["run", "compiler.gub", "escape.gu"])
         .current_dir(&project.0)
         .output()
         .expect("run self-host compiler");
@@ -1368,26 +1367,26 @@ fn self_host_module_loader_reports_missing_imports_without_asserting() {
     let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
     let self_host = repository.join("language/self_host");
     for filename in [
-        "veritas.toml",
-        "compiler.vr",
-        "lexer.vr",
-        "parser.vr",
-        "builtin_catalog.vr",
-        "artifact.vr",
+        "guion.toml",
+        "compiler.gu",
+        "lexer.gu",
+        "parser.gu",
+        "builtin_catalog.gu",
+        "artifact.gu",
     ] {
         fs::copy(self_host.join(filename), project.0.join(filename))
             .expect("copy self-host compiler source");
     }
     project.write(
-        "main.vr",
-        "import \"missing.vr\"\n\nfn main() -> Int:\n    return 0\n",
+        "main.gu",
+        "import \"missing.gu\"\n\nfn main() -> Int:\n    return 0\n",
     );
-    let bootstrap_error = veritas_compiler::compile_project(&project.0.join("main.vr"), &project.0)
+    let bootstrap_error = guion_compiler::compile_project(&project.0.join("main.gu"), &project.0)
         .expect_err("bootstrap compiler must reject a missing imported module");
     assert_eq!(bootstrap_error.code, "E_IMPORT_READ");
 
-    let output = Command::new(env!("CARGO_BIN_EXE_veritas"))
-        .args(["run", "compiler.vrb", "main.vr"])
+    let output = Command::new(env!("CARGO_BIN_EXE_guion"))
+        .args(["run", "compiler.gub", "main.gu"])
         .current_dir(&project.0)
         .output()
         .expect("run self-host compiler");
@@ -1410,36 +1409,36 @@ fn self_host_module_loader_enforces_import_depth_limit() {
     let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
     let self_host = repository.join("language/self_host");
     for filename in [
-        "veritas.toml",
-        "compiler.vr",
-        "lexer.vr",
-        "parser.vr",
-        "builtin_catalog.vr",
-        "artifact.vr",
+        "guion.toml",
+        "compiler.gu",
+        "lexer.gu",
+        "parser.gu",
+        "builtin_catalog.gu",
+        "artifact.gu",
     ] {
         fs::copy(self_host.join(filename), project.0.join(filename))
             .expect("copy self-host compiler source");
     }
     project.write(
-        "main.vr",
-        "import \"module-1.vr\"\n\nfn main() -> Int:\n    return helper()\n",
+        "main.gu",
+        "import \"module-1.gu\"\n\nfn main() -> Int:\n    return helper()\n",
     );
     for index in 1..129 {
         project.write(
-            &format!("module-{index}.vr"),
+            &format!("module-{index}.gu"),
             &format!(
-                "import \"module-{}.vr\"\n\npub fn module_{index}() -> Int:\n    return {index}\n",
+                "import \"module-{}.gu\"\n\npub fn module_{index}() -> Int:\n    return {index}\n",
                 index + 1
             ),
         );
     }
-    project.write("module-129.vr", "pub fn helper() -> Int:\n    return 42\n");
-    let bootstrap_error = veritas_compiler::compile_project(&project.0.join("main.vr"), &project.0)
+    project.write("module-129.gu", "pub fn helper() -> Int:\n    return 42\n");
+    let bootstrap_error = guion_compiler::compile_project(&project.0.join("main.gu"), &project.0)
         .expect_err("bootstrap compiler must enforce the 128-level import limit");
     assert_eq!(bootstrap_error.code, "E_MODULE_DEPTH");
 
-    let output = Command::new(env!("CARGO_BIN_EXE_veritas"))
-        .args(["run", "compiler.vrb", "main.vr"])
+    let output = Command::new(env!("CARGO_BIN_EXE_guion"))
+        .args(["run", "compiler.gub", "main.gu"])
         .current_dir(&project.0)
         .output()
         .expect("run self-host compiler");
@@ -1459,7 +1458,7 @@ fn self_host_module_loader_enforces_import_depth_limit() {
 #[test]
 fn accepts_unicode_scalar_escapes_in_text_literals() {
     let artifact = compile(
-        "unicode-escape.vr",
+        "unicode-escape.gu",
         r#"fn main() -> Int:
     return len("\u{1F642}")
 "#,
@@ -1471,7 +1470,7 @@ fn accepts_unicode_scalar_escapes_in_text_literals() {
 #[test]
 fn option_and_result_constructors_use_nested_expected_types() {
     let source = "fn main() -> Int:\n    let first: Option[Int] = Some(1)\n    let second: Option[Int] = None\n    let ok: Result[List[Int], Text] = Ok([])\n    let err: Result[List[Int], Text] = Err(\"unavailable\")\n    return 0\n";
-    compile("constructors.vr", source)
+    compile("constructors.gu", source)
         .expect("constructors and empty collections inherit nested expected types");
 }
 
@@ -1479,15 +1478,15 @@ fn option_and_result_constructors_use_nested_expected_types() {
 fn private_helpers_with_the_same_name_stay_module_local() {
     let project = TempProject::new();
     project.write(
-        "main.vr",
-        "import \"left.vr\"\nimport \"right.vr\"\n\nfn main() -> Int:\n    return left_value() + right_value()\n",
+        "main.gu",
+        "import \"left.gu\"\nimport \"right.gu\"\n\nfn main() -> Int:\n    return left_value() + right_value()\n",
     );
     project.write(
-        "left.vr",
+        "left.gu",
         "pub fn left_value() -> Int:\n    return helper()\n\nfn helper() -> Int:\n    return 20\n",
     );
     project.write(
-        "right.vr",
+        "right.gu",
         "pub fn right_value() -> Int:\n    return helper()\n\nfn helper() -> Int:\n    return 22\n",
     );
 
@@ -1510,35 +1509,35 @@ fn private_helpers_with_the_same_name_stay_module_local() {
 fn public_import_collisions_are_reported_as_ambiguity() {
     let project = TempProject::new();
     project.write(
-        "main.vr",
-        "import \"left.vr\"\nimport \"right.vr\"\n\nfn main() -> Int:\n    return shared()\n",
+        "main.gu",
+        "import \"left.gu\"\nimport \"right.gu\"\n\nfn main() -> Int:\n    return shared()\n",
     );
-    project.write("left.vr", "pub fn shared() -> Int:\n    return 1\n");
-    project.write("right.vr", "pub fn shared() -> Int:\n    return 2\n");
+    project.write("left.gu", "pub fn shared() -> Int:\n    return 1\n");
+    project.write("right.gu", "pub fn shared() -> Int:\n    return 2\n");
 
     let error = project.compile().unwrap_err();
     assert_eq!(error.code, "E_NAME_AMBIGUOUS");
     assert_eq!(error.span.line, 2);
-    assert_eq!(error.source_name.as_deref(), Some("main.vr"));
+    assert_eq!(error.source_name.as_deref(), Some("main.gu"));
 }
 
 #[test]
 fn cyclic_and_escaping_imports_fail_at_the_import_site() {
     let cycle = TempProject::new();
     cycle.write(
-        "main.vr",
-        "import \"helper.vr\"\n\nfn main() -> Int:\n    return 0\n",
+        "main.gu",
+        "import \"helper.gu\"\n\nfn main() -> Int:\n    return 0\n",
     );
     cycle.write(
-        "helper.vr",
-        "import \"main.vr\"\n\npub fn helper() -> Int:\n    return 1\n",
+        "helper.gu",
+        "import \"main.gu\"\n\npub fn helper() -> Int:\n    return 1\n",
     );
     assert_eq!(cycle.compile().unwrap_err().code, "E_MODULE_CYCLE");
 
     let escaping = TempProject::new();
     escaping.write(
-        "main.vr",
-        "import \"../outside.vr\"\n\nfn main() -> Int:\n    return 0\n",
+        "main.gu",
+        "import \"../outside.gu\"\n\nfn main() -> Int:\n    return 0\n",
     );
     let error = escaping.compile().unwrap_err();
     assert_eq!(error.code, "E_IMPORT_PATH");
@@ -1549,15 +1548,15 @@ fn cyclic_and_escaping_imports_fail_at_the_import_site() {
 fn private_imported_functions_are_not_visible_to_the_importer() {
     let project = TempProject::new();
     project.write(
-        "main.vr",
-        r#"import "library.vr"
+        "main.gu",
+        r#"import "library.gu"
 
 fn main() -> Int:
     return hidden()
 "#,
     );
     project.write(
-        "library.vr",
+        "library.gu",
         r#"fn hidden() -> Int:
     return 7
 "#,
@@ -1565,7 +1564,7 @@ fn main() -> Int:
 
     let error = project.compile().unwrap_err();
     assert_eq!(error.code, "E_NAME_UNKNOWN");
-    assert_eq!(error.source_name.as_deref(), Some("main.vr"));
+    assert_eq!(error.source_name.as_deref(), Some("main.gu"));
     assert_eq!(error.span.line, 4);
 }
 
@@ -1573,19 +1572,19 @@ fn main() -> Int:
 fn repeated_imports_resolve_to_one_module_instance() {
     let project = TempProject::new();
     project.write(
-        "main.vr",
-        "import \"left.vr\"\nimport \"right.vr\"\n\nfn main() -> Int:\n    return left_value() + right_value()\n",
+        "main.gu",
+        "import \"left.gu\"\nimport \"right.gu\"\n\nfn main() -> Int:\n    return left_value() + right_value()\n",
     );
     project.write(
-        "left.vr",
-        "import \"shared.vr\"\n\npub fn left_value() -> Int:\n    return shared_value()\n",
+        "left.gu",
+        "import \"shared.gu\"\n\npub fn left_value() -> Int:\n    return shared_value()\n",
     );
     project.write(
-        "right.vr",
-        "import \"shared.vr\"\n\npub fn right_value() -> Int:\n    return shared_value()\n",
+        "right.gu",
+        "import \"shared.gu\"\n\npub fn right_value() -> Int:\n    return shared_value()\n",
     );
     project.write(
-        "shared.vr",
+        "shared.gu",
         "pub fn shared_value() -> Int:\n    return 21\n",
     );
 
@@ -1606,18 +1605,18 @@ fn repeated_imports_resolve_to_one_module_instance() {
 fn unicode_source_paths_and_independent_projects_compile() {
     let first = TempProject::new();
     first.write(
-        "main.vr",
-        "import \"café.vr\"\n\nfn main() -> Int:\n    return value()\n",
+        "main.gu",
+        "import \"café.gu\"\n\nfn main() -> Int:\n    return value()\n",
     );
-    first.write("café.vr", "pub fn value() -> Int:\n    return 1\n");
+    first.write("café.gu", "pub fn value() -> Int:\n    return 1\n");
     first.compile().expect("Unicode module path compiles");
 
     let second = TempProject::new();
     second.write(
-        "main.vr",
-        "import \"café.vr\"\n\nfn main() -> Int:\n    return value()\n",
+        "main.gu",
+        "import \"café.gu\"\n\nfn main() -> Int:\n    return value()\n",
     );
-    second.write("café.vr", "pub fn value() -> Int:\n    return 2\n");
+    second.write("café.gu", "pub fn value() -> Int:\n    return 2\n");
     second
         .compile()
         .expect("a second project resolves its own library");
@@ -1631,23 +1630,23 @@ fn bootstrap_resolver_uses_explicit_standard_and_locked_package_roots() {
     fs::create_dir_all(&stdlib_root).expect("create test standard-library root");
     fs::create_dir_all(package_root.join("render")).expect("create test package root");
     fs::write(
-        stdlib_root.join("csv.vr"),
+        stdlib_root.join("csv.gu"),
         "pub fn csv_rows() -> Int:\n    return 3\n",
     )
     .expect("write standard-library module");
     fs::write(
-        package_root.join("render/table.vr"),
+        package_root.join("render/table.gu"),
         "pub fn rendered_rows() -> Int:\n    return 4\n",
     )
     .expect("write package module");
     project.write(
-        "main.vr",
-        "import \"std:csv\"\nimport \"pkg:report_helpers/render/table.vr\"\n\nfn main() -> Int:\n    return csv_rows() + rendered_rows()\n",
+        "main.gu",
+        "import \"std:csv\"\nimport \"pkg:report_helpers/render/table.gu\"\n\nfn main() -> Int:\n    return csv_rows() + rendered_rows()\n",
     );
     let package_roots =
         std::collections::HashMap::from([("report_helpers".to_string(), package_root.clone())]);
-    let artifact = veritas_compiler::compile_project_with_roots(
-        &project.0.join("main.vr"),
+    let artifact = guion_compiler::compile_project_with_roots(
+        &project.0.join("main.gu"),
         &project.0,
         Some(&stdlib_root),
         &package_roots,
@@ -1655,11 +1654,11 @@ fn bootstrap_resolver_uses_explicit_standard_and_locked_package_roots() {
     .expect("resolve explicit standard and locked package roots");
     assert_eq!(
         artifact.sources,
-        ["main.vr", "std:csv", "pkg:report_helpers/render/table.vr"]
+        ["main.gu", "std:csv", "pkg:report_helpers/render/table.gu"]
     );
 
-    let missing_stdlib = veritas_compiler::compile_project_with_roots(
-        &project.0.join("main.vr"),
+    let missing_stdlib = guion_compiler::compile_project_with_roots(
+        &project.0.join("main.gu"),
         &project.0,
         None,
         &package_roots,
@@ -1668,11 +1667,11 @@ fn bootstrap_resolver_uses_explicit_standard_and_locked_package_roots() {
     assert_eq!(missing_stdlib.code, "E_IMPORT_ROOT");
 
     project.write(
-        "unlocked.vr",
-        "import \"pkg:unknown/module.vr\"\n\nfn main() -> Int:\n    return 0\n",
+        "unlocked.gu",
+        "import \"pkg:unknown/module.gu\"\n\nfn main() -> Int:\n    return 0\n",
     );
-    let missing_package = veritas_compiler::compile_project_with_roots(
-        &project.0.join("unlocked.vr"),
+    let missing_package = guion_compiler::compile_project_with_roots(
+        &project.0.join("unlocked.gu"),
         &project.0,
         Some(&stdlib_root),
         &package_roots,
@@ -1681,12 +1680,12 @@ fn bootstrap_resolver_uses_explicit_standard_and_locked_package_roots() {
     assert_eq!(missing_package.code, "E_PACKAGE_NOT_LOCKED");
 
     fs::write(
-        stdlib_root.join("csv.vr"),
-        "import \"../main.vr\"\n\npub fn csv_rows() -> Int:\n    return 3\n",
+        stdlib_root.join("csv.gu"),
+        "import \"../main.gu\"\n\npub fn csv_rows() -> Int:\n    return 3\n",
     )
     .expect("replace standard module with an escaping import");
-    let escaped_stdlib = veritas_compiler::compile_project_with_roots(
-        &project.0.join("main.vr"),
+    let escaped_stdlib = guion_compiler::compile_project_with_roots(
+        &project.0.join("main.gu"),
         &project.0,
         Some(&stdlib_root),
         &package_roots,
@@ -1699,19 +1698,19 @@ fn bootstrap_resolver_uses_explicit_standard_and_locked_package_roots() {
 fn self_host_resolver_uses_explicit_standard_and_locked_package_roots() {
     let project = TempProject::new();
     install_self_host_compiler(&project);
-    project.write("stdlib/csv.vr", "pub fn csv_rows() -> Int:\n    return 3\n");
+    project.write("stdlib/csv.gu", "pub fn csv_rows() -> Int:\n    return 3\n");
     project.write(
-        "packages/report_helpers/render/table.vr",
+        "packages/report_helpers/render/table.gu",
         "pub fn rendered_rows() -> Int:\n    return 4\n",
     );
     project.write(
-        "main.vr",
-        "import \"std:csv\"\nimport \"pkg:report_helpers/render/table.vr\"\n\nfn main() -> Int:\n    return csv_rows() + rendered_rows()\n",
+        "main.gu",
+        "import \"std:csv\"\nimport \"pkg:report_helpers/render/table.gu\"\n\nfn main() -> Int:\n    return csv_rows() + rendered_rows()\n",
     );
     let compiled = run_self_host_args(
         &project,
         &[
-            "main.vr",
+            "main.gu",
             "--stdlib-root",
             "stdlib",
             "--package-root",
@@ -1728,7 +1727,7 @@ fn self_host_resolver_uses_explicit_standard_and_locked_package_roots() {
     assert!(ir.contains("\"name\":\"csv_rows\""), "{ir}");
     assert!(ir.contains("\"name\":\"rendered_rows\""), "{ir}");
 
-    let missing_stdlib = run_self_host(&project, "main.vr");
+    let missing_stdlib = run_self_host(&project, "main.gu");
     assert!(
         missing_stdlib.status.success(),
         "{}",
@@ -1737,10 +1736,10 @@ fn self_host_resolver_uses_explicit_standard_and_locked_package_roots() {
     assert!(String::from_utf8_lossy(&missing_stdlib.stdout).contains("E_IMPORT_ROOT"));
 
     project.write(
-        "unlocked.vr",
-        "import \"pkg:unknown/module.vr\"\n\nfn main() -> Int:\n    return 0\n",
+        "unlocked.gu",
+        "import \"pkg:unknown/module.gu\"\n\nfn main() -> Int:\n    return 0\n",
     );
-    let missing_package = run_self_host_args(&project, &["unlocked.vr"]);
+    let missing_package = run_self_host_args(&project, &["unlocked.gu"]);
     assert!(
         missing_package.status.success(),
         "{}",
@@ -1749,13 +1748,13 @@ fn self_host_resolver_uses_explicit_standard_and_locked_package_roots() {
     assert!(String::from_utf8_lossy(&missing_package.stdout).contains("E_PACKAGE_NOT_LOCKED"));
 
     project.write(
-        "stdlib/csv.vr",
-        "import \"../main.vr\"\n\npub fn csv_rows() -> Int:\n    return 3\n",
+        "stdlib/csv.gu",
+        "import \"../main.gu\"\n\npub fn csv_rows() -> Int:\n    return 3\n",
     );
     let escaped_stdlib = run_self_host_args(
         &project,
         &[
-            "main.vr",
+            "main.gu",
             "--stdlib-root",
             "stdlib",
             "--package-root",
@@ -1821,11 +1820,11 @@ fn both_compilers_consume_fixed_builtin_types_from_the_shared_catalog() {
         source.push_str(&format!("    catalog_call_{index}()\n"));
     }
     source.push_str("    return 0\n");
-    project.write("main.vr", &source);
+    project.write("main.gu", &source);
     project
         .compile()
         .expect("bootstrap compiler accepts every fixed catalog signature");
-    let self_host = run_self_host(&project, "main.vr");
+    let self_host = run_self_host(&project, "main.gu");
     assert!(
         self_host.status.success(),
         "{}",
@@ -1857,7 +1856,7 @@ fn both_compilers_consume_fixed_builtin_types_from_the_shared_catalog() {
             "fn worker(value: Int) -> Int:\n    return value\n\nfn main() -> Int:\n    let result = {name}({})\n    return 0\n",
             wrong_arguments.join(", ")
         );
-        project.write("main.vr", &invalid);
+        project.write("main.gu", &invalid);
         let bootstrap_error = project
             .compile()
             .expect_err("bootstrap compiler rejects wrong catalog argument types");
@@ -1865,7 +1864,7 @@ fn both_compilers_consume_fixed_builtin_types_from_the_shared_catalog() {
             bootstrap_error.code, "E_TYPE_ARGUMENT",
             "{name}: {bootstrap_error:?}"
         );
-        let output = run_self_host(&project, "main.vr");
+        let output = run_self_host(&project, "main.gu");
         assert!(
             output.status.success(),
             "{name}: {}",

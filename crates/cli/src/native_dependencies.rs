@@ -24,7 +24,7 @@ pub fn write_report(package_root: &Path) -> Result<String, String> {
     for path in seeds {
         let executable = if python.is_some()
             && (path.starts_with(root.join("python"))
-                || path.starts_with(root.join(".veritas/python-bridge")))
+                || path.starts_with(root.join(".guion/python-bridge")))
         {
             python.clone().unwrap()
         } else {
@@ -564,7 +564,7 @@ fn scan_python_owners(root: &Path) -> Result<BTreeMap<PathBuf, Vec<serde_json::V
             .ok_or_else(|| format!("Python distribution {} has no Name", dist_info.display()))?;
         let version = metadata_header(&metadata, "Version")
             .ok_or_else(|| format!("Python distribution {name} has no Version"))?;
-        let environment = if dist_info.starts_with(root.join(".veritas/python-bridge/.venv")) {
+        let environment = if dist_info.starts_with(root.join(".guion/python-bridge/.venv")) {
             "project-environment"
         } else if dist_info.starts_with(root.join("python")) {
             "managed-interpreter"
@@ -686,15 +686,15 @@ fn owner_for_image(
         "managed_python_runtime"
     } else if image == root.join("toolchains/uv") {
         "bundled_toolchain"
-    } else if image == root.join("veritas") {
-        "veritas_runtime"
+    } else if image == root.join("guion") {
+        "guion_runtime"
     } else {
         "unattributed"
     };
     let component = match kind {
         "managed_python_runtime" => "CPython",
         "bundled_toolchain" => "uv",
-        "veritas_runtime" => "Veritas",
+        "guion_runtime" => "Guion",
         _ => "unknown",
     };
     Ok(serde_json::json!({"kind": kind, "component": component}))
@@ -775,7 +775,7 @@ fn find_native_images(root: &Path, python: Option<&Path>) -> Result<Vec<PathBuf>
             let extension = child.extension().and_then(|value| value.to_str());
             if matches!(extension, Some("so" | "dylib"))
                 || python.is_some_and(|python| child == python)
-                || child == root.join("veritas")
+                || child == root.join("guion")
                 || child == root.join("toolchains/uv")
                 || is_macho_file(&child)?
             {
@@ -1215,11 +1215,11 @@ mod tests {
 
     #[test]
     fn parses_linux_dependency_paths_that_contain_spaces() {
-        let ldd = "libtk8.6.so => /tmp/veritas package 起点 python run-160/python/lib/libtk8.6.so (0x0001)\n";
+        let ldd = "libtk8.6.so => /tmp/guion package 起点 python run-160/python/lib/libtk8.6.so (0x0001)\n";
         let resolutions = parse_ldd_resolutions(ldd);
         assert_eq!(
             resolutions.get("libtk8.6.so").map(String::as_str),
-            Some("/tmp/veritas package 起点 python run-160/python/lib/libtk8.6.so")
+            Some("/tmp/guion package 起点 python run-160/python/lib/libtk8.6.so")
         );
     }
 

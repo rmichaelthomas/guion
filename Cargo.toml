@@ -8,9 +8,9 @@ edition = "2021"
 license = "MIT"
 
 [workspace.dependencies]
-veritas-model = { path = "crates/model" }
-veritas-compiler = { path = "crates/compiler" }
-veritas-runtime = { path = "crates/runtime" }
+guion-model = { path = "crates/model" }
+guion-compiler = { path = "crates/compiler" }
+guion-runtime = { path = "crates/runtime" }
 toml = "=1.1.8"
 serde_json = { version = "=1.0.151", features = ["arbitrary_precision"] }
 serde = "=1.0.229"

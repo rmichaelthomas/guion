@@ -8,7 +8,7 @@ typedef struct {
     icalcomponent *calendar;
     icalcomponent **events;
     size_t count;
-} VeritasCalendar;
+} GuionCalendar;
 
 static void set_error(char *error, size_t capacity, const char *message) {
     if (error == NULL || capacity == 0) return;
@@ -67,7 +67,7 @@ static int resolve_local_time(struct icaltimetype local, icaltimezone *zone, int
     return -1;
 }
 
-static int event_time(VeritasCalendar *calendar, icalcomponent *event, icalproperty_kind property_kind,
+static int event_time(GuionCalendar *calendar, icalcomponent *event, icalproperty_kind property_kind,
                       int64_t *seconds, int *is_date, int *year, int *month, int *day,
                       char *error, size_t error_capacity) {
     icalproperty *property = icalcomponent_get_first_property(event, property_kind);
@@ -110,7 +110,7 @@ static int event_time(VeritasCalendar *calendar, icalcomponent *event, icalprope
     return 0;
 }
 
-void *veritas_ical_parse(const char *source, char *error, size_t error_capacity, int *error_code) {
+void *guion_ical_parse(const char *source, char *error, size_t error_capacity, int *error_code) {
     if (error_code != NULL) *error_code = 0;
     if (source == NULL) {
         set_error(error, error_capacity, "calendar input is missing");
@@ -124,7 +124,7 @@ void *veritas_ical_parse(const char *source, char *error, size_t error_capacity,
         if (error_code != NULL) *error_code = 1;
         return NULL;
     }
-    VeritasCalendar *calendar = calloc(1, sizeof(*calendar));
+    GuionCalendar *calendar = calloc(1, sizeof(*calendar));
     if (calendar == NULL) {
         icalcomponent_free(component);
         set_error(error, error_capacity, "calendar allocation failed");
@@ -156,18 +156,18 @@ void *veritas_ical_parse(const char *source, char *error, size_t error_capacity,
     return calendar;
 }
 
-size_t veritas_ical_event_count(void *opaque) {
-    VeritasCalendar *calendar = opaque;
+size_t guion_ical_event_count(void *opaque) {
+    GuionCalendar *calendar = opaque;
     return calendar == NULL ? 0 : calendar->count;
 }
 
-int veritas_ical_event(void *opaque, size_t index, const char **uid, const char **summary,
+int guion_ical_event(void *opaque, size_t index, const char **uid, const char **summary,
                        const char **status, char **rrule, int *all_day,
                        int64_t *start_seconds, int64_t *end_seconds,
                        int *start_year, int *start_month, int *start_day,
                        int *end_year, int *end_month, int *end_day,
                        char *error, size_t error_capacity) {
-    VeritasCalendar *calendar = opaque;
+    GuionCalendar *calendar = opaque;
     if (calendar == NULL || index >= calendar->count) {
         set_error(error, error_capacity, "calendar event index is out of range");
         return 1;
@@ -229,10 +229,10 @@ int veritas_ical_event(void *opaque, size_t index, const char **uid, const char 
     return 0;
 }
 
-void veritas_ical_free_text(char *text) { free(text); }
+void guion_ical_free_text(char *text) { free(text); }
 
-void veritas_ical_free(void *opaque) {
-    VeritasCalendar *calendar = opaque;
+void guion_ical_free(void *opaque) {
+    GuionCalendar *calendar = opaque;
     if (calendar == NULL) return;
     free(calendar->events);
     icalcomponent_free(calendar->calendar);

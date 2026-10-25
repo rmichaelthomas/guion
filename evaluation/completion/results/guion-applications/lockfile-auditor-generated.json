@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "application": "lockfile-auditor",
+  "product": "Guion",
+  "mode": "seeded independent-oracle cases against relocated package",
+  "seed": 20261024,
+  "sizes": [
+    24,
+    128
+  ],
+  "case_count": 2,
+  "concurrency": null,
+  "passed": true,
+  "cases": [
+    {
+      "case_id": "generated-lockfile-24",
+      "candidate": {},
+      "passed": true,
+      "exit_code": 0,
+      "checks_passed": 1,
+      "checks_total": 1,
+      "steps": [
+        {
+          "exit_code": 0,
+          "checks_passed": 1,
+          "checks_total": 1,
+          "failures": [],
+          "elapsed_seconds": 0.098307
+        }
+      ],
+      "elapsed_seconds": 0.100411,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "",
+      "failures": []
+    },
+    {
+      "case_id": "generated-lockfile-128",
+      "candidate": {},
+      "passed": true,
+      "exit_code": 0,
+      "checks_passed": 1,
+      "checks_total": 1,
+      "steps": [
+        {
+          "exit_code": 0,
+          "checks_passed": 1,
+          "checks_total": 1,
+          "failures": [],
+          "elapsed_seconds": 0.146913
+        }
+      ],
+      "elapsed_seconds": 0.14861,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "",
+      "failures": []
+    }
+  ]
+}

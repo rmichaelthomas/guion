@@ -12,8 +12,8 @@ mod compiler_driver;
 mod dependencies;
 mod native_dependencies;
 mod native_packages;
-use veritas_model::{Artifact, BuildMetadata, Op, ResourceLimits, Value};
-use veritas_runtime::{EffectKind, EffectOutcome, HostPolicy, Runtime};
+use guion_model::{Artifact, BuildMetadata, Op, ResourceLimits, Value};
+use guion_runtime::{EffectKind, EffectOutcome, HostPolicy, Runtime};
 
 fn main() -> ExitCode {
     let args = env::args().skip(1).collect();
@@ -31,27 +31,27 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
         .map_err(|error| render_diagnostic("<compiler-seed>", &error))?;
     let Some(command) = args.first().map(String::as_str) else {
         return Err(
-            "usage: veritas <new|check|fmt|lint|test|run|build|package|verify-package|add|sync|update|inspect|doc|doctor|install> [path]"
+            "usage: guion <new|check|fmt|lint|test|run|build|package|verify-package|add|sync|update|inspect|doc|doctor|install> [path]"
                 .into(),
         );
     };
     if command == "--version" || command == "version" {
         println!(
-            "veritas {} (artifact format {})",
+            "guion {} (artifact format {})",
             env!("CARGO_PKG_VERSION"),
-            veritas_model::Artifact::CURRENT_VERSION
+            guion_model::Artifact::CURRENT_VERSION
         );
         return Ok(ExitCode::SUCCESS);
     }
     if command == "assemble-ir" {
         let Some(input) = args.get(1) else {
-            return Err("usage: veritas assemble-ir <input.vri.json> --output <output.vrb>".into());
+            return Err("usage: guion assemble-ir <input.gui.json> --output <output.gub>".into());
         };
         let output = args
             .iter()
             .position(|argument| argument == "--output" || argument == "-o")
             .and_then(|index| args.get(index + 1))
-            .ok_or("usage: veritas assemble-ir <input.vri.json> --output <output.vrb>")?;
+            .ok_or("usage: guion assemble-ir <input.gui.json> --output <output.gub>")?;
         bytecode_ir::assemble_file(input, output)?;
         println!("assembled {input} -> {output}");
         return Ok(ExitCode::SUCCESS);
@@ -62,18 +62,18 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
             return Ok(ExitCode::SUCCESS);
         }
         #[cfg(feature = "python-interop")]
-        let python = env::var_os("VERITAS_PYTHON")
+        let python = env::var_os("GUION_PYTHON")
             .map(|path| {
                 format!(
                     "explicit interpreter: {}",
                     std::path::PathBuf::from(path).display()
                 )
             })
-            .unwrap_or_else(|| "not configured (set VERITAS_PYTHON to opt in)".into());
+            .unwrap_or_else(|| "not configured (set GUION_PYTHON to opt in)".into());
         #[cfg(not(feature = "python-interop"))]
         let python = "disabled (rebuild with --features python-interop to enable)";
         println!(
-            "Veritas {}\nHost: {}-{}\nPython sidecar: {python}\n{}",
+            "Guion {}\nHost: {}-{}\nPython sidecar: {python}\n{}",
             env!("CARGO_PKG_VERSION"),
             env::consts::OS,
             env::consts::ARCH,
@@ -94,7 +94,7 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
         #[cfg(not(feature = "python-interop"))]
         {
             if !args.iter().any(|argument| argument == "--offline") {
-                return Err("native sync requires `veritas sync --locked --offline`".into());
+                return Err("native sync requires `guion sync --locked --offline`".into());
             }
             let project = args
                 .iter()
@@ -118,7 +118,7 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
                 .skip(1)
                 .find(|argument| argument.as_str() != "--update" && argument.as_str() != "--json")
             else {
-                let message = "usage: veritas sync [--json] [--update] <project>";
+                let message = "usage: guion sync [--json] [--update] <project>";
                 if json_report {
                     print_sync_failure("E_SYNC_ARGUMENT", message);
                     return Ok(ExitCode::from(1));
@@ -143,15 +143,15 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
             };
             match dependencies::sync(&root, update) {
                 Ok(message) if json_report => {
-                    let lock_path = root.join("veritas.lock");
-                    let bridge_lock = root.join(".veritas/python-bridge/uv.lock");
+                    let lock_path = project_lock_path(&root);
+                    let bridge_lock = project_bridge_root(&root).join("uv.lock");
                     let lock_digest = file_sha256(&lock_path).ok();
                     let bridge_lock_digest = file_sha256(&bridge_lock).ok();
                     println!(
                         "{}",
                         serde_json::json!({
                             "schema_version": 1,
-                            "kind": "veritas_sync_report",
+                            "kind": "guion_sync_report",
                             "status": "succeeded",
                             "project": root,
                             "updated": update,
@@ -173,7 +173,7 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
     }
     if command == "new" {
         let Some(name) = args.get(1) else {
-            return Err("usage: veritas new <directory>".into());
+            return Err("usage: guion new <directory>".into());
         };
         let root = std::path::Path::new(name);
         if root.exists() {
@@ -181,18 +181,18 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
         }
         fs::create_dir_all(root.join("src")).map_err(|e| format!("cannot create project: {e}"))?;
         let project_name = project_name(root);
-        let source = "fn main() -> Int:\n    print(\"Hello, Veritas!\")\n    return 0\n\nfn test_starter() -> Unit:\n    assert(1 + 1 == 2)\n";
-        fs::write(root.join("src/main.vr"), source)
+        let source = "fn main() -> Int:\n    print(\"Hello, Guion!\")\n    return 0\n\nfn test_starter() -> Unit:\n    assert(1 + 1 == 2)\n";
+        fs::write(root.join("src/main.gu"), source)
             .map_err(|e| format!("cannot write starter source: {e}"))?;
         fs::write(
-            root.join("veritas.toml"),
-            format!("[project]\nname = \"{project_name}\"\nversion = \"0.1.0\"\nentry = \"src/main.vr\"\n"),
+            root.join("guion.toml"),
+            format!("[project]\nname = \"{project_name}\"\nversion = \"0.1.0\"\nentry = \"src/main.gu\"\n"),
         )
         .map_err(|e| format!("cannot write project manifest: {e}"))?;
         fs::write(
             root.join("README.md"),
             format!(
-                "# {project_name}\n\nA small Veritas project. Start with `veritas check`, `veritas test`, and `veritas run src/main.vr`. Generate API documentation with `veritas doc src/main.vr`; the language reference is included with your Veritas installation.\n"
+                "# {project_name}\n\nA small Guion project. Start with `guion check`, `guion test`, and `guion run src/main.gu`. Generate API documentation with `guion doc src/main.gu`; the language reference is included with your Guion installation.\n"
             ),
         )
         .map_err(|e| format!("cannot write project guide: {e}"))?;
@@ -201,7 +201,7 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
     }
     if command == "install" {
         let Some(package) = args.get(1) else {
-            return Err("usage: veritas install <package-directory> [--prefix DIRECTORY]".into());
+            return Err("usage: guion install <package-directory> [--prefix DIRECTORY]".into());
         };
         let prefix = args
             .iter()
@@ -218,7 +218,7 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
     if command == "add" {
         let Some(name) = args.get(1) else {
             return Err(
-                "usage: veritas add NAME --path PATH | --url URL --version VERSION --sha256 HASH"
+                "usage: guion add NAME --path PATH | --url URL --version VERSION --sha256 HASH"
                     .into(),
             );
         };
@@ -250,8 +250,7 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
             return Ok(ExitCode::SUCCESS);
         }
         return Err(
-            "usage: veritas add NAME --path PATH | --url URL --version VERSION --sha256 HASH"
-                .into(),
+            "usage: guion add NAME --path PATH | --url URL --version VERSION --sha256 HASH".into(),
         );
     }
     if command == "update" {
@@ -266,7 +265,7 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
                 .iter()
                 .position(|argument| argument == "--library")
                 .and_then(|index| args.get(index + 1))
-                .ok_or("usage: veritas package --library <source-dir> --output <directory>")?;
+                .ok_or("usage: guion package --library <source-dir> --output <directory>")?;
             let output = args
                 .iter()
                 .position(|argument| argument == "--output" || argument == "-o")
@@ -283,7 +282,7 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
             1
         };
         let Some(project) = args.get(project_index) else {
-            let message = "usage: veritas package [--json] <project-dir> [--output <directory>]";
+            let message = "usage: guion package [--json] <project-dir> [--output <directory>]";
             if json_package {
                 print_cli_diagnostic("E_PACKAGE_ARGUMENT", message);
                 return Ok(ExitCode::from(1));
@@ -299,7 +298,7 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
                 );
                 return Ok(ExitCode::from(1));
             }
-            return Err("veritas package requires a project directory".into());
+            return Err("guion package requires a project directory".into());
         }
         let (_, root) = match resolve_target(project) {
             Ok(target) => target,
@@ -350,7 +349,7 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
                 "{}",
                 serde_json::json!({
                     "schema_version": 1,
-                    "kind": "veritas_package_report",
+                    "kind": "guion_package_report",
                     "status": "packaged",
                     "directory": output,
                     "package_schema_version": metadata["schema_version"],
@@ -374,7 +373,7 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
             1
         };
         let Some(path) = args.get(path_index) else {
-            let message = "usage: veritas verify-package [--json] <package-directory>";
+            let message = "usage: guion verify-package [--json] <package-directory>";
             if json_verification {
                 print_cli_diagnostic("E_PACKAGE_ARGUMENT", message);
                 return Ok(ExitCode::from(1));
@@ -397,7 +396,7 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
                 "{}",
                 serde_json::json!({
                     "schema_version": 1,
-                    "kind": "veritas_package_verification_report",
+                    "kind": "guion_package_verification_report",
                     "status": "verified",
                     "directory": path,
                     "package_schema_version": metadata["schema_version"],
@@ -415,7 +414,7 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
     ]
     .contains(&command)
     {
-        return Err(format!("unknown command `{command}`\nusage: veritas <new|check|fmt|lint|test|run|build|package|verify-package|add|sync|update|inspect|doc|doctor|install> [path]"));
+        return Err(format!("unknown command `{command}`\nusage: guion <new|check|fmt|lint|test|run|build|package|verify-package|add|sync|update|inspect|doc|doctor|install> [path]"));
     }
     let mut json_run = false;
     let mut file_root_overrides = Vec::new();
@@ -436,14 +435,14 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
                 }
                 "--file-root" => {
                     let Some(root) = args.get(index + 1) else {
-                        return Err("usage: veritas run [--json] [--file-root DIR] <source|artifact|project> [ARGS...]".into());
+                        return Err("usage: guion run [--json] [--file-root DIR] <source|artifact|project> [ARGS...]".into());
                     };
                     file_root_overrides.push(root.clone());
                     index += 2;
                 }
                 "--allow-http-host" => {
                     let Some(host) = args.get(index + 1) else {
-                        return Err("usage: veritas run [--json] [--file-root DIR] [--allow-http-host HOST] [--allow-clock] <source|artifact|project> [ARGS...]".into());
+                        return Err("usage: guion run [--json] [--file-root DIR] [--allow-http-host HOST] [--allow-clock] <source|artifact|project> [ARGS...]".into());
                     };
                     http_host_overrides.push(host.clone());
                     index += 2;
@@ -468,7 +467,7 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
         1
     };
     let Some(path) = args.get(path_index) else {
-        return Err(format!("usage: veritas {command} <source.vr>"));
+        return Err(format!("usage: guion {command} <source.gu>"));
     };
     let (source_path, project_root) = resolve_target(path)?;
     let path = source_path.to_string_lossy().into_owned();
@@ -521,7 +520,7 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
                 "{}",
                 serde_json::json!({
                     "schema_version": 1,
-                    "kind": "veritas_lint_report",
+                    "kind": "guion_lint_report",
                     "source": path,
                     "status": "passed",
                     "diagnostics": diagnostics,
@@ -546,7 +545,7 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
     }
     let artifact = if command == "run" || command == "inspect" {
         let bytes = fs::read(&path).map_err(|e| format!("cannot read {path}: {e}"))?;
-        if path.ends_with(".vrb") || bytes.starts_with(b"VRTA") {
+        if path.ends_with(".gub") || bytes.starts_with(b"VRTA") {
             match Artifact::from_bytes(&bytes) {
                 Ok(artifact) => artifact,
                 Err(error) if json_run || json_inspect => {
@@ -554,7 +553,7 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
                         "{}",
                         serde_json::json!({
                             "schema_version": 1,
-                            "kind": "veritas_diagnostic",
+                            "kind": "guion_diagnostic",
                             "diagnostic": {
                                 "code": error.code,
                                 "message": error.message,
@@ -598,7 +597,7 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
                     "{}",
                     serde_json::json!({
                         "schema_version": 1,
-                        "kind": "veritas_check_report",
+                        "kind": "guion_check_report",
                         "source": path,
                         "status": "passed",
                         "function_count": artifact.functions.len()
@@ -641,7 +640,7 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
                     "{}",
                     serde_json::json!({
                         "schema_version": 1,
-                        "kind": "veritas_build_report",
+                        "kind": "guion_build_report",
                         "source": path,
                         "artifact": output,
                         "artifact_format": artifact.format_version,
@@ -771,7 +770,7 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
             #[cfg(feature = "python-interop")]
             if let Some(interpreter) = managed_interpreter {
                 policy = policy.with_python(interpreter, std::time::Duration::from_secs(15));
-            } else if let Some(interpreter) = env::var_os("VERITAS_PYTHON") {
+            } else if let Some(interpreter) = env::var_os("GUION_PYTHON") {
                 policy = policy.with_python(interpreter, std::time::Duration::from_secs(15));
             }
             let mut instance = match runtime.load(artifact.clone(), policy) {
@@ -781,7 +780,7 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
                         "{}",
                         serde_json::json!({
                             "schema_version": 1,
-                            "kind": "veritas_run_report",
+                            "kind": "guion_run_report",
                             "source": path,
                             "status": "failed",
                             "program_stdout": "",
@@ -877,7 +876,7 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
                     "{}",
                     serde_json::json!({
                         "schema_version": 1,
-                        "kind": "veritas_run_report",
+                        "kind": "guion_run_report",
                         "source": path,
                         "status": status,
                         "program_stdout": program_stdout,
@@ -938,7 +937,7 @@ fn package_project(root: &std::path::Path, output: &std::path::Path) -> Result<(
         .canonicalize()
         .map_err(|error| format!("cannot resolve project root: {error}"))?;
     let application = project_identity(&root)?;
-    let manifest_path = root.join("veritas.toml");
+    let manifest_path = project_manifest_path(&root);
     let manifest_text = fs::read_to_string(&manifest_path)
         .map_err(|error| format!("cannot read {}: {error}", manifest_path.display()))?;
     let manifest: toml::Value = toml::from_str(&manifest_text)
@@ -970,7 +969,7 @@ fn package_project(root: &std::path::Path, output: &std::path::Path) -> Result<(
     fs::create_dir_all(parent)
         .map_err(|error| format!("cannot create package parent {}: {error}", parent.display()))?;
     let stage = parent.join(format!(
-        ".veritas-package-{}-{}",
+        ".guion-package-{}-{}",
         std::process::id(),
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -980,16 +979,16 @@ fn package_project(root: &std::path::Path, output: &std::path::Path) -> Result<(
     fs::create_dir(&stage)
         .map_err(|error| format!("cannot create package staging directory: {error}"))?;
     let build = (|| {
-        fs::write(stage.join("app.vrb"), &artifact_bytes)
+        fs::write(stage.join("app.gub"), &artifact_bytes)
             .map_err(|error| format!("cannot write packaged artifact: {error}"))?;
-        fs::copy(&manifest_path, stage.join("veritas.toml"))
+        fs::copy(&manifest_path, stage.join("guion.toml"))
             .map_err(|error| format!("cannot copy project manifest: {error}"))?;
         let executable = env::current_exe()
-            .map_err(|error| format!("cannot locate the Veritas runtime executable: {error}"))?;
-        fs::copy(&executable, stage.join("veritas"))
-            .map_err(|error| format!("cannot copy the Veritas runtime: {error}"))?;
+            .map_err(|error| format!("cannot locate the Guion runtime executable: {error}"))?;
+        fs::copy(&executable, stage.join("guion"))
+            .map_err(|error| format!("cannot copy the Guion runtime: {error}"))?;
         let rust_notices = copy_rust_notices(executable.parent().unwrap(), &stage)?;
-        let (runtime_sha256, runtime_size_bytes) = sha256_path(&stage.join("veritas"))?;
+        let (runtime_sha256, runtime_size_bytes) = sha256_path(&stage.join("guion"))?;
         #[cfg(feature = "python-interop")]
         let python_bundle = dependencies::bundle_python(&root, &stage)?;
         #[cfg(feature = "python-interop")]
@@ -1032,7 +1031,7 @@ fn package_project(root: &std::path::Path, output: &std::path::Path) -> Result<(
             }));
         }
         let native_report_sha256 = native_dependencies::write_report(&stage)?;
-        let launcher = "#!/bin/sh\nset -eu\nHERE=$(CDPATH= cd -- \"$(dirname -- \"$0\")\" && pwd)\nif [ \"${VERITAS_VERIFY_PACKAGE:-0}\" = \"1\" ]; then\n  \"$HERE/veritas\" verify-package \"$HERE\" >/dev/null\nfi\nif [ -x \"$HERE/toolchains/uv\" ]; then\n  export VERITAS_UV=\"$HERE/toolchains/uv\"\n  export UV_PYTHON_INSTALL_DIR=\"$HERE/python\"\n  if [ -w \"$HERE/.uv-cache\" ]; then\n    export UV_CACHE_DIR=\"$HERE/.uv-cache\"\n  else\n    UV_CACHE_DIR=$(mktemp -d \"${TMPDIR:-/tmp}/veritas-uv-cache.XXXXXX\")\n    export UV_CACHE_DIR\n    trap 'rm -rf \"$UV_CACHE_DIR\"' EXIT\n  fi\n  export UV_OFFLINE=1\nfi\n\"$HERE/veritas\" run --file-root \"${VERITAS_FILE_ROOT:-$PWD}\" \"$HERE/app.vrb\" \"$@\"\n";
+        let launcher = "#!/bin/sh\nset -eu\nHERE=$(CDPATH= cd -- \"$(dirname -- \"$0\")\" && pwd)\nif [ \"${GUION_VERIFY_PACKAGE:-0}\" = \"1\" ]; then\n  \"$HERE/guion\" verify-package \"$HERE\" >/dev/null\nfi\nif [ -x \"$HERE/toolchains/uv\" ]; then\n  export GUION_UV=\"$HERE/toolchains/uv\"\n  export UV_PYTHON_INSTALL_DIR=\"$HERE/python\"\n  if [ -w \"$HERE/.uv-cache\" ]; then\n    export UV_CACHE_DIR=\"$HERE/.uv-cache\"\n  else\n    UV_CACHE_DIR=$(mktemp -d \"${TMPDIR:-/tmp}/guion-uv-cache.XXXXXX\")\n    export UV_CACHE_DIR\n    trap 'rm -rf \"$UV_CACHE_DIR\"' EXIT\n  fi\n  export UV_OFFLINE=1\nfi\n\"$HERE/guion\" run --file-root \"${GUION_FILE_ROOT:-$PWD}\" \"$HERE/app.gub\" \"$@\"\n";
         fs::write(stage.join("run"), launcher)
             .map_err(|error| format!("cannot write package launcher: {error}"))?;
         #[cfg(unix)]
@@ -1047,7 +1046,7 @@ fn package_project(root: &std::path::Path, output: &std::path::Path) -> Result<(
         }
         fs::write(
             stage.join("PACKAGE.txt"),
-            "Veritas application package\n\nRun with: ./run [arguments]\nCheck it with: ./veritas verify-package .\nSet VERITAS_VERIFY_PACKAGE=1 to make the launcher verify the package before running. Full verification hashes the bundled runtime, resources, Python environment, and native images, so it can add noticeable startup time for large bundles. Verification hashes detect accidental corruption; they do not authenticate the publisher. The package contains a source-free Veritas artifact, the matching host runtime, its project policy, and the resources listed in veritas.toml [package].resources. NATIVE-DEPENDENCIES.json records macOS Mach-O dependencies and wheel images; linux-dependencies.json records Linux ELF dependencies, runtime resolutions, and required glibc versions. Both reports include architectures, hashes, and available distribution provenance. Python-assisted projects also include pinned managed CPython, uv, locked bridge project, offline dependency cache, Python distribution metadata, and CPython/uv/Tcl/Tk license notices. Prepared Veritas distributions also contribute target-specific Rust dependency inventory and license files. The inventory does not assess legal compatibility. On macOS, `veritas run --json` reports newly resident native images loaded by Python calls; transient loads between snapshots may not appear. The package is verified for macOS ARM64 or Debian 12-compatible GNU/Linux ARM64 with glibc. Run it on its named target; other operating systems, architectures, Linux distributions, and libc implementations are unverified.\n",
+            "Guion application package\n\nRun with: ./run [arguments]\nCheck it with: ./guion verify-package .\nSet GUION_VERIFY_PACKAGE=1 to make the launcher verify the package before running. Full verification hashes the bundled runtime, resources, Python environment, and native images, so it can add noticeable startup time for large bundles. Verification hashes detect accidental corruption; they do not authenticate the publisher. The package contains a source-free Guion artifact, the matching host runtime, its project policy, and the resources listed in guion.toml [package].resources. NATIVE-DEPENDENCIES.json records macOS Mach-O dependencies and wheel images; linux-dependencies.json records Linux ELF dependencies, runtime resolutions, and required glibc versions. Both reports include architectures, hashes, and available distribution provenance. Python-assisted projects also include pinned managed CPython, uv, locked bridge project, offline dependency cache, Python distribution metadata, and CPython/uv/Tcl/Tk license notices. Prepared Guion distributions also contribute target-specific Rust dependency inventory and license files. The inventory does not assess legal compatibility. On macOS, `guion run --json` reports newly resident native images loaded by Python calls; transient loads between snapshots may not appear. The package is verified for macOS ARM64 or Debian 12-compatible GNU/Linux ARM64 with glibc. Run it on its named target; other operating systems, architectures, Linux distributions, and libc implementations are unverified.\n",
         )
         .map_err(|error| format!("cannot write package instructions: {error}"))?;
         let package_metadata = serde_json::json!({
@@ -1105,7 +1104,7 @@ fn install_application(package: &Path, prefix: &Path) -> Result<std::path::PathB
     )
     .map_err(|error| format!("invalid package metadata: {error}"))?;
     let application = metadata.get("application").ok_or(
-        "package metadata has no application identity; repackage it with this Veritas version",
+        "package metadata has no application identity; repackage it with this Guion version",
     )?;
     let name = application
         .get("name")
@@ -1130,7 +1129,7 @@ fn install_application(package: &Path, prefix: &Path) -> Result<std::path::PathB
         return Err("package application identity contains an unsafe path component".into());
     }
     let prefix = prefix.to_path_buf();
-    let app_parent = prefix.join("share/veritas/apps").join(id);
+    let app_parent = prefix.join("share/guion/apps").join(id);
     let bin = prefix.join("bin");
     fs::create_dir_all(&app_parent)
         .map_err(|error| format!("cannot create application install directory: {error}"))?;
@@ -1138,7 +1137,7 @@ fn install_application(package: &Path, prefix: &Path) -> Result<std::path::PathB
         .map_err(|error| format!("cannot create command install directory: {error}"))?;
     let executable = bin.join(id);
     if let Ok(existing) = fs::read_to_string(&executable) {
-        if !existing.contains("# managed by veritas") {
+        if !existing.contains("# managed by guion") {
             return Err(format!(
                 "refusing to replace existing command {}",
                 executable.display()
@@ -1166,9 +1165,9 @@ fn install_application(package: &Path, prefix: &Path) -> Result<std::path::PathB
             return Err(format!("cannot publish installed application: {error}"));
         }
     }
-    let temporary_launcher = bin.join(format!(".{id}.veritas-{}.tmp", std::process::id()));
+    let temporary_launcher = bin.join(format!(".{id}.guion-{}.tmp", std::process::id()));
     let launcher = format!(
-        "#!/bin/sh\n# managed by veritas\nset -eu\nHERE=$(CDPATH= cd -- \"$(dirname -- \"$0\")\" && pwd)\nexec \"$HERE/../share/veritas/apps/{id}/{version}/run\" \"$@\"\n"
+        "#!/bin/sh\n# managed by guion\nset -eu\nHERE=$(CDPATH= cd -- \"$(dirname -- \"$0\")\" && pwd)\nexec \"$HERE/../share/guion/apps/{id}/{version}/run\" \"$@\"\n"
     );
     fs::write(&temporary_launcher, launcher)
         .map_err(|error| format!("cannot write app launcher: {error}"))?;
@@ -1231,13 +1230,13 @@ fn copy_package_contents(source: &Path, destination: &Path) -> Result<(), String
 fn compile_project(
     entry: &std::path::Path,
     project_root: &std::path::Path,
-) -> Result<Artifact, veritas_model::Diagnostic> {
-    let package_roots = if project_root.join("veritas.toml").is_file() {
+) -> Result<Artifact, guion_model::Diagnostic> {
+    let package_roots = if project_manifest_path(project_root).is_file() {
         native_packages::load_locked_roots(project_root).map_err(|message| {
-            veritas_model::Diagnostic::new(
+            guion_model::Diagnostic::new(
                 "E_PACKAGE_LOCK",
                 message,
-                veritas_model::Span {
+                guion_model::Span {
                     source_id: 0,
                     start: 0,
                     end: 0,
@@ -1383,7 +1382,7 @@ fn copy_rust_notices(
         .map(|metadata| metadata.file_type().is_dir())
         .unwrap_or(false);
     if !inventory_is_regular || !source_files_are_directory {
-        return Err("Veritas distribution has an incomplete Rust dependency notice set".into());
+        return Err("Guion distribution has an incomplete Rust dependency notice set".into());
     }
     let destination = package_root.join("licenses");
     fs::create_dir_all(&destination)
@@ -1527,7 +1526,7 @@ fn verify_package(directory: &Path) -> Result<(), String> {
     let package_schema = metadata["schema_version"].as_u64();
     if !matches!(package_schema, Some(1 | 2)) {
         return Err(
-            "unsupported package report schema; rebuild with a compatible Veritas CLI".into(),
+            "unsupported package report schema; rebuild with a compatible Guion CLI".into(),
         );
     }
     let expected_target = format!("{}-{}", env::consts::OS, env::consts::ARCH);
@@ -1539,17 +1538,17 @@ fn verify_package(directory: &Path) -> Result<(), String> {
     }
     verify_package_file(
         &root,
-        "app.vrb",
+        "app.gub",
         metadata["artifact_sha256"].as_str(),
         None,
         "artifact",
     )?;
     verify_package_file(
         &root,
-        "veritas",
+        "guion",
         metadata["runtime_sha256"].as_str(),
         metadata["runtime_size_bytes"].as_u64(),
-        "Veritas runtime",
+        "Guion runtime",
     )?;
     if let Some(notices) = metadata
         .get("rust_notices")
@@ -1717,7 +1716,7 @@ fn verify_package(directory: &Path) -> Result<(), String> {
             )?;
             verify_package_file(
                 &root,
-                ".veritas/python-bridge/uv.lock",
+                ".guion/python-bridge/uv.lock",
                 python["uv_lock_sha256"].as_str(),
                 None,
                 "Python dependency lock",
@@ -1915,19 +1914,23 @@ fn package_resources(
     };
     let package = package
         .as_table()
-        .ok_or("veritas.toml [package] must be a table")?;
+        .ok_or("guion.toml [package] must be a table")?;
     if let Some(key) = package.keys().find(|key| key.as_str() != "resources") {
-        return Err(format!("unsupported veritas.toml [package] field `{key}`"));
+        return Err(format!("unsupported guion.toml [package] field `{key}`"));
     }
     let Some(resources) = package.get("resources") else {
         return Ok(Vec::new());
     };
-    let resources = resources.as_array().ok_or(
-        "veritas.toml [package].resources must be an array of project-relative file paths",
-    )?;
+    let resources = resources
+        .as_array()
+        .ok_or("guion.toml [package].resources must be an array of project-relative file paths")?;
     let mut seen = BTreeSet::new();
     let mut result = Vec::with_capacity(resources.len());
     let reserved = [
+        "app.gub",
+        "guion.toml",
+        "guion.lock",
+        "guion",
         "app.vrb",
         "veritas.toml",
         "veritas.lock",
@@ -1940,13 +1943,14 @@ fn package_resources(
         "python",
         "licenses",
         ".uv-cache",
+        ".guion",
         ".veritas",
         "toolchains",
     ];
     for value in resources {
         let raw = value
             .as_str()
-            .ok_or("veritas.toml [package].resources entries must be strings")?;
+            .ok_or("guion.toml [package].resources entries must be strings")?;
         let relative = Path::new(raw);
         if relative.as_os_str().is_empty()
             || relative.is_absolute()
@@ -2015,10 +2019,10 @@ fn build_metadata(
 
 fn dependency_lock_digest(root: &std::path::Path) -> Result<Option<String>, String> {
     let locks = [
-        ("veritas.lock", root.join("veritas.lock")),
+        ("project lock", project_lock_path(root)),
         (
-            ".veritas/python-bridge/uv.lock",
-            root.join(".veritas/python-bridge/uv.lock"),
+            "Python bridge lock",
+            project_bridge_root(root).join("uv.lock"),
         ),
     ];
     let mut digest = Sha256::new();
@@ -2037,8 +2041,8 @@ fn dependency_lock_digest(root: &std::path::Path) -> Result<Option<String>, Stri
     Ok(found.then(|| format!("{:x}", digest.finalize())))
 }
 
-fn display_type(ty: &veritas_model::Type) -> String {
-    use veritas_model::Type;
+fn display_type(ty: &guion_model::Type) -> String {
+    use guion_model::Type;
     match ty {
         Type::Int => "Int".into(),
         Type::Float64 => "Float64".into(),
@@ -2181,7 +2185,7 @@ fn inspection_report(source: &str, artifact: &Artifact) -> serde_json::Value {
         .is_some_and(|effects| effects.contains("clock.read"));
     serde_json::json!({
         "schema_version": 1,
-        "kind": "veritas_inspection_report",
+        "kind": "guion_inspection_report",
         "source": source,
         "artifact_format": artifact.format_version,
         "entry": artifact.entry,
@@ -2200,14 +2204,14 @@ fn inspection_report(source: &str, artifact: &Artifact) -> serde_json::Value {
         "network_grant": {
             "required_for_entry": entry_network_grant_required,
             "manifest_key": "[network].hosts",
-            "run_option": "veritas run --allow-http-host HOST",
+            "run_option": "guion run --allow-http-host HOST",
             "grant_model": "exact hostname; network access is denied when no grant is present",
             "runtime_supplied_urls_require_an_explicit_hostname_grant": true,
         },
         "clock_grant": {
             "required_for_entry": entry_clock_grant_required,
             "manifest_key": "[clock].enabled",
-            "run_option": "veritas run --allow-clock",
+            "run_option": "guion run --allow-clock",
             "grant_model": "wall-clock reads are denied unless explicitly enabled",
             "local_date_uses_host_process_time_zone": true,
         },
@@ -2229,11 +2233,7 @@ fn api_report(source: &str, project_root: &Path, artifact: &Artifact) -> serde_j
             } else {
                 project_root.join(identity)
             };
-            let source_path = if source_path.extension().is_some() {
-                source_path
-            } else {
-                source_path.with_extension("vr")
-            };
+            let source_path = source_module_path(&source_path);
             Some((identity.clone(), fs::read_to_string(source_path).ok()?))
         })
         .collect::<Vec<_>>();
@@ -2277,7 +2277,7 @@ fn api_report(source: &str, project_root: &Path, artifact: &Artifact) -> serde_j
         .filter_map(|identity| {
             identity
                 .strip_prefix("std:")
-                .map(|module| module.trim_end_matches(".vr").to_owned())
+                .map(|module| module.trim_end_matches(".gu").to_owned())
         })
         .collect::<BTreeSet<_>>();
     let available_stdlib = standard_root
@@ -2295,7 +2295,7 @@ fn api_report(source: &str, project_root: &Path, artifact: &Artifact) -> serde_j
         .collect::<BTreeSet<_>>();
     serde_json::json!({
         "schema_version": 2,
-        "kind": "veritas_api_report",
+        "kind": "guion_api_report",
         "source": source,
         "functions": functions,
         "python_functions": artifact.externals.iter().map(|external| serde_json::json!({
@@ -2781,12 +2781,21 @@ fn lint_import_source(import: &str, source_path: &Path, project_root: &Path) -> 
     } else {
         source_path.parent()?.join(import)
     };
-    let path = if path.extension().is_some() {
-        path
-    } else {
-        path.with_extension("vr")
-    };
+    let path = source_module_path(&path);
     fs::read_to_string(path).ok()
+}
+
+fn source_module_path(path: &Path) -> std::path::PathBuf {
+    if path.extension().is_some() {
+        return path.to_path_buf();
+    }
+    let guion = path.with_extension("gu");
+    let legacy = path.with_extension("vr");
+    if guion.is_file() || !legacy.is_file() {
+        guion
+    } else {
+        legacy
+    }
 }
 
 fn normalize_http_host(input: &str) -> Result<String, String> {
@@ -2803,7 +2812,7 @@ fn normalize_http_host(input: &str) -> Result<String, String> {
 }
 
 fn runtime_policy(root: &std::path::Path) -> Result<HostPolicy, String> {
-    let manifest_path = root.join("veritas.toml");
+    let manifest_path = project_manifest_path(root);
     if !manifest_path.is_file() {
         return Ok(HostPolicy::default());
     }
@@ -2815,7 +2824,7 @@ fn runtime_policy(root: &std::path::Path) -> Result<HostPolicy, String> {
     if let Some(runtime) = manifest.get("runtime") {
         let runtime = runtime
             .as_table()
-            .ok_or("veritas.toml [runtime] must be a table")?;
+            .ok_or("guion.toml [runtime] must be a table")?;
         let allowed = [
             "allocation_limit_bytes",
             "call_depth_limit",
@@ -2828,7 +2837,7 @@ fn runtime_policy(root: &std::path::Path) -> Result<HostPolicy, String> {
             "output_limit_bytes",
         ];
         if let Some(key) = runtime.keys().find(|key| !allowed.contains(&key.as_str())) {
-            return Err(format!("unsupported veritas.toml [runtime] field `{key}`"));
+            return Err(format!("unsupported guion.toml [runtime] field `{key}`"));
         }
         policy.instruction_limit =
             runtime_u64(runtime, "instruction_limit", policy.instruction_limit)?;
@@ -2852,7 +2861,7 @@ fn runtime_policy(root: &std::path::Path) -> Result<HostPolicy, String> {
     if let Some(network) = manifest.get("network") {
         let network = network
             .as_table()
-            .ok_or("veritas.toml [network] must be a table")?;
+            .ok_or("guion.toml [network] must be a table")?;
         let allowed = [
             "hosts",
             "timeout_ms",
@@ -2861,18 +2870,18 @@ fn runtime_policy(root: &std::path::Path) -> Result<HostPolicy, String> {
             "max_redirects",
         ];
         if let Some(key) = network.keys().find(|key| !allowed.contains(&key.as_str())) {
-            return Err(format!("unsupported veritas.toml [network] field `{key}`"));
+            return Err(format!("unsupported guion.toml [network] field `{key}`"));
         }
         let hosts = network
             .get("hosts")
             .and_then(toml::Value::as_array)
-            .ok_or("veritas.toml [network].hosts must be an array of exact host names")?;
+            .ok_or("guion.toml [network].hosts must be an array of exact host names")?;
         let hosts = hosts
             .iter()
             .map(|value| {
                 let host = value
                     .as_str()
-                    .ok_or("veritas.toml [network].hosts entries must be strings")?;
+                    .ok_or("guion.toml [network].hosts entries must be strings")?;
                 normalize_http_host(host)
             })
             .collect::<Result<Vec<_>, String>>()?;
@@ -2891,27 +2900,27 @@ fn runtime_policy(root: &std::path::Path) -> Result<HostPolicy, String> {
         policy.max_http_redirects =
             runtime_nonnegative_usize(network, "max_redirects", policy.max_http_redirects)?;
         if policy.max_http_redirects > 10 {
-            return Err("veritas.toml [network].max_redirects cannot exceed 10".into());
+            return Err("guion.toml [network].max_redirects cannot exceed 10".into());
         }
         policy.allowed_http_hosts = hosts.into_iter().collect();
     }
     if let Some(environment) = manifest.get("environment") {
         let environment = environment
             .as_table()
-            .ok_or("veritas.toml [environment] must be a table")?;
+            .ok_or("guion.toml [environment] must be a table")?;
         if let Some(key) = environment.keys().find(|key| key.as_str() != "variables") {
             return Err(format!(
-                "unsupported veritas.toml [environment] field `{key}`"
+                "unsupported guion.toml [environment] field `{key}`"
             ));
         }
         let variables = environment
             .get("variables")
             .and_then(toml::Value::as_array)
-            .ok_or("veritas.toml [environment].variables must be an array of names")?;
+            .ok_or("guion.toml [environment].variables must be an array of names")?;
         for value in variables {
             let name = value
                 .as_str()
-                .ok_or("veritas.toml [environment].variables entries must be strings")?;
+                .ok_or("guion.toml [environment].variables entries must be strings")?;
             let mut bytes = name.bytes();
             let first_is_valid = bytes
                 .next()
@@ -2925,14 +2934,14 @@ fn runtime_policy(root: &std::path::Path) -> Result<HostPolicy, String> {
     if let Some(clock) = manifest.get("clock") {
         let clock = clock
             .as_table()
-            .ok_or("veritas.toml [clock] must be a table")?;
+            .ok_or("guion.toml [clock] must be a table")?;
         if let Some(key) = clock.keys().find(|key| key.as_str() != "enabled") {
-            return Err(format!("unsupported veritas.toml [clock] field `{key}`"));
+            return Err(format!("unsupported guion.toml [clock] field `{key}`"));
         }
         policy.allow_clock = clock
             .get("enabled")
             .and_then(toml::Value::as_bool)
-            .ok_or("veritas.toml [clock].enabled must be a boolean")?;
+            .ok_or("guion.toml [clock].enabled must be a boolean")?;
     }
     Ok(policy)
 }
@@ -2949,7 +2958,7 @@ fn runtime_usize(
         .as_integer()
         .and_then(|value| usize::try_from(value).ok())
         .filter(|value| *value > 0)
-        .ok_or_else(|| format!("veritas.toml [runtime].{field} must be a positive integer"))?;
+        .ok_or_else(|| format!("guion.toml [runtime].{field} must be a positive integer"))?;
     Ok(value)
 }
 
@@ -2965,7 +2974,7 @@ fn runtime_u64(
         .as_integer()
         .and_then(|value| u64::try_from(value).ok())
         .filter(|value| *value > 0)
-        .ok_or_else(|| format!("veritas.toml [runtime].{field} must be a positive integer"))?;
+        .ok_or_else(|| format!("guion.toml [runtime].{field} must be a positive integer"))?;
     Ok(value)
 }
 
@@ -2980,7 +2989,7 @@ fn runtime_nonnegative_usize(
     value
         .as_integer()
         .and_then(|value| usize::try_from(value).ok())
-        .ok_or_else(|| format!("veritas.toml [network].{field} must be a non-negative integer"))
+        .ok_or_else(|| format!("guion.toml [network].{field} must be a non-negative integer"))
 }
 
 fn resolve_target(input: &str) -> Result<(std::path::PathBuf, std::path::PathBuf), String> {
@@ -2997,7 +3006,7 @@ fn resolve_target(input: &str) -> Result<(std::path::PathBuf, std::path::PathBuf
             .unwrap_or(Path::new("."));
         let root = source_parent
             .ancestors()
-            .find(|ancestor| ancestor.join("veritas.toml").is_file())
+            .find(|ancestor| project_manifest_path(ancestor).is_file())
             .map(Path::to_path_buf)
             .unwrap_or_else(|| source_parent.to_path_buf());
         return Ok((source, root));
@@ -3005,7 +3014,7 @@ fn resolve_target(input: &str) -> Result<(std::path::PathBuf, std::path::PathBuf
     let root = requested
         .canonicalize()
         .map_err(|error| format!("cannot resolve project directory {input}: {error}"))?;
-    let manifest_path = root.join("veritas.toml");
+    let manifest_path = project_manifest_path(&root);
     let manifest = fs::read_to_string(&manifest_path)
         .map_err(|error| format!("cannot read {}: {error}", manifest_path.display()))?;
     let document: toml::Value = toml::from_str(&manifest)
@@ -3013,11 +3022,11 @@ fn resolve_target(input: &str) -> Result<(std::path::PathBuf, std::path::PathBuf
     let project = document
         .get("project")
         .and_then(toml::Value::as_table)
-        .ok_or_else(|| "veritas.toml must contain a [project] table".to_owned())?;
+        .ok_or_else(|| "guion.toml must contain a [project] table".to_owned())?;
     for field in ["name", "version", "entry"] {
         if project.get(field).and_then(toml::Value::as_str).is_none() {
             return Err(format!(
-                "veritas.toml [project] requires text field `{field}`"
+                "guion.toml [project] requires text field `{field}`"
             ));
         }
     }
@@ -3066,14 +3075,54 @@ fn safe_application_id(raw: &str) -> String {
         }
     }
     if result.is_empty() {
-        "veritas-project".into()
+        "guion-project".into()
     } else {
         result
     }
 }
 
+// Read-only compatibility for pre-rename Veritas projects. New projects,
+// packages, locks, and generated state use the Guion names exclusively.
+fn project_manifest_path(root: &Path) -> std::path::PathBuf {
+    let current = root.join("guion.toml");
+    if current.is_file() {
+        current
+    } else {
+        let legacy = root.join("veritas.toml");
+        if legacy.is_file() {
+            legacy
+        } else {
+            current
+        }
+    }
+}
+
+fn project_lock_path(root: &Path) -> std::path::PathBuf {
+    let current = root.join("guion.lock");
+    if current.is_file() {
+        current
+    } else {
+        let legacy = root.join("veritas.lock");
+        if legacy.is_file() {
+            legacy
+        } else {
+            current
+        }
+    }
+}
+
+fn project_bridge_root(root: &Path) -> std::path::PathBuf {
+    let current = root.join(".guion/python-bridge");
+    let legacy = root.join(".veritas/python-bridge");
+    if current.exists() || !legacy.exists() {
+        current
+    } else {
+        legacy
+    }
+}
+
 fn project_identity(root: &Path) -> Result<serde_json::Value, String> {
-    let manifest_path = root.join("veritas.toml");
+    let manifest_path = project_manifest_path(root);
     let manifest: toml::Value = toml::from_str(
         &fs::read_to_string(&manifest_path)
             .map_err(|error| format!("cannot read {}: {error}", manifest_path.display()))?,
@@ -3082,20 +3131,20 @@ fn project_identity(root: &Path) -> Result<serde_json::Value, String> {
     let project = manifest
         .get("project")
         .and_then(toml::Value::as_table)
-        .ok_or("veritas.toml must contain a [project] table")?;
+        .ok_or("guion.toml must contain a [project] table")?;
     let name = project
         .get("name")
         .and_then(toml::Value::as_str)
-        .ok_or("veritas.toml [project].name must be text")?;
+        .ok_or("guion.toml [project].name must be text")?;
     let version = project
         .get("version")
         .and_then(toml::Value::as_str)
-        .ok_or("veritas.toml [project].version must be text")?;
+        .ok_or("guion.toml [project].version must be text")?;
     let safe_version = version.chars().all(|character| {
         character.is_ascii_alphanumeric() || matches!(character, '.' | '-' | '+' | '_')
     });
     if !safe_version || version.is_empty() || version == "." || version == ".." {
-        return Err("veritas.toml [project].version must contain only letters, numbers, `.`, `-`, `+`, or `_`".into());
+        return Err("guion.toml [project].version must contain only letters, numbers, `.`, `-`, `+`, or `_`".into());
     }
     Ok(serde_json::json!({"name": name, "id": safe_application_id(name), "version": version}))
 }
@@ -3115,7 +3164,7 @@ fn run_tests(
     let mut failures = 0usize;
     let mut results = Vec::with_capacity(tests.len());
     for test in &tests {
-        if !test.parameters.is_empty() || test.result != veritas_model::Type::Unit {
+        if !test.parameters.is_empty() || test.result != guion_model::Type::Unit {
             let message = "test functions must have no parameters and return Unit";
             if !json_report {
                 eprintln!("FAILED {}: {message}", test.name);
@@ -3137,7 +3186,7 @@ fn run_tests(
         #[cfg(not(feature = "python-interop"))]
         let policy = base_policy.clone();
         #[cfg(feature = "python-interop")]
-        if let Some(interpreter) = env::var_os("VERITAS_PYTHON") {
+        if let Some(interpreter) = env::var_os("GUION_PYTHON") {
             policy = policy.with_python(interpreter, std::time::Duration::from_secs(15));
         }
         let mut instance = Runtime::new()
@@ -3197,7 +3246,7 @@ fn run_tests(
             "{}",
             serde_json::json!({
                 "schema_version": 1,
-                "kind": "veritas_test_report",
+                "kind": "guion_test_report",
                 "source": path,
                 "summary": {
                     "total": tests.len(),
@@ -3225,7 +3274,7 @@ fn print_cli_diagnostic(code: &str, message: &str) {
         "{}",
         serde_json::json!({
             "schema_version": 1,
-            "kind": "veritas_diagnostic",
+            "kind": "guion_diagnostic",
             "diagnostic": {
                 "code": code,
                 "message": message,
@@ -3240,7 +3289,7 @@ fn print_sync_failure(code: &str, message: &str) {
         "{}",
         serde_json::json!({
             "schema_version": 1,
-            "kind": "veritas_sync_report",
+            "kind": "guion_sync_report",
             "status": "failed",
             "diagnostic": {
                 "code": code,
@@ -3271,7 +3320,7 @@ fn package_failure_diagnostic(message: &str) -> serde_json::Value {
             if let (Some(column), Some(line), Some(source)) = (column, line, source) {
                 return serde_json::json!({
                     "schema_version": 1,
-                    "kind": "veritas_diagnostic",
+                    "kind": "guion_diagnostic",
                     "diagnostic": {
                         "code": code,
                         "message": message,
@@ -3285,7 +3334,7 @@ fn package_failure_diagnostic(message: &str) -> serde_json::Value {
     }
     serde_json::json!({
         "schema_version": 1,
-        "kind": "veritas_diagnostic",
+        "kind": "guion_diagnostic",
         "diagnostic": {
             "code": "E_PACKAGE_FAILED",
             "message": message,
@@ -3293,7 +3342,7 @@ fn package_failure_diagnostic(message: &str) -> serde_json::Value {
     })
 }
 
-fn render_diagnostic(path: &str, error: &veritas_model::Diagnostic) -> String {
+fn render_diagnostic(path: &str, error: &guion_model::Diagnostic) -> String {
     let source = error.source_name.as_deref().unwrap_or(path);
     format!(
         "{source}:{}:{}: error[{}]: {}",
@@ -3301,10 +3350,10 @@ fn render_diagnostic(path: &str, error: &veritas_model::Diagnostic) -> String {
     )
 }
 
-fn render_diagnostic_json(path: &str, error: &veritas_model::Diagnostic) -> serde_json::Value {
+fn render_diagnostic_json(path: &str, error: &guion_model::Diagnostic) -> serde_json::Value {
     serde_json::json!({
         "schema_version": 1,
-        "kind": "veritas_diagnostic",
+        "kind": "guion_diagnostic",
         "diagnostic": {
             "code": error.code,
             "message": error.message,
@@ -3318,7 +3367,7 @@ fn render_diagnostic_json(path: &str, error: &veritas_model::Diagnostic) -> serd
 fn runtime_diagnostic_json(
     path: &str,
     artifact: &Artifact,
-    error: &veritas_model::RuntimeError,
+    error: &guion_model::RuntimeError,
 ) -> serde_json::Value {
     let trace = error
         .trace
@@ -3343,8 +3392,8 @@ fn runtime_diagnostic_json(
     })
 }
 
-fn render_runtime(path: &str, artifact: &Artifact, error: &veritas_model::RuntimeError) -> String {
-    let source_for = |span: &veritas_model::Span| {
+fn render_runtime(path: &str, artifact: &Artifact, error: &guion_model::RuntimeError) -> String {
+    let source_for = |span: &guion_model::Span| {
         artifact
             .sources
             .get(span.source_id as usize)
@@ -3376,7 +3425,7 @@ mod tests {
     #[test]
     fn copies_and_records_rust_notices_from_the_runtime_distribution() {
         let root = std::env::temp_dir().join(format!(
-            "veritas rust notices 起点-{}-{}",
+            "guion rust notices 起点-{}-{}",
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
@@ -3415,7 +3464,7 @@ mod tests {
     #[test]
     fn package_publication_never_replaces_a_destination_created_after_preflight() {
         let root = std::env::temp_dir().join(format!(
-            "veritas atomic package publication Ω-{}-{}",
+            "guion atomic package publication Ω-{}-{}",
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
@@ -3447,7 +3496,7 @@ mod tests {
     #[test]
     fn linux_package_publication_never_replaces_an_existing_destination() {
         let root = std::env::temp_dir().join(format!(
-            "veritas atomic package publication Ω-{}-{}",
+            "guion atomic package publication Ω-{}-{}",
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)

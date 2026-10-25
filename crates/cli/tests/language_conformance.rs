@@ -1,12 +1,12 @@
+use guion_compiler::{compile_project, Diagnostic};
+use guion_model::{Artifact, BigInt, RuntimeError, SharedJson, Value as RuntimeValue};
+use guion_runtime::{EffectRecord, HostPolicy, Instance, Runtime};
 use serde_json::Value;
 use std::fs;
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
-use veritas_compiler::{compile_project, Diagnostic};
-use veritas_model::{Artifact, BigInt, RuntimeError, SharedJson, Value as RuntimeValue};
-use veritas_runtime::{EffectRecord, HostPolicy, Instance, Runtime};
 
 struct TempProject(PathBuf);
 
@@ -17,7 +17,7 @@ impl TempProject {
             .expect("clock is after Unix epoch")
             .as_nanos();
         let path = std::env::temp_dir().join(format!(
-            "veritas-language-conformance-{}-{label}-{nonce}",
+            "guion-language-conformance-{}-{label}-{nonce}",
             std::process::id()
         ));
         fs::create_dir_all(&path).expect("create temporary project");
@@ -73,7 +73,7 @@ fn syntax_case(id: &str, class: &str) -> Option<&'static str> {
 "#
         }
         ("syntax-utf-8-source-newlines-indentation-and-comments", "interaction") => {
-            "# UTF-8 comment\nfn label() -> Text:\n    return \"veritas-é\"\n\nfn main() -> Int:\n    return len(label())\n"
+            "# UTF-8 comment\nfn label() -> Text:\n    return \"guion-é\"\n\nfn main() -> Int:\n    return len(label())\n"
         }
         ("syntax-function-declarations-with-typed-parameters-and-result", "positive") => {
             "fn add(left: Int, right: Int) -> Int:\n    return left + right\n\nfn main() -> Int:\n    return add(20, 22)\n"
@@ -94,22 +94,22 @@ fn syntax_case(id: &str, class: &str) -> Option<&'static str> {
             "record Point:\n    x: Int\n    y: Int\n\nfn sum(point: Point) -> Int:\n    return point.x + point.y\n\nfn main() -> Int:\n    return sum(Point(20, 22))\n"
         }
         ("syntax-relative-module-imports-and-project-root-confinement", "positive") => {
-            "import \"lib.vr\"\n\nfn main() -> Int:\n    return answer()\n"
+            "import \"lib.gu\"\n\nfn main() -> Int:\n    return answer()\n"
         }
         ("syntax-relative-module-imports-and-project-root-confinement", "negative") => {
-            "import \"../outside.vr\"\n\nfn main() -> Int:\n    return 0\n"
+            "import \"../outside.gu\"\n\nfn main() -> Int:\n    return 0\n"
         }
         ("syntax-relative-module-imports-and-project-root-confinement", "interaction") => {
-            "import \"first.vr\"\nimport \"second.vr\"\n\nfn main() -> Int:\n    return first() + second()\n"
+            "import \"first.gu\"\nimport \"second.gu\"\n\nfn main() -> Int:\n    return first() + second()\n"
         }
         ("syntax-public-and-private-declarations", "positive") => {
             "fn helper() -> Int:\n    return 42\n\nfn main() -> Int:\n    return helper()\n"
         }
         ("syntax-public-and-private-declarations", "negative") => {
-            "import \"lib.vr\"\n\nfn main() -> Int:\n    return hidden()\n"
+            "import \"lib.gu\"\n\nfn main() -> Int:\n    return hidden()\n"
         }
         ("syntax-public-and-private-declarations", "interaction") => {
-            "import \"first.vr\"\nimport \"second.vr\"\n\nfn main() -> Int:\n    return first() + second()\n"
+            "import \"first.gu\"\nimport \"second.gu\"\n\nfn main() -> Int:\n    return first() + second()\n"
         }
         ("syntax-entry-point-signatures", "positive") => {
             "fn main() -> Int:\n    return 42\n"
@@ -276,13 +276,13 @@ fn syntax_case(id: &str, class: &str) -> Option<&'static str> {
             "fn read() -> Result[List[Int], Text]:\n    return Ok([])\n\nfn use() -> Result[Int, Text]:\n    let values = read()?\n    return Ok(len(values) + 42)\n\nfn main() -> Int:\n    return unwrap(use())\n"
         }
         ("syntax-import-graph-size-depth-and-total-source-limits", "positive") => {
-            "import \"lib.vr\"\n\nfn main() -> Int:\n    return answer()\n"
+            "import \"lib.gu\"\n\nfn main() -> Int:\n    return answer()\n"
         }
         ("syntax-import-graph-size-depth-and-total-source-limits", "negative") => {
-            "import \"../outside.vr\"\n\nfn main() -> Int:\n    return 0\n"
+            "import \"../outside.gu\"\n\nfn main() -> Int:\n    return 0\n"
         }
         ("syntax-import-graph-size-depth-and-total-source-limits", "interaction") => {
-            "import \"first.vr\"\nimport \"second.vr\"\n\nfn main() -> Int:\n    return first() + second()\n"
+            "import \"first.gu\"\nimport \"second.gu\"\n\nfn main() -> Int:\n    return first() + second()\n"
         }
         _ => return None,
     })
@@ -301,7 +301,7 @@ fn operator_case(id: &str, class: &str) -> Option<String> {
         "add" => match class {
             "positive" => "20 + 22",
             "negative" => "1 + \"two\"",
-            _ => "len(\"veritas\") + (20 + 15)",
+            _ => "len(\"guion\") + (20 + 15)",
         },
         "subtract" => match class {
             "positive" => "50 - 8",
@@ -636,13 +636,13 @@ fn compile_both(
     Option<DiagnosticLocation>,
     Option<DiagnosticLocation>,
 ) {
-    case_project.write("main.vr", source);
-    let bootstrap = compile_project(&case_project.0.join("main.vr"), &case_project.0);
+    case_project.write("main.gu", source);
+    let bootstrap = compile_project(&case_project.0.join("main.gu"), &case_project.0);
     let self_host = Command::new(binary)
         .args(["run", "--json", "--file-root"])
         .arg(&case_project.0)
         .arg(compiler_artifact)
-        .arg("main.vr")
+        .arg("main.gu")
         .current_dir(&case_project.0)
         .output()
         .unwrap_or_else(|error| panic!("{case_id}: launch self-host compiler: {error}"));
@@ -675,7 +675,7 @@ fn compile_both(
     };
     let self_host_artifact = if self_host_diagnostic.is_none() {
         let ir = case_project.0.join("self-host-output.json");
-        let artifact_path = case_project.0.join("self-host-output.vrb");
+        let artifact_path = case_project.0.join("self-host-output.gub");
         fs::write(&ir, program_stdout).expect("write self-host IR for verification");
         let assembled = Command::new(binary)
             .args(["assemble-ir"])
@@ -713,12 +713,12 @@ fn prepare_self_host_compiler() -> PathBuf {
     let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
     let self_host = repository.join("language/self_host");
     let filenames = [
-        "veritas.toml",
-        "compiler.vr",
-        "lexer.vr",
-        "parser.vr",
-        "builtin_catalog.vr",
-        "artifact.vr",
+        "guion.toml",
+        "compiler.gu",
+        "lexer.gu",
+        "parser.gu",
+        "builtin_catalog.gu",
+        "artifact.gu",
     ];
     let mut hasher = DefaultHasher::new();
     for filename in filenames {
@@ -728,11 +728,11 @@ fn prepare_self_host_compiler() -> PathBuf {
             .hash(&mut hasher);
     }
     let project = repository.join("target").join(format!(
-        "veritas-language-conformance-{:016x}",
+        "guion-language-conformance-{:016x}",
         hasher.finish()
     ));
     fs::create_dir_all(&project).expect("create compiler artifact cache");
-    let artifact = project.join("compiler.vrb");
+    let artifact = project.join("compiler.gub");
     if artifact.is_file() {
         return artifact;
     }
@@ -740,9 +740,9 @@ fn prepare_self_host_compiler() -> PathBuf {
         fs::copy(self_host.join(filename), project.join(filename))
             .expect("copy self-host compiler");
     }
-    let binary = PathBuf::from(env!("CARGO_BIN_EXE_veritas"));
+    let binary = PathBuf::from(env!("CARGO_BIN_EXE_guion"));
     let stage_zero = Command::new(&binary)
-        .args(["run", "compiler.vr", "compiler.vr"])
+        .args(["run", "compiler.gu", "compiler.gu"])
         .current_dir(&project)
         .output()
         .expect("compile self-host compiler with bootstrap compiler");
@@ -752,7 +752,7 @@ fn prepare_self_host_compiler() -> PathBuf {
         String::from_utf8_lossy(&stage_zero.stdout),
         String::from_utf8_lossy(&stage_zero.stderr)
     );
-    let ir = project.join("compiler.vri.json");
+    let ir = project.join("compiler.gui.json");
     fs::write(&ir, stage_zero.stdout).expect("write compiler IR");
     let assembled = Command::new(&binary)
         .args(["assemble-ir"])
@@ -789,7 +789,7 @@ fn manifest_current_language_corpus_has_bootstrap_and_self_host_parity() {
     );
 
     let compiler_artifact = prepare_self_host_compiler();
-    let binary = PathBuf::from(env!("CARGO_BIN_EXE_veritas"));
+    let binary = PathBuf::from(env!("CARGO_BIN_EXE_guion"));
     let mut ran = 0usize;
     let mut failures = Vec::new();
     for entry in task_two {
@@ -858,12 +858,12 @@ fn compiler_stages_compile_full_task_two_corpus_and_locked_roots() {
     let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
     let stage_directory = repository.join("target/self-hosted-bootstrap");
     let stage2 = Artifact::from_bytes(
-        &fs::read(stage_directory.join("stage2.vrb"))
+        &fs::read(stage_directory.join("stage2.gub"))
             .expect("run three-stage bootstrap before stage conformance"),
     )
     .expect("native reader accepts cached C2");
     let stage3 = Artifact::from_bytes(
-        &fs::read(stage_directory.join("stage3.vrb"))
+        &fs::read(stage_directory.join("stage3.gub"))
             .expect("run three-stage bootstrap before stage conformance"),
     )
     .expect("native reader accepts cached C3");
@@ -908,7 +908,7 @@ fn compiler_stages_compile_full_task_two_corpus_and_locked_roots() {
                 source_case(id, class).unwrap_or_else(|| panic!("missing {class} case for {id}"));
             eprintln!("C2/C3 corpus case {}/195: {id}.{class}", cases_run + 1);
             let case_root = format!("cases/{id}/{class}");
-            let source_name = format!("{case_root}/main.vr");
+            let source_name = format!("{case_root}/main.gu");
             project.write(&source_name, &fixture.source);
             for (path, source) in extra_modules(id, class) {
                 project.write(&format!("{case_root}/{path}"), source);
@@ -945,7 +945,7 @@ fn compiler_stages_compile_full_task_two_corpus_and_locked_roots() {
                         "C2/C3 diagnostic mismatch for {id}.{class}"
                     );
                     assert_eq!(
-                        stage2_error["schema"], "veritas-compile-failure/v1",
+                        stage2_error["schema"], "guion-compile-failure/v1",
                         "negative input must be a structured compile failure: {id}.{class}"
                     );
                 }
@@ -961,20 +961,20 @@ fn compiler_stages_compile_full_task_two_corpus_and_locked_roots() {
         "unexpectedly small C2/C3 corpus run: {cases_run}"
     );
 
-    let standard_source = "import \"std:csv\"\nimport \"pkg:report_helpers/render/table.vr\"\n\nfn main() -> Int:\n    return csv_rows() + rendered_rows()\n";
+    let standard_source = "import \"std:csv\"\nimport \"pkg:report_helpers/render/table.gu\"\n\nfn main() -> Int:\n    return csv_rows() + rendered_rows()\n";
     project.write(
-        "stdlib/csv.vr",
+        "stdlib/csv.gu",
         "pub fn csv_rows() -> Int:\n    return 40\n",
     );
     project.write(
-        "packages/report_helpers/render/table.vr",
+        "packages/report_helpers/render/table.gu",
         "pub fn rendered_rows() -> Int:\n    return 2\n",
     );
-    project.write("roots/main.vr", standard_source);
+    project.write("roots/main.gu", standard_source);
     let roots = serde_json::json!({ "report_helpers": "pkg:report_helpers" });
     let stage2_bytes = compile_with_stage(
         &mut stage2_runtime,
-        "roots/main.vr",
+        "roots/main.gu",
         standard_source,
         "std",
         roots.clone(),
@@ -982,7 +982,7 @@ fn compiler_stages_compile_full_task_two_corpus_and_locked_roots() {
     .expect("C2 resolves explicitly granted standard and package roots");
     let stage3_bytes = compile_with_stage(
         &mut stage3_runtime,
-        "roots/main.vr",
+        "roots/main.gu",
         standard_source,
         "std",
         roots,
@@ -1034,7 +1034,7 @@ fn compile_with_stage(
 
 #[test]
 fn collection_updates_preserve_preexisting_aliases_in_both_compilers() {
-    let binary = PathBuf::from(env!("CARGO_BIN_EXE_veritas"));
+    let binary = PathBuf::from(env!("CARGO_BIN_EXE_guion"));
     let compiler_artifact = prepare_self_host_compiler();
     let project = TempProject::new("collection-aliases");
     let source = "fn main() -> Int:\n    let original_list = [20]\n    let list_alias = original_list\n    let changed_list = list_push(original_list, 22)\n    let original_map = {\"answer\": 40}\n    let map_alias = original_map\n    let changed_map = map_set(original_map, \"other\", 2)\n    if len(list_alias) == 1 and changed_list[1] == 22 and not map_has(map_alias, \"other\") and map_has(changed_map, \"other\"):\n        return 42\n    else:\n        return 0\n";
@@ -1065,20 +1065,20 @@ fn extra_modules(id: &str, class: &str) -> Vec<(&'static str, &'static str)> {
     match (id, class) {
         ("syntax-relative-module-imports-and-project-root-confinement", "positive")
         | ("syntax-import-graph-size-depth-and-total-source-limits", "positive") => vec![
-            ("lib.vr", "pub fn answer() -> Int:\n    return 42\n"),
+            ("lib.gu", "pub fn answer() -> Int:\n    return 42\n"),
         ],
         ("syntax-relative-module-imports-and-project-root-confinement", "interaction")
         | ("syntax-import-graph-size-depth-and-total-source-limits", "interaction") => vec![
-            ("first.vr", "import \"shared.vr\"\n\npub fn first() -> Int:\n    return shared_value()\n"),
-            ("second.vr", "import \"shared.vr\"\n\npub fn second() -> Int:\n    return shared_value()\n"),
-            ("shared.vr", "pub fn shared_value() -> Int:\n    return 21\n"),
+            ("first.gu", "import \"shared.gu\"\n\npub fn first() -> Int:\n    return shared_value()\n"),
+            ("second.gu", "import \"shared.gu\"\n\npub fn second() -> Int:\n    return shared_value()\n"),
+            ("shared.gu", "pub fn shared_value() -> Int:\n    return 21\n"),
         ],
         ("syntax-public-and-private-declarations", "negative") => vec![
-            ("lib.vr", "fn hidden() -> Int:\n    return 42\n"),
+            ("lib.gu", "fn hidden() -> Int:\n    return 42\n"),
         ],
         ("syntax-public-and-private-declarations", "interaction") => vec![
-            ("first.vr", "fn helper() -> Int:\n    return 20\n\npub fn first() -> Int:\n    return helper()\n"),
-            ("second.vr", "fn helper() -> Int:\n    return 22\n\npub fn second() -> Int:\n    return helper()\n"),
+            ("first.gu", "fn helper() -> Int:\n    return 20\n\npub fn first() -> Int:\n    return helper()\n"),
+            ("second.gu", "fn helper() -> Int:\n    return 22\n\npub fn second() -> Int:\n    return helper()\n"),
         ],
         _ => Vec::new(),
     }

@@ -77,7 +77,7 @@ fn main() {
         .file(manifest.join("../../native/libical_bridge.c"))
         .include(&include)
         .warnings(true)
-        .compile("veritas_ical_bridge");
+        .compile("guion_ical_bridge");
 }
 
 fn run(command: &mut Command, action: &str) {

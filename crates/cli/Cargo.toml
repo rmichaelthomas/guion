@@ -1,20 +1,20 @@
 [package]
-name = "veritas-cli"
+name = "guion-cli"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 
 [[bin]]
-name = "veritas"
+name = "guion"
 path = "src/main.rs"
 
 [features]
 default = []
-python-interop = ["veritas-runtime/python-interop"]
+python-interop = ["guion-runtime/python-interop"]
 
 [dependencies]
-veritas-model.workspace = true
-veritas-runtime.workspace = true
+guion-model.workspace = true
+guion-runtime.workspace = true
 toml.workspace = true
 sha2.workspace = true
 libc.workspace = true
@@ -23,8 +23,8 @@ reqwest.workspace = true
 tokio.workspace = true
 
 [dev-dependencies]
-veritas-compiler.workspace = true
-veritas-bootstrap = { path = "../bootstrap" }
+guion-compiler.workspace = true
+guion-bootstrap = { path = "../bootstrap" }
 
 [build-dependencies]
 serde_json.workspace = true

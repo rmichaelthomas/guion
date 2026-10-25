@@ -1,5 +1,5 @@
-import "lexer.vr"
-import "parser.vr"
+import "lexer.gu"
+import "parser.gu"
 
 fn main() -> Int:
     let expression = parse_expression(scan("1 + 2 * 3"), 0, 0)
@@ -13,12 +13,12 @@ fn main() -> Int:
     assert(json_as_text(json_get(call.value, "kind")) == "Call")
     assert(json_len(json_get(call.value, "arguments")) == 2)
 
-    let lexer_source = unwrap(read_text("lexer.vr"))
+    let lexer_source = unwrap(read_text("lexer.gu"))
     let lexer_program = parse_program(scan(lexer_source))
     assert(lexer_program.ok)
     assert(json_len(json_get(lexer_program.value, "functions")) > 5)
 
-    let parser_source = unwrap(read_text("parser.vr"))
+    let parser_source = unwrap(read_text("parser.gu"))
     let parser_program = parse_program(scan(parser_source))
     assert(parser_program.ok)
     assert(json_len(json_get(parser_program.value, "functions")) > 20)
@@ -31,11 +31,11 @@ fn main() -> Int:
     let invalid_indent = scan("fn main() -> Int:\n\treturn 0\n")
     assert(invalid_indent[8].kind == "Error")
 
-    let source = unwrap(read_text("lexer.vr"))
+    let source = unwrap(read_text("lexer.gu"))
     let tokens = scan(source)
     assert(len(tokens) > 500)
     for item in tokens:
         assert(item.kind != "Error")
-    print("scanned Veritas lexer source tokens:")
+    print("scanned Guion lexer source tokens:")
     print(len(tokens))
     return 0

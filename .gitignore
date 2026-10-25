@@ -4,8 +4,8 @@
 /evaluation/results/independent-v2/workspace/
 /evaluation/results/independent-v2/run-evidence/
 .superpowers/sdd/*
-*.vrb
-!language/self_host/compiler.vrb
+*.gub
+!language/self_host/compiler.gub
 __pycache__/
 *.py[cod]
 .DS_Store
@@ -15,6 +15,6 @@ __pycache__/
 .uv-cache/
 .venv/
 .deps/
-.veritas/**/.venv/
+.guion/**/.venv/
 /distribution/toolchains/cache/
 /evaluation/results/independent-v2/setup-attempts/

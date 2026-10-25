@@ -1,7 +1,7 @@
 fn main() -> Int:
     let urls = args()
     if len(urls) != 1:
-        print("usage: http_get.vr URL")
+        print("usage: http_get.gu URL")
         return 2
     let response = http_get(urls[0])
     if is_ok(response):

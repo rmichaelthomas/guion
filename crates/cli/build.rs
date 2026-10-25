@@ -6,7 +6,7 @@ fn main() {
     let manifest_dir = PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").expect("manifest dir"));
     let repository = manifest_dir.join("../..");
     let self_host = repository.join("language/self_host");
-    let seed_path = self_host.join("compiler.vrb");
+    let seed_path = self_host.join("compiler.gub");
     let seed_manifest_path = self_host.join("compiler-seed.json");
     let schema_path = repository.join("language/artifact-format.md");
     for path in [&seed_path, &seed_manifest_path, &schema_path] {
@@ -66,17 +66,17 @@ fn main() {
     if manifest["schema_version"].as_u64() != Some(1)
         || expected_format != embedded_format
         || expected_abi != Some(1)
-        || compiler_entry != Some("compiler.vr")
+        || compiler_entry != Some("compiler.gu")
         || manifest["artifact_sha256"].as_str() != Some(seed_hash.as_str())
         || manifest["compiler_source_sha256"].as_str() != Some(source_hash.as_str())
         || manifest["artifact_schema_sha256"].as_str() != Some(schema_hash.as_str())
         || !source_files
             .iter()
-            .any(|source| source.as_str() == Some("compiler.vr"))
+            .any(|source| source.as_str() == Some("compiler.gu"))
         || seed.get(..4) != Some(b"VRTA")
     {
         panic!(
-            "embedded compiler seed identity mismatch; regenerate it with `cargo run --locked --offline -p veritas-bootstrap --bin veritas-stage0 -- seed .`"
+            "embedded compiler seed identity mismatch; regenerate it with `cargo run --locked --offline -p guion-bootstrap --bin guion-stage0 -- seed .`"
         );
     }
 }
