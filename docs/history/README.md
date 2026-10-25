@@ -11,7 +11,7 @@ This index preserves the original Veritas project trail. These documents retain 
 - [Completion evidence and reports](../../evaluation/completion/README.md)
 - [Migration record](migration-2026-10-25.md)
 - [Detailed retention manifest](migration-retention-manifest.json)
-- [Independent v1 campaign](../../evaluation/results/independent-v1/README.md)
+- [Independent v1 campaign setup (invalidated before formal collection)](../../evaluation/results/independent-v1/README.md)
 - [Independent v2 campaign and retained setup](../../evaluation/results/independent-v2/README.md)
 - [Independent v3 campaign](../../evaluation/results/independent-v3/README.md)
 - [Exploratory installed-workload notes](../../evaluation/development/experiments/2026-10-25/README.md)

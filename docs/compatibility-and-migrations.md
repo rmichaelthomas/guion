@@ -1,40 +1,43 @@
-# Compatibility and migration policy
+# Compatibility and migration
 
-This is the compatibility policy for the Veritas 0.1.0 evaluation build. Veritas is pre-1.0: source syntax, public APIs, bytecode details and package metadata may change before 1.0. This build does not promise long-term upgrade compatibility.
+Guion is pre-1.0. Source syntax, public APIs, bytecode, and package metadata may change before 1.0; there is no long-term compatibility promise yet.
 
-## Supported combinations
+## Current Guion names
 
-| Boundary | Supported in this candidate | What happens outside it |
-| --- | --- | --- |
-| Source | Compile with the matching Veritas 0.1.0 CLI and its bundled documentation. | A newer compiler may require source edits; no source-level compatibility range is promised before 1.0. |
-| Bytecode artifact | The reader accepts artifact formats 14 through 39; the current compiler writes format 39. | A future format is rejected by older readers. Rebuild from source with a matching compiler when possible. |
-| Package metadata | The verifier accepts package schemas 1 and 2; new packages use schema 2. | Unknown schema versions fail closed. |
-| Application bundle | macOS ARM64 and Debian 12-compatible GNU/Linux ARM64 with glibc, moved between directories on the same OS and architecture. | Other Linux distributions, libc implementations, operating systems and CPU architectures are unverified. |
-| Python bridge | Optional compatibility build enabled with `--features python-interop`; it uses the exact Python patch version declared in `veritas.toml` and the pinned uv version. | The default core CLI does not discover, install, launch, or bundle Python/uv. Rebuild with the feature only for projects that use external Python declarations. |
-| Native packages | Lock format 2 stores a separate exact-version native graph and retains a prior format-1 Python lock under `[python]`. Libraries are copied into `.veritas/packages/<name>/<version>` and checked by SHA-256. | Missing, conflicting, cyclic, or changed package contents fail closed. Package archives must be HTTPS tar archives with the package manifest at their root. |
+| Purpose | Current name |
+| --- | --- |
+| Source | `.gu` |
+| Compiled artifact | `.gub` |
+| Project manifest | `guion.toml` |
+| Project lock | `guion.lock` |
+| Local project state | `.guion/` |
+| Core command | `guion` |
 
-Artifact format compatibility does not imply that the original compiler version is checked at runtime. Build metadata records the compiler version and other provenance for inspection. Formats 14 and 15 have less metadata than current artifacts; format 14 has no embedded runtime policy. The loader validates each feature against the minimum format that introduced it, including byte HTTP requests in format 38 and explicitly granted clock operations in format 39.
+New projects, generated files, packages, locks, and local state use these names.
 
-Package hashes and lock fingerprints detect accidental changes. Release archives and package metadata are unsigned, so they do not authenticate their publisher. Python adapter declarations are typed calls, not general Python source compatibility.
+## Reading projects from Veritas
 
-## Updating a Python environment
+The rename is a pre-1.0 transition. The current CLI retains read compatibility for selected old project inputs:
 
-This workflow requires a CLI built with `--features python-interop`. `veritas sync PROJECT` checks the existing lock and installs that exact dependency graph. `veritas sync --update PROJECT` stages a new graph and managed environment, validates the interpreter, then activates the new environment and writes matching lock metadata. If resolution, installation or interpreter validation fails, the previous bridge environment and lock files remain available. Review `veritas.lock` and `.veritas/python-bridge/uv.lock` after a successful update before rebuilding an application package.
+- `veritas.toml` and `veritas.lock` can be read when a project has not yet adopted the Guion filenames.
+- Existing `.vr` source files are accepted as legacy project inputs.
+- Prior `.veritas/python-bridge` state can be located for the optional Python bridge.
+- Existing compiled artifacts that use the `VRTA` artifact magic remain readable, including prior files named `.vrb`.
 
-## Native packages and lock migration
+This compatibility is a migration aid, not a guarantee that old names will remain supported through 1.0. New projects and new outputs use Guion names. A Guion project may continue to contain a legacy-named manifest while it is being migrated; avoid creating both old and new manifest or lock files in the same project, because that makes project identity ambiguous.
 
-The default core CLI supports local package directories and configured HTTPS tar archives. A library manifest has a `[package]` table with exact `name`, `version`, relative `entry`, and `exports`; its optional `sha256` field binds the content. Exact transitive dependencies use `[dependencies.<name>]` tables with `version` and either a relative `path` or an HTTPS `url` plus archive `sha256`.
+## Supported artifact and package boundaries
 
-Use `veritas package --library LIBRARY --output ARCHIVE_DIR` to create a reusable library directory. In a project directory, add it with `veritas add NAME --path LIBRARY_DIR`, or acquire a remote archive with `veritas add NAME --url HTTPS_URL --version VERSION --sha256 ARCHIVE_SHA256`. Acquired libraries are copied into `.veritas/packages`; later builds resolve only through the lock and managed cache. `veritas sync --locked --offline` verifies that graph and explicitly migrates a Python-only format-1 lock to format 2. `veritas update` explicitly re-resolves configured local or HTTPS sources as one rollback-capable operation.
+The current compiler writes artifact format 39 and the runtime reads formats 14 through 39. Current packages use schema 2; the verifier accepts schemas 1 and 2. Artifact format compatibility does not promise that the source compiler version is checked at runtime. Hashes detect accidental changes but do not authenticate the publisher.
 
-`check`, `run`, and `build` only read the lock. They never rewrite or migrate it. A failed native update restores the prior project manifest, lock, and package cache.
+The earlier release validation covered macOS ARM64 and Debian 12-compatible GNU/Linux ARM64 with glibc, including same-target relocation. Other operating systems, CPU architectures, Linux distributions, and libc implementations remain unverified. The Guion pre-release matrix is still open; consult [status](status.md) before relying on a target.
 
-## Moving to another Veritas candidate
+## Python interoperability
 
-1. Keep the project source, manifest, both Python lock files, and application data together. Make a backup before changing candidate versions.
-2. Use the new candidate's `doctor` and `check` commands, then run the project's test functions.
-3. If the existing locks pass, run without `--update`; change dependency resolution only with the explicit update command and review both lock files.
-4. Rebuild artifacts and app packages with the new CLI. Verify the package and test it after moving it to a fresh path on the same supported OS and architecture.
-5. Keep the previous candidate and data backup until the new build passes the project's acceptance checks.
+The default core build does not discover, launch, or bundle Python or `uv`. The optional bridge requires a build with `--features python-interop` and uses the exact interpreter and dependencies declared by the project. New Guion configuration uses `guion.toml`; `GUION_PYTHON` is the explicit interpreter override when no managed interpreter is configured. Old Veritas project configuration is read for transition compatibility.
 
-Veritas does not provide source rewrites or artifact-format upgrades beyond reading the supported range. There is no automatic application-data migration in this release; application data schemas and their upgrades remain the application's responsibility. If a future runtime rejects an artifact format, retain its source and rebuild with a compatible compiler; if the source no longer compiles, follow migration notes for that specific release rather than editing the artifact bytes.
+For an existing project, first keep a backup of its source, manifest, lock files, and application data. Run `guion doctor`, then `guion check` and the project's tests. Preserve its existing locks unless you intentionally change dependencies. A lock migration or dependency update must be explicit and reviewed before packaging. Application data migration remains the application's responsibility.
+
+## Package and installation behavior
+
+`guion package PROJECT --output DIRECTORY` builds a current-host application bundle. `guion verify-package DIRECTORY` checks its recorded hashes. `guion install DIRECTORY [--prefix PATH]` installs a verified bundle under the chosen prefix, defaulting to `~/.local`; it does not edit shell startup files. The current release candidate has not been publicly published, so these commands are development interfaces, not a public installation channel.

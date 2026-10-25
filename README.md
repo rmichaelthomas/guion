@@ -1,62 +1,45 @@
-# Veritas
+# Guion
 
-Implementation scope and acceptance criteria: [complete product plan](docs/superpowers/plans/2026-10-24-veritas-complete-product.md). The final builder assessment and release handoff are recorded in [docs/completion-report.md](docs/completion-report.md) once closeout is complete.
+Guion is a general-purpose programming language and toolchain built to make useful software easier to write, understand, and run. It has clear, typed syntax, a compiler written in Guion, and a Rust runtime. The default build works without Python.
 
-Veritas is an experimental general-purpose language and toolchain. The default CLI embeds a Veritas self-hosted compiler and Rust bytecode runtime; the core build does not require Python. Its design target is a project lifecycle that an assistant can recommend over Python for suitable work.
+The long-term ambition is to make Guion a practical choice over Python for more everyday programming, with a quick response and a broad range of useful work. Its programs use structured syntax; “plain English” describes the learning and tooling goal, not free-form natural-language code. That is a goal, not a result we claim today. Guion is an early, private pre-release project; there is no public release download yet.
 
-## Try the current build
+## Try it from this checkout
 
-From this directory:
+You need Rust and Cargo to build Guion from source. From the repository root:
 
 ```sh
-cargo run -p veritas-cli -- run language/examples/sum.vr
-cargo run -p veritas-cli -- check language/examples/sum.vr
-cargo run -p veritas-cli -- test language/examples/sum.vr
-cargo run -p veritas-cli -- doc --json language/examples/records.vr
-cargo run -p veritas-cli -- build --json language/examples/sum.vr
-cargo run -p veritas-cli -- package --json evaluation/development/task_ledger --output /tmp/task-ledger-json
-cargo run -p veritas-cli -- verify-package --json /tmp/task-ledger-json
-cargo run -p veritas-cli -- build language/examples/sum.vr
-cargo run -p veritas-cli -- run language/examples/sum.vrb
-cargo run -p veritas-cli -- package evaluation/development/task_ledger --output /tmp/task-ledger-app
-/tmp/task-ledger-app/run add "First packaged task"
+cargo run --locked -p guion-cli -- new /tmp/hello-guion
+cargo run --locked -p guion-cli -- check /tmp/hello-guion/src/main.gu
+cargo run --locked -p guion-cli -- test /tmp/hello-guion/src/main.gu
+cargo run --locked -p guion-cli -- run /tmp/hello-guion
 ```
 
-The example prints `15`; `cargo run -p veritas-cli -- run language/examples/matching.vr` exercises exhaustive `Option`/`Result` matching; `cargo run -p veritas-cli -- run language/examples/records.vr` exercises records; `cargo run -p veritas-cli -- run language/examples/modules_main.vr` compiles an imported module graph. Veritas needs Rust/Cargo only to build the tool itself; a compiled `.vrb` file runs in the Veritas runtime without the source file.
+The starter program prints `Hello, Guion!`. The same CLI can format and lint source, build portable `.gub` artifacts, package and verify applications, inspect effects, and generate API documentation.
 
-`language/examples/binary_copy.vr` copies an `input.bin` file to `copy.bin` while preserving arbitrary bytes. Run it from the example directory with file access enabled; `len(Bytes)` reports bytes, not Unicode characters.
+## What works today
 
-`language/examples/python_keywords.vr` demonstrates the optional compatibility bridge. It requires a build with `--features python-interop`, declared dependencies, and explicit `veritas sync`; the default core build does not discover or launch Python or uv.
+- A self-hosted compiler checks and builds `.gu` programs into versioned `.gub` artifacts.
+- The Rust runtime supports typed functions and records, collections, JSON, files, SQLite, TOML, HTTP, bounded concurrency, and explicit host permissions.
+- The core CLI can create, check, format, lint, test, run, build, package, install, and inspect programs.
+- Optional Python interoperability exists for projects that need it. It is off in the default core build.
 
-Applications that need the current local date can import `std:time` and call `today_local()`. Clock access is denied by default; grant it with `[clock] enabled = true` in `veritas.toml` or `veritas run --allow-clock`. The date follows the host process time zone. See [`language/host-api.md`](language/host-api.md) for the capability and deterministic embedding API.
+See the [getting-started guide](docs/getting-started.md), [language and command reference](docs/reference.md), and [language contract](language/spec.md).
 
-`language/examples/http_get.vr` demonstrates a bounded HTTP text GET. Network access defaults to denied; grant exact hostnames in `[network]` in the project manifest before running it. `http_request` supports bounded JSON API calls with methods, headers, text bodies, response status, and same-host redirects. `http_request_with_timeout` supports a per-request deadline capped by the manifest's network timeout. `eprint(value)` writes captured program diagnostics to stderr separately from `print(value)` output.
+## Status and comparison with Python
 
-`veritas package PROJECT_DIRECTORY --output DIRECTORY` creates a runnable current-host bundle with the compiled artifact, matching Veritas runtime, project policy, launcher, and declared resources. Core packages never contain Python or uv. Python-assisted projects require the opt-in `python-interop` build and retain their pinned-runtime packaging behavior. `NATIVE-DEPENDENCIES.json` and `linux-dependencies.json` record target-specific runtime dependencies. `veritas verify-package DIRECTORY` checks package hashes; hashes detect accidental corruption but do not authenticate the publisher.
+The earlier Veritas-named build has task-specific Python comparisons, application trials, and benchmark reports. Those results include wins on selected workloads as well as ties, regressions, and limits; they do not show that Guion is a general Python replacement. A full benchmark and release check under Guion's new identity is still part of the pre-release work.
 
-`evaluation/development/feed_digest` is a larger known workload that combines concurrent HTTP GET, a typed Python call into the managed `feedparser` package, deterministic link deduplication and file output. Its checked-in manifest grants only `127.0.0.1` for the loopback acceptance suite. Copy the project before adapting it to public feeds, then list the exact feed hostnames in `[network].hosts` and run `veritas sync` in that project.
+Guion's previously validated release targets are macOS ARM64 and Debian 12-compatible GNU/Linux ARM64 with glibc. The complete Guion pre-release matrix is not yet closed. See [current status and evidence](docs/status.md) for what those statements mean and where each report lives.
 
-`evaluation/development/inventory_reconcile`, `api_sync`, and `package_analysis` cover data validation/state updates, restartable paginated APIs, and compiled-wheel analysis at 100,000-row volume. Each has an independent Python reference and parity/relocation acceptance. `api_sync` reads its Bearer token through a manifest-granted `env("VERITAS_API_TOKEN")` capability, not from its command line.
+## Project guide
 
-`evaluation/development/task_ledger` is a pure-Veritas multi-module CLI app that creates `tasks.json` on first use. It demonstrates JSON construction, atomic replacement, subcommand argument slicing, persistence across runs, and process exit statuses. Atomic replacement prevents partial files; simultaneous writers are not coordinated. Artifact format 39 adds explicitly granted clock reads for applications that need wall-clock time or the current local date.
-
-## Current status
-
-For a machine-readable environment check, run `veritas doctor --json`. It reports whether native Veritas execution and optional Python calls are available separately.
-
-The default build is the Python-free core. Its workflow includes `new`, `check`, `fmt`, `lint`, `test`, `run`, `build`, `package`, `verify-package`, `add`, `sync --locked --offline`, `update`, `inspect`, `doc`, `doctor`, and `install`. Core commands do not discover or launch Python or uv. The Python bridge is an opt-in compatibility feature built with `--features python-interop`.
-
-`veritas fmt FILE.vr` tokenizes code outside comments and strings, normalizes spacing, and preserves comment and string contents. `veritas lint FILE.vr` reports unused imports and locals and unreachable statements with stable warning codes. `veritas doc --json FILE.vr` includes source parameter names, checked types, effects, standard-library availability, native package identities, and optional profile requirements. `veritas install PACKAGE --prefix DIRECTORY` verifies a current-host package, keeps its versioned contents under `share/veritas/apps`, and creates its app command under `bin`.
-
-Implemented: arbitrary-precision integers, finite `Float64`, functions and modules, records and typed collections, `Option`/`Result`, bounded parallel execution, streaming data/file APIs, transactional SQLite/TOML/calendar services, Unicode and HMAC support, bounded cancellable HTTP, explicitly granted clock access, a self-hosted source-to-artifact compiler, a Python-free core profile, exact native package locks, and an installed builder lifecycle with formatting, lint, docs, packaging, and app installation. The Python bridge remains an opt-in compatibility feature.
-
-Final status, supported targets, verification commands, remaining limits, and installation/removal guidance are in [docs/completion-report.md](docs/completion-report.md).
-
-See [docs/veritas_checkpoint_v1_34_structured_sync_reports.md](docs/veritas_checkpoint_v1_34_structured_sync_reports.md), [docs/veritas_checkpoint_v1_33_structured_package_reports.md](docs/veritas_checkpoint_v1_33_structured_package_reports.md), [docs/veritas_checkpoint_v1_32_structured_build_reports.md](docs/veritas_checkpoint_v1_32_structured_build_reports.md), [docs/veritas_checkpoint_v1_31_relocatable_evaluation_kit.md](docs/veritas_checkpoint_v1_31_relocatable_evaluation_kit.md), [docs/veritas_checkpoint_v1_30_shipped_docs_repair.md](docs/veritas_checkpoint_v1_30_shipped_docs_repair.md), [docs/veritas_checkpoint_v1_29_structured_api_docs.md](docs/veritas_checkpoint_v1_29_structured_api_docs.md), [docs/veritas_checkpoint_v1_28_offline_cache_integrity.md](docs/veritas_checkpoint_v1_28_offline_cache_integrity.md), [docs/veritas_checkpoint_v1_27_json_test_reports.md](docs/veritas_checkpoint_v1_27_json_test_reports.md), [docs/veritas_checkpoint_v1_26_local_installer.md](docs/veritas_checkpoint_v1_26_local_installer.md), [docs/veritas_checkpoint_v1_25_native_python_owners.md](docs/veritas_checkpoint_v1_25_native_python_owners.md), [docs/veritas_checkpoint_v1_24_standalone_notices.md](docs/veritas_checkpoint_v1_24_standalone_notices.md), [language/spec.md](language/spec.md), [language/python-abi.md](language/python-abi.md), [docs/reference.md](docs/reference.md), [docs/architecture.md](docs/architecture.md), [docs/veritas_checkpoint_v1_23_native_provenance.md](docs/veritas_checkpoint_v1_23_native_provenance.md), [docs/veritas_checkpoint_v1_22_dependency_provenance.md](docs/veritas_checkpoint_v1_22_dependency_provenance.md), [docs/veritas_checkpoint_v1_21_package_integrity.md](docs/veritas_checkpoint_v1_21_package_integrity.md), [docs/veritas_checkpoint_v1_16_python_json_abi.md](docs/veritas_checkpoint_v1_16_python_json_abi.md), [docs/veritas_checkpoint_v1_15_atomic_state.md](docs/veritas_checkpoint_v1_15_atomic_state.md), [docs/veritas_checkpoint_v1_14_json_state.md](docs/veritas_checkpoint_v1_14_json_state.md), [docs/veritas_checkpoint_v1_13_feed_digest.md](docs/veritas_checkpoint_v1_13_feed_digest.md), [docs/veritas_checkpoint_v1_11_python_keyword_calls.md](docs/veritas_checkpoint_v1_11_python_keyword_calls.md), [docs/veritas_checkpoint_v1_7_resource_accounting.md](docs/veritas_checkpoint_v1_7_resource_accounting.md), [docs/reuse-inventory.md](docs/reuse-inventory.md), and [docs/prior-language-build-lessons.md](docs/prior-language-build-lessons.md).
-
-## Build a current-host bundle
-
-On macOS ARM64, provide the archive named by `distribution/toolchains/manifest.toml` as `VERITAS_UV_ARCHIVE` or a standalone uv executable matching its binary checksum as `VERITAS_UV_BINARY`. On Debian-compatible GNU/Linux ARM64, use `distribution/toolchains/manifest-linux-aarch64.toml` and its matching pinned binary. Then run `sh distribution/package-current-host.sh /path/to/output` on the target host. The script verifies uv before packaging. After extraction, run `sh install.sh` to install under `~/.local`, or provide a prefix. The installer keeps release files together, creates a `bin/veritas` command, preserves previous versions, and does not edit shell startup files. Archives are unsigned and require their named OS, architecture and runtime ABI. Managed CPython and wheel dependencies are acquired by `veritas sync` on the target host. See `PACKAGE.txt` and `doctor.txt` inside the archive for included capabilities and limits.
-
-For a Python-assisted application, run `veritas sync` during development, then `veritas package` to create an app bundle containing managed CPython, the locked bridge environment, and offline cache for the current target. Same-target relocation and offline launches are verified on macOS ARM64 and Debian 12-compatible Linux ARM64 for selected wheels; arbitrary native wheels and other targets remain unverified.
-
+- [Getting started](docs/getting-started.md)
+- [Architecture](docs/architecture.md)
+- [Language and command reference](docs/reference.md)
+- [Compatibility and migration](docs/compatibility-and-migrations.md)
+- [Current status](docs/status.md)
+- [Historical record index](docs/history/README.md)
+- [Contributing](CONTRIBUTING.md)
+- [Security](SECURITY.md)
+- [License](LICENSE) and [third-party notices](THIRD-PARTY-NOTICES.md)
