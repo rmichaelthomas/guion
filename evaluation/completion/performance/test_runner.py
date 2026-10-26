@@ -4,6 +4,7 @@ import sys
 import os
 import json
 import shutil
+import subprocess
 import tempfile
 import unittest
 from unittest import mock
@@ -23,6 +24,104 @@ class PeakMemoryTests(unittest.TestCase):
 
         self.assertIsInstance(observed, int)
         self.assertGreater(observed, 0)
+
+    def test_ru_maxrss_conversion_records_platform_units(self) -> None:
+        self.assertEqual(runner.ru_maxrss_to_bytes(4096, system="Darwin"), 4096)
+        self.assertEqual(runner.ru_maxrss_to_bytes(4, system="Linux"), 4096)
+        self.assertEqual(runner.MEMORY_MEASUREMENT["single_process_scope"], "direct child process")
+
+    def test_uncached_source_command_explicitly_bypasses_guion_cache(self) -> None:
+        command = ["/opt/guion", "run", "--json", "main.gu"]
+
+        self.assertEqual(
+            runner.uncached_source_command(command),
+            ["/opt/guion", "run", "--json", "--no-cache", "main.gu"],
+        )
+
+    def test_phase_profile_is_separate_and_checks_program_output(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            project = Path(directory)
+            binary = project / "guion"
+            binary.write_text(
+                "#!/bin/sh\nprintf '%s' '{\"status\":\"passed\",\"program_stdout\":\"9297\\n23246\\n\",\"phase_timings_ns\":{\"compile\":123,\"run\":456}}'\n",
+                encoding="utf-8",
+            )
+            binary.chmod(0o755)
+
+            profile = runner.profile_guion_run(
+                [str(binary), "run", "--json", "--no-cache", "main.gu"],
+                project,
+                "richards-scheduler",
+                ["9297", "23246"],
+            )
+
+        self.assertEqual(profile["reported_phase_timings_ns"], {"compile": 123, "run": 456})
+        self.assertEqual(profile["cache_status"], None)
+        self.assertGreater(profile["elapsed_seconds_including_process_startup"], 0)
+
+    def test_parallel_worker_memory_report_is_an_untimed_upper_bound(self) -> None:
+        script = Path(__file__).resolve().parents[2] / "development/famous_benchmarks/parallel_cpu.py"
+        result = subprocess.run(
+            [sys.executable, str(script), "processes", "1000", "--report-memory"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.splitlines(), [str(sum(i % 97 for i in range(1000)))] * 4)
+        memory_line = result.stderr.strip().splitlines()[-1]
+        self.assertTrue(memory_line.startswith("GUION_WORKER_MEMORY="))
+        report = json.loads(memory_line.removeprefix("GUION_WORKER_MEMORY="))
+        self.assertEqual(report["scope"], "sum of each observed worker's peak (upper bound)")
+        self.assertGreater(report["sum_peak_rss_bytes_upper_bound"], 0)
+        self.assertTrue(report["workers"])
+
+    def test_runner_reads_the_worker_memory_report(self) -> None:
+        script = Path(__file__).resolve().parents[2] / "development/famous_benchmarks/parallel_cpu.py"
+        report = runner.parallel_worker_memory_report(
+            [sys.executable, str(script), "processes", "1000"],
+            Path.cwd(),
+        )
+
+        self.assertEqual(report["scope"], "sum of each observed worker's peak (upper bound)")
+        self.assertEqual(report["worker_count"], len(report["workers"]))
+        self.assertGreater(report["sum_peak_rss_bytes_upper_bound"], 0)
+
+    def test_jsonl_scale_lanes_are_single_run_and_keep_cache_modes_separate(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            project = Path(directory)
+            commands = runner.jsonl_scale_commands(Path("/opt/guion"), project)
+
+        self.assertEqual(
+            set(commands),
+            {"guion_source", "guion_source_uncached", "guion_artifact", "python_data", "python_sqlite_native"},
+        )
+        self.assertIn("--no-cache", commands["guion_source_uncached"])
+        self.assertNotIn("--no-cache", commands["guion_source"])
+
+    def test_resume_report_requires_all_completed_pre_scale_workloads(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            report = Path(directory) / "partial.json"
+            completed = [
+                "richards-scheduler",
+                "nbody-numeric",
+                "mandelbrot-image",
+                "parallel-cpu-20000",
+                "parallel-cpu-200000",
+                "jsonl-summary-data",
+            ]
+            report.write_text(
+                json.dumps({"completed_workloads": completed, "workloads": {name: {} for name in completed}}),
+                encoding="utf-8",
+            )
+
+            resumed = runner.load_resumable_suite_report(report)
+
+            self.assertEqual(set(resumed["workloads"]), set(completed))
+            report.write_text(json.dumps({"completed_workloads": completed[:-1], "workloads": {name: {} for name in completed[:-1]}}), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "incomplete"):
+                runner.load_resumable_suite_report(report)
 
 
 class GuionApplicationPreparationTests(unittest.TestCase):
@@ -222,6 +321,61 @@ class PerformanceSessionTests(unittest.TestCase):
             self.assertNotEqual(first, second)
             self.assertFalse(session.json_load(first)["manifest"]["build_reused"])
             self.assertTrue(session.json_load(second)["manifest"]["build_reused"])
+
+    def test_baseline_resumes_the_existing_run_workspace(self) -> None:
+        self.require_session()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.make_repo(root)
+            scratch = root / "target" / "perf-session"
+            run_scratch = scratch / "runs" / "resume-run"
+            partial = run_scratch / "existing-suite.partial.json"
+            partial.parent.mkdir(parents=True)
+            partial.write_text("{}", encoding="utf-8")
+
+            def build(_root: Path, destination: Path) -> Path:
+                binary = destination / "release" / "guion"
+                binary.parent.mkdir(parents=True, exist_ok=True)
+                binary.write_bytes(b"baseline binary")
+                return binary
+
+            with mock.patch.object(session, "build_release_cli", side_effect=build), mock.patch.object(
+                session, "source_revision", return_value="revision-resume"
+            ), mock.patch.object(session, "run_benchmarks", return_value={"tiny_cli_launch": {"median_seconds": 0.01}}) as benchmark:
+                session.baseline(
+                    root=root,
+                    cwd=root,
+                    scratch=scratch,
+                    python_version="3.14.7",
+                    free_bytes=10_000_000_000,
+                    offline_ok=True,
+                    report_dir=root / "evaluation" / "results",
+                    run_id="resume-run",
+                    resume_from=partial,
+                )
+
+            benchmark.assert_called_once()
+            self.assertEqual(benchmark.call_args.args[1], run_scratch.resolve())
+            self.assertEqual(benchmark.call_args.kwargs["resume_from"], partial.resolve())
+            self.assertEqual(benchmark.call_args.args[0].read_bytes(), b"baseline binary")
+
+    def test_run_benchmarks_reuses_existing_session_directories(self) -> None:
+        self.require_session()
+        with tempfile.TemporaryDirectory() as directory:
+            scratch = Path(directory)
+            (scratch / "source-loop" / "tiny-launch").mkdir(parents=True)
+            envelope = {"source_cache": "bypassed", "phase_timings_ns": {"compile": 1}}
+            output = json.dumps({"status": "passed", "program_stdout": "tiny\n"})
+            with mock.patch.object(session, "_measure_source_lanes", return_value={}), mock.patch.object(
+                session, "_measure_agent_examples", return_value={}
+            ), mock.patch.object(runner, "write_manifest"), mock.patch.object(
+                runner, "guion_result", return_value=(0.01, output, envelope)
+            ), mock.patch.object(runner, "peak_memory", return_value=1234), mock.patch.object(
+                runner, "run_suite", return_value={"workloads": {}}
+            ), mock.patch.object(session, "_measure_launch", return_value={"median_seconds": 0.01}):
+                report = session.run_benchmarks(Path("/unused/guion"), scratch)
+
+        self.assertEqual(report["tiny_source_phase_profile"]["peak_memory_bytes"], 1234)
 
     def test_clean_removes_only_the_owned_session_tree(self) -> None:
         self.require_session()

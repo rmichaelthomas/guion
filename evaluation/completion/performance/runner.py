@@ -35,6 +35,21 @@ TRIAL_SEED = 20261025
 BOOTSTRAP_SEED = 20261026
 BOOTSTRAP_SAMPLES = 20_000
 PINNED_PYTHON = "3.14.7"
+RESUMABLE_BASELINE_WORKLOADS = (
+    "richards-scheduler",
+    "nbody-numeric",
+    "mandelbrot-image",
+    "parallel-cpu-20000",
+    "parallel-cpu-200000",
+    "jsonl-summary-data",
+)
+MEMORY_MEASUREMENT = {
+    "method": "resource.getrusage(resource.RUSAGE_CHILDREN).ru_maxrss",
+    "single_process_scope": "direct child process",
+    "darwin_unit": "bytes",
+    "other_platform_unit": "kilobytes, converted to bytes",
+    "process_pool_scope": "individual worker peaks; their sum is an upper bound, not a simultaneous process-tree peak",
+}
 
 
 def execute(
@@ -114,6 +129,62 @@ def guion_result(
     if envelope and envelope.get("status") != "passed":
         raise RuntimeError(f"Guion execution reported failure: {envelope}")
     return elapsed, result.stdout, envelope
+
+
+def uncached_source_command(command: list[str]) -> list[str]:
+    """Return the same source-run command with Guion's compilation cache bypassed."""
+    result = list(command)
+    try:
+        run_index = result.index("run")
+    except ValueError as error:
+        raise ValueError("uncached source command must contain the Guion run subcommand") from error
+    if "--no-cache" in result:
+        return result
+    source_index = next((index for index in range(run_index + 1, len(result)) if not result[index].startswith("-")), None)
+    if source_index is None:
+        raise ValueError("uncached source command must identify a source file")
+    result.insert(source_index, "--no-cache")
+    return result
+
+
+def profile_guion_run(
+    command: list[str],
+    cwd: Path,
+    workload_id: str,
+    expected: Any,
+    *,
+    output_file: Path | None = None,
+) -> dict[str, Any]:
+    """Collect phase telemetry in an untimed lane and verify the workload output."""
+    if output_file is not None:
+        output_file.unlink(missing_ok=True)
+    elapsed, output, envelope = guion_result(
+        command,
+        cwd,
+        extra_env={"GUION_PHASE_TIMINGS": "1"},
+    )
+    if envelope is None:
+        raise RuntimeError("phase profile requires Guion JSON output")
+    if output_file is not None:
+        if not output_file.is_file():
+            raise RuntimeError(f"profiled Guion run did not create {output_file}")
+        actual = normalize_data(json.loads(output_file.read_text(encoding="utf-8")))
+        if actual != normalize_data(expected):
+            raise RuntimeError(f"profiled {workload_id} data output differs from independent oracle")
+    else:
+        actual = canonical_output("guion_source", output, workload_id)
+        if not equivalent(actual, expected, workload_id):
+            raise RuntimeError(f"profiled {workload_id} output mismatch: {actual!r} != {expected!r}")
+    return {
+        "elapsed_seconds_including_process_startup": elapsed,
+        "cache_status": envelope.get("source_cache"),
+        "reported_phase_timings_ns": envelope.get("phase_timings_ns"),
+    }
+
+
+def ru_maxrss_to_bytes(value: int, *, system: str | None = None) -> int:
+    system = system or platform.system()
+    return value if system == "Darwin" else value * 1024
 
 
 def make_warm_source(source: Path, destination: Path, repeats: int) -> None:
@@ -258,7 +329,6 @@ def ci_for(workload: dict[str, Any], reference: str, candidates: list[str]) -> d
 
 
 def peak_memory(command: list[str], cwd: Path) -> int | None:
-    scale = 1 if platform.system() == "Darwin" else 1024
     environment = None
     if Path(command[0]).name == "guion":
         environment = os.environ.copy()
@@ -285,10 +355,31 @@ def peak_memory(command: list[str], cwd: Path) -> int | None:
     for line in result.stderr.splitlines():
         if line.startswith("GUION_PEAK_RSS="):
             try:
-                return int(line.split("=", 1)[1]) * scale
+                return ru_maxrss_to_bytes(int(line.split("=", 1)[1]))
             except (ValueError, IndexError):
                 return None
     return None
+
+
+def parallel_worker_memory_report(command: list[str], cwd: Path) -> dict[str, Any]:
+    """Run the process-pool workload separately and collect per-worker RSS peaks."""
+    result = subprocess.run(
+        [*command, "--report-memory"],
+        cwd=cwd,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode:
+        raise RuntimeError(f"parallel worker memory report failed: {result.stderr}")
+    marker = "GUION_WORKER_MEMORY="
+    line = next((line for line in reversed(result.stderr.splitlines()) if line.startswith(marker)), None)
+    if line is None:
+        raise RuntimeError("parallel worker memory report was not emitted")
+    report = json.loads(line.removeprefix(marker))
+    if not report.get("workers") or report.get("sum_peak_rss_bytes_upper_bound", 0) <= 0:
+        raise RuntimeError("parallel worker memory report contains no positive worker peaks")
+    return report
 
 
 def size_bytes(path: Path) -> int:
@@ -313,8 +404,156 @@ def save_progress(reports: dict[str, Any], output_path: Path | None = None) -> N
     temporary.replace(path)
 
 
-def run_suite(binary: Path, scratch: Path, output_path: Path | None = None) -> dict[str, Any]:
-    reports: dict[str, Any] = {"workloads": {}, "build_seconds": {}, "artifact_bytes": {}, "peak_memory_bytes": {}}
+def jsonl_scale_commands(binary: Path, project: Path) -> dict[str, list[str]]:
+    source = project / "main.gu"
+    artifact = project / "main.gub"
+    reference_script = project / "data_reference.py"
+    events = project / "performance-inputs" / "events.jsonl"
+    services = project / "performance-inputs" / "services.txt"
+    result_path = project / "performance-inputs" / "summary.json"
+    args = ["--events", str(events.relative_to(project)), "--output", str(result_path.relative_to(project))]
+    return {
+        "guion_source": [str(binary), "run", "--json", str(source), *args],
+        "guion_source_uncached": uncached_source_command([str(binary), "run", "--json", str(source), *args]),
+        "guion_artifact": [str(binary), "run", "--json", str(artifact), *args],
+        "python_data": [sys.executable, str(reference_script), "python", str(events), str(services), str(result_path)],
+        "python_sqlite_native": [sys.executable, str(reference_script), "sqlite", str(events), str(services), str(result_path)],
+    }
+
+
+def load_resumable_suite_report(path: Path) -> dict[str, Any]:
+    partial = json.loads(path.read_text(encoding="utf-8"))
+    completed = set(partial.get("completed_workloads", []))
+    workloads = partial.get("workloads", {})
+    missing = set(RESUMABLE_BASELINE_WORKLOADS) - completed.intersection(workloads)
+    if missing:
+        raise ValueError(f"cannot resume from an incomplete benchmark report: {', '.join(sorted(missing))}")
+    return {
+        key: value
+        for key, value in partial.items()
+        if key not in {"schema_version", "kind", "status", "completed_workloads"}
+    }
+
+
+def measure_jsonl_scale(binary: Path, project: Path, rows: int) -> tuple[dict[str, Any], dict[str, int]]:
+    workload_id = f"jsonl-summary-data-{rows}"
+    generated = project / "performance-inputs"
+    events, services, result_path = generated / "events.jsonl", generated / "services.txt", generated / "summary.json"
+    reference_script = project / "data_reference.py"
+    require_ok([sys.executable, str(GENERATOR), "--rows", str(rows), "--output", str(events), "--services", str(services)], project)
+    py_output = generated / "expected.json"
+    require_ok([sys.executable, str(reference_script), "python", str(events), str(services), str(py_output)], project)
+    expected = normalize_data(json.loads(py_output.read_text(encoding="utf-8")))
+    sqlite_output = generated / "expected-sqlite.json"
+    require_ok([sys.executable, str(reference_script), "sqlite", str(events), str(services), str(sqlite_output)], project)
+    if json.loads(sqlite_output.read_text(encoding="utf-8")) != expected:
+        raise RuntimeError(f"Python dictionary and native SQLite data references disagree at {rows:,} rows")
+
+    commands = jsonl_scale_commands(binary, project)
+    results, meta = sample_candidates(
+        workload_id,
+        commands,
+        project,
+        expected,
+        output_file=result_path,
+        repetitions=1,
+        trials=DATA_TRIALS,
+    )
+    comparisons = {
+        "guion_source_over_python": ci_for(results, "python_data", ["guion_source"])["guion_source_over_python_data"],
+        "guion_source_uncached_over_python": ci_for(results, "python_data", ["guion_source_uncached"])["guion_source_uncached_over_python_data"],
+        "guion_artifact_over_python": ci_for(results, "python_data", ["guion_artifact"])["guion_artifact_over_python_data"],
+        "guion_artifact_over_sqlite_native": ci_for(results, "python_sqlite_native", ["guion_artifact"])["guion_artifact_over_python_sqlite_native"],
+    }
+    profiles = {
+        profile_name: profile_guion_run(command, project, workload_id, expected, output_file=result_path)
+        for profile_name, command in (
+            ("uncached_source", commands["guion_source_uncached"]),
+            ("prebuilt_artifact", commands["guion_artifact"]),
+        )
+    }
+    memory: dict[str, int] = {}
+    for name, command in commands.items():
+        result_path.unlink(missing_ok=True)
+        observed = peak_memory(command, project)
+        if observed is None:
+            raise RuntimeError(f"peak RSS sample failed for {workload_id}/{name}")
+        if not result_path.is_file() or normalize_data(json.loads(result_path.read_text(encoding="utf-8"))) != expected:
+            raise RuntimeError(f"peak RSS sample output mismatch for {workload_id}/{name}")
+        memory[name] = observed
+
+    return (
+        {
+            **results,
+            "comparison": comparisons,
+            "rows": rows,
+            "timed_trials_per_candidate": DATA_TRIALS,
+            "repetitions_per_process": 1,
+            "generator_seed": 20261025,
+            "phase_profiles": profiles,
+            "cache_policy": {
+                "uncached_source": "--no-cache bypasses the Guion compilation cache; OS file cache uncontrolled",
+                "cached_source": "fresh Guion process; source cache warmed by correctness-checked calls",
+            },
+            **meta,
+        },
+        memory,
+    )
+
+
+def finalize_suite_report(reports: dict[str, Any], binary: Path) -> dict[str, Any]:
+    gil_enabled: bool | None = None
+    probe = subprocess.run([sys.executable, "-c", "import sys; print(sys._is_gil_enabled())"], capture_output=True, text=True, check=False)
+    if probe.returncode == 0:
+        gil_enabled = probe.stdout.strip().lower() == "true"
+    free_threaded = shutil.which("python3.14t") or shutil.which("python3t")
+    if free_threaded is None:
+        reports["free_threaded_python"] = {"available": False, "status": "unverified", "reason": "No python3.14t or python3t executable is installed; free-threaded concurrency comparison cannot be measured on this host."}
+    else:
+        probe = subprocess.run([free_threaded, "-c", "import sys; print(sys._is_gil_enabled())"], capture_output=True, text=True, check=False)
+        reports["free_threaded_python"] = {"available": probe.returncode == 0 and probe.stdout.strip() == "False", "status": "verified" if probe.returncode == 0 and probe.stdout.strip() == "False" else "unverified", "executable": free_threaded}
+    reports["python"] = {"version": sys.version, "executable": sys.executable, "pinned_version": PINNED_PYTHON, "matches_pinned": sys.version.startswith(PINNED_PYTHON), "gil_enabled": gil_enabled}
+    reports["platform"] = {"platform": platform.platform(), "architecture": platform.machine(), "release_binary": str(binary), "release_binary_sha256": hashlib.sha256(binary.read_bytes()).hexdigest()}
+    reports["fixed_inputs"] = {"seed": TRIAL_SEED, "bootstrap_seed": BOOTSTRAP_SEED, "bootstrap_resamples": BOOTSTRAP_SAMPLES, "candidate_order": "seeded shuffle per paired trial", "compute_trials": TRIALS, "data_trials": DATA_TRIALS, "warmups": WARMUPS, "warm_repetitions": WARM_REPETITIONS}
+    reports["resource_policy"] = {"instruction_limits_are_workload_specific": True, "warm_instruction_budget_multiplier": WARM_REPETITIONS, "allocation_limit_bytes": 8589934592, "reason": "same declared ceiling for each paired candidate; 200k JSONL scaling uses one workload pass per process to stay within the existing allocation ceiling; peak resident memory is measured separately"}
+    release_directory = binary.parents[2]
+    archive = release_directory / f"guion-{release_directory.name}.tar.gz"
+    reports["package_size_bytes"] = size_bytes(binary.parent.parent)
+    reports["package_archive_size_bytes"] = archive.stat().st_size if archive.is_file() else None
+    reports["package_archive_sha256"] = hashlib.sha256(archive.read_bytes()).hexdigest() if archive.is_file() else None
+    return reports
+
+
+def run_suite(
+    binary: Path,
+    scratch: Path,
+    output_path: Path | None = None,
+    *,
+    resume_from: Path | None = None,
+) -> dict[str, Any]:
+    if resume_from is not None:
+        reports = load_resumable_suite_report(resume_from)
+        project = scratch / "jsonl-summary-data"
+        required_files = (project / "main.gu", project / "main.gub", project / "data_reference.py")
+        if not all(path.is_file() for path in required_files):
+            raise ValueError("cannot resume the 200k JSONL point because the prior workload workspace is incomplete")
+        print("resuming at jsonl-summary-data-200000", file=sys.stderr, flush=True)
+        workload, memory = measure_jsonl_scale(binary, project, 200000)
+        reports["workloads"]["jsonl-summary-data-200000"] = workload
+        reports["peak_memory_bytes"].update(
+            {"jsonl-summary-data-200000/" + name: value for name, value in memory.items()}
+        )
+        save_progress(reports, output_path)
+        return finalize_suite_report(reports, binary)
+
+    reports: dict[str, Any] = {
+        "workloads": {},
+        "build_seconds": {},
+        "artifact_bytes": {},
+        "peak_memory_bytes": {},
+        "memory_measurement": MEMORY_MEASUREMENT,
+        "process_pool_worker_memory": {},
+    }
     python_cases = {
         "richards-scheduler": ("richards.vr", "richards_reference.py", ["9297", "23246"], 30_000_000),
         "nbody-numeric": ("nbody.vr", "nbody.py", None, 300_000_000),
@@ -341,6 +580,7 @@ def run_suite(binary: Path, scratch: Path, output_path: Path | None = None) -> d
         warm_python_source(reference, python_warm, "", 0, WARM_REPETITIONS)
         commands = {
             "guion_source": [str(binary), "run", "--json", str(source)],
+            "guion_source_uncached": uncached_source_command([str(binary), "run", "--json", str(source)]),
             "guion_artifact": [str(binary), "run", "--json", str(artifact)],
             "python_reference": [sys.executable, str(reference)],
             "guion_warm_artifact": [str(binary), "run", "--json", str(warm_artifact)],
@@ -353,6 +593,7 @@ def run_suite(binary: Path, scratch: Path, output_path: Path | None = None) -> d
             expected = expected
         comparisons = {
             "guion_source": ["guion_source", "python_reference"],
+            "guion_source_uncached": ["guion_source_uncached", "python_reference"],
             "guion_artifact": ["guion_artifact", "python_reference"],
             "guion_warm_artifact": ["guion_warm_artifact", "python_warm"],
         }
@@ -360,7 +601,23 @@ def run_suite(binary: Path, scratch: Path, output_path: Path | None = None) -> d
         warm_expected = expected * WARM_REPETITIONS if workload_id != "nbody-numeric" else expected * WARM_REPETITIONS
         original_expected = expected
         results, meta = sample_candidates(workload_id, commands, project, original_expected, repetitions=WARM_REPETITIONS)
-        reports["workloads"][workload_id] = {**results, "comparison": {key: ci_for(results, pair[1], [pair[0]])[pair[0] + "_over_" + pair[1]] for key, pair in comparisons.items()}, **meta}
+        phase_profiles = {
+            profile_name: profile_guion_run(command, project, workload_id, original_expected)
+            for profile_name, command in (
+                ("uncached_source", commands["guion_source_uncached"]),
+                ("prebuilt_artifact", commands["guion_artifact"]),
+            )
+        }
+        reports["workloads"][workload_id] = {
+            **results,
+            "comparison": {key: ci_for(results, pair[1], [pair[0]])[pair[0] + "_over_" + pair[1]] for key, pair in comparisons.items()},
+            "phase_profiles": phase_profiles,
+            "cache_policy": {
+                "uncached_source": "--no-cache bypasses the Guion compilation cache; OS file cache uncontrolled",
+                "cached_source": "fresh Guion process; source cache warmed by prior correctness-checked calls",
+            },
+            **meta,
+        }
         for name, command in commands.items():
             memory = peak_memory(command, project)
             if memory is not None:
@@ -393,6 +650,7 @@ def run_suite(binary: Path, scratch: Path, output_path: Path | None = None) -> d
         expected = [str(total)] * 4
         commands = {
             "guion_source": [str(binary), "run", "--json", str(source)],
+            "guion_source_uncached": uncached_source_command([str(binary), "run", "--json", str(source)]),
             "guion_artifact": [str(binary), "run", "--json", str(artifact)],
             "python_serial": [sys.executable, str(py_source), "serial", str(count)],
             "python_threads": [sys.executable, str(py_source), "threads", str(count)],
@@ -404,12 +662,30 @@ def run_suite(binary: Path, scratch: Path, output_path: Path | None = None) -> d
         references = ["python_serial", "python_threads", "python_processes"]
         comparisons = {f"guion_artifact_over_{name}": ci_for(results, name, ["guion_artifact"])["guion_artifact_over_" + name] for name in references}
         comparisons["guion_source_over_python_serial"] = ci_for(results, "python_serial", ["guion_source"])["guion_source_over_python_serial"]
+        comparisons["guion_source_uncached_over_python_serial"] = ci_for(results, "python_serial", ["guion_source_uncached"])["guion_source_uncached_over_python_serial"]
         comparisons["guion_warm_over_python_serial"] = ci_for(results, "python_warm", ["guion_warm_artifact"])["guion_warm_artifact_over_python_warm"]
-        reports["workloads"][workload_id] = {**results, "comparison": comparisons, **meta}
+        phase_profiles = {
+            profile_name: profile_guion_run(command, project, workload_id, expected)
+            for profile_name, command in (
+                ("uncached_source", commands["guion_source_uncached"]),
+                ("prebuilt_artifact", commands["guion_artifact"]),
+            )
+        }
+        reports["workloads"][workload_id] = {
+            **results,
+            "comparison": comparisons,
+            "phase_profiles": phase_profiles,
+            "cache_policy": {
+                "uncached_source": "--no-cache bypasses the Guion compilation cache; OS file cache uncontrolled",
+                "cached_source": "fresh Guion process; source cache warmed by prior correctness-checked calls",
+            },
+            **meta,
+        }
         for name, command in commands.items():
             memory = peak_memory(command, project)
             if memory is not None:
                 reports["peak_memory_bytes"][workload_id + "/" + name] = memory
+        reports["process_pool_worker_memory"][workload_id] = parallel_worker_memory_report(commands["python_processes"], project)
         save_progress(reports, output_path)
 
     # Real shipped Task 9 JSONL application with generated, validated input and independent baselines.
@@ -457,6 +733,7 @@ def run_suite(binary: Path, scratch: Path, output_path: Path | None = None) -> d
     args = ["--events", str(events.relative_to(project)), "--output", str(result_path.relative_to(project))]
     commands = {
         "guion_source": [str(binary), "run", "--json", str(source), *args],
+        "guion_source_uncached": uncached_source_command([str(binary), "run", "--json", str(source), *args]),
         "guion_artifact": [str(binary), "run", "--json", str(artifact), *args],
         "python_data": [sys.executable, str(reference_script), "python", str(events), str(services), str(result_path)],
         "python_sqlite_native": [sys.executable, str(reference_script), "sqlite", str(events), str(services), str(result_path)],
@@ -467,33 +744,45 @@ def run_suite(binary: Path, scratch: Path, output_path: Path | None = None) -> d
     # CSV/JSON output ordering is compared as parsed structures, so paths and map order do not bias timing.
     comparisons = {
         "guion_source_over_python": ci_for(results, "python_data", ["guion_source"])["guion_source_over_python_data"],
+        "guion_source_uncached_over_python": ci_for(results, "python_data", ["guion_source_uncached"])["guion_source_uncached_over_python_data"],
         "guion_artifact_over_python": ci_for(results, "python_data", ["guion_artifact"])["guion_artifact_over_python_data"],
         "guion_artifact_over_sqlite_native": ci_for(results, "python_sqlite_native", ["guion_artifact"])["guion_artifact_over_python_sqlite_native"],
     }
-    reports["workloads"][workload_id] = {**results, "comparison": comparisons, "rows": 20000, "timed_trials_per_candidate": DATA_TRIALS, "generator_seed": 20261025, **meta}
-    reports["peak_memory_bytes"][workload_id + "/guion_artifact"] = peak_memory(commands["guion_artifact"], project)
+    phase_profiles = {
+        profile_name: profile_guion_run(command, project, workload_id, expected, output_file=result_path)
+        for profile_name, command in (
+            ("uncached_source", commands["guion_source_uncached"]),
+            ("prebuilt_artifact", commands["guion_artifact"]),
+        )
+    }
+    reports["workloads"][workload_id] = {
+        **results,
+        "comparison": comparisons,
+        "rows": 20000,
+        "timed_trials_per_candidate": DATA_TRIALS,
+        "generator_seed": 20261025,
+        "phase_profiles": phase_profiles,
+        "cache_policy": {
+            "uncached_source": "--no-cache bypasses the Guion compilation cache; OS file cache uncontrolled",
+            "cached_source": "fresh Guion process; source cache warmed by prior correctness-checked calls",
+        },
+        **meta,
+    }
+    for name, command in commands.items():
+        memory = peak_memory(command, project)
+        if memory is not None:
+            reports["peak_memory_bytes"][workload_id + "/" + name] = memory
     save_progress(reports, output_path)
 
-    gil_enabled: bool | None = None
-    probe = subprocess.run([sys.executable, "-c", "import sys; print(sys._is_gil_enabled())"], capture_output=True, text=True, check=False)
-    if probe.returncode == 0:
-        gil_enabled = probe.stdout.strip().lower() == "true"
-    free_threaded = shutil.which("python3.14t") or shutil.which("python3t")
-    if free_threaded is None:
-        reports["free_threaded_python"] = {"available": False, "status": "unverified", "reason": "No python3.14t or python3t executable is installed; free-threaded concurrency comparison cannot be measured on this host."}
-    else:
-        probe = subprocess.run([free_threaded, "-c", "import sys; print(sys._is_gil_enabled())"], capture_output=True, text=True, check=False)
-        reports["free_threaded_python"] = {"available": probe.returncode == 0 and probe.stdout.strip() == "False", "status": "verified" if probe.returncode == 0 and probe.stdout.strip() == "False" else "unverified", "executable": free_threaded}
-    reports["python"] = {"version": sys.version, "executable": sys.executable, "pinned_version": PINNED_PYTHON, "matches_pinned": sys.version.startswith(PINNED_PYTHON), "gil_enabled": gil_enabled}
-    reports["platform"] = {"platform": platform.platform(), "architecture": platform.machine(), "release_binary": str(binary), "release_binary_sha256": hashlib.sha256(binary.read_bytes()).hexdigest()}
-    reports["fixed_inputs"] = {"seed": TRIAL_SEED, "bootstrap_seed": BOOTSTRAP_SEED, "bootstrap_resamples": BOOTSTRAP_SAMPLES, "candidate_order": "seeded shuffle per paired trial", "compute_trials": TRIALS, "data_trials": DATA_TRIALS, "warmups": WARMUPS, "warm_repetitions": WARM_REPETITIONS}
-    reports["resource_policy"] = {"instruction_limits_are_workload_specific": True, "warm_instruction_budget_multiplier": WARM_REPETITIONS, "allocation_limit_bytes": 8589934592, "reason": "same declared ceiling for each paired candidate and repeated in-process warm run; peak resident memory is measured separately"}
-    release_directory = binary.parents[2]
-    archive = release_directory / f"guion-{release_directory.name}.tar.gz"
-    reports["package_size_bytes"] = size_bytes(binary.parent.parent)
-    reports["package_archive_size_bytes"] = archive.stat().st_size if archive.is_file() else None
-    reports["package_archive_sha256"] = hashlib.sha256(archive.read_bytes()).hexdigest() if archive.is_file() else None
-    return reports
+    # Add a larger data point with single-execution lanes and the existing allocation ceiling.
+    workload_id = "jsonl-summary-data-200000"
+    print(f"measuring {workload_id} on generated JSONL with Python and SQLite baselines", file=sys.stderr, flush=True)
+    scale_workload, scale_memory = measure_jsonl_scale(binary, project, 200000)
+    reports["workloads"][workload_id] = scale_workload
+    reports["peak_memory_bytes"].update({workload_id + "/" + name: value for name, value in scale_memory.items()})
+    save_progress(reports, output_path)
+
+    return finalize_suite_report(reports, binary)
 
 
 def required_speed_wins(report: dict[str, Any]) -> dict[str, Any]:

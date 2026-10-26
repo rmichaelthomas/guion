@@ -1861,6 +1861,68 @@ impl Instance {
                             ))
                         }
                     };
+                    let local_store_slot = match f.code.get(ip).map(|next| &next.op) {
+                        Some(Op::Store(slot))
+                            if locals.get(*slot).is_some_and(|local| {
+                                matches!(local, Value::Map(current) if Arc::ptr_eq(current, &values))
+                            }) =>
+                        {
+                            Some(*slot)
+                        }
+                        _ => None,
+                    };
+                    if let Some(slot) = local_store_slot {
+                        // The compiler emits Store immediately after this expression when a
+                        // mutable local is assigned its own map_set result. Drop the temporary
+                        // load before copy-on-write so a unique local can update in place.
+                        drop(values);
+                        let local = locals.get_mut(slot).ok_or_else(|| {
+                            RuntimeError::new(
+                                "R_LOCAL_UNINITIALIZED",
+                                "map_set assignment targets an uninitialized local",
+                                instruction.span,
+                            )
+                        })?;
+                        let Value::Map(items) = local else {
+                            return Err(RuntimeError::new(
+                                "R_TYPE_INVALID",
+                                "map_set assignment target must be a Map",
+                                instruction.span,
+                            ));
+                        };
+                        let contains_key = items.contains_key(&key);
+                        if !contains_key && items.len() >= self.policy.max_collection_items {
+                            return Err(RuntimeError::new(
+                                "R_COLLECTION_LIMIT",
+                                "map exceeds the configured item limit",
+                                instruction.span,
+                            ));
+                        }
+                        if key.len() > self.policy.max_text_bytes {
+                            return Err(RuntimeError::new(
+                                "R_TEXT_LIMIT",
+                                "map key exceeds the configured text limit",
+                                instruction.span,
+                            ));
+                        }
+                        let shared = Arc::strong_count(items) > 1;
+                        let allocation = if shared {
+                            map_clone_allocation(items.as_ref(), Some(&key), &value)
+                        } else if contains_key {
+                            0
+                        } else {
+                            size_of::<(String, Value)>().saturating_add(key.len())
+                        };
+                        charge_allocation(budget.as_ref(), allocation, instruction.span)?;
+                        if let Some(error) =
+                            value_limit_error(&value, &self.policy, instruction.span)
+                        {
+                            return Err(error);
+                        }
+                        Arc::make_mut(items).insert(key, value);
+                        push_stack!(Value::Map(Arc::clone(items)));
+                        continue;
+                    }
                     if !values.contains_key(&key)
                         && values.len() >= self.policy.max_collection_items
                     {

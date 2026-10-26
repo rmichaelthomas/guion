@@ -297,10 +297,12 @@ def _measure_source_lanes(binary: Path, scratch: Path) -> dict[str, Any]:
     }
     run_help = subprocess.run([str(binary), "run", "--help"], capture_output=True, text=True, check=False)
     no_cache_available = run_help.returncode == 0 and "--no-cache" in run_help.stdout + run_help.stderr
+    if not no_cache_available:
+        raise RuntimeError("the Rust-default Guion CLI must support `run --no-cache` for an uncached source measurement")
     reports: dict[str, Any] = {}
     for workload, (source_name, python_name, expected_lines, instruction_limit) in workload_files.items():
         project = scratch / "source-loop" / workload
-        project.mkdir(parents=True)
+        project.mkdir(parents=True, exist_ok=True)
         source = project / "main.gu"
         shutil.copy2(runner.WORKLOADS / source_name, source)
         python_source = runner.WORKLOADS / python_name
@@ -313,10 +315,7 @@ def _measure_source_lanes(binary: Path, scratch: Path) -> dict[str, Any]:
         else:
             expected = expected_lines
 
-        cold_command = [str(binary), "run", "--json"]
-        if no_cache_available:
-            cold_command.append("--no-cache")
-        cold_command.append(str(source))
+        cold_command = [str(binary), "run", "--json", "--no-cache", str(source)]
         cold_seconds, _, cold_cache_status = _checked_sample("guion_source", cold_command, project, workload, expected)
         first_python_seconds, _, _ = _checked_sample("python_reference", [sys.executable, str(python_source)], project, workload, expected)
 
@@ -384,7 +383,7 @@ def _measure_agent_examples(binary: Path, scratch: Path) -> dict[str, Any]:
     examples = ROOT / "docs/agents/examples"
     for name, (source_name, arguments, expected) in cases.items():
         project = scratch / "agent-examples" / name
-        project.mkdir(parents=True)
+        project.mkdir(parents=True, exist_ok=True)
         source = project / "main.gu"
         shutil.copy2(examples / source_name, source)
         runner.write_manifest(project, "source-loop-" + name, 10_000_000)
@@ -417,10 +416,15 @@ def _measure_agent_examples(binary: Path, scratch: Path) -> dict[str, Any]:
     return outputs
 
 
-def run_benchmarks(binary: Path, scratch: Path) -> dict[str, Any]:
+def run_benchmarks(
+    binary: Path,
+    scratch: Path,
+    *,
+    resume_from: Path | None = None,
+) -> dict[str, Any]:
     source_lanes = _measure_source_lanes(binary, scratch)
     tiny_project = scratch / "source-loop" / "tiny-launch"
-    tiny_project.mkdir(parents=True)
+    tiny_project.mkdir(parents=True, exist_ok=True)
     tiny_source = tiny_project / "main.gu"
     tiny_source.write_text("fn main() -> Int:\n    print(\"tiny\")\n    return 0\n", encoding="utf-8")
     runner.write_manifest(tiny_project, "tiny-launch", 100_000)
@@ -437,7 +441,12 @@ def run_benchmarks(binary: Path, scratch: Path) -> dict[str, Any]:
     )
     suite_scratch = scratch / "existing-suite"
     suite_scratch.mkdir(parents=True, exist_ok=True)
-    suite = runner.run_suite(binary, suite_scratch, output_path=scratch / "existing-suite.json")
+    suite = runner.run_suite(
+        binary,
+        suite_scratch,
+        output_path=scratch / "existing-suite.json",
+        resume_from=resume_from,
+    )
     return {
         "source_run_lanes": source_lanes,
         "existing_correctness_checked_suite": suite,
@@ -450,6 +459,7 @@ def run_benchmarks(binary: Path, scratch: Path) -> dict[str, Any]:
         },
         "agent_application_cases": _measure_agent_examples(binary, scratch),
         "cache_state": "cache implementation enabled; per-run states are recorded by workload",
+        "memory_measurement": runner.MEMORY_MEASUREMENT,
     }
 
 
@@ -489,6 +499,7 @@ def baseline(
     offline_ok: bool | None = None,
     report_dir: Path | None = None,
     run_id: str | None = None,
+    resume_from: Path | None = None,
 ) -> Path:
     root = root.resolve()
     scratch = _inside(root, scratch)
@@ -500,14 +511,25 @@ def baseline(
         with lock.open("x", encoding="utf-8") as owner:
             lock_created = True
             owner.write(str(os.getpid()))
-        requested_run_id = run_id or datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S.%fZ")
-        safe_run_id = "".join(character for character in requested_run_id if character.isalnum() or character in "-_") or "run"
-        run_scratch = scratch / "runs" / safe_run_id
-        suffix = 2
-        while run_scratch.exists():
-            run_scratch = scratch / "runs" / f"{safe_run_id}-{suffix:02d}"
-            suffix += 1
-        run_scratch.mkdir(parents=True)
+        if resume_from is None:
+            requested_run_id = run_id or datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S.%fZ")
+            safe_run_id = "".join(character for character in requested_run_id if character.isalnum() or character in "-_") or "run"
+            run_scratch = scratch / "runs" / safe_run_id
+            suffix = 2
+            while run_scratch.exists():
+                run_scratch = scratch / "runs" / f"{safe_run_id}-{suffix:02d}"
+                suffix += 1
+            run_scratch.mkdir(parents=True)
+        else:
+            resume_from = _inside(root, resume_from)
+            run_scratch = resume_from.parent
+            if (
+                resume_from.name != "existing-suite.partial.json"
+                or not resume_from.is_file()
+                or run_scratch.parent != scratch / "runs"
+                or not run_scratch.is_dir()
+            ):
+                raise PreflightError("resume report must be an existing suite partial inside this performance session")
         report_id = run_scratch.name
         started = time.perf_counter()
         revision = source_revision(root)
@@ -517,7 +539,10 @@ def baseline(
             [str(binary), "--version"],
             ["python3", str(root / "evaluation/completion/performance/runner.py"), "--installed", "--binary", str(binary)],
         ]
-        outcomes = run_benchmarks(binary, run_scratch)
+        if resume_from is None:
+            outcomes = run_benchmarks(binary, run_scratch)
+        else:
+            outcomes = run_benchmarks(binary, run_scratch, resume_from=resume_from)
         manifest = {
             **check,
             "source_revision": revision,

@@ -11,19 +11,15 @@ use std::{
 };
 
 fn resident_bytes() -> usize {
-    let output = Command::new("ps")
-        .args(["-o", "rss=", "-p", &std::process::id().to_string()])
-        .output()
-        .expect("ps is available for the host RSS observation");
-    assert!(
-        output.status.success(),
-        "ps failed to sample this test process"
-    );
-    let kib = String::from_utf8_lossy(&output.stdout)
-        .trim()
-        .parse::<usize>()
-        .expect("ps reports resident memory in KiB");
-    kib.saturating_mul(1024)
+    let mut usage = unsafe { std::mem::zeroed::<libc::rusage>() };
+    let result = unsafe { libc::getrusage(libc::RUSAGE_SELF, &mut usage) };
+    assert_eq!(result, 0, "getrusage failed to sample this test process");
+    let maximum = usize::try_from(usage.ru_maxrss).expect("ru_maxrss is non-negative");
+    if cfg!(target_os = "macos") {
+        maximum
+    } else {
+        maximum.saturating_mul(1024)
+    }
 }
 
 fn host_description() -> String {
@@ -122,7 +118,7 @@ fn main() -> Int:
         "kind": "runtime_lifecycle_memory_samples",
         "target": target,
         "host": host_description(),
-        "measurement": "ps RSS of the test process after each repeated invocation batch",
+        "measurement": "resource.getrusage(RUSAGE_SELF).ru_maxrss high-water mark for the test process; macOS values are bytes and other supported hosts are converted from KiB to bytes",
         "invocations": completed,
         "warmup_sample": samples[0],
         "tail_samples": &samples[1..],

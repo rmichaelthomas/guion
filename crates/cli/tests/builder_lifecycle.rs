@@ -153,7 +153,7 @@ fn installed_core_completes_new_repair_format_lint_build_package_install_and_run
     let lint_diagnostic: Value = serde_json::from_slice(&lint_rejected.stdout).unwrap();
     assert_eq!(lint_diagnostic["diagnostic"]["code"], "E_NAME_UNKNOWN");
 
-    let source = "import \"pkg:greeting/src/lib.gu\"\nimport \"unused.gu\"\n\nfn main()   ->   Int: # preserve comment  tail  \n    let abandoned   = \"  literal  # text \"\n    print( greeting(\"Guion\") )\n    return   0\n    print(\"unreachable\")\n\nfn test_starter() -> Unit:\n    assert(1 + 1 == 2)\n";
+    let source = "import \"pkg:greeting/src/lib.gu\"\nimport \"unused.gu\"\n\nfn main()   ->   Int: # preserve comment  tail  \n    let abandoned   = \"  literal  # text \"\n    print( greeting(\"Guion\") )\n    return   0\n    print(\"unreachable\")\n    return 0\n\nfn test_starter() -> Unit:\n    assert(1 + 1 == 2)\n";
     let unused = project.join("src/unused.gu");
     fs::write(unused, "pub fn unused() -> Int:\n    return 1\n").unwrap();
     fs::write(&source_path, source).unwrap();
@@ -165,8 +165,9 @@ fn installed_core_completes_new_repair_format_lint_build_package_install_and_run
     );
     assert!(
         lint.status.success(),
-        "{}",
-        String::from_utf8_lossy(&lint.stderr)
+        "stdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&lint.stdout),
+        String::from_utf8_lossy(&lint.stderr),
     );
     let lint_report: Value = serde_json::from_slice(&lint.stdout).unwrap();
     let codes = lint_report["diagnostics"]
