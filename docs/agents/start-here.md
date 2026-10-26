@@ -20,12 +20,20 @@ The starter prints `Hello, Guion!`. Cargo builds the Guion tool; the Guion CLI t
 
 - A source file is a module. Functions declare parameter and return types; local values are inferred from their initial value.
 - `let` creates an immutable binding. `var` creates a mutable binding, changed with `set`.
-- `Option[T]` means a value may be absent. `Result[T, E]` means an operation may succeed or fail. Handle both explicitly.
+- `Option[T]` means a value may be absent. `Result[T, E]` means an operation may succeed or fail. Use `match`, or postfix `?` inside a function that returns a compatible `Result`; reserve `unwrap` for values whose success was already established.
 - Lists and maps are immutable values; update operations return a new value.
 - File, network, environment, and clock operations follow explicit host permissions. Network and clock access are denied unless granted.
 - Guion is a real programming language with structured syntax. “Plain English” is the goal for the learning experience and diagnostics, not a promise that arbitrary English is executable code.
 
 The [language contract](../../language/spec.md) is the authority on implemented syntax and runtime behavior. The [built-in signature catalog](../../language/builtin-signatures.json), [standard-library source](../../language/stdlib/), and [host API contract](../../language/host-api.md) are the API sources of truth.
+
+## Inspect effects and grants
+
+Run `guion inspect --json src/main.gu` to see the statically reachable effects, such as `filesystem.read`, `filesystem.write`, `network.http`, and `clock.read`. The report follows reachable calls and `parallel_map` workers in the compiled program; it does not run the program. The compiler can identify that an HTTP operation is reachable, but it cannot know which host a runtime-supplied URL from `args()` will name.
+
+The caller controls permissions. A project can list exact hostnames in `guion.toml` under `[network].hosts`; a caller can add a one-run host with `guion run --allow-http-host api.example.test`. `inspect` reports the effect surface and manifest context, but it cannot know extra grants a later run command will add. The runtime checks the URL host and redirects against its grants. Host matching does not replace operating-system egress controls: DNS rebinding and network isolation remain host responsibilities.
+
+HTTP responses depend on the API: `http_request_bytes` returns a typed `HttpResponse` record with status, headers, and bytes. The older text `http_request` returns a checked JSON envelope. Prefer the typed byte API for new code that needs typed response fields or binary bodies.
 
 ## Project layout
 

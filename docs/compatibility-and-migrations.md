@@ -28,9 +28,9 @@ This compatibility is a migration aid, not a guarantee that old names will remai
 
 ## Supported artifact and package boundaries
 
-The current compiler writes artifact format 39 and the runtime reads formats 14 through 39. Current packages use schema 2; the verifier accepts schemas 1 and 2. Artifact format compatibility does not promise that the source compiler version is checked at runtime. Hashes detect accidental changes but do not authenticate the publisher.
+The current compiler writes artifact format 39 and the runtime reads artifact formats 14 through 39. Current packages use schema 2; the verifier accepts schemas 1 and 2. Artifact format compatibility does not promise that the source compiler version is checked at runtime. Hashes detect accidental changes but do not authenticate the publisher.
 
-The earlier release validation covered macOS ARM64 and Debian 12-compatible GNU/Linux ARM64 with glibc, including same-target relocation. Other operating systems, CPU architectures, Linux distributions, and libc implementations remain unverified. The Guion pre-release matrix is still open; consult [status](status.md) before relying on a target.
+The Guion-identity pre-release matrix passed on macOS ARM64 and Debian 12-compatible GNU/Linux ARM64 with glibc, including same-target relocation. Other operating systems, CPU architectures, Linux distributions, and libc implementations remain unverified. Consult [status](status.md) and the [pre-release readiness report](pre-release-readiness.md) before relying on a target.
 
 ## Python interoperability
 

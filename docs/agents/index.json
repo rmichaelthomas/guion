@@ -167,12 +167,17 @@
     ]
   },
   "supported_targets": {
-    "source": "docs/compatibility-and-migrations.md",
+    "source": "docs/pre-release-readiness.md",
     "previously_validated_before_guion_rename": [
       "aarch64-apple-darwin",
       "aarch64-unknown-linux-gnu"
     ],
-    "current_guion_validation": "pre_release_matrix_pending"
+    "current_guion_validation": "passed",
+    "current_guion_targets": [
+      "aarch64-apple-darwin",
+      "aarch64-unknown-linux-gnu"
+    ],
+    "evidence": "evaluation/completion/results/guion-final/README.md"
   },
   "examples": [
     {
