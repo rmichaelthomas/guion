@@ -54,17 +54,23 @@ run_gate() {
     local log_path="$EVIDENCE_ROOT/logs/$gate_id.log"
     local report_path="$REPO_ROOT/evaluation/completion/results/$report_name.json"
     local copied_report="$EVIDENCE_ROOT/reports/$report_name.json"
-    local command_status=0 target_args=()
+    local command_status=0
     if [[ "$target_required" == "yes" ]]; then
-        target_args=(--target both)
+        echo "Running $gate_id on $TARGET: cargo xtask $* --target both"
+        if cargo xtask "$@" --target both >"$log_path" 2>&1; then
+            command_status=0
+        else
+            command_status=$?
+        fi
+    else
+        echo "Running $gate_id on $TARGET: cargo xtask $*"
+        if cargo xtask "$@" >"$log_path" 2>&1; then
+            command_status=0
+        else
+            command_status=$?
+        fi
     fi
 
-    echo "Running $gate_id on $TARGET: cargo xtask $* ${target_args[*]}"
-    if cargo xtask "$@" "${target_args[@]}" >"$log_path" 2>&1; then
-        command_status=0
-    else
-        command_status=$?
-    fi
     tail -n 60 "$log_path"
     if [[ -f "$report_path" ]]; then
         cp "$report_path" "$copied_report"
