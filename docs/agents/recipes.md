@@ -45,6 +45,8 @@ Guion agents
 
 The program reads its adjacent TOML file, creates or opens `agent-recipes.sqlite3` under the extra data root, inserts the configured name in a transaction, reads the latest row, and closes the database. Each run inserts another row. The database is outside the source checkout because writes go to the last explicitly granted root.
 
+The recipe uses `?` to return service errors to `main`, which prints the stable error code and message to stderr and exits nonzero. If a failure occurs after SQLite opens, the runtime closes the invocation-owned handles and rolls back the still-open transaction when the invocation ends.
+
 ## Run bounded concurrent work
 
 Source: [`concurrent_task.gu`](examples/concurrent_task.gu).
@@ -60,6 +62,20 @@ Expected output:
 ```
 
 `parallel_map` runs a named worker function with a limit of three workers, keeps results in input order, and returns a typed `Result`. The program prints the failure code and message if a worker fails.
+
+## Check common failure paths
+
+Source: [`failure_paths.gu`](examples/failure_paths.gu). It has four independent modes so each denial can be reproduced without an external service:
+
+```sh
+cargo run --locked -p guion-cli -- run docs/agents/examples/failure_paths.gu missing-file
+cargo run --locked -p guion-cli -- run docs/agents/examples/failure_paths.gu denied-http
+mkdir -p /tmp/guion-agent-data
+cargo run --locked -p guion-cli -- run --file-root /tmp/guion-agent-data docs/agents/examples/failure_paths.gu sqlite-escape
+cargo run --locked -p guion-cli -- run docs/agents/examples/failure_paths.gu worker-failure
+```
+
+Each command intentionally exits with status 1 and prints the failure code to stdout. The `sqlite-escape` mode prints `E_SQLITE_PATH` because `../outside.sqlite3` leaves every granted root. `denied-http` prints `R_NETWORK_DENIED` before any request reaches the local URL because no host grant is present. `worker-failure` prints three lines: zero-based input index `1`, `R_ASSERTION`, and the assertion message. Work already completed by another worker is not rolled back.
 
 ## API and test contracts
 

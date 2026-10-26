@@ -70,4 +70,4 @@ The default core profile does not discover or run Python. An optional CLI build 
 
 ## Runnable agent recipes
 
-[`recipes.md`](recipes.md) links to four complete, checked programs: file/data processing, HTTP with a host grant, SQLite plus TOML, and bounded concurrent work. Their paths and expected outputs also appear in [`index.json`](index.json).
+[`recipes.md`](recipes.md) links to five runnable programs: file/data processing, HTTP with a host grant, SQLite plus TOML, bounded concurrent work, and four deliberate failure paths. Their paths and expected outputs also appear in [`index.json`](index.json).

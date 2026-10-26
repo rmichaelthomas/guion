@@ -53,6 +53,24 @@ class CurrentDocumentationTests(unittest.TestCase):
         self.assertIn("?", start_here)
         self.assertIn("http_request_bytes", start_here)
 
+    def test_agent_failure_recipe_is_indexed_and_sqlite_example_checks_results(self):
+        index = json.loads(
+            (ROOT / "docs/agents/index.json").read_text(encoding="utf-8")
+        )
+        failure = next(
+            (example for example in index["examples"] if example["id"] == "agent_failure_paths"),
+            None,
+        )
+        self.assertIsNotNone(failure)
+        self.assertTrue((ROOT / failure["source"]).is_file())
+        recipes = (ROOT / "docs/agents/recipes.md").read_text(encoding="utf-8")
+        for case in ("missing-file", "denied-http", "sqlite-escape", "worker-failure"):
+            self.assertIn(case, recipes)
+        sqlite_example = (ROOT / "docs/agents/examples/sqlite_toml.gu").read_text(
+            encoding="utf-8"
+        )
+        self.assertNotIn("unwrap(", sqlite_example)
+
     @unittest.skipUnless(
         (ROOT / "crates/model/src/lib.rs").is_file(),
         "runtime constant comparison requires a source checkout",

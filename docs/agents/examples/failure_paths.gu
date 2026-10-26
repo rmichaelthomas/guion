@@ -1,0 +1,55 @@
+import "std:sqlite"
+import "std:types"
+
+fn fail_on_two(value: Int) -> Int:
+    assert(value != 2)
+    return value
+
+fn main() -> Int:
+    let arguments = args()
+    if len(arguments) != 1:
+        eprint("usage: failure_paths.gu MODE")
+        return 2
+
+    if arguments[0] == "missing-file":
+        match read_text("missing-agent-input.json"):
+            Ok(_text):
+                eprint("expected missing file")
+                return 0
+            Err(problem):
+                print(file_error_code(problem))
+                return 1
+
+    if arguments[0] == "denied-http":
+        let headers: Map[Text, Text] = {}
+        match http_request("GET", "http://127.0.0.1:9/", headers, ""):
+            Ok(_response):
+                eprint("expected denied network")
+                return 0
+            Err(problem):
+                print(http_error_code(problem))
+                return 1
+
+    if arguments[0] == "sqlite-escape":
+        match sqlite_open("../outside.sqlite3"):
+            Ok(database):
+                let _ = sqlite_close(database)
+                eprint("expected rejected SQLite path")
+                return 0
+            Err(problem):
+                print(problem.code)
+                return 1
+
+    if arguments[0] == "worker-failure":
+        match parallel_map([1, 2, 3], fail_on_two, 2):
+            Ok(_values):
+                eprint("expected worker failure")
+                return 0
+            Err(problem):
+                print(task_index(problem))
+                print(task_code(problem))
+                print(task_message(problem))
+                return 1
+
+    eprint("unknown failure mode")
+    return 2

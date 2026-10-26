@@ -2,17 +2,41 @@ import "std:sqlite"
 import "std:toml"
 import "std:types"
 
-fn main() -> Int:
-    let settings_text = unwrap(read_text("settings.toml"))
-    let settings = unwrap(toml_parse(settings_text))
-    let app_name = unwrap(toml_get_text(settings, ["app", "name"]))
+fn read_settings() -> Result[Text, StdError]:
+    match read_text("settings.toml"):
+        Ok(text):
+            return Ok(text)
+        Err(problem):
+            return Err(std_error(file_error_code(problem), file_error_message(problem)))
 
-    let database = unwrap(sqlite_open("agent-recipes.sqlite3"))
-    let transaction = unwrap(sqlite_begin(database))
-    unwrap(sqlite_execute(transaction, "CREATE TABLE IF NOT EXISTS runs (name TEXT NOT NULL)", []))
-    unwrap(sqlite_execute(transaction, "INSERT INTO runs (name) VALUES (?)", [sql_text(app_name)]))
-    let rows = unwrap(sqlite_query(transaction, "SELECT name FROM runs ORDER BY rowid DESC LIMIT 1", []))
-    unwrap(sqlite_commit(transaction))
-    print(rows[0].values[0].text)
-    unwrap(sqlite_close(database))
-    return 0
+fn run_recipe() -> Result[Text, StdError]:
+    let settings_text = read_settings()?
+
+    let settings = toml_parse(settings_text)?
+    let app_name = toml_get_text(settings, ["app", "name"])?
+
+    let database = sqlite_open("agent-recipes.sqlite3")?
+    let transaction = sqlite_begin(database)?
+    let created = sqlite_execute(transaction, "CREATE TABLE IF NOT EXISTS runs (name TEXT NOT NULL)", [])?
+    let inserted = sqlite_execute(transaction, "INSERT INTO runs (name) VALUES (?)", [sql_text(app_name)])?
+    let rows = sqlite_query(transaction, "SELECT name FROM runs ORDER BY rowid DESC LIMIT 1", [])?
+    if len(rows) == 0:
+        return Err(std_error("E_SQLITE_EMPTY", "query returned no rows"))
+    let row = rows[0]
+    if len(row.values) == 0:
+        return Err(std_error("E_SQLITE_EMPTY", "query returned a row with no values"))
+    let name = row.values[0].text
+
+    let committed = sqlite_commit(transaction)?
+    let closed = sqlite_close(database)?
+    return Ok(name)
+
+fn main() -> Int:
+    match run_recipe():
+        Ok(name):
+            print(name)
+            return 0
+        Err(problem):
+            eprint(problem.code)
+            eprint(problem.message)
+            return 1

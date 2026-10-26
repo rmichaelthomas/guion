@@ -1682,6 +1682,119 @@ fn inspect_json_reports_transitive_runtime_and_opaque_python_effects() {
 }
 
 #[test]
+fn agent_failure_path_recipe_reports_four_expected_failures() {
+    let base = std::env::temp_dir().join(format!("guion-agent-failures-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&base);
+    let work = base.join("work");
+    let grant = base.join("grant");
+    fs::create_dir_all(&work).unwrap();
+    fs::create_dir_all(&grant).unwrap();
+    let source = work.join("failure_paths.gu");
+    fs::write(
+        &source,
+        include_str!("../../../docs/agents/examples/failure_paths.gu"),
+    )
+    .unwrap();
+
+    for mode in ["missing-file", "denied-http", "sqlite-escape", "worker-failure"] {
+        let mut command = Command::new(env!("CARGO_BIN_EXE_guion"));
+        command.arg("run");
+        if mode == "sqlite-escape" {
+            command.args(["--file-root", grant.to_str().unwrap()]);
+        }
+        let output = command
+            .arg(source.to_str().unwrap())
+            .arg(mode)
+            .output()
+            .unwrap();
+        assert_eq!(output.status.code(), Some(1), "mode={mode}; stderr={}", String::from_utf8_lossy(&output.stderr));
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        match mode {
+            "missing-file" => assert_eq!(stdout.trim(), "R_FILE_NOT_FOUND"),
+            "denied-http" => assert_eq!(stdout.trim(), "R_NETWORK_DENIED"),
+            "sqlite-escape" => assert_eq!(stdout.trim(), "E_SQLITE_PATH"),
+            "worker-failure" => {
+                let lines = stdout.lines().collect::<Vec<_>>();
+                assert_eq!(lines.len(), 3, "worker failure should report index, code, and message");
+                assert_eq!(lines[0], "1");
+                assert_eq!(lines[1], "R_ASSERTION");
+                assert!(!lines[2].is_empty());
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    assert!(!base.join("outside.sqlite3").exists());
+    let _ = fs::remove_dir_all(base);
+}
+
+#[test]
+fn agent_sqlite_recipe_handles_success_and_read_parse_open_query_failures() {
+    let base = std::env::temp_dir().join(format!("guion-agent-sqlite-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&base);
+    let work = base.join("work");
+    let grant = base.join("grant");
+    fs::create_dir_all(&work).unwrap();
+    fs::create_dir_all(&grant).unwrap();
+    let source = work.join("sqlite_toml.gu");
+    let original = include_str!("../../../docs/agents/examples/sqlite_toml.gu");
+
+    let run_case = |source_text: &str, settings: Option<&str>, block_database_open: bool| {
+        let _ = fs::remove_file(grant.join("agent-recipes.sqlite3"));
+        let _ = fs::remove_dir_all(grant.join("agent-recipes.sqlite3"));
+        if let Some(settings) = settings {
+            fs::write(work.join("settings.toml"), settings).unwrap();
+        } else {
+            let _ = fs::remove_file(work.join("settings.toml"));
+        }
+        if block_database_open {
+            fs::create_dir(grant.join("agent-recipes.sqlite3")).unwrap();
+        }
+        fs::write(&source, source_text).unwrap();
+        Command::new(env!("CARGO_BIN_EXE_guion"))
+            .args([
+                "run",
+                "--file-root",
+                grant.to_str().unwrap(),
+                source.to_str().unwrap(),
+            ])
+            .output()
+            .unwrap()
+    };
+
+    let success = run_case(original, Some("[app]\nname = \"Guion agents\"\n"), false);
+    assert!(
+        success.status.success(),
+        "stdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&success.stdout),
+        String::from_utf8_lossy(&success.stderr)
+    );
+    assert_eq!(String::from_utf8_lossy(&success.stdout), "Guion agents\n");
+
+    let missing = run_case(original, None, false);
+    assert_eq!(missing.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&missing.stderr).contains("R_FILE_NOT_FOUND"));
+
+    let malformed = run_case(original, Some("[app\nname = \"broken\"\n"), false);
+    assert_eq!(malformed.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&malformed.stderr).contains("E_TOML_PARSE"));
+
+    let open_failure = run_case(original, Some("[app]\nname = \"Guion agents\"\n"), true);
+    assert_eq!(open_failure.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&open_failure.stderr).contains("E_SQLITE_OPEN"));
+
+    let query_failure = original.replace(
+        "SELECT name FROM runs ORDER BY rowid DESC LIMIT 1",
+        "SELECT missing_column FROM runs ORDER BY rowid DESC LIMIT 1",
+    );
+    let query = run_case(&query_failure, Some("[app]\nname = \"Guion agents\"\n"), false);
+    assert_eq!(query.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&query.stderr).contains("E_SQLITE_QUERY"));
+
+    let _ = fs::remove_dir_all(base);
+}
+
+#[test]
 fn project_import_compiles_the_module_graph_and_calls_only_public_functions() {
     let dir = std::env::temp_dir().join(format!("guion-modules-{}", std::process::id()));
     let _ = fs::remove_dir_all(&dir);

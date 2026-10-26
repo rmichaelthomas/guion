@@ -224,6 +224,17 @@
       "run_requirements": [
         "core_profile"
       ]
+    },
+    {
+      "id": "agent_failure_paths",
+      "source": "docs/agents/examples/failure_paths.gu",
+      "recipe": "docs/agents/recipes.md",
+      "fixtures": [],
+      "expected_output": "The selected failure mode prints its stable error code; worker-failure also prints the zero-based task index and message.",
+      "run_requirements": [
+        "core_profile",
+        "explicit_writable_file_root_for_sqlite_mode"
+      ]
     }
   ]
 }
