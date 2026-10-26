@@ -39,3 +39,7 @@ Primary speed gate: every short task's median paired Guion/Python ratio is below
 ## Verification
 
 The final PR must include the workload definitions and exact report, correctness and compiler-stage tests, the 195-case language corpus, source-cache invalidation checks, formatting and strict Clippy, and a clean status after the one repository-local scratch tree is removed. The PR description states any speed target that remains unmet without calling it achieved.
+
+## Recorded outcome
+
+On macOS arm64 with Python 3.14.7, the committed Rust-default CLI passed all five 21-pair fresh-source gates. Median Guion/Python ratios ranged from 0.190 to 0.249, and each bootstrap 95% upper bound was below 1.0. Three-trial Richards, N-body, and Mandelbrot source regressions also produced correct output and had median ratios below 1.0. The complete raw report and plain-English summary are in `evaluation/completion/results/first-source-speed/2026-10-25.json` and `2026-10-25-summary.md`. This finite single-host result does not establish a general performance win across all Python programs or platforms.
