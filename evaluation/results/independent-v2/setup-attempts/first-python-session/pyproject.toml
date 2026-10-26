@@ -1,0 +1,12 @@
+[project]
+name = "sla-report"
+version = "1.0.0"
+description = "Validate tickets and produce an atomic support SLA report"
+requires-python = ">=3.14"
+dependencies = []
+
+[project.scripts]
+sla-report = "sla_report.cli:main"
+
+[tool.uv]
+package = false

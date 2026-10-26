@@ -1,0 +1,123 @@
+{
+  "schema_version": 1,
+  "stage": "initial",
+  "status": "initial_complete_awaiting_follow_up",
+  "task_id": "01-support-sla-report",
+  "pair_id": "01-support-sla-report-pair-1",
+  "session_slot": "01-support-sla-report-pair-1-python",
+  "session_id": null,
+  "language": "python",
+  "model_alias": "gpt-6.1-sol",
+  "reasoning_effort": "medium",
+  "manifest_sha256": "2c326ad23d3d9ad94efc69b320d60dc3bb43ba2eac178bdfc581b5649d5bb949",
+  "schedule_sha256": "a14fdda54b09ea0c5afbdae1b1bb39cdc88abf1ea725aec61fc097cb470f84b0",
+  "schedule_file_sha256": "792909f1d53d5c57396d22d783271cc43ecaad0bd53b807fea65ce1ad15d189e",
+  "pre_run_records_sha256": "7399153b1605408d1737a2f95d983453d6d14688457428344fb999136f21f8a2",
+  "primary_measure": "active_seconds",
+  "budget": {
+    "active_seconds": 2700,
+    "candidate_session_tool_calls": 60
+  },
+  "recorded_at_utc": "2026-10-24T04:51:01.007393+00:00",
+  "environment": {
+    "host_id": null,
+    "os": "Darwin",
+    "machine": "arm64",
+    "python_version": "3.14.7",
+    "python_executable": "/opt/homebrew/opt/python@3.14/bin/python3.14",
+    "uv_version": null,
+    "campaign_python_version": "3.14.8",
+    "campaign_uv_version": "0.13.4",
+    "note": "Local macOS host differs from declared campaign Linux host; evaluator supplies Docker Engine ID."
+  },
+  "dependencies": [],
+  "runtime_dependency_bytes": 0,
+  "setup": {
+    "supported_sync_command": [
+      "uv",
+      "sync",
+      "--locked",
+      "--offline"
+    ],
+    "shared_offline_wheelhouse_used": false,
+    "sync_verified": false,
+    "cold_sync_seconds": null,
+    "limitation": "uv absent; attempted pinned uv installation failed due package-index DNS. Lock authored for zero dependencies; evaluator must verify sync."
+  },
+  "build_command": [
+    "python3",
+    "-m",
+    "zipapp",
+    "src",
+    "-p",
+    "/usr/bin/env python3",
+    "-o",
+    "dist/sla-report"
+  ],
+  "test_command": [
+    "python3",
+    "-m",
+    "unittest",
+    "discover",
+    "-s",
+    "tests",
+    "-v"
+  ],
+  "relocation_test_command": [
+    "python3",
+    "tools/verify_delivery.py"
+  ],
+  "source_test_groups": 9,
+  "relocated_test_groups": 9,
+  "source_test_exit_code": 0,
+  "relocated_test_exit_code": 0,
+  "relocated_launch_exit_code": 0,
+  "warm_run_seconds": 0.05611358299938729,
+  "usage": {
+    "active_seconds": null,
+    "tool_calls": null,
+    "evidence_path": null,
+    "evidence_sha256": null,
+    "status": "pending evaluator raw read_thread usage payload; do not infer from wall clock"
+  },
+  "artifacts": {
+    "dist/sla-report": {
+      "sha256": "e7e9da688fa0c69873c5058138b15ecda5e00d480749d6d3b75857806f37c8db",
+      "bytes": 7314
+    },
+    "uv.lock": {
+      "sha256": "a5c51e52b08885cfa3426867a6a8ccb7690a05f0c82243f12b5906679c6279bf",
+      "bytes": 130
+    },
+    "delivery.json": {
+      "sha256": "a4f85107bedd3087c621a8e063d3d2b56971c2ae8c63c39dc2d294b4424b99f4",
+      "bytes": 193
+    }
+  },
+  "source_snapshot": {
+    "path": "source-initial.zip",
+    "sha256": "e9add2eb4724e17513ea869a6b4a65c287e19a0b55739e7eb3fc8285143a0b30",
+    "bytes": 8295
+  },
+  "evidence": {
+    "work/tests-initial.txt": {
+      "path": "work/tests-initial.txt",
+      "sha256": "48795621f7baa4bec884433b75018a8b434e3f9d33233c7d1b994657207c7df3"
+    },
+    "work/tests-relocated.txt": {
+      "path": "work/tests-relocated.txt",
+      "sha256": "c9992298f5038fa2eac162ecd8e0bf5e4f8d407e25b3a91365bb3794bb0fad10"
+    },
+    "work/relocation-evidence.json": {
+      "path": "work/relocation-evidence.json",
+      "sha256": "7de1363e23aaea316052a7984f566fd3b22fe5f33b80eabedf1e368a63feb2d7"
+    },
+    "work/command-history.json": {
+      "path": "work/command-history.json",
+      "sha256": "2f558a91d41f4adad8cc80179ee92b748b79c67c88826eeff2835402e1ed30a1"
+    }
+  },
+  "human_interventions": [],
+  "post_initial_completion_edits": [],
+  "evaluator_instructions": "Preserve this immutable stage record. Supply a bound evaluator supplement with fresh session ID, actual host_id, raw usage path/hash and measured values. Follow-up records must bind this initial record digest."
+}

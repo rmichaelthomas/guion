@@ -1,0 +1,6 @@
+{
+  "launch_command": ["python3", "${candidate}/dist/sla-report"],
+  "artifact_paths": ["dist/sla-report", "uv.lock"],
+  "source_paths": ["src", "tests"],
+  "dependency_lock_path": "uv.lock"
+}

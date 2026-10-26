@@ -1,0 +1,21 @@
+{
+  "source_directory_hidden": true,
+  "tests_exit_code": 0,
+  "tests_seconds": 2.9752642919993377,
+  "runner_exit_code": 0,
+  "warm_run_seconds": 0.05611358299938729,
+  "relocated_contents_before_tests": [
+    "dist/sla-report",
+    "uv.lock"
+  ],
+  "artifacts": {
+    "dist/sla-report": {
+      "bytes": 7314,
+      "sha256": "e7e9da688fa0c69873c5058138b15ecda5e00d480749d6d3b75857806f37c8db"
+    },
+    "uv.lock": {
+      "bytes": 130,
+      "sha256": "a5c51e52b08885cfa3426867a6a8ccb7690a05f0c82243f12b5906679c6279bf"
+    }
+  }
+}

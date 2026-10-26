@@ -1,0 +1,584 @@
+test_bad_timestamps_in_both_positions (test_cli.CLITest.test_bad_timestamps_in_both_positions) ... 
+  test_bad_timestamps_in_both_positions (test_cli.CLITest.test_bad_timestamps_in_both_positions) (value='2026-02-29T00:00:00Z', field='as_of') ... FAIL
+  test_bad_timestamps_in_both_positions (test_cli.CLITest.test_bad_timestamps_in_both_positions) (value='2026-02-29T00:00:00Z', field='created_at') ... FAIL
+  test_bad_timestamps_in_both_positions (test_cli.CLITest.test_bad_timestamps_in_both_positions) (value='2026-01-01T12:00:60Z', field='as_of') ... FAIL
+  test_bad_timestamps_in_both_positions (test_cli.CLITest.test_bad_timestamps_in_both_positions) (value='2026-01-01T12:00:60Z', field='created_at') ... FAIL
+  test_bad_timestamps_in_both_positions (test_cli.CLITest.test_bad_timestamps_in_both_positions) (value='2026-01-01 12:00:00Z', field='as_of') ... FAIL
+  test_bad_timestamps_in_both_positions (test_cli.CLITest.test_bad_timestamps_in_both_positions) (value='2026-01-01 12:00:00Z', field='created_at') ... FAIL
+  test_bad_timestamps_in_both_positions (test_cli.CLITest.test_bad_timestamps_in_both_positions) (value='2026-01-01T12:00:00', field='as_of') ... FAIL
+  test_bad_timestamps_in_both_positions (test_cli.CLITest.test_bad_timestamps_in_both_positions) (value='2026-01-01T12:00:00', field='created_at') ... FAIL
+  test_bad_timestamps_in_both_positions (test_cli.CLITest.test_bad_timestamps_in_both_positions) (value='2026-01-01T12:00:00.1234567Z', field='as_of') ... FAIL
+  test_bad_timestamps_in_both_positions (test_cli.CLITest.test_bad_timestamps_in_both_positions) (value='2026-01-01T12:00:00.1234567Z', field='created_at') ... FAIL
+  test_bad_timestamps_in_both_positions (test_cli.CLITest.test_bad_timestamps_in_both_positions) (value='2026-01-01T12:00:00.Z', field='as_of') ... FAIL
+  test_bad_timestamps_in_both_positions (test_cli.CLITest.test_bad_timestamps_in_both_positions) (value='2026-01-01T12:00:00.Z', field='created_at') ... FAIL
+  test_bad_timestamps_in_both_positions (test_cli.CLITest.test_bad_timestamps_in_both_positions) (value='2026-01-01T12:00:00+24:00', field='as_of') ... FAIL
+  test_bad_timestamps_in_both_positions (test_cli.CLITest.test_bad_timestamps_in_both_positions) (value='2026-01-01T12:00:00+24:00', field='created_at') ... FAIL
+  test_bad_timestamps_in_both_positions (test_cli.CLITest.test_bad_timestamps_in_both_positions) (value='2026-01-01T12:00:00+00:60', field='as_of') ... FAIL
+  test_bad_timestamps_in_both_positions (test_cli.CLITest.test_bad_timestamps_in_both_positions) (value='2026-01-01T12:00:00+00:60', field='created_at') ... FAIL
+  test_bad_timestamps_in_both_positions (test_cli.CLITest.test_bad_timestamps_in_both_positions) (value='2026-01-01T12:00:00z', field='as_of') ... FAIL
+  test_bad_timestamps_in_both_positions (test_cli.CLITest.test_bad_timestamps_in_both_positions) (value='2026-01-01T12:00:00z', field='created_at') ... FAIL
+  test_bad_timestamps_in_both_positions (test_cli.CLITest.test_bad_timestamps_in_both_positions) (value='2026-01-01T12:00:00Z\n', field='as_of') ... FAIL
+  test_bad_timestamps_in_both_positions (test_cli.CLITest.test_bad_timestamps_in_both_positions) (value='2026-01-01T12:00:00Z\n', field='created_at') ... FAIL
+  test_bad_timestamps_in_both_positions (test_cli.CLITest.test_bad_timestamps_in_both_positions) (value='0000-01-01T00:00:00Z', field='as_of') ... FAIL
+  test_bad_timestamps_in_both_positions (test_cli.CLITest.test_bad_timestamps_in_both_positions) (value='0000-01-01T00:00:00Z', field='created_at') ... FAIL
+test_duplicate_and_unknown_values (test_cli.CLITest.test_duplicate_and_unknown_values) ... FAIL
+test_empty_input (test_cli.CLITest.test_empty_input) ... ok
+test_exact_shape_order_threshold_and_closed (test_cli.CLITest.test_exact_shape_order_threshold_and_closed) ... ok
+test_future_timestamp (test_cli.CLITest.test_future_timestamp) ... FAIL
+test_invalid_policies (test_cli.CLITest.test_invalid_policies) ... 
+  test_invalid_policies (test_cli.CLITest.test_invalid_policies) (policy='{}') ... FAIL
+  test_invalid_policies (test_cli.CLITest.test_invalid_policies) (policy='[]') ... FAIL
+  test_invalid_policies (test_cli.CLITest.test_invalid_policies) (policy='null') ... FAIL
+  test_invalid_policies (test_cli.CLITest.test_invalid_policies) (policy='{bad') ... FAIL
+  test_invalid_policies (test_cli.CLITest.test_invalid_policies) (policy='{"response_minutes":[]}') ... FAIL
+  test_invalid_policies (test_cli.CLITest.test_invalid_policies) (policy='{"response_minutes":{"urgent":2}}') ... FAIL
+  test_invalid_policies (test_cli.CLITest.test_invalid_policies) (policy='{"response_minutes":{"high":true}}') ... FAIL
+  test_invalid_policies (test_cli.CLITest.test_invalid_policies) (policy='{"response_minutes":{"high":-1}}') ... FAIL
+  test_invalid_policies (test_cli.CLITest.test_invalid_policies) (policy='{"response_minutes":{"high":1.0}}') ... FAIL
+  test_invalid_policies (test_cli.CLITest.test_invalid_policies) (policy='{"response_minutes":{"high":"60"}}') ... FAIL
+  test_invalid_policies (test_cli.CLITest.test_invalid_policies) (policy='{"response_minutes":{"high":null}}') ... FAIL
+  test_invalid_policies (test_cli.CLITest.test_invalid_policies) (policy='{"response_minutes":{"high":NaN}}') ... FAIL
+  test_invalid_policies (test_cli.CLITest.test_invalid_policies) (policy='{"response_minutes":{"high":1,"high":2}}') ... FAIL
+test_offset_fraction_floor_and_unicode (test_cli.CLITest.test_offset_fraction_floor_and_unicode) ... ok
+test_rows_and_header (test_cli.CLITest.test_rows_and_header) ... 
+  test_rows_and_header (test_cli.CLITest.test_rows_and_header) (content='') ... FAIL
+  test_rows_and_header (test_cli.CLITest.test_rows_and_header) (content='ID,TEAM,PRIORITY,STATUS,CREATED_AT\n') ... FAIL
+  test_rows_and_header (test_cli.CLITest.test_rows_and_header) (content='id,team,priority,status,created_at\n\n') ... FAIL
+  test_rows_and_header (test_cli.CLITest.test_rows_and_header) (content='id,team,priority,status,created_at\n1,A,high,open\n') ... FAIL
+  test_rows_and_header (test_cli.CLITest.test_rows_and_header) (content='id,team,priority,status,created_at\n1,A,high,open,2026-01-01T12:00:00Z,extra\n') ... FAIL
+  test_rows_and_header (test_cli.CLITest.test_rows_and_header) (content='id,team,priority,status,created_at\n,A,high,open,2026-01-01T12:00:00Z\n') ... FAIL
+  test_rows_and_header (test_cli.CLITest.test_rows_and_header) (content='id,team,priority,status,created_at\n1,A,high,open,"unfinished\n') ... FAIL
+test_zero_and_partial_policy (test_cli.CLITest.test_zero_and_partial_policy) ... ok
+
+======================================================================
+FAIL: test_bad_timestamps_in_both_positions (test_cli.CLITest.test_bad_timestamps_in_both_positions) (value='2026-02-29T00:00:00Z', field='as_of')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/rmichaelthomas/Documents/Codex/2026-10-23/veritas-v2-01-support-sla-pair-1-python/tests/test_cli.py", line 88, in test_bad_timestamps_in_both_positions
+    self.rejected(as_of=value, code='invalid_timestamp')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/rmichaelthomas/Documents/Codex/2026-10-23/veritas-v2-01-support-sla-pair-1-python/tests/test_cli.py", line 41, in rejected
+    self.assertNotEqual(p.returncode, 0, p.stdout)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 0 == 0 : 
+
+======================================================================
+FAIL: test_bad_timestamps_in_both_positions (test_cli.CLITest.test_bad_timestamps_in_both_positions) (value='2026-02-29T00:00:00Z', field='created_at')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/rmichaelthomas/Documents/Codex/2026-10-23/veritas-v2-01-support-sla-pair-1-python/tests/test_cli.py", line 91, in test_bad_timestamps_in_both_positions
+    self.rejected(HEADER+'1,A,high,open,"'+value+'"\n', code='invalid_timestamp')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/rmichaelthomas/Documents/Codex/2026-10-23/veritas-v2-01-support-sla-pair-1-python/tests/test_cli.py", line 41, in rejected
+    self.assertNotEqual(p.returncode, 0, p.stdout)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 0 == 0 : 
+
+======================================================================
+FAIL: test_bad_timestamps_in_both_positions (test_cli.CLITest.test_bad_timestamps_in_both_positions) (value='2026-01-01T12:00:60Z', field='as_of')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/rmichaelthomas/Documents/Codex/2026-10-23/veritas-v2-01-support-sla-pair-1-python/tests/test_cli.py", line 88, in test_bad_timestamps_in_both_positions
+    self.rejected(as_of=value, code='invalid_timestamp')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/rmichaelthomas/Documents/Codex/2026-10-23/veritas-v2-01-support-sla-pair-1-python/tests/test_cli.py", line 41, in rejected
+    self.assertNotEqual(p.returncode, 0, p.stdout)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 0 == 0 : 
+
+======================================================================
+FAIL: test_bad_timestamps_in_both_positions (test_cli.CLITest.test_bad_timestamps_in_both_positions) (value='2026-01-01T12:00:60Z', field='created_at')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/rmichaelthomas/Documents/Codex/2026-10-23/veritas-v2-01-support-sla-pair-1-python/tests/test_cli.py", line 91, in test_bad_timestamps_in_both_positions
+    self.rejected(HEADER+'1,A,high,open,"'+value+'"\n', code='invalid_timestamp')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/rmichaelthomas/Documents/Codex/2026-10-23/veritas-v2-01-support-sla-pair-1-python/tests/test_cli.py", line 41, in rejected
+    self.assertNotEqual(p.returncode, 0, p.stdout)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 0 == 0 : 
+
+======================================================================
+FAIL: test_bad_timestamps_in_both_positions (test_cli.CLITest.test_bad_timestamps_in_both_positions) (value='2026-01-01 12:00:00Z', field='as_of')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/rmichaelthomas/Documents/Codex/2026-10-23/veritas-v2-01-support-sla-pair-1-python/tests/test_cli.py", line 88, in test_bad_timestamps_in_both_positions
+    self.rejected(as_of=value, code='invalid_timestamp')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/rmichaelthomas/Documents/Codex/2026-10-23/veritas-v2-01-support-sla-pair-1-python/tests/test_cli.py", line 41, in rejected
+    self.assertNotEqual(p.returncode, 0, p.stdout)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 0 == 0 : 
+
+======================================================================
+FAIL: test_bad_timestamps_in_both_positions (test_cli.CLITest.test_bad_timestamps_in_both_positions) (value='2026-01-01 12:00:00Z', field='created_at')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/rmichaelthomas/Documents/Codex/2026-10-23/veritas-v2-01-support-sla-pair-1-python/tests/test_cli.py", line 91, in test_bad_timestamps_in_both_positions
+    self.rejected(HEADER+'1,A,high,open,"'+value+'"\n', code='invalid_timestamp')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/rmichaelthomas/Documents/Codex/2026-10-23/veritas-v2-01-support-sla-pair-1-python/tests/test_cli.py", line 41, in rejected
+    self.assertNotEqual(p.returncode, 0, p.stdout)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 0 == 0 : 
+
+======================================================================
+FAIL: test_bad_timestamps_in_both_positions (test_cli.CLITest.test_bad_timestamps_in_both_positions) (value='2026-01-01T12:00:00', field='as_of')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/rmichaelthomas/Documents/Codex/2026-10-23/veritas-v2-01-support-sla-pair-1-python/tests/test_cli.py", line 88, in test_bad_timestamps_in_both_positions
+    self.rejected(as_of=value, code='invalid_timestamp')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/rmichaelthomas/Documents/Codex/2026-10-23/veritas-v2-01-support-sla-pair-1-python/tests/test_cli.py", line 41, in rejected
+    self.assertNotEqual(p.returncode, 0, p.stdout)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 0 == 0 : 
+
+======================================================================
+FAIL: test_bad_timestamps_in_both_positions (test_cli.CLITest.test_bad_timestamps_in_both_positions) (value='2026-01-01T12:00:00', field='created_at')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/rmichaelthomas/Documents/Codex/2026-10-23/veritas-v2-01-support-sla-pair-1-python/tests/test_cli.py", line 91, in test_bad_timestamps_in_both_positions
+    self.rejected(HEADER+'1,A,high,open,"'+value+'"\n', code='invalid_timestamp')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/rmichaelthomas/Documents/Codex/2026-10-23/veritas-v2-01-support-sla-pair-1-python/tests/test_cli.py", line 41, in rejected
+    self.assertNotEqual(p.returncode, 0, p.stdout)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 0 == 0 : 
+
+======================================================================
+FAIL: test_bad_timestamps_in_both_positions (test_cli.CLITest.test_bad_timestamps_in_both_positions) (value='2026-01-01T12:00:00.1234567Z', field='as_of')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/rmichaelthomas/Documents/Codex/2026-10-23/veritas-v2-01-support-sla-pair-1-python/tests/test_cli.py", line 88, in test_bad_timestamps_in_both_positions
+    self.rejected(as_of=value, code='invalid_timestamp')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/rmichaelthomas/Documents/Codex/2026-10-23/veritas-v2-01-support-sla-pair-1-python/tests/test_cli.py", line 41, in rejected
+    self.assertNotEqual(p.returncode, 0, p.stdout)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 0 == 0 : 
+
+======================================================================
+FAIL: test_bad_timestamps_in_both_positions (test_cli.CLITest.test_bad_timestamps_in_both_positions) (value='2026-01-01T12:00:00.1234567Z', field='created_at')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/rmichaelthomas/Documents/Codex/2026-10-23/veritas-v2-01-support-sla-pair-1-python/tests/test_cli.py", line 91, in test_bad_timestamps_in_both_positions
+    self.rejected(HEADER+'1,A,high,open,"'+value+'"\n', code='invalid_timestamp')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/rmichaelthomas/Documents/Codex/2026-10-23/veritas-v2-01-support-sla-pair-1-python/tests/test_cli.py", line 41, in rejected
+    self.assertNotEqual(p.returncode, 0, p.stdout)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 0 == 0 : 
+
+======================================================================
+FAIL: test_bad_timestamps_in_both_positions (test_cli.CLITest.test_bad_timestamps_in_both_positions) (value='2026-01-01T12:00:00.Z', field='as_of')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/rmichaelthomas/Documents/Codex/2026-10-23/veritas-v2-01-support-sla-pair-1-python/tests/test_cli.py", line 88, in test_bad_timestamps_in_both_positions
+    self.rejected(as_of=value, code='invalid_timestamp')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/rmichaelthomas/Documents/Codex/2026-10-23/veritas-v2-01-support-sla-pair-1-python/tests/test_cli.py", line 41, in rejected
+    self.assertNotEqual(p.returncode, 0, p.stdout)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 0 == 0 : 
+
+======================================================================
+FAIL: test_bad_timestamps_in_both_positions (test_cli.CLITest.test_bad_timestamps_in_both_positions) (value='2026-01-01T12:00:00.Z', field='created_at')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/rmichaelthomas/Documents/Codex/2026-10-23/veritas-v2-01-support-sla-pair-1-python/tests/test_cli.py", line 91, in test_bad_timestamps_in_both_positions
+    self.rejected(HEADER+'1,A,high,open,"'+value+'"\n', code='invalid_timestamp')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/rmichaelthomas/Documents/Codex/2026-10-23/veritas-v2-01-support-sla-pair-1-python/tests/test_cli.py", line 41, in rejected
+    self.assertNotEqual(p.returncode, 0, p.stdout)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 0 == 0 : 
+
+======================================================================
+FAIL: test_bad_timestamps_in_both_positions (test_cli.CLITest.test_bad_timestamps_in_both_positions) (value='2026-01-01T12:00:00+24:00', field='as_of')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/rmichaelthomas/Documents/Codex/2026-10-23/veritas-v2-01-support-sla-pair-1-python/tests/test_cli.py", line 88, in test_bad_timestamps_in_both_positions
+    self.rejected(as_of=value, code='invalid_timestamp')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/rmichaelthomas/Documents/Codex/2026-10-23/veritas-v2-01-support-sla-pair-1-python/tests/test_cli.py", line 41, in rejected
+    self.assertNotEqual(p.returncode, 0, p.stdout)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 0 == 0 : 
+
+======================================================================
+FAIL: test_bad_timestamps_in_both_positions (test_cli.CLITest.test_bad_timestamps_in_both_positions) (value='2026-01-01T12:00:00+24:00', field='created_at')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/rmichaelthomas/Documents/Codex/2026-10-23/veritas-v2-01-support-sla-pair-1-python/tests/test_cli.py", line 91, in test_bad_timestamps_in_both_positions
+    self.rejected(HEADER+'1,A,high,open,"'+value+'"\n', code='invalid_timestamp')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/rmichaelthomas/Documents/Codex/2026-10-23/veritas-v2-01-support-sla-pair-1-python/tests/test_cli.py", line 41, in rejected
+    self.assertNotEqual(p.returncode, 0, p.stdout)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 0 == 0 : 
+
+======================================================================
+FAIL: test_bad_timestamps_in_both_positions (test_cli.CLITest.test_bad_timestamps_in_both_positions) (value='2026-01-01T12:00:00+00:60', field='as_of')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/rmichaelthomas/Documents/Codex/2026-10-23/veritas-v2-01-support-sla-pair-1-python/tests/test_cli.py", line 88, in test_bad_timestamps_in_both_positions
+    self.rejected(as_of=value, code='invalid_timestamp')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/rmichaelthomas/Documents/Codex/2026-10-23/veritas-v2-01-support-sla-pair-1-python/tests/test_cli.py", line 41, in rejected
+    self.assertNotEqual(p.returncode, 0, p.stdout)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 0 == 0 : 
+
+======================================================================
+FAIL: test_bad_timestamps_in_both_positions (test_cli.CLITest.test_bad_timestamps_in_both_positions) (value='2026-01-01T12:00:00+00:60', field='created_at')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/rmichaelthomas/Documents/Codex/2026-10-23/veritas-v2-01-support-sla-pair-1-python/tests/test_cli.py", line 91, in test_bad_timestamps_in_both_positions
+    self.rejected(HEADER+'1,A,high,open,"'+value+'"\n', code='invalid_timestamp')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/rmichaelthomas/Documents/Codex/2026-10-23/veritas-v2-01-support-sla-pair-1-python/tests/test_cli.py", line 41, in rejected
+    self.assertNotEqual(p.returncode, 0, p.stdout)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 0 == 0 : 
+
+======================================================================
+FAIL: test_bad_timestamps_in_both_positions (test_cli.CLITest.test_bad_timestamps_in_both_positions) (value='2026-01-01T12:00:00z', field='as_of')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/rmichaelthomas/Documents/Codex/2026-10-23/veritas-v2-01-support-sla-pair-1-python/tests/test_cli.py", line 88, in test_bad_timestamps_in_both_positions
+    self.rejected(as_of=value, code='invalid_timestamp')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/rmichaelthomas/Documents/Codex/2026-10-23/veritas-v2-01-support-sla-pair-1-python/tests/test_cli.py", line 41, in rejected
+    self.assertNotEqual(p.returncode, 0, p.stdout)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 0 == 0 : 
+
+======================================================================
+FAIL: test_bad_timestamps_in_both_positions (test_cli.CLITest.test_bad_timestamps_in_both_positions) (value='2026-01-01T12:00:00z', field='created_at')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/rmichaelthomas/Documents/Codex/2026-10-23/veritas-v2-01-support-sla-pair-1-python/tests/test_cli.py", line 91, in test_bad_timestamps_in_both_positions
+    self.rejected(HEADER+'1,A,high,open,"'+value+'"\n', code='invalid_timestamp')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/rmichaelthomas/Documents/Codex/2026-10-23/veritas-v2-01-support-sla-pair-1-python/tests/test_cli.py", line 41, in rejected
+    self.assertNotEqual(p.returncode, 0, p.stdout)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 0 == 0 : 
+
+======================================================================
+FAIL: test_bad_timestamps_in_both_positions (test_cli.CLITest.test_bad_timestamps_in_both_positions) (value='2026-01-01T12:00:00Z\n', field='as_of')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/rmichaelthomas/Documents/Codex/2026-10-23/veritas-v2-01-support-sla-pair-1-python/tests/test_cli.py", line 88, in test_bad_timestamps_in_both_positions
+    self.rejected(as_of=value, code='invalid_timestamp')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/rmichaelthomas/Documents/Codex/2026-10-23/veritas-v2-01-support-sla-pair-1-python/tests/test_cli.py", line 41, in rejected
+    self.assertNotEqual(p.returncode, 0, p.stdout)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 0 == 0 : 
+
+======================================================================
+FAIL: test_bad_timestamps_in_both_positions (test_cli.CLITest.test_bad_timestamps_in_both_positions) (value='2026-01-01T12:00:00Z\n', field='created_at')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/rmichaelthomas/Documents/Codex/2026-10-23/veritas-v2-01-support-sla-pair-1-python/tests/test_cli.py", line 91, in test_bad_timestamps_in_both_positions
+    self.rejected(HEADER+'1,A,high,open,"'+value+'"\n', code='invalid_timestamp')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/rmichaelthomas/Documents/Codex/2026-10-23/veritas-v2-01-support-sla-pair-1-python/tests/test_cli.py", line 41, in rejected
+    self.assertNotEqual(p.returncode, 0, p.stdout)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 0 == 0 : 
+
+======================================================================
+FAIL: test_bad_timestamps_in_both_positions (test_cli.CLITest.test_bad_timestamps_in_both_positions) (value='0000-01-01T00:00:00Z', field='as_of')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/rmichaelthomas/Documents/Codex/2026-10-23/veritas-v2-01-support-sla-pair-1-python/tests/test_cli.py", line 88, in test_bad_timestamps_in_both_positions
+    self.rejected(as_of=value, code='invalid_timestamp')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/rmichaelthomas/Documents/Codex/2026-10-23/veritas-v2-01-support-sla-pair-1-python/tests/test_cli.py", line 41, in rejected
+    self.assertNotEqual(p.returncode, 0, p.stdout)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 0 == 0 : 
+
+======================================================================
+FAIL: test_bad_timestamps_in_both_positions (test_cli.CLITest.test_bad_timestamps_in_both_positions) (value='0000-01-01T00:00:00Z', field='created_at')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/rmichaelthomas/Documents/Codex/2026-10-23/veritas-v2-01-support-sla-pair-1-python/tests/test_cli.py", line 91, in test_bad_timestamps_in_both_positions
+    self.rejected(HEADER+'1,A,high,open,"'+value+'"\n', code='invalid_timestamp')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/rmichaelthomas/Documents/Codex/2026-10-23/veritas-v2-01-support-sla-pair-1-python/tests/test_cli.py", line 41, in rejected
+    self.assertNotEqual(p.returncode, 0, p.stdout)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 0 == 0 : 
+
+======================================================================
+FAIL: test_duplicate_and_unknown_values (test_cli.CLITest.test_duplicate_and_unknown_values)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/rmichaelthomas/Documents/Codex/2026-10-23/veritas-v2-01-support-sla-pair-1-python/tests/test_cli.py", line 106, in test_duplicate_and_unknown_values
+    self.rejected(HEADER+row+row, code='duplicate_id')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/rmichaelthomas/Documents/Codex/2026-10-23/veritas-v2-01-support-sla-pair-1-python/tests/test_cli.py", line 41, in rejected
+    self.assertNotEqual(p.returncode, 0, p.stdout)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 0 == 0 : 
+
+======================================================================
+FAIL: test_future_timestamp (test_cli.CLITest.test_future_timestamp)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/rmichaelthomas/Documents/Codex/2026-10-23/veritas-v2-01-support-sla-pair-1-python/tests/test_cli.py", line 94, in test_future_timestamp
+    self.rejected(HEADER+'1,A,high,open,2026-01-01T12:00:00.000001Z\n', code='future_created_at')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/rmichaelthomas/Documents/Codex/2026-10-23/veritas-v2-01-support-sla-pair-1-python/tests/test_cli.py", line 41, in rejected
+    self.assertNotEqual(p.returncode, 0, p.stdout)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 0 == 0 : 
+
+======================================================================
+FAIL: test_invalid_policies (test_cli.CLITest.test_invalid_policies) (policy='{}')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/rmichaelthomas/Documents/Codex/2026-10-23/veritas-v2-01-support-sla-pair-1-python/tests/test_cli.py", line 123, in test_invalid_policies
+    self.rejected(policy=value, code='invalid_policy')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/rmichaelthomas/Documents/Codex/2026-10-23/veritas-v2-01-support-sla-pair-1-python/tests/test_cli.py", line 41, in rejected
+    self.assertNotEqual(p.returncode, 0, p.stdout)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 0 == 0 : 
+
+======================================================================
+FAIL: test_invalid_policies (test_cli.CLITest.test_invalid_policies) (policy='[]')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/rmichaelthomas/Documents/Codex/2026-10-23/veritas-v2-01-support-sla-pair-1-python/tests/test_cli.py", line 123, in test_invalid_policies
+    self.rejected(policy=value, code='invalid_policy')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/rmichaelthomas/Documents/Codex/2026-10-23/veritas-v2-01-support-sla-pair-1-python/tests/test_cli.py", line 41, in rejected
+    self.assertNotEqual(p.returncode, 0, p.stdout)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 0 == 0 : 
+
+======================================================================
+FAIL: test_invalid_policies (test_cli.CLITest.test_invalid_policies) (policy='null')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/rmichaelthomas/Documents/Codex/2026-10-23/veritas-v2-01-support-sla-pair-1-python/tests/test_cli.py", line 123, in test_invalid_policies
+    self.rejected(policy=value, code='invalid_policy')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/rmichaelthomas/Documents/Codex/2026-10-23/veritas-v2-01-support-sla-pair-1-python/tests/test_cli.py", line 41, in rejected
+    self.assertNotEqual(p.returncode, 0, p.stdout)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 0 == 0 : 
+
+======================================================================
+FAIL: test_invalid_policies (test_cli.CLITest.test_invalid_policies) (policy='{bad')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/rmichaelthomas/Documents/Codex/2026-10-23/veritas-v2-01-support-sla-pair-1-python/tests/test_cli.py", line 123, in test_invalid_policies
+    self.rejected(policy=value, code='invalid_policy')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/rmichaelthomas/Documents/Codex/2026-10-23/veritas-v2-01-support-sla-pair-1-python/tests/test_cli.py", line 41, in rejected
+    self.assertNotEqual(p.returncode, 0, p.stdout)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 0 == 0 : 
+
+======================================================================
+FAIL: test_invalid_policies (test_cli.CLITest.test_invalid_policies) (policy='{"response_minutes":[]}')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/rmichaelthomas/Documents/Codex/2026-10-23/veritas-v2-01-support-sla-pair-1-python/tests/test_cli.py", line 123, in test_invalid_policies
+    self.rejected(policy=value, code='invalid_policy')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/rmichaelthomas/Documents/Codex/2026-10-23/veritas-v2-01-support-sla-pair-1-python/tests/test_cli.py", line 41, in rejected
+    self.assertNotEqual(p.returncode, 0, p.stdout)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 0 == 0 : 
+
+======================================================================
+FAIL: test_invalid_policies (test_cli.CLITest.test_invalid_policies) (policy='{"response_minutes":{"urgent":2}}')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/rmichaelthomas/Documents/Codex/2026-10-23/veritas-v2-01-support-sla-pair-1-python/tests/test_cli.py", line 123, in test_invalid_policies
+    self.rejected(policy=value, code='invalid_policy')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/rmichaelthomas/Documents/Codex/2026-10-23/veritas-v2-01-support-sla-pair-1-python/tests/test_cli.py", line 41, in rejected
+    self.assertNotEqual(p.returncode, 0, p.stdout)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 0 == 0 : 
+
+======================================================================
+FAIL: test_invalid_policies (test_cli.CLITest.test_invalid_policies) (policy='{"response_minutes":{"high":true}}')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/rmichaelthomas/Documents/Codex/2026-10-23/veritas-v2-01-support-sla-pair-1-python/tests/test_cli.py", line 123, in test_invalid_policies
+    self.rejected(policy=value, code='invalid_policy')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/rmichaelthomas/Documents/Codex/2026-10-23/veritas-v2-01-support-sla-pair-1-python/tests/test_cli.py", line 41, in rejected
+    self.assertNotEqual(p.returncode, 0, p.stdout)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 0 == 0 : 
+
+======================================================================
+FAIL: test_invalid_policies (test_cli.CLITest.test_invalid_policies) (policy='{"response_minutes":{"high":-1}}')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/rmichaelthomas/Documents/Codex/2026-10-23/veritas-v2-01-support-sla-pair-1-python/tests/test_cli.py", line 123, in test_invalid_policies
+    self.rejected(policy=value, code='invalid_policy')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/rmichaelthomas/Documents/Codex/2026-10-23/veritas-v2-01-support-sla-pair-1-python/tests/test_cli.py", line 41, in rejected
+    self.assertNotEqual(p.returncode, 0, p.stdout)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 0 == 0 : 
+
+======================================================================
+FAIL: test_invalid_policies (test_cli.CLITest.test_invalid_policies) (policy='{"response_minutes":{"high":1.0}}')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/rmichaelthomas/Documents/Codex/2026-10-23/veritas-v2-01-support-sla-pair-1-python/tests/test_cli.py", line 123, in test_invalid_policies
+    self.rejected(policy=value, code='invalid_policy')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/rmichaelthomas/Documents/Codex/2026-10-23/veritas-v2-01-support-sla-pair-1-python/tests/test_cli.py", line 41, in rejected
+    self.assertNotEqual(p.returncode, 0, p.stdout)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 0 == 0 : 
+
+======================================================================
+FAIL: test_invalid_policies (test_cli.CLITest.test_invalid_policies) (policy='{"response_minutes":{"high":"60"}}')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/rmichaelthomas/Documents/Codex/2026-10-23/veritas-v2-01-support-sla-pair-1-python/tests/test_cli.py", line 123, in test_invalid_policies
+    self.rejected(policy=value, code='invalid_policy')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/rmichaelthomas/Documents/Codex/2026-10-23/veritas-v2-01-support-sla-pair-1-python/tests/test_cli.py", line 41, in rejected
+    self.assertNotEqual(p.returncode, 0, p.stdout)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 0 == 0 : 
+
+======================================================================
+FAIL: test_invalid_policies (test_cli.CLITest.test_invalid_policies) (policy='{"response_minutes":{"high":null}}')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/rmichaelthomas/Documents/Codex/2026-10-23/veritas-v2-01-support-sla-pair-1-python/tests/test_cli.py", line 123, in test_invalid_policies
+    self.rejected(policy=value, code='invalid_policy')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/rmichaelthomas/Documents/Codex/2026-10-23/veritas-v2-01-support-sla-pair-1-python/tests/test_cli.py", line 41, in rejected
+    self.assertNotEqual(p.returncode, 0, p.stdout)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 0 == 0 : 
+
+======================================================================
+FAIL: test_invalid_policies (test_cli.CLITest.test_invalid_policies) (policy='{"response_minutes":{"high":NaN}}')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/rmichaelthomas/Documents/Codex/2026-10-23/veritas-v2-01-support-sla-pair-1-python/tests/test_cli.py", line 123, in test_invalid_policies
+    self.rejected(policy=value, code='invalid_policy')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/rmichaelthomas/Documents/Codex/2026-10-23/veritas-v2-01-support-sla-pair-1-python/tests/test_cli.py", line 41, in rejected
+    self.assertNotEqual(p.returncode, 0, p.stdout)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 0 == 0 : 
+
+======================================================================
+FAIL: test_invalid_policies (test_cli.CLITest.test_invalid_policies) (policy='{"response_minutes":{"high":1,"high":2}}')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/rmichaelthomas/Documents/Codex/2026-10-23/veritas-v2-01-support-sla-pair-1-python/tests/test_cli.py", line 123, in test_invalid_policies
+    self.rejected(policy=value, code='invalid_policy')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/rmichaelthomas/Documents/Codex/2026-10-23/veritas-v2-01-support-sla-pair-1-python/tests/test_cli.py", line 41, in rejected
+    self.assertNotEqual(p.returncode, 0, p.stdout)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 0 == 0 : 
+
+======================================================================
+FAIL: test_rows_and_header (test_cli.CLITest.test_rows_and_header) (content='')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/rmichaelthomas/Documents/Codex/2026-10-23/veritas-v2-01-support-sla-pair-1-python/tests/test_cli.py", line 102, in test_rows_and_header
+    self.rejected(content, code='malformed_csv')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/rmichaelthomas/Documents/Codex/2026-10-23/veritas-v2-01-support-sla-pair-1-python/tests/test_cli.py", line 41, in rejected
+    self.assertNotEqual(p.returncode, 0, p.stdout)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 0 == 0 : 
+
+======================================================================
+FAIL: test_rows_and_header (test_cli.CLITest.test_rows_and_header) (content='ID,TEAM,PRIORITY,STATUS,CREATED_AT\n')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/rmichaelthomas/Documents/Codex/2026-10-23/veritas-v2-01-support-sla-pair-1-python/tests/test_cli.py", line 102, in test_rows_and_header
+    self.rejected(content, code='malformed_csv')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/rmichaelthomas/Documents/Codex/2026-10-23/veritas-v2-01-support-sla-pair-1-python/tests/test_cli.py", line 41, in rejected
+    self.assertNotEqual(p.returncode, 0, p.stdout)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 0 == 0 : 
+
+======================================================================
+FAIL: test_rows_and_header (test_cli.CLITest.test_rows_and_header) (content='id,team,priority,status,created_at\n\n')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/rmichaelthomas/Documents/Codex/2026-10-23/veritas-v2-01-support-sla-pair-1-python/tests/test_cli.py", line 102, in test_rows_and_header
+    self.rejected(content, code='malformed_csv')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/rmichaelthomas/Documents/Codex/2026-10-23/veritas-v2-01-support-sla-pair-1-python/tests/test_cli.py", line 41, in rejected
+    self.assertNotEqual(p.returncode, 0, p.stdout)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 0 == 0 : 
+
+======================================================================
+FAIL: test_rows_and_header (test_cli.CLITest.test_rows_and_header) (content='id,team,priority,status,created_at\n1,A,high,open\n')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/rmichaelthomas/Documents/Codex/2026-10-23/veritas-v2-01-support-sla-pair-1-python/tests/test_cli.py", line 102, in test_rows_and_header
+    self.rejected(content, code='malformed_csv')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/rmichaelthomas/Documents/Codex/2026-10-23/veritas-v2-01-support-sla-pair-1-python/tests/test_cli.py", line 41, in rejected
+    self.assertNotEqual(p.returncode, 0, p.stdout)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 0 == 0 : 
+
+======================================================================
+FAIL: test_rows_and_header (test_cli.CLITest.test_rows_and_header) (content='id,team,priority,status,created_at\n1,A,high,open,2026-01-01T12:00:00Z,extra\n')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/rmichaelthomas/Documents/Codex/2026-10-23/veritas-v2-01-support-sla-pair-1-python/tests/test_cli.py", line 102, in test_rows_and_header
+    self.rejected(content, code='malformed_csv')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/rmichaelthomas/Documents/Codex/2026-10-23/veritas-v2-01-support-sla-pair-1-python/tests/test_cli.py", line 41, in rejected
+    self.assertNotEqual(p.returncode, 0, p.stdout)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 0 == 0 : 
+
+======================================================================
+FAIL: test_rows_and_header (test_cli.CLITest.test_rows_and_header) (content='id,team,priority,status,created_at\n,A,high,open,2026-01-01T12:00:00Z\n')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/rmichaelthomas/Documents/Codex/2026-10-23/veritas-v2-01-support-sla-pair-1-python/tests/test_cli.py", line 102, in test_rows_and_header
+    self.rejected(content, code='malformed_csv')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/rmichaelthomas/Documents/Codex/2026-10-23/veritas-v2-01-support-sla-pair-1-python/tests/test_cli.py", line 41, in rejected
+    self.assertNotEqual(p.returncode, 0, p.stdout)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 0 == 0 : 
+
+======================================================================
+FAIL: test_rows_and_header (test_cli.CLITest.test_rows_and_header) (content='id,team,priority,status,created_at\n1,A,high,open,"unfinished\n')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/rmichaelthomas/Documents/Codex/2026-10-23/veritas-v2-01-support-sla-pair-1-python/tests/test_cli.py", line 102, in test_rows_and_header
+    self.rejected(content, code='malformed_csv')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/rmichaelthomas/Documents/Codex/2026-10-23/veritas-v2-01-support-sla-pair-1-python/tests/test_cli.py", line 41, in rejected
+    self.assertNotEqual(p.returncode, 0, p.stdout)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 0 == 0 : 
+
+----------------------------------------------------------------------
+Ran 9 tests in 2.739s
+
+FAILED (failures=44)

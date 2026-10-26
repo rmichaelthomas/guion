@@ -17,7 +17,7 @@ The macOS and Debian runtime, application, lifecycle, and release aggregates lis
 
 ## Performance result and boundary
 
-The performance report compares the installed Guion artifact with pinned, GIL-enabled CPython 3.14.7 on macOS ARM64. Ratios are Guion median time divided by Python median time; below 1.0 means the Guion artifact was faster for that named comparison.
+The performance report compares the installed Guion artifact with pinned, GIL-enabled CPython 3.14.7 on macOS ARM64. Each reported ratio is the median of paired per-trial ratios (Guion time divided by Python time); below 1.0 means the Guion artifact was faster for that named comparison.
 
 | Workload | Approximate result |
 |---|---|

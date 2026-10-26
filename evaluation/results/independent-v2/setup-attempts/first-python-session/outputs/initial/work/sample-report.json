@@ -1,0 +1,18 @@
+{
+  "as_of": "2026-01-01T12:00:00Z",
+  "tickets": [
+    {
+      "id": "1",
+      "team": "Support",
+      "priority": "high",
+      "status": "open",
+      "age_minutes": 61,
+      "limit_minutes": 60,
+      "breached": true
+    }
+  ],
+  "summary": {
+    "total": 1,
+    "breached": 1
+  }
+}

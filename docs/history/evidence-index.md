@@ -14,7 +14,7 @@ This index keeps evidence cohorts separate. The current Guion pre-release valida
 
 This cohort is the renamed product's final validation record. Its aggregates and per-target reports are retained under [`evaluation/completion/results/guion-final/`](../../evaluation/completion/results/guion-final/), with a cohort guide in [`README.md`](../../evaluation/completion/results/guion-final/README.md). The supported matrix passed on macOS ARM64 and Debian 12-compatible GNU/Linux ARM64. The [`closeout.json`](../../evaluation/completion/results/guion-final/closeout.json) records the final closeout audit. The builder study remains historical Veritas evidence and is identified as such; it was not relabeled or repeated under Guion.
 
-The Guion installed benchmark is [`performance-guion.json`](../../evaluation/completion/results/guion-final/performance-guion.json); [`performance.json`](../../evaluation/completion/results/guion-final/performance.json) records invocation and outcomes. Ratios are Guion installed-artifact median divided by pinned CPython 3.14.7 median, so values below 1 favor the Guion artifact.
+The Guion installed benchmark is [`performance-guion.json`](../../evaluation/completion/results/guion-final/performance-guion.json); [`performance.json`](../../evaluation/completion/results/guion-final/performance.json) records invocation and outcomes. Each reported ratio is the median of paired per-trial ratios (Guion installed-artifact time divided by pinned CPython 3.14.7 time), so values below 1 favor the Guion artifact.
 
 | Workload and comparison | Approximate result |
 |---|---|
@@ -73,7 +73,7 @@ The assessment documents correctness, follow-up behavior, relocation, setup and 
 
 ## Installed performance suite
 
-The complete report is [performance-host.json](../../evaluation/completion/results/performance-host.json), with the structured command record in [performance.json](../../evaluation/completion/results/performance.json). It measures the installed Veritas artifact against the pinned, GIL-enabled **CPython 3.14.7** on the report's macOS ARM64 host. The ratio below is `Veritas artifact median / Python median`; a value below 1 favors the Veritas artifact. The report retains raw samples, paired order, percentile 95% intervals, correctness outputs, memory, artifact sizes and target binary hashes.
+The complete report is [performance-host.json](../../evaluation/completion/results/performance-host.json), with the structured command record in [performance.json](../../evaluation/completion/results/performance.json). It measures the installed Veritas artifact against the pinned, GIL-enabled **CPython 3.14.7** on the report's macOS ARM64 host. Each reported ratio is the median of paired per-trial ratios (Veritas artifact time divided by Python time); a value below 1 favors the Veritas artifact. The report retains raw samples, paired order, percentile 95% intervals, correctness outputs, memory, artifact sizes and target binary hashes.
 
 | Required advertised workload | Python comparison | Median ratio | 95% interval |
 |---|---|---:|---:|

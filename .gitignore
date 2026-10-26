@@ -17,4 +17,7 @@ __pycache__/
 .deps/
 .guion/**/.venv/
 /distribution/toolchains/cache/
-/evaluation/results/independent-v2/setup-attempts/
+/evaluation/results/independent-v2/setup-attempts/*
+!/evaluation/results/independent-v2/setup-attempts/setup-attempts.jsonl
+!/evaluation/results/independent-v2/setup-attempts/first-python-session/
+!/evaluation/results/independent-v2/setup-attempts/first-python-session/**

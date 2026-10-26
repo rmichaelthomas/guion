@@ -1,0 +1,14 @@
+test_bad_timestamps_in_both_positions (test_cli.CLITest.test_bad_timestamps_in_both_positions) ... ok
+test_duplicate_and_unknown_values (test_cli.CLITest.test_duplicate_and_unknown_values) ... ok
+test_empty_input (test_cli.CLITest.test_empty_input) ... ok
+test_exact_shape_order_threshold_and_closed (test_cli.CLITest.test_exact_shape_order_threshold_and_closed) ... ok
+test_future_timestamp (test_cli.CLITest.test_future_timestamp) ... ok
+test_invalid_policies (test_cli.CLITest.test_invalid_policies) ... ok
+test_offset_fraction_floor_and_unicode (test_cli.CLITest.test_offset_fraction_floor_and_unicode) ... ok
+test_rows_and_header (test_cli.CLITest.test_rows_and_header) ... ok
+test_zero_and_partial_policy (test_cli.CLITest.test_zero_and_partial_policy) ... ok
+
+----------------------------------------------------------------------
+Ran 9 tests in 2.912s
+
+OK
