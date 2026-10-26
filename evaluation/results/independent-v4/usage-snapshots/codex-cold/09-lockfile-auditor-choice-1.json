@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "thread": {
+    "id": "01a179a9-e3fc-7f61-9555-b13349152e85",
+    "kind": "codex",
+    "hostId": "local",
+    "title": "Guion v4 Cold 09-lockfile-auditor-choice-1",
+    "preview": "You are advising a developer choosing a language for the attached task.\nDo not implement the task, browse, use tools, or infer results from code that has not been built.\nChoose exactly one: Guion, Python, or either. Explain the decisive task-specific tradeoffs and what would change your choice.\nIn the product-information arm use only the supplied profiles. In the cold arm no product documentation is supplied; use only prior knowledge and the task brief.\nDo not make a universal language-replacement claim.\n\nAssignment ID: 09-lockfile-auditor-choice-1\nSchedule SHA-256: 4630653714bd96f277e70ae17ccc8e37a1ee64ad37cf1d547a7c92494bd53bc1\nSchedule file SHA-256: 1398aa6edacdc22d115a7597209e19ad1d60b624c69200fa49edf0c19cb71d4e\nChoice-safe bundle SHA-256: 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945\nPresentation order: Python, Guion\nConfigured assistant: OpenAI Codex gpt-6.1-sol (gpt-6.1-sol); reasoning effort medium\nBudget: 5 active minutes and 0 tool calls.\nNo implementation results, benchmarks, author calibration, or candidate runs have been shown.\n\n# Task brief\n# Lockfile policy auditor\n\n**Class:** package/library or maintainable application\n**Origin:** independent-candidate brief draft\n**Initial request:** Implement a multi-module CLI invoked as `lockfile-auditor --lockfile PATH --policy PATH --output PATH`. A lock document is an object with a `packages` array; each entry requires non-empty string `name` and SemVer 2.0.0 `version`, and may have string `source` and `checksum` fields. Missing, null, or empty source/checksum count as absent when required. Multiple lock entries may share a package name; evaluate each entry independently and retain repeated diagnostics when separate entries trigger the same rule. Policy is an object whose `deny` (string array), `minimum_versions` and `maximum_versions` (name-to-SemVer maps), and Boolean `require_source`/`require_checksum` fields are optional and default to `[]`, `{}`, `{}`, `false`, and `false`, respectively. Never install or execute dependencies. Emit `{\"violations\":[{\"name\":\"blocked-lib\",\"rule\":\"denied\"}],\"warnings\":[]}` with both arrays sorted by package name then rule. Minimum and maximum version bounds are inclusive. Malformed input is an actionable nonzero error and leaves existing output untouched.\n\n**Follow-up change:** Add `--as-of DATE` and `exceptions` entries with exactly two fields: `{\"name\":\"PACKAGE\",\"expires\":\"YYYY-MM-DD\"}`. `--as-of` and exception dates must be valid Gregorian dates written exactly as `YYYY-MM-DD`; an explicitly supplied empty `--as-of` value is invalid and is not equivalent to omitting the option. Names must be non-empty and unique. A non-empty exceptions list requires `--as-of`. An exception suppresses only that package's deny rule when `as_of < expires`; on or after expiration, add `{\"name\":\"PACKAGE\",\"rule\":\"expired_exception\"}` to `warnings` and keep the deny violation in `violations`. Exceptions do not suppress version/source/checksum rules. Invalid exception fields, exception dates, or `--as-of` values fail without replacing an existing report. Keep original behavior when no exceptions are present.\n\n**Acceptance:** Valid and malformed lockfiles; missing version and wrong field types; multiple versions and sources; checksum missing/present; policy boundaries; deterministic full diagnostics; exception for denied and non-denied package; duplicate exception rejection; valid/on-expiry/expired behavior; exit codes; fixture with enough entries to measure meaningful-volume processing; source-free package; clean install.\n\n**Fairness notes:** Freeze a documented lockfile subset and parser fixture before evaluation. Python may use its standard library or packages already present in the shared offline wheelhouse listed in `evaluation/sandbox/dependencies/requirements.txt`. No package may be downloaded or installed from another source. The non-Python candidate may implement the feature directly or use its declared managed Python bridge with that same wheelhouse; additional package downloads are forbidden. Compare the same inputs, policy semantics, and packaging expectations.\n\n# Option 1: Python\nNo product profile or documentation is supplied for this option.\n\n# Option 2: Guion\nNo product profile or documentation is supplied for this option.\n",
+    "status": {
+      "type": "idle"
+    },
+    "cwd": "/Users/rmichaelthomas/Documents/Codex/2026-10-26/you-are-advising-a-developer-choosing-32",
+    "createdAt": 1793042539,
+    "updatedAt": 1793042568
+  },
+  "page": {
+    "order": "newest_first",
+    "limit": 10,
+    "nextCursor": null,
+    "hasMore": false
+  },
+  "turns": [
+    {
+      "id": "01a179a9-e49f-7692-9985-3ec1b211548b",
+      "status": "completed",
+      "error": null,
+      "startedAt": 1793042539,
+      "completedAt": 1793042567,
+      "durationMs": 28311,
+      "items": [
+        {
+          "type": "functionCallOutput",
+          "id": "fco_01a179a9-e49f-7692-9985-3ed7b5fd96b7",
+          "name": "create_thread",
+          "namespace": "codex_app"
+        },
+        {
+          "type": "reasoning",
+          "id": "rs_0dde85e676e61e42016adfa879af14819892031a4174ef7494",
+          "summary": []
+        },
+        {
+          "type": "agentMessage",
+          "id": "msg_0dde85e676e61e42016adfa87d9e3c819880075b048862b837",
+          "text": "**Python.**\n\nThis task centers on strict input validation, deterministic diagnostics, and reliable CLI packaging. Python’s standard library provides JSON parsing, argument handling, Gregorian date validation, sorting, and file operations. Those fit a maintainable, multi-module auditor with few external dependencies.\n\nThe decisive tradeoffs are correctness and delivery risk:\n\n- **SemVer needs deliberate handling.** Python has no standard-library SemVer 2.0.0 comparator. Use a verified package if available in the permitted wheelhouse, or implement and test the specified semantics directly.\n- **Validation must preserve distinctions.** Omitted versus explicitly empty `--as-of`, Boolean versus other field types, duplicate exception names, and repeated package entries all require explicit checks. Python supports these checks clearly, but does not supply the policy automatically.\n- **Report replacement must be controlled.** Validate and compute the complete report before replacing the destination, so malformed input preserves the existing output.\n- **Maintainability favors the known option.** CLI tooling and fixture-based testing are established Python workflows. No Guion documentation is supplied, and I lack sufficient reliable prior knowledge to assert comparable capabilities.\n\nI would reconsider if Guion demonstrated equally straightforward validation, offline packaging, testing, and safe report replacement—especially if the maintaining team already knew it well. A measured processing bottleneck could also change the decision. The brief alone establishes no performance winner.",
+          "phase": "final_answer"
+        }
+      ]
+    }
+  ]
+}

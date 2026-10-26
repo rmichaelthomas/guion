@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "decision_id": "03-release-notes-choice-2",
+  "recorded_at_utc": "2026-10-26T19:31:54.564401Z",
+  "task": {
+    "id": "03-release-notes",
+    "class": "small_automation_cli",
+    "origin": "independent",
+    "brief_sha256": "c89d17d2020b833261286beeb5ec48ac082c7348a743f85deecc27250708276e"
+  },
+  "assistant": {
+    "provider": "OpenAI Codex",
+    "name": "gpt-6.1-sol",
+    "version": "gpt-6.1-sol",
+    "reasoning_effort": "medium",
+    "session_id": "01a179a7-b77a-7d42-8693-33db70080978",
+    "fresh_session": true
+  },
+  "budget": {
+    "active_minutes": 5,
+    "tool_calls": 0
+  },
+  "usage": {
+    "active_seconds": 21,
+    "tool_calls": 0
+  },
+  "evidence": {
+    "prompt_transcript_path": "prompts/codex-cold/03-release-notes-choice-2.md",
+    "prompt_transcript_sha256": "9ba1d3ebf8e9fb9406d288d02915fc303421a8bb9d5f8f880f2f5d902a95e98a",
+    "response_transcript_path": "responses/codex-cold/03-release-notes-choice-2.md",
+    "response_transcript_sha256": "b7beffa7360b79ab7a08ef8158932bc991c26d73b92126d5c4d8c5d544c8f2cb",
+    "usage_snapshot_path": "usage-snapshots/codex-cold/03-release-notes-choice-2.json",
+    "usage_snapshot_sha256": "ecde211ab9b736c3c5c7e62964e4dda4f10d0626bf58cf533ce5a11b0341a96a"
+  },
+  "presentation_order": [
+    "veritas",
+    "python"
+  ],
+  "context": {
+    "mode": "pre-build-recommendation",
+    "veritas_version": "0.1.0 (artifact format 39)",
+    "python_version": "3.14.8",
+    "documentation_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "schedule_sha256": "4630653714bd96f277e70ae17ccc8e37a1ee64ad37cf1d547a7c92494bd53bc1",
+    "schedule_file_sha256": "1398aa6edacdc22d115a7597209e19ad1d60b624c69200fa49edf0c19cb71d4e",
+    "schedule_entry_id": "03-release-notes-choice-2",
+    "prerun_records_sha256": "50cbe8c3b35365c19af9c8b719d39cf75f5423d1c2eb744ba820ea0e46332c22",
+    "prerun_recorded_at_utc": "2026-10-26T19:10:14.465205Z",
+    "campaign_config_sha256": "c3d5418c588c5150383082b74326b6ed60de8dc37daf14bb25e025a02559a005",
+    "comparative_pair_results_shown": false
+  },
+  "recommendation": {
+    "choice": "python",
+    "rationale": "**Choose Python.**\n\nThis task centers on strict validation, deterministic ordering, text formatting, and file handling. Python’s standard library provides JSON parsing, CLI arguments, Gregorian date validation, filesystem operations, and atomic replacement of individual files without external packages.\n\nThe main custom work is exact SemVer parsing and comparison—including prereleases, ignoring build metadata for precedence, and applying the ASCII tie-break. Python makes that logic straightforward to express and test. Its strings also support the precise punctuation escaping and CR/LF checks required here.\n\nThe implementation should validate the entire directory and render both outputs before replacing either file. `--since` then filters validated releases, preserving duplicate-ID checks across the boundary. Individual replacements still do not constitute a crash-atomic transaction across both paths.\n\nI lack reliable prior knowledge of Guion sufficient to assess its handling of these details; that is uncertainty, not evidence of a limitation.\n\n**What would change my choice:** established Guion support for strict validation, exact SemVer ordering, deterministic rendering, and individual atomic file replacement—especially if the developer already maintains Guion tooling. Without that evidence, Python is the more predictable choice for this CLI.",
+    "conditions": []
+  },
+  "exclusion": {
+    "excluded": false,
+    "reason": null
+  }
+}

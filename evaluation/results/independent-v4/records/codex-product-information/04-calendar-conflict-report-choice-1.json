@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "decision_id": "04-calendar-conflict-report-choice-1",
+  "recorded_at_utc": "2026-10-26T19:31:54.564401Z",
+  "task": {
+    "id": "04-calendar-conflict-report",
+    "class": "concurrent_network_integration",
+    "origin": "independent",
+    "brief_sha256": "5fd56b1d588efd9ba6c9f0f4a3f262ae8d2e7047d769f9d2b83cdb86c0668efe"
+  },
+  "assistant": {
+    "provider": "OpenAI Codex",
+    "name": "gpt-6.1-sol",
+    "version": "gpt-6.1-sol",
+    "reasoning_effort": "medium",
+    "session_id": "01a179a1-5db7-7ed1-8217-344ed11f329b",
+    "fresh_session": true
+  },
+  "budget": {
+    "active_minutes": 5,
+    "tool_calls": 0
+  },
+  "usage": {
+    "active_seconds": 40,
+    "tool_calls": 0
+  },
+  "evidence": {
+    "prompt_transcript_path": "prompts/codex-product-information/04-calendar-conflict-report-choice-1.md",
+    "prompt_transcript_sha256": "d448f02c0c1184d46b9569da5da7a9b641eec44a7d39b37f9eb0625dba5ede2f",
+    "response_transcript_path": "responses/codex-product-information/04-calendar-conflict-report-choice-1.md",
+    "response_transcript_sha256": "d46c2ec0a579ee3724a4bc5fe6da07df203586792804a4758b8267ddf5cae9fd",
+    "usage_snapshot_path": "usage-snapshots/codex-product-information/04-calendar-conflict-report-choice-1.json",
+    "usage_snapshot_sha256": "fb2488c0f969b226428e99b52e1acaab80d67d312b43e1d0f3fb8b0cadb76d22"
+  },
+  "presentation_order": [
+    "python",
+    "veritas"
+  ],
+  "context": {
+    "mode": "pre-build-recommendation",
+    "veritas_version": "0.1.0 (artifact format 39)",
+    "python_version": "3.14.8",
+    "documentation_sha256": "16ffe49108785a222a033decb416ac2d129a017949ce4e3b7d99f16f8808bc6a",
+    "schedule_sha256": "81075116949f4905cefb2a87cc845089196e895db54fd4e2b1f0b2818118fbeb",
+    "schedule_file_sha256": "8f6dd3a36ddb3ea66996841d24a83ee4cb7589b1581600b6e1b8052bf484fb2b",
+    "schedule_entry_id": "04-calendar-conflict-report-choice-1",
+    "prerun_records_sha256": "7492ce37a54146606c8f99a3044c02f4d26fb0c749320a2061b3c7ac5a129fd7",
+    "prerun_recorded_at_utc": "2026-10-26T19:10:14.465205Z",
+    "campaign_config_sha256": "f51895d56d7b94cb200c8f30d0e2763874ea8c003dde147491313ac2ec0d4caa",
+    "comparative_pair_results_shown": false
+  },
+  "recommendation": {
+    "choice": "python",
+    "rationale": "**Python.**\n\nThe decisive factor is integration risk around calendar semantics: resolving both VTIMEZONE and IANA zones, rejecting floating times and invalid events, and preserving exact microsecond values. The supplied Python profile describes a mature language with a broad package ecosystem, and this task explicitly allows a calendar parser dependency. That makes Python my lower-risk choice for coordinating parsing, validation, networking, and packaging. This is a judgment, not a demonstrated implementation result.\n\nGuion has strong task-specific advantages: its documented byte HTTP client enforces a single deadline through connection and complete body reads, and `parallel_map` bounds concurrency. Its source-free packaging also fits the acceptance requirements. Those capabilities directly address difficult parts of this brief.\n\nHowever, a built-in iCalendar parser alone does not establish compliance with every required timezone and invalid-input rule. Using the permitted Python bridge could address parser gaps, but adds an interoperability and deployment boundary. Guion’s pre-release compatibility and installation constraints also matter for clean installation.\n\nPython still needs deliberate verification: an ordinary network timeout must not be assumed to satisfy the slow-trickle deadline requirement, and source-free launch needs an explicit packaging solution. Pairwise intersections, deterministic sorting, and the tentative-event flag do not decisively favor either language.\n\n**I would change my choice to Guion** if its native calendar API demonstrably covered the required timezone and validation cases, and its package installed and launched cleanly on the target. Its documented concurrency and deadline facilities would then make it particularly well matched to this task.",
+    "conditions": []
+  },
+  "exclusion": {
+    "excluded": false,
+    "reason": null
+  }
+}

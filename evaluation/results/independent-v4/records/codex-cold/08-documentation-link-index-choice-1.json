@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "decision_id": "08-documentation-link-index-choice-1",
+  "recorded_at_utc": "2026-10-26T19:31:54.564401Z",
+  "task": {
+    "id": "08-documentation-link-index",
+    "class": "maintainable_application",
+    "origin": "independent",
+    "brief_sha256": "48b16ce3f1daef3ccceb72eeffabc4748692248d356ab5d610387bd6b567f924"
+  },
+  "assistant": {
+    "provider": "OpenAI Codex",
+    "name": "gpt-6.1-sol",
+    "version": "gpt-6.1-sol",
+    "reasoning_effort": "medium",
+    "session_id": "01a179a9-fd78-7de2-9424-bcce4210f58e",
+    "fresh_session": true
+  },
+  "budget": {
+    "active_minutes": 5,
+    "tool_calls": 0
+  },
+  "usage": {
+    "active_seconds": 30,
+    "tool_calls": 0
+  },
+  "evidence": {
+    "prompt_transcript_path": "prompts/codex-cold/08-documentation-link-index-choice-1.md",
+    "prompt_transcript_sha256": "04ac2c264bbe0352f48fff03018cbbb1ac6b47f8d66edb77243a40583305f638",
+    "response_transcript_path": "responses/codex-cold/08-documentation-link-index-choice-1.md",
+    "response_transcript_sha256": "c3f4ea37374bd9f52c7078a61159f93cf00948827774a99d543f640cef38d01d",
+    "usage_snapshot_path": "usage-snapshots/codex-cold/08-documentation-link-index-choice-1.json",
+    "usage_snapshot_sha256": "c5de1cfdc1d23c9d08a3cde2f1706dac0b4155e005d4a92a2396cbb48d806e14"
+  },
+  "presentation_order": [
+    "python",
+    "veritas"
+  ],
+  "context": {
+    "mode": "pre-build-recommendation",
+    "veritas_version": "0.1.0 (artifact format 39)",
+    "python_version": "3.14.8",
+    "documentation_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "schedule_sha256": "4630653714bd96f277e70ae17ccc8e37a1ee64ad37cf1d547a7c92494bd53bc1",
+    "schedule_file_sha256": "1398aa6edacdc22d115a7597209e19ad1d60b624c69200fa49edf0c19cb71d4e",
+    "schedule_entry_id": "08-documentation-link-index-choice-1",
+    "prerun_records_sha256": "50cbe8c3b35365c19af9c8b719d39cf75f5423d1c2eb744ba820ea0e46332c22",
+    "prerun_recorded_at_utc": "2026-10-26T19:10:14.465205Z",
+    "campaign_config_sha256": "c3d5418c588c5150383082b74326b6ed60de8dc37daf14bb25e025a02559a005",
+    "comparative_pair_results_shown": false
+  },
+  "recommendation": {
+    "choice": "python",
+    "rationale": "**Choice: Python.**\n\nThe decisive fit is Python’s standard-library support for this task’s exact requirements: SQLite, strict UTF-8 decoding, JSON parsing, Unicode case-folding, and filesystem traversal with symlink controls. These provide a familiar foundation for a maintainable, multi-module CLI without adding dependencies.\n\nThe hardest requirements are correctness boundaries: preserving the previous index after any failed build, replacing all stale data after success, distinguishing alias collisions across pages, and producing precisely ordered JSON. Python’s SQLite transactions and explicit sorting keys suit those requirements. Its JSON parser also handles escaped alias strings; additional validation would still be needed to enforce a flat array containing only strings.\n\nPython does not remove the need for careful design. Front-matter delimiter rules, Unicode whitespace normalization, UTF-8 byte tie-breakers, and backlinks that match the query term without alias expansion all require deliberate implementation and testing. These are reasons to favor familiar, inspectable primitives here.\n\nI lack enough prior knowledge of Guion to establish comparable support for these particular requirements. With no supplied product documentation, that uncertainty weighs against it for this assignment; it is not evidence that Guion cannot handle the task.\n\n**What would change my choice:** established Guion support for SQLite transactions, exact Unicode normalization and byte ordering, strict decoding, symlink-safe traversal, and maintainable module packaging—especially if the maintaining team already knows Guion well. That could make either appropriate. No implementation or performance results have been established.",
+    "conditions": []
+  },
+  "exclusion": {
+    "excluded": false,
+    "reason": null
+  }
+}

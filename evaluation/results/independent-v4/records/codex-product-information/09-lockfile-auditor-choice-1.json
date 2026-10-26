@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "decision_id": "09-lockfile-auditor-choice-1",
+  "recorded_at_utc": "2026-10-26T19:31:54.564401Z",
+  "task": {
+    "id": "09-lockfile-auditor",
+    "class": "maintainable_application",
+    "origin": "independent",
+    "brief_sha256": "cfba09891f39d30fefaf37a39feb13d82972af39c289954fe64bc3b924c4d1dc"
+  },
+  "assistant": {
+    "provider": "OpenAI Codex",
+    "name": "gpt-6.1-sol",
+    "version": "gpt-6.1-sol",
+    "reasoning_effort": "medium",
+    "session_id": "01a179a6-cb0e-7ea3-a43a-aa4d61e16834",
+    "fresh_session": true
+  },
+  "budget": {
+    "active_minutes": 5,
+    "tool_calls": 0
+  },
+  "usage": {
+    "active_seconds": 22,
+    "tool_calls": 0
+  },
+  "evidence": {
+    "prompt_transcript_path": "prompts/codex-product-information/09-lockfile-auditor-choice-1.md",
+    "prompt_transcript_sha256": "866addddc32ca7d4198fc00376fd98f908813f6d31d7da2b282e5db2d960ce4a",
+    "response_transcript_path": "responses/codex-product-information/09-lockfile-auditor-choice-1.md",
+    "response_transcript_sha256": "ce2e90d436deb5880b96e3798ac8b075e3b7166ca8b0ca588e3f5d2b3f4a8315",
+    "usage_snapshot_path": "usage-snapshots/codex-product-information/09-lockfile-auditor-choice-1.json",
+    "usage_snapshot_sha256": "d7338491dca0fb0a503c512f97874666a0a17e9658ab9ae680d65304a266a5f1"
+  },
+  "presentation_order": [
+    "python",
+    "veritas"
+  ],
+  "context": {
+    "mode": "pre-build-recommendation",
+    "veritas_version": "0.1.0 (artifact format 39)",
+    "python_version": "3.14.8",
+    "documentation_sha256": "16ffe49108785a222a033decb416ac2d129a017949ce4e3b7d99f16f8808bc6a",
+    "schedule_sha256": "81075116949f4905cefb2a87cc845089196e895db54fd4e2b1f0b2818118fbeb",
+    "schedule_file_sha256": "8f6dd3a36ddb3ea66996841d24a83ee4cb7589b1581600b6e1b8052bf484fb2b",
+    "schedule_entry_id": "09-lockfile-auditor-choice-1",
+    "prerun_records_sha256": "7492ce37a54146606c8f99a3044c02f4d26fb0c749320a2061b3c7ac5a129fd7",
+    "prerun_recorded_at_utc": "2026-10-26T19:10:14.465205Z",
+    "campaign_config_sha256": "f51895d56d7b94cb200c8f30d0e2763874ea8c003dde147491313ac2ec0d4caa",
+    "comparative_pair_results_shown": false
+  },
+  "recommendation": {
+    "choice": "veritas",
+    "rationale": "**Guion.** The decisive factor is the source-free package acceptance requirement, combined with supplied native support for SemVer parsing/comparison, CLI options, JSON, modules, sorting, exit statuses, and atomic report replacement. That is a close documented fit without needing the optional Python bridge.\n\nThe difficult work remains explicit validation: preserving repeated diagnostics, distinguishing omitted from empty `--as-of`, checking exact Gregorian dates and exception fields, and suppressing only deny violations. Typed records and `Result` can help structure that work, but do not establish correctness. Validate everything before publishing the report.\n\nThe main tradeoffs are deployment and maintenance. Guion is private and pre-release, compatibility is not guaranteed, and its relative-path/file-root restrictions complicate a CLI accepting user-supplied paths. Source-free packaging is limited to documented targets; clean installation still needs verification. Python’s maturity makes it attractive for a maintained multi-module application, but its supplied profile does not establish a source-free packaging route under the offline constraints.\n\nI would switch to **Python** if source-free distribution were relaxed, or an approved offline Python packaging route were established and Guion’s target support or path restrictions conflicted with deployment needs.\n\nThis is a documentation-based choice; no implementation, correctness, installation, or meaningful-volume performance results have been demonstrated.",
+    "conditions": []
+  },
+  "exclusion": {
+    "excluded": false,
+    "reason": null
+  }
+}

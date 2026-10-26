@@ -1,0 +1,86 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-26",
+  "workload": "Richards, 3000 repetitions in one Guion artifact process; expected output checked for 6000 lines.",
+  "owner_authorized_root_sample": true,
+  "sanity_run": {
+    "status": "passed",
+    "repetitions": 3000,
+    "output_lines": 6000,
+    "output_matches_expected": true,
+    "wall_seconds_including_authorization_wait": 90.12130366600468,
+    "interpretation": "Not a performance result; includes the 90-second authorization wait."
+  },
+  "host_cpu_attribution": {
+    "status": "passed",
+    "samples_collected": 98,
+    "sampled_duration_seconds": 0.98,
+    "requested_duration_seconds": 4.0,
+    "sample_interval_ms": 10,
+    "sampler_throttled": true,
+    "broad_generated_code_vs_runtime_dispatch_resolved": true,
+    "allocation_vs_branch_cost_resolved": false,
+    "leaf_stack_samples": {
+      "generated_native_code_unsymbolicated": 59,
+      "native_list_set": 12,
+      "allocator_free_or_memory_move": 14,
+      "fuel_cancellation_or_record_helpers": 11,
+      "kernel": 1,
+      "timekeeping": 1
+    },
+    "inclusive_stack_coverage": {
+      "instance_invoke_inner": 98,
+      "native_code_invoke": 92
+    },
+    "profile_path": "2026-10-26-richards-spindump.txt",
+    "profile_bytes": 17372558,
+    "profile_sha256": "b5093493601b50c9702ded32a098453f9189465defed979ce023db15d32968cb",
+    "interpretation": "The stack profile points to generated native Richards code as the largest sampled CPU bucket, not the VM dispatch wrapper. Native list and memory-management work is visible. JIT addresses are unsymbolicated and the throttled 98-sample capture is too coarse to determine whether guest branches or allocation/copy work dominates within the generated code. Leaf categories are mutually exclusive by terminal frame; allocator and memory-move stacks can be nested under native_list_set."
+  },
+  "attempts": [
+    {
+      "tool": "/usr/bin/sample",
+      "privileges": "non-root",
+      "result": "failed",
+      "detail": "macOS could not examine the live Guion process and suggested sudo; no sample file was produced."
+    },
+    {
+      "tool": "xcrun xctrace Time Profiler",
+      "privileges": "non-root",
+      "result": "failed",
+      "detail": "The Time Profiler template exists inside Xcode Instruments but is absent from xctrace named-template list. Recording by direct template path started then failed to connect to DTServiceHub. Trace bundle had no target output or usable samples."
+    },
+    {
+      "tool": "/usr/sbin/spindump",
+      "privileges": "non-root",
+      "result": "not-permitted",
+      "detail": "spindump states live-system sampling must run as root."
+    },
+    {
+      "tool": "root-level spindump request before owner approval",
+      "privileges": "root",
+      "result": "rejected-before-execution",
+      "detail": "Automatic approval review rejected the initial request because the user had requested no-sudo xctrace, not root sampling."
+    },
+    {
+      "tool": "root-level spindump after owner approval",
+      "privileges": "root",
+      "result": "not-obtained",
+      "detail": "The approval-reviewed shell ran. Noninteractive sudo reported that a password was required. A macOS secure administrator prompt was then requested; osascript timed out after 90 seconds. The zero-byte profile file contained no samples."
+    },
+    {
+      "tool": "/usr/bin/sudo -n -v after user reported password entry",
+      "privileges": "non-root check",
+      "result": "not-authorized",
+      "detail": "It returned exit code 1 with \u201csudo: a password is required\u201d; no cached administrator authorization was available to the profiler process."
+    },
+    {
+      "tool": "evaluation/completion/performance/run-richards-host-profile.sh from the user's visible Terminal",
+      "privileges": "root for spindump",
+      "result": "passed",
+      "detail": "User authenticated locally. spindump exited 0; the Richards artifact exited 0 and produced 6000 expected output lines. The profile is non-empty, hash-verified, and attached below. spindump throttled sampling, yielding 98 target-process samples over 0.98 seconds of a requested 4 seconds."
+    }
+  ],
+  "conclusion": "Host CPU attribution was obtained. Most terminal stack samples landed in unsymbolicated generated native code (60/98), with visible native_list_set (12/98), allocator/free/memory-move (14/98), and fuel/cancellation/record helper (11/98) samples. Inclusive stacks passed through NativeCode::invoke in 92/98 samples. This resolves the broad question: the workload's sampled CPU was chiefly in generated code rather than the VM dispatch wrapper. It does not resolve allocation-bound versus branch-bound work inside the unsymbolicated generated code.",
+  "next_step": "No additional capture is needed to report this first-order result. If guest-operation attribution is needed later, preserve this profile and use symbolized JIT code or a controlled workload comparison; do not treat the current coarse sample as a precise allocation-versus-branch measurement."
+}

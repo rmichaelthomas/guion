@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "decision_id": "04-calendar-conflict-report-choice-1",
+  "recorded_at_utc": "2026-10-26T19:31:54.564401Z",
+  "task": {
+    "id": "04-calendar-conflict-report",
+    "class": "concurrent_network_integration",
+    "origin": "independent",
+    "brief_sha256": "5fd56b1d588efd9ba6c9f0f4a3f262ae8d2e7047d769f9d2b83cdb86c0668efe"
+  },
+  "assistant": {
+    "provider": "OpenAI Codex",
+    "name": "gpt-6.1-sol",
+    "version": "gpt-6.1-sol",
+    "reasoning_effort": "medium",
+    "session_id": "01a179a9-3690-76f1-b2ae-6a6f51fd1a78",
+    "fresh_session": true
+  },
+  "budget": {
+    "active_minutes": 5,
+    "tool_calls": 0
+  },
+  "usage": {
+    "active_seconds": 15,
+    "tool_calls": 0
+  },
+  "evidence": {
+    "prompt_transcript_path": "prompts/codex-cold/04-calendar-conflict-report-choice-1.md",
+    "prompt_transcript_sha256": "845e6826279d42ef3b89cd1d07a049b8060147c64f41f8aa4f82679aa94e7dbc",
+    "response_transcript_path": "responses/codex-cold/04-calendar-conflict-report-choice-1.md",
+    "response_transcript_sha256": "ae6d0e5a9edbc4ed8f882fb8289f1b1cd8d78666444ce5b5908cb3feec8a0afb",
+    "usage_snapshot_path": "usage-snapshots/codex-cold/04-calendar-conflict-report-choice-1.json",
+    "usage_snapshot_sha256": "e30246e5c28a91b3d697a9bea704ee62f83d72b65ff7a3f2d8435c63040be0c9"
+  },
+  "presentation_order": [
+    "python",
+    "veritas"
+  ],
+  "context": {
+    "mode": "pre-build-recommendation",
+    "veritas_version": "0.1.0 (artifact format 39)",
+    "python_version": "3.14.8",
+    "documentation_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "schedule_sha256": "4630653714bd96f277e70ae17ccc8e37a1ee64ad37cf1d547a7c92494bd53bc1",
+    "schedule_file_sha256": "1398aa6edacdc22d115a7597209e19ad1d60b624c69200fa49edf0c19cb71d4e",
+    "schedule_entry_id": "04-calendar-conflict-report-choice-1",
+    "prerun_records_sha256": "50cbe8c3b35365c19af9c8b719d39cf75f5423d1c2eb744ba820ea0e46332c22",
+    "prerun_recorded_at_utc": "2026-10-26T19:10:14.465205Z",
+    "campaign_config_sha256": "c3d5418c588c5150383082b74326b6ed60de8dc37daf14bb25e025a02559a005",
+    "comparative_pair_results_shown": false
+  },
+  "recommendation": {
+    "choice": "python",
+    "rationale": "**Python.**\n\nThe decisive issue is reliable integration: this task combines iCalendar parsing, VTIMEZONE and IANA timezone resolution, bounded concurrent fetching, and a deadline covering the entire response body. Python’s established parsing libraries, timezone support, and asynchronous networking provide a practical foundation. Strict timestamp validation, half-open pairwise intersections, and deterministic sorting still require explicit implementation and testing.\n\nThe tentative-event follow-up is a small filtering change and does not materially affect the choice. Clean installation and source-free launch need deliberate packaging whichever language is chosen.\n\nNo Guion documentation is supplied, and my prior knowledge is insufficient to establish comparable capabilities. Its permitted Python bridge could provide the same parser, but would introduce an additional integration boundary whose behavior I cannot assess here. I would reconsider if Guion demonstrated dependable deadline cancellation, timezone-preserving parser integration, and straightforward standalone packaging—or if the developer already had a proven Guion foundation covering those requirements. This is a choice for this integration-heavy CLI, not a general language ranking.",
+    "conditions": []
+  },
+  "exclusion": {
+    "excluded": false,
+    "reason": null
+  }
+}

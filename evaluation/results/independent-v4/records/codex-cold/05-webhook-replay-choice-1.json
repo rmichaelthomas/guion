@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "decision_id": "05-webhook-replay-choice-1",
+  "recorded_at_utc": "2026-10-26T19:31:54.564401Z",
+  "task": {
+    "id": "05-webhook-replay",
+    "class": "concurrent_network_integration",
+    "origin": "independent",
+    "brief_sha256": "b3f17d12a10c839fdbf8e4eb039785a234b7df20466f660d340abf43d9b1f4b9"
+  },
+  "assistant": {
+    "provider": "OpenAI Codex",
+    "name": "gpt-6.1-sol",
+    "version": "gpt-6.1-sol",
+    "reasoning_effort": "medium",
+    "session_id": "01a179a9-4438-7e20-805c-9a8912e10061",
+    "fresh_session": true
+  },
+  "budget": {
+    "active_minutes": 5,
+    "tool_calls": 0
+  },
+  "usage": {
+    "active_seconds": 18,
+    "tool_calls": 0
+  },
+  "evidence": {
+    "prompt_transcript_path": "prompts/codex-cold/05-webhook-replay-choice-1.md",
+    "prompt_transcript_sha256": "42c4e68211d5ac9a084c67b6a7457b817418cf0510d4b5b12488260efae4ee4a",
+    "response_transcript_path": "responses/codex-cold/05-webhook-replay-choice-1.md",
+    "response_transcript_sha256": "8915ddd7c59eafe12e0ef71f6c867635911f87efb2beb90275b8b43279fce437",
+    "usage_snapshot_path": "usage-snapshots/codex-cold/05-webhook-replay-choice-1.json",
+    "usage_snapshot_sha256": "b2f1489ff4ed24a6d2c5126f634c06f8acb5945d713988c41b597c8cba019745"
+  },
+  "presentation_order": [
+    "python",
+    "veritas"
+  ],
+  "context": {
+    "mode": "pre-build-recommendation",
+    "veritas_version": "0.1.0 (artifact format 39)",
+    "python_version": "3.14.8",
+    "documentation_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "schedule_sha256": "4630653714bd96f277e70ae17ccc8e37a1ee64ad37cf1d547a7c92494bd53bc1",
+    "schedule_file_sha256": "1398aa6edacdc22d115a7597209e19ad1d60b624c69200fa49edf0c19cb71d4e",
+    "schedule_entry_id": "05-webhook-replay-choice-1",
+    "prerun_records_sha256": "50cbe8c3b35365c19af9c8b719d39cf75f5423d1c2eb744ba820ea0e46332c22",
+    "prerun_recorded_at_utc": "2026-10-26T19:10:14.465205Z",
+    "campaign_config_sha256": "c3d5418c588c5150383082b74326b6ed60de8dc37daf14bb25e025a02559a005",
+    "comparative_pair_results_shown": false
+  },
+  "recommendation": {
+    "choice": "python",
+    "rationale": "**Python.**\n\nThis task fits Python’s standard library closely: `argparse` for the CLI, `sqlite3` for durable state and unique IDs, `hmac`/`hashlib` for authentication, and HTTP and JSON support. That provides a credible route without additional downloads, which matters under the offline dependency restriction.\n\nThe decisive work is preserving exact behavior: validating the secret before database mutation, authenticating original bytes before JSON parsing, distinguishing missing payload from `null`, and persisting attempt counts and dead-letter transitions across processes. Python offers familiar primitives for expressing and testing those boundaries. This is a suitability judgment, not a claim that an implementation has passed acceptance.\n\nDelivery still requires careful transaction design: a successful POST followed by a crash before recording success can cause replay. Choosing Python alone does not resolve that recovery boundary.\n\nI lack enough prior knowledge of Guion to assess its persistence, byte handling, HTTP support, or managed bridge confidently. I would reconsider if Guion’s available environment established comparable support for these requirements and a simpler implementation or packaging path, including the clean source-free run. A bridge would also need to justify its extra integration boundary.",
+    "conditions": []
+  },
+  "exclusion": {
+    "excluded": false,
+    "reason": null
+  }
+}

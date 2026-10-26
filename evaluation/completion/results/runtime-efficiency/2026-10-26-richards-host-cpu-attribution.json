@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "status": "passed",
+  "captured_at_utc": "2026-10-26T19:51:40Z",
+  "workload": "Richards, 3000 repetitions in one artifact process",
+  "guion_version": "0.1.0 (artifact format 39)",
+  "artifact_sha256": "af75de4b1e6c2a0820d3b7be6784ce51b0c2741df0f85779c11811630877d766",
+  "spindump_exit_code": 0,
+  "program_exit_code": 0,
+  "output_lines": 6000,
+  "output_matches_expected": true,
+  "profile_path": "2026-10-26-richards-spindump.txt",
+  "profile_bytes": 17372558,
+  "profile_sha256": "b5093493601b50c9702ded32a098453f9189465defed979ce023db15d32968cb",
+  "sampling": {
+    "requested_duration_seconds": 4.0,
+    "sampled_duration_seconds": 0.98,
+    "sample_interval_ms": 10,
+    "target_process_samples": 98,
+    "target_process_cpu_seconds": 0.967,
+    "sampler_throttled": true
+  },
+  "profile_analysis": {
+    "inclusive_stack_coverage": {
+      "instance_invoke_inner": 98,
+      "native_code_invoke": 92
+    },
+    "terminal_frame_samples": {
+      "generated_native_code_unsymbolicated": 59,
+      "native_list_set": 12,
+      "allocator_free_or_memory_move": 14,
+      "fuel_cancellation_or_record_helpers": 11,
+      "kernel": 1,
+      "timekeeping": 1
+    },
+    "counting_method": "Terminal call-tree frame counts are mutually exclusive and sum to 98; parent stack counts are inclusive. Allocator and memory-move stacks may be nested under native_list_set.",
+    "interpretation": "Most sampled CPU time was in generated native Richards code rather than the VM dispatch wrapper. The unsymbolicated JIT addresses and throttled sample do not distinguish branch work from allocation/copy work inside generated code."
+  },
+  "interpretation": "The run is valid because both the program output and the host profile passed their checks; the measured CPU attribution is a coarse profile, not a precise branch-versus-allocation measurement."
+}

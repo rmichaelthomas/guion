@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "decision_id": "01-support-sla-report-choice-2",
+  "recorded_at_utc": "2026-10-26T19:31:54.564401Z",
+  "task": {
+    "id": "01-support-sla-report",
+    "class": "small_automation_cli",
+    "origin": "independent",
+    "brief_sha256": "be8cfc80f1bde7c511b35ff10125ab7213d2f771fea76f51f4d7830fe8d58490"
+  },
+  "assistant": {
+    "provider": "OpenAI Codex",
+    "name": "gpt-6.1-sol",
+    "version": "gpt-6.1-sol",
+    "reasoning_effort": "medium",
+    "session_id": "01a179a0-fa93-78f3-a750-ebec17ce6c96",
+    "fresh_session": true
+  },
+  "budget": {
+    "active_minutes": 5,
+    "tool_calls": 0
+  },
+  "usage": {
+    "active_seconds": 29,
+    "tool_calls": 0
+  },
+  "evidence": {
+    "prompt_transcript_path": "prompts/codex-product-information/01-support-sla-report-choice-2.md",
+    "prompt_transcript_sha256": "d24f753460f26d48e440c6918b647dd94cfd61fd9156ef11b1ee877f96968071",
+    "response_transcript_path": "responses/codex-product-information/01-support-sla-report-choice-2.md",
+    "response_transcript_sha256": "b5e7f90c897004e018134d4e103ea1514e112724d5f9f9a049e227a2bf0ae9d1",
+    "usage_snapshot_path": "usage-snapshots/codex-product-information/01-support-sla-report-choice-2.json",
+    "usage_snapshot_sha256": "d4d72335d381ab49c37a4625dd5329611916704aa9023c624b2bd893a76c61eb"
+  },
+  "presentation_order": [
+    "python",
+    "veritas"
+  ],
+  "context": {
+    "mode": "pre-build-recommendation",
+    "veritas_version": "0.1.0 (artifact format 39)",
+    "python_version": "3.14.8",
+    "documentation_sha256": "16ffe49108785a222a033decb416ac2d129a017949ce4e3b7d99f16f8808bc6a",
+    "schedule_sha256": "81075116949f4905cefb2a87cc845089196e895db54fd4e2b1f0b2818118fbeb",
+    "schedule_file_sha256": "8f6dd3a36ddb3ea66996841d24a83ee4cb7589b1581600b6e1b8052bf484fb2b",
+    "schedule_entry_id": "01-support-sla-report-choice-2",
+    "prerun_records_sha256": "7492ce37a54146606c8f99a3044c02f4d26fb0c749320a2061b3c7ac5a129fd7",
+    "prerun_recorded_at_utc": "2026-10-26T19:10:14.465205Z",
+    "campaign_config_sha256": "f51895d56d7b94cb200c8f30d0e2763874ea8c003dde147491313ac2ec0d4caa",
+    "comparative_pair_results_shown": false
+  },
+  "recommendation": {
+    "choice": "python",
+    "rationale": "**Python.** For this small CLI, I would prioritize straightforward file handling and mature tooling over Guion’s additional build and runtime configuration.\n\nThe decisive task-specific tradeoffs are:\n\n- **Path handling:** The CLI accepts input and output paths. Guion permits only relative paths within granted roots, so supporting files across arbitrary locations would require additional invocation or packaging decisions.\n- **Strict validation:** Most of the work is enforcing exact timestamp syntax, CSV structure, policy types, and diagnostic codes. Guion’s typed records, `Result`, CSV parsing, and explicit JSON accessors are useful, but neither language removes the need to enforce this particular contract.\n- **Output preservation:** Guion supplies `write_text_atomic`, which directly supports safe replacement. That is a concrete advantage, provided all input validation finishes before publishing the report.\n- **Delivery and maintenance:** Python’s supplied profile describes a mature language with a broad standard library. Guion requires a source checkout and Rust to build its CLI, and its pre-release compatibility is not guaranteed. That adds overhead for a modest reporting utility and its small `--team` follow-up.\n\nI would change my choice if deployment required a source-free application without Python, the supported Guion target and toolchain were already established, and callers could work within its file-root rules. In that setting, Guion’s packaging, explicit error handling, and atomic-write API would carry more weight.\n\nThis is a suitability judgment from the supplied profiles; no implementation or comparative results establish which would be faster or more reliable.",
+    "conditions": []
+  },
+  "exclusion": {
+    "excluded": false,
+    "reason": null
+  }
+}

@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "decision_id": "02-jsonl-retention-choice-2",
+  "recorded_at_utc": "2026-10-26T19:31:54.564401Z",
+  "task": {
+    "id": "02-jsonl-retention",
+    "class": "small_automation_cli",
+    "origin": "independent",
+    "brief_sha256": "9cede1a4f91796991638cc1c37307bdbea632cd978ab70f3820f79529df7e5a0"
+  },
+  "assistant": {
+    "provider": "OpenAI Codex",
+    "name": "gpt-6.1-sol",
+    "version": "gpt-6.1-sol",
+    "reasoning_effort": "medium",
+    "session_id": "01a179a1-1acd-74e1-b138-1d5068973c8f",
+    "fresh_session": true
+  },
+  "budget": {
+    "active_minutes": 5,
+    "tool_calls": 0
+  },
+  "usage": {
+    "active_seconds": 27,
+    "tool_calls": 0
+  },
+  "evidence": {
+    "prompt_transcript_path": "prompts/codex-product-information/02-jsonl-retention-choice-2.md",
+    "prompt_transcript_sha256": "b057f74bcc968bade0084d8c3b2666f4523c5cbad985adecf42327d6aaf9a37a",
+    "response_transcript_path": "responses/codex-product-information/02-jsonl-retention-choice-2.md",
+    "response_transcript_sha256": "df76c01583559acfeec4be6129041bdd26b7a14bc72619611cb75a441488e174",
+    "usage_snapshot_path": "usage-snapshots/codex-product-information/02-jsonl-retention-choice-2.json",
+    "usage_snapshot_sha256": "309bf28a767cecf46dc5642b8910027da6011d0ae43147c2d59fe8d0fc59ca30"
+  },
+  "presentation_order": [
+    "veritas",
+    "python"
+  ],
+  "context": {
+    "mode": "pre-build-recommendation",
+    "veritas_version": "0.1.0 (artifact format 39)",
+    "python_version": "3.14.8",
+    "documentation_sha256": "16ffe49108785a222a033decb416ac2d129a017949ce4e3b7d99f16f8808bc6a",
+    "schedule_sha256": "81075116949f4905cefb2a87cc845089196e895db54fd4e2b1f0b2818118fbeb",
+    "schedule_file_sha256": "8f6dd3a36ddb3ea66996841d24a83ee4cb7589b1581600b6e1b8052bf484fb2b",
+    "schedule_entry_id": "02-jsonl-retention-choice-2",
+    "prerun_records_sha256": "7492ce37a54146606c8f99a3044c02f4d26fb0c749320a2061b3c7ac5a129fd7",
+    "prerun_recorded_at_utc": "2026-10-26T19:10:14.465205Z",
+    "campaign_config_sha256": "f51895d56d7b94cb200c8f30d0e2763874ea8c003dde147491313ac2ec0d4caa",
+    "comparative_pair_results_shown": false
+  },
+  "recommendation": {
+    "choice": "python",
+    "rationale": "**Python.** This task favors a mature standard-library CLI with a small dependency footprint and straightforward maintenance through the allow-list change.\n\nThe decisive work is enforcing the input contract: the exact timestamp grammar, six-digit fractional limit, physical line numbering, UTC date grouping, and preservation of existing output on failure. Python is a good fit, but its broader ISO 8601 parsing must be preceded by explicit validation. Canonical UTC serialization also needs deliberate handling; accepting a timestamp is only part of the requirement.\n\nGuion’s supplied profile offers relevant capabilities: JSONL streaming, typed error results, timestamp operations, sorting, and atomic output replacement. These could reduce plumbing. However, their presence alone does not establish compliance with every timestamp edge case. Guion also adds source-build setup, file-root permissions that must accommodate the CLI’s paths, and pre-1.0 compatibility risk. For this small automation, I would choose Python’s maturity over those additional operational considerations.\n\nThe service filter does not materially change the choice. Validation must precede filtering so malformed events remain errors, while only valid excluded events increase the ignored count.\n\nI would reconsider Guion if its capability controls or source-free packaging were deployment requirements, its toolchain were already established, and acceptance testing confirmed the required semantics. No supplied implementation results establish a speed or correctness advantage for either language.",
+    "conditions": []
+  },
+  "exclusion": {
+    "excluded": false,
+    "reason": null
+  }
+}
