@@ -19,16 +19,16 @@ The macOS and Debian runtime, application, lifecycle, and release aggregates lis
 
 The performance report compares the installed Guion artifact with pinned, GIL-enabled CPython 3.14.7 on macOS ARM64. Ratios are Guion median time divided by Python median time; below 1.0 means the Guion artifact was faster for that named comparison.
 
-| Workload | Approximate Guion/Python ratio |
-|---|---:|
-| Richards scheduler | 0.92 |
-| N-body numeric | 0.68 |
-| Mandelbrot image | 0.37 |
-| Parallel CPU, 20,000 items vs Python serial | 0.19 |
-| Parallel CPU, 200,000 items vs Python serial | 0.18 |
-| JSONL summary data | 0.23 |
+| Workload | Approximate result |
+|---|---|
+| Richards scheduler | Slightly less time than Python |
+| N-body numeric | About 30% less time |
+| Mandelbrot image | About 60% less time |
+| Parallel CPU, 20,000 items vs Python serial | About 80% less time |
+| Parallel CPU, 200,000 items vs Python serial | About 80% less time |
+| JSONL summary data | About 80% less time |
 
-For 200,000 parallel items, the recorded ratio was also below Python threads and processes. For JSONL, the installed artifact was faster than the measured SQLite path. The exact medians, intervals, all observations, source-run timings, correctness outputs, memory, artifact sizes, and hashes are in [`performance-guion.json`](../evaluation/completion/results/guion-final/performance-guion.json) and [`performance.json`](../evaluation/completion/results/guion-final/performance.json).
+For 200,000 parallel items, the installed artifact was also faster than Python threads and processes. For JSONL, it was faster than the measured SQLite path. The exact medians, ratios, intervals, all observations, source-run timings, correctness outputs, memory, artifact sizes, and hashes are in [`performance-guion.json`](../evaluation/completion/results/guion-final/performance-guion.json) and [`performance.json`](../evaluation/completion/results/guion-final/performance.json).
 
 These results cover the named workloads, host, and pinned Python version only. Guion source-run was slower than Python on Richards, N-body, and Mandelbrot. A free-threaded Python executable was unavailable, so that comparison remains unverified. This evidence does not establish that Guion generally outperforms Python or has replaced it.
 

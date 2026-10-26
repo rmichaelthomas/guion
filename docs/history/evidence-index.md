@@ -16,14 +16,14 @@ This cohort is the renamed product's final validation record. Its aggregates and
 
 The Guion installed benchmark is [`performance-guion.json`](../../evaluation/completion/results/guion-final/performance-guion.json); [`performance.json`](../../evaluation/completion/results/guion-final/performance.json) records invocation and outcomes. Ratios are Guion installed-artifact median divided by pinned CPython 3.14.7 median, so values below 1 favor the Guion artifact.
 
-| Workload and comparison | Approximate median ratio |
-|---|---:|
-| Richards scheduler | 0.92 |
-| N-body numeric | 0.68 |
-| Mandelbrot image | 0.37 |
-| Parallel CPU, 20,000 items vs Python serial | 0.19 |
-| Parallel CPU, 200,000 items vs Python serial | 0.18 |
-| JSONL summary data | 0.23 |
+| Workload and comparison | Approximate result |
+|---|---|
+| Richards scheduler | Guion artifact slightly faster |
+| N-body numeric | About 30% less time |
+| Mandelbrot image | About 60% less time |
+| Parallel CPU, 20,000 items vs Python serial | About 80% less time |
+| Parallel CPU, 200,000 items vs Python serial | About 80% less time |
+| JSONL summary data | About 80% less time |
 
 For 200,000 parallel items, the Guion artifact also beat measured Python threads and processes. For JSONL, it also beat the measured SQLite path. Exact medians, intervals, and both parallel comparison ratios are in the linked structured report. The comparison used macOS ARM64 and GIL-enabled CPython 3.14.7; free-threaded Python was unavailable. Guion source-run was slower on Richards, N-body, and Mandelbrot. Treat these as results for the named workloads and conditions, not a general Python performance claim.
 
