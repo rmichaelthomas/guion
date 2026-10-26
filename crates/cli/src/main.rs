@@ -33,6 +33,7 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
     }
     let cli_started = Instant::now();
     let phase_timings_enabled = env::var_os("GUION_PHASE_TIMINGS").is_some();
+    let runtime_profile_enabled = env::var_os("GUION_RUNTIME_PROFILE").is_some();
     let Some(command) = args.first().map(String::as_str) else {
         return Err(
             "usage: guion <new|check|fmt|lint|test|run|build|package|verify-package|add|sync|update|inspect|doc|doctor|install> [path]"
@@ -798,7 +799,11 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
         "run" => {
             #[cfg(feature = "python-interop")]
             let managed_interpreter = dependencies::interpreter_for_locked_run(&project_root)?;
-            let runtime = Runtime::new();
+            let runtime = if runtime_profile_enabled {
+                Runtime::new().with_runtime_profile()
+            } else {
+                Runtime::new()
+            };
             let program_args = args.iter().skip(path_index + 1).cloned().collect();
             let mut policy = runtime_policy(&project_root)?
                 .with_file_access(project_root.clone(), true, true)
@@ -852,6 +857,7 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
             let python_native_image_observation =
                 instance.python_native_image_observation().to_owned();
             let python_native_images = instance.python_native_images().to_vec();
+            let runtime_profile = instance.runtime_profile();
             let native_backend = serde_json::json!({
                 "compiled_functions": instance.native_function_names(),
                 "compilations": instance.native_compilations(),
@@ -940,6 +946,7 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
                     "exit_code": exit_code,
                     "diagnostic": diagnostic
                 });
+                add_runtime_profile(&mut report, runtime_profile);
                 if phase_timings_enabled {
                     report["phase_timings_ns"] = serde_json::json!({
                         "cli_to_report_excluding_process_startup_ns": cli_started.elapsed().as_nanos(),
@@ -1421,6 +1428,12 @@ fn compiler_phase_report(timings: &compiler_driver::CompilerPhaseTimings) -> ser
         "compiler_backend": "rust",
         "rust_compiler_compile_ns": timings.rust_compiler_compile_ns,
     })
+}
+
+fn add_runtime_profile(report: &mut serde_json::Value, runtime_profile: Option<serde_json::Value>) {
+    if let Some(runtime_profile) = runtime_profile {
+        report["runtime_profile"] = runtime_profile;
+    }
 }
 
 #[cfg(feature = "python-interop")]
@@ -3688,8 +3701,26 @@ fn render_runtime(path: &str, artifact: &Artifact, error: &guion_model::RuntimeE
 
 #[cfg(test)]
 mod tests {
-    use super::{copy_rust_notices, publish_package_stage};
+    use super::{add_runtime_profile, copy_rust_notices, publish_package_stage};
+    use serde_json::json;
     use std::fs;
+
+    #[test]
+    fn runtime_profile_is_only_added_when_enabled() {
+        let mut report = json!({"status": "passed"});
+
+        add_runtime_profile(&mut report, None);
+        assert!(report.get("runtime_profile").is_none());
+
+        add_runtime_profile(
+            &mut report,
+            Some(json!({"dynamic_guest_conditional_branch_executions": 3})),
+        );
+        assert_eq!(
+            report["runtime_profile"]["dynamic_guest_conditional_branch_executions"],
+            3
+        );
+    }
 
     #[test]
     fn copies_and_records_rust_notices_from_the_runtime_distribution() {

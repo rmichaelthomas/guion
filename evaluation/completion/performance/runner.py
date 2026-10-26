@@ -31,6 +31,7 @@ TRIALS = 15
 DATA_TRIALS = 16
 WARMUPS = 2
 WARM_REPETITIONS = 5
+RICHARDS_PROFILE_REPETITIONS = 25
 TRIAL_SEED = 20261025
 BOOTSTRAP_SEED = 20261026
 BOOTSTRAP_SAMPLES = 20_000
@@ -154,14 +155,18 @@ def profile_guion_run(
     expected: Any,
     *,
     output_file: Path | None = None,
+    runtime_profile_enabled: bool = False,
 ) -> dict[str, Any]:
     """Collect phase telemetry in an untimed lane and verify the workload output."""
     if output_file is not None:
         output_file.unlink(missing_ok=True)
+    profile_environment = {"GUION_PHASE_TIMINGS": "1"}
+    if runtime_profile_enabled:
+        profile_environment["GUION_RUNTIME_PROFILE"] = "1"
     elapsed, output, envelope = guion_result(
         command,
         cwd,
-        extra_env={"GUION_PHASE_TIMINGS": "1"},
+        extra_env=profile_environment,
     )
     if envelope is None:
         raise RuntimeError("phase profile requires Guion JSON output")
@@ -175,10 +180,111 @@ def profile_guion_run(
         actual = canonical_output("guion_source", output, workload_id)
         if not equivalent(actual, expected, workload_id):
             raise RuntimeError(f"profiled {workload_id} output mismatch: {actual!r} != {expected!r}")
-    return {
+    profile = {
         "elapsed_seconds_including_process_startup": elapsed,
         "cache_status": envelope.get("source_cache"),
         "reported_phase_timings_ns": envelope.get("phase_timings_ns"),
+    }
+    if "runtime_profile" in envelope:
+        profile["runtime_profile"] = envelope["runtime_profile"]
+    if runtime_profile_enabled and "runtime_profile" not in profile:
+        raise RuntimeError("runtime profile was requested but Guion returned no runtime_profile data")
+    return profile
+
+
+def native_compilation_profile_total_ns(profile: dict[str, Any]) -> int:
+    phases = profile.get("reported_phase_timings_ns") or {}
+    native = phases.get("native_compilation") or {}
+    total = int(native.get("finalize_nanoseconds", 0))
+    for function in native.get("functions", []):
+        total += sum(
+            int(function.get(field, 0))
+            for field in ("lowering_nanoseconds", "verification_nanoseconds", "define_nanoseconds")
+        )
+    return total
+
+
+def profile_richards(binary: Path, scratch: Path) -> dict[str, Any]:
+    """Measure one-shot and repeated Richards source runs with separate diagnostics."""
+    binary = binary.resolve()
+    scratch = scratch.resolve()
+    if not binary.is_file():
+        raise FileNotFoundError(f"release Guion binary does not exist: {binary}")
+    scratch.mkdir(parents=True, exist_ok=True)
+    source_revision = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=ROOT, capture_output=True, text=True, check=True
+    ).stdout.strip()
+    binary_sha256 = hashlib.sha256(binary.read_bytes()).hexdigest()
+    expected = ["9297", "23246"]
+    with tempfile.TemporaryDirectory(prefix="richards-profile-", dir=scratch) as directory:
+        project = Path(directory) / "project"
+        project.mkdir(parents=True)
+        source = project / "main.gu"
+        shutil.copy2(WORKLOADS / "richards.vr", source)
+        warm_source = project / "main-warm.gu"
+        make_warm_source(source, warm_source, RICHARDS_PROFILE_REPETITIONS)
+        write_manifest(project, "richards-runtime-profile", 30_000_000 * RICHARDS_PROFILE_REPETITIONS)
+        commands = {
+            "guion_source_uncached": uncached_source_command(
+                [str(binary), "run", "--json", str(source)]
+            ),
+            "guion_source_warm_25": uncached_source_command(
+                [str(binary), "run", "--json", str(warm_source)]
+            ),
+        }
+        timed_lanes, trial_metadata = sample_candidates(
+            "richards-scheduler",
+            commands,
+            project,
+            expected,
+            repetitions=RICHARDS_PROFILE_REPETITIONS,
+            trials=TRIALS,
+        )
+        phase_profiles = {
+            "one_shot": profile_guion_run(
+                commands["guion_source_uncached"],
+                project,
+                "richards-scheduler",
+                expected,
+                runtime_profile_enabled=True,
+            ),
+            "repeated_25": profile_guion_run(
+                commands["guion_source_warm_25"],
+                project,
+                "richards-scheduler",
+                expected * RICHARDS_PROFILE_REPETITIONS,
+                runtime_profile_enabled=True,
+            ),
+        }
+    for profile in phase_profiles.values():
+        profile["native_compilation_profile_total_ns"] = native_compilation_profile_total_ns(profile)
+        profile["program_execute_ns_includes_native_compilation"] = True
+    return {
+        "schema_version": 1,
+        "kind": "guion-richards-runtime-profile",
+        "status": "passed",
+        "host": {
+            "platform": platform.platform(),
+            "architecture": platform.machine(),
+            "python_version": platform.python_version(),
+        },
+        "source_revision": source_revision,
+        "release_binary_sha256": binary_sha256,
+        "repetitions_in_repeated_source_lane": RICHARDS_PROFILE_REPETITIONS,
+        "timed_trials_per_lane": TRIALS,
+        "expected_output_per_execution": expected,
+        "cache_conditions": {
+            "source_compile_cache": "bypassed with --no-cache",
+            "os_file_cache": "uncontrolled; not a cold-disk measurement",
+        },
+        "timed_uninstrumented_samples_per_logical_execution": timed_lanes,
+        "trial_metadata": trial_metadata,
+        "untimed_phase_profiles": phase_profiles,
+        "metric_interpretation": {
+            "allocation": "estimated guest-data budget charges, not host allocator calls",
+            "branches": "dynamic guest conditional executions, not hardware branch-misprediction counts",
+            "warm_lane": "25 executions in one process; reported timing is elapsed process time divided by 25",
+        },
     }
 
 
@@ -277,7 +383,7 @@ def sample_candidates(
                 raise RuntimeError(f"{name} data output differs from independent oracle")
         else:
             actual = canonical_output(name, output, workload_id)
-            wanted = expected * WARM_REPETITIONS if "warm" in name else expected
+            wanted = expected * repetitions if "warm" in name else expected
             if not equivalent(actual, wanted, workload_id):
                 raise RuntimeError(f"{name} output mismatch for {workload_id}: {actual!r} != {wanted!r}")
         if envelope:

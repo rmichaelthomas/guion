@@ -1,0 +1,334 @@
+{
+  "candidate_runtime_profile_one_shot": {
+    "dynamic_guest_conditional_branch_executions": 1555377,
+    "estimated_guest_allocation_budget_charges": {
+      "estimated_gross_bytes": 85753561,
+      "estimated_net_bytes": 85753561,
+      "estimated_refunded_bytes": 0,
+      "successful_events": 247240
+    },
+    "list_set": {
+      "copy_on_write_copies": 84497,
+      "estimated_copy_bytes": 66189688,
+      "in_place_updates": 209960,
+      "operations": 294457
+    },
+    "metric_limits": {
+      "allocation": "estimated guest-data budget charges, not host allocator calls",
+      "branches": "executed guest conditional branches, not hardware branch-misprediction counts"
+    },
+    "record_charges": {
+      "estimated_bytes": 19549886,
+      "events": 162722
+    },
+    "scope": "latest guest invocation"
+  },
+  "expected_output_per_execution": [
+    "9297",
+    "23246"
+  ],
+  "five_short_source_gates": {
+    "all_passed": true,
+    "candidate_binary_sha256": "604deef10f992c19bd4ed55ac76e8c2da8cae26592d2ea21c2b4c22f40607a2e",
+    "paired_trials_per_workload": 21,
+    "workloads": {
+      "arithmetic": {
+        "guion_median_ms": 7.2398,
+        "guion_over_python_median_ratio": 0.248763,
+        "paired_ratio_bootstrap_95_percent_interval": [
+          0.233845,
+          0.271528
+        ],
+        "passed": true,
+        "python_median_ms": 28.5785
+      },
+      "imported_helper": {
+        "guion_median_ms": 7.0228,
+        "guion_over_python_median_ratio": 0.242009,
+        "paired_ratio_bootstrap_95_percent_interval": [
+          0.229381,
+          0.24826
+        ],
+        "passed": true,
+        "python_median_ms": 28.698
+      },
+      "json_file": {
+        "guion_median_ms": 6.6363,
+        "guion_over_python_median_ratio": 0.195817,
+        "paired_ratio_bootstrap_95_percent_interval": [
+          0.190041,
+          0.204218
+        ],
+        "passed": true,
+        "python_median_ms": 33.2819
+      },
+      "sqlite_toml": {
+        "guion_median_ms": 8.4728,
+        "guion_over_python_median_ratio": 0.224816,
+        "paired_ratio_bootstrap_95_percent_interval": [
+          0.216573,
+          0.242954
+        ],
+        "passed": true,
+        "python_median_ms": 37.1307
+      },
+      "tiny": {
+        "guion_median_ms": 5.9465,
+        "guion_over_python_median_ratio": 0.222417,
+        "paired_ratio_bootstrap_95_percent_interval": [
+          0.211136,
+          0.228809
+        ],
+        "passed": true,
+        "python_median_ms": 27.0336
+      }
+    }
+  },
+  "host": {
+    "architecture": "arm64",
+    "platform": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+    "python_version": "3.14.7"
+  },
+  "interpretation_limits": [
+    "Estimated guest allocation charges are not host allocator calls or CPU-time attribution.",
+    "Guest conditional branch executions are not hardware branch-misprediction counts.",
+    "Profiling is opt-in and performs no atomic counter writes when disabled, but some VM branch and budget paths still check whether profiling is enabled.",
+    "Each native list descriptor has fixed inline storage; its memory impact and peak memory were not measured.",
+    "The data supports a measured Richards improvement for this machine and workload, not a general claim that Guion is faster than Python.",
+    "The OS file cache is uncontrolled.",
+    "Instrumented phase timings are diagnostic only; the randomized A/B performance samples ran with profiling disabled."
+  ],
+  "kind": "guion-richards-runtime-profile",
+  "measurement_design": {
+    "os_file_cache": "uncontrolled; this is not a cold-disk measurement",
+    "paired_order": "randomized within each trial; outputs checked for every baseline and candidate sample",
+    "paired_ratio_bootstrap_resamples": 20000,
+    "paired_trial_execution_order": [
+      [
+        "guion_candidate_warm_25",
+        "guion_baseline_warm_25",
+        "guion_candidate_uncached",
+        "guion_baseline_uncached"
+      ],
+      [
+        "guion_candidate_warm_25",
+        "guion_baseline_uncached",
+        "guion_baseline_warm_25",
+        "guion_candidate_uncached"
+      ],
+      [
+        "guion_candidate_warm_25",
+        "guion_baseline_warm_25",
+        "guion_candidate_uncached",
+        "guion_baseline_uncached"
+      ],
+      [
+        "guion_candidate_uncached",
+        "guion_baseline_uncached",
+        "guion_baseline_warm_25",
+        "guion_candidate_warm_25"
+      ],
+      [
+        "guion_candidate_uncached",
+        "guion_baseline_uncached",
+        "guion_candidate_warm_25",
+        "guion_baseline_warm_25"
+      ],
+      [
+        "guion_candidate_uncached",
+        "guion_baseline_uncached",
+        "guion_baseline_warm_25",
+        "guion_candidate_warm_25"
+      ],
+      [
+        "guion_candidate_uncached",
+        "guion_baseline_warm_25",
+        "guion_candidate_warm_25",
+        "guion_baseline_uncached"
+      ],
+      [
+        "guion_baseline_uncached",
+        "guion_candidate_warm_25",
+        "guion_candidate_uncached",
+        "guion_baseline_warm_25"
+      ],
+      [
+        "guion_baseline_warm_25",
+        "guion_baseline_uncached",
+        "guion_candidate_warm_25",
+        "guion_candidate_uncached"
+      ],
+      [
+        "guion_candidate_warm_25",
+        "guion_candidate_uncached",
+        "guion_baseline_warm_25",
+        "guion_baseline_uncached"
+      ],
+      [
+        "guion_baseline_uncached",
+        "guion_baseline_warm_25",
+        "guion_candidate_warm_25",
+        "guion_candidate_uncached"
+      ],
+      [
+        "guion_baseline_uncached",
+        "guion_candidate_uncached",
+        "guion_candidate_warm_25",
+        "guion_baseline_warm_25"
+      ],
+      [
+        "guion_baseline_warm_25",
+        "guion_candidate_warm_25",
+        "guion_baseline_uncached",
+        "guion_candidate_uncached"
+      ],
+      [
+        "guion_candidate_uncached",
+        "guion_baseline_uncached",
+        "guion_baseline_warm_25",
+        "guion_candidate_warm_25"
+      ],
+      [
+        "guion_candidate_warm_25",
+        "guion_baseline_uncached",
+        "guion_candidate_uncached",
+        "guion_baseline_warm_25"
+      ]
+    ],
+    "richards_paired_trials_per_lane": 15,
+    "source_compile_cache": "bypassed with --no-cache",
+    "warm_lane": "25 source executions in one process; timing normalized per logical execution",
+    "warmups_per_command": 2
+  },
+  "optimization": {
+    "change": "Lists created or copied inside native code with up to 8 integer or Float64 items keep their elements inside stable boxed descriptors. Small copy-on-write copies stay inline; larger lists retain external Vec storage. Record-result conversion reads inline descriptors and deduplicates aliases by descriptor identity.",
+    "memory_tradeoff": "Each native list descriptor carries eight inline slots, including empty and externally stored lists. Peak memory was not measured.",
+    "preserved_behavior": [
+      "old aliases remain unchanged",
+      "record-return materialization supports inline descriptors",
+      "guest allocation and instruction limits are unchanged",
+      "large native lists retain external storage",
+      "native list-set operation profile count excludes invalid indices, matching VM behavior"
+    ],
+    "selected_from_profile": "84,497 list-set copy-on-write copies and 66,189,688 estimated list-copy bytes per Richards execution, alongside 247,240 successful estimated guest allocation budget charges."
+  },
+  "paired_richards_comparison": {
+    "uncached_one_shot": {
+      "baseline_median_ms": 51.4265,
+      "candidate_median_ms": 48.1797,
+      "candidate_over_baseline_trial_ratios": [
+        1.116062,
+        0.995406,
+        0.936865,
+        0.948047,
+        0.852536,
+        0.94966,
+        0.99547,
+        0.983882,
+        0.912441,
+        0.930974,
+        0.953275,
+        0.955242,
+        0.943315,
+        0.937929,
+        0.947856
+      ],
+      "paired_candidate_over_baseline_bootstrap_95_percent_interval": [
+        0.936865,
+        0.955242
+      ],
+      "paired_candidate_over_baseline_median_ratio": 0.948047,
+      "paired_trial_pairs_candidate_faster": 14,
+      "paired_trial_pairs_total": 15
+    },
+    "warm_25_per_execution": {
+      "baseline_median_ms": 14.4256,
+      "candidate_median_ms": 12.6323,
+      "candidate_over_baseline_trial_ratios": [
+        1.033048,
+        0.946024,
+        0.852408,
+        0.925497,
+        0.952314,
+        0.812458,
+        0.81869,
+        0.554717,
+        0.836138,
+        0.874003,
+        0.843162,
+        0.840132,
+        0.858626,
+        0.89966,
+        0.91232
+      ],
+      "paired_candidate_over_baseline_bootstrap_95_percent_interval": [
+        0.836138,
+        0.91232
+      ],
+      "paired_candidate_over_baseline_median_ratio": 0.858626,
+      "paired_trial_pairs_candidate_faster": 14,
+      "paired_trial_pairs_total": 15
+    }
+  },
+  "schema_version": 2,
+  "source_and_binaries": {
+    "baseline_binary_sha256": "72ca68ca1e35c85c813188081bddeca66fb91663cd13450ce000557c7f8364b8",
+    "baseline_revision": "226e884b9c41b1130952e30dcdfcc65ff3b4dce5",
+    "candidate_base_revision": "226e884b9c41b1130952e30dcdfcc65ff3b4dce5",
+    "candidate_release_binary_sha256": "604deef10f992c19bd4ed55ac76e8c2da8cae26592d2ea21c2b4c22f40607a2e",
+    "candidate_source_files": [
+      "crates/runtime/src/lib.rs",
+      "crates/runtime/src/native_backend.rs",
+      "crates/runtime/tests/execution.rs",
+      "crates/cli/src/main.rs",
+      "evaluation/completion/performance/runner.py",
+      "evaluation/completion/performance/session.py",
+      "evaluation/completion/performance/test_runner.py"
+    ],
+    "candidate_tracked_source_diff_sha256": "97685685fb1d0d9039f36cd04cb508f092e65c6a36fa595d42216a5c173da9cf"
+  },
+  "status": "optimization-measured; environment-limited unrelated checks",
+  "untimed_phase_profiles_ms": {
+    "baseline_one_shot": {
+      "native_compilation_profile_sum": 26.464873,
+      "program_execute_including_native_compilation": 41.052042,
+      "rust_source_compile": 0.974958
+    },
+    "candidate_counters_scope": "latest guest invocation; diagnostics enabled only in these untimed profiles",
+    "candidate_one_shot": {
+      "native_compilation_profile_sum": 27.588334,
+      "program_execute_including_native_compilation": 42.181958,
+      "rust_source_compile": 0.938917
+    },
+    "comparability_note": "The baseline phase profile predates profiling instrumentation; the candidate phase profile has opt-in counters enabled. These timings are diagnostic context, not an apples-to-apples performance comparison. All reported A/B timings ran with profiling disabled."
+  },
+  "verification": {
+    "cargo_fmt_check": "passed",
+    "environment_limited_checks": [
+      "11 runtime HTTP fixture tests and the nine-application acceptance test could not complete because the OS denied binding local loopback HTTP servers (Operation not permitted); no elevation or retry was attempted.",
+      "One lifecycle test could not read its process metrics because the OS returned Operation not permitted."
+    ],
+    "first_source_harness_unit_tests": {
+      "passed": 5
+    },
+    "five_final_short_source_speed_gates": "passed",
+    "performance_harness_unit_tests": {
+      "passed": 28
+    },
+    "release_build": "passed with --locked --offline and one repository-local Cargo target",
+    "rust_cli_unit_tests": {
+      "passed": 14
+    },
+    "rust_runtime_targets": {
+      "breakdown": {
+        "execution": 108,
+        "stdlib_data": 12,
+        "stdlib_services": 20,
+        "unit": 14
+      },
+      "passed": 154
+    },
+    "strict_clippy_touched_crates": "passed"
+  },
+  "workload": "Richards scheduler, Guion source, macOS ARM64"
+}

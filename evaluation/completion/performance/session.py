@@ -626,6 +626,14 @@ def main(argv: list[str] | None = None) -> int:
     compare_parser.add_argument("before", type=Path)
     compare_parser.add_argument("after", type=Path)
     subparsers.add_parser("clean")
+    richards_parser = subparsers.add_parser("richards-profile")
+    richards_parser.add_argument("--binary", type=Path, required=True)
+    richards_parser.add_argument("--scratch-dir", type=Path, default=SCRATCH / "richards-profile")
+    richards_parser.add_argument(
+        "--output",
+        type=Path,
+        default=ROOT / "evaluation/completion/results/runtime-efficiency/2026-10-26-richards-profile.json",
+    )
     args = parser.parse_args(argv)
     try:
         if args.command == "preflight":
@@ -635,6 +643,17 @@ def main(argv: list[str] | None = None) -> int:
             result = {"report_path": str(path), "status": "passed"}
         elif args.command == "compare":
             result = compare(args.before, args.after)
+        elif args.command == "richards-profile":
+            binary = _inside(ROOT, args.binary)
+            scratch = _inside(ROOT, args.scratch_dir)
+            output = _inside(ROOT, args.output)
+            if not binary.is_file():
+                raise PreflightError(f"release Guion binary does not exist: {binary}")
+            scratch.mkdir(parents=True, exist_ok=True)
+            report = runner.profile_richards(binary, scratch)
+            output.parent.mkdir(parents=True, exist_ok=True)
+            output.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+            result = {"status": report["status"], "report_path": str(output), "timed_lanes": len(report["timed_uninstrumented_samples_per_logical_execution"])}
         else:
             result = {"cleaned": clean()}
     except Exception as error:
