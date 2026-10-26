@@ -560,12 +560,14 @@ E_TYPE_UNKNOWN
 E_UV_NOT_FOUND
 E_UV_UNAVAILABLE
 E_UV_VERSION_MISMATCH
+R_ALLOCATION_BYTES
 R_ALLOCATION_LIMIT
 R_ARGUMENT_INDEX
 R_ARTIFACT_INVALID
 R_ARTIFACT_VERSION
 R_ASSERTION
 R_BUILD_ID
+R_BYTES
 R_BYTE_RANGE
 R_CALL_ARITY
 R_CALL_DEPTH
@@ -588,6 +590,7 @@ R_FILE_UTF8
 R_FILE_WRITE
 R_FLOAT_NONFINITE
 R_HOST_DENIED
+R_HOST_UNSUPPORTED
 R_HTTP_CANCELLED
 R_HTTP_CLIENT
 R_HTTP_ENCODING
@@ -644,6 +647,7 @@ R_RESULT_UNWRAP
 R_RETURN_INVALID
 R_SQLITE_VALUE
 R_STACK_INVALID
+R_STEPS
 R_STEP_LIMIT
 R_TEXT_LIMIT
 R_TIME_RANGE
@@ -866,4 +870,4 @@ fn main() -> Int:
 - [Host API and effects](../../language/host-api.md)
 - [Agent recipes](recipes.md)
 
-<!-- Generated reference content digest: sha256:9bcaf31ac0bcfb24c9df7d39a7715bf12d674840bf6d6f014a2f10602977654f. Validated by `cargo xtask agent-reference --check`. -->
+<!-- Generated reference content digest: sha256:eed6b8a69e0066abce82b920a64c6f64be1bea3967987951de8d814952c0923f. Validated by `cargo xtask agent-reference --check`. -->
