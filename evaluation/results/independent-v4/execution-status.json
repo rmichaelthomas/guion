@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "campaign": "independent-v4",
+  "updated_at_utc": "2026-10-26T19:31:54.564401Z",
+  "owner_authorized_codex_run": true,
+  "independent_second_evaluator": false,
+  "codex": {
+    "product_information": {
+      "status": "completed",
+      "decisions": 18,
+      "zero_tool_calls": true
+    },
+    "cold": {
+      "status": "completed",
+      "decisions": 18,
+      "zero_tool_calls": true
+    }
+  },
+  "claude": {
+    "product_information": "not_started_from_codex_host",
+    "cold": "not_started_from_codex_host"
+  },
+  "gemini": {
+    "product_information": "not_started_from_codex_host",
+    "cold": "not_started_from_codex_host"
+  },
+  "interpretation": "Descriptive choices from fresh Codex sessions only; not an implementation, performance, or universal language-recommendation result."
+}

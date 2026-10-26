@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "decision_id": "07-config-migrator-choice-1",
+  "recorded_at_utc": "2026-10-26T19:31:54.564401Z",
+  "task": {
+    "id": "07-config-migrator",
+    "class": "maintainable_application",
+    "origin": "independent",
+    "brief_sha256": "4d4f16e7c38142fd84ba3a9675a08a7cd88acdc8c67741f32ddd88d15fab667e"
+  },
+  "assistant": {
+    "provider": "OpenAI Codex",
+    "name": "gpt-6.1-sol",
+    "version": "gpt-6.1-sol",
+    "reasoning_effort": "medium",
+    "session_id": "01a179a2-a68a-7da2-9563-317fbbf20dd8",
+    "fresh_session": true
+  },
+  "budget": {
+    "active_minutes": 5,
+    "tool_calls": 0
+  },
+  "usage": {
+    "active_seconds": 33,
+    "tool_calls": 0
+  },
+  "evidence": {
+    "prompt_transcript_path": "prompts/codex-product-information/07-config-migrator-choice-1.md",
+    "prompt_transcript_sha256": "074fa3749f59e063f0c4f3e049fa1fdc7045efe6a6d2c054a2999bf91c0f93a3",
+    "response_transcript_path": "responses/codex-product-information/07-config-migrator-choice-1.md",
+    "response_transcript_sha256": "eaa1b3012846027c26eb0c4b7028c4e876230ac5eac9cf64eee69ae0da44b09e",
+    "usage_snapshot_path": "usage-snapshots/codex-product-information/07-config-migrator-choice-1.json",
+    "usage_snapshot_sha256": "9e78959ddc9a36fa2354969a8baedebeec32f0929f30690e2954a74a7a1f62f9"
+  },
+  "presentation_order": [
+    "python",
+    "veritas"
+  ],
+  "context": {
+    "mode": "pre-build-recommendation",
+    "veritas_version": "0.1.0 (artifact format 39)",
+    "python_version": "3.14.8",
+    "documentation_sha256": "16ffe49108785a222a033decb416ac2d129a017949ce4e3b7d99f16f8808bc6a",
+    "schedule_sha256": "81075116949f4905cefb2a87cc845089196e895db54fd4e2b1f0b2818118fbeb",
+    "schedule_file_sha256": "8f6dd3a36ddb3ea66996841d24a83ee4cb7589b1581600b6e1b8052bf484fb2b",
+    "schedule_entry_id": "07-config-migrator-choice-1",
+    "prerun_records_sha256": "7492ce37a54146606c8f99a3044c02f4d26fb0c749320a2061b3c7ac5a129fd7",
+    "prerun_recorded_at_utc": "2026-10-26T19:10:14.465205Z",
+    "campaign_config_sha256": "f51895d56d7b94cb200c8f30d0e2763874ea8c003dde147491313ac2ec0d4caa",
+    "comparative_pair_results_shown": false
+  },
+  "recommendation": {
+    "choice": "python",
+    "rationale": "**Choose Python.**\n\nThe decisive factor is maintaining a multi-module application as its validation rules evolve. Python’s supplied profile establishes a mature language and broad package ecosystem; the brief explicitly permits a maintained comment-preserving TOML library. That is a stronger maintenance foundation than Guion’s private, pre-release toolchain, whose source and package compatibility are not guaranteed.\n\nThe difficult part is preserving document structure while enforcing precise migration rules: reject booleans as integers, distinguish absent defaults from invalid existing values, preserve explicit `parallelism`, and validate before replacing any file. Python still requires deliberate validation, a suitable TOML dependency, and atomic replacement; choosing it does not establish that these requirements already pass.\n\nGuion has meaningful advantages for this particular task: native typed TOML access and editing, a documented atomic-write operation, modules, and source-free packaging without Python. Those reduce dependency and deployment concerns. Its relative-path and granted-root file policy would, however, need accommodating in the `--file PATH` interface, and fresh setup currently requires its source checkout and Rust/Cargo.\n\nPython’s deployment must explicitly supply or provision its runtime to satisfy **no implicit system-Python dependency**. The TOML dependency must also be named and confirmed available. Neither startup time nor package size can be ranked from the supplied evidence.\n\n**I would change to Guion** if the deployment targets fit its documented packaging support, the team accepts its compatibility risk, and its TOML editing behavior is confirmed to preserve the required comments and handle reserved-table edge cases. A requirement to ship without any Python runtime would also strongly favor Guion.",
+    "conditions": []
+  },
+  "exclusion": {
+    "excluded": false,
+    "reason": null
+  }
+}

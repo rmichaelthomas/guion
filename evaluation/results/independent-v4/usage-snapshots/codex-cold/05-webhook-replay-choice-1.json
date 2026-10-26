@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "thread": {
+    "id": "01a179a9-4438-7e20-805c-9a8912e10061",
+    "kind": "codex",
+    "hostId": "local",
+    "title": "Guion v4 Cold 05-webhook-replay-choice-1",
+    "preview": "You are advising a developer choosing a language for the attached task.\nDo not implement the task, browse, use tools, or infer results from code that has not been built.\nChoose exactly one: Guion, Python, or either. Explain the decisive task-specific tradeoffs and what would change your choice.\nIn the product-information arm use only the supplied profiles. In the cold arm no product documentation is supplied; use only prior knowledge and the task brief.\nDo not make a universal language-replacement claim.\n\nAssignment ID: 05-webhook-replay-choice-1\nSchedule SHA-256: 4630653714bd96f277e70ae17ccc8e37a1ee64ad37cf1d547a7c92494bd53bc1\nSchedule file SHA-256: 1398aa6edacdc22d115a7597209e19ad1d60b624c69200fa49edf0c19cb71d4e\nChoice-safe bundle SHA-256: 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945\nPresentation order: Python, Guion\nConfigured assistant: OpenAI Codex gpt-6.1-sol (gpt-6.1-sol); reasoning effort medium\nBudget: 5 active minutes and 0 tool calls.\nNo implementation results, benchmarks, author calibration, or candidate runs have been shown.\n\n# Task brief\n# Webhook replay and recovery\n\n**Class:** concurrent network or package integration\n**Origin:** independent-candidate brief draft\n**Initial request:** Build a multi-command CLI for durable webhook replay. `webhook-replay init --db PATH --secret-file PATH` validates that the secret file is non-empty UTF-8 text after surrounding ASCII whitespace is removed, then initializes state. An invalid or empty secret must not create or mutate the database. It must not copy or persist the secret or the SHA-256 hexadecimal digest of its trimmed UTF-8 bytes. `webhook-replay ingest --db PATH --secret-file PATH --body PATH --signature HEX --result PATH` accepts a JSON object with a non-empty string `id` and a `payload` field; payload may be any JSON value, including null. The signature is HMAC-SHA256 over exact body bytes; accept exactly 64 hexadecimal characters case-insensitively and compare decoded 32-byte digests. Verify signature before parsing JSON. Invalid encoding or an empty secret is rejected as `invalid_secret`. It rejects invalid secrets, invalid signatures, malformed bodies, missing payloads, and duplicate IDs without changing stored state. The result is `{\"accepted\":true,\"id\":\"...\"}` or `{\"accepted\":false,\"reason\":\"invalid_secret|invalid_signature|duplicate_id|invalid_body\"}`. A body that is not valid JSON, lacks a non-empty string `id`, or lacks `payload` is rejected as `invalid_body` after signature verification. Store original body bytes for delivery. `webhook-replay deliver --db PATH --target URL --result PATH` POSTs pending events as JSON to the supplied loopback endpoint. A 2xx response marks an event delivered; other responses leave it pending and retryable after a new process invocation. Its JSON result contains sorted ID arrays `pending` and `delivered`. `webhook-replay status --db PATH --output PATH` writes `{\"pending\":[...],\"delivered\":[...]}` with sorted IDs. Never print the secret or full signature. Commands return nonzero for rejected input or failed delivery.\n\n**Follow-up change:** Add `--max-attempts N` to delivery and `webhook-replay dead-letters --db PATH --output PATH`. N must be a positive integer and is the maximum total persisted delivery attempts per event across process invocations; each `deliver` invocation attempts each pending event at most once. If `--max-attempts` is first supplied after an event already has N or more failed attempts, move it to dead-letter state without another network request. After N failed attempts, move the event to dead-letter state. Follow-up delivery results add a sorted `dead_lettered` ID array. Export JSON `{\"dead_letters\":[{\"id\":\"...\",\"category\":\"http_failure\",\"attempts\":N}]}`; never include payload, secret, or signature.\n\n**Acceptance:** Valid/invalid signature; duplicate event; malformed body; persistence across process restart; downstream transient and permanent failure; retry after restart; max-attempt boundary; dead-letter privacy; deterministic export; clean source-free run. For each delivery attempt the fixture returns the next configured status for that path; after the last configured response it repeats that response. With no follow-up policy, failed records remain pending rather than being discarded.\n\n**Fairness notes:** Use the same loopback downstream fixture and filesystem. Python may use its standard library or packages already present in the shared offline wheelhouse listed in `evaluation/sandbox/dependencies/requirements.txt`. No package may be downloaded or installed from another source. The non-Python candidate may implement the feature directly or use its declared managed Python bridge with that same wheelhouse; additional package downloads are forbidden. Record dependencies and workarounds.\n\n# Option 1: Python\nNo product profile or documentation is supplied for this option.\n\n# Option 2: Guion\nNo product profile or documentation is supplied for this option.\n",
+    "status": {
+      "type": "idle"
+    },
+    "cwd": "/Users/rmichaelthomas/Documents/Codex/2026-10-26/you-are-advising-a-developer-choosing-26",
+    "createdAt": 1793042498,
+    "updatedAt": 1793042516
+  },
+  "page": {
+    "order": "newest_first",
+    "limit": 10,
+    "nextCursor": null,
+    "hasMore": false
+  },
+  "turns": [
+    {
+      "id": "01a179a9-450b-75f0-8017-cece6758a356",
+      "status": "completed",
+      "error": null,
+      "startedAt": 1793042498,
+      "completedAt": 1793042516,
+      "durationMs": 17449,
+      "items": [
+        {
+          "type": "functionCallOutput",
+          "id": "fco_01a179a9-450c-7213-bd54-651579fb09be",
+          "name": "create_thread",
+          "namespace": "codex_app"
+        },
+        {
+          "type": "reasoning",
+          "id": "rs_0cfe729ed099fd52016adfa84714e4819aa838fbc45cccf4b6",
+          "summary": []
+        },
+        {
+          "type": "agentMessage",
+          "id": "msg_0cfe729ed099fd52016adfa84ab270819a91243e4df74dc56c",
+          "text": "**Python.**\n\nThis task fits Python’s standard library closely: `argparse` for the CLI, `sqlite3` for durable state and unique IDs, `hmac`/`hashlib` for authentication, and HTTP and JSON support. That provides a credible route without additional downloads, which matters under the offline dependency restriction.\n\nThe decisive work is preserving exact behavior: validating the secret before database mutation, authenticating original bytes before JSON parsing, distinguishing missing payload from `null`, and persisting attempt counts and dead-letter transitions across processes. Python offers familiar primitives for expressing and testing those boundaries. This is a suitability judgment, not a claim that an implementation has passed acceptance.\n\nDelivery still requires careful transaction design: a successful POST followed by a crash before recording success can cause replay. Choosing Python alone does not resolve that recovery boundary.\n\nI lack enough prior knowledge of Guion to assess its persistence, byte handling, HTTP support, or managed bridge confidently. I would reconsider if Guion’s available environment established comparable support for these requirements and a simpler implementation or packaging path, including the clean source-free run. A bridge would also need to justify its extra integration boundary.",
+          "phase": "final_answer"
+        }
+      ]
+    }
+  ]
+}

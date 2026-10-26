@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "decision_id": "02-jsonl-retention-choice-1",
+  "recorded_at_utc": "2026-10-26T19:31:54.564401Z",
+  "task": {
+    "id": "02-jsonl-retention",
+    "class": "small_automation_cli",
+    "origin": "independent",
+    "brief_sha256": "9cede1a4f91796991638cc1c37307bdbea632cd978ab70f3820f79529df7e5a0"
+  },
+  "assistant": {
+    "provider": "OpenAI Codex",
+    "name": "gpt-6.1-sol",
+    "version": "gpt-6.1-sol",
+    "reasoning_effort": "medium",
+    "session_id": "01a179a7-a9d3-72f3-a947-6ade91e6263b",
+    "fresh_session": true
+  },
+  "budget": {
+    "active_minutes": 5,
+    "tool_calls": 0
+  },
+  "usage": {
+    "active_seconds": 19,
+    "tool_calls": 0
+  },
+  "evidence": {
+    "prompt_transcript_path": "prompts/codex-cold/02-jsonl-retention-choice-1.md",
+    "prompt_transcript_sha256": "0513ed65552e4b0c3ae789e733363538a83184b6c9fbdfdb014b7002e1cb1068",
+    "response_transcript_path": "responses/codex-cold/02-jsonl-retention-choice-1.md",
+    "response_transcript_sha256": "b8504a7011662fb913b1306097fe7ed9f8ee590375146b300a3f7c64ac643b2e",
+    "usage_snapshot_path": "usage-snapshots/codex-cold/02-jsonl-retention-choice-1.json",
+    "usage_snapshot_sha256": "79c67b2f9097dbf57d3cc4742e0cb6f549554e9ae512c0b69f57e833f021f075"
+  },
+  "presentation_order": [
+    "veritas",
+    "python"
+  ],
+  "context": {
+    "mode": "pre-build-recommendation",
+    "veritas_version": "0.1.0 (artifact format 39)",
+    "python_version": "3.14.8",
+    "documentation_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "schedule_sha256": "4630653714bd96f277e70ae17ccc8e37a1ee64ad37cf1d547a7c92494bd53bc1",
+    "schedule_file_sha256": "1398aa6edacdc22d115a7597209e19ad1d60b624c69200fa49edf0c19cb71d4e",
+    "schedule_entry_id": "02-jsonl-retention-choice-1",
+    "prerun_records_sha256": "50cbe8c3b35365c19af9c8b719d39cf75f5423d1c2eb744ba820ea0e46332c22",
+    "prerun_recorded_at_utc": "2026-10-26T19:10:14.465205Z",
+    "campaign_config_sha256": "c3d5418c588c5150383082b74326b6ed60de8dc37daf14bb25e025a02559a005",
+    "comparative_pair_results_shown": false
+  },
+  "recommendation": {
+    "choice": "python",
+    "rationale": "**Python.** Its standard library is a strong fit for this small CLI: argument parsing, line-by-line JSON decoding, timezone-aware date handling, grouping, sorting, and staged output replacement require no external dependencies.\n\nThe decisive detail is timestamp correctness. Python’s ISO parsing accepts forms beyond this brief, so the implementation would need explicit format validation before calendar and offset validation. Microsecond precision matches the required one-to-six fractional digits. UTC conversion must happen before grouping by date, with explicit canonical serialization afterward.\n\nPhysical line numbers, duplicate counting, strict-mode failure, and preserving an existing output all require deliberate control flow. Python provides familiar primitives for implementing those requirements. The service allow-list follow-up adds straightforward membership filtering and an ignored-event counter, without requiring a different architecture.\n\nNo Guion documentation is supplied, and my prior knowledge is insufficient to establish comparable support for these exact requirements. That is uncertainty about Guion, not evidence that it cannot perform the task. No implementation or performance results have been demonstrated for either option.\n\nI would change my choice if Guion’s demonstrated timestamp, JSONL, CLI, and safe file-writing capabilities made this particular workflow simpler to build and maintain, especially for a team already proficient in it.",
+    "conditions": []
+  },
+  "exclusion": {
+    "excluded": false,
+    "reason": null
+  }
+}

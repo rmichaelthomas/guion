@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "decision_id": "09-lockfile-auditor-choice-1",
+  "recorded_at_utc": "2026-10-26T19:31:54.564401Z",
+  "task": {
+    "id": "09-lockfile-auditor",
+    "class": "maintainable_application",
+    "origin": "independent",
+    "brief_sha256": "cfba09891f39d30fefaf37a39feb13d82972af39c289954fe64bc3b924c4d1dc"
+  },
+  "assistant": {
+    "provider": "OpenAI Codex",
+    "name": "gpt-6.1-sol",
+    "version": "gpt-6.1-sol",
+    "reasoning_effort": "medium",
+    "session_id": "01a179a9-e3fc-7f61-9555-b13349152e85",
+    "fresh_session": true
+  },
+  "budget": {
+    "active_minutes": 5,
+    "tool_calls": 0
+  },
+  "usage": {
+    "active_seconds": 29,
+    "tool_calls": 0
+  },
+  "evidence": {
+    "prompt_transcript_path": "prompts/codex-cold/09-lockfile-auditor-choice-1.md",
+    "prompt_transcript_sha256": "9ffd7248054c144744b70fbc27a60c54542238c0c58b10276feaaac3b91e809c",
+    "response_transcript_path": "responses/codex-cold/09-lockfile-auditor-choice-1.md",
+    "response_transcript_sha256": "13e290942636b20f558f8df8057fdbda419557a02eda745a3f5ad902230c5edb",
+    "usage_snapshot_path": "usage-snapshots/codex-cold/09-lockfile-auditor-choice-1.json",
+    "usage_snapshot_sha256": "04afd7e0033a900f10a9d8af05bbe575036716439f547d24aa643675030b6053"
+  },
+  "presentation_order": [
+    "python",
+    "veritas"
+  ],
+  "context": {
+    "mode": "pre-build-recommendation",
+    "veritas_version": "0.1.0 (artifact format 39)",
+    "python_version": "3.14.8",
+    "documentation_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "schedule_sha256": "4630653714bd96f277e70ae17ccc8e37a1ee64ad37cf1d547a7c92494bd53bc1",
+    "schedule_file_sha256": "1398aa6edacdc22d115a7597209e19ad1d60b624c69200fa49edf0c19cb71d4e",
+    "schedule_entry_id": "09-lockfile-auditor-choice-1",
+    "prerun_records_sha256": "50cbe8c3b35365c19af9c8b719d39cf75f5423d1c2eb744ba820ea0e46332c22",
+    "prerun_recorded_at_utc": "2026-10-26T19:10:14.465205Z",
+    "campaign_config_sha256": "c3d5418c588c5150383082b74326b6ed60de8dc37daf14bb25e025a02559a005",
+    "comparative_pair_results_shown": false
+  },
+  "recommendation": {
+    "choice": "python",
+    "rationale": "**Python.**\n\nThis task centers on strict input validation, deterministic diagnostics, and reliable CLI packaging. Python’s standard library provides JSON parsing, argument handling, Gregorian date validation, sorting, and file operations. Those fit a maintainable, multi-module auditor with few external dependencies.\n\nThe decisive tradeoffs are correctness and delivery risk:\n\n- **SemVer needs deliberate handling.** Python has no standard-library SemVer 2.0.0 comparator. Use a verified package if available in the permitted wheelhouse, or implement and test the specified semantics directly.\n- **Validation must preserve distinctions.** Omitted versus explicitly empty `--as-of`, Boolean versus other field types, duplicate exception names, and repeated package entries all require explicit checks. Python supports these checks clearly, but does not supply the policy automatically.\n- **Report replacement must be controlled.** Validate and compute the complete report before replacing the destination, so malformed input preserves the existing output.\n- **Maintainability favors the known option.** CLI tooling and fixture-based testing are established Python workflows. No Guion documentation is supplied, and I lack sufficient reliable prior knowledge to assert comparable capabilities.\n\nI would reconsider if Guion demonstrated equally straightforward validation, offline packaging, testing, and safe report replacement—especially if the maintaining team already knew it well. A measured processing bottleneck could also change the decision. The brief alone establishes no performance winner.",
+    "conditions": []
+  },
+  "exclusion": {
+    "excluded": false,
+    "reason": null
+  }
+}

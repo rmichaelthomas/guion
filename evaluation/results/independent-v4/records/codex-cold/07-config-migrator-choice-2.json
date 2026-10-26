@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "decision_id": "07-config-migrator-choice-2",
+  "recorded_at_utc": "2026-10-26T19:31:54.564401Z",
+  "task": {
+    "id": "07-config-migrator",
+    "class": "maintainable_application",
+    "origin": "independent",
+    "brief_sha256": "4d4f16e7c38142fd84ba3a9675a08a7cd88acdc8c67741f32ddd88d15fab667e"
+  },
+  "assistant": {
+    "provider": "OpenAI Codex",
+    "name": "gpt-6.1-sol",
+    "version": "gpt-6.1-sol",
+    "reasoning_effort": "medium",
+    "session_id": "01a179a9-ef8e-7a41-a894-023e60102aab",
+    "fresh_session": true
+  },
+  "budget": {
+    "active_minutes": 5,
+    "tool_calls": 0
+  },
+  "usage": {
+    "active_seconds": 24,
+    "tool_calls": 0
+  },
+  "evidence": {
+    "prompt_transcript_path": "prompts/codex-cold/07-config-migrator-choice-2.md",
+    "prompt_transcript_sha256": "5626e74e2d480b9b6240126bff7e80b474031aa61881ee05d99bf9183aaa40e2",
+    "response_transcript_path": "responses/codex-cold/07-config-migrator-choice-2.md",
+    "response_transcript_sha256": "aa47fae89633171f6bf7527767d619869e5a939d922c31c5d6924ed6d257f987",
+    "usage_snapshot_path": "usage-snapshots/codex-cold/07-config-migrator-choice-2.json",
+    "usage_snapshot_sha256": "4dc797f3a73108e07d5333213b952f8c9bfd7869df087e68abf65916c04c7353"
+  },
+  "presentation_order": [
+    "python",
+    "veritas"
+  ],
+  "context": {
+    "mode": "pre-build-recommendation",
+    "veritas_version": "0.1.0 (artifact format 39)",
+    "python_version": "3.14.8",
+    "documentation_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "schedule_sha256": "4630653714bd96f277e70ae17ccc8e37a1ee64ad37cf1d547a7c92494bd53bc1",
+    "schedule_file_sha256": "1398aa6edacdc22d115a7597209e19ad1d60b624c69200fa49edf0c19cb71d4e",
+    "schedule_entry_id": "07-config-migrator-choice-2",
+    "prerun_records_sha256": "50cbe8c3b35365c19af9c8b719d39cf75f5423d1c2eb744ba820ea0e46332c22",
+    "prerun_recorded_at_utc": "2026-10-26T19:10:14.465205Z",
+    "campaign_config_sha256": "c3d5418c588c5150383082b74326b6ed60de8dc37daf14bb25e025a02559a005",
+    "comparative_pair_results_shown": false
+  },
+  "recommendation": {
+    "choice": "python",
+    "rationale": "**Choose Python.**\n\nThe decisive requirement is editing TOML while preserving unrelated values and standalone and inline comments. Python can use a comment-preserving library such as `tomlkit`, reducing the amount of custom parsing and rewriting this small application needs.\n\nThe validation and migration rules fit straightforward modules: validate the declared schema first, perform exactly one migration, and write through a temporary file followed by atomic replacement. Explicit integer checks must reject booleans, since Python treats `bool` as a subclass of `int`. Existing reserved fields also need validation before adding defaults or changing the version.\n\nPython’s main tradeoff is distribution. Meeting “no implicit system-Python dependency” requires an explicitly managed interpreter or a bundled executable. Dependency resolution, startup time, and package size still need measurement; no results are available here.\n\nI lack enough prior knowledge of Guion to establish comparable comment-preserving TOML support, atomic file operations, and standalone packaging. I would change my choice if Guion demonstrated those capabilities with a clear maintenance or distribution advantage for this application. This is a task-specific choice, not a general language ranking.",
+    "conditions": []
+  },
+  "exclusion": {
+    "excluded": false,
+    "reason": null
+  }
+}

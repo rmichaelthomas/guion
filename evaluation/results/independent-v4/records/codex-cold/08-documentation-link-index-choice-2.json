@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "decision_id": "08-documentation-link-index-choice-2",
+  "recorded_at_utc": "2026-10-26T19:31:54.564401Z",
+  "task": {
+    "id": "08-documentation-link-index",
+    "class": "maintainable_application",
+    "origin": "independent",
+    "brief_sha256": "48b16ce3f1daef3ccceb72eeffabc4748692248d356ab5d610387bd6b567f924"
+  },
+  "assistant": {
+    "provider": "OpenAI Codex",
+    "name": "gpt-6.1-sol",
+    "version": "gpt-6.1-sol",
+    "reasoning_effort": "medium",
+    "session_id": "01a179a9-d6f2-7812-9e93-db363668e08b",
+    "fresh_session": true
+  },
+  "budget": {
+    "active_minutes": 5,
+    "tool_calls": 0
+  },
+  "usage": {
+    "active_seconds": 28,
+    "tool_calls": 0
+  },
+  "evidence": {
+    "prompt_transcript_path": "prompts/codex-cold/08-documentation-link-index-choice-2.md",
+    "prompt_transcript_sha256": "7a386a4b060a31ab7b489527e103b02c40e11a66a9a909e6d1c1c90e1b1fd4e5",
+    "response_transcript_path": "responses/codex-cold/08-documentation-link-index-choice-2.md",
+    "response_transcript_sha256": "f683cad38bbca6b735a79483143c205868a1c8bde4e76fb4455bc4c3c25b91f8",
+    "usage_snapshot_path": "usage-snapshots/codex-cold/08-documentation-link-index-choice-2.json",
+    "usage_snapshot_sha256": "48e58d92921d17996e83f53c7052447176430e3fddc994dea232e50567f03721"
+  },
+  "presentation_order": [
+    "python",
+    "veritas"
+  ],
+  "context": {
+    "mode": "pre-build-recommendation",
+    "veritas_version": "0.1.0 (artifact format 39)",
+    "python_version": "3.14.8",
+    "documentation_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "schedule_sha256": "4630653714bd96f277e70ae17ccc8e37a1ee64ad37cf1d547a7c92494bd53bc1",
+    "schedule_file_sha256": "1398aa6edacdc22d115a7597209e19ad1d60b624c69200fa49edf0c19cb71d4e",
+    "schedule_entry_id": "08-documentation-link-index-choice-2",
+    "prerun_records_sha256": "50cbe8c3b35365c19af9c8b719d39cf75f5423d1c2eb744ba820ea0e46332c22",
+    "prerun_recorded_at_utc": "2026-10-26T19:10:14.465205Z",
+    "campaign_config_sha256": "c3d5418c588c5150383082b74326b6ed60de8dc37daf14bb25e025a02559a005",
+    "comparative_pair_results_shown": false
+  },
+  "recommendation": {
+    "choice": "python",
+    "rationale": "**Python.**\n\nThis task fits Python’s standard library closely: SQLite transactions, strict UTF-8 decoding, JSON parsing, Unicode case-folding, and filesystem traversal. These directly support the hardest requirements: preserving the previous index on failed builds, validating aliases with JSON escaping, deduplicating matches by page, and producing deterministic Unicode-aware output with UTF-8 byte tie-breakers.\n\nThe follow-up also favors explicit, maintainable parsing: recognize the exact front-matter boundaries before interpreting aliases, then keep destination resolution separate from backlinks’ exact normalized-term matching. Python supports organizing those rules across small modules without extra dependencies.\n\nNo Guion profile is supplied, and my prior knowledge is insufficient to establish equivalent facilities or maintenance costs. That uncertainty is decisive for this particular library-style CLI; it is not evidence that Guion cannot implement it.\n\nI would reconsider if Guion’s Unicode, SQLite transaction, filesystem, JSON, and multi-module facilities were established and the maintaining team had stronger Guion expertise. This choice reflects implementation fit and confidence, not measured performance or demonstrated acceptance results.",
+    "conditions": []
+  },
+  "exclusion": {
+    "excluded": false,
+    "reason": null
+  }
+}

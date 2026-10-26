@@ -1,0 +1,5 @@
+**Python.** This task centers on strict input validation, deterministic diagnostics, and a maintainable CLI. Python’s standard library provides argument parsing, JSON handling, Gregorian date validation, and temporary-file/report replacement primitives. Those fit the requirement to validate everything before replacing an existing report, without downloading dependencies.
+
+The main correctness work remains explicit: SemVer 2.0.0 comparison, inclusive bounds, preserving diagnostics for repeated lock entries, distinguishing omitted from empty `--as-of`, enforcing exact date spelling, and limiting exceptions to deny rules. Python supports expressing and testing these rules across modules; choosing it does not establish that an implementation will pass acceptance or meet volume expectations.
+
+No Guion documentation is supplied, and my prior knowledge is insufficient to establish comparable validation, packaging, and maintenance support. I would reconsider if Guion demonstrated those capabilities under the same offline constraints and offered a concrete advantage for the maintaining team. A Python bridge alone would not establish that advantage.

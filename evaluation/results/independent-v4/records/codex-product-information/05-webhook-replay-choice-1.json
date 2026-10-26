@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "decision_id": "05-webhook-replay-choice-1",
+  "recorded_at_utc": "2026-10-26T19:31:54.564401Z",
+  "task": {
+    "id": "05-webhook-replay",
+    "class": "concurrent_network_integration",
+    "origin": "independent",
+    "brief_sha256": "b3f17d12a10c839fdbf8e4eb039785a234b7df20466f660d340abf43d9b1f4b9"
+  },
+  "assistant": {
+    "provider": "OpenAI Codex",
+    "name": "gpt-6.1-sol",
+    "version": "gpt-6.1-sol",
+    "reasoning_effort": "medium",
+    "session_id": "01a179a2-608c-7ea3-b3ab-a6d4f97533d3",
+    "fresh_session": true
+  },
+  "budget": {
+    "active_minutes": 5,
+    "tool_calls": 0
+  },
+  "usage": {
+    "active_seconds": 21,
+    "tool_calls": 0
+  },
+  "evidence": {
+    "prompt_transcript_path": "prompts/codex-product-information/05-webhook-replay-choice-1.md",
+    "prompt_transcript_sha256": "f156c9b5ba164b0b6bd385200bf60b63730198f3f196b10e8d44d0506f5670c4",
+    "response_transcript_path": "responses/codex-product-information/05-webhook-replay-choice-1.md",
+    "response_transcript_sha256": "48530a4c0f1b37465c6f063d817b0bf7da8b2888ad4ea8ffa974b465a6410247",
+    "usage_snapshot_path": "usage-snapshots/codex-product-information/05-webhook-replay-choice-1.json",
+    "usage_snapshot_sha256": "e448dd380129504ac28d3d535fab2eeb23509ecab95555bfc72b81177462e498"
+  },
+  "presentation_order": [
+    "python",
+    "veritas"
+  ],
+  "context": {
+    "mode": "pre-build-recommendation",
+    "veritas_version": "0.1.0 (artifact format 39)",
+    "python_version": "3.14.8",
+    "documentation_sha256": "16ffe49108785a222a033decb416ac2d129a017949ce4e3b7d99f16f8808bc6a",
+    "schedule_sha256": "81075116949f4905cefb2a87cc845089196e895db54fd4e2b1f0b2818118fbeb",
+    "schedule_file_sha256": "8f6dd3a36ddb3ea66996841d24a83ee4cb7589b1581600b6e1b8052bf484fb2b",
+    "schedule_entry_id": "05-webhook-replay-choice-1",
+    "prerun_records_sha256": "7492ce37a54146606c8f99a3044c02f4d26fb0c749320a2061b3c7ac5a129fd7",
+    "prerun_recorded_at_utc": "2026-10-26T19:10:14.465205Z",
+    "campaign_config_sha256": "f51895d56d7b94cb200c8f30d0e2763874ea8c003dde147491313ac2ec0d4caa",
+    "comparative_pair_results_shown": false
+  },
+  "recommendation": {
+    "choice": "python",
+    "rationale": "**Python.** For this task, I would prioritize mature integration and maintenance over Guion’s packaging and capability controls.\n\nThe difficult part is preserving the replay state machine: reject invalid input without database mutation, authenticate exact bytes before parsing, distinguish a missing payload from `null`, and persist attempt counts correctly across restarts. The follow-up adds a particularly sensitive boundary: an event already at the attempt limit must become dead-lettered without another request. Python’s supplied profile supports choosing a mature general-purpose language with a broad standard library for this integration-heavy CLI. This is a risk judgment, not evidence of a successful implementation.\n\nGuion is a credible alternative here. Its documented SQLite transactions, HMAC verification, byte-preserving HTTP, JSON presence checks, and explicit error types directly match the requirements. Its source-free packaging is also relevant to acceptance. However, its pre-1.0 compatibility uncertainty and relative-path/file-root rules add deployment considerations for commands accepting database, secret, body, and output paths. Network host grants also need configuration for the supplied loopback target.\n\nNeither language automatically guarantees secret privacy, correct transaction boundaries, or durable retry accounting. Those require deliberate implementation and acceptance testing.\n\nI would change my choice to **Guion** if deployment strongly favored its documented source-free bundles and caller-granted capabilities, the target platform was supported, and the team accepted its version pinning and path restrictions. Python’s clean source-free delivery would still need to be established; the supplied profile does not demonstrate it.",
+    "conditions": []
+  },
+  "exclusion": {
+    "excluded": false,
+    "reason": null
+  }
+}

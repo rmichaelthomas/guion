@@ -1,0 +1,53 @@
+{
+  "kind": "veritas_assistant_recommendation_summary",
+  "schema_version": 1,
+  "total_decisions": 18,
+  "valid_decisions": 18,
+  "invalid_decisions": [],
+  "known_or_calibration_decisions": 0,
+  "classes": {
+    "concurrent_network_integration": {
+      "decisions": 6,
+      "distinct_briefs": 3,
+      "decisions_per_brief": {
+        "04-calendar-conflict-report": 2,
+        "05-webhook-replay": 2,
+        "06-service-health-digest": 2
+      },
+      "veritas_choices": 0,
+      "python_choices": 6,
+      "either_choices": 0,
+      "veritas_majority": false
+    },
+    "maintainable_application": {
+      "decisions": 6,
+      "distinct_briefs": 3,
+      "decisions_per_brief": {
+        "07-config-migrator": 2,
+        "08-documentation-link-index": 2,
+        "09-lockfile-auditor": 2
+      },
+      "veritas_choices": 0,
+      "python_choices": 6,
+      "either_choices": 0,
+      "veritas_majority": false
+    },
+    "small_automation_cli": {
+      "decisions": 6,
+      "distinct_briefs": 3,
+      "decisions_per_brief": {
+        "01-support-sla-report": 2,
+        "02-jsonl-retention": 2,
+        "03-release-notes": 2
+      },
+      "veritas_choices": 0,
+      "python_choices": 6,
+      "either_choices": 0,
+      "veritas_majority": false
+    }
+  },
+  "sample_complete": true,
+  "veritas_majority_classes": 0,
+  "direct_recommendation_signal": "insufficient_direct_recommendation_signal",
+  "gate_note": "Direct choices are separate from matched build outcomes; both are required for a task-class recommendation."
+}

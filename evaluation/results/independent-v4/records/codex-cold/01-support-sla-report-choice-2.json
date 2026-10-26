@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "decision_id": "01-support-sla-report-choice-2",
+  "recorded_at_utc": "2026-10-26T19:31:54.564401Z",
+  "task": {
+    "id": "01-support-sla-report",
+    "class": "small_automation_cli",
+    "origin": "independent",
+    "brief_sha256": "be8cfc80f1bde7c511b35ff10125ab7213d2f771fea76f51f4d7830fe8d58490"
+  },
+  "assistant": {
+    "provider": "OpenAI Codex",
+    "name": "gpt-6.1-sol",
+    "version": "gpt-6.1-sol",
+    "reasoning_effort": "medium",
+    "session_id": "01a179a7-81af-7de2-b615-d5b8a4db355f",
+    "fresh_session": true
+  },
+  "budget": {
+    "active_minutes": 5,
+    "tool_calls": 0
+  },
+  "usage": {
+    "active_seconds": 18,
+    "tool_calls": 0
+  },
+  "evidence": {
+    "prompt_transcript_path": "prompts/codex-cold/01-support-sla-report-choice-2.md",
+    "prompt_transcript_sha256": "7f90c8f04faa7a60716c0c933f7fdcf7bbe68d872147d154fd6921b9db7bfa7a",
+    "response_transcript_path": "responses/codex-cold/01-support-sla-report-choice-2.md",
+    "response_transcript_sha256": "84fc77a43aeed3f056e19d54ca9044de9ed9e5b96f533211ea2e074c622a5222",
+    "usage_snapshot_path": "usage-snapshots/codex-cold/01-support-sla-report-choice-2.json",
+    "usage_snapshot_sha256": "17886f9a7b2e3cada95763399ec25a5016017e3771275d1c0a5bf2082fd1d7de"
+  },
+  "presentation_order": [
+    "python",
+    "veritas"
+  ],
+  "context": {
+    "mode": "pre-build-recommendation",
+    "veritas_version": "0.1.0 (artifact format 39)",
+    "python_version": "3.14.8",
+    "documentation_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "schedule_sha256": "4630653714bd96f277e70ae17ccc8e37a1ee64ad37cf1d547a7c92494bd53bc1",
+    "schedule_file_sha256": "1398aa6edacdc22d115a7597209e19ad1d60b624c69200fa49edf0c19cb71d4e",
+    "schedule_entry_id": "01-support-sla-report-choice-2",
+    "prerun_records_sha256": "50cbe8c3b35365c19af9c8b719d39cf75f5423d1c2eb744ba820ea0e46332c22",
+    "prerun_recorded_at_utc": "2026-10-26T19:10:14.465205Z",
+    "campaign_config_sha256": "c3d5418c588c5150383082b74326b6ed60de8dc37daf14bb25e025a02559a005",
+    "comparative_pair_results_shown": false
+  },
+  "recommendation": {
+    "choice": "python",
+    "rationale": "**Choice: Python.**\n\nThe decisive factor is this CLI’s combination of strict input validation, precise time arithmetic, and preserving an existing output on failure. Python’s standard library provides familiar tools for CSV, JSON, command-line arguments, timezone-aware timestamps, and temporary-file replacement.\n\nThe main implementation risks still require explicit handling:\n\n- Validate the exact timestamp syntax before parsing, including the six-digit fractional limit; a general date parser alone is insufficient.\n- Reject Boolean policy values explicitly, since Python treats `bool` as a subclass of `int`.\n- Enforce exact CSV headers, row widths, non-empty fields, and unique IDs.\n- Validate all inputs before replacing the output, and use integer time arithmetic for the required minute flooring.\n\nSorting by team and ID and adding `--team` are straightforward extensions. Team filtering should affect the emitted tickets and summary while retaining the brief’s input-validation guarantees.\n\nNo Guion documentation is supplied, and my prior knowledge is insufficient to assess its CSV handling, timestamp precision, or safe file replacement confidently. That uncertainty favors Python for these acceptance requirements; it does not establish that Guion cannot satisfy them.\n\nI would reconsider if Guion’s available capabilities and the developer’s experience demonstrated equally dependable handling of these edge cases with lower implementation or maintenance effort. This is a task-specific choice, with no implementation or benchmark results implied.",
+    "conditions": []
+  },
+  "exclusion": {
+    "excluded": false,
+    "reason": null
+  }
+}

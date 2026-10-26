@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "decision_id": "06-service-health-digest-choice-1",
+  "recorded_at_utc": "2026-10-26T19:31:54.564401Z",
+  "task": {
+    "id": "06-service-health-digest",
+    "class": "concurrent_network_integration",
+    "origin": "independent",
+    "brief_sha256": "75c0c9354b7fd08206fcecd7c8750ccdd60df5037e57197ac90bc4f27b1dc7de"
+  },
+  "assistant": {
+    "provider": "OpenAI Codex",
+    "name": "gpt-6.1-sol",
+    "version": "gpt-6.1-sol",
+    "reasoning_effort": "medium",
+    "session_id": "01a179a2-807b-7430-922b-b6a053b847ed",
+    "fresh_session": true
+  },
+  "budget": {
+    "active_minutes": 5,
+    "tool_calls": 0
+  },
+  "usage": {
+    "active_seconds": 22,
+    "tool_calls": 0
+  },
+  "evidence": {
+    "prompt_transcript_path": "prompts/codex-product-information/06-service-health-digest-choice-1.md",
+    "prompt_transcript_sha256": "070a47c2ca871664822ef9508d40d1a5ac34590e7fa07a44affcbe22cf5a7bbb",
+    "response_transcript_path": "responses/codex-product-information/06-service-health-digest-choice-1.md",
+    "response_transcript_sha256": "bdb66ae5984ea580835f0ff8e86223c95aaf2e51a2cd4bbfb90c7a509edd96a7",
+    "usage_snapshot_path": "usage-snapshots/codex-product-information/06-service-health-digest-choice-1.json",
+    "usage_snapshot_sha256": "0d10606da0078ecca6abab23bb6b8ab11a881e68c8eddf68a7757aa5e3449955"
+  },
+  "presentation_order": [
+    "python",
+    "veritas"
+  ],
+  "context": {
+    "mode": "pre-build-recommendation",
+    "veritas_version": "0.1.0 (artifact format 39)",
+    "python_version": "3.14.8",
+    "documentation_sha256": "16ffe49108785a222a033decb416ac2d129a017949ce4e3b7d99f16f8808bc6a",
+    "schedule_sha256": "81075116949f4905cefb2a87cc845089196e895db54fd4e2b1f0b2818118fbeb",
+    "schedule_file_sha256": "8f6dd3a36ddb3ea66996841d24a83ee4cb7589b1581600b6e1b8052bf484fb2b",
+    "schedule_entry_id": "06-service-health-digest-choice-1",
+    "prerun_records_sha256": "7492ce37a54146606c8f99a3044c02f4d26fb0c749320a2061b3c7ac5a129fd7",
+    "prerun_recorded_at_utc": "2026-10-26T19:10:14.465205Z",
+    "campaign_config_sha256": "f51895d56d7b94cb200c8f30d0e2763874ea8c003dde147491313ac2ec0d4caa",
+    "comparative_pair_results_shown": false
+  },
+  "recommendation": {
+    "choice": "veritas",
+    "rationale": "**Choice: Guion.**\n\nThe decisive advantage is its documented support for this task’s hardest requirement: `http_request_bytes` enforces one monotonic deadline through connection and complete body reads. It also returns non-2xx responses as values, allowing status classification before JSON parsing. These semantics directly address slow trickle responses and the requirement to leave non-2xx bodies unparsed.\n\n`parallel_map` supplies bounded concurrency. Each worker would need to convert endpoint failures into ordinary result records so one failed endpoint does not stop the remaining checks. Explicit JSON accessors support distinguishing malformed responses, missing status fields, and non-string values.\n\nThe maintenance rules still require careful application logic: validate the exact timestamp grammar, reject fractions longer than six digits, compare instants across offsets, and validate all configuration before replacing either output. Guion’s timestamp support alone does not establish compliance with every rule.\n\nThe tradeoff is deployment friction. Guion is private and pre-release, requires Rust to build from source, and needs explicit grants for runtime endpoint hostnames and file locations. Its source-free packaging is useful, but no successful packaged launch, setup time, or package size has been demonstrated here.\n\n**I would change to Python** if Guion’s build or target packaging were unavailable offline, or if deployment could not accommodate grants for runtime-configured hosts and paths. Python’s mature standard library and permitted offline packages offer a credible alternative, but the chosen HTTP approach would still need a carefully enforced total deadline; a timeout parameter alone would not establish that behavior.\n\nThis is a fit judgment from the supplied profiles, not a measured implementation result.",
+    "conditions": []
+  },
+  "exclusion": {
+    "excluded": false,
+    "reason": null
+  }
+}

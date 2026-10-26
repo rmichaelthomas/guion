@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "thread": {
+    "id": "01a179a9-d6f2-7812-9e93-db363668e08b",
+    "kind": "codex",
+    "hostId": "local",
+    "title": "Guion v4 Cold 08-documentation-link-index-choice-2",
+    "preview": "You are advising a developer choosing a language for the attached task.\nDo not implement the task, browse, use tools, or infer results from code that has not been built.\nChoose exactly one: Guion, Python, or either. Explain the decisive task-specific tradeoffs and what would change your choice.\nIn the product-information arm use only the supplied profiles. In the cold arm no product documentation is supplied; use only prior knowledge and the task brief.\nDo not make a universal language-replacement claim.\n\nAssignment ID: 08-documentation-link-index-choice-2\nSchedule SHA-256: 4630653714bd96f277e70ae17ccc8e37a1ee64ad37cf1d547a7c92494bd53bc1\nSchedule file SHA-256: 1398aa6edacdc22d115a7597209e19ad1d60b624c69200fa49edf0c19cb71d4e\nChoice-safe bundle SHA-256: 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945\nPresentation order: Python, Guion\nConfigured assistant: OpenAI Codex gpt-6.1-sol (gpt-6.1-sol); reasoning effort medium\nBudget: 5 active minutes and 0 tool calls.\nNo implementation results, benchmarks, author calibration, or candidate runs have been shown.\n\n# Task brief\n# Local documentation link index\n\n**Class:** package/library or maintainable application\n**Origin:** independent-candidate brief draft; revised after overlap audit\n**Initial request:** Create a multi-module CLI for a folder of Markdown documentation. `doc-index build --root PATH --database PATH` indexes UTF-8 Markdown files and local `[[Page title]]` references in SQLite. `doc-index check --database PATH --json PATH` writes `{\"missing\":[{\"source\":\"relative/path\",\"target\":\"title\"}],\"ambiguous\":[{\"source\":\"relative/path\",\"target\":\"title\"}]}`; each issue object contains only `source` and `target`. Reporting findings exits 0. `doc-index backlinks --database PATH --json PATH TITLE` writes `{\"backlinks\":[\"relative/path\"]}` with source pages whose link target matches the normalized query term. Normalize titles by collapsing consecutive Unicode whitespace to one ASCII space and applying Unicode case-folding. Sort document/source relative paths by that same normalization, with the original relative-path UTF-8 bytes as the tie-breaker. Sort issue rows by normalized source path, original source-path UTF-8 bytes, normalized target, then original target UTF-8 bytes; sort backlinks by the same source-path key. Ignore symlinked files and directories. If a Markdown file is not valid UTF-8, fail without replacing the existing index. The task does not promise a distinct per-file permission-denied behavior.\n\n**Follow-up change:** Accept optional front matter only when the first line is exactly `---` and a later line is exactly `---`. If the first line is not exactly `---`, treat the document as having no front matter and ignore any `aliases:` text in its body. If the first line is exactly `---` but no later exact `---` delimiter exists, also treat the entire document as ordinary Markdown with no front matter; ignore any `aliases:` text in it. Within valid front matter, accept at most one `aliases` field, written on one line as a JSON array of strings (for example, `aliases: [\"Coffee\", \"R&D, Inc.\"]`). JSON string escaping applies; `aliases: []` means no aliases. Reject malformed JSON, duplicate aliases fields, non-string values, and nested arrays; ignore other front-matter fields. Resolve links by either page title or alias for missing/ambiguous checks. Alias normalization matches title normalization. Multiple matching names that belong to the same page count as one target for ambiguity; names matching different pages are ambiguous. A backlinks query matches only links whose normalized target equals the normalized query term; it does not expand to other names for the same page and still returns exact-text source links when that destination name is ambiguous. A successful build replaces the index with the complete set of current documents and links, removing stale rows; a failed build leaves the previous index intact. The title is the first level-one Markdown heading, or the filename stem when none exists. Check and backlinks JSON retain the exact initial-stage shapes.\n\n**Acceptance:** Nested folders; Unicode titles; duplicate title ambiguity; missing links; case/whitespace normalization; filename-stem fallback; symlink boundary; invalid UTF-8 and malformed alias metadata preserve prior index; deterministic output; alias matches including escaped punctuation and collisions; successful rebuild removes deleted documents and stale links; clean-workspace builds with fresh databases.\n\n**Fairness notes:** Python may use its standard-library SQLite module. The task tests a filesystem index and parser rather than the existing task-ledger CRUD/state workflow; this replaces the earlier local issue-queue draft, which overlapped that known development example.\n\n# Option 1: Python\nNo product profile or documentation is supplied for this option.\n\n# Option 2: Guion\nNo product profile or documentation is supplied for this option.\n",
+    "status": {
+      "type": "idle"
+    },
+    "cwd": "/Users/rmichaelthomas/Documents/Codex/2026-10-26/you-are-advising-a-developer-choosing-31",
+    "createdAt": 1793042536,
+    "updatedAt": 1793042563
+  },
+  "page": {
+    "order": "newest_first",
+    "limit": 10,
+    "nextCursor": null,
+    "hasMore": false
+  },
+  "turns": [
+    {
+      "id": "01a179a9-d82f-75c1-9cc1-f40b04f9ebcd",
+      "status": "completed",
+      "error": null,
+      "startedAt": 1793042536,
+      "completedAt": 1793042563,
+      "durationMs": 27261,
+      "items": [
+        {
+          "type": "functionCallOutput",
+          "id": "fco_01a179a9-d830-7c92-ba9a-70649298bf1d",
+          "name": "create_thread",
+          "namespace": "codex_app"
+        },
+        {
+          "type": "reasoning",
+          "id": "rs_0c0ac52d905070df016adfa876c9c0819b87208f01a10a8a1a",
+          "summary": []
+        },
+        {
+          "type": "agentMessage",
+          "id": "msg_0c0ac52d905070df016adfa879d8d8819bbde6610d5c6697b8",
+          "text": "**Python.**\n\nThis task fits Python’s standard library closely: SQLite transactions, strict UTF-8 decoding, JSON parsing, Unicode case-folding, and filesystem traversal. These directly support the hardest requirements: preserving the previous index on failed builds, validating aliases with JSON escaping, deduplicating matches by page, and producing deterministic Unicode-aware output with UTF-8 byte tie-breakers.\n\nThe follow-up also favors explicit, maintainable parsing: recognize the exact front-matter boundaries before interpreting aliases, then keep destination resolution separate from backlinks’ exact normalized-term matching. Python supports organizing those rules across small modules without extra dependencies.\n\nNo Guion profile is supplied, and my prior knowledge is insufficient to establish equivalent facilities or maintenance costs. That uncertainty is decisive for this particular library-style CLI; it is not evidence that Guion cannot implement it.\n\nI would reconsider if Guion’s Unicode, SQLite transaction, filesystem, JSON, and multi-module facilities were established and the maintaining team had stronger Guion expertise. This choice reflects implementation fit and confidence, not measured performance or demonstrated acceptance results.",
+          "phase": "final_answer"
+        }
+      ]
+    }
+  ]
+}

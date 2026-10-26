@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "decision_id": "07-config-migrator-choice-2",
+  "recorded_at_utc": "2026-10-26T19:31:54.564401Z",
+  "task": {
+    "id": "07-config-migrator",
+    "class": "maintainable_application",
+    "origin": "independent",
+    "brief_sha256": "4d4f16e7c38142fd84ba3a9675a08a7cd88acdc8c67741f32ddd88d15fab667e"
+  },
+  "assistant": {
+    "provider": "OpenAI Codex",
+    "name": "gpt-6.1-sol",
+    "version": "gpt-6.1-sol",
+    "reasoning_effort": "medium",
+    "session_id": "01a179a6-a97a-72a2-8390-1ff11238a08b",
+    "fresh_session": true
+  },
+  "budget": {
+    "active_minutes": 5,
+    "tool_calls": 0
+  },
+  "usage": {
+    "active_seconds": 24,
+    "tool_calls": 0
+  },
+  "evidence": {
+    "prompt_transcript_path": "prompts/codex-product-information/07-config-migrator-choice-2.md",
+    "prompt_transcript_sha256": "5f723c7eca84fc340d4763bd2ad867488fc39d508b738660ad5aef6dc2f53b05",
+    "response_transcript_path": "responses/codex-product-information/07-config-migrator-choice-2.md",
+    "response_transcript_sha256": "07746845022f5dd7f474c1d60ee9995b1b7e5fd3cbcc291d3298f023c94cd5e4",
+    "usage_snapshot_path": "usage-snapshots/codex-product-information/07-config-migrator-choice-2.json",
+    "usage_snapshot_sha256": "77d318c4376f0d9af9c28113c0e3dc25209f0ed0c20d67ecff25d2db4b90ec08"
+  },
+  "presentation_order": [
+    "python",
+    "veritas"
+  ],
+  "context": {
+    "mode": "pre-build-recommendation",
+    "veritas_version": "0.1.0 (artifact format 39)",
+    "python_version": "3.14.8",
+    "documentation_sha256": "16ffe49108785a222a033decb416ac2d129a017949ce4e3b7d99f16f8808bc6a",
+    "schedule_sha256": "81075116949f4905cefb2a87cc845089196e895db54fd4e2b1f0b2818118fbeb",
+    "schedule_file_sha256": "8f6dd3a36ddb3ea66996841d24a83ee4cb7589b1581600b6e1b8052bf484fb2b",
+    "schedule_entry_id": "07-config-migrator-choice-2",
+    "prerun_records_sha256": "7492ce37a54146606c8f99a3044c02f4d26fb0c749320a2061b3c7ac5a129fd7",
+    "prerun_recorded_at_utc": "2026-10-26T19:10:14.465205Z",
+    "campaign_config_sha256": "f51895d56d7b94cb200c8f30d0e2763874ea8c003dde147491313ac2ec0d4caa",
+    "comparative_pair_results_shown": false
+  },
+  "recommendation": {
+    "choice": "python",
+    "rationale": "**Python.** For this maintainable, multi-module application, Python’s maturity and broad ecosystem outweigh Guion’s more directly integrated facilities.\n\nThe hard parts are preserving TOML comments and unrelated values, validating reserved fields before any write, and advancing exactly one version without overwriting explicit settings. The brief permits a maintained comment-preserving TOML library; that dependency would need to be named and available under the campaign rules. Validation must explicitly reject booleans as integers and distinguish missing optional `parallelism` from an invalid existing value.\n\nGuion offers a compelling fit: native TOML editing, typed accessors, `Result` errors, and an atomic-write operation that uses a temporary sibling file and rename. Its core also avoids Python entirely. However, its private pre-release status, source-checkout installation requiring Rust, and lack of guaranteed pre-1.0 compatibility add maintenance and fresh-install friction for a small utility.\n\nPython’s deployment needs deliberate attention: a package that silently relies on system Python would fail acceptance. The delivery must explicitly provision or bundle its runtime and dependencies. Neither startup time nor package size can be ranked from the supplied evidence.\n\n**I would change to Guion** if deployment targets match its documented packaging support, its pre-release compatibility risk is acceptable, and avoiding a Python runtime carries more weight than ecosystem maturity—especially if a suitable Python TOML dependency cannot be admitted. Guion’s documented facilities make it a credible candidate, but comment preservation, atomic failure, and clean installation remain acceptance checks, not demonstrated results.",
+    "conditions": []
+  },
+  "exclusion": {
+    "excluded": false,
+    "reason": null
+  }
+}
