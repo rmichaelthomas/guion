@@ -27,7 +27,7 @@ Two pre-rename Veritas 0.1.0 archives were copied to the migration output folder
 | Debian ARM64 | `75c47c105ec240f7635658b768f35888e3b98af8796658f2795d6f3ec2571f1f` |
 | macOS ARM64 | `286da47c8cdbbb8eaf29bb0710ad60e130e58dfd0df852136c48e471a3e5db37` |
 
-They were built from Veritas source commit `cb5587b1f4d48a72b955ad2e6e666cdef28f5373`, not the frozen checkout HEAD above. The release report and working-tree digest are the identity authority. The output folder is `outputs/veritas-legacy-0.1.0/` in the migration workspace; do not commit the archives into this repository.
+They were built from Veritas source commit `cb5587b1f4d48a72b955ad2e6e666cdef28f5373`, not the frozen checkout HEAD above. The release report and working-tree digest are the identity authority. The final archives now reside under `artifacts/local/veritas-legacy-0.1.0/` inside the canonical Guion directory; this local artifact folder is excluded from Git history.
 
 ## Cleanup inventory and replay consequences
 
@@ -78,3 +78,7 @@ The first v2 recursive deletion stopped on read-only package-license directories
 ## Final checkout disposition
 
 After the private remote and local `main` matched, the historical working records and patch were added to canonical Guion history. The original source checkout was then removed. The Veritas source Git history remains in the ancestry of `main`; historical bulk output is intentionally absent. No project-level `AGENTS.md` file was edited.
+
+## Codex task-folder consolidation
+
+The separate migration task folder was emptied. Its approved plan, progress ledger, disk record, and session contracts are now indexed from [`docs/history/README.md`](README.md). The two Guion validation archives and two final historical Veritas archives are under `artifacts/local/` inside this repository directory; they are local and excluded from Git. The older first-build Codex output folder contained 29.53 GiB of superseded package candidates and review packets. Its 279 small direct records were checked against the canonical tree; 69 exact duplicates were discarded and 210 distinct records were retained in [`original-codex-outputs/`](original-codex-outputs/README.md). An inventory was retained there, and the generated package trees were removed.

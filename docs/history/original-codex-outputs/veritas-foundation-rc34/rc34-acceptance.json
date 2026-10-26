@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "candidate": "Veritas RC34",
+  "classification": "author_run_release_candidate_not_independent_evaluation",
+  "host": {
+    "system": "Darwin",
+    "machine": "arm64"
+  },
+  "package": {
+    "path": "veritas-0.1.0-darwin-arm64.tar.gz",
+    "sha256": "7ce87701bb664d8b1f4113667a1642a033a253871a0b6cca9195b8f4ba75d0b0",
+    "artifact_format": 21,
+    "signed": false,
+    "notarized": false,
+    "fresh_extraction_doctor": "passed",
+    "fresh_extraction_managed_python_sync": "passed offline from a populated disposable cache",
+    "fresh_extraction_python_interop_stdout": "9007199254741000\n3\npython-requests/2.32.5\n"
+  },
+  "toolchain": {
+    "uv": "0.13.4",
+    "python": "CPython 3.14.8",
+    "target": "macos-aarch64"
+  },
+  "checks": {
+    "rust_workspace": {
+      "passed": 96,
+      "failed": 0
+    },
+    "cargo_fmt_check": "passed",
+    "cargo_clippy_all_targets_warnings_denied": "passed",
+    "python_bridge_suite": {
+      "passed": 16,
+      "failed": 0
+    },
+    "managed_python_dependency_integration": {
+      "passed": 2,
+      "failed": 0
+    },
+    "packaged_feed_digest_and_task_ledger_acceptance": {
+      "passed": 10,
+      "failed": 0
+    },
+    "object_heavy_orjson_and_requests_example": "passed from fresh package extraction"
+  },
+  "json_bridge": {
+    "supports": [
+      "null",
+      "bool",
+      "arbitrary_precision_int",
+      "finite_float",
+      "text",
+      "list",
+      "string_keyed_dict"
+    ],
+    "rejects": [
+      "cycles",
+      "non_finite_float",
+      "non_string_dict_keys",
+      "unsupported_python_objects"
+    ],
+    "maximum_nesting": 64,
+    "maximum_frame_bytes": 25165824,
+    "zero_copy": false,
+    "direct_numpy_or_tensor_bridge": false
+  },
+  "recommendation_claim": false,
+  "limitations": [
+    "one macOS ARM64 host and author-run workloads; no independent recommendation trial",
+    "the archive bundles uv but acquires CPython and Python wheels at sync time",
+    "fresh extraction reused a disposable local cache and does not establish clean-machine or cross-platform setup",
+    "JSON data is copied; arbitrary Python objects, callbacks, object identity, NumPy arrays and tensors remain unsupported"
+  ]
+}

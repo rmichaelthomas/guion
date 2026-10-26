@@ -1,0 +1,91 @@
+{
+  "schema_version": 1,
+  "candidate": "Veritas RC36",
+  "classification": "author_run_release_candidate_not_independent_evaluation",
+  "host": {
+    "system": "Darwin",
+    "machine": "arm64"
+  },
+  "package": {
+    "path": "veritas-0.1.0-darwin-arm64.tar.gz",
+    "sha256": "4669e8cb23a8c8f12562601d8027a6fd4719c450b83beb670d6f711b76a99eab",
+    "artifact_format": 21,
+    "signed": false,
+    "notarized": false,
+    "fresh_extraction_doctor": "passed",
+    "fresh_extraction_managed_python_sync": "passed offline from a populated disposable cache",
+    "fresh_extraction_python_interop_stdout": "15\n9007199254741000\n3\npython-requests/2.32.5\n",
+    "fresh_extraction_numpy_version": "2.5.4",
+    "fresh_extraction_numpy_wheel_tag": "cp314-cp314-macosx_14_0_arm64"
+  },
+  "toolchain": {
+    "uv": "0.13.4",
+    "python": "CPython 3.14.8",
+    "target": "macos-aarch64"
+  },
+  "checks": {
+    "rust_workspace": {
+      "passed": 98,
+      "failed": 0
+    },
+    "cargo_fmt_check": "passed",
+    "cargo_clippy_all_targets_warnings_denied": "passed",
+    "python_bridge_suite": {
+      "passed": 18,
+      "failed": 0
+    },
+    "managed_python_dependency_integration": {
+      "passed": 2,
+      "failed": 0
+    },
+    "packaged_feed_digest_and_task_ledger_acceptance": {
+      "passed": 10,
+      "failed": 0
+    },
+    "object_and_array_heavy_package_example": "passed from fresh package extraction",
+    "numpy_pre_materialization_size_guard": "passed; 100,000-element ndarray rejected before tolist()"
+  },
+  "bridge": {
+    "json": {
+      "supports": [
+        "null",
+        "bool",
+        "arbitrary_precision_int",
+        "finite_float",
+        "text",
+        "list",
+        "string_keyed_dict"
+      ],
+      "rejects": [
+        "cycles",
+        "non_finite_float",
+        "non_string_dict_keys",
+        "unsupported_python_objects"
+      ],
+      "maximum_nesting": 64
+    },
+    "numpy": {
+      "accepted_return": "top-level ndarray when declared as List[T]",
+      "nested_dimensions": "validated by recursive Veritas List types",
+      "accepted_dtypes": "boolean and numeric through 64 bits",
+      "rejected_dtypes": [
+        "object",
+        "complex",
+        "wider than 64 bits"
+      ],
+      "maximum_elements": 98304,
+      "conversion": "ndarray.tolist followed by framed transfer and Veritas reconstruction",
+      "zero_copy": false
+    },
+    "maximum_frame_bytes": 25165824,
+    "numpy_preflight_estimate_bytes_per_element": 256
+  },
+  "recommendation_claim": false,
+  "limitations": [
+    "one macOS ARM64 host and author-run workloads; no independent recommendation trial",
+    "the archive bundles uv but acquires CPython and Python wheels at sync time",
+    "fresh extraction reused a disposable local cache and does not establish a clean machine or another operating system",
+    "array conversion copies data and supports NumPy ndarray returns only for declared List[T], capped at 98,304 elements",
+    "arbitrary Python object identity, callbacks, tensors, and zero-copy buffers remain unsupported"
+  ]
+}

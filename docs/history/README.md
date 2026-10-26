@@ -74,3 +74,7 @@ Each checkpoint documents one implementation/evidence increment. The sequence ha
 - [Guion and Veritas evidence index](evidence-index.md) — exact paths and identities for the frozen recommendation campaigns, nine regression applications, matched builder pairs, final installed performance suite, and completion report set.
 
 - [Frozen Veritas working sessions and checkout retirement receipt](veritas-working-sessions-2026-10-25/README.md): final working records, exact patch, pre-migration README, and removed compiled-artifact hashes.
+
+- [Approved Guion migration plan](../superpowers/plans/2026-10-25-guion-migration-and-prerelease-plan.md) and [working progress](guion-migration-working-progress-2026-10-25.md).
+- [Original Codex output disposition](original-codex-outputs/README.md) and [disk-reclamation record](guion-migration-disk-reclamation-2026-10-25.json).
+- [Historical session contracts](session-contracts/README.md).

@@ -1,0 +1,55 @@
+{
+  "release_candidate": "RC38",
+  "version": "0.1.0",
+  "target": "macos-aarch64",
+  "artifact_format": 22,
+  "package": "veritas-0.1.0-darwin-arm64.tar.gz",
+  "package_sha256": "6fe1ff493d2b6138881735e0a2d7c2e35ef72e96d7499b08a38e8898c97430ba",
+  "feed_inbox_artifact_sha256": "716a770d8369170071ce0bcaa58569638aa75d5a8cc9ef4b69bd40cfc2fe150a",
+  "checks": {
+    "cargo_check_workspace_offline": "passed",
+    "cargo_fmt_check": "passed",
+    "cargo_clippy_workspace_all_targets_deny_warnings": "passed",
+    "cargo_test_workspace_offline": {
+      "passed": 100,
+      "failed": 0
+    },
+    "evaluation_unittest_suite": {
+      "passed": 20,
+      "failed": 0
+    },
+    "runtime_execution_tests": {
+      "passed": 42,
+      "failed": 0
+    },
+    "model_unit_tests": {
+      "passed": 9,
+      "failed": 0
+    },
+    "feed_inbox_and_task_ledger_parity": {
+      "passed": 9,
+      "failed": 0
+    },
+    "feed_inbox_acceptance_suite": {
+      "passed": 6,
+      "failed": 0,
+      "live_loopback_multi_feed_concurrency_and_python_parity": "passed"
+    },
+    "feed_inbox_veritas_merge_tests": {
+      "passed": 2,
+      "failed": 0
+    },
+    "packaged_cli_doctor": "passed",
+    "packaged_feed_inbox_artifact_after_source_removal": "passed_offline",
+    "packaged_feed_inbox_multiple_ungranted_hosts": "passed_expected_policy_errors",
+    "format_21_rc37_artifact_loaded_by_rc38": "passed_add_and_list",
+    "package_checksum": "verified"
+  },
+  "limitations": [
+    "The package is macOS arm64 only.",
+    "CPython and Python wheels are acquired on first project sync; they are not embedded in the tarball.",
+    "The feed inbox manifest grants only 127.0.0.1 until the user adds exact external feed hosts.",
+    "No independent assistant recommendation comparison has been run."
+  ],
+  "north_star_met": false
+}

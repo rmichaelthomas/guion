@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "candidate": "Veritas RC37",
+  "classification": "author-run release candidate; not independent recommendation evidence",
+  "host": {
+    "system": "macOS 26.5.2",
+    "architecture": "arm64",
+    "cpu_count": 10,
+    "python": "CPython 3.14.8",
+    "numpy": "2.5.4"
+  },
+  "package": {
+    "path": "veritas-0.1.0-darwin-arm64.tar.gz",
+    "sha256": "3f85f07b4e912ca818c09f0443e240a547b5990db5385032142cf6f61d00141e",
+    "artifact_format": 21,
+    "signed": false,
+    "notarized": false,
+    "fresh_extraction_doctor": "passed",
+    "offline_managed_python_sync": "passed using populated local cache",
+    "python_interop_stdout": "15\n9007199254741000\n3\npython-requests/2.32.5\n",
+    "packaged_task_ledger_acceptance": {"passed": 4, "failed": 0}
+  },
+  "stress_workload": {
+    "array_size": 512,
+    "warmups": 50,
+    "burst_calls": 10000,
+    "paced_calls": 250,
+    "requested_pace_ms": 10,
+    "correctness": "all returned values and printed output matched exact expected sum",
+    "burst": {
+      "p50_ms": 0.730916,
+      "p95_ms": 0.897341,
+      "p99_ms": 1.207042,
+      "max_ms": 8.512208,
+      "calls_per_second": 1315.114,
+      "elapsed_seconds": 7.603903
+    },
+    "paced": {
+      "p50_ms": 2.686501,
+      "p95_ms": 5.348791,
+      "p99_ms": 7.218628,
+      "max_ms": 8.672375,
+      "calls_per_second": 99.828,
+      "elapsed_seconds": 2.504315
+    },
+    "scheduling_lateness_ms": {"p50": 1.437958, "p95": 2.226631, "p99": 3.19578, "max": 3.73825},
+    "close_ms": 1.519,
+    "use_after_close": "R_INSTANCE_CLOSED",
+    "rss_samples": 0,
+    "rss_sampling_status": "unavailable: sandbox denied ps with Operation not permitted",
+    "rss_scope": "would sample only the Rust benchmark process; excludes Python sidecar"
+  },
+  "verification": {
+    "cargo_fmt_check": "passed",
+    "cargo_clippy_warnings_denied": "passed",
+    "compiler_and_model_tests": {"passed": 14, "failed": 0},
+    "runtime_execution_and_python_bridge_tests": {"passed": 58, "failed": 0},
+    "cli_unit_tests": {"passed": 3, "failed": 0},
+    "cli_integration_tests": {"passed": 16, "environment_blocked": 1},
+    "evaluation_task_ledger_and_benchmark_tests": {"passed": 6, "failed": 0},
+    "full_evaluation_suite": "feed-digest fixture setup could not bind loopback in sandbox",
+    "full_workspace_suite": "one CLI local-server test blocked by sandbox; independently runnable suites passed"
+  },
+  "recommendation_claim": false,
+  "limitations": [
+    "one author host and a narrow NumPy bridge workload",
+    "source-built and packaged paced latency differed, so repeated author-run timing varied",
+    "process RSS trend unavailable in restricted sandbox",
+    "no independent task comparison or evidence that Veritas should replace Python",
+    "macOS arm64 package only, unsigned and not notarized",
+    "package extraction test reused local Python and wheel cache"
+  ]
+}

@@ -1,0 +1,81 @@
+{
+  "schema_version": 1,
+  "milestone": "RC45",
+  "host": "darwin-arm64",
+  "feature": "native_python_distribution_and_license_attribution",
+  "status": "passed",
+  "checks": [
+    {
+      "command": "cargo fmt --all --check",
+      "passed": true
+    },
+    {
+      "command": "cargo clippy --workspace --all-targets --offline -- -D warnings",
+      "passed": true
+    },
+    {
+      "command": "VERITAS_UV=<pinned uv> UV_CACHE_DIR=<managed cache> UV_PYTHON_INSTALL_DIR=<managed CPython> cargo test --workspace --offline",
+      "passed": true,
+      "passed_tests": 110,
+      "failed_tests": 0
+    },
+    {
+      "command": "VERITAS_UV=<pinned uv> UV_CACHE_DIR=<managed cache> UV_PYTHON_INSTALL_DIR=<managed CPython> python3 -m unittest discover -s evaluation/tests -v",
+      "passed": true,
+      "passed_tests": 20,
+      "failed_tests": 0
+    },
+    {
+      "test": "compiled_native_wheel_owner_and_license_linkage",
+      "passed": true,
+      "distributions": [
+        "charset-normalizer",
+        "numpy",
+        "orjson"
+      ],
+      "all_site_packages_native_images_attributed": true,
+      "unattributed_images": 0,
+      "owner_license_metadata_matches_dependency_inventory": true,
+      "relocated_runs": 2,
+      "tamper_cases_rejected": [
+        "python_license",
+        "native_extension",
+        "python_runtime",
+        "forged_native_owner_with_updated_report_checksum"
+      ],
+      "forged_owner_rejected_after_report_checksum_refresh": true
+    },
+    {
+      "test": "shipped_release_includes_source_free_native_interop_app",
+      "passed": true,
+      "native_interop_example_bundled": true,
+      "verified_before_running": true
+    }
+  ],
+  "scope_limits": [
+    "Wheel RECORD establishes installed-file attribution, not ownership of vendored code inside a wheel.",
+    "Only macOS ARM64 has been exercised.",
+    "The static scan does not observe libraries loaded only through runtime APIs such as dlopen.",
+    "The offline wheel cache is excluded from native scanning and is not independently tree-hashed.",
+    "Package hashes are unsigned and do not authenticate the publisher or determine legal compatibility.",
+    "This milestone does not establish assistant recommendation superiority over Python."
+  ],
+  "archive_sha256": "5ebdd02e73e26108179af52956d71dd43bf25fe3ba63a6960cca328ca546d4f6",
+  "shipped_native_interop_bundle": {
+    "native_images": 34,
+    "python_native_images": 22,
+    "owner_distributions": [
+      "charset-normalizer",
+      "numpy",
+      "orjson"
+    ],
+    "unattributed_native_images": 0,
+    "python_runtime_license_references_verified": true,
+    "rust_notice_files": 207,
+    "rust_notice_size_bytes": 974963,
+    "package_verify_passed": true,
+    "relocated_path_included_spaces_and_unicode": true,
+    "identical_offline_runs": 2,
+    "expected_output": "15\\n9007199254741000\\n3\\npython-requests/2.32.5\\n"
+  }
+}

@@ -21,3 +21,6 @@ __pycache__/
 !/evaluation/results/independent-v2/setup-attempts/setup-attempts.jsonl
 !/evaluation/results/independent-v2/setup-attempts/first-python-session/
 !/evaluation/results/independent-v2/setup-attempts/first-python-session/**
+
+# Local pre-release and historical package archives; keep Git source history lean.
+/artifacts/local/

@@ -1,0 +1,36 @@
+show "=== Session contract: guion-migration-plan-2026-10-25 ==="
+
+remember a string called source-state with "unscanned"
+remember a string called claim-basis with "none"
+remember a list called tracked-decisions with "none"
+remember a list called open-questions with "none"
+remember a list called session-corrections with "none"
+remember a number called decision-count with 0
+remember a string called session-id with "guion-migration-plan-2026-10-25"
+
+when source-state is equal to "unscanned"
+  show "HOLD: source not yet scanned — verify before consequential claims"
+when claim-basis is equal to "inference" unless source-state is equal to "verified"
+  show "WARNING: current claims are inferred, not verified against source"
+when claim-basis is equal to "verified"
+  show "OK: claims grounded in verified source"
+
+
+show source-state
+show claim-basis
+show tracked-decisions
+show open-questions
+
+add "User correction: resolve old checkout and held-open build cache before calling the migration clean; explain exact application counts and the unrun free-threaded Python comparison" to session-corrections
+add "Verify every unique uncommitted source and campaign record before retiring the original checkout" to open-questions
+set source-state to "verified"
+set claim-basis to "verified"
+remember a list called precommit-verified with "none"
+add "staged-by-name-not-add-all" to precommit-verified
+add "diff-cached-reviewed" to precommit-verified
+add "scope-matches-message" to precommit-verified
+add "no-secrets-or-junk" to precommit-verified
+add "Original checkout retired after exact small-record preservation; Colima stopped and deleted-cache handles zero; Guion local/private main parity verified at bb20ceb6cbce19aa3a0b3de48e2286e35dbca194" to tracked-decisions
+add "Application evidence is 18/18 per target, 36/36 total; free-threaded Python comparison was unrun and has no result" to tracked-decisions
+
+add "Moved all current-task deliverables into Guion; retained 210 unique older small records and final local archives; removed 29.53 GiB superseded candidate packages" to tracked-decisions

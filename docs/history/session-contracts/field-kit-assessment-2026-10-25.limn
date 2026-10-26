@@ -1,0 +1,6 @@
+SESSION field-kit-assessment
+STATUS open
+INTENT independently assess maintainable-local-app after both completed field-kit-log outputs
+LOCK only write final assessment and this session contract; preserve source, builder reports, briefs, assignments, and other assessments
+LOCK observed claims require evidence; no comparative findings sent to builders
+OPEN recommendation pending paired evidence review

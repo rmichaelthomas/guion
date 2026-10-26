@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "release_candidate": "RC71",
+  "built_at_utc": "2026-10-23T03:33:39Z",
+  "host": "macOS arm64",
+  "artifact": {
+    "path": "veritas-foundation-rc71/veritas-0.1.0-darwin-arm64.tar.gz",
+    "sha256": "6e9adbcc8debcd7de546f2a0d6fc646d274022dd201c1e974bf86f14a55f4b6d",
+    "archive_entries_validated": 5653,
+    "installed_version": "veritas 0.1.0 (artifact format 22)"
+  },
+  "source_archive": {
+    "path": "veritas-foundation-source-rc71.tar.gz",
+    "sha256": "2341357246c18267dc52e51a15cf416386c4d0af3a832c24642a0492d6d624a9",
+    "includes_build_artifacts": false,
+    "includes_git_metadata": false
+  },
+  "verification": {
+    "cargo_fmt_check": "passed",
+    "cargo_test_workspace": {
+      "status": "passed",
+      "tests_passed": 126,
+      "tests_failed": 0,
+      "suites": {
+        "cli_unit": 10,
+        "cli_integration": 35,
+        "managed_python_dependencies": 2,
+        "compiler_pipeline": 5,
+        "model": 9,
+        "runtime_execution": 42,
+        "http": 4,
+        "python_bridge": 19
+      }
+    },
+    "distribution_packaging": {
+      "installer_and_relocation_script": "passed",
+      "python_distribution_checks": "4 passed",
+      "task_ledger_package": "packaged and verified",
+      "python_interop_package": "packaged and verified",
+      "installed_launcher_repeated_run": "passed with identical output"
+    },
+    "installed_acceptance_kit": {
+      "status": "passed",
+      "tests_passed": 34,
+      "tests_failed": 0,
+      "offline_python_wheels": "used the existing local uv cache containing the exact locked wheel payloads",
+      "loopback_tests": "passed"
+    },
+    "packaged_inspection_smoke": {
+      "status": "passed",
+      "test_program": "shipped language/examples/file_copy.vr",
+      "observed_transitive_effects": [
+        "filesystem.read",
+        "filesystem.write",
+        "output.write"
+      ]
+    },
+    "lifecycle_stress": {
+      "status": "passed",
+      "raw_result": "veritas-foundation-rc71-lifecycle-stress.json",
+      "detail": "10,000 persistent NumPy calls, 250 paced calls, exact results, clean close and typed use-after-close; one author-run macOS arm64 sample"
+    }
+  },
+  "known_setup_note": "An initial installed-kit attempt used the package's NumPy/orjson cache, which lacked the feedparser wheel payloads. The kit passed 34/34 after setting UV_CACHE_DIR to the available local cache containing the exact locked wheels; no network access was required.",
+  "north_star_status": {
+    "recommended_over_python": false,
+    "reason": "The build and author-defined acceptance gates passed. Independent unseen-task evaluation, broader platform evidence, ecosystem maturity, and comparative recommendation evidence remain open."
+  }
+}

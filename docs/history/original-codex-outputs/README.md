@@ -1,0 +1,5 @@
+# Original Codex output folder disposition
+
+The first Veritas build left approximately 29.53 GiB of superseded release-candidate trees and review packets in a Codex task output folder. The 279 small directly placed source, report, checksum, and planning records were compared with the canonical repository. Exact duplicates were discarded; the remaining 210 distinct records are kept here under their former relative paths. The final Veritas host archives were already verified and moved to `artifacts/local/veritas-legacy-0.1.0/`; the Guion host archives are in `artifacts/local/guion-prerelease-0.1.0-2026-10-25/`. The historical prototype checkout is in `artifacts/local/veritas-prototype/`.
+
+The 130 remaining top-level generated package and packet entries were removed. [`retirement-manifest.json`](retirement-manifest.json) records their names and allocated sizes. It does not preserve their exact bytes. The canonical source, compact completion reports, campaign records, checkpoints, and final host archives remain in Guion. The unrelated `nowlookhere-copy` workspace was left alone.

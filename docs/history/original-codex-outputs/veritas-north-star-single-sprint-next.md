@@ -1,0 +1,45 @@
+# Veritas north-star sprint: current state and remaining work
+
+**North star:** Earn an assistant’s recommendation over Python for real developer tasks because a builder can start, understand, change, run, and deliver a program with less friction and a measurable practical advantage. Build for future backends, platforms, and library ecosystems without tying Veritas to Rust, one host, or one application category.
+
+**Sprint shape:** One continuous push with two evidence checkpoints. Checkpoints protect the claims and final verdict; they are not release candidates or approval stops.
+
+## Work completed in this sprint
+
+**Latest package refresh:** the campaign runner and review kit are included in both current platform packages. Installed acceptance passed **46 tests** on macOS ARM64 and **46 tests** on Debian-compatible Linux ARM64; the Linux archive validator accepted **16,726 entries**. Both checksums verify: macOS `15d1df8dfe35d25bdc3b8738121d1076874490daf1dd5a5fb12194ddaa1e3dda`, Linux `a71b79232b2efb73b32175e9c45ca283bc4a0d4eaf28a7aa905a7e5d02c49ef1`. Downloads: [Mac ARM64 package](/Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/outputs/veritas-north-star-sprint-macos-arm64.tar.gz) and [Linux ARM64 package](/Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/outputs/veritas-north-star-sprint-linux-arm64.tar.gz).
+
+The restricted images now identify that exact Linux package digest. Rerunning all nine existing candidate pairs across initial and follow-up stages passed **100/100 assertions in 36 invocations**. This repairs the campaign-evidence provenance gap, while remaining author calibration. Reports: `evaluation/pilot/author-self-review/results/restricted-container-matrix-final-package-refresh/` in the working source tree.
+
+The author-run nine-candidate kit covers three task classes and 50 executable cases. Veritas candidates and Python calibration references each pass 50/50 cases with matching outcomes. These are author calibration, not blind comparisons or recommendation evidence. The package-analysis candidate now uses a generic format-30 streaming JSON projection that retains requested columns and avoids materializing full row objects.
+
+The workback carries forward the right lessons from Planes/Horizon (test whole programs under repeated interaction), Liminate (make grammar and diagnostics explicit), and Decan (state exact support and preserve interop losses). Veritas remains general-purpose rather than copying their specialized designs.
+
+The latest 100,000-row comparison matched report bytes and stdout in 16 alternating fresh-process pairs. Median: **0.126 s Veritas / 0.115 s Python**. The earlier typed-column Veritas path measured 0.218 s, so this is about a **42% reduction** on this task. Veritas remains about **1.09× slower** than Python. The pure-Veritas control was 0.464 s vs 0.112 s. A later change removed a second **5,100,867-byte** copy of this input; a matched 16-pair old/new binary comparison kept outputs identical, but timing changed by less than 1%, so no speed gain is claimed for it. See the [Python timing report](/Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/outputs/veritas-north-star-json-projection-optimized-timing.json) and [old/new allocation comparison](/Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/outputs/veritas-north-star-json-projection-borrow-comparison.json).
+
+The Rust workspace passes **196 tests** with the pinned Python environment and loopback access. The source evaluation suite passes **85 tests**, with **7 expected installed-package-only skips**. Format-30 distributions pass **44/44 installed checks** on both macOS ARM64 and Debian 12-compatible Linux ARM64; latest archive validators accept 10,960 and 16,717 entries. Archive SHA-256: macOS `6f02eba4a51e31aabca76bc256cbe29adead549a5677998a8786a92243d8ae9a`; Linux `080750d582c199e21e4098da7f21023958083c5602db725f2cb8226e9e20c203`. Strict Clippy passes across all workspace targets; boxed native descriptors retain an explicit justification because generated code holds raw pointers to them. The reviewer kit now includes and hashes the Python calibration source and report, but remains a draft and still needs an independent reviewer.
+
+Deliverables: [Mac ARM64 package archive](/Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/outputs/veritas-north-star-json-borrow-macos/veritas-0.1.0-darwin-arm64.tar.gz), [Linux ARM64 package archive](/Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/outputs/veritas-north-star-json-borrow-linux/veritas-0.1.0-linux-aarch64.tar.gz), [compact independent-review packet](/Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/outputs/veritas-independent-review-packet-draft.zip), and both [timing reports](/Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/outputs/veritas-north-star-json-projection-optimized-timing.json) and [allocation comparison](/Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/outputs/veritas-north-star-json-projection-borrow-comparison.json).
+
+## Remaining work, as one sprint
+
+1. **Independent calibration.** A reviewer who did not author the briefs or implementation checks the nine task descriptions, all 50 oracles, task overlap, neutrality, and Python known-good references. Resolve findings. Runner self-tests and author checks do not establish independent correctness.
+2. **One cross-class pilot.** Run initial work and follow-up for one task in each of the three classes in paired fresh Veritas/Python environments. Capture failures, interventions, completion time, setup, delivery quality, and resource costs. Fix causes in shared language/tooling behavior and rerun the full 50-case matrix plus source-free packages.
+3. **One freeze.** After independent calibration and pilot fixes, pin source, toolchains, dependencies, docs, machine, budgets, permissions, prompts, and randomized pair order. Hash the kit once; rebuild both packages and verify they match the frozen source. The reviewer kit stays draft until the independent review resolves.
+4. **Full evidence block.** Collect 18 matched pairs: three task classes × three briefs × two fresh pairs per brief (36 language runs). Separately collect 18 fresh assistant choices before showing paired outcomes. Keep failed and excluded attempts, interventions, follow-up changes, and setup costs in the record.
+5. **One scoped verdict.** Recommend Veritas only for classes that meet the predeclared correctness, clean-delivery, practical-benefit, regression, and separate-choice thresholds. Report Python wins and remain explicit where the evidence does not support Veritas.
+
+## Gate status from current evidence
+
+| Gate | Status | Evidence |
+|---|---|---|
+| Restricted runners and deliverable packages | Complete for macOS ARM64 and Debian-compatible Linux ARM64 | Both package acceptance runs passed 46 tests; both archive sidecars verify. The refreshed Linux package identity is used by the campaign images. |
+| Existing-candidate matrix | Complete as author calibration: 100/100 assertions across 36 invocations | [Current matrix summary](/Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/work/veritas-foundation/evaluation/pilot/author-self-review/results/restricted-container-matrix-final-package-refresh/summary.json). |
+| Independent review of briefs, oracles, and protocol | Not complete | [Draft review packet v3](/Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/outputs/veritas-independent-review-packet-draft-v3.zip) is integrity-checked against all 41 inventoried files, but has no independent reviewer response. |
+| Fresh cross-class assistant pilot | Not complete | Existing pilots used authored candidates; they do not count as fresh independent assistant implementations. |
+| One-time freeze | Not complete | Must follow independent review and resolution of any findings. |
+| Full campaign | Not complete: 0/18 matched implementation pairs and 0/18 separate fresh recommendation choices recorded | The protocol's `evaluation/results/runs/` and `evaluation/results/recommendations/` record directories do not yet exist. |
+| Scoped recommendation verdict | Not complete | Current evidence supports feasibility and package portability, not recommending Veritas over Python. |
+
+## Current verdict
+
+The implementation is feasible and now demonstrates a useful cross-cutting data-path improvement, with portable packages on both declared targets. It has not earned the north-star recommendation: all existing task outcomes are author-run, and Python is still faster on the measured 100,000-row path. The next blocking evidence is independent review and fresh-context comparisons—not another release-candidate cycle. The work can continue through those two checkpoints as one sprint.
