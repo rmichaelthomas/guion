@@ -72,3 +72,5 @@ Each checkpoint documents one implementation/evidence increment. The sequence ha
 ## Evidence index
 
 - [Guion and Veritas evidence index](evidence-index.md) — exact paths and identities for the frozen recommendation campaigns, nine regression applications, matched builder pairs, final installed performance suite, and completion report set.
+
+- [Frozen Veritas working sessions and checkout retirement receipt](veritas-working-sessions-2026-10-25/README.md): final working records, exact patch, pre-migration README, and removed compiled-artifact hashes.

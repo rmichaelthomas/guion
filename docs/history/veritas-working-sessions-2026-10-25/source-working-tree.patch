@@ -1,0 +1,985 @@
+diff --git a/evaluation/protocol/case-runner.md b/evaluation/protocol/case-runner.md
+index 02a7912..f65ca0b 100644
+--- a/evaluation/protocol/case-runner.md
++++ b/evaluation/protocol/case-runner.md
+@@ -45,7 +45,7 @@ The fresh working directory and argument-array invocation are isolation convenie
+ 
+ ## Restricted Linux campaign runner
+ 
+-The evaluation/sandbox Docker setup runs the case runner inside a pinned Debian/Python image. It uses no external network, a read-only root filesystem, a bounded writable /tmp, dropped Linux capabilities, no-new-privileges, and fixed CPU, memory, and process limits. Loopback fixtures remain available because the case runner and candidate share the container network namespace. The Veritas image removes the packaged evaluation directory before a candidate can inspect the installation. Both candidate languages run CPython 3.14.8; the image includes its read-only uv-managed runtime so Veritas projects can sync their exact managed Python version offline.
++The evaluation/sandbox Docker setup runs the case runner inside a pinned Debian/Python image. It uses no external network, a read-only root filesystem, bounded writable temporary filesystems, dropped Linux capabilities, no-new-privileges, and fixed CPU, memory, and process limits. `/tmp` is mounted `noexec`; `/candidate-tmp` is a separate executable tmpfs and is supplied as `TMPDIR` so the runner can relocate and launch packaged executables without weakening `/tmp`'s policy. Their combined size is 896 MiB, allowing a complete candidate workspace up to 768 MiB while keeping the existing 2 GiB container memory limit. Loopback fixtures remain available because the case runner and candidate share the container network namespace. The Veritas image removes the packaged evaluation directory before a candidate can inspect the installation. Both candidate languages run CPython 3.14.8; the image includes its read-only uv-managed runtime so Veritas projects can sync their exact managed Python version offline.
+ 
+ The runner reads the manifest and candidate command as root from root-only files. The --candidate-uid 10001 option gives the case files and candidate project to an unprivileged child process and launches each setup/run command as that UID. The temporary root remains owned by the runner, with a sticky writable permission for candidate output; the candidate receives a scrubbed environment and no Linux capabilities. Limited capabilities are granted to the trusted runner process for workspace ownership and cleanup, then cleared when it changes UID for candidate execution. Candidate code and its own project files remain readable and writable inside the case workspace; host paths, evaluator files, credentials, and the Docker socket are not mounted into the candidate container.
+ 
+diff --git a/evaluation/results/independent-v2/README.md b/evaluation/results/independent-v2/README.md
+index fd78d21..9e5c351 100644
+--- a/evaluation/results/independent-v2/README.md
++++ b/evaluation/results/independent-v2/README.md
+@@ -1,10 +1,10 @@
+ # Independent campaign v2
+ 
+-Status: preregistered; no formal choice or implementation sessions have been recorded. Pilot runs remain separate and do not count toward this campaign.
++Status: frozen for artifact format 30. Eight formal implementation sessions were started: six completed their candidate work and are pending the official runner, one has an initial implementation awaiting follow-up, and one is recorded as in progress. No formal choice sessions or official runner results are recorded. The registry and raw session evidence are authoritative; these sessions remain bound to the frozen format-30 package and cannot count for a later candidate build.
+ 
+ ## Frozen inputs
+ 
+-- `schedule.json` assigns 18 language choices and 18 matched Python/Veritas build pairs. Its SHA-256 is recorded in the file and freeze record.
++- `schedule.json` assigns 18 language choices and 18 matched Python/Veritas build pairs for artifact format 30. Its SHA-256 is recorded in the file and freeze record. Do not change the schedule or reuse its sessions for a different package identity.
+ - `freeze-record.json` records the reviewed packet, pinned candidate package, images, and reviewer decision.
+ - `prerun-records.jsonl` binds the schedule and protocol before the first session.
+ - Follow the model, time limits, and tool-call limits in the frozen schedule. Run one candidate session at a time. Use the already-built, frozen images; do not rebuild them during the run. The Docker runner needs host socket access, so invoke it through the authorized host execution path on the first attempt rather than retrying once in a restricted shell.
+diff --git a/evaluation/results/native-backend-probe-cranelift-0.135.0.json b/evaluation/results/native-backend-probe-cranelift-0.135.0.json
+index f243448..da2b87a 100644
+--- a/evaluation/results/native-backend-probe-cranelift-0.135.0.json
++++ b/evaluation/results/native-backend-probe-cranelift-0.135.0.json
+@@ -10,10 +10,10 @@
+   "timing_scope": "Each sample is a fresh process and includes process startup. Veritas source samples also include parsing, typechecking and compilation; artifact samples load the current bytecode format; Python samples parse and execute source. All include the same arithmetic workload and captured output.",
+   "warmups_per_case": 2,
+   "timed_trials_per_case": 15,
+-  "artifact_build_seconds_separate": 0.007274374998814892,
++  "artifact_build_seconds_separate": 0.00805545899856952,
+   "artifact_size_bytes": 5727,
+   "native_c_compiler": "Apple clang version 21.0.0 (clang-2100.3.34.2)",
+-  "native_c_compile_seconds_separate": 0.06811445800121874,
++  "native_c_compile_seconds_separate": 0.07159799999863026,
+   "parallel_map_probe": {
+     "workload": "four independent integer loops of 20,000 iterations each",
+     "correct_output_per_task": 959289,
+@@ -21,57 +21,57 @@
+     "warmups_per_case": 1,
+     "timed_trials_per_case": 3,
+     "python_gil_enabled": true,
+-    "build_seconds_separate": 0.003986499999882653,
++    "build_seconds_separate": 0.003962583003158215,
+     "results": {
+       "veritas_parallel_map_source": {
+         "samples_seconds": [
+-          0.005846541000209982,
+-          0.005653208001604071,
+-          0.005715166000300087
++          0.005795415996544762,
++          0.0057068330024776515,
++          0.005873708996659843
+         ],
+-        "median_seconds": 0.005715166000300087,
+-        "p95_seconds_nearest_rank": 0.005846541000209982,
+-        "max_seconds": 0.005846541000209982
++        "median_seconds": 0.005795415996544762,
++        "p95_seconds_nearest_rank": 0.005873708996659843,
++        "max_seconds": 0.005873708996659843
+       },
+       "veritas_parallel_map_artifact": {
+         "samples_seconds": [
+-          0.0059399999991001096,
+-          0.005930458999500843,
+-          0.005607041999610374
++          0.005630708001262974,
++          0.005620833002467407,
++          0.005602459001238458
+         ],
+-        "median_seconds": 0.005930458999500843,
+-        "p95_seconds_nearest_rank": 0.0059399999991001096,
+-        "max_seconds": 0.0059399999991001096
++        "median_seconds": 0.005620833002467407,
++        "p95_seconds_nearest_rank": 0.005630708001262974,
++        "max_seconds": 0.005630708001262974
+       },
+       "python_serial": {
+         "samples_seconds": [
+-          0.05570129199986695,
+-          0.05149549999987357,
+-          0.06203999999706866
++          0.06287650000012945,
++          0.052512208003463456,
++          0.054225582996878074
+         ],
+-        "median_seconds": 0.05570129199986695,
+-        "p95_seconds_nearest_rank": 0.06203999999706866,
+-        "max_seconds": 0.06203999999706866
++        "median_seconds": 0.054225582996878074,
++        "p95_seconds_nearest_rank": 0.06287650000012945,
++        "max_seconds": 0.06287650000012945
+       },
+       "python_threads": {
+         "samples_seconds": [
+-          0.051957791998574976,
+-          0.05696974999955273,
+-          0.0559149159998924
++          0.05191837500024121,
++          0.060204207999049686,
++          0.05344258300101501
+         ],
+-        "median_seconds": 0.0559149159998924,
+-        "p95_seconds_nearest_rank": 0.05696974999955273,
+-        "max_seconds": 0.05696974999955273
++        "median_seconds": 0.05344258300101501,
++        "p95_seconds_nearest_rank": 0.060204207999049686,
++        "max_seconds": 0.060204207999049686
+       },
+       "python_processes": {
+         "samples_seconds": [
+-          0.1457576249995327,
+-          0.14599408299909555,
+-          0.13607654199950048
++          0.14673229199979687,
++          0.14834883299772628,
++          0.14073008299965295
+         ],
+-        "median_seconds": 0.1457576249995327,
+-        "p95_seconds_nearest_rank": 0.14599408299909555,
+-        "max_seconds": 0.14599408299909555
++        "median_seconds": 0.14673229199979687,
++        "p95_seconds_nearest_rank": 0.14834883299772628,
++        "max_seconds": 0.14834883299772628
+       }
+     },
+     "native_backend_reports": {
+@@ -81,17 +81,17 @@
+         "calls": 4,
+         "compilations": 1,
+         "compile_profile": {
+-          "finalize_nanoseconds": 7167,
++          "finalize_nanoseconds": 8417,
+           "functions": [
+             {
+               "bytecode_blocks": 4,
+               "bytecode_instructions": 21,
+               "cranelift_ir_blocks": 27,
+               "cranelift_ir_instructions": 308,
+-              "define_nanoseconds": 503083,
+-              "lowering_nanoseconds": 83500,
++              "define_nanoseconds": 515333,
++              "lowering_nanoseconds": 84625,
+               "name": "work",
+-              "verification_nanoseconds": 58458
++              "verification_nanoseconds": 56417
+             }
+           ]
+         },
+@@ -108,17 +108,17 @@
+         "calls": 4,
+         "compilations": 1,
+         "compile_profile": {
+-          "finalize_nanoseconds": 7916,
++          "finalize_nanoseconds": 8416,
+           "functions": [
+             {
+               "bytecode_blocks": 4,
+               "bytecode_instructions": 21,
+               "cranelift_ir_blocks": 27,
+               "cranelift_ir_instructions": 308,
+-              "define_nanoseconds": 513416,
+-              "lowering_nanoseconds": 84125,
++              "define_nanoseconds": 511459,
++              "lowering_nanoseconds": 85875,
+               "name": "work",
+-              "verification_nanoseconds": 56333
++              "verification_nanoseconds": 55375
+             }
+           ]
+         },
+@@ -140,57 +140,57 @@
+     "allocation_budget": "Default 256 MiB cumulative estimate budget; no per-workload override.",
+     "warmups_per_case": 1,
+     "timed_trials_per_case": 3,
+-    "build_seconds_separate": 0.0055982079975365195,
++    "build_seconds_separate": 0.0053512079975917,
+     "results": {
+       "veritas_parallel_map_source": {
+         "samples_seconds": [
+-          0.012268750000657747,
+-          0.011896750002051704,
+-          0.011248042002989678
++          0.011370749998604879,
++          0.011395624998840503,
++          0.013363916998059722
+         ],
+-        "median_seconds": 0.011896750002051704,
+-        "p95_seconds_nearest_rank": 0.012268750000657747,
+-        "max_seconds": 0.012268750000657747
++        "median_seconds": 0.011395624998840503,
++        "p95_seconds_nearest_rank": 0.013363916998059722,
++        "max_seconds": 0.013363916998059722
+       },
+       "veritas_parallel_map_artifact": {
+         "samples_seconds": [
+-          0.012614457999006845,
+-          0.014775916999496985,
+-          0.011182165999343852
++          0.011285500000667525,
++          0.011263500000495696,
++          0.014134375000139698
+         ],
+-        "median_seconds": 0.012614457999006845,
+-        "p95_seconds_nearest_rank": 0.014775916999496985,
+-        "max_seconds": 0.014775916999496985
++        "median_seconds": 0.011285500000667525,
++        "p95_seconds_nearest_rank": 0.014134375000139698,
++        "max_seconds": 0.014134375000139698
+       },
+       "python_serial": {
+         "samples_seconds": [
+-          0.07713150000199676,
+-          0.08358475000204635,
+-          0.0780172910017427
++          0.07750550000127987,
++          0.08542579200002365,
++          0.07751325000208453
+         ],
+-        "median_seconds": 0.0780172910017427,
+-        "p95_seconds_nearest_rank": 0.08358475000204635,
+-        "max_seconds": 0.08358475000204635
++        "median_seconds": 0.07751325000208453,
++        "p95_seconds_nearest_rank": 0.08542579200002365,
++        "max_seconds": 0.08542579200002365
+       },
+       "python_threads": {
+         "samples_seconds": [
+-          0.0875742079988413,
+-          0.08375612500094576,
+-          0.08197250000011991
++          0.08107454100172617,
++          0.08495974999823375,
++          0.07793654200213496
+         ],
+-        "median_seconds": 0.08375612500094576,
+-        "p95_seconds_nearest_rank": 0.0875742079988413,
+-        "max_seconds": 0.0875742079988413
++        "median_seconds": 0.08107454100172617,
++        "p95_seconds_nearest_rank": 0.08495974999823375,
++        "max_seconds": 0.08495974999823375
+       },
+       "python_processes": {
+         "samples_seconds": [
+-          0.15404095899793901,
+-          0.1483839579996129,
+-          0.1568254160010838
++          0.15584662499895785,
++          0.15854687499813735,
++          0.15704241700223065
+         ],
+-        "median_seconds": 0.15404095899793901,
+-        "p95_seconds_nearest_rank": 0.1568254160010838,
+-        "max_seconds": 0.1568254160010838
++        "median_seconds": 0.15704241700223065,
++        "p95_seconds_nearest_rank": 0.15854687499813735,
++        "max_seconds": 0.15854687499813735
+       }
+     },
+     "native_backend_reports": {
+@@ -200,17 +200,17 @@
+         "calls": 4,
+         "compilations": 1,
+         "compile_profile": {
+-          "finalize_nanoseconds": 6417,
++          "finalize_nanoseconds": 6583,
+           "functions": [
+             {
+               "bytecode_blocks": 4,
+               "bytecode_instructions": 21,
+               "cranelift_ir_blocks": 27,
+               "cranelift_ir_instructions": 308,
+-              "define_nanoseconds": 502792,
+-              "lowering_nanoseconds": 83833,
++              "define_nanoseconds": 509875,
++              "lowering_nanoseconds": 84583,
+               "name": "work",
+-              "verification_nanoseconds": 54625
++              "verification_nanoseconds": 54166
+             }
+           ]
+         },
+@@ -227,17 +227,17 @@
+         "calls": 4,
+         "compilations": 1,
+         "compile_profile": {
+-          "finalize_nanoseconds": 6625,
++          "finalize_nanoseconds": 8333,
+           "functions": [
+             {
+               "bytecode_blocks": 4,
+               "bytecode_instructions": 21,
+               "cranelift_ir_blocks": 27,
+               "cranelift_ir_instructions": 308,
+-              "define_nanoseconds": 517875,
+-              "lowering_nanoseconds": 80792,
++              "define_nanoseconds": 516334,
++              "lowering_nanoseconds": 84750,
+               "name": "work",
+-              "verification_nanoseconds": 54375
++              "verification_nanoseconds": 54916
+             }
+           ]
+         },
+@@ -263,44 +263,44 @@
+     "allocation_limit_bytes": 268435456,
+     "allocation_limit_note": "The optimized same-local list_set assignment stays within the default 256 MiB allocation ceiling.",
+     "instruction_limit_note": "A 300,000,000 instruction ceiling is declared for this 20,000-step workload; the default 10,000,000 ceiling is too low.",
+-    "build_seconds_separate": 0.006052000000636326,
++    "build_seconds_separate": 0.0062687919999007136,
+     "artifact_size_bytes": 22906,
+     "results": {
+       "python3_reference": {
+         "samples_seconds": [
+-          0.20078779200048302,
+-          0.19887579200076289,
+-          0.20629241700225975,
+-          0.19789899999886984,
+-          0.20158295900182566
++          0.1999798329998157,
++          0.19834675000311108,
++          0.20428995799738914,
++          0.20052174999727868,
++          0.19890699999814387
+         ],
+-        "median_seconds": 0.20078779200048302,
+-        "p95_seconds_nearest_rank": 0.20629241700225975,
+-        "max_seconds": 0.20629241700225975
++        "median_seconds": 0.1999798329998157,
++        "p95_seconds_nearest_rank": 0.20428995799738914,
++        "max_seconds": 0.20428995799738914
+       },
+       "veritas_source": {
+         "samples_seconds": [
+-          0.03624012500222307,
+-          0.036060541999177076,
+-          0.03583454099862138,
+-          0.038618957998551195,
+-          0.039329999999608845
++          0.04146879199834075,
++          0.03719933300089906,
++          0.036021208001329796,
++          0.03704125000149361,
++          0.04228916600186494
+         ],
+-        "median_seconds": 0.03624012500222307,
+-        "p95_seconds_nearest_rank": 0.039329999999608845,
+-        "max_seconds": 0.039329999999608845
++        "median_seconds": 0.03719933300089906,
++        "p95_seconds_nearest_rank": 0.04228916600186494,
++        "max_seconds": 0.04228916600186494
+       },
+       "veritas_artifact": {
+         "samples_seconds": [
+-          0.03587345800042385,
+-          0.03956483300135005,
+-          0.03789645900178584,
+-          0.03572470799917937,
+-          0.03567191699767136
++          0.0357399170025019,
++          0.03618462500162423,
++          0.03630891699867789,
++          0.04107687500072643,
++          0.0379144170001382
+         ],
+-        "median_seconds": 0.03587345800042385,
+-        "p95_seconds_nearest_rank": 0.03956483300135005,
+-        "max_seconds": 0.03956483300135005
++        "median_seconds": 0.03630891699867789,
++        "p95_seconds_nearest_rank": 0.04107687500072643,
++        "max_seconds": 0.04107687500072643
+       }
+     },
+     "native_backend_reports": {
+@@ -310,37 +310,37 @@
+         "calls": 4,
+         "compilations": 1,
+         "compile_profile": {
+-          "finalize_nanoseconds": 21459,
++          "finalize_nanoseconds": 24083,
+           "functions": [
+             {
+               "bytecode_blocks": 7,
+               "bytecode_instructions": 135,
+               "cranelift_ir_blocks": 99,
+               "cranelift_ir_instructions": 1399,
+-              "define_nanoseconds": 2341167,
+-              "lowering_nanoseconds": 349291,
++              "define_nanoseconds": 2392500,
++              "lowering_nanoseconds": 347500,
+               "name": "energy",
+-              "verification_nanoseconds": 209375
++              "verification_nanoseconds": 201750
+             },
+             {
+               "bytecode_blocks": 10,
+               "bytecode_instructions": 224,
+               "cranelift_ir_blocks": 156,
+               "cranelift_ir_instructions": 2290,
+-              "define_nanoseconds": 3717125,
+-              "lowering_nanoseconds": 453458,
++              "define_nanoseconds": 3769333,
++              "lowering_nanoseconds": 457791,
+               "name": "advance",
+-              "verification_nanoseconds": 282083
++              "verification_nanoseconds": 310333
+             },
+             {
+               "bytecode_blocks": 4,
+               "bytecode_instructions": 182,
+               "cranelift_ir_blocks": 78,
+               "cranelift_ir_instructions": 1719,
+-              "define_nanoseconds": 2307625,
+-              "lowering_nanoseconds": 297000,
++              "define_nanoseconds": 2282917,
++              "lowering_nanoseconds": 295125,
+               "name": "initial_system",
+-              "verification_nanoseconds": 193875
++              "verification_nanoseconds": 192042
+             }
+           ]
+         },
+@@ -359,37 +359,37 @@
+         "calls": 4,
+         "compilations": 1,
+         "compile_profile": {
+-          "finalize_nanoseconds": 15625,
++          "finalize_nanoseconds": 20834,
+           "functions": [
+             {
+               "bytecode_blocks": 7,
+               "bytecode_instructions": 135,
+               "cranelift_ir_blocks": 99,
+               "cranelift_ir_instructions": 1399,
+-              "define_nanoseconds": 2064084,
+-              "lowering_nanoseconds": 288625,
++              "define_nanoseconds": 2166750,
++              "lowering_nanoseconds": 316750,
+               "name": "energy",
+-              "verification_nanoseconds": 170917
++              "verification_nanoseconds": 185584
+             },
+             {
+               "bytecode_blocks": 10,
+               "bytecode_instructions": 224,
+               "cranelift_ir_blocks": 156,
+               "cranelift_ir_instructions": 2290,
+-              "define_nanoseconds": 3291875,
+-              "lowering_nanoseconds": 412541,
++              "define_nanoseconds": 3474541,
++              "lowering_nanoseconds": 421375,
+               "name": "advance",
+-              "verification_nanoseconds": 250875
++              "verification_nanoseconds": 286542
+             },
+             {
+               "bytecode_blocks": 4,
+               "bytecode_instructions": 182,
+               "cranelift_ir_blocks": 78,
+               "cranelift_ir_instructions": 1719,
+-              "define_nanoseconds": 1973333,
+-              "lowering_nanoseconds": 257458,
++              "define_nanoseconds": 2070500,
++              "lowering_nanoseconds": 288583,
+               "name": "initial_system",
+-              "verification_nanoseconds": 170291
++              "verification_nanoseconds": 185375
+             }
+           ]
+         },
+@@ -404,7 +404,7 @@
+       }
+     },
+     "official_pyperformance_python_median_seconds": 0.10937631246633828,
+-    "veritas_source_to_official_python_ratio": 0.3313343098248659,
++    "veritas_source_to_official_python_ratio": 0.3401041062921878,
+     "native_backend_scope": "The complete 20,000-step loop inside advance, including typed record/list access and same-local list updates, plus energy run in Cranelift native code. The VM handles entry, output and the two energy calls.",
+     "full_default_workload_note": "The 20,000-step pyperformance-default workload completes and matches the Python reference within 1e-12 under the default 256 MiB allocation ceiling. It requires a declared 300,000,000 instruction ceiling; the standard 10,000,000 ceiling is too low."
+   },
+@@ -420,50 +420,50 @@
+     "warmups_per_case": 1,
+     "timed_trials_per_case": 7,
+     "instruction_limit": 30000000,
+-    "build_seconds_separate": 0.006220082999789156,
++    "build_seconds_separate": 0.0052967919982620515,
+     "artifact_size_bytes": 39032,
+     "results": {
+       "veritas_source": {
+         "samples_seconds": [
+-          0.04525979100071709,
+-          0.046522542001184775,
+-          0.05111729100099183,
+-          0.045318416003283346,
+-          0.04517074999967008,
+-          0.04556520800178987,
+-          0.05155712499981746
++          0.05365054099820554,
++          0.047089499999856343,
++          0.045886125000834,
++          0.053290500000002794,
++          0.04554554200149141,
++          0.04554695799743058,
++          0.05190870799924596
+         ],
+-        "median_seconds": 0.04556520800178987,
+-        "p95_seconds_nearest_rank": 0.05155712499981746,
+-        "max_seconds": 0.05155712499981746
++        "median_seconds": 0.047089499999856343,
++        "p95_seconds_nearest_rank": 0.05365054099820554,
++        "max_seconds": 0.05365054099820554
+       },
+       "veritas_artifact": {
+         "samples_seconds": [
+-          0.04500158399969223,
+-          0.05121291699833819,
+-          0.04472712499773479,
+-          0.045272915998793906,
+-          0.0518137500002922,
+-          0.0449017079990881,
+-          0.0448732500008191
++          0.044727790998877026,
++          0.05108116600240464,
++          0.0448067910001555,
++          0.04465512500246405,
++          0.044735166997270426,
++          0.05116650000127265,
++          0.04746704100034549
+         ],
+-        "median_seconds": 0.04500158399969223,
+-        "p95_seconds_nearest_rank": 0.0518137500002922,
+-        "max_seconds": 0.0518137500002922
++        "median_seconds": 0.0448067910001555,
++        "p95_seconds_nearest_rank": 0.05116650000127265,
++        "max_seconds": 0.05116650000127265
+       },
+       "official_python_source": {
+         "samples_seconds": [
+-          0.0706207910006924,
+-          0.06595158299751347,
+-          0.07271920800121734,
+-          0.06583541600048193,
+-          0.07315795799877378,
+-          0.06442491699999664,
+-          0.07274750000215136
++          0.0703687080022064,
++          0.06603300000278978,
++          0.07241591699857963,
++          0.06422591699811164,
++          0.07335237499864888,
++          0.06449770800099941,
++          0.07241045900082099
+         ],
+-        "median_seconds": 0.0706207910006924,
+-        "p95_seconds_nearest_rank": 0.07315795799877378,
+-        "max_seconds": 0.07315795799877378
++        "median_seconds": 0.0703687080022064,
++        "p95_seconds_nearest_rank": 0.07335237499864888,
++        "max_seconds": 0.07335237499864888
+       }
+     },
+     "native_backend_reports": {
+@@ -473,47 +473,47 @@
+         "calls": 37547,
+         "compilations": 1,
+         "compile_profile": {
+-          "finalize_nanoseconds": 36958,
++          "finalize_nanoseconds": 39542,
+           "functions": [
+             {
+               "bytecode_blocks": 4,
+               "bytecode_instructions": 11,
+               "cranelift_ir_blocks": 21,
+               "cranelift_ir_instructions": 248,
+-              "define_nanoseconds": 457500,
+-              "lowering_nanoseconds": 94917,
++              "define_nanoseconds": 472833,
++              "lowering_nanoseconds": 106458,
+               "name": "next_worker_count",
+-              "verification_nanoseconds": 57459
++              "verification_nanoseconds": 58125
+             },
+             {
+               "bytecode_blocks": 9,
+               "bytecode_instructions": 46,
+               "cranelift_ir_blocks": 52,
+               "cranelift_ir_instructions": 572,
+-              "define_nanoseconds": 1026584,
+-              "lowering_nanoseconds": 107042,
++              "define_nanoseconds": 929583,
++              "lowering_nanoseconds": 113291,
+               "name": "xor_d008",
+-              "verification_nanoseconds": 79625
++              "verification_nanoseconds": 78750
+             },
+             {
+               "bytecode_blocks": 10,
+               "bytecode_instructions": 91,
+               "cranelift_ir_blocks": 68,
+               "cranelift_ir_instructions": 1066,
+-              "define_nanoseconds": 1534833,
+-              "lowering_nanoseconds": 240666,
++              "define_nanoseconds": 1522625,
++              "lowering_nanoseconds": 227042,
+               "name": "route_packet",
+-              "verification_nanoseconds": 137125
++              "verification_nanoseconds": 149500
+             },
+             {
+               "bytecode_blocks": 103,
+               "bytecode_instructions": 796,
+               "cranelift_ir_blocks": 652,
+               "cranelift_ir_instructions": 7510,
+-              "define_nanoseconds": 20823708,
+-              "lowering_nanoseconds": 2530542,
++              "define_nanoseconds": 20920042,
++              "lowering_nanoseconds": 2562750,
+               "name": "main",
+-              "verification_nanoseconds": 1178667
++              "verification_nanoseconds": 1203916
+             }
+           ]
+         },
+@@ -533,47 +533,47 @@
+         "calls": 37547,
+         "compilations": 1,
+         "compile_profile": {
+-          "finalize_nanoseconds": 33125,
++          "finalize_nanoseconds": 34917,
+           "functions": [
+             {
+               "bytecode_blocks": 4,
+               "bytecode_instructions": 11,
+               "cranelift_ir_blocks": 21,
+               "cranelift_ir_instructions": 248,
+-              "define_nanoseconds": 406083,
+-              "lowering_nanoseconds": 79459,
++              "define_nanoseconds": 408000,
++              "lowering_nanoseconds": 86125,
+               "name": "next_worker_count",
+-              "verification_nanoseconds": 51541
++              "verification_nanoseconds": 50792
+             },
+             {
+               "bytecode_blocks": 9,
+               "bytecode_instructions": 46,
+               "cranelift_ir_blocks": 52,
+               "cranelift_ir_instructions": 572,
+-              "define_nanoseconds": 822000,
+-              "lowering_nanoseconds": 87041,
++              "define_nanoseconds": 819250,
++              "lowering_nanoseconds": 90084,
+               "name": "xor_d008",
+-              "verification_nanoseconds": 71417
++              "verification_nanoseconds": 71459
+             },
+             {
+               "bytecode_blocks": 10,
+               "bytecode_instructions": 91,
+               "cranelift_ir_blocks": 68,
+               "cranelift_ir_instructions": 1066,
+-              "define_nanoseconds": 1317667,
+-              "lowering_nanoseconds": 193250,
++              "define_nanoseconds": 1319084,
++              "lowering_nanoseconds": 201708,
+               "name": "route_packet",
+-              "verification_nanoseconds": 124541
++              "verification_nanoseconds": 121333
+             },
+             {
+               "bytecode_blocks": 103,
+               "bytecode_instructions": 796,
+               "cranelift_ir_blocks": 652,
+               "cranelift_ir_instructions": 7510,
+-              "define_nanoseconds": 17972333,
+-              "lowering_nanoseconds": 2209792,
++              "define_nanoseconds": 19114750,
++              "lowering_nanoseconds": 2204000,
+               "name": "main",
+-              "verification_nanoseconds": 1060958
++              "verification_nanoseconds": 1062583
+             }
+           ]
+         },
+@@ -588,9 +588,9 @@
+         "deoptimizations": 0
+       }
+     },
+-    "official_python_median_seconds": 0.0706207910006924,
++    "official_python_median_seconds": 0.0703687080022064,
+     "pinned_source_probe_python_median_seconds": 0.0634242498781532,
+-    "veritas_source_to_official_python_ratio": 0.6452095389492751,
++    "veritas_source_to_official_python_ratio": 0.6691823871255368,
+     "native_backend_scope": "The complete Veritas Richards port, including main, route_packet, xor_d008, and next_worker_count, executes in Cranelift with zero deoptimizations. This is one translated implementation on one host, not a general performance claim."
+   },
+   "official_pyperformance_source_probe": {
+@@ -650,98 +650,98 @@
+       "The official benchmark suite is diagnostic evidence, not the real-task recommendation gate."
+     ]
+   },
+-  "veritas_binary": "/private/tmp/veritas-speed-size-target/release/veritas",
++  "veritas_binary": "/Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/work/veritas-foundation/target/release/veritas",
+   "python_version": "3.14.7 (main, Aug  5 2026, 10:29:49) [Clang 21.0.0 (clang-2100.1.1.101)]",
+   "platform": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+   "architecture": "arm64",
+   "results": {
+     "veritas_source_run": {
+       "samples_seconds": [
+-        0.013598417001048801,
+-        0.01223545800166903,
+-        0.01110220799819217,
+-        0.01122070799829089,
+-        0.010781375000078697,
+-        0.010777833998872666,
+-        0.010985791999701178,
+-        0.01108537500113016,
+-        0.010976957997627323,
+-        0.011298958001134451,
+-        0.01048974999866914,
+-        0.010063999998237705,
+-        0.009955459001503186,
+-        0.009870042002148693,
+-        0.010009415997046744
++        0.009992540999519406,
++        0.00991687500209082,
++        0.010096583999256836,
++        0.010004833002312807,
++        0.00999658399814507,
++        0.010988792000716785,
++        0.015982042001269292,
++        0.012598417000845075,
++        0.012145415999839315,
++        0.010457707998284604,
++        0.009762833000422688,
++        0.009850875001575332,
++        0.009808415998122655,
++        0.00980962499670568,
++        0.009861791997536784
+       ],
+-      "median_seconds": 0.010976957997627323,
+-      "p95_seconds_nearest_rank": 0.013598417001048801,
+-      "max_seconds": 0.013598417001048801
++      "median_seconds": 0.00999658399814507,
++      "p95_seconds_nearest_rank": 0.015982042001269292,
++      "max_seconds": 0.015982042001269292
+     },
+     "veritas_bytecode_artifact_run": {
+       "samples_seconds": [
+-        0.012179082998045487,
+-        0.012589541998750065,
+-        0.010801083000842482,
+-        0.009833041996898828,
+-        0.010302958002284868,
+-        0.009945416000846308,
+-        0.009627875002479414,
+-        0.010010833000706043,
+-        0.009826166002312675,
+-        0.009630458000174258,
+-        0.009702458999527153,
+-        0.009689957998489263,
+-        0.010182832997088553,
+-        0.0098347079983796,
+-        0.009932291999575682
++        0.009695041997474618,
++        0.009889166998618748,
++        0.0121391249995213,
++        0.01204883299942594,
++        0.011969083996518748,
++        0.011515541998960543,
++        0.010223916000541067,
++        0.009720916998048779,
++        0.009664959001383977,
++        0.009719582998513943,
++        0.009690249997220235,
++        0.00964929200199549,
++        0.009617416999390116,
++        0.009642708002502332,
++        0.009568582998326747
+       ],
+-      "median_seconds": 0.009932291999575682,
+-      "p95_seconds_nearest_rank": 0.012589541998750065,
+-      "max_seconds": 0.012589541998750065
++      "median_seconds": 0.009719582998513943,
++      "p95_seconds_nearest_rank": 0.0121391249995213,
++      "max_seconds": 0.0121391249995213
+     },
+     "python3_reference": {
+       "samples_seconds": [
+-        0.039310042000579415,
+-        0.039243125000211876,
+-        0.04555108400018071,
+-        0.03768116699939128,
+-        0.037351457998738624,
+-        0.040912000000389526,
+-        0.043901958000788,
+-        0.03789162500106613,
+-        0.03818404200137593,
+-        0.0448829159977322,
+-        0.041301166002085665,
+-        0.038470999999844935,
+-        0.039679707999312086,
+-        0.04353774999981397,
+-        0.03768895900066127
++        0.038128416999825276,
++        0.03991229199891677,
++        0.0442764579966024,
++        0.0375274170000921,
++        0.037760125000204425,
++        0.04257850000067265,
++        0.04138237499864772,
++        0.03774650000195834,
++        0.03925783299928298,
++        0.04525312499754364,
++        0.03772495800149045,
++        0.0375973750014964,
++        0.04283979100000579,
++        0.04337570799907553,
++        0.03790179100178648
+       ],
+-      "median_seconds": 0.039310042000579415,
+-      "p95_seconds_nearest_rank": 0.04555108400018071,
+-      "max_seconds": 0.04555108400018071
++      "median_seconds": 0.03925783299928298,
++      "p95_seconds_nearest_rank": 0.04525312499754364,
++      "max_seconds": 0.04525312499754364
+     },
+     "native_c_o3_reference": {
+       "samples_seconds": [
+-        0.007519041999330511,
+-        0.006960665999940829,
+-        0.00545987500299816,
+-        0.004567625001072884,
+-        0.004343500000686618,
+-        0.004539417001069523,
+-        0.004409749999467749,
+-        0.004121250000025611,
+-        0.004048124999826541,
+-        0.004121333997318288,
+-        0.004930082999635488,
+-        0.0041369169994140975,
+-        0.003368082998349564,
+-        0.003045624998776475,
+-        0.0029020840011071414
++        0.00930704200072796,
++        0.008532957999705104,
++        0.00767124999765656,
++        0.006732666999596404,
++        0.0056322500022361055,
++        0.005204417000641115,
++        0.004402000002301065,
++        0.0046027080024941824,
++        0.0043345829981262796,
++        0.003947208999306895,
++        0.004041833999508526,
++        0.003569374999642605,
++        0.0030048330008867197,
++        0.0030937090014049318,
++        0.002926542001659982
+       ],
+-      "median_seconds": 0.004343500000686618,
+-      "p95_seconds_nearest_rank": 0.007519041999330511,
+-      "max_seconds": 0.007519041999330511
++      "median_seconds": 0.004402000002301065,
++      "p95_seconds_nearest_rank": 0.00930704200072796,
++      "max_seconds": 0.00930704200072796
+     }
+   },
+   "native_backend_reports": {
+@@ -751,37 +751,37 @@
+       "calls": 6146,
+       "compilations": 1,
+       "compile_profile": {
+-        "finalize_nanoseconds": 10125,
++        "finalize_nanoseconds": 9667,
+         "functions": [
+           {
+             "bytecode_blocks": 7,
+             "bytecode_instructions": 49,
+             "cranelift_ir_blocks": 47,
+             "cranelift_ir_instructions": 586,
+-            "define_nanoseconds": 902042,
+-            "lowering_nanoseconds": 147375,
++            "define_nanoseconds": 883208,
++            "lowering_nanoseconds": 122458,
+             "name": "escape_steps",
+-            "verification_nanoseconds": 94584
++            "verification_nanoseconds": 87625
+           },
+           {
+             "bytecode_blocks": 10,
+             "bytecode_instructions": 72,
+             "cranelift_ir_blocks": 61,
+             "cranelift_ir_instructions": 739,
+-            "define_nanoseconds": 1163959,
+-            "lowering_nanoseconds": 127417,
++            "define_nanoseconds": 1168625,
++            "lowering_nanoseconds": 127625,
+             "name": "calculate",
+-            "verification_nanoseconds": 94333
++            "verification_nanoseconds": 95042
+           },
+           {
+             "bytecode_blocks": 2,
+             "bytecode_instructions": 12,
+             "cranelift_ir_blocks": 24,
+             "cranelift_ir_instructions": 315,
+-            "define_nanoseconds": 396959,
+-            "lowering_nanoseconds": 39042,
++            "define_nanoseconds": 397750,
++            "lowering_nanoseconds": 37042,
+             "name": "main",
+-            "verification_nanoseconds": 37625
++            "verification_nanoseconds": 38000
+           }
+         ]
+       },
+@@ -800,37 +800,37 @@
+       "calls": 6146,
+       "compilations": 1,
+       "compile_profile": {
+-        "finalize_nanoseconds": 8083,
++        "finalize_nanoseconds": 9958,
+         "functions": [
+           {
+             "bytecode_blocks": 7,
+             "bytecode_instructions": 49,
+             "cranelift_ir_blocks": 47,
+             "cranelift_ir_instructions": 586,
+-            "define_nanoseconds": 885500,
+-            "lowering_nanoseconds": 125083,
++            "define_nanoseconds": 890375,
++            "lowering_nanoseconds": 121958,
+             "name": "escape_steps",
+-            "verification_nanoseconds": 86166
++            "verification_nanoseconds": 87625
+           },
+           {
+             "bytecode_blocks": 10,
+             "bytecode_instructions": 72,
+             "cranelift_ir_blocks": 61,
+             "cranelift_ir_instructions": 739,
+-            "define_nanoseconds": 1164708,
+-            "lowering_nanoseconds": 120542,
++            "define_nanoseconds": 1167500,
++            "lowering_nanoseconds": 126458,
+             "name": "calculate",
+-            "verification_nanoseconds": 94875
++            "verification_nanoseconds": 96166
+           },
+           {
+             "bytecode_blocks": 2,
+             "bytecode_instructions": 12,
+             "cranelift_ir_blocks": 24,
+             "cranelift_ir_instructions": 315,
+-            "define_nanoseconds": 401333,
+-            "lowering_nanoseconds": 38917,
++            "define_nanoseconds": 400292,
++            "lowering_nanoseconds": 43209,
+             "name": "main",
+-            "verification_nanoseconds": 37833
++            "verification_nanoseconds": 38084
+           }
+         ]
+       },
+diff --git a/evaluation/review/independent-v1/artifact-hashes.json b/evaluation/review/independent-v1/artifact-hashes.json
+index 7f51fc5..7f753ac 100644
+--- a/evaluation/review/independent-v1/artifact-hashes.json
++++ b/evaluation/review/independent-v1/artifact-hashes.json
+@@ -391,7 +391,7 @@
+     {
+       "path": "evaluation/tests/test_shipped_docs_repair.py",
+       "source": "evaluation/tests/test_shipped_docs_repair.py",
+-      "sha256": "88e66a6e1fec595182040c855dc8fcf337c9f007448a2f109aa0c06cf4d002af"
++      "sha256": "e8dc8c6c38cb532adfc4e6f7cf1194ae5d48be59ac57fb8f453aa847c925c361"
+     },
+     {
+       "path": "evaluation/tests/test_usage_evidence.py",

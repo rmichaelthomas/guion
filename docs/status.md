@@ -27,3 +27,7 @@ GitHub Actions runs formatting, strict Clippy, workspace tests, and schema check
 The pre-release candidate has no public distribution. Broader ecosystem use, additional target platforms, and a free-threaded Python comparison remain future work. The retained performance suite supports only its named benchmarks; the historical Veritas builder study is not a new Guion builder cohort. See the [approved migration plan](superpowers/plans/2026-10-24-veritas-complete-product.md) and [readiness report](pre-release-readiness.md) for the exact handoff boundary.
 
 This status page is a current summary, not the test record. The [historical index](history/README.md) links to the original completion report, checkpoints, campaigns, and preserved results.
+
+## 2026-10-25 closeout clarification
+
+The final application evidence contains 18 passing reports per required target, 36 passing reports in total and zero failures. Free-threaded Python was not installed for the comparison, so that comparison was not run and has no result. The original Veritas checkout was retired after its unique small working records were retained in `docs/history/veritas-working-sessions-2026-10-25/`. The idle Colima VM was stopped gracefully, closing its deleted build-cache handles.

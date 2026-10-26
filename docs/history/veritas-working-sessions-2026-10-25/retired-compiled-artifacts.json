@@ -1,0 +1,141 @@
+{
+  "description": "Generated Veritas bytecode files absent from the Guion tree. Hashes are provenance, not backups; source and compact result reports are retained.",
+  "artifact_count": 27,
+  "artifacts": [
+    {
+      "path": "evaluation/completion/builder/reports/evidence/bookloom-veritas-initial/app/src/main.vrb",
+      "bytes": 45002,
+      "sha256": "69f8f5cb37f8d0156cee730ea67442dd4dfb39ff6201a31f6ec745854960e305"
+    },
+    {
+      "path": "evaluation/completion/builder/reports/evidence/bookloom-veritas-initial/app-package/app.vrb",
+      "bytes": 45002,
+      "sha256": "69f8f5cb37f8d0156cee730ea67442dd4dfb39ff6201a31f6ec745854960e305"
+    },
+    {
+      "path": "evaluation/completion/builder/reports/evidence/bookloom-veritas-initial/install-root/share/veritas/apps/bookloom/0.1.0/app.vrb",
+      "bytes": 45002,
+      "sha256": "69f8f5cb37f8d0156cee730ea67442dd4dfb39ff6201a31f6ec745854960e305"
+    },
+    {
+      "path": "evaluation/completion/builder/reports/evidence/bookloom-veritas-initial/relocated/Bookloom \u2014 \u9280\u6cb3\u306e\u8535\u66f8/src/main.vrb",
+      "bytes": 45002,
+      "sha256": "69f8f5cb37f8d0156cee730ea67442dd4dfb39ff6201a31f6ec745854960e305"
+    },
+    {
+      "path": "evaluation/completion/builder/reports/evidence/bookloom-veritas-staged/installed/share/veritas/apps/bookloom/0.1.0/app.vrb",
+      "bytes": 48326,
+      "sha256": "1f931f45d9b4cf20e4ca9dff4dedcc7763078a2f041f84277f3a2d5bb141b7ec"
+    },
+    {
+      "path": "evaluation/completion/builder/reports/evidence/bookloom-veritas-staged/release-package/app.vrb",
+      "bytes": 48326,
+      "sha256": "1f931f45d9b4cf20e4ca9dff4dedcc7763078a2f041f84277f3a2d5bb141b7ec"
+    },
+    {
+      "path": "evaluation/completion/builder/reports/evidence/field-kit-log-veritas/Field Kit \u2013 caf\u00e9/share/veritas/apps/field-kit-log/0.1.0/app.vrb",
+      "bytes": 26484,
+      "sha256": "7014a6ceb15c33c5b53e6dbe1faeeccadfc92aa02678d31901582e1f66e69510"
+    },
+    {
+      "path": "evaluation/completion/builder/reports/evidence/field-kit-log-veritas/package/app.vrb",
+      "bytes": 25252,
+      "sha256": "f9200a4e9dbbd16841f40b415028e126edd5154211f3f035ef6f38225ed0af2e"
+    },
+    {
+      "path": "evaluation/completion/builder/reports/evidence/field-kit-log-veritas/package-final/app.vrb",
+      "bytes": 26484,
+      "sha256": "7014a6ceb15c33c5b53e6dbe1faeeccadfc92aa02678d31901582e1f66e69510"
+    },
+    {
+      "path": "evaluation/completion/builder/reports/evidence/field-kit-log-veritas/package-v1/app.vrb",
+      "bytes": 25367,
+      "sha256": "1ec0d03ed4dea72d446d671a0c2bd3ce6b447344ebcb664289143e6b6146fcbf"
+    },
+    {
+      "path": "evaluation/completion/builder/reports/evidence/invoice-sentinel-veritas/final-app/app.vrb",
+      "bytes": 52769,
+      "sha256": "502cfda727f5c8859f589083264dd60dbb4b838637410316aa2fc6725b9b05e7"
+    },
+    {
+      "path": "evaluation/completion/builder/reports/evidence/invoice-sentinel-veritas/initial-app/app.vrb",
+      "bytes": 51059,
+      "sha256": "b4e187905bcd50f1696bfe5e3e6ffeac831743d0a7ebfbf2389895465effca9e"
+    },
+    {
+      "path": "evaluation/completion/builder/reports/evidence/invoice-sentinel-veritas/installed/share/veritas/apps/invoice-sentinel/0.1.0/app.vrb",
+      "bytes": 52769,
+      "sha256": "502cfda727f5c8859f589083264dd60dbb4b838637410316aa2fc6725b9b05e7"
+    },
+    {
+      "path": "evaluation/completion/builder/reports/evidence/invoice-sentinel-veritas/invoice-sentinel.vrb",
+      "bytes": 52769,
+      "sha256": "502cfda727f5c8859f589083264dd60dbb4b838637410316aa2fc6725b9b05e7"
+    },
+    {
+      "path": "evaluation/completion/builder/reports/evidence/quote-merge-veritas/quote-merge/src/main.vrb",
+      "bytes": 27724,
+      "sha256": "47982f7d3cab4e68cb6b83f2ff7150ead61ca2e1cb2185f7e595e626cdb002ae"
+    },
+    {
+      "path": "evaluation/completion/builder/reports/evidence/quote-merge-veritas/relocated/\ud83d\udce6 Quote Merge_\u65e5\u672c\u8a9e/Quote Merge/src/main.vrb",
+      "bytes": 27724,
+      "sha256": "47982f7d3cab4e68cb6b83f2ff7150ead61ca2e1cb2185f7e595e626cdb002ae"
+    },
+    {
+      "path": "evaluation/results/pilot/independent-v1/reports/01-support-sla-report-veritas-final-initial.json.delivery/sla-report.vrb",
+      "bytes": 491,
+      "sha256": "eecac85e4c103f4d7b4be7a244d5570ab29c1baf8bb702c5cf6e8378519efbcf"
+    },
+    {
+      "path": "evaluation/results/pilot/independent-v1/reports/01-support-sla-report-veritas-follow-up.json.delivery/sla-report.vrb",
+      "bytes": 491,
+      "sha256": "eecac85e4c103f4d7b4be7a244d5570ab29c1baf8bb702c5cf6e8378519efbcf"
+    },
+    {
+      "path": "evaluation/results/pilot/independent-v1/reports/01-support-sla-report-veritas-initial.json.delivery/sla-report.vrb",
+      "bytes": 491,
+      "sha256": "eecac85e4c103f4d7b4be7a244d5570ab29c1baf8bb702c5cf6e8378519efbcf"
+    },
+    {
+      "path": "evaluation/results/pilot/independent-v1/reports/06-service-health-digest-veritas-pilot-follow-up.json.delivery/main.vrb",
+      "bytes": 25017,
+      "sha256": "72b5cd4ee1689cfb93c6d32085bd89e887faddd41cf661a51a61177b0d55d9a9"
+    },
+    {
+      "path": "evaluation/results/pilot/independent-v1/reports/06-service-health-digest-veritas-pilot-initial-clarified.json.delivery/main.vrb",
+      "bytes": 20293,
+      "sha256": "2b96f19e1d4f911fc3325d48818b868af73fba29eaecb8aad44d80b52c92b522"
+    },
+    {
+      "path": "evaluation/results/pilot/independent-v1/reports/06-service-health-digest-veritas-pilot-initial.json.delivery/main.vrb",
+      "bytes": 19596,
+      "sha256": "2b26252dcb8940617e6dbbd60345fdb52261cbf07fe7ea5b894a851cfc4255e1"
+    },
+    {
+      "path": "evaluation/results/pilot/independent-v1/reports/08-documentation-link-index-veritas-pilot-follow-up-final.json.delivery/main.vrb",
+      "bytes": 6955,
+      "sha256": "353f5642302addda55ad5a0a24af49e7560820996d5c961b97177bfb61783ce9"
+    },
+    {
+      "path": "evaluation/results/pilot/independent-v1/reports/08-documentation-link-index-veritas-pilot-follow-up.json.delivery/main.vrb",
+      "bytes": 6955,
+      "sha256": "353f5642302addda55ad5a0a24af49e7560820996d5c961b97177bfb61783ce9"
+    },
+    {
+      "path": "evaluation/results/pilot/independent-v1/reports/08-documentation-link-index-veritas-pilot-initial-after-follow-up.json.delivery/main.vrb",
+      "bytes": 6955,
+      "sha256": "353f5642302addda55ad5a0a24af49e7560820996d5c961b97177bfb61783ce9"
+    },
+    {
+      "path": "evaluation/results/pilot/independent-v1/reports/08-documentation-link-index-veritas-pilot-initial.json.delivery/main.vrb",
+      "bytes": 6955,
+      "sha256": "353f5642302addda55ad5a0a24af49e7560820996d5c961b97177bfb61783ce9"
+    },
+    {
+      "path": "language/self_host/compiler.vrb",
+      "bytes": 940638,
+      "sha256": "86aa851606f499999af2ad5a30daf708b62b1ecc571904b62896dd2613ed8c20"
+    }
+  ]
+}

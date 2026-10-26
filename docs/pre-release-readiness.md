@@ -8,7 +8,7 @@ The final validation cohort lives under [`evaluation/completion/results/guion-fi
 
 - Three-stage self-hosted compiler bootstrap on Debian ARM64; compiler-stage identity and language conformance were checked across both required targets.
 - The full 195-case language conformance corpus, runtime execution/HTTP/lifecycle checks, and standard-library data and service suites.
-- All nine retained regression applications in initial and follow-up forms: 18 of 18 reports passed across both targets.
+- All nine retained regression applications in initial and follow-up forms: 18 of 18 reports passed on macOS ARM64 and 18 of 18 on Debian ARM64, or 36 of 36 individual reports in total. No application report failed.
 - Python-free core dependency checks, dependency and installed-product lifecycle checks, release archive contents and license inventory, clean-room installation, relocation, integrity rejection, and dynamic-library audits.
 - A Guion-identity installed-artifact performance cohort with correctness checks, paired randomized samples, and percentile intervals.
 - Formatting, strict Clippy, Rust unit/integration suites, schema validation, CI workflow validation, exact outgoing-tree secret scan, and package/license audits.
@@ -30,7 +30,7 @@ The performance report compares the installed Guion artifact with pinned, GIL-en
 
 For 200,000 parallel items, the installed artifact was also faster than Python threads and processes. For JSONL, it was faster than the measured SQLite path. The exact medians, ratios, intervals, all observations, source-run timings, correctness outputs, memory, artifact sizes, and hashes are in [`performance-guion.json`](../evaluation/completion/results/guion-final/performance-guion.json) and [`performance.json`](../evaluation/completion/results/guion-final/performance.json).
 
-These results cover the named workloads, host, and pinned Python version only. Guion source-run was slower than Python on Richards, N-body, and Mandelbrot. A free-threaded Python executable was unavailable, so that comparison remains unverified. This evidence does not establish that Guion generally outperforms Python or has replaced it.
+These results cover the named workloads, host, and pinned Python version only. Guion source-run was slower than Python on Richards, N-body, and Mandelbrot. The free-threaded Python comparison was not run: this host had no `python3.14t` or `python3t` executable. It therefore has no pass or fail result. This evidence does not establish that Guion generally outperforms Python or has replaced it.
 
 The retained three-pair builder study is from the historical Veritas identity, not a Guion-identity study. The old scored outcomes remain preserved as history; they should not be represented as Guion recommendations. Exact byte-for-byte replay of the deleted raw Veritas v2 session archive is unavailable, as recorded in the [migration retention manifest](history/migration-retention-manifest.json).
 
@@ -75,4 +75,4 @@ You are working in the private Guion programming-language repository. First read
 
 ## Pre-release decision boundary
 
-This repository is organized and validated for a separate pre-release decision. Publishing a release, making the repository public, removing the original Veritas source checkout, and changing project-level `AGENTS.md` remain outside this handoff.
+This repository is organized and validated for a separate pre-release decision. Publishing a release, making the repository public, and changing project-level `AGENTS.md` remain outside this handoff. The original Veritas checkout was retired after its unique small records were preserved.

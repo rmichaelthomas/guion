@@ -40,7 +40,7 @@ Replay losses are explicit:
 - Completion applications: generated `dist/` copies and repeated runtime executables are reproducible from retained source/reports but their historical binary bytes are not recoverable from hashes alone.
 - Expanded libical tree: it is generated from the tracked source archive. The 594-byte test fixture and 43-byte license text are retained separately so tests and release notices do not depend on an expanded checkout-time copy.
 
-The current source branch is retained unchanged as a small historical checkout until the new local and private remote state pass final parity. No blanket process kill was used.
+The original checkout was retained during parity checks, then retired after its unique small working-session records, exact source patch, and pre-migration v3 README were copied into [`veritas-working-sessions-2026-10-25/`](veritas-working-sessions-2026-10-25/README.md). The original Git commit is an ancestor of canonical `main`. Generated `.vrb` files were recorded by path, size, and hash in that folder and removed with the checkout. A hash is not a byte-for-byte backup. No blanket process kill was used.
 
 ## Additional generated outputs in the cleanup inventory
 
@@ -50,7 +50,7 @@ The v3 runtime amendment archive (`veritas-format33-file-root-linux-aarch64.tar.
 
 ## Process inspection
 
-Two idle project containers, `veritas-release-linux-20261025` and `veritas-task6-linux`, were confirmed by their mounts and command lines to belong to this checkout and were stopped. Both were running only `sleep infinity`; their exit code 137 followed the stop grace period and is not evidence of an out-of-memory failure. A shared Colima virtual machine remains running. Inspection found it held only a directory handle into the old release staging tree, with no open build-output file handles. It is shared infrastructure, not a Guion build process, and was left running.
+Two idle project containers, `veritas-release-linux-20261025` and `veritas-task6-linux`, were confirmed by their mounts and command lines to belong to this checkout and were stopped. Both were running only `sleep infinity`; their exit code 137 followed the stop grace period and is not evidence of an out-of-memory failure. Later elevated inspection found no running Docker containers, but the shared Colima virtual machine was holding thousands of deleted build-cache file handles. Colima was stopped gracefully. The deleted-cache handle count then fell to zero and the available-space reading rose from approximately 19.38 GiB immediately before the stop to 35.88 GiB immediately after. These are whole-volume snapshots, so the net change is an observed recovery, not a byte-level attribution to individual files.
 
 ## Security and privacy scan
 
@@ -74,3 +74,7 @@ The ignored Rust `target/` tree (15,947,272,192 allocated bytes) is gone. The v2
 `df -Pk` measured available space increasing from 23,960,000 KiB before the first removal to 35,880,000 KiB after cleanup: a net increase of 11,920,000 KiB (12,206,080,000 bytes; about 11.37 GiB). The `target/` removal alone increased the free-space counter by 9,040,000 KiB. Some smaller directory removals showed no separate `df` delta even though their paths are absent; see the per-group log in the JSON manifest.
 
 The first v2 recursive deletion stopped on read-only package-license directories. The workspace was already copied and hash-verified. Only directories under that exact approved workspace were made owner-writable, after which the remaining 1.9 MB and raw archive were removed. This partial attempt and its measured free-space increase are included in the manifest.
+
+## Final checkout disposition
+
+After the private remote and local `main` matched, the historical working records and patch were added to canonical Guion history. The original source checkout was then removed. The Veritas source Git history remains in the ancestry of `main`; historical bulk output is intentionally absent. No project-level `AGENTS.md` file was edited.
