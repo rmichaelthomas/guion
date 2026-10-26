@@ -276,7 +276,10 @@
             "kind",
             "source",
             "entry",
-            "functions"
+            "functions",
+            "required_effects",
+            "manifest_grants",
+            "grant_assessment"
           ],
           "properties": {
             "kind": {
@@ -287,6 +290,99 @@
             },
             "functions": {
               "type": "object"
+            },
+            "required_effects": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "uniqueItems": true
+            },
+            "manifest_grants": {
+              "type": "object",
+              "required": [
+                "provenance",
+                "network_hosts",
+                "clock_enabled"
+              ],
+              "properties": {
+                "provenance": {
+                  "enum": [
+                    "guion.toml",
+                    "no_project_manifest",
+                    "invalid_manifest",
+                    "artifact_without_project_manifest"
+                  ]
+                },
+                "network_hosts": {
+                  "oneOf": [
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "uniqueItems": true
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "clock_enabled": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                },
+                "diagnostic": {
+                  "type": "string"
+                }
+              }
+            },
+            "grant_assessment": {
+              "type": "object",
+              "required": [
+                "network_http",
+                "clock_read",
+                "filesystem_read",
+                "filesystem_write",
+                "caller_cli_grants"
+              ],
+              "properties": {
+                "network_http": {
+                  "enum": [
+                    "not_required",
+                    "missing",
+                    "present_but_target_dynamic",
+                    "unknown_external_runner",
+                    "invalid_manifest"
+                  ]
+                },
+                "clock_read": {
+                  "enum": [
+                    "not_required",
+                    "missing",
+                    "present",
+                    "unknown_external_runner",
+                    "invalid_manifest"
+                  ]
+                },
+                "filesystem_read": {
+                  "enum": [
+                    "not_required",
+                    "unknown_external_runner"
+                  ]
+                },
+                "filesystem_write": {
+                  "enum": [
+                    "not_required",
+                    "unknown_external_runner"
+                  ]
+                },
+                "caller_cli_grants": {
+                  "const": "not_supplied_to_inspect"
+                }
+              }
             }
           }
         }

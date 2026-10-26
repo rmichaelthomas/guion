@@ -660,10 +660,14 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
         }
         "inspect" => {
             if json_inspect {
-                println!("{}", inspection_report(&path, &artifact));
+                println!(
+                    "{}",
+                    inspection_report(&path, &artifact, &project_root, path.ends_with(".gub"))
+                );
                 return Ok(ExitCode::SUCCESS);
             }
-            let effects_report = inspection_report(&path, &artifact);
+            let effects_report =
+                inspection_report(&path, &artifact, &project_root, path.ends_with(".gub"));
             println!("capabilities (static reachability; not a sandbox):");
             if let Some(functions) = effects_report["functions"].as_object() {
                 for function in &artifact.functions {
@@ -2065,7 +2069,12 @@ fn display_type(ty: &guion_model::Type) -> String {
     }
 }
 
-fn inspection_report(source: &str, artifact: &Artifact) -> serde_json::Value {
+fn inspection_report(
+    source: &str,
+    artifact: &Artifact,
+    project_root: &Path,
+    artifact_without_project: bool,
+) -> serde_json::Value {
     let mut direct_effects = vec![BTreeSet::<String>::new(); artifact.functions.len()];
     let mut calls = vec![BTreeSet::<usize>::new(); artifact.functions.len()];
     let mut python_calls = vec![BTreeSet::<usize>::new(); artifact.functions.len()];
@@ -2184,6 +2193,94 @@ fn inspection_report(source: &str, artifact: &Artifact) -> serde_json::Value {
         .position(|function| function.name == artifact.entry)
         .and_then(|index| effects.get(index))
         .is_some_and(|effects| effects.contains("clock.read"));
+    let entry_index = artifact
+        .functions
+        .iter()
+        .position(|function| function.name == artifact.entry);
+    let required_effects = entry_index
+        .and_then(|index| effects.get(index))
+        .cloned()
+        .unwrap_or_default();
+    let manifest_path = project_manifest_path(project_root);
+    let (manifest_grants, manifest_provenance) = if manifest_path.is_file() {
+        match runtime_policy(project_root) {
+            Ok(policy) => {
+                let mut hosts = policy
+                    .allowed_http_hosts
+                    .iter()
+                    .cloned()
+                    .collect::<Vec<_>>();
+                hosts.sort();
+                (
+                    serde_json::json!({
+                        "provenance": "guion.toml",
+                        "network_hosts": hosts,
+                        "clock_enabled": policy.allow_clock,
+                    }),
+                    "guion.toml",
+                )
+            }
+            Err(error) => (
+                serde_json::json!({
+                    "provenance": "invalid_manifest",
+                    "network_hosts": null,
+                    "clock_enabled": null,
+                    "diagnostic": error,
+                }),
+                "invalid_manifest",
+            ),
+        }
+    } else if artifact_without_project {
+        (
+            serde_json::json!({
+                "provenance": "artifact_without_project_manifest",
+                "network_hosts": null,
+                "clock_enabled": null,
+            }),
+            "artifact_without_project_manifest",
+        )
+    } else {
+        (
+            serde_json::json!({
+                "provenance": "no_project_manifest",
+                "network_hosts": null,
+                "clock_enabled": null,
+            }),
+            "no_project_manifest",
+        )
+    };
+    let network_assessment = if !entry_network_grant_required {
+        "not_required"
+    } else if manifest_provenance == "invalid_manifest" {
+        "invalid_manifest"
+    } else if manifest_provenance != "guion.toml" {
+        "unknown_external_runner"
+    } else if manifest_grants["network_hosts"]
+        .as_array()
+        .is_some_and(Vec::is_empty)
+    {
+        "missing"
+    } else {
+        "present_but_target_dynamic"
+    };
+    let clock_assessment = if !entry_clock_grant_required {
+        "not_required"
+    } else if manifest_provenance == "invalid_manifest" {
+        "invalid_manifest"
+    } else if manifest_provenance != "guion.toml" {
+        "unknown_external_runner"
+    } else if manifest_grants["clock_enabled"] == true {
+        "present"
+    } else {
+        "missing"
+    };
+    let filesystem_assessment = |effect: &str| {
+        if required_effects.contains(effect) {
+            "unknown_external_runner"
+        } else {
+            "not_required"
+        }
+    };
     serde_json::json!({
         "schema_version": 1,
         "kind": "guion_inspection_report",
@@ -2192,6 +2289,15 @@ fn inspection_report(source: &str, artifact: &Artifact) -> serde_json::Value {
         "entry": artifact.entry,
         "capability_claim": "static_bytecode_reachability_not_sandbox",
         "analysis_scope": "reachable direct calls and parallel_map worker functions; host effects are categorized from bytecode operations",
+        "required_effects": required_effects.iter().collect::<Vec<_>>(),
+        "manifest_grants": manifest_grants,
+        "grant_assessment": {
+            "network_http": network_assessment,
+            "clock_read": clock_assessment,
+            "filesystem_read": filesystem_assessment("filesystem.read"),
+            "filesystem_write": filesystem_assessment("filesystem.write"),
+            "caller_cli_grants": "not_supplied_to_inspect",
+        },
         "functions": functions,
         "python_calls": artifact.externals.iter().enumerate().map(|(index, external)| serde_json::json!({
             "name": external.name,
@@ -2246,7 +2352,7 @@ fn api_report(source: &str, project_root: &Path, artifact: &Artifact) -> serde_j
                 .map(move |(name, parameters, public)| (identity.clone(), name, parameters, public))
         })
         .collect::<Vec<_>>();
-    let inspected = inspection_report(source, artifact);
+    let inspected = inspection_report(source, artifact, project_root, false);
     let functions = artifact.functions.iter().map(|function| {
         let (module_id, base_name) = if let Some(rest) = function.name.strip_prefix("@module/") {
             let (module_id, name) = rest.split_once('/').unwrap_or(("", rest));

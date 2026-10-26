@@ -71,6 +71,43 @@ class CurrentDocumentationTests(unittest.TestCase):
         )
         self.assertNotIn("unwrap(", sqlite_example)
 
+    def test_agent_inspection_report_schema_covers_grant_assessments(self):
+        schema = json.loads(
+            (ROOT / "docs/agents/cli-reports.schema.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        report = schema["$defs"]["guion_inspection_report"]["allOf"][1]
+        self.assertTrue(
+            {
+                "required_effects",
+                "manifest_grants",
+                "grant_assessment",
+            }.issubset(report["required"])
+        )
+        statuses = report["properties"]["grant_assessment"]["properties"]
+        self.assertIn(
+            "present_but_target_dynamic",
+            statuses["network_http"]["enum"],
+        )
+        self.assertIn(
+            "unknown_external_runner",
+            statuses["network_http"]["enum"],
+        )
+        index = json.loads(
+            (ROOT / "docs/agents/index.json").read_text(encoding="utf-8")
+        )
+        inspect_report = next(
+            report
+            for report in index["cli_json_reports"]["reports"]
+            if report["kind"] == "guion_inspection_report"
+        )
+        cases = {item["case"] for item in inspect_report["integration_tests"]}
+        self.assertIn(
+            "inspect_json_compares_reachable_effects_with_manifest_grants",
+            cases,
+        )
+
     @unittest.skipUnless(
         (ROOT / "crates/model/src/lib.rs").is_file(),
         "runtime constant comparison requires a source checkout",

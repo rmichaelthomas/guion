@@ -105,6 +105,10 @@
           {
             "path": "crates/cli/tests/cli.rs",
             "case": "inspect_json_reports_transitive_runtime_and_opaque_python_effects"
+          },
+          {
+            "path": "crates/cli/tests/cli.rs",
+            "case": "inspect_json_compares_reachable_effects_with_manifest_grants"
           }
         ]
       },

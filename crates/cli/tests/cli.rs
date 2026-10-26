@@ -1696,7 +1696,12 @@ fn agent_failure_path_recipe_reports_four_expected_failures() {
     )
     .unwrap();
 
-    for mode in ["missing-file", "denied-http", "sqlite-escape", "worker-failure"] {
+    for mode in [
+        "missing-file",
+        "denied-http",
+        "sqlite-escape",
+        "worker-failure",
+    ] {
         let mut command = Command::new(env!("CARGO_BIN_EXE_guion"));
         command.arg("run");
         if mode == "sqlite-escape" {
@@ -1707,7 +1712,12 @@ fn agent_failure_path_recipe_reports_four_expected_failures() {
             .arg(mode)
             .output()
             .unwrap();
-        assert_eq!(output.status.code(), Some(1), "mode={mode}; stderr={}", String::from_utf8_lossy(&output.stderr));
+        assert_eq!(
+            output.status.code(),
+            Some(1),
+            "mode={mode}; stderr={}",
+            String::from_utf8_lossy(&output.stderr)
+        );
         let stdout = String::from_utf8_lossy(&output.stdout);
         match mode {
             "missing-file" => assert_eq!(stdout.trim(), "R_FILE_NOT_FOUND"),
@@ -1715,7 +1725,11 @@ fn agent_failure_path_recipe_reports_four_expected_failures() {
             "sqlite-escape" => assert_eq!(stdout.trim(), "E_SQLITE_PATH"),
             "worker-failure" => {
                 let lines = stdout.lines().collect::<Vec<_>>();
-                assert_eq!(lines.len(), 3, "worker failure should report index, code, and message");
+                assert_eq!(
+                    lines.len(),
+                    3,
+                    "worker failure should report index, code, and message"
+                );
                 assert_eq!(lines[0], "1");
                 assert_eq!(lines[1], "R_ASSERTION");
                 assert!(!lines[2].is_empty());
@@ -1787,10 +1801,142 @@ fn agent_sqlite_recipe_handles_success_and_read_parse_open_query_failures() {
         "SELECT name FROM runs ORDER BY rowid DESC LIMIT 1",
         "SELECT missing_column FROM runs ORDER BY rowid DESC LIMIT 1",
     );
-    let query = run_case(&query_failure, Some("[app]\nname = \"Guion agents\"\n"), false);
+    let query = run_case(
+        &query_failure,
+        Some("[app]\nname = \"Guion agents\"\n"),
+        false,
+    );
     assert_eq!(query.status.code(), Some(1));
     assert!(String::from_utf8_lossy(&query.stderr).contains("E_SQLITE_QUERY"));
 
+    let _ = fs::remove_dir_all(base);
+}
+
+#[test]
+fn inspect_json_compares_reachable_effects_with_manifest_grants() {
+    let base = std::env::temp_dir().join(format!("guion-inspect-grants-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&base);
+    fs::create_dir_all(&base).unwrap();
+    let source = base.join("main.gu");
+    fs::write(
+        &source,
+        "fn fetch(url: Text) -> Result[Json, HttpError]:\n    let headers: Map[Text, Text] = {}\n    return http_request(\"GET\", url, headers, \"\")\n\nfn unused_clock() -> Int:\n    return unix_time_ms()\n\nfn main() -> Int:\n    let url = args()[0]\n    let response = fetch(url)\n    let marker = write_text(\"inspect-marker.txt\", \"ran\")\n    if is_ok(response):\n        return 0\n    return 1\n",
+    )
+    .unwrap();
+    fs::write(
+        base.join("guion.toml"),
+        "[project]\nname = \"inspect-grants\"\nversion = \"0.1.0\"\nentry = \"main.gu\"\n\n[network]\nhosts = [\"api.example.test\"]\n\n[clock]\nenabled = true\n",
+    )
+    .unwrap();
+
+    let inspect = || {
+        Command::new(env!("CARGO_BIN_EXE_guion"))
+            .args(["inspect", "--json", source.to_str().unwrap()])
+            .output()
+            .unwrap()
+    };
+    let output = inspect();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let report: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert!(report["required_effects"]
+        .as_array()
+        .unwrap()
+        .contains(&serde_json::json!("network.http")));
+    assert!(report["required_effects"]
+        .as_array()
+        .unwrap()
+        .contains(&serde_json::json!("filesystem.write")));
+    assert!(!report["required_effects"]
+        .as_array()
+        .unwrap()
+        .contains(&serde_json::json!("clock.read")));
+    assert_eq!(report["manifest_grants"]["provenance"], "guion.toml");
+    assert_eq!(
+        report["manifest_grants"]["network_hosts"],
+        serde_json::json!(["api.example.test"])
+    );
+    assert_eq!(
+        report["grant_assessment"]["network_http"],
+        "present_but_target_dynamic"
+    );
+    assert_eq!(report["grant_assessment"]["clock_read"], "not_required");
+    assert_eq!(
+        report["grant_assessment"]["caller_cli_grants"],
+        "not_supplied_to_inspect"
+    );
+    assert!(
+        !base.join("inspect-marker.txt").exists(),
+        "inspection must not run the program"
+    );
+
+    fs::write(
+        base.join("guion.toml"),
+        "[project]\nname = \"inspect-grants\"\nversion = \"0.1.0\"\nentry = \"main.gu\"\n\n[network]\nhosts = []\n",
+    )
+    .unwrap();
+    let output = inspect();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let report: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(report["grant_assessment"]["network_http"], "missing");
+
+    fs::remove_file(base.join("guion.toml")).unwrap();
+    let output = inspect();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let report: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(
+        report["grant_assessment"]["network_http"],
+        "unknown_external_runner"
+    );
+
+    let artifact = base.join("main.gub");
+    let built = Command::new(env!("CARGO_BIN_EXE_guion"))
+        .args([
+            "build",
+            source.to_str().unwrap(),
+            "--output",
+            artifact.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        built.status.success(),
+        "{}",
+        String::from_utf8_lossy(&built.stderr)
+    );
+    let outside = base.join("outside");
+    fs::create_dir_all(&outside).unwrap();
+    let detached_artifact = outside.join("main.gub");
+    fs::copy(&artifact, &detached_artifact).unwrap();
+    let inspected = Command::new(env!("CARGO_BIN_EXE_guion"))
+        .args(["inspect", "--json", detached_artifact.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(
+        inspected.status.success(),
+        "{}",
+        String::from_utf8_lossy(&inspected.stderr)
+    );
+    let report: serde_json::Value = serde_json::from_slice(&inspected.stdout).unwrap();
+    assert_eq!(
+        report["manifest_grants"]["provenance"],
+        "artifact_without_project_manifest"
+    );
+    assert_eq!(
+        report["grant_assessment"]["network_http"],
+        "unknown_external_runner"
+    );
     let _ = fs::remove_dir_all(base);
 }
 
