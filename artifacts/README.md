@@ -1,6 +1,6 @@
 # Local package artifacts
 
-`artifacts/local/` is inside the canonical Guion repository directory and is intentionally excluded from Git. It holds the two Guion pre-release validation archives, the two final historical Veritas archives, and the small historical prototype checkout. The archives are local package evidence, not a public release. Their identities are recorded below and in the checked-in release reports.
+`artifacts/local/` is inside the canonical Guion repository directory and is intentionally excluded from Git. It holds the two Guion pre-release validation archives, the two final historical Veritas archives, the small historical prototype checkout, and a copied NowLookHere phone-workflow test input. The archives are local package evidence, not a public release. Their identities are recorded below and in the checked-in release reports.
 
 | Package | Bytes | SHA-256 |
 |---|---:|---|
@@ -10,3 +10,5 @@
 | `local/veritas-legacy-0.1.0/veritas-debian-aarch64.tar.gz` | 5,869,757 | `75c47c105ec240f7635658b768f35888e3b98af8796658f2795d6f3ec2571f1f` |
 
 A clone of the private GitHub repo contains the source, docs, hashes, and compact validation reports, but not these four archive bytes or the local prototype checkout. When a release is approved, publish the Guion host archives through the release channel rather than adding generated packages to Git history.
+
+The NowLookHere test copy is a historical input from the early phone-workflow proof. It is not the original app checkout.

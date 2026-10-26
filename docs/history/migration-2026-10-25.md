@@ -82,3 +82,5 @@ After the private remote and local `main` matched, the historical working record
 ## Codex task-folder consolidation
 
 The separate migration task folder was emptied. Its approved plan, progress ledger, disk record, and session contracts are now indexed from [`docs/history/README.md`](README.md). The two Guion validation archives and two final historical Veritas archives are under `artifacts/local/` inside this repository directory; they are local and excluded from Git. The older first-build Codex output folder contained 29.53 GiB of superseded package candidates and review packets. Its 279 small direct records were checked against the canonical tree; 69 exact duplicates were discarded and 210 distinct records were retained in [`original-codex-outputs/`](original-codex-outputs/README.md). An inventory was retained there, and the generated package trees were removed.
+
+The copied NowLookHere phone-workflow test input was placed under `artifacts/local/`, and the remaining original Codex task workspace was removed. The original NowLookHere project was not touched.
