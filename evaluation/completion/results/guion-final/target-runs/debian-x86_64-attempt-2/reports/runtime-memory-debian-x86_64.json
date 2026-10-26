@@ -1,0 +1,32 @@
+{
+  "host": "Linux 6.17.0-1022-azure x86_64",
+  "invocations": 57,
+  "kind": "runtime_lifecycle_memory_samples",
+  "measurement": "resource.getrusage(RUSAGE_SELF).ru_maxrss high-water mark for the test process; macOS values are bytes and other supported hosts are converted from KiB to bytes",
+  "native_resource_count_after_close": 0,
+  "native_resource_count_after_each_invocation": 0,
+  "plateau_observed": true,
+  "plateau_rule": "tail spread at or below 10% of warmed RSS; samples include OS scheduler and allocator noise",
+  "schema_version": 1,
+  "tail_relative_spread": 0.0,
+  "tail_samples": [
+    {
+      "invocations_completed": 9,
+      "resident_bytes": 70864896
+    },
+    {
+      "invocations_completed": 25,
+      "resident_bytes": 70864896
+    },
+    {
+      "invocations_completed": 57,
+      "resident_bytes": 70864896
+    }
+  ],
+  "target": "debian-x86_64",
+  "universal_absolute_rss_limit": null,
+  "warmup_sample": {
+    "invocations_completed": 1,
+    "resident_bytes": 70864896
+  }
+}

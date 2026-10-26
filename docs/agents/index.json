@@ -6,7 +6,9 @@
   "status": "private_pre_release",
   "documents": {
     "start_here": "docs/agents/start-here.md",
+    "guion_reference": "docs/agents/guion-reference.md",
     "recipes": "docs/agents/recipes.md",
+    "agent_examples_verification": "docs/agents/agent-examples-verification.md",
     "language_contract": "language/spec.md",
     "builtin_signatures": "language/builtin-signatures.json",
     "standard_library_source": "language/stdlib/",
@@ -179,7 +181,8 @@
     "current_guion_validation": "passed",
     "current_guion_targets": [
       "aarch64-apple-darwin",
-      "aarch64-unknown-linux-gnu"
+      "aarch64-unknown-linux-gnu",
+      "x86_64-unknown-linux-gnu"
     ],
     "evidence": "evaluation/completion/results/guion-final/README.md"
   },
@@ -194,6 +197,16 @@
       "expected_output": "3\n",
       "run_requirements": [
         "project_or_source_directory_file_access"
+      ],
+      "verification_cases": [
+        {
+          "id": "file_data_cli_run",
+          "arguments": [
+            "records.json"
+          ],
+          "stdout": "3\n",
+          "exit_code": 0
+        }
       ]
     },
     {
@@ -201,7 +214,7 @@
       "source": "docs/agents/examples/http_request.gu",
       "recipe": "docs/agents/recipes.md",
       "fixtures": [],
-      "expected_output": "HTTP status line followed by response body; endpoint-dependent",
+      "expected_output": "HTTP status line followed by response body byte count; endpoint-dependent",
       "run_requirements": [
         "exact_network_hostname_grant"
       ]
@@ -217,6 +230,14 @@
       "run_requirements": [
         "source_directory_read_access",
         "explicit_writable_file_root"
+      ],
+      "verification_cases": [
+        {
+          "id": "sqlite_toml_run",
+          "arguments": [],
+          "stdout": "Guion agents\n",
+          "exit_code": 0
+        }
       ]
     },
     {
@@ -227,6 +248,14 @@
       "expected_output": "[1, 4, 9, 16]\n",
       "run_requirements": [
         "core_profile"
+      ],
+      "verification_cases": [
+        {
+          "id": "concurrent_task_run",
+          "arguments": [],
+          "stdout": "[1, 4, 9, 16]\n",
+          "exit_code": 0
+        }
       ]
     },
     {
@@ -238,6 +267,40 @@
       "run_requirements": [
         "core_profile",
         "explicit_writable_file_root_for_sqlite_mode"
+      ],
+      "verification_cases": [
+        {
+          "id": "failure_paths_missing_file",
+          "arguments": [
+            "missing-file"
+          ],
+          "stdout": "R_FILE_NOT_FOUND\n",
+          "exit_code": 1
+        },
+        {
+          "id": "failure_paths_denied_http",
+          "arguments": [
+            "denied-http"
+          ],
+          "stdout": "R_NETWORK_DENIED\n",
+          "exit_code": 1
+        },
+        {
+          "id": "failure_paths_sqlite_escape",
+          "arguments": [
+            "sqlite-escape"
+          ],
+          "stdout": "E_SQLITE_PATH\n",
+          "exit_code": 1
+        },
+        {
+          "id": "failure_paths_worker_failure",
+          "arguments": [
+            "worker-failure"
+          ],
+          "stdout": "1\nR_ASSERTION\nassertion failed\n",
+          "exit_code": 1
+        }
       ]
     }
   ]

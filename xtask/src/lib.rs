@@ -1,3 +1,4 @@
+pub mod agent_reference;
 pub mod builders;
 pub mod builtin_catalog;
 pub mod completion;

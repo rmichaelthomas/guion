@@ -9,7 +9,11 @@ import sys
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SUPPORTED_TARGETS = {"aarch64-apple-darwin", "aarch64-unknown-linux-gnu"}
+SUPPORTED_TARGETS = {
+    "aarch64-apple-darwin",
+    "aarch64-unknown-linux-gnu",
+    "x86_64-unknown-linux-gnu",
+}
 PREFIXES = ("license", "licence", "copying", "notice")
 SPDX_LICENSE_TEXTS = {
     "Apache-2.0 WITH LLVM-exception": ROOT / "distribution/licenses/Apache-2.0_WITH_LLVM-exception.txt",

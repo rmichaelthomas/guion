@@ -1,10 +1,10 @@
 {
   "artifact_identities": {
     "artifact_schema": "sha256:7c91c82c3ff2a1351fe30dc9bd3350eb1d88dc914b59f3a34cc288858a94958f",
-    "compiler_seed": "sha256:cdcdaf6baef1657bee9500393db9b67f3a3f810b15403dea63c59be3cc36f001",
-    "compiler_seed_manifest": "sha256:fb26fc800f1c263c22a1704a601aeaf734b5337124f5c5356ec6e47a66e6f6f7",
-    "runtime": "sha256:ab68e378d1cadca5683aefcc842e1fb4e585fa7145a56ee98eee7b0bd9b4c3ab",
-    "stdlib": "sha256:71259e69ef34dcc5d05d50bd3537a5d0f00101069cdcf1df7456941cdfd14833"
+    "compiler_seed": "sha256:e168320c43f05d8d5814fea6133564f1600815839196953d1fd2d311d0ee05ef",
+    "compiler_seed_manifest": "sha256:456431e2825641b827f7a9f61f34984403f6cd1edf4ba30bf178f7d021dfaa0f",
+    "runtime": "sha256:61f5df917e86d9304fdd7ab3749eb0c81157d69ed0b160aaee5059b5f24a8825",
+    "stdlib": "sha256:e2031b25149d6e4a07bd16d13e7a85487bab254c35a9f5d52bbe84ad701bf538"
   },
   "changed_path_count": 0,
   "checks": [
@@ -21,7 +21,7 @@
       ],
       "exit_status": 0,
       "id": "all-nine-applications-initial-and-follow-up",
-      "output": "\nrunning 1 test\ntest all_nine_applications_pass_initial_and_follow_up_from_relocated_packages has been running for over 60 seconds\ntest all_nine_applications_pass_initial_and_follow_up_from_relocated_packages ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 253.71s\n\n\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.96s\n     Running tests/application_acceptance.rs (target/debug/deps/application_acceptance-ed4911bff9e51aa2)\n",
+      "output": "\nrunning 1 test\ntest all_nine_applications_pass_initial_and_follow_up_from_relocated_packages has been running for over 60 seconds\ntest all_nine_applications_pass_initial_and_follow_up_from_relocated_packages ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 134.17s\n\n\n   Compiling guion-cli v0.1.0 (/Users/runner/work/guion/guion/crates/cli)\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.25s\n     Running tests/application_acceptance.rs (target/perf-session/cargo/debug/deps/application_acceptance-23b6be9200f9a048)\n",
       "status": "passed",
       "target": "macos-aarch64"
     },
@@ -38,15 +38,33 @@
       ],
       "exit_status": 0,
       "id": "all-nine-applications-initial-and-follow-up",
-      "output": "\nrunning 1 test\ntest all_nine_applications_pass_initial_and_follow_up_from_relocated_packages has been running for over 60 seconds\ntest all_nine_applications_pass_initial_and_follow_up_from_relocated_packages ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 487.35s\n\n\n   Compiling guion-cli v0.1.0 (/work/crates/cli)\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.01s\n     Running tests/application_acceptance.rs (/target/debug/deps/application_acceptance-d874a46b3811b9c6)\n",
+      "output": "\nrunning 1 test\ntest all_nine_applications_pass_initial_and_follow_up_from_relocated_packages has been running for over 60 seconds\ntest all_nine_applications_pass_initial_and_follow_up_from_relocated_packages ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 477.80s\n\n\n   Compiling guion-cli v0.1.0 (/__w/guion/guion/crates/cli)\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.47s\n     Running tests/application_acceptance.rs (target/perf-session/cargo/debug/deps/application_acceptance-eaddefebdc806ea3)\n",
       "status": "passed",
       "target": "debian-aarch64"
+    },
+    {
+      "command": [
+        "cargo",
+        "--locked",
+        "--offline",
+        "test",
+        "-p",
+        "guion-cli",
+        "--test",
+        "application_acceptance"
+      ],
+      "exit_status": 0,
+      "id": "all-nine-applications-initial-and-follow-up",
+      "output": "\nrunning 1 test\ntest all_nine_applications_pass_initial_and_follow_up_from_relocated_packages has been running for over 60 seconds\ntest all_nine_applications_pass_initial_and_follow_up_from_relocated_packages ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 213.51s\n\n\n   Compiling guion-cli v0.1.0 (/__w/guion/guion/crates/cli)\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.36s\n     Running tests/application_acceptance.rs (target/perf-session/cargo/debug/deps/application_acceptance-5153b1f4ea41c01a)\n",
+      "status": "passed",
+      "target": "debian-x86_64"
     }
   ],
   "command": "product",
   "completed_targets": [
     "macos-aarch64",
-    "debian-aarch64"
+    "debian-aarch64",
+    "debian-x86_64"
   ],
   "exact_command": "cargo xtask product --group applications --stage initial,follow-up --target both",
   "exit_status": 0,
@@ -56,15 +74,16 @@
   "report": "product-applications",
   "required_targets": [
     "macos-aarch64",
-    "debian-aarch64"
+    "debian-aarch64",
+    "debian-x86_64"
   ],
-  "runtime_hash": "sha256:ab68e378d1cadca5683aefcc842e1fb4e585fa7145a56ee98eee7b0bd9b4c3ab",
+  "runtime_hash": "sha256:61f5df917e86d9304fdd7ab3749eb0c81157d69ed0b160aaee5059b5f24a8825",
   "schema_version": 1,
-  "seed_hash": "sha256:cdcdaf6baef1657bee9500393db9b67f3a3f810b15403dea63c59be3cc36f001",
+  "seed_hash": "sha256:e168320c43f05d8d5814fea6133564f1600815839196953d1fd2d311d0ee05ef",
   "skipped_targets": [],
-  "source_revision": "89da07cd7ab5cf4764f6564824666cc362ee75b2",
+  "source_revision": "0fecfbf1694474b5e85bebb8bc4f87db29275f53",
   "status": "passed",
-  "stdlib_hash": "sha256:71259e69ef34dcc5d05d50bd3537a5d0f00101069cdcf1df7456941cdfd14833",
+  "stdlib_hash": "sha256:e2031b25149d6e4a07bd16d13e7a85487bab254c35a9f5d52bbe84ad701bf538",
   "target": "both",
   "unsatisfied_goal_ids": [],
   "working_tree_digest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"

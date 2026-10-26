@@ -1,0 +1,465 @@
+{
+  "schema_version": 1,
+  "task_id": "03-release-notes",
+  "application": "release-notes",
+  "mode": "source-free relocated package",
+  "relocation_path": "Moved package – Guion",
+  "product": "Guion",
+  "artifact_sha256": "3397153ec471e42db153b1dc55c913389fa1517fd91708863c03f5a63ca306e5",
+  "artifact_bytes": 169054315,
+  "source_paths_excluded": [
+    "main.vr",
+    "veritas.toml"
+  ],
+  "stages": {
+    "initial": {
+      "passed": true,
+      "elapsed_seconds": 0.12895594700012225,
+      "case_count": 7,
+      "cases": [
+        {
+          "case_id": "release-notes-initial",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 0,
+          "checks_passed": 3,
+          "checks_total": 3,
+          "steps": [
+            {
+              "exit_code": 0,
+              "checks_passed": 3,
+              "checks_total": 3,
+              "failures": [],
+              "elapsed_seconds": 0.022424
+            }
+          ],
+          "elapsed_seconds": 0.023974,
+          "http_fixtures": {},
+          "stdout": "",
+          "stderr": "",
+          "failures": []
+        },
+        {
+          "case_id": "release-notes-invalid-record-preserves-both-outputs",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 1,
+          "checks_passed": 5,
+          "checks_total": 5,
+          "steps": [
+            {
+              "exit_code": 1,
+              "checks_passed": 5,
+              "checks_total": 5,
+              "failures": [],
+              "elapsed_seconds": 0.01724
+            }
+          ],
+          "elapsed_seconds": 0.018098,
+          "http_fixtures": {},
+          "stdout": "",
+          "stderr": "changes/1.3.0.json: unconfigured category Unconfigured\n",
+          "failures": []
+        },
+        {
+          "case_id": "release-notes-duplicate-id-preserves-outputs",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 1,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "steps": [
+            {
+              "exit_code": 1,
+              "checks_passed": 2,
+              "checks_total": 2,
+              "failures": [],
+              "elapsed_seconds": 0.017257
+            }
+          ],
+          "elapsed_seconds": 0.018218,
+          "http_fixtures": {},
+          "stdout": "",
+          "stderr": "changes/1.2.0.json: duplicate change id same\n",
+          "failures": []
+        },
+        {
+          "case_id": "release-notes-invalid-json-preserves-both-outputs",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 1,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "steps": [
+            {
+              "exit_code": 1,
+              "checks_passed": 2,
+              "checks_total": 2,
+              "failures": [],
+              "elapsed_seconds": 0.016666
+            }
+          ],
+          "elapsed_seconds": 0.01758,
+          "http_fixtures": {},
+          "stdout": "",
+          "stderr": "changes/1.0.0.json: invalid JSON\n",
+          "failures": []
+        },
+        {
+          "case_id": "release-notes-invalid-date-preserves-both-outputs",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 1,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "steps": [
+            {
+              "exit_code": 1,
+              "checks_passed": 2,
+              "checks_total": 2,
+              "failures": [],
+              "elapsed_seconds": 0.015792
+            }
+          ],
+          "elapsed_seconds": 0.016634,
+          "http_fixtures": {},
+          "stdout": "",
+          "stderr": "configuration date must be a valid YYYY-MM-DD date\n",
+          "failures": []
+        },
+        {
+          "case_id": "release-notes-invalid-filename-version-preserves-both-outputs",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 1,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "steps": [
+            {
+              "exit_code": 1,
+              "checks_passed": 2,
+              "checks_total": 2,
+              "failures": [],
+              "elapsed_seconds": 0.016215
+            }
+          ],
+          "elapsed_seconds": 0.017084,
+          "http_fixtures": {},
+          "stdout": "",
+          "stderr": "invalid semantic version filename: not-a-version.json\n",
+          "failures": []
+        },
+        {
+          "case_id": "release-notes-invalid-field-names-file-and-field",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 1,
+          "checks_passed": 4,
+          "checks_total": 4,
+          "steps": [
+            {
+              "exit_code": 1,
+              "checks_passed": 4,
+              "checks_total": 4,
+              "failures": [],
+              "elapsed_seconds": 0.016285
+            }
+          ],
+          "elapsed_seconds": 0.017197,
+          "http_fixtures": {},
+          "stdout": "",
+          "stderr": "changes/1.0.0.json: field text must be text\n",
+          "failures": []
+        }
+      ]
+    },
+    "follow_up": {
+      "passed": true,
+      "elapsed_seconds": 0.17219924999994873,
+      "case_count": 10,
+      "cases": [
+        {
+          "case_id": "release-notes-since-follow-up",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 0,
+          "checks_passed": 3,
+          "checks_total": 3,
+          "steps": [
+            {
+              "exit_code": 0,
+              "checks_passed": 3,
+              "checks_total": 3,
+              "failures": [],
+              "elapsed_seconds": 0.018322
+            }
+          ],
+          "elapsed_seconds": 0.0193,
+          "http_fixtures": {},
+          "stdout": "",
+          "stderr": "",
+          "failures": []
+        },
+        {
+          "case_id": "release-notes-invalid-since-preserves-outputs",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 1,
+          "checks_passed": 3,
+          "checks_total": 3,
+          "steps": [
+            {
+              "exit_code": 1,
+              "checks_passed": 3,
+              "checks_total": 3,
+              "failures": [],
+              "elapsed_seconds": 0.015134
+            }
+          ],
+          "elapsed_seconds": 0.015985,
+          "http_fixtures": {},
+          "stdout": "",
+          "stderr": "invalid --since version: not-a-version\n",
+          "failures": []
+        },
+        {
+          "case_id": "release-notes-escapes-all-ascii-punctuation",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 0,
+          "checks_passed": 1,
+          "checks_total": 1,
+          "steps": [
+            {
+              "exit_code": 0,
+              "checks_passed": 1,
+              "checks_total": 1,
+              "failures": [],
+              "elapsed_seconds": 0.018236
+            }
+          ],
+          "elapsed_seconds": 0.019166,
+          "http_fixtures": {},
+          "stdout": "",
+          "stderr": "",
+          "failures": []
+        },
+        {
+          "case_id": "release-notes-empty-category-order-preserves-both-outputs",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 1,
+          "checks_passed": 3,
+          "checks_total": 3,
+          "steps": [
+            {
+              "exit_code": 1,
+              "checks_passed": 3,
+              "checks_total": 3,
+              "failures": [],
+              "elapsed_seconds": 0.015007
+            }
+          ],
+          "elapsed_seconds": 0.015851,
+          "http_fixtures": {},
+          "stdout": "",
+          "stderr": "category_order must be a nonempty array\n",
+          "failures": []
+        },
+        {
+          "case_id": "release-notes-since-validates-excluded-malformed-record",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 1,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "steps": [
+            {
+              "exit_code": 1,
+              "checks_passed": 2,
+              "checks_total": 2,
+              "failures": [],
+              "elapsed_seconds": 0.015495
+            }
+          ],
+          "elapsed_seconds": 0.016325,
+          "http_fixtures": {},
+          "stdout": "",
+          "stderr": "changes/1.0.0.json: invalid JSON\n",
+          "failures": []
+        },
+        {
+          "case_id": "release-notes-since-rejects-cross-filter-duplicate-id",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 1,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "steps": [
+            {
+              "exit_code": 1,
+              "checks_passed": 2,
+              "checks_total": 2,
+              "failures": [],
+              "elapsed_seconds": 0.016045
+            }
+          ],
+          "elapsed_seconds": 0.016973,
+          "http_fixtures": {},
+          "stdout": "",
+          "stderr": "changes/2.0.0.json: duplicate change id same\n",
+          "failures": []
+        },
+        {
+          "case_id": "release-notes-reject-category-cr-preserves-both-outputs",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 1,
+          "checks_passed": 3,
+          "checks_total": 3,
+          "steps": [
+            {
+              "exit_code": 1,
+              "checks_passed": 3,
+              "checks_total": 3,
+              "failures": [],
+              "elapsed_seconds": 0.01553
+            }
+          ],
+          "elapsed_seconds": 0.01637,
+          "http_fixtures": {},
+          "stdout": "",
+          "stderr": "category names must be nonempty single-line text\n",
+          "failures": []
+        },
+        {
+          "case_id": "release-notes-reject-category-lf-preserves-both-outputs",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 1,
+          "checks_passed": 3,
+          "checks_total": 3,
+          "steps": [
+            {
+              "exit_code": 1,
+              "checks_passed": 3,
+              "checks_total": 3,
+              "failures": [],
+              "elapsed_seconds": 0.015724
+            }
+          ],
+          "elapsed_seconds": 0.016513,
+          "http_fixtures": {},
+          "stdout": "",
+          "stderr": "category names must be nonempty single-line text\n",
+          "failures": []
+        },
+        {
+          "case_id": "release-notes-reject-text-cr-preserves-both-outputs",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 1,
+          "checks_passed": 3,
+          "checks_total": 3,
+          "steps": [
+            {
+              "exit_code": 1,
+              "checks_passed": 3,
+              "checks_total": 3,
+              "failures": [],
+              "elapsed_seconds": 0.016245
+            }
+          ],
+          "elapsed_seconds": 0.017078,
+          "http_fixtures": {},
+          "stdout": "",
+          "stderr": "changes/1.0.0.json: category and text must be single-line values\n",
+          "failures": []
+        },
+        {
+          "case_id": "release-notes-reject-text-lf-preserves-both-outputs",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 1,
+          "checks_passed": 3,
+          "checks_total": 3,
+          "steps": [
+            {
+              "exit_code": 1,
+              "checks_passed": 3,
+              "checks_total": 3,
+              "failures": [],
+              "elapsed_seconds": 0.017607
+            }
+          ],
+          "elapsed_seconds": 0.018426,
+          "http_fixtures": {},
+          "stdout": "",
+          "stderr": "changes/1.0.0.json: category and text must be single-line values\n",
+          "failures": []
+        }
+      ]
+    }
+  },
+  "passed": true,
+  "generated": {
+    "schema_version": 1,
+    "application": "release-notes",
+    "product": "Guion",
+    "mode": "seeded independent-oracle cases against relocated package",
+    "seed": 20261024,
+    "sizes": [
+      24,
+      128
+    ],
+    "case_count": 2,
+    "concurrency": null,
+    "passed": true,
+    "cases": [
+      {
+        "case_id": "generated-release-notes-24",
+        "candidate": {},
+        "passed": true,
+        "exit_code": 0,
+        "checks_passed": 2,
+        "checks_total": 2,
+        "steps": [
+          {
+            "exit_code": 0,
+            "checks_passed": 2,
+            "checks_total": 2,
+            "failures": [],
+            "elapsed_seconds": 0.046135
+          }
+        ],
+        "elapsed_seconds": 0.049808,
+        "http_fixtures": {},
+        "stdout": "",
+        "stderr": "",
+        "failures": []
+      },
+      {
+        "case_id": "generated-release-notes-128",
+        "candidate": {},
+        "passed": true,
+        "exit_code": 0,
+        "checks_passed": 2,
+        "checks_total": 2,
+        "steps": [
+          {
+            "exit_code": 0,
+            "checks_passed": 2,
+            "checks_total": 2,
+            "failures": [],
+            "elapsed_seconds": 0.278794
+          }
+        ],
+        "elapsed_seconds": 0.293433,
+        "http_fixtures": {},
+        "stdout": "",
+        "stderr": "",
+        "failures": []
+      }
+    ]
+  }
+}

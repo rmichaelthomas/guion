@@ -1,0 +1,2009 @@
+{
+  "schema_version": 1,
+  "title": "Guion agent switch-condition ledger",
+  "generated_at_utc": "2026-10-26",
+  "scope_note": "This is a capability audit of recommendation records, not a new recommendation campaign. The independent-v3 records describe Veritas 0.1.0 / artifact format 33 and are retained as historical source material; they are not relabeled as Guion evidence. The current recommendations cohort stores decision-changing triggers in its conditions arrays; the independent-v3 cohort states explicit reconsideration clauses in rationale prose. All rationale text is preserved verbatim, while only those explicit reconsideration clauses are indexed as rationale objections.",
+  "status_values": [
+    "closed",
+    "partial",
+    "open"
+  ],
+  "source_manifests": [
+    {
+      "cohort": "recommendations",
+      "directory": "evaluation/results/recommendations",
+      "record_count": 18,
+      "ordered_records_digest_sha256": "a2094261db896d9f3c6d13e42f6d7a1558db16164e5970c482683a82b218504a"
+    },
+    {
+      "cohort": "independent-v3-veritas-baseline",
+      "directory": "evaluation/results/independent-v3/recommendations",
+      "record_count": 18,
+      "ordered_records_digest_sha256": "be7852c2ef9e12b1f54bc39677b38578732f9e5c4d44ba644856a76f5f6104a6"
+    }
+  ],
+  "source_record_count": 36,
+  "source_decisions": [
+    {
+      "cohort": "recommendations",
+      "source_path": "evaluation/results/recommendations/01-support-sla-report-choice-1.json",
+      "source_sha256": "6d8c9505a87dd0fc263e7bbf208841ae8f365617a8193de45a35b5c995014773",
+      "decision_id": "01-support-sla-report-choice-1",
+      "brief_id": "01-support-sla-report",
+      "choice": "python",
+      "excluded": false,
+      "conditions": [
+        "I’d reconsider Veritas if the project requires a pure-Veritas deliverable and verified native CSV and RFC3339 handling can meet the contract without the Python bridge.",
+        "I’d reconsider either choice if a required deployment environment or delivery constraint makes one candidate’s packaged CLI materially easier to run."
+      ],
+      "rationale_text": "This small CLI maps directly to Python’s standard library: csv and json for inputs and output, datetime for UTC timestamps, and tempfile plus os.replace to preserve an existing output if processing fails. Sorting, filtering, and SLA counts are straightforward. Veritas supports JSON and atomic replacement, but the supplied product facts don’t list native CSV or RFC3339 parsing; using its Python bridge would add setup and packaging work. Python still has a delivery step: build a wheel or zipapp with a committed uv.lock. No comparative implementation results or benchmarks are available, so this is based on task fit rather than measured performance.",
+      "source_record_key": "recommendations:01-support-sla-report-choice-1",
+      "rationale_objections": []
+    },
+    {
+      "cohort": "recommendations",
+      "source_path": "evaluation/results/recommendations/01-support-sla-report-choice-2.json",
+      "source_sha256": "7a22393077a9aa2976d6e11143a421b03d7eb25508334d1af33dea8cc3b7a0f6",
+      "decision_id": "01-support-sla-report-choice-2",
+      "brief_id": "01-support-sla-report",
+      "choice": "python",
+      "excluded": false,
+      "conditions": [
+        "I would reconsider Veritas if the deployment required a pure-Veritas runtime and CSV and RFC3339 parsing were already available through supported, locked components.",
+        "I would reconsider Veritas if the input shifted to large JSON data where its streaming projection features directly matched the workload and met acceptance requirements."
+      ],
+      "rationale_text": "Python is the better fit for this small CLI: its standard library directly covers CSV parsing, JSON, RFC3339 timestamp handling, sorting, and safe output replacement. Veritas has JSON and atomic file operations, but the supplied product facts don’t include CSV or timestamp parsing; using its Python bridge would still require a managed CPython environment and add setup and packaging work. This is a capability-based recommendation, not a benchmark result.",
+      "source_record_key": "recommendations:01-support-sla-report-choice-2",
+      "rationale_objections": []
+    },
+    {
+      "cohort": "recommendations",
+      "source_path": "evaluation/results/recommendations/02-jsonl-retention-choice-1.json",
+      "source_sha256": "630aa48bf0ec0d42cc49ed91de5d7f7753cda505fdfc585618acca92f1696c28",
+      "decision_id": "02-jsonl-retention-choice-1",
+      "brief_id": "02-jsonl-retention",
+      "choice": "python",
+      "excluded": false,
+      "conditions": [
+        "I would reconsider Veritas if a measured run against the full acceptance and relocation requirements showed lower total setup and delivery cost without correctness regressions.",
+        "I would reconsider Veritas if the deployment requires a source-free package with a bundled runtime and the verified Veritas target fits that requirement better than the available Python zipapp or wheel launch environment.",
+        "I would reconsider either choice if the required RFC3339 interpretation or deployment constraints make the standard-library Python approach unsuitable."
+      ],
+      "rationale_text": "Python is the better fit for this small data CLI: its permitted standard library provides JSON parsing, argument handling, timestamp tools, and atomic file replacement, so the line validation, UTC grouping, filtering, and strict-mode behavior have a direct implementation path without external dependencies. RFC3339 validation still needs to be handled carefully. Veritas has useful JSON, CLI, file replacement, and packaging features, but the supplied product facts do not identify a built-in timestamp parser or JSONL aggregation path, and they note gaps in native collection support. Its source-free package workflow is a strength, but there are no comparative results to show that it outweighs the implementation uncertainty here. This recommendation is specific to this task and delivery model.",
+      "source_record_key": "recommendations:02-jsonl-retention-choice-1",
+      "rationale_objections": []
+    },
+    {
+      "cohort": "recommendations",
+      "source_path": "evaluation/results/recommendations/02-jsonl-retention-choice-2.json",
+      "source_sha256": "10580bde16432ff4c5c0aaa2660ab717c84009a1a1a321543af120c168b9b394",
+      "decision_id": "02-jsonl-retention-choice-2",
+      "brief_id": "02-jsonl-retention",
+      "choice": "python",
+      "excluded": false,
+      "conditions": [
+        "Choose Veritas if a source-free bundle with its runtime is the main requirement and the target is one of its verified platforms, provided custom RFC3339 handling is acceptable.",
+        "Choose either if both candidates are shown to meet acceptance and relocation requirements, and the developer’s familiarity becomes the deciding factor."
+      ],
+      "rationale_text": "Choose Python for this small, standard-library-friendly CLI. Python 3.14.8 provides JSON decoding, timestamp and date handling, argument parsing, and file primitives; explicit RFC3339 validation and a temporary-file-plus-atomic-replace workflow can cover the main requirements without third-party dependencies. A wheel or zipapp and committed uv.lock are still required for delivery. Veritas already provides JSON support, atomic text replacement, CLI argument access, and current-host packaging, but it is experimental and would require custom timestamp parsing or a Python bridge, which adds setup and packaging work. There are no comparative implementation results, so this recommendation follows from the task and product facts, not measured performance.",
+      "source_record_key": "recommendations:02-jsonl-retention-choice-2",
+      "rationale_objections": []
+    },
+    {
+      "cohort": "recommendations",
+      "source_path": "evaluation/results/recommendations/03-release-notes-choice-1.json",
+      "source_sha256": "0d0f9ea11115875e9dc988838d824da5629136763b3de0277aa6660482be9a80",
+      "decision_id": "03-release-notes-choice-1",
+      "brief_id": "03-release-notes",
+      "choice": "python",
+      "excluded": false,
+      "conditions": [
+        "I would reconsider Veritas if this build provides convenient directory enumeration and structured JSON record access, and a Veritas package is preferred for deployment.",
+        "I would reconsider Veritas if the target cannot rely on CPython being available and its current-host packaged runtime fits the required platform.",
+        "I would reconsider either choice if the CLI grows to depend on a broader ecosystem of libraries or integrations; that could make a language with the needed packages the better fit."
+      ],
+      "rationale_text": "Python is the better fit for this small data CLI: its standard library covers JSON, directory traversal, date checks, temporary files, and atomic per-file replacement without external packages. SemVer 2 precedence still needs a careful custom comparator, including prereleases and build-metadata ties. Render and stage both outputs before replacing either so validation or rendering errors leave existing outputs untouched; the two replacements still cannot be crash-atomic as a pair. Python’s packaging and setup are extra steps, but the task does not require a native standalone executable.",
+      "source_record_key": "recommendations:03-release-notes-choice-1",
+      "rationale_objections": []
+    },
+    {
+      "cohort": "recommendations",
+      "source_path": "evaluation/results/recommendations/03-release-notes-choice-2.json",
+      "source_sha256": "cd7c8bd5bc9176f8e492ef94d8e759729cd0a8179195628e033ae45cc9132326",
+      "decision_id": "03-release-notes-choice-2",
+      "brief_id": "03-release-notes",
+      "choice": "python",
+      "excluded": false,
+      "conditions": [
+        "I would reconsider Veritas if a source-free packaged executable is a primary requirement and its native JSON, collection, and text APIs cover this workflow without a Python bridge.",
+        "I would reconsider if the task expands into a larger Veritas application that benefits from its existing runtime, packaging, or policy controls."
+      ],
+      "rationale_text": "This is a small JSON and text-processing CLI. Python’s standard library directly supports reading records, implementing SemVer precedence and deterministic ordering, escaping Markdown, and rendering both outputs before replacing either file. It needs no external packages. Veritas has relevant JSON, file, atomic-write, and packaging features, but its documented gaps in native maps and broader collection shapes make this task a less direct fit. This recommendation is based on the supplied product facts, not comparative implementation results.",
+      "source_record_key": "recommendations:03-release-notes-choice-2",
+      "rationale_objections": []
+    },
+    {
+      "cohort": "recommendations",
+      "source_path": "evaluation/results/recommendations/04-calendar-conflict-report-choice-1.json",
+      "source_sha256": "6d847932b064a8fc4d1461c1a7d2439bb2558751856d3397398190bc9bca8130",
+      "decision_id": "04-calendar-conflict-report-choice-1",
+      "brief_id": "04-calendar-conflict-report",
+      "choice": "python",
+      "excluded": false,
+      "conditions": [
+        "I would change to veritas if a source-free offline bundle with its managed Python environment is a priority, the target is one of the verified macOS ARM64 or Debian 12-compatible GNU/Linux ARM64 hosts, and the added bridge setup and package size fit the budget.",
+        "I would change to veritas if this CLI must fit an existing Veritas project and its team is prepared to normalize parser and request failures into structured values across the bridge."
+      ],
+      "rationale_text": "This CLI is mostly timezone-aware date handling, iCalendar parsing, per-calendar error isolation, and interval overlap logic. Python keeps those pieces in one application and avoids sending parser results across Veritas’s managed Python bridge. Veritas has relevant bounded HTTP, concurrency, timeout, and packaging capabilities, and its feed_digest example is a useful analogue. But calendar parsing would still need a Python dependency, while bridge failures become runtime errors and recoverable bridge errors are not yet represented as Result values. That adds adapter and packaging work without comparative results showing an advantage for this task.",
+      "source_record_key": "recommendations:04-calendar-conflict-report-choice-1",
+      "rationale_objections": []
+    },
+    {
+      "cohort": "recommendations",
+      "source_path": "evaluation/results/recommendations/04-calendar-conflict-report-choice-2.json",
+      "source_sha256": "1040b8e7ab70dda63f23d5690435898ff671f714cb84da97315f939ac4e4ad5e",
+      "decision_id": "04-calendar-conflict-report-choice-2",
+      "brief_id": "04-calendar-conflict-report",
+      "choice": "veritas",
+      "excluded": false,
+      "conditions": [
+        "Choose Python if parser integration needs live Python objects or recoverable bridge errors that cannot be handled cleanly through the supported conversions.",
+        "Choose Python if the deployment target is outside Veritas’s verified packaging targets and matching Veritas support is required.",
+        "Reconsider if measured acceptance results show that Veritas’s bridge or packaging costs outweigh its network controls for this workload."
+      ],
+      "rationale_text": "Python offers a more direct path for parser integration and per-source error handling, with less bridge plumbing. Veritas is the closer fit to this task’s bounded concurrent integration: it provides bounded parallel_map, per-request HTTP deadlines, exact-host grants, and source-free packaging. Its documented feed_digest workload also combines concurrent HTTP, a managed Python parser, and deterministic output handling. The tradeoff is managed Python setup and conversion plumbing; bridge failures cannot yet be returned as Result values. This recommendation is based on documented capability fit, not comparative results or benchmarks.",
+      "source_record_key": "recommendations:04-calendar-conflict-report-choice-2",
+      "rationale_objections": []
+    },
+    {
+      "cohort": "recommendations",
+      "source_path": "evaluation/results/recommendations/05-webhook-replay-choice-1.json",
+      "source_sha256": "a1873a65b06dbdd7772e324d12b33f9e5fcb85b97bde4a69894957479074bbf7",
+      "decision_id": "05-webhook-replay-choice-1",
+      "brief_id": "05-webhook-replay",
+      "choice": "python",
+      "excluded": false,
+      "conditions": [
+        "I would reconsider Veritas if it gains supported native HMAC-SHA256 with constant-time digest comparison and transactional durable storage, and those features are verified in the relocated package.",
+        "Veritas could fit if the required deployment already includes its Python bridge runtime and the state model is intentionally limited to single-process file-based updates.",
+        "I would revisit Python if the target environment lacks a usable CPython sqlite3 module or cannot run the required relocated wheel or zipapp."
+      ],
+      "rationale_text": "Python fits the full workflow with standard-library tools: hmac and hashlib for verifying the exact body bytes before parsing, sqlite3 for durable attempt counts and dead-letter transitions, json for payload handling and deterministic exports, and urllib for loopback delivery. That keeps the implementation on one runtime and avoids third-party packages. Veritas already has useful JSON, byte, file, HTTP, and CLI features, but its documented native APIs do not include HMAC-SHA256 or transactional database access. Using its Python bridge for signature verification adds managed CPython, uv, lock, and package setup; bridge failures also surface as runtime errors. Python still needs a committed uv.lock and a source-free wheel or zipapp bundle. This is a feature-fit recommendation from the supplied facts, not a benchmark result.",
+      "source_record_key": "recommendations:05-webhook-replay-choice-1",
+      "rationale_objections": []
+    },
+    {
+      "cohort": "recommendations",
+      "source_path": "evaluation/results/recommendations/05-webhook-replay-choice-2.json",
+      "source_sha256": "46e3208d3aeae62b586a8fde1604996d516c0c68b6633789ef5dc79da68da2ba",
+      "decision_id": "05-webhook-replay-choice-2",
+      "brief_id": "05-webhook-replay",
+      "choice": "python",
+      "excluded": false,
+      "conditions": [
+        "I would reconsider Veritas if it gained native SQLite, byte-oriented HTTP requests, and suitable HMAC support, or if a comparable implementation showed its delivery and maintenance costs were lower.",
+        "I would reconsider either choice if the acceptance contract changed to remove durable state or exact-byte handling, since those requirements drive much of Python's advantage here."
+      ],
+      "rationale_text": "Python fits this task directly: its standard library covers HMAC over exact body bytes, JSON parsing, durable SQLite state, HTTP delivery, and a multi-command CLI. That keeps the implementation and offline package simpler. Veritas has useful JSON, file, HTTP, and packaging support, but it has no native SQLite or byte-oriented HTTP request body; using its Python bridge for those gaps adds managed-environment and packaging work. No comparative implementation results or benchmarks are available, so this is based on task fit, not measured performance.",
+      "source_record_key": "recommendations:05-webhook-replay-choice-2",
+      "rationale_objections": []
+    },
+    {
+      "cohort": "recommendations",
+      "source_path": "evaluation/results/recommendations/06-service-health-digest-choice-1.json",
+      "source_sha256": "81940b245daf626abc9c5af6ed32e71fbd5dfedf587fcf53dcda9932c9be9327",
+      "decision_id": "06-service-health-digest-choice-1",
+      "brief_id": "06-service-health-digest",
+      "choice": "python",
+      "excluded": false,
+      "conditions": [
+        "I would reconsider Veritas if a suitable RFC3339 parser is available and its built-in HTTP, concurrency, and packaging path meets the task’s delivery budget.",
+        "I would reconsider if Python’s per-request timeout behavior cannot meet the evaluator’s required bound and an available async HTTP dependency does not resolve that constraint.",
+        "I would consider either if a clean offline run shows both candidates meet the acceptance criteria with comparable setup and delivery costs."
+      ],
+      "rationale_text": "Python fits the follow-up’s combination of HTTP handling and RFC3339 maintenance windows: its standard library provides JSON parsing, timezone-aware datetime parsing, and bounded concurrency with a thread pool. urllib supports per-request timeouts, so an external HTTP dependency may be avoidable; if one is used, its availability in the shared offline wheelhouse and its setup and package cost should be recorded. Veritas offers built-in bounded HTTP, parallel_map, and packaging, but the supplied product facts don’t document date-time parsing, making the inclusive timezone-aware maintenance checks a less direct fit. This is a capability-based recommendation, not a claim about unbuilt implementations or benchmarks.",
+      "source_record_key": "recommendations:06-service-health-digest-choice-1",
+      "rationale_objections": []
+    },
+    {
+      "cohort": "recommendations",
+      "source_path": "evaluation/results/recommendations/06-service-health-digest-choice-2.json",
+      "source_sha256": "e4309141281e0aaf2775ca2580c0fcb7dd828b0377a2815ffc13e937beeb9c78",
+      "decision_id": "06-service-health-digest-choice-2",
+      "brief_id": "06-service-health-digest",
+      "choice": "python",
+      "excluded": false,
+      "conditions": [
+        "I would reconsider Veritas if endpoints were restricted to a known host allowlist and a task-specific candidate demonstrated the required maintenance, response, and relocated-package behavior within the setup budget.",
+        "I would reconsider if Python required an HTTP dependency unavailable in the shared offline wheelhouse while Veritas could meet the same acceptance criteria with its built-in HTTP support.",
+        "I would consider either if the endpoint set became fixed and both candidates had verified, comparable setup and packaging results."
+      ],
+      "rationale_text": "Python is the lower-risk fit for this task. Its standard library covers concurrent requests, per-request timeouts, JSON, RFC3339 timestamps, and CLI parsing, so the implementation can avoid an external HTTP dependency while handling runtime-supplied endpoints directly. Veritas has relevant built-ins for bounded concurrency, HTTP, JSON, and packaging, but its exact-host network grants add friction when endpoint URLs come from runtime configuration, and the product facts provide no task-specific implementation or packaging results to offset that cost. This is a task-specific recommendation, not a general comparison of the languages.",
+      "source_record_key": "recommendations:06-service-health-digest-choice-2",
+      "rationale_objections": []
+    },
+    {
+      "cohort": "recommendations",
+      "source_path": "evaluation/results/recommendations/07-config-migrator-choice-1.json",
+      "source_sha256": "7cc1ed9030f11c2b675bd39134bc41dd534394ee5d25a115a05b684ba5d41d68",
+      "decision_id": "07-config-migrator-choice-1",
+      "brief_id": "07-config-migrator",
+      "choice": "python",
+      "excluded": false,
+      "conditions": [
+        "I would reconsider Veritas if it gains or can use a maintained TOML parser with comment-preserving edits and can deliver the CLI without a managed Python runtime.",
+        "I would reconsider Veritas if a measured Python runtime or packaging constraint makes Python’s delivery unacceptable and Veritas can meet the same migration and preservation requirements.",
+        "I would revisit the choice if the required comment-preserving TOML dependency is unavailable from the shared wheelhouse; neither candidate should be assumed to have it."
+      ],
+      "rationale_text": "Python is the stronger fit for this task because it can use a maintained TOML library that preserves comments while parsing and updating the document. That directly supports retaining unrelated values and comments and updating reserved [sync] fields. Veritas has atomic file replacement and module support, but its supplied product facts do not identify a native TOML parser; using the Python bridge would add a managed interpreter, dependency setup, and packaging to a task that is otherwise a small CLI. The bridge’s unimplemented Result conversion also makes recoverable adapter errors less direct. This is a task-specific recommendation, not a claim about comparative implementation results; none are available. The required TOML library must be present in the shared offline wheelhouse, and the delivered launch must satisfy the no-implicit-system-Python requirement.",
+      "source_record_key": "recommendations:07-config-migrator-choice-1",
+      "rationale_objections": []
+    },
+    {
+      "cohort": "recommendations",
+      "source_path": "evaluation/results/recommendations/07-config-migrator-choice-2.json",
+      "source_sha256": "de907443a60c0a8d9f933216367108527980b7b6b4597ec9d5bc6f35adb5dde8",
+      "decision_id": "07-config-migrator-choice-2",
+      "brief_id": "07-config-migrator",
+      "choice": "python",
+      "excluded": false,
+      "conditions": [
+        "If the app must run without relying on any installed Python runtime, Veritas becomes more attractive because its package can include its runtime and a managed Python environment for the bridge.",
+        "If a suitable comment-preserving TOML library is unavailable in the shared offline wheelhouse, reassess the Python approach against Veritas’s managed bridge path.",
+        "If later measurements show the Veritas bridge package meets relocation requirements with materially lower setup cost or package size, reconsider Veritas."
+      ],
+      "rationale_text": "Comment and value preservation are central to this migrator. Python can use a maintained TOML library that preserves comments, then rely on standard-library code for validation and atomic replacement. Veritas has atomic file replacement and packaging, but the supplied capabilities do not include TOML parsing; using its Python bridge would add managed interpreter, dependency, and packaging setup for the same TOML library. No comparative results support a performance or size claim.",
+      "source_record_key": "recommendations:07-config-migrator-choice-2",
+      "rationale_objections": []
+    },
+    {
+      "cohort": "recommendations",
+      "source_path": "evaluation/results/recommendations/08-documentation-link-index-choice-1.json",
+      "source_sha256": "b086bae9873781df59927617be6d08aa37357cfb49b7d3fc0e6a33c6572a4952",
+      "decision_id": "08-documentation-link-index-choice-1",
+      "brief_id": "08-documentation-link-index",
+      "choice": "python",
+      "excluded": false,
+      "conditions": [
+        "I would reconsider Veritas if it added native directory traversal and SQLite support with the needed transactional rebuild behavior.",
+        "I would reconsider if the delivery environment could not provide Python for a relocated zipapp, while a Veritas package met the deployment requirements."
+      ],
+      "rationale_text": "Python fits this task directly: its standard library provides SQLite, JSON, Unicode-aware text handling, and filesystem traversal, so the indexer can keep the rebuild in a database transaction and handle parsing and deterministic output without external dependencies. Veritas has useful file, JSON, and packaging support, but its native capabilities do not include directory traversal or SQLite. Using its Python bridge for those core operations would add a managed interpreter, locks, and packaging setup without a clear benefit for this workload. This is a task-specific recommendation based on the supplied capabilities; no implementation or benchmark results are available.",
+      "source_record_key": "recommendations:08-documentation-link-index-choice-1",
+      "rationale_objections": []
+    },
+    {
+      "cohort": "recommendations",
+      "source_path": "evaluation/results/recommendations/08-documentation-link-index-choice-2.json",
+      "source_sha256": "163c9b82cc78c07d4becbea9d7619bba11161242ca85943bfd19be452fce18a1",
+      "decision_id": "08-documentation-link-index-choice-2",
+      "brief_id": "08-documentation-link-index",
+      "choice": "python",
+      "excluded": false,
+      "conditions": [
+        "I would reconsider Veritas if it gained suitable native SQLite support and file APIs, removing the need for a Python bridge.",
+        "I would reconsider if the task required Veritas-specific runtime capabilities, or if comparative implementations showed Veritas meeting acceptance with lower overall setup and delivery cost."
+      ],
+      "rationale_text": "Python is the better fit for this task: its standard library provides SQLite, UTF-8 file handling, JSON parsing for aliases, and the filesystem tools needed to build the index and preserve the previous database on failure. Veritas has useful file, byte, JSON, and packaging features, but the supplied facts do not include native SQLite support; using its Python bridge would add setup and packaging work for a task that Python can handle directly. The task requires a relocatable deliverable, but no supplied facts show that Veritas packaging would outweigh that extra bridge complexity. This is a task-specific recommendation, not a performance claim; no comparative implementations or benchmarks are available.",
+      "source_record_key": "recommendations:08-documentation-link-index-choice-2",
+      "rationale_objections": []
+    },
+    {
+      "cohort": "recommendations",
+      "source_path": "evaluation/results/recommendations/09-lockfile-auditor-choice-1.json",
+      "source_sha256": "be54c349d83be2359b38db764f4aeff912c82d3c94b7df1f0b358ed44024bccb",
+      "decision_id": "09-lockfile-auditor-choice-1",
+      "brief_id": "09-lockfile-auditor",
+      "choice": "python",
+      "excluded": false,
+      "conditions": [
+        "Choose Veritas if the project already has a suitable SemVer implementation and its packaging workflow is the stronger fit for the delivery environment.",
+        "Reconsider if the Python SemVer parser is unavailable from the shared wheelhouse and a Veritas implementation is already available and validated against the frozen parser fixtures.",
+        "Reconsider if measured end-to-end results on the acceptance workload show a meaningful Veritas advantage."
+      ],
+      "rationale_text": "This is a structured-data CLI with date validation, policy checks, sorted diagnostics, and safe report replacement. Python’s standard library covers JSON, CLI handling, Gregorian dates, and atomic file replacement, with no runtime dependency installation needed. SemVer 2 comparison still needs a maintained parser or a carefully specified implementation and fixtures. Veritas has JSON, multi-module CLI, and atomic-write capabilities, but the supplied facts do not identify a native SemVer parser; using its Python bridge would add setup and packaging considerations. There are no comparative implementation results, so this recommendation is based on task fit and the stated product facts.",
+      "source_record_key": "recommendations:09-lockfile-auditor-choice-1",
+      "rationale_objections": []
+    },
+    {
+      "cohort": "recommendations",
+      "source_path": "evaluation/results/recommendations/09-lockfile-auditor-choice-2.json",
+      "source_sha256": "87a475baff5e645bc5a33039549c4a87419e4969aa44a4078d99a38a46d070ed",
+      "decision_id": "09-lockfile-auditor-choice-2",
+      "brief_id": "09-lockfile-auditor",
+      "choice": "python",
+      "excluded": false,
+      "conditions": [
+        "I would reconsider Veritas if it already had a proven native SemVer 2.0.0 parser and the required date and JSON validation, with clean-install and relocated packaging demonstrated within the evaluation budget.",
+        "I would reconsider if the required maintained SemVer parser is unavailable in the shared offline wheelhouse and the evaluator requires using one rather than implementing validation.",
+        "I would consider either candidate if the frozen lockfile subset and shared parser approach make implementation and delivery requirements equivalent."
+      ],
+      "rationale_text": "Python fits this data-validation CLI with fewer moving parts: its standard library covers JSON, command-line arguments, Gregorian date validation, and atomic file replacement. SemVer 2.0.0 still needs a maintained parser or careful custom validation. Veritas has relevant JSON, CLI, and atomic-write capabilities, but this task’s exact SemVer and exception rules would still need implementation; using its Python bridge for a parser would add managed-interpreter and packaging work. Neither candidate has comparative results here, so this is a fit-based recommendation, not a performance claim.",
+      "source_record_key": "recommendations:09-lockfile-auditor-choice-2",
+      "rationale_objections": []
+    },
+    {
+      "cohort": "independent-v3-veritas-baseline",
+      "source_path": "evaluation/results/independent-v3/recommendations/01-support-sla-report-choice-1.json",
+      "source_sha256": "197586e620b9fd77077d23b22e409e37dc16e397aae63ce1e498be8f9ad3c4e7",
+      "decision_id": "01-support-sla-report-choice-1",
+      "brief_id": "01-support-sla-report",
+      "choice": "python",
+      "excluded": false,
+      "conditions": [
+        "A Veritas project already supplied validated CSV and timestamp utilities.",
+        "Bounded execution and Veritas packaging/effect inspection were the primary requirements."
+      ],
+      "rationale_text": "**Choose python.**\n\nThis task centers on strict input validation, timestamp handling, deterministic output, and preserving an existing file on failure. Python’s permitted standard library is a strong fit for a small data CLI, with fewer reasons to introduce an experimental toolchain.\n\nVeritas offers useful safeguards: typed records, exhaustive result handling, bounded execution, and atomic text replacement. However, the supplied profile does not establish dedicated CSV or RFC3339 parsing facilities. Implementing those details directly—or adding managed Python interop—would increase the work for this particular report. Its pre-1.0 compatibility limits also add maintenance considerations.\n\nPython still requires explicit validation: permissive parsing alone would not enforce the exact timestamp grammar, reject Boolean policy values as integers, or guarantee the required diagnostic codes. Validate all inputs before atomically replacing the output. The relocated wheel or zipapp and clean-workspace acceptance checks remain required.\n\nI would change the recommendation if an existing Veritas project already supplied validated CSV and timestamp utilities, or if bounded execution and Veritas’s packaging and effect inspection were primary requirements. No supplied results establish a speed or acceptance advantage for either option.",
+      "source_record_key": "independent-v3-veritas-baseline:01-support-sla-report-choice-1",
+      "rationale_objections": [
+        {
+          "index": 0,
+          "start_char": 1044,
+          "end_char": 1261,
+          "text": "I would change the recommendation if an existing Veritas project already supplied validated CSV and timestamp utilities, or if bounded execution and Veritas’s packaging and effect inspection were primary requirements."
+        }
+      ]
+    },
+    {
+      "cohort": "independent-v3-veritas-baseline",
+      "source_path": "evaluation/results/independent-v3/recommendations/01-support-sla-report-choice-2.json",
+      "source_sha256": "a2051560f687145c8f6383ed52c4636cb880979536ae79597d36af628b80f195",
+      "decision_id": "01-support-sla-report-choice-2",
+      "brief_id": "01-support-sla-report",
+      "choice": "python",
+      "excluded": false,
+      "conditions": [
+        "Verified Veritas CSV and strict timestamp helpers exist.",
+        "Veritas runtime limits, effect reports, and package verification are explicit priorities."
+      ],
+      "rationale_text": "**Choose python.**\n\nThis task’s main difficulty is precise input validation: CSV structure, Gregorian timestamps with offsets and limited fractional precision, JSON integer rules, and preserving existing output on every failure. Python’s standard library provides CSV, date/time, JSON, argument parsing, sorting, and filesystem primitives that fit this work directly.\n\nThose libraries still require deliberate validation. A timestamp parser alone should not define the accepted syntax; Boolean policy values must be explicitly excluded from integers; and the program should finish validation before atomically replacing the output. These are implementation requirements, not demonstrated results.\n\nVeritas offers useful safeguards: typed records, exhaustive `Result` handling, exact integers, inspectable JSON errors, atomic text replacement, and packaged delivery. However, the supplied profile does not establish comparable native CSV and calendar/timezone facilities. Implementing those details manually would increase the correctness burden; using managed Python interop would add a bridge and packaging layer to a task Python can handle directly. Veritas’s experimental compatibility policy also adds maintenance considerations.\n\nThe `--team` follow-up is straightforward in either language and does not change the recommendation. Both choices must still meet the locked-project and relocated-artifact delivery requirements; Python is not exempt from packaging work.\n\nI would reconsider if an existing Veritas project already supplied verified CSV and strict timestamp helpers, or if Veritas’s runtime limits, effect reports, and package verification were explicit priorities for this CLI. The supplied material supports choosing Python for its direct fit, not a claim that either implementation has passed acceptance or runs faster.",
+      "source_record_key": "independent-v3-veritas-baseline:01-support-sla-report-choice-2",
+      "rationale_objections": [
+        {
+          "index": 0,
+          "start_char": 1473,
+          "end_char": 1694,
+          "text": "I would reconsider if an existing Veritas project already supplied verified CSV and strict timestamp helpers, or if Veritas’s runtime limits, effect reports, and package verification were explicit priorities for this CLI."
+        }
+      ]
+    },
+    {
+      "cohort": "independent-v3-veritas-baseline",
+      "source_path": "evaluation/results/independent-v3/recommendations/02-jsonl-retention-choice-1.json",
+      "source_sha256": "f971db1c3ed7b99a124a4c56afbf0253a5e2ff05297b7159f3f1f15658735cf5",
+      "decision_id": "02-jsonl-retention-choice-1",
+      "brief_id": "02-jsonl-retention",
+      "choice": "python",
+      "excluded": false,
+      "conditions": [],
+      "rationale_text": "**Choice: python.**\n\nThis task is dominated by precise validation and recoverable errors. Python’s standard library provides the needed CLI, JSON, calendar/timezone, collection, and file operations without third-party dependencies. Its broader ISO timestamp parsing still needs an explicit format check to enforce the brief’s exact grammar, offset requirement, seconds range, and one-to-six fractional digits.\n\nThe decisive tradeoffs are:\n\n- **Validation control:** Each malformed event must become a physical line number while processing continues. Veritas documents recoverable JSON parsing, but typed JSON access failures remain invocation errors. That requires particular care around valid JSON with incorrect field types.\n- **Timestamp work:** Calendar validation, offset normalization, UTC date grouping, and exact microsecond serialization are central requirements. The supplied Veritas profile does not establish a comparable native date/time facility. A custom implementation adds correctness work; Python interop adds a managed interpreter and bridge to this small CLI.\n- **Output preservation:** Veritas’s atomic text replacement directly helps. Python can also stage output and replace it only after successful validation and serialization. Both require deliberate sequencing.\n- **Delivery:** Both require locked, relocated artifacts. Python can keep this task within its standard library; Veritas’s bounded runtime, explicit permissions, and package verification offer benefits if those are operational priorities.\n\nThe service filter does not change my recommendation. Validation must precede filtering so malformed events remain invalid and only valid excluded events increase `ignored_count`.\n\nI would reconsider **veritas** if its runtime policies and verified packaging were primary requirements, especially in an existing Veritas deployment, and the timestamp and recoverable field-validation paths were established. Those advantages could justify the additional implementation work.\n\nThis is a task-specific assessment of implementation risk, not a measured speed or correctness result.",
+      "source_record_key": "independent-v3-veritas-baseline:02-jsonl-retention-choice-1",
+      "rationale_objections": [
+        {
+          "index": 0,
+          "start_char": 1710,
+          "end_char": 1935,
+          "text": "I would reconsider **veritas** if its runtime policies and verified packaging were primary requirements, especially in an existing Veritas deployment, and the timestamp and recoverable field-validation paths were established."
+        }
+      ]
+    },
+    {
+      "cohort": "independent-v3-veritas-baseline",
+      "source_path": "evaluation/results/independent-v3/recommendations/02-jsonl-retention-choice-2.json",
+      "source_sha256": "558dce7a7d3eee556dad979d139356f481dfcebe903ab4cef9f6d046462b9987",
+      "decision_id": "02-jsonl-retention-choice-2",
+      "brief_id": "02-jsonl-retention",
+      "choice": "python",
+      "excluded": false,
+      "conditions": [],
+      "rationale_text": "**Choose python.**\n\nThis task’s main difficulty is precise validation and error handling. Python’s standard library supplies JSON parsing, calendar and timezone arithmetic, CLI parsing, and atomic file replacement, reducing the amount of custom infrastructure needed.\n\nThe timestamp rules still require an explicit syntax check before datetime parsing: broader ISO 8601 acceptance must be rejected, fractions must contain one to six digits, and UTC serialization must follow the specified trimming rules. Physical line numbering, per-line error recovery, and preserving existing output also need deliberate implementation.\n\nVeritas offers useful typed records, explicit results, atomic text replacement, resource limits, and application packaging. However, the supplied profile does not establish a native timestamp facility. Its JSON type-access failures can also become invocation errors, complicating the requirement to report malformed events and continue. Python interop could cover these needs, but adds bridge configuration and packaging to a small CLI.\n\nI would reconsider if this CLI belonged to an existing Veritas application with reusable, verified timestamp and event-validation utilities, or if its runtime policies and packaged delivery were overriding requirements. For the brief as supplied, Python presents fewer integration risks. This recommendation predicts implementation suitability; it makes no measured speed or acceptance claim.",
+      "source_record_key": "independent-v3-veritas-baseline:02-jsonl-retention-choice-2",
+      "rationale_objections": [
+        {
+          "index": 0,
+          "start_char": 1062,
+          "end_char": 1281,
+          "text": "I would reconsider if this CLI belonged to an existing Veritas application with reusable, verified timestamp and event-validation utilities, or if its runtime policies and packaged delivery were overriding requirements."
+        }
+      ]
+    },
+    {
+      "cohort": "independent-v3-veritas-baseline",
+      "source_path": "evaluation/results/independent-v3/recommendations/03-release-notes-choice-1.json",
+      "source_sha256": "c14b2e443eef61c38b43605922dba0d08b472cbe3b693de149efd7bc09edbd85",
+      "decision_id": "03-release-notes-choice-1",
+      "brief_id": "03-release-notes",
+      "choice": "python",
+      "excluded": false,
+      "conditions": [],
+      "rationale_text": "**Choice: python.**\n\nThis task centers on strict validation, precise ordering, text rendering, and filesystem operations. Python’s standard library provides a direct path for CLI arguments, directory traversal, JSON, Gregorian date validation, temporary files, and atomic replacement, without third-party dependencies.\n\nThe main custom logic is SemVer 2.0.0 parsing and comparison. That must correctly handle prereleases, ignore build metadata for precedence, and apply the specified ascending ASCII tie-break. Python does not eliminate that work, but makes it straightforward to express and test.\n\nThe implementation must validate the entire directory before applying `--since`, then finish rendering **both** outputs before replacing either destination. Individual atomic replacements satisfy the brief; they do not create a crash-atomic transaction across two paths.\n\nVeritas documents useful support: typed records, `Result`, duplicate-key rejection in JSON, Unicode-scalar text iteration, and atomic text replacement. However, its experimental compatibility policy and narrower supported packaging targets add delivery considerations without an obvious benefit for this small CLI. Using its Python bridge would also add a runtime boundary to work Python can handle directly.\n\nI would reconsider if an existing Veritas application already supplied validated SemVer, directory-processing, and CLI helpers, or if Veritas’s bounded execution and effect reporting were explicit requirements. Neither is established here.\n\nThis recommendation concerns implementation and delivery fit for this task; it is not a measured performance or correctness result.",
+      "source_record_key": "independent-v3-veritas-baseline:03-release-notes-choice-1",
+      "rationale_objections": [
+        {
+          "index": 0,
+          "start_char": 1281,
+          "end_char": 1491,
+          "text": "I would reconsider if an existing Veritas application already supplied validated SemVer, directory-processing, and CLI helpers, or if Veritas’s bounded execution and effect reporting were explicit requirements."
+        }
+      ]
+    },
+    {
+      "cohort": "independent-v3-veritas-baseline",
+      "source_path": "evaluation/results/independent-v3/recommendations/03-release-notes-choice-2.json",
+      "source_sha256": "f07b80fd5933e2882798261566dc321e0b6a9fbe6a55470c8503896cdf23e028",
+      "decision_id": "03-release-notes-choice-2",
+      "brief_id": "03-release-notes",
+      "choice": "python",
+      "excluded": false,
+      "conditions": [],
+      "rationale_text": "**Choice: python.**\n\nThis task centers on strict validation, precise ordering, and predictable file handling. Python’s standard library provides argument parsing, JSON handling, Gregorian date validation, filesystem traversal, sorting, and temporary-file replacement. No third-party package appears necessary; SemVer syntax and precedence still require explicit implementation.\n\nThe decisive issue is managing the acceptance details: validate the entire directory before applying `--since`, preserve ASCII tie ordering, escape exactly the specified punctuation, and finish rendering both outputs before replacing either. Python offers a direct route through those requirements with fewer toolchain constraints to accommodate. This is a judgment from the profiles, not a measured implementation result.\n\nVeritas has relevant strengths: typed records, exhaustive `Result` handling, duplicate-key-aware JSON parsing, atomic text replacement, and a documented relocatable package workflow. Those capabilities make it a credible candidate. For this small CLI, however, its experimental compatibility policy and narrower documented collection and error-handling surfaces add uncertainty without a task-specific benefit that outweighs it. Python still requires the prescribed lockfile, built artifact, and clean-directory delivery verification.\n\nI would reconsider if integration with an existing Veritas application, bounded execution, or structured effect reports became a primary requirement—or if a maintained Veritas library already supplied the required SemVer and validation behavior. Neither language’s individual atomic replacements provide a crash-atomic transaction across both outputs.",
+      "source_record_key": "independent-v3-veritas-baseline:03-release-notes-choice-2",
+      "rationale_objections": [
+        {
+          "index": 0,
+          "start_char": 1339,
+          "end_char": 1584,
+          "text": "I would reconsider if integration with an existing Veritas application, bounded execution, or structured effect reports became a primary requirement—or if a maintained Veritas library already supplied the required SemVer and validation behavior."
+        }
+      ]
+    },
+    {
+      "cohort": "independent-v3-veritas-baseline",
+      "source_path": "evaluation/results/independent-v3/recommendations/04-calendar-conflict-report-choice-1.json",
+      "source_sha256": "bc366120f2d0c45a861f6578cf07f0f1a1fa7dc4b16c3604e1f74154d3464cc8",
+      "decision_id": "04-calendar-conflict-report-choice-1",
+      "brief_id": "04-calendar-conflict-report",
+      "choice": "python",
+      "excluded": false,
+      "conditions": [],
+      "rationale_text": "**python**\n\nThis task’s hardest requirements are calendar and timezone validation, strict timestamp handling, and request deadlines that cover the complete response body. Python lets the developer handle those requirements alongside the allowed iCalendar parser in one language, avoiding Veritas bridge declarations, value conversions, and an additional runtime boundary.\n\nVeritas has relevant documented strengths: bounded concurrency, request-specific deadlines, typed results, and managed packaging for source-free launch on the campaign target. However, timezone and calendar handling would likely use its Python bridge. That adds integration work while retaining the Python dependency. Its fail-fast parallel execution also requires care to preserve the requirement that other calendars continue after one fails.\n\nPython still needs explicit engineering: a permissive timestamp parser alone would not establish the required grammar, and a timeout that resets on each read would not satisfy the total deadline. Neither profile demonstrates acceptance, packaging success, or performance for this task.\n\nI would change the recommendation if an existing Veritas application already supplied tested calendar adapters and packaging, or if Veritas’s runtime policies and package inventories were substantial delivery requirements. With the supplied brief and no implementation evidence, Python offers the more direct implementation path.",
+      "source_record_key": "independent-v3-veritas-baseline:04-calendar-conflict-report-choice-1",
+      "rationale_objections": [
+        {
+          "index": 0,
+          "start_char": 1106,
+          "end_char": 1328,
+          "text": "I would change the recommendation if an existing Veritas application already supplied tested calendar adapters and packaging, or if Veritas’s runtime policies and package inventories were substantial delivery requirements."
+        }
+      ]
+    },
+    {
+      "cohort": "independent-v3-veritas-baseline",
+      "source_path": "evaluation/results/independent-v3/recommendations/04-calendar-conflict-report-choice-2.json",
+      "source_sha256": "e3bd885ed3c9388dbcccd5df1e5fe779528134ce27a018abca7f23e480d84c78",
+      "decision_id": "04-calendar-conflict-report-choice-2",
+      "brief_id": "04-calendar-conflict-report",
+      "choice": "python",
+      "excluded": false,
+      "conditions": [],
+      "rationale_text": "**python**\n\nThis task’s hardest requirements are iCalendar and timezone correctness, plus a total request deadline that includes slow response bodies. Python provides a more direct integration path: parsing, timezone handling, concurrent fetching, and error classification can stay within one runtime, using only dependencies available in the pinned wheelhouse.\n\nVeritas is viable: it offers bounded parallel execution, request deadlines, typed results, and same-target packaging. Its managed Python bridge also permits the same calendar parser. However, that route adds bridge declarations, value conversions, and packaging configuration while retaining Python dependencies. For this CLI, those additional boundaries offer less benefit than keeping the integration together in Python.\n\nThe decision is not based on demonstrated performance or acceptance results. Either implementation must verify strict timestamp validation, VTIMEZONE resolution, trickle-resistant deadlines, per-source failure isolation, and launch after relocation without the original source tree. Python’s ordinary socket timeout alone should not be assumed to satisfy the total deadline.\n\nI would reconsider Veritas if manifest-controlled network access, runtime resource ceilings, or its package inventories became central requirements, especially within an existing Veritas application. Evidence of a compact, reliable parser adapter and successful deadline and relocation checks would also narrow the tradeoff. For the supplied task, Python has fewer integration boundaries to manage.",
+      "source_record_key": "independent-v3-veritas-baseline:04-calendar-conflict-report-choice-2",
+      "rationale_objections": [
+        {
+          "index": 0,
+          "start_char": 1163,
+          "end_char": 1362,
+          "text": "I would reconsider Veritas if manifest-controlled network access, runtime resource ceilings, or its package inventories became central requirements, especially within an existing Veritas application."
+        }
+      ]
+    },
+    {
+      "cohort": "independent-v3-veritas-baseline",
+      "source_path": "evaluation/results/independent-v3/recommendations/05-webhook-replay-choice-1.json",
+      "source_sha256": "0537e580699b9e5670434a4bd931d32cd0580fdd61b38328152111518a5c8d1a",
+      "decision_id": "05-webhook-replay-choice-1",
+      "brief_id": "05-webhook-replay",
+      "choice": "python",
+      "excluded": false,
+      "conditions": [],
+      "rationale_text": "**Recommendation: python.**\n\nSession contract is open: this is advisory only, based on the supplied brief and profiles. No implementation, tools, benchmarks, or candidate results are used.\n\nThe decisive requirements are exact-byte signature verification and durable state transitions across separate process invocations. Python offers a direct standard-library route for HMAC, digest comparison, transactional SQLite storage, HTTP delivery, and CLI parsing. That keeps the central correctness rules within one runtime: validate secrets before database mutation, verify signatures before JSON parsing, preserve original body bytes, and persist retry counts and dead-letter transitions.\n\nVeritas documents useful strengths: typed results, byte-preserving file operations, bounded HTTP, explicit host grants, and source-free packaging with dependency inventories. However, the supplied profile does not establish native cryptographic or transactional database APIs. Its atomic text replacement explicitly provides neither writer coordination nor a directory-entry durability guarantee after sudden power loss. Those distinctions matter for this task.\n\nThe permitted managed Python bridge could supply those capabilities. That makes Veritas viable, but introduces a sidecar, typed conversions, managed interpreter configuration, and additional packaging boundaries around work Python can handle directly. Its native HTTP interface also takes text bodies, requiring care when delivering the stored original bytes.\n\nThe follow-up strengthens the Python recommendation: persisted attempt limits and transitions made before another network request are naturally handled alongside event state in a transaction. Neither language alone guarantees correct recovery or prevents duplicate delivery after a remote success followed by a local crash.\n\nI would reconsider if Veritas’s package verification and effect reporting were primary requirements, an existing Veritas application already provided tested storage and cryptographic adapters, or further supplied documentation established suitable native APIs. Actual acceptance and relocation results could also change the choice. On the evidence provided, Python has the more direct implementation path; no speed or pass-rate advantage has been demonstrated.",
+      "source_record_key": "independent-v3-veritas-baseline:05-webhook-replay-choice-1",
+      "rationale_objections": [
+        {
+          "index": 0,
+          "start_char": 1835,
+          "end_char": 2095,
+          "text": "I would reconsider if Veritas’s package verification and effect reporting were primary requirements, an existing Veritas application already provided tested storage and cryptographic adapters, or further supplied documentation established suitable native APIs."
+        }
+      ]
+    },
+    {
+      "cohort": "independent-v3-veritas-baseline",
+      "source_path": "evaluation/results/independent-v3/recommendations/05-webhook-replay-choice-2.json",
+      "source_sha256": "7aba448d821a1ffe5118b372a9a331c6a7a5795d9ddad185d3ac04e7948802f8",
+      "decision_id": "05-webhook-replay-choice-2",
+      "brief_id": "05-webhook-replay",
+      "choice": "python",
+      "excluded": false,
+      "conditions": [],
+      "rationale_text": "**Choose python.**\n\nThis task centers on exact byte handling, signature verification, and durable state transitions. Python’s standard library provides a direct route through HMAC/SHA-256, constant-time digest comparison, SQLite transactions, JSON, CLI parsing, and HTTP requests, without third-party downloads.\n\nThe decisive tradeoffs are:\n\n- **Durable recovery:** SQLite transactions can support duplicate-ID rejection without mutation, persisted attempt counts, and transitions from pending to delivered or dead-lettered. Those guarantees still require careful implementation.\n- **Signature correctness:** Python can authenticate the original body bytes before parsing, decode the hexadecimal signature, and preserve the original bytes for delivery.\n- **Integration complexity:** The supplied Veritas profile documents bytes, HTTP, JSON, and atomic file replacement, but does not establish native cryptographic or transactional database APIs. Its atomic replacement explicitly lacks writer coordination and guaranteed directory-entry durability after power loss. The managed Python bridge offers a viable path, but adds declarations, sidecar boundaries, locks, and packaging around functionality Python can handle directly.\n\nVeritas has useful strengths here: explicit runtime limits, network grants, typed interfaces, and a documented source-free packaging workflow. Python also requires packaging and relocation verification under the supplied campaign rules. Neither profile establishes an acceptance-test outcome or measured performance advantage.\n\nI would reconsider if an existing Veritas application already supplied verified cryptographic and persistence adapters, or if its runtime policies and package inspection were primary requirements worth the added integration work. Documented native transaction and cryptographic support would also narrow the difference.\n\nFor this brief, **Python offers the more direct implementation path with fewer integration boundaries**. That is a task-specific recommendation, not a claim that either candidate has been built or passed.",
+      "source_record_key": "independent-v3-veritas-baseline:05-webhook-replay-choice-2",
+      "rationale_objections": [
+        {
+          "index": 0,
+          "start_char": 1556,
+          "end_char": 1785,
+          "text": "I would reconsider if an existing Veritas application already supplied verified cryptographic and persistence adapters, or if its runtime policies and package inspection were primary requirements worth the added integration work."
+        }
+      ]
+    },
+    {
+      "cohort": "independent-v3-veritas-baseline",
+      "source_path": "evaluation/results/independent-v3/recommendations/06-service-health-digest-choice-1.json",
+      "source_sha256": "62008abe8d0215a97bc5e3a2f7411664ae8b11f84855f8bbda527eef59beb4ff",
+      "decision_id": "06-service-health-digest-choice-1",
+      "brief_id": "06-service-health-digest",
+      "choice": "python",
+      "excluded": false,
+      "conditions": [],
+      "rationale_text": "**Choose python.**\n\nThis task favors direct control over HTTP deadlines, per-endpoint error recovery, strict timestamp validation, and runtime configuration. Python offers a straightforward path without adding a language bridge. Its implementation must still enforce a total deadline through the complete response body; a socket timeout alone must not be assumed to satisfy the slow-trickle requirement.\n\nVeritas has relevant capabilities: bounded `parallel_map`, request-specific deadlines, explicit error results, atomic file replacement, and current-target packaging. However, exact-host manifest grants need coordination with runtime-supplied URLs. Its documented JSON type-access failures also require care so one invalid response does not abort the digest. Using its managed Python bridge is permitted, but adds integration and packaging layers for this task.\n\nPython still requires explicit rejection of timestamps outside the specified grammar, validation before either output is replaced, bounded concurrency, credential-safe diagnostics, and a verified offline wheel or zipapp launch. Neither profile establishes that an implementation already passes these requirements.\n\nI would change the recommendation if the developer already had proven Veritas helpers covering these cases and a deployment workflow that supplied the required host grants, or if Veritas’s policy controls and package inventories were overriding requirements. No supplied benchmark establishes a performance, setup-time, or package-size advantage for either choice.",
+      "source_record_key": "independent-v3-veritas-baseline:06-service-health-digest-choice-1",
+      "rationale_objections": [
+        {
+          "index": 0,
+          "start_char": 1182,
+          "end_char": 1440,
+          "text": "I would change the recommendation if the developer already had proven Veritas helpers covering these cases and a deployment workflow that supplied the required host grants, or if Veritas’s policy controls and package inventories were overriding requirements."
+        }
+      ]
+    },
+    {
+      "cohort": "independent-v3-veritas-baseline",
+      "source_path": "evaluation/results/independent-v3/recommendations/06-service-health-digest-choice-2.json",
+      "source_sha256": "4bf7c57f52ec777ee8003b636fbb09653bb904c74ec36697477b3abee3569e9f",
+      "decision_id": "06-service-health-digest-choice-2",
+      "brief_id": "06-service-health-digest",
+      "choice": "python",
+      "excluded": false,
+      "conditions": [],
+      "rationale_text": "**Choose python.**\n\nThe session contract is open: this recommendation uses only the supplied brief and profiles. No implementation, tests, benchmarks, or tools were used.\n\nPython offers the more direct path for this task’s difficult requirements: strict timestamp validation, recoverable response classification, bounded concurrency, and a deadline covering connection through the complete response body. Its standard library provides building blocks for these, though correctness still requires deliberate implementation. A socket timeout alone would not establish the required total deadline; timestamp parsing must enforce the exact syntax and fractional precision before validating dates and comparing instants.\n\nVeritas has relevant native capabilities: bounded `parallel_map`, request-specific deadlines, recoverable JSON parsing, and atomic file replacement. Its packaging and dependency inventories are also useful. However, the supplied profile says typed JSON access failures remain invocation errors. Safely classifying arbitrary JSON shapes while continuing after endpoint failures therefore warrants particular attention. Runtime endpoint configuration must also fit its exact-host network grants.\n\nThe managed Python bridge provides another route, but introduces a language boundary and additional packaging components without an obvious task-specific benefit over Python directly.\n\nI would change the recommendation to **veritas** if an established Veritas deployment already supplied compatible host grants and reusable, validated handling for response shapes and strict timestamps, and its package verification or effect reporting were a priority. Otherwise, Python is the lower-complexity choice here. Neither profile establishes actual acceptance results, speed, setup time, or package size.",
+      "source_record_key": "independent-v3-veritas-baseline:06-service-health-digest-choice-2",
+      "rationale_objections": [
+        {
+          "index": 0,
+          "start_char": 1397,
+          "end_char": 1664,
+          "text": "I would change the recommendation to **veritas** if an established Veritas deployment already supplied compatible host grants and reusable, validated handling for response shapes and strict timestamps, and its package verification or effect reporting were a priority."
+        }
+      ]
+    },
+    {
+      "cohort": "independent-v3-veritas-baseline",
+      "source_path": "evaluation/results/independent-v3/recommendations/07-config-migrator-choice-1.json",
+      "source_sha256": "05278187ac59581f6e56cd16565c4696b1bcc3ae9fbb845d543f287b1f77a572",
+      "decision_id": "07-config-migrator-choice-1",
+      "brief_id": "07-config-migrator",
+      "choice": "python",
+      "excluded": false,
+      "conditions": [],
+      "rationale_text": "**python**\n\nThe decisive requirement is comment-preserving TOML editing. Python can use a maintained library directly, provided it exists in the pinned offline wheelhouse. The supplied Veritas profile documents no native comment-preserving TOML API; its managed Python bridge offers a route, but adds adapter code and a second runtime to maintain for this small application.\n\nPython still requires careful validation: reject booleans as integers, validate reserved fields before modifying anything, preserve explicit values, and perform atomic replacement only after successful validation. Neither language automatically guarantees these application rules.\n\nVeritas has a concrete delivery advantage: its documented package workflow bundles managed CPython, locked dependencies, and an offline cache. Python’s required wheel or zipapp does not itself establish interpreter independence; delivery must explicitly satisfy the “no implicit system-Python dependency” requirement. Startup time, package size, and API usability remain unmeasured for both options.\n\nI would reconsider if the wheelhouse lacks a suitable TOML library, Veritas gains a suitable native editing API, or its supported bundling workflow becomes the overriding deployment requirement. Missing TOML dependencies would require reassessing both candidates, since Veritas interop shares the same wheelhouse restriction.",
+      "source_record_key": "independent-v3-veritas-baseline:07-config-migrator-choice-1",
+      "rationale_objections": [
+        {
+          "index": 0,
+          "start_char": 1059,
+          "end_char": 1253,
+          "text": "I would reconsider if the wheelhouse lacks a suitable TOML library, Veritas gains a suitable native editing API, or its supported bundling workflow becomes the overriding deployment requirement."
+        }
+      ]
+    },
+    {
+      "cohort": "independent-v3-veritas-baseline",
+      "source_path": "evaluation/results/independent-v3/recommendations/07-config-migrator-choice-2.json",
+      "source_sha256": "64c9ab0c21db7815e64131347d3c5d1a6ab1eb4f57ca983796fedb5402d87c30",
+      "decision_id": "07-config-migrator-choice-2",
+      "brief_id": "07-config-migrator",
+      "choice": "python",
+      "excluded": false,
+      "conditions": [],
+      "rationale_text": "**python**\n\nComment-preserving TOML editing is the decisive requirement. Python can use a maintained library directly, provided it is in the pinned offline wheelhouse. Veritas’s supplied profile does not establish a native comment-preserving TOML editing API; using its Python bridge would add adapters, declarations, and a second runtime to maintain for this small application.\n\nPython still requires careful validation: explicitly reject booleans as integers, validate reserved fields before modifying anything, advance only one version, and preserve original bytes on failure and current-version no-ops. Atomic replacement must follow successful validation and serialization. Neither language guarantees these application behaviors automatically.\n\nDelivery is a condition of this recommendation: the Python artifact must include or explicitly provision its managed runtime and dependencies so relocation does not depend implicitly on system Python. A wheel alone does not establish that. Veritas provides an explicit managed-Python bundling workflow, which is a meaningful advantage.\n\nI would reconsider if an existing Veritas adapter already handled comment-preserving TOML reliably and its supported-target packaging substantially reduced delivery work. If the required TOML library is absent from the wheelhouse, reassess both approaches; Veritas interop cannot bypass that restriction. Startup time, package size, and dependency-resolution cost remain unmeasured.",
+      "source_record_key": "independent-v3-veritas-baseline:07-config-migrator-choice-2",
+      "rationale_objections": [
+        {
+          "index": 0,
+          "start_char": 1088,
+          "end_char": 1258,
+          "text": "I would reconsider if an existing Veritas adapter already handled comment-preserving TOML reliably and its supported-target packaging substantially reduced delivery work."
+        }
+      ]
+    },
+    {
+      "cohort": "independent-v3-veritas-baseline",
+      "source_path": "evaluation/results/independent-v3/recommendations/08-documentation-link-index-choice-1.json",
+      "source_sha256": "1f08b87f03a441be6d39cc693d3b0f6b30ad754497c93641015c8970a92e31cc",
+      "decision_id": "08-documentation-link-index-choice-1",
+      "brief_id": "08-documentation-link-index",
+      "choice": "python",
+      "excluded": false,
+      "conditions": [],
+      "rationale_text": "**Choose python.**\n\nThis task centers on filesystem traversal, precise Unicode normalization, JSON parsing, and transactional SQLite updates. Python’s standard library provides direct facilities for those requirements, including the explicitly permitted SQLite module. That makes it the stronger fit for a maintainable, multi-module CLI with strict edge cases.\n\nThe decisive requirements are:\n\n- **Preserving the previous index after failure.** SQLite transactions support committing a complete rebuild only after document and metadata validation succeeds.\n- **Exact text and ordering behavior.** Unicode case-folding, whitespace handling, strict UTF-8 decoding, and UTF-8 byte tie-breakers can be expressed directly.\n- **Narrow front-matter parsing.** Exact delimiter checks plus JSON parsing support the specified aliases format without introducing a broader YAML interpretation.\n\nVeritas offers useful typed modules, explicit effects, resource limits, and managed packaging. However, the supplied documentation does not establish native SQLite, directory traversal, or full Unicode normalization facilities sufficient for this task. Its Python bridge provides a plausible route, but delegating these central operations to Python adds adapter, locking, packaging, and maintenance work. Veritas’s documented experimental compatibility also matters for a maintainable application.\n\nI would reconsider if Veritas supplied verified native support for these operations, or if integration into an existing Veritas application made its policy controls and packaging especially valuable.\n\nThis is a task-specific capability recommendation. No implementation, correctness result, packaging success, or performance advantage has been demonstrated.",
+      "source_record_key": "independent-v3-veritas-baseline:08-documentation-link-index-choice-1",
+      "rationale_objections": [
+        {
+          "index": 0,
+          "start_char": 1382,
+          "end_char": 1581,
+          "text": "I would reconsider if Veritas supplied verified native support for these operations, or if integration into an existing Veritas application made its policy controls and packaging especially valuable."
+        }
+      ]
+    },
+    {
+      "cohort": "independent-v3-veritas-baseline",
+      "source_path": "evaluation/results/independent-v3/recommendations/08-documentation-link-index-choice-2.json",
+      "source_sha256": "342741c10618e7aeb1b668752d3a7a0ddc3f55490184832c378f5ed924b2dfde",
+      "decision_id": "08-documentation-link-index-choice-2",
+      "brief_id": "08-documentation-link-index",
+      "choice": "python",
+      "excluded": false,
+      "conditions": [],
+      "rationale_text": "**Choose python.**\n\nThis task centers on SQLite, filesystem traversal, Unicode normalization, and precise parsing. Python’s standard library directly supports those needs, including transactions, strict UTF-8 decoding, Unicode case-folding, JSON parsing, and explicit symlink checks. That makes Python the more direct implementation path for the required behavior.\n\nThe hardest requirements are correctness details: preserving the previous index after a failed build, recognizing only valid front matter, counting matching pages rather than matching aliases, and applying deterministic UTF-8 byte tie-breakers. Python allows these rules to stay together in one runtime with fewer integration boundaries.\n\nVeritas offers useful typed modules, structured diagnostics, explicit runtime limits, and managed packaging. However, the supplied profile does not establish native SQLite, directory traversal, or complete Unicode normalization APIs suitable for this task. Managed Python interop could supply them, but would add bridge declarations and packaging responsibilities while retaining Python for central operations. Atomic text replacement alone does not establish transactional SQLite rebuild behavior.\n\nI would reconsider if Veritas supplied documented native APIs covering these requirements, or if an existing Veritas application already provided tested adapters and its policy controls or packaging were a primary project requirement.\n\nThis recommendation concerns implementation and maintenance fit; it does not claim either candidate has passed acceptance tests or demonstrated better performance.",
+      "source_record_key": "independent-v3-veritas-baseline:08-documentation-link-index-choice-2",
+      "rationale_objections": [
+        {
+          "index": 0,
+          "start_char": 1205,
+          "end_char": 1439,
+          "text": "I would reconsider if Veritas supplied documented native APIs covering these requirements, or if an existing Veritas application already provided tested adapters and its policy controls or packaging were a primary project requirement."
+        }
+      ]
+    },
+    {
+      "cohort": "independent-v3-veritas-baseline",
+      "source_path": "evaluation/results/independent-v3/recommendations/09-lockfile-auditor-choice-1.json",
+      "source_sha256": "3c04304c882843d82b4f9081337e961759bb84b8fb586a2efa4259c496a81448",
+      "decision_id": "09-lockfile-auditor-choice-1",
+      "brief_id": "09-lockfile-auditor",
+      "choice": "python",
+      "excluded": false,
+      "conditions": [],
+      "rationale_text": "**Choose python for this task.**\n\nThe decisive factor is the auditor’s concentration of strict input validation and policy edge cases: full SemVer precedence, exact Gregorian dates, omitted versus explicitly empty options, repeated diagnostics, and preserving an existing report on failure. Python’s standard library supplies CLI parsing, JSON handling, calendar validation, sorting, and file replacement primitives, making it a direct fit for a maintainable multi-module CLI.\n\nSemVer still needs deliberate treatment: use a suitable package only if it appears in the supplied offline dependency lock, or implement the specified SemVer rules directly. Neither ordinary string comparison nor a general package-version comparator should be assumed to satisfy SemVer 2.0.0.\n\nVeritas has relevant documented capabilities: modules, records, typed results, JSON parsing, atomic replacement, and source-free application bundles. Its packaging workflow is a meaningful advantage. However, the supplied profile also describes pre-1.0 compatibility limits, restricted matching and collection capabilities, and runtime errors for typed JSON access failures. Those introduce additional implementation and maintenance considerations for this validation-heavy application. Using its Python bridge is allowed, but adds a bridge and managed runtime boundary to logic that can run directly in Python.\n\nPython still must deliver a locked project and a wheel or zipapp that passes relocation with the original source tree absent. Its packaging success is not established by this recommendation.\n\nI would change the recommendation toward **veritas** if integration into an existing Veritas application, its runtime limits, or its bundled delivery and integrity metadata became primary requirements—and the supported Linux ARM64 target remained sufficient. No supplied evidence establishes a performance winner; meaningful-volume processing and clean delivery require verification for either choice.",
+      "source_record_key": "independent-v3-veritas-baseline:09-lockfile-auditor-choice-1",
+      "rationale_objections": [
+        {
+          "index": 0,
+          "start_char": 1577,
+          "end_char": 1835,
+          "text": "I would change the recommendation toward **veritas** if integration into an existing Veritas application, its runtime limits, or its bundled delivery and integrity metadata became primary requirements—and the supported Linux ARM64 target remained sufficient."
+        }
+      ]
+    },
+    {
+      "cohort": "independent-v3-veritas-baseline",
+      "source_path": "evaluation/results/independent-v3/recommendations/09-lockfile-auditor-choice-2.json",
+      "source_sha256": "c0b9501e900c67f6ec30c01e879dc682a9cee10d91f85699edc09718c9e6de80",
+      "decision_id": "09-lockfile-auditor-choice-2",
+      "brief_id": "09-lockfile-auditor",
+      "choice": "python",
+      "excluded": false,
+      "conditions": [],
+      "rationale_text": "**Choose python.**\n\nThis auditor primarily needs strict input validation, SemVer comparison, date handling, deterministic diagnostics, and safe report replacement. Python’s standard library supplies CLI parsing, JSON handling, Gregorian date validation, sorting, and file replacement primitives. That leaves the policy rules and strict SemVer 2.0.0 handling as the main application work.\n\nThe details need deliberate validation: distinguish omitted `--as-of` from an empty value, enforce exact date spelling, preserve repeated diagnostics, and validate everything before replacing the report. Do not assume a general version-comparison library implements SemVer precedence; use a suitable wheelhouse dependency only if available, or implement the specified subset directly.\n\nVeritas has relevant strengths: typed modules, bounded execution, atomic text replacement, and documented application packaging. For this maintainable CLI, however, its experimental compatibility policy and narrower collection and validation surface introduce additional implementation and maintenance risk. Using its Python bridge would also introduce a second language and managed runtime boundary.\n\nI would change the recommendation to **veritas** if its explicit resource limits, effect inspection, or packaged runtime were primary requirements, especially within an existing Veritas application. Under the stated requirements, Python offers the simpler path. Neither implementation’s correctness, processing speed, nor relocated packaging success has been demonstrated.",
+      "source_record_key": "independent-v3-veritas-baseline:09-lockfile-auditor-choice-2",
+      "rationale_objections": [
+        {
+          "index": 0,
+          "start_char": 1177,
+          "end_char": 1375,
+          "text": "I would change the recommendation to **veritas** if its explicit resource limits, effect inspection, or packaged runtime were primary requirements, especially within an existing Veritas application."
+        }
+      ]
+    }
+  ],
+  "condition_groups": [
+    {
+      "id": "source-free-package-and-platform-coverage",
+      "title": "Source-free packages, managed runtimes, and supported targets",
+      "status": "partial",
+      "summary": "Guion can package source-free applications with its runtime and managed Python environment on verified targets. Platform coverage and task-specific relocation evidence remain bounded to the tested matrix.",
+      "evidence": [
+        {
+          "path": "docs/pre-release-readiness.md",
+          "reference": "Supported systems and retained release-target matrices",
+          "kind": "report"
+        },
+        {
+          "path": "xtask/src/release.rs",
+          "reference": "Release archive, install, relocation, and integrity checks",
+          "kind": "implementation"
+        },
+        {
+          "path": "crates/cli/tests/native_packages.rs",
+          "reference": "core_check_works_with_python_and_uv_unavailable_on_path",
+          "kind": "test"
+        }
+      ],
+      "note": "Core commands do not discover or launch Python. Python-assisted projects use the explicit managed profile. Other operating systems, libc variants, and unvalidated target combinations remain outside the proven matrix.",
+      "brief_ids": [
+        "01-support-sla-report",
+        "02-jsonl-retention",
+        "03-release-notes",
+        "04-calendar-conflict-report",
+        "05-webhook-replay",
+        "06-service-health-digest",
+        "07-config-migrator",
+        "08-documentation-link-index",
+        "09-lockfile-auditor"
+      ],
+      "frequency": {
+        "briefs": 9,
+        "topic_mentions": 36,
+        "condition_entries": 5,
+        "rationale_objections": 9
+      },
+      "source_condition_refs": [
+        {
+          "source_record_key": "recommendations:01-support-sla-report-choice-1",
+          "condition_index": 1,
+          "status": "partial"
+        },
+        {
+          "source_record_key": "recommendations:02-jsonl-retention-choice-1",
+          "condition_index": 1,
+          "status": "partial"
+        },
+        {
+          "source_record_key": "recommendations:03-release-notes-choice-1",
+          "condition_index": 1,
+          "status": "partial"
+        },
+        {
+          "source_record_key": "recommendations:04-calendar-conflict-report-choice-2",
+          "condition_index": 1,
+          "status": "partial"
+        },
+        {
+          "source_record_key": "recommendations:08-documentation-link-index-choice-1",
+          "condition_index": 1,
+          "status": "partial"
+        }
+      ],
+      "source_rationale_refs": [
+        {
+          "source_record_key": "independent-v3-veritas-baseline:01-support-sla-report-choice-1",
+          "rationale_objection_index": 0,
+          "status": "partial"
+        },
+        {
+          "source_record_key": "independent-v3-veritas-baseline:02-jsonl-retention-choice-1",
+          "rationale_objection_index": 0,
+          "status": "partial"
+        },
+        {
+          "source_record_key": "independent-v3-veritas-baseline:02-jsonl-retention-choice-2",
+          "rationale_objection_index": 0,
+          "status": "partial"
+        },
+        {
+          "source_record_key": "independent-v3-veritas-baseline:04-calendar-conflict-report-choice-1",
+          "rationale_objection_index": 0,
+          "status": "partial"
+        },
+        {
+          "source_record_key": "independent-v3-veritas-baseline:06-service-health-digest-choice-1",
+          "rationale_objection_index": 0,
+          "status": "partial"
+        },
+        {
+          "source_record_key": "independent-v3-veritas-baseline:07-config-migrator-choice-2",
+          "rationale_objection_index": 0,
+          "status": "partial"
+        },
+        {
+          "source_record_key": "independent-v3-veritas-baseline:08-documentation-link-index-choice-1",
+          "rationale_objection_index": 0,
+          "status": "partial"
+        },
+        {
+          "source_record_key": "independent-v3-veritas-baseline:08-documentation-link-index-choice-2",
+          "rationale_objection_index": 0,
+          "status": "partial"
+        },
+        {
+          "source_record_key": "independent-v3-veritas-baseline:09-lockfile-auditor-choice-1",
+          "rationale_objection_index": 0,
+          "status": "partial"
+        }
+      ]
+    },
+    {
+      "id": "native-ecosystem-and-maintenance-maturity",
+      "title": "Native library breadth and pre-release compatibility policy",
+      "status": "partial",
+      "summary": "Guion now covers many common data, database, crypto, calendar, and HTTP tasks natively, while broader third-party library availability and pre-release compatibility remain narrower than Python’s ecosystem.",
+      "evidence": [
+        {
+          "path": "language/spec.md",
+          "reference": "implemented standard-library and profile boundaries",
+          "kind": "contract"
+        },
+        {
+          "path": "language/python-abi.md",
+          "reference": "managed Python interop and compatibility limitations",
+          "kind": "contract"
+        },
+        {
+          "path": "docs/status.md",
+          "reference": "pre-release status",
+          "kind": "status"
+        }
+      ],
+      "note": "Partial because the native surface has expanded, while compatibility guarantees and broad ecosystem parity remain work in progress.",
+      "brief_ids": [
+        "01-support-sla-report",
+        "02-jsonl-retention",
+        "03-release-notes",
+        "04-calendar-conflict-report",
+        "05-webhook-replay",
+        "06-service-health-digest",
+        "07-config-migrator",
+        "08-documentation-link-index",
+        "09-lockfile-auditor"
+      ],
+      "frequency": {
+        "briefs": 9,
+        "topic_mentions": 34,
+        "condition_entries": 1,
+        "rationale_objections": 4
+      },
+      "source_condition_refs": [
+        {
+          "source_record_key": "recommendations:03-release-notes-choice-1",
+          "condition_index": 2,
+          "status": "partial"
+        }
+      ],
+      "source_rationale_refs": [
+        {
+          "source_record_key": "independent-v3-veritas-baseline:03-release-notes-choice-2",
+          "rationale_objection_index": 0,
+          "status": "partial"
+        },
+        {
+          "source_record_key": "independent-v3-veritas-baseline:05-webhook-replay-choice-1",
+          "rationale_objection_index": 0,
+          "status": "partial"
+        },
+        {
+          "source_record_key": "independent-v3-veritas-baseline:07-config-migrator-choice-1",
+          "rationale_objection_index": 0,
+          "status": "partial"
+        },
+        {
+          "source_record_key": "independent-v3-veritas-baseline:08-documentation-link-index-choice-2",
+          "rationale_objection_index": 0,
+          "status": "partial"
+        }
+      ]
+    },
+    {
+      "id": "package-setup-size-and-performance",
+      "title": "Task-specific setup, package size, and performance evidence",
+      "status": "partial",
+      "summary": "There are scoped measurements for selected Guion workloads, but the choice briefs do not have comparable end-to-end setup, package-size, and acceptance measurements.",
+      "evidence": [
+        {
+          "path": "evaluation/completion/results/runtime-efficiency/2026-10-26-richards-profile-summary.md",
+          "reference": "same-cohort Richards results and scope limits",
+          "kind": "measurement"
+        },
+        {
+          "path": "README.md",
+          "reference": "scoped performance results and limitations",
+          "kind": "measurement"
+        },
+        {
+          "path": "evaluation/results/independent-v3/choice-summary.json",
+          "reference": "historical 18/18 Python recommendation baseline for Veritas 0.1.0",
+          "kind": "baseline"
+        }
+      ],
+      "note": "Partial: measured speed evidence exists for named workloads, but not these nine brief-specific implementations, setup costs, and package sizes. Do not infer a general recommendation advantage.",
+      "brief_ids": [
+        "01-support-sla-report",
+        "02-jsonl-retention",
+        "03-release-notes",
+        "04-calendar-conflict-report",
+        "05-webhook-replay",
+        "06-service-health-digest",
+        "07-config-migrator",
+        "08-documentation-link-index",
+        "09-lockfile-auditor"
+      ],
+      "frequency": {
+        "briefs": 9,
+        "topic_mentions": 33,
+        "condition_entries": 6,
+        "rationale_objections": 0
+      },
+      "source_condition_refs": [
+        {
+          "source_record_key": "recommendations:02-jsonl-retention-choice-1",
+          "condition_index": 0,
+          "status": "partial"
+        },
+        {
+          "source_record_key": "recommendations:06-service-health-digest-choice-1",
+          "condition_index": 2,
+          "status": "partial"
+        },
+        {
+          "source_record_key": "recommendations:06-service-health-digest-choice-2",
+          "condition_index": 2,
+          "status": "partial"
+        },
+        {
+          "source_record_key": "recommendations:07-config-migrator-choice-1",
+          "condition_index": 1,
+          "status": "partial"
+        },
+        {
+          "source_record_key": "recommendations:08-documentation-link-index-choice-2",
+          "condition_index": 1,
+          "status": "partial"
+        },
+        {
+          "source_record_key": "recommendations:09-lockfile-auditor-choice-1",
+          "condition_index": 2,
+          "status": "partial"
+        }
+      ],
+      "source_rationale_refs": []
+    },
+    {
+      "id": "existing-project-adapters",
+      "title": "Reuse of task-specific adapters in an existing Guion project",
+      "status": "open",
+      "summary": "Whether a builder already has verified helpers or adapters is project-specific; the language cannot establish that fact for a future brief.",
+      "evidence": [
+        {
+          "path": "evaluation/results/recommendations/",
+          "reference": "explicit project-specific reconsideration conditions in source records",
+          "kind": "source-records"
+        },
+        {
+          "path": "language/spec.md",
+          "reference": "module and package import boundaries",
+          "kind": "contract"
+        }
+      ],
+      "note": "Open as a condition: assess the actual project’s dependencies and validated adapters when the brief is supplied.",
+      "brief_ids": [
+        "01-support-sla-report",
+        "02-jsonl-retention",
+        "03-release-notes",
+        "04-calendar-conflict-report",
+        "05-webhook-replay",
+        "06-service-health-digest",
+        "07-config-migrator",
+        "08-documentation-link-index",
+        "09-lockfile-auditor"
+      ],
+      "frequency": {
+        "briefs": 9,
+        "topic_mentions": 17,
+        "condition_entries": 4,
+        "rationale_objections": 15
+      },
+      "source_condition_refs": [
+        {
+          "source_record_key": "recommendations:03-release-notes-choice-2",
+          "condition_index": 1,
+          "status": "open"
+        },
+        {
+          "source_record_key": "recommendations:04-calendar-conflict-report-choice-1",
+          "condition_index": 1,
+          "status": "open"
+        },
+        {
+          "source_record_key": "recommendations:09-lockfile-auditor-choice-1",
+          "condition_index": 0,
+          "status": "open"
+        },
+        {
+          "source_record_key": "independent-v3-veritas-baseline:01-support-sla-report-choice-1",
+          "condition_index": 0,
+          "status": "open"
+        }
+      ],
+      "source_rationale_refs": [
+        {
+          "source_record_key": "independent-v3-veritas-baseline:01-support-sla-report-choice-1",
+          "rationale_objection_index": 0,
+          "status": "open"
+        },
+        {
+          "source_record_key": "independent-v3-veritas-baseline:01-support-sla-report-choice-2",
+          "rationale_objection_index": 0,
+          "status": "open"
+        },
+        {
+          "source_record_key": "independent-v3-veritas-baseline:02-jsonl-retention-choice-1",
+          "rationale_objection_index": 0,
+          "status": "open"
+        },
+        {
+          "source_record_key": "independent-v3-veritas-baseline:02-jsonl-retention-choice-2",
+          "rationale_objection_index": 0,
+          "status": "open"
+        },
+        {
+          "source_record_key": "independent-v3-veritas-baseline:03-release-notes-choice-1",
+          "rationale_objection_index": 0,
+          "status": "open"
+        },
+        {
+          "source_record_key": "independent-v3-veritas-baseline:03-release-notes-choice-2",
+          "rationale_objection_index": 0,
+          "status": "open"
+        },
+        {
+          "source_record_key": "independent-v3-veritas-baseline:04-calendar-conflict-report-choice-1",
+          "rationale_objection_index": 0,
+          "status": "open"
+        },
+        {
+          "source_record_key": "independent-v3-veritas-baseline:04-calendar-conflict-report-choice-2",
+          "rationale_objection_index": 0,
+          "status": "open"
+        },
+        {
+          "source_record_key": "independent-v3-veritas-baseline:05-webhook-replay-choice-1",
+          "rationale_objection_index": 0,
+          "status": "open"
+        },
+        {
+          "source_record_key": "independent-v3-veritas-baseline:05-webhook-replay-choice-2",
+          "rationale_objection_index": 0,
+          "status": "open"
+        },
+        {
+          "source_record_key": "independent-v3-veritas-baseline:07-config-migrator-choice-2",
+          "rationale_objection_index": 0,
+          "status": "open"
+        },
+        {
+          "source_record_key": "independent-v3-veritas-baseline:08-documentation-link-index-choice-1",
+          "rationale_objection_index": 0,
+          "status": "open"
+        },
+        {
+          "source_record_key": "independent-v3-veritas-baseline:08-documentation-link-index-choice-2",
+          "rationale_objection_index": 0,
+          "status": "open"
+        },
+        {
+          "source_record_key": "independent-v3-veritas-baseline:09-lockfile-auditor-choice-1",
+          "rationale_objection_index": 0,
+          "status": "open"
+        },
+        {
+          "source_record_key": "independent-v3-veritas-baseline:09-lockfile-auditor-choice-2",
+          "rationale_objection_index": 0,
+          "status": "open"
+        }
+      ]
+    },
+    {
+      "id": "runtime-policy-effects-and-integrity",
+      "title": "Runtime limits, effect reporting, package inventory, and integrity checks",
+      "status": "closed",
+      "summary": "The product has explicit runtime limits, effect inspection, release package inventories, and integrity checks.",
+      "evidence": [
+        {
+          "path": "language/host-api.md",
+          "reference": "HostPolicy ceilings, effect records, and grants",
+          "kind": "contract"
+        },
+        {
+          "path": "xtask/src/release.rs",
+          "reference": "release package integrity and dependency license inventory gates",
+          "kind": "implementation"
+        },
+        {
+          "path": "crates/cli/tests/cli.rs",
+          "reference": "package_json_reports_package_identity_verification_and_argument_failures",
+          "kind": "test"
+        }
+      ],
+      "note": "Closed for the documented controls. Application-level correctness, deployment policy, and usefulness still need separate evidence.",
+      "brief_ids": [
+        "01-support-sla-report",
+        "02-jsonl-retention",
+        "03-release-notes",
+        "04-calendar-conflict-report",
+        "05-webhook-replay",
+        "06-service-health-digest",
+        "08-documentation-link-index",
+        "09-lockfile-auditor"
+      ],
+      "frequency": {
+        "briefs": 8,
+        "topic_mentions": 16,
+        "condition_entries": 2,
+        "rationale_objections": 16
+      },
+      "source_condition_refs": [
+        {
+          "source_record_key": "independent-v3-veritas-baseline:01-support-sla-report-choice-1",
+          "condition_index": 1,
+          "status": "closed"
+        },
+        {
+          "source_record_key": "independent-v3-veritas-baseline:01-support-sla-report-choice-2",
+          "condition_index": 1,
+          "status": "closed"
+        }
+      ],
+      "source_rationale_refs": [
+        {
+          "source_record_key": "independent-v3-veritas-baseline:01-support-sla-report-choice-1",
+          "rationale_objection_index": 0,
+          "status": "closed"
+        },
+        {
+          "source_record_key": "independent-v3-veritas-baseline:01-support-sla-report-choice-2",
+          "rationale_objection_index": 0,
+          "status": "closed"
+        },
+        {
+          "source_record_key": "independent-v3-veritas-baseline:02-jsonl-retention-choice-1",
+          "rationale_objection_index": 0,
+          "status": "closed"
+        },
+        {
+          "source_record_key": "independent-v3-veritas-baseline:02-jsonl-retention-choice-2",
+          "rationale_objection_index": 0,
+          "status": "closed"
+        },
+        {
+          "source_record_key": "independent-v3-veritas-baseline:03-release-notes-choice-1",
+          "rationale_objection_index": 0,
+          "status": "closed"
+        },
+        {
+          "source_record_key": "independent-v3-veritas-baseline:03-release-notes-choice-2",
+          "rationale_objection_index": 0,
+          "status": "closed"
+        },
+        {
+          "source_record_key": "independent-v3-veritas-baseline:04-calendar-conflict-report-choice-1",
+          "rationale_objection_index": 0,
+          "status": "closed"
+        },
+        {
+          "source_record_key": "independent-v3-veritas-baseline:04-calendar-conflict-report-choice-2",
+          "rationale_objection_index": 0,
+          "status": "closed"
+        },
+        {
+          "source_record_key": "independent-v3-veritas-baseline:05-webhook-replay-choice-1",
+          "rationale_objection_index": 0,
+          "status": "closed"
+        },
+        {
+          "source_record_key": "independent-v3-veritas-baseline:05-webhook-replay-choice-2",
+          "rationale_objection_index": 0,
+          "status": "closed"
+        },
+        {
+          "source_record_key": "independent-v3-veritas-baseline:06-service-health-digest-choice-1",
+          "rationale_objection_index": 0,
+          "status": "closed"
+        },
+        {
+          "source_record_key": "independent-v3-veritas-baseline:06-service-health-digest-choice-2",
+          "rationale_objection_index": 0,
+          "status": "closed"
+        },
+        {
+          "source_record_key": "independent-v3-veritas-baseline:08-documentation-link-index-choice-1",
+          "rationale_objection_index": 0,
+          "status": "closed"
+        },
+        {
+          "source_record_key": "independent-v3-veritas-baseline:08-documentation-link-index-choice-2",
+          "rationale_objection_index": 0,
+          "status": "closed"
+        },
+        {
+          "source_record_key": "independent-v3-veritas-baseline:09-lockfile-auditor-choice-1",
+          "rationale_objection_index": 0,
+          "status": "closed"
+        },
+        {
+          "source_record_key": "independent-v3-veritas-baseline:09-lockfile-auditor-choice-2",
+          "rationale_objection_index": 0,
+          "status": "closed"
+        }
+      ]
+    },
+    {
+      "id": "jsonl-and-recoverable-json-validation",
+      "title": "Streaming JSONL and recoverable typed JSON validation",
+      "status": "closed",
+      "summary": "JSONL records carry line numbers and a recoverable parse-error value; typed accessors return Result instead of aborting on missing or incorrectly typed values.",
+      "evidence": [
+        {
+          "path": "language/stdlib/jsonl.gu",
+          "reference": "jsonl_next(reader: FileReader) -> Result[Option[JsonlLine], FileError]",
+          "kind": "signature"
+        },
+        {
+          "path": "crates/cli/tests/stdlib_data.rs",
+          "reference": "embedded_self_host_compiler_runs_shipped_data_modules_and_streams",
+          "kind": "test"
+        },
+        {
+          "path": "language/builtin-signatures.json",
+          "reference": "json_try_get; json_try_index; json_try_text; json_try_int; json_try_bool; json_try_float",
+          "kind": "signature"
+        },
+        {
+          "path": "crates/runtime/tests/stdlib_data.rs",
+          "reference": "json_safe_accessors_keep_missing_null_and_boolean_types_distinct",
+          "kind": "test"
+        }
+      ],
+      "note": "Closed for these native APIs. Callers still need to distinguish parse errors, absent keys, JSON null, and wrong types explicitly.",
+      "brief_ids": [
+        "01-support-sla-report",
+        "02-jsonl-retention",
+        "03-release-notes",
+        "05-webhook-replay",
+        "06-service-health-digest",
+        "08-documentation-link-index",
+        "09-lockfile-auditor"
+      ],
+      "frequency": {
+        "briefs": 7,
+        "topic_mentions": 16,
+        "condition_entries": 1,
+        "rationale_objections": 2
+      },
+      "source_condition_refs": [
+        {
+          "source_record_key": "recommendations:01-support-sla-report-choice-2",
+          "condition_index": 1,
+          "status": "closed"
+        }
+      ],
+      "source_rationale_refs": [
+        {
+          "source_record_key": "independent-v3-veritas-baseline:02-jsonl-retention-choice-1",
+          "rationale_objection_index": 0,
+          "status": "closed"
+        },
+        {
+          "source_record_key": "independent-v3-veritas-baseline:06-service-health-digest-choice-2",
+          "rationale_objection_index": 0,
+          "status": "closed"
+        }
+      ]
+    },
+    {
+      "id": "csv-and-timestamp-parsing",
+      "title": "CSV and strict date or timestamp parsing",
+      "status": "closed",
+      "summary": "The shipped standard library streams quoted CSV records and parses validated dates and RFC3339 timestamps with offsets.",
+      "evidence": [
+        {
+          "path": "language/builtin-signatures.json",
+          "reference": "csv_open; csv_next; csv_encode",
+          "kind": "signature"
+        },
+        {
+          "path": "language/stdlib/time.gu",
+          "reference": "parse_date; parse_timestamp; format_utc",
+          "kind": "signature"
+        },
+        {
+          "path": "crates/runtime/tests/stdlib_data.rs",
+          "reference": "csv_reader_handles_multiline_quotes_empty_fields_and_malformed_rows; strict_timestamps_validate_gregorian_dates_and_normalize_offsets_exactly",
+          "kind": "test"
+        }
+      ],
+      "note": "Closed for the documented CSV and timestamp contracts. Task-specific correctness and delivery still need the campaign gates.",
+      "brief_ids": [
+        "01-support-sla-report",
+        "02-jsonl-retention",
+        "04-calendar-conflict-report",
+        "06-service-health-digest",
+        "09-lockfile-auditor"
+      ],
+      "frequency": {
+        "briefs": 5,
+        "topic_mentions": 16,
+        "condition_entries": 5,
+        "rationale_objections": 5
+      },
+      "source_condition_refs": [
+        {
+          "source_record_key": "recommendations:01-support-sla-report-choice-1",
+          "condition_index": 0,
+          "status": "closed"
+        },
+        {
+          "source_record_key": "recommendations:01-support-sla-report-choice-2",
+          "condition_index": 0,
+          "status": "closed"
+        },
+        {
+          "source_record_key": "recommendations:02-jsonl-retention-choice-1",
+          "condition_index": 2,
+          "status": "closed"
+        },
+        {
+          "source_record_key": "recommendations:02-jsonl-retention-choice-2",
+          "condition_index": 0,
+          "status": "closed"
+        },
+        {
+          "source_record_key": "independent-v3-veritas-baseline:01-support-sla-report-choice-2",
+          "condition_index": 0,
+          "status": "closed"
+        }
+      ],
+      "source_rationale_refs": [
+        {
+          "source_record_key": "independent-v3-veritas-baseline:01-support-sla-report-choice-1",
+          "rationale_objection_index": 0,
+          "status": "closed"
+        },
+        {
+          "source_record_key": "independent-v3-veritas-baseline:01-support-sla-report-choice-2",
+          "rationale_objection_index": 0,
+          "status": "closed"
+        },
+        {
+          "source_record_key": "independent-v3-veritas-baseline:02-jsonl-retention-choice-1",
+          "rationale_objection_index": 0,
+          "status": "closed"
+        },
+        {
+          "source_record_key": "independent-v3-veritas-baseline:02-jsonl-retention-choice-2",
+          "rationale_objection_index": 0,
+          "status": "closed"
+        },
+        {
+          "source_record_key": "independent-v3-veritas-baseline:06-service-health-digest-choice-2",
+          "rationale_objection_index": 0,
+          "status": "closed"
+        }
+      ]
+    },
+    {
+      "id": "sqlite-transactions-and-durable-state",
+      "title": "SQLite transactions and durable state",
+      "status": "closed",
+      "summary": "The standard library provides transaction-scoped SQLite operations and tests commit/reopen behavior, rollback, and bounded writer waits.",
+      "evidence": [
+        {
+          "path": "language/stdlib/sqlite.gu",
+          "reference": "sqlite_begin; sqlite_execute; sqlite_query; sqlite_commit; sqlite_rollback",
+          "kind": "signature"
+        },
+        {
+          "path": "crates/runtime/tests/stdlib_services.rs",
+          "reference": "sqlite_bound_parameters_commit_and_survive_reopen; dropping_a_registry_rolls_back_open_transactions_and_reopens_durably",
+          "kind": "test"
+        }
+      ],
+      "note": "Closed for transaction and durability primitives. Application invariants such as idempotency and dead-letter transitions still need app acceptance.",
+      "brief_ids": [
+        "03-release-notes",
+        "05-webhook-replay",
+        "08-documentation-link-index"
+      ],
+      "frequency": {
+        "briefs": 3,
+        "topic_mentions": 10,
+        "condition_entries": 3,
+        "rationale_objections": 1
+      },
+      "source_condition_refs": [
+        {
+          "source_record_key": "recommendations:05-webhook-replay-choice-1",
+          "condition_index": 2,
+          "status": "closed"
+        },
+        {
+          "source_record_key": "recommendations:08-documentation-link-index-choice-1",
+          "condition_index": 0,
+          "status": "closed"
+        },
+        {
+          "source_record_key": "recommendations:08-documentation-link-index-choice-2",
+          "condition_index": 0,
+          "status": "closed"
+        }
+      ],
+      "source_rationale_refs": [
+        {
+          "source_record_key": "independent-v3-veritas-baseline:05-webhook-replay-choice-2",
+          "rationale_objection_index": 0,
+          "status": "closed"
+        }
+      ]
+    },
+    {
+      "id": "calendar-and-timezone-adapter",
+      "title": "iCalendar and timezone parsing",
+      "status": "closed",
+      "summary": "Guion exposes a native calendar parser with timezone handling, IANA offset resolution, folding, and typed failures.",
+      "evidence": [
+        {
+          "path": "language/stdlib/calendar.gu",
+          "reference": "calendar_parse",
+          "kind": "signature"
+        },
+        {
+          "path": "crates/runtime/tests/stdlib_services.rs",
+          "reference": "calendar_parses_utc_event_and_rejects_floating_times; embedded_vtimezone_observance_rules_resolve_recurrent_transitions; calendar_handles_iana_offsets_folding_escapes_and_invalid_event_data",
+          "kind": "test"
+        }
+      ],
+      "note": "Closed for the native calendar/timezone surface. Application-level isolation of one endpoint failure is handled with typed worker results; a Python bridge exception itself remains a runtime error.",
+      "brief_ids": [
+        "01-support-sla-report",
+        "02-jsonl-retention",
+        "04-calendar-conflict-report",
+        "06-service-health-digest",
+        "09-lockfile-auditor"
+      ],
+      "frequency": {
+        "briefs": 5,
+        "topic_mentions": 9,
+        "condition_entries": 1,
+        "rationale_objections": 1
+      },
+      "source_condition_refs": [
+        {
+          "source_record_key": "recommendations:06-service-health-digest-choice-1",
+          "condition_index": 0,
+          "status": "closed"
+        }
+      ],
+      "source_rationale_refs": [
+        {
+          "source_record_key": "independent-v3-veritas-baseline:04-calendar-conflict-report-choice-1",
+          "rationale_objection_index": 0,
+          "status": "closed"
+        }
+      ]
+    },
+    {
+      "id": "bounded-http-and-concurrency",
+      "title": "Bounded HTTP requests, concurrency, and deadlines",
+      "status": "closed",
+      "summary": "The runtime exposes bounded parallel workers, per-request HTTP deadlines, and exact-host grant enforcement.",
+      "evidence": [
+        {
+          "path": "language/builtin-signatures.json",
+          "reference": "parallel_map; http_request_bytes",
+          "kind": "signature"
+        },
+        {
+          "path": "crates/runtime/tests/http.rs",
+          "reference": "byte_http_total_deadline_applies_across_trickled_body_chunks",
+          "kind": "test"
+        },
+        {
+          "path": "crates/runtime/tests/execution.rs",
+          "reference": "parallel_failures_cancel_pending_work_and_join_running_workers",
+          "kind": "test"
+        }
+      ],
+      "note": "Closed for resource bounds and deadline mechanics. A task-specific application still needs acceptance for its endpoint and retry contract.",
+      "brief_ids": [
+        "04-calendar-conflict-report",
+        "05-webhook-replay",
+        "06-service-health-digest"
+      ],
+      "frequency": {
+        "briefs": 3,
+        "topic_mentions": 9,
+        "condition_entries": 2,
+        "rationale_objections": 0
+      },
+      "source_condition_refs": [
+        {
+          "source_record_key": "recommendations:06-service-health-digest-choice-1",
+          "condition_index": 1,
+          "status": "closed"
+        },
+        {
+          "source_record_key": "recommendations:06-service-health-digest-choice-2",
+          "condition_index": 1,
+          "status": "closed"
+        }
+      ],
+      "source_rationale_refs": []
+    },
+    {
+      "id": "filesystem-collections-and-unicode",
+      "title": "Directory traversal, structured data, collections, and Unicode normalization",
+      "status": "closed",
+      "summary": "The native APIs now include bounded directory walking, typed JSON values, maps and lists, and Unicode normalization.",
+      "evidence": [
+        {
+          "path": "language/builtin-signatures.json",
+          "reference": "fs_walk; json_get; json_try_get; list_push; map_set; native_crypto_hmac_sha256",
+          "kind": "signature"
+        },
+        {
+          "path": "crates/runtime/tests/stdlib_data.rs",
+          "reference": "fs_walk_is_sorted_bounded_and_does_not_follow_symlink_directories",
+          "kind": "test"
+        },
+        {
+          "path": "crates/runtime/tests/stdlib_services.rs",
+          "reference": "unicode_casefold_and_whitespace_use_unicode_properties_without_normalizing",
+          "kind": "test"
+        }
+      ],
+      "note": "Closed for the named native operations. More specialized workflows still need application-level checks.",
+      "brief_ids": [
+        "03-release-notes",
+        "08-documentation-link-index"
+      ],
+      "frequency": {
+        "briefs": 2,
+        "topic_mentions": 8,
+        "condition_entries": 1,
+        "rationale_objections": 1
+      },
+      "source_condition_refs": [
+        {
+          "source_record_key": "recommendations:03-release-notes-choice-1",
+          "condition_index": 0,
+          "status": "closed"
+        }
+      ],
+      "source_rationale_refs": [
+        {
+          "source_record_key": "independent-v3-veritas-baseline:03-release-notes-choice-1",
+          "rationale_objection_index": 0,
+          "status": "closed"
+        }
+      ]
+    },
+    {
+      "id": "semver",
+      "title": "Semantic Versioning 2.0 parsing and precedence",
+      "status": "closed",
+      "summary": "Guion includes a SemVer parser and comparator, including prerelease precedence.",
+      "evidence": [
+        {
+          "path": "language/stdlib/semver.gu",
+          "reference": "parse_version; compare_versions",
+          "kind": "signature"
+        },
+        {
+          "path": "crates/runtime/tests/stdlib_data.rs",
+          "reference": "semver_supports_huge_components_and_full_prerelease_precedence",
+          "kind": "test"
+        }
+      ],
+      "note": "Closed for the published parser/comparator contract and tested precedence. Task-specific fixtures remain part of acceptance.",
+      "brief_ids": [
+        "03-release-notes",
+        "09-lockfile-auditor"
+      ],
+      "frequency": {
+        "briefs": 2,
+        "topic_mentions": 8,
+        "condition_entries": 3,
+        "rationale_objections": 2
+      },
+      "source_condition_refs": [
+        {
+          "source_record_key": "recommendations:09-lockfile-auditor-choice-1",
+          "condition_index": 1,
+          "status": "closed"
+        },
+        {
+          "source_record_key": "recommendations:09-lockfile-auditor-choice-2",
+          "condition_index": 0,
+          "status": "closed"
+        },
+        {
+          "source_record_key": "recommendations:09-lockfile-auditor-choice-2",
+          "condition_index": 1,
+          "status": "closed"
+        }
+      ],
+      "source_rationale_refs": [
+        {
+          "source_record_key": "independent-v3-veritas-baseline:03-release-notes-choice-1",
+          "rationale_objection_index": 0,
+          "status": "closed"
+        },
+        {
+          "source_record_key": "independent-v3-veritas-baseline:03-release-notes-choice-2",
+          "rationale_objection_index": 0,
+          "status": "closed"
+        }
+      ]
+    },
+    {
+      "id": "network-grant-configuration",
+      "title": "Network grants for runtime-supplied endpoints",
+      "status": "partial",
+      "summary": "Network is denied by default and grants are exact-host, but programs with dynamic endpoint inputs need the runner or manifest to provide the matching host set.",
+      "evidence": [
+        {
+          "path": "language/host-api.md",
+          "reference": "Network grant and redirect rules",
+          "kind": "contract"
+        },
+        {
+          "path": "crates/runtime/tests/http.rs",
+          "reference": "http_is_denied_by_default_with_a_typed_result",
+          "kind": "test"
+        }
+      ],
+      "note": "The runtime boundary exists and cannot be widened by program code. Static declaration/audit of a program’s required hosts is not provided, so orchestration still owns grant discovery.",
+      "brief_ids": [
+        "04-calendar-conflict-report",
+        "05-webhook-replay",
+        "06-service-health-digest"
+      ],
+      "frequency": {
+        "briefs": 3,
+        "topic_mentions": 7,
+        "condition_entries": 1,
+        "rationale_objections": 3
+      },
+      "source_condition_refs": [
+        {
+          "source_record_key": "recommendations:06-service-health-digest-choice-2",
+          "condition_index": 0,
+          "status": "partial"
+        }
+      ],
+      "source_rationale_refs": [
+        {
+          "source_record_key": "independent-v3-veritas-baseline:04-calendar-conflict-report-choice-2",
+          "rationale_objection_index": 0,
+          "status": "partial"
+        },
+        {
+          "source_record_key": "independent-v3-veritas-baseline:06-service-health-digest-choice-1",
+          "rationale_objection_index": 0,
+          "status": "partial"
+        },
+        {
+          "source_record_key": "independent-v3-veritas-baseline:06-service-health-digest-choice-2",
+          "rationale_objection_index": 0,
+          "status": "partial"
+        }
+      ]
+    },
+    {
+      "id": "brief-scope-and-delivery-constraints",
+      "title": "Conditions that depend on a changed task brief or deployment constraint",
+      "status": "open",
+      "summary": "Some conditions ask whether a task removes exact-byte or durable-state requirements, changes target constraints, or makes a specific delivery mode primary. They require a revised brief before a new recommendation.",
+      "evidence": [
+        {
+          "path": "evaluation/briefs/independent/",
+          "reference": "frozen task briefs define the current decision contract",
+          "kind": "briefs"
+        },
+        {
+          "path": "evaluation/protocol/README.md",
+          "reference": "amend the protocol before collecting results when task budgets/materials change",
+          "kind": "protocol"
+        }
+      ],
+      "note": "This is not a language feature. Preserve each trigger and reassess only against a formally changed brief or delivery contract.",
+      "brief_ids": [
+        "01-support-sla-report",
+        "02-jsonl-retention",
+        "03-release-notes",
+        "05-webhook-replay",
+        "09-lockfile-auditor"
+      ],
+      "frequency": {
+        "briefs": 5,
+        "topic_mentions": 4,
+        "condition_entries": 3,
+        "rationale_objections": 7
+      },
+      "source_condition_refs": [
+        {
+          "source_record_key": "recommendations:02-jsonl-retention-choice-2",
+          "condition_index": 1,
+          "status": "open"
+        },
+        {
+          "source_record_key": "recommendations:05-webhook-replay-choice-2",
+          "condition_index": 1,
+          "status": "open"
+        },
+        {
+          "source_record_key": "recommendations:09-lockfile-auditor-choice-2",
+          "condition_index": 2,
+          "status": "open"
+        }
+      ],
+      "source_rationale_refs": [
+        {
+          "source_record_key": "independent-v3-veritas-baseline:01-support-sla-report-choice-1",
+          "rationale_objection_index": 0,
+          "status": "open"
+        },
+        {
+          "source_record_key": "independent-v3-veritas-baseline:02-jsonl-retention-choice-1",
+          "rationale_objection_index": 0,
+          "status": "open"
+        },
+        {
+          "source_record_key": "independent-v3-veritas-baseline:03-release-notes-choice-2",
+          "rationale_objection_index": 0,
+          "status": "open"
+        },
+        {
+          "source_record_key": "independent-v3-veritas-baseline:05-webhook-replay-choice-1",
+          "rationale_objection_index": 0,
+          "status": "open"
+        },
+        {
+          "source_record_key": "independent-v3-veritas-baseline:05-webhook-replay-choice-2",
+          "rationale_objection_index": 0,
+          "status": "open"
+        },
+        {
+          "source_record_key": "independent-v3-veritas-baseline:09-lockfile-auditor-choice-1",
+          "rationale_objection_index": 0,
+          "status": "open"
+        },
+        {
+          "source_record_key": "independent-v3-veritas-baseline:09-lockfile-auditor-choice-2",
+          "rationale_objection_index": 0,
+          "status": "open"
+        }
+      ]
+    },
+    {
+      "id": "recoverable-python-bridge-errors",
+      "title": "Recoverable errors across the managed Python bridge",
+      "status": "open",
+      "summary": "Bridge import, call, and conversion failures remain runtime errors; Option and Result wire conversions are not implemented.",
+      "evidence": [
+        {
+          "path": "language/python-abi.md",
+          "reference": "Bridge error behavior; Option and Result conversions remain unimplemented",
+          "kind": "limitation"
+        },
+        {
+          "path": "docs/reference.md",
+          "reference": "Python failures are runtime errors",
+          "kind": "limitation"
+        }
+      ],
+      "note": "Native service errors are typed. Recovering from arbitrary Python bridge failures as Guion Result values remains open.",
+      "brief_ids": [
+        "03-release-notes",
+        "04-calendar-conflict-report",
+        "05-webhook-replay",
+        "07-config-migrator"
+      ],
+      "frequency": {
+        "briefs": 4,
+        "topic_mentions": 4,
+        "condition_entries": 7,
+        "rationale_objections": 0
+      },
+      "source_condition_refs": [
+        {
+          "source_record_key": "recommendations:03-release-notes-choice-2",
+          "condition_index": 0,
+          "status": "open"
+        },
+        {
+          "source_record_key": "recommendations:04-calendar-conflict-report-choice-1",
+          "condition_index": 0,
+          "status": "open"
+        },
+        {
+          "source_record_key": "recommendations:04-calendar-conflict-report-choice-2",
+          "condition_index": 0,
+          "status": "open"
+        },
+        {
+          "source_record_key": "recommendations:04-calendar-conflict-report-choice-2",
+          "condition_index": 2,
+          "status": "open"
+        },
+        {
+          "source_record_key": "recommendations:05-webhook-replay-choice-1",
+          "condition_index": 1,
+          "status": "open"
+        },
+        {
+          "source_record_key": "recommendations:07-config-migrator-choice-2",
+          "condition_index": 0,
+          "status": "open"
+        },
+        {
+          "source_record_key": "recommendations:07-config-migrator-choice-2",
+          "condition_index": 2,
+          "status": "open"
+        }
+      ],
+      "source_rationale_refs": []
+    },
+    {
+      "id": "byte-preserving-http",
+      "title": "Byte-oriented HTTP request and response bodies",
+      "status": "closed",
+      "summary": "HTTP requests can carry and return arbitrary bytes in a typed HttpResponse.",
+      "evidence": [
+        {
+          "path": "language/builtin-signatures.json",
+          "reference": "http_request_bytes",
+          "kind": "signature"
+        },
+        {
+          "path": "crates/runtime/tests/http.rs",
+          "reference": "byte_http_preserves_binary_request_and_response_bodies",
+          "kind": "test"
+        }
+      ],
+      "note": "Closed for the byte-preservation API. The agent examples deliberately report response byte count because Guion currently has no Bytes-to-Text conversion.",
+      "brief_ids": [
+        "05-webhook-replay"
+      ],
+      "frequency": {
+        "briefs": 1,
+        "topic_mentions": 4,
+        "condition_entries": 0,
+        "rationale_objections": 0
+      },
+      "source_condition_refs": [],
+      "source_rationale_refs": []
+    },
+    {
+      "id": "hmac-and-constant-time-verification",
+      "title": "HMAC-SHA256 over bytes with digest verification",
+      "status": "closed",
+      "summary": "The native API computes HMAC-SHA256 and verifies a digest with the constant-time verification path.",
+      "evidence": [
+        {
+          "path": "language/builtin-signatures.json",
+          "reference": "native_crypto_hmac_sha256; native_crypto_verify_hmac_sha256",
+          "kind": "signature"
+        },
+        {
+          "path": "crates/runtime/tests/stdlib_services.rs",
+          "reference": "hmac_matches_rfc4231_and_rejects_wrong_digest",
+          "kind": "test"
+        }
+      ],
+      "note": "Closed for HMAC-SHA256 calculation and verification. Webhook ordering and state transitions remain task-level requirements.",
+      "brief_ids": [
+        "05-webhook-replay"
+      ],
+      "frequency": {
+        "briefs": 1,
+        "topic_mentions": 4,
+        "condition_entries": 2,
+        "rationale_objections": 2
+      },
+      "source_condition_refs": [
+        {
+          "source_record_key": "recommendations:05-webhook-replay-choice-1",
+          "condition_index": 0,
+          "status": "closed"
+        },
+        {
+          "source_record_key": "recommendations:05-webhook-replay-choice-2",
+          "condition_index": 0,
+          "status": "closed"
+        }
+      ],
+      "source_rationale_refs": [
+        {
+          "source_record_key": "independent-v3-veritas-baseline:05-webhook-replay-choice-1",
+          "rationale_objection_index": 0,
+          "status": "closed"
+        },
+        {
+          "source_record_key": "independent-v3-veritas-baseline:05-webhook-replay-choice-2",
+          "rationale_objection_index": 0,
+          "status": "closed"
+        }
+      ]
+    },
+    {
+      "id": "multi-output-crash-atomicity",
+      "title": "Crash-atomic updates across multiple output files",
+      "status": "open",
+      "summary": "Atomic text replacement protects an individual file, but it does not provide one transaction spanning multiple outputs.",
+      "evidence": [
+        {
+          "path": "language/spec.md",
+          "reference": "write_text_atomic does not lock read-modify-write sequences and does not promise power-loss durability",
+          "kind": "limitation"
+        },
+        {
+          "path": "evaluation/results/independent-v3/recommendations/03-release-notes-choice-2.json",
+          "reference": "rationale on multi-output replacement limits",
+          "kind": "source-record"
+        }
+      ],
+      "note": "The frozen briefs and current atomic-file contract do not provide a multi-file transaction. Keep this explicit in any release-notes or report generator design.",
+      "brief_ids": [
+        "03-release-notes"
+      ],
+      "frequency": {
+        "briefs": 1,
+        "topic_mentions": 4,
+        "condition_entries": 0,
+        "rationale_objections": 0
+      },
+      "source_condition_refs": [],
+      "source_rationale_refs": []
+    },
+    {
+      "id": "toml-comment-preservation",
+      "title": "Comment-preserving TOML edits",
+      "status": "closed",
+      "summary": "The native TOML document API parses, edits, and renders while preserving unrelated comments and source formatting covered by tests.",
+      "evidence": [
+        {
+          "path": "language/stdlib/toml.gu",
+          "reference": "toml_parse; toml_put_text; toml_put_int; toml_put_bool; toml_render",
+          "kind": "signature"
+        },
+        {
+          "path": "crates/runtime/tests/stdlib_services.rs",
+          "reference": "toml_noop_is_byte_exact_and_edits_keep_unrelated_comments; toml_targeted_scalar_edit_preserves_dotted_order_line_endings_and_final_newline",
+          "kind": "test"
+        }
+      ],
+      "note": "Closed for the shipped editing API. Review a task-specific TOML contract when fields or preservation rules differ.",
+      "brief_ids": [
+        "07-config-migrator"
+      ],
+      "frequency": {
+        "briefs": 1,
+        "topic_mentions": 4,
+        "condition_entries": 3,
+        "rationale_objections": 2
+      },
+      "source_condition_refs": [
+        {
+          "source_record_key": "recommendations:07-config-migrator-choice-1",
+          "condition_index": 0,
+          "status": "closed"
+        },
+        {
+          "source_record_key": "recommendations:07-config-migrator-choice-1",
+          "condition_index": 2,
+          "status": "closed"
+        },
+        {
+          "source_record_key": "recommendations:07-config-migrator-choice-2",
+          "condition_index": 1,
+          "status": "closed"
+        }
+      ],
+      "source_rationale_refs": [
+        {
+          "source_record_key": "independent-v3-veritas-baseline:07-config-migrator-choice-1",
+          "rationale_objection_index": 0,
+          "status": "closed"
+        },
+        {
+          "source_record_key": "independent-v3-veritas-baseline:07-config-migrator-choice-2",
+          "rationale_objection_index": 0,
+          "status": "closed"
+        }
+      ]
+    }
+  ],
+  "frequency_basis": "Counts are overlapping topic mentions across each source decision’s explicit conditions and complete rationale text; they are not independent observations or current campaign results."
+}

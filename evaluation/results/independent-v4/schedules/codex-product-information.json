@@ -1,0 +1,594 @@
+{
+  "schema_version": 2,
+  "status": "assigned-before-runs",
+  "created_at": "2026-10-26T13:12:04.790379Z",
+  "documentation_sha256": "16ffe49108785a222a033decb416ac2d129a017949ce4e3b7d99f16f8808bc6a",
+  "manifest_sha256": "21c18591638cd240d80fdf78bf8ef07a62454f13ddfa986e66f0984e9d4880ae",
+  "campaign": {
+    "schema_version": 1,
+    "assistant_model": {
+      "provider": "OpenAI Codex",
+      "name": "gpt-6.1-sol",
+      "version": "gpt-6.1-sol",
+      "reasoning_effort": "medium"
+    },
+    "choice_budget": {
+      "active_minutes": 5,
+      "tool_calls": 0
+    },
+    "build_budget": {
+      "active_minutes": 45,
+      "tool_calls": 60
+    },
+    "primary_measure": "active_seconds",
+    "arm": "product-information",
+    "budget_accounting": {
+      "active_seconds": "Sum terminal-turn durationMs from the saved provider session payload and round up to whole seconds.",
+      "tool_calls": "Record tool use from the provider session payload; the choice allowance is zero."
+    }
+  },
+  "campaign_config_sha256": "f51895d56d7b94cb200c8f30d0e2763874ea8c003dde147491313ac2ec0d4caa",
+  "pairs": [
+    {
+      "pair_id": "01-support-sla-report-pair-1",
+      "task_id": "01-support-sla-report",
+      "task_class": "small_automation_cli",
+      "brief_sha256": "be8cfc80f1bde7c511b35ff10125ab7213d2f771fea76f51f4d7830fe8d58490",
+      "pair_order": [
+        "python",
+        "veritas"
+      ],
+      "sessions": [
+        {
+          "language": "python",
+          "session_slot": "01-support-sla-report-pair-1-python"
+        },
+        {
+          "language": "veritas",
+          "session_slot": "01-support-sla-report-pair-1-veritas"
+        }
+      ]
+    },
+    {
+      "pair_id": "01-support-sla-report-pair-2",
+      "task_id": "01-support-sla-report",
+      "task_class": "small_automation_cli",
+      "brief_sha256": "be8cfc80f1bde7c511b35ff10125ab7213d2f771fea76f51f4d7830fe8d58490",
+      "pair_order": [
+        "veritas",
+        "python"
+      ],
+      "sessions": [
+        {
+          "language": "veritas",
+          "session_slot": "01-support-sla-report-pair-2-veritas"
+        },
+        {
+          "language": "python",
+          "session_slot": "01-support-sla-report-pair-2-python"
+        }
+      ]
+    },
+    {
+      "pair_id": "02-jsonl-retention-pair-1",
+      "task_id": "02-jsonl-retention",
+      "task_class": "small_automation_cli",
+      "brief_sha256": "9cede1a4f91796991638cc1c37307bdbea632cd978ab70f3820f79529df7e5a0",
+      "pair_order": [
+        "veritas",
+        "python"
+      ],
+      "sessions": [
+        {
+          "language": "veritas",
+          "session_slot": "02-jsonl-retention-pair-1-veritas"
+        },
+        {
+          "language": "python",
+          "session_slot": "02-jsonl-retention-pair-1-python"
+        }
+      ]
+    },
+    {
+      "pair_id": "02-jsonl-retention-pair-2",
+      "task_id": "02-jsonl-retention",
+      "task_class": "small_automation_cli",
+      "brief_sha256": "9cede1a4f91796991638cc1c37307bdbea632cd978ab70f3820f79529df7e5a0",
+      "pair_order": [
+        "veritas",
+        "python"
+      ],
+      "sessions": [
+        {
+          "language": "veritas",
+          "session_slot": "02-jsonl-retention-pair-2-veritas"
+        },
+        {
+          "language": "python",
+          "session_slot": "02-jsonl-retention-pair-2-python"
+        }
+      ]
+    },
+    {
+      "pair_id": "03-release-notes-pair-1",
+      "task_id": "03-release-notes",
+      "task_class": "small_automation_cli",
+      "brief_sha256": "c89d17d2020b833261286beeb5ec48ac082c7348a743f85deecc27250708276e",
+      "pair_order": [
+        "python",
+        "veritas"
+      ],
+      "sessions": [
+        {
+          "language": "python",
+          "session_slot": "03-release-notes-pair-1-python"
+        },
+        {
+          "language": "veritas",
+          "session_slot": "03-release-notes-pair-1-veritas"
+        }
+      ]
+    },
+    {
+      "pair_id": "03-release-notes-pair-2",
+      "task_id": "03-release-notes",
+      "task_class": "small_automation_cli",
+      "brief_sha256": "c89d17d2020b833261286beeb5ec48ac082c7348a743f85deecc27250708276e",
+      "pair_order": [
+        "python",
+        "veritas"
+      ],
+      "sessions": [
+        {
+          "language": "python",
+          "session_slot": "03-release-notes-pair-2-python"
+        },
+        {
+          "language": "veritas",
+          "session_slot": "03-release-notes-pair-2-veritas"
+        }
+      ]
+    },
+    {
+      "pair_id": "04-calendar-conflict-report-pair-1",
+      "task_id": "04-calendar-conflict-report",
+      "task_class": "concurrent_network_integration",
+      "brief_sha256": "5fd56b1d588efd9ba6c9f0f4a3f262ae8d2e7047d769f9d2b83cdb86c0668efe",
+      "pair_order": [
+        "python",
+        "veritas"
+      ],
+      "sessions": [
+        {
+          "language": "python",
+          "session_slot": "04-calendar-conflict-report-pair-1-python"
+        },
+        {
+          "language": "veritas",
+          "session_slot": "04-calendar-conflict-report-pair-1-veritas"
+        }
+      ]
+    },
+    {
+      "pair_id": "04-calendar-conflict-report-pair-2",
+      "task_id": "04-calendar-conflict-report",
+      "task_class": "concurrent_network_integration",
+      "brief_sha256": "5fd56b1d588efd9ba6c9f0f4a3f262ae8d2e7047d769f9d2b83cdb86c0668efe",
+      "pair_order": [
+        "python",
+        "veritas"
+      ],
+      "sessions": [
+        {
+          "language": "python",
+          "session_slot": "04-calendar-conflict-report-pair-2-python"
+        },
+        {
+          "language": "veritas",
+          "session_slot": "04-calendar-conflict-report-pair-2-veritas"
+        }
+      ]
+    },
+    {
+      "pair_id": "05-webhook-replay-pair-1",
+      "task_id": "05-webhook-replay",
+      "task_class": "concurrent_network_integration",
+      "brief_sha256": "b3f17d12a10c839fdbf8e4eb039785a234b7df20466f660d340abf43d9b1f4b9",
+      "pair_order": [
+        "veritas",
+        "python"
+      ],
+      "sessions": [
+        {
+          "language": "veritas",
+          "session_slot": "05-webhook-replay-pair-1-veritas"
+        },
+        {
+          "language": "python",
+          "session_slot": "05-webhook-replay-pair-1-python"
+        }
+      ]
+    },
+    {
+      "pair_id": "05-webhook-replay-pair-2",
+      "task_id": "05-webhook-replay",
+      "task_class": "concurrent_network_integration",
+      "brief_sha256": "b3f17d12a10c839fdbf8e4eb039785a234b7df20466f660d340abf43d9b1f4b9",
+      "pair_order": [
+        "veritas",
+        "python"
+      ],
+      "sessions": [
+        {
+          "language": "veritas",
+          "session_slot": "05-webhook-replay-pair-2-veritas"
+        },
+        {
+          "language": "python",
+          "session_slot": "05-webhook-replay-pair-2-python"
+        }
+      ]
+    },
+    {
+      "pair_id": "06-service-health-digest-pair-1",
+      "task_id": "06-service-health-digest",
+      "task_class": "concurrent_network_integration",
+      "brief_sha256": "75c0c9354b7fd08206fcecd7c8750ccdd60df5037e57197ac90bc4f27b1dc7de",
+      "pair_order": [
+        "veritas",
+        "python"
+      ],
+      "sessions": [
+        {
+          "language": "veritas",
+          "session_slot": "06-service-health-digest-pair-1-veritas"
+        },
+        {
+          "language": "python",
+          "session_slot": "06-service-health-digest-pair-1-python"
+        }
+      ]
+    },
+    {
+      "pair_id": "06-service-health-digest-pair-2",
+      "task_id": "06-service-health-digest",
+      "task_class": "concurrent_network_integration",
+      "brief_sha256": "75c0c9354b7fd08206fcecd7c8750ccdd60df5037e57197ac90bc4f27b1dc7de",
+      "pair_order": [
+        "veritas",
+        "python"
+      ],
+      "sessions": [
+        {
+          "language": "veritas",
+          "session_slot": "06-service-health-digest-pair-2-veritas"
+        },
+        {
+          "language": "python",
+          "session_slot": "06-service-health-digest-pair-2-python"
+        }
+      ]
+    },
+    {
+      "pair_id": "07-config-migrator-pair-1",
+      "task_id": "07-config-migrator",
+      "task_class": "maintainable_application",
+      "brief_sha256": "4d4f16e7c38142fd84ba3a9675a08a7cd88acdc8c67741f32ddd88d15fab667e",
+      "pair_order": [
+        "python",
+        "veritas"
+      ],
+      "sessions": [
+        {
+          "language": "python",
+          "session_slot": "07-config-migrator-pair-1-python"
+        },
+        {
+          "language": "veritas",
+          "session_slot": "07-config-migrator-pair-1-veritas"
+        }
+      ]
+    },
+    {
+      "pair_id": "07-config-migrator-pair-2",
+      "task_id": "07-config-migrator",
+      "task_class": "maintainable_application",
+      "brief_sha256": "4d4f16e7c38142fd84ba3a9675a08a7cd88acdc8c67741f32ddd88d15fab667e",
+      "pair_order": [
+        "veritas",
+        "python"
+      ],
+      "sessions": [
+        {
+          "language": "veritas",
+          "session_slot": "07-config-migrator-pair-2-veritas"
+        },
+        {
+          "language": "python",
+          "session_slot": "07-config-migrator-pair-2-python"
+        }
+      ]
+    },
+    {
+      "pair_id": "08-documentation-link-index-pair-1",
+      "task_id": "08-documentation-link-index",
+      "task_class": "maintainable_application",
+      "brief_sha256": "48b16ce3f1daef3ccceb72eeffabc4748692248d356ab5d610387bd6b567f924",
+      "pair_order": [
+        "veritas",
+        "python"
+      ],
+      "sessions": [
+        {
+          "language": "veritas",
+          "session_slot": "08-documentation-link-index-pair-1-veritas"
+        },
+        {
+          "language": "python",
+          "session_slot": "08-documentation-link-index-pair-1-python"
+        }
+      ]
+    },
+    {
+      "pair_id": "08-documentation-link-index-pair-2",
+      "task_id": "08-documentation-link-index",
+      "task_class": "maintainable_application",
+      "brief_sha256": "48b16ce3f1daef3ccceb72eeffabc4748692248d356ab5d610387bd6b567f924",
+      "pair_order": [
+        "veritas",
+        "python"
+      ],
+      "sessions": [
+        {
+          "language": "veritas",
+          "session_slot": "08-documentation-link-index-pair-2-veritas"
+        },
+        {
+          "language": "python",
+          "session_slot": "08-documentation-link-index-pair-2-python"
+        }
+      ]
+    },
+    {
+      "pair_id": "09-lockfile-auditor-pair-1",
+      "task_id": "09-lockfile-auditor",
+      "task_class": "maintainable_application",
+      "brief_sha256": "cfba09891f39d30fefaf37a39feb13d82972af39c289954fe64bc3b924c4d1dc",
+      "pair_order": [
+        "python",
+        "veritas"
+      ],
+      "sessions": [
+        {
+          "language": "python",
+          "session_slot": "09-lockfile-auditor-pair-1-python"
+        },
+        {
+          "language": "veritas",
+          "session_slot": "09-lockfile-auditor-pair-1-veritas"
+        }
+      ]
+    },
+    {
+      "pair_id": "09-lockfile-auditor-pair-2",
+      "task_id": "09-lockfile-auditor",
+      "task_class": "maintainable_application",
+      "brief_sha256": "cfba09891f39d30fefaf37a39feb13d82972af39c289954fe64bc3b924c4d1dc",
+      "pair_order": [
+        "veritas",
+        "python"
+      ],
+      "sessions": [
+        {
+          "language": "veritas",
+          "session_slot": "09-lockfile-auditor-pair-2-veritas"
+        },
+        {
+          "language": "python",
+          "session_slot": "09-lockfile-auditor-pair-2-python"
+        }
+      ]
+    }
+  ],
+  "choices": [
+    {
+      "decision_id": "01-support-sla-report-choice-1",
+      "task_id": "01-support-sla-report",
+      "task_class": "small_automation_cli",
+      "brief_sha256": "be8cfc80f1bde7c511b35ff10125ab7213d2f771fea76f51f4d7830fe8d58490",
+      "presentation_order": [
+        "veritas",
+        "python"
+      ],
+      "documentation_sha256": "16ffe49108785a222a033decb416ac2d129a017949ce4e3b7d99f16f8808bc6a"
+    },
+    {
+      "decision_id": "01-support-sla-report-choice-2",
+      "task_id": "01-support-sla-report",
+      "task_class": "small_automation_cli",
+      "brief_sha256": "be8cfc80f1bde7c511b35ff10125ab7213d2f771fea76f51f4d7830fe8d58490",
+      "presentation_order": [
+        "python",
+        "veritas"
+      ],
+      "documentation_sha256": "16ffe49108785a222a033decb416ac2d129a017949ce4e3b7d99f16f8808bc6a"
+    },
+    {
+      "decision_id": "02-jsonl-retention-choice-1",
+      "task_id": "02-jsonl-retention",
+      "task_class": "small_automation_cli",
+      "brief_sha256": "9cede1a4f91796991638cc1c37307bdbea632cd978ab70f3820f79529df7e5a0",
+      "presentation_order": [
+        "veritas",
+        "python"
+      ],
+      "documentation_sha256": "16ffe49108785a222a033decb416ac2d129a017949ce4e3b7d99f16f8808bc6a"
+    },
+    {
+      "decision_id": "02-jsonl-retention-choice-2",
+      "task_id": "02-jsonl-retention",
+      "task_class": "small_automation_cli",
+      "brief_sha256": "9cede1a4f91796991638cc1c37307bdbea632cd978ab70f3820f79529df7e5a0",
+      "presentation_order": [
+        "veritas",
+        "python"
+      ],
+      "documentation_sha256": "16ffe49108785a222a033decb416ac2d129a017949ce4e3b7d99f16f8808bc6a"
+    },
+    {
+      "decision_id": "03-release-notes-choice-1",
+      "task_id": "03-release-notes",
+      "task_class": "small_automation_cli",
+      "brief_sha256": "c89d17d2020b833261286beeb5ec48ac082c7348a743f85deecc27250708276e",
+      "presentation_order": [
+        "veritas",
+        "python"
+      ],
+      "documentation_sha256": "16ffe49108785a222a033decb416ac2d129a017949ce4e3b7d99f16f8808bc6a"
+    },
+    {
+      "decision_id": "03-release-notes-choice-2",
+      "task_id": "03-release-notes",
+      "task_class": "small_automation_cli",
+      "brief_sha256": "c89d17d2020b833261286beeb5ec48ac082c7348a743f85deecc27250708276e",
+      "presentation_order": [
+        "veritas",
+        "python"
+      ],
+      "documentation_sha256": "16ffe49108785a222a033decb416ac2d129a017949ce4e3b7d99f16f8808bc6a"
+    },
+    {
+      "decision_id": "04-calendar-conflict-report-choice-1",
+      "task_id": "04-calendar-conflict-report",
+      "task_class": "concurrent_network_integration",
+      "brief_sha256": "5fd56b1d588efd9ba6c9f0f4a3f262ae8d2e7047d769f9d2b83cdb86c0668efe",
+      "presentation_order": [
+        "python",
+        "veritas"
+      ],
+      "documentation_sha256": "16ffe49108785a222a033decb416ac2d129a017949ce4e3b7d99f16f8808bc6a"
+    },
+    {
+      "decision_id": "04-calendar-conflict-report-choice-2",
+      "task_id": "04-calendar-conflict-report",
+      "task_class": "concurrent_network_integration",
+      "brief_sha256": "5fd56b1d588efd9ba6c9f0f4a3f262ae8d2e7047d769f9d2b83cdb86c0668efe",
+      "presentation_order": [
+        "python",
+        "veritas"
+      ],
+      "documentation_sha256": "16ffe49108785a222a033decb416ac2d129a017949ce4e3b7d99f16f8808bc6a"
+    },
+    {
+      "decision_id": "05-webhook-replay-choice-1",
+      "task_id": "05-webhook-replay",
+      "task_class": "concurrent_network_integration",
+      "brief_sha256": "b3f17d12a10c839fdbf8e4eb039785a234b7df20466f660d340abf43d9b1f4b9",
+      "presentation_order": [
+        "python",
+        "veritas"
+      ],
+      "documentation_sha256": "16ffe49108785a222a033decb416ac2d129a017949ce4e3b7d99f16f8808bc6a"
+    },
+    {
+      "decision_id": "05-webhook-replay-choice-2",
+      "task_id": "05-webhook-replay",
+      "task_class": "concurrent_network_integration",
+      "brief_sha256": "b3f17d12a10c839fdbf8e4eb039785a234b7df20466f660d340abf43d9b1f4b9",
+      "presentation_order": [
+        "veritas",
+        "python"
+      ],
+      "documentation_sha256": "16ffe49108785a222a033decb416ac2d129a017949ce4e3b7d99f16f8808bc6a"
+    },
+    {
+      "decision_id": "06-service-health-digest-choice-1",
+      "task_id": "06-service-health-digest",
+      "task_class": "concurrent_network_integration",
+      "brief_sha256": "75c0c9354b7fd08206fcecd7c8750ccdd60df5037e57197ac90bc4f27b1dc7de",
+      "presentation_order": [
+        "python",
+        "veritas"
+      ],
+      "documentation_sha256": "16ffe49108785a222a033decb416ac2d129a017949ce4e3b7d99f16f8808bc6a"
+    },
+    {
+      "decision_id": "06-service-health-digest-choice-2",
+      "task_id": "06-service-health-digest",
+      "task_class": "concurrent_network_integration",
+      "brief_sha256": "75c0c9354b7fd08206fcecd7c8750ccdd60df5037e57197ac90bc4f27b1dc7de",
+      "presentation_order": [
+        "python",
+        "veritas"
+      ],
+      "documentation_sha256": "16ffe49108785a222a033decb416ac2d129a017949ce4e3b7d99f16f8808bc6a"
+    },
+    {
+      "decision_id": "07-config-migrator-choice-1",
+      "task_id": "07-config-migrator",
+      "task_class": "maintainable_application",
+      "brief_sha256": "4d4f16e7c38142fd84ba3a9675a08a7cd88acdc8c67741f32ddd88d15fab667e",
+      "presentation_order": [
+        "python",
+        "veritas"
+      ],
+      "documentation_sha256": "16ffe49108785a222a033decb416ac2d129a017949ce4e3b7d99f16f8808bc6a"
+    },
+    {
+      "decision_id": "07-config-migrator-choice-2",
+      "task_id": "07-config-migrator",
+      "task_class": "maintainable_application",
+      "brief_sha256": "4d4f16e7c38142fd84ba3a9675a08a7cd88acdc8c67741f32ddd88d15fab667e",
+      "presentation_order": [
+        "python",
+        "veritas"
+      ],
+      "documentation_sha256": "16ffe49108785a222a033decb416ac2d129a017949ce4e3b7d99f16f8808bc6a"
+    },
+    {
+      "decision_id": "08-documentation-link-index-choice-1",
+      "task_id": "08-documentation-link-index",
+      "task_class": "maintainable_application",
+      "brief_sha256": "48b16ce3f1daef3ccceb72eeffabc4748692248d356ab5d610387bd6b567f924",
+      "presentation_order": [
+        "python",
+        "veritas"
+      ],
+      "documentation_sha256": "16ffe49108785a222a033decb416ac2d129a017949ce4e3b7d99f16f8808bc6a"
+    },
+    {
+      "decision_id": "08-documentation-link-index-choice-2",
+      "task_id": "08-documentation-link-index",
+      "task_class": "maintainable_application",
+      "brief_sha256": "48b16ce3f1daef3ccceb72eeffabc4748692248d356ab5d610387bd6b567f924",
+      "presentation_order": [
+        "python",
+        "veritas"
+      ],
+      "documentation_sha256": "16ffe49108785a222a033decb416ac2d129a017949ce4e3b7d99f16f8808bc6a"
+    },
+    {
+      "decision_id": "09-lockfile-auditor-choice-1",
+      "task_id": "09-lockfile-auditor",
+      "task_class": "maintainable_application",
+      "brief_sha256": "cfba09891f39d30fefaf37a39feb13d82972af39c289954fe64bc3b924c4d1dc",
+      "presentation_order": [
+        "python",
+        "veritas"
+      ],
+      "documentation_sha256": "16ffe49108785a222a033decb416ac2d129a017949ce4e3b7d99f16f8808bc6a"
+    },
+    {
+      "decision_id": "09-lockfile-auditor-choice-2",
+      "task_id": "09-lockfile-auditor",
+      "task_class": "maintainable_application",
+      "brief_sha256": "cfba09891f39d30fefaf37a39feb13d82972af39c289954fe64bc3b924c4d1dc",
+      "presentation_order": [
+        "python",
+        "veritas"
+      ],
+      "documentation_sha256": "16ffe49108785a222a033decb416ac2d129a017949ce4e3b7d99f16f8808bc6a"
+    }
+  ],
+  "schedule_sha256": "81075116949f4905cefb2a87cc845089196e895db54fd4e2b1f0b2818118fbeb"
+}

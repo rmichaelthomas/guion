@@ -214,6 +214,10 @@ def profile_richards(binary: Path, scratch: Path) -> dict[str, Any]:
     source_revision = subprocess.run(
         ["git", "rev-parse", "HEAD"], cwd=ROOT, capture_output=True, text=True, check=True
     ).stdout.strip()
+    runtime_source_hashes = {
+        relative: hashlib.sha256((ROOT / relative).read_bytes()).hexdigest()
+        for relative in ("crates/runtime/src/lib.rs", "crates/runtime/tests/execution.rs")
+    }
     binary_sha256 = hashlib.sha256(binary.read_bytes()).hexdigest()
     expected = ["9297", "23246"]
     with tempfile.TemporaryDirectory(prefix="richards-profile-", dir=scratch) as directory:
@@ -259,6 +263,27 @@ def profile_richards(binary: Path, scratch: Path) -> dict[str, Any]:
     for profile in phase_profiles.values():
         profile["native_compilation_profile_total_ns"] = native_compilation_profile_total_ns(profile)
         profile["program_execute_ns_includes_native_compilation"] = True
+    copy_size_distribution = {}
+    for lane, profile in phase_profiles.items():
+        list_set = profile["runtime_profile"]["list_set"]
+        buckets = list_set["copy_size_histogram"]["buckets"]
+        small_copies = buckets["0-8"]["copies"]
+        small_copy_bytes = buckets["0-8"]["estimated_copy_bytes"]
+        total_copies = list_set["copy_on_write_copies"]
+        total_copy_bytes = list_set["estimated_copy_bytes"]
+        gross_guest_bytes = profile["runtime_profile"]["estimated_guest_allocation_budget_charges"][
+            "estimated_gross_bytes"
+        ]
+        copy_size_distribution[lane] = {
+            "copies_0_to_8_elements": small_copies,
+            "total_copy_on_write_copies": total_copies,
+            "share_of_copies_percent": (small_copies / total_copies * 100) if total_copies else 0.0,
+            "estimated_copy_bytes_0_to_8_elements": small_copy_bytes,
+            "total_estimated_copy_bytes": total_copy_bytes,
+            "share_of_estimated_copy_bytes_percent": (small_copy_bytes / total_copy_bytes * 100) if total_copy_bytes else 0.0,
+            "total_estimated_gross_guest_allocation_bytes": gross_guest_bytes,
+            "copy_bytes_share_of_gross_guest_allocation_percent": (total_copy_bytes / gross_guest_bytes * 100) if gross_guest_bytes else 0.0,
+        }
     return {
         "schema_version": 1,
         "kind": "guion-richards-runtime-profile",
@@ -269,6 +294,7 @@ def profile_richards(binary: Path, scratch: Path) -> dict[str, Any]:
             "python_version": platform.python_version(),
         },
         "source_revision": source_revision,
+        "runtime_source_sha256": runtime_source_hashes,
         "release_binary_sha256": binary_sha256,
         "repetitions_in_repeated_source_lane": RICHARDS_PROFILE_REPETITIONS,
         "timed_trials_per_lane": TRIALS,
@@ -280,11 +306,112 @@ def profile_richards(binary: Path, scratch: Path) -> dict[str, Any]:
         "timed_uninstrumented_samples_per_logical_execution": timed_lanes,
         "trial_metadata": trial_metadata,
         "untimed_phase_profiles": phase_profiles,
+        "copy_size_distribution": copy_size_distribution,
         "metric_interpretation": {
             "allocation": "estimated guest-data budget charges, not host allocator calls",
             "branches": "dynamic guest conditional executions, not hardware branch-misprediction counts",
+            "copy_size_histogram": "copy-on-write list lengths in elements; estimated bytes follow the existing guest-copy estimate and are not allocator traffic",
             "warm_lane": "25 executions in one process; reported timing is elapsed process time divided by 25",
         },
+    }
+
+
+def compare_richards_cohort(
+    baseline_binary: Path,
+    candidate_binary: Path,
+    scratch: Path,
+    *,
+    baseline_revision: str,
+    candidate_revision: str,
+    python_executable: str = sys.executable,
+    trials: int = TRIALS,
+) -> dict[str, Any]:
+    """Compare both Guion builds with Python in one randomized, output-checked cohort."""
+    baseline_binary = baseline_binary.resolve()
+    candidate_binary = candidate_binary.resolve()
+    scratch = scratch.resolve()
+    for name, binary in (("baseline", baseline_binary), ("candidate", candidate_binary)):
+        if not binary.is_file():
+            raise FileNotFoundError(f"{name} release Guion binary does not exist: {binary}")
+    if trials < 2:
+        raise ValueError("a paired Richards cohort requires at least two trials")
+
+    python_version = subprocess.run(
+        [python_executable, "--version"], capture_output=True, text=True, check=True
+    ).stdout.strip().removeprefix("Python ")
+    if python_version != PINNED_PYTHON:
+        raise RuntimeError(f"Richards comparison requires Python {PINNED_PYTHON}, found {python_version}")
+
+    expected = ["9297", "23246"]
+    source_bytes = (WORKLOADS / "richards.vr").read_bytes()
+    scratch.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="richards-followup-", dir=scratch) as directory:
+        project = Path(directory) / "project"
+        project.mkdir(parents=True)
+        source = project / "main.gu"
+        source.write_bytes(source_bytes)
+        write_manifest(project, "richards-scheduler-followup", 30_000_000)
+        commands = {
+            "guion_baseline_source_uncached": uncached_source_command(
+                [str(baseline_binary), "run", "--json", str(source)]
+            ),
+            "guion_candidate_source_uncached": uncached_source_command(
+                [str(candidate_binary), "run", "--json", str(source)]
+            ),
+            "python_reference": [python_executable, str(WORKLOADS / "richards_reference.py")],
+        }
+        samples, metadata = sample_candidates(
+            "richards-scheduler", commands, project, expected, trials=trials
+        )
+
+    candidate_times = samples["guion_candidate_source_uncached"]["samples_seconds"]
+    baseline_times = samples["guion_baseline_source_uncached"]["samples_seconds"]
+    python_times = samples["python_reference"]["samples_seconds"]
+    paired_ratios = {
+        "candidate_over_python": paired_median_ci(
+            [candidate / python for candidate, python in zip(candidate_times, python_times, strict=True)]
+        ),
+        "baseline_over_python": paired_median_ci(
+            [baseline / python for baseline, python in zip(baseline_times, python_times, strict=True)]
+        ),
+        "candidate_over_baseline": paired_median_ci(
+            [candidate / baseline for candidate, baseline in zip(candidate_times, baseline_times, strict=True)]
+        ),
+    }
+    return {
+        "schema_version": 1,
+        "kind": "guion-richards-python-comparison",
+        "status": "passed",
+        "workload": "richards-scheduler",
+        "baseline_revision": baseline_revision,
+        "candidate_revision": candidate_revision,
+        "baseline_binary_sha256": hashlib.sha256(baseline_binary.read_bytes()).hexdigest(),
+        "candidate_binary_sha256": hashlib.sha256(candidate_binary.read_bytes()).hexdigest(),
+        "source_sha256": hashlib.sha256(source_bytes).hexdigest(),
+        "host": {
+            "platform": platform.platform(),
+            "architecture": platform.machine(),
+            "python_version": python_version,
+        },
+        "measurement_design": {
+            "sampled_arms": list(commands),
+            "trials_per_arm": trials,
+            "randomized_paired_order": True,
+            "warmup_trials_per_arm": WARMUPS,
+            "guion_cache_condition": "--no-cache bypasses Guion's source cache",
+            "os_file_cache": "uncontrolled",
+            "expected_stdout_per_execution": expected,
+            "output_checked_on_every_warmup_and_trial": True,
+        },
+        "commands": commands,
+        "raw_samples_seconds": {
+            name: result["samples_seconds"] for name, result in samples.items()
+        },
+        "arm_medians_seconds": {
+            name: result["median_seconds"] for name, result in samples.items()
+        },
+        "comparisons": paired_ratios,
+        "paired_trial_order": metadata["paired_trial_order"],
     }
 
 
@@ -434,7 +561,15 @@ def ci_for(workload: dict[str, Any], reference: str, candidates: list[str]) -> d
     return result
 
 
-def peak_memory(command: list[str], cwd: Path) -> int | None:
+def peak_memory(
+    command: list[str],
+    cwd: Path,
+    *,
+    workload_id: str | None = None,
+    expected: Any | None = None,
+) -> int | None:
+    if (workload_id is None) != (expected is None):
+        raise ValueError("workload_id and expected output must be provided together")
     environment = None
     if Path(command[0]).name == "guion":
         environment = os.environ.copy()
@@ -457,7 +592,17 @@ def peak_memory(command: list[str], cwd: Path) -> int | None:
         check=False,
     )
     if result.returncode:
+        if workload_id is not None:
+            raise RuntimeError(
+                f"memory sample command failed ({result.returncode}): {command!r}\n"
+                f"{result.stdout}\n{result.stderr}"
+            )
         return None
+    if workload_id is not None:
+        lane = "guion_source" if Path(command[0]).name == "guion" else "python_reference"
+        actual = canonical_output(lane, result.stdout, workload_id)
+        if not equivalent(actual, expected, workload_id):
+            raise RuntimeError(f"memory sample output mismatch for {workload_id}: {actual!r} != {expected!r}")
     for line in result.stderr.splitlines():
         if line.startswith("GUION_PEAK_RSS="):
             try:
@@ -465,6 +610,211 @@ def peak_memory(command: list[str], cwd: Path) -> int | None:
             except (ValueError, IndexError):
                 return None
     return None
+
+
+def richards_peak_memory(
+    baseline_binary: Path,
+    candidate_binary: Path,
+    scratch: Path,
+    *,
+    baseline_revision: str,
+    candidate_revision: str,
+    runs: int = 5,
+) -> dict[str, Any]:
+    """Compare output-checked peak RSS for the two Guion builds in both Richards lanes."""
+    baseline_binary = baseline_binary.resolve()
+    candidate_binary = candidate_binary.resolve()
+    scratch = scratch.resolve()
+    if not baseline_binary.is_file() or not candidate_binary.is_file():
+        raise FileNotFoundError("both Richards RSS comparison binaries must exist")
+    if runs < 1:
+        raise ValueError("RSS comparison runs must be positive")
+    scratch.mkdir(parents=True, exist_ok=True)
+    binaries = {"baseline": baseline_binary, "candidate": candidate_binary}
+    binary_hashes = {
+        name: hashlib.sha256(path.read_bytes()).hexdigest() for name, path in binaries.items()
+    }
+    expected = ["9297", "23246"]
+    lane_configs = {
+        "fresh_source": (1, expected),
+        "repeated_source_25": (RICHARDS_PROFILE_REPETITIONS, expected * RICHARDS_PROFILE_REPETITIONS),
+    }
+    lane_reports: dict[str, Any] = {}
+    with tempfile.TemporaryDirectory(prefix="richards-rss-", dir=scratch) as directory:
+        project = Path(directory) / "project"
+        project.mkdir(parents=True)
+        source = project / "main.gu"
+        shutil.copy2(WORKLOADS / "richards.vr", source)
+        runner_source = source
+        warm_source = project / "main-warm.gu"
+        make_warm_source(runner_source, warm_source, RICHARDS_PROFILE_REPETITIONS)
+        write_manifest(project, "richards-peak-rss", 30_000_000 * RICHARDS_PROFILE_REPETITIONS)
+        for lane, (repetitions, lane_expected) in lane_configs.items():
+            lane_source = source if repetitions == 1 else warm_source
+            samples: dict[str, list[int]] = {}
+            commands: dict[str, list[str]] = {}
+            for name, binary in binaries.items():
+                command = uncached_source_command([str(binary), "run", "--json", str(lane_source)])
+                commands[name] = command
+                values: list[int] = []
+                for _ in range(runs):
+                    peak = peak_memory(
+                        command,
+                        project,
+                        workload_id="richards-scheduler",
+                        expected=lane_expected,
+                    )
+                    if peak is None:
+                        raise RuntimeError(f"peak RSS could not be read for {name} in {lane}")
+                    values.append(peak)
+                samples[name] = values
+            baseline_median = statistics.median(samples["baseline"])
+            candidate_median = statistics.median(samples["candidate"])
+            delta_bytes = candidate_median - baseline_median
+            delta_percent = (delta_bytes / baseline_median * 100) if baseline_median else None
+            lane_reports[lane] = {
+                "repetitions_per_process": repetitions,
+                "commands": commands,
+                "baseline": {
+                    "samples_peak_rss_bytes": samples["baseline"],
+                    "median_peak_rss_bytes": baseline_median,
+                },
+                "candidate": {
+                    "samples_peak_rss_bytes": samples["candidate"],
+                    "median_peak_rss_bytes": candidate_median,
+                },
+                "candidate_minus_baseline_bytes": delta_bytes,
+                "candidate_minus_baseline_percent": delta_percent,
+            }
+    open_findings = [
+        {
+            "lane": lane,
+            "candidate_over_baseline_percent": values["candidate_minus_baseline_percent"],
+            "threshold_percent": 5.0,
+            "finding": "candidate peak RSS exceeds baseline by more than 5%",
+        }
+        for lane, values in lane_reports.items()
+        if values["candidate_minus_baseline_percent"] is not None
+        and values["candidate_minus_baseline_percent"] > 5.0
+    ]
+    return {
+        "status": "passed",
+        "method": MEMORY_MEASUREMENT["method"],
+        "runs_per_binary_per_lane": runs,
+        "output_checked_each_run": True,
+        "metric_scope": MEMORY_MEASUREMENT["single_process_scope"],
+        "host": {"platform": platform.platform(), "architecture": platform.machine()},
+        "baseline_revision": baseline_revision,
+        "candidate_revision": candidate_revision,
+        "baseline_binary_sha256": binary_hashes["baseline"],
+        "candidate_binary_sha256": binary_hashes["candidate"],
+        "lanes": lane_reports,
+        "open_findings": open_findings,
+    }
+
+
+def sample_richards(
+    binary: Path,
+    scratch: Path,
+    *,
+    duration_seconds: int = 3,
+    sampling_interval_ms: int = 1,
+) -> dict[str, Any]:
+    """Sample a profiled 25-execution Richards process with macOS's built-in sampler."""
+    binary = binary.resolve()
+    scratch = scratch.resolve()
+    sample_tool = Path("/usr/bin/sample")
+    if not binary.is_file():
+        raise FileNotFoundError(f"release Guion binary does not exist: {binary}")
+    if not sample_tool.is_file():
+        raise FileNotFoundError("macOS /usr/bin/sample is unavailable")
+    scratch.mkdir(parents=True, exist_ok=True)
+    source_revision = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=ROOT, capture_output=True, text=True, check=True
+    ).stdout.strip()
+    binary_sha256 = hashlib.sha256(binary.read_bytes()).hexdigest()
+    source_hash = hashlib.sha256((WORKLOADS / "richards.vr").read_bytes()).hexdigest()
+    with tempfile.TemporaryDirectory(prefix="richards-sample-", dir=scratch) as directory:
+        project = Path(directory) / "project"
+        project.mkdir(parents=True)
+        source = project / "main.gu"
+        shutil.copy2(WORKLOADS / "richards.vr", source)
+        warm_source = project / "main-warm.gu"
+        make_warm_source(source, warm_source, RICHARDS_PROFILE_REPETITIONS)
+        write_manifest(project, "richards-sampled-attribution", 30_000_000 * RICHARDS_PROFILE_REPETITIONS)
+        command = uncached_source_command([str(binary), "run", "--json", str(warm_source)])
+        environment = os.environ.copy()
+        environment["GUION_FILE_ROOT"] = str(project.resolve())
+        environment["GUION_RUNTIME_PROFILE"] = "1"
+        process = subprocess.Popen(
+            command,
+            cwd=project,
+            env=environment,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        sample_path = project / "sample-report.txt"
+        sample_command = [
+            str(sample_tool),
+            str(process.pid),
+            str(duration_seconds),
+            str(sampling_interval_ms),
+            "-mayDie",
+            "-file",
+            str(sample_path),
+        ]
+        sampler_returncode: int | None = None
+        sampler_stdout = ""
+        sampler_stderr = ""
+        sampler_error: str | None = None
+        try:
+            sampled = subprocess.run(
+                sample_command,
+                cwd=project,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=duration_seconds + 15,
+            )
+            sampler_returncode = sampled.returncode
+            sampler_stdout = sampled.stdout
+            sampler_stderr = sampled.stderr
+        except subprocess.TimeoutExpired as error:
+            sampler_error = f"sample timed out after {error.timeout} seconds"
+        stdout, stderr = process.communicate(timeout=duration_seconds + 30)
+        if process.returncode != 0:
+            raise RuntimeError(f"sampled Richards program failed ({process.returncode}): {stdout}\n{stderr}")
+        envelope = json.loads(stdout)
+        if envelope.get("status") != "passed":
+            raise RuntimeError(f"sampled Richards invocation reported failure: {envelope}")
+        actual = canonical_output("guion_source", stdout, "richards-scheduler")
+        expected = ["9297", "23246"] * RICHARDS_PROFILE_REPETITIONS
+        if not equivalent(actual, expected, "richards-scheduler"):
+            raise RuntimeError("sampled Richards process output did not match the 25-execution oracle")
+        sample_report_text = sample_path.read_text(encoding="utf-8", errors="replace") if sample_path.is_file() else ""
+    sample_report_bytes = sample_report_text.encode("utf-8")
+    return {
+        "status": "passed" if sampler_returncode == 0 and sample_report_text else "sample_unavailable",
+        "source_revision": source_revision,
+        "source_sha256": source_hash,
+        "release_binary_sha256": binary_sha256,
+        "program_repetitions": RICHARDS_PROFILE_REPETITIONS,
+        "program_output_checked": True,
+        "command": command,
+        "sampler": {
+            "command": [str(sample_tool), "<pid>", str(duration_seconds), str(sampling_interval_ms), "-mayDie", "-file", "<repo-local-temp>/sample-report.txt"],
+            "returncode": sampler_returncode,
+            "stdout": sampler_stdout,
+            "stderr": sampler_stderr,
+            "error": sampler_error,
+            "sample_report_sha256": hashlib.sha256(sample_report_bytes).hexdigest() if sample_report_text else None,
+            "sample_report_bytes": len(sample_report_bytes),
+            "sample_report_text": sample_report_text,
+        },
+        "runtime_profile": envelope.get("runtime_profile"),
+        "program_stderr": stderr,
+    }
 
 
 def parallel_worker_memory_report(command: list[str], cwd: Path) -> dict[str, Any]:

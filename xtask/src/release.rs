@@ -15,6 +15,7 @@ use std::{
 };
 
 const LINUX_TARGET: &str = "aarch64-unknown-linux-gnu";
+const LINUX_X86_64_TARGET: &str = "x86_64-unknown-linux-gnu";
 const MAC_TARGET: &str = "aarch64-apple-darwin";
 const LLVM_EXCEPTION_LICENSE: &str = "distribution/licenses/Apache-2.0_WITH_LLVM-exception.txt";
 const RELEASE_DOCS: &[&str] = &[
@@ -26,6 +27,7 @@ const RELEASE_DOCS: &[&str] = &[
     "self-hosted-compiler.md",
     "agents/start-here.md",
     "agents/recipes.md",
+    "agents/guion-reference.md",
 ];
 
 #[derive(Clone, Debug)]
@@ -411,9 +413,14 @@ fn os_floor(root: &Path, target: &str, binary: &Path) -> Result<String, String> 
 }
 
 fn target_info() -> (&'static str, &'static str) {
-    match (std::env::consts::OS, std::env::consts::ARCH) {
+    target_info_for(std::env::consts::OS, std::env::consts::ARCH)
+}
+
+fn target_info_for(os: &str, arch: &str) -> (&'static str, &'static str) {
+    match (os, arch) {
         ("macos", "aarch64") => (MAC_TARGET, "macos-aarch64"),
         ("linux", "aarch64") => (LINUX_TARGET, "debian-aarch64"),
+        ("linux", "x86_64") => (LINUX_X86_64_TARGET, "debian-x86_64"),
         _ => ("unsupported", "unsupported"),
     }
 }
@@ -517,14 +524,26 @@ fn release_binary_path(
     target: &str,
     cargo_target_directory: Option<&Path>,
 ) -> PathBuf {
-    let target_root = cargo_target_directory
-        .map(Path::to_path_buf)
-        .unwrap_or_else(|| root.join("target"));
+    let target_root = target_root(root, cargo_target_directory);
     if target == MAC_TARGET {
         target_root.join("release/guion")
     } else {
         target_root.join(target).join("release/guion")
     }
+}
+
+fn target_root(root: &Path, cargo_target_directory: Option<&Path>) -> PathBuf {
+    match cargo_target_directory {
+        Some(path) if path.is_absolute() => path.to_path_buf(),
+        Some(path) => root.join(path),
+        None => root.join("target"),
+    }
+}
+
+fn release_output_path(root: &Path, slug: &str, cargo_target_directory: Option<&Path>) -> PathBuf {
+    target_root(root, cargo_target_directory)
+        .join("completion/releases")
+        .join(slug)
 }
 
 fn release_target(root: &Path, target: &str, slug: &str) -> Result<Vec<Check>, String> {
@@ -574,7 +593,7 @@ fn release_target(root: &Path, target: &str, slug: &str) -> Result<Vec<Check>, S
             binary.display()
         ));
     }
-    let output = root.join(format!("target/completion/releases/{slug}"));
+    let output = release_output_path(root, slug, cargo_target_directory.as_deref());
     fs::create_dir_all(&output).map_err(|error| format!("create {}: {error}", output.display()))?;
     let current = output.join("current");
     let previous = output.join("previous");
@@ -617,6 +636,10 @@ fn release_target(root: &Path, target: &str, slug: &str) -> Result<Vec<Check>, S
                 copy_tree(&path, &share.join("docs").join(doc))?;
             }
         }
+        copy_tree(
+            &root.join("docs/agents/guion-reference.md"),
+            &stage.join("bin/guion-reference.md"),
+        )?;
         copy_tree(
             &root.join("language/self_host/compiler.gub"),
             &share.join("compiler.gub"),
@@ -670,7 +693,7 @@ fn release_target(root: &Path, target: &str, slug: &str) -> Result<Vec<Check>, S
             "schema_version": 1, "product": "Guion core", "target": target,
             "release_id": format!("{}-{slug}-{}", env!("CARGO_PKG_VERSION"), &runtime_hash[..12]),
             "minimum_os": minimum_os,
-            "architecture": "aarch64", "python_or_uv_required": false,
+            "architecture": target_architecture(target), "python_or_uv_required": false,
             "compiler_seed_sha256": seed_hash, "runtime_binary_sha256": runtime_hash,
             "stdlib_sha256": format!("{:x}", stdlib_hash.finalize()), "files": hashes,
             "native_components": "native-components.lock.json",
@@ -995,6 +1018,14 @@ fn release_target(root: &Path, target: &str, slug: &str) -> Result<Vec<Check>, S
     Ok(checks)
 }
 
+fn target_architecture(target: &str) -> &'static str {
+    if target == LINUX_X86_64_TARGET {
+        "x86_64"
+    } else {
+        "aarch64"
+    }
+}
+
 pub fn run_release(root: &Path, _args: &[String]) -> Vec<Check> {
     let (target, slug) = target_info();
     if target == "unsupported" {
@@ -1004,7 +1035,7 @@ pub fn run_release(root: &Path, _args: &[String]) -> Vec<Check> {
             vec!["cargo xtask release".into()],
             None,
             format!(
-                "release packages support {MAC_TARGET} and {LINUX_TARGET}, host is {}-{}",
+                "release packages support {MAC_TARGET}, {LINUX_TARGET}, and {LINUX_X86_64_TARGET}, host is {}-{}",
                 std::env::consts::OS,
                 std::env::consts::ARCH
             ),
@@ -1025,7 +1056,8 @@ pub fn run_release(root: &Path, _args: &[String]) -> Vec<Check> {
 #[cfg(test)]
 mod tests {
     use super::{
-        collect_licenses, release_binary_path, safe_archive_listing, LINUX_TARGET, MAC_TARGET,
+        collect_licenses, release_binary_path, release_output_path, safe_archive_listing,
+        target_architecture, target_info_for, LINUX_TARGET, LINUX_X86_64_TARGET, MAC_TARGET,
         RELEASE_DOCS,
     };
     use std::{fs, path::Path};
@@ -1073,9 +1105,38 @@ mod tests {
             override_root.join(LINUX_TARGET).join("release/guion")
         );
         assert_eq!(
+            release_binary_path(root, LINUX_X86_64_TARGET, Some(override_root)),
+            override_root
+                .join(LINUX_X86_64_TARGET)
+                .join("release/guion")
+        );
+        assert_eq!(
             release_binary_path(root, LINUX_TARGET, None),
             root.join("target").join(LINUX_TARGET).join("release/guion")
         );
+    }
+
+    #[test]
+    fn release_staging_stays_under_the_cargo_target_directory() {
+        let root = Path::new("/repo");
+        let override_root = Path::new("/repo/target/perf-session/cargo");
+        assert_eq!(
+            release_output_path(root, "debian-x86_64", Some(override_root)),
+            override_root.join("completion/releases/debian-x86_64")
+        );
+        assert_eq!(
+            release_output_path(root, "debian-x86_64", None),
+            root.join("target/completion/releases/debian-x86_64")
+        );
+    }
+
+    #[test]
+    fn selects_x86_64_linux_release_identity() {
+        assert_eq!(
+            target_info_for("linux", "x86_64"),
+            (LINUX_X86_64_TARGET, "debian-x86_64")
+        );
+        assert_eq!(target_architecture(LINUX_X86_64_TARGET), "x86_64");
     }
 
     #[test]
@@ -1102,6 +1163,7 @@ mod tests {
             "status.md",
             "agents/start-here.md",
             "agents/recipes.md",
+            "agents/guion-reference.md",
         ] {
             assert!(
                 RELEASE_DOCS.contains(&required),

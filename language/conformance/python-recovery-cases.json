@@ -1,0 +1,82 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "id": "def",
+      "source": "def answer():\n    return 42\n",
+      "diagnostic_code": "E_PYTHON_DEF",
+      "message_contains": "use `fn`",
+      "replacement": "fn answer() -> Int:\n    return 42\n\nfn main() -> Int:\n    return answer()\n"
+    },
+    {
+      "id": "elif",
+      "source": "fn main() -> Int:\n    if true:\n        return 1\n    elif false:\n        return 2\n    else:\n        return 3\n",
+      "diagnostic_code": "E_PYTHON_ELIF",
+      "message_contains": "nested `if` inside `else`",
+      "replacement": "fn main() -> Int:\n    if true:\n        return 1\n    else:\n        if false:\n            return 2\n        else:\n            return 3\n"
+    },
+    {
+      "id": "boolean-literals",
+      "source": "fn main() -> Int:\n    if True:\n        return 1\n    else:\n        if False:\n            return 2\n        else:\n            return 3\n",
+      "diagnostic_code": "E_PYTHON_BOOL",
+      "message_contains": "`true` and `false`",
+      "replacement": "fn main() -> Int:\n    if true:\n        return 1\n    else:\n        if false:\n            return 2\n        else:\n            return 3\n"
+    },
+    {
+      "id": "import-module",
+      "source": "import helpers\n\nfn main() -> Int:\n    return answer()\n",
+      "diagnostic_code": "E_PYTHON_IMPORT",
+      "message_contains": "`import \"relative-path.gu\"`",
+      "replacement": "import \"helpers.gu\"\n\nfn main() -> Int:\n    return answer()\n"
+    },
+    {
+      "id": "from-import",
+      "source": "from helpers import answer\n\nfn main() -> Int:\n    return answer()\n",
+      "diagnostic_code": "E_PYTHON_IMPORT",
+      "message_contains": "selective imports are not supported",
+      "replacement": "import \"helpers.gu\"\n\nfn main() -> Int:\n    return answer()\n"
+    },
+    {
+      "id": "range-loop",
+      "source": "fn main() -> Int:\n    var total = 0\n    for i in range(3):\n        set total = total + i\n    return total\n",
+      "diagnostic_code": "E_PYTHON_RANGE",
+      "message_contains": "use `for i in [0, 1, 2]`",
+      "replacement": "fn main() -> Int:\n    var total = 0\n    for i in [0, 1, 2]:\n        set total = total + i\n    return total\n"
+    },
+    {
+      "id": "list-comprehension",
+      "source": "fn main() -> Int:\n    let squares = [value * value for value in [1, 2, 3]]\n    return len(squares)\n",
+      "diagnostic_code": "E_PYTHON_COMPREHENSION",
+      "message_contains": "explicit loop with `list_push`",
+      "replacement": "fn main() -> Int:\n    var squares: List[Int] = []\n    for value in [1, 2, 3]:\n        set squares = list_push(squares, value * value)\n    return len(squares)\n"
+    },
+    {
+      "id": "f-string",
+      "source": "fn greet(name: Text) -> Text:\n    return f\"hello {name}\"\n\nfn main() -> Int:\n    print(greet(\"Guion\"))\n    return 0\n",
+      "diagnostic_code": "E_PYTHON_FSTRING",
+      "message_contains": "text concatenation with `+` for `Text` values",
+      "replacement": "fn greet(name: Text) -> Text:\n    return \"hello \" + name\n\nfn main() -> Int:\n    print(greet(\"Guion\"))\n    return 0\n"
+    },
+    {
+      "id": "try-except",
+      "source": "fn main() -> Int:\n    try:\n        return 42\n    except Error:\n        return 0\n",
+      "diagnostic_code": "E_PYTHON_TRY",
+      "message_contains": "exhaustive `match` with `Ok` and `Err` arms",
+      "replacement": "fn result_value() -> Result[Int, Text]:\n    return Ok(42)\n\nfn main() -> Int:\n    match result_value():\n        Ok(value):\n            return value\n        Err(problem):\n            return len(problem)\n"
+    },
+    {
+      "id": "class",
+      "source": "class Point:\n    x = 1\n\nfn main() -> Int:\n    return 0\n",
+      "diagnostic_code": "E_PYTHON_CLASS",
+      "message_contains": "use `record` for data fields",
+      "replacement": "record Point:\n    x: Int\n    y: Int\n\nfn point_sum(point: Point) -> Int:\n    return point.x + point.y\n\nfn main() -> Int:\n    return point_sum(Point(20, 22))\n"
+    },
+    {
+      "id": "none-is-native-option-constructor",
+      "source": "fn maybe() -> Option[Int]:\n    return None\n\nfn main() -> Int:\n    match maybe():\n        Some(value):\n            return value\n        None:\n            return 0\n",
+      "diagnostic_code": null,
+      "message_contains": null,
+      "replacement": null
+    }
+  ]
+}

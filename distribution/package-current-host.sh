@@ -27,6 +27,11 @@ case "$OS-$ARCH" in
     UV_ARCHIVE_NAME="uv-aarch64-unknown-linux-gnu.tar.gz"
     RUST_TARGET="aarch64-unknown-linux-gnu"
     ;;
+  linux-x86_64)
+    MANIFEST="$ROOT/distribution/toolchains/manifest-linux-x86_64.toml"
+    UV_ARCHIVE_NAME="uv-x86_64-unknown-linux-gnu.tar.gz"
+    RUST_TARGET="x86_64-unknown-linux-gnu"
+    ;;
   *)
     echo "no release target is defined for $OS-$ARCH" >&2
     exit 1
@@ -277,6 +282,9 @@ done
 if [ "$OS-$ARCH" = "linux-aarch64" ]; then
   python3 "$ROOT/distribution/audit_linux_dependencies.py" "$STAGING" --output "$STAGING/linux-dependencies.json"
   PLATFORM_NOTE="Supported Linux host: Debian 12-compatible GNU/Linux ARM64 with glibc; other distributions, libc implementations, and architectures are unverified"
+elif [ "$OS-$ARCH" = "linux-x86_64" ]; then
+  python3 "$ROOT/distribution/audit_linux_dependencies.py" "$STAGING" --output "$STAGING/linux-dependencies.json"
+  PLATFORM_NOTE="Supported Linux host: Debian 12-compatible GNU/Linux x86_64 with glibc; other distributions, libc implementations, and architectures are unverified"
 else
   PLATFORM_NOTE="Supported host: macOS ARM64; Linux is distributed as a separate target package"
 fi

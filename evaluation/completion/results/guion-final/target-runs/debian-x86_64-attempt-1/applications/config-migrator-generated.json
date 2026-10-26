@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "application": "config-migrator",
+  "product": "Guion",
+  "mode": "seeded independent-oracle cases against relocated package",
+  "seed": 20261024,
+  "sizes": [
+    24,
+    128
+  ],
+  "case_count": 2,
+  "concurrency": null,
+  "passed": true,
+  "cases": [
+    {
+      "case_id": "generated-config-24",
+      "candidate": {},
+      "passed": true,
+      "exit_code": 0,
+      "checks_passed": 3,
+      "checks_total": 3,
+      "steps": [
+        {
+          "exit_code": 0,
+          "checks_passed": 3,
+          "checks_total": 3,
+          "failures": [],
+          "elapsed_seconds": 0.011642
+        }
+      ],
+      "elapsed_seconds": 0.012546,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "",
+      "failures": []
+    },
+    {
+      "case_id": "generated-config-128",
+      "candidate": {},
+      "passed": true,
+      "exit_code": 0,
+      "checks_passed": 3,
+      "checks_total": 3,
+      "steps": [
+        {
+          "exit_code": 0,
+          "checks_passed": 3,
+          "checks_total": 3,
+          "failures": [],
+          "elapsed_seconds": 0.014424
+        }
+      ],
+      "elapsed_seconds": 0.015402,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "",
+      "failures": []
+    }
+  ]
+}

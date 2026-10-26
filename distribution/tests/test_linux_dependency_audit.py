@@ -34,11 +34,25 @@ esac
         path.chmod(0o755)
 
     def test_reports_dependencies_hash_and_glibc_floor(self):
-        report = audit_tree(self.root, readelf=str(self.readelf), ldd=str(self.ldd))
+        report = audit_tree(
+            self.root,
+            readelf=str(self.readelf),
+            ldd=str(self.ldd),
+            architecture="aarch64",
+        )
         self.assertEqual(report["target"], "linux-aarch64-gnu")
         self.assertEqual(report["elf_files"][0]["needed"], ["libc.so.6"])
         self.assertEqual(report["elf_files"][0]["required_glibc"], "2.17")
         self.assertEqual(len(report["elf_files"][0]["sha256"]), 64)
+
+    def test_reports_x86_64_linux_target(self):
+        report = audit_tree(
+            self.root,
+            readelf=str(self.readelf),
+            ldd=str(self.ldd),
+            architecture="x86_64",
+        )
+        self.assertEqual(report["target"], "linux-x86_64-gnu")
 
     def test_fails_when_system_dependency_is_unresolved(self):
         self._write_tool(self.ldd, "#!/bin/sh\nprintf '%s\\n' 'libc.so.6 => not found'\n")

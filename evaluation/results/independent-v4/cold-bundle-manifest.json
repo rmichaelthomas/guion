@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "bundle_id": "guion-vs-python-cold-no-documents-v4",
+  "hash_algorithm": "sha256",
+  "digest_definition": "SHA-256 of compact, sorted-key UTF-8 JSON for the artifacts array.",
+  "artifacts": [],
+  "bundle_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "contains_benchmarks_or_comparative_outcomes": false
+}

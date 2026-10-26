@@ -25,10 +25,10 @@
           "checks_passed": 2,
           "checks_total": 2,
           "failures": [],
-          "elapsed_seconds": 0.10021
+          "elapsed_seconds": 0.047948
         }
       ],
-      "elapsed_seconds": 0.586428,
+      "elapsed_seconds": 0.53658,
       "http_fixtures": {
         "calendar": {
           "requests": [
@@ -61,10 +61,10 @@
           "checks_passed": 2,
           "checks_total": 2,
           "failures": [],
-          "elapsed_seconds": 0.151417
+          "elapsed_seconds": 0.110258
         }
       ],
-      "elapsed_seconds": 0.590408,
+      "elapsed_seconds": 0.550652,
       "http_fixtures": {
         "calendar": {
           "requests": [

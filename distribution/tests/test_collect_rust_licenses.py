@@ -20,7 +20,11 @@ SPEC.loader.exec_module(COLLECTOR)
 class RustLicenseCollectionTests(unittest.TestCase):
     def test_license_collection_filters_metadata_for_the_requested_target(self):
         metadata = {"packages": []}
-        for target in ("aarch64-apple-darwin", "aarch64-unknown-linux-gnu"):
+        for target in (
+            "aarch64-apple-darwin",
+            "aarch64-unknown-linux-gnu",
+            "x86_64-unknown-linux-gnu",
+        ):
             with self.subTest(target=target), tempfile.TemporaryDirectory() as temporary:
                 destination = Path(temporary) / "licenses" / "rust"
                 with patch.object(

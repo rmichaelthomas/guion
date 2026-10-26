@@ -390,7 +390,7 @@ mod tests {
             build_metadata: Some(BuildMetadata {
                 metadata_schema_version: 1,
                 compiler_version: "0.1.0".into(),
-                target: "darwin-aarch64".into(),
+                target: "linux-x86_64-gnu".into(),
                 source_sha256: Some("a".repeat(64)),
                 dependency_lock_sha256: Some("b".repeat(64)),
                 resource_limits: ResourceLimits {

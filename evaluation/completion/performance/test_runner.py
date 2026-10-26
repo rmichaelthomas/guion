@@ -2,12 +2,14 @@
 
 import sys
 import os
+import io
 import json
 import shutil
 import subprocess
 import tempfile
 import unittest
 from unittest import mock
+from contextlib import redirect_stdout
 from pathlib import Path
 
 import runner
@@ -29,6 +31,93 @@ class PeakMemoryTests(unittest.TestCase):
         self.assertEqual(runner.ru_maxrss_to_bytes(4096, system="Darwin"), 4096)
         self.assertEqual(runner.ru_maxrss_to_bytes(4, system="Linux"), 4096)
         self.assertEqual(runner.MEMORY_MEASUREMENT["single_process_scope"], "direct child process")
+
+    def test_peak_memory_can_require_correct_program_output(self) -> None:
+        observed = runner.peak_memory(
+            [sys.executable, "-c", "print('9297'); print('23246')"],
+            Path.cwd(),
+            workload_id="richards-scheduler",
+            expected=["9297", "23246"],
+        )
+
+        self.assertIsInstance(observed, int)
+
+    def test_peak_memory_rejects_incorrect_program_output(self) -> None:
+        with self.assertRaisesRegex(RuntimeError, "output mismatch"):
+            runner.peak_memory(
+                [sys.executable, "-c", "print('wrong')"],
+                Path.cwd(),
+                workload_id="richards-scheduler",
+                expected=["9297", "23246"],
+            )
+
+    def test_richards_peak_memory_reports_five_output_checked_runs_per_lane(self) -> None:
+        scratch_parent = runner.ROOT / "target/perf-session/test"
+        scratch_parent.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=scratch_parent) as directory:
+            root = Path(directory)
+            baseline = root / "baseline" / "guion"
+            candidate = root / "candidate" / "guion"
+            baseline.parent.mkdir()
+            candidate.parent.mkdir()
+            baseline.write_bytes(b"baseline")
+            candidate.write_bytes(b"candidate")
+            samples = iter([100, 102, 98, 101, 99, 110, 112, 108, 111, 109] * 2)
+            with mock.patch.object(runner, "peak_memory", side_effect=lambda *args, **kwargs: next(samples)) as peak:
+                report = runner.richards_peak_memory(
+                    baseline,
+                    candidate,
+                    root / "scratch",
+                    baseline_revision="226e884",
+                    candidate_revision="4bb0680",
+                    runs=5,
+                )
+
+        self.assertEqual(peak.call_count, 20)
+        self.assertEqual(report["runs_per_binary_per_lane"], 5)
+        self.assertTrue(report["output_checked_each_run"])
+        self.assertEqual(report["lanes"]["fresh_source"]["baseline"]["median_peak_rss_bytes"], 100)
+        self.assertEqual(report["lanes"]["fresh_source"]["candidate"]["median_peak_rss_bytes"], 110)
+        self.assertEqual(report["lanes"]["repeated_source_25"]["candidate"]["median_peak_rss_bytes"], 110)
+
+    def test_sampled_richards_profile_checks_25_outputs_and_retains_sample_text(self) -> None:
+        scratch_parent = runner.ROOT / "target/perf-session/test"
+        scratch_parent.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=scratch_parent) as directory:
+            root = Path(directory)
+            binary = root / "guion"
+            binary.write_bytes(b"profile-test-binary")
+            envelope = {
+                "status": "passed",
+                "program_stdout": "9297\n23246\n" * 25,
+                "runtime_profile": {"dynamic_guest_conditional_branch_executions": 75},
+            }
+
+            class FakeProcess:
+                pid = 123
+                returncode = 0
+
+                def communicate(self, timeout=None):
+                    return json.dumps(envelope), ""
+
+            def fake_sample(command, **kwargs):
+                if command[0] == "git":
+                    return subprocess.CompletedProcess(command, 0, stdout="4bb0680\n", stderr="")
+                sample_path = Path(command[command.index("-file") + 1])
+                sample_path.write_text("sampled frame evidence", encoding="utf-8")
+                return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+            with mock.patch.object(runner.subprocess, "Popen", return_value=FakeProcess()) as launch, mock.patch.object(
+                runner.subprocess, "run", side_effect=fake_sample
+            ) as sample:
+                report = runner.sample_richards(binary, root / "scratch")
+
+        self.assertTrue(report["program_output_checked"])
+        self.assertEqual(report["program_repetitions"], 25)
+        self.assertEqual(report["runtime_profile"]["dynamic_guest_conditional_branch_executions"], 75)
+        self.assertEqual(report["sampler"]["sample_report_text"], "sampled frame evidence")
+        self.assertEqual(launch.call_count, 1)
+        self.assertEqual(sample.call_count, 2)
 
     def test_uncached_source_command_explicitly_bypasses_guion_cache(self) -> None:
         command = ["/opt/guion", "run", "--json", "main.gu"]
@@ -100,7 +189,17 @@ class PeakMemoryTests(unittest.TestCase):
                     "program_execute_ns": 40_000_000,
                     "native_compilation": {"functions": [], "finalize_nanoseconds": 0},
                 },
-                "runtime_profile": {"dynamic_guest_conditional_branch_executions": 3},
+                "runtime_profile": {
+                    "dynamic_guest_conditional_branch_executions": 3,
+                    "list_set": {
+                        "copy_size_histogram": {
+                            "buckets": {"0-8": {"copies": 1, "estimated_copy_bytes": 8}}
+                        },
+                        "copy_on_write_copies": 1,
+                        "estimated_copy_bytes": 8,
+                    },
+                    "estimated_guest_allocation_budget_charges": {"estimated_gross_bytes": 100},
+                },
             }
             with mock.patch.object(runner, "sample_candidates", return_value=(samples, metadata)) as sample, mock.patch.object(
                 runner, "profile_guion_run", return_value=profile
@@ -116,6 +215,46 @@ class PeakMemoryTests(unittest.TestCase):
             self.assertTrue(all(call.kwargs["runtime_profile_enabled"] for call in phase.call_args_list))
             self.assertEqual(report["repetitions_in_repeated_source_lane"], 25)
             self.assertIn("runtime_profile", report["untimed_phase_profiles"]["one_shot"])
+
+    def test_richards_python_ratio_comes_from_a_single_randomized_three_arm_cohort(self) -> None:
+        scratch_parent = runner.ROOT / "target/perf-session/test"
+        scratch_parent.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=scratch_parent) as directory:
+            root = Path(directory)
+            baseline = root / "baseline" / "guion"
+            candidate = root / "candidate" / "guion"
+            baseline.parent.mkdir()
+            candidate.parent.mkdir()
+            baseline.write_bytes(b"baseline")
+            candidate.write_bytes(b"candidate")
+            scratch = root / "scratch"
+            python_samples = [0.010 + index / 1000 for index in range(15)]
+            candidate_samples = [0.005 + index / 1000 for index in range(15)]
+            baseline_samples = [0.020 + index / 1000 for index in range(15)]
+            samples = {
+                "guion_baseline_source_uncached": runner.summary(baseline_samples),
+                "guion_candidate_source_uncached": runner.summary(candidate_samples),
+                "python_reference": runner.summary(python_samples),
+            }
+            order = [["python_reference", "guion_candidate_source_uncached", "guion_baseline_source_uncached"]] * 15
+            with mock.patch.object(runner, "sample_candidates", return_value=(samples, {"paired_trial_order": order})) as sample:
+                report = runner.compare_richards_cohort(
+                    baseline,
+                    candidate,
+                    scratch,
+                    baseline_revision="226e884",
+                    candidate_revision="4bb0680",
+                )
+
+        commands = sample.call_args.args[1]
+        self.assertIn("--no-cache", commands["guion_baseline_source_uncached"])
+        self.assertIn("--no-cache", commands["guion_candidate_source_uncached"])
+        self.assertEqual(sample.call_args.kwargs["trials"], 15)
+        self.assertEqual(sample.call_args.args[3], ["9297", "23246"])
+        expected_direct = runner.paired_median_ci([value / reference for value, reference in zip(candidate_samples, python_samples, strict=True)])
+        self.assertEqual(report["comparisons"]["candidate_over_python"], expected_direct)
+        self.assertEqual(report["raw_samples_seconds"]["python_reference"], python_samples)
+        self.assertEqual(len(report["paired_trial_order"]), 15)
 
     def test_parallel_worker_memory_report_is_an_untimed_upper_bound(self) -> None:
         script = Path(__file__).resolve().parents[2] / "development/famous_benchmarks/parallel_cpu.py"
@@ -228,6 +367,51 @@ class PerformanceSessionTests(unittest.TestCase):
                     )
             build.assert_not_called()
             benchmark.assert_not_called()
+
+    def test_richards_followup_command_writes_the_requested_comparison_report(self) -> None:
+        self.require_session()
+        scratch_parent = runner.ROOT / "target/perf-session/test"
+        scratch_parent.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=scratch_parent) as directory:
+            root = Path(directory)
+            baseline = root / "baseline" / "guion"
+            candidate = root / "candidate" / "guion"
+            baseline.parent.mkdir()
+            candidate.parent.mkdir()
+            baseline.write_bytes(b"baseline")
+            candidate.write_bytes(b"candidate")
+            output = root / "richards-followup.json"
+            report = {
+                "schema_version": 1,
+                "kind": "guion-richards-python-comparison",
+                "status": "passed",
+                "measurement_design": {"trials_per_arm": 15},
+            }
+            stdout = io.StringIO()
+            with mock.patch.object(session.runner, "compare_richards_cohort", return_value=report) as measure:
+                with redirect_stdout(stdout):
+                    result = session.main(
+                        [
+                            "richards-followup",
+                            "--baseline-binary",
+                            str(baseline),
+                            "--candidate-binary",
+                            str(candidate),
+                            "--baseline-revision",
+                            "226e884",
+                            "--candidate-revision",
+                            "4bb0680",
+                            "--scratch-dir",
+                            str(root / "scratch"),
+                            "--output",
+                            str(output),
+                        ]
+                    )
+
+            self.assertEqual(result, 0)
+            self.assertEqual(json.loads(output.read_text(encoding="utf-8")), report)
+            self.assertEqual(measure.call_args.kwargs["trials"], 15)
+            self.assertIn('"status": "passed"', stdout.getvalue())
 
     def test_preflight_rejects_wrong_root_bad_scratch_missing_dependencies_and_low_disk(self) -> None:
         self.require_session()

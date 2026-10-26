@@ -1,0 +1,167 @@
+{
+  "artifact_identities": {
+    "artifact_schema": "sha256:7c91c82c3ff2a1351fe30dc9bd3350eb1d88dc914b59f3a34cc288858a94958f",
+    "compiler_seed": "sha256:e168320c43f05d8d5814fea6133564f1600815839196953d1fd2d311d0ee05ef",
+    "compiler_seed_manifest": "sha256:456431e2825641b827f7a9f61f34984403f6cd1edf4ba30bf178f7d021dfaa0f",
+    "runtime": "sha256:61f5df917e86d9304fdd7ab3749eb0c81157d69ed0b160aaee5059b5f24a8825",
+    "stdlib": "sha256:e2031b25149d6e4a07bd16d13e7a85487bab254c35a9f5d52bbe84ad701bf538"
+  },
+  "changed_path_count": 0,
+  "checks": [
+    {
+      "command": [
+        "cargo",
+        "build",
+        "--locked",
+        "--offline",
+        "--release",
+        "-p",
+        "guion-cli",
+        "--bin",
+        "guion"
+      ],
+      "exit_status": 0,
+      "id": "release-binary-build",
+      "output": "built /Users/runner/work/guion/guion/target/perf-session/cargo/release/guion (0.1.0-macos-aarch64-0c00c70b90dd)",
+      "status": "passed",
+      "target": "macos-aarch64"
+    },
+    {
+      "command": [
+        "cargo xtask release"
+      ],
+      "exit_status": 0,
+      "id": "release-package-contents",
+      "output": "compiler seed, standard library, docs, native component manifest, installer, 169 dependency license sets; archive has 496 safe members",
+      "status": "passed",
+      "target": "macos-aarch64"
+    },
+    {
+      "command": [
+        "Rust path/type audit + tar listing"
+      ],
+      "exit_status": 0,
+      "id": "release-archive-audit",
+      "output": "/Users/runner/work/guion/guion/target/perf-session/cargo/completion/releases/macos-aarch64/guion-macos-aarch64.tar.gz (5355253 bytes, sha256 682c5102263392b626ceec89ab69983568905d1ca0e2e93e3e24c6cc91f99994)",
+      "status": "passed",
+      "target": "macos-aarch64"
+    },
+    {
+      "command": [
+        "Rust release manifest verification"
+      ],
+      "exit_status": 0,
+      "id": "release-tamper-rejected",
+      "output": "modified compiler seed rejected by SHA-256 manifest verification",
+      "status": "passed",
+      "target": "macos-aarch64"
+    },
+    {
+      "command": [
+        "Rust release target verification"
+      ],
+      "exit_status": 0,
+      "id": "release-dependency-target-mismatch",
+      "output": "package built for a different target (aarch64-unknown-linux-gnu) rejected",
+      "status": "passed",
+      "target": "macos-aarch64"
+    },
+    {
+      "command": [
+        "/Users/runner/work/guion/guion/target/perf-session/cargo/completion/releases/macos-aarch64/relocated ✓ package/bin/guion",
+        "--version"
+      ],
+      "exit_status": 0,
+      "id": "source-free-readonly-relocation",
+      "output": "PATH=/nonexistent; package tree read-only; cwd=/Users/runner/work/guion/guion/target/perf-session/tmp; guion 0.1.0 (artifact format 39)\n",
+      "status": "passed",
+      "target": "macos-aarch64"
+    },
+    {
+      "command": [
+        "sh",
+        "/Users/runner/work/guion/guion/target/perf-session/cargo/completion/releases/macos-aarch64/current/install.sh",
+        "/Users/runner/work/guion/guion/target/perf-session/cargo/completion/releases/macos-aarch64/install-prefix ✓"
+      ],
+      "exit_status": 0,
+      "id": "release-installer-clean-room",
+      "output": "installer and installed command use PATH=/usr/bin:/bin (no Python/uv path); Installed Guion current\nCommand: /Users/runner/work/guion/guion/target/perf-session/cargo/completion/releases/macos-aarch64/install-prefix ✓/bin/guion\nAdd /Users/runner/work/guion/guion/target/perf-session/cargo/completion/releases/macos-aarch64/install-prefix ✓/bin to PATH to invoke `guion` from any directory.\nguion 0.1.0 (artifact format 39)\n",
+      "status": "passed",
+      "target": "macos-aarch64"
+    },
+    {
+      "command": [
+        "/Users/runner/work/guion/guion/target/perf-session/cargo/completion/releases/macos-aarch64/relocated ✓ package/bin/guion",
+        "new",
+        "example app"
+      ],
+      "exit_status": 0,
+      "id": "readonly-install-writable-caller-data",
+      "output": "read-only install; writable project created at /Users/runner/work/guion/guion/target/perf-session/cargo/completion/releases/macos-aarch64/caller-data ✓/example app/src/main.gu; created example app\n",
+      "status": "passed",
+      "target": "macos-aarch64"
+    },
+    {
+      "command": [
+        "/Users/runner/work/guion/guion/target/perf-session/cargo/completion/releases/macos-aarch64/relocated ✓ package/bin/guion",
+        "check",
+        "/Users/runner/work/guion/guion/target/perf-session/cargo/completion/releases/macos-aarch64/caller-data ✓/example app/src/main.gu"
+      ],
+      "exit_status": 0,
+      "id": "bundled-stdlib-from-relocated-install",
+      "output": "checked /Users/runner/work/guion/guion/target/perf-session/cargo/completion/releases/macos-aarch64/caller-data ✓/example app/src/main.gu (2 functions)\n",
+      "status": "passed",
+      "target": "macos-aarch64"
+    },
+    {
+      "command": [
+        "otool",
+        "-L",
+        "/Users/runner/work/guion/guion/target/perf-session/cargo/completion/releases/macos-aarch64/relocated ✓ package/bin/guion"
+      ],
+      "exit_status": 0,
+      "id": "dynamic-library-audit",
+      "output": "/Users/runner/work/guion/guion/target/perf-session/cargo/completion/releases/macos-aarch64/relocated ✓ package/bin/guion:\n\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1351.0.0)\n\t/usr/lib/libiconv.2.dylib (compatibility version 7.0.0, current version 7.0.0)\n",
+      "status": "passed",
+      "target": "macos-aarch64"
+    },
+    {
+      "command": [
+        "Rust release manifest verification"
+      ],
+      "exit_status": 0,
+      "id": "release-hashes-stable-after-execution",
+      "output": "immutable current package hashes remain unchanged after relocation and launches",
+      "status": "passed",
+      "target": "macos-aarch64"
+    }
+  ],
+  "command": "release",
+  "completed_targets": [
+    "macos-aarch64"
+  ],
+  "exact_command": "cargo xtask release --target both",
+  "exit_status": 1,
+  "message": "waiting for matching evidence from every required target",
+  "missing_checks": [],
+  "missing_evidence": [],
+  "report": "release",
+  "required_targets": [
+    "macos-aarch64",
+    "debian-aarch64",
+    "debian-x86_64"
+  ],
+  "runtime_hash": "sha256:61f5df917e86d9304fdd7ab3749eb0c81157d69ed0b160aaee5059b5f24a8825",
+  "schema_version": 1,
+  "seed_hash": "sha256:e168320c43f05d8d5814fea6133564f1600815839196953d1fd2d311d0ee05ef",
+  "skipped_targets": [
+    "debian-aarch64",
+    "debian-x86_64"
+  ],
+  "source_revision": "0fecfbf1694474b5e85bebb8bc4f87db29275f53",
+  "status": "incomplete",
+  "stdlib_hash": "sha256:e2031b25149d6e4a07bd16d13e7a85487bab254c35a9f5d52bbe84ad701bf538",
+  "target": "both",
+  "unsatisfied_goal_ids": [],
+  "working_tree_digest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

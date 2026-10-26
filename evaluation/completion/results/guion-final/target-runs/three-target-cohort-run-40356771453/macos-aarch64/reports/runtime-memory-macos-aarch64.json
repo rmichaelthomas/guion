@@ -1,0 +1,32 @@
+{
+  "host": "Darwin 24.6.0 arm64",
+  "invocations": 57,
+  "kind": "runtime_lifecycle_memory_samples",
+  "measurement": "resource.getrusage(RUSAGE_SELF).ru_maxrss high-water mark for the test process; macOS values are bytes and other supported hosts are converted from KiB to bytes",
+  "native_resource_count_after_close": 0,
+  "native_resource_count_after_each_invocation": 0,
+  "plateau_observed": true,
+  "plateau_rule": "tail spread at or below 10% of warmed RSS; samples include OS scheduler and allocator noise",
+  "schema_version": 1,
+  "tail_relative_spread": 0.02342786683107275,
+  "tail_samples": [
+    {
+      "invocations_completed": 9,
+      "resident_bytes": 14417920
+    },
+    {
+      "invocations_completed": 25,
+      "resident_bytes": 14647296
+    },
+    {
+      "invocations_completed": 57,
+      "resident_bytes": 14729216
+    }
+  ],
+  "target": "macos-aarch64",
+  "universal_absolute_rss_limit": null,
+  "warmup_sample": {
+    "invocations_completed": 1,
+    "resident_bytes": 13287424
+  }
+}

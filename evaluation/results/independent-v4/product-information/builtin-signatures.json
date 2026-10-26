@@ -1,0 +1,1010 @@
+{
+  "schema_version": 1,
+  "entries": [
+    {
+      "name": "Err",
+      "parameters": [
+        "$E"
+      ],
+      "result": "Result[$T, $E]",
+      "operation": "MakeErr"
+    },
+    {
+      "name": "Ok",
+      "parameters": [
+        "$T"
+      ],
+      "result": "Result[$T, $E]",
+      "operation": "MakeOk"
+    },
+    {
+      "name": "Some",
+      "parameters": [
+        "$T"
+      ],
+      "result": "Option[$T]",
+      "operation": "MakeSome"
+    },
+    {
+      "name": "args",
+      "parameters": [],
+      "result": "List[Text]",
+      "operation": "Args"
+    },
+    {
+      "name": "args_from",
+      "parameters": [
+        "Int"
+      ],
+      "result": "List[Text]",
+      "operation": "ArgsFrom"
+    },
+    {
+      "name": "assert",
+      "parameters": [
+        "Bool"
+      ],
+      "result": "Unit",
+      "operation": "Assert"
+    },
+    {
+      "name": "bytes_from_ints",
+      "parameters": [
+        "List[Int]"
+      ],
+      "result": "Bytes",
+      "operation": "BytesFromInts"
+    },
+    {
+      "name": "bytes_from_text",
+      "parameters": [
+        "Text"
+      ],
+      "result": "Bytes",
+      "operation": "BytesFromText"
+    },
+    {
+      "name": "bytes_join",
+      "parameters": [
+        "List[Bytes]"
+      ],
+      "result": "Bytes",
+      "operation": "BytesJoin"
+    },
+    {
+      "name": "cli_parse",
+      "parameters": [
+        "List[Text]",
+        "List[Record[CliOption]]"
+      ],
+      "result": "Result[Record[CliArgs], FileError]",
+      "operation": "CliParse"
+    },
+    {
+      "name": "csv_encode",
+      "parameters": [
+        "List[List[Text]]"
+      ],
+      "result": "Result[Text, FileError]",
+      "operation": "CsvEncode"
+    },
+    {
+      "name": "csv_next",
+      "parameters": [
+        "FileReader"
+      ],
+      "result": "Result[Option[Record[CsvRow]], FileError]",
+      "operation": "CsvNext"
+    },
+    {
+      "name": "csv_open",
+      "parameters": [
+        "Text"
+      ],
+      "result": "Result[FileReader, FileError]",
+      "operation": "CsvOpen"
+    },
+    {
+      "name": "env",
+      "parameters": [
+        "Text"
+      ],
+      "result": "Option[Text]",
+      "operation": "Environment"
+    },
+    {
+      "name": "eprint",
+      "parameters": [
+        "Any"
+      ],
+      "result": "Unit",
+      "operation": "PrintErr"
+    },
+    {
+      "name": "error",
+      "parameters": [
+        "Result[$T, $E]"
+      ],
+      "result": "$E",
+      "operation": "GetError"
+    },
+    {
+      "name": "file_close",
+      "parameters": [
+        "FileReader"
+      ],
+      "result": "Result[Unit, FileError]",
+      "operation": "FileClose"
+    },
+    {
+      "name": "file_error_code",
+      "parameters": [
+        "FileError"
+      ],
+      "result": "Text",
+      "operation": "FileErrorCode"
+    },
+    {
+      "name": "file_error_column",
+      "parameters": [
+        "FileError"
+      ],
+      "result": "Int",
+      "operation": "FileErrorColumn"
+    },
+    {
+      "name": "file_error_line",
+      "parameters": [
+        "FileError"
+      ],
+      "result": "Int",
+      "operation": "FileErrorLine"
+    },
+    {
+      "name": "file_error_message",
+      "parameters": [
+        "FileError"
+      ],
+      "result": "Text",
+      "operation": "FileErrorMessage"
+    },
+    {
+      "name": "file_next_line",
+      "parameters": [
+        "FileReader"
+      ],
+      "result": "Result[Option[Record[SourceLine]], FileError]",
+      "operation": "FileNextLine"
+    },
+    {
+      "name": "file_open_lines",
+      "parameters": [
+        "Text"
+      ],
+      "result": "Result[FileReader, FileError]",
+      "operation": "FileOpenLines"
+    },
+    {
+      "name": "float64_bits",
+      "parameters": [
+        "Float64"
+      ],
+      "result": "Int",
+      "operation": "Float64Bits"
+    },
+    {
+      "name": "fs_walk",
+      "parameters": [
+        "Text"
+      ],
+      "result": "Result[List[Record[DirectoryEntry]], FileError]",
+      "operation": "FsWalk"
+    },
+    {
+      "name": "http_error_code",
+      "parameters": [
+        "HttpError"
+      ],
+      "result": "Text",
+      "operation": "HttpErrorCode"
+    },
+    {
+      "name": "http_error_message",
+      "parameters": [
+        "HttpError"
+      ],
+      "result": "Text",
+      "operation": "HttpErrorMessage"
+    },
+    {
+      "name": "http_get",
+      "parameters": [
+        "Text"
+      ],
+      "result": "Result[Text, HttpError]",
+      "operation": "HttpGet"
+    },
+    {
+      "name": "http_request",
+      "parameters": [
+        "Text",
+        "Text",
+        "Map[Text, Text]",
+        "Text"
+      ],
+      "result": "Result[Json, HttpError]",
+      "operation": "HttpRequest"
+    },
+    {
+      "name": "http_request_bytes",
+      "parameters": [
+        "Text",
+        "Text",
+        "Map[Text, Text]",
+        "Bytes",
+        "Int"
+      ],
+      "result": "Result[Record[HttpResponse], HttpError]",
+      "operation": "HttpRequestBytes"
+    },
+    {
+      "name": "http_request_with_timeout",
+      "parameters": [
+        "Text",
+        "Text",
+        "Map[Text, Text]",
+        "Text",
+        "Int"
+      ],
+      "result": "Result[Json, HttpError]",
+      "operation": "HttpRequestWithTimeout"
+    },
+    {
+      "name": "is_ok",
+      "parameters": [
+        "Result[$T, $E]"
+      ],
+      "result": "Bool",
+      "operation": "IsOk"
+    },
+    {
+      "name": "is_some",
+      "parameters": [
+        "Option[$T]"
+      ],
+      "result": "Bool",
+      "operation": "IsSome"
+    },
+    {
+      "name": "json_array",
+      "parameters": [],
+      "result": "Json",
+      "operation": "JsonArray"
+    },
+    {
+      "name": "json_as_bool",
+      "parameters": [
+        "Json"
+      ],
+      "result": "Bool",
+      "operation": "JsonAsBool"
+    },
+    {
+      "name": "json_as_float",
+      "parameters": [
+        "Json"
+      ],
+      "result": "Float64",
+      "operation": "JsonAsFloat"
+    },
+    {
+      "name": "json_as_int",
+      "parameters": [
+        "Json"
+      ],
+      "result": "Int",
+      "operation": "JsonAsInt"
+    },
+    {
+      "name": "json_as_int_list",
+      "parameters": [
+        "Json"
+      ],
+      "result": "List[Int]",
+      "operation": "JsonAsIntList"
+    },
+    {
+      "name": "json_as_text",
+      "parameters": [
+        "Json"
+      ],
+      "result": "Text",
+      "operation": "JsonAsText"
+    },
+    {
+      "name": "json_bool",
+      "parameters": [
+        "Bool"
+      ],
+      "result": "Json",
+      "operation": "JsonBool"
+    },
+    {
+      "name": "json_error_code",
+      "parameters": [
+        "JsonError"
+      ],
+      "result": "Text",
+      "operation": "JsonErrorCode"
+    },
+    {
+      "name": "json_error_column",
+      "parameters": [
+        "JsonError"
+      ],
+      "result": "Int",
+      "operation": "JsonErrorColumn"
+    },
+    {
+      "name": "json_error_line",
+      "parameters": [
+        "JsonError"
+      ],
+      "result": "Int",
+      "operation": "JsonErrorLine"
+    },
+    {
+      "name": "json_error_message",
+      "parameters": [
+        "JsonError"
+      ],
+      "result": "Text",
+      "operation": "JsonErrorMessage"
+    },
+    {
+      "name": "json_float",
+      "parameters": [
+        "Float64"
+      ],
+      "result": "Json",
+      "operation": "JsonFloat"
+    },
+    {
+      "name": "json_get",
+      "parameters": [
+        "Json",
+        "Text"
+      ],
+      "result": "Json",
+      "operation": "JsonGet"
+    },
+    {
+      "name": "json_has",
+      "parameters": [
+        "Json",
+        "Text"
+      ],
+      "result": "Bool",
+      "operation": "JsonHas"
+    },
+    {
+      "name": "json_index",
+      "parameters": [
+        "Json",
+        "Int"
+      ],
+      "result": "Json",
+      "operation": "JsonIndex"
+    },
+    {
+      "name": "json_int",
+      "parameters": [
+        "Int"
+      ],
+      "result": "Json",
+      "operation": "JsonInt"
+    },
+    {
+      "name": "json_int_column",
+      "parameters": [
+        "Json",
+        "Text"
+      ],
+      "result": "List[Int]",
+      "operation": "JsonIntColumn"
+    },
+    {
+      "name": "json_is_null",
+      "parameters": [
+        "Json"
+      ],
+      "result": "Bool",
+      "operation": "JsonIsNull"
+    },
+    {
+      "name": "json_len",
+      "parameters": [
+        "Json"
+      ],
+      "result": "Int",
+      "operation": "JsonLength"
+    },
+    {
+      "name": "json_null",
+      "parameters": [],
+      "result": "Json",
+      "operation": "JsonNull"
+    },
+    {
+      "name": "json_object",
+      "parameters": [],
+      "result": "Json",
+      "operation": "JsonObject"
+    },
+    {
+      "name": "json_parse",
+      "parameters": [
+        "Text"
+      ],
+      "result": "Result[Json, JsonError]",
+      "operation": "JsonParse"
+    },
+    {
+      "name": "json_project_columns",
+      "parameters": [
+        "Text",
+        "List[Text]",
+        "List[Text]"
+      ],
+      "result": "Result[Json, JsonError]",
+      "operation": "JsonProjectColumns"
+    },
+    {
+      "name": "json_push",
+      "parameters": [
+        "Json",
+        "Json"
+      ],
+      "result": "Json",
+      "operation": "JsonPush"
+    },
+    {
+      "name": "json_set",
+      "parameters": [
+        "Json",
+        "Text",
+        "Json"
+      ],
+      "result": "Json",
+      "operation": "JsonSet"
+    },
+    {
+      "name": "json_stringify",
+      "parameters": [
+        "Json"
+      ],
+      "result": "Text",
+      "operation": "JsonStringify"
+    },
+    {
+      "name": "json_text",
+      "parameters": [
+        "Text"
+      ],
+      "result": "Json",
+      "operation": "JsonText"
+    },
+    {
+      "name": "json_text_categories",
+      "parameters": [
+        "Json",
+        "Text"
+      ],
+      "result": "Json",
+      "operation": "JsonTextCategories"
+    },
+    {
+      "name": "json_text_categories_values",
+      "parameters": [
+        "Json"
+      ],
+      "result": "Json",
+      "operation": "JsonTextCategoriesValues"
+    },
+    {
+      "name": "json_try_bool",
+      "parameters": [
+        "Json"
+      ],
+      "result": "Result[Bool, JsonError]",
+      "operation": "JsonTryBool"
+    },
+    {
+      "name": "json_try_float",
+      "parameters": [
+        "Json"
+      ],
+      "result": "Result[Float64, JsonError]",
+      "operation": "JsonTryFloat"
+    },
+    {
+      "name": "json_try_get",
+      "parameters": [
+        "Json",
+        "Text"
+      ],
+      "result": "Result[Json, JsonError]",
+      "operation": "JsonTryGet"
+    },
+    {
+      "name": "json_try_index",
+      "parameters": [
+        "Json",
+        "Int"
+      ],
+      "result": "Result[Json, JsonError]",
+      "operation": "JsonTryIndex"
+    },
+    {
+      "name": "json_try_int",
+      "parameters": [
+        "Json"
+      ],
+      "result": "Result[Int, JsonError]",
+      "operation": "JsonTryInt"
+    },
+    {
+      "name": "json_try_text",
+      "parameters": [
+        "Json"
+      ],
+      "result": "Result[Text, JsonError]",
+      "operation": "JsonTryText"
+    },
+    {
+      "name": "len",
+      "parameters": [
+        "Sized"
+      ],
+      "result": "Int",
+      "operation": "Length"
+    },
+    {
+      "name": "list_get",
+      "parameters": [
+        "List[$T]",
+        "Int"
+      ],
+      "result": "Option[$T]",
+      "operation": "ListGetOption"
+    },
+    {
+      "name": "list_push",
+      "parameters": [
+        "List[$T]",
+        "$T"
+      ],
+      "result": "List[$T]",
+      "operation": "ListPush"
+    },
+    {
+      "name": "list_set",
+      "parameters": [
+        "List[$T]",
+        "Int",
+        "$T"
+      ],
+      "result": "List[$T]",
+      "operation": "ListSet"
+    },
+    {
+      "name": "map_get",
+      "parameters": [
+        "Map[Text, $T]",
+        "Text"
+      ],
+      "result": "Option[$T]",
+      "operation": "MapGetOption"
+    },
+    {
+      "name": "map_has",
+      "parameters": [
+        "Map[$T]",
+        "Text"
+      ],
+      "result": "Bool",
+      "operation": "MapHas"
+    },
+    {
+      "name": "map_set",
+      "parameters": [
+        "Map[$T]",
+        "Text",
+        "$T"
+      ],
+      "result": "Map[$T]",
+      "operation": "MapSet"
+    },
+    {
+      "name": "native_calendar_parse",
+      "parameters": [
+        "Text"
+      ],
+      "result": "Result[List[Record[CalendarEvent]], Record[StdError]]",
+      "operation": "CalendarParse"
+    },
+    {
+      "name": "native_crypto_hmac_sha256",
+      "parameters": [
+        "Bytes",
+        "Bytes"
+      ],
+      "result": "Bytes",
+      "operation": "CryptoHmacSha256"
+    },
+    {
+      "name": "native_crypto_verify_hmac_sha256",
+      "parameters": [
+        "Bytes",
+        "Bytes",
+        "Bytes"
+      ],
+      "result": "Bool",
+      "operation": "CryptoVerifyHmacSha256"
+    },
+    {
+      "name": "native_sqlite_begin",
+      "parameters": [
+        "Db"
+      ],
+      "result": "Result[Transaction, Record[StdError]]",
+      "operation": "SqliteBegin"
+    },
+    {
+      "name": "native_sqlite_close",
+      "parameters": [
+        "Db"
+      ],
+      "result": "Result[Unit, Record[StdError]]",
+      "operation": "SqliteClose"
+    },
+    {
+      "name": "native_sqlite_commit",
+      "parameters": [
+        "Transaction"
+      ],
+      "result": "Result[Unit, Record[StdError]]",
+      "operation": "SqliteCommit"
+    },
+    {
+      "name": "native_sqlite_execute",
+      "parameters": [
+        "Transaction",
+        "Text",
+        "List[Record[SqlValue]]"
+      ],
+      "result": "Result[Int, Record[StdError]]",
+      "operation": "SqliteExecute"
+    },
+    {
+      "name": "native_sqlite_open",
+      "parameters": [
+        "Text"
+      ],
+      "result": "Result[Db, Record[StdError]]",
+      "operation": "SqliteOpen"
+    },
+    {
+      "name": "native_sqlite_query",
+      "parameters": [
+        "Transaction",
+        "Text",
+        "List[Record[SqlValue]]"
+      ],
+      "result": "Result[List[Record[SqlRow]], Record[StdError]]",
+      "operation": "SqliteQuery"
+    },
+    {
+      "name": "native_sqlite_rollback",
+      "parameters": [
+        "Transaction"
+      ],
+      "result": "Result[Unit, Record[StdError]]",
+      "operation": "SqliteRollback"
+    },
+    {
+      "name": "native_text_casefold",
+      "parameters": [
+        "Text"
+      ],
+      "result": "Text",
+      "operation": "TextCaseFold"
+    },
+    {
+      "name": "native_text_collapse_whitespace",
+      "parameters": [
+        "Text"
+      ],
+      "result": "Text",
+      "operation": "TextCollapseWhitespace"
+    },
+    {
+      "name": "native_text_normalize",
+      "parameters": [
+        "Text",
+        "Text"
+      ],
+      "result": "Result[Text, Record[StdError]]",
+      "operation": "TextNormalize"
+    },
+    {
+      "name": "native_toml_get_bool",
+      "parameters": [
+        "TomlDocument",
+        "List[Text]"
+      ],
+      "result": "Result[Bool, Record[StdError]]",
+      "operation": "TomlGetBool"
+    },
+    {
+      "name": "native_toml_get_int",
+      "parameters": [
+        "TomlDocument",
+        "List[Text]"
+      ],
+      "result": "Result[Int, Record[StdError]]",
+      "operation": "TomlGetInt"
+    },
+    {
+      "name": "native_toml_get_text",
+      "parameters": [
+        "TomlDocument",
+        "List[Text]"
+      ],
+      "result": "Result[Text, Record[StdError]]",
+      "operation": "TomlGetText"
+    },
+    {
+      "name": "native_toml_has",
+      "parameters": [
+        "TomlDocument",
+        "List[Text]"
+      ],
+      "result": "Bool",
+      "operation": "TomlHas"
+    },
+    {
+      "name": "native_toml_parse",
+      "parameters": [
+        "Text"
+      ],
+      "result": "Result[TomlDocument, Record[StdError]]",
+      "operation": "TomlParse"
+    },
+    {
+      "name": "native_toml_put_bool",
+      "parameters": [
+        "TomlDocument",
+        "List[Text]",
+        "Bool"
+      ],
+      "result": "Result[Unit, Record[StdError]]",
+      "operation": "TomlPutBool"
+    },
+    {
+      "name": "native_toml_put_int",
+      "parameters": [
+        "TomlDocument",
+        "List[Text]",
+        "Int"
+      ],
+      "result": "Result[Unit, Record[StdError]]",
+      "operation": "TomlPutInt"
+    },
+    {
+      "name": "native_toml_put_text",
+      "parameters": [
+        "TomlDocument",
+        "List[Text]",
+        "Text"
+      ],
+      "result": "Result[Unit, Record[StdError]]",
+      "operation": "TomlPutText"
+    },
+    {
+      "name": "native_toml_render",
+      "parameters": [
+        "TomlDocument"
+      ],
+      "result": "Text",
+      "operation": "TomlRender"
+    },
+    {
+      "name": "parallel_map",
+      "parameters": [
+        "List[$T]",
+        "NamedWorker[$T, $R]",
+        "Int"
+      ],
+      "result": "Result[List[$R], TaskError]",
+      "operation": "ParallelMap"
+    },
+    {
+      "name": "print",
+      "parameters": [
+        "Any"
+      ],
+      "result": "Unit",
+      "operation": "Print"
+    },
+    {
+      "name": "read_bytes",
+      "parameters": [
+        "Text"
+      ],
+      "result": "Result[Bytes, FileError]",
+      "operation": "ReadBytes"
+    },
+    {
+      "name": "read_text",
+      "parameters": [
+        "Text"
+      ],
+      "result": "Result[Text, FileError]",
+      "operation": "ReadText"
+    },
+    {
+      "name": "semver_compare",
+      "parameters": [
+        "Record[SemVer]",
+        "Record[SemVer]"
+      ],
+      "result": "Int",
+      "operation": "SemVerCompare"
+    },
+    {
+      "name": "semver_parse",
+      "parameters": [
+        "Text"
+      ],
+      "result": "Result[Record[SemVer], FileError]",
+      "operation": "SemVerParse"
+    },
+    {
+      "name": "sort_by",
+      "parameters": [
+        "List[$T]",
+        "NamedComparator[$T]"
+      ],
+      "result": "List[$T]",
+      "operation": "SortBy"
+    },
+    {
+      "name": "sqrt",
+      "parameters": [
+        "Float64"
+      ],
+      "result": "Float64",
+      "operation": "FloatSqrt"
+    },
+    {
+      "name": "task_code",
+      "parameters": [
+        "TaskError"
+      ],
+      "result": "Text",
+      "operation": "TaskCode"
+    },
+    {
+      "name": "task_index",
+      "parameters": [
+        "TaskError"
+      ],
+      "result": "Int",
+      "operation": "TaskIndex"
+    },
+    {
+      "name": "task_message",
+      "parameters": [
+        "TaskError"
+      ],
+      "result": "Text",
+      "operation": "TaskMessage"
+    },
+    {
+      "name": "text_chars",
+      "parameters": [
+        "Text"
+      ],
+      "result": "List[Text]",
+      "operation": "TextChars"
+    },
+    {
+      "name": "text_parse_float",
+      "parameters": [
+        "Text"
+      ],
+      "result": "Result[Float64, FileError]",
+      "operation": "TextParseFloat"
+    },
+    {
+      "name": "text_parse_int",
+      "parameters": [
+        "Text"
+      ],
+      "result": "Result[Int, FileError]",
+      "operation": "TextParseInt"
+    },
+    {
+      "name": "time_format_utc",
+      "parameters": [
+        "Record[Instant]"
+      ],
+      "result": "Text",
+      "operation": "TimeFormatUtc"
+    },
+    {
+      "name": "time_parse_date",
+      "parameters": [
+        "Text"
+      ],
+      "result": "Result[Record[Date], FileError]",
+      "operation": "TimeParseDate"
+    },
+    {
+      "name": "time_parse_timestamp",
+      "parameters": [
+        "Text"
+      ],
+      "result": "Result[Record[Instant], FileError]",
+      "operation": "TimeParseTimestamp"
+    },
+    {
+      "name": "time_today_local",
+      "parameters": [],
+      "result": "Record[Date]",
+      "operation": "TimeTodayLocal"
+    },
+    {
+      "name": "unix_time_ms",
+      "parameters": [],
+      "result": "Int",
+      "operation": "UnixTimeMs"
+    },
+    {
+      "name": "unwrap",
+      "parameters": [
+        "Result[$T, $E]|Option[$T]"
+      ],
+      "result": "$T",
+      "operation": "Unwrap"
+    },
+    {
+      "name": "write_bytes",
+      "parameters": [
+        "Text",
+        "Bytes"
+      ],
+      "result": "Result[Unit, FileError]",
+      "operation": "WriteBytes"
+    },
+    {
+      "name": "write_text",
+      "parameters": [
+        "Text",
+        "Text"
+      ],
+      "result": "Result[Unit, FileError]",
+      "operation": "WriteText"
+    },
+    {
+      "name": "write_text_atomic",
+      "parameters": [
+        "Text",
+        "Text"
+      ],
+      "result": "Result[Unit, FileError]",
+      "operation": "WriteTextAtomic"
+    }
+  ]
+}

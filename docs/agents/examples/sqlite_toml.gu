@@ -1,25 +1,23 @@
+import "std:fs"
 import "std:sqlite"
 import "std:toml"
 import "std:types"
 
-fn read_settings() -> Result[Text, StdError]:
-    match read_text("settings.toml"):
-        Ok(text):
-            return Ok(text)
-        Err(problem):
-            return Err(std_error(file_error_code(problem), file_error_message(problem)))
-
 fn run_recipe() -> Result[Text, StdError]:
-    let settings_text = read_settings()?
+    let settings_text = fs_read_text("settings.toml")?
 
     let settings = toml_parse(settings_text)?
-    let app_name = toml_get_text(settings, ["app", "name"])?
+    let app_name = toml_get_text(settings,["app", "name"])?
 
     let database = sqlite_open("agent-recipes.sqlite3")?
     let transaction = sqlite_begin(database)?
-    let created = sqlite_execute(transaction, "CREATE TABLE IF NOT EXISTS runs (name TEXT NOT NULL)", [])?
-    let inserted = sqlite_execute(transaction, "INSERT INTO runs (name) VALUES (?)", [sql_text(app_name)])?
-    let rows = sqlite_query(transaction, "SELECT name FROM runs ORDER BY rowid DESC LIMIT 1", [])?
+    let created = sqlite_execute(transaction, "CREATE TABLE IF NOT EXISTS runs (name TEXT NOT NULL)",[])?
+    if created != 0:
+        return Err(std_error("E_SQLITE_CREATE", "table creation unexpectedly changed rows"))
+    let inserted = sqlite_execute(transaction, "INSERT INTO runs (name) VALUES (?)",[sql_text(app_name)])?
+    if inserted != 1:
+        return Err(std_error("E_SQLITE_INSERT", "expected one settings row to be inserted"))
+    let rows = sqlite_query(transaction, "SELECT name FROM runs ORDER BY rowid DESC LIMIT 1",[])?
     if len(rows) == 0:
         return Err(std_error("E_SQLITE_EMPTY", "query returned no rows"))
     let row = rows[0]
@@ -27,8 +25,12 @@ fn run_recipe() -> Result[Text, StdError]:
         return Err(std_error("E_SQLITE_EMPTY", "query returned a row with no values"))
     let name = row.values[0].text
 
-    let committed = sqlite_commit(transaction)?
-    let closed = sqlite_close(database)?
+    let committed = sqlite_commit(transaction)
+    if not is_ok(committed):
+        return Err(error(committed))
+    let closed = sqlite_close(database)
+    if not is_ok(closed):
+        return Err(error(closed))
     return Ok(name)
 
 fn main() -> Int:

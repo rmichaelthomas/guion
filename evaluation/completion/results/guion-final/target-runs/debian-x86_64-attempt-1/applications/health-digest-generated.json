@@ -1,0 +1,90 @@
+{
+  "schema_version": 1,
+  "application": "health-digest",
+  "product": "Guion",
+  "mode": "seeded independent-oracle cases against relocated package",
+  "seed": 20261024,
+  "sizes": [
+    24,
+    128
+  ],
+  "case_count": 2,
+  "concurrency": null,
+  "passed": false,
+  "cases": [
+    {
+      "case_id": "generated-health-24",
+      "candidate": {},
+      "passed": false,
+      "exit_code": 1,
+      "checks_passed": 1,
+      "checks_total": 4,
+      "steps": [
+        {
+          "exit_code": 1,
+          "checks_passed": 1,
+          "checks_total": 4,
+          "failures": [
+            "expected exit code 0, received 1",
+            "check 1: json_equals could not be evaluated: [Errno 2] No such file or directory: '/__w/guion/guion/target/perf-session/tmp/veritas-independent-case-jhtw6sgz/report.json'",
+            "check 2: file_equals could not be evaluated: [Errno 2] No such file or directory: '/__w/guion/guion/target/perf-session/tmp/veritas-independent-case-jhtw6sgz/digest.txt'",
+            "check 3: http_request_count_equals did not match its expected value"
+          ],
+          "elapsed_seconds": 0.017709
+        }
+      ],
+      "elapsed_seconds": 0.501677,
+      "http_fixtures": {
+        "health": {
+          "requests": [],
+          "max_in_flight": 0
+        }
+      },
+      "stdout": "",
+      "stderr": "main.vr:219:19: runtime error[R_PARALLEL_LIMIT]: worker limit 4 exceeds host limit 2\n",
+      "failures": [
+        "step 1: expected exit code 0, received 1",
+        "step 1: check 1: json_equals could not be evaluated: [Errno 2] No such file or directory: '/__w/guion/guion/target/perf-session/tmp/veritas-independent-case-jhtw6sgz/report.json'",
+        "step 1: check 2: file_equals could not be evaluated: [Errno 2] No such file or directory: '/__w/guion/guion/target/perf-session/tmp/veritas-independent-case-jhtw6sgz/digest.txt'",
+        "step 1: check 3: http_request_count_equals did not match its expected value"
+      ]
+    },
+    {
+      "case_id": "generated-health-128",
+      "candidate": {},
+      "passed": false,
+      "exit_code": 1,
+      "checks_passed": 1,
+      "checks_total": 4,
+      "steps": [
+        {
+          "exit_code": 1,
+          "checks_passed": 1,
+          "checks_total": 4,
+          "failures": [
+            "expected exit code 0, received 1",
+            "check 1: json_equals could not be evaluated: [Errno 2] No such file or directory: '/__w/guion/guion/target/perf-session/tmp/veritas-independent-case-am6fz9bo/report.json'",
+            "check 2: file_equals could not be evaluated: [Errno 2] No such file or directory: '/__w/guion/guion/target/perf-session/tmp/veritas-independent-case-am6fz9bo/digest.txt'",
+            "check 3: http_request_count_equals did not match its expected value"
+          ],
+          "elapsed_seconds": 0.024228
+        }
+      ],
+      "elapsed_seconds": 0.501646,
+      "http_fixtures": {
+        "health": {
+          "requests": [],
+          "max_in_flight": 0
+        }
+      },
+      "stdout": "",
+      "stderr": "main.vr:219:19: runtime error[R_PARALLEL_LIMIT]: worker limit 4 exceeds host limit 2\n",
+      "failures": [
+        "step 1: expected exit code 0, received 1",
+        "step 1: check 1: json_equals could not be evaluated: [Errno 2] No such file or directory: '/__w/guion/guion/target/perf-session/tmp/veritas-independent-case-am6fz9bo/report.json'",
+        "step 1: check 2: file_equals could not be evaluated: [Errno 2] No such file or directory: '/__w/guion/guion/target/perf-session/tmp/veritas-independent-case-am6fz9bo/digest.txt'",
+        "step 1: check 3: http_request_count_equals did not match its expected value"
+      ]
+    }
+  ]
+}

@@ -61,6 +61,17 @@ fn runtime_profile_is_absent_by_default_and_covers_native_and_vm_execution() {
                 .unwrap()
                 > 0
         );
+        let histogram = &profile["list_set"]["copy_size_histogram"]["buckets"];
+        let bucket_total: u64 = ["0-8", "9-32", "33-128", "129+"]
+            .into_iter()
+            .map(|bucket| histogram[bucket]["copies"].as_u64().unwrap())
+            .sum();
+        assert_eq!(
+            bucket_total,
+            profile["list_set"]["copy_on_write_copies"]
+                .as_u64()
+                .unwrap()
+        );
         assert_eq!(profile["record_charges"]["events"].as_u64(), Some(1));
         assert!(
             profile["record_charges"]["estimated_bytes"]
@@ -237,6 +248,7 @@ fn host_cancellation_joins_parallel_native_workers_and_returns_cancelled() {
     let artifact = compile("parallel-host-cancel.gu", source).unwrap();
     let policy = HostPolicy {
         instruction_limit: 1_000_000_000_000,
+        max_parallelism: 4,
         ..HostPolicy::default()
     };
     let mut instance = Runtime::new().load(artifact, policy).unwrap();
@@ -2604,7 +2616,13 @@ fn parallel_map_runs_pure_functions_on_multiple_workers_and_keeps_input_order() 
     let source = "fn repeat(value: Int) -> Int:\n    var i = 0\n    var total = 0\n    while i < 2000:\n        set total = total + value\n        set i = i + 1\n    return total\n\nfn results() -> Result[List[Int], TaskError]:\n    let values = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]\n    return parallel_map(values, repeat, 4)\n\nfn main() -> Int:\n    let result = results()\n    if is_ok(result):\n        return len(unwrap(result))\n    else:\n        return 0\n";
     let artifact = compile("parallel.gu", source).expect("parallel_map is part of the language");
     let mut instance = Runtime::new()
-        .load(artifact, HostPolicy::default())
+        .load(
+            artifact,
+            HostPolicy {
+                max_parallelism: 4,
+                ..HostPolicy::default()
+            },
+        )
         .unwrap();
     assert_eq!(
         instance.invoke("main", vec![]).unwrap(),
@@ -2636,6 +2654,7 @@ fn parallel_failures_cancel_pending_work_and_join_running_workers() {
     let artifact = compile("parallel-failure.gu", source).unwrap();
     let policy = HostPolicy {
         instruction_limit: 300,
+        max_parallelism: 4,
         ..HostPolicy::default()
     };
     let mut instance = Runtime::new().load(artifact, policy).unwrap();

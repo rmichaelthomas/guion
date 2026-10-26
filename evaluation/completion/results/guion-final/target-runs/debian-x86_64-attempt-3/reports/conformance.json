@@ -1,0 +1,107 @@
+{
+  "artifact_identities": {
+    "artifact_schema": "sha256:7c91c82c3ff2a1351fe30dc9bd3350eb1d88dc914b59f3a34cc288858a94958f",
+    "compiler_seed": "sha256:e168320c43f05d8d5814fea6133564f1600815839196953d1fd2d311d0ee05ef",
+    "compiler_seed_manifest": "sha256:456431e2825641b827f7a9f61f34984403f6cd1edf4ba30bf178f7d021dfaa0f",
+    "runtime": "sha256:61f5df917e86d9304fdd7ab3749eb0c81157d69ed0b160aaee5059b5f24a8825",
+    "stdlib": "sha256:e2031b25149d6e4a07bd16d13e7a85487bab254c35a9f5d52bbe84ad701bf538"
+  },
+  "changed_path_count": 0,
+  "checks": [
+    {
+      "command": [
+        "cargo",
+        "--locked",
+        "--offline",
+        "test",
+        "-p",
+        "guion-compiler",
+        "--test",
+        "pipeline"
+      ],
+      "exit_status": 0,
+      "id": "rust-compiler-pipeline",
+      "output": "\nrunning 6 tests\ntest accepts_a_value_function_when_every_if_branch_returns ... ok\ntest compiles_a_general_function_and_rejects_unknown_names_with_a_span ... ok\ntest compiles_typed_python_declarations_and_rejects_signature_mismatches ... ok\ntest imported_module_instruction_keeps_its_own_source_id ... ok\ntest rejects_incomplete_source_instead_of_ignoring_trailing_tokens ... ok\ntest source_columns_count_unicode_characters_while_spans_keep_byte_offsets ... ok\n\ntest result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\n   Compiling guion-compiler v0.1.0 (/__w/guion/guion/crates/compiler)\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.18s\n     Running tests/pipeline.rs (target/perf-session/cargo/debug/deps/pipeline-05891d61287b2e85)\n",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "--locked",
+        "--offline",
+        "test",
+        "-p",
+        "guion-cli",
+        "--test",
+        "compiler_conformance"
+      ],
+      "exit_status": 0,
+      "id": "compiler-conformance-current-cases",
+      "output": "\nrunning 38 tests\ntest accepts_unicode_scalar_escapes_in_text_literals ... ok\ntest bootstrap_resolver_uses_explicit_standard_and_locked_package_roots ... ok\ntest cyclic_and_escaping_imports_fail_at_the_import_site ... ok\ntest option_and_result_constructors_use_nested_expected_types ... ok\ntest parallel_workers_cannot_accept_or_return_native_resources ... ok\ntest private_helpers_with_the_same_name_stay_module_local ... ok\ntest private_imported_functions_are_not_visible_to_the_importer ... ok\ntest public_import_collisions_are_reported_as_ambiguity ... ok\ntest python_syntax_recovery_cases_match_bootstrap_and_self_hosted_compilers ... ok\ntest rejects_the_current_type_and_control_flow_failures_with_stable_codes ... ok\ntest repeated_imports_resolve_to_one_module_instance ... ok\ntest self_host_compiler_accepts_unicode_scalar_escapes ... ok\ntest self_host_compiler_checks_builtin_arity_and_parallel_worker_names ... ok\ntest self_host_compiler_checks_entry_declarations_and_visible_types ... ok\ntest self_host_compiler_driver_reports_source_and_argument_errors_without_assertions ... ok\ntest self_host_compiler_emits_float64_literals ... ok\ntest self_host_compiler_lowers_bytes_file_operations_and_result_propagation ... ok\ntest self_host_compiler_lowers_exhaustive_option_match ... ok\ntest self_host_compiler_lowers_list_for_loops ... ok\ntest self_host_compiler_lowers_parallel_map_with_a_named_worker ... ok\ntest self_host_compiler_lowers_remaining_public_host_builtins ... ok\ntest self_host_compiler_lowers_result_match_and_propagation ... ok\ntest self_host_compiler_preserves_python_external_declarations ... ok\ntest self_host_compiler_rejects_immutable_assignment_and_duplicate_locals ... ok\ntest self_host_compiler_rejects_native_resource_parallel_workers ... ok\ntest self_host_compiler_returns_a_source_diagnostic_for_parse_errors ... ok\ntest self_host_compiler_returns_a_source_diagnostic_for_unknown_functions ... ok\ntest self_host_compiler_returns_type_and_field_diagnostics ... ok\ntest self_host_duplicate_map_keys_use_the_stable_duplicate_key_code ... ok\ntest self_host_lexer_preserves_unicode_escape_diagnostic_code_and_span ... ok\ntest self_host_module_loader_enforces_import_depth_limit ... ok\ntest self_host_module_loader_rejects_project_root_escapes ... ok\ntest self_host_module_loader_reports_import_cycles ... ok\ntest self_host_module_loader_reports_missing_imports_without_asserting ... ok\ntest self_host_resolver_enforces_direct_public_visibility_and_qualifies_private_helpers ... ok\ntest self_host_resolver_uses_explicit_standard_and_locked_package_roots ... ok\ntest unicode_source_paths_and_independent_projects_compile ... ok\ntest both_compilers_consume_fixed_builtin_types_from_the_shared_catalog ... ok\n\ntest result: ok. 38 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 15.96s\n\n\n   Compiling guion-cli v0.1.0 (/__w/guion/guion/crates/cli)\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.52s\n     Running tests/compiler_conformance.rs (target/perf-session/cargo/debug/deps/compiler_conformance-119c11006001b644)\n",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "--locked",
+        "--offline",
+        "test",
+        "-p",
+        "guion-cli",
+        "--test",
+        "language_conformance",
+        "--",
+        "--skip",
+        "compiler_stages_compile_full_task_two_corpus_and_locked_roots",
+        "--test-threads=1"
+      ],
+      "exit_status": 0,
+      "id": "full-language-conformance",
+      "output": "\nrunning 2 tests\ntest collection_updates_preserve_preexisting_aliases_in_both_compilers ... ok\ntest manifest_current_language_corpus_has_bootstrap_and_self_host_parity ... ok\n\ntest result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 171.23s\n\n\n   Compiling guion-cli v0.1.0 (/__w/guion/guion/crates/cli)\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.96s\n     Running tests/language_conformance.rs (target/perf-session/cargo/debug/deps/language_conformance-a445e2d0319498f9)\n",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "--locked",
+        "--offline",
+        "test",
+        "-p",
+        "guion-cli",
+        "--test",
+        "language_conformance",
+        "compiler_stages_compile_full_task_two_corpus_and_locked_roots",
+        "--",
+        "--exact",
+        "--nocapture"
+      ],
+      "exit_status": 0,
+      "id": "stage2-stage3-full-corpus",
+      "output": "\nrunning 1 test\ntest compiler_stages_compile_full_task_two_corpus_and_locked_roots ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 5.15s\n\n\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.10s\n     Running tests/language_conformance.rs (target/perf-session/cargo/debug/deps/language_conformance-a445e2d0319498f9)\nC2/C3 corpus case 1/195: host_operation-argument-suffix.positive\nC2/C3 corpus case 2/195: host_operation-argument-suffix.negative\nC2/C3 corpus case 3/195: host_operation-argument-suffix.interaction\nC2/C3 corpus case 4/195: host_operation-arguments.positive\nC2/C3 corpus case 5/195: host_operation-arguments.negative\nC2/C3 corpus case 6/195: host_operation-arguments.interaction\nC2/C3 corpus case 7/195: host_operation-atomic-text-replace.positive\nC2/C3 corpus case 8/195: host_operation-atomic-text-replace.negative\nC2/C3 corpus case 9/195: host_operation-atomic-text-replace.interaction\nC2/C3 corpus case 10/195: host_operation-clock.positive\nC2/C3 corpus case 11/195: host_operation-clock.negative\nC2/C3 corpus case 12/195: host_operation-clock.interaction\nC2/C3 corpus case 13/195: host_operation-environment.positive\nC2/C3 corpus case 14/195: host_operation-environment.negative\nC2/C3 corpus case 15/195: host_operation-environment.interaction\nC2/C3 corpus case 16/195: host_operation-output.positive\nC2/C3 corpus case 17/195: host_operation-output.negative\nC2/C3 corpus case 18/195: host_operation-output.interaction\nC2/C3 corpus case 19/195: host_operation-read-text.positive\nC2/C3 corpus case 20/195: host_operation-read-text.negative\nC2/C3 corpus case 21/195: host_operation-read-text.interaction\nC2/C3 corpus case 22/195: host_operation-write-text.positive\nC2/C3 corpus case 23/195: host_operation-write-text.negative\nC2/C3 corpus case 24/195: host_operation-write-text.interaction\nC2/C3 corpus case 25/195: operator-add.positive\nC2/C3 corpus case 26/195: operator-add.negative\nC2/C3 corpus case 27/195: operator-add.interaction\nC2/C3 corpus case 28/195: operator-and.positive\nC2/C3 corpus case 29/195: operator-and.negative\nC2/C3 corpus case 30/195: operator-and.interaction\nC2/C3 corpus case 31/195: operator-divide.positive\nC2/C3 corpus case 32/195: operator-divide.negative\nC2/C3 corpus case 33/195: operator-divide.interaction\nC2/C3 corpus case 34/195: operator-equal.positive\nC2/C3 corpus case 35/195: operator-equal.negative\nC2/C3 corpus case 36/195: operator-equal.interaction\nC2/C3 corpus case 37/195: operator-floor-divide.positive\nC2/C3 corpus case 38/195: operator-floor-divide.negative\nC2/C3 corpus case 39/195: operator-floor-divide.interaction\nC2/C3 corpus case 40/195: operator-greater-or-equal.positive\nC2/C3 corpus case 41/195: operator-greater-or-equal.negative\nC2/C3 corpus case 42/195: operator-greater-or-equal.interaction\nC2/C3 corpus case 43/195: operator-greater-than.positive\nC2/C3 corpus case 44/195: operator-greater-than.negative\nC2/C3 corpus case 45/195: operator-greater-than.interaction\nC2/C3 corpus case 46/195: operator-less-or-equal.positive\nC2/C3 corpus case 47/195: operator-less-or-equal.negative\nC2/C3 corpus case 48/195: operator-less-or-equal.interaction\nC2/C3 corpus case 49/195: operator-less-than.positive\nC2/C3 corpus case 50/195: operator-less-than.negative\nC2/C3 corpus case 51/195: operator-less-than.interaction\nC2/C3 corpus case 52/195: operator-multiply.positive\nC2/C3 corpus case 53/195: operator-multiply.negative\nC2/C3 corpus case 54/195: operator-multiply.interaction\nC2/C3 corpus case 55/195: operator-not.positive\nC2/C3 corpus case 56/195: operator-not.negative\nC2/C3 corpus case 57/195: operator-not.interaction\nC2/C3 corpus case 58/195: operator-not-equal.positive\nC2/C3 corpus case 59/195: operator-not-equal.negative\nC2/C3 corpus case 60/195: operator-not-equal.interaction\nC2/C3 corpus case 61/195: operator-or.positive\nC2/C3 corpus case 62/195: operator-or.negative\nC2/C3 corpus case 63/195: operator-or.interaction\nC2/C3 corpus case 64/195: operator-postfix-propagate.positive\nC2/C3 corpus case 65/195: operator-postfix-propagate.negative\nC2/C3 corpus case 66/195: operator-postfix-propagate.interaction\nC2/C3 corpus case 67/195: operator-remainder.positive\nC2/C3 corpus case 68/195: operator-remainder.negative\nC2/C3 corpus case 69/195: operator-remainder.interaction\nC2/C3 corpus case 70/195: operator-subtract.positive\nC2/C3 corpus case 71/195: operator-subtract.negative\nC2/C3 corpus case 72/195: operator-subtract.interaction\nC2/C3 corpus case 73/195: operator-unary-minus.positive\nC2/C3 corpus case 74/195: operator-unary-minus.negative\nC2/C3 corpus case 75/195: operator-unary-minus.interaction\nC2/C3 corpus case 76/195: syntax-entry-point-signatures.positive\nC2/C3 corpus case 77/195: syntax-entry-point-signatures.negative\nC2/C3 corpus case 78/195: syntax-entry-point-signatures.interaction\nC2/C3 corpus case 79/195: syntax-exhaustive-option-match-statements.positive\nC2/C3 corpus case 80/195: syntax-exhaustive-option-match-statements.negative\nC2/C3 corpus case 81/195: syntax-exhaustive-option-match-statements.interaction\nC2/C3 corpus case 82/195: syntax-exhaustive-result-match-statements.positive\nC2/C3 corpus case 83/195: syntax-exhaustive-result-match-statements.negative\nC2/C3 corpus case 84/195: syntax-exhaustive-result-match-statements.interaction\nC2/C3 corpus case 85/195: syntax-for-loops.positive\nC2/C3 corpus case 86/195: syntax-for-loops.negative\nC2/C3 corpus case 87/195: syntax-for-loops.interaction\nC2/C3 corpus case 88/195: syntax-function-calls-and-record-construction.positive\nC2/C3 corpus case 89/195: syntax-function-calls-and-record-construction.negative\nC2/C3 corpus case 90/195: syntax-function-calls-and-record-construction.interaction\nC2/C3 corpus case 91/195: syntax-function-declarations-with-typed-parameters-and-result.positive\nC2/C3 corpus case 92/195: syntax-function-declarations-with-typed-parameters-and-result.negative\nC2/C3 corpus case 93/195: syntax-function-declarations-with-typed-parameters-and-result.interaction\nC2/C3 corpus case 94/195: syntax-if-and-else-statements.positive\nC2/C3 corpus case 95/195: syntax-if-and-else-statements.negative\nC2/C3 corpus case 96/195: syntax-if-and-else-statements.interaction\nC2/C3 corpus case 97/195: syntax-import-graph-size-depth-and-total-source-limits.positive\nC2/C3 corpus case 98/195: syntax-import-graph-size-depth-and-total-source-limits.negative\nC2/C3 corpus case 99/195: syntax-import-graph-size-depth-and-total-source-limits.interaction\nC2/C3 corpus case 100/195: syntax-integer-float64-bool-and-text-literals.positive\nC2/C3 corpus case 101/195: syntax-integer-float64-bool-and-text-literals.negative\nC2/C3 corpus case 102/195: syntax-integer-float64-bool-and-text-literals.interaction\nC2/C3 corpus case 103/195: syntax-let-immutable-bindings.positive\nC2/C3 corpus case 104/195: syntax-let-immutable-bindings.negative\nC2/C3 corpus case 105/195: syntax-let-immutable-bindings.interaction\nC2/C3 corpus case 106/195: syntax-list-literals-and-contextual-empty-lists.positive\nC2/C3 corpus case 107/195: syntax-list-literals-and-contextual-empty-lists.negative\nC2/C3 corpus case 108/195: syntax-list-literals-and-contextual-empty-lists.interaction\nC2/C3 corpus case 109/195: syntax-list-map-and-text-indexing.positive\nC2/C3 corpus case 110/195: syntax-list-map-and-text-indexing.negative\nC2/C3 corpus case 111/195: syntax-list-map-and-text-indexing.interaction\nC2/C3 corpus case 112/195: syntax-local-inference-and-explicit-annotations.positive\nC2/C3 corpus case 113/195: syntax-local-inference-and-explicit-annotations.negative\nC2/C3 corpus case 114/195: syntax-local-inference-and-explicit-annotations.interaction\nC2/C3 corpus case 115/195: syntax-map-literals-text-keys-and-contextual-empty-maps.positive\nC2/C3 corpus case 116/195: syntax-map-literals-text-keys-and-contextual-empty-maps.negative\nC2/C3 corpus case 117/195: syntax-map-literals-text-keys-and-contextual-empty-maps.interaction\nC2/C3 corpus case 118/195: syntax-parenthesized-expressions-and-precedence.positive\nC2/C3 corpus case 119/195: syntax-parenthesized-expressions-and-precedence.negative\nC2/C3 corpus case 120/195: syntax-parenthesized-expressions-and-precedence.interaction\nC2/C3 corpus case 121/195: syntax-postfix-result-propagation-with-question-mark.positive\nC2/C3 corpus case 122/195: syntax-postfix-result-propagation-with-question-mark.negative\nC2/C3 corpus case 123/195: syntax-postfix-result-propagation-with-question-mark.interaction\nC2/C3 corpus case 124/195: syntax-public-and-private-declarations.positive\nC2/C3 corpus case 125/195: syntax-public-and-private-declarations.negative\nC2/C3 corpus case 126/195: syntax-public-and-private-declarations.interaction\nC2/C3 corpus case 127/195: syntax-record-declarations-and-fields.positive\nC2/C3 corpus case 128/195: syntax-record-declarations-and-fields.negative\nC2/C3 corpus case 129/195: syntax-record-declarations-and-fields.interaction\nC2/C3 corpus case 130/195: syntax-record-field-access.positive\nC2/C3 corpus case 131/195: syntax-record-field-access.negative\nC2/C3 corpus case 132/195: syntax-record-field-access.interaction\nC2/C3 corpus case 133/195: syntax-relative-module-imports-and-project-root-confinement.positive\nC2/C3 corpus case 134/195: syntax-relative-module-imports-and-project-root-confinement.negative\nC2/C3 corpus case 135/195: syntax-relative-module-imports-and-project-root-confinement.interaction\nC2/C3 corpus case 136/195: syntax-return-statements-and-call-statements.positive\nC2/C3 corpus case 137/195: syntax-return-statements-and-call-statements.negative\nC2/C3 corpus case 138/195: syntax-return-statements-and-call-statements.interaction\nC2/C3 corpus case 139/195: syntax-utf-8-source-newlines-indentation-and-comments.positive\nC2/C3 corpus case 140/195: syntax-utf-8-source-newlines-indentation-and-comments.negative\nC2/C3 corpus case 141/195: syntax-utf-8-source-newlines-indentation-and-comments.interaction\nC2/C3 corpus case 142/195: syntax-var-mutable-bindings-and-set-assignment.positive\nC2/C3 corpus case 143/195: syntax-var-mutable-bindings-and-set-assignment.negative\nC2/C3 corpus case 144/195: syntax-var-mutable-bindings-and-set-assignment.interaction\nC2/C3 corpus case 145/195: syntax-while-loops.positive\nC2/C3 corpus case 146/195: syntax-while-loops.negative\nC2/C3 corpus case 147/195: syntax-while-loops.interaction\nC2/C3 corpus case 148/195: type-bool.positive\nC2/C3 corpus case 149/195: type-bool.negative\nC2/C3 corpus case 150/195: type-bool.interaction\nC2/C3 corpus case 151/195: type-bytes.positive\nC2/C3 corpus case 152/195: type-bytes.negative\nC2/C3 corpus case 153/195: type-bytes.interaction\nC2/C3 corpus case 154/195: type-fileerror.positive\nC2/C3 corpus case 155/195: type-fileerror.negative\nC2/C3 corpus case 156/195: type-fileerror.interaction\nC2/C3 corpus case 157/195: type-float64.positive\nC2/C3 corpus case 158/195: type-float64.negative\nC2/C3 corpus case 159/195: type-float64.interaction\nC2/C3 corpus case 160/195: type-httperror.positive\nC2/C3 corpus case 161/195: type-httperror.negative\nC2/C3 corpus case 162/195: type-httperror.interaction\nC2/C3 corpus case 163/195: type-int.positive\nC2/C3 corpus case 164/195: type-int.negative\nC2/C3 corpus case 165/195: type-int.interaction\nC2/C3 corpus case 166/195: type-json.positive\nC2/C3 corpus case 167/195: type-json.negative\nC2/C3 corpus case 168/195: type-json.interaction\nC2/C3 corpus case 169/195: type-jsonerror.positive\nC2/C3 corpus case 170/195: type-jsonerror.negative\nC2/C3 corpus case 171/195: type-jsonerror.interaction\nC2/C3 corpus case 172/195: type-list.positive\nC2/C3 corpus case 173/195: type-list.negative\nC2/C3 corpus case 174/195: type-list.interaction\nC2/C3 corpus case 175/195: type-map.positive\nC2/C3 corpus case 176/195: type-map.negative\nC2/C3 corpus case 177/195: type-map.interaction\nC2/C3 corpus case 178/195: type-option.positive\nC2/C3 corpus case 179/195: type-option.negative\nC2/C3 corpus case 180/195: type-option.interaction\nC2/C3 corpus case 181/195: type-record.positive\nC2/C3 corpus case 182/195: type-record.negative\nC2/C3 corpus case 183/195: type-record.interaction\nC2/C3 corpus case 184/195: type-result.positive\nC2/C3 corpus case 185/195: type-result.negative\nC2/C3 corpus case 186/195: type-result.interaction\nC2/C3 corpus case 187/195: type-taskerror.positive\nC2/C3 corpus case 188/195: type-taskerror.negative\nC2/C3 corpus case 189/195: type-taskerror.interaction\nC2/C3 corpus case 190/195: type-text.positive\nC2/C3 corpus case 191/195: type-text.negative\nC2/C3 corpus case 192/195: type-text.interaction\nC2/C3 corpus case 193/195: type-unit.positive\nC2/C3 corpus case 194/195: type-unit.negative\nC2/C3 corpus case 195/195: type-unit.interaction\n",
+      "status": "passed"
+    }
+  ],
+  "command": "conformance",
+  "completed_targets": [
+    "debian-x86_64"
+  ],
+  "exact_command": "cargo xtask conformance --compilers stage2,stage3",
+  "exit_status": 0,
+  "message": null,
+  "missing_checks": [],
+  "missing_evidence": [],
+  "report": "conformance",
+  "required_targets": [
+    "debian-x86_64"
+  ],
+  "runtime_hash": "sha256:61f5df917e86d9304fdd7ab3749eb0c81157d69ed0b160aaee5059b5f24a8825",
+  "schema_version": 1,
+  "seed_hash": "sha256:e168320c43f05d8d5814fea6133564f1600815839196953d1fd2d311d0ee05ef",
+  "skipped_targets": [],
+  "source_revision": "unknown",
+  "status": "passed",
+  "stdlib_hash": "sha256:e2031b25149d6e4a07bd16d13e7a85487bab254c35a9f5d52bbe84ad701bf538",
+  "target": "debian-x86_64",
+  "unsatisfied_goal_ids": [],
+  "working_tree_digest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

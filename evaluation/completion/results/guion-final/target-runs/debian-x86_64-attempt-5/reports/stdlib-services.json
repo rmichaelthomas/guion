@@ -1,0 +1,51 @@
+{
+  "artifact_identities": {
+    "artifact_schema": "sha256:7c91c82c3ff2a1351fe30dc9bd3350eb1d88dc914b59f3a34cc288858a94958f",
+    "compiler_seed": "sha256:e168320c43f05d8d5814fea6133564f1600815839196953d1fd2d311d0ee05ef",
+    "compiler_seed_manifest": "sha256:456431e2825641b827f7a9f61f34984403f6cd1edf4ba30bf178f7d021dfaa0f",
+    "runtime": "sha256:61f5df917e86d9304fdd7ab3749eb0c81157d69ed0b160aaee5059b5f24a8825",
+    "stdlib": "sha256:e2031b25149d6e4a07bd16d13e7a85487bab254c35a9f5d52bbe84ad701bf538"
+  },
+  "changed_path_count": 0,
+  "checks": [
+    {
+      "command": [
+        "cargo",
+        "--locked",
+        "--offline",
+        "test",
+        "-p",
+        "guion-runtime",
+        "--test",
+        "stdlib_services"
+      ],
+      "exit_status": 0,
+      "id": "stdlib-services",
+      "output": "\nrunning 20 tests\ntest calendar_parses_an_upstream_libical_sample ... ok\ntest calendar_parses_utc_event_and_rejects_floating_times ... ok\ntest calendar_handles_iana_offsets_folding_escapes_and_invalid_event_data ... ok\ntest dropping_a_registry_rolls_back_open_transactions_and_reopens_durably ... ok\ntest embedded_vtimezone_observance_rules_resolve_recurrent_transitions ... ok\ntest embedded_vtimezone_takes_precedence_over_the_matching_iana_identifier ... ok\ntest concurrent_sqlite_writer_observes_a_finite_busy_deadline ... ok\ntest hmac_matches_rfc4231_and_rejects_wrong_digest ... ok\ntest sqlite_bound_parameters_commit_and_survive_reopen ... ok\ntest sqlite_cancellation_interrupts_work_and_close_releases_open_resources ... ok\ntest sqlite_denies_paths_and_sql_that_escape_the_granted_database_root ... ok\ntest sqlite_rejects_nested_and_cross_registry_handles ... ok\ntest sqlite_result_budgets_and_invalid_text_are_typed_errors ... ok\ntest toml_insert_into_existing_table_preserves_order_comments_and_line_endings ... ok\ntest toml_insert_into_new_nested_table_preserves_existing_source ... ok\ntest toml_noop_is_byte_exact_and_edits_keep_unrelated_comments ... ok\ntest toml_resources_reject_foreign_and_invocation_stale_handles ... ok\ntest toml_targeted_scalar_edit_preserves_dotted_order_line_endings_and_final_newline ... ok\ntest unicode_casefold_and_whitespace_use_unicode_properties_without_normalizing ... ok\ntest guion_public_service_modules_call_typed_native_apis ... ok\n\ntest result: ok. 20 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.75s\n\n\n   Compiling guion-runtime v0.1.0 (/__w/guion/guion/crates/runtime)\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.87s\n     Running tests/stdlib_services.rs (target/perf-session/cargo/debug/deps/stdlib_services-78cb6f5f1cc03360)\n",
+      "status": "passed"
+    }
+  ],
+  "command": "stdlib",
+  "completed_targets": [
+    "debian-x86_64"
+  ],
+  "exact_command": "cargo xtask stdlib --group services",
+  "exit_status": 0,
+  "message": null,
+  "missing_checks": [],
+  "missing_evidence": [],
+  "report": "stdlib-services",
+  "required_targets": [
+    "debian-x86_64"
+  ],
+  "runtime_hash": "sha256:61f5df917e86d9304fdd7ab3749eb0c81157d69ed0b160aaee5059b5f24a8825",
+  "schema_version": 1,
+  "seed_hash": "sha256:e168320c43f05d8d5814fea6133564f1600815839196953d1fd2d311d0ee05ef",
+  "skipped_targets": [],
+  "source_revision": "dda3a869d15e7a51c48c280c789684b64ffd37de",
+  "status": "passed",
+  "stdlib_hash": "sha256:e2031b25149d6e4a07bd16d13e7a85487bab254c35a9f5d52bbe84ad701bf538",
+  "target": "debian-x86_64",
+  "unsatisfied_goal_ids": [],
+  "working_tree_digest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

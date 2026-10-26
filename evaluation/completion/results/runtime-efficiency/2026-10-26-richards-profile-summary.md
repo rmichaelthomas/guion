@@ -1,38 +1,36 @@
-# Richards runtime profile and measured optimization
+# Richards runtime follow-up — 2026-10-26
 
-**Result:** the small-list runtime change improved Richards source execution in a randomized paired comparison against the merged baseline. The fresh-process median was 5.2% lower; the repeated-run median was 14.1% lower. All five established short-source gates still pass.
+**Current fresh-source result:** In a randomized, output-checked cohort of 15 runs per arm on macOS ARM64, Guion took a median **46.00 ms** and CPython 3.14.7 took **67.43 ms**. Guion used 68.5% of Python's time (candidate/Python ratio **0.685**, 95% interval **0.673–0.690**). In the same cohort, the current Guion build was 3.9% faster by median than the previous Guion build (candidate/baseline **0.961**, interval **0.933–0.970**).
 
-## What changed
+## Comparison with the earlier Guion build
 
-Profiling showed 84,497 list copy-on-write operations per Richards execution, with 66.19 MB of estimated list-copy bytes. Lists created or copied inside native code with up to eight integer or Float64 items now keep their elements inside stable boxed descriptors. Small copy-on-write updates stay inline; larger lists continue using external vectors. Record results materialize inline lists correctly while preserving aliases and guest budget behavior. Native list-set operation counts now exclude invalid indices, matching the VM.
+The earlier separate Richards comparison reported **5.2% lower fresh-source latency** and **14.1% lower per-run latency** in a 25-repeat process. Those are retained as results from that earlier cohort. The follow-up reran a fresh-source three-arm comparison against CPython and the previous Guion build; it did not rerun the 25-repeat speed comparison. Its direct same-cohort fresh comparison measured a 3.9% median reduction, with the interval shown above. See the preserved earlier report inside [`2026-10-26-richards-profile.json`](2026-10-26-richards-profile.json).
 
-## Paired Richards results
+Each current A1 arm used 15 randomized samples and two warmups; every run's output was checked against `9297` and `23246`. Guion's source cache was bypassed with `--no-cache`; OS file-cache conditions were uncontrolled. Timed runs had profiling disabled.
 
-Each lane used 15 randomized baseline/candidate pairs. Every execution was checked against `9297` and `23246`. Profiling was disabled during these timed samples; the counter profile came from separate untimed runs. The repeated lane runs the source 25 times in one process and reports time per logical execution. Ratios are candidate time divided by baseline time; below 1.0 means the candidate took less time.
+## Peak memory
 
-| Lane | Baseline median | Candidate median | Paired ratio (95% interval) | Candidate lower in |
-|---|---:|---:|---:|---:|
-| Fresh uncached source | 51.43 ms | 48.18 ms | 0.948 (0.937–0.955) | 14/15 pairs |
-| Repeated 25-run source | 14.43 ms | 12.63 ms | 0.859 (0.836–0.912) | 14/15 pairs |
+Five untimed runs per binary in each lane used `resource.getrusage(resource.RUSAGE_CHILDREN).ru_maxrss`. Every run's program output was checked.
 
-Both confidence intervals stay below 1.0. The gain is larger in repeated execution, where runtime work dominates launch and compilation.
+| Lane | Previous build median | Current build median | Current minus previous |
+|---|---:|---:|---:|
+| Fresh uncached source | 31,211,520 B (29.75 MiB) | 30,097,408 B (28.70 MiB) | −1,114,112 B (−3.57%) |
+| 25 executions in one process | 33,898,496 B (32.33 MiB) | 31,080,448 B (29.64 MiB) | −2,818,048 B (−8.31%) |
 
-## What the profile says
+Neither lane exceeded the 5% regression threshold. The machine-readable report contains all samples, commands, binary hashes, and revisions.
 
-One untimed candidate execution counted 247,240 successful estimated guest allocation charges (85.75 MB), 294,457 list-set operations, 84,497 copy-on-write copies (66.19 MB estimated copy bytes), 209,960 in-place updates, 162,722 record charges (19.55 MB estimated), and 1,555,377 dynamic guest conditional branches.
+## Remaining cost
 
-These counters establish that Richards performs substantial list copying. They do not identify host allocator calls, prove allocator CPU time is the bottleneck, or measure hardware branch misses. Each native list descriptor carries eight inline slots even when empty or externally stored; peak memory and the memory impact of that fixed storage were not measured. The benchmark also leaves the OS file cache uncontrolled, so it is not a cold-disk result.
+The opt-in runtime profile counted **84,497** copy-on-write list copies in one Richards execution and **2,112,425** in the 25-execution lane. Every copy in both profiles had 0–8 elements, accounting for 100% of copy count and 100% of estimated copy bytes. Those list-copy estimates were 77.2% of the estimated guest allocation-budget charges. These counters measure guest operations and estimated bytes; they are not host allocator calls or CPU-time measurements.
 
-## Other speed gates
+The 25-execution profile also counted 38,884,476 dynamic guest conditional branches and 6,181,179 successful estimated guest allocation-budget charges. macOS blocked `/usr/bin/sample` from inspecting the running process: `sample[74208]: sample cannot examine process 74207 (guion) for unknown reasons, even though it appears to exist; try running with sudo.` No elevated retry was made. The available counters identify list-copy/allocation volume as the largest measured guest-side cost, but they cannot determine whether allocation, native helpers, or VM dispatch dominates CPU time.
 
-The final candidate passed the five 21-pair first-source comparisons against Python: tiny (ratio 0.222), arithmetic (0.249), JSON file (0.196), imported helper (0.242), and SQLite/TOML (0.225). Each 95% interval stayed below 1.0. These are first-source results for five small tasks on this Mac, not proof of general Python superiority.
+## Verification
 
-## Verification and limits
+- Local HTTP fixture tests: **13 passed**.
+- Nine source-free relocated application packages: **9/9 passed**, including all 18 generated cases and the webhook concurrency check.
+- Performance harness tests: **33 passed**; Python syntax compilation and `cargo fmt --all -- --check` passed.
+- Runtime histogram boundary test and native/VM profile integration test passed.
+- The five short-source Python comparisons from the earlier merged build remain in the historical report; all five were passing there. This follow-up did not rerun them.
 
-- Runtime unit, execution, data-library, and service-library targets: **154 passed**.
-- CLI unit tests: **14 passed**.
-- Performance harness tests: **28 passed**; first-source harness tests: **5 passed**.
-- Formatting and strict Clippy: **passed**.
-- The local HTTP fixture tests and nine-application acceptance run were blocked when the OS denied local loopback server binding. One lifecycle test was blocked by process-metric access. No elevation or repeat attempt was made.
-
-Machine: macOS-27.0.1-arm64-arm-64bit-Mach-O (arm64); Python 3.14.7. Guion source-cache bypass was used; the OS file cache was uncontrolled. Binary hashes, paired samples, source-diff hash, profile details, and per-task gates are in [`2026-10-26-richards-profile.json`](2026-10-26-richards-profile.json).
+The fresh-source ratio, RSS samples, package identities, and verification summaries are in [`2026-10-26-richards-followup.json`](2026-10-26-richards-followup.json). The histogram, profile counters, sample attempt, and preserved earlier profile report are in [`2026-10-26-richards-profile.json`](2026-10-26-richards-profile.json). These results describe the named workloads on this Mac and do not establish that Guion generally outperforms or replaces Python.

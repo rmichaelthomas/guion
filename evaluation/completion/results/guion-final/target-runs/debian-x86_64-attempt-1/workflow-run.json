@@ -1,0 +1,15 @@
+{
+  "artifact_id": 12655732374,
+  "artifact_name": "guion-debian-x86_64-release-evidence-40328954686",
+  "artifact_rest_digest": "sha256:e674be444f3231048fa9dc2b3eba5cd254f832252ced91719a82162df5473aed",
+  "artifact_sha256": "e674be444f3231048fa9dc2b3eba5cd254f832252ced91719a82162df5473aed",
+  "branch": "codex/guion-richards-followup-and-agent-examples",
+  "capture_note": "Complete downloaded workflow evidence is retained in this directory; gate outcomes remain failed and do not validate x86_64 support.",
+  "distribution": "Debian 12",
+  "schema_version": 1,
+  "source_revision": "2d0c82a8d350653a9419580756c1edff9a95b4bd",
+  "status": "failed",
+  "target": "debian-x86_64",
+  "workflow": "Rust source checks",
+  "workflow_run_id": 40328954686
+}

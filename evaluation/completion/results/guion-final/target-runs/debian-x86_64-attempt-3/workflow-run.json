@@ -1,0 +1,17 @@
+{
+  "artifact_id": 12659274216,
+  "artifact_name": "guion-debian-x86_64-release-evidence-40340954241",
+  "artifact_rest_digest": "sha256:de1b9d69a188c42a28953a7926a654f304203dd2bd4504c611440b0ac597b087",
+  "artifact_sha256": "de1b9d69a188c42a28953a7926a654f304203dd2bd4504c611440b0ac597b087",
+  "branch": "codex/guion-richards-followup-and-agent-examples",
+  "capture_note": "Partial target evidence is retained; the run was canceled after three gates because its source-check job had failed and a corrected revision was pushed.",
+  "distribution": "Debian 12",
+  "schema_version": 1,
+  "source_revision": "0d49c6eac862c7d29086e1cdc87b84224743b7f8",
+  "source_job_status": "failed",
+  "source_job_failure": "The CLI parallel-map test requested 4 workers on a host limit of 2.",
+  "status": "canceled-partial",
+  "target": "debian-x86_64",
+  "workflow": "Rust source checks",
+  "workflow_run_id": 40340954241
+}

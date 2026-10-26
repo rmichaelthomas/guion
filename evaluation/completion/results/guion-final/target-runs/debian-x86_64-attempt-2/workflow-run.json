@@ -1,0 +1,17 @@
+{
+  "artifact_id": 12660352405,
+  "artifact_name": "guion-debian-x86_64-release-evidence-40338795973",
+  "artifact_rest_digest": "sha256:40a68fdd883e6f2f6bc4c42e109bc3b5873a455ab2198dd166d5cbe9affa5490",
+  "artifact_sha256": "40a68fdd883e6f2f6bc4c42e109bc3b5873a455ab2198dd166d5cbe9affa5490",
+  "branch": "codex/guion-richards-followup-and-agent-examples",
+  "capture_note": "Complete downloaded Debian target evidence is retained in this directory; the target matrix failed the product-applications gate and does not validate x86_64.",
+  "distribution": "Debian 12",
+  "schema_version": 1,
+  "source_revision": "8b57cabeb4325271cb1eb3f8dfdd6480db17b390",
+  "source_job_status": "failed",
+  "source_job_failure": "The Ubuntu workspace tests failed because generated health-digest cases requested 4 workers on a host limit of 2.",
+  "status": "failed",
+  "target": "debian-x86_64",
+  "workflow": "Rust source checks",
+  "workflow_run_id": 40338795973
+}

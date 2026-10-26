@@ -25,20 +25,20 @@
           "checks_passed": 4,
           "checks_total": 4,
           "failures": [],
-          "elapsed_seconds": 0.158597
+          "elapsed_seconds": 0.064504
         }
       ],
-      "elapsed_seconds": 0.633588,
+      "elapsed_seconds": 0.551256,
       "http_fixtures": {
         "health": {
           "requests": [
             {
               "method": "GET",
-              "path": "/probe/0003"
+              "path": "/probe/0001"
             },
             {
               "method": "GET",
-              "path": "/probe/0002"
+              "path": "/probe/0003"
             },
             {
               "method": "GET",
@@ -46,7 +46,7 @@
             },
             {
               "method": "GET",
-              "path": "/probe/0001"
+              "path": "/probe/0002"
             },
             {
               "method": "GET",
@@ -66,15 +66,19 @@
             },
             {
               "method": "GET",
-              "path": "/probe/0009"
-            },
-            {
-              "method": "GET",
               "path": "/probe/0008"
             },
             {
               "method": "GET",
+              "path": "/probe/0009"
+            },
+            {
+              "method": "GET",
               "path": "/probe/0010"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0011"
             },
             {
               "method": "GET",
@@ -86,19 +90,15 @@
             },
             {
               "method": "GET",
-              "path": "/probe/0011"
-            },
-            {
-              "method": "GET",
               "path": "/probe/0014"
             },
             {
               "method": "GET",
-              "path": "/probe/0016"
+              "path": "/probe/0015"
             },
             {
               "method": "GET",
-              "path": "/probe/0015"
+              "path": "/probe/0016"
             },
             {
               "method": "GET",
@@ -110,11 +110,11 @@
             },
             {
               "method": "GET",
-              "path": "/probe/0020"
+              "path": "/probe/0019"
             },
             {
               "method": "GET",
-              "path": "/probe/0019"
+              "path": "/probe/0020"
             },
             {
               "method": "GET",
@@ -129,7 +129,7 @@
               "path": "/probe/0023"
             }
           ],
-          "max_in_flight": 1
+          "max_in_flight": 2
         }
       },
       "stdout": "",
@@ -149,16 +149,16 @@
           "checks_passed": 4,
           "checks_total": 4,
           "failures": [],
-          "elapsed_seconds": 0.185627
+          "elapsed_seconds": 0.104447
         }
       ],
-      "elapsed_seconds": 0.650653,
+      "elapsed_seconds": 0.585276,
       "http_fixtures": {
         "health": {
           "requests": [
             {
               "method": "GET",
-              "path": "/probe/0001"
+              "path": "/probe/0000"
             },
             {
               "method": "GET",
@@ -166,11 +166,11 @@
             },
             {
               "method": "GET",
-              "path": "/probe/0002"
+              "path": "/probe/0001"
             },
             {
               "method": "GET",
-              "path": "/probe/0000"
+              "path": "/probe/0002"
             },
             {
               "method": "GET",
@@ -206,19 +206,19 @@
             },
             {
               "method": "GET",
-              "path": "/probe/0013"
-            },
-            {
-              "method": "GET",
               "path": "/probe/0012"
             },
             {
               "method": "GET",
-              "path": "/probe/0014"
+              "path": "/probe/0013"
             },
             {
               "method": "GET",
               "path": "/probe/0015"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0014"
             },
             {
               "method": "GET",
@@ -246,11 +246,11 @@
             },
             {
               "method": "GET",
-              "path": "/probe/0022"
+              "path": "/probe/0023"
             },
             {
               "method": "GET",
-              "path": "/probe/0023"
+              "path": "/probe/0022"
             },
             {
               "method": "GET",
@@ -270,11 +270,11 @@
             },
             {
               "method": "GET",
-              "path": "/probe/0029"
+              "path": "/probe/0028"
             },
             {
               "method": "GET",
-              "path": "/probe/0028"
+              "path": "/probe/0029"
             },
             {
               "method": "GET",
@@ -298,11 +298,11 @@
             },
             {
               "method": "GET",
-              "path": "/probe/0035"
+              "path": "/probe/0036"
             },
             {
               "method": "GET",
-              "path": "/probe/0036"
+              "path": "/probe/0035"
             },
             {
               "method": "GET",
@@ -322,11 +322,11 @@
             },
             {
               "method": "GET",
-              "path": "/probe/0041"
+              "path": "/probe/0042"
             },
             {
               "method": "GET",
-              "path": "/probe/0042"
+              "path": "/probe/0041"
             },
             {
               "method": "GET",
@@ -334,11 +334,11 @@
             },
             {
               "method": "GET",
-              "path": "/probe/0045"
+              "path": "/probe/0044"
             },
             {
               "method": "GET",
-              "path": "/probe/0044"
+              "path": "/probe/0045"
             },
             {
               "method": "GET",
@@ -362,11 +362,11 @@
             },
             {
               "method": "GET",
-              "path": "/probe/0051"
+              "path": "/probe/0052"
             },
             {
               "method": "GET",
-              "path": "/probe/0052"
+              "path": "/probe/0051"
             },
             {
               "method": "GET",
@@ -378,19 +378,19 @@
             },
             {
               "method": "GET",
-              "path": "/probe/0055"
-            },
-            {
-              "method": "GET",
               "path": "/probe/0056"
             },
             {
               "method": "GET",
-              "path": "/probe/0057"
+              "path": "/probe/0055"
             },
             {
               "method": "GET",
               "path": "/probe/0058"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0057"
             },
             {
               "method": "GET",
@@ -406,11 +406,11 @@
             },
             {
               "method": "GET",
-              "path": "/probe/0063"
+              "path": "/probe/0062"
             },
             {
               "method": "GET",
-              "path": "/probe/0062"
+              "path": "/probe/0063"
             },
             {
               "method": "GET",
@@ -422,6 +422,10 @@
             },
             {
               "method": "GET",
+              "path": "/probe/0068"
+            },
+            {
+              "method": "GET",
               "path": "/probe/0066"
             },
             {
@@ -430,15 +434,7 @@
             },
             {
               "method": "GET",
-              "path": "/probe/0068"
-            },
-            {
-              "method": "GET",
               "path": "/probe/0069"
-            },
-            {
-              "method": "GET",
-              "path": "/probe/0070"
             },
             {
               "method": "GET",
@@ -446,11 +442,15 @@
             },
             {
               "method": "GET",
-              "path": "/probe/0073"
+              "path": "/probe/0070"
             },
             {
               "method": "GET",
               "path": "/probe/0072"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0073"
             },
             {
               "method": "GET",
@@ -486,11 +486,11 @@
             },
             {
               "method": "GET",
-              "path": "/probe/0083"
+              "path": "/probe/0082"
             },
             {
               "method": "GET",
-              "path": "/probe/0082"
+              "path": "/probe/0083"
             },
             {
               "method": "GET",
@@ -502,15 +502,11 @@
             },
             {
               "method": "GET",
-              "path": "/probe/0087"
-            },
-            {
-              "method": "GET",
               "path": "/probe/0086"
             },
             {
               "method": "GET",
-              "path": "/probe/0089"
+              "path": "/probe/0087"
             },
             {
               "method": "GET",
@@ -519,6 +515,10 @@
             {
               "method": "GET",
               "path": "/probe/0090"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0089"
             },
             {
               "method": "GET",
@@ -550,10 +550,6 @@
             },
             {
               "method": "GET",
-              "path": "/probe/0099"
-            },
-            {
-              "method": "GET",
               "path": "/probe/0098"
             },
             {
@@ -562,11 +558,19 @@
             },
             {
               "method": "GET",
-              "path": "/probe/0101"
+              "path": "/probe/0099"
             },
             {
               "method": "GET",
               "path": "/probe/0102"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0101"
+            },
+            {
+              "method": "GET",
+              "path": "/probe/0103"
             },
             {
               "method": "GET",
@@ -575,10 +579,6 @@
             {
               "method": "GET",
               "path": "/probe/0105"
-            },
-            {
-              "method": "GET",
-              "path": "/probe/0103"
             },
             {
               "method": "GET",
@@ -606,11 +606,11 @@
             },
             {
               "method": "GET",
-              "path": "/probe/0113"
+              "path": "/probe/0112"
             },
             {
               "method": "GET",
-              "path": "/probe/0112"
+              "path": "/probe/0113"
             },
             {
               "method": "GET",
@@ -638,11 +638,11 @@
             },
             {
               "method": "GET",
-              "path": "/probe/0120"
+              "path": "/probe/0121"
             },
             {
               "method": "GET",
-              "path": "/probe/0121"
+              "path": "/probe/0120"
             },
             {
               "method": "GET",
@@ -654,7 +654,7 @@
             },
             {
               "method": "GET",
-              "path": "/probe/0124"
+              "path": "/probe/0126"
             },
             {
               "method": "GET",
@@ -662,14 +662,14 @@
             },
             {
               "method": "GET",
-              "path": "/probe/0126"
+              "path": "/probe/0124"
             },
             {
               "method": "GET",
               "path": "/probe/0127"
             }
           ],
-          "max_in_flight": 2
+          "max_in_flight": 3
         }
       },
       "stdout": "",

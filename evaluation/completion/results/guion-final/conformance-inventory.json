@@ -1,10 +1,10 @@
 {
   "artifact_identities": {
     "artifact_schema": "sha256:7c91c82c3ff2a1351fe30dc9bd3350eb1d88dc914b59f3a34cc288858a94958f",
-    "compiler_seed": "sha256:cdcdaf6baef1657bee9500393db9b67f3a3f810b15403dea63c59be3cc36f001",
-    "compiler_seed_manifest": "sha256:fb26fc800f1c263c22a1704a601aeaf734b5337124f5c5356ec6e47a66e6f6f7",
-    "runtime": "sha256:ab68e378d1cadca5683aefcc842e1fb4e585fa7145a56ee98eee7b0bd9b4c3ab",
-    "stdlib": "sha256:71259e69ef34dcc5d05d50bd3537a5d0f00101069cdcf1df7456941cdfd14833"
+    "compiler_seed": "sha256:e168320c43f05d8d5814fea6133564f1600815839196953d1fd2d311d0ee05ef",
+    "compiler_seed_manifest": "sha256:456431e2825641b827f7a9f61f34984403f6cd1edf4ba30bf178f7d021dfaa0f",
+    "runtime": "sha256:61f5df917e86d9304fdd7ab3749eb0c81157d69ed0b160aaee5059b5f24a8825",
+    "stdlib": "sha256:e2031b25149d6e4a07bd16d13e7a85487bab254c35a9f5d52bbe84ad701bf538"
   },
   "changed_path_count": 0,
   "checks": [
@@ -35,7 +35,7 @@
   ],
   "command": "conformance",
   "completed_targets": [
-    "macos-aarch64"
+    "debian-x86_64"
   ],
   "exact_command": "cargo xtask conformance --inventory-only",
   "exit_status": 0,
@@ -44,16 +44,16 @@
   "missing_evidence": [],
   "report": "conformance-inventory",
   "required_targets": [
-    "macos-aarch64"
+    "debian-x86_64"
   ],
-  "runtime_hash": "sha256:ab68e378d1cadca5683aefcc842e1fb4e585fa7145a56ee98eee7b0bd9b4c3ab",
+  "runtime_hash": "sha256:61f5df917e86d9304fdd7ab3749eb0c81157d69ed0b160aaee5059b5f24a8825",
   "schema_version": 1,
-  "seed_hash": "sha256:cdcdaf6baef1657bee9500393db9b67f3a3f810b15403dea63c59be3cc36f001",
+  "seed_hash": "sha256:e168320c43f05d8d5814fea6133564f1600815839196953d1fd2d311d0ee05ef",
   "skipped_targets": [],
-  "source_revision": "89da07cd7ab5cf4764f6564824666cc362ee75b2",
+  "source_revision": "0fecfbf1694474b5e85bebb8bc4f87db29275f53",
   "status": "passed",
-  "stdlib_hash": "sha256:71259e69ef34dcc5d05d50bd3537a5d0f00101069cdcf1df7456941cdfd14833",
-  "target": "macos-aarch64",
+  "stdlib_hash": "sha256:e2031b25149d6e4a07bd16d13e7a85487bab254c35a9f5d52bbe84ad701bf538",
+  "target": "debian-x86_64",
   "unsatisfied_goal_ids": [],
   "working_tree_digest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
 }

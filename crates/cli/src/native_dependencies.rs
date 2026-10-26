@@ -141,12 +141,12 @@ pub fn write_report(package_root: &Path) -> Result<String, String> {
 }
 
 fn write_linux_report(package_root: &Path) -> Result<String, String> {
-    if std::env::consts::ARCH != "aarch64" {
-        return Err(format!(
-            "Linux native dependency reporting currently supports aarch64, not {}",
+    let target = linux_target_for_arch(std::env::consts::ARCH).ok_or_else(|| {
+        format!(
+            "Linux native dependency reporting does not support {}",
             std::env::consts::ARCH
-        ));
-    }
+        )
+    })?;
     let root = fs::canonicalize(package_root)
         .map_err(|error| format!("cannot resolve package root for native audit: {error}"))?;
     let python_owners = scan_python_owners(&root)?;
@@ -166,13 +166,13 @@ fn write_linux_report(package_root: &Path) -> Result<String, String> {
             ));
         }
         let owner = owner_for_image(&root, &path, &python_owners)?;
-        let (record, bundled, system) = inspect_elf_image(&root, &path, owner)?;
+        let (record, bundled, system) = inspect_elf_image(&root, &path, owner, target)?;
         bundled_targets.extend(bundled);
         system_targets.extend(system);
         images.push(record);
     }
     images.sort_by(|left, right| left["path"].as_str().cmp(&right["path"].as_str()));
-    let cached_images = scan_cached_elf_images(&root, &cached_python_owners)?;
+    let cached_images = scan_cached_elf_images(&root, &cached_python_owners, target)?;
     let unattributed_images = images
         .iter()
         .filter(|image| image["owner"]["kind"] == "unattributed")
@@ -180,7 +180,7 @@ fn write_linux_report(package_root: &Path) -> Result<String, String> {
         .collect::<Vec<_>>();
     let report = serde_json::json!({
         "schema_version": 1,
-        "target": "linux-aarch64-gnu",
+        "target": target.target,
         "scanner": "ELF readelf dynamic metadata and ldd dependency resolution",
         "scope": "app runtime images, managed Python, installed Python extensions, declared resources, and native files in extracted offline uv wheel-cache distributions",
         "images": images,
@@ -201,13 +201,15 @@ fn inspect_elf_image(
     root: &Path,
     image: &Path,
     owner: serde_json::Value,
+    target: LinuxTarget,
 ) -> Result<(serde_json::Value, Vec<String>, Vec<String>), String> {
     let dynamic = run_readelf(&["-dW"], image)?;
     let architecture = parse_readelf_architecture(&run_readelf(&["-h"], image)?)?;
-    if architecture != "AArch64" {
+    if architecture != target.machine {
         return Err(format!(
-            "native image {} has architecture {architecture}, expected AArch64",
-            image.display()
+            "native image {} has architecture {architecture}, expected {}",
+            image.display(),
+            target.machine
         ));
     }
     let version_output = run_readelf(&["--version-info", "--wide"], image)?;
@@ -298,7 +300,7 @@ fn inspect_elf_image(
             "path": relative,
             "sha256": sha256,
             "size_bytes": size_bytes,
-            "architectures": ["aarch64"],
+            "architectures": [target.architecture],
             "dependencies": dependencies,
             "required_glibc": versions.last(),
             "owner": owner,
@@ -308,9 +310,33 @@ fn inspect_elf_image(
     ))
 }
 
+#[derive(Clone, Copy)]
+struct LinuxTarget {
+    target: &'static str,
+    architecture: &'static str,
+    machine: &'static str,
+}
+
+fn linux_target_for_arch(architecture: &str) -> Option<LinuxTarget> {
+    match architecture {
+        "aarch64" => Some(LinuxTarget {
+            target: "linux-aarch64-gnu",
+            architecture: "aarch64",
+            machine: "AArch64",
+        }),
+        "x86_64" => Some(LinuxTarget {
+            target: "linux-x86_64-gnu",
+            architecture: "x86_64",
+            machine: "Advanced Micro Devices X86-64",
+        }),
+        _ => None,
+    }
+}
+
 fn scan_cached_elf_images(
     root: &Path,
     owners: &BTreeMap<PathBuf, Vec<serde_json::Value>>,
+    target: LinuxTarget,
 ) -> Result<Vec<serde_json::Value>, String> {
     fn walk(path: &Path, images: &mut Vec<PathBuf>) -> Result<(), String> {
         if !path.exists() {
@@ -352,7 +378,7 @@ fn scan_cached_elf_images(
                 owner.len()
             ));
         }
-        let (mut record, _, _) = inspect_elf_image(root, &path, owner[0].clone())?;
+        let (mut record, _, _) = inspect_elf_image(root, &path, owner[0].clone(), target)?;
         record["load_commands"] = record["dependencies"].clone();
         record.as_object_mut().unwrap().remove("dependencies");
         images.push(record);
@@ -1136,8 +1162,9 @@ fn hash_file(path: &Path) -> Result<(String, u64), String> {
 #[cfg(test)]
 mod tests {
     use super::{
-        expand_elf_origin, is_elf_magic, is_macho_magic, parse_ldd_resolutions, parse_otool_ids,
-        parse_otool_loads, parse_otool_rpaths, parse_readelf_needed, parse_readelf_versions,
+        expand_elf_origin, is_elf_magic, is_macho_magic, linux_target_for_arch,
+        parse_ldd_resolutions, parse_otool_ids, parse_otool_loads, parse_otool_rpaths,
+        parse_readelf_architecture, parse_readelf_needed, parse_readelf_versions,
         parse_record_path,
     };
 
@@ -1210,6 +1237,31 @@ mod tests {
                 "  Name: GLIBC_2.17  Flags: none\n  Name: GLIBC_2.34  Flags: none\n"
             ),
             ["2.17", "2.34"]
+        );
+    }
+
+    #[test]
+    fn maps_x86_64_readelf_machine_and_linux_target() {
+        let header = "ELF Header:\n  Class: ELF64\n  Machine: Advanced Micro Devices X86-64\n";
+        assert_eq!(
+            parse_readelf_architecture(header).unwrap(),
+            "Advanced Micro Devices X86-64"
+        );
+        let target = linux_target_for_arch("x86_64").unwrap();
+        assert_eq!(target.target, "linux-x86_64-gnu");
+        assert_eq!(target.architecture, "x86_64");
+        assert_eq!(target.machine, "Advanced Micro Devices X86-64");
+    }
+
+    #[test]
+    fn resolves_x86_64_linux_library_paths() {
+        let ldd =
+            "linux-vdso.so.1 (0x0000)\nlibc.so.6 => /lib/x86_64-linux-gnu/libc.so.6 (0x0001)\n";
+        assert_eq!(
+            parse_ldd_resolutions(ldd)
+                .get("libc.so.6")
+                .map(String::as_str),
+            Some("/lib/x86_64-linux-gnu/libc.so.6")
         );
     }
 

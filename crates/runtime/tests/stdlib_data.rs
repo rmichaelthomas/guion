@@ -431,6 +431,61 @@ fn main() -> Int:
 }
 
 #[test]
+fn fs_read_text_returns_content_and_preserves_missing_path_in_std_error() {
+    let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!(
+        "../../target/perf-session/fs-read-text-{}",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(&root).unwrap();
+    std::fs::write(root.join("present.txt"), "hello from std:fs").unwrap();
+    let source = r#"
+import "std:fs"
+import "std:types"
+fn main() -> Int:
+    match fs_read_text("present.txt"):
+        Ok(text):
+            print(text)
+        Err(_problem):
+            return 1
+    match fs_read_text("missing.txt"):
+        Ok(_text):
+            return 2
+        Err(problem):
+            print(problem.code)
+            print(problem.path)
+            return 0
+"#;
+    let entry = root.join("main.gu");
+    std::fs::write(&entry, source).unwrap();
+    let stdlib = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../language/stdlib");
+    let artifact = guion_compiler::compile_project_with_roots(
+        &entry,
+        &root,
+        Some(&stdlib),
+        &std::collections::HashMap::new(),
+    )
+    .expect("filesystem helper compiles with std imports");
+
+    for runtime in [Runtime::vm_only(), Runtime::new()] {
+        let mut instance = runtime
+            .load(
+                artifact.clone(),
+                HostPolicy::default().with_file_access(&root, true, false),
+            )
+            .expect("runtime loads filesystem helper");
+        instance
+            .invoke("main", vec![])
+            .expect("helper handles file result");
+        assert_eq!(
+            instance.take_output(),
+            "hello from std:fs\nR_FILE_NOT_FOUND\nmissing.txt\n"
+        );
+    }
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[test]
 fn invalid_data_keeps_existing_output_untouched() {
     let root = std::env::temp_dir().join(format!("guion-invalid-data-{}", std::process::id()));
     std::fs::create_dir_all(&root).unwrap();

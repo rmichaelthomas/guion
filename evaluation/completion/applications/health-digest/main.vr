@@ -100,7 +100,7 @@ fn main() -> Int:
     var json_path = ""
     var text_path = ""
     var now_text = ""
-    var concurrency = 4
+    var concurrency = 2
     var timeout_ms = 1000
     var index = 0
     while index < len(arguments):

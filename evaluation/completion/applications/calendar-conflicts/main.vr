@@ -169,7 +169,7 @@ fn main() -> Int:
     var window_start_text = ""
     var window_end_text = ""
     var output_path = ""
-    var concurrency = 4
+    var concurrency = 2
     var timeout_ms = 1000
     var include_tentative = false
     var index = 0

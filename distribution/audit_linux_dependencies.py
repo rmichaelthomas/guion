@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import platform
 from pathlib import Path
 import re
 import subprocess
@@ -30,10 +31,17 @@ def audit_tree(
     readelf: str = "readelf",
     ldd: str = "ldd",
     max_glibc: str = "2.36",
+    architecture: str | None = None,
 ) -> dict[str, Any]:
     """Inspect every ELF payload and fail for unresolved libraries or a newer glibc."""
     if not root.is_dir():
         raise AuditError(f"package tree does not exist: {root}")
+    host_architecture = (architecture or platform.machine()).lower()
+    host_architecture = {"arm64": "aarch64", "amd64": "x86_64"}.get(
+        host_architecture, host_architecture
+    )
+    if host_architecture not in {"aarch64", "x86_64"}:
+        raise AuditError(f"unsupported Linux ELF architecture: {host_architecture}")
     entries = []
     for path in sorted(item for item in root.rglob("*") if item.is_file()):
         try:
@@ -88,7 +96,7 @@ def audit_tree(
         raise AuditError(f"no ELF files found under {root}")
     return {
         "schema_version": 1,
-        "target": "linux-aarch64-gnu",
+        "target": f"linux-{host_architecture}-gnu",
         "glibc_maximum": max_glibc,
         "elf_files": entries,
     }

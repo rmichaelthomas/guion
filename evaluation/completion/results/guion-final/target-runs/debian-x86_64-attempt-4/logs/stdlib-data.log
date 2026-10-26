@@ -1,0 +1,112 @@
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.03s
+     Running `target/perf-session/cargo/debug/xtask stdlib --group data`
+running check stdlib-data: cargo --locked --offline test -p guion-runtime --test stdlib_data
+   Compiling serde_core v1.0.229
+   Compiling toml_datetime v1.1.2+spec-1.1.0
+   Compiling toml_edit v0.25.13+spec-1.1.0
+   Compiling serde v1.0.229
+   Compiling serde_json v1.0.151
+   Compiling serde_urlencoded v0.7.1
+   Compiling reqwest v0.12.28
+   Compiling guion-model v0.1.0 (/__w/guion/guion/crates/model)
+   Compiling guion-runtime v0.1.0 (/__w/guion/guion/crates/runtime)
+   Compiling guion-compiler v0.1.0 (/__w/guion/guion/crates/compiler)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 8.69s
+     Running tests/stdlib_data.rs (target/perf-session/cargo/debug/deps/stdlib_data-0e6d980475ca1f3f)
+
+running 13 tests
+test cli_option_map_distinguishes_missing_from_supplied_empty ... ok
+test csv_reader_handles_multiline_quotes_empty_fields_and_malformed_rows ... ok
+test fs_read_text_returns_content_and_preserves_missing_path_in_std_error ... ok
+test fs_walk_is_sorted_bounded_and_does_not_follow_symlink_directories ... ok
+test guion_line_and_csv_builtins_stream_records_through_owned_handles ... ok
+test invalid_data_keeps_existing_output_untouched ... ok
+test json_safe_accessors_keep_missing_null_and_boolean_types_distinct ... ok
+test every_shipped_data_module_compiles_as_an_independent_std_import ... ok
+test reader_handles_are_owned_typed_and_closed_with_registry ... ok
+test semver_supports_huge_components_and_full_prerelease_precedence ... ok
+test sort_by_is_stable_preserves_aliases_and_rejects_transitive_effects ... ok
+test strict_timestamps_validate_gregorian_dates_and_normalize_offsets_exactly ... ok
+test line_reader_is_incremental_strict_utf8_and_tracks_physical_lines ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+check stdlib-data: passed after 8.8s
+running check stdlib-data-embedded-selfhost: cargo --locked --offline test -p guion-cli --test stdlib_data
+   Compiling guion-cli v0.1.0 (/__w/guion/guion/crates/cli)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.20s
+     Running tests/stdlib_data.rs (target/perf-session/cargo/debug/deps/stdlib_data-cb71f455c3295f48)
+
+running 1 test
+test embedded_self_host_compiler_runs_shipped_data_modules_and_streams ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+check stdlib-data-embedded-selfhost: passed after 0.2s
+{
+  "artifact_identities": {
+    "artifact_schema": "sha256:7c91c82c3ff2a1351fe30dc9bd3350eb1d88dc914b59f3a34cc288858a94958f",
+    "compiler_seed": "sha256:e168320c43f05d8d5814fea6133564f1600815839196953d1fd2d311d0ee05ef",
+    "compiler_seed_manifest": "sha256:456431e2825641b827f7a9f61f34984403f6cd1edf4ba30bf178f7d021dfaa0f",
+    "runtime": "sha256:61f5df917e86d9304fdd7ab3749eb0c81157d69ed0b160aaee5059b5f24a8825",
+    "stdlib": "sha256:e2031b25149d6e4a07bd16d13e7a85487bab254c35a9f5d52bbe84ad701bf538"
+  },
+  "changed_path_count": 0,
+  "checks": [
+    {
+      "command": [
+        "cargo",
+        "--locked",
+        "--offline",
+        "test",
+        "-p",
+        "guion-runtime",
+        "--test",
+        "stdlib_data"
+      ],
+      "exit_status": 0,
+      "id": "stdlib-data",
+      "output": "\nrunning 13 tests\ntest cli_option_map_distinguishes_missing_from_supplied_empty ... ok\ntest csv_reader_handles_multiline_quotes_empty_fields_and_malformed_rows ... ok\ntest fs_read_text_returns_content_and_preserves_missing_path_in_std_error ... ok\ntest fs_walk_is_sorted_bounded_and_does_not_follow_symlink_directories ... ok\ntest guion_line_and_csv_builtins_stream_records_through_owned_handles ... ok\ntest invalid_data_keeps_existing_output_untouched ... ok\ntest json_safe_accessors_keep_missing_null_and_boolean_types_distinct ... ok\ntest every_shipped_data_module_compiles_as_an_independent_std_import ... ok\ntest reader_handles_are_owned_typed_and_closed_with_registry ... ok\ntest semver_supports_huge_components_and_full_prerelease_precedence ... ok\ntest sort_by_is_stable_preserves_aliases_and_rejects_transitive_effects ... ok\ntest strict_timestamps_validate_gregorian_dates_and_normalize_offsets_exactly ... ok\ntest line_reader_is_incremental_strict_utf8_and_tracks_physical_lines ... ok\n\ntest result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s\n\n\n   Compiling serde_core v1.0.229\n   Compiling toml_datetime v1.1.2+spec-1.1.0\n   Compiling toml_edit v0.25.13+spec-1.1.0\n   Compiling serde v1.0.229\n   Compiling serde_json v1.0.151\n   Compiling serde_urlencoded v0.7.1\n   Compiling reqwest v0.12.28\n   Compiling guion-model v0.1.0 (/__w/guion/guion/crates/model)\n   Compiling guion-runtime v0.1.0 (/__w/guion/guion/crates/runtime)\n   Compiling guion-compiler v0.1.0 (/__w/guion/guion/crates/compiler)\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 8.69s\n     Running tests/stdlib_data.rs (target/perf-session/cargo/debug/deps/stdlib_data-0e6d980475ca1f3f)\n",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "--locked",
+        "--offline",
+        "test",
+        "-p",
+        "guion-cli",
+        "--test",
+        "stdlib_data"
+      ],
+      "exit_status": 0,
+      "id": "stdlib-data-embedded-selfhost",
+      "output": "\nrunning 1 test\ntest embedded_self_host_compiler_runs_shipped_data_modules_and_streams ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s\n\n\n   Compiling guion-cli v0.1.0 (/__w/guion/guion/crates/cli)\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.20s\n     Running tests/stdlib_data.rs (target/perf-session/cargo/debug/deps/stdlib_data-cb71f455c3295f48)\n",
+      "status": "passed"
+    }
+  ],
+  "command": "stdlib",
+  "completed_targets": [
+    "debian-x86_64"
+  ],
+  "exact_command": "cargo xtask stdlib --group data",
+  "exit_status": 0,
+  "message": null,
+  "missing_checks": [],
+  "missing_evidence": [],
+  "report": "stdlib-data",
+  "required_targets": [
+    "debian-x86_64"
+  ],
+  "runtime_hash": "sha256:61f5df917e86d9304fdd7ab3749eb0c81157d69ed0b160aaee5059b5f24a8825",
+  "schema_version": 1,
+  "seed_hash": "sha256:e168320c43f05d8d5814fea6133564f1600815839196953d1fd2d311d0ee05ef",
+  "skipped_targets": [],
+  "source_revision": "unknown",
+  "status": "passed",
+  "stdlib_hash": "sha256:e2031b25149d6e4a07bd16d13e7a85487bab254c35a9f5d52bbe84ad701bf538",
+  "target": "debian-x86_64",
+  "unsatisfied_goal_ids": [],
+  "working_tree_digest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

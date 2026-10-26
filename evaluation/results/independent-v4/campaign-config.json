@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "campaign_id": "independent-v4-guion-choice",
+  "status": "preparing-review-materials",
+  "product_candidate": {
+    "name": "Guion",
+    "version": "0.1.0",
+    "artifact_format": 39
+  },
+  "models": [
+    {
+      "provider": "OpenAI Codex",
+      "name": "gpt-6.1-sol",
+      "version": "gpt-6.1-sol",
+      "reasoning_effort": "medium"
+    },
+    {
+      "provider": "Anthropic Claude",
+      "name": "claude-sonnet-5",
+      "version": "claude-sonnet-5",
+      "reasoning_effort": "provider-default"
+    },
+    {
+      "provider": "Google Gemini",
+      "name": "gemini-4-argon",
+      "version": "gemini-4-argon",
+      "reasoning_effort": "provider-default"
+    }
+  ],
+  "arms": [
+    {
+      "id": "product-information",
+      "product_bundle": "product-information/bundle-manifest.json"
+    },
+    {
+      "id": "cold",
+      "product_bundle": null,
+      "cold_documentation_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    }
+  ],
+  "choice_budget": {
+    "active_minutes": 5,
+    "tool_calls": 0
+  },
+  "brief_count": 9,
+  "choices_per_brief_per_cell": 2,
+  "available_choices": ["Guion", "Python", "either"],
+  "primary_measure": "active_seconds",
+  "protocol_rules": {
+    "fresh_session_per_choice": true,
+    "no_implementation": true,
+    "no_tools_or_browsing": true,
+    "no_comparative_outcomes": true,
+    "cold_arm_receives_product_bundle": false
+  }
+}

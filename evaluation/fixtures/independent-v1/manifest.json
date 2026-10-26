@@ -2703,7 +2703,7 @@
               "--output",
               "report.json",
               "--concurrency",
-              "4",
+              "2",
               "--timeout-ms",
               "500"
             ],
@@ -4979,7 +4979,7 @@
               "--text",
               "digest.txt",
               "--concurrency",
-              "4",
+              "2",
               "--timeout-ms",
               "500",
               "--now",
