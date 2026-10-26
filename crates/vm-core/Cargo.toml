@@ -1,0 +1,12 @@
+[package]
+name = "guion-vm-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+guion-model.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+guion-compiler.workspace = true

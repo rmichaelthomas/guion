@@ -508,6 +508,7 @@ dependencies = [
  "cranelift-native",
  "guion-compiler",
  "guion-model",
+ "guion-vm-core",
  "hmac",
  "icu_casemap",
  "icu_normalizer",
@@ -520,6 +521,24 @@ dependencies = [
  "sha2",
  "tokio",
  "toml_edit",
+]
+
+[[package]]
+name = "guion-vm-core"
+version = "0.1.0"
+dependencies = [
+ "guion-compiler",
+ "guion-model",
+ "serde_json",
+]
+
+[[package]]
+name = "guion-vm-wasm"
+version = "0.1.0"
+dependencies = [
+ "guion-compiler",
+ "guion-model",
+ "guion-vm-core",
 ]
 
 [[package]]

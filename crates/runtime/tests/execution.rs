@@ -2858,3 +2858,49 @@ fn option_unwrap_reports_absence_and_none_needs_an_option_context() {
     let invalid = compile("option-context.gu", "fn main() -> Int:\n    return None\n").unwrap_err();
     assert_eq!(invalid.code, "E_OPTION_CONSTRUCTOR_CONTEXT");
 }
+
+/// The native runtime and the portable core run the same instruction loop, so output, return
+/// value, and the exact instruction count agree when the native runtime uses its bytecode VM.
+#[test]
+fn native_vm_matches_shared_portable_core() {
+    use guion_vm_core::{PortableHost, VmLimits};
+    use std::sync::Arc;
+
+    let programs = [
+        include_str!("../../vm-core/tests/fixtures/hello.gu"),
+        "fn main() -> Int:\n    var total = 0\n    var i = 1\n    while i <= 10:\n        set total = total + i\n        set i = i + 1\n    print(total)\n    return total\n",
+        "fn fib(n: Int) -> Int:\n    if n < 2:\n        return n\n    return fib(n - 1) + fib(n - 2)\n\nfn main() -> Int:\n    print(fib(10))\n    return fib(10)\n",
+    ];
+    for source in programs {
+        let artifact = compile("parity.gu", source).expect("parity fixture compiles");
+        let bytes = artifact.to_bytes().expect("artifact serializes");
+        let artifact = Artifact::from_bytes(&bytes).expect("artifact decodes");
+
+        let mut portable = PortableHost::new(Arc::new(artifact.clone()), VmLimits::default());
+        let expected = portable
+            .invoke("main", vec![], 1_000_000)
+            .expect("portable core runs the program");
+        let expected_output = portable.take_output();
+
+        let policy = |instruction_limit: u64| HostPolicy {
+            instruction_limit,
+            ..HostPolicy::default()
+        };
+        let mut native = Runtime::vm_only()
+            .load(artifact.clone(), policy(expected.steps))
+            .expect("native runtime loads the artifact");
+        let value = native
+            .invoke("main", vec![])
+            .expect("native VM finishes within the portable step count");
+        assert_eq!(value, expected.return_value);
+        assert_eq!(native.take_output(), expected_output);
+
+        let mut starved = Runtime::vm_only()
+            .load(artifact, policy(expected.steps - 1))
+            .expect("native runtime loads the artifact");
+        let error = starved
+            .invoke("main", vec![])
+            .expect_err("one fewer instruction exhausts the native budget");
+        assert_eq!(error.code, "R_STEP_LIMIT");
+    }
+}

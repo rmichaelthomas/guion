@@ -1,0 +1,16 @@
+[package]
+name = "guion-vm-wasm"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+guion-model.workspace = true
+guion-vm-core.workspace = true
+
+[dev-dependencies]
+guion-compiler.workspace = true
+

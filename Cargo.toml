@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/model", "crates/compiler", "crates/runtime", "crates/cli", "crates/bootstrap", "xtask"]
+members = ["crates/model", "crates/compiler", "crates/vm-core", "crates/vm-wasm", "crates/runtime", "crates/cli", "crates/bootstrap", "xtask"]
 
 [workspace.package]
 version = "0.1.0"
@@ -11,6 +11,7 @@ license = "MIT"
 guion-model = { path = "crates/model" }
 guion-compiler = { path = "crates/compiler" }
 guion-runtime = { path = "crates/runtime" }
+guion-vm-core = { path = "crates/vm-core" }
 toml = "=1.1.8"
 serde_json = { version = "=1.0.151", features = ["arbitrary_precision"] }
 serde = "=1.0.229"

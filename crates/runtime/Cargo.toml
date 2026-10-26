@@ -11,6 +11,7 @@ python-interop = []
 
 [dependencies]
 guion-model.workspace = true
+guion-vm-core.workspace = true
 libc.workspace = true
 serde_json.workspace = true
 serde.workspace = true
