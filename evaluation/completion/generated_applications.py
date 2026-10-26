@@ -248,9 +248,9 @@ def _health(size: int, rng: random.Random) -> dict:
         "id": f"generated-health-{size}",
         "files": {"services.json": json.dumps({"services": services})},
         "http_fixtures": {"health": fixture},
-        "command_args": ["--config", "services.json", "--json", "report.json", "--text", "digest.txt", "--concurrency", "4", "--timeout-ms", "2000"],
+        "command_args": ["--config", "services.json", "--json", "report.json", "--text", "digest.txt", "--concurrency", "2", "--timeout-ms", "2000"],
         "expected_exit_code": 0,
-        "checks": [_check("json_equals", "report.json", {"results": expected}), _check("file_equals", "digest.txt", digest), {"kind": "http_request_count_equals", "fixture": "health", "value": size}, {"kind": "http_max_in_flight_at_most", "fixture": "health", "value": 4}],
+        "checks": [_check("json_equals", "report.json", {"results": expected}), _check("file_equals", "digest.txt", digest), {"kind": "http_request_count_equals", "fixture": "health", "value": size}, {"kind": "http_max_in_flight_at_most", "fixture": "health", "value": 2}],
     }
 
 
