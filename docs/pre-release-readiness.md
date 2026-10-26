@@ -4,16 +4,16 @@
 
 ## What passed
 
-The final validation cohort lives under [`evaluation/completion/results/guion-final/`](../evaluation/completion/results/guion-final/). Its [`README`](../evaluation/completion/results/guion-final/README.md) maps each aggregate to its detailed target records. The matrix passed on macOS ARM64 and Debian 12-compatible GNU/Linux ARM64 with glibc:
+The current three-target validation cohort lives under [`evaluation/completion/results/guion-final/`](../evaluation/completion/results/guion-final/). Its [`README`](../evaluation/completion/results/guion-final/README.md) maps each aggregate to its detailed target records. The matrix passed on macOS ARM64 and Debian 12 GNU/Linux on ARM64 and x86_64, all with glibc:
 
-- Three-stage self-hosted compiler bootstrap on Debian ARM64; compiler-stage identity and language conformance were checked across both required targets.
+- Three-stage self-hosted compiler bootstrap and compiler-stage identity checks across all three targets, alongside the full language conformance corpus.
 - The full 195-case language conformance corpus, runtime execution/HTTP/lifecycle checks, and standard-library data and service suites.
-- All nine retained regression applications in initial and follow-up forms: 18 of 18 reports passed on macOS ARM64 and 18 of 18 on Debian ARM64, or 36 of 36 individual reports in total. No application report failed.
+- All nine retained regression applications in initial and follow-up forms: 18 of 18 reports passed on each target, or 54 of 54 individual reports in total. No application report failed.
 - Python-free core dependency checks, dependency and installed-product lifecycle checks, release archive contents and license inventory, clean-room installation, relocation, integrity rejection, and dynamic-library audits.
 - A Guion-identity installed-artifact performance cohort with correctness checks, paired randomized samples, and percentile intervals.
 - Formatting, strict Clippy, Rust unit/integration suites, schema validation, CI workflow validation, exact outgoing-tree secret scan, and package/license audits.
 
-The macOS and Debian runtime, application, lifecycle, and release aggregates list both targets as completed with no skipped target. Individual target-attempt JSON files can say `incomplete` because each one contains only one side of the aggregate; use the matching aggregate to read the combined gate.
+The current runtime, application, lifecycle, and release aggregates list all three targets as completed with no skipped target. Individual target-attempt JSON files can say `incomplete` because each one contains only one side of the aggregate; use the matching aggregate to read the combined gate. The detailed target evidence is preserved under [`target-runs/`](../evaluation/completion/results/guion-final/target-runs/).
 
 ## Performance result and boundary
 
@@ -57,9 +57,10 @@ The optimization did not materially change measured peak RSS: uncached source ob
 Validated release targets:
 
 - macOS on ARM64.
-- Debian 12-compatible GNU/Linux on ARM64 with glibc.
+- Debian 12 GNU/Linux on ARM64 with glibc.
+- Debian 12 GNU/Linux on x86_64 with glibc.
 
-Other operating systems, CPU architectures, Linux libc variants, free-threaded Python, and package-manager integrations are unverified or out of scope. The Ubuntu x86_64 GitHub Actions job checks source formatting, lint, tests, and schemas; it is not a release-target certification.
+Other operating systems, CPU architectures, Linux libc variants, free-threaded Python, and package-manager integrations are unverified or out of scope. The Ubuntu x86_64 GitHub Actions job checks source formatting, lint, tests, schemas, the generated agent reference, and the switch-condition ledger; it is not a release-target certification.
 
 ## Installing, updating, and removing a local package
 

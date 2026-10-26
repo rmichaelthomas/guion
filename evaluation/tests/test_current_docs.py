@@ -16,7 +16,11 @@ class CurrentDocumentationTests(unittest.TestCase):
         self.assertEqual(targets["current_guion_validation"], "passed")
         self.assertEqual(
             targets["current_guion_targets"],
-            ["aarch64-apple-darwin", "aarch64-unknown-linux-gnu"],
+            [
+                "aarch64-apple-darwin",
+                "aarch64-unknown-linux-gnu",
+                "x86_64-unknown-linux-gnu",
+            ],
         )
         evidence = ROOT / targets["evidence"]
         self.assertTrue(evidence.is_file(), f"missing target evidence: {evidence}")
@@ -26,7 +30,7 @@ class CurrentDocumentationTests(unittest.TestCase):
         status = (ROOT / "docs/status.md").read_text(encoding="utf-8")
         self.assertIn("matrix passed", readiness)
         self.assertIn("macOS ARM64", readiness)
-        self.assertIn("Debian 12-compatible GNU/Linux ARM64", readiness)
+        self.assertIn("Debian 12 GNU/Linux on ARM64 and x86_64", readiness)
         self.assertIn("matrix has passed", status)
         schema = json.loads(
             (ROOT / "docs/agents/index.schema.json").read_text(encoding="utf-8")
@@ -130,13 +134,16 @@ class CurrentDocumentationTests(unittest.TestCase):
             encoding="utf-8"
         )
         self.assertIn("macOS ARM64", readme)
-        self.assertIn("Debian 12-compatible GNU/Linux ARM64", readme)
+        self.assertIn("Debian 12 GNU/Linux on ARM64 and x86_64", readme)
         start_here = (ROOT / "docs/agents/start-here.md").read_text(
             encoding="utf-8"
         )
         self.assertIn("The default build works without Python", readme)
         self.assertIn("Python is not required to compile or run a core Guion program", start_here)
-        self.assertIn("Linux distributions, and libc implementations remain unverified", compatibility)
+        self.assertIn(
+            "Linux distributions beyond Debian 12, and libc implementations beyond glibc remain unverified",
+            compatibility,
+        )
 
     def test_linux_packaging_docs_name_the_elf_dependency_report(self):
         reference = (ROOT / "docs/reference.md").read_text(encoding="utf-8")

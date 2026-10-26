@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "application": "jsonl-summary",
+  "product": "Guion",
+  "mode": "seeded independent-oracle cases against relocated package",
+  "seed": 20261024,
+  "sizes": [
+    24,
+    128
+  ],
+  "case_count": 2,
+  "concurrency": null,
+  "passed": true,
+  "cases": [
+    {
+      "case_id": "generated-jsonl-24",
+      "candidate": {},
+      "passed": true,
+      "exit_code": 0,
+      "checks_passed": 1,
+      "checks_total": 1,
+      "steps": [
+        {
+          "exit_code": 0,
+          "checks_passed": 1,
+          "checks_total": 1,
+          "failures": [],
+          "elapsed_seconds": 0.020337
+        }
+      ],
+      "elapsed_seconds": 0.021146,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "",
+      "failures": []
+    },
+    {
+      "case_id": "generated-jsonl-128",
+      "candidate": {},
+      "passed": true,
+      "exit_code": 0,
+      "checks_passed": 1,
+      "checks_total": 1,
+      "steps": [
+        {
+          "exit_code": 0,
+          "checks_passed": 1,
+          "checks_total": 1,
+          "failures": [],
+          "elapsed_seconds": 0.043817
+        }
+      ],
+      "elapsed_seconds": 0.044592,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "",
+      "failures": []
+    }
+  ]
+}

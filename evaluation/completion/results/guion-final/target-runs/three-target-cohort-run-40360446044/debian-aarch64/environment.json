@@ -1,0 +1,13 @@
+{
+  "captured_at_utc": "2026-10-26T17:35:51.049200+00:00",
+  "cargo": "cargo 1.97.1 (c980f4866 2026-06-30)",
+  "distribution": "Debian 12.15",
+  "libc": {
+    "name": "glibc",
+    "version": "2.36"
+  },
+  "machine": "aarch64",
+  "operating_system": "Linux-6.17.0-1022-azure-aarch64-with-glibc2.36",
+  "rustc": "rustc 1.97.1 (8bab26f4f 2026-07-14)",
+  "source_revision": "0fecfbf1694474b5e85bebb8bc4f87db29275f53"
+}

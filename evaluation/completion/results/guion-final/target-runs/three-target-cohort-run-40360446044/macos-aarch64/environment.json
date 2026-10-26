@@ -1,0 +1,13 @@
+{
+  "captured_at_utc": "2026-10-26T16:55:48.683176+00:00",
+  "cargo": "cargo 1.97.1 (c980f4866 2026-06-30)",
+  "distribution": "macOS 15.7.9",
+  "libc": {
+    "name": "",
+    "version": ""
+  },
+  "machine": "arm64",
+  "operating_system": "macOS-15.7.9-arm64-arm-64bit-Mach-O",
+  "rustc": "rustc 1.97.1 (8bab26f4f 2026-07-14)",
+  "source_revision": "0fecfbf1694474b5e85bebb8bc4f87db29275f53"
+}

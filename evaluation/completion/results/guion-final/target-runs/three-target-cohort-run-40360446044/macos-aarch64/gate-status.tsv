@@ -1,0 +1,10 @@
+conformance-inventory	PASS	0
+bootstrap	PASS	0
+conformance	PASS	0
+stdlib-data	PASS	0
+stdlib-services	PASS	0
+runtime	PASS	0
+product-dependencies	PASS	0
+product-lifecycle	PASS	0
+product-applications	PASS	0
+release	PASS	0

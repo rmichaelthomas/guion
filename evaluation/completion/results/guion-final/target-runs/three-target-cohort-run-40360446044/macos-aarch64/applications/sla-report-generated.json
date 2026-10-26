@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "application": "sla-report",
+  "product": "Guion",
+  "mode": "seeded independent-oracle cases against relocated package",
+  "seed": 20261024,
+  "sizes": [
+    24,
+    128
+  ],
+  "case_count": 2,
+  "concurrency": null,
+  "passed": true,
+  "cases": [
+    {
+      "case_id": "generated-sla-24",
+      "candidate": {},
+      "passed": true,
+      "exit_code": 0,
+      "checks_passed": 1,
+      "checks_total": 1,
+      "steps": [
+        {
+          "exit_code": 0,
+          "checks_passed": 1,
+          "checks_total": 1,
+          "failures": [],
+          "elapsed_seconds": 0.025927
+        }
+      ],
+      "elapsed_seconds": 0.026775,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "",
+      "failures": []
+    },
+    {
+      "case_id": "generated-sla-128",
+      "candidate": {},
+      "passed": true,
+      "exit_code": 0,
+      "checks_passed": 1,
+      "checks_total": 1,
+      "steps": [
+        {
+          "exit_code": 0,
+          "checks_passed": 1,
+          "checks_total": 1,
+          "failures": [],
+          "elapsed_seconds": 0.034218
+        }
+      ],
+      "elapsed_seconds": 0.049323,
+      "http_fixtures": {},
+      "stdout": "",
+      "stderr": "",
+      "failures": []
+    }
+  ]
+}

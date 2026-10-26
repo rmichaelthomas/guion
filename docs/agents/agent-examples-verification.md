@@ -1,6 +1,6 @@
 # Agent examples verification
 
-Generated 2026-10-26 13:42 UTC by `scripts/verify-agent-examples.sh`.
+Generated 2026-10-26 18:18 UTC by `scripts/verify-agent-examples.sh`.
 
 The HTTP example was checked, linted, and formatted; it was not run and no network request was made.
 Runtime stdout and exit status are compared with `verification_cases` in `docs/agents/index.json`.

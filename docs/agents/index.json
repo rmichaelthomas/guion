@@ -181,7 +181,8 @@
     "current_guion_validation": "passed",
     "current_guion_targets": [
       "aarch64-apple-darwin",
-      "aarch64-unknown-linux-gnu"
+      "aarch64-unknown-linux-gnu",
+      "x86_64-unknown-linux-gnu"
     ],
     "evidence": "evaluation/completion/results/guion-final/README.md"
   },
