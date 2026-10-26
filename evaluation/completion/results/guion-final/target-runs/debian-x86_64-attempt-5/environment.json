@@ -1,0 +1,13 @@
+{
+  "captured_at_utc": "2026-10-26T15:42:57.834653+00:00",
+  "cargo": "cargo 1.97.1 (c980f4866 2026-06-30)",
+  "distribution": "12.15",
+  "libc": {
+    "name": "glibc",
+    "version": "2.36"
+  },
+  "machine": "x86_64",
+  "operating_system": "Linux-6.17.0-1022-azure-x86_64-with-glibc2.36",
+  "rustc": "rustc 1.97.1 (8bab26f4f 2026-07-14)",
+  "source_revision": "dda3a869d15e7a51c48c280c789684b64ffd37de"
+}

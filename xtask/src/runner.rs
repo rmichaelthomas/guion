@@ -127,11 +127,9 @@ fn git_value(root: &Path, args: &[&str]) -> String {
 }
 
 fn source_revision_value(git_revision: &str, fallback: Option<&str>) -> String {
-    if git_revision != "unknown" && !git_revision.is_empty() {
-        return git_revision.to_string();
-    }
     fallback
         .filter(|revision| !revision.is_empty())
+        .or_else(|| (git_revision != "unknown" && !git_revision.is_empty()).then_some(git_revision))
         .unwrap_or("unknown")
         .to_string()
 }
@@ -1390,15 +1388,12 @@ mod target_report_tests {
     }
 
     #[test]
-    fn source_revision_uses_github_sha_when_git_metadata_is_unavailable() {
+    fn source_revision_prefers_an_explicit_shared_revision_for_matrix_runs() {
         assert_eq!(
-            source_revision_value("unknown", Some("github-commit")),
-            "github-commit"
+            source_revision_value("local-commit", Some("shared-matrix-commit")),
+            "shared-matrix-commit"
         );
-        assert_eq!(
-            source_revision_value("local-commit", Some("github-commit")),
-            "local-commit"
-        );
+        assert_eq!(source_revision_value("local-commit", None), "local-commit");
         assert_eq!(source_revision_value("unknown", None), "unknown");
         assert_eq!(source_revision_value("unknown", Some("")), "unknown");
     }

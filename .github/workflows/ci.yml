@@ -28,6 +28,9 @@ jobs:
           rustc --version
           cargo --version
 
+      - name: Fetch locked dependencies for offline workspace tests
+        run: cargo fetch --locked
+
       - name: Check formatting
         run: cargo fmt --all -- --check
 
@@ -46,13 +49,60 @@ jobs:
       - name: Validate switch-condition evidence ledger
         run: python3 evaluation/agent-choice/validate_switch_conditions.py
 
-  debian-x86_64-release-target:
-    name: Debian 12 x86_64 release-target matrix
-    runs-on: ubuntu-24.04
+  macos-aarch64-release-target:
+    name: macOS ARM64 release-target matrix
+    runs-on: macos-15
+    timeout-minutes: 150
+    env:
+      GUION_TARGET: macos-aarch64
+      GUION_SOURCE_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - name: Check out source revision
+        uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Install the project Rust toolchain and fetch locked dependencies
+        run: |
+          rustup toolchain install 1.97.1 --profile minimal --component rustfmt --component clippy
+          rustup default 1.97.1
+          rustup target add aarch64-apple-darwin --toolchain 1.97.1
+          rustc --version
+          cargo --version
+          cargo fetch --locked
+
+      - name: Run the macOS ARM64 release-target matrix
+        run: scripts/verify-release-target-matrix.sh
+
+      - name: Retain target reports
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: guion-target-runs-macos-aarch64-${{ github.run_id }}
+          path: target/perf-session/macos-aarch64-evidence/target-runs/
+          if-no-files-found: warn
+          retention-days: 90
+
+      - name: Retain full target evidence
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: guion-macos-aarch64-release-evidence-${{ github.run_id }}
+          path: target/perf-session/macos-aarch64-evidence/
+          if-no-files-found: warn
+          retention-days: 90
+
+  debian-aarch64-release-target:
+    name: Debian 12 ARM64 release-target matrix
+    needs: macos-aarch64-release-target
+    runs-on: ubuntu-24.04-arm
     container:
       image: debian:12
       options: --user root
     timeout-minutes: 150
+    env:
+      GUION_TARGET: debian-aarch64
+      GUION_SOURCE_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
     steps:
       - name: Install Debian build prerequisites
         run: |
@@ -62,6 +112,70 @@ jobs:
 
       - name: Check out source
         uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Install the project Rust toolchain and fetch locked dependencies
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain 1.97.1 --profile minimal --component rustfmt --component clippy
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+          "$HOME/.cargo/bin/rustup" target add aarch64-unknown-linux-gnu --toolchain 1.97.1
+          "$HOME/.cargo/bin/rustc" --version
+          "$HOME/.cargo/bin/cargo" --version
+          "$HOME/.cargo/bin/cargo" fetch --locked
+
+      - name: Download macOS ARM64 target reports
+        uses: actions/download-artifact@v7.0.2
+        with:
+          name: guion-target-runs-macos-aarch64-${{ github.run_id }}
+          path: target/perf-session/imported-target-runs/
+
+      - name: Run the Debian 12 ARM64 release-target matrix
+        env:
+          GUION_PRIOR_TARGET_REPORTS: target/perf-session/imported-target-runs
+        run: scripts/verify-release-target-matrix.sh
+
+      - name: Retain target reports
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: guion-target-runs-debian-aarch64-${{ github.run_id }}
+          path: target/perf-session/debian-aarch64-evidence/target-runs/
+          if-no-files-found: warn
+          retention-days: 90
+
+      - name: Retain full target evidence
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: guion-debian-aarch64-release-evidence-${{ github.run_id }}
+          path: target/perf-session/debian-aarch64-evidence/
+          if-no-files-found: warn
+          retention-days: 90
+
+  debian-x86_64-release-target:
+    name: Debian 12 x86_64 release-target matrix
+    needs: debian-aarch64-release-target
+    runs-on: ubuntu-24.04
+    container:
+      image: debian:12
+      options: --user root
+    timeout-minutes: 150
+    env:
+      GUION_TARGET: debian-x86_64
+      GUION_SOURCE_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
+      GUION_REQUIRE_ALL_TARGETS: "1"
+    steps:
+      - name: Install Debian build prerequisites
+        run: |
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            binutils build-essential ca-certificates cmake curl git pkg-config python3 tar
+
+      - name: Check out source
+        uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Install the project Rust toolchain and fetch locked dependencies
         run: |
@@ -72,8 +186,16 @@ jobs:
           "$HOME/.cargo/bin/cargo" --version
           "$HOME/.cargo/bin/cargo" fetch --locked
 
-      - name: Run the Debian x86_64 release-target matrix
-        run: scripts/verify-debian-x86_64-target.sh
+      - name: Download macOS and Debian ARM64 target reports
+        uses: actions/download-artifact@v7.0.2
+        with:
+          name: guion-target-runs-debian-aarch64-${{ github.run_id }}
+          path: target/perf-session/imported-target-runs/
+
+      - name: Run the Debian 12 x86_64 release-target matrix and aggregate all targets
+        env:
+          GUION_PRIOR_TARGET_REPORTS: target/perf-session/imported-target-runs
+        run: scripts/verify-release-target-matrix.sh
 
       - name: Retain target reports, application evidence, and logs
         if: always()

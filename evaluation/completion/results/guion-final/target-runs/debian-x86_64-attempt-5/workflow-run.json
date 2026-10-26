@@ -1,0 +1,16 @@
+{
+  "artifact_id": 12664466208,
+  "artifact_name": "guion-debian-x86_64-release-evidence-40348261148",
+  "artifact_rest_digest": "sha256:b665f38f748ffcbfbe73964ce654b7c07494f3ac44d71fc997243add177435c0",
+  "artifact_sha256": "b665f38f748ffcbfbe73964ce654b7c07494f3ac44d71fc997243add177435c0",
+  "branch": "codex/guion-richards-followup-and-agent-examples",
+  "branch_head_sha": "f5b71aa5ecf7b89cdd8943ba4318a3d023d7b735",
+  "capture_note": "Complete passing Debian 12 x86_64 target matrix. All ten gates and all 18 application reports passed.",
+  "distribution": "Debian 12.15",
+  "schema_version": 1,
+  "source_revision": "dda3a869d15e7a51c48c280c789684b64ffd37de",
+  "status": "passed",
+  "target": "debian-x86_64",
+  "workflow": "Rust source checks",
+  "workflow_run_id": 40348261148
+}
