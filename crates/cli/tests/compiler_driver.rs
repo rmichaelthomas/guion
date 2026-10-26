@@ -42,11 +42,11 @@ impl Drop for TempProject {
 }
 
 #[test]
-fn default_cli_uses_embedded_compiler_without_stage_zero_files_or_path() {
+fn default_cli_compiles_without_external_compiler_tools() {
     let project = TempProject::new();
     let source = project.write(
         "main.gu",
-        "fn main() -> Int:\n    print(\"embedded\")\n    return 0\n",
+        "fn main() -> Int:\n    print(\"compiled\")\n    return 0\n",
     );
     let empty_path = project.0.join("empty-path");
     fs::create_dir(&empty_path).unwrap();
@@ -56,7 +56,7 @@ fn default_cli_uses_embedded_compiler_without_stage_zero_files_or_path() {
         .env("PATH", empty_path)
         .env_remove("GUION_STDLIB_ROOT")
         .output()
-        .expect("launch installed CLI without stage-zero tools on PATH");
+        .expect("launch Guion with no external compiler tools on PATH");
     assert!(
         output.status.success(),
         "stdout: {}\nstderr: {}",
@@ -84,7 +84,7 @@ fn default_cli_resolves_standard_modules_through_their_virtual_grant() {
         .current_dir(&project.0)
         .env("GUION_STDLIB_ROOT", &standard)
         .output()
-        .expect("compile and run a project with an independently granted standard module");
+        .expect("Rust compiler resolves a standard module through its explicit root");
     assert!(
         output.status.success(),
         "stdout: {}\nstderr: {}",
@@ -95,27 +95,29 @@ fn default_cli_resolves_standard_modules_through_their_virtual_grant() {
 }
 
 #[test]
-fn default_cli_cannot_fallback_to_rust_source_compiler() {
+fn default_cli_reports_rust_compiler_import_diagnostics() {
     let project = TempProject::new();
     let source = project.write(
         "main.gu",
         "import \"missing.gu\"\n\nfn main() -> Int:\n    return 0\n",
     );
+    let expected = guion_compiler::compile_project(&source, &project.0)
+        .expect_err("the Rust compiler must reject the missing import");
     let output = Command::new(env!("CARGO_BIN_EXE_guion"))
-        .args(["check", source.to_str().unwrap(), "--json"])
+        .args(["check", "--json", source.to_str().unwrap()])
         .current_dir(&project.0)
         .output()
-        .expect("launch default CLI with an unsupported unresolved import");
-    assert!(
-        !output.status.success(),
-        "missing import must fail compilation"
-    );
+        .expect("run normal CLI compiler on a missing import");
+    assert!(!output.status.success());
     let report: serde_json::Value = serde_json::from_slice(&output.stdout)
-        .expect("self-hosted compiler returns the structured diagnostic schema");
+        .expect("the normal CLI emits a structured compiler diagnostic");
     assert_eq!(report["kind"], "guion_diagnostic");
-    assert_eq!(report["diagnostic"]["code"], "E_IMPORT_READ");
-    assert!(
-        !String::from_utf8_lossy(&output.stderr).contains("stage zero"),
-        "the default CLI must not attempt a stage-zero recovery path"
+    assert_eq!(report["diagnostic"]["code"], expected.code);
+    assert_eq!(report["diagnostic"]["message"], expected.message);
+    assert_eq!(
+        report["diagnostic"]["source"],
+        expected
+            .source_name
+            .unwrap_or_else(|| source.to_string_lossy().into_owned())
     );
 }

@@ -1,0 +1,100 @@
+{
+  "after_report": "20261026T045050081474Z.json",
+  "before_report": "20261026T044212905244Z.json",
+  "gate": {
+    "baseline_limitation": "The saved cold-first-run lane currently has one sample rather than a median. The before/after samples are retained exactly and are not represented as stable medians.",
+    "reason": "The dominant cost is execution of the self-hosted compiler in the interpreter. A change large enough to cut this in half would require a broader compiler/runtime optimization not justified by this sprint\u2019s evidence or scope. The safe seed reuse removed only a few milliseconds. The gate remains explicitly incomplete.",
+    "required": "50% lower first-run Richards and N-body medians",
+    "result": "Not achieved; cold first-run measurements remain around 0.89-0.97 seconds for Richards and 0.34-0.37 seconds for N-body.",
+    "status": "incomplete",
+    "threshold_seconds_using_saved_before_samples": {
+      "nbody_numeric_at_most": 0.1742933335044654,
+      "richards_scheduler_at_most": 0.4568871460069204
+    }
+  },
+  "integrity": "Seed manifest, artifact hash, artifact decoder, format, compiler entry, source identity, and host ABI checks still run before the first use. Only the duplicate decode/validation was removed.",
+  "kind": "guion-task3-optimization-decision",
+  "optimization": "Validate the embedded self-hosted compiler seed once per process and reuse the validated artifact object for source compilation.",
+  "profile_findings": {
+    "dominant_cost": "self-hosted compiler execution; about 970 ms for Richards and 200 ms for N-body in the final instrumented run",
+    "duplicate_seed_validation_after_ns": {
+      "compiler_pipeline": 629292,
+      "initial": 3976458
+    },
+    "duplicate_seed_validation_before_ns": {
+      "compiler_pipeline": 3900458,
+      "initial": 4196000
+    },
+    "native_compiler_compilations_for_self_hosted_seed": 0
+  },
+  "schema_version": 1,
+  "status": "completed_with_performance_gate_incomplete",
+  "tiny_cli_launch": {
+    "after_median_seconds": 0.00909979100106284,
+    "after_p95_seconds": 0.009416290995432064,
+    "before_median_seconds": 0.009474749997025356,
+    "before_p95_seconds": 0.010175957984756678
+  },
+  "workloads": {
+    "mandelbrot-image": {
+      "after_cold_sample_seconds": 0.061205417005112395,
+      "after_compiler_phases_ns": {
+        "compiler_native_compilations": 0,
+        "compiler_native_compile_profile": {
+          "finalize_nanoseconds": 0,
+          "functions": []
+        },
+        "compiler_runtime_load_ns": 15251500,
+        "emitted_artifact_decode_ns": 10792,
+        "project_inputs_ns": 76042,
+        "seed_validation_ns": 591417,
+        "self_hosted_compile_including_import_graph_read_ns": 26693250,
+        "source_graph_finalize_ns": 137667
+      },
+      "after_prebuilt_artifact_median_seconds": 0.015141832991503179,
+      "before_cold_sample_seconds": 0.06538450001971796,
+      "percent_change": -6.391550005498681,
+      "ratio_after_over_before": 0.9360844999450132
+    },
+    "nbody-numeric": {
+      "after_cold_sample_seconds": 0.36632050000480376,
+      "after_compiler_phases_ns": {
+        "compiler_native_compilations": 0,
+        "compiler_native_compile_profile": {
+          "finalize_nanoseconds": 0,
+          "functions": []
+        },
+        "compiler_runtime_load_ns": 17879958,
+        "emitted_artifact_decode_ns": 44583,
+        "project_inputs_ns": 141000,
+        "seed_validation_ns": 813917,
+        "self_hosted_compile_including_import_graph_read_ns": 199511250,
+        "source_graph_finalize_ns": 238583
+      },
+      "after_prebuilt_artifact_median_seconds": 0.14771120899240486,
+      "before_cold_sample_seconds": 0.3485866670089308,
+      "percent_change": 5.087352636874831,
+      "ratio_after_over_before": 1.0508735263687483
+    },
+    "richards-scheduler": {
+      "after_cold_sample_seconds": 0.8941121250099968,
+      "after_compiler_phases_ns": {
+        "compiler_native_compilations": 0,
+        "compiler_native_compile_profile": {
+          "finalize_nanoseconds": 0,
+          "functions": []
+        },
+        "compiler_runtime_load_ns": 16371417,
+        "emitted_artifact_decode_ns": 56167,
+        "project_inputs_ns": 83084,
+        "seed_validation_ns": 629292,
+        "self_hosted_compile_including_import_graph_read_ns": 970289666,
+        "source_graph_finalize_ns": 241125
+      },
+      "after_prebuilt_artifact_median_seconds": 0.06538183300290257,
+      "before_cold_sample_seconds": 0.9137742920138407,
+      "percent_change": -2.151753138131196,
+      "ratio_after_over_before": 0.978482468618688
+    }
+  }
+}

@@ -1,0 +1,66 @@
+{
+  "decision": {
+    "change": "reuse one integrity-validated embedded seed artifact per process; do not weaken validation or alter compiler/runtime policy",
+    "dominant_first_run_cost": "self-hosted compiler execution, which includes imported-source graph discovery and compilation",
+    "expected_change": "remove a second ~3.5-3.9 ms validation/decode from cold source runs; expected sub-1% improvement, far below the plan\u2019s 50% Richards/N-body threshold",
+    "gate_expectation": "Task 3 cold-run threshold is unlikely to be met safely without a larger self-hosted compiler redesign; report the measured result and mark incomplete if confirmed",
+    "largest_controllable_cost": "the second embedded compiler seed validation: each source compile reparses the seed manifest, hashes and decodes the already verified embedded artifact"
+  },
+  "kind": "guion-task3-profile-before-optimization",
+  "release_binary_sha256": "16f96b7f98622b5d0e67fbf0456d545efd2f45905b291ac6fe7e0e5d2e4391db",
+  "schema_version": 1,
+  "source_report": "20261026T044212905244Z.json",
+  "status": "measured",
+  "tiny_launch": {
+    "median_seconds": 0.009474749997025356,
+    "p95_seconds": 0.010175957984756678
+  },
+  "tiny_source": {
+    "cache_status": "bypassed",
+    "elapsed_seconds_including_process_startup": 0.03342804100248031,
+    "reported_phase_timings_ns": {
+      "artifact_runtime_load_ns": 29625,
+      "cli_to_report_excluding_process_startup_ns": 28284334,
+      "compiler_pipeline": {
+        "compiler_runtime_load_ns": 15700708,
+        "emitted_artifact_decode_ns": 3500,
+        "project_inputs_ns": 139583,
+        "seed_validation_ns": 3574333,
+        "self_hosted_compile_including_import_graph_read_ns": 1400416,
+        "source_graph_finalize_ns": 107417
+      },
+      "initial_embedded_seed_validation_ns": 4018375,
+      "native_compilation": {
+        "finalize_nanoseconds": 0,
+        "functions": []
+      },
+      "program_execute_ns": 20292
+    }
+  },
+  "workloads": {
+    "mandelbrot-image": {
+      "cold_elapsed_seconds": 0.06504545800271444,
+      "compiler_runtime_load_ns": 15557292,
+      "initial_seed_validation_ns": 4150542,
+      "program_execute_ns": 5785458,
+      "second_seed_validation_ns": 3641875,
+      "self_hosted_compile_ns": 26947583
+    },
+    "nbody-numeric": {
+      "cold_elapsed_seconds": 0.34436429099878296,
+      "compiler_runtime_load_ns": 15361084,
+      "initial_seed_validation_ns": 4026875,
+      "program_execute_ns": 124055500,
+      "second_seed_validation_ns": 3510958,
+      "self_hosted_compile_ns": 185965292
+    },
+    "richards-scheduler": {
+      "cold_elapsed_seconds": 0.9260792910063174,
+      "compiler_runtime_load_ns": 16456875,
+      "initial_seed_validation_ns": 4196000,
+      "program_execute_ns": 55480667,
+      "second_seed_validation_ns": 3900458,
+      "self_hosted_compile_ns": 834865875
+    }
+  }
+}

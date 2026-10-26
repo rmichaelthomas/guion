@@ -16,6 +16,7 @@ __pycache__/
 .venv/
 .deps/
 .guion/**/.venv/
+.guion/cache/
 /distribution/toolchains/cache/
 /evaluation/results/independent-v2/setup-attempts/*
 !/evaluation/results/independent-v2/setup-attempts/setup-attempts.jsonl

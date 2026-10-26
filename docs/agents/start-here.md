@@ -54,6 +54,8 @@ cargo run --locked -p guion-cli -- verify-package /tmp/hello-package
 
 When using an installed `guion` command from inside the project directory, use the relative path `src/main.gu` and `.` for the project. For a structured command result, add `--json` where supported. For example, use `guion check --json src/main.gu`, `guion run --json src/main.gu`, and `guion doc --json src/main.gu`. Check and run diagnostics return a stable code and source location in JSON. The current report kinds and versions are in [`index.json`](index.json); their envelope schema and source-backed integration tests are linked there.
 
+`guion run` reuses a project-local compiled source cache when its source graph, lock state, standard library, compiler identity, target, and runtime grants match. The cache is stored under `.guion/cache/` and is ignored by Git. Use `guion run --no-cache TARGET` to force source compilation, or `guion cache clean [PROJECT]` to remove Guion-managed cache entries. Deleting `.guion/cache/` is safe; Guion recreates entries as needed.
+
 ## Common mistakes
 
 - Every function parameter and result needs a type. `main` must return `Int` or `Unit`.

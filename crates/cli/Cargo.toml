@@ -14,6 +14,7 @@ python-interop = ["guion-runtime/python-interop"]
 
 [dependencies]
 guion-model.workspace = true
+guion-compiler.workspace = true
 guion-runtime.workspace = true
 toml.workspace = true
 sha2.workspace = true
@@ -23,7 +24,6 @@ reqwest.workspace = true
 tokio.workspace = true
 
 [dev-dependencies]
-guion-compiler.workspace = true
 guion-bootstrap = { path = "../bootstrap" }
 
 [build-dependencies]

@@ -34,6 +34,16 @@ These results cover the named workloads, host, and pinned Python version only. G
 
 The retained three-pair builder study is from the historical Veritas identity, not a Guion-identity study. The old scored outcomes remain preserved as history; they should not be represented as Guion recommendations. Exact byte-for-byte replay of the deleted raw Veritas v2 session archive is unavailable, as recorded in the [migration retention manifest](history/migration-retention-manifest.json).
 
+## Source-run and launch speed sprint (2026-10-25)
+
+The source-run cache and repeated-run results are in the [final source-loop comparison](../evaluation/completion/results/source-loop/final-comparison-20261026.json) and its [full dated run](../evaluation/completion/results/source-loop/20261026T052344191561Z.json). This is a separate, newer source-loop cohort; it does not rewrite the frozen installed-artifact report above.
+
+On macOS ARM64 with CPython 3.14.7, seven repeated source runs all hit the project cache. Median source versus prebuilt-artifact times were Richards 73.9 ms vs 67.4 ms, N-body 161.5 ms vs 148.7 ms, and Mandelbrot 18.9 ms vs 15.5 ms. Each source median met the plan's allowance of 20 ms or 25% over its corresponding artifact. Source-run beat Python on N-body and Mandelbrot, but Richards was 73.9 ms vs Python's 72.6 ms, so the required warm-source Python parity gate remains incomplete.
+
+The one uncached sample per workload was 966.8 ms for Richards and 352.1 ms for N-body. These are single observations, not medians, and do not meet the required 50% first-run reduction; the self-hosted compiler remains the dominant cost. Tiny CLI launch measured 10.25 ms median and 11.35 ms p95. Two application cases recorded peak memory and cache size in the detailed report. The Debian 12-compatible ARM64 check built the CLI and ran a source example; this sprint did not rerun the full Debian runtime, release, and 18-application matrix. Prior full Guion target evidence remains linked above.
+
+The full Rust, 195-case language, formatting, strict Clippy, 16 Python harness tests, macOS app acceptance, and Debian smoke checks passed. No release was published.
+
 ## Supported and unverified systems
 
 Validated release targets:

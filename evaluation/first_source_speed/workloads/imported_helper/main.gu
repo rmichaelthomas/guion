@@ -1,0 +1,5 @@
+import "helper.gu"
+
+fn main() -> Int:
+    print(answer())
+    return 0

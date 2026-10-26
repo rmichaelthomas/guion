@@ -37,12 +37,17 @@ BOOTSTRAP_SAMPLES = 20_000
 PINNED_PYTHON = "3.14.7"
 
 
-def execute(command: list[str], cwd: Path) -> tuple[float, subprocess.CompletedProcess[str]]:
+def execute(
+    command: list[str], cwd: Path, extra_env: dict[str, str] | None = None
+) -> tuple[float, subprocess.CompletedProcess[str]]:
     start = time.perf_counter()
     environment = None
     if Path(command[0]).name == "guion":
         environment = os.environ.copy()
         environment["GUION_FILE_ROOT"] = str(cwd.resolve())
+    if extra_env:
+        environment = environment or os.environ.copy()
+        environment.update(extra_env)
     result = subprocess.run(command, cwd=cwd, env=environment, capture_output=True, text=True, check=False)
     return time.perf_counter() - start, result
 
@@ -99,8 +104,10 @@ def paired_median_ci(ratios: list[float]) -> dict[str, Any]:
     return {"median_ratio": statistics.median(ratios), "ci95_percentile": [low, high], "win": high < 1.0, "ties_or_regressions": sum(value >= 1.0 for value in ratios)}
 
 
-def guion_result(command: list[str], cwd: Path) -> tuple[float, str, dict[str, Any] | None]:
-    elapsed, result = execute(command, cwd)
+def guion_result(
+    command: list[str], cwd: Path, extra_env: dict[str, str] | None = None
+) -> tuple[float, str, dict[str, Any] | None]:
+    elapsed, result = execute(command, cwd, extra_env)
     if result.returncode:
         raise RuntimeError(f"Guion failed ({result.returncode}): {command!r}\n{result.stdout}\n{result.stderr}")
     envelope = json.loads(result.stdout) if "--json" in command else None
@@ -181,6 +188,7 @@ def sample_candidates(
     rng = random.Random(TRIAL_SEED)
     samples = {name: [] for name in commands}
     native_reports: dict[str, Any] = {}
+    source_cache_states: dict[str, list[str]] = {}
     order_log: list[list[str]] = []
     def check_one(name: str, command: list[str]) -> tuple[float, dict[str, Any] | None]:
         if name.startswith("guion_"):
@@ -203,6 +211,8 @@ def sample_candidates(
                 raise RuntimeError(f"{name} output mismatch for {workload_id}: {actual!r} != {wanted!r}")
         if envelope:
             native_reports[name] = envelope.get("native_backend", {})
+            if "source_cache" in envelope:
+                source_cache_states.setdefault(name, []).append(envelope["source_cache"])
         return elapsed, envelope
 
     for _ in range(WARMUPS):
@@ -228,7 +238,11 @@ def sample_candidates(
             elapsed, envelope = check_one(name, commands[name])
             divisor = repetitions if "warm" in name else 1
             samples[name].append(elapsed / divisor)
-    return {name: summary(values) for name, values in samples.items()}, {"paired_trial_order": order_log, "native_backend_reports": native_reports}
+    return {name: summary(values) for name, values in samples.items()}, {
+        "paired_trial_order": order_log,
+        "native_backend_reports": native_reports,
+        "source_cache_states": source_cache_states,
+    }
 
 
 def normalize_data(value: dict[str, Any]) -> dict[str, Any]:
@@ -283,8 +297,9 @@ def size_bytes(path: Path) -> int:
     return sum(item.stat().st_size for item in path.rglob("*") if item.is_file())
 
 
-def save_progress(reports: dict[str, Any]) -> None:
-    path = ROOT / "evaluation/completion/results/performance-guion.partial.json"
+def save_progress(reports: dict[str, Any], output_path: Path | None = None) -> None:
+    destination = output_path or ROOT / "evaluation/completion/results/performance-guion.json"
+    path = destination.with_name(destination.stem + ".partial" + destination.suffix)
     path.parent.mkdir(parents=True, exist_ok=True)
     partial = {
         **reports,
@@ -298,7 +313,7 @@ def save_progress(reports: dict[str, Any]) -> None:
     temporary.replace(path)
 
 
-def run_suite(binary: Path, scratch: Path) -> dict[str, Any]:
+def run_suite(binary: Path, scratch: Path, output_path: Path | None = None) -> dict[str, Any]:
     reports: dict[str, Any] = {"workloads": {}, "build_seconds": {}, "artifact_bytes": {}, "peak_memory_bytes": {}}
     python_cases = {
         "richards-scheduler": ("richards.vr", "richards_reference.py", ["9297", "23246"], 30_000_000),
@@ -350,7 +365,7 @@ def run_suite(binary: Path, scratch: Path) -> dict[str, Any]:
             memory = peak_memory(command, project)
             if memory is not None:
                 reports["peak_memory_bytes"][workload_id + "/" + name] = memory
-        save_progress(reports)
+        save_progress(reports, output_path)
 
     # Both established parallel sizes; Python serial/thread/process modes are measured independently.
     for count in (20_000, 200_000):
@@ -395,7 +410,7 @@ def run_suite(binary: Path, scratch: Path) -> dict[str, Any]:
             memory = peak_memory(command, project)
             if memory is not None:
                 reports["peak_memory_bytes"][workload_id + "/" + name] = memory
-        save_progress(reports)
+        save_progress(reports, output_path)
 
     # Real shipped Task 9 JSONL application with generated, validated input and independent baselines.
     workload_id = "jsonl-summary-data"
@@ -457,7 +472,7 @@ def run_suite(binary: Path, scratch: Path) -> dict[str, Any]:
     }
     reports["workloads"][workload_id] = {**results, "comparison": comparisons, "rows": 20000, "timed_trials_per_candidate": DATA_TRIALS, "generator_seed": 20261025, **meta}
     reports["peak_memory_bytes"][workload_id + "/guion_artifact"] = peak_memory(commands["guion_artifact"], project)
-    save_progress(reports)
+    save_progress(reports, output_path)
 
     gil_enabled: bool | None = None
     probe = subprocess.run([sys.executable, "-c", "import sys; print(sys._is_gil_enabled())"], capture_output=True, text=True, check=False)
@@ -506,19 +521,23 @@ def required_speed_wins(report: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--installed", action="store_true", required=True)
     parser.add_argument("--binary", type=Path)
-    args = parser.parse_args()
+    parser.add_argument("--scratch-dir", type=Path)
+    parser.add_argument("--output", type=Path)
+    args = parser.parse_args(argv)
     binary = (args.binary or Path(os.environ.get("GUION_BINARY", ROOT / "target/completion/releases/macos-aarch64/current/bin/guion"))).resolve()
     if not binary.is_file():
         raise SystemExit(f"installed release binary does not exist: {binary}")
-    with tempfile.TemporaryDirectory(prefix="guion-performance-") as directory:
+
+    def execute_report(scratch: Path) -> tuple[dict[str, Any], Path]:
         try:
-            report = run_suite(binary, Path(directory))
+            report = run_suite(binary, scratch, args.output)
         except Exception as error:
-            partial_path = ROOT / "evaluation/completion/results/performance-guion.partial.json"
+            destination = args.output or ROOT / "evaluation/completion/results/performance-guion.json"
+            partial_path = destination.with_name(destination.stem + ".partial" + destination.suffix)
             if partial_path.is_file():
                 report = json.loads(partial_path.read_text(encoding="utf-8"))
             else:
@@ -530,12 +549,21 @@ def main() -> int:
             report["required_speed_wins"] = speed
         report["schema_version"] = 1
         report["kind"] = "guion-installed-performance-report"
-        path = ROOT / "evaluation/completion/results/performance-guion.json"
+        path = args.output or ROOT / "evaluation/completion/results/performance-guion.json"
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-        (ROOT / "evaluation/completion/results/performance-guion.partial.json").unlink(missing_ok=True)
-        print(json.dumps({"status": report.get("status"), "report_path": str(path), "workloads": len(report.get("workloads", {}))}))
-        return 0 if report.get("status") == "passed" else 1
+        path.with_name(path.stem + ".partial" + path.suffix).unlink(missing_ok=True)
+        return report, path
+
+    if args.scratch_dir:
+        scratch = args.scratch_dir.resolve()
+        scratch.mkdir(parents=True, exist_ok=True)
+        report, path = execute_report(scratch)
+    else:
+        with tempfile.TemporaryDirectory(prefix="guion-performance-") as directory:
+            report, path = execute_report(Path(directory))
+    print(json.dumps({"status": report.get("status"), "report_path": str(path), "workloads": len(report.get("workloads", {}))}))
+    return 0 if report.get("status") == "passed" else 1
 
 
 if __name__ == "__main__":

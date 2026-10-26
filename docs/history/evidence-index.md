@@ -29,6 +29,12 @@ For 200,000 parallel items, the Guion artifact also beat measured Python threads
 
 The Veritas completion cohort records artifact schema, compiler seed and manifest, runtime, and standard-library hashes in each structured report. Its final release and performance reports are bound to the Veritas source commit and audited digest shown above. The Guion rename did not rewrite those reports.
 
+## Source-run and launch speed sprint (2026-10-25)
+
+This new Guion source-loop cohort is separate from the frozen installed-artifact cohort above. Its [final comparison](../../evaluation/completion/results/source-loop/final-comparison-20261026.json) summarizes the [full dated report](../../evaluation/completion/results/source-loop/20261026T052344191561Z.json), with earlier cache, phase-profile, optimization-decision, and Debian-smoke records in the same directory.
+
+The bounded source cache produced seven cache hits for each compute workload. Repeated source medians were within the plan's 20 ms or 25% artifact allowance for Richards, N-body, and Mandelbrot. Warm source was faster than pinned Python on N-body and Mandelbrot, while Richards was slightly slower. The required cold-start reduction was not achieved; the report's first uncached samples are single measurements, not medians, and the self-hosted compiler remains the main cost. The full Debian release/runtime/application matrix was not rerun in this sprint; its previously retained Guion final cohort remains separate evidence.
+
 ## Historical independent recommendation campaigns
 
 These campaigns answer different questions and must not be combined into one score:

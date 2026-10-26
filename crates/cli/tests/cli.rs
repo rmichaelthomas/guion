@@ -4,6 +4,7 @@ use std::{
     io::{Read, Write},
     net::TcpListener,
     process::Command,
+    sync::atomic::{AtomicU64, Ordering},
     thread,
 };
 
@@ -108,6 +109,32 @@ impl Drop for RemoveDirOnDrop {
     fn drop(&mut self) {
         let _ = fs::remove_dir_all(&self.0);
     }
+}
+
+fn source_cache_project(name: &str) -> (std::path::PathBuf, RemoveDirOnDrop) {
+    static NEXT_ID: AtomicU64 = AtomicU64::new(0);
+    let project = std::env::temp_dir().join(format!(
+        "guion-source-cache-{}-{}-{}",
+        std::process::id(),
+        name,
+        NEXT_ID.fetch_add(1, Ordering::Relaxed)
+    ));
+    let _ = fs::remove_dir_all(&project);
+    fs::create_dir_all(&project).unwrap();
+    fs::write(
+        project.join("guion.toml"),
+        "[project]\nname = \"source-cache-test\"\nversion = \"0.1.0\"\nentry = \"main.gu\"\n",
+    )
+    .unwrap();
+    (project.clone(), RemoveDirOnDrop(project))
+}
+
+fn run_source_cache(project: &std::path::Path, flags: &[&str]) -> std::process::Output {
+    let mut command = Command::new(env!("CARGO_BIN_EXE_guion"));
+    command.args(["run", "--json"]);
+    command.args(flags);
+    command.arg(project);
+    command.output().unwrap()
 }
 
 #[cfg(feature = "python-interop")]
@@ -1631,6 +1658,356 @@ fn run_executes_a_source_file_and_surfaces_source_errors() {
     assert!(!output.status.success());
     assert!(String::from_utf8_lossy(&output.stderr).contains("E_NAME_UNKNOWN"));
     let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
+fn source_run_cache_hits_repeated_graph_and_invalidates_direct_and_transitive_edits() {
+    let (project, _cleanup) = source_cache_project("graph");
+    fs::write(
+        project.join("main.gu"),
+        "import \"helper.gu\"\n\nfn main() -> Int:\n    print(message())\n    return 0\n",
+    )
+    .unwrap();
+    fs::write(
+        project.join("helper.gu"),
+        "import \"leaf.gu\"\n\npub fn message() -> Text:\n    return leaf_message()\n",
+    )
+    .unwrap();
+    fs::write(
+        project.join("leaf.gu"),
+        "pub fn leaf_message() -> Text:\n    return \"before\"\n",
+    )
+    .unwrap();
+
+    let first = run_source_cache(&project, &[]);
+    assert!(
+        first.status.success(),
+        "stdout: {}; stderr: {}",
+        String::from_utf8_lossy(&first.stdout),
+        String::from_utf8_lossy(&first.stderr),
+    );
+    let first: serde_json::Value = serde_json::from_slice(&first.stdout).unwrap();
+    assert_eq!(first["source_cache"], "miss");
+    assert_eq!(first["program_stdout"], "before\n");
+
+    let repeated = run_source_cache(&project, &[]);
+    assert!(
+        repeated.status.success(),
+        "{}",
+        String::from_utf8_lossy(&repeated.stderr)
+    );
+    let repeated: serde_json::Value = serde_json::from_slice(&repeated.stdout).unwrap();
+    assert_eq!(repeated["source_cache"], "hit");
+    assert_eq!(repeated["program_stdout"], "before\n");
+
+    fs::write(
+        project.join("helper.gu"),
+        "import \"leaf.gu\"\n\npub fn message() -> Text:\n    return \"direct edit\"\n",
+    )
+    .unwrap();
+    let direct = run_source_cache(&project, &[]);
+    assert!(
+        direct.status.success(),
+        "{}",
+        String::from_utf8_lossy(&direct.stderr)
+    );
+    let direct: serde_json::Value = serde_json::from_slice(&direct.stdout).unwrap();
+    assert_eq!(direct["source_cache"], "miss");
+    assert_eq!(direct["program_stdout"], "direct edit\n");
+
+    fs::write(
+        project.join("helper.gu"),
+        "import \"leaf.gu\"\n\npub fn message() -> Text:\n    return leaf_message()\n",
+    )
+    .unwrap();
+    fs::write(
+        project.join("leaf.gu"),
+        "pub fn leaf_message() -> Text:\n    return \"transitive edit\"\n",
+    )
+    .unwrap();
+    let transitive = run_source_cache(&project, &[]);
+    assert!(
+        transitive.status.success(),
+        "{}",
+        String::from_utf8_lossy(&transitive.stderr)
+    );
+    let transitive: serde_json::Value = serde_json::from_slice(&transitive.stdout).unwrap();
+    assert_eq!(transitive["source_cache"], "miss");
+    assert_eq!(transitive["program_stdout"], "transitive edit\n");
+}
+
+#[test]
+fn source_run_cache_invalidates_manifest_lock_and_standard_library_changes() {
+    let (project, _cleanup) = source_cache_project("inputs");
+    fs::write(
+        project.join("main.gu"),
+        "fn main() -> Int:\n    print(1)\n    return 0\n",
+    )
+    .unwrap();
+    let first = run_source_cache(&project, &[]);
+    assert!(
+        first.status.success(),
+        "{}",
+        String::from_utf8_lossy(&first.stderr)
+    );
+    let first: serde_json::Value = serde_json::from_slice(&first.stdout).unwrap();
+    assert_eq!(first["source_cache"], "miss");
+
+    let granted_clock = run_source_cache(&project, &["--allow-clock"]);
+    assert!(
+        granted_clock.status.success(),
+        "stdout: {}; stderr: {}",
+        String::from_utf8_lossy(&granted_clock.stdout),
+        String::from_utf8_lossy(&granted_clock.stderr),
+    );
+    let granted_clock: serde_json::Value = serde_json::from_slice(&granted_clock.stdout).unwrap();
+    assert_eq!(granted_clock["source_cache"], "miss");
+
+    let mut manifest = fs::read_to_string(project.join("guion.toml")).unwrap();
+    manifest = manifest.replace("0.1.0", "0.1.1");
+    fs::write(project.join("guion.toml"), manifest).unwrap();
+    let changed_manifest = run_source_cache(&project, &[]);
+    assert!(
+        changed_manifest.status.success(),
+        "{}",
+        String::from_utf8_lossy(&changed_manifest.stderr)
+    );
+    let changed_manifest: serde_json::Value =
+        serde_json::from_slice(&changed_manifest.stdout).unwrap();
+    assert_eq!(changed_manifest["source_cache"], "miss");
+
+    fs::write(
+        project.join("guion.lock"),
+        "format_version = 1\nmanifest_sha256 = \"changed\"\n",
+    )
+    .unwrap();
+    let changed_lock = run_source_cache(&project, &[]);
+    assert!(
+        changed_lock.status.success(),
+        "stdout: {}; stderr: {}",
+        String::from_utf8_lossy(&changed_lock.stdout),
+        String::from_utf8_lossy(&changed_lock.stderr),
+    );
+    let changed_lock: serde_json::Value = serde_json::from_slice(&changed_lock.stdout).unwrap();
+    assert_eq!(changed_lock["source_cache"], "miss");
+
+    let (stdlib_project, _stdlib_cleanup) = source_cache_project("stdlib");
+    let standard = stdlib_project.join("standard");
+    fs::create_dir_all(&standard).unwrap();
+    fs::write(
+        standard.join("greeting.gu"),
+        "pub fn greeting() -> Text:\n    return \"one\"\n",
+    )
+    .unwrap();
+    fs::write(
+        stdlib_project.join("main.gu"),
+        "import \"std:greeting\"\n\nfn main() -> Int:\n    print(greeting())\n    return 0\n",
+    )
+    .unwrap();
+    let stdlib_first = Command::new(env!("CARGO_BIN_EXE_guion"))
+        .args(["run", "--json", stdlib_project.to_str().unwrap()])
+        .env("GUION_STDLIB_ROOT", &standard)
+        .output()
+        .unwrap();
+    assert!(
+        stdlib_first.status.success(),
+        "{}",
+        String::from_utf8_lossy(&stdlib_first.stderr)
+    );
+    let stdlib_first: serde_json::Value = serde_json::from_slice(&stdlib_first.stdout).unwrap();
+    assert_eq!(stdlib_first["source_cache"], "miss");
+    let stdlib_repeat = Command::new(env!("CARGO_BIN_EXE_guion"))
+        .args(["run", "--json", stdlib_project.to_str().unwrap()])
+        .env("GUION_STDLIB_ROOT", &standard)
+        .output()
+        .unwrap();
+    assert!(
+        stdlib_repeat.status.success(),
+        "{}",
+        String::from_utf8_lossy(&stdlib_repeat.stderr)
+    );
+    let stdlib_repeat: serde_json::Value = serde_json::from_slice(&stdlib_repeat.stdout).unwrap();
+    assert_eq!(stdlib_repeat["source_cache"], "hit");
+    fs::write(
+        standard.join("greeting.gu"),
+        "pub fn greeting() -> Text:\n    return \"two\"\n",
+    )
+    .unwrap();
+    let changed_stdlib = Command::new(env!("CARGO_BIN_EXE_guion"))
+        .args(["run", "--json", stdlib_project.to_str().unwrap()])
+        .env("GUION_STDLIB_ROOT", &standard)
+        .output()
+        .unwrap();
+    assert!(
+        changed_stdlib.status.success(),
+        "{}",
+        String::from_utf8_lossy(&changed_stdlib.stderr)
+    );
+    let changed_stdlib: serde_json::Value = serde_json::from_slice(&changed_stdlib.stdout).unwrap();
+    assert_eq!(changed_stdlib["source_cache"], "miss");
+    assert_eq!(changed_stdlib["program_stdout"], "two\n");
+}
+
+#[test]
+fn source_run_cache_rejects_corrupt_entries_and_project_root_symlink_escape() {
+    let (project, _cleanup) = source_cache_project("corrupt");
+    fs::write(
+        project.join("main.gu"),
+        "fn main() -> Int:\n    print(42)\n    return 0\n",
+    )
+    .unwrap();
+    let first = run_source_cache(&project, &[]);
+    assert!(
+        first.status.success(),
+        "{}",
+        String::from_utf8_lossy(&first.stderr)
+    );
+    let cache_file = project.join(".guion/cache/source-run.cache");
+    assert!(cache_file.is_file());
+    fs::write(&cache_file, b"forged cache bytes").unwrap();
+    let rebuilt = run_source_cache(&project, &[]);
+    assert!(
+        rebuilt.status.success(),
+        "{}",
+        String::from_utf8_lossy(&rebuilt.stderr)
+    );
+    let rebuilt: serde_json::Value = serde_json::from_slice(&rebuilt.stdout).unwrap();
+    assert_eq!(rebuilt["source_cache"], "miss");
+    assert_eq!(rebuilt["program_stdout"], "42\n");
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::symlink;
+        let (escaped, _escaped_cleanup) = source_cache_project("symlink");
+        fs::write(
+            escaped.join("main.gu"),
+            "fn main() -> Int:\n    print(7)\n    return 0\n",
+        )
+        .unwrap();
+        let outside = escaped.with_extension("outside-cache");
+        fs::create_dir_all(&outside).unwrap();
+        fs::create_dir_all(escaped.join(".guion")).unwrap();
+        symlink(&outside, escaped.join(".guion/cache")).unwrap();
+        let run = run_source_cache(&escaped, &[]);
+        assert!(
+            run.status.success(),
+            "{}",
+            String::from_utf8_lossy(&run.stderr)
+        );
+        let report: serde_json::Value = serde_json::from_slice(&run.stdout).unwrap();
+        assert_eq!(report["source_cache"], "disabled");
+        assert_eq!(fs::read_dir(outside).unwrap().count(), 0);
+    }
+}
+
+#[test]
+fn source_run_cache_no_cache_concurrent_writers_and_clean_are_bounded() {
+    let (project, _cleanup) = source_cache_project("controls");
+    fs::write(
+        project.join("main.gu"),
+        "fn main() -> Int:\n    print(9)\n    return 0\n",
+    )
+    .unwrap();
+    let first = run_source_cache(&project, &[]);
+    assert!(
+        first.status.success(),
+        "{}",
+        String::from_utf8_lossy(&first.stderr)
+    );
+    let cache_file = project.join(".guion/cache/source-run.cache");
+    let original_cache = fs::read(&cache_file).unwrap();
+
+    let bypass = run_source_cache(&project, &["--no-cache"]);
+    assert!(
+        bypass.status.success(),
+        "{}",
+        String::from_utf8_lossy(&bypass.stderr)
+    );
+    let bypass: serde_json::Value = serde_json::from_slice(&bypass.stdout).unwrap();
+    assert_eq!(bypass["source_cache"], "bypassed");
+    assert_eq!(fs::read(&cache_file).unwrap(), original_cache);
+
+    let left = project.clone();
+    let right = project.clone();
+    let a = thread::spawn(move || run_source_cache(&left, &[]));
+    let b = thread::spawn(move || run_source_cache(&right, &[]));
+    for output in [a.join().unwrap(), b.join().unwrap()] {
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+    let after = run_source_cache(&project, &[]);
+    assert!(
+        after.status.success(),
+        "{}",
+        String::from_utf8_lossy(&after.stderr)
+    );
+    let after: serde_json::Value = serde_json::from_slice(&after.stdout).unwrap();
+    assert_eq!(after["source_cache"], "hit");
+    assert!(fs::metadata(&cache_file).unwrap().len() <= 128 * 1024 * 1024);
+
+    let other_cache = project.join(".guion/cache/other.cache");
+    fs::write(&other_cache, b"keep unrelated cache").unwrap();
+    let cleaned = Command::new(env!("CARGO_BIN_EXE_guion"))
+        .args(["cache", "clean", project.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(
+        cleaned.status.success(),
+        "{}",
+        String::from_utf8_lossy(&cleaned.stderr)
+    );
+    assert!(!cache_file.exists());
+    assert_eq!(fs::read(&other_cache).unwrap(), b"keep unrelated cache");
+    assert!(project.join("main.gu").is_file());
+}
+
+#[test]
+fn run_json_exposes_opt_in_compile_and_runtime_phase_timings() {
+    let (project, _cleanup) = source_cache_project("phase-timings");
+    fs::write(
+        project.join("main.gu"),
+        "fn main() -> Int:\n    print(42)\n    return 0\n",
+    )
+    .unwrap();
+
+    let profiled = Command::new(env!("CARGO_BIN_EXE_guion"))
+        .args(["run", "--json", "--no-cache", project.to_str().unwrap()])
+        .env("GUION_PHASE_TIMINGS", "1")
+        .output()
+        .unwrap();
+    assert!(
+        profiled.status.success(),
+        "stdout: {}; stderr: {}",
+        String::from_utf8_lossy(&profiled.stdout),
+        String::from_utf8_lossy(&profiled.stderr),
+    );
+    let profiled: serde_json::Value = serde_json::from_slice(&profiled.stdout).unwrap();
+    assert_eq!(profiled["program_stdout"], "42\n");
+    assert_eq!(profiled["source_cache"], "bypassed");
+    for phase in [
+        "artifact_runtime_load_ns",
+        "program_execute_ns",
+        "cli_to_report_excluding_process_startup_ns",
+    ] {
+        assert!(
+            profiled["phase_timings_ns"][phase].as_u64().is_some(),
+            "missing phase {phase}"
+        );
+    }
+    assert!(profiled["phase_timings_ns"]["initial_embedded_seed_validation_ns"].is_null());
+    let compiler_pipeline = &profiled["phase_timings_ns"]["compiler_pipeline"];
+    assert_eq!(compiler_pipeline["compiler_backend"], "rust");
+    assert!(compiler_pipeline["rust_compiler_compile_ns"]
+        .as_u64()
+        .is_some());
+
+    let ordinary = run_source_cache(&project, &[]);
+    assert!(ordinary.status.success());
+    let ordinary: serde_json::Value = serde_json::from_slice(&ordinary.stdout).unwrap();
+    assert!(ordinary.get("phase_timings_ns").is_none());
 }
 
 #[test]
