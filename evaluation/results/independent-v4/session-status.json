@@ -1,0 +1,653 @@
+{
+  "status": "not-started-awaiting-independent-review",
+  "cells": [
+    {
+      "cell_id": "codex-product-information",
+      "decision_id": "01-support-sla-report-choice-1",
+      "status": "not_started",
+      "reason": "The Codex host can create fresh conversations, but the existing protocol requires a second evaluator to approve the final materials before any session. No approval record exists."
+    },
+    {
+      "cell_id": "codex-product-information",
+      "decision_id": "01-support-sla-report-choice-2",
+      "status": "not_started",
+      "reason": "The Codex host can create fresh conversations, but the existing protocol requires a second evaluator to approve the final materials before any session. No approval record exists."
+    },
+    {
+      "cell_id": "codex-product-information",
+      "decision_id": "02-jsonl-retention-choice-1",
+      "status": "not_started",
+      "reason": "The Codex host can create fresh conversations, but the existing protocol requires a second evaluator to approve the final materials before any session. No approval record exists."
+    },
+    {
+      "cell_id": "codex-product-information",
+      "decision_id": "02-jsonl-retention-choice-2",
+      "status": "not_started",
+      "reason": "The Codex host can create fresh conversations, but the existing protocol requires a second evaluator to approve the final materials before any session. No approval record exists."
+    },
+    {
+      "cell_id": "codex-product-information",
+      "decision_id": "03-release-notes-choice-1",
+      "status": "not_started",
+      "reason": "The Codex host can create fresh conversations, but the existing protocol requires a second evaluator to approve the final materials before any session. No approval record exists."
+    },
+    {
+      "cell_id": "codex-product-information",
+      "decision_id": "03-release-notes-choice-2",
+      "status": "not_started",
+      "reason": "The Codex host can create fresh conversations, but the existing protocol requires a second evaluator to approve the final materials before any session. No approval record exists."
+    },
+    {
+      "cell_id": "codex-product-information",
+      "decision_id": "04-calendar-conflict-report-choice-1",
+      "status": "not_started",
+      "reason": "The Codex host can create fresh conversations, but the existing protocol requires a second evaluator to approve the final materials before any session. No approval record exists."
+    },
+    {
+      "cell_id": "codex-product-information",
+      "decision_id": "04-calendar-conflict-report-choice-2",
+      "status": "not_started",
+      "reason": "The Codex host can create fresh conversations, but the existing protocol requires a second evaluator to approve the final materials before any session. No approval record exists."
+    },
+    {
+      "cell_id": "codex-product-information",
+      "decision_id": "05-webhook-replay-choice-1",
+      "status": "not_started",
+      "reason": "The Codex host can create fresh conversations, but the existing protocol requires a second evaluator to approve the final materials before any session. No approval record exists."
+    },
+    {
+      "cell_id": "codex-product-information",
+      "decision_id": "05-webhook-replay-choice-2",
+      "status": "not_started",
+      "reason": "The Codex host can create fresh conversations, but the existing protocol requires a second evaluator to approve the final materials before any session. No approval record exists."
+    },
+    {
+      "cell_id": "codex-product-information",
+      "decision_id": "06-service-health-digest-choice-1",
+      "status": "not_started",
+      "reason": "The Codex host can create fresh conversations, but the existing protocol requires a second evaluator to approve the final materials before any session. No approval record exists."
+    },
+    {
+      "cell_id": "codex-product-information",
+      "decision_id": "06-service-health-digest-choice-2",
+      "status": "not_started",
+      "reason": "The Codex host can create fresh conversations, but the existing protocol requires a second evaluator to approve the final materials before any session. No approval record exists."
+    },
+    {
+      "cell_id": "codex-product-information",
+      "decision_id": "07-config-migrator-choice-1",
+      "status": "not_started",
+      "reason": "The Codex host can create fresh conversations, but the existing protocol requires a second evaluator to approve the final materials before any session. No approval record exists."
+    },
+    {
+      "cell_id": "codex-product-information",
+      "decision_id": "07-config-migrator-choice-2",
+      "status": "not_started",
+      "reason": "The Codex host can create fresh conversations, but the existing protocol requires a second evaluator to approve the final materials before any session. No approval record exists."
+    },
+    {
+      "cell_id": "codex-product-information",
+      "decision_id": "08-documentation-link-index-choice-1",
+      "status": "not_started",
+      "reason": "The Codex host can create fresh conversations, but the existing protocol requires a second evaluator to approve the final materials before any session. No approval record exists."
+    },
+    {
+      "cell_id": "codex-product-information",
+      "decision_id": "08-documentation-link-index-choice-2",
+      "status": "not_started",
+      "reason": "The Codex host can create fresh conversations, but the existing protocol requires a second evaluator to approve the final materials before any session. No approval record exists."
+    },
+    {
+      "cell_id": "codex-product-information",
+      "decision_id": "09-lockfile-auditor-choice-1",
+      "status": "not_started",
+      "reason": "The Codex host can create fresh conversations, but the existing protocol requires a second evaluator to approve the final materials before any session. No approval record exists."
+    },
+    {
+      "cell_id": "codex-product-information",
+      "decision_id": "09-lockfile-auditor-choice-2",
+      "status": "not_started",
+      "reason": "The Codex host can create fresh conversations, but the existing protocol requires a second evaluator to approve the final materials before any session. No approval record exists."
+    },
+    {
+      "cell_id": "codex-cold",
+      "decision_id": "01-support-sla-report-choice-1",
+      "status": "not_started",
+      "reason": "The Codex host can create fresh conversations, but the existing protocol requires a second evaluator to approve the final materials before any session. No approval record exists."
+    },
+    {
+      "cell_id": "codex-cold",
+      "decision_id": "01-support-sla-report-choice-2",
+      "status": "not_started",
+      "reason": "The Codex host can create fresh conversations, but the existing protocol requires a second evaluator to approve the final materials before any session. No approval record exists."
+    },
+    {
+      "cell_id": "codex-cold",
+      "decision_id": "02-jsonl-retention-choice-1",
+      "status": "not_started",
+      "reason": "The Codex host can create fresh conversations, but the existing protocol requires a second evaluator to approve the final materials before any session. No approval record exists."
+    },
+    {
+      "cell_id": "codex-cold",
+      "decision_id": "02-jsonl-retention-choice-2",
+      "status": "not_started",
+      "reason": "The Codex host can create fresh conversations, but the existing protocol requires a second evaluator to approve the final materials before any session. No approval record exists."
+    },
+    {
+      "cell_id": "codex-cold",
+      "decision_id": "03-release-notes-choice-1",
+      "status": "not_started",
+      "reason": "The Codex host can create fresh conversations, but the existing protocol requires a second evaluator to approve the final materials before any session. No approval record exists."
+    },
+    {
+      "cell_id": "codex-cold",
+      "decision_id": "03-release-notes-choice-2",
+      "status": "not_started",
+      "reason": "The Codex host can create fresh conversations, but the existing protocol requires a second evaluator to approve the final materials before any session. No approval record exists."
+    },
+    {
+      "cell_id": "codex-cold",
+      "decision_id": "04-calendar-conflict-report-choice-1",
+      "status": "not_started",
+      "reason": "The Codex host can create fresh conversations, but the existing protocol requires a second evaluator to approve the final materials before any session. No approval record exists."
+    },
+    {
+      "cell_id": "codex-cold",
+      "decision_id": "04-calendar-conflict-report-choice-2",
+      "status": "not_started",
+      "reason": "The Codex host can create fresh conversations, but the existing protocol requires a second evaluator to approve the final materials before any session. No approval record exists."
+    },
+    {
+      "cell_id": "codex-cold",
+      "decision_id": "05-webhook-replay-choice-1",
+      "status": "not_started",
+      "reason": "The Codex host can create fresh conversations, but the existing protocol requires a second evaluator to approve the final materials before any session. No approval record exists."
+    },
+    {
+      "cell_id": "codex-cold",
+      "decision_id": "05-webhook-replay-choice-2",
+      "status": "not_started",
+      "reason": "The Codex host can create fresh conversations, but the existing protocol requires a second evaluator to approve the final materials before any session. No approval record exists."
+    },
+    {
+      "cell_id": "codex-cold",
+      "decision_id": "06-service-health-digest-choice-1",
+      "status": "not_started",
+      "reason": "The Codex host can create fresh conversations, but the existing protocol requires a second evaluator to approve the final materials before any session. No approval record exists."
+    },
+    {
+      "cell_id": "codex-cold",
+      "decision_id": "06-service-health-digest-choice-2",
+      "status": "not_started",
+      "reason": "The Codex host can create fresh conversations, but the existing protocol requires a second evaluator to approve the final materials before any session. No approval record exists."
+    },
+    {
+      "cell_id": "codex-cold",
+      "decision_id": "07-config-migrator-choice-1",
+      "status": "not_started",
+      "reason": "The Codex host can create fresh conversations, but the existing protocol requires a second evaluator to approve the final materials before any session. No approval record exists."
+    },
+    {
+      "cell_id": "codex-cold",
+      "decision_id": "07-config-migrator-choice-2",
+      "status": "not_started",
+      "reason": "The Codex host can create fresh conversations, but the existing protocol requires a second evaluator to approve the final materials before any session. No approval record exists."
+    },
+    {
+      "cell_id": "codex-cold",
+      "decision_id": "08-documentation-link-index-choice-1",
+      "status": "not_started",
+      "reason": "The Codex host can create fresh conversations, but the existing protocol requires a second evaluator to approve the final materials before any session. No approval record exists."
+    },
+    {
+      "cell_id": "codex-cold",
+      "decision_id": "08-documentation-link-index-choice-2",
+      "status": "not_started",
+      "reason": "The Codex host can create fresh conversations, but the existing protocol requires a second evaluator to approve the final materials before any session. No approval record exists."
+    },
+    {
+      "cell_id": "codex-cold",
+      "decision_id": "09-lockfile-auditor-choice-1",
+      "status": "not_started",
+      "reason": "The Codex host can create fresh conversations, but the existing protocol requires a second evaluator to approve the final materials before any session. No approval record exists."
+    },
+    {
+      "cell_id": "codex-cold",
+      "decision_id": "09-lockfile-auditor-choice-2",
+      "status": "not_started",
+      "reason": "The Codex host can create fresh conversations, but the existing protocol requires a second evaluator to approve the final materials before any session. No approval record exists."
+    },
+    {
+      "cell_id": "claude-product-information",
+      "decision_id": "01-support-sla-report-choice-1",
+      "status": "not_started",
+      "reason": "Anthropic Claude cannot be launched from this Codex session; no substitute provider is used."
+    },
+    {
+      "cell_id": "claude-product-information",
+      "decision_id": "01-support-sla-report-choice-2",
+      "status": "not_started",
+      "reason": "Anthropic Claude cannot be launched from this Codex session; no substitute provider is used."
+    },
+    {
+      "cell_id": "claude-product-information",
+      "decision_id": "02-jsonl-retention-choice-1",
+      "status": "not_started",
+      "reason": "Anthropic Claude cannot be launched from this Codex session; no substitute provider is used."
+    },
+    {
+      "cell_id": "claude-product-information",
+      "decision_id": "02-jsonl-retention-choice-2",
+      "status": "not_started",
+      "reason": "Anthropic Claude cannot be launched from this Codex session; no substitute provider is used."
+    },
+    {
+      "cell_id": "claude-product-information",
+      "decision_id": "03-release-notes-choice-1",
+      "status": "not_started",
+      "reason": "Anthropic Claude cannot be launched from this Codex session; no substitute provider is used."
+    },
+    {
+      "cell_id": "claude-product-information",
+      "decision_id": "03-release-notes-choice-2",
+      "status": "not_started",
+      "reason": "Anthropic Claude cannot be launched from this Codex session; no substitute provider is used."
+    },
+    {
+      "cell_id": "claude-product-information",
+      "decision_id": "04-calendar-conflict-report-choice-1",
+      "status": "not_started",
+      "reason": "Anthropic Claude cannot be launched from this Codex session; no substitute provider is used."
+    },
+    {
+      "cell_id": "claude-product-information",
+      "decision_id": "04-calendar-conflict-report-choice-2",
+      "status": "not_started",
+      "reason": "Anthropic Claude cannot be launched from this Codex session; no substitute provider is used."
+    },
+    {
+      "cell_id": "claude-product-information",
+      "decision_id": "05-webhook-replay-choice-1",
+      "status": "not_started",
+      "reason": "Anthropic Claude cannot be launched from this Codex session; no substitute provider is used."
+    },
+    {
+      "cell_id": "claude-product-information",
+      "decision_id": "05-webhook-replay-choice-2",
+      "status": "not_started",
+      "reason": "Anthropic Claude cannot be launched from this Codex session; no substitute provider is used."
+    },
+    {
+      "cell_id": "claude-product-information",
+      "decision_id": "06-service-health-digest-choice-1",
+      "status": "not_started",
+      "reason": "Anthropic Claude cannot be launched from this Codex session; no substitute provider is used."
+    },
+    {
+      "cell_id": "claude-product-information",
+      "decision_id": "06-service-health-digest-choice-2",
+      "status": "not_started",
+      "reason": "Anthropic Claude cannot be launched from this Codex session; no substitute provider is used."
+    },
+    {
+      "cell_id": "claude-product-information",
+      "decision_id": "07-config-migrator-choice-1",
+      "status": "not_started",
+      "reason": "Anthropic Claude cannot be launched from this Codex session; no substitute provider is used."
+    },
+    {
+      "cell_id": "claude-product-information",
+      "decision_id": "07-config-migrator-choice-2",
+      "status": "not_started",
+      "reason": "Anthropic Claude cannot be launched from this Codex session; no substitute provider is used."
+    },
+    {
+      "cell_id": "claude-product-information",
+      "decision_id": "08-documentation-link-index-choice-1",
+      "status": "not_started",
+      "reason": "Anthropic Claude cannot be launched from this Codex session; no substitute provider is used."
+    },
+    {
+      "cell_id": "claude-product-information",
+      "decision_id": "08-documentation-link-index-choice-2",
+      "status": "not_started",
+      "reason": "Anthropic Claude cannot be launched from this Codex session; no substitute provider is used."
+    },
+    {
+      "cell_id": "claude-product-information",
+      "decision_id": "09-lockfile-auditor-choice-1",
+      "status": "not_started",
+      "reason": "Anthropic Claude cannot be launched from this Codex session; no substitute provider is used."
+    },
+    {
+      "cell_id": "claude-product-information",
+      "decision_id": "09-lockfile-auditor-choice-2",
+      "status": "not_started",
+      "reason": "Anthropic Claude cannot be launched from this Codex session; no substitute provider is used."
+    },
+    {
+      "cell_id": "claude-cold",
+      "decision_id": "01-support-sla-report-choice-1",
+      "status": "not_started",
+      "reason": "Anthropic Claude cannot be launched from this Codex session; no substitute provider is used."
+    },
+    {
+      "cell_id": "claude-cold",
+      "decision_id": "01-support-sla-report-choice-2",
+      "status": "not_started",
+      "reason": "Anthropic Claude cannot be launched from this Codex session; no substitute provider is used."
+    },
+    {
+      "cell_id": "claude-cold",
+      "decision_id": "02-jsonl-retention-choice-1",
+      "status": "not_started",
+      "reason": "Anthropic Claude cannot be launched from this Codex session; no substitute provider is used."
+    },
+    {
+      "cell_id": "claude-cold",
+      "decision_id": "02-jsonl-retention-choice-2",
+      "status": "not_started",
+      "reason": "Anthropic Claude cannot be launched from this Codex session; no substitute provider is used."
+    },
+    {
+      "cell_id": "claude-cold",
+      "decision_id": "03-release-notes-choice-1",
+      "status": "not_started",
+      "reason": "Anthropic Claude cannot be launched from this Codex session; no substitute provider is used."
+    },
+    {
+      "cell_id": "claude-cold",
+      "decision_id": "03-release-notes-choice-2",
+      "status": "not_started",
+      "reason": "Anthropic Claude cannot be launched from this Codex session; no substitute provider is used."
+    },
+    {
+      "cell_id": "claude-cold",
+      "decision_id": "04-calendar-conflict-report-choice-1",
+      "status": "not_started",
+      "reason": "Anthropic Claude cannot be launched from this Codex session; no substitute provider is used."
+    },
+    {
+      "cell_id": "claude-cold",
+      "decision_id": "04-calendar-conflict-report-choice-2",
+      "status": "not_started",
+      "reason": "Anthropic Claude cannot be launched from this Codex session; no substitute provider is used."
+    },
+    {
+      "cell_id": "claude-cold",
+      "decision_id": "05-webhook-replay-choice-1",
+      "status": "not_started",
+      "reason": "Anthropic Claude cannot be launched from this Codex session; no substitute provider is used."
+    },
+    {
+      "cell_id": "claude-cold",
+      "decision_id": "05-webhook-replay-choice-2",
+      "status": "not_started",
+      "reason": "Anthropic Claude cannot be launched from this Codex session; no substitute provider is used."
+    },
+    {
+      "cell_id": "claude-cold",
+      "decision_id": "06-service-health-digest-choice-1",
+      "status": "not_started",
+      "reason": "Anthropic Claude cannot be launched from this Codex session; no substitute provider is used."
+    },
+    {
+      "cell_id": "claude-cold",
+      "decision_id": "06-service-health-digest-choice-2",
+      "status": "not_started",
+      "reason": "Anthropic Claude cannot be launched from this Codex session; no substitute provider is used."
+    },
+    {
+      "cell_id": "claude-cold",
+      "decision_id": "07-config-migrator-choice-1",
+      "status": "not_started",
+      "reason": "Anthropic Claude cannot be launched from this Codex session; no substitute provider is used."
+    },
+    {
+      "cell_id": "claude-cold",
+      "decision_id": "07-config-migrator-choice-2",
+      "status": "not_started",
+      "reason": "Anthropic Claude cannot be launched from this Codex session; no substitute provider is used."
+    },
+    {
+      "cell_id": "claude-cold",
+      "decision_id": "08-documentation-link-index-choice-1",
+      "status": "not_started",
+      "reason": "Anthropic Claude cannot be launched from this Codex session; no substitute provider is used."
+    },
+    {
+      "cell_id": "claude-cold",
+      "decision_id": "08-documentation-link-index-choice-2",
+      "status": "not_started",
+      "reason": "Anthropic Claude cannot be launched from this Codex session; no substitute provider is used."
+    },
+    {
+      "cell_id": "claude-cold",
+      "decision_id": "09-lockfile-auditor-choice-1",
+      "status": "not_started",
+      "reason": "Anthropic Claude cannot be launched from this Codex session; no substitute provider is used."
+    },
+    {
+      "cell_id": "claude-cold",
+      "decision_id": "09-lockfile-auditor-choice-2",
+      "status": "not_started",
+      "reason": "Anthropic Claude cannot be launched from this Codex session; no substitute provider is used."
+    },
+    {
+      "cell_id": "gemini-product-information",
+      "decision_id": "01-support-sla-report-choice-1",
+      "status": "not_started",
+      "reason": "Google Gemini cannot be launched from this Codex session; no substitute provider is used."
+    },
+    {
+      "cell_id": "gemini-product-information",
+      "decision_id": "01-support-sla-report-choice-2",
+      "status": "not_started",
+      "reason": "Google Gemini cannot be launched from this Codex session; no substitute provider is used."
+    },
+    {
+      "cell_id": "gemini-product-information",
+      "decision_id": "02-jsonl-retention-choice-1",
+      "status": "not_started",
+      "reason": "Google Gemini cannot be launched from this Codex session; no substitute provider is used."
+    },
+    {
+      "cell_id": "gemini-product-information",
+      "decision_id": "02-jsonl-retention-choice-2",
+      "status": "not_started",
+      "reason": "Google Gemini cannot be launched from this Codex session; no substitute provider is used."
+    },
+    {
+      "cell_id": "gemini-product-information",
+      "decision_id": "03-release-notes-choice-1",
+      "status": "not_started",
+      "reason": "Google Gemini cannot be launched from this Codex session; no substitute provider is used."
+    },
+    {
+      "cell_id": "gemini-product-information",
+      "decision_id": "03-release-notes-choice-2",
+      "status": "not_started",
+      "reason": "Google Gemini cannot be launched from this Codex session; no substitute provider is used."
+    },
+    {
+      "cell_id": "gemini-product-information",
+      "decision_id": "04-calendar-conflict-report-choice-1",
+      "status": "not_started",
+      "reason": "Google Gemini cannot be launched from this Codex session; no substitute provider is used."
+    },
+    {
+      "cell_id": "gemini-product-information",
+      "decision_id": "04-calendar-conflict-report-choice-2",
+      "status": "not_started",
+      "reason": "Google Gemini cannot be launched from this Codex session; no substitute provider is used."
+    },
+    {
+      "cell_id": "gemini-product-information",
+      "decision_id": "05-webhook-replay-choice-1",
+      "status": "not_started",
+      "reason": "Google Gemini cannot be launched from this Codex session; no substitute provider is used."
+    },
+    {
+      "cell_id": "gemini-product-information",
+      "decision_id": "05-webhook-replay-choice-2",
+      "status": "not_started",
+      "reason": "Google Gemini cannot be launched from this Codex session; no substitute provider is used."
+    },
+    {
+      "cell_id": "gemini-product-information",
+      "decision_id": "06-service-health-digest-choice-1",
+      "status": "not_started",
+      "reason": "Google Gemini cannot be launched from this Codex session; no substitute provider is used."
+    },
+    {
+      "cell_id": "gemini-product-information",
+      "decision_id": "06-service-health-digest-choice-2",
+      "status": "not_started",
+      "reason": "Google Gemini cannot be launched from this Codex session; no substitute provider is used."
+    },
+    {
+      "cell_id": "gemini-product-information",
+      "decision_id": "07-config-migrator-choice-1",
+      "status": "not_started",
+      "reason": "Google Gemini cannot be launched from this Codex session; no substitute provider is used."
+    },
+    {
+      "cell_id": "gemini-product-information",
+      "decision_id": "07-config-migrator-choice-2",
+      "status": "not_started",
+      "reason": "Google Gemini cannot be launched from this Codex session; no substitute provider is used."
+    },
+    {
+      "cell_id": "gemini-product-information",
+      "decision_id": "08-documentation-link-index-choice-1",
+      "status": "not_started",
+      "reason": "Google Gemini cannot be launched from this Codex session; no substitute provider is used."
+    },
+    {
+      "cell_id": "gemini-product-information",
+      "decision_id": "08-documentation-link-index-choice-2",
+      "status": "not_started",
+      "reason": "Google Gemini cannot be launched from this Codex session; no substitute provider is used."
+    },
+    {
+      "cell_id": "gemini-product-information",
+      "decision_id": "09-lockfile-auditor-choice-1",
+      "status": "not_started",
+      "reason": "Google Gemini cannot be launched from this Codex session; no substitute provider is used."
+    },
+    {
+      "cell_id": "gemini-product-information",
+      "decision_id": "09-lockfile-auditor-choice-2",
+      "status": "not_started",
+      "reason": "Google Gemini cannot be launched from this Codex session; no substitute provider is used."
+    },
+    {
+      "cell_id": "gemini-cold",
+      "decision_id": "01-support-sla-report-choice-1",
+      "status": "not_started",
+      "reason": "Google Gemini cannot be launched from this Codex session; no substitute provider is used."
+    },
+    {
+      "cell_id": "gemini-cold",
+      "decision_id": "01-support-sla-report-choice-2",
+      "status": "not_started",
+      "reason": "Google Gemini cannot be launched from this Codex session; no substitute provider is used."
+    },
+    {
+      "cell_id": "gemini-cold",
+      "decision_id": "02-jsonl-retention-choice-1",
+      "status": "not_started",
+      "reason": "Google Gemini cannot be launched from this Codex session; no substitute provider is used."
+    },
+    {
+      "cell_id": "gemini-cold",
+      "decision_id": "02-jsonl-retention-choice-2",
+      "status": "not_started",
+      "reason": "Google Gemini cannot be launched from this Codex session; no substitute provider is used."
+    },
+    {
+      "cell_id": "gemini-cold",
+      "decision_id": "03-release-notes-choice-1",
+      "status": "not_started",
+      "reason": "Google Gemini cannot be launched from this Codex session; no substitute provider is used."
+    },
+    {
+      "cell_id": "gemini-cold",
+      "decision_id": "03-release-notes-choice-2",
+      "status": "not_started",
+      "reason": "Google Gemini cannot be launched from this Codex session; no substitute provider is used."
+    },
+    {
+      "cell_id": "gemini-cold",
+      "decision_id": "04-calendar-conflict-report-choice-1",
+      "status": "not_started",
+      "reason": "Google Gemini cannot be launched from this Codex session; no substitute provider is used."
+    },
+    {
+      "cell_id": "gemini-cold",
+      "decision_id": "04-calendar-conflict-report-choice-2",
+      "status": "not_started",
+      "reason": "Google Gemini cannot be launched from this Codex session; no substitute provider is used."
+    },
+    {
+      "cell_id": "gemini-cold",
+      "decision_id": "05-webhook-replay-choice-1",
+      "status": "not_started",
+      "reason": "Google Gemini cannot be launched from this Codex session; no substitute provider is used."
+    },
+    {
+      "cell_id": "gemini-cold",
+      "decision_id": "05-webhook-replay-choice-2",
+      "status": "not_started",
+      "reason": "Google Gemini cannot be launched from this Codex session; no substitute provider is used."
+    },
+    {
+      "cell_id": "gemini-cold",
+      "decision_id": "06-service-health-digest-choice-1",
+      "status": "not_started",
+      "reason": "Google Gemini cannot be launched from this Codex session; no substitute provider is used."
+    },
+    {
+      "cell_id": "gemini-cold",
+      "decision_id": "06-service-health-digest-choice-2",
+      "status": "not_started",
+      "reason": "Google Gemini cannot be launched from this Codex session; no substitute provider is used."
+    },
+    {
+      "cell_id": "gemini-cold",
+      "decision_id": "07-config-migrator-choice-1",
+      "status": "not_started",
+      "reason": "Google Gemini cannot be launched from this Codex session; no substitute provider is used."
+    },
+    {
+      "cell_id": "gemini-cold",
+      "decision_id": "07-config-migrator-choice-2",
+      "status": "not_started",
+      "reason": "Google Gemini cannot be launched from this Codex session; no substitute provider is used."
+    },
+    {
+      "cell_id": "gemini-cold",
+      "decision_id": "08-documentation-link-index-choice-1",
+      "status": "not_started",
+      "reason": "Google Gemini cannot be launched from this Codex session; no substitute provider is used."
+    },
+    {
+      "cell_id": "gemini-cold",
+      "decision_id": "08-documentation-link-index-choice-2",
+      "status": "not_started",
+      "reason": "Google Gemini cannot be launched from this Codex session; no substitute provider is used."
+    },
+    {
+      "cell_id": "gemini-cold",
+      "decision_id": "09-lockfile-auditor-choice-1",
+      "status": "not_started",
+      "reason": "Google Gemini cannot be launched from this Codex session; no substitute provider is used."
+    },
+    {
+      "cell_id": "gemini-cold",
+      "decision_id": "09-lockfile-auditor-choice-2",
+      "status": "not_started",
+      "reason": "Google Gemini cannot be launched from this Codex session; no substitute provider is used."
+    }
+  ]
+}

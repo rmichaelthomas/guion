@@ -5,8 +5,8 @@
   "mode": "source-free relocated package",
   "relocation_path": "Moved package – Guion",
   "product": "Guion",
-  "artifact_sha256": "5a7491af335de4dc142b3f4c1395aa4dd648849073f4f8df1fbf6bc4aec31073",
-  "artifact_bytes": 45796380,
+  "artifact_sha256": "b3ab80555cad0000983a79089eb5ebd0d5e8deb26d8ca6278e5c38e7acdb9f3b",
+  "artifact_bytes": 46468051,
   "source_paths_excluded": [
     "main.vr",
     "veritas.toml"
@@ -14,7 +14,7 @@
   "stages": {
     "initial": {
       "passed": true,
-      "elapsed_seconds": 1.8508692499890458,
+      "elapsed_seconds": 0.9863620410033036,
       "case_count": 7,
       "cases": [
         {
@@ -30,10 +30,10 @@
               "checks_passed": 3,
               "checks_total": 3,
               "failures": [],
-              "elapsed_seconds": 0.723714
+              "elapsed_seconds": 0.609772
             }
           ],
-          "elapsed_seconds": 0.725168,
+          "elapsed_seconds": 0.612286,
           "http_fixtures": {},
           "stdout": "",
           "stderr": "",
@@ -52,10 +52,10 @@
               "checks_passed": 2,
               "checks_total": 2,
               "failures": [],
-              "elapsed_seconds": 0.461597
+              "elapsed_seconds": 0.050622
             }
           ],
-          "elapsed_seconds": 0.465987,
+          "elapsed_seconds": 0.056201,
           "http_fixtures": {},
           "stdout": "",
           "stderr": "each package requires name and version\n",
@@ -74,10 +74,10 @@
               "checks_passed": 3,
               "checks_total": 3,
               "failures": [],
-              "elapsed_seconds": 0.240579
+              "elapsed_seconds": 0.122805
             }
           ],
-          "elapsed_seconds": 0.242372,
+          "elapsed_seconds": 0.125149,
           "http_fixtures": {},
           "stdout": "",
           "stderr": "",
@@ -96,10 +96,10 @@
               "checks_passed": 3,
               "checks_total": 3,
               "failures": [],
-              "elapsed_seconds": 0.115667
+              "elapsed_seconds": 0.038621
             }
           ],
-          "elapsed_seconds": 0.118807,
+          "elapsed_seconds": 0.040327,
           "http_fixtures": {},
           "stdout": "",
           "stderr": "",
@@ -118,10 +118,10 @@
               "checks_passed": 3,
               "checks_total": 3,
               "failures": [],
-              "elapsed_seconds": 0.100133
+              "elapsed_seconds": 0.034069
             }
           ],
-          "elapsed_seconds": 0.101989,
+          "elapsed_seconds": 0.035327,
           "http_fixtures": {},
           "stdout": "",
           "stderr": "",
@@ -140,10 +140,10 @@
               "checks_passed": 3,
               "checks_total": 3,
               "failures": [],
-              "elapsed_seconds": 0.090318
+              "elapsed_seconds": 0.036518
             }
           ],
-          "elapsed_seconds": 0.092104,
+          "elapsed_seconds": 0.037824,
           "http_fixtures": {},
           "stdout": "",
           "stderr": "",
@@ -162,10 +162,10 @@
               "checks_passed": 3,
               "checks_total": 3,
               "failures": [],
-              "elapsed_seconds": 0.101544
+              "elapsed_seconds": 0.077094
             }
           ],
-          "elapsed_seconds": 0.103759,
+          "elapsed_seconds": 0.078671,
           "http_fixtures": {},
           "stdout": "",
           "stderr": "",
@@ -175,7 +175,7 @@
     },
     "follow_up": {
       "passed": true,
-      "elapsed_seconds": 0.9984810000169091,
+      "elapsed_seconds": 0.4529324170143809,
       "case_count": 10,
       "cases": [
         {
@@ -191,10 +191,10 @@
               "checks_passed": 3,
               "checks_total": 3,
               "failures": [],
-              "elapsed_seconds": 0.096289
+              "elapsed_seconds": 0.140495
             }
           ],
-          "elapsed_seconds": 0.09967,
+          "elapsed_seconds": 0.143443,
           "http_fixtures": {},
           "stdout": "",
           "stderr": "",
@@ -213,10 +213,10 @@
               "checks_passed": 3,
               "checks_total": 3,
               "failures": [],
-              "elapsed_seconds": 0.112056
+              "elapsed_seconds": 0.062334
             }
           ],
-          "elapsed_seconds": 0.114002,
+          "elapsed_seconds": 0.064406,
           "http_fixtures": {},
           "stdout": "",
           "stderr": "",
@@ -235,10 +235,10 @@
               "checks_passed": 2,
               "checks_total": 2,
               "failures": [],
-              "elapsed_seconds": 0.085303
+              "elapsed_seconds": 0.028121
             }
           ],
-          "elapsed_seconds": 0.087343,
+          "elapsed_seconds": 0.030463,
           "http_fixtures": {},
           "stdout": "",
           "stderr": "duplicate exception name: blocked-lib\n",
@@ -257,10 +257,10 @@
               "checks_passed": 2,
               "checks_total": 2,
               "failures": [],
-              "elapsed_seconds": 0.082906
+              "elapsed_seconds": 0.026615
             }
           ],
-          "elapsed_seconds": 0.085085,
+          "elapsed_seconds": 0.028468,
           "http_fixtures": {},
           "stdout": "",
           "stderr": "invalid exception: objects must contain exactly name and expires\n",
@@ -279,10 +279,10 @@
               "checks_passed": 2,
               "checks_total": 2,
               "failures": [],
-              "elapsed_seconds": 0.087207
+              "elapsed_seconds": 0.0259
             }
           ],
-          "elapsed_seconds": 0.089473,
+          "elapsed_seconds": 0.02729,
           "http_fixtures": {},
           "stdout": "",
           "stderr": "invalid exception expiry date: expected YYYY-MM-DD\n",
@@ -301,10 +301,10 @@
               "checks_passed": 2,
               "checks_total": 2,
               "failures": [],
-              "elapsed_seconds": 0.111284
+              "elapsed_seconds": 0.027323
             }
           ],
-          "elapsed_seconds": 0.113352,
+          "elapsed_seconds": 0.028743,
           "http_fixtures": {},
           "stdout": "",
           "stderr": "--as-of is required when exceptions are configured\n",
@@ -323,10 +323,10 @@
               "checks_passed": 2,
               "checks_total": 2,
               "failures": [],
-              "elapsed_seconds": 0.110096
+              "elapsed_seconds": 0.025883
             }
           ],
-          "elapsed_seconds": 0.112382,
+          "elapsed_seconds": 0.027343,
           "http_fixtures": {},
           "stdout": "",
           "stderr": "invalid --as-of date: expected a valid YYYY-MM-DD date\n",
@@ -345,10 +345,10 @@
               "checks_passed": 3,
               "checks_total": 3,
               "failures": [],
-              "elapsed_seconds": 0.112632
+              "elapsed_seconds": 0.036455
             }
           ],
-          "elapsed_seconds": 0.114726,
+          "elapsed_seconds": 0.037972,
           "http_fixtures": {},
           "stdout": "",
           "stderr": "",
@@ -367,10 +367,10 @@
               "checks_passed": 1,
               "checks_total": 1,
               "failures": [],
-              "elapsed_seconds": 0.082564
+              "elapsed_seconds": 0.026764
             }
           ],
-          "elapsed_seconds": 0.084569,
+          "elapsed_seconds": 0.02859,
           "http_fixtures": {},
           "stdout": "",
           "stderr": "invalid --as-of date: expected a valid YYYY-MM-DD date\n",
@@ -389,10 +389,10 @@
               "checks_passed": 3,
               "checks_total": 3,
               "failures": [],
-              "elapsed_seconds": 0.095549
+              "elapsed_seconds": 0.034041
             }
           ],
-          "elapsed_seconds": 0.097307,
+          "elapsed_seconds": 0.035428,
           "http_fixtures": {},
           "stdout": "",
           "stderr": "",
@@ -429,10 +429,10 @@
             "checks_passed": 1,
             "checks_total": 1,
             "failures": [],
-            "elapsed_seconds": 0.098307
+            "elapsed_seconds": 0.036775
           }
         ],
-        "elapsed_seconds": 0.100411,
+        "elapsed_seconds": 0.038061,
         "http_fixtures": {},
         "stdout": "",
         "stderr": "",
@@ -451,10 +451,10 @@
             "checks_passed": 1,
             "checks_total": 1,
             "failures": [],
-            "elapsed_seconds": 0.146913
+            "elapsed_seconds": 0.085939
           }
         ],
-        "elapsed_seconds": 0.14861,
+        "elapsed_seconds": 0.087313,
         "http_fixtures": {},
         "stdout": "",
         "stderr": "",

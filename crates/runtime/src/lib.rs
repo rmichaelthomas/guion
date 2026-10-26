@@ -29,6 +29,12 @@ use native_backend::{
 };
 
 #[derive(Debug, Default)]
+struct CopySizeBucket {
+    copies: AtomicUsize,
+    estimated_copy_bytes: AtomicUsize,
+}
+
+#[derive(Debug, Default)]
 pub(crate) struct RuntimeProfileCounters {
     allocation_charge_events: AtomicUsize,
     estimated_allocation_gross_bytes: AtomicUsize,
@@ -37,6 +43,7 @@ pub(crate) struct RuntimeProfileCounters {
     list_set_in_place_updates: AtomicUsize,
     list_set_copy_on_write_copies: AtomicUsize,
     list_set_estimated_copy_bytes: AtomicUsize,
+    list_set_copy_size_histogram: [CopySizeBucket; 4],
     record_charge_events: AtomicUsize,
     record_estimated_bytes: AtomicUsize,
     dynamic_guest_conditional_branches: AtomicUsize,
@@ -64,10 +71,20 @@ impl RuntimeProfileCounters {
             .fetch_add(1, Ordering::Relaxed);
     }
 
-    fn record_list_set_copy(&self, bytes: usize) {
+    fn record_list_set_copy(&self, elements: usize, bytes: usize) {
         self.list_set_copy_on_write_copies
             .fetch_add(1, Ordering::Relaxed);
         self.list_set_estimated_copy_bytes
+            .fetch_add(bytes, Ordering::Relaxed);
+        let bucket = match elements {
+            0..=8 => &self.list_set_copy_size_histogram[0],
+            9..=32 => &self.list_set_copy_size_histogram[1],
+            33..=128 => &self.list_set_copy_size_histogram[2],
+            _ => &self.list_set_copy_size_histogram[3],
+        };
+        bucket.copies.fetch_add(1, Ordering::Relaxed);
+        bucket
+            .estimated_copy_bytes
             .fetch_add(bytes, Ordering::Relaxed);
     }
 
@@ -89,6 +106,12 @@ impl RuntimeProfileCounters {
         let refunded_bytes = self
             .estimated_allocation_refunded_bytes
             .load(Ordering::Relaxed);
+        let copy_size_bucket = |bucket: &CopySizeBucket| {
+            serde_json::json!({
+                "copies": bucket.copies.load(Ordering::Relaxed),
+                "estimated_copy_bytes": bucket.estimated_copy_bytes.load(Ordering::Relaxed),
+            })
+        };
         serde_json::json!({
             "scope": "latest guest invocation",
             "estimated_guest_allocation_budget_charges": {
@@ -102,6 +125,15 @@ impl RuntimeProfileCounters {
                 "in_place_updates": self.list_set_in_place_updates.load(Ordering::Relaxed),
                 "copy_on_write_copies": self.list_set_copy_on_write_copies.load(Ordering::Relaxed),
                 "estimated_copy_bytes": self.list_set_estimated_copy_bytes.load(Ordering::Relaxed),
+                "copy_size_histogram": {
+                    "unit": "elements",
+                    "buckets": {
+                        "0-8": copy_size_bucket(&self.list_set_copy_size_histogram[0]),
+                        "9-32": copy_size_bucket(&self.list_set_copy_size_histogram[1]),
+                        "33-128": copy_size_bucket(&self.list_set_copy_size_histogram[2]),
+                        "129+": copy_size_bucket(&self.list_set_copy_size_histogram[3]),
+                    },
+                },
             },
             "record_charges": {
                 "events": self.record_charge_events.load(Ordering::Relaxed),
@@ -177,9 +209,9 @@ impl NativeListArena {
         }
     }
 
-    fn record_list_set_copy(&self, bytes: usize) {
+    fn record_list_set_copy(&self, elements: usize, bytes: usize) {
         if let Some(profile) = &self.profile {
-            profile.record_list_set_copy(bytes);
+            profile.record_list_set_copy(elements, bytes);
         }
     }
 
@@ -2777,7 +2809,7 @@ impl Instance {
                         }
                         _ => unreachable!("list type checked above"),
                     };
-                    budget.record_list_set_copy(copy_bytes);
+                    budget.record_list_set_copy(len, copy_bytes);
                     if let Some(error) = value_limit_error(&list, &self.policy, instruction.span) {
                         return Err(error);
                     }
@@ -2837,7 +2869,7 @@ impl Instance {
                             }
                             Arc::make_mut(items)[index] = value;
                             if needs_copy {
-                                budget.record_list_set_copy(copy_bytes);
+                                budget.record_list_set_copy(len, copy_bytes);
                             } else {
                                 budget.record_list_set_in_place_update();
                             }
@@ -2858,7 +2890,7 @@ impl Instance {
                             }
                             Arc::make_mut(items)[index] = value;
                             if needs_copy {
-                                budget.record_list_set_copy(copy_bytes);
+                                budget.record_list_set_copy(len, copy_bytes);
                             } else {
                                 budget.record_list_set_in_place_update();
                             }
@@ -6556,9 +6588,9 @@ impl Budget {
         }
     }
 
-    fn record_list_set_copy(&self, bytes: usize) {
+    fn record_list_set_copy(&self, elements: usize, bytes: usize) {
         if let Some(profile) = &self.runtime_profile {
-            profile.record_list_set_copy(bytes);
+            profile.record_list_set_copy(elements, bytes);
         }
     }
 
@@ -6777,7 +6809,7 @@ unsafe extern "C" fn native_list_set(
             copied.inline[..list_len].copy_from_slice(source);
             copied.inline[index] = value.get().to_bits();
             copied.data = copied.inline.as_mut_ptr();
-            arena.record_list_set_copy(bytes);
+            arena.record_list_set_copy(list_len, bytes);
             arena.float_lists.push(copied);
             return (&mut **arena.float_lists.last_mut().unwrap() as *mut NativeFloatList).cast();
         }
@@ -6786,7 +6818,7 @@ unsafe extern "C" fn native_list_set(
         };
         let mut copied = storage.clone();
         copied[index] = value;
-        arena.record_list_set_copy(bytes);
+        arena.record_list_set_copy(list_len, bytes);
         let storage_id = arena.float_storage.len();
         arena.float_storage.push(copied);
         arena.float_lists.push(Box::new(NativeFloatList {
@@ -6843,7 +6875,7 @@ unsafe extern "C" fn native_list_set(
             copied.inline[..list_len].copy_from_slice(source);
             copied.inline[index] = value;
             copied.data = copied.inline.as_mut_ptr();
-            arena.record_list_set_copy(bytes);
+            arena.record_list_set_copy(list_len, bytes);
             arena.int_lists.push(copied);
             return (&mut **arena.int_lists.last_mut().unwrap() as *mut NativeIntList).cast();
         }
@@ -6852,7 +6884,7 @@ unsafe extern "C" fn native_list_set(
         };
         let mut copied = storage.clone();
         copied[index] = value;
-        arena.record_list_set_copy(bytes);
+        arena.record_list_set_copy(list_len, bytes);
         let storage_id = arena.int_storage.len();
         arena.int_storage.push(copied);
         arena.int_lists.push(Box::new(NativeIntList {
@@ -10747,5 +10779,35 @@ mod native_small_list_tests {
 
         assert!(invalid.is_null());
         assert_eq!(profile.to_json()["list_set"]["operations"], 0);
+    }
+}
+
+#[cfg(test)]
+mod runtime_profile_histogram_tests {
+    use super::RuntimeProfileCounters;
+
+    #[test]
+    fn copy_size_histogram_tracks_bucket_boundaries_and_sums_to_total() {
+        let profile = RuntimeProfileCounters::default();
+        for (elements, bytes) in [(0, 1), (8, 2), (9, 3), (32, 4), (33, 5), (128, 6), (129, 7)] {
+            profile.record_list_set_copy(elements, bytes);
+        }
+
+        let list_set = profile.to_json()["list_set"].clone();
+        let histogram = &list_set["copy_size_histogram"]["buckets"];
+        assert_eq!(histogram["0-8"]["copies"], 2);
+        assert_eq!(histogram["0-8"]["estimated_copy_bytes"], 3);
+        assert_eq!(histogram["9-32"]["copies"], 2);
+        assert_eq!(histogram["9-32"]["estimated_copy_bytes"], 7);
+        assert_eq!(histogram["33-128"]["copies"], 2);
+        assert_eq!(histogram["33-128"]["estimated_copy_bytes"], 11);
+        assert_eq!(histogram["129+"]["copies"], 1);
+        assert_eq!(histogram["129+"]["estimated_copy_bytes"], 7);
+
+        let total: u64 = ["0-8", "9-32", "33-128", "129+"]
+            .into_iter()
+            .map(|bucket| histogram[bucket]["copies"].as_u64().unwrap())
+            .sum();
+        assert_eq!(total, list_set["copy_on_write_copies"].as_u64().unwrap());
     }
 }

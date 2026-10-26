@@ -1,0 +1,438 @@
+{
+  "status": "prepared-for-independent-review",
+  "prompt_count": 108,
+  "prompts": [
+    {
+      "path": "evaluation/results/independent-v4/prompts/codex-product-information/01-support-sla-report-choice-1.md",
+      "sha256": "e067ffa0069b0f9af0f8a8b22d8d4eff6508e50293045f93cbf62fbad22aa172"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/codex-product-information/01-support-sla-report-choice-2.md",
+      "sha256": "d24f753460f26d48e440c6918b647dd94cfd61fd9156ef11b1ee877f96968071"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/codex-product-information/02-jsonl-retention-choice-1.md",
+      "sha256": "a9273b7fe9b8b6a5fedee9164e7083c10267c6b1ccdf7e12b35cc0fbeabd92ed"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/codex-product-information/02-jsonl-retention-choice-2.md",
+      "sha256": "b057f74bcc968bade0084d8c3b2666f4523c5cbad985adecf42327d6aaf9a37a"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/codex-product-information/03-release-notes-choice-1.md",
+      "sha256": "2b064bb5713841d527202edcca724df0a0abc635848f27dcdd7562ff7f81ad20"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/codex-product-information/03-release-notes-choice-2.md",
+      "sha256": "9b815812a36b1a93f4a3f8936bfc219987418ee1520024c049d2b22841130fb2"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/codex-product-information/04-calendar-conflict-report-choice-1.md",
+      "sha256": "d448f02c0c1184d46b9569da5da7a9b641eec44a7d39b37f9eb0625dba5ede2f"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/codex-product-information/04-calendar-conflict-report-choice-2.md",
+      "sha256": "80a32847772c2373cd8fb2c2509eec734fd0bb1d247353918e50e2b1c567cda4"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/codex-product-information/05-webhook-replay-choice-1.md",
+      "sha256": "f156c9b5ba164b0b6bd385200bf60b63730198f3f196b10e8d44d0506f5670c4"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/codex-product-information/05-webhook-replay-choice-2.md",
+      "sha256": "fff067a5eb0665fd3ea4cba4ceca77e4b7270f6b079983baf1cd5cc4b6563009"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/codex-product-information/06-service-health-digest-choice-1.md",
+      "sha256": "070a47c2ca871664822ef9508d40d1a5ac34590e7fa07a44affcbe22cf5a7bbb"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/codex-product-information/06-service-health-digest-choice-2.md",
+      "sha256": "580c9b087514c9e13a6a6afc4fedadc788dce1639c5917399ac4224e1be90c53"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/codex-product-information/07-config-migrator-choice-1.md",
+      "sha256": "074fa3749f59e063f0c4f3e049fa1fdc7045efe6a6d2c054a2999bf91c0f93a3"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/codex-product-information/07-config-migrator-choice-2.md",
+      "sha256": "5f723c7eca84fc340d4763bd2ad867488fc39d508b738660ad5aef6dc2f53b05"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/codex-product-information/08-documentation-link-index-choice-1.md",
+      "sha256": "2ed4e4181e83f78d545b6ecd3686b961fc11bea2482eac38e651ba94bbe105b3"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/codex-product-information/08-documentation-link-index-choice-2.md",
+      "sha256": "ff0b57ff609b6267d16ae2c6c1c4b1acfc1ed478f6ee7019b35cac14e87b16b6"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/codex-product-information/09-lockfile-auditor-choice-1.md",
+      "sha256": "866addddc32ca7d4198fc00376fd98f908813f6d31d7da2b282e5db2d960ce4a"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/codex-product-information/09-lockfile-auditor-choice-2.md",
+      "sha256": "10bdaab42e9192627a56475dbea8a7fe6dd1a7f1bf7b60b971b396e61fd35e01"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/codex-cold/01-support-sla-report-choice-1.md",
+      "sha256": "9138d413b8ca0de2e55bfab881a2960cf9a328781dfb3f296f2829397a86e386"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/codex-cold/01-support-sla-report-choice-2.md",
+      "sha256": "7f90c8f04faa7a60716c0c933f7fdcf7bbe68d872147d154fd6921b9db7bfa7a"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/codex-cold/02-jsonl-retention-choice-1.md",
+      "sha256": "0513ed65552e4b0c3ae789e733363538a83184b6c9fbdfdb014b7002e1cb1068"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/codex-cold/02-jsonl-retention-choice-2.md",
+      "sha256": "12b7fb30f072f9cbb5df986784d2ead821272979e4c63f16396767973730a8e8"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/codex-cold/03-release-notes-choice-1.md",
+      "sha256": "1e43b6fbe1fe9344ceeff38e7483e05200c2d0bf946b599358923ea0082ad883"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/codex-cold/03-release-notes-choice-2.md",
+      "sha256": "9ba1d3ebf8e9fb9406d288d02915fc303421a8bb9d5f8f880f2f5d902a95e98a"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/codex-cold/04-calendar-conflict-report-choice-1.md",
+      "sha256": "845e6826279d42ef3b89cd1d07a049b8060147c64f41f8aa4f82679aa94e7dbc"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/codex-cold/04-calendar-conflict-report-choice-2.md",
+      "sha256": "8bf034f24d7d9375ffe3171a962717f56e243e38ec91ae304142198747535b68"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/codex-cold/05-webhook-replay-choice-1.md",
+      "sha256": "42c4e68211d5ac9a084c67b6a7457b817418cf0510d4b5b12488260efae4ee4a"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/codex-cold/05-webhook-replay-choice-2.md",
+      "sha256": "127a3b59c9f1a3f9eb6e826c6581012340b8157496cbba1d62167a5e28728f11"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/codex-cold/06-service-health-digest-choice-1.md",
+      "sha256": "0173dd0056904b64c3f694aff3112b061eb5f451f468f57b13c326e219c7f93e"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/codex-cold/06-service-health-digest-choice-2.md",
+      "sha256": "88b639d18b080acb2a2e09e1f0330898e091e8dbde8132cb108b00a81d92e94d"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/codex-cold/07-config-migrator-choice-1.md",
+      "sha256": "6a7b02fe4967d57b420eec4563b3a0d5827c17b18c5a2e1e703ed4d40bb765c2"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/codex-cold/07-config-migrator-choice-2.md",
+      "sha256": "5626e74e2d480b9b6240126bff7e80b474031aa61881ee05d99bf9183aaa40e2"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/codex-cold/08-documentation-link-index-choice-1.md",
+      "sha256": "04ac2c264bbe0352f48fff03018cbbb1ac6b47f8d66edb77243a40583305f638"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/codex-cold/08-documentation-link-index-choice-2.md",
+      "sha256": "7a386a4b060a31ab7b489527e103b02c40e11a66a9a909e6d1c1c90e1b1fd4e5"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/codex-cold/09-lockfile-auditor-choice-1.md",
+      "sha256": "9ffd7248054c144744b70fbc27a60c54542238c0c58b10276feaaac3b91e809c"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/codex-cold/09-lockfile-auditor-choice-2.md",
+      "sha256": "f0fbcfe285028c88411fa6a36888b7389295c7187d19a32f39f2cc5841ca6315"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/claude-product-information/01-support-sla-report-choice-1.md",
+      "sha256": "1d3d5dbe4673e9ab22b42afee6dda3910411dcbab4bd11f8aa47872f6dbc24d3"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/claude-product-information/01-support-sla-report-choice-2.md",
+      "sha256": "89545d7c9efc1279b22cacbd1ff005a0b24f9cce6bd1b695f0830277aad717b8"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/claude-product-information/02-jsonl-retention-choice-1.md",
+      "sha256": "31dedd70fac788a24e7486ca4d502168f893389afcefa8f1faad0211f0eb93a6"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/claude-product-information/02-jsonl-retention-choice-2.md",
+      "sha256": "c5fb9c5549203dff9d8e87b913897dcf789823847f13be3b4a6dc567b947b3c2"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/claude-product-information/03-release-notes-choice-1.md",
+      "sha256": "a26c6d86fb7c8998c8f96874e1d1de92e1333be1eef7601ea9092a2016487975"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/claude-product-information/03-release-notes-choice-2.md",
+      "sha256": "fc7f91673112110ab2d61608756b6d73e5bbc29c5016e762815b30886a21cc2e"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/claude-product-information/04-calendar-conflict-report-choice-1.md",
+      "sha256": "96aa4493936d10b2a391a528a92f5196fc8da50b9026db2548fc215ee75f36df"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/claude-product-information/04-calendar-conflict-report-choice-2.md",
+      "sha256": "6d831f4cedd3a9831ea6c2944e9ff9a42be97fb1b9299cf3e09bf94dc3f8a881"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/claude-product-information/05-webhook-replay-choice-1.md",
+      "sha256": "d3aa69183a78892a857d8b835cae3ba0ea00e8024883ecbbc123c84a04d24616"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/claude-product-information/05-webhook-replay-choice-2.md",
+      "sha256": "82910ecf7de6276aeaa878ea1e1d0279679aaf8f5ba6b6f1c5c2859b9daf86d1"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/claude-product-information/06-service-health-digest-choice-1.md",
+      "sha256": "4cdc091467f5bb106b302187b32350b492d939cb5567b991736db8455cc70463"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/claude-product-information/06-service-health-digest-choice-2.md",
+      "sha256": "e2c8592a97895f301de38bd9c1bc240597063700836db0404464c53f9c62fe68"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/claude-product-information/07-config-migrator-choice-1.md",
+      "sha256": "d0ec079b736b811aff91cc240b8b7a10a3e47b02aee1081bab063fe7451c10e4"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/claude-product-information/07-config-migrator-choice-2.md",
+      "sha256": "ac5ef6f40ef1242d832393de66d9c2b43f867d94893182a8c8181e8e327f32bb"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/claude-product-information/08-documentation-link-index-choice-1.md",
+      "sha256": "85c0daecbd4ca4e6d9f3ecff518e985f513cac1d84c9ba43f345fe66e4399aa2"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/claude-product-information/08-documentation-link-index-choice-2.md",
+      "sha256": "1b54bc0919fbc7b115a74e5ded93d360765f0beaa6e2904edf27a8736afb4817"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/claude-product-information/09-lockfile-auditor-choice-1.md",
+      "sha256": "aab29cd982c15c0a9f446e8d728555956820a97ee92612f44017c17e7070d09c"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/claude-product-information/09-lockfile-auditor-choice-2.md",
+      "sha256": "a9d450f9f0ed06dbb49ff440472ffb4f5c7b670a3ba8e6f54f873200fbf6e234"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/claude-cold/01-support-sla-report-choice-1.md",
+      "sha256": "9372070974bd5920faf09186bc843519d2122ca893f21338dfebcdc8c0f32bbb"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/claude-cold/01-support-sla-report-choice-2.md",
+      "sha256": "9314f5dead21f99d3411d5ca68e3378c2b8485b25ad91a54cebb12e4651dd966"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/claude-cold/02-jsonl-retention-choice-1.md",
+      "sha256": "5cdb89eec87c4cfca2b301b304bf7e601ed045644e8fffce44ba71b39f360d25"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/claude-cold/02-jsonl-retention-choice-2.md",
+      "sha256": "4e4a683cff0fbaf21f70acacedf62fa38bde6552c385178b6658dd6d80c777d1"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/claude-cold/03-release-notes-choice-1.md",
+      "sha256": "69604bab6f1610bee0c88cc823d2ce4db3f37ce1243ea280bc427882f0534dd3"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/claude-cold/03-release-notes-choice-2.md",
+      "sha256": "e4a95ffbd409c54c99fbe74a4fdcc99263a4bcb83a655e7c6cda95e9d14d1df3"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/claude-cold/04-calendar-conflict-report-choice-1.md",
+      "sha256": "53691635340ca5c292b7f72150832836a343c85dbe619d0768ca1ecaf9054d78"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/claude-cold/04-calendar-conflict-report-choice-2.md",
+      "sha256": "7ccaa535d85657b3ec93e6d6e714ea6f63660451e619b8f6555612ac346e9456"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/claude-cold/05-webhook-replay-choice-1.md",
+      "sha256": "2b4b6dac06d5baf3efb732d0f4264b0230af12e38d9ba64d01e1cb2a7b2cc0c0"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/claude-cold/05-webhook-replay-choice-2.md",
+      "sha256": "6bace160bfbc868257a8492931ac3e6f0aa92c62405683f1a7d40c7cdd7060c1"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/claude-cold/06-service-health-digest-choice-1.md",
+      "sha256": "e2460635b4863f2fecdb23a23bf04706984e89db4ef3a9fd8c89b96298df0e6b"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/claude-cold/06-service-health-digest-choice-2.md",
+      "sha256": "58978625f06b1874d0c571164f168389fdf7246f0d5f56d81706c086a034fd1a"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/claude-cold/07-config-migrator-choice-1.md",
+      "sha256": "bc2a035ade77796f503644fa68a285ad0c7e13df1e99c8311493c2952095c8b5"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/claude-cold/07-config-migrator-choice-2.md",
+      "sha256": "85a616b1571b49a8f18bdc6c51eb63266703e17d932c99848a1bc6091c9348e0"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/claude-cold/08-documentation-link-index-choice-1.md",
+      "sha256": "0150915903f30340f9f759b88a40ec8b51537ebfd02c1e12199e371f608a6194"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/claude-cold/08-documentation-link-index-choice-2.md",
+      "sha256": "4a89ac9cb99d59234bf636c9462ae48b83fd45558c122ef52ed16d1a5f092faf"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/claude-cold/09-lockfile-auditor-choice-1.md",
+      "sha256": "3a25824b6f632ee26a580b003aaafe1d5edd619c0dd99944e2a38d06c25aca3a"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/claude-cold/09-lockfile-auditor-choice-2.md",
+      "sha256": "f20ca5426ec9924fe0370364a259396cf8b518b19010863bb071f25dc8c76087"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/gemini-product-information/01-support-sla-report-choice-1.md",
+      "sha256": "1686eff5a71ceb5567f69b66ca79e74a7a6914aeeeaa2c03c2379fcf713708f9"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/gemini-product-information/01-support-sla-report-choice-2.md",
+      "sha256": "b7b7d9989635414d502f5f8126db557e2c043ba6843ac6b00d5ff2651085da2e"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/gemini-product-information/02-jsonl-retention-choice-1.md",
+      "sha256": "79188cd188c435b038fe9a85231aab1a0a7de584097abc32e4d90ee013af8476"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/gemini-product-information/02-jsonl-retention-choice-2.md",
+      "sha256": "54c2a3bf5aa47dfb7e036ea8dddfae22aff584473cece5342dd7849839664289"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/gemini-product-information/03-release-notes-choice-1.md",
+      "sha256": "2aecdc7065ced48cd7f8a2a5fe7325abf4ff0016b6dbe724f5a9cc5a2de5de4e"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/gemini-product-information/03-release-notes-choice-2.md",
+      "sha256": "8dfef4905c7097c0b71a54d21146c43f0d3d0417dd16e85137b5428019598b98"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/gemini-product-information/04-calendar-conflict-report-choice-1.md",
+      "sha256": "66c5b6a73ee28641a32126937f2836c6c2267c15d5e4a53f7879fe8f1d02a7cc"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/gemini-product-information/04-calendar-conflict-report-choice-2.md",
+      "sha256": "974b8e653b83d65d8f729169b23aef37301cc6c64e64e4af9fe98a6f7fcfc554"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/gemini-product-information/05-webhook-replay-choice-1.md",
+      "sha256": "1b2a098f27eab421e506c64cb5143544485238ecf4c006758f20aee8f5197b94"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/gemini-product-information/05-webhook-replay-choice-2.md",
+      "sha256": "59bce72d24a451d920b6d7ef678f5f6c3fcc62a4f245103594edeac171b90e8f"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/gemini-product-information/06-service-health-digest-choice-1.md",
+      "sha256": "a1a2240a8c1aa50e5270133978a2644373f144ddc935cf6ce90a091eddf45b89"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/gemini-product-information/06-service-health-digest-choice-2.md",
+      "sha256": "2b740c5a81ed595eb34c707c61a5f27b8498b8cd2b0abc9d38e25e9de830a885"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/gemini-product-information/07-config-migrator-choice-1.md",
+      "sha256": "c043694142527a2afc43f4d6289a683e7152bf1ec10e89acfe18c8f8ce7d6d86"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/gemini-product-information/07-config-migrator-choice-2.md",
+      "sha256": "f018f1e4a7517431fdc9603daf666f64b101020d8abbe0cf31cb65a15bf968bc"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/gemini-product-information/08-documentation-link-index-choice-1.md",
+      "sha256": "7cd139c4f91c157c86d14323800bdc392ea210d10140156dd71c5b67af727746"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/gemini-product-information/08-documentation-link-index-choice-2.md",
+      "sha256": "790a7ebcad2f8e96e779984247330971b3e27049bd9bc04e519e1b207cb886da"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/gemini-product-information/09-lockfile-auditor-choice-1.md",
+      "sha256": "2cf960bf4d9ce4be5957b5d9528d2fc59af4a61b9052d9da2979cde451a9bac5"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/gemini-product-information/09-lockfile-auditor-choice-2.md",
+      "sha256": "4ecffe4089a945d1123b288dd7b5d012b6c0e92e7d19d35c9d87790e18e0948f"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/gemini-cold/01-support-sla-report-choice-1.md",
+      "sha256": "662795137961af3e94906039488c0ba145e787ba625e7298cad81d8262f7678a"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/gemini-cold/01-support-sla-report-choice-2.md",
+      "sha256": "ade2fda82249cb04094576fd9de84054ee2c03d4c0321139639eae266e2bea47"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/gemini-cold/02-jsonl-retention-choice-1.md",
+      "sha256": "4ebacc1d06b88a9134dd341048c97d72a9ac908b7ed21250874823df1902311a"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/gemini-cold/02-jsonl-retention-choice-2.md",
+      "sha256": "609f5376eaf5ba592f21dea64bbc1c2e1cd9ec6c29a2a87d02d34d7fdd196c19"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/gemini-cold/03-release-notes-choice-1.md",
+      "sha256": "35cd656b2451cf42e0dbca435087f5d0d98d6b07c415369924dc5beb4e9e319d"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/gemini-cold/03-release-notes-choice-2.md",
+      "sha256": "0475368f9eadc5a240ee412e44e3f15096fe8e99ed05da39115cfc95eba03d75"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/gemini-cold/04-calendar-conflict-report-choice-1.md",
+      "sha256": "f61628f90e953ca21f922285f887c933b1652b86bbe6c7028b00bd96742e0735"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/gemini-cold/04-calendar-conflict-report-choice-2.md",
+      "sha256": "326148bc668ce70d67481b8535a655adc8a17cd57baa2fb732c523685355a2a1"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/gemini-cold/05-webhook-replay-choice-1.md",
+      "sha256": "407a9d010930d41ab317102088858a6ab1c3fea84951c300a576b75bedf0cf8e"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/gemini-cold/05-webhook-replay-choice-2.md",
+      "sha256": "e93b8f679a9a1aba760abd1da827940fd3a81ec5f55eb74ca0bea138fef945ec"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/gemini-cold/06-service-health-digest-choice-1.md",
+      "sha256": "d6e190db4ef6572427f34a2fe3f59732094e1c1db7cee84d1e2ba2ba34029f72"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/gemini-cold/06-service-health-digest-choice-2.md",
+      "sha256": "455c91ab95d9429c6e5223146ceb1f2a4e1fb99e68535a6934bb370e40d9d4c6"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/gemini-cold/07-config-migrator-choice-1.md",
+      "sha256": "8de750a8ff0009a4446d6e963a9c50c52cc43e4ae82b2d4bc9834a7de55c0a09"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/gemini-cold/07-config-migrator-choice-2.md",
+      "sha256": "65c11997681686bf08f102a39e89358b7f152d33143672ca9a03a8bb7d14ba88"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/gemini-cold/08-documentation-link-index-choice-1.md",
+      "sha256": "da40d2a385f99a74f24d1a5e82be9bb8708741e415fd93babebe79087723a250"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/gemini-cold/08-documentation-link-index-choice-2.md",
+      "sha256": "cbe3d5c52398b7cea8a195dbc44cc09f67ea1e70a39dad70fb1f6615f095cd36"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/gemini-cold/09-lockfile-auditor-choice-1.md",
+      "sha256": "48ca41719a55e8c5643192dd969c2faf2cdfe54dabffccd96f4d98edde3c9171"
+    },
+    {
+      "path": "evaluation/results/independent-v4/prompts/gemini-cold/09-lockfile-auditor-choice-2.md",
+      "sha256": "e282bb9fd8d95642f71616f6eac5e8c57ab6f7d9b50426a1ff9d99b59e04e1d3"
+    }
+  ]
+}

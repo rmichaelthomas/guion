@@ -4,6 +4,7 @@ use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use guion_compiler::{compile, compile_project, Diagnostic};
+use serde_json::Value;
 
 struct TempProject(PathBuf);
 
@@ -236,6 +237,117 @@ fn rejects_the_current_type_and_control_flow_failures_with_stable_codes() {
             "{label}"
         );
         assert!(error.span.line > 0, "{label} must identify a source line");
+    }
+}
+
+#[test]
+fn python_syntax_recovery_cases_match_bootstrap_and_self_hosted_compilers() {
+    let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let case_file = repository.join("language/conformance/python-recovery-cases.json");
+    let corpus: Value =
+        serde_json::from_slice(&fs::read(&case_file).expect("read recovery corpus"))
+            .expect("parse recovery corpus");
+    assert_eq!(corpus["schema_version"], 1);
+    let cases = corpus["cases"].as_array().expect("recovery cases");
+    assert_eq!(cases.len(), 11);
+
+    let binary = PathBuf::from(env!("CARGO_BIN_EXE_guion"));
+    for case in cases {
+        let id = case["id"].as_str().expect("case ID");
+        let project = TempProject::new();
+        project.write("helpers.gu", "pub fn answer() -> Int:\n    return 42\n");
+        project.write("main.gu", case["source"].as_str().expect("source"));
+
+        let bootstrap = project.compile();
+        let expected_code = case["diagnostic_code"].as_str();
+        match expected_code {
+            Some(expected_code) => {
+                let error =
+                    bootstrap.expect_err("Python syntax must receive a recovery diagnostic");
+                assert_eq!(error.code, expected_code, "{id}: {error:?}");
+                let expected_message = case["message_contains"]
+                    .as_str()
+                    .expect("diagnostic message substring");
+                assert!(
+                    error.message.contains(expected_message),
+                    "{id}: expected message containing {expected_message:?}, got {:?}",
+                    error.message
+                );
+
+                let output = Command::new(&binary)
+                    .args(["run", "--json", "--file-root"])
+                    .arg(&project.0)
+                    .arg(project.0.join("compiler.gub"))
+                    .arg("main.gu")
+                    .current_dir(&project.0)
+                    .output()
+                    .expect("run self-hosted compiler");
+                assert!(
+                    output.status.success(),
+                    "{id}: {}",
+                    String::from_utf8_lossy(&output.stderr)
+                );
+                let report: Value = serde_json::from_slice(&output.stdout)
+                    .unwrap_or_else(|error| panic!("{id}: invalid self-host report: {error}"));
+                assert_eq!(report["exit_code"], 0, "{id}: {report}");
+                let compiler_output = report["program_stdout"].as_str().expect("compiler output");
+                let compiler_result: Value =
+                    serde_json::from_str(compiler_output).unwrap_or_else(|error| {
+                        panic!("{id}: invalid compiler result: {error}: {compiler_output}")
+                    });
+                let diagnostic = compiler_result
+                    .get("diagnostic")
+                    .unwrap_or_else(|| panic!("{id}: no self-host diagnostic: {compiler_result}"));
+                assert_eq!(diagnostic["code"], expected_code, "{id}: {diagnostic}");
+                assert!(
+                    diagnostic["message"].as_str().unwrap_or_default().contains(expected_message),
+                    "{id}: expected self-host message containing {expected_message:?}, got {diagnostic}"
+                );
+            }
+            None => {
+                bootstrap.expect("None is already the native empty Option constructor");
+                let output = Command::new(&binary)
+                    .args(["run", "--json", "--file-root"])
+                    .arg(&project.0)
+                    .arg(project.0.join("compiler.gub"))
+                    .arg("main.gu")
+                    .current_dir(&project.0)
+                    .output()
+                    .expect("run self-hosted compiler");
+                assert!(
+                    output.status.success(),
+                    "{id}: {}",
+                    String::from_utf8_lossy(&output.stderr)
+                );
+                let report: Value =
+                    serde_json::from_slice(&output.stdout).expect("self-host report JSON");
+                let compiler_output = report["program_stdout"].as_str().expect("compiler output");
+                let compiler_result: Value =
+                    serde_json::from_str(compiler_output).expect("compiler result JSON");
+                assert!(
+                    compiler_result.get("diagnostic").is_none(),
+                    "{id}: {compiler_result}"
+                );
+            }
+        }
+
+        if let Some(replacement) = case["replacement"].as_str() {
+            project.write("main.gu", replacement);
+            project.compile().unwrap_or_else(|error| {
+                panic!("{id}: documented replacement does not compile: {error:?}")
+            });
+            let checked = Command::new(&binary)
+                .args(["check", "main.gu"])
+                .current_dir(&project.0)
+                .output()
+                .expect("run guion check on documented replacement");
+            assert!(
+                checked.status.success(),
+                "{id}: replacement failed `guion check`: {}{}",
+                String::from_utf8_lossy(&checked.stdout),
+                String::from_utf8_lossy(&checked.stderr)
+            );
+        }
     }
 }
 

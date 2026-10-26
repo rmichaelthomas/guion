@@ -25,10 +25,10 @@
           "checks_passed": 3,
           "checks_total": 3,
           "failures": [],
-          "elapsed_seconds": 0.115253
+          "elapsed_seconds": 0.024985
         }
       ],
-      "elapsed_seconds": 0.117721,
+      "elapsed_seconds": 0.02594,
       "http_fixtures": {},
       "stdout": "",
       "stderr": "",
@@ -47,10 +47,10 @@
           "checks_passed": 3,
           "checks_total": 3,
           "failures": [],
-          "elapsed_seconds": 0.091921
+          "elapsed_seconds": 0.025471
         }
       ],
-      "elapsed_seconds": 0.093969,
+      "elapsed_seconds": 0.026414,
       "http_fixtures": {},
       "stdout": "",
       "stderr": "",

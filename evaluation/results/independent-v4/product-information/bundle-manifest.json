@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "bundle_id": "guion-vs-python-choice-safe-v4",
+  "hash_algorithm": "sha256",
+  "digest_definition": "SHA-256 of compact, sorted-key UTF-8 JSON for the artifacts array.",
+  "artifacts": [
+    {
+      "path": "README.md",
+      "sha256": "ab4a09b22a529fa4040efd4af4c6dfd7cf4bd2d2ec344856a0defb1e92b177a1",
+      "language": "veritas"
+    },
+    {
+      "path": "builtin-signatures.json",
+      "sha256": "b6f5ca9f13ede29c8511de1318845fdd0fce2503ef19f4b91b3aa36697df2bde",
+      "language": "veritas"
+    },
+    {
+      "path": "compatibility-and-migrations.md",
+      "sha256": "cd9e3123f81b0bfcd38cda8a7ba6233b56d02d03219ea96d42697a7f949e746b",
+      "language": "veritas"
+    },
+    {
+      "path": "guion-profile.md",
+      "sha256": "8568a8d6dce1f41a1317201666b32c378779e7da0f1c82898eaa2f40b3502946",
+      "language": "veritas"
+    },
+    {
+      "path": "guion-reference.md",
+      "sha256": "e2f379aced380a12e71fc37b71ee7e4847e730adf16f767d3709aa3de35801b0",
+      "language": "veritas"
+    },
+    {
+      "path": "host-api.md",
+      "sha256": "4e1d3333cc5c62f442c813f2b3c4f775d92e3679079b6ed600d4462e96c259b2",
+      "language": "veritas"
+    },
+    {
+      "path": "language-spec.md",
+      "sha256": "3e00711e591f01c1c52086843d20c499f542eb1102ba11b275d748c2a9f5498d",
+      "language": "veritas"
+    },
+    {
+      "path": "python-profile.md",
+      "sha256": "12d10074375b1742f843a5c9ec3f0d2ac67c44e4358f85d472e58a293eb27bf0",
+      "language": "python"
+    },
+    {
+      "path": "setup-guide.md",
+      "sha256": "56ea8bdc717a22f97c83d658127a70389adad9f797c8d9399d3a41fe3ac55daa",
+      "language": "veritas"
+    }
+  ],
+  "bundle_sha256": "16ffe49108785a222a033decb416ac2d129a017949ce4e3b7d99f16f8808bc6a",
+  "contains_benchmarks_or_comparative_outcomes": false,
+  "machine_label_mapping": {
+    "display": "Guion",
+    "legacy_protocol_value": "veritas"
+  }
+}

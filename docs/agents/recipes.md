@@ -23,10 +23,10 @@ The program reads the named file, parses its JSON array, reports the row count, 
 Source: [`http_request.gu`](examples/http_request.gu).
 
 ```sh
-guion run --allow-http-host api.example.org docs/agents/examples/http_request.gu https://api.example.org/health
+cargo run --locked -p guion-cli -- run --allow-http-host api.example.org docs/agents/examples/http_request.gu https://api.example.org/health
 ```
 
-Replace the example hostname and URL with the service you intend to call. The hostname grant must exactly match the URL host. The program prints the response status and response body on separate lines. Those values depend on the endpoint; errors go to stderr. The recipe uses a text request/response, and network access remains denied if the grant is omitted.
+Replace the example hostname and URL with the service you intend to call. The hostname grant must exactly match the URL host. `http_request_bytes` returns a typed `HttpResponse` with status, headers, and the exact response bytes. The program prints the status and body length in bytes; Guion does not currently provide a `Bytes`-to-`Text` conversion. Errors go to stderr, and network access remains denied if the grant is omitted.
 
 ## Read TOML and write a SQLite record
 
@@ -43,7 +43,7 @@ Expected output:
 Guion agents
 ```
 
-The program reads its adjacent TOML file, creates or opens `agent-recipes.sqlite3` under the extra data root, inserts the configured name in a transaction, reads the latest row, and closes the database. Each run inserts another row. The database is outside the source checkout because writes go to the last explicitly granted root.
+The program reads its adjacent TOML file with `fs_read_text`, creates or opens `agent-recipes.sqlite3` under the extra data root, inserts the configured name in a transaction, reads the latest row, and closes the database. Each run inserts another row. CLI reads search the project root before extra `--file-root` roots; writes resolve under the last granted root. With this command, the final root is `/tmp/guion-agent-data`; without an extra root, the project root is used.
 
 The recipe uses `?` to return service errors to `main`, which prints the stable error code and message to stderr and exits nonzero. If a failure occurs after SQLite opens, the runtime closes the invocation-owned handles and rolls back the still-open transaction when the invocation ends.
 

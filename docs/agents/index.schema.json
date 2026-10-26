@@ -35,6 +35,7 @@
       "type": "object",
       "required": [
         "start_here",
+        "guion_reference",
         "recipes",
         "language_contract",
         "builtin_signatures",
@@ -187,6 +188,39 @@
             "type": "array",
             "items": {
               "type": "string"
+            }
+          },
+          "verification_cases": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "arguments",
+                "stdout",
+                "exit_code"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "arguments": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "stdout": {
+                  "type": "string"
+                },
+                "exit_code": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 255
+                }
+              },
+              "additionalProperties": false
             }
           }
         },

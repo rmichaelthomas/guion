@@ -39,3 +39,47 @@ jobs:
 
       - name: Check completion report schemas only
         run: cargo xtask closeout --check-schema
+
+      - name: Check generated agent reference
+        run: cargo xtask agent-reference --check
+
+      - name: Validate switch-condition evidence ledger
+        run: python3 evaluation/agent-choice/validate_switch_conditions.py
+
+  debian-x86_64-release-target:
+    name: Debian 12 x86_64 release-target matrix
+    runs-on: ubuntu-24.04
+    container:
+      image: debian:12
+      options: --user root
+    timeout-minutes: 150
+    steps:
+      - name: Install Debian build prerequisites
+        run: |
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            binutils build-essential ca-certificates cmake curl git pkg-config python3 tar
+
+      - name: Check out source
+        uses: actions/checkout@v7.0.1
+
+      - name: Install the project Rust toolchain and fetch locked dependencies
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain 1.97.1 --profile minimal --component rustfmt --component clippy
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+          "$HOME/.cargo/bin/rustup" target add x86_64-unknown-linux-gnu --toolchain 1.97.1
+          "$HOME/.cargo/bin/rustc" --version
+          "$HOME/.cargo/bin/cargo" --version
+          "$HOME/.cargo/bin/cargo" fetch --locked
+
+      - name: Run the Debian x86_64 release-target matrix
+        run: scripts/verify-debian-x86_64-target.sh
+
+      - name: Retain target reports, application evidence, and logs
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: guion-debian-x86_64-release-evidence-${{ github.run_id }}
+          path: target/perf-session/debian-x86_64-evidence/
+          if-no-files-found: warn
+          retention-days: 90

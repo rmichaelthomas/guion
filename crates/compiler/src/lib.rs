@@ -148,7 +148,19 @@ fn lex(source: &str, source_id: u32) -> Result<Vec<Token>, Diagnostic> {
             let start = i;
             let kind;
             let text;
-            if c.is_ascii_alphabetic() || c == '_' {
+            if let Some(prefix_len) = python_fstring_prefix(bytes, i) {
+                return Err(diagnostic(
+                    "E_PYTHON_FSTRING",
+                    "Python f-strings are not supported; use text concatenation with `+` for `Text` values. General numeric interpolation has no built-in text formatter yet.",
+                    Span {
+                        source_id,
+                        start: offset + i,
+                        end: offset + i + prefix_len,
+                        line: row + 1,
+                        column: line[..i].chars().count() + 1,
+                    },
+                ));
+            } else if c.is_ascii_alphabetic() || c == '_' {
                 i += 1;
                 while i < bytes.len()
                     && ((bytes[i] as char).is_ascii_alphanumeric() || bytes[i] == b'_')
@@ -400,6 +412,123 @@ fn lex(source: &str, source_id: u32) -> Result<Vec<Token>, Diagnostic> {
         },
     });
     Ok(tokens)
+}
+
+fn python_fstring_prefix(bytes: &[u8], start: usize) -> Option<usize> {
+    let first = bytes.get(start).copied()?;
+    let has_quote = |index: usize| {
+        bytes
+            .get(index)
+            .is_some_and(|byte| *byte == b'\'' || *byte == b'"')
+    };
+    if matches!(first, b'f' | b'F') && has_quote(start + 1) {
+        return Some(1);
+    }
+    if matches!(first, b'r' | b'R')
+        && bytes
+            .get(start + 1)
+            .is_some_and(|byte| *byte == b'f' || *byte == b'F')
+        && has_quote(start + 2)
+    {
+        return Some(2);
+    }
+    if matches!(first, b'f' | b'F')
+        && bytes
+            .get(start + 1)
+            .is_some_and(|byte| *byte == b'r' || *byte == b'R')
+        && has_quote(start + 2)
+    {
+        return Some(2);
+    }
+    None
+}
+
+fn starts_statement(tokens: &[Token], index: usize) -> bool {
+    tokens[..index]
+        .iter()
+        .rev()
+        .find(|token| !matches!(token.kind, Kind::Indent | Kind::Dedent))
+        .is_none_or(|token| token.kind == Kind::Newline)
+}
+
+fn python_recovery_diagnostic(tokens: &[Token]) -> Option<Diagnostic> {
+    for (index, token) in tokens.iter().enumerate() {
+        if token.kind != Kind::Name {
+            continue;
+        }
+        let (code, message) = match token.text.as_str() {
+            "def" if starts_statement(tokens, index) => (
+                "E_PYTHON_DEF",
+                "Python `def` is not Guion syntax; use `fn` declarations such as `fn name(parameters) -> Type:` and indent the body.",
+            ),
+            "elif" if starts_statement(tokens, index) => (
+                "E_PYTHON_ELIF",
+                "Python `elif` is not Guion syntax; write a nested `if` inside `else`.",
+            ),
+            "class" if starts_statement(tokens, index) => (
+                "E_PYTHON_CLASS",
+                "Python classes are not Guion syntax; use `record` for data fields and top-level `fn` functions for behavior. Inheritance is not supported.",
+            ),
+            "try" | "except" if starts_statement(tokens, index) => (
+                "E_PYTHON_TRY",
+                "Python `try`/`except` is not Guion syntax; return `Result[T, E]` and use an exhaustive `match` with `Ok` and `Err` arms.",
+            ),
+            "True" | "False" => (
+                "E_PYTHON_BOOL",
+                "Python boolean spellings differ; use Guion `true` and `false`.",
+            ),
+            "from" if starts_statement(tokens, index) => (
+                "E_PYTHON_IMPORT",
+                "Guion imports modules by quoted relative path; selective imports are not supported. Use `import \"relative-path.gu\"` and call exported names directly.",
+            ),
+            "import"
+                if starts_statement(tokens, index)
+                    && tokens.get(index + 1).is_some_and(|next| next.kind == Kind::Name) =>
+            {
+                (
+                    "E_PYTHON_IMPORT",
+                    "Guion imports modules by quoted relative path; use `import \"relative-path.gu\"` and call exported names directly.",
+                )
+            }
+            _ => continue,
+        };
+        return Some(diagnostic(code, message, token.span));
+    }
+
+    for window in tokens.windows(5) {
+        if window[0].kind == Kind::Name
+            && window[0].text == "for"
+            && window[1].kind == Kind::Name
+            && window[2].kind == Kind::Name
+            && window[2].text == "in"
+            && window[3].kind == Kind::Name
+            && window[3].text == "range"
+            && window[4].kind == Kind::Symbol
+            && window[4].text == "("
+        {
+            return Some(diagnostic(
+                "E_PYTHON_RANGE",
+                "Python `range()` is not a built-in; use `for i in [0, 1, 2]` for a fixed sequence, or a `while` loop with an explicit counter.",
+                window[3].span,
+            ));
+        }
+    }
+
+    let mut bracket_depth = 0usize;
+    for token in tokens {
+        if token.kind == Kind::Symbol && token.text == "[" {
+            bracket_depth += 1;
+        } else if token.kind == Kind::Symbol && token.text == "]" {
+            bracket_depth = bracket_depth.saturating_sub(1);
+        } else if bracket_depth > 0 && token.kind == Kind::Name && token.text == "for" {
+            return Some(diagnostic(
+                "E_PYTHON_COMPREHENSION",
+                "Python list comprehensions are not supported; use an explicit loop with `list_push` to build a list.",
+                token.span,
+            ));
+        }
+    }
+    None
 }
 
 #[derive(Clone, Debug)]
@@ -2655,6 +2784,9 @@ fn module_scope(program: &Program) -> ModuleScope {
 
 fn parse_program(source: &str, source_id: u32) -> Result<Program, Diagnostic> {
     let tokens = lex(source, source_id)?;
+    if let Some(error) = python_recovery_diagnostic(&tokens) {
+        return Err(error);
+    }
     Parser {
         tokens,
         at: 0,

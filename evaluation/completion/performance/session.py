@@ -634,6 +634,36 @@ def main(argv: list[str] | None = None) -> int:
         type=Path,
         default=ROOT / "evaluation/completion/results/runtime-efficiency/2026-10-26-richards-profile.json",
     )
+    richards_followup_parser = subparsers.add_parser("richards-followup")
+    richards_followup_parser.add_argument("--baseline-binary", type=Path, required=True)
+    richards_followup_parser.add_argument("--candidate-binary", type=Path, required=True)
+    richards_followup_parser.add_argument("--baseline-revision", required=True)
+    richards_followup_parser.add_argument("--candidate-revision", required=True)
+    richards_followup_parser.add_argument("--scratch-dir", type=Path, default=SCRATCH / "richards-followup")
+    richards_followup_parser.add_argument(
+        "--output",
+        type=Path,
+        default=ROOT / "evaluation/completion/results/runtime-efficiency/2026-10-26-richards-followup.json",
+    )
+    richards_memory_parser = subparsers.add_parser("richards-memory")
+    richards_memory_parser.add_argument("--baseline-binary", type=Path, required=True)
+    richards_memory_parser.add_argument("--candidate-binary", type=Path, required=True)
+    richards_memory_parser.add_argument("--baseline-revision", required=True)
+    richards_memory_parser.add_argument("--candidate-revision", required=True)
+    richards_memory_parser.add_argument("--scratch-dir", type=Path, default=SCRATCH / "richards-memory")
+    richards_memory_parser.add_argument(
+        "--output",
+        type=Path,
+        default=ROOT / "evaluation/completion/results/runtime-efficiency/2026-10-26-richards-followup.json",
+    )
+    richards_sample_parser = subparsers.add_parser("richards-sample")
+    richards_sample_parser.add_argument("--binary", type=Path, required=True)
+    richards_sample_parser.add_argument("--scratch-dir", type=Path, default=SCRATCH / "richards-sample")
+    richards_sample_parser.add_argument(
+        "--output",
+        type=Path,
+        default=ROOT / "evaluation/completion/results/runtime-efficiency/2026-10-26-richards-profile.json",
+    )
     args = parser.parse_args(argv)
     try:
         if args.command == "preflight":
@@ -654,6 +684,85 @@ def main(argv: list[str] | None = None) -> int:
             output.parent.mkdir(parents=True, exist_ok=True)
             output.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
             result = {"status": report["status"], "report_path": str(output), "timed_lanes": len(report["timed_uninstrumented_samples_per_logical_execution"])}
+        elif args.command == "richards-followup":
+            baseline_binary = _inside(ROOT, args.baseline_binary)
+            candidate_binary = _inside(ROOT, args.candidate_binary)
+            scratch = _inside(ROOT, args.scratch_dir)
+            output = _inside(ROOT, args.output)
+            if not baseline_binary.is_file() or not candidate_binary.is_file():
+                raise PreflightError("both release Guion binaries must exist inside the repository")
+            scratch.mkdir(parents=True, exist_ok=True)
+            report = runner.compare_richards_cohort(
+                baseline_binary,
+                candidate_binary,
+                scratch,
+                baseline_revision=args.baseline_revision,
+                candidate_revision=args.candidate_revision,
+                trials=runner.TRIALS,
+            )
+            output.parent.mkdir(parents=True, exist_ok=True)
+            output.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+            result = {
+                "status": report["status"],
+                "report_path": str(output),
+                "trials_per_arm": report["measurement_design"]["trials_per_arm"],
+            }
+        elif args.command == "richards-memory":
+            baseline_binary = _inside(ROOT, args.baseline_binary)
+            candidate_binary = _inside(ROOT, args.candidate_binary)
+            scratch = _inside(ROOT, args.scratch_dir)
+            output = _inside(ROOT, args.output)
+            if not baseline_binary.is_file() or not candidate_binary.is_file():
+                raise PreflightError("both release Guion binaries must exist inside the repository")
+            if not output.is_file():
+                raise PreflightError(f"Richards comparison report does not exist: {output}")
+            report = json.loads(output.read_text(encoding="utf-8"))
+            if (
+                report.get("baseline_revision") != args.baseline_revision
+                or report.get("candidate_revision") != args.candidate_revision
+            ):
+                raise PreflightError("RSS revisions do not match the Richards comparison report")
+            scratch.mkdir(parents=True, exist_ok=True)
+            memory = runner.richards_peak_memory(
+                baseline_binary,
+                candidate_binary,
+                scratch,
+                baseline_revision=args.baseline_revision,
+                candidate_revision=args.candidate_revision,
+                runs=5,
+            )
+            if memory["baseline_binary_sha256"] != report.get("baseline_binary_sha256") or memory[
+                "candidate_binary_sha256"
+            ] != report.get("candidate_binary_sha256"):
+                raise PreflightError("RSS binaries do not match the Richards comparison report hashes")
+            report["peak_rss_measurements"] = memory
+            output.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+            result = {
+                "status": memory["status"],
+                "report_path": str(output),
+                "runs_per_binary_per_lane": memory["runs_per_binary_per_lane"],
+                "open_findings": len(memory["open_findings"]),
+            }
+        elif args.command == "richards-sample":
+            binary = _inside(ROOT, args.binary)
+            scratch = _inside(ROOT, args.scratch_dir)
+            output = _inside(ROOT, args.output)
+            if not binary.is_file():
+                raise PreflightError(f"release Guion binary does not exist: {binary}")
+            if not output.is_file():
+                raise PreflightError(f"Richards runtime profile does not exist: {output}")
+            report = json.loads(output.read_text(encoding="utf-8"))
+            sampled = runner.sample_richards(binary, scratch)
+            if sampled["release_binary_sha256"] != report.get("release_binary_sha256"):
+                raise PreflightError("sampled binary does not match the Richards runtime profile binary")
+            report["sampled_cost_attribution"] = sampled
+            output.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+            result = {
+                "status": sampled["status"],
+                "report_path": str(output),
+                "program_output_checked": sampled["program_output_checked"],
+                "sample_report_bytes": sampled["sampler"]["sample_report_bytes"],
+            }
         else:
             result = {"cleaned": clean()}
     except Exception as error:

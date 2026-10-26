@@ -8,25 +8,25 @@
   "plateau_observed": true,
   "plateau_rule": "tail spread at or below 10% of warmed RSS; samples include OS scheduler and allocator noise",
   "schema_version": 1,
-  "tail_relative_spread": 0.015681544028950542,
+  "tail_relative_spread": 0.014354066985645933,
   "tail_samples": [
     {
       "invocations_completed": 9,
-      "resident_bytes": 14286848
+      "resident_bytes": 14696448
     },
     {
       "invocations_completed": 25,
-      "resident_bytes": 14450688
+      "resident_bytes": 14860288
     },
     {
       "invocations_completed": 57,
-      "resident_bytes": 14499840
+      "resident_bytes": 14893056
     }
   ],
   "target": "macos-aarch64",
   "universal_absolute_rss_limit": null,
   "warmup_sample": {
     "invocations_completed": 1,
-    "resident_bytes": 13582336
+    "resident_bytes": 13697024
   }
 }

@@ -2,6 +2,8 @@
 
 This guide is for an agent that has the Guion repository and needs to build a small program without relying on this conversation. Guion is pre-release; the [current status](../status.md) describes what is and is not verified.
 
+For a compact, single-file syntax, signature, effect, error-code, and recipe reference, see the [Guion agent reference](guion-reference.md).
+
 ## Build the Guion command
 
 From the repository root, Rust and Cargo build the CLI. Python is not required to compile or run a core Guion program.
@@ -33,7 +35,9 @@ Run `guion inspect --json src/main.gu` to see the statically reachable effects, 
 
 The caller controls permissions. A project can list exact hostnames in `guion.toml` under `[network].hosts`; a caller can add a one-run host with `guion run --allow-http-host api.example.test`. In JSON, `required_effects` lists the reachable categories, `manifest_grants` identifies the adjacent manifest and its declared hosts/clock setting, and `grant_assessment` describes what those declarations establish. A runtime-supplied URL is reported as `present_but_target_dynamic` even when the manifest has hosts; no manifest means a later CLI grant is `unknown_external_runner`. The CLI grants and file roots passed to a later `run` are not supplied to `inspect`. The runtime checks the URL host and redirects against its grants. Host matching does not replace operating-system egress controls: DNS rebinding and network isolation remain host responsibilities.
 
-HTTP responses depend on the API: `http_request_bytes` returns a typed `HttpResponse` record with status, headers, and bytes. The older text `http_request` returns a checked JSON envelope. Prefer the typed byte API for new code that needs typed response fields or binary bodies.
+HTTP responses depend on the API: `http_request_bytes` returns a typed `HttpResponse` record with status, headers, and a byte-preserving body. The older text `http_request` returns a checked JSON envelope. The runnable HTTP recipe uses the typed byte API and prints the body length; the current standard library does not yet convert `Bytes` to `Text`.
+
+For text files, import `std:fs` and use `fs_read_text(path)` when you want filesystem failures returned as `StdError` with the requested path attached. The lower-level `read_text(path)` built-in returns `FileError`.
 
 ## Project layout
 

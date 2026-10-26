@@ -5,8 +5,8 @@
   "mode": "source-free relocated package",
   "relocation_path": "Moved package – Guion",
   "product": "Guion",
-  "artifact_sha256": "60f42a0e57b1ae5023695a9091474321ec7a172e3f3ef9b4e94da95b109b4ca9",
-  "artifact_bytes": 45794680,
+  "artifact_sha256": "dc3ba9740951e6d90a1a0bba109fdf60021d087a7dc525ea8a1efedf37bb571a",
+  "artifact_bytes": 46465371,
   "source_paths_excluded": [
     "main.vr",
     "veritas.toml"
@@ -14,7 +14,7 @@
   "stages": {
     "initial": {
       "passed": true,
-      "elapsed_seconds": 4.1406540000170935,
+      "elapsed_seconds": 3.689627209008904,
       "case_count": 6,
       "cases": [
         {
@@ -30,10 +30,10 @@
               "checks_passed": 5,
               "checks_total": 5,
               "failures": [],
-              "elapsed_seconds": 1.21041
+              "elapsed_seconds": 1.029579
             }
           ],
-          "elapsed_seconds": 1.700988,
+          "elapsed_seconds": 1.508119,
           "http_fixtures": {
             "health": {
               "requests": [
@@ -47,11 +47,11 @@
                 },
                 {
                   "method": "GET",
-                  "path": "/slow"
+                  "path": "/invalid"
                 },
                 {
                   "method": "GET",
-                  "path": "/invalid"
+                  "path": "/slow"
                 }
               ],
               "max_in_flight": 2
@@ -74,20 +74,20 @@
               "checks_passed": 5,
               "checks_total": 5,
               "failures": [],
-              "elapsed_seconds": 0.217607
+              "elapsed_seconds": 0.192662
             }
           ],
-          "elapsed_seconds": 0.581328,
+          "elapsed_seconds": 0.550955,
           "http_fixtures": {
             "health": {
               "requests": [
                 {
                   "method": "GET",
-                  "path": "/worker"
+                  "path": "/api"
                 },
                 {
                   "method": "GET",
-                  "path": "/api"
+                  "path": "/worker"
                 }
               ],
               "max_in_flight": 2
@@ -110,10 +110,10 @@
               "checks_passed": 3,
               "checks_total": 3,
               "failures": [],
-              "elapsed_seconds": 0.100549
+              "elapsed_seconds": 0.039983
             }
           ],
-          "elapsed_seconds": 0.101947,
+          "elapsed_seconds": 0.042681,
           "http_fixtures": {},
           "stdout": "",
           "stderr": "",
@@ -132,10 +132,10 @@
               "checks_passed": 4,
               "checks_total": 4,
               "failures": [],
-              "elapsed_seconds": 0.09289
+              "elapsed_seconds": 0.034181
             }
           ],
-          "elapsed_seconds": 0.58338,
+          "elapsed_seconds": 0.530939,
           "http_fixtures": {
             "health": {
               "requests": [
@@ -164,10 +164,10 @@
               "checks_passed": 1,
               "checks_total": 1,
               "failures": [],
-              "elapsed_seconds": 0.080377
+              "elapsed_seconds": 0.042426
             }
           ],
-          "elapsed_seconds": 0.503937,
+          "elapsed_seconds": 0.50863,
           "http_fixtures": {
             "health": {
               "requests": [],
@@ -191,10 +191,10 @@
               "checks_passed": 4,
               "checks_total": 4,
               "failures": [],
-              "elapsed_seconds": 0.273819
+              "elapsed_seconds": 0.154475
             }
           ],
-          "elapsed_seconds": 0.668756,
+          "elapsed_seconds": 0.547662,
           "http_fixtures": {
             "health": {
               "requests": [
@@ -214,7 +214,7 @@
     },
     "follow_up": {
       "passed": true,
-      "elapsed_seconds": 2.267921958002262,
+      "elapsed_seconds": 2.1440847089979798,
       "case_count": 4,
       "cases": [
         {
@@ -230,10 +230,10 @@
               "checks_passed": 4,
               "checks_total": 4,
               "failures": [],
-              "elapsed_seconds": 0.104961
+              "elapsed_seconds": 0.058257
             }
           ],
-          "elapsed_seconds": 0.59726,
+          "elapsed_seconds": 0.551381,
           "http_fixtures": {
             "health": {
               "requests": [
@@ -247,11 +247,11 @@
                 },
                 {
                   "method": "GET",
-                  "path": "/api"
+                  "path": "/unavailable"
                 },
                 {
                   "method": "GET",
-                  "path": "/unavailable"
+                  "path": "/api"
                 },
                 {
                   "method": "GET",
@@ -278,20 +278,20 @@
               "checks_passed": 3,
               "checks_total": 3,
               "failures": [],
-              "elapsed_seconds": 0.596464
+              "elapsed_seconds": 0.565622
             }
           ],
-          "elapsed_seconds": 1.086226,
+          "elapsed_seconds": 1.054804,
           "http_fixtures": {
             "health": {
               "requests": [
                 {
                   "method": "GET",
-                  "path": "/numeric"
+                  "path": "/array"
                 },
                 {
                   "method": "GET",
-                  "path": "/array"
+                  "path": "/missing"
                 },
                 {
                   "method": "GET",
@@ -299,7 +299,7 @@
                 },
                 {
                   "method": "GET",
-                  "path": "/missing"
+                  "path": "/numeric"
                 }
               ],
               "max_in_flight": 2
@@ -322,10 +322,10 @@
               "checks_passed": 1,
               "checks_total": 1,
               "failures": [],
-              "elapsed_seconds": 0.077766
+              "elapsed_seconds": 0.032822
             }
           ],
-          "elapsed_seconds": 0.504447,
+          "elapsed_seconds": 0.50789,
           "http_fixtures": {
             "health": {
               "requests": [],
@@ -349,10 +349,10 @@
               "checks_passed": 3,
               "checks_total": 3,
               "failures": [],
-              "elapsed_seconds": 0.077908
+              "elapsed_seconds": 0.02565
             }
           ],
-          "elapsed_seconds": 0.07975,
+          "elapsed_seconds": 0.02948,
           "http_fixtures": {},
           "stdout": "",
           "stderr": "timestamp must use RFC3339 date-time syntax\n",
@@ -389,20 +389,20 @@
             "checks_passed": 4,
             "checks_total": 4,
             "failures": [],
-            "elapsed_seconds": 0.158597
+            "elapsed_seconds": 0.064504
           }
         ],
-        "elapsed_seconds": 0.633588,
+        "elapsed_seconds": 0.551256,
         "http_fixtures": {
           "health": {
             "requests": [
               {
                 "method": "GET",
-                "path": "/probe/0003"
+                "path": "/probe/0001"
               },
               {
                 "method": "GET",
-                "path": "/probe/0002"
+                "path": "/probe/0003"
               },
               {
                 "method": "GET",
@@ -410,7 +410,7 @@
               },
               {
                 "method": "GET",
-                "path": "/probe/0001"
+                "path": "/probe/0002"
               },
               {
                 "method": "GET",
@@ -430,15 +430,19 @@
               },
               {
                 "method": "GET",
-                "path": "/probe/0009"
-              },
-              {
-                "method": "GET",
                 "path": "/probe/0008"
               },
               {
                 "method": "GET",
+                "path": "/probe/0009"
+              },
+              {
+                "method": "GET",
                 "path": "/probe/0010"
+              },
+              {
+                "method": "GET",
+                "path": "/probe/0011"
               },
               {
                 "method": "GET",
@@ -450,19 +454,15 @@
               },
               {
                 "method": "GET",
-                "path": "/probe/0011"
-              },
-              {
-                "method": "GET",
                 "path": "/probe/0014"
               },
               {
                 "method": "GET",
-                "path": "/probe/0016"
+                "path": "/probe/0015"
               },
               {
                 "method": "GET",
-                "path": "/probe/0015"
+                "path": "/probe/0016"
               },
               {
                 "method": "GET",
@@ -474,11 +474,11 @@
               },
               {
                 "method": "GET",
-                "path": "/probe/0020"
+                "path": "/probe/0019"
               },
               {
                 "method": "GET",
-                "path": "/probe/0019"
+                "path": "/probe/0020"
               },
               {
                 "method": "GET",
@@ -493,7 +493,7 @@
                 "path": "/probe/0023"
               }
             ],
-            "max_in_flight": 1
+            "max_in_flight": 2
           }
         },
         "stdout": "",
@@ -513,16 +513,16 @@
             "checks_passed": 4,
             "checks_total": 4,
             "failures": [],
-            "elapsed_seconds": 0.185627
+            "elapsed_seconds": 0.104447
           }
         ],
-        "elapsed_seconds": 0.650653,
+        "elapsed_seconds": 0.585276,
         "http_fixtures": {
           "health": {
             "requests": [
               {
                 "method": "GET",
-                "path": "/probe/0001"
+                "path": "/probe/0000"
               },
               {
                 "method": "GET",
@@ -530,11 +530,11 @@
               },
               {
                 "method": "GET",
-                "path": "/probe/0002"
+                "path": "/probe/0001"
               },
               {
                 "method": "GET",
-                "path": "/probe/0000"
+                "path": "/probe/0002"
               },
               {
                 "method": "GET",
@@ -570,19 +570,19 @@
               },
               {
                 "method": "GET",
-                "path": "/probe/0013"
-              },
-              {
-                "method": "GET",
                 "path": "/probe/0012"
               },
               {
                 "method": "GET",
-                "path": "/probe/0014"
+                "path": "/probe/0013"
               },
               {
                 "method": "GET",
                 "path": "/probe/0015"
+              },
+              {
+                "method": "GET",
+                "path": "/probe/0014"
               },
               {
                 "method": "GET",
@@ -610,11 +610,11 @@
               },
               {
                 "method": "GET",
-                "path": "/probe/0022"
+                "path": "/probe/0023"
               },
               {
                 "method": "GET",
-                "path": "/probe/0023"
+                "path": "/probe/0022"
               },
               {
                 "method": "GET",
@@ -634,11 +634,11 @@
               },
               {
                 "method": "GET",
-                "path": "/probe/0029"
+                "path": "/probe/0028"
               },
               {
                 "method": "GET",
-                "path": "/probe/0028"
+                "path": "/probe/0029"
               },
               {
                 "method": "GET",
@@ -662,11 +662,11 @@
               },
               {
                 "method": "GET",
-                "path": "/probe/0035"
+                "path": "/probe/0036"
               },
               {
                 "method": "GET",
-                "path": "/probe/0036"
+                "path": "/probe/0035"
               },
               {
                 "method": "GET",
@@ -686,11 +686,11 @@
               },
               {
                 "method": "GET",
-                "path": "/probe/0041"
+                "path": "/probe/0042"
               },
               {
                 "method": "GET",
-                "path": "/probe/0042"
+                "path": "/probe/0041"
               },
               {
                 "method": "GET",
@@ -698,11 +698,11 @@
               },
               {
                 "method": "GET",
-                "path": "/probe/0045"
+                "path": "/probe/0044"
               },
               {
                 "method": "GET",
-                "path": "/probe/0044"
+                "path": "/probe/0045"
               },
               {
                 "method": "GET",
@@ -726,11 +726,11 @@
               },
               {
                 "method": "GET",
-                "path": "/probe/0051"
+                "path": "/probe/0052"
               },
               {
                 "method": "GET",
-                "path": "/probe/0052"
+                "path": "/probe/0051"
               },
               {
                 "method": "GET",
@@ -742,19 +742,19 @@
               },
               {
                 "method": "GET",
-                "path": "/probe/0055"
-              },
-              {
-                "method": "GET",
                 "path": "/probe/0056"
               },
               {
                 "method": "GET",
-                "path": "/probe/0057"
+                "path": "/probe/0055"
               },
               {
                 "method": "GET",
                 "path": "/probe/0058"
+              },
+              {
+                "method": "GET",
+                "path": "/probe/0057"
               },
               {
                 "method": "GET",
@@ -770,11 +770,11 @@
               },
               {
                 "method": "GET",
-                "path": "/probe/0063"
+                "path": "/probe/0062"
               },
               {
                 "method": "GET",
-                "path": "/probe/0062"
+                "path": "/probe/0063"
               },
               {
                 "method": "GET",
@@ -786,6 +786,10 @@
               },
               {
                 "method": "GET",
+                "path": "/probe/0068"
+              },
+              {
+                "method": "GET",
                 "path": "/probe/0066"
               },
               {
@@ -794,15 +798,7 @@
               },
               {
                 "method": "GET",
-                "path": "/probe/0068"
-              },
-              {
-                "method": "GET",
                 "path": "/probe/0069"
-              },
-              {
-                "method": "GET",
-                "path": "/probe/0070"
               },
               {
                 "method": "GET",
@@ -810,11 +806,15 @@
               },
               {
                 "method": "GET",
-                "path": "/probe/0073"
+                "path": "/probe/0070"
               },
               {
                 "method": "GET",
                 "path": "/probe/0072"
+              },
+              {
+                "method": "GET",
+                "path": "/probe/0073"
               },
               {
                 "method": "GET",
@@ -850,11 +850,11 @@
               },
               {
                 "method": "GET",
-                "path": "/probe/0083"
+                "path": "/probe/0082"
               },
               {
                 "method": "GET",
-                "path": "/probe/0082"
+                "path": "/probe/0083"
               },
               {
                 "method": "GET",
@@ -866,15 +866,11 @@
               },
               {
                 "method": "GET",
-                "path": "/probe/0087"
-              },
-              {
-                "method": "GET",
                 "path": "/probe/0086"
               },
               {
                 "method": "GET",
-                "path": "/probe/0089"
+                "path": "/probe/0087"
               },
               {
                 "method": "GET",
@@ -883,6 +879,10 @@
               {
                 "method": "GET",
                 "path": "/probe/0090"
+              },
+              {
+                "method": "GET",
+                "path": "/probe/0089"
               },
               {
                 "method": "GET",
@@ -914,10 +914,6 @@
               },
               {
                 "method": "GET",
-                "path": "/probe/0099"
-              },
-              {
-                "method": "GET",
                 "path": "/probe/0098"
               },
               {
@@ -926,11 +922,19 @@
               },
               {
                 "method": "GET",
-                "path": "/probe/0101"
+                "path": "/probe/0099"
               },
               {
                 "method": "GET",
                 "path": "/probe/0102"
+              },
+              {
+                "method": "GET",
+                "path": "/probe/0101"
+              },
+              {
+                "method": "GET",
+                "path": "/probe/0103"
               },
               {
                 "method": "GET",
@@ -939,10 +943,6 @@
               {
                 "method": "GET",
                 "path": "/probe/0105"
-              },
-              {
-                "method": "GET",
-                "path": "/probe/0103"
               },
               {
                 "method": "GET",
@@ -970,11 +970,11 @@
               },
               {
                 "method": "GET",
-                "path": "/probe/0113"
+                "path": "/probe/0112"
               },
               {
                 "method": "GET",
-                "path": "/probe/0112"
+                "path": "/probe/0113"
               },
               {
                 "method": "GET",
@@ -1002,11 +1002,11 @@
               },
               {
                 "method": "GET",
-                "path": "/probe/0120"
+                "path": "/probe/0121"
               },
               {
                 "method": "GET",
-                "path": "/probe/0121"
+                "path": "/probe/0120"
               },
               {
                 "method": "GET",
@@ -1018,7 +1018,7 @@
               },
               {
                 "method": "GET",
-                "path": "/probe/0124"
+                "path": "/probe/0126"
               },
               {
                 "method": "GET",
@@ -1026,14 +1026,14 @@
               },
               {
                 "method": "GET",
-                "path": "/probe/0126"
+                "path": "/probe/0124"
               },
               {
                 "method": "GET",
                 "path": "/probe/0127"
               }
             ],
-            "max_in_flight": 2
+            "max_in_flight": 3
           }
         },
         "stdout": "",

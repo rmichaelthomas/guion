@@ -61,6 +61,17 @@ fn runtime_profile_is_absent_by_default_and_covers_native_and_vm_execution() {
                 .unwrap()
                 > 0
         );
+        let histogram = &profile["list_set"]["copy_size_histogram"]["buckets"];
+        let bucket_total: u64 = ["0-8", "9-32", "33-128", "129+"]
+            .into_iter()
+            .map(|bucket| histogram[bucket]["copies"].as_u64().unwrap())
+            .sum();
+        assert_eq!(
+            bucket_total,
+            profile["list_set"]["copy_on_write_copies"]
+                .as_u64()
+                .unwrap()
+        );
         assert_eq!(profile["record_charges"]["events"].as_u64(), Some(1));
         assert!(
             profile["record_charges"]["estimated_bytes"]

@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "assistant_model": {
+    "provider": "Google Gemini",
+    "name": "gemini-4-argon",
+    "version": "gemini-4-argon",
+    "reasoning_effort": "provider-default"
+  },
+  "choice_budget": {
+    "active_minutes": 5,
+    "tool_calls": 0
+  },
+  "build_budget": {
+    "active_minutes": 45,
+    "tool_calls": 60
+  },
+  "primary_measure": "active_seconds",
+  "arm": "product-information",
+  "budget_accounting": {
+    "active_seconds": "Sum terminal-turn durationMs from the saved provider session payload and round up to whole seconds.",
+    "tool_calls": "Record tool use from the provider session payload; the choice allowance is zero."
+  }
+}

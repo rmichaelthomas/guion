@@ -109,6 +109,7 @@ fn main() -> Int:
     let target = match (std::env::consts::OS, std::env::consts::ARCH) {
         ("macos", "aarch64") => "macos-aarch64",
         ("linux", "aarch64") => "debian-aarch64",
+        ("linux", "x86_64") => "debian-x86_64",
         (os, arch) => {
             return eprintln!("RSS evidence skipped for unsupported test host {os}-{arch}")
         }

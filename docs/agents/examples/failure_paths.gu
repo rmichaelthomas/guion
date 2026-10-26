@@ -22,7 +22,7 @@ fn main() -> Int:
 
     if arguments[0] == "denied-http":
         let headers: Map[Text, Text] = {}
-        match http_request("GET", "http://127.0.0.1:9/", headers, ""):
+        match http_request_bytes("GET", "http://127.0.0.1:9/", headers, bytes_from_text(""), 1000):
             Ok(_response):
                 eprint("expected denied network")
                 return 0
@@ -33,7 +33,11 @@ fn main() -> Int:
     if arguments[0] == "sqlite-escape":
         match sqlite_open("../outside.sqlite3"):
             Ok(database):
-                let _ = sqlite_close(database)
+                let closed = sqlite_close(database)
+                if not is_ok(closed):
+                    let problem: StdError = error(closed)
+                    eprint(problem.code)
+                    eprint(problem.message)
                 eprint("expected rejected SQLite path")
                 return 0
             Err(problem):

@@ -207,9 +207,14 @@ fn file_digest(root: &Path, relative: &str) -> Option<String> {
 }
 
 fn target_name() -> String {
-    match (std::env::consts::OS, std::env::consts::ARCH) {
+    target_name_for(std::env::consts::OS, std::env::consts::ARCH)
+}
+
+fn target_name_for(os: &str, arch: &str) -> String {
+    match (os, arch) {
         ("macos", "aarch64") => "macos-aarch64".into(),
         ("linux", "aarch64") => "debian-aarch64".into(),
+        ("linux", "x86_64") => "debian-x86_64".into(),
         (os, arch) => format!("{os}-{arch}"),
     }
 }
@@ -692,7 +697,11 @@ fn requested_targets(command: &str, args: &[String]) -> Vec<String> {
         };
     };
     match args.get(index + 1).map(String::as_str) {
-        Some("both") => vec!["macos-aarch64".into(), "debian-aarch64".into()],
+        Some("both") => vec![
+            "macos-aarch64".into(),
+            "debian-aarch64".into(),
+            "debian-x86_64".into(),
+        ],
         Some(target) => vec![target.to_string()],
         None => Vec::new(),
     }
@@ -1002,7 +1011,8 @@ fn aggregate_target_reports(root: &Path, name: &str, report: Value) -> Result<Va
     aggregate["exit_status"] = serde_json::json!(if status == "passed" { 0 } else { 1 });
     aggregate["message"] = if stale_target {
         Value::String(
-            "target reports use different source snapshots; rerun both target commands".into(),
+            "target reports use different source snapshots; rerun every required target command"
+                .into(),
         )
     } else if !report_messages.is_empty() {
         Value::String(report_messages.join("; "))
@@ -1041,7 +1051,7 @@ fn print_json(value: &Value) -> Result<(), String> {
 
 pub fn run(root: &Path, args: &[String]) -> i32 {
     if args.is_empty() {
-        eprintln!("usage: cargo xtask <conformance|bootstrap|stdlib|runtime|product|release|performance|builders|closeout> [options]");
+        eprintln!("usage: cargo xtask <conformance|bootstrap|stdlib|runtime|product|release|performance|builders|closeout|agent-reference> [options]");
         return 2;
     }
     let command = args[0].as_str();
@@ -1054,6 +1064,23 @@ pub fn run(root: &Path, args: &[String]) -> i32 {
         return match result {
             Ok(()) => {
                 println!("builtin catalog is valid");
+                0
+            }
+            Err(error) => {
+                eprintln!("{error}");
+                1
+            }
+        };
+    }
+    if command == "agent-reference" {
+        let result = if args.iter().any(|arg| arg == "--write") {
+            crate::agent_reference::write(root)
+        } else {
+            crate::agent_reference::check(root)
+        };
+        return match result {
+            Ok(()) => {
+                println!("agent reference is current");
                 0
             }
             Err(error) => {
@@ -1321,7 +1348,7 @@ pub fn run(root: &Path, args: &[String]) -> i32 {
 
 #[cfg(test)]
 mod target_report_tests {
-    use super::{aggregate_target_reports, task_for};
+    use super::{aggregate_target_reports, requested_targets, target_name_for, task_for};
     use serde_json::json;
     use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -1330,6 +1357,19 @@ mod target_report_tests {
         assert_eq!(task_for("release", None), Some(9));
         assert_eq!(task_for("performance", None), Some(9));
         assert_eq!(task_for("builders", None), Some(10));
+    }
+
+    #[test]
+    fn names_x86_64_linux_as_the_debian_release_target() {
+        assert_eq!(target_name_for("linux", "x86_64"), "debian-x86_64");
+    }
+
+    #[test]
+    fn both_target_selection_includes_all_three_release_platforms() {
+        assert_eq!(
+            requested_targets("runtime", &["--target".into(), "both".into()]),
+            ["macos-aarch64", "debian-aarch64", "debian-x86_64"]
+        );
     }
 
     fn report(target: &str) -> serde_json::Value {
@@ -1344,9 +1384,13 @@ mod target_report_tests {
             "runtime_hash": "sha256:runtime",
             "exact_command": "cargo xtask product --group applications --target both",
             "target": target,
-            "required_targets": ["macos-aarch64", "debian-aarch64"],
+            "required_targets": ["macos-aarch64", "debian-aarch64", "debian-x86_64"],
             "completed_targets": [target],
-            "skipped_targets": [if target == "macos-aarch64" { "debian-aarch64" } else { "macos-aarch64" }],
+            "skipped_targets": match target {
+                "macos-aarch64" => ["debian-aarch64", "debian-x86_64"],
+                "debian-aarch64" => ["macos-aarch64", "debian-x86_64"],
+                _ => ["macos-aarch64", "debian-aarch64"]
+            },
             "checks": [{
                 "id": "application-acceptance",
                 "status": "passed",
@@ -1369,24 +1413,36 @@ mod target_report_tests {
         let first = aggregate_target_reports(&root, "sample", report("macos-aarch64")).unwrap();
         assert_eq!(first["status"], "incomplete");
         assert_eq!(first["completed_targets"], json!(["macos-aarch64"]));
-        assert_eq!(first["skipped_targets"], json!(["debian-aarch64"]));
+        assert_eq!(
+            first["skipped_targets"],
+            json!(["debian-aarch64", "debian-x86_64"])
+        );
 
-        let combined = aggregate_target_reports(&root, "sample", report("debian-aarch64")).unwrap();
+        let second = aggregate_target_reports(&root, "sample", report("debian-aarch64")).unwrap();
+        assert_eq!(second["status"], "incomplete");
+        assert_eq!(
+            second["completed_targets"],
+            json!(["macos-aarch64", "debian-aarch64"])
+        );
+        let combined = aggregate_target_reports(&root, "sample", report("debian-x86_64")).unwrap();
         assert_eq!(combined["status"], "passed");
         assert_eq!(combined["exit_status"], 0);
         assert_eq!(
             combined["completed_targets"],
-            json!(["macos-aarch64", "debian-aarch64"])
+            json!(["macos-aarch64", "debian-aarch64", "debian-x86_64"])
         );
         assert_eq!(combined["skipped_targets"], json!([]));
         let checks = combined["checks"].as_array().unwrap();
-        assert_eq!(checks.len(), 2);
+        assert_eq!(checks.len(), 3);
         assert!(checks
             .iter()
             .any(|check| check["target"] == "macos-aarch64"));
         assert!(checks
             .iter()
             .any(|check| check["target"] == "debian-aarch64"));
+        assert!(checks
+            .iter()
+            .any(|check| check["target"] == "debian-x86_64"));
 
         std::fs::remove_dir_all(root).unwrap();
     }
@@ -1401,7 +1457,7 @@ mod target_report_tests {
         std::fs::create_dir_all(&root).unwrap();
 
         let first = aggregate_target_reports(&root, "sample", report("macos-aarch64")).unwrap();
-        let mut changed = report("debian-aarch64");
+        let mut changed = report("debian-x86_64");
         changed["working_tree_digest"] = json!("sha256:different");
         let combined = aggregate_target_reports(&root, "sample", changed).unwrap();
 
@@ -1409,10 +1465,13 @@ mod target_report_tests {
         assert_eq!(combined["status"], "incomplete");
         assert_eq!(
             combined["message"],
-            "target reports use different source snapshots; rerun both target commands"
+            "target reports use different source snapshots; rerun every required target command"
         );
-        assert_eq!(combined["completed_targets"], json!(["debian-aarch64"]));
-        assert_eq!(combined["skipped_targets"], json!(["macos-aarch64"]));
+        assert_eq!(combined["completed_targets"], json!(["debian-x86_64"]));
+        assert_eq!(
+            combined["skipped_targets"],
+            json!(["macos-aarch64", "debian-aarch64"])
+        );
 
         std::fs::remove_dir_all(root).unwrap();
     }
