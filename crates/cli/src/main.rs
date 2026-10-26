@@ -33,10 +33,6 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
     }
     let cli_started = Instant::now();
     let phase_timings_enabled = env::var_os("GUION_PHASE_TIMINGS").is_some();
-    let seed_verify_started = Instant::now();
-    compiler_driver::verify_embedded_seed()
-        .map_err(|error| render_diagnostic("<compiler-seed>", &error))?;
-    let initial_seed_verify_ns = seed_verify_started.elapsed().as_nanos();
     let Some(command) = args.first().map(String::as_str) else {
         return Err(
             "usage: guion <new|check|fmt|lint|test|run|build|package|verify-package|add|sync|update|inspect|doc|doctor|install> [path]"
@@ -947,7 +943,6 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
                 if phase_timings_enabled {
                     report["phase_timings_ns"] = serde_json::json!({
                         "cli_to_report_excluding_process_startup_ns": cli_started.elapsed().as_nanos(),
-                        "initial_embedded_seed_validation_ns": initial_seed_verify_ns,
                         "input_artifact_decode_ns": input_artifact_decode_ns,
                         "source_compile_or_cache_ns": source_compile_or_cache_ns,
                         "compiler_pipeline": compiler_phase_timings.as_ref().map(compiler_phase_report),
@@ -1423,14 +1418,8 @@ fn compile_project_for_run(
 
 fn compiler_phase_report(timings: &compiler_driver::CompilerPhaseTimings) -> serde_json::Value {
     serde_json::json!({
-        "project_inputs_ns": timings.project_inputs_ns,
-        "seed_validation_ns": timings.seed_validation_ns,
-        "compiler_runtime_load_ns": timings.compiler_runtime_load_ns,
-        "self_hosted_compile_including_import_graph_read_ns": timings.self_hosted_compile_ns,
-        "emitted_artifact_decode_ns": timings.emitted_artifact_decode_ns,
-        "source_graph_finalize_ns": timings.source_graph_finalize_ns,
-        "compiler_native_compilations": timings.compiler_native_compilations,
-        "compiler_native_compile_profile": timings.compiler_native_compile_profile,
+        "compiler_backend": "rust",
+        "rust_compiler_compile_ns": timings.rust_compiler_compile_ns,
     })
 }
 

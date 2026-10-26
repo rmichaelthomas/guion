@@ -1988,7 +1988,6 @@ fn run_json_exposes_opt_in_compile_and_runtime_phase_timings() {
     assert_eq!(profiled["program_stdout"], "42\n");
     assert_eq!(profiled["source_cache"], "bypassed");
     for phase in [
-        "initial_embedded_seed_validation_ns",
         "artifact_runtime_load_ns",
         "program_execute_ns",
         "cli_to_report_excluding_process_startup_ns",
@@ -1998,21 +1997,12 @@ fn run_json_exposes_opt_in_compile_and_runtime_phase_timings() {
             "missing phase {phase}"
         );
     }
-    for phase in [
-        "project_inputs_ns",
-        "seed_validation_ns",
-        "compiler_runtime_load_ns",
-        "self_hosted_compile_including_import_graph_read_ns",
-        "emitted_artifact_decode_ns",
-        "source_graph_finalize_ns",
-    ] {
-        assert!(
-            profiled["phase_timings_ns"]["compiler_pipeline"][phase]
-                .as_u64()
-                .is_some(),
-            "missing compiler phase {phase}"
-        );
-    }
+    assert!(profiled["phase_timings_ns"]["initial_embedded_seed_validation_ns"].is_null());
+    let compiler_pipeline = &profiled["phase_timings_ns"]["compiler_pipeline"];
+    assert_eq!(compiler_pipeline["compiler_backend"], "rust");
+    assert!(compiler_pipeline["rust_compiler_compile_ns"]
+        .as_u64()
+        .is_some());
 
     let ordinary = run_source_cache(&project, &[]);
     assert!(ordinary.status.success());
