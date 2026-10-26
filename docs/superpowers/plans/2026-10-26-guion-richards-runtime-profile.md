@@ -86,7 +86,7 @@
 - [x] Run focused Rust and Python harness tests, workspace formatting, strict Clippy for touched crates, and the five short-source speed gates against the final candidate.
 - [x] Review the complete diff and report; check no secret, unrelated file, or generated scratch artifact entered the commit.
 - [x] Remove task-owned `target/perf-session/` scratch after preserving the compact report; all benchmark and test command sessions have exited.
-- [ ] Commit, push `codex/guion-richards-profile`, open a PR against `main`, attach the PR, and leave it unmerged for user review.
+- [x] Commit, push `codex/guion-richards-profile`, open a PR against `main`, attach the PR, and leave it unmerged for user review. PR #3: https://github.com/rmichaelthomas/guion/pull/3.
 
 ## Plan Self-Review
 
