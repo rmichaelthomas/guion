@@ -19,6 +19,64 @@ fn text_length_and_index_use_unicode_scalar_positions() {
     assert_eq!(instance.take_output(), "3\n🙂\n");
 }
 
+#[test]
+fn runtime_profile_is_absent_by_default_and_covers_native_and_vm_execution() {
+    let source = "record Marker:\n    value: Int\n\nfn main() -> Int:\n    var values = [1, 2, 3]\n    set values = list_set(values, 1, 9)\n    let shared = values\n    set values = list_set(values, 0, 7)\n    let marker = Marker(values[1])\n    var counter = 0\n    while counter < 2:\n        set counter = counter + 1\n    print(shared[1])\n    print(marker.value)\n    return 0\n";
+    let artifact = compile("runtime-profile.gu", source).expect("profile fixture compiles");
+
+    let mut ordinary = Runtime::new()
+        .load(artifact.clone(), HostPolicy::default())
+        .expect("runtime loads without profiling");
+    ordinary.invoke("main", vec![]).expect("program runs");
+    assert_eq!(ordinary.take_output(), "9\n9\n");
+    assert!(ordinary.runtime_profile().is_none());
+
+    for runtime in [
+        Runtime::new().with_runtime_profile(),
+        Runtime::vm_only().with_runtime_profile(),
+    ] {
+        let mut instance = runtime
+            .load(artifact.clone(), HostPolicy::default())
+            .expect("runtime loads with profiling");
+        instance
+            .invoke("main", vec![])
+            .expect("profiled program runs");
+        assert_eq!(instance.take_output(), "9\n9\n");
+
+        let profile = instance.runtime_profile().expect("profile is enabled");
+        let allocation = &profile["estimated_guest_allocation_budget_charges"];
+        assert!(allocation["successful_events"].as_u64().unwrap() > 0);
+        assert!(allocation["estimated_net_bytes"].as_u64().unwrap() > 0);
+        assert_eq!(profile["list_set"]["operations"].as_u64(), Some(2));
+        assert!(profile["list_set"]["in_place_updates"].as_u64().unwrap() > 0);
+        assert!(
+            profile["list_set"]["copy_on_write_copies"]
+                .as_u64()
+                .unwrap()
+                > 0
+        );
+        assert!(
+            profile["list_set"]["estimated_copy_bytes"]
+                .as_u64()
+                .unwrap()
+                > 0
+        );
+        assert_eq!(profile["record_charges"]["events"].as_u64(), Some(1));
+        assert!(
+            profile["record_charges"]["estimated_bytes"]
+                .as_u64()
+                .unwrap()
+                > 0
+        );
+        assert!(
+            profile["dynamic_guest_conditional_branch_executions"]
+                .as_u64()
+                .unwrap()
+                >= 3
+        );
+    }
+}
+
 #[cfg(not(feature = "python-interop"))]
 #[test]
 fn core_profile_reports_python_externals_as_unavailable_without_launching_them() {

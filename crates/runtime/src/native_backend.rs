@@ -23,6 +23,8 @@ use cranelift_module::{default_libcall_names, FuncId, Linkage, Module};
 use guion_model::{Artifact, Function, Op, Type, Value};
 use std::fmt;
 
+pub(crate) const NATIVE_INLINE_LIST_ITEMS: usize = 8;
+
 type NativeFunction = unsafe extern "C" fn(
     *const i64,
     *mut i64,
@@ -41,6 +43,7 @@ pub(crate) struct NativeSymbols {
     pub(crate) list_set: *const u8,
     pub(crate) charge_record: *const u8,
     pub(crate) print: *const u8,
+    pub(crate) count_guest_branch: *const u8,
 }
 
 #[repr(C)]
@@ -49,6 +52,8 @@ pub(crate) struct NativeFloatList {
     pub(crate) len: usize,
     pub(crate) storage_id: usize,
     pub(crate) owned: bool,
+    pub(crate) inline_storage: bool,
+    pub(crate) inline: [u64; NATIVE_INLINE_LIST_ITEMS],
 }
 
 #[repr(C)]
@@ -57,6 +62,8 @@ pub(crate) struct NativeIntList {
     pub(crate) len: usize,
     pub(crate) storage_id: usize,
     pub(crate) owned: bool,
+    pub(crate) inline_storage: bool,
+    pub(crate) inline: [i64; NATIVE_INLINE_LIST_ITEMS],
 }
 
 #[repr(C)]
@@ -74,6 +81,7 @@ pub(crate) struct NativeBackend {
     list_set: FuncId,
     charge_record: FuncId,
     print: FuncId,
+    count_guest_branch: Option<FuncId>,
     functions: Vec<Option<*const u8>>,
     result_words: Vec<usize>,
     max_result_words: usize,
@@ -133,7 +141,11 @@ impl fmt::Debug for NativeBackend {
 }
 
 impl NativeBackend {
-    pub(crate) fn compile(artifact: &Artifact, symbols: NativeSymbols) -> Option<Self> {
+    pub(crate) fn compile(
+        artifact: &Artifact,
+        symbols: NativeSymbols,
+        profile_guest_branches: bool,
+    ) -> Option<Self> {
         let mut builder = JITBuilder::new(default_libcall_names()).ok()?;
         builder.symbol("guion_reserve_fuel", symbols.reserve_fuel);
         builder.symbol("guion_release_fuel", symbols.release_fuel);
@@ -142,6 +154,9 @@ impl NativeBackend {
         builder.symbol("guion_list_set", symbols.list_set);
         builder.symbol("guion_charge_record", symbols.charge_record);
         builder.symbol("guion_print", symbols.print);
+        if profile_guest_branches {
+            builder.symbol("guion_count_guest_branch", symbols.count_guest_branch);
+        }
         let mut module = JITModule::new(builder);
         let pointer_type = module.target_config().pointer_type();
         if pointer_type != types::I64 {
@@ -218,6 +233,17 @@ impl NativeBackend {
         let print_id = module
             .declare_function("guion_print", Linkage::Import, &print_signature)
             .ok()?;
+        let count_guest_branch_id = if profile_guest_branches {
+            let mut signature = Signature::new(module.target_config().default_call_conv);
+            signature.params.push(AbiParam::new(pointer_type));
+            Some(
+                module
+                    .declare_function("guion_count_guest_branch", Linkage::Import, &signature)
+                    .ok()?,
+            )
+        } else {
+            None
+        };
         let mut backend = Self {
             module,
             reserve_fuel: reserve_fuel_id,
@@ -227,6 +253,7 @@ impl NativeBackend {
             list_set: list_set_id,
             charge_record: charge_record_id,
             print: print_id,
+            count_guest_branch: count_guest_branch_id,
             functions: vec![None; artifact.functions.len()],
             result_words: artifact
                 .functions
@@ -492,6 +519,7 @@ impl NativeBackend {
         records: &[guion_model::RecordDefinition],
         max_result_words: usize,
     ) -> Result<NativeFunctionCompileProfile, String> {
+        let count_guest_branch = self.count_guest_branch;
         let lowering_start = Instant::now();
         let stack_types = infer_native_types(function, all_functions, records)
             .ok_or_else(|| "unsupported types or control flow".to_owned())?;
@@ -538,6 +566,10 @@ impl NativeBackend {
         let print = self
             .module
             .declare_func_in_func(self.print, &mut context.func);
+        let count_guest_branch = count_guest_branch.map(|function_id| {
+            self.module
+                .declare_func_in_func(function_id, &mut context.func)
+        });
         let native_function_refs: Vec<_> = function_ids
             .iter()
             .map(|function_id| {
@@ -1333,6 +1365,9 @@ impl NativeBackend {
                     }
                     Op::JumpIfFalse(target) => {
                         let value = stack.pop().ok_or_else(|| "stack underflow".to_owned())?;
+                        if let Some(counter) = count_guest_branch {
+                            builder.ins().call(counter, &[arena_pointer]);
+                        }
                         let zero = builder.ins().iconst(types::I64, 0);
                         let condition = builder.ins().icmp(IntCC::NotEqual, value, zero);
                         let next = ip + 1;

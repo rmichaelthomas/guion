@@ -25,7 +25,96 @@ pub mod stdlib_data;
 pub mod stdlib_services;
 use native_backend::{
     NativeBackend, NativeCode, NativeFloatList, NativeIntList, NativeRecord, NativeSymbols,
+    NATIVE_INLINE_LIST_ITEMS,
 };
+
+#[derive(Debug, Default)]
+pub(crate) struct RuntimeProfileCounters {
+    allocation_charge_events: AtomicUsize,
+    estimated_allocation_gross_bytes: AtomicUsize,
+    estimated_allocation_refunded_bytes: AtomicUsize,
+    list_set_operations: AtomicUsize,
+    list_set_in_place_updates: AtomicUsize,
+    list_set_copy_on_write_copies: AtomicUsize,
+    list_set_estimated_copy_bytes: AtomicUsize,
+    record_charge_events: AtomicUsize,
+    record_estimated_bytes: AtomicUsize,
+    dynamic_guest_conditional_branches: AtomicUsize,
+}
+
+impl RuntimeProfileCounters {
+    fn record_allocation_charge(&self, bytes: usize) {
+        self.allocation_charge_events
+            .fetch_add(1, Ordering::Relaxed);
+        self.estimated_allocation_gross_bytes
+            .fetch_add(bytes, Ordering::Relaxed);
+    }
+
+    fn record_allocation_refund(&self, bytes: usize) {
+        self.estimated_allocation_refunded_bytes
+            .fetch_add(bytes, Ordering::Relaxed);
+    }
+
+    fn record_list_set_operation(&self) {
+        self.list_set_operations.fetch_add(1, Ordering::Relaxed);
+    }
+
+    fn record_list_set_in_place_update(&self) {
+        self.list_set_in_place_updates
+            .fetch_add(1, Ordering::Relaxed);
+    }
+
+    fn record_list_set_copy(&self, bytes: usize) {
+        self.list_set_copy_on_write_copies
+            .fetch_add(1, Ordering::Relaxed);
+        self.list_set_estimated_copy_bytes
+            .fetch_add(bytes, Ordering::Relaxed);
+    }
+
+    fn record_record_charge(&self, bytes: usize) {
+        self.record_charge_events.fetch_add(1, Ordering::Relaxed);
+        self.record_estimated_bytes
+            .fetch_add(bytes, Ordering::Relaxed);
+    }
+
+    fn record_guest_conditional_branch(&self) {
+        self.dynamic_guest_conditional_branches
+            .fetch_add(1, Ordering::Relaxed);
+    }
+
+    fn to_json(&self) -> serde_json::Value {
+        let gross_bytes = self
+            .estimated_allocation_gross_bytes
+            .load(Ordering::Relaxed);
+        let refunded_bytes = self
+            .estimated_allocation_refunded_bytes
+            .load(Ordering::Relaxed);
+        serde_json::json!({
+            "scope": "latest guest invocation",
+            "estimated_guest_allocation_budget_charges": {
+                "successful_events": self.allocation_charge_events.load(Ordering::Relaxed),
+                "estimated_gross_bytes": gross_bytes,
+                "estimated_refunded_bytes": refunded_bytes,
+                "estimated_net_bytes": gross_bytes.saturating_sub(refunded_bytes),
+            },
+            "list_set": {
+                "operations": self.list_set_operations.load(Ordering::Relaxed),
+                "in_place_updates": self.list_set_in_place_updates.load(Ordering::Relaxed),
+                "copy_on_write_copies": self.list_set_copy_on_write_copies.load(Ordering::Relaxed),
+                "estimated_copy_bytes": self.list_set_estimated_copy_bytes.load(Ordering::Relaxed),
+            },
+            "record_charges": {
+                "events": self.record_charge_events.load(Ordering::Relaxed),
+                "estimated_bytes": self.record_estimated_bytes.load(Ordering::Relaxed),
+            },
+            "dynamic_guest_conditional_branch_executions": self.dynamic_guest_conditional_branches.load(Ordering::Relaxed),
+            "metric_limits": {
+                "allocation": "estimated guest-data budget charges, not host allocator calls",
+                "branches": "executed guest conditional branches, not hardware branch-misprediction counts",
+            },
+        })
+    }
+}
 
 // JIT code keeps raw pointers to these descriptors; Box preserves each address when the Vec grows.
 #[allow(clippy::vec_box)]
@@ -35,6 +124,7 @@ struct NativeListArena {
     int_lists: Vec<Box<NativeIntList>>,
     int_storage: Vec<Vec<i64>>,
     budget: *const Budget,
+    profile: Option<Arc<RuntimeProfileCounters>>,
     max_collection_items: usize,
     charged_bytes: usize,
     output_limit_bytes: usize,
@@ -49,6 +139,7 @@ impl NativeListArena {
         max_collection_items: usize,
         output_limit_bytes: usize,
         initial_output_bytes: usize,
+        profile: Option<Arc<RuntimeProfileCounters>>,
     ) -> Self {
         Self {
             float_lists: Vec::new(),
@@ -56,6 +147,7 @@ impl NativeListArena {
             int_lists: Vec::new(),
             int_storage: Vec::new(),
             budget,
+            profile,
             max_collection_items,
             charged_bytes: 0,
             output_limit_bytes,
@@ -71,6 +163,36 @@ impl NativeListArena {
         }
         self.charged_bytes = self.charged_bytes.saturating_add(bytes);
         true
+    }
+
+    fn record_list_set_operation(&self) {
+        if let Some(profile) = &self.profile {
+            profile.record_list_set_operation();
+        }
+    }
+
+    fn record_list_set_in_place_update(&self) {
+        if let Some(profile) = &self.profile {
+            profile.record_list_set_in_place_update();
+        }
+    }
+
+    fn record_list_set_copy(&self, bytes: usize) {
+        if let Some(profile) = &self.profile {
+            profile.record_list_set_copy(bytes);
+        }
+    }
+
+    fn record_record_charge(&self, bytes: usize) {
+        if let Some(profile) = &self.profile {
+            profile.record_record_charge(bytes);
+        }
+    }
+
+    fn record_guest_conditional_branch(&self) {
+        if let Some(profile) = &self.profile {
+            profile.record_guest_conditional_branch();
+        }
     }
 
     fn print(&mut self, value: i64, kind: i64) -> bool {
@@ -292,6 +414,7 @@ impl HostPolicy {
 
 pub struct Runtime {
     native_enabled: bool,
+    runtime_profile_enabled: bool,
 }
 
 fn current_unix_time_ms() -> Result<i64, String> {
@@ -346,6 +469,7 @@ impl Runtime {
     pub fn new() -> Self {
         Self {
             native_enabled: true,
+            runtime_profile_enabled: false,
         }
     }
 
@@ -354,7 +478,15 @@ impl Runtime {
     pub fn vm_only() -> Self {
         Self {
             native_enabled: false,
+            runtime_profile_enabled: false,
         }
+    }
+
+    /// Enable diagnostic execution counters for the latest guest invocation.
+    /// This adds instrumentation and should be used only for untimed profiles.
+    pub fn with_runtime_profile(mut self) -> Self {
+        self.runtime_profile_enabled = true;
+        self
     }
     pub fn load(
         &self,
@@ -391,6 +523,8 @@ impl Runtime {
             native: None,
             native_code: None,
             native_enabled: self.native_enabled,
+            runtime_profile_enabled: self.runtime_profile_enabled,
+            runtime_profile_metrics: None,
             native_calls: Arc::new(AtomicUsize::new(0)),
             native_deoptimizations: Arc::new(AtomicUsize::new(0)),
             native_compilations: Arc::new(AtomicUsize::new(0)),
@@ -429,6 +563,8 @@ pub struct Instance {
     native: Option<NativeBackend>,
     native_code: Option<Arc<NativeCode>>,
     native_enabled: bool,
+    runtime_profile_enabled: bool,
+    runtime_profile_metrics: Option<Arc<RuntimeProfileCounters>>,
     native_calls: Arc<AtomicUsize>,
     native_deoptimizations: Arc<AtomicUsize>,
     native_compilations: Arc<AtomicUsize>,
@@ -491,6 +627,13 @@ fn append_guest_call_trace(
 }
 
 impl Instance {
+    /// Return diagnostic counters for the latest invocation when profiling is enabled.
+    pub fn runtime_profile(&self) -> Option<serde_json::Value> {
+        self.runtime_profile_metrics
+            .as_ref()
+            .map(|profile| profile.to_json())
+    }
+
     pub fn native_function_count(&self) -> usize {
         self.native
             .as_ref()
@@ -621,10 +764,15 @@ impl Instance {
                 Span::default(),
             ));
         }
+        let runtime_profile = self
+            .runtime_profile_enabled
+            .then(|| Arc::new(RuntimeProfileCounters::default()));
+        self.runtime_profile_metrics = runtime_profile.clone();
         let budget = Arc::new(Budget::new(
             self.policy.instruction_limit,
             self.policy.allocation_limit_bytes,
             cancellation,
+            runtime_profile.clone(),
         ));
         if self.native_enabled && self.native.is_none() {
             self.native = NativeBackend::compile(
@@ -637,7 +785,9 @@ impl Instance {
                     list_set: native_list_set as *const () as *const u8,
                     charge_record: native_charge_record as *const () as *const u8,
                     print: native_print as *const () as *const u8,
+                    count_guest_branch: native_count_guest_branch as *const () as *const u8,
                 },
+                runtime_profile.is_some(),
             );
             if let Some(native) = self.native.as_ref() {
                 self.native_code = Some(native.shared_code());
@@ -792,6 +942,7 @@ impl Instance {
             self.policy.max_collection_items,
             self.policy.output_limit_bytes,
             self.output.len().saturating_add(self.program_stderr.len()),
+            budget.runtime_profile.clone(),
         );
         let mut native_record_fields: Vec<Box<[i64]>> = Vec::new();
         let mut native_records: Vec<Box<NativeRecord>> = Vec::new();
@@ -813,6 +964,8 @@ impl Instance {
                         len: items.len(),
                         storage_id,
                         owned: false,
+                        inline_storage: false,
+                        inline: [0; NATIVE_INLINE_LIST_ITEMS],
                     }));
                     Some((&**native_arena.float_lists.last()? as *const NativeFloatList) as i64)
                 }
@@ -840,6 +993,8 @@ impl Instance {
                         len: items.len(),
                         storage_id,
                         owned: false,
+                        inline_storage: false,
+                        inline: [0; NATIVE_INLINE_LIST_ITEMS],
                     }));
                     Some((&**native_arena.float_lists.last()? as *const NativeFloatList) as i64)
                 }
@@ -858,6 +1013,8 @@ impl Instance {
                         len: items.len(),
                         storage_id,
                         owned: false,
+                        inline_storage: false,
+                        inline: [0; NATIVE_INLINE_LIST_ITEMS],
                     }));
                     Some((&**native_arena.int_lists.last()? as *const NativeIntList) as i64)
                 }
@@ -876,6 +1033,8 @@ impl Instance {
                         len: items.len(),
                         storage_id,
                         owned: false,
+                        inline_storage: false,
+                        inline: [0; NATIVE_INLINE_LIST_ITEMS],
                     }));
                     Some((&**native_arena.int_lists.last()? as *const NativeIntList) as i64)
                 }
@@ -908,6 +1067,8 @@ impl Instance {
                                     len: items.len(),
                                     storage_id,
                                     owned: false,
+                                    inline_storage: false,
+                                    inline: [0; NATIVE_INLINE_LIST_ITEMS],
                                 }));
                                 (&**native_arena.float_lists.last()? as *const NativeFloatList)
                                     as i64
@@ -936,6 +1097,8 @@ impl Instance {
                                     len: items.len(),
                                     storage_id,
                                     owned: false,
+                                    inline_storage: false,
+                                    inline: [0; NATIVE_INLINE_LIST_ITEMS],
                                 }));
                                 (&**native_arena.float_lists.last()? as *const NativeFloatList)
                                     as i64
@@ -955,6 +1118,8 @@ impl Instance {
                                     len: items.len(),
                                     storage_id,
                                     owned: false,
+                                    inline_storage: false,
+                                    inline: [0; NATIVE_INLINE_LIST_ITEMS],
                                 }));
                                 (&**native_arena.int_lists.last()? as *const NativeIntList) as i64
                             }
@@ -973,6 +1138,8 @@ impl Instance {
                                     len: items.len(),
                                     storage_id,
                                     owned: false,
+                                    inline_storage: false,
+                                    inline: [0; NATIVE_INLINE_LIST_ITEMS],
                                 }));
                                 (&**native_arena.int_lists.last()? as *const NativeIntList) as i64
                             }
@@ -1061,22 +1228,48 @@ impl Instance {
                                                         .unwrap_or_default(),
                                                 ));
                                             }
-                                            let storage_id = unsafe { (*descriptor).storage_id };
-                                            let Some(storage) =
-                                                native_arena.float_storage.get_mut(storage_id)
-                                            else {
-                                                return Err(RuntimeError::new(
-                                                    "R_NATIVE_RESULT",
-                                                    "native record returned an invalid list storage handle",
-                                                    f.code.last().map(|instruction| instruction.span).unwrap_or_default(),
-                                                ));
-                                            };
-                                            let values = decoded_float_lists
-                                                .entry(storage_id)
-                                                .or_insert_with(|| {
+                                            let list_key = descriptor as usize;
+                                            let values: Arc<Vec<Float64>> = if let Some(values) =
+                                                decoded_float_lists.get(&list_key)
+                                            {
+                                                values.clone()
+                                            } else {
+                                                let descriptor = unsafe { &*descriptor };
+                                                let values: Arc<Vec<Float64>> = if descriptor
+                                                    .inline_storage
+                                                {
+                                                    let encoded = unsafe {
+                                                        std::slice::from_raw_parts(
+                                                            descriptor.data,
+                                                            descriptor.len,
+                                                        )
+                                                    };
+                                                    Arc::new(
+                                                        encoded
+                                                            .iter()
+                                                            .map(|bits| {
+                                                                Float64::new(f64::from_bits(*bits))
+                                                                    .unwrap()
+                                                            })
+                                                            .collect(),
+                                                    )
+                                                } else {
+                                                    let Some(storage) = native_arena
+                                                        .float_storage
+                                                        .get_mut(descriptor.storage_id)
+                                                    else {
+                                                        return Err(RuntimeError::new(
+                                                            "R_NATIVE_RESULT",
+                                                            "native record returned an invalid list storage handle",
+                                                            f.code.last().map(|instruction| instruction.span).unwrap_or_default(),
+                                                        ));
+                                                    };
                                                     Arc::new(std::mem::take(storage))
-                                                })
-                                                .clone();
+                                                };
+                                                decoded_float_lists
+                                                    .insert(list_key, values.clone());
+                                                values
+                                            };
                                             Value::Float64List(values)
                                         }
                                         Type::List(item) if **item == Type::Int => {
@@ -1089,19 +1282,46 @@ impl Instance {
                                                     f.code.last().map(|instruction| instruction.span).unwrap_or_default(),
                                                 ));
                                             }
-                                            let storage_id = unsafe { (*descriptor).storage_id };
-                                            let Some(storage) =
-                                                native_arena.int_storage.get_mut(storage_id)
-                                            else {
-                                                return Err(RuntimeError::new(
-                                                    "R_NATIVE_RESULT",
-                                                    "native record returned an invalid integer-list storage handle",
-                                                    f.code.last().map(|instruction| instruction.span).unwrap_or_default(),
-                                                ));
-                                            };
-                                            let values = decoded_int_lists
-                                                .entry(storage_id)
-                                                .or_insert_with(|| {
+                                            let list_key = descriptor as usize;
+                                            let values: Arc<Vec<Value>> = if let Some(values) =
+                                                decoded_int_lists.get(&list_key)
+                                            {
+                                                values.clone()
+                                            } else {
+                                                let descriptor = unsafe { &*descriptor };
+                                                let values: Arc<Vec<Value>> = if descriptor
+                                                    .inline_storage
+                                                {
+                                                    let encoded = unsafe {
+                                                        std::slice::from_raw_parts(
+                                                            descriptor.data,
+                                                            descriptor.len,
+                                                        )
+                                                    };
+                                                    Arc::new(
+                                                        encoded
+                                                            .iter()
+                                                            .map(|value| {
+                                                                Value::Int(
+                                                                    BigInt::parse(
+                                                                        &value.to_string(),
+                                                                    )
+                                                                    .unwrap(),
+                                                                )
+                                                            })
+                                                            .collect(),
+                                                    )
+                                                } else {
+                                                    let Some(storage) = native_arena
+                                                        .int_storage
+                                                        .get_mut(descriptor.storage_id)
+                                                    else {
+                                                        return Err(RuntimeError::new(
+                                                            "R_NATIVE_RESULT",
+                                                            "native record returned an invalid integer-list storage handle",
+                                                            f.code.last().map(|instruction| instruction.span).unwrap_or_default(),
+                                                        ));
+                                                    };
                                                     Arc::new(
                                                         std::mem::take(storage)
                                                             .into_iter()
@@ -1115,8 +1335,10 @@ impl Instance {
                                                             })
                                                             .collect(),
                                                     )
-                                                })
-                                                .clone();
+                                                };
+                                                decoded_int_lists.insert(list_key, values.clone());
+                                                values
+                                            };
                                             Value::List(values)
                                         }
                                         Type::List(item) if **item == Type::Bool => {
@@ -1129,27 +1351,49 @@ impl Instance {
                                                     f.code.last().map(|instruction| instruction.span).unwrap_or_default(),
                                                 ));
                                             }
-                                            let storage_id = unsafe { (*descriptor).storage_id };
-                                            let Some(storage) =
-                                                native_arena.int_storage.get_mut(storage_id)
-                                            else {
-                                                return Err(RuntimeError::new(
-                                                    "R_NATIVE_RESULT",
-                                                    "native record returned an invalid boolean-list storage handle",
-                                                    f.code.last().map(|instruction| instruction.span).unwrap_or_default(),
-                                                ));
-                                            };
-                                            let values = decoded_bool_lists
-                                                .entry(storage_id)
-                                                .or_insert_with(|| {
+                                            let list_key = descriptor as usize;
+                                            let values: Arc<Vec<Value>> = if let Some(values) =
+                                                decoded_bool_lists.get(&list_key)
+                                            {
+                                                values.clone()
+                                            } else {
+                                                let descriptor = unsafe { &*descriptor };
+                                                let values: Arc<Vec<Value>> = if descriptor
+                                                    .inline_storage
+                                                {
+                                                    let encoded = unsafe {
+                                                        std::slice::from_raw_parts(
+                                                            descriptor.data,
+                                                            descriptor.len,
+                                                        )
+                                                    };
+                                                    Arc::new(
+                                                        encoded
+                                                            .iter()
+                                                            .map(|value| Value::Bool(*value != 0))
+                                                            .collect(),
+                                                    )
+                                                } else {
+                                                    let Some(storage) = native_arena
+                                                        .int_storage
+                                                        .get_mut(descriptor.storage_id)
+                                                    else {
+                                                        return Err(RuntimeError::new(
+                                                            "R_NATIVE_RESULT",
+                                                            "native record returned an invalid boolean-list storage handle",
+                                                            f.code.last().map(|instruction| instruction.span).unwrap_or_default(),
+                                                        ));
+                                                    };
                                                     Arc::new(
                                                         std::mem::take(storage)
                                                             .into_iter()
                                                             .map(|value| Value::Bool(value != 0))
                                                             .collect(),
                                                     )
-                                                })
-                                                .clone();
+                                                };
+                                                decoded_bool_lists.insert(list_key, values.clone());
+                                                values
+                                            };
                                             Value::List(values)
                                         }
                                         _ => unreachable!(
@@ -1756,13 +2000,11 @@ impl Instance {
                             instruction.span,
                         ));
                     }
-                    charge_allocation(
-                        budget.as_ref(),
-                        size_of::<Vec<Value>>()
-                            .saturating_add(count.saturating_mul(size_of::<Value>()))
-                            .saturating_add(record.name.len()),
-                        instruction.span,
-                    )?;
+                    let record_bytes = size_of::<Vec<Value>>()
+                        .saturating_add(count.saturating_mul(size_of::<Value>()))
+                        .saturating_add(record.name.len());
+                    charge_allocation(budget.as_ref(), record_bytes, instruction.span)?;
+                    budget.record_record_charge(record_bytes);
                     let mut fields = Vec::with_capacity(count);
                     for _ in 0..count {
                         fields.push(pop!());
@@ -2507,6 +2749,7 @@ impl Instance {
                             instruction.span,
                         ));
                     }
+                    budget.record_list_set_operation();
                     let copy_bytes = match &list_value {
                         Value::Float64List(_) => size_of::<Vec<Float64>>()
                             .saturating_add(len.saturating_mul(size_of::<Float64>())),
@@ -2534,6 +2777,7 @@ impl Instance {
                         }
                         _ => unreachable!("list type checked above"),
                     };
+                    budget.record_list_set_copy(copy_bytes);
                     if let Some(error) = value_limit_error(&list, &self.policy, instruction.span) {
                         return Err(error);
                     }
@@ -2582,14 +2826,21 @@ impl Instance {
                             instruction.span,
                         ));
                     }
+                    budget.record_list_set_operation();
                     match local {
                         Value::List(items) => {
-                            if Arc::strong_count(items) > 1 {
-                                let copy_bytes = size_of::<Vec<Value>>()
-                                    .saturating_add(len.saturating_mul(size_of::<Value>()));
+                            let needs_copy = Arc::strong_count(items) > 1;
+                            let copy_bytes = size_of::<Vec<Value>>()
+                                .saturating_add(len.saturating_mul(size_of::<Value>()));
+                            if needs_copy {
                                 charge_allocation(budget.as_ref(), copy_bytes, instruction.span)?;
                             }
                             Arc::make_mut(items)[index] = value;
+                            if needs_copy {
+                                budget.record_list_set_copy(copy_bytes);
+                            } else {
+                                budget.record_list_set_in_place_update();
+                            }
                         }
                         Value::Float64List(items) => {
                             let Value::Float64(value) = value else {
@@ -2599,12 +2850,18 @@ impl Instance {
                                     instruction.span,
                                 ));
                             };
-                            if Arc::strong_count(items) > 1 {
-                                let copy_bytes = size_of::<Vec<Float64>>()
-                                    .saturating_add(len.saturating_mul(size_of::<Float64>()));
+                            let needs_copy = Arc::strong_count(items) > 1;
+                            let copy_bytes = size_of::<Vec<Float64>>()
+                                .saturating_add(len.saturating_mul(size_of::<Float64>()));
+                            if needs_copy {
                                 charge_allocation(budget.as_ref(), copy_bytes, instruction.span)?;
                             }
                             Arc::make_mut(items)[index] = value;
+                            if needs_copy {
+                                budget.record_list_set_copy(copy_bytes);
+                            } else {
+                                budget.record_list_set_in_place_update();
+                            }
                         }
                         _ => unreachable!("list type checked above"),
                     }
@@ -2650,6 +2907,7 @@ impl Instance {
                 Op::Jump(target) => ip = target,
                 Op::JumpIfFalse(target) => {
                     if let Value::Bool(c) = pop!() {
+                        budget.record_guest_conditional_branch();
                         if !c {
                             ip = target;
                         }
@@ -6005,6 +6263,7 @@ impl Instance {
             allocation_floor: budget.parallel_allocation_floor(),
             cancellation: budget.cancellation.clone(),
             local_cancellation: Some(cancelled.clone()),
+            runtime_profile: budget.runtime_profile.clone(),
         });
         let (sender, receiver) = mpsc::channel();
         let mut handles = Vec::new();
@@ -6047,6 +6306,8 @@ impl Instance {
                         native: None,
                         native_code: native_code.clone(),
                         native_enabled,
+                        runtime_profile_enabled: false,
+                        runtime_profile_metrics: None,
                         native_calls: native_calls.clone(),
                         native_deoptimizations: native_deoptimizations.clone(),
                         native_compilations: native_compilations.clone(),
@@ -6164,6 +6425,7 @@ struct Budget {
     allocation_floor: usize,
     cancellation: CancellationToken,
     local_cancellation: Option<Arc<AtomicBool>>,
+    runtime_profile: Option<Arc<RuntimeProfileCounters>>,
 }
 
 struct LimitedString {
@@ -6195,6 +6457,7 @@ impl Budget {
         instruction_limit: u64,
         allocation_limit: usize,
         cancellation: CancellationToken,
+        runtime_profile: Option<Arc<RuntimeProfileCounters>>,
     ) -> Self {
         Self {
             remaining: AtomicU64::new(instruction_limit),
@@ -6202,6 +6465,7 @@ impl Budget {
             allocation_floor: 0,
             cancellation,
             local_cancellation: None,
+            runtime_profile,
         }
     }
 
@@ -6254,7 +6518,8 @@ impl Budget {
     }
 
     fn allocate(&self, bytes: usize) -> bool {
-        self.allocation_remaining
+        let allocated = self
+            .allocation_remaining
             .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |left| {
                 if bytes <= left.saturating_sub(self.allocation_floor) {
                     Some(left - bytes)
@@ -6262,12 +6527,51 @@ impl Budget {
                     None
                 }
             })
-            .is_ok()
+            .is_ok();
+        if allocated {
+            if let Some(profile) = &self.runtime_profile {
+                profile.record_allocation_charge(bytes);
+            }
+        }
+        allocated
     }
 
     fn refund_allocation(&self, bytes: usize) {
         self.allocation_remaining
             .fetch_add(bytes, Ordering::Relaxed);
+        if let Some(profile) = &self.runtime_profile {
+            profile.record_allocation_refund(bytes);
+        }
+    }
+
+    fn record_list_set_operation(&self) {
+        if let Some(profile) = &self.runtime_profile {
+            profile.record_list_set_operation();
+        }
+    }
+
+    fn record_list_set_in_place_update(&self) {
+        if let Some(profile) = &self.runtime_profile {
+            profile.record_list_set_in_place_update();
+        }
+    }
+
+    fn record_list_set_copy(&self, bytes: usize) {
+        if let Some(profile) = &self.runtime_profile {
+            profile.record_list_set_copy(bytes);
+        }
+    }
+
+    fn record_record_charge(&self, bytes: usize) {
+        if let Some(profile) = &self.runtime_profile {
+            profile.record_record_charge(bytes);
+        }
+    }
+
+    fn record_guest_conditional_branch(&self) {
+        if let Some(profile) = &self.runtime_profile {
+            profile.record_guest_conditional_branch();
+        }
     }
 
     fn parallel_allocation_floor(&self) -> usize {
@@ -6327,13 +6631,12 @@ unsafe extern "C" fn native_make_list(
         unsafe { std::slice::from_raw_parts(values, count) }
     };
     if item_kind == NATIVE_LIST_FLOAT_KIND {
-        let Some(decoded) = encoded
+        if encoded
             .iter()
-            .map(|value| Float64::new(f64::from_bits(*value as u64)))
-            .collect::<Option<Vec<_>>>()
-        else {
+            .any(|value| Float64::new(f64::from_bits(*value as u64)).is_none())
+        {
             return std::ptr::null_mut();
-        };
+        }
         let bytes = if typed_empty != 0 {
             size_of::<Vec<Float64>>()
         } else {
@@ -6342,6 +6645,26 @@ unsafe extern "C" fn native_make_list(
         if !arena.charge(bytes) {
             return std::ptr::null_mut();
         }
+        if count <= NATIVE_INLINE_LIST_ITEMS {
+            let mut descriptor = Box::new(NativeFloatList {
+                data: std::ptr::null_mut(),
+                len: count,
+                storage_id: usize::MAX,
+                owned: true,
+                inline_storage: true,
+                inline: [0; NATIVE_INLINE_LIST_ITEMS],
+            });
+            for (slot, value) in descriptor.inline.iter_mut().zip(encoded) {
+                *slot = *value as u64;
+            }
+            descriptor.data = descriptor.inline.as_mut_ptr();
+            arena.float_lists.push(descriptor);
+            return (&mut **arena.float_lists.last_mut().unwrap() as *mut NativeFloatList).cast();
+        }
+        let decoded = encoded
+            .iter()
+            .map(|value| Float64::new(f64::from_bits(*value as u64)).unwrap())
+            .collect::<Vec<_>>();
         let storage_id = arena.float_storage.len();
         arena.float_storage.push(decoded);
         arena.float_lists.push(Box::new(NativeFloatList {
@@ -6354,6 +6677,8 @@ unsafe extern "C" fn native_make_list(
             len: count,
             storage_id,
             owned: true,
+            inline_storage: false,
+            inline: [0; NATIVE_INLINE_LIST_ITEMS],
         }));
         (&mut **arena.float_lists.last_mut().unwrap() as *mut NativeFloatList).cast()
     } else if item_kind == NATIVE_LIST_INT_KIND || item_kind == NATIVE_LIST_BOOL_KIND {
@@ -6367,6 +6692,20 @@ unsafe extern "C" fn native_make_list(
         if !arena.charge(bytes) {
             return std::ptr::null_mut();
         }
+        if count <= NATIVE_INLINE_LIST_ITEMS {
+            let mut descriptor = Box::new(NativeIntList {
+                data: std::ptr::null_mut(),
+                len: count,
+                storage_id: usize::MAX,
+                owned: true,
+                inline_storage: true,
+                inline: [0; NATIVE_INLINE_LIST_ITEMS],
+            });
+            descriptor.inline[..count].copy_from_slice(encoded);
+            descriptor.data = descriptor.inline.as_mut_ptr();
+            arena.int_lists.push(descriptor);
+            return (&mut **arena.int_lists.last_mut().unwrap() as *mut NativeIntList).cast();
+        }
         let storage_id = arena.int_storage.len();
         arena.int_storage.push(encoded.to_vec());
         arena.int_lists.push(Box::new(NativeIntList {
@@ -6374,6 +6713,8 @@ unsafe extern "C" fn native_make_list(
             len: count,
             storage_id,
             owned: true,
+            inline_storage: false,
+            inline: [0; NATIVE_INLINE_LIST_ITEMS],
         }));
         (&mut **arena.int_lists.last_mut().unwrap() as *mut NativeIntList).cast()
     } else {
@@ -6401,28 +6742,51 @@ unsafe extern "C" fn native_list_set(
         if index >= descriptor.len {
             return std::ptr::null_mut();
         }
+        arena.record_list_set_operation();
         let Some(value) = Float64::new(f64::from_bits(value as u64)) else {
             return std::ptr::null_mut();
         };
         if always_copy == 0 && descriptor.owned {
-            let Some(storage) = arena.float_storage.get_mut(descriptor.storage_id) else {
-                return std::ptr::null_mut();
-            };
-            storage[index] = value;
+            if descriptor.inline_storage {
+                descriptor.inline[index] = value.get().to_bits();
+            } else {
+                let Some(storage) = arena.float_storage.get_mut(descriptor.storage_id) else {
+                    return std::ptr::null_mut();
+                };
+                storage[index] = value;
+            }
+            arena.record_list_set_in_place_update();
             return list;
         }
-        let storage_id = descriptor.storage_id;
         let list_len = descriptor.len;
         let bytes =
             size_of::<Vec<Float64>>().saturating_add(list_len.saturating_mul(size_of::<Float64>()));
         if !arena.charge(bytes) {
             return std::ptr::null_mut();
         }
-        let Some(storage) = arena.float_storage.get(storage_id) else {
+        if list_len <= NATIVE_INLINE_LIST_ITEMS {
+            let source = unsafe { std::slice::from_raw_parts(descriptor.data, list_len) };
+            let mut copied = Box::new(NativeFloatList {
+                data: std::ptr::null_mut(),
+                len: list_len,
+                storage_id: usize::MAX,
+                owned: true,
+                inline_storage: true,
+                inline: [0; NATIVE_INLINE_LIST_ITEMS],
+            });
+            copied.inline[..list_len].copy_from_slice(source);
+            copied.inline[index] = value.get().to_bits();
+            copied.data = copied.inline.as_mut_ptr();
+            arena.record_list_set_copy(bytes);
+            arena.float_lists.push(copied);
+            return (&mut **arena.float_lists.last_mut().unwrap() as *mut NativeFloatList).cast();
+        }
+        let Some(storage) = arena.float_storage.get(descriptor.storage_id) else {
             return std::ptr::null_mut();
         };
         let mut copied = storage.clone();
         copied[index] = value;
+        arena.record_list_set_copy(bytes);
         let storage_id = arena.float_storage.len();
         arena.float_storage.push(copied);
         arena.float_lists.push(Box::new(NativeFloatList {
@@ -6435,35 +6799,60 @@ unsafe extern "C" fn native_list_set(
             len: list_len,
             storage_id,
             owned: true,
+            inline_storage: false,
+            inline: [0; NATIVE_INLINE_LIST_ITEMS],
         }));
         (&mut **arena.float_lists.last_mut().unwrap() as *mut NativeFloatList).cast()
     } else {
-        if item_kind == NATIVE_LIST_BOOL_KIND && value != 0 && value != 1 {
-            return std::ptr::null_mut();
-        }
         let descriptor = unsafe { &mut *(list.cast::<NativeIntList>()) };
         if index >= descriptor.len {
             return std::ptr::null_mut();
         }
+        arena.record_list_set_operation();
+        if item_kind == NATIVE_LIST_BOOL_KIND && value != 0 && value != 1 {
+            return std::ptr::null_mut();
+        }
         if always_copy == 0 && descriptor.owned {
-            let Some(storage) = arena.int_storage.get_mut(descriptor.storage_id) else {
-                return std::ptr::null_mut();
-            };
-            storage[index] = value;
+            if descriptor.inline_storage {
+                descriptor.inline[index] = value;
+            } else {
+                let Some(storage) = arena.int_storage.get_mut(descriptor.storage_id) else {
+                    return std::ptr::null_mut();
+                };
+                storage[index] = value;
+            }
+            arena.record_list_set_in_place_update();
             return list;
         }
-        let storage_id = descriptor.storage_id;
         let list_len = descriptor.len;
         let bytes =
             size_of::<Vec<Value>>().saturating_add(list_len.saturating_mul(size_of::<Value>()));
         if !arena.charge(bytes) {
             return std::ptr::null_mut();
         }
-        let Some(storage) = arena.int_storage.get(storage_id) else {
+        if list_len <= NATIVE_INLINE_LIST_ITEMS {
+            let source = unsafe { std::slice::from_raw_parts(descriptor.data, list_len) };
+            let mut copied = Box::new(NativeIntList {
+                data: std::ptr::null_mut(),
+                len: list_len,
+                storage_id: usize::MAX,
+                owned: true,
+                inline_storage: true,
+                inline: [0; NATIVE_INLINE_LIST_ITEMS],
+            });
+            copied.inline[..list_len].copy_from_slice(source);
+            copied.inline[index] = value;
+            copied.data = copied.inline.as_mut_ptr();
+            arena.record_list_set_copy(bytes);
+            arena.int_lists.push(copied);
+            return (&mut **arena.int_lists.last_mut().unwrap() as *mut NativeIntList).cast();
+        }
+        let Some(storage) = arena.int_storage.get(descriptor.storage_id) else {
             return std::ptr::null_mut();
         };
         let mut copied = storage.clone();
         copied[index] = value;
+        arena.record_list_set_copy(bytes);
         let storage_id = arena.int_storage.len();
         arena.int_storage.push(copied);
         arena.int_lists.push(Box::new(NativeIntList {
@@ -6471,6 +6860,8 @@ unsafe extern "C" fn native_list_set(
             len: list_len,
             storage_id,
             owned: true,
+            inline_storage: false,
+            inline: [0; NATIVE_INLINE_LIST_ITEMS],
         }));
         (&mut **arena.int_lists.last_mut().unwrap() as *mut NativeIntList).cast()
     }
@@ -6483,8 +6874,18 @@ unsafe extern "C" fn native_charge_record(arena: *mut NativeListArena, bytes: i6
     let Ok(bytes) = usize::try_from(bytes) else {
         return 0;
     };
-    let ok = unsafe { &mut *arena }.charge(bytes);
+    let arena = unsafe { &mut *arena };
+    let ok = arena.charge(bytes);
+    if ok {
+        arena.record_record_charge(bytes);
+    }
     i32::from(ok)
+}
+
+unsafe extern "C" fn native_count_guest_branch(arena: *mut NativeListArena) {
+    if !arena.is_null() {
+        unsafe { &*arena }.record_guest_conditional_branch();
+    }
 }
 
 unsafe extern "C" fn native_print(arena: *mut NativeListArena, value: i64, kind: i64) -> i32 {
@@ -10193,4 +10594,158 @@ fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result
         return Err("no reachable return".into());
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod native_small_list_tests {
+    use super::{
+        native_list_set, native_make_list, Budget, CancellationToken, NativeFloatList,
+        NativeIntList, NativeListArena, RuntimeProfileCounters, NATIVE_LIST_FLOAT_KIND,
+        NATIVE_LIST_INT_KIND,
+    };
+    use std::{slice, sync::Arc};
+
+    fn arena() -> (Arc<Budget>, NativeListArena) {
+        let budget = Arc::new(Budget::new(
+            1_000_000,
+            1_000_000,
+            CancellationToken::new(),
+            None,
+        ));
+        let arena = NativeListArena::new(Arc::as_ptr(&budget), 10_000, 10_000, 0, None);
+        (budget, arena)
+    }
+
+    #[test]
+    fn small_integer_list_copy_uses_inline_data_and_preserves_the_original() {
+        let (_budget, mut arena) = arena();
+        let values = [1_i64, 2, 3, 4, 5, 6, 7, 8];
+        let original = unsafe {
+            native_make_list(
+                &mut arena,
+                values.as_ptr(),
+                values.len() as i64,
+                NATIVE_LIST_INT_KIND,
+                0,
+            )
+        };
+        assert!(!original.is_null());
+        assert!(
+            arena.int_storage.is_empty(),
+            "small list should use inline data"
+        );
+        let updated =
+            unsafe { native_list_set(&mut arena, original, 0, 9, NATIVE_LIST_INT_KIND, 1) };
+        assert!(!updated.is_null());
+        let original = unsafe { &*original.cast::<NativeIntList>() };
+        let updated = unsafe { &*updated.cast::<NativeIntList>() };
+        assert_eq!(
+            unsafe { slice::from_raw_parts(original.data, original.len) },
+            &values
+        );
+        assert_eq!(
+            unsafe { slice::from_raw_parts(updated.data, updated.len) },
+            &[9, 2, 3, 4, 5, 6, 7, 8]
+        );
+        assert!(
+            arena.int_storage.is_empty(),
+            "small copies should stay inline"
+        );
+    }
+
+    #[test]
+    fn small_float_list_copy_uses_inline_data_and_preserves_the_original() {
+        let (_budget, mut arena) = arena();
+        let values = [1.5_f64.to_bits() as i64, 2.5_f64.to_bits() as i64];
+        let original = unsafe {
+            native_make_list(
+                &mut arena,
+                values.as_ptr(),
+                values.len() as i64,
+                NATIVE_LIST_FLOAT_KIND,
+                0,
+            )
+        };
+        assert!(!original.is_null());
+        assert!(
+            arena.float_storage.is_empty(),
+            "small list should use inline data"
+        );
+        let replacement = 9.5_f64.to_bits() as i64;
+        let updated = unsafe {
+            native_list_set(
+                &mut arena,
+                original,
+                1,
+                replacement,
+                NATIVE_LIST_FLOAT_KIND,
+                1,
+            )
+        };
+        assert!(!updated.is_null());
+        let original = unsafe { &*original.cast::<NativeFloatList>() };
+        let updated = unsafe { &*updated.cast::<NativeFloatList>() };
+        assert_eq!(
+            unsafe { slice::from_raw_parts(original.data, original.len) },
+            &[values[0] as u64, values[1] as u64]
+        );
+        assert_eq!(
+            unsafe { slice::from_raw_parts(updated.data, updated.len) },
+            &[values[0] as u64, replacement as u64]
+        );
+        assert!(
+            arena.float_storage.is_empty(),
+            "small copies should stay inline"
+        );
+    }
+
+    #[test]
+    fn large_native_lists_keep_external_storage() {
+        let (_budget, mut arena) = arena();
+        let values = [1_i64, 2, 3, 4, 5, 6, 7, 8, 9];
+        let list = unsafe {
+            native_make_list(
+                &mut arena,
+                values.as_ptr(),
+                values.len() as i64,
+                NATIVE_LIST_INT_KIND,
+                0,
+            )
+        };
+        assert!(!list.is_null());
+        assert_eq!(arena.int_storage.len(), 1);
+    }
+
+    #[test]
+    fn invalid_native_list_set_attempts_do_not_increment_the_operation_counter() {
+        let budget = Arc::new(Budget::new(
+            1_000_000,
+            1_000_000,
+            CancellationToken::new(),
+            None,
+        ));
+        let profile = Arc::new(RuntimeProfileCounters::default());
+        let mut arena = NativeListArena::new(
+            Arc::as_ptr(&budget),
+            10_000,
+            10_000,
+            0,
+            Some(profile.clone()),
+        );
+        let values = [1_i64, 2];
+        let list = unsafe {
+            native_make_list(
+                &mut arena,
+                values.as_ptr(),
+                values.len() as i64,
+                NATIVE_LIST_INT_KIND,
+                0,
+            )
+        };
+
+        let invalid = unsafe { native_list_set(&mut arena, list, 2, 9, NATIVE_LIST_INT_KIND, 1) };
+
+        assert!(invalid.is_null());
+        assert_eq!(profile.to_json()["list_set"]["operations"], 0);
+    }
 }

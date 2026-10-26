@@ -39,11 +39,15 @@ class PeakMemoryTests(unittest.TestCase):
         )
 
     def test_phase_profile_is_separate_and_checks_program_output(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
+        test_scratch = runner.ROOT / "target/perf-session/test"
+        test_scratch.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=test_scratch) as directory:
             project = Path(directory)
             binary = project / "guion"
             binary.write_text(
-                "#!/bin/sh\nprintf '%s' '{\"status\":\"passed\",\"program_stdout\":\"9297\\n23246\\n\",\"phase_timings_ns\":{\"compile\":123,\"run\":456}}'\n",
+                "#!/bin/sh\nif [ \"${GUION_RUNTIME_PROFILE:-}\" = \"1\" ]; then\n"
+                "printf '%s' '{\"status\":\"passed\",\"program_stdout\":\"9297\\n23246\\n\",\"phase_timings_ns\":{\"compile\":123,\"run\":456},\"runtime_profile\":{\"dynamic_guest_conditional_branch_executions\":3}}'\n"
+                "else\nprintf '%s' '{\"status\":\"passed\",\"program_stdout\":\"9297\\n23246\\n\",\"phase_timings_ns\":{\"compile\":123,\"run\":456}}'\nfi\n",
                 encoding="utf-8",
             )
             binary.chmod(0o755)
@@ -53,11 +57,65 @@ class PeakMemoryTests(unittest.TestCase):
                 project,
                 "richards-scheduler",
                 ["9297", "23246"],
+                runtime_profile_enabled=True,
             )
 
         self.assertEqual(profile["reported_phase_timings_ns"], {"compile": 123, "run": 456})
+        self.assertEqual(profile["runtime_profile"]["dynamic_guest_conditional_branch_executions"], 3)
         self.assertEqual(profile["cache_status"], None)
         self.assertGreater(profile["elapsed_seconds_including_process_startup"], 0)
+
+    def test_warm_lane_uses_requested_repetition_count_for_validation(self) -> None:
+        output = json.dumps({"status": "passed", "program_stdout": "1\n2\n" * 3})
+        completed = subprocess.CompletedProcess(["/opt/guion"], 0, stdout=output, stderr="")
+        with mock.patch.object(runner, "execute", return_value=(0.6, completed)):
+            samples, metadata = runner.sample_candidates(
+                "richards-scheduler",
+                {"guion_source_warm_3": ["/opt/guion", "run", "main.gu"]},
+                Path.cwd(),
+                ["1", "2"],
+                repetitions=3,
+                trials=1,
+            )
+
+        self.assertAlmostEqual(samples["guion_source_warm_3"]["median_seconds"], 0.2)
+        self.assertEqual(len(metadata["paired_trial_order"]), 1)
+
+    def test_richards_profile_builds_one_shot_and_25_repeat_lanes(self) -> None:
+        scratch_parent = runner.ROOT / "target/perf-session/test"
+        scratch_parent.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=scratch_parent) as directory:
+            root = Path(directory)
+            binary = root / "guion"
+            binary.write_bytes(b"profile-test-binary")
+            scratch = root / "scratch"
+            samples = {
+                "guion_source_uncached": {"median_seconds": 0.05, "samples_seconds": [0.05] * 15},
+                "guion_source_warm_25": {"median_seconds": 0.014, "samples_seconds": [0.014] * 15},
+            }
+            metadata = {"paired_trial_order": [["guion_source_uncached", "guion_source_warm_25"]] * 15}
+            profile = {
+                "elapsed_seconds_including_process_startup": 0.05,
+                "reported_phase_timings_ns": {
+                    "program_execute_ns": 40_000_000,
+                    "native_compilation": {"functions": [], "finalize_nanoseconds": 0},
+                },
+                "runtime_profile": {"dynamic_guest_conditional_branch_executions": 3},
+            }
+            with mock.patch.object(runner, "sample_candidates", return_value=(samples, metadata)) as sample, mock.patch.object(
+                runner, "profile_guion_run", return_value=profile
+            ) as phase:
+                report = runner.profile_richards(binary, scratch)
+
+            commands = sample.call_args.args[1]
+            self.assertIn("--no-cache", commands["guion_source_uncached"])
+            self.assertIn("--no-cache", commands["guion_source_warm_25"])
+            self.assertEqual(sample.call_args.kwargs["repetitions"], 25)
+            self.assertEqual(sample.call_args.kwargs["trials"], 15)
+            self.assertEqual(phase.call_count, 2)
+            self.assertTrue(all(call.kwargs["runtime_profile_enabled"] for call in phase.call_args_list))
+            self.assertEqual(report["repetitions_in_repeated_source_lane"], 25)
+            self.assertIn("runtime_profile", report["untimed_phase_profiles"]["one_shot"])
 
     def test_parallel_worker_memory_report_is_an_untimed_upper_bound(self) -> None:
         script = Path(__file__).resolve().parents[2] / "development/famous_benchmarks/parallel_cpu.py"
@@ -414,6 +472,40 @@ class PerformanceSessionTests(unittest.TestCase):
             self.assertEqual(result["comparisons"]["source/richards/guion_source/median_seconds"]["ratio"], 2 / 3)
             self.assertEqual(before.read_text(), before_text)
             self.assertEqual(after.read_text(), after_text)
+
+    def test_richards_profile_command_writes_the_requested_in_repo_report(self) -> None:
+        self.require_session()
+        test_scratch = session.ROOT / "target/perf-session/test"
+        test_scratch.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=test_scratch) as directory:
+            root = Path(directory)
+            binary = root / "guion"
+            binary.write_bytes(b"profile-test-binary")
+            scratch = root / "scratch"
+            output = root / "richards.json"
+            profile = {
+                "status": "passed",
+                "timed_uninstrumented_samples_per_logical_execution": {
+                    "guion_source_uncached": {},
+                    "guion_source_warm_25": {},
+                },
+            }
+            with mock.patch.object(session.runner, "profile_richards", return_value=profile) as measure:
+                result = session.main(
+                    [
+                        "richards-profile",
+                        "--binary",
+                        str(binary),
+                        "--scratch-dir",
+                        str(scratch),
+                        "--output",
+                        str(output),
+                    ]
+                )
+
+            self.assertEqual(result, 0)
+            self.assertEqual(json.loads(output.read_text()), profile)
+            measure.assert_called_once_with(binary.resolve(), scratch.resolve())
 
     def test_baseline_preserves_another_live_session_lock(self) -> None:
         self.require_session()
