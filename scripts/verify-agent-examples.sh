@@ -8,12 +8,10 @@ if [[ "$TARGET_DIR" != /* ]]; then
 fi
 CLI="$TARGET_DIR/debug/guion"
 
-if [[ ! -x "$CLI" ]]; then
-    (
-        cd "$REPO_ROOT"
-        CARGO_TARGET_DIR="$TARGET_DIR" CARGO_INCREMENTAL=0 cargo build --locked --offline -p guion-cli
-    )
-fi
+(
+    cd "$REPO_ROOT"
+    CARGO_TARGET_DIR="$TARGET_DIR" CARGO_INCREMENTAL=0 cargo build --locked --offline -p guion-cli
+)
 
 mkdir -p "$REPO_ROOT/target/perf-session"
 GUION_REPO_ROOT="$REPO_ROOT" \
@@ -44,7 +42,7 @@ def record(label, passed, details):
 
 def run(label, command, *, cwd=repo):
     result = subprocess.run(command, cwd=cwd, text=True, capture_output=True)
-    details = (result.stdout + result.stderr).strip()
+    details = (result.stdout + result.stderr).strip().replace(f"{repo}/", "")
     warning_output = "warning[" in details.lower()
     passed = result.returncode == 0 and not warning_output
     if warning_output and result.returncode == 0:

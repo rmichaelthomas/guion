@@ -130,7 +130,7 @@ Claim nothing beyond the measurements.
    - Rewrite it to use `http_request_bytes`. Take the exact signature from `language/builtin-signatures.json` and `language/host-api.md`; do not guess it.
    - Return a typed `HttpResponse`.
    - Replace `is_ok`/`unwrap`/`error` with `match`.
-   - Print the status, then the body decoded as text.
+   - Print the status, then the response body byte count. This follows the user's scope decision to keep the byte-oriented HTTP API and avoid adding a bytes-to-text feature in this pass.
 3. **`failure_paths.gu` `denied-http` mode**: switch it to `http_request_bytes`. The printed code must stay `R_NETWORK_DENIED`. If the bytes API returns a different error type or code, update `recipes.md` and `index.json` to match the real output.
 4. **`recipes.md`**:
    - Change the HTTP command to the `cargo run --locked -p guion-cli -- run --allow-http-host ...` form, matching the other recipes.
@@ -186,6 +186,7 @@ Acceptance: every gate the ARM64 Linux matrix passed also passes on x86_64 in CI
 ## §10b — PHASE D1: Agent switch-condition ledger
 
 1. Read all 18 records in `evaluation/results/recommendations/` and the `independent-v3/recommendations/` records. Extract every `rationale` objection and every `conditions` entry.
+   - Interpret structured `conditions` as formal switch triggers. In rationale text, extract only explicit counterfactual reconsideration clauses; preserve all rationale text verbatim and do not recast ordinary pros and cons as switch conditions.
 2. For each one, determine its status at the current HEAD, using `language/builtin-signatures.json`, `language/stdlib/` and `language/host-api.md`. The status is one of:
    - `closed` — the feature exists, with a cited signature or test;
    - `partial`;
