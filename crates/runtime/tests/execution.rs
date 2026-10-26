@@ -356,6 +356,71 @@ fn same_local_list_updates_do_not_accumulate_full_list_copies() {
 }
 
 #[test]
+fn same_local_map_updates_fit_a_linear_allocation_budget() {
+    let source = "fn main() -> Int:\n    var values: Map[Text, Float64] = {}\n    let key = \"seen\"\n    var i = 0\n    while i < 5000:\n        set values = map_set(values, key, 1.0)\n        set i = i + 1\n    assert(values[key] == 1.0)\n    return i\n";
+    let artifact = compile("map-update-budget.gu", source).unwrap();
+    assert!(artifact.functions[0].code.windows(2).any(|window| {
+        matches!(window[0].op, Op::MapSet) && matches!(window[1].op, Op::Store(_))
+    }));
+    let policy = HostPolicy {
+        allocation_limit_bytes: 256 * 1024,
+        ..HostPolicy::default()
+    };
+    let mut instance = Runtime::new().load(artifact, policy).unwrap();
+
+    assert_eq!(
+        instance.invoke("main", vec![]).unwrap(),
+        Value::Int(BigInt::from_usize(5000))
+    );
+}
+
+#[test]
+fn same_local_map_update_preserves_other_shared_aliases() {
+    let source = "fn main() -> Int:\n    var values: Map[Text, Int] = {\"one\": 1}\n    let previous = values\n    set values = map_set(values, \"two\", 2)\n    assert(previous[\"one\"] == 1)\n    assert(not map_has(previous, \"two\"))\n    assert(values[\"two\"] == 2)\n    return len(previous) + len(values)\n";
+    let artifact = compile("map-update-alias.gu", source).unwrap();
+    let mut instance = Runtime::new()
+        .load(artifact, HostPolicy::default())
+        .unwrap();
+
+    assert_eq!(
+        instance.invoke("main", vec![]).unwrap(),
+        Value::Int(BigInt::from_usize(3))
+    );
+}
+
+#[test]
+fn same_local_map_update_still_enforces_text_limits_on_new_values() {
+    let source = "fn main() -> Int:\n    var values: Map[Text, Text] = {}\n    set values = map_set(values, \"ok\", \"long\")\n    return 0\n";
+    let artifact = compile("map-update-text-limit.gu", source).unwrap();
+    let policy = HostPolicy {
+        max_text_bytes: 3,
+        ..HostPolicy::default()
+    };
+    let mut instance = Runtime::new().load(artifact, policy).unwrap();
+
+    assert_eq!(
+        instance.invoke("main", vec![]).unwrap_err().code,
+        "R_TEXT_LIMIT"
+    );
+}
+
+#[test]
+fn same_local_map_update_still_enforces_collection_limits() {
+    let source = "fn main() -> Int:\n    var values: Map[Text, Int] = {\"one\": 1}\n    set values = map_set(values, \"two\", 2)\n    return 0\n";
+    let artifact = compile("map-update-collection-limit.gu", source).unwrap();
+    let policy = HostPolicy {
+        max_collection_items: 1,
+        ..HostPolicy::default()
+    };
+    let mut instance = Runtime::new().load(artifact, policy).unwrap();
+
+    assert_eq!(
+        instance.invoke("main", vec![]).unwrap_err().code,
+        "R_COLLECTION_LIMIT"
+    );
+}
+
+#[test]
 fn same_local_list_pushes_fit_a_linear_allocation_budget() {
     let source = "fn main() -> Int:\n    var values: List[Int] = []\n    var i = 0\n    while i < 6000:\n        set values = list_push(values, i)\n        set i = i + 1\n    return len(values)\n";
     let artifact = compile("list-push-budget.gu", source).unwrap();
