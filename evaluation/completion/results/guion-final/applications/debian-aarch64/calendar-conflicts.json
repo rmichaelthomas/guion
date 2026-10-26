@@ -1,0 +1,495 @@
+{
+  "schema_version": 1,
+  "task_id": "04-calendar-conflict-report",
+  "application": "calendar-conflicts",
+  "mode": "source-free relocated package",
+  "relocation_path": "Moved package – Guion",
+  "product": "Guion",
+  "artifact_sha256": "73ec7eb4bffd17d75619e5a8deea778735ce483355237331431b589a4f755b15",
+  "artifact_bytes": 147638522,
+  "source_paths_excluded": [
+    "main.vr",
+    "veritas.toml"
+  ],
+  "stages": {
+    "initial": {
+      "passed": true,
+      "elapsed_seconds": 3.1586232430126984,
+      "case_count": 5,
+      "cases": [
+        {
+          "case_id": "calendar-overlap-and-boundary",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 0,
+          "checks_passed": 6,
+          "checks_total": 6,
+          "steps": [
+            {
+              "exit_code": 0,
+              "checks_passed": 6,
+              "checks_total": 6,
+              "failures": [],
+              "elapsed_seconds": 0.344937
+            }
+          ],
+          "elapsed_seconds": 0.758821,
+          "http_fixtures": {
+            "calendar": {
+              "requests": [
+                {
+                  "method": "GET",
+                  "path": "/personal.ics"
+                },
+                {
+                  "method": "GET",
+                  "path": "/team.ics"
+                },
+                {
+                  "method": "GET",
+                  "path": "/broken.ics"
+                },
+                {
+                  "method": "GET",
+                  "path": "/other.ics"
+                },
+                {
+                  "method": "GET",
+                  "path": "/unavailable.ics"
+                }
+              ],
+              "max_in_flight": 2
+            }
+          },
+          "stdout": "",
+          "stderr": "",
+          "failures": []
+        },
+        {
+          "case_id": "calendar-source-timeout",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 0,
+          "checks_passed": 4,
+          "checks_total": 4,
+          "steps": [
+            {
+              "exit_code": 0,
+              "checks_passed": 4,
+              "checks_total": 4,
+              "failures": [],
+              "elapsed_seconds": 0.136491
+            }
+          ],
+          "elapsed_seconds": 0.615068,
+          "http_fixtures": {
+            "calendar": {
+              "requests": [
+                {
+                  "method": "GET",
+                  "path": "/slow"
+                }
+              ],
+              "max_in_flight": 1
+            }
+          },
+          "stdout": "",
+          "stderr": "",
+          "failures": []
+        },
+        {
+          "case_id": "calendar-window-clips-cross-boundary-overlap",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 0,
+          "checks_passed": 4,
+          "checks_total": 4,
+          "steps": [
+            {
+              "exit_code": 0,
+              "checks_passed": 4,
+              "checks_total": 4,
+              "failures": [],
+              "elapsed_seconds": 0.187969
+            }
+          ],
+          "elapsed_seconds": 0.589149,
+          "http_fixtures": {
+            "calendar": {
+              "requests": [
+                {
+                  "method": "GET",
+                  "path": "/b"
+                },
+                {
+                  "method": "GET",
+                  "path": "/a"
+                }
+              ],
+              "max_in_flight": 2
+            }
+          },
+          "stdout": "",
+          "stderr": "",
+          "failures": []
+        },
+        {
+          "case_id": "calendar-tzid-normalizes-to-utc",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 0,
+          "checks_passed": 3,
+          "checks_total": 3,
+          "steps": [
+            {
+              "exit_code": 0,
+              "checks_passed": 3,
+              "checks_total": 3,
+              "failures": [],
+              "elapsed_seconds": 0.095826
+            }
+          ],
+          "elapsed_seconds": 0.596125,
+          "http_fixtures": {
+            "calendar": {
+              "requests": [
+                {
+                  "method": "GET",
+                  "path": "/la.ics"
+                },
+                {
+                  "method": "GET",
+                  "path": "/utc.ics"
+                }
+              ],
+              "max_in_flight": 1
+            }
+          },
+          "stdout": "",
+          "stderr": "",
+          "failures": []
+        },
+        {
+          "case_id": "calendar-slow-trickle-exceeds-total-deadline",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 0,
+          "checks_passed": 4,
+          "checks_total": 4,
+          "steps": [
+            {
+              "exit_code": 0,
+              "checks_passed": 4,
+              "checks_total": 4,
+              "failures": [],
+              "elapsed_seconds": 0.244066
+            }
+          ],
+          "elapsed_seconds": 0.598497,
+          "http_fixtures": {
+            "calendar": {
+              "requests": [
+                {
+                  "method": "GET",
+                  "path": "/slow.ics"
+                }
+              ],
+              "max_in_flight": 1
+            }
+          },
+          "stdout": "",
+          "stderr": "",
+          "failures": []
+        }
+      ]
+    },
+    "follow_up": {
+      "passed": true,
+      "elapsed_seconds": 2.5827342940028757,
+      "case_count": 6,
+      "cases": [
+        {
+          "case_id": "calendar-tentative-follow-up",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 0,
+          "checks_passed": 5,
+          "checks_total": 5,
+          "steps": [
+            {
+              "exit_code": 0,
+              "checks_passed": 5,
+              "checks_total": 5,
+              "failures": [],
+              "elapsed_seconds": 0.187489
+            }
+          ],
+          "elapsed_seconds": 0.595476,
+          "http_fixtures": {
+            "calendar": {
+              "requests": [
+                {
+                  "method": "GET",
+                  "path": "/team.ics"
+                },
+                {
+                  "method": "GET",
+                  "path": "/personal.ics"
+                }
+              ],
+              "max_in_flight": 2
+            }
+          },
+          "stdout": "",
+          "stderr": "",
+          "failures": []
+        },
+        {
+          "case_id": "calendar-invalid-event-fields",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 0,
+          "checks_passed": 3,
+          "checks_total": 3,
+          "steps": [
+            {
+              "exit_code": 0,
+              "checks_passed": 3,
+              "checks_total": 3,
+              "failures": [],
+              "elapsed_seconds": 0.089092
+            }
+          ],
+          "elapsed_seconds": 0.606253,
+          "http_fixtures": {
+            "calendar": {
+              "requests": [
+                {
+                  "method": "GET",
+                  "path": "/malformed"
+                }
+              ],
+              "max_in_flight": 1
+            }
+          },
+          "stdout": "",
+          "stderr": "",
+          "failures": []
+        },
+        {
+          "case_id": "calendar-fractional-window-clips-with-canonical-utc",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 0,
+          "checks_passed": 3,
+          "checks_total": 3,
+          "steps": [
+            {
+              "exit_code": 0,
+              "checks_passed": 3,
+              "checks_total": 3,
+              "failures": [],
+              "elapsed_seconds": 0.124676
+            }
+          ],
+          "elapsed_seconds": 0.622671,
+          "http_fixtures": {
+            "calendar": {
+              "requests": [
+                {
+                  "method": "GET",
+                  "path": "/a"
+                },
+                {
+                  "method": "GET",
+                  "path": "/b"
+                }
+              ],
+              "max_in_flight": 1
+            }
+          },
+          "stdout": "",
+          "stderr": "",
+          "failures": []
+        },
+        {
+          "case_id": "calendar-invalid-floating-unknown-zone-missing-uid-and-reversed-interval",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 0,
+          "checks_passed": 4,
+          "checks_total": 4,
+          "steps": [
+            {
+              "exit_code": 0,
+              "checks_passed": 4,
+              "checks_total": 4,
+              "failures": [],
+              "elapsed_seconds": 0.096348
+            }
+          ],
+          "elapsed_seconds": 0.604344,
+          "http_fixtures": {
+            "calendar": {
+              "requests": [
+                {
+                  "method": "GET",
+                  "path": "/floating"
+                },
+                {
+                  "method": "GET",
+                  "path": "/unknown-zone"
+                },
+                {
+                  "method": "GET",
+                  "path": "/reversed"
+                },
+                {
+                  "method": "GET",
+                  "path": "/missing-uid"
+                }
+              ],
+              "max_in_flight": 3
+            }
+          },
+          "stdout": "",
+          "stderr": "",
+          "failures": []
+        },
+        {
+          "case_id": "calendar-rejects-window-fraction-over-six-digits-preserves-output",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 1,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "steps": [
+            {
+              "exit_code": 1,
+              "checks_passed": 2,
+              "checks_total": 2,
+              "failures": [],
+              "elapsed_seconds": 0.081481
+            }
+          ],
+          "elapsed_seconds": 0.084118,
+          "http_fixtures": {},
+          "stdout": "",
+          "stderr": "timestamp must use RFC3339 date-time syntax\n",
+          "failures": []
+        },
+        {
+          "case_id": "calendar-rejects-space-separator-preserves-output",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 1,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "steps": [
+            {
+              "exit_code": 1,
+              "checks_passed": 2,
+              "checks_total": 2,
+              "failures": [],
+              "elapsed_seconds": 0.068724
+            }
+          ],
+          "elapsed_seconds": 0.069365,
+          "http_fixtures": {},
+          "stdout": "",
+          "stderr": "timestamp must use RFC3339 date-time syntax\n",
+          "failures": []
+        }
+      ]
+    }
+  },
+  "passed": true,
+  "generated": {
+    "schema_version": 1,
+    "application": "calendar-conflicts",
+    "product": "Guion",
+    "mode": "seeded independent-oracle cases against relocated package",
+    "seed": 20261024,
+    "sizes": [
+      24,
+      128
+    ],
+    "case_count": 2,
+    "concurrency": null,
+    "passed": true,
+    "cases": [
+      {
+        "case_id": "generated-calendar-24",
+        "candidate": {},
+        "passed": true,
+        "exit_code": 0,
+        "checks_passed": 2,
+        "checks_total": 2,
+        "steps": [
+          {
+            "exit_code": 0,
+            "checks_passed": 2,
+            "checks_total": 2,
+            "failures": [],
+            "elapsed_seconds": 0.084164
+          }
+        ],
+        "elapsed_seconds": 0.580989,
+        "http_fixtures": {
+          "calendar": {
+            "requests": [
+              {
+                "method": "GET",
+                "path": "/beta.ics"
+              },
+              {
+                "method": "GET",
+                "path": "/alpha.ics"
+              }
+            ],
+            "max_in_flight": 2
+          }
+        },
+        "stdout": "",
+        "stderr": "",
+        "failures": []
+      },
+      {
+        "case_id": "generated-calendar-128",
+        "candidate": {},
+        "passed": true,
+        "exit_code": 0,
+        "checks_passed": 2,
+        "checks_total": 2,
+        "steps": [
+          {
+            "exit_code": 0,
+            "checks_passed": 2,
+            "checks_total": 2,
+            "failures": [],
+            "elapsed_seconds": 0.148151
+          }
+        ],
+        "elapsed_seconds": 0.595494,
+        "http_fixtures": {
+          "calendar": {
+            "requests": [
+              {
+                "method": "GET",
+                "path": "/beta.ics"
+              },
+              {
+                "method": "GET",
+                "path": "/alpha.ics"
+              }
+            ],
+            "max_in_flight": 2
+          }
+        },
+        "stdout": "",
+        "stderr": "",
+        "failures": []
+      }
+    ]
+  }
+}

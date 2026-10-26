@@ -1,0 +1,54 @@
+{
+  "artifact_identities": {
+    "artifact_schema": "sha256:7c91c82c3ff2a1351fe30dc9bd3350eb1d88dc914b59f3a34cc288858a94958f",
+    "compiler_seed": "sha256:cdcdaf6baef1657bee9500393db9b67f3a3f810b15403dea63c59be3cc36f001",
+    "compiler_seed_manifest": "sha256:fb26fc800f1c263c22a1704a601aeaf734b5337124f5c5356ec6e47a66e6f6f7",
+    "runtime": "sha256:ab68e378d1cadca5683aefcc842e1fb4e585fa7145a56ee98eee7b0bd9b4c3ab",
+    "stdlib": "sha256:71259e69ef34dcc5d05d50bd3537a5d0f00101069cdcf1df7456941cdfd14833"
+  },
+  "changed_path_count": 0,
+  "checks": [
+    {
+      "command": [
+        "cargo",
+        "--locked",
+        "--offline",
+        "test",
+        "-p",
+        "guion-cli",
+        "--test",
+        "builder_lifecycle"
+      ],
+      "exit_status": 0,
+      "id": "builder-lifecycle",
+      "output": "\nrunning 1 test\ntest installed_core_completes_new_repair_format_lint_build_package_install_and_run has been running for over 60 seconds\ntest installed_core_completes_new_repair_format_lint_build_package_install_and_run ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 60.04s\n\n\n   Compiling guion-cli v0.1.0 (/private/tmp/guion-validation-0657946/crates/cli)\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 4.32s\n     Running tests/builder_lifecycle.rs (target/debug/deps/builder_lifecycle-e74a34533c88735c)\n",
+      "status": "passed"
+    }
+  ],
+  "command": "product",
+  "completed_targets": [
+    "macos-aarch64"
+  ],
+  "exact_command": "cargo xtask product --group lifecycle --target both",
+  "exit_status": 0,
+  "message": null,
+  "missing_checks": [],
+  "missing_evidence": [],
+  "report": "product-lifecycle",
+  "required_targets": [
+    "macos-aarch64",
+    "debian-aarch64"
+  ],
+  "runtime_hash": "sha256:ab68e378d1cadca5683aefcc842e1fb4e585fa7145a56ee98eee7b0bd9b4c3ab",
+  "schema_version": 1,
+  "seed_hash": "sha256:cdcdaf6baef1657bee9500393db9b67f3a3f810b15403dea63c59be3cc36f001",
+  "skipped_targets": [
+    "debian-aarch64"
+  ],
+  "source_revision": "89da07cd7ab5cf4764f6564824666cc362ee75b2",
+  "status": "incomplete",
+  "stdlib_hash": "sha256:71259e69ef34dcc5d05d50bd3537a5d0f00101069cdcf1df7456941cdfd14833",
+  "target": "macos-aarch64",
+  "unsatisfied_goal_ids": [],
+  "working_tree_digest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

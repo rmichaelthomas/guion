@@ -1,0 +1,292 @@
+{
+  "artifact_identities": {
+    "artifact_schema": "sha256:7c91c82c3ff2a1351fe30dc9bd3350eb1d88dc914b59f3a34cc288858a94958f",
+    "compiler_seed": "sha256:cdcdaf6baef1657bee9500393db9b67f3a3f810b15403dea63c59be3cc36f001",
+    "compiler_seed_manifest": "sha256:fb26fc800f1c263c22a1704a601aeaf734b5337124f5c5356ec6e47a66e6f6f7",
+    "runtime": "sha256:ab68e378d1cadca5683aefcc842e1fb4e585fa7145a56ee98eee7b0bd9b4c3ab",
+    "stdlib": "sha256:71259e69ef34dcc5d05d50bd3537a5d0f00101069cdcf1df7456941cdfd14833"
+  },
+  "changed_path_count": 0,
+  "checks": [
+    {
+      "command": [
+        "cargo",
+        "build",
+        "--locked",
+        "--offline",
+        "--release",
+        "-p",
+        "guion-cli",
+        "--bin",
+        "guion"
+      ],
+      "exit_status": 0,
+      "id": "release-binary-build",
+      "output": "built /private/tmp/guion-validation-0657946/target/release/guion (0.1.0-macos-aarch64-1de83eb7d561)",
+      "status": "passed",
+      "target": "macos-aarch64"
+    },
+    {
+      "command": [
+        "cargo xtask release"
+      ],
+      "exit_status": 0,
+      "id": "release-package-contents",
+      "output": "compiler seed, standard library, docs, native component manifest, installer, 169 dependency license sets; archive has 494 safe members",
+      "status": "passed",
+      "target": "macos-aarch64"
+    },
+    {
+      "command": [
+        "Rust path/type audit + tar listing"
+      ],
+      "exit_status": 0,
+      "id": "release-archive-audit",
+      "output": "/private/tmp/guion-validation-0657946/target/completion/releases/macos-aarch64/guion-macos-aarch64.tar.gz (5429536 bytes, sha256 bf24981b70f9c96833b7c5a1e8452b78acb6a4ec0ca11fb465d4df541141ec9c)",
+      "status": "passed",
+      "target": "macos-aarch64"
+    },
+    {
+      "command": [
+        "Rust release manifest verification"
+      ],
+      "exit_status": 0,
+      "id": "release-tamper-rejected",
+      "output": "modified compiler seed rejected by SHA-256 manifest verification",
+      "status": "passed",
+      "target": "macos-aarch64"
+    },
+    {
+      "command": [
+        "Rust release target verification"
+      ],
+      "exit_status": 0,
+      "id": "release-dependency-target-mismatch",
+      "output": "package built for a different target (aarch64-unknown-linux-gnu) rejected",
+      "status": "passed",
+      "target": "macos-aarch64"
+    },
+    {
+      "command": [
+        "/private/tmp/guion-validation-0657946/target/completion/releases/macos-aarch64/relocated ✓ package/bin/guion",
+        "--version"
+      ],
+      "exit_status": 0,
+      "id": "source-free-readonly-relocation",
+      "output": "PATH=/nonexistent; package tree read-only; cwd=/var/folders/r9/60ct76ks20z0_j2dznkytq940000gn/T/; guion 0.1.0 (artifact format 39)\n",
+      "status": "passed",
+      "target": "macos-aarch64"
+    },
+    {
+      "command": [
+        "sh",
+        "/private/tmp/guion-validation-0657946/target/completion/releases/macos-aarch64/current/install.sh",
+        "/private/tmp/guion-validation-0657946/target/completion/releases/macos-aarch64/install-prefix ✓"
+      ],
+      "exit_status": 0,
+      "id": "release-installer-clean-room",
+      "output": "installer and installed command use PATH=/usr/bin:/bin (no Python/uv path); Installed Guion current\nCommand: /private/tmp/guion-validation-0657946/target/completion/releases/macos-aarch64/install-prefix ✓/bin/guion\nAdd /private/tmp/guion-validation-0657946/target/completion/releases/macos-aarch64/install-prefix ✓/bin to PATH to invoke `guion` from any directory.\nguion 0.1.0 (artifact format 39)\n",
+      "status": "passed",
+      "target": "macos-aarch64"
+    },
+    {
+      "command": [
+        "/private/tmp/guion-validation-0657946/target/completion/releases/macos-aarch64/relocated ✓ package/bin/guion",
+        "new",
+        "example app"
+      ],
+      "exit_status": 0,
+      "id": "readonly-install-writable-caller-data",
+      "output": "read-only install; writable project created at /private/tmp/guion-validation-0657946/target/completion/releases/macos-aarch64/caller-data ✓/example app/src/main.gu; created example app\n",
+      "status": "passed",
+      "target": "macos-aarch64"
+    },
+    {
+      "command": [
+        "/private/tmp/guion-validation-0657946/target/completion/releases/macos-aarch64/relocated ✓ package/bin/guion",
+        "check",
+        "/private/tmp/guion-validation-0657946/target/completion/releases/macos-aarch64/caller-data ✓/example app/src/main.gu"
+      ],
+      "exit_status": 0,
+      "id": "bundled-stdlib-from-relocated-install",
+      "output": "checked /private/tmp/guion-validation-0657946/target/completion/releases/macos-aarch64/caller-data ✓/example app/src/main.gu (2 functions)\n",
+      "status": "passed",
+      "target": "macos-aarch64"
+    },
+    {
+      "command": [
+        "otool",
+        "-L",
+        "/private/tmp/guion-validation-0657946/target/completion/releases/macos-aarch64/relocated ✓ package/bin/guion"
+      ],
+      "exit_status": 0,
+      "id": "dynamic-library-audit",
+      "output": "/private/tmp/guion-validation-0657946/target/completion/releases/macos-aarch64/relocated ✓ package/bin/guion:\n\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1359.0.0)\n\t/usr/lib/libiconv.2.dylib (compatibility version 7.0.0, current version 7.0.0)\n",
+      "status": "passed",
+      "target": "macos-aarch64"
+    },
+    {
+      "command": [
+        "Rust release manifest verification"
+      ],
+      "exit_status": 0,
+      "id": "release-hashes-stable-after-execution",
+      "output": "immutable current package hashes remain unchanged after relocation and launches",
+      "status": "passed",
+      "target": "macos-aarch64"
+    },
+    {
+      "command": [
+        "cargo",
+        "build",
+        "--locked",
+        "--offline",
+        "--release",
+        "--target",
+        "aarch64-unknown-linux-gnu",
+        "-p",
+        "guion-cli",
+        "--bin",
+        "guion"
+      ],
+      "exit_status": 0,
+      "id": "release-binary-build",
+      "output": "built /target/aarch64-unknown-linux-gnu/release/guion (0.1.0-debian-aarch64-78114dac7951)",
+      "status": "passed",
+      "target": "debian-aarch64"
+    },
+    {
+      "command": [
+        "cargo xtask release"
+      ],
+      "exit_status": 0,
+      "id": "release-package-contents",
+      "output": "compiler seed, standard library, docs, native component manifest, installer, 168 dependency license sets; archive has 490 safe members",
+      "status": "passed",
+      "target": "debian-aarch64"
+    },
+    {
+      "command": [
+        "Rust path/type audit + tar listing"
+      ],
+      "exit_status": 0,
+      "id": "release-archive-audit",
+      "output": "/work/target/completion/releases/debian-aarch64/guion-debian-aarch64.tar.gz (5880206 bytes, sha256 67de0ee99b613891d1223965680c6445df849cb24ab3c86ba87b34ff92def7ad)",
+      "status": "passed",
+      "target": "debian-aarch64"
+    },
+    {
+      "command": [
+        "Rust release manifest verification"
+      ],
+      "exit_status": 0,
+      "id": "release-tamper-rejected",
+      "output": "modified compiler seed rejected by SHA-256 manifest verification",
+      "status": "passed",
+      "target": "debian-aarch64"
+    },
+    {
+      "command": [
+        "Rust release target verification"
+      ],
+      "exit_status": 0,
+      "id": "release-dependency-target-mismatch",
+      "output": "package built for a different target (aarch64-apple-darwin) rejected",
+      "status": "passed",
+      "target": "debian-aarch64"
+    },
+    {
+      "command": [
+        "/work/target/completion/releases/debian-aarch64/relocated ✓ package/bin/guion",
+        "--version"
+      ],
+      "exit_status": 0,
+      "id": "source-free-readonly-relocation",
+      "output": "PATH=/nonexistent; package tree read-only; cwd=/tmp; guion 0.1.0 (artifact format 39)\n",
+      "status": "passed",
+      "target": "debian-aarch64"
+    },
+    {
+      "command": [
+        "sh",
+        "/work/target/completion/releases/debian-aarch64/current/install.sh",
+        "/work/target/completion/releases/debian-aarch64/install-prefix ✓"
+      ],
+      "exit_status": 0,
+      "id": "release-installer-clean-room",
+      "output": "installer and installed command use PATH=/usr/bin:/bin (no Python/uv path); Installed Guion current\nCommand: /work/target/completion/releases/debian-aarch64/install-prefix ✓/bin/guion\nAdd /work/target/completion/releases/debian-aarch64/install-prefix ✓/bin to PATH to invoke `guion` from any directory.\nguion 0.1.0 (artifact format 39)\n",
+      "status": "passed",
+      "target": "debian-aarch64"
+    },
+    {
+      "command": [
+        "/work/target/completion/releases/debian-aarch64/relocated ✓ package/bin/guion",
+        "new",
+        "example app"
+      ],
+      "exit_status": 0,
+      "id": "readonly-install-writable-caller-data",
+      "output": "read-only install; writable project created at /work/target/completion/releases/debian-aarch64/caller-data ✓/example app/src/main.gu; created example app\n",
+      "status": "passed",
+      "target": "debian-aarch64"
+    },
+    {
+      "command": [
+        "/work/target/completion/releases/debian-aarch64/relocated ✓ package/bin/guion",
+        "check",
+        "/work/target/completion/releases/debian-aarch64/caller-data ✓/example app/src/main.gu"
+      ],
+      "exit_status": 0,
+      "id": "bundled-stdlib-from-relocated-install",
+      "output": "checked /work/target/completion/releases/debian-aarch64/caller-data ✓/example app/src/main.gu (2 functions)\n",
+      "status": "passed",
+      "target": "debian-aarch64"
+    },
+    {
+      "command": [
+        "ldd",
+        "/work/target/completion/releases/debian-aarch64/relocated ✓ package/bin/guion"
+      ],
+      "exit_status": 0,
+      "id": "dynamic-library-audit",
+      "output": "\tlinux-vdso.so.1 (0x0000ffa92cbc6000)\n\tlibm.so.6 => /lib/aarch64-linux-gnu/libm.so.6 (0x0000ffa92c020000)\n\tlibgcc_s.so.1 => /lib/aarch64-linux-gnu/libgcc_s.so.1 (0x0000ffa92bfe0000)\n\tlibc.so.6 => /lib/aarch64-linux-gnu/libc.so.6 (0x0000ffa92be30000)\n\t/lib/ld-linux-aarch64.so.1 (0x0000ffa92cb80000)\n",
+      "status": "passed",
+      "target": "debian-aarch64"
+    },
+    {
+      "command": [
+        "Rust release manifest verification"
+      ],
+      "exit_status": 0,
+      "id": "release-hashes-stable-after-execution",
+      "output": "immutable current package hashes remain unchanged after relocation and launches",
+      "status": "passed",
+      "target": "debian-aarch64"
+    }
+  ],
+  "command": "release",
+  "completed_targets": [
+    "macos-aarch64",
+    "debian-aarch64"
+  ],
+  "exact_command": "cargo xtask release --target both",
+  "exit_status": 0,
+  "message": null,
+  "missing_checks": [],
+  "missing_evidence": [],
+  "report": "release",
+  "required_targets": [
+    "macos-aarch64",
+    "debian-aarch64"
+  ],
+  "runtime_hash": "sha256:ab68e378d1cadca5683aefcc842e1fb4e585fa7145a56ee98eee7b0bd9b4c3ab",
+  "schema_version": 1,
+  "seed_hash": "sha256:cdcdaf6baef1657bee9500393db9b67f3a3f810b15403dea63c59be3cc36f001",
+  "skipped_targets": [],
+  "source_revision": "ab4cdf95604c75be334c8aa5ce9f491758c0ff28",
+  "status": "passed",
+  "stdlib_hash": "sha256:71259e69ef34dcc5d05d50bd3537a5d0f00101069cdcf1df7456941cdfd14833",
+  "target": "both",
+  "unsatisfied_goal_ids": [],
+  "working_tree_digest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

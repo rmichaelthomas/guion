@@ -1,0 +1,67 @@
+{
+  "artifact_identities": {
+    "artifact_schema": "sha256:7c91c82c3ff2a1351fe30dc9bd3350eb1d88dc914b59f3a34cc288858a94958f",
+    "compiler_seed": "sha256:cdcdaf6baef1657bee9500393db9b67f3a3f810b15403dea63c59be3cc36f001",
+    "compiler_seed_manifest": "sha256:fb26fc800f1c263c22a1704a601aeaf734b5337124f5c5356ec6e47a66e6f6f7",
+    "runtime": "sha256:ab68e378d1cadca5683aefcc842e1fb4e585fa7145a56ee98eee7b0bd9b4c3ab",
+    "stdlib": "sha256:71259e69ef34dcc5d05d50bd3537a5d0f00101069cdcf1df7456941cdfd14833"
+  },
+  "changed_path_count": 0,
+  "checks": [
+    {
+      "command": [
+        "cargo",
+        "--locked",
+        "--offline",
+        "test",
+        "-p",
+        "guion-runtime",
+        "--test",
+        "stdlib_data"
+      ],
+      "exit_status": 0,
+      "id": "stdlib-data",
+      "output": "\nrunning 12 tests\ntest json_safe_accessors_keep_missing_null_and_boolean_types_distinct ... ok\ntest cli_option_map_distinguishes_missing_from_supplied_empty ... ok\ntest strict_timestamps_validate_gregorian_dates_and_normalize_offsets_exactly ... ok\ntest semver_supports_huge_components_and_full_prerelease_precedence ... ok\ntest invalid_data_keeps_existing_output_untouched ... ok\ntest reader_handles_are_owned_typed_and_closed_with_registry ... ok\ntest sort_by_is_stable_preserves_aliases_and_rejects_transitive_effects ... ok\ntest fs_walk_is_sorted_bounded_and_does_not_follow_symlink_directories ... ok\ntest csv_reader_handles_multiline_quotes_empty_fields_and_malformed_rows ... ok\ntest guion_line_and_csv_builtins_stream_records_through_owned_handles ... ok\ntest every_shipped_data_module_compiles_as_an_independent_std_import ... ok\ntest line_reader_is_incremental_strict_utf8_and_tracks_physical_lines ... ok\n\ntest result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s\n\n\n   Compiling reqwest v0.12.28\n   Compiling guion-runtime v0.1.0 (/private/tmp/guion-validation-0657946/crates/runtime)\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 4.82s\n     Running tests/stdlib_data.rs (/Users/rmichaelthomas/guion/target/debug/deps/stdlib_data-5d3e592475c6ed4e)\n",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "--locked",
+        "--offline",
+        "test",
+        "-p",
+        "guion-cli",
+        "--test",
+        "stdlib_data"
+      ],
+      "exit_status": 0,
+      "id": "stdlib-data-embedded-selfhost",
+      "output": "\nrunning 1 test\ntest embedded_self_host_compiler_runs_shipped_data_modules_and_streams ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.93s\n\n\n   Compiling guion-cli v0.1.0 (/private/tmp/guion-validation-0657946/crates/cli)\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.85s\n     Running tests/stdlib_data.rs (/Users/rmichaelthomas/guion/target/debug/deps/stdlib_data-f5757d95a96b0e09)\n",
+      "status": "passed"
+    }
+  ],
+  "command": "stdlib",
+  "completed_targets": [
+    "macos-aarch64"
+  ],
+  "exact_command": "cargo xtask stdlib --group data",
+  "exit_status": 0,
+  "message": null,
+  "missing_checks": [],
+  "missing_evidence": [],
+  "report": "stdlib-data",
+  "required_targets": [
+    "macos-aarch64"
+  ],
+  "runtime_hash": "sha256:ab68e378d1cadca5683aefcc842e1fb4e585fa7145a56ee98eee7b0bd9b4c3ab",
+  "schema_version": 1,
+  "seed_hash": "sha256:cdcdaf6baef1657bee9500393db9b67f3a3f810b15403dea63c59be3cc36f001",
+  "skipped_targets": [],
+  "source_revision": "89da07cd7ab5cf4764f6564824666cc362ee75b2",
+  "status": "passed",
+  "stdlib_hash": "sha256:71259e69ef34dcc5d05d50bd3537a5d0f00101069cdcf1df7456941cdfd14833",
+  "target": "macos-aarch64",
+  "unsatisfied_goal_ids": [],
+  "working_tree_digest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}
