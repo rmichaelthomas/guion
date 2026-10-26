@@ -1,0 +1,3160 @@
+{
+  "agent_application_cases": {
+    "file-data": {
+      "cache_state": "source recompiles per process until source-run cache task is implemented",
+      "expected_output": [
+        "3"
+      ],
+      "native_backend_reports": {
+        "guion_artifact": {
+          "bytecode_blocks": 0,
+          "bytecode_instructions": 0,
+          "calls": 0,
+          "compilations": 0,
+          "compile_profile": {
+            "finalize_nanoseconds": 0,
+            "functions": []
+          },
+          "compiled_functions": [],
+          "cranelift_ir_blocks": 0,
+          "cranelift_ir_instructions": 0,
+          "deoptimizations": 0
+        },
+        "guion_source": {
+          "bytecode_blocks": 0,
+          "bytecode_instructions": 0,
+          "calls": 0,
+          "compilations": 0,
+          "compile_profile": {
+            "finalize_nanoseconds": 0,
+            "functions": []
+          },
+          "compiled_functions": [],
+          "cranelift_ir_blocks": 0,
+          "cranelift_ir_instructions": 0,
+          "deoptimizations": 0
+        }
+      },
+      "paired_trial_order": [
+        [
+          "guion_source",
+          "guion_artifact",
+          "python_reference"
+        ],
+        [
+          "python_reference",
+          "guion_artifact",
+          "guion_source"
+        ],
+        [
+          "python_reference",
+          "guion_source",
+          "guion_artifact"
+        ],
+        [
+          "guion_artifact",
+          "guion_source",
+          "python_reference"
+        ],
+        [
+          "python_reference",
+          "guion_artifact",
+          "guion_source"
+        ],
+        [
+          "guion_source",
+          "python_reference",
+          "guion_artifact"
+        ],
+        [
+          "guion_artifact",
+          "guion_source",
+          "python_reference"
+        ]
+      ],
+      "workloads": {
+        "guion_artifact": {
+          "median_seconds": 0.010087667003972456,
+          "p95_seconds_nearest_rank": 0.01064991598832421,
+          "samples_seconds": [
+            0.010480042023118585,
+            0.01064991598832421,
+            0.010031915997387841,
+            0.010087667003972456,
+            0.009825916000409052,
+            0.010191665991442278,
+            0.009705166012281552
+          ]
+        },
+        "guion_source": {
+          "median_seconds": 0.04461466599605046,
+          "p95_seconds_nearest_rank": 0.044984125008340925,
+          "samples_seconds": [
+            0.044545000011567026,
+            0.04360233302577399,
+            0.04463683400535956,
+            0.04461466599605046,
+            0.044892707985127345,
+            0.044984125008340925,
+            0.044181292003486305
+          ]
+        },
+        "python_reference": {
+          "median_seconds": 0.03177158301696181,
+          "p95_seconds_nearest_rank": 0.03253183301421814,
+          "samples_seconds": [
+            0.03221904201200232,
+            0.03089816600549966,
+            0.030328209017170593,
+            0.03177158301696181,
+            0.0322228750155773,
+            0.03253183301421814,
+            0.031074499973328784
+          ]
+        }
+      }
+    },
+    "sqlite-toml": {
+      "cache_state": "source recompiles per process until source-run cache task is implemented",
+      "expected_output": [
+        "Guion agents"
+      ],
+      "native_backend_reports": {
+        "guion_artifact": {
+          "bytecode_blocks": 0,
+          "bytecode_instructions": 0,
+          "calls": 0,
+          "compilations": 0,
+          "compile_profile": {
+            "finalize_nanoseconds": 0,
+            "functions": []
+          },
+          "compiled_functions": [],
+          "cranelift_ir_blocks": 0,
+          "cranelift_ir_instructions": 0,
+          "deoptimizations": 0
+        },
+        "guion_source": {
+          "bytecode_blocks": 0,
+          "bytecode_instructions": 0,
+          "calls": 0,
+          "compilations": 0,
+          "compile_profile": {
+            "finalize_nanoseconds": 0,
+            "functions": []
+          },
+          "compiled_functions": [],
+          "cranelift_ir_blocks": 0,
+          "cranelift_ir_instructions": 0,
+          "deoptimizations": 0
+        }
+      },
+      "paired_trial_order": [
+        [
+          "guion_source",
+          "guion_artifact",
+          "python_reference"
+        ],
+        [
+          "python_reference",
+          "guion_artifact",
+          "guion_source"
+        ],
+        [
+          "python_reference",
+          "guion_source",
+          "guion_artifact"
+        ],
+        [
+          "guion_artifact",
+          "guion_source",
+          "python_reference"
+        ],
+        [
+          "python_reference",
+          "guion_artifact",
+          "guion_source"
+        ],
+        [
+          "guion_source",
+          "python_reference",
+          "guion_artifact"
+        ],
+        [
+          "guion_artifact",
+          "guion_source",
+          "python_reference"
+        ]
+      ],
+      "workloads": {
+        "guion_artifact": {
+          "median_seconds": 0.010844040982192382,
+          "p95_seconds_nearest_rank": 0.011780125001678243,
+          "samples_seconds": [
+            0.011780125001678243,
+            0.011197791987797245,
+            0.010844040982192382,
+            0.010541833005845547,
+            0.011415499990107492,
+            0.010662749991752207,
+            0.010684209002647549
+          ]
+        },
+        "guion_source": {
+          "median_seconds": 0.15114062500651926,
+          "p95_seconds_nearest_rank": 0.15463624999392778,
+          "samples_seconds": [
+            0.15463624999392778,
+            0.1508587910211645,
+            0.15126370801590383,
+            0.147770000010496,
+            0.15114062500651926,
+            0.1496787910000421,
+            0.15134887499152683
+          ]
+        },
+        "python_reference": {
+          "median_seconds": 0.02850041599594988,
+          "p95_seconds_nearest_rank": 0.030150750011671335,
+          "samples_seconds": [
+            0.029873958003008738,
+            0.028202958987094462,
+            0.027985166001599282,
+            0.02950754199991934,
+            0.030150750011671335,
+            0.028011833026539534,
+            0.02850041599594988
+          ]
+        }
+      }
+    }
+  },
+  "cache_state": "pre-source-run-cache implementation; every source process recompiles",
+  "created_at_utc": "2026-10-26T03:46:22.894048+00:00",
+  "existing_correctness_checked_suite": {
+    "artifact_bytes": {
+      "jsonl-summary-data": 58131,
+      "mandelbrot-image": 5674,
+      "nbody-numeric": 23606,
+      "parallel-cpu-20000": 2896,
+      "parallel-cpu-200000": 2900,
+      "richards-scheduler": 41008
+    },
+    "build_seconds": {
+      "jsonl-summary-data": 1.2282782919937745,
+      "mandelbrot-image": 0.05657016599434428,
+      "mandelbrot-image_warm": 0.06059466698206961,
+      "nbody-numeric": 0.21683345799101517,
+      "nbody-numeric_warm": 0.22149275001720525,
+      "parallel-cpu-20000": 0.044191000022692606,
+      "parallel-cpu-200000": 0.043980333022773266,
+      "richards-scheduler": 0.8432932909927331,
+      "richards-scheduler_warm": 0.8497570829931647
+    },
+    "fixed_inputs": {
+      "bootstrap_resamples": 20000,
+      "bootstrap_seed": 20261026,
+      "candidate_order": "seeded shuffle per paired trial",
+      "compute_trials": 15,
+      "data_trials": 16,
+      "seed": 20261025,
+      "warm_repetitions": 5,
+      "warmups": 2
+    },
+    "free_threaded_python": {
+      "available": false,
+      "reason": "No python3.14t or python3t executable is installed; free-threaded concurrency comparison cannot be measured on this host.",
+      "status": "unverified"
+    },
+    "package_archive_sha256": null,
+    "package_archive_size_bytes": null,
+    "package_size_bytes": 544365045,
+    "peak_memory_bytes": {
+      "jsonl-summary-data/guion_artifact": 12779520,
+      "mandelbrot-image/guion_artifact": 11517952,
+      "mandelbrot-image/guion_source": 34275328,
+      "mandelbrot-image/guion_warm_artifact": 11436032,
+      "mandelbrot-image/python_reference": 15171584,
+      "mandelbrot-image/python_warm": 15810560,
+      "nbody-numeric/guion_artifact": 170917888,
+      "nbody-numeric/guion_source": 204947456,
+      "nbody-numeric/guion_warm_artifact": 797360128,
+      "nbody-numeric/python_reference": 15581184,
+      "nbody-numeric/python_warm": 16187392,
+      "parallel-cpu-20000/guion_artifact": 10878976,
+      "parallel-cpu-20000/guion_source": 33488896,
+      "parallel-cpu-20000/guion_warm_artifact": 11010048,
+      "parallel-cpu-20000/python_processes": 24182784,
+      "parallel-cpu-20000/python_serial": 22020096,
+      "parallel-cpu-20000/python_threads": 21741568,
+      "parallel-cpu-20000/python_warm": 22413312,
+      "parallel-cpu-200000/guion_artifact": 10878976,
+      "parallel-cpu-200000/guion_source": 33636352,
+      "parallel-cpu-200000/guion_warm_artifact": 11173888,
+      "parallel-cpu-200000/python_processes": 24150016,
+      "parallel-cpu-200000/python_serial": 21692416,
+      "parallel-cpu-200000/python_threads": 22233088,
+      "parallel-cpu-200000/python_warm": 22216704,
+      "richards-scheduler/guion_artifact": 57638912,
+      "richards-scheduler/guion_source": 82411520,
+      "richards-scheduler/guion_warm_artifact": 186859520,
+      "richards-scheduler/python_reference": 19136512,
+      "richards-scheduler/python_warm": 20283392
+    },
+    "platform": {
+      "architecture": "arm64",
+      "platform": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+      "release_binary": "/Users/rmichaelthomas/guion/target/worktrees/guion-source-loop/target/perf-session/cargo/release/guion",
+      "release_binary_sha256": "42812662904d3e8deeb8caedb88abec4e76ff2414400b761018a8f89bfb8f5d4"
+    },
+    "python": {
+      "executable": "/opt/homebrew/opt/python@3.14/bin/python3.14",
+      "gil_enabled": true,
+      "matches_pinned": true,
+      "pinned_version": "3.14.7",
+      "version": "3.14.7 (main, Aug  5 2026, 10:29:49) [Clang 21.0.0 (clang-2100.1.1.101)]"
+    },
+    "resource_policy": {
+      "allocation_limit_bytes": 8589934592,
+      "instruction_limits_are_workload_specific": true,
+      "reason": "same declared ceiling for each paired candidate and repeated in-process warm run; peak resident memory is measured separately",
+      "warm_instruction_budget_multiplier": 5
+    },
+    "workloads": {
+      "jsonl-summary-data": {
+        "comparison": {
+          "guion_artifact_over_python": {
+            "ci95_percentile": [
+              3.2612936582172067,
+              3.346279120629869
+            ],
+            "median_ratio": 3.2754413719591238,
+            "ties_or_regressions": 16,
+            "win": false
+          },
+          "guion_artifact_over_sqlite_native": {
+            "ci95_percentile": [
+              2.8535091429282393,
+              2.927895734773653
+            ],
+            "median_ratio": 2.9085022843261363,
+            "ties_or_regressions": 16,
+            "win": false
+          },
+          "guion_source_over_python": {
+            "ci95_percentile": [
+              12.466195879657036,
+              12.732184901867704
+            ],
+            "median_ratio": 12.573614136357772,
+            "ties_or_regressions": 16,
+            "win": false
+          }
+        },
+        "generator_seed": 20261025,
+        "guion_artifact": {
+          "median_seconds": 0.42932210449362174,
+          "p95_seconds_nearest_rank": 0.4557622080028523,
+          "samples_seconds": [
+            0.4291339589981362,
+            0.42655070798355155,
+            0.4284810829849448,
+            0.43039366698940285,
+            0.4307439999829512,
+            0.4291159590065945,
+            0.42826379102189094,
+            0.43898266699397936,
+            0.43061370801297016,
+            0.4311375409888569,
+            0.42951024998910725,
+            0.4279994999815244,
+            0.4557622080028523,
+            0.42781612498220056,
+            0.43220504198689014,
+            0.42695370901492424
+          ]
+        },
+        "guion_source": {
+          "median_seconds": 1.6419576664920896,
+          "p95_seconds_nearest_rank": 1.6898116249940358,
+          "samples_seconds": [
+            1.6446425409812946,
+            1.6307953330106102,
+            1.6514664170099422,
+            1.6260634579812177,
+            1.641902665985981,
+            1.6898116249940358,
+            1.6376112080179155,
+            1.6323315000045113,
+            1.6551441669871565,
+            1.644831957994029,
+            1.6335369579901453,
+            1.633511333988281,
+            1.6491076249803882,
+            1.6420126669981983,
+            1.6546171660011169,
+            1.6308314589841757
+          ]
+        },
+        "guion_warm_artifact": {
+          "median_seconds": 0.42335856659919957,
+          "p95_seconds_nearest_rank": 0.43522965000011027,
+          "samples_seconds": [
+            0.4309613918012474,
+            0.4280955249967519,
+            0.425686233403394,
+            0.42457232500310055,
+            0.42152580820256846,
+            0.42518972500110974,
+            0.4236391749989707,
+            0.41812137499800883,
+            0.4230779581994284,
+            0.42702138319727967,
+            0.4205390666029416,
+            0.42000104999751786,
+            0.42299412499996836,
+            0.43522965000011027,
+            0.4200839667988475,
+            0.41960926660103726
+          ]
+        },
+        "native_backend_reports": {
+          "guion_artifact": {
+            "bytecode_blocks": 0,
+            "bytecode_instructions": 0,
+            "calls": 0,
+            "compilations": 0,
+            "compile_profile": {
+              "finalize_nanoseconds": 0,
+              "functions": []
+            },
+            "compiled_functions": [],
+            "cranelift_ir_blocks": 0,
+            "cranelift_ir_instructions": 0,
+            "deoptimizations": 0
+          },
+          "guion_source": {
+            "bytecode_blocks": 0,
+            "bytecode_instructions": 0,
+            "calls": 0,
+            "compilations": 0,
+            "compile_profile": {
+              "finalize_nanoseconds": 0,
+              "functions": []
+            },
+            "compiled_functions": [],
+            "cranelift_ir_blocks": 0,
+            "cranelift_ir_instructions": 0,
+            "deoptimizations": 0
+          },
+          "guion_warm_artifact": {
+            "bytecode_blocks": 0,
+            "bytecode_instructions": 0,
+            "calls": 0,
+            "compilations": 0,
+            "compile_profile": {
+              "finalize_nanoseconds": 0,
+              "functions": []
+            },
+            "compiled_functions": [],
+            "cranelift_ir_blocks": 0,
+            "cranelift_ir_instructions": 0,
+            "deoptimizations": 0
+          }
+        },
+        "paired_trial_order": [
+          [
+            "guion_warm_artifact",
+            "python_warm",
+            "guion_artifact",
+            "python_sqlite_native",
+            "python_data",
+            "guion_source"
+          ],
+          [
+            "python_sqlite_native",
+            "guion_artifact",
+            "python_warm",
+            "guion_source",
+            "guion_warm_artifact",
+            "python_data"
+          ],
+          [
+            "guion_artifact",
+            "python_data",
+            "python_sqlite_native",
+            "python_warm",
+            "guion_source",
+            "guion_warm_artifact"
+          ],
+          [
+            "python_warm",
+            "guion_artifact",
+            "guion_source",
+            "guion_warm_artifact",
+            "python_sqlite_native",
+            "python_data"
+          ],
+          [
+            "python_sqlite_native",
+            "guion_artifact",
+            "guion_warm_artifact",
+            "python_data",
+            "python_warm",
+            "guion_source"
+          ],
+          [
+            "guion_source",
+            "guion_artifact",
+            "python_warm",
+            "python_data",
+            "python_sqlite_native",
+            "guion_warm_artifact"
+          ],
+          [
+            "python_data",
+            "guion_source",
+            "guion_warm_artifact",
+            "python_sqlite_native",
+            "python_warm",
+            "guion_artifact"
+          ],
+          [
+            "python_sqlite_native",
+            "guion_source",
+            "guion_warm_artifact",
+            "guion_artifact",
+            "python_warm",
+            "python_data"
+          ],
+          [
+            "guion_source",
+            "guion_warm_artifact",
+            "python_sqlite_native",
+            "python_warm",
+            "guion_artifact",
+            "python_data"
+          ],
+          [
+            "guion_source",
+            "guion_artifact",
+            "python_warm",
+            "guion_warm_artifact",
+            "python_data",
+            "python_sqlite_native"
+          ],
+          [
+            "guion_artifact",
+            "python_data",
+            "python_sqlite_native",
+            "guion_warm_artifact",
+            "python_warm",
+            "guion_source"
+          ],
+          [
+            "python_warm",
+            "guion_artifact",
+            "python_data",
+            "guion_source",
+            "guion_warm_artifact",
+            "python_sqlite_native"
+          ],
+          [
+            "guion_artifact",
+            "python_warm",
+            "guion_source",
+            "python_sqlite_native",
+            "python_data",
+            "guion_warm_artifact"
+          ],
+          [
+            "guion_artifact",
+            "guion_source",
+            "guion_warm_artifact",
+            "python_sqlite_native",
+            "python_data",
+            "python_warm"
+          ],
+          [
+            "guion_warm_artifact",
+            "python_sqlite_native",
+            "python_data",
+            "python_warm",
+            "guion_source",
+            "guion_artifact"
+          ],
+          [
+            "guion_source",
+            "guion_warm_artifact",
+            "guion_artifact",
+            "python_data",
+            "python_sqlite_native",
+            "python_warm"
+          ]
+        ],
+        "python_data": {
+          "median_seconds": 0.1307897920050891,
+          "p95_seconds_nearest_rank": 0.13496875000419095,
+          "samples_seconds": [
+            0.13102558397804387,
+            0.13306037499569356,
+            0.13080633399658836,
+            0.13269683299586177,
+            0.13496875000419095,
+            0.12823674999526702,
+            0.13172674999805167,
+            0.12932816598913632,
+            0.12887775001581758,
+            0.1319433750177268,
+            0.12699575000442564,
+            0.1283792500034906,
+            0.13097462500445545,
+            0.13077325001358986,
+            0.12811787499231286,
+            0.1306497500045225
+          ]
+        },
+        "python_sqlite_native": {
+          "median_seconds": 0.14770735401543789,
+          "p95_seconds_nearest_rank": 0.15523833301267587,
+          "samples_seconds": [
+            0.1475633330119308,
+            0.14663791700149886,
+            0.145399582979735,
+            0.15096450000419281,
+            0.14724575000582263,
+            0.14466537500265986,
+            0.15277008299017325,
+            0.1461714590259362,
+            0.15133475000038743,
+            0.14897966699209064,
+            0.14727533399127424,
+            0.1499905830132775,
+            0.14968349999981,
+            0.15523833301267587,
+            0.14785137501894496,
+            0.14708883297862485
+          ]
+        },
+        "python_warm": {
+          "median_seconds": 0.08236804170010145,
+          "p95_seconds_nearest_rank": 0.0846390499966219,
+          "samples_seconds": [
+            0.08371169999591074,
+            0.08220976659795269,
+            0.08247968340292573,
+            0.08412492499919608,
+            0.08231557499966584,
+            0.0823226334003266,
+            0.08241344999987632,
+            0.08132959179929458,
+            0.08345175000140444,
+            0.0820481084054336,
+            0.0846390499966219,
+            0.08301229160279036,
+            0.08169743319740519,
+            0.08183585820370354,
+            0.08372095839586109,
+            0.08223615000024438
+          ]
+        },
+        "rows": 20000,
+        "timed_trials_per_candidate": 16
+      },
+      "mandelbrot-image": {
+        "comparison": {
+          "guion_artifact": {
+            "ci95_percentile": [
+              0.376296240443678,
+              0.3911035514153693
+            ],
+            "median_ratio": 0.3820045809281965,
+            "ties_or_regressions": 0,
+            "win": true
+          },
+          "guion_source": {
+            "ci95_percentile": [
+              1.544643401531628,
+              1.5566164371770723
+            ],
+            "median_ratio": 1.550076145051678,
+            "ties_or_regressions": 15,
+            "win": false
+          },
+          "guion_warm_artifact": {
+            "ci95_percentile": [
+              0.24326341450511993,
+              0.2537057750252866
+            ],
+            "median_ratio": 0.2492437794997376,
+            "ties_or_regressions": 0,
+            "win": true
+          }
+        },
+        "guion_artifact": {
+          "median_seconds": 0.015774958999827504,
+          "p95_seconds_nearest_rank": 0.016444542008684948,
+          "samples_seconds": [
+            0.015771083999425173,
+            0.015964916005032137,
+            0.015586000023176894,
+            0.015424334007548168,
+            0.01611991599202156,
+            0.015581207990180701,
+            0.015021290979348123,
+            0.0162914999818895,
+            0.016444542008684948,
+            0.015774958999827504,
+            0.015848958020797,
+            0.01620612500119023,
+            0.01565679200575687,
+            0.01593341599800624,
+            0.01521508299629204
+          ]
+        },
+        "guion_source": {
+          "median_seconds": 0.06346333399415016,
+          "p95_seconds_nearest_rank": 0.06473708400153555,
+          "samples_seconds": [
+            0.06332008299068548,
+            0.06473708400153555,
+            0.0640834580117371,
+            0.0632371669926215,
+            0.06346333399415016,
+            0.06282108402228914,
+            0.06283320899819955,
+            0.06393525001476519,
+            0.064366082980996,
+            0.06281679202220403,
+            0.06428012499236502,
+            0.06423037499189377,
+            0.06357704199035652,
+            0.06322325000655837,
+            0.06312037500902079
+          ]
+        },
+        "guion_warm_artifact": {
+          "median_seconds": 0.005312649998813868,
+          "p95_seconds_nearest_rank": 0.005672533204779029,
+          "samples_seconds": [
+            0.005334149999544025,
+            0.0052915584004949775,
+            0.005421500001102686,
+            0.005358291597804055,
+            0.005223583400947973,
+            0.005576191598083824,
+            0.0052372418052982535,
+            0.005223249999107793,
+            0.005299566598841921,
+            0.005312649998813868,
+            0.0052849081985186785,
+            0.005320183199364692,
+            0.005399724998278543,
+            0.005165483203018084,
+            0.005672533204779029
+          ]
+        },
+        "native_backend_reports": {
+          "guion_artifact": {
+            "bytecode_blocks": 19,
+            "bytecode_instructions": 132,
+            "calls": 6146,
+            "compilations": 1,
+            "compile_profile": {
+              "finalize_nanoseconds": 11375,
+              "functions": [
+                {
+                  "bytecode_blocks": 7,
+                  "bytecode_instructions": 49,
+                  "cranelift_ir_blocks": 47,
+                  "cranelift_ir_instructions": 586,
+                  "define_nanoseconds": 908667,
+                  "lowering_nanoseconds": 142666,
+                  "name": "escape_steps",
+                  "verification_nanoseconds": 91083
+                },
+                {
+                  "bytecode_blocks": 10,
+                  "bytecode_instructions": 71,
+                  "cranelift_ir_blocks": 61,
+                  "cranelift_ir_instructions": 734,
+                  "define_nanoseconds": 1152625,
+                  "lowering_nanoseconds": 120708,
+                  "name": "calculate",
+                  "verification_nanoseconds": 94833
+                },
+                {
+                  "bytecode_blocks": 2,
+                  "bytecode_instructions": 12,
+                  "cranelift_ir_blocks": 24,
+                  "cranelift_ir_instructions": 315,
+                  "define_nanoseconds": 393417,
+                  "lowering_nanoseconds": 37959,
+                  "name": "main",
+                  "verification_nanoseconds": 37708
+                }
+              ]
+            },
+            "compiled_functions": [
+              "escape_steps",
+              "calculate",
+              "main"
+            ],
+            "cranelift_ir_blocks": 132,
+            "cranelift_ir_instructions": 1635,
+            "deoptimizations": 0
+          },
+          "guion_source": {
+            "bytecode_blocks": 19,
+            "bytecode_instructions": 132,
+            "calls": 6146,
+            "compilations": 1,
+            "compile_profile": {
+              "finalize_nanoseconds": 13416,
+              "functions": [
+                {
+                  "bytecode_blocks": 7,
+                  "bytecode_instructions": 49,
+                  "cranelift_ir_blocks": 47,
+                  "cranelift_ir_instructions": 586,
+                  "define_nanoseconds": 924167,
+                  "lowering_nanoseconds": 157208,
+                  "name": "escape_steps",
+                  "verification_nanoseconds": 97583
+                },
+                {
+                  "bytecode_blocks": 10,
+                  "bytecode_instructions": 71,
+                  "cranelift_ir_blocks": 61,
+                  "cranelift_ir_instructions": 734,
+                  "define_nanoseconds": 1175875,
+                  "lowering_nanoseconds": 112000,
+                  "name": "calculate",
+                  "verification_nanoseconds": 95541
+                },
+                {
+                  "bytecode_blocks": 2,
+                  "bytecode_instructions": 12,
+                  "cranelift_ir_blocks": 24,
+                  "cranelift_ir_instructions": 315,
+                  "define_nanoseconds": 398750,
+                  "lowering_nanoseconds": 39917,
+                  "name": "main",
+                  "verification_nanoseconds": 38042
+                }
+              ]
+            },
+            "compiled_functions": [
+              "escape_steps",
+              "calculate",
+              "main"
+            ],
+            "cranelift_ir_blocks": 132,
+            "cranelift_ir_instructions": 1635,
+            "deoptimizations": 0
+          },
+          "guion_warm_artifact": {
+            "bytecode_blocks": 26,
+            "bytecode_instructions": 153,
+            "calls": 30731,
+            "compilations": 1,
+            "compile_profile": {
+              "finalize_nanoseconds": 14833,
+              "functions": [
+                {
+                  "bytecode_blocks": 7,
+                  "bytecode_instructions": 49,
+                  "cranelift_ir_blocks": 47,
+                  "cranelift_ir_instructions": 586,
+                  "define_nanoseconds": 931375,
+                  "lowering_nanoseconds": 147583,
+                  "name": "escape_steps",
+                  "verification_nanoseconds": 95000
+                },
+                {
+                  "bytecode_blocks": 10,
+                  "bytecode_instructions": 71,
+                  "cranelift_ir_blocks": 61,
+                  "cranelift_ir_instructions": 734,
+                  "define_nanoseconds": 1207958,
+                  "lowering_nanoseconds": 129125,
+                  "name": "calculate",
+                  "verification_nanoseconds": 102250
+                },
+                {
+                  "bytecode_blocks": 2,
+                  "bytecode_instructions": 12,
+                  "cranelift_ir_blocks": 24,
+                  "cranelift_ir_instructions": 315,
+                  "define_nanoseconds": 412209,
+                  "lowering_nanoseconds": 40375,
+                  "name": "benchmark_once",
+                  "verification_nanoseconds": 40000
+                },
+                {
+                  "bytecode_blocks": 7,
+                  "bytecode_instructions": 21,
+                  "cranelift_ir_blocks": 41,
+                  "cranelift_ir_instructions": 401,
+                  "define_nanoseconds": 523917,
+                  "lowering_nanoseconds": 51541,
+                  "name": "main",
+                  "verification_nanoseconds": 49708
+                }
+              ]
+            },
+            "compiled_functions": [
+              "escape_steps",
+              "calculate",
+              "benchmark_once",
+              "main"
+            ],
+            "cranelift_ir_blocks": 173,
+            "cranelift_ir_instructions": 2036,
+            "deoptimizations": 0
+          }
+        },
+        "paired_trial_order": [
+          [
+            "guion_warm_artifact",
+            "guion_source",
+            "python_warm",
+            "guion_artifact",
+            "python_reference"
+          ],
+          [
+            "python_warm",
+            "guion_warm_artifact",
+            "guion_artifact",
+            "python_reference",
+            "guion_source"
+          ],
+          [
+            "guion_artifact",
+            "python_warm",
+            "guion_warm_artifact",
+            "python_reference",
+            "guion_source"
+          ],
+          [
+            "guion_artifact",
+            "python_warm",
+            "python_reference",
+            "guion_source",
+            "guion_warm_artifact"
+          ],
+          [
+            "guion_warm_artifact",
+            "python_reference",
+            "guion_artifact",
+            "python_warm",
+            "guion_source"
+          ],
+          [
+            "python_reference",
+            "guion_source",
+            "python_warm",
+            "guion_artifact",
+            "guion_warm_artifact"
+          ],
+          [
+            "guion_warm_artifact",
+            "guion_artifact",
+            "python_warm",
+            "python_reference",
+            "guion_source"
+          ],
+          [
+            "guion_source",
+            "python_reference",
+            "guion_artifact",
+            "guion_warm_artifact",
+            "python_warm"
+          ],
+          [
+            "guion_source",
+            "python_reference",
+            "guion_warm_artifact",
+            "python_warm",
+            "guion_artifact"
+          ],
+          [
+            "guion_warm_artifact",
+            "python_warm",
+            "guion_artifact",
+            "python_reference",
+            "guion_source"
+          ],
+          [
+            "python_reference",
+            "guion_warm_artifact",
+            "guion_artifact",
+            "guion_source",
+            "python_warm"
+          ],
+          [
+            "guion_source",
+            "guion_warm_artifact",
+            "guion_artifact",
+            "python_warm",
+            "python_reference"
+          ],
+          [
+            "guion_source",
+            "guion_artifact",
+            "guion_warm_artifact",
+            "python_reference",
+            "python_warm"
+          ],
+          [
+            "guion_artifact",
+            "guion_warm_artifact",
+            "python_reference",
+            "python_warm",
+            "guion_source"
+          ],
+          [
+            "python_reference",
+            "python_warm",
+            "guion_warm_artifact",
+            "guion_artifact",
+            "guion_source"
+          ]
+        ],
+        "python_reference": {
+          "median_seconds": 0.041290708002634346,
+          "p95_seconds_nearest_rank": 0.04214691699598916,
+          "samples_seconds": [
+            0.04098983301082626,
+            0.04206308300490491,
+            0.04148754201014526,
+            0.04214691699598916,
+            0.040576707979198545,
+            0.040357458987273276,
+            0.03991879100794904,
+            0.041290708002634346,
+            0.0408459999889601,
+            0.042030374985188246,
+            0.04144729199470021,
+            0.041436915984377265,
+            0.040985875006299466,
+            0.04188875001273118,
+            0.040569875010987744
+          ]
+        },
+        "python_warm": {
+          "median_seconds": 0.02126258320058696,
+          "p95_seconds_nearest_rank": 0.021937016601441428,
+          "samples_seconds": [
+            0.021184449997963383,
+            0.021937016601441428,
+            0.021369241597130894,
+            0.021610233199317007,
+            0.020876274997135624,
+            0.02091597500257194,
+            0.02100596679956652,
+            0.021204783202847466,
+            0.02126258320058696,
+            0.021839083405211568,
+            0.021728416602127255,
+            0.02141108340001665,
+            0.02115214180084877,
+            0.021279691800009458,
+            0.021146525000222027
+          ]
+        }
+      },
+      "nbody-numeric": {
+        "comparison": {
+          "guion_artifact": {
+            "ci95_percentile": [
+              0.663891665005092,
+              0.6847474760900176
+            ],
+            "median_ratio": 0.6783582006495982,
+            "ties_or_regressions": 0,
+            "win": true
+          },
+          "guion_source": {
+            "ci95_percentile": [
+              1.6788859690807458,
+              1.726501297210728
+            ],
+            "median_ratio": 1.7171877468037668,
+            "ties_or_regressions": 15,
+            "win": false
+          },
+          "guion_warm_artifact": {
+            "ci95_percentile": [
+              0.6418012619919626,
+              0.6696258369595917
+            ],
+            "median_ratio": 0.6470834259522535,
+            "ties_or_regressions": 0,
+            "win": true
+          }
+        },
+        "guion_artifact": {
+          "median_seconds": 0.1387255410081707,
+          "p95_seconds_nearest_rank": 0.19118924997746944,
+          "samples_seconds": [
+            0.13614087499445304,
+            0.13852266702451743,
+            0.13687745900824666,
+            0.1413350829971023,
+            0.13827308401232585,
+            0.14127687498694286,
+            0.19118924997746944,
+            0.13978395899175666,
+            0.13846625000587665,
+            0.13936383300460875,
+            0.13631366699701175,
+            0.1369913750095293,
+            0.1387255410081707,
+            0.139540083007887,
+            0.13971104100346565
+          ]
+        },
+        "guion_source": {
+          "median_seconds": 0.34937912499299273,
+          "p95_seconds_nearest_rank": 0.3583832499862183,
+          "samples_seconds": [
+            0.3583832499862183,
+            0.34447987499879673,
+            0.34939483398920856,
+            0.34551975000067614,
+            0.35634641599608585,
+            0.34903012501308694,
+            0.35308141601854004,
+            0.35012029198696837,
+            0.3505117910099216,
+            0.34875708300387487,
+            0.3447175420005806,
+            0.3479002079984639,
+            0.3454425420204643,
+            0.3551875829871278,
+            0.34937912499299273
+          ]
+        },
+        "guion_warm_artifact": {
+          "median_seconds": 0.12193472500075586,
+          "p95_seconds_nearest_rank": 0.15640199999907053,
+          "samples_seconds": [
+            0.12143073320039548,
+            0.11978223340120167,
+            0.11954833320342004,
+            0.11994179179891944,
+            0.12039065840071998,
+            0.12565649999887682,
+            0.15640199999907053,
+            0.13003761660074814,
+            0.12454661679803394,
+            0.12072415840229951,
+            0.1238184999965597,
+            0.11895424160175025,
+            0.12193472500075586,
+            0.12358942499849945,
+            0.12637608340010048
+          ]
+        },
+        "native_backend_reports": {
+          "guion_artifact": {
+            "bytecode_blocks": 26,
+            "bytecode_instructions": 574,
+            "calls": 5,
+            "compilations": 1,
+            "compile_profile": {
+              "finalize_nanoseconds": 20166,
+              "functions": [
+                {
+                  "bytecode_blocks": 7,
+                  "bytecode_instructions": 135,
+                  "cranelift_ir_blocks": 99,
+                  "cranelift_ir_instructions": 1399,
+                  "define_nanoseconds": 2085166,
+                  "lowering_nanoseconds": 318584,
+                  "name": "energy",
+                  "verification_nanoseconds": 188042
+                },
+                {
+                  "bytecode_blocks": 10,
+                  "bytecode_instructions": 242,
+                  "cranelift_ir_blocks": 156,
+                  "cranelift_ir_instructions": 2380,
+                  "define_nanoseconds": 3373625,
+                  "lowering_nanoseconds": 441333,
+                  "name": "advance",
+                  "verification_nanoseconds": 276417
+                },
+                {
+                  "bytecode_blocks": 4,
+                  "bytecode_instructions": 182,
+                  "cranelift_ir_blocks": 78,
+                  "cranelift_ir_instructions": 1719,
+                  "define_nanoseconds": 2006583,
+                  "lowering_nanoseconds": 265375,
+                  "name": "initial_system",
+                  "verification_nanoseconds": 175583
+                },
+                {
+                  "bytecode_blocks": 5,
+                  "bytecode_instructions": 15,
+                  "cranelift_ir_blocks": 48,
+                  "cranelift_ir_instructions": 538,
+                  "define_nanoseconds": 672291,
+                  "lowering_nanoseconds": 57958,
+                  "name": "main",
+                  "verification_nanoseconds": 63542
+                }
+              ]
+            },
+            "compiled_functions": [
+              "energy",
+              "advance",
+              "initial_system",
+              "main"
+            ],
+            "cranelift_ir_blocks": 381,
+            "cranelift_ir_instructions": 6036,
+            "deoptimizations": 0
+          },
+          "guion_source": {
+            "bytecode_blocks": 26,
+            "bytecode_instructions": 574,
+            "calls": 5,
+            "compilations": 1,
+            "compile_profile": {
+              "finalize_nanoseconds": 21459,
+              "functions": [
+                {
+                  "bytecode_blocks": 7,
+                  "bytecode_instructions": 135,
+                  "cranelift_ir_blocks": 99,
+                  "cranelift_ir_instructions": 1399,
+                  "define_nanoseconds": 2096583,
+                  "lowering_nanoseconds": 331708,
+                  "name": "energy",
+                  "verification_nanoseconds": 187000
+                },
+                {
+                  "bytecode_blocks": 10,
+                  "bytecode_instructions": 242,
+                  "cranelift_ir_blocks": 156,
+                  "cranelift_ir_instructions": 2380,
+                  "define_nanoseconds": 3437042,
+                  "lowering_nanoseconds": 411625,
+                  "name": "advance",
+                  "verification_nanoseconds": 260542
+                },
+                {
+                  "bytecode_blocks": 4,
+                  "bytecode_instructions": 182,
+                  "cranelift_ir_blocks": 78,
+                  "cranelift_ir_instructions": 1719,
+                  "define_nanoseconds": 2082917,
+                  "lowering_nanoseconds": 265958,
+                  "name": "initial_system",
+                  "verification_nanoseconds": 177500
+                },
+                {
+                  "bytecode_blocks": 5,
+                  "bytecode_instructions": 15,
+                  "cranelift_ir_blocks": 48,
+                  "cranelift_ir_instructions": 538,
+                  "define_nanoseconds": 696834,
+                  "lowering_nanoseconds": 61209,
+                  "name": "main",
+                  "verification_nanoseconds": 73125
+                }
+              ]
+            },
+            "compiled_functions": [
+              "energy",
+              "advance",
+              "initial_system",
+              "main"
+            ],
+            "cranelift_ir_blocks": 381,
+            "cranelift_ir_instructions": 6036,
+            "deoptimizations": 0
+          },
+          "guion_warm_artifact": {
+            "bytecode_blocks": 33,
+            "bytecode_instructions": 595,
+            "calls": 26,
+            "compilations": 1,
+            "compile_profile": {
+              "finalize_nanoseconds": 25250,
+              "functions": [
+                {
+                  "bytecode_blocks": 7,
+                  "bytecode_instructions": 135,
+                  "cranelift_ir_blocks": 99,
+                  "cranelift_ir_instructions": 1399,
+                  "define_nanoseconds": 2055625,
+                  "lowering_nanoseconds": 301875,
+                  "name": "energy",
+                  "verification_nanoseconds": 181375
+                },
+                {
+                  "bytecode_blocks": 10,
+                  "bytecode_instructions": 242,
+                  "cranelift_ir_blocks": 156,
+                  "cranelift_ir_instructions": 2380,
+                  "define_nanoseconds": 3328291,
+                  "lowering_nanoseconds": 409417,
+                  "name": "advance",
+                  "verification_nanoseconds": 257833
+                },
+                {
+                  "bytecode_blocks": 4,
+                  "bytecode_instructions": 182,
+                  "cranelift_ir_blocks": 78,
+                  "cranelift_ir_instructions": 1719,
+                  "define_nanoseconds": 2295959,
+                  "lowering_nanoseconds": 244834,
+                  "name": "initial_system",
+                  "verification_nanoseconds": 175791
+                },
+                {
+                  "bytecode_blocks": 5,
+                  "bytecode_instructions": 15,
+                  "cranelift_ir_blocks": 48,
+                  "cranelift_ir_instructions": 538,
+                  "define_nanoseconds": 720458,
+                  "lowering_nanoseconds": 77292,
+                  "name": "benchmark_once",
+                  "verification_nanoseconds": 73083
+                },
+                {
+                  "bytecode_blocks": 7,
+                  "bytecode_instructions": 21,
+                  "cranelift_ir_blocks": 41,
+                  "cranelift_ir_instructions": 401,
+                  "define_nanoseconds": 525625,
+                  "lowering_nanoseconds": 51459,
+                  "name": "main",
+                  "verification_nanoseconds": 50042
+                }
+              ]
+            },
+            "compiled_functions": [
+              "energy",
+              "advance",
+              "initial_system",
+              "benchmark_once",
+              "main"
+            ],
+            "cranelift_ir_blocks": 422,
+            "cranelift_ir_instructions": 6437,
+            "deoptimizations": 0
+          }
+        },
+        "paired_trial_order": [
+          [
+            "guion_warm_artifact",
+            "guion_source",
+            "python_warm",
+            "guion_artifact",
+            "python_reference"
+          ],
+          [
+            "python_warm",
+            "guion_warm_artifact",
+            "guion_artifact",
+            "python_reference",
+            "guion_source"
+          ],
+          [
+            "guion_artifact",
+            "python_warm",
+            "guion_warm_artifact",
+            "python_reference",
+            "guion_source"
+          ],
+          [
+            "guion_artifact",
+            "python_warm",
+            "python_reference",
+            "guion_source",
+            "guion_warm_artifact"
+          ],
+          [
+            "guion_warm_artifact",
+            "python_reference",
+            "guion_artifact",
+            "python_warm",
+            "guion_source"
+          ],
+          [
+            "python_reference",
+            "guion_source",
+            "python_warm",
+            "guion_artifact",
+            "guion_warm_artifact"
+          ],
+          [
+            "guion_warm_artifact",
+            "guion_artifact",
+            "python_warm",
+            "python_reference",
+            "guion_source"
+          ],
+          [
+            "guion_source",
+            "python_reference",
+            "guion_artifact",
+            "guion_warm_artifact",
+            "python_warm"
+          ],
+          [
+            "guion_source",
+            "python_reference",
+            "guion_warm_artifact",
+            "python_warm",
+            "guion_artifact"
+          ],
+          [
+            "guion_warm_artifact",
+            "python_warm",
+            "guion_artifact",
+            "python_reference",
+            "guion_source"
+          ],
+          [
+            "python_reference",
+            "guion_warm_artifact",
+            "guion_artifact",
+            "guion_source",
+            "python_warm"
+          ],
+          [
+            "guion_source",
+            "guion_warm_artifact",
+            "guion_artifact",
+            "python_warm",
+            "python_reference"
+          ],
+          [
+            "guion_source",
+            "guion_artifact",
+            "guion_warm_artifact",
+            "python_reference",
+            "python_warm"
+          ],
+          [
+            "guion_artifact",
+            "guion_warm_artifact",
+            "python_reference",
+            "python_warm",
+            "guion_source"
+          ],
+          [
+            "python_reference",
+            "python_warm",
+            "guion_warm_artifact",
+            "guion_artifact",
+            "guion_source"
+          ]
+        ],
+        "python_reference": {
+          "median_seconds": 0.20313604100374505,
+          "p95_seconds_nearest_rank": 0.2239887499890756,
+          "samples_seconds": [
+            0.2027346669929102,
+            0.21132254198892042,
+            0.20247179199941456,
+            0.20313604100374505,
+            0.2019329589966219,
+            0.21752249999553896,
+            0.20077341599971987,
+            0.2027917920204345,
+            0.20411966697429307,
+            0.20284070799243636,
+            0.20532516701496206,
+            0.20627720799529925,
+            0.20293058297829702,
+            0.20525299999280833,
+            0.2239887499890756
+          ]
+        },
+        "python_warm": {
+          "median_seconds": 0.18752770840073935,
+          "p95_seconds_nearest_rank": 0.19530106680467724,
+          "samples_seconds": [
+            0.18852355839917437,
+            0.18821907499805093,
+            0.18607946680276655,
+            0.18740604179911316,
+            0.18758245820063166,
+            0.18640246680006384,
+            0.18830420000012965,
+            0.18654590840451418,
+            0.18599434180068783,
+            0.18924840000108817,
+            0.18852239179541358,
+            0.18744993340224028,
+            0.1867107165977359,
+            0.18752770840073935,
+            0.19530106680467724
+          ]
+        }
+      },
+      "parallel-cpu-20000": {
+        "comparison": {
+          "guion_artifact_over_python_processes": {
+            "ci95_percentile": [
+              0.07747902982143165,
+              0.07975236838736839
+            ],
+            "median_ratio": 0.07822364459304511,
+            "ties_or_regressions": 0,
+            "win": true
+          },
+          "guion_artifact_over_python_serial": {
+            "ci95_percentile": [
+              0.1956826633977753,
+              0.20786289674951566
+            ],
+            "median_ratio": 0.20040736010875437,
+            "ties_or_regressions": 0,
+            "win": true
+          },
+          "guion_artifact_over_python_threads": {
+            "ci95_percentile": [
+              0.19529554581219197,
+              0.20651037492925947
+            ],
+            "median_ratio": 0.19857947216686836,
+            "ties_or_regressions": 0,
+            "win": true
+          },
+          "guion_source_over_python_serial": {
+            "ci95_percentile": [
+              0.781374356459998,
+              0.8069625338436601
+            ],
+            "median_ratio": 0.797654656414112,
+            "ties_or_regressions": 0,
+            "win": true
+          },
+          "guion_warm_over_python_serial": {
+            "ci95_percentile": [
+              0.19329617872434993,
+              0.20577188959442846
+            ],
+            "median_ratio": 0.19929455823620298,
+            "ties_or_regressions": 0,
+            "win": true
+          }
+        },
+        "guion_artifact": {
+          "median_seconds": 0.01162508298875764,
+          "p95_seconds_nearest_rank": 0.012083457986591384,
+          "samples_seconds": [
+            0.011730500002158806,
+            0.011470582976471633,
+            0.011445332987932488,
+            0.01162887501413934,
+            0.011820209008874372,
+            0.01162508298875764,
+            0.011925250000786036,
+            0.010976541991112754,
+            0.010866292024729773,
+            0.011508333991514519,
+            0.012008999998215586,
+            0.011383875011233613,
+            0.01157370800501667,
+            0.011782290996052325,
+            0.012083457986591384
+          ]
+        },
+        "guion_source": {
+          "median_seconds": 0.04576533398358151,
+          "p95_seconds_nearest_rank": 0.0462077499832958,
+          "samples_seconds": [
+            0.04538791600498371,
+            0.0462077499832958,
+            0.046092042000964284,
+            0.045658750022994354,
+            0.04411149999941699,
+            0.045727457996690646,
+            0.04548275002161972,
+            0.04576533398358151,
+            0.045784167014062405,
+            0.0460252920165658,
+            0.045583957980852574,
+            0.045899624994490296,
+            0.04560937499627471,
+            0.04593833300168626,
+            0.04602662500110455
+          ]
+        },
+        "guion_warm_artifact": {
+          "median_seconds": 0.0028498500003479423,
+          "p95_seconds_nearest_rank": 0.003065941802924499,
+          "samples_seconds": [
+            0.0028028416039887817,
+            0.003065941802924499,
+            0.0029989333997946233,
+            0.0030477583990432323,
+            0.0028260499995667486,
+            0.003062224999302998,
+            0.002738591597881168,
+            0.0030476083979010583,
+            0.0028498500003479423,
+            0.0028193582023959608,
+            0.002940466598374769,
+            0.002815341600216925,
+            0.0029291334038134666,
+            0.0027789499959908425,
+            0.002846224996028468
+          ]
+        },
+        "native_backend_reports": {
+          "guion_artifact": {
+            "bytecode_blocks": 4,
+            "bytecode_instructions": 21,
+            "calls": 4,
+            "compilations": 1,
+            "compile_profile": {
+              "finalize_nanoseconds": 7875,
+              "functions": [
+                {
+                  "bytecode_blocks": 4,
+                  "bytecode_instructions": 21,
+                  "cranelift_ir_blocks": 27,
+                  "cranelift_ir_instructions": 308,
+                  "define_nanoseconds": 605625,
+                  "lowering_nanoseconds": 101167,
+                  "name": "work",
+                  "verification_nanoseconds": 65666
+                }
+              ]
+            },
+            "compiled_functions": [
+              "work"
+            ],
+            "cranelift_ir_blocks": 27,
+            "cranelift_ir_instructions": 308,
+            "deoptimizations": 0
+          },
+          "guion_source": {
+            "bytecode_blocks": 4,
+            "bytecode_instructions": 21,
+            "calls": 4,
+            "compilations": 1,
+            "compile_profile": {
+              "finalize_nanoseconds": 8417,
+              "functions": [
+                {
+                  "bytecode_blocks": 4,
+                  "bytecode_instructions": 21,
+                  "cranelift_ir_blocks": 27,
+                  "cranelift_ir_instructions": 308,
+                  "define_nanoseconds": 547042,
+                  "lowering_nanoseconds": 105833,
+                  "name": "work",
+                  "verification_nanoseconds": 61958
+                }
+              ]
+            },
+            "compiled_functions": [
+              "work"
+            ],
+            "cranelift_ir_blocks": 27,
+            "cranelift_ir_instructions": 308,
+            "deoptimizations": 0
+          },
+          "guion_warm_artifact": {
+            "bytecode_blocks": 4,
+            "bytecode_instructions": 21,
+            "calls": 20,
+            "compilations": 1,
+            "compile_profile": {
+              "finalize_nanoseconds": 7375,
+              "functions": [
+                {
+                  "bytecode_blocks": 4,
+                  "bytecode_instructions": 21,
+                  "cranelift_ir_blocks": 27,
+                  "cranelift_ir_instructions": 308,
+                  "define_nanoseconds": 623916,
+                  "lowering_nanoseconds": 94250,
+                  "name": "work",
+                  "verification_nanoseconds": 60125
+                }
+              ]
+            },
+            "compiled_functions": [
+              "work"
+            ],
+            "cranelift_ir_blocks": 27,
+            "cranelift_ir_instructions": 308,
+            "deoptimizations": 0
+          }
+        },
+        "paired_trial_order": [
+          [
+            "guion_artifact",
+            "python_warm",
+            "guion_warm_artifact",
+            "python_processes",
+            "python_threads",
+            "python_serial",
+            "guion_source"
+          ],
+          [
+            "python_threads",
+            "guion_artifact",
+            "python_warm",
+            "guion_source",
+            "guion_warm_artifact",
+            "python_processes",
+            "python_serial"
+          ],
+          [
+            "guion_artifact",
+            "python_serial",
+            "python_threads",
+            "guion_warm_artifact",
+            "python_warm",
+            "guion_source",
+            "python_processes"
+          ],
+          [
+            "python_warm",
+            "guion_source",
+            "python_processes",
+            "guion_artifact",
+            "guion_warm_artifact",
+            "python_threads",
+            "python_serial"
+          ],
+          [
+            "python_warm",
+            "python_processes",
+            "python_threads",
+            "guion_artifact",
+            "python_serial",
+            "guion_warm_artifact",
+            "guion_source"
+          ],
+          [
+            "guion_warm_artifact",
+            "python_threads",
+            "guion_source",
+            "guion_artifact",
+            "python_warm",
+            "python_processes",
+            "python_serial"
+          ],
+          [
+            "python_warm",
+            "python_processes",
+            "guion_artifact",
+            "python_serial",
+            "guion_source",
+            "guion_warm_artifact",
+            "python_threads"
+          ],
+          [
+            "python_threads",
+            "guion_artifact",
+            "python_warm",
+            "python_serial",
+            "guion_source",
+            "guion_warm_artifact",
+            "python_processes"
+          ],
+          [
+            "guion_source",
+            "guion_warm_artifact",
+            "guion_artifact",
+            "python_threads",
+            "python_serial",
+            "python_processes",
+            "python_warm"
+          ],
+          [
+            "guion_artifact",
+            "guion_warm_artifact",
+            "python_serial",
+            "guion_source",
+            "python_threads",
+            "python_processes",
+            "python_warm"
+          ],
+          [
+            "python_serial",
+            "python_processes",
+            "python_threads",
+            "guion_artifact",
+            "python_warm",
+            "guion_source",
+            "guion_warm_artifact"
+          ],
+          [
+            "python_threads",
+            "guion_source",
+            "guion_artifact",
+            "guion_warm_artifact",
+            "python_serial",
+            "python_processes",
+            "python_warm"
+          ],
+          [
+            "python_warm",
+            "guion_source",
+            "python_processes",
+            "python_threads",
+            "python_serial",
+            "guion_warm_artifact",
+            "guion_artifact"
+          ],
+          [
+            "guion_warm_artifact",
+            "python_threads",
+            "python_serial",
+            "python_warm",
+            "python_processes",
+            "guion_source",
+            "guion_artifact"
+          ],
+          [
+            "guion_source",
+            "guion_artifact",
+            "python_warm",
+            "python_processes",
+            "python_serial",
+            "python_threads",
+            "guion_warm_artifact"
+          ]
+        ],
+        "python_processes": {
+          "median_seconds": 0.14884425001218915,
+          "p95_seconds_nearest_rank": 0.1524507080030162,
+          "samples_seconds": [
+            0.14708654099376872,
+            0.14967666700249538,
+            0.14884425001218915,
+            0.14888291698298417,
+            0.14592883398290724,
+            0.14785733300959691,
+            0.1524507080030162,
+            0.14336858302704059,
+            0.15216395899187773,
+            0.1429499170044437,
+            0.14609566601575352,
+            0.14310520901926793,
+            0.14897820798796602,
+            0.15207070898031816,
+            0.15099320901208557
+          ]
+        },
+        "python_serial": {
+          "median_seconds": 0.057634917000541463,
+          "p95_seconds_nearest_rank": 0.05940783300320618,
+          "samples_seconds": [
+            0.05643383300048299,
+            0.057634917000541463,
+            0.05778445801115595,
+            0.05801404197700322,
+            0.05790804099524394,
+            0.05940783300320618,
+            0.057091416005278006,
+            0.05671308402088471,
+            0.05595170799642801,
+            0.055610832991078496,
+            0.05612291701254435,
+            0.05765883298590779,
+            0.059262041992042214,
+            0.058791707997443154,
+            0.057512750005116686
+          ]
+        },
+        "python_threads": {
+          "median_seconds": 0.05783962499117479,
+          "p95_seconds_nearest_rank": 0.060153083002660424,
+          "samples_seconds": [
+            0.05642241600435227,
+            0.05797354198875837,
+            0.060153083002660424,
+            0.05955391700263135,
+            0.06010637499275617,
+            0.05783962499117479,
+            0.057708124979399145,
+            0.05698729198775254,
+            0.05595300000277348,
+            0.05674266698770225,
+            0.058152042009169236,
+            0.05829049999010749,
+            0.057742292003240436,
+            0.059332874981919304,
+            0.056283957994310185
+          ]
+        },
+        "python_warm": {
+          "median_seconds": 0.014489533402957023,
+          "p95_seconds_nearest_rank": 0.015507700003217906,
+          "samples_seconds": [
+            0.014413683401653544,
+            0.014765916601754725,
+            0.014556558401091024,
+            0.014969008398475125,
+            0.014647883200086653,
+            0.014425875002052635,
+            0.015507700003217906,
+            0.014475108403712512,
+            0.014489533402957023,
+            0.014393374999053776,
+            0.014289933402324095,
+            0.013992216798942535,
+            0.01469750819960609,
+            0.014395900000818074,
+            0.014724683202803134
+          ]
+        }
+      },
+      "parallel-cpu-200000": {
+        "comparison": {
+          "guion_artifact_over_python_processes": {
+            "ci95_percentile": [
+              0.11683885245414904,
+              0.129147722057401
+            ],
+            "median_ratio": 0.12425227368591944,
+            "ties_or_regressions": 0,
+            "win": true
+          },
+          "guion_artifact_over_python_serial": {
+            "ci95_percentile": [
+              0.2244273441018735,
+              0.2344814003372197
+            ],
+            "median_ratio": 0.2251513525258657,
+            "ties_or_regressions": 0,
+            "win": true
+          },
+          "guion_artifact_over_python_threads": {
+            "ci95_percentile": [
+              0.21638071303674578,
+              0.23037923080696274
+            ],
+            "median_ratio": 0.22331330079332684,
+            "ties_or_regressions": 0,
+            "win": true
+          },
+          "guion_source_over_python_serial": {
+            "ci95_percentile": [
+              0.6149522231551962,
+              0.6425980744086397
+            ],
+            "median_ratio": 0.6310214728077834,
+            "ties_or_regressions": 0,
+            "win": true
+          },
+          "guion_warm_over_python_serial": {
+            "ci95_percentile": [
+              0.23417390417209905,
+              0.2590248639685784
+            ],
+            "median_ratio": 0.24916422127747057,
+            "ties_or_regressions": 0,
+            "win": true
+          }
+        },
+        "guion_artifact": {
+          "median_seconds": 0.019537000014679506,
+          "p95_seconds_nearest_rank": 0.02110320798237808,
+          "samples_seconds": [
+            0.01797670900123194,
+            0.019537000014679506,
+            0.01885125000262633,
+            0.020221040991600603,
+            0.017760250018909574,
+            0.019901499996194616,
+            0.01914079100242816,
+            0.019310583011247218,
+            0.019587458024034277,
+            0.02110320798237808,
+            0.020673457998782396,
+            0.01960587498615496,
+            0.016661166009726003,
+            0.018893041007686406,
+            0.021086541994009167
+          ]
+        },
+        "guion_source": {
+          "median_seconds": 0.05380808300105855,
+          "p95_seconds_nearest_rank": 0.056786415982060134,
+          "samples_seconds": [
+            0.05435279099037871,
+            0.053605791996233165,
+            0.050745375017868355,
+            0.054417583014583215,
+            0.05268266599159688,
+            0.05137520798598416,
+            0.0524475839920342,
+            0.054982833011308685,
+            0.05409787502139807,
+            0.05355329200392589,
+            0.05380808300105855,
+            0.056786415982060134,
+            0.055567167000845075,
+            0.05183970800135285,
+            0.05601925001246855
+          ]
+        },
+        "guion_warm_artifact": {
+          "median_seconds": 0.010424916801275686,
+          "p95_seconds_nearest_rank": 0.011189691600156948,
+          "samples_seconds": [
+            0.010597141599282623,
+            0.011137558397604153,
+            0.010832116601523011,
+            0.010777858400251717,
+            0.010246216802624986,
+            0.010136833204887808,
+            0.010335958399809896,
+            0.010961899999529123,
+            0.011189691600156948,
+            0.010424916801275686,
+            0.009930925001390279,
+            0.009989875002065673,
+            0.00818229999858886,
+            0.00878827499691397,
+            0.010913058399455621
+          ]
+        },
+        "native_backend_reports": {
+          "guion_artifact": {
+            "bytecode_blocks": 4,
+            "bytecode_instructions": 21,
+            "calls": 4,
+            "compilations": 1,
+            "compile_profile": {
+              "finalize_nanoseconds": 12000,
+              "functions": [
+                {
+                  "bytecode_blocks": 4,
+                  "bytecode_instructions": 21,
+                  "cranelift_ir_blocks": 27,
+                  "cranelift_ir_instructions": 308,
+                  "define_nanoseconds": 641750,
+                  "lowering_nanoseconds": 101959,
+                  "name": "work",
+                  "verification_nanoseconds": 57292
+                }
+              ]
+            },
+            "compiled_functions": [
+              "work"
+            ],
+            "cranelift_ir_blocks": 27,
+            "cranelift_ir_instructions": 308,
+            "deoptimizations": 0
+          },
+          "guion_source": {
+            "bytecode_blocks": 4,
+            "bytecode_instructions": 21,
+            "calls": 4,
+            "compilations": 1,
+            "compile_profile": {
+              "finalize_nanoseconds": 9125,
+              "functions": [
+                {
+                  "bytecode_blocks": 4,
+                  "bytecode_instructions": 21,
+                  "cranelift_ir_blocks": 27,
+                  "cranelift_ir_instructions": 308,
+                  "define_nanoseconds": 563875,
+                  "lowering_nanoseconds": 111167,
+                  "name": "work",
+                  "verification_nanoseconds": 66334
+                }
+              ]
+            },
+            "compiled_functions": [
+              "work"
+            ],
+            "cranelift_ir_blocks": 27,
+            "cranelift_ir_instructions": 308,
+            "deoptimizations": 0
+          },
+          "guion_warm_artifact": {
+            "bytecode_blocks": 4,
+            "bytecode_instructions": 21,
+            "calls": 20,
+            "compilations": 1,
+            "compile_profile": {
+              "finalize_nanoseconds": 7250,
+              "functions": [
+                {
+                  "bytecode_blocks": 4,
+                  "bytecode_instructions": 21,
+                  "cranelift_ir_blocks": 27,
+                  "cranelift_ir_instructions": 308,
+                  "define_nanoseconds": 544000,
+                  "lowering_nanoseconds": 96042,
+                  "name": "work",
+                  "verification_nanoseconds": 60209
+                }
+              ]
+            },
+            "compiled_functions": [
+              "work"
+            ],
+            "cranelift_ir_blocks": 27,
+            "cranelift_ir_instructions": 308,
+            "deoptimizations": 0
+          }
+        },
+        "paired_trial_order": [
+          [
+            "guion_artifact",
+            "python_warm",
+            "guion_warm_artifact",
+            "python_processes",
+            "python_threads",
+            "python_serial",
+            "guion_source"
+          ],
+          [
+            "python_threads",
+            "guion_artifact",
+            "python_warm",
+            "guion_source",
+            "guion_warm_artifact",
+            "python_processes",
+            "python_serial"
+          ],
+          [
+            "guion_artifact",
+            "python_serial",
+            "python_threads",
+            "guion_warm_artifact",
+            "python_warm",
+            "guion_source",
+            "python_processes"
+          ],
+          [
+            "python_warm",
+            "guion_source",
+            "python_processes",
+            "guion_artifact",
+            "guion_warm_artifact",
+            "python_threads",
+            "python_serial"
+          ],
+          [
+            "python_warm",
+            "python_processes",
+            "python_threads",
+            "guion_artifact",
+            "python_serial",
+            "guion_warm_artifact",
+            "guion_source"
+          ],
+          [
+            "guion_warm_artifact",
+            "python_threads",
+            "guion_source",
+            "guion_artifact",
+            "python_warm",
+            "python_processes",
+            "python_serial"
+          ],
+          [
+            "python_warm",
+            "python_processes",
+            "guion_artifact",
+            "python_serial",
+            "guion_source",
+            "guion_warm_artifact",
+            "python_threads"
+          ],
+          [
+            "python_threads",
+            "guion_artifact",
+            "python_warm",
+            "python_serial",
+            "guion_source",
+            "guion_warm_artifact",
+            "python_processes"
+          ],
+          [
+            "guion_source",
+            "guion_warm_artifact",
+            "guion_artifact",
+            "python_threads",
+            "python_serial",
+            "python_processes",
+            "python_warm"
+          ],
+          [
+            "guion_artifact",
+            "guion_warm_artifact",
+            "python_serial",
+            "guion_source",
+            "python_threads",
+            "python_processes",
+            "python_warm"
+          ],
+          [
+            "python_serial",
+            "python_processes",
+            "python_threads",
+            "guion_artifact",
+            "python_warm",
+            "guion_source",
+            "guion_warm_artifact"
+          ],
+          [
+            "python_threads",
+            "guion_source",
+            "guion_artifact",
+            "guion_warm_artifact",
+            "python_serial",
+            "python_processes",
+            "python_warm"
+          ],
+          [
+            "python_warm",
+            "guion_source",
+            "python_processes",
+            "python_threads",
+            "python_serial",
+            "guion_warm_artifact",
+            "guion_artifact"
+          ],
+          [
+            "guion_warm_artifact",
+            "python_threads",
+            "python_serial",
+            "python_warm",
+            "python_processes",
+            "guion_source",
+            "guion_artifact"
+          ],
+          [
+            "guion_source",
+            "guion_artifact",
+            "python_warm",
+            "python_processes",
+            "python_serial",
+            "python_threads",
+            "guion_warm_artifact"
+          ]
+        ],
+        "python_processes": {
+          "median_seconds": 0.1565729590074625,
+          "p95_seconds_nearest_rank": 0.1887586250086315,
+          "samples_seconds": [
+            0.15385900001274422,
+            0.1556951249949634,
+            0.15726112498668954,
+            0.1565729590074625,
+            0.15723220899235457,
+            0.15998645799118094,
+            0.1887586250086315,
+            0.15683691701269709,
+            0.15263220798806287,
+            0.15270566698745824,
+            0.15532262501074,
+            0.1577908750041388,
+            0.1588221669953782,
+            0.1563449999957811,
+            0.15462791701429524
+          ]
+        },
+        "python_serial": {
+          "median_seconds": 0.08535974999540485,
+          "p95_seconds_nearest_rank": 0.08796137501485646,
+          "samples_seconds": [
+            0.08463358398876153,
+            0.08693558297818527,
+            0.083840166014852,
+            0.08623729200917296,
+            0.08591241700924002,
+            0.08639629199751653,
+            0.08528724999632686,
+            0.08556333297747187,
+            0.08452433400088921,
+            0.08272083301562816,
+            0.08535974999540485,
+            0.08796137501485646,
+            0.0871498330088798,
+            0.08391262497752905,
+            0.08316124998964369
+          ]
+        },
+        "python_threads": {
+          "median_seconds": 0.0865545000124257,
+          "p95_seconds_nearest_rank": 0.09160204202635214,
+          "samples_seconds": [
+            0.08777016701060347,
+            0.08480758397490717,
+            0.08712074998766184,
+            0.08436008301214315,
+            0.08627337499638088,
+            0.08445245798793621,
+            0.0865545000124257,
+            0.08741470900713466,
+            0.08578512500389479,
+            0.09160204202635214,
+            0.0833884589956142,
+            0.08779537500231527,
+            0.08800720900762826,
+            0.0884953330096323,
+            0.08472612500190735
+          ]
+        },
+        "python_warm": {
+          "median_seconds": 0.0418430834019091,
+          "p95_seconds_nearest_rank": 0.04303379160119221,
+          "samples_seconds": [
+            0.04155914160073735,
+            0.04266357500455342,
+            0.0418430834019091,
+            0.04160935840336606,
+            0.04221177499857731,
+            0.0414972166006919,
+            0.04196438340004534,
+            0.04194799159886316,
+            0.04108020000276156,
+            0.04183954159962013,
+            0.04240833339863457,
+            0.04303379160119221,
+            0.041999508399749176,
+            0.041596333403140305,
+            0.04114508319762535
+          ]
+        }
+      },
+      "richards-scheduler": {
+        "comparison": {
+          "guion_artifact": {
+            "ci95_percentile": [
+              0.9379689541316737,
+              0.9840164649583364
+            ],
+            "median_ratio": 0.9636756960966258,
+            "ties_or_regressions": 1,
+            "win": true
+          },
+          "guion_source": {
+            "ci95_percentile": [
+              12.90793559633571,
+              13.31352275185246
+            ],
+            "median_ratio": 13.0568596371773,
+            "ties_or_regressions": 15,
+            "win": false
+          },
+          "guion_warm_artifact": {
+            "ci95_percentile": [
+              0.8681168510676155,
+              0.8905763290865191
+            ],
+            "median_ratio": 0.8756328164808493,
+            "ties_or_regressions": 1,
+            "win": true
+          }
+        },
+        "guion_artifact": {
+          "median_seconds": 0.06742149998899549,
+          "p95_seconds_nearest_rank": 0.07672783400630578,
+          "samples_seconds": [
+            0.0674836249963846,
+            0.07672783400630578,
+            0.0684830829850398,
+            0.06683845800580457,
+            0.06604187499033287,
+            0.06742149998899549,
+            0.0658762920065783,
+            0.0672844999935478,
+            0.06658829198568128,
+            0.066624667000724,
+            0.07074716698843986,
+            0.06749512499663979,
+            0.06806720801978372,
+            0.06750637502409518,
+            0.06623733299784362
+          ]
+        },
+        "guion_source": {
+          "median_seconds": 0.9139990830153693,
+          "p95_seconds_nearest_rank": 0.9426772920123767,
+          "samples_seconds": [
+            0.9139990830153693,
+            0.9302840830059722,
+            0.9025312500016298,
+            0.9072843749891035,
+            0.9134205830050632,
+            0.9092656660068315,
+            0.9380684590141755,
+            0.9316994170076214,
+            0.9210467499797232,
+            0.901949874998536,
+            0.9426772920123767,
+            0.9233454999921378,
+            0.905181290989276,
+            0.9272007500112522,
+            0.9129360420047306
+          ]
+        },
+        "guion_warm_artifact": {
+          "median_seconds": 0.037148224998963995,
+          "p95_seconds_nearest_rank": 0.05615237500169314,
+          "samples_seconds": [
+            0.03681475840276107,
+            0.05615237500169314,
+            0.03786674159928225,
+            0.0365371415973641,
+            0.037003741797525434,
+            0.03771855840459466,
+            0.03632186659961008,
+            0.03805737500078976,
+            0.03613012499990873,
+            0.03644705000333488,
+            0.03855056659667753,
+            0.037148224998963995,
+            0.03746815000195056,
+            0.037748641800135374,
+            0.03629030819865875
+          ]
+        },
+        "native_backend_reports": {
+          "guion_artifact": {
+            "bytecode_blocks": 118,
+            "bytecode_instructions": 996,
+            "calls": 37547,
+            "compilations": 1,
+            "compile_profile": {
+              "finalize_nanoseconds": 38334,
+              "functions": [
+                {
+                  "bytecode_blocks": 3,
+                  "bytecode_instructions": 10,
+                  "cranelift_ir_blocks": 20,
+                  "cranelift_ir_instructions": 231,
+                  "define_nanoseconds": 409333,
+                  "lowering_nanoseconds": 83292,
+                  "name": "next_worker_count",
+                  "verification_nanoseconds": 52417
+                },
+                {
+                  "bytecode_blocks": 9,
+                  "bytecode_instructions": 46,
+                  "cranelift_ir_blocks": 52,
+                  "cranelift_ir_instructions": 575,
+                  "define_nanoseconds": 879875,
+                  "lowering_nanoseconds": 92500,
+                  "name": "xor_d008",
+                  "verification_nanoseconds": 76583
+                },
+                {
+                  "bytecode_blocks": 8,
+                  "bytecode_instructions": 89,
+                  "cranelift_ir_blocks": 66,
+                  "cranelift_ir_instructions": 1032,
+                  "define_nanoseconds": 1446208,
+                  "lowering_nanoseconds": 196416,
+                  "name": "route_packet",
+                  "verification_nanoseconds": 125083
+                },
+                {
+                  "bytecode_blocks": 98,
+                  "bytecode_instructions": 851,
+                  "cranelift_ir_blocks": 632,
+                  "cranelift_ir_instructions": 7736,
+                  "define_nanoseconds": 18509541,
+                  "lowering_nanoseconds": 2514458,
+                  "name": "main",
+                  "verification_nanoseconds": 1156417
+                }
+              ]
+            },
+            "compiled_functions": [
+              "next_worker_count",
+              "xor_d008",
+              "route_packet",
+              "main"
+            ],
+            "cranelift_ir_blocks": 770,
+            "cranelift_ir_instructions": 9574,
+            "deoptimizations": 0
+          },
+          "guion_source": {
+            "bytecode_blocks": 118,
+            "bytecode_instructions": 996,
+            "calls": 37547,
+            "compilations": 1,
+            "compile_profile": {
+              "finalize_nanoseconds": 32958,
+              "functions": [
+                {
+                  "bytecode_blocks": 3,
+                  "bytecode_instructions": 10,
+                  "cranelift_ir_blocks": 20,
+                  "cranelift_ir_instructions": 231,
+                  "define_nanoseconds": 399334,
+                  "lowering_nanoseconds": 94708,
+                  "name": "next_worker_count",
+                  "verification_nanoseconds": 53458
+                },
+                {
+                  "bytecode_blocks": 9,
+                  "bytecode_instructions": 46,
+                  "cranelift_ir_blocks": 52,
+                  "cranelift_ir_instructions": 575,
+                  "define_nanoseconds": 824375,
+                  "lowering_nanoseconds": 88709,
+                  "name": "xor_d008",
+                  "verification_nanoseconds": 72417
+                },
+                {
+                  "bytecode_blocks": 8,
+                  "bytecode_instructions": 89,
+                  "cranelift_ir_blocks": 66,
+                  "cranelift_ir_instructions": 1032,
+                  "define_nanoseconds": 1410042,
+                  "lowering_nanoseconds": 180792,
+                  "name": "route_packet",
+                  "verification_nanoseconds": 119375
+                },
+                {
+                  "bytecode_blocks": 98,
+                  "bytecode_instructions": 851,
+                  "cranelift_ir_blocks": 632,
+                  "cranelift_ir_instructions": 7736,
+                  "define_nanoseconds": 18237000,
+                  "lowering_nanoseconds": 2327583,
+                  "name": "main",
+                  "verification_nanoseconds": 1109083
+                }
+              ]
+            },
+            "compiled_functions": [
+              "next_worker_count",
+              "xor_d008",
+              "route_packet",
+              "main"
+            ],
+            "cranelift_ir_blocks": 770,
+            "cranelift_ir_instructions": 9574,
+            "deoptimizations": 0
+          },
+          "guion_warm_artifact": {
+            "bytecode_blocks": 125,
+            "bytecode_instructions": 1017,
+            "calls": 187736,
+            "compilations": 1,
+            "compile_profile": {
+              "finalize_nanoseconds": 38292,
+              "functions": [
+                {
+                  "bytecode_blocks": 3,
+                  "bytecode_instructions": 10,
+                  "cranelift_ir_blocks": 20,
+                  "cranelift_ir_instructions": 231,
+                  "define_nanoseconds": 407334,
+                  "lowering_nanoseconds": 87667,
+                  "name": "next_worker_count",
+                  "verification_nanoseconds": 50250
+                },
+                {
+                  "bytecode_blocks": 9,
+                  "bytecode_instructions": 46,
+                  "cranelift_ir_blocks": 52,
+                  "cranelift_ir_instructions": 575,
+                  "define_nanoseconds": 911583,
+                  "lowering_nanoseconds": 96042,
+                  "name": "xor_d008",
+                  "verification_nanoseconds": 73583
+                },
+                {
+                  "bytecode_blocks": 8,
+                  "bytecode_instructions": 89,
+                  "cranelift_ir_blocks": 66,
+                  "cranelift_ir_instructions": 1032,
+                  "define_nanoseconds": 1335083,
+                  "lowering_nanoseconds": 221083,
+                  "name": "route_packet",
+                  "verification_nanoseconds": 123334
+                },
+                {
+                  "bytecode_blocks": 98,
+                  "bytecode_instructions": 851,
+                  "cranelift_ir_blocks": 632,
+                  "cranelift_ir_instructions": 7736,
+                  "define_nanoseconds": 18343708,
+                  "lowering_nanoseconds": 2264416,
+                  "name": "benchmark_once",
+                  "verification_nanoseconds": 1101500
+                },
+                {
+                  "bytecode_blocks": 7,
+                  "bytecode_instructions": 21,
+                  "cranelift_ir_blocks": 41,
+                  "cranelift_ir_instructions": 401,
+                  "define_nanoseconds": 638917,
+                  "lowering_nanoseconds": 80667,
+                  "name": "main",
+                  "verification_nanoseconds": 63584
+                }
+              ]
+            },
+            "compiled_functions": [
+              "next_worker_count",
+              "xor_d008",
+              "route_packet",
+              "benchmark_once",
+              "main"
+            ],
+            "cranelift_ir_blocks": 811,
+            "cranelift_ir_instructions": 9975,
+            "deoptimizations": 0
+          }
+        },
+        "paired_trial_order": [
+          [
+            "guion_warm_artifact",
+            "guion_source",
+            "python_warm",
+            "guion_artifact",
+            "python_reference"
+          ],
+          [
+            "python_warm",
+            "guion_warm_artifact",
+            "guion_artifact",
+            "python_reference",
+            "guion_source"
+          ],
+          [
+            "guion_artifact",
+            "python_warm",
+            "guion_warm_artifact",
+            "python_reference",
+            "guion_source"
+          ],
+          [
+            "guion_artifact",
+            "python_warm",
+            "python_reference",
+            "guion_source",
+            "guion_warm_artifact"
+          ],
+          [
+            "guion_warm_artifact",
+            "python_reference",
+            "guion_artifact",
+            "python_warm",
+            "guion_source"
+          ],
+          [
+            "python_reference",
+            "guion_source",
+            "python_warm",
+            "guion_artifact",
+            "guion_warm_artifact"
+          ],
+          [
+            "guion_warm_artifact",
+            "guion_artifact",
+            "python_warm",
+            "python_reference",
+            "guion_source"
+          ],
+          [
+            "guion_source",
+            "python_reference",
+            "guion_artifact",
+            "guion_warm_artifact",
+            "python_warm"
+          ],
+          [
+            "guion_source",
+            "python_reference",
+            "guion_warm_artifact",
+            "python_warm",
+            "guion_artifact"
+          ],
+          [
+            "guion_warm_artifact",
+            "python_warm",
+            "guion_artifact",
+            "python_reference",
+            "guion_source"
+          ],
+          [
+            "python_reference",
+            "guion_warm_artifact",
+            "guion_artifact",
+            "guion_source",
+            "python_warm"
+          ],
+          [
+            "guion_source",
+            "guion_warm_artifact",
+            "guion_artifact",
+            "python_warm",
+            "python_reference"
+          ],
+          [
+            "guion_source",
+            "guion_artifact",
+            "guion_warm_artifact",
+            "python_reference",
+            "python_warm"
+          ],
+          [
+            "guion_artifact",
+            "guion_warm_artifact",
+            "python_reference",
+            "python_warm",
+            "guion_source"
+          ],
+          [
+            "python_reference",
+            "python_warm",
+            "guion_warm_artifact",
+            "guion_artifact",
+            "guion_source"
+          ]
+        ],
+        "python_reference": {
+          "median_seconds": 0.07067433299380355,
+          "p95_seconds_nearest_rank": 0.07356012501986697,
+          "samples_seconds": [
+            0.07080908300122246,
+            0.07295220799278468,
+            0.06925466598477215,
+            0.06935783301014453,
+            0.07066804199712351,
+            0.07356012501986697,
+            0.07067433299380355,
+            0.07135708301211707,
+            0.07099199999356642,
+            0.0682277919840999,
+            0.07080600000335835,
+            0.0685914589848835,
+            0.07160062500042841,
+            0.06863091699779034,
+            0.06832466699415818
+          ]
+        },
+        "python_warm": {
+          "median_seconds": 0.04204050839762204,
+          "p95_seconds_nearest_rank": 0.04402594999992289,
+          "samples_seconds": [
+            0.0422411999956239,
+            0.04207583339884877,
+            0.04251936679938808,
+            0.04203275000327267,
+            0.04209245839738287,
+            0.04204050839762204,
+            0.0417389583948534,
+            0.04184513339423575,
+            0.04173884179908782,
+            0.042347624996909874,
+            0.04402594999992289,
+            0.04194937499705702,
+            0.04325029999599792,
+            0.04196240000310354,
+            0.04180348319932818
+          ]
+        }
+      }
+    }
+  },
+  "kind": "guion-source-loop-performance-report",
+  "manifest": {
+    "architecture": "arm64",
+    "build_reused": false,
+    "cargo_version": "cargo 1.97.1 (c980f4866 2026-06-30) (Homebrew)",
+    "commands": [
+      [
+        "cargo",
+        "build",
+        "--release",
+        "--locked",
+        "--offline",
+        "-p",
+        "guion-cli"
+      ],
+      [
+        "/Users/rmichaelthomas/guion/target/worktrees/guion-source-loop/target/perf-session/cargo/release/guion",
+        "--version"
+      ],
+      [
+        "python3",
+        "/Users/rmichaelthomas/guion/target/worktrees/guion-source-loop/evaluation/completion/performance/runner.py",
+        "--installed",
+        "--binary",
+        "/Users/rmichaelthomas/guion/target/worktrees/guion-source-loop/target/perf-session/cargo/release/guion"
+      ]
+    ],
+    "duration_seconds": 269.9154292080202,
+    "free_disk_bytes": 77442797568,
+    "offline_dependencies_available": true,
+    "outcomes": {
+      "benchmark_groups": [
+        "agent_application_cases",
+        "cache_state",
+        "existing_correctness_checked_suite",
+        "source_run_lanes",
+        "tiny_cli_launch"
+      ],
+      "status": "passed"
+    },
+    "platform": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+    "python_version": "3.14.7",
+    "release_binary": "/Users/rmichaelthomas/guion/target/worktrees/guion-source-loop/target/perf-session/cargo/release/guion",
+    "release_binary_sha256": "42812662904d3e8deeb8caedb88abec4e76ff2414400b761018a8f89bfb8f5d4",
+    "repository_root": "/Users/rmichaelthomas/guion/target/worktrees/guion-source-loop",
+    "rustc_version": "rustc 1.97.1 (8bab26f4f 2026-07-14) (Homebrew)",
+    "scratch_directory": "/Users/rmichaelthomas/guion/target/worktrees/guion-source-loop/target/perf-session",
+    "scratch_size_bytes": 546432324,
+    "source_fingerprint": "93c31d9449079b960ac8c4206ca07217ce96827320e9c8600d5fb863f8636413",
+    "source_revision": "7ced83568b787ae8d1e5b0b2675584809ff709d6",
+    "target": {
+      "architecture": "arm64",
+      "os": "Darwin"
+    },
+    "working_directory": "/Users/rmichaelthomas/guion/target/worktrees/guion-source-loop"
+  },
+  "schema_version": 1,
+  "source_run_lanes": {
+    "mandelbrot-image": {
+      "cache_state": {
+        "prebuilt_artifact": "artifact load each process",
+        "python_process": "fresh process each sample; OS file cache uncontrolled",
+        "source_cache_available": false,
+        "source_repeat": "compiler rerun each process"
+      },
+      "cold_source_first_run": {
+        "cache_bypassed": false,
+        "command": [
+          "/Users/rmichaelthomas/guion/target/worktrees/guion-source-loop/target/perf-session/cargo/release/guion",
+          "run",
+          "--json",
+          "/Users/rmichaelthomas/guion/target/worktrees/guion-source-loop/target/perf-session/source-loop/mandelbrot-image/main.gu"
+        ],
+        "seconds": 0.06577470799675211
+      },
+      "paired_trial_order": [
+        [
+          "guion_artifact",
+          "python_reference",
+          "guion_source"
+        ],
+        [
+          "guion_artifact",
+          "python_reference",
+          "guion_source"
+        ],
+        [
+          "guion_artifact",
+          "guion_source",
+          "python_reference"
+        ],
+        [
+          "python_reference",
+          "guion_source",
+          "guion_artifact"
+        ],
+        [
+          "guion_artifact",
+          "python_reference",
+          "guion_source"
+        ],
+        [
+          "python_reference",
+          "guion_artifact",
+          "guion_source"
+        ],
+        [
+          "guion_source",
+          "python_reference",
+          "guion_artifact"
+        ]
+      ],
+      "python_first_timed_run": {
+        "command": [
+          "/opt/homebrew/opt/python@3.14/bin/python3.14",
+          "/Users/rmichaelthomas/guion/target/worktrees/guion-source-loop/evaluation/development/famous_benchmarks/mandelbrot.py"
+        ],
+        "seconds": 0.04303166700992733
+      },
+      "repeat_and_artifact_lanes": {
+        "guion_artifact": {
+          "median_seconds": 0.016152458993019536,
+          "p95_seconds_nearest_rank": 0.01664899999741465,
+          "samples_seconds": [
+            0.01628695899853483,
+            0.01664899999741465,
+            0.01634816700243391,
+            0.015884207998169586,
+            0.016104707989143208,
+            0.016152458993019536,
+            0.015891208982793614
+          ]
+        },
+        "guion_source": {
+          "median_seconds": 0.06483825002214871,
+          "p95_seconds_nearest_rank": 0.06802470801630989,
+          "samples_seconds": [
+            0.06802470801630989,
+            0.06617108400678262,
+            0.06574166700011119,
+            0.06483825002214871,
+            0.06407687498722225,
+            0.06371479100198485,
+            0.0634865419997368
+          ]
+        },
+        "python_reference": {
+          "median_seconds": 0.04343295900616795,
+          "p95_seconds_nearest_rank": 0.04535412500263192,
+          "samples_seconds": [
+            0.04343295900616795,
+            0.04535412500263192,
+            0.043262541003059596,
+            0.04339954198803753,
+            0.04121387502527796,
+            0.04371737499604933,
+            0.04391804098850116
+          ]
+        }
+      }
+    },
+    "nbody-numeric": {
+      "cache_state": {
+        "prebuilt_artifact": "artifact load each process",
+        "python_process": "fresh process each sample; OS file cache uncontrolled",
+        "source_cache_available": false,
+        "source_repeat": "compiler rerun each process"
+      },
+      "cold_source_first_run": {
+        "cache_bypassed": false,
+        "command": [
+          "/Users/rmichaelthomas/guion/target/worktrees/guion-source-loop/target/perf-session/cargo/release/guion",
+          "run",
+          "--json",
+          "/Users/rmichaelthomas/guion/target/worktrees/guion-source-loop/target/perf-session/source-loop/nbody-numeric/main.gu"
+        ],
+        "seconds": 0.3646196250047069
+      },
+      "paired_trial_order": [
+        [
+          "guion_artifact",
+          "python_reference",
+          "guion_source"
+        ],
+        [
+          "guion_artifact",
+          "python_reference",
+          "guion_source"
+        ],
+        [
+          "guion_artifact",
+          "guion_source",
+          "python_reference"
+        ],
+        [
+          "python_reference",
+          "guion_source",
+          "guion_artifact"
+        ],
+        [
+          "guion_artifact",
+          "python_reference",
+          "guion_source"
+        ],
+        [
+          "python_reference",
+          "guion_artifact",
+          "guion_source"
+        ],
+        [
+          "guion_source",
+          "python_reference",
+          "guion_artifact"
+        ]
+      ],
+      "python_first_timed_run": {
+        "command": [
+          "/opt/homebrew/opt/python@3.14/bin/python3.14",
+          "/Users/rmichaelthomas/guion/target/worktrees/guion-source-loop/evaluation/development/famous_benchmarks/nbody.py"
+        ],
+        "seconds": 0.2064717499888502
+      },
+      "repeat_and_artifact_lanes": {
+        "guion_artifact": {
+          "median_seconds": 0.14557629101909697,
+          "p95_seconds_nearest_rank": 0.15042033398640342,
+          "samples_seconds": [
+            0.139824417012278,
+            0.14507445899653248,
+            0.1459725410095416,
+            0.14557629101909697,
+            0.15042033398640342,
+            0.14518849999876693,
+            0.1461993329867255
+          ]
+        },
+        "guion_source": {
+          "median_seconds": 0.36171766702318564,
+          "p95_seconds_nearest_rank": 0.36961604200769216,
+          "samples_seconds": [
+            0.36142754199681804,
+            0.36646612497861497,
+            0.36961604200769216,
+            0.35354662500321865,
+            0.36024066602112725,
+            0.3633150839887094,
+            0.36171766702318564
+          ]
+        },
+        "python_reference": {
+          "median_seconds": 0.20691108299070038,
+          "p95_seconds_nearest_rank": 0.21067566698184237,
+          "samples_seconds": [
+            0.2041049169783946,
+            0.21067566698184237,
+            0.20753662500646897,
+            0.20567670799209736,
+            0.20451629199669696,
+            0.20839304101536982,
+            0.20691108299070038
+          ]
+        }
+      }
+    },
+    "richards-scheduler": {
+      "cache_state": {
+        "prebuilt_artifact": "artifact load each process",
+        "python_process": "fresh process each sample; OS file cache uncontrolled",
+        "source_cache_available": false,
+        "source_repeat": "compiler rerun each process"
+      },
+      "cold_source_first_run": {
+        "cache_bypassed": false,
+        "command": [
+          "/Users/rmichaelthomas/guion/target/worktrees/guion-source-loop/target/perf-session/cargo/release/guion",
+          "run",
+          "--json",
+          "/Users/rmichaelthomas/guion/target/worktrees/guion-source-loop/target/perf-session/source-loop/richards-scheduler/main.gu"
+        ],
+        "seconds": 0.9108650829875842
+      },
+      "paired_trial_order": [
+        [
+          "guion_artifact",
+          "python_reference",
+          "guion_source"
+        ],
+        [
+          "guion_artifact",
+          "python_reference",
+          "guion_source"
+        ],
+        [
+          "guion_artifact",
+          "guion_source",
+          "python_reference"
+        ],
+        [
+          "python_reference",
+          "guion_source",
+          "guion_artifact"
+        ],
+        [
+          "guion_artifact",
+          "python_reference",
+          "guion_source"
+        ],
+        [
+          "python_reference",
+          "guion_artifact",
+          "guion_source"
+        ],
+        [
+          "guion_source",
+          "python_reference",
+          "guion_artifact"
+        ]
+      ],
+      "python_first_timed_run": {
+        "command": [
+          "/opt/homebrew/opt/python@3.14/bin/python3.14",
+          "/Users/rmichaelthomas/guion/target/worktrees/guion-source-loop/evaluation/development/famous_benchmarks/richards_reference.py"
+        ],
+        "seconds": 0.1046354170248378
+      },
+      "repeat_and_artifact_lanes": {
+        "guion_artifact": {
+          "median_seconds": 0.06900670798495412,
+          "p95_seconds_nearest_rank": 0.07104558299761266,
+          "samples_seconds": [
+            0.0661369159934111,
+            0.06422045800718479,
+            0.06619866698747501,
+            0.07083895799587481,
+            0.06933491601375863,
+            0.06900670798495412,
+            0.07104558299761266
+          ]
+        },
+        "guion_source": {
+          "median_seconds": 0.9109173329779878,
+          "p95_seconds_nearest_rank": 1.113906082988251,
+          "samples_seconds": [
+            0.9150745410006493,
+            0.9109173329779878,
+            1.113906082988251,
+            0.9568184580130037,
+            0.9075844580074772,
+            0.9065143750049174,
+            0.9091389169916511
+          ]
+        },
+        "python_reference": {
+          "median_seconds": 0.07251933301449753,
+          "p95_seconds_nearest_rank": 0.07922345900442451,
+          "samples_seconds": [
+            0.07208970800274983,
+            0.06942912499653175,
+            0.07922345900442451,
+            0.07232075001229532,
+            0.07411012501688674,
+            0.07368808399769478,
+            0.07251933301449753
+          ]
+        }
+      }
+    }
+  },
+  "status": "passed",
+  "tiny_cli_launch": {
+    "command": [
+      "/Users/rmichaelthomas/guion/target/worktrees/guion-source-loop/target/perf-session/cargo/release/guion",
+      "--version"
+    ],
+    "median_seconds": 0.009783499990589917,
+    "p95_seconds_nearest_rank": 0.010038999986136332,
+    "samples_seconds": [
+      0.009562209015712142,
+      0.009688709018519148,
+      0.009783499990589917,
+      0.009819833998335525,
+      0.009700624999823049,
+      0.010038999986136332,
+      0.009881625010166317
+    ],
+    "verified_stdout": "guion 0.1.0 (artifact format 39)"
+  }
+}

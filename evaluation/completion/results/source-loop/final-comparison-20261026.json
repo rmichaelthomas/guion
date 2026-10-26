@@ -1,0 +1,252 @@
+{
+  "schema_version": 1,
+  "kind": "guion-source-loop-final-comparison",
+  "status": "completed_with_performance_gates_incomplete",
+  "created_at_utc": "2026-10-26T05:31:37.062097+00:00",
+  "platform": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+  "source_revision": "7ced83568b787ae8d1e5b0b2675584809ff709d6",
+  "source_fingerprint": "97ff85bfb7212c7c578a69cdafe66cc580c6632d998b7bf84dab1bc0e715fcf9",
+  "release_binary_sha256": "ea5c432e0c93ed1ac42e562c765062eb158825d54ada673837c921c5da90d05a",
+  "pinned_python": {
+    "executable": "/opt/homebrew/opt/python@3.14/bin/python3.14",
+    "gil_enabled": true,
+    "matches_pinned": true,
+    "pinned_version": "3.14.7",
+    "version": "3.14.7 (main, Aug  5 2026, 10:29:49) [Clang 21.0.0 (clang-2100.1.1.101)]"
+  },
+  "reports": {
+    "task2_corrected_cache_cohort": "20261026T043634852958Z.json",
+    "task3_profile": "20261026T045050081474Z.json",
+    "task3_decision": "task3-optimization-decision.json",
+    "final_task4_cohort": "20261026T052344191561Z.json",
+    "debian_smoke": "debian-arm64.json",
+    "installed_artifact_baseline": "../guion-final/performance-guion.json"
+  },
+  "source_performance": {
+    "mandelbrot-image": {
+      "first_uncached_source_seconds_single_sample": 0.0638919579796493,
+      "repeat_source": {
+        "median_seconds": 0.018911207997007295,
+        "p95_seconds": 0.019758000009460375,
+        "cache_states": [
+          "hit",
+          "hit",
+          "hit",
+          "hit",
+          "hit",
+          "hit",
+          "hit"
+        ]
+      },
+      "prebuilt_artifact": {
+        "median_seconds": 0.015529500000411645,
+        "p95_seconds": 0.01567712498945184
+      },
+      "python_reference": {
+        "median_seconds": 0.04039570799795911,
+        "p95_seconds": 0.040815832995576784
+      },
+      "repeat_source_minus_artifact_seconds": 0.003381707996595651,
+      "within_20ms_or_25pct_artifact_allowance": true,
+      "repeat_source_matches_or_beats_python": true
+    },
+    "nbody-numeric": {
+      "first_uncached_source_seconds_single_sample": 0.3521317910053767,
+      "repeat_source": {
+        "median_seconds": 0.16149437500280328,
+        "p95_seconds": 0.556143207999412,
+        "cache_states": [
+          "hit",
+          "hit",
+          "hit",
+          "hit",
+          "hit",
+          "hit",
+          "hit"
+        ]
+      },
+      "prebuilt_artifact": {
+        "median_seconds": 0.1487371250113938,
+        "p95_seconds": 0.24934183299774304
+      },
+      "python_reference": {
+        "median_seconds": 0.2059761249984149,
+        "p95_seconds": 0.28363937500398606
+      },
+      "repeat_source_minus_artifact_seconds": 0.01275724999140948,
+      "within_20ms_or_25pct_artifact_allowance": true,
+      "repeat_source_matches_or_beats_python": true
+    },
+    "richards-scheduler": {
+      "first_uncached_source_seconds_single_sample": 0.9667947919806466,
+      "repeat_source": {
+        "median_seconds": 0.0739074999873992,
+        "p95_seconds": 0.13492220899206586,
+        "cache_states": [
+          "hit",
+          "hit",
+          "hit",
+          "hit",
+          "hit",
+          "hit",
+          "hit"
+        ]
+      },
+      "prebuilt_artifact": {
+        "median_seconds": 0.06740762499975972,
+        "p95_seconds": 0.08270879200426862
+      },
+      "python_reference": {
+        "median_seconds": 0.07254679099423811,
+        "p95_seconds": 0.11402691699913703
+      },
+      "repeat_source_minus_artifact_seconds": 0.006499874987639487,
+      "within_20ms_or_25pct_artifact_allowance": true,
+      "repeat_source_matches_or_beats_python": false
+    }
+  },
+  "tiny_cli_launch": {
+    "median_seconds": 0.010248209000565112,
+    "p95_seconds": 0.011347333987941965,
+    "samples_seconds": [
+      0.011347333987941965,
+      0.009904917009407654,
+      0.009910583001328632,
+      0.00986316698254086,
+      0.010807832994032651,
+      0.011331124987918884,
+      0.010248209000565112
+    ]
+  },
+  "agent_application_cases": {
+    "file-data": {
+      "expected_output": [
+        "3"
+      ],
+      "median_seconds": {
+        "guion_artifact": 0.009855249983957037,
+        "guion_source": 0.013854084012564272,
+        "python_reference": 0.030975041998317465
+      },
+      "p95_seconds": {
+        "guion_artifact": 0.010547915997449309,
+        "guion_source": 0.014337792003061622,
+        "python_reference": 0.031919875007588416
+      },
+      "peak_memory_bytes": {
+        "guion_artifact": 9175040,
+        "guion_source": 10289152,
+        "python_reference": 16072704
+      },
+      "source_cache_bytes": 2298,
+      "source_cache_states": [
+        "miss",
+        "hit",
+        "hit",
+        "hit",
+        "hit",
+        "hit",
+        "hit",
+        "hit",
+        "hit"
+      ]
+    },
+    "sqlite-toml": {
+      "expected_output": [
+        "Guion agents"
+      ],
+      "median_seconds": {
+        "guion_artifact": 0.0115853339957539,
+        "guion_source": 0.01572795902029611,
+        "python_reference": 0.030601667007431388
+      },
+      "p95_seconds": {
+        "guion_artifact": 0.012366291019134223,
+        "guion_source": 0.016487167013110593,
+        "python_reference": 0.03557824998279102
+      },
+      "peak_memory_bytes": {
+        "guion_artifact": 10928128,
+        "guion_source": 11927552,
+        "python_reference": 16400384
+      },
+      "source_cache_bytes": 12721,
+      "source_cache_states": [
+        "miss",
+        "hit",
+        "hit",
+        "hit",
+        "hit",
+        "hit",
+        "hit",
+        "hit",
+        "hit"
+      ]
+    }
+  },
+  "installed_artifact_comparisons": {
+    "status": "retained Guion final installed-artifact cohort remained the authority; this sprint did not modify installed runtime hot paths or replace that cohort",
+    "required_comparisons": "six advertised installed comparisons plus parallel Python thread/process and JSONL SQLite comparisons",
+    "report": "../guion-final/performance-guion.json"
+  },
+  "gates": {
+    "repeat_source_within_artifact_allowance": {
+      "status": "passed",
+      "per_workload": {
+        "mandelbrot-image": true,
+        "nbody-numeric": true,
+        "richards-scheduler": true
+      }
+    },
+    "repeat_source_python_parity": {
+      "status": "incomplete",
+      "per_workload": {
+        "mandelbrot-image": true,
+        "nbody-numeric": true,
+        "richards-scheduler": false
+      }
+    },
+    "cold_first_run_50pct_reduction": {
+      "status": "incomplete",
+      "required": "50% lower Richards and N-body first-run medians",
+      "reason": "Only one first-uncached sample is collected per report, so the requested medians do not exist; the observed single samples did not approach the reduction. Self-host compiler execution remains dominant."
+    },
+    "debian_arm64_smoke": {
+      "status": "passed",
+      "details": "Debian 12-compatible ARM64 CLI built and ran the option example; container and Colima profile were stopped afterward."
+    },
+    "debian_full_runtime_release_application_matrix": {
+      "status": "not rerun in this source-loop sprint; the retained Guion final cohort remains the prior full-target evidence."
+    },
+    "release_publication": "not performed"
+  },
+  "validation": {
+    "cargo_test_p_guion_cli_locked_offline": "passed; 50 CLI integration tests, 37 compiler conformance tests, compiler driver, language conformance and full remaining CLI crate suites passed; application acceptance 18/18 on macOS; bootstrap identity passed.",
+    "language_conformance": "195-case corpus passed within the full Rust suite.",
+    "cargo_fmt_all_check": "passed",
+    "cargo_clippy_workspace_all_targets_locked_offline_deny_warnings": "passed",
+    "python3_performance_test_runner_v": "passed; 16 tests",
+    "debian_smoke": "passed"
+  },
+  "scratch": {
+    "directory": "target/perf-session/",
+    "pre_cleanup_bytes": 3393611946,
+    "cleanup_status": "passed",
+    "path_absent_after_cleanup": true,
+    "bytes_removed": 3393611946,
+    "remaining_plan_processes": []
+  },
+  "git_and_remote": {
+    "origin": "https://github.com/rmichaelthomas/guion.git",
+    "base_commit": "7ced83568b787ae8d1e5b0b2675584809ff709d6",
+    "commit_created": false,
+    "push_performed": false,
+    "remote_head_checked": false,
+    "parity": "not asserted; changes remain a local worktree review state and no remote fetch/push was performed"
+  },
+  "disk_after_cleanup": {
+    "available_bytes": 87132561408,
+    "measurement": "df -k . after removing target/perf-session",
+    "approx_available_gib": 81.15
+  }
+}

@@ -42,6 +42,8 @@ fn main() -> Int:
 
 Edit `src/main.gu`, then repeat `check`, `test`, and `run`. To see the language's current supported syntax, types, host permissions, and limits, read the [language contract](../language/spec.md). The broader [reference](reference.md) describes CLI commands and examples.
 
+Source runs keep a bounded compiled cache in the project’s `.guion/cache/` directory. It is safe to delete; Guion rebuilds it when source, dependencies, compiler identity, target, or run permissions change. Use `guion run --no-cache PROJECT` to force compilation, or `guion cache clean PROJECT` to remove Guion’s cached source artifact.
+
 ## Host permissions
 
 File access is limited to the project or artifact directory unless an extra root is explicitly granted. Network access is denied by default; a project must grant exact hostnames in `guion.toml`. Clock access also requires a grant. These limits help keep programs predictable, but they are not operating-system security sandboxes.

@@ -5,6 +5,8 @@ use std::{
     collections::HashMap,
     env, fs,
     path::{Path, PathBuf},
+    sync::OnceLock,
+    time::Instant,
 };
 
 const COMPILER_SEED: &[u8] = include_bytes!("../../../language/self_host/compiler.gub");
@@ -12,6 +14,7 @@ const COMPILER_SEED_MANIFEST: &str = include_str!("../../../language/self_host/c
 const ARTIFACT_SCHEMA: &str = include_str!("../../../language/artifact-format.md");
 const COMPILER_ENTRY: &str = "compiler.gu";
 const HOST_ABI_VERSION: u64 = 1;
+static VERIFIED_COMPILER_SEED: OnceLock<Result<Artifact, Diagnostic>> = OnceLock::new();
 
 pub fn compile_project_with_roots(
     entry: &Path,
@@ -19,6 +22,30 @@ pub fn compile_project_with_roots(
     stdlib_root: Option<&Path>,
     package_roots: &HashMap<String, PathBuf>,
 ) -> Result<Artifact, Diagnostic> {
+    compile_project_with_roots_profiled(entry, project_root, stdlib_root, package_roots)
+        .map(|(artifact, _)| artifact)
+}
+
+#[derive(Clone, Debug, Default)]
+pub(crate) struct CompilerPhaseTimings {
+    pub(crate) project_inputs_ns: u128,
+    pub(crate) seed_validation_ns: u128,
+    pub(crate) compiler_runtime_load_ns: u128,
+    pub(crate) self_hosted_compile_ns: u128,
+    pub(crate) emitted_artifact_decode_ns: u128,
+    pub(crate) source_graph_finalize_ns: u128,
+    pub(crate) compiler_native_compilations: usize,
+    pub(crate) compiler_native_compile_profile: serde_json::Value,
+}
+
+pub(crate) fn compile_project_with_roots_profiled(
+    entry: &Path,
+    project_root: &Path,
+    stdlib_root: Option<&Path>,
+    package_roots: &HashMap<String, PathBuf>,
+) -> Result<(Artifact, CompilerPhaseTimings), Diagnostic> {
+    let mut timings = CompilerPhaseTimings::default();
+    let project_inputs_started = Instant::now();
     let root = project_root
         .canonicalize()
         .map_err(|error| failure("E_PROJECT_ROOT", error.to_string(), None))?;
@@ -54,7 +81,10 @@ pub fn compile_project_with_roots(
         canonical_packages.insert(name.clone(), canonical_directory(path)?);
     }
 
+    timings.project_inputs_ns = project_inputs_started.elapsed().as_nanos();
+    let seed_started = Instant::now();
     let seed = checked_seed()?;
+    timings.seed_validation_ns = seed_started.elapsed().as_nanos();
     let mut policy = HostPolicy {
         instruction_limit: 500_000_000,
         allocation_limit_bytes: 8_589_934_592,
@@ -85,9 +115,12 @@ pub fn compile_project_with_roots(
         .as_ref()
         .map(|_| "std".to_owned())
         .unwrap_or_default();
+    let runtime_load_started = Instant::now();
     let mut runtime = Runtime::new()
         .load(seed, policy)
         .map_err(|error| runtime_failure(error, Some(logical_entry.clone())))?;
+    timings.compiler_runtime_load_ns = runtime_load_started.elapsed().as_nanos();
+    let compile_started = Instant::now();
     let result = runtime.invoke(
         "compiler_compile_project",
         vec![
@@ -98,6 +131,9 @@ pub fn compile_project_with_roots(
         ],
     );
     let result = result.map_err(|error| runtime_failure(error, Some(logical_entry.clone())))?;
+    timings.self_hosted_compile_ns = compile_started.elapsed().as_nanos();
+    timings.compiler_native_compilations = runtime.native_compilations();
+    timings.compiler_native_compile_profile = runtime.native_compile_profile();
     let bytes = match result {
         Value::ResultOk(value) => match *value {
             Value::Bytes(bytes) => bytes,
@@ -127,6 +163,7 @@ pub fn compile_project_with_roots(
             ));
         }
     };
+    let artifact_decode_started = Instant::now();
     let mut artifact = Artifact::from_bytes(bytes.as_ref()).map_err(|error| {
         failure(
             error.code,
@@ -137,6 +174,8 @@ pub fn compile_project_with_roots(
             Some(logical_entry.clone()),
         )
     })?;
+    timings.emitted_artifact_decode_ns = artifact_decode_started.elapsed().as_nanos();
+    let source_finalize_started = Instant::now();
     normalize_artifact_sources(
         &mut artifact,
         &root,
@@ -149,15 +188,25 @@ pub fn compile_project_with_roots(
         stdlib_root.as_deref(),
         &canonical_packages,
     )?);
-    Ok(artifact)
+    timings.source_graph_finalize_ns = source_finalize_started.elapsed().as_nanos();
+    Ok((artifact, timings))
 }
 
 pub fn verify_embedded_seed() -> Result<(), Diagnostic> {
-    checked_seed().map(|_| ())
+    verified_seed().map(|_| ())
 }
 
 fn checked_seed() -> Result<Artifact, Diagnostic> {
-    validate_seed(COMPILER_SEED, COMPILER_SEED_MANIFEST, ARTIFACT_SCHEMA)
+    verified_seed().cloned()
+}
+
+fn verified_seed() -> Result<&'static Artifact, Diagnostic> {
+    match VERIFIED_COMPILER_SEED
+        .get_or_init(|| validate_seed(COMPILER_SEED, COMPILER_SEED_MANIFEST, ARTIFACT_SCHEMA))
+    {
+        Ok(artifact) => Ok(artifact),
+        Err(error) => Err(error.clone()),
+    }
 }
 
 fn validate_seed(
@@ -306,7 +355,7 @@ fn portable_relative(path: &Path) -> Result<String, String> {
     Ok(path.to_string_lossy().replace('\\', "/"))
 }
 
-fn source_graph_digest(
+pub(crate) fn source_graph_digest(
     artifact: &Artifact,
     project_root: &Path,
     stdlib_root: Option<&Path>,
@@ -343,7 +392,58 @@ fn source_graph_digest(
         } else {
             project_root.join(name)
         };
-        let contents = fs::read(&path).map_err(|error| {
+        let allowed_root = if name.starts_with("std:") {
+            stdlib_root
+                .ok_or_else(|| failure("E_IMPORT_ROOT", "standard-library root is missing", None))?
+        } else if name.starts_with("pkg:") {
+            let package = name
+                .strip_prefix("pkg:")
+                .and_then(|identity| identity.split_once('/').map(|pair| pair.0))
+                .ok_or_else(|| {
+                    failure(
+                        "E_SOURCE_IDENTITY",
+                        format!("invalid package source identity `{name}`"),
+                        None,
+                    )
+                })?;
+            package_roots.get(package).ok_or_else(|| {
+                failure(
+                    "E_IMPORT_ROOT",
+                    format!("package root `{package}` is missing"),
+                    None,
+                )
+            })?
+        } else {
+            project_root
+        };
+        let canonical_path = path.canonicalize().map_err(|error| {
+            failure(
+                "E_SOURCE_READ",
+                format!(
+                    "cannot resolve compiled source {} for its digest: {error}",
+                    path.display()
+                ),
+                Some(name.clone()),
+            )
+        })?;
+        let canonical_root = allowed_root.canonicalize().map_err(|error| {
+            failure(
+                "E_IMPORT_ROOT",
+                format!(
+                    "cannot resolve source root {}: {error}",
+                    allowed_root.display()
+                ),
+                Some(name.clone()),
+            )
+        })?;
+        if !canonical_path.starts_with(&canonical_root) || !canonical_path.is_file() {
+            return Err(failure(
+                "E_SOURCE_IDENTITY",
+                format!("compiled source `{name}` resolves outside its declared root"),
+                Some(name.clone()),
+            ));
+        }
+        let contents = fs::read(&canonical_path).map_err(|error| {
             failure(
                 "E_SOURCE_READ",
                 format!(
@@ -365,6 +465,24 @@ fn source_graph_digest(
         digest.update(source);
     }
     Ok(format!("{:x}", digest.finalize()))
+}
+
+pub(crate) fn cache_identity() -> String {
+    let mut digest = Sha256::new();
+    for value in [
+        COMPILER_SEED,
+        COMPILER_SEED_MANIFEST.as_bytes(),
+        ARTIFACT_SCHEMA.as_bytes(),
+        env!("CARGO_PKG_VERSION").as_bytes(),
+    ] {
+        digest.update((value.len() as u64).to_be_bytes());
+        digest.update(value);
+    }
+    digest.update((Artifact::CURRENT_VERSION as u64).to_be_bytes());
+    digest.update(HOST_ABI_VERSION.to_be_bytes());
+    digest.update(env::consts::OS.as_bytes());
+    digest.update(env::consts::ARCH.as_bytes());
+    format!("{:x}", digest.finalize())
 }
 
 fn compile_diagnostic(value: &serde_json::Value, fallback_source: &str) -> Diagnostic {
@@ -446,5 +564,13 @@ mod tests {
         let error = validate_seed(&tampered, COMPILER_SEED_MANIFEST, ARTIFACT_SCHEMA)
             .expect_err("a seed that differs from its manifest must not load");
         assert_eq!(error.code, "E_COMPILER_SEED");
+    }
+
+    #[test]
+    fn verified_embedded_seed_is_decoded_once_and_reused() {
+        let first = verified_seed().expect("embedded seed integrity check passes");
+        let second = verified_seed().expect("validated seed is reused");
+        assert!(std::ptr::eq(first, second));
+        assert!(first.sources.iter().any(|source| source == COMPILER_ENTRY));
     }
 }

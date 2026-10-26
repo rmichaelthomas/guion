@@ -1,0 +1,25 @@
+{
+  "binary": {
+    "repo_local_scratch_path": "target/perf-session/debian/guion",
+    "sha256": "57d84c7fe8f505d056d3ff8a046c2ae62fa167ce4e1d49cc6978aaa59707bc9d",
+    "size_bytes": 14604256
+  },
+  "build": "cargo build --release --locked --offline -p guion-cli; CMake 3.25.1 installed inside the disposable container for pinned libical",
+  "checks": {
+    "compatible": true,
+    "debian_12_glibc_floor": "2.36",
+    "maximum_glibc": "2.34",
+    "source_run": {
+      "command": "guion run --json --no-cache language/examples/option.gu",
+      "program_stdout": "24",
+      "source_cache": "bypassed",
+      "status": "passed"
+    },
+    "version": "guion 0.1.0 (artifact format 39)"
+  },
+  "kind": "guion-debian-arm64-release-smoke",
+  "network_and_cleanup": "APT used the Debian mirror only to install CMake in a disposable container; Colima and the container were stopped/removed after the gate. Cargo dependencies came from the host cache and the build used --offline.",
+  "platform": "Debian 12 ARM64 container (rust:1.97-bookworm)",
+  "schema_version": 1,
+  "status": "passed"
+}
