@@ -133,8 +133,8 @@
 
 - [x] **Step 1: Run `cargo fmt --all -- --check`, `cargo clippy --locked --offline -p guion-cli --all-targets -- -D warnings`, focused cache and CLI tests, compiler conformance with `--test-threads=1`, bootstrap, all five benchmark correctness checks, and the final paired cohort; use only the sprint Cargo target directory and set `TMPDIR` to its absolute `target/guion-first-source-speed/tmp` path.** Formatting, strict Clippy, focused CLI/cache/grant/artifact checks, 195-case language conformance, bootstrap equality, 37 serial compiler-conformance checks, 9 benchmark tests, and final benchmarks passed.
 - [x] **Step 2: Remove `target/guion-first-source-speed/` once after retaining compact reports; verify no benchmark/compiler process remains and confirm the repository status contains only intended source, test, and report files.** All benchmark/build command sessions launched in this task exited; the system-wide process listing was unavailable under the existing OS permissions and was not retried. The 2.0 GB sprint scratch tree and Python bytecode cache were removed after saving the reports.
-- [ ] **Step 3: Stage only the enumerated implementation, test, spec/plan, and report paths; inspect the complete staged diff and scan staged content for secrets, generated binaries, profiler dumps, and unrelated files.**
-- [ ] **Step 4: Commit and push `codex/guion-first-source-speed`; open the PR against `main`, attach its URL to this task, and report the achieved and unmet gates plainly.**
+- [x] **Step 3: Stage only the enumerated implementation, test, spec/plan, and report paths; inspect the complete staged diff and scan staged content for secrets, generated binaries, profiler dumps, and unrelated files.** Both commits were reviewed; staged content passed whitespace checks and the secret-pattern scan, and contains no generated binaries or profiler dumps.
+- [x] **Step 4: Commit and push `codex/guion-first-source-speed`; open the PR against `main`, attach its URL to this task, and report the achieved and unmet gates plainly.** Branch pushed; first PR opened and attached: https://github.com/rmichaelthomas/guion/pull/1.
 
 ## Plan Self-Review
 
