@@ -1,0 +1,12 @@
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.04s
+     Running `target/perf-session/cargo/debug/xtask stdlib --group data`
+running check stdlib-data: cargo --locked --offline test -p guion-runtime --test stdlib_data
+   Compiling serde_core v1.0.229
+   Compiling toml_datetime v1.1.2+spec-1.1.0
+   Compiling toml_edit v0.25.13+spec-1.1.0
+   Compiling serde_json v1.0.151
+   Compiling serde v1.0.229
+   Compiling serde_urlencoded v0.7.1
+   Compiling reqwest v0.12.28
+   Compiling guion-model v0.1.0 (/__w/guion/guion/crates/model)
+   Compiling guion-runtime v0.1.0 (/__w/guion/guion/crates/runtime)

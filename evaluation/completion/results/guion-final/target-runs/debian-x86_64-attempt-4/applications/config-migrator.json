@@ -1,0 +1,602 @@
+{
+  "schema_version": 1,
+  "task_id": "07-config-migrator",
+  "application": "config-migrator",
+  "mode": "source-free relocated package",
+  "relocation_path": "Moved package – Guion",
+  "product": "Guion",
+  "artifact_sha256": "12713f2d6942ec1e7e3f5be6a58dee030d3be53a508bbe6c7f9090e07b8266fb",
+  "artifact_bytes": 168993737,
+  "source_paths_excluded": [
+    "main.vr",
+    "veritas.toml"
+  ],
+  "stages": {
+    "initial": {
+      "passed": true,
+      "elapsed_seconds": 0.0905239230000916,
+      "case_count": 12,
+      "cases": [
+        {
+          "case_id": "config-migrator-v1-to-v2",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 0,
+          "checks_passed": 3,
+          "checks_total": 3,
+          "steps": [
+            {
+              "exit_code": 0,
+              "checks_passed": 3,
+              "checks_total": 3,
+              "failures": [],
+              "elapsed_seconds": 0.008014
+            }
+          ],
+          "elapsed_seconds": 0.011444,
+          "http_fixtures": {},
+          "stdout": "",
+          "stderr": "",
+          "failures": []
+        },
+        {
+          "case_id": "config-migrator-future-version-safe",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 1,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "steps": [
+            {
+              "exit_code": 1,
+              "checks_passed": 2,
+              "checks_total": 2,
+              "failures": [],
+              "elapsed_seconds": 0.005747
+            }
+          ],
+          "elapsed_seconds": 0.006292,
+          "http_fixtures": {},
+          "stdout": "",
+          "stderr": "unsupported schema version\n",
+          "failures": []
+        },
+        {
+          "case_id": "config-migrator-current-schema-check-is-read-only",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 0,
+          "checks_passed": 1,
+          "checks_total": 1,
+          "steps": [
+            {
+              "exit_code": 0,
+              "checks_passed": 1,
+              "checks_total": 1,
+              "failures": [],
+              "elapsed_seconds": 0.005342
+            }
+          ],
+          "elapsed_seconds": 0.005733,
+          "http_fixtures": {},
+          "stdout": "",
+          "stderr": "",
+          "failures": []
+        },
+        {
+          "case_id": "config-migrator-invalid-current-schema-is-safe",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 1,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "steps": [
+            {
+              "exit_code": 1,
+              "checks_passed": 1,
+              "checks_total": 1,
+              "failures": [],
+              "elapsed_seconds": 0.005045
+            },
+            {
+              "exit_code": 1,
+              "checks_passed": 1,
+              "checks_total": 1,
+              "failures": [],
+              "elapsed_seconds": 0.005019
+            }
+          ],
+          "elapsed_seconds": 0.010445,
+          "http_fixtures": {},
+          "stdout": "",
+          "stderr": "sync.timeout_seconds must be a positive integer\n",
+          "failures": []
+        },
+        {
+          "case_id": "config-migrator-bool-field-check-and-migrate-safe",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 1,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "steps": [
+            {
+              "exit_code": 1,
+              "checks_passed": 1,
+              "checks_total": 1,
+              "failures": [],
+              "elapsed_seconds": 0.004962
+            },
+            {
+              "exit_code": 1,
+              "checks_passed": 1,
+              "checks_total": 1,
+              "failures": [],
+              "elapsed_seconds": 0.004828
+            }
+          ],
+          "elapsed_seconds": 0.010228,
+          "http_fixtures": {},
+          "stdout": "",
+          "stderr": "sync.timeout_seconds must be a positive integer\n",
+          "failures": []
+        },
+        {
+          "case_id": "config-migrator-zero-field-check-and-migrate-safe",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 1,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "steps": [
+            {
+              "exit_code": 1,
+              "checks_passed": 1,
+              "checks_total": 1,
+              "failures": [],
+              "elapsed_seconds": 0.004853
+            },
+            {
+              "exit_code": 1,
+              "checks_passed": 1,
+              "checks_total": 1,
+              "failures": [],
+              "elapsed_seconds": 0.004789
+            }
+          ],
+          "elapsed_seconds": 0.010049,
+          "http_fixtures": {},
+          "stdout": "",
+          "stderr": "sync.timeout_seconds must be a positive integer\n",
+          "failures": []
+        },
+        {
+          "case_id": "config-migrator-missing-field-check-and-migrate-safe",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 1,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "steps": [
+            {
+              "exit_code": 1,
+              "checks_passed": 1,
+              "checks_total": 1,
+              "failures": [],
+              "elapsed_seconds": 0.004873
+            },
+            {
+              "exit_code": 1,
+              "checks_passed": 1,
+              "checks_total": 1,
+              "failures": [],
+              "elapsed_seconds": 0.004827
+            }
+          ],
+          "elapsed_seconds": 0.010079,
+          "http_fixtures": {},
+          "stdout": "",
+          "stderr": "sync.parallelism must be a positive integer\n",
+          "failures": []
+        },
+        {
+          "case_id": "config-migrator-schema1-sync-not-table-safe",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 1,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "steps": [
+            {
+              "exit_code": 1,
+              "checks_passed": 2,
+              "checks_total": 2,
+              "failures": [],
+              "elapsed_seconds": 0.004818
+            }
+          ],
+          "elapsed_seconds": 0.005178,
+          "http_fixtures": {},
+          "stdout": "",
+          "stderr": "sync must be a table\n",
+          "failures": []
+        },
+        {
+          "case_id": "config-migrator-zero-version-safe",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 1,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "steps": [
+            {
+              "exit_code": 1,
+              "checks_passed": 2,
+              "checks_total": 2,
+              "failures": [],
+              "elapsed_seconds": 0.004781
+            }
+          ],
+          "elapsed_seconds": 0.005228,
+          "http_fixtures": {},
+          "stdout": "",
+          "stderr": "unsupported schema version\n",
+          "failures": []
+        },
+        {
+          "case_id": "config-migrator-check-schema1-valid",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 0,
+          "checks_passed": 1,
+          "checks_total": 1,
+          "steps": [
+            {
+              "exit_code": 0,
+              "checks_passed": 1,
+              "checks_total": 1,
+              "failures": [],
+              "elapsed_seconds": 0.00484
+            }
+          ],
+          "elapsed_seconds": 0.005202,
+          "http_fixtures": {},
+          "stdout": "",
+          "stderr": "",
+          "failures": []
+        },
+        {
+          "case_id": "config-migrator-check-schema2-valid",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 0,
+          "checks_passed": 1,
+          "checks_total": 1,
+          "steps": [
+            {
+              "exit_code": 0,
+              "checks_passed": 1,
+              "checks_total": 1,
+              "failures": [],
+              "elapsed_seconds": 0.004792
+            }
+          ],
+          "elapsed_seconds": 0.005217,
+          "http_fixtures": {},
+          "stdout": "",
+          "stderr": "",
+          "failures": []
+        },
+        {
+          "case_id": "config-migrator-check-schema2-missing-timeout-safe",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 1,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "steps": [
+            {
+              "exit_code": 1,
+              "checks_passed": 2,
+              "checks_total": 2,
+              "failures": [],
+              "elapsed_seconds": 0.00485
+            }
+          ],
+          "elapsed_seconds": 0.005214,
+          "http_fixtures": {},
+          "stdout": "",
+          "stderr": "sync.timeout_seconds must be a positive integer\n",
+          "failures": []
+        }
+      ]
+    },
+    "follow_up": {
+      "passed": true,
+      "elapsed_seconds": 0.06546187799995096,
+      "case_count": 9,
+      "cases": [
+        {
+          "case_id": "config-migrator-v2-to-v3",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 0,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "steps": [
+            {
+              "exit_code": 0,
+              "checks_passed": 2,
+              "checks_total": 2,
+              "failures": [],
+              "elapsed_seconds": 0.005815
+            }
+          ],
+          "elapsed_seconds": 0.006579,
+          "http_fixtures": {},
+          "stdout": "",
+          "stderr": "",
+          "failures": []
+        },
+        {
+          "case_id": "config-migrator-current-schema-migrate-no-op",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 0,
+          "checks_passed": 1,
+          "checks_total": 1,
+          "steps": [
+            {
+              "exit_code": 0,
+              "checks_passed": 1,
+              "checks_total": 1,
+              "failures": [],
+              "elapsed_seconds": 0.004977
+            }
+          ],
+          "elapsed_seconds": 0.005394,
+          "http_fixtures": {},
+          "stdout": "",
+          "stderr": "",
+          "failures": []
+        },
+        {
+          "case_id": "config-migrator-v2-to-v3-preserves-explicit-parallelism",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 0,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "steps": [
+            {
+              "exit_code": 0,
+              "checks_passed": 2,
+              "checks_total": 2,
+              "failures": [],
+              "elapsed_seconds": 0.005704
+            }
+          ],
+          "elapsed_seconds": 0.006431,
+          "http_fixtures": {},
+          "stdout": "",
+          "stderr": "",
+          "failures": []
+        },
+        {
+          "case_id": "config-migrator-migrate-schema2-missing-timeout-safe",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 1,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "steps": [
+            {
+              "exit_code": 1,
+              "checks_passed": 2,
+              "checks_total": 2,
+              "failures": [],
+              "elapsed_seconds": 0.004793
+            }
+          ],
+          "elapsed_seconds": 0.005196,
+          "http_fixtures": {},
+          "stdout": "",
+          "stderr": "sync.timeout_seconds must be a positive integer\n",
+          "failures": []
+        },
+        {
+          "case_id": "config-migrator-invalid-schema2-timeout-check-and-migrate-safe",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 1,
+          "checks_passed": 4,
+          "checks_total": 4,
+          "steps": [
+            {
+              "exit_code": 1,
+              "checks_passed": 2,
+              "checks_total": 2,
+              "failures": [],
+              "elapsed_seconds": 0.004832
+            },
+            {
+              "exit_code": 1,
+              "checks_passed": 2,
+              "checks_total": 2,
+              "failures": [],
+              "elapsed_seconds": 0.004832
+            }
+          ],
+          "elapsed_seconds": 0.010094,
+          "http_fixtures": {},
+          "stdout": "",
+          "stderr": "sync.timeout_seconds must be a positive integer\n",
+          "failures": []
+        },
+        {
+          "case_id": "config-migrator-invalid-schema2-parallelism-check-and-migrate-safe",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 1,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "steps": [
+            {
+              "exit_code": 1,
+              "checks_passed": 1,
+              "checks_total": 1,
+              "failures": [],
+              "elapsed_seconds": 0.004837
+            },
+            {
+              "exit_code": 1,
+              "checks_passed": 1,
+              "checks_total": 1,
+              "failures": [],
+              "elapsed_seconds": 0.004853
+            }
+          ],
+          "elapsed_seconds": 0.01006,
+          "http_fixtures": {},
+          "stdout": "",
+          "stderr": "sync.parallelism must be a positive integer\n",
+          "failures": []
+        },
+        {
+          "case_id": "config-migrator-migrate-schema1-preserves-inline-version-comment",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 0,
+          "checks_passed": 3,
+          "checks_total": 3,
+          "steps": [
+            {
+              "exit_code": 0,
+              "checks_passed": 3,
+              "checks_total": 3,
+              "failures": [],
+              "elapsed_seconds": 0.005551
+            }
+          ],
+          "elapsed_seconds": 0.006247,
+          "http_fixtures": {},
+          "stdout": "",
+          "stderr": "",
+          "failures": []
+        },
+        {
+          "case_id": "config-migrator-check-schema2-missing-parallelism-read-only",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 0,
+          "checks_passed": 1,
+          "checks_total": 1,
+          "steps": [
+            {
+              "exit_code": 0,
+              "checks_passed": 1,
+              "checks_total": 1,
+              "failures": [],
+              "elapsed_seconds": 0.004833
+            }
+          ],
+          "elapsed_seconds": 0.005217,
+          "http_fixtures": {},
+          "stdout": "",
+          "stderr": "",
+          "failures": []
+        },
+        {
+          "case_id": "config-migrator-invalid-schema2-boolean-parallelism-check-and-migrate-safe",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 1,
+          "checks_passed": 4,
+          "checks_total": 4,
+          "steps": [
+            {
+              "exit_code": 1,
+              "checks_passed": 2,
+              "checks_total": 2,
+              "failures": [],
+              "elapsed_seconds": 0.004838
+            },
+            {
+              "exit_code": 1,
+              "checks_passed": 2,
+              "checks_total": 2,
+              "failures": [],
+              "elapsed_seconds": 0.004915
+            }
+          ],
+          "elapsed_seconds": 0.010112,
+          "http_fixtures": {},
+          "stdout": "",
+          "stderr": "sync.parallelism must be a positive integer\n",
+          "failures": []
+        }
+      ]
+    }
+  },
+  "passed": true,
+  "generated": {
+    "schema_version": 1,
+    "application": "config-migrator",
+    "product": "Guion",
+    "mode": "seeded independent-oracle cases against relocated package",
+    "seed": 20261024,
+    "sizes": [
+      24,
+      128
+    ],
+    "case_count": 2,
+    "concurrency": null,
+    "passed": true,
+    "cases": [
+      {
+        "case_id": "generated-config-24",
+        "candidate": {},
+        "passed": true,
+        "exit_code": 0,
+        "checks_passed": 3,
+        "checks_total": 3,
+        "steps": [
+          {
+            "exit_code": 0,
+            "checks_passed": 3,
+            "checks_total": 3,
+            "failures": [],
+            "elapsed_seconds": 0.006421
+          }
+        ],
+        "elapsed_seconds": 0.007136,
+        "http_fixtures": {},
+        "stdout": "",
+        "stderr": "",
+        "failures": []
+      },
+      {
+        "case_id": "generated-config-128",
+        "candidate": {},
+        "passed": true,
+        "exit_code": 0,
+        "checks_passed": 3,
+        "checks_total": 3,
+        "steps": [
+          {
+            "exit_code": 0,
+            "checks_passed": 3,
+            "checks_total": 3,
+            "failures": [],
+            "elapsed_seconds": 0.007986
+          }
+        ],
+        "elapsed_seconds": 0.008664,
+        "http_fixtures": {},
+        "stdout": "",
+        "stderr": "",
+        "failures": []
+      }
+    ]
+  }
+}

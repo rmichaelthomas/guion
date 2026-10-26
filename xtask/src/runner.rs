@@ -108,14 +108,32 @@ fn forward_child_output(mut reader: impl Read, to_stderr: bool) -> Vec<u8> {
 }
 
 fn git_value(root: &Path, args: &[&str]) -> String {
-    Command::new("git")
+    let value = Command::new("git")
         .current_dir(root)
         .args(args)
         .output()
         .ok()
         .filter(|output| output.status.success())
         .map(|output| String::from_utf8_lossy(&output.stdout).trim().to_string())
-        .unwrap_or_else(|| "unknown".into())
+        .unwrap_or_else(|| "unknown".into());
+    if args == ["rev-parse", "HEAD"] {
+        source_revision_value(
+            &value,
+            std::env::var("GUION_SOURCE_REVISION").ok().as_deref(),
+        )
+    } else {
+        value
+    }
+}
+
+fn source_revision_value(git_revision: &str, fallback: Option<&str>) -> String {
+    if git_revision != "unknown" && !git_revision.is_empty() {
+        return git_revision.to_string();
+    }
+    fallback
+        .filter(|revision| !revision.is_empty())
+        .unwrap_or("unknown")
+        .to_string()
 }
 
 fn digest_entries<I>(root: &Path, entries: I) -> String
@@ -1352,7 +1370,10 @@ pub fn run(root: &Path, args: &[String]) -> i32 {
 
 #[cfg(test)]
 mod target_report_tests {
-    use super::{aggregate_target_reports, requested_targets, target_name_for, task_for};
+    use super::{
+        aggregate_target_reports, requested_targets, source_revision_value, target_name_for,
+        task_for,
+    };
     use serde_json::json;
     use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -1366,6 +1387,20 @@ mod target_report_tests {
     #[test]
     fn names_x86_64_linux_as_the_debian_release_target() {
         assert_eq!(target_name_for("linux", "x86_64"), "debian-x86_64");
+    }
+
+    #[test]
+    fn source_revision_uses_github_sha_when_git_metadata_is_unavailable() {
+        assert_eq!(
+            source_revision_value("unknown", Some("github-commit")),
+            "github-commit"
+        );
+        assert_eq!(
+            source_revision_value("local-commit", Some("github-commit")),
+            "local-commit"
+        );
+        assert_eq!(source_revision_value("unknown", None), "unknown");
+        assert_eq!(source_revision_value("unknown", Some("")), "unknown");
     }
 
     #[test]

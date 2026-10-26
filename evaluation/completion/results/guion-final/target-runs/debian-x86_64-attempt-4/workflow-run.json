@@ -1,0 +1,15 @@
+{
+  "artifact_id": 12661252663,
+  "artifact_name": "guion-debian-x86_64-release-evidence-40343686290",
+  "artifact_rest_digest": "sha256:cdb2d0a48ebdbd7f4c1dc3675caa32ff905ed645d67b2a071daf7a030adf4db6",
+  "artifact_sha256": "cdb2d0a48ebdbd7f4c1dc3675caa32ff905ed645d67b2a071daf7a030adf4db6",
+  "branch": "codex/guion-richards-followup-and-agent-examples",
+  "capture_note": "All ten gate reports and all 18 application reports passed, but final evidence assembly failed because Git metadata was unavailable in the Debian container. This attempt does not validate x86_64.",
+  "distribution": "Debian 12",
+  "schema_version": 1,
+  "source_revision": "03e78deb7d0e9d4f8b559005c3d4be75d326ab38",
+  "status": "failed",
+  "target": "debian-x86_64",
+  "workflow": "Rust source checks",
+  "workflow_run_id": 40343686290
+}

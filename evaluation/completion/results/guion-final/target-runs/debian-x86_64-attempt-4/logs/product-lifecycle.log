@@ -1,0 +1,64 @@
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.03s
+     Running `target/perf-session/cargo/debug/xtask product --group lifecycle`
+running check builder-lifecycle: cargo --locked --offline test -p guion-cli --test builder_lifecycle
+   Compiling guion-cli v0.1.0 (/__w/guion/guion/crates/cli)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.25s
+     Running tests/builder_lifecycle.rs (target/perf-session/cargo/debug/deps/builder_lifecycle-b5989dbea913e4eb)
+
+running 1 test
+test installed_core_completes_new_repair_format_lint_build_package_install_and_run ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 24.81s
+
+check builder-lifecycle: passed after 25.1s
+{
+  "artifact_identities": {
+    "artifact_schema": "sha256:7c91c82c3ff2a1351fe30dc9bd3350eb1d88dc914b59f3a34cc288858a94958f",
+    "compiler_seed": "sha256:e168320c43f05d8d5814fea6133564f1600815839196953d1fd2d311d0ee05ef",
+    "compiler_seed_manifest": "sha256:456431e2825641b827f7a9f61f34984403f6cd1edf4ba30bf178f7d021dfaa0f",
+    "runtime": "sha256:61f5df917e86d9304fdd7ab3749eb0c81157d69ed0b160aaee5059b5f24a8825",
+    "stdlib": "sha256:e2031b25149d6e4a07bd16d13e7a85487bab254c35a9f5d52bbe84ad701bf538"
+  },
+  "changed_path_count": 0,
+  "checks": [
+    {
+      "command": [
+        "cargo",
+        "--locked",
+        "--offline",
+        "test",
+        "-p",
+        "guion-cli",
+        "--test",
+        "builder_lifecycle"
+      ],
+      "exit_status": 0,
+      "id": "builder-lifecycle",
+      "output": "\nrunning 1 test\ntest installed_core_completes_new_repair_format_lint_build_package_install_and_run ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 24.81s\n\n\n   Compiling guion-cli v0.1.0 (/__w/guion/guion/crates/cli)\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.25s\n     Running tests/builder_lifecycle.rs (target/perf-session/cargo/debug/deps/builder_lifecycle-b5989dbea913e4eb)\n",
+      "status": "passed"
+    }
+  ],
+  "command": "product",
+  "completed_targets": [
+    "debian-x86_64"
+  ],
+  "exact_command": "cargo xtask product --group lifecycle",
+  "exit_status": 0,
+  "message": null,
+  "missing_checks": [],
+  "missing_evidence": [],
+  "report": "product-lifecycle",
+  "required_targets": [
+    "debian-x86_64"
+  ],
+  "runtime_hash": "sha256:61f5df917e86d9304fdd7ab3749eb0c81157d69ed0b160aaee5059b5f24a8825",
+  "schema_version": 1,
+  "seed_hash": "sha256:e168320c43f05d8d5814fea6133564f1600815839196953d1fd2d311d0ee05ef",
+  "skipped_targets": [],
+  "source_revision": "unknown",
+  "status": "passed",
+  "stdlib_hash": "sha256:e2031b25149d6e4a07bd16d13e7a85487bab254c35a9f5d52bbe84ad701bf538",
+  "target": "debian-x86_64",
+  "unsatisfied_goal_ids": [],
+  "working_tree_digest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

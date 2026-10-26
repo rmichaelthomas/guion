@@ -21,6 +21,7 @@ export CARGO_NET_OFFLINE=true
 export CARGO_NET_RETRY=0
 export TMPDIR="$REPO_ROOT/target/perf-session/tmp"
 export GUION_APPLICATION_RESULTS="$EVIDENCE_ROOT/applications"
+export GUION_SOURCE_REVISION="${GITHUB_SHA:-}"
 mkdir -p "$TMPDIR"
 
 run_gate() {
@@ -91,9 +92,11 @@ from pathlib import Path
 
 repo = Path(sys.argv[1])
 evidence = Path(sys.argv[2])
-revision = subprocess.run(
-    ["git", "rev-parse", "HEAD"], cwd=repo, text=True, capture_output=True, check=True
-).stdout.strip()
+revision = os.environ.get("GUION_SOURCE_REVISION")
+if not revision:
+    revision = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=repo, text=True, capture_output=True, check=True
+    ).stdout.strip()
 libc_name, libc_version = platform.libc_ver()
 environment = {
     "captured_at_utc": datetime.now(timezone.utc).isoformat(),
