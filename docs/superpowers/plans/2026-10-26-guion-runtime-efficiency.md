@@ -108,7 +108,7 @@
 - [x] **Step 1: Run the final relevant Rust tests, Python harness tests, formatting, and strict Clippy; read each result and confirm every workload output check passed.**
 - [x] **Step 2: Remove only `target/perf-session/` after reports are retained; confirm task-owned command sessions have exited and the worktree contains only intended source/docs/reports.**
 - [x] **Step 3: Inspect the staged diff, secret scan, exact report paths, and benchmark claim scope.**
-- [ ] **Step 4: Commit and push the branch, open a PR to `main`, attach its URL, and state any remaining performance or memory gap plainly.**
+- [x] **Step 4: Commit and push the branch, open a PR to `main`, attach its URL, and state any remaining performance or memory gap plainly.**
 
 ## Plan Self-Review
 
