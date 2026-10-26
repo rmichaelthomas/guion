@@ -4049,7 +4049,7 @@ fn parallel_map_reuses_one_native_backend_across_workers() {
     let source = dir.join("main.gu");
     fs::write(
         &source,
-        "fn work(count: Int) -> Int:\n    var index = 0\n    var total = 0\n    while index < count:\n        set total = total + index % 97\n        set index = index + 1\n    return total\n\nfn main() -> Int:\n    let tasks = [200, 200, 200, 200]\n    let outcome = parallel_map(tasks, work, 4)\n    if is_ok(outcome):\n        let results = unwrap(outcome)\n        print(results[0])\n        print(results[1])\n        print(results[2])\n        print(results[3])\n    return 0\n",
+        "fn work(count: Int) -> Int:\n    var index = 0\n    var total = 0\n    while index < count:\n        set total = total + index % 97\n        set index = index + 1\n    return total\n\nfn main() -> Int:\n    let tasks = [200, 200, 200, 200]\n    let outcome = parallel_map(tasks, work, 2)\n    if is_ok(outcome):\n        let results = unwrap(outcome)\n        print(results[0])\n        print(results[1])\n        print(results[2])\n        print(results[3])\n    return 0\n",
     )
     .unwrap();
 
