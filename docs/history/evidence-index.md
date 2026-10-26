@@ -1,6 +1,6 @@
 # Guion and Veritas evidence index
 
-This index keeps the evidence cohorts separate. The full measured speed suite and final release closeout below are for the final **Veritas 0.1.0, artifact format 39** build. They are not a Guion-identity performance rerun. The post-rename **Guion** application reports are indexed separately. No report is renamed, rescored, or assigned a different product identity here.
+This index keeps evidence cohorts separate. The current Guion pre-release validation and installed-speed results are recorded in a new Guion cohort below. Historical Veritas reports keep their original names, values, and product identities; no report is renamed, rescored, or assigned a different identity.
 
 ## Product identities and primary summaries
 
@@ -8,7 +8,24 @@ This index keeps the evidence cohorts separate. The full measured speed suite an
 |---|---|---|
 | Final historical completion summary | Veritas 0.1.0, artifact format 39; source commit `cb5587b1f4d48a72b955ad2e6e666cdef28f5373`; audited source digest `sha256:4d515d48ba1912119df9cb800cc73d6c1a8ddf02ca25a66de4589b51c9258066` | [completion report](../../docs/completion-report.md), [closeout JSON](../../evaluation/completion/results/closeout.json) |
 | Rename acceptance applications | Guion; each report records `product: Guion`, its relocated artifact hash and pass result | [Guion application reports](../../evaluation/completion/results/guion-applications/), [application acceptance aggregate](../../evaluation/completion/results/product-applications.json) |
-| Current product scope and remaining pre-release work | Guion, private pre-release | [status](../status.md), [migration and pre-release history](migration-2026-10-25.md) |
+| Current product scope and pre-release boundary | Guion 0.1.0, private pre-release candidate | [status](../status.md), [readiness report](../pre-release-readiness.md), [migration and pre-release history](migration-2026-10-25.md) |
+
+## Guion final pre-release cohort
+
+This cohort is the renamed product's final validation record. Its aggregates and per-target reports are retained under [`evaluation/completion/results/guion-final/`](../../evaluation/completion/results/guion-final/), with a cohort guide in [`README.md`](../../evaluation/completion/results/guion-final/README.md). The supported matrix passed on macOS ARM64 and Debian 12-compatible GNU/Linux ARM64. The [`closeout.json`](../../evaluation/completion/results/guion-final/closeout.json) records the final closeout audit. The builder study remains historical Veritas evidence and is identified as such; it was not relabeled or repeated under Guion.
+
+The Guion installed benchmark is [`performance-guion.json`](../../evaluation/completion/results/guion-final/performance-guion.json); [`performance.json`](../../evaluation/completion/results/guion-final/performance.json) records invocation and outcomes. Ratios are Guion installed-artifact median divided by pinned CPython 3.14.7 median, so values below 1 favor the Guion artifact.
+
+| Workload and comparison | Approximate median ratio |
+|---|---:|
+| Richards scheduler | 0.92 |
+| N-body numeric | 0.68 |
+| Mandelbrot image | 0.37 |
+| Parallel CPU, 20,000 items vs Python serial | 0.19 |
+| Parallel CPU, 200,000 items vs Python serial | 0.18 |
+| JSONL summary data | 0.23 |
+
+For 200,000 parallel items, the Guion artifact also beat measured Python threads and processes. For JSONL, it also beat the measured SQLite path. Exact medians, intervals, and both parallel comparison ratios are in the linked structured report. The comparison used macOS ARM64 and GIL-enabled CPython 3.14.7; free-threaded Python was unavailable. Guion source-run was slower on Richards, N-body, and Mandelbrot. Treat these as results for the named workloads and conditions, not a general Python performance claim.
 
 The Veritas completion cohort records artifact schema, compiler seed and manifest, runtime, and standard-library hashes in each structured report. Its final release and performance reports are bound to the Veritas source commit and audited digest shown above. The Guion rename did not rewrite those reports.
 

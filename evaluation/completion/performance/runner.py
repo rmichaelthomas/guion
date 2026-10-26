@@ -11,6 +11,7 @@ import math
 import os
 import platform
 import random
+import re
 import shutil
 import statistics
 import subprocess
@@ -141,6 +142,30 @@ def write_manifest(project: Path, name: str, instruction_limit: int) -> None:
         f'[project]\nname = "{name}"\nversion = "0.1.0"\nentry = "main.gu"\n\n[runtime]\ninstruction_limit = {instruction_limit}\nallocation_limit_bytes = 8589934592\n',
         encoding="utf-8",
     )
+
+
+def prepare_guion_application(project: Path) -> None:
+    """Convert the frozen Veritas fixture names in a temporary benchmark copy."""
+    source = project / "main.vr"
+    manifest = project / "veritas.toml"
+    if not source.is_file() or not manifest.is_file():
+        raise FileNotFoundError("frozen JSONL application source or manifest is missing")
+
+    manifest_text, replacements = re.subn(
+        r'(?m)^entry\s*=\s*"main\.vr"\s*$',
+        'entry = "main.gu"',
+        manifest.read_text(encoding="utf-8"),
+        count=1,
+    )
+    if replacements != 1:
+        raise ValueError("frozen JSONL application manifest has no main.vr entry")
+
+    (project / "main.gu").write_bytes(source.read_bytes())
+    (project / "guion.toml").write_text(manifest_text, encoding="utf-8")
+    source.unlink()
+    manifest.unlink()
+    for legacy in ("veritas.lock", "delivery.json"):
+        (project / legacy).unlink(missing_ok=True)
 
 
 def sample_candidates(
@@ -377,6 +402,7 @@ def run_suite(binary: Path, scratch: Path) -> dict[str, Any]:
     print(f"measuring {workload_id} on generated JSONL with Python and SQLite baselines", file=sys.stderr, flush=True)
     project = scratch / workload_id
     shutil.copytree(APP, project)
+    prepare_guion_application(project)
     project_manifest = project / "guion.toml"
     project_manifest.write_text(project_manifest.read_text(encoding="utf-8") + f"\n[runtime]\ninstruction_limit = {1000000000 * WARM_REPETITIONS}\nallocation_limit_bytes = 8589934592\n", encoding="utf-8")
     generated = project / "performance-inputs"

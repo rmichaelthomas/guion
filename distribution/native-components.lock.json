@@ -95,7 +95,7 @@
       "source": "https://github.com/libical/libical/releases/download/v4.0.5/libical-4.0.5.tar.gz",
       "sha256": "cc09a3ac41d60e6144e644bd3fcf97d47106d659c4a0b8965102581401e67c9c",
       "license": "LGPL-2.1-or-later",
-      "license_file": "native/vendor/libical-4.0.5/COPYING.LESSER.txt",
+      "license_file": "distribution/licenses/libical-LGPL-2.1.txt",
       "build": "static; builtin timezone data enabled; no runtime download"
     }
   ],

@@ -271,8 +271,8 @@ fn collect_licenses(root: &Path, target: &str, stage: &Path) -> Result<usize, St
         &native.join("UPSTREAM-NOTICES.md"),
     )?;
     copy_tree(
-        &root.join("native/vendor/libical-4.0.5/COPYING.LESSER.txt"),
-        &native.join("libical-COPYING.LESSER.txt"),
+        &root.join("distribution/licenses/libical-LGPL-2.1.txt"),
+        &native.join("libical-LGPL-2.1.txt"),
     )?;
     Ok(dependencies.len())
 }
@@ -1025,9 +1025,40 @@ pub fn run_release(root: &Path, _args: &[String]) -> Vec<Check> {
 #[cfg(test)]
 mod tests {
     use super::{
-        release_binary_path, safe_archive_listing, LINUX_TARGET, MAC_TARGET, RELEASE_DOCS,
+        collect_licenses, release_binary_path, safe_archive_listing, LINUX_TARGET, MAC_TARGET,
+        RELEASE_DOCS,
     };
-    use std::path::Path;
+    use std::{fs, path::Path};
+
+    #[test]
+    fn release_license_inventory_uses_retained_libical_license_after_cleanup() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
+        let stage = std::env::temp_dir().join(format!(
+            "guion-release-license-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir_all(&stage).unwrap();
+
+        let result = collect_licenses(root, MAC_TARGET, &stage);
+        let license = stage.join("share/guion/licenses/native/libical-LGPL-2.1.txt");
+        let license_contents = fs::read_to_string(&license).ok();
+        let _ = fs::remove_dir_all(&stage);
+
+        assert!(
+            result.is_ok(),
+            "release license collection failed: {result:?}"
+        );
+        assert!(
+            license_contents
+                .as_deref()
+                .is_some_and(|text| text.starts_with("GNU LESSER GENERAL PUBLIC LICENSE\n")),
+            "complete native libical license was not packaged"
+        );
+    }
 
     #[test]
     fn release_binary_path_respects_cargo_target_directory() {

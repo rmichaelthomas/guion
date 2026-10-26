@@ -28,9 +28,9 @@ See the [getting-started guide](docs/getting-started.md), [language and command 
 
 ## Status and comparison with Python
 
-The earlier Veritas-named build has task-specific Python comparisons, application trials, and benchmark reports. Those results include wins on selected workloads as well as ties, regressions, and limits; they do not show that Guion is a general Python replacement. A full benchmark and release check under Guion's new identity is still part of the pre-release work.
+The Guion pre-release validation matrix has now passed on macOS ARM64 and Debian 12-compatible GNU/Linux ARM64 with glibc. The installed artifact was faster than pinned CPython 3.14.7 on the named workloads in the final benchmark cohort, while some source-run workloads remained slower. These task-specific results do not show that Guion is a general Python replacement. See [current status and evidence](docs/status.md) for the measurements, limits, and exact reports.
 
-Guion's previously validated release targets are macOS ARM64 and Debian 12-compatible GNU/Linux ARM64 with glibc. The complete Guion pre-release matrix is not yet closed. See [current status and evidence](docs/status.md) for what those statements mean and where each report lives.
+Guion remains a private pre-release project; no public release download has been published. See the [pre-release readiness report](docs/pre-release-readiness.md) for the validated scope and remaining work.
 
 ## Project guide
 
