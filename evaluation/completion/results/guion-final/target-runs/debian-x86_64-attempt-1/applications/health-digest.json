@@ -1,0 +1,448 @@
+{
+  "schema_version": 1,
+  "task_id": "06-service-health-digest",
+  "application": "health-digest",
+  "mode": "source-free relocated package",
+  "relocation_path": "Moved package – Guion",
+  "product": "Guion",
+  "artifact_sha256": "0115b294c4e9ff79eb95e71e1924dfa5f5120eca917947f4b417e382bb1996d9",
+  "artifact_bytes": 169040616,
+  "source_paths_excluded": [
+    "main.vr",
+    "veritas.toml"
+  ],
+  "stages": {
+    "initial": {
+      "passed": true,
+      "elapsed_seconds": 3.1034111890000986,
+      "case_count": 6,
+      "cases": [
+        {
+          "case_id": "health-mixed-results-and-cap",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 0,
+          "checks_passed": 5,
+          "checks_total": 5,
+          "steps": [
+            {
+              "exit_code": 0,
+              "checks_passed": 5,
+              "checks_total": 5,
+              "failures": [],
+              "elapsed_seconds": 0.524919
+            }
+          ],
+          "elapsed_seconds": 1.024144,
+          "http_fixtures": {
+            "health": {
+              "requests": [
+                {
+                  "method": "GET",
+                  "path": "/api"
+                },
+                {
+                  "method": "GET",
+                  "path": "/worker"
+                },
+                {
+                  "method": "GET",
+                  "path": "/slow"
+                },
+                {
+                  "method": "GET",
+                  "path": "/invalid"
+                }
+              ],
+              "max_in_flight": 2
+            }
+          },
+          "stdout": "",
+          "stderr": "",
+          "failures": []
+        },
+        {
+          "case_id": "health-concurrency-bound",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 0,
+          "checks_passed": 5,
+          "checks_total": 5,
+          "steps": [
+            {
+              "exit_code": 0,
+              "checks_passed": 5,
+              "checks_total": 5,
+              "failures": [],
+              "elapsed_seconds": 0.143749
+            }
+          ],
+          "elapsed_seconds": 0.520983,
+          "http_fixtures": {
+            "health": {
+              "requests": [
+                {
+                  "method": "GET",
+                  "path": "/worker"
+                },
+                {
+                  "method": "GET",
+                  "path": "/api"
+                }
+              ],
+              "max_in_flight": 2
+            }
+          },
+          "stdout": "",
+          "stderr": "",
+          "failures": []
+        },
+        {
+          "case_id": "health-empty-configuration",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 0,
+          "checks_passed": 3,
+          "checks_total": 3,
+          "steps": [
+            {
+              "exit_code": 0,
+              "checks_passed": 3,
+              "checks_total": 3,
+              "failures": [],
+              "elapsed_seconds": 0.017125
+            }
+          ],
+          "elapsed_seconds": 0.018153,
+          "http_fixtures": {},
+          "stdout": "",
+          "stderr": "",
+          "failures": []
+        },
+        {
+          "case_id": "health-http-error-is-unhealthy",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 0,
+          "checks_passed": 4,
+          "checks_total": 4,
+          "steps": [
+            {
+              "exit_code": 0,
+              "checks_passed": 4,
+              "checks_total": 4,
+              "failures": [],
+              "elapsed_seconds": 0.020991
+            }
+          ],
+          "elapsed_seconds": 0.518979,
+          "http_fixtures": {
+            "health": {
+              "requests": [
+                {
+                  "method": "GET",
+                  "path": "/api?token=fixture-only-secret"
+                }
+              ],
+              "max_in_flight": 1
+            }
+          },
+          "stdout": "",
+          "stderr": "",
+          "failures": []
+        },
+        {
+          "case_id": "health-duplicate-service-names-rejected",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 1,
+          "checks_passed": 1,
+          "checks_total": 1,
+          "steps": [
+            {
+              "exit_code": 1,
+              "checks_passed": 1,
+              "checks_total": 1,
+              "failures": [],
+              "elapsed_seconds": 0.016025
+            }
+          ],
+          "elapsed_seconds": 0.501565,
+          "http_fixtures": {
+            "health": {
+              "requests": [],
+              "max_in_flight": 0
+            }
+          },
+          "stdout": "",
+          "stderr": "service names must be unique: api\n",
+          "failures": []
+        },
+        {
+          "case_id": "health-slow-trickle-exceeds-total-deadline",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 0,
+          "checks_passed": 4,
+          "checks_total": 4,
+          "steps": [
+            {
+              "exit_code": 0,
+              "checks_passed": 4,
+              "checks_total": 4,
+              "failures": [],
+              "elapsed_seconds": 0.120998
+            }
+          ],
+          "elapsed_seconds": 0.51931,
+          "http_fixtures": {
+            "health": {
+              "requests": [
+                {
+                  "method": "GET",
+                  "path": "/slow"
+                }
+              ],
+              "max_in_flight": 1
+            }
+          },
+          "stdout": "",
+          "stderr": "",
+          "failures": []
+        }
+      ]
+    },
+    "follow_up": {
+      "passed": false,
+      "elapsed_seconds": 1.547508710000102,
+      "case_count": 4,
+      "cases": [
+        {
+          "case_id": "health-maintenance-boundaries",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 0,
+          "checks_passed": 4,
+          "checks_total": 4,
+          "steps": [
+            {
+              "exit_code": 0,
+              "checks_passed": 4,
+              "checks_total": 4,
+              "failures": [],
+              "elapsed_seconds": 0.028116
+            }
+          ],
+          "elapsed_seconds": 0.525768,
+          "http_fixtures": {
+            "health": {
+              "requests": [
+                {
+                  "method": "GET",
+                  "path": "/worker"
+                },
+                {
+                  "method": "GET",
+                  "path": "/worker"
+                },
+                {
+                  "method": "GET",
+                  "path": "/unavailable"
+                },
+                {
+                  "method": "GET",
+                  "path": "/api"
+                },
+                {
+                  "method": "GET",
+                  "path": "/invalid"
+                }
+              ],
+              "max_in_flight": 2
+            }
+          },
+          "stdout": "",
+          "stderr": "",
+          "failures": []
+        },
+        {
+          "case_id": "health-timeout-and-invalid-shapes-in-maintenance",
+          "candidate": {},
+          "passed": false,
+          "exit_code": 1,
+          "checks_passed": 0,
+          "checks_total": 3,
+          "steps": [
+            {
+              "exit_code": 1,
+              "checks_passed": 0,
+              "checks_total": 3,
+              "failures": [
+                "expected exit code 0, received 1",
+                "check 1: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/__w/guion/guion/target/perf-session/tmp/veritas-independent-case-hqnthcyp/report.json'",
+                "check 2: http_request_count_equals did not match its expected value",
+                "check 3: json_equals could not be evaluated: [Errno 2] No such file or directory: '/__w/guion/guion/target/perf-session/tmp/veritas-independent-case-hqnthcyp/report.json'"
+              ],
+              "elapsed_seconds": 0.017125
+            }
+          ],
+          "elapsed_seconds": 0.50153,
+          "http_fixtures": {
+            "health": {
+              "requests": [],
+              "max_in_flight": 0
+            }
+          },
+          "stdout": "",
+          "stderr": "main.vr:219:19: runtime error[R_PARALLEL_LIMIT]: worker limit 4 exceeds host limit 2\n",
+          "failures": [
+            "step 1: expected exit code 0, received 1",
+            "step 1: check 1: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/__w/guion/guion/target/perf-session/tmp/veritas-independent-case-hqnthcyp/report.json'",
+            "step 1: check 2: http_request_count_equals did not match its expected value",
+            "step 1: check 3: json_equals could not be evaluated: [Errno 2] No such file or directory: '/__w/guion/guion/target/perf-session/tmp/veritas-independent-case-hqnthcyp/report.json'"
+          ]
+        },
+        {
+          "case_id": "health-maintenance-requires-now",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 1,
+          "checks_passed": 1,
+          "checks_total": 1,
+          "steps": [
+            {
+              "exit_code": 1,
+              "checks_passed": 1,
+              "checks_total": 1,
+              "failures": [],
+              "elapsed_seconds": 0.016055
+            }
+          ],
+          "elapsed_seconds": 0.501665,
+          "http_fixtures": {
+            "health": {
+              "requests": [],
+              "max_in_flight": 0
+            }
+          },
+          "stdout": "",
+          "stderr": "--now is required when maintenance windows are configured\n",
+          "failures": []
+        },
+        {
+          "case_id": "health-maintenance-invalid-rfc3339-preserves-output",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 1,
+          "checks_passed": 3,
+          "checks_total": 3,
+          "steps": [
+            {
+              "exit_code": 1,
+              "checks_passed": 3,
+              "checks_total": 3,
+              "failures": [],
+              "elapsed_seconds": 0.016878
+            }
+          ],
+          "elapsed_seconds": 0.018354,
+          "http_fixtures": {},
+          "stdout": "",
+          "stderr": "timestamp must use RFC3339 date-time syntax\n",
+          "failures": []
+        }
+      ]
+    }
+  },
+  "passed": false,
+  "generated": {
+    "schema_version": 1,
+    "application": "health-digest",
+    "product": "Guion",
+    "mode": "seeded independent-oracle cases against relocated package",
+    "seed": 20261024,
+    "sizes": [
+      24,
+      128
+    ],
+    "case_count": 2,
+    "concurrency": null,
+    "passed": false,
+    "cases": [
+      {
+        "case_id": "generated-health-24",
+        "candidate": {},
+        "passed": false,
+        "exit_code": 1,
+        "checks_passed": 1,
+        "checks_total": 4,
+        "steps": [
+          {
+            "exit_code": 1,
+            "checks_passed": 1,
+            "checks_total": 4,
+            "failures": [
+              "expected exit code 0, received 1",
+              "check 1: json_equals could not be evaluated: [Errno 2] No such file or directory: '/__w/guion/guion/target/perf-session/tmp/veritas-independent-case-jhtw6sgz/report.json'",
+              "check 2: file_equals could not be evaluated: [Errno 2] No such file or directory: '/__w/guion/guion/target/perf-session/tmp/veritas-independent-case-jhtw6sgz/digest.txt'",
+              "check 3: http_request_count_equals did not match its expected value"
+            ],
+            "elapsed_seconds": 0.017709
+          }
+        ],
+        "elapsed_seconds": 0.501677,
+        "http_fixtures": {
+          "health": {
+            "requests": [],
+            "max_in_flight": 0
+          }
+        },
+        "stdout": "",
+        "stderr": "main.vr:219:19: runtime error[R_PARALLEL_LIMIT]: worker limit 4 exceeds host limit 2\n",
+        "failures": [
+          "step 1: expected exit code 0, received 1",
+          "step 1: check 1: json_equals could not be evaluated: [Errno 2] No such file or directory: '/__w/guion/guion/target/perf-session/tmp/veritas-independent-case-jhtw6sgz/report.json'",
+          "step 1: check 2: file_equals could not be evaluated: [Errno 2] No such file or directory: '/__w/guion/guion/target/perf-session/tmp/veritas-independent-case-jhtw6sgz/digest.txt'",
+          "step 1: check 3: http_request_count_equals did not match its expected value"
+        ]
+      },
+      {
+        "case_id": "generated-health-128",
+        "candidate": {},
+        "passed": false,
+        "exit_code": 1,
+        "checks_passed": 1,
+        "checks_total": 4,
+        "steps": [
+          {
+            "exit_code": 1,
+            "checks_passed": 1,
+            "checks_total": 4,
+            "failures": [
+              "expected exit code 0, received 1",
+              "check 1: json_equals could not be evaluated: [Errno 2] No such file or directory: '/__w/guion/guion/target/perf-session/tmp/veritas-independent-case-am6fz9bo/report.json'",
+              "check 2: file_equals could not be evaluated: [Errno 2] No such file or directory: '/__w/guion/guion/target/perf-session/tmp/veritas-independent-case-am6fz9bo/digest.txt'",
+              "check 3: http_request_count_equals did not match its expected value"
+            ],
+            "elapsed_seconds": 0.024228
+          }
+        ],
+        "elapsed_seconds": 0.501646,
+        "http_fixtures": {
+          "health": {
+            "requests": [],
+            "max_in_flight": 0
+          }
+        },
+        "stdout": "",
+        "stderr": "main.vr:219:19: runtime error[R_PARALLEL_LIMIT]: worker limit 4 exceeds host limit 2\n",
+        "failures": [
+          "step 1: expected exit code 0, received 1",
+          "step 1: check 1: json_equals could not be evaluated: [Errno 2] No such file or directory: '/__w/guion/guion/target/perf-session/tmp/veritas-independent-case-am6fz9bo/report.json'",
+          "step 1: check 2: file_equals could not be evaluated: [Errno 2] No such file or directory: '/__w/guion/guion/target/perf-session/tmp/veritas-independent-case-am6fz9bo/digest.txt'",
+          "step 1: check 3: http_request_count_equals did not match its expected value"
+        ]
+      }
+    ]
+  }
+}

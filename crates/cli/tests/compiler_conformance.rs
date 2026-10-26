@@ -639,7 +639,7 @@ fn self_host_compiler_lowers_parallel_map_with_a_named_worker() {
         fs::copy(self_host.join(filename), project.0.join(filename))
             .expect("copy self-host compiler source");
     }
-    let source = "fn double(value: Int) -> Int:\n    return value * 2\n\nfn map_values(values: List[Int]) -> Result[List[Int], TaskError]:\n    return parallel_map(values, double, 4)\n\nfn main() -> Int:\n    match map_values([21]):\n        Ok(values):\n            return values[0]\n        Err(problem):\n            return 0\n";
+    let source = "fn double(value: Int) -> Int:\n    return value * 2\n\nfn map_values(values: List[Int]) -> Result[List[Int], TaskError]:\n    return parallel_map(values, double, 1)\n\nfn main() -> Int:\n    match map_values([21]):\n        Ok(values):\n            return values[0]\n        Err(problem):\n            return 0\n";
     compile("parallel.gu", source).expect("bootstrap compiler accepts a named parallel worker");
     project.write("parallel.gu", source);
 

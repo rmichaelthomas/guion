@@ -1,0 +1,91 @@
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.06s
+     Running `target/perf-session/cargo/debug/xtask product --group applications --stage initial,follow-up`
+running check all-nine-applications-initial-and-follow-up: cargo --locked --offline test -p guion-cli --test application_acceptance
+   Compiling guion-cli v0.1.0 (/__w/guion/guion/crates/cli)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.39s
+     Running tests/application_acceptance.rs (target/perf-session/cargo/debug/deps/application_acceptance-5153b1f4ea41c01a)
+
+running 1 test
+test all_nine_applications_pass_initial_and_follow_up_from_relocated_packages has been running for over 60 seconds
+test all_nine_applications_pass_initial_and_follow_up_from_relocated_packages ... FAILED
+
+failures:
+
+---- all_nine_applications_pass_initial_and_follow_up_from_relocated_packages stdout ----
+
+thread 'all_nine_applications_pass_initial_and_follow_up_from_relocated_packages' (10080) panicked at crates/cli/tests/application_acceptance.rs:60:5:
+nine-application initial and follow-up matrix failed
+stdout:
+{"application": "sla-report", "follow_up": 2, "initial": 11, "passed": true, "report": "/__w/guion/guion/target/perf-session/debian-x86_64-evidence/applications/sla-report.json"}
+{"application": "jsonl-summary", "follow_up": 5, "initial": 6, "passed": true, "report": "/__w/guion/guion/target/perf-session/debian-x86_64-evidence/applications/jsonl-summary.json"}
+{"application": "release-notes", "follow_up": 10, "initial": 7, "passed": true, "report": "/__w/guion/guion/target/perf-session/debian-x86_64-evidence/applications/release-notes.json"}
+{"application": "calendar-conflicts", "follow_up": 6, "initial": 5, "passed": false, "report": "/__w/guion/guion/target/perf-session/debian-x86_64-evidence/applications/calendar-conflicts.json"}
+{"application": "webhook-replay", "follow_up": 2, "initial": 7, "passed": true, "report": "/__w/guion/guion/target/perf-session/debian-x86_64-evidence/applications/webhook-replay.json"}
+{"application": "health-digest", "follow_up": 4, "initial": 6, "passed": false, "report": "/__w/guion/guion/target/perf-session/debian-x86_64-evidence/applications/health-digest.json"}
+{"application": "config-migrator", "follow_up": 9, "initial": 12, "passed": true, "report": "/__w/guion/guion/target/perf-session/debian-x86_64-evidence/applications/config-migrator.json"}
+{"application": "doc-index", "follow_up": 13, "initial": 5, "passed": true, "report": "/__w/guion/guion/target/perf-session/debian-x86_64-evidence/applications/doc-index.json"}
+{"application": "lockfile-auditor", "follow_up": 10, "initial": 7, "passed": true, "report": "/__w/guion/guion/target/perf-session/debian-x86_64-evidence/applications/lockfile-auditor.json"}
+
+stderr:
+
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    all_nine_applications_pass_initial_and_follow_up_from_relocated_packages
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 219.27s
+
+error: test failed, to rerun pass `-p guion-cli --test application_acceptance`
+check all-nine-applications-initial-and-follow-up: failed after 219.7s
+{
+  "artifact_identities": {
+    "artifact_schema": "sha256:7c91c82c3ff2a1351fe30dc9bd3350eb1d88dc914b59f3a34cc288858a94958f",
+    "compiler_seed": "sha256:e168320c43f05d8d5814fea6133564f1600815839196953d1fd2d311d0ee05ef",
+    "compiler_seed_manifest": "sha256:456431e2825641b827f7a9f61f34984403f6cd1edf4ba30bf178f7d021dfaa0f",
+    "runtime": "sha256:7c25f75087ffa531c7c760a95263039e41fd5b1ea00857a4984bc60d815b1f3a",
+    "stdlib": "sha256:e2031b25149d6e4a07bd16d13e7a85487bab254c35a9f5d52bbe84ad701bf538"
+  },
+  "changed_path_count": 0,
+  "checks": [
+    {
+      "command": [
+        "cargo",
+        "--locked",
+        "--offline",
+        "test",
+        "-p",
+        "guion-cli",
+        "--test",
+        "application_acceptance"
+      ],
+      "exit_status": 101,
+      "id": "all-nine-applications-initial-and-follow-up",
+      "output": "\nrunning 1 test\ntest all_nine_applications_pass_initial_and_follow_up_from_relocated_packages has been running for over 60 seconds\ntest all_nine_applications_pass_initial_and_follow_up_from_relocated_packages ... FAILED\n\nfailures:\n\n---- all_nine_applications_pass_initial_and_follow_up_from_relocated_packages stdout ----\n\nthread 'all_nine_applications_pass_initial_and_follow_up_from_relocated_packages' (10080) panicked at crates/cli/tests/application_acceptance.rs:60:5:\nnine-application initial and follow-up matrix failed\nstdout:\n{\"application\": \"sla-report\", \"follow_up\": 2, \"initial\": 11, \"passed\": true, \"report\": \"/__w/guion/guion/target/perf-session/debian-x86_64-evidence/applications/sla-report.json\"}\n{\"application\": \"jsonl-summary\", \"follow_up\": 5, \"initial\": 6, \"passed\": true, \"report\": \"/__w/guion/guion/target/perf-session/debian-x86_64-evidence/applications/jsonl-summary.json\"}\n{\"application\": \"release-notes\", \"follow_up\": 10, \"initial\": 7, \"passed\": true, \"report\": \"/__w/guion/guion/target/perf-session/debian-x86_64-evidence/applications/release-notes.json\"}\n{\"application\": \"calendar-conflicts\", \"follow_up\": 6, \"initial\": 5, \"passed\": false, \"report\": \"/__w/guion/guion/target/perf-session/debian-x86_64-evidence/applications/calendar-conflicts.json\"}\n{\"application\": \"webhook-replay\", \"follow_up\": 2, \"initial\": 7, \"passed\": true, \"report\": \"/__w/guion/guion/target/perf-session/debian-x86_64-evidence/applications/webhook-replay.json\"}\n{\"application\": \"health-digest\", \"follow_up\": 4, \"initial\": 6, \"passed\": false, \"report\": \"/__w/guion/guion/target/perf-session/debian-x86_64-evidence/applications/health-digest.json\"}\n{\"application\": \"config-migrator\", \"follow_up\": 9, \"initial\": 12, \"passed\": true, \"report\": \"/__w/guion/guion/target/perf-session/debian-x86_64-evidence/applications/config-migrator.json\"}\n{\"application\": \"doc-index\", \"follow_up\": 13, \"initial\": 5, \"passed\": true, \"report\": \"/__w/guion/guion/target/perf-session/debian-x86_64-evidence/applications/doc-index.json\"}\n{\"application\": \"lockfile-auditor\", \"follow_up\": 10, \"initial\": 7, \"passed\": true, \"report\": \"/__w/guion/guion/target/perf-session/debian-x86_64-evidence/applications/lockfile-auditor.json\"}\n\nstderr:\n\nnote: run with `RUST_BACKTRACE=1` environment variable to display a backtrace\n\n\nfailures:\n    all_nine_applications_pass_initial_and_follow_up_from_relocated_packages\n\ntest result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 219.27s\n\n\n   Compiling guion-cli v0.1.0 (/__w/guion/guion/crates/cli)\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.39s\n     Running tests/application_acceptance.rs (target/perf-session/cargo/debug/deps/application_acceptance-5153b1f4ea41c01a)\nerror: test failed, to rerun pass `-p guion-cli --test application_acceptance`\n",
+      "status": "failed"
+    }
+  ],
+  "command": "product",
+  "completed_targets": [
+    "debian-x86_64"
+  ],
+  "exact_command": "cargo xtask product --group applications --stage initial,follow-up",
+  "exit_status": 1,
+  "message": null,
+  "missing_checks": [],
+  "missing_evidence": [],
+  "report": "product-applications",
+  "required_targets": [
+    "debian-x86_64"
+  ],
+  "runtime_hash": "sha256:7c25f75087ffa531c7c760a95263039e41fd5b1ea00857a4984bc60d815b1f3a",
+  "schema_version": 1,
+  "seed_hash": "sha256:e168320c43f05d8d5814fea6133564f1600815839196953d1fd2d311d0ee05ef",
+  "skipped_targets": [],
+  "source_revision": "unknown",
+  "status": "failed",
+  "stdlib_hash": "sha256:e2031b25149d6e4a07bd16d13e7a85487bab254c35a9f5d52bbe84ad701bf538",
+  "target": "debian-x86_64",
+  "unsatisfied_goal_ids": [],
+  "working_tree_digest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

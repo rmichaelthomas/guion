@@ -1,0 +1,76 @@
+   Compiling version_check v0.9.5
+   Compiling typenum v1.20.1
+   Compiling generic-array v0.14.7
+   Compiling zmij v1.0.23
+   Compiling serde_core v1.0.229
+   Compiling serde_json v1.0.151
+   Compiling crypto-common v0.1.7
+   Compiling block-buffer v0.10.4
+   Compiling digest v0.10.7
+   Compiling memchr v2.8.3
+   Compiling cfg-if v1.0.5
+   Compiling itoa v1.0.18
+   Compiling cpufeatures v0.2.17
+   Compiling sha2 v0.10.9
+   Compiling xtask v0.1.0 (/__w/guion/guion/xtask)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 5.86s
+     Running `target/perf-session/cargo/debug/xtask conformance --inventory-only`
+{
+  "artifact_identities": {
+    "artifact_schema": "sha256:7c91c82c3ff2a1351fe30dc9bd3350eb1d88dc914b59f3a34cc288858a94958f",
+    "compiler_seed": "sha256:e168320c43f05d8d5814fea6133564f1600815839196953d1fd2d311d0ee05ef",
+    "compiler_seed_manifest": "sha256:456431e2825641b827f7a9f61f34984403f6cd1edf4ba30bf178f7d021dfaa0f",
+    "runtime": "sha256:7c25f75087ffa531c7c760a95263039e41fd5b1ea00857a4984bc60d815b1f3a",
+    "stdlib": "sha256:e2031b25149d6e4a07bd16d13e7a85487bab254c35a9f5d52bbe84ad701bf538"
+  },
+  "changed_path_count": 0,
+  "checks": [
+    {
+      "command": [
+        "cargo",
+        "xtask",
+        "catalog",
+        "--check"
+      ],
+      "exit_status": 0,
+      "id": "builtin-signature-catalog",
+      "output": "declarative builtin signatures validate and generated Guion catalog is current",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "xtask",
+        "conformance",
+        "--inventory-only"
+      ],
+      "exit_status": 0,
+      "id": "inventory-complete",
+      "output": "all current Type, Op, host API and CLI entries are mapped",
+      "status": "passed"
+    }
+  ],
+  "command": "conformance",
+  "completed_targets": [
+    "debian-x86_64"
+  ],
+  "exact_command": "cargo xtask conformance --inventory-only",
+  "exit_status": 0,
+  "message": null,
+  "missing_checks": [],
+  "missing_evidence": [],
+  "report": "conformance-inventory",
+  "required_targets": [
+    "debian-x86_64"
+  ],
+  "runtime_hash": "sha256:7c25f75087ffa531c7c760a95263039e41fd5b1ea00857a4984bc60d815b1f3a",
+  "schema_version": 1,
+  "seed_hash": "sha256:e168320c43f05d8d5814fea6133564f1600815839196953d1fd2d311d0ee05ef",
+  "skipped_targets": [],
+  "source_revision": "unknown",
+  "status": "passed",
+  "stdlib_hash": "sha256:e2031b25149d6e4a07bd16d13e7a85487bab254c35a9f5d52bbe84ad701bf538",
+  "target": "debian-x86_64",
+  "unsatisfied_goal_ids": [],
+  "working_tree_digest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

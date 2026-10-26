@@ -206,6 +206,10 @@ fn file_digest(root: &Path, relative: &str) -> Option<String> {
     Some(format!("sha256:{:x}", Sha256::digest(bytes)))
 }
 
+fn default_cli_dependency_graph_is_python_free(text: &str) -> bool {
+    text.contains("guion-compiler") && !text.contains("python-interop") && !text.contains("pyo3")
+}
+
 fn target_name() -> String {
     target_name_for(std::env::consts::OS, std::env::consts::ARCH)
 }
@@ -602,9 +606,8 @@ fn expected_task_checks(root: &Path, invocation: &mut Invocation) -> Result<(), 
                     if output.stdout.is_empty() { "" } else { "\n" },
                     String::from_utf8_lossy(&output.stderr)
                 );
-                let clean = output.status.success()
-                    && !text.contains("guion-compiler")
-                    && !text.contains("python-interop");
+                let clean =
+                    output.status.success() && default_cli_dependency_graph_is_python_free(&text);
                 if !clean {
                     invocation.exit_status = 1;
                 }
@@ -651,7 +654,8 @@ fn expected_task_checks(root: &Path, invocation: &mut Invocation) -> Result<(), 
                     }
                     text.push_str(&stderr);
                 }
-                let clean = output.status.success() && !text.contains("guion-compiler");
+                let clean =
+                    output.status.success() && default_cli_dependency_graph_is_python_free(&text);
                 if !clean {
                     invocation.exit_status = 1;
                 }
@@ -1474,5 +1478,29 @@ mod target_report_tests {
         );
 
         std::fs::remove_dir_all(root).unwrap();
+    }
+}
+
+#[cfg(test)]
+mod dependency_graph_tests {
+    use super::default_cli_dependency_graph_is_python_free;
+
+    #[test]
+    fn default_cli_bundles_its_compiler_without_python_interop() {
+        let graph = "guion-cli\n└── guion-compiler\n└── guion-runtime\n";
+        assert!(default_cli_dependency_graph_is_python_free(graph));
+    }
+
+    #[test]
+    fn dependency_audit_rejects_missing_compiler_or_python_bridge() {
+        assert!(!default_cli_dependency_graph_is_python_free(
+            "guion-cli\n└── guion-runtime\n"
+        ));
+        assert!(!default_cli_dependency_graph_is_python_free(
+            "guion-cli\n└── guion-compiler\n└── python-interop\n"
+        ));
+        assert!(!default_cli_dependency_graph_is_python_free(
+            "guion-cli\n└── guion-compiler\n└── pyo3\n"
+        ));
     }
 }

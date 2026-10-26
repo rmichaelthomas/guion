@@ -1,0 +1,465 @@
+{
+  "schema_version": 1,
+  "task_id": "09-lockfile-auditor",
+  "application": "lockfile-auditor",
+  "mode": "source-free relocated package",
+  "relocation_path": "Moved package – Guion",
+  "product": "Guion",
+  "artifact_sha256": "d543af8f229e9e47e0f52763d56b9153939552bf943f56b4c51dce15cde0f4ac",
+  "artifact_bytes": 169043296,
+  "source_paths_excluded": [
+    "main.vr",
+    "veritas.toml"
+  ],
+  "stages": {
+    "initial": {
+      "passed": true,
+      "elapsed_seconds": 0.2718036100000063,
+      "case_count": 7,
+      "cases": [
+        {
+          "case_id": "lockfile-auditor-policy-report",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 0,
+          "checks_passed": 3,
+          "checks_total": 3,
+          "steps": [
+            {
+              "exit_code": 0,
+              "checks_passed": 3,
+              "checks_total": 3,
+              "failures": [],
+              "elapsed_seconds": 0.02184
+            }
+          ],
+          "elapsed_seconds": 0.023121,
+          "http_fixtures": {},
+          "stdout": "",
+          "stderr": "",
+          "failures": []
+        },
+        {
+          "case_id": "lockfile-auditor-malformed-input-preserves-output",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 1,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "steps": [
+            {
+              "exit_code": 1,
+              "checks_passed": 2,
+              "checks_total": 2,
+              "failures": [],
+              "elapsed_seconds": 0.019166
+            }
+          ],
+          "elapsed_seconds": 0.020541,
+          "http_fixtures": {},
+          "stdout": "",
+          "stderr": "each package requires name and version\n",
+          "failures": []
+        },
+        {
+          "case_id": "lockfile-auditor-volume-tail-policy",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 0,
+          "checks_passed": 3,
+          "checks_total": 3,
+          "steps": [
+            {
+              "exit_code": 0,
+              "checks_passed": 3,
+              "checks_total": 3,
+              "failures": [],
+              "elapsed_seconds": 0.13242
+            }
+          ],
+          "elapsed_seconds": 0.133861,
+          "http_fixtures": {},
+          "stdout": "",
+          "stderr": "",
+          "failures": []
+        },
+        {
+          "case_id": "lockfile-auditor-outside-version-bounds",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 0,
+          "checks_passed": 3,
+          "checks_total": 3,
+          "steps": [
+            {
+              "exit_code": 0,
+              "checks_passed": 3,
+              "checks_total": 3,
+              "failures": [],
+              "elapsed_seconds": 0.021899
+            }
+          ],
+          "elapsed_seconds": 0.023112,
+          "http_fixtures": {},
+          "stdout": "",
+          "stderr": "",
+          "failures": []
+        },
+        {
+          "case_id": "lockfile-auditor-policy-fields-default-empty",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 0,
+          "checks_passed": 3,
+          "checks_total": 3,
+          "steps": [
+            {
+              "exit_code": 0,
+              "checks_passed": 3,
+              "checks_total": 3,
+              "failures": [],
+              "elapsed_seconds": 0.022993
+            }
+          ],
+          "elapsed_seconds": 0.024252,
+          "http_fixtures": {},
+          "stdout": "",
+          "stderr": "",
+          "failures": []
+        },
+        {
+          "case_id": "lockfile-auditor-repeated-diagnostics-per-entry",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 0,
+          "checks_passed": 3,
+          "checks_total": 3,
+          "steps": [
+            {
+              "exit_code": 0,
+              "checks_passed": 3,
+              "checks_total": 3,
+              "failures": [],
+              "elapsed_seconds": 0.022093
+            }
+          ],
+          "elapsed_seconds": 0.023357,
+          "http_fixtures": {},
+          "stdout": "",
+          "stderr": "",
+          "failures": []
+        },
+        {
+          "case_id": "lockfile-auditor-inclusive-minimum-and-maximum-boundaries",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 0,
+          "checks_passed": 3,
+          "checks_total": 3,
+          "steps": [
+            {
+              "exit_code": 0,
+              "checks_passed": 3,
+              "checks_total": 3,
+              "failures": [],
+              "elapsed_seconds": 0.021996
+            }
+          ],
+          "elapsed_seconds": 0.023296,
+          "http_fixtures": {},
+          "stdout": "",
+          "stderr": "",
+          "failures": []
+        }
+      ]
+    },
+    "follow_up": {
+      "passed": true,
+      "elapsed_seconds": 0.21850753800003986,
+      "case_count": 10,
+      "cases": [
+        {
+          "case_id": "lockfile-auditor-unexpired-exception",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 0,
+          "checks_passed": 3,
+          "checks_total": 3,
+          "steps": [
+            {
+              "exit_code": 0,
+              "checks_passed": 3,
+              "checks_total": 3,
+              "failures": [],
+              "elapsed_seconds": 0.022731
+            }
+          ],
+          "elapsed_seconds": 0.024062,
+          "http_fixtures": {},
+          "stdout": "",
+          "stderr": "",
+          "failures": []
+        },
+        {
+          "case_id": "lockfile-auditor-valid-expired-exception",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 0,
+          "checks_passed": 3,
+          "checks_total": 3,
+          "steps": [
+            {
+              "exit_code": 0,
+              "checks_passed": 3,
+              "checks_total": 3,
+              "failures": [],
+              "elapsed_seconds": 0.021802
+            }
+          ],
+          "elapsed_seconds": 0.023027,
+          "http_fixtures": {},
+          "stdout": "",
+          "stderr": "",
+          "failures": []
+        },
+        {
+          "case_id": "lockfile-auditor-duplicate-exception-preserves-output",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 1,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "steps": [
+            {
+              "exit_code": 1,
+              "checks_passed": 2,
+              "checks_total": 2,
+              "failures": [],
+              "elapsed_seconds": 0.020335
+            }
+          ],
+          "elapsed_seconds": 0.02172,
+          "http_fixtures": {},
+          "stdout": "",
+          "stderr": "duplicate exception name: blocked-lib\n",
+          "failures": []
+        },
+        {
+          "case_id": "lockfile-auditor-invalid-exception-preserves-output",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 1,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "steps": [
+            {
+              "exit_code": 1,
+              "checks_passed": 2,
+              "checks_total": 2,
+              "failures": [],
+              "elapsed_seconds": 0.020081
+            }
+          ],
+          "elapsed_seconds": 0.0215,
+          "http_fixtures": {},
+          "stdout": "",
+          "stderr": "invalid exception: objects must contain exactly name and expires\n",
+          "failures": []
+        },
+        {
+          "case_id": "lockfile-auditor-invalid-exception-date-preserves-output",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 1,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "steps": [
+            {
+              "exit_code": 1,
+              "checks_passed": 2,
+              "checks_total": 2,
+              "failures": [],
+              "elapsed_seconds": 0.01978
+            }
+          ],
+          "elapsed_seconds": 0.0211,
+          "http_fixtures": {},
+          "stdout": "",
+          "stderr": "invalid exception expiry date: expected YYYY-MM-DD\n",
+          "failures": []
+        },
+        {
+          "case_id": "lockfile-auditor-missing-as-of-preserves-output",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 1,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "steps": [
+            {
+              "exit_code": 1,
+              "checks_passed": 2,
+              "checks_total": 2,
+              "failures": [],
+              "elapsed_seconds": 0.019631
+            }
+          ],
+          "elapsed_seconds": 0.021007,
+          "http_fixtures": {},
+          "stdout": "",
+          "stderr": "--as-of is required when exceptions are configured\n",
+          "failures": []
+        },
+        {
+          "case_id": "lockfile-auditor-invalid-as-of-preserves-output",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 1,
+          "checks_passed": 2,
+          "checks_total": 2,
+          "steps": [
+            {
+              "exit_code": 1,
+              "checks_passed": 2,
+              "checks_total": 2,
+              "failures": [],
+              "elapsed_seconds": 0.019036
+            }
+          ],
+          "elapsed_seconds": 0.020462,
+          "http_fixtures": {},
+          "stdout": "",
+          "stderr": "invalid --as-of date: expected a valid YYYY-MM-DD date\n",
+          "failures": []
+        },
+        {
+          "case_id": "lockfile-auditor-exception-for-non-denied-package-has-no-effect",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 0,
+          "checks_passed": 3,
+          "checks_total": 3,
+          "steps": [
+            {
+              "exit_code": 0,
+              "checks_passed": 3,
+              "checks_total": 3,
+              "failures": [],
+              "elapsed_seconds": 0.021105
+            }
+          ],
+          "elapsed_seconds": 0.022383,
+          "http_fixtures": {},
+          "stdout": "",
+          "stderr": "",
+          "failures": []
+        },
+        {
+          "case_id": "lockfile-auditor-empty-as-of-preserves-output",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 1,
+          "checks_passed": 1,
+          "checks_total": 1,
+          "steps": [
+            {
+              "exit_code": 1,
+              "checks_passed": 1,
+              "checks_total": 1,
+              "failures": [],
+              "elapsed_seconds": 0.018822
+            }
+          ],
+          "elapsed_seconds": 0.020388,
+          "http_fixtures": {},
+          "stdout": "",
+          "stderr": "invalid --as-of date: expected a valid YYYY-MM-DD date\n",
+          "failures": []
+        },
+        {
+          "case_id": "lockfile-auditor-exception-expires-on-as-of",
+          "candidate": {},
+          "passed": true,
+          "exit_code": 0,
+          "checks_passed": 3,
+          "checks_total": 3,
+          "steps": [
+            {
+              "exit_code": 0,
+              "checks_passed": 3,
+              "checks_total": 3,
+              "failures": [],
+              "elapsed_seconds": 0.021286
+            }
+          ],
+          "elapsed_seconds": 0.022495,
+          "http_fixtures": {},
+          "stdout": "",
+          "stderr": "",
+          "failures": []
+        }
+      ]
+    }
+  },
+  "passed": true,
+  "generated": {
+    "schema_version": 1,
+    "application": "lockfile-auditor",
+    "product": "Guion",
+    "mode": "seeded independent-oracle cases against relocated package",
+    "seed": 20261024,
+    "sizes": [
+      24,
+      128
+    ],
+    "case_count": 2,
+    "concurrency": null,
+    "passed": true,
+    "cases": [
+      {
+        "case_id": "generated-lockfile-24",
+        "candidate": {},
+        "passed": true,
+        "exit_code": 0,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "steps": [
+          {
+            "exit_code": 0,
+            "checks_passed": 1,
+            "checks_total": 1,
+            "failures": [],
+            "elapsed_seconds": 0.028635
+          }
+        ],
+        "elapsed_seconds": 0.029896,
+        "http_fixtures": {},
+        "stdout": "",
+        "stderr": "",
+        "failures": []
+      },
+      {
+        "case_id": "generated-lockfile-128",
+        "candidate": {},
+        "passed": true,
+        "exit_code": 0,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "steps": [
+          {
+            "exit_code": 0,
+            "checks_passed": 1,
+            "checks_total": 1,
+            "failures": [],
+            "elapsed_seconds": 0.096837
+          }
+        ],
+        "elapsed_seconds": 0.098136,
+        "http_fixtures": {},
+        "stdout": "",
+        "stderr": "",
+        "failures": []
+      }
+    ]
+  }
+}
