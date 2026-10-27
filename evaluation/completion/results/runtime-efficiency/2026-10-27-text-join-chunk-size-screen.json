@@ -1,0 +1,660 @@
+{
+  "schema_version": 1,
+  "kind": "text-join-chunk-screen",
+  "baseline_commit": "eb46ba0",
+  "binary_sha256": "6be9feaa4b1c59ad5771007b0504d9a318ab3737c9736bc7dc7ac89a138e9a7e",
+  "thresholds": {
+    "32": "001d20492743660b869217f408bf730a6dfec7010c2657336bba0cc91e637e1c",
+    "16": "cf907663e7aad76ad3d51c4afcd4b34bb48c2fb6518e23851eb0772058fdc2cf",
+    "64": "7afc78abc541bbc9b781a6608023625ec49d127c019522dc7ed201d475963a64"
+  },
+  "pairs_per_case": 7,
+  "warmup_pairs_per_case": 2,
+  "random_seed": 20261027,
+  "measurement": "Fresh Guion source processes, source cache bypassed, frozen output/hash checked each run; OS cache uncontrolled.",
+  "comparisons": {
+    "threshold-16/doc-index": {
+      "candidate_median_seconds": 0.049032,
+      "baseline_median_seconds": 0.047913,
+      "candidate_over_baseline": {
+        "median_ratio": 1.0191855993681016,
+        "bootstrap_95_interval": [
+          1.0040490054891156,
+          1.0288847171260347
+        ],
+        "candidate_faster": false,
+        "candidate_wins": 1
+      },
+      "samples_seconds": {
+        "candidate": [
+          0.049207,
+          0.049090999999999996,
+          0.052926,
+          0.047874,
+          0.049032,
+          0.048107,
+          0.04823
+        ],
+        "baseline": [
+          0.049853,
+          0.047743,
+          0.048824,
+          0.047053,
+          0.048109,
+          0.047913,
+          0.046876
+        ]
+      },
+      "paired_order": [
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ]
+      ]
+    },
+    "threshold-16/release-notes": {
+      "candidate_median_seconds": 0.022518,
+      "baseline_median_seconds": 0.02198,
+      "candidate_over_baseline": {
+        "median_ratio": 1.024476797088262,
+        "bootstrap_95_interval": [
+          0.9728403871025287,
+          1.1993260397913492
+        ],
+        "candidate_faster": false,
+        "candidate_wins": 2
+      },
+      "samples_seconds": {
+        "candidate": [
+          0.027842,
+          0.022518,
+          0.021814,
+          0.021947,
+          0.027503,
+          0.025981,
+          0.022466
+        ],
+        "baseline": [
+          0.023697,
+          0.02198,
+          0.022423,
+          0.022816,
+          0.021799,
+          0.021663,
+          0.021971
+        ]
+      },
+      "paired_order": [
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ]
+      ]
+    },
+    "threshold-16/jsonl-summary": {
+      "candidate_median_seconds": 0.014236,
+      "baseline_median_seconds": 0.014317,
+      "candidate_over_baseline": {
+        "median_ratio": 0.9942076954902773,
+        "bootstrap_95_interval": [
+          0.9857915164957027,
+          1.0234363767074048
+        ],
+        "candidate_faster": false,
+        "candidate_wins": 5
+      },
+      "samples_seconds": {
+        "candidate": [
+          0.014418,
+          0.0138,
+          0.014527,
+          0.014236,
+          0.01445,
+          0.014159,
+          0.014223
+        ],
+        "baseline": [
+          0.014502,
+          0.014245,
+          0.013497,
+          0.01391,
+          0.014532,
+          0.014317,
+          0.014428
+        ]
+      },
+      "paired_order": [
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ]
+      ]
+    },
+    "threshold-64/doc-index": {
+      "candidate_median_seconds": 0.048035,
+      "baseline_median_seconds": 0.048011,
+      "candidate_over_baseline": {
+        "median_ratio": 1.0040970756077678,
+        "bootstrap_95_interval": [
+          0.9781821963394343,
+          1.0262241044791687
+        ],
+        "candidate_faster": false,
+        "candidate_wins": 3
+      },
+      "samples_seconds": {
+        "candidate": [
+          0.04919,
+          0.048623,
+          0.048991,
+          0.048001,
+          0.047869,
+          0.048035,
+          0.047030999999999996
+        ],
+        "baseline": [
+          0.047933,
+          0.050653,
+          0.048011,
+          0.04804,
+          0.046119,
+          0.047839,
+          0.04808
+        ]
+      },
+      "paired_order": [
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ]
+      ]
+    },
+    "threshold-64/release-notes": {
+      "candidate_median_seconds": 0.022348,
+      "baseline_median_seconds": 0.021993,
+      "candidate_over_baseline": {
+        "median_ratio": 1.0161414995680444,
+        "bootstrap_95_interval": [
+          0.9674168775247481,
+          1.058872728962409
+        ],
+        "candidate_faster": false,
+        "candidate_wins": 3
+      },
+      "samples_seconds": {
+        "candidate": [
+          0.026299,
+          0.022416,
+          0.022788,
+          0.021793,
+          0.021988,
+          0.020973,
+          0.022348
+        ],
+        "baseline": [
+          0.024393,
+          0.022543,
+          0.021521,
+          0.022527,
+          0.021477,
+          0.021683,
+          0.021993
+        ]
+      },
+      "paired_order": [
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ]
+      ]
+    },
+    "threshold-64/jsonl-summary": {
+      "candidate_median_seconds": 0.014284,
+      "baseline_median_seconds": 0.014209,
+      "candidate_over_baseline": {
+        "median_ratio": 1.0081193615544761,
+        "bootstrap_95_interval": [
+          0.9662519760808302,
+          1.0200671284724703
+        ],
+        "candidate_faster": false,
+        "candidate_wins": 3
+      },
+      "samples_seconds": {
+        "candidate": [
+          0.014193,
+          0.014527,
+          0.014284,
+          0.014564,
+          0.014058,
+          0.014347,
+          0.013897
+        ],
+        "baseline": [
+          0.01392,
+          0.01441,
+          0.014003,
+          0.014043,
+          0.014549,
+          0.014916,
+          0.014209
+        ]
+      },
+      "paired_order": [
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ]
+      ]
+    },
+    "threshold-16/allherehtml-1x": {
+      "candidate_median_seconds": 0.3022220829734579,
+      "baseline_median_seconds": 0.3000018750317395,
+      "candidate_over_baseline": {
+        "median_ratio": 0.996548631495921,
+        "bootstrap_95_interval": [
+          0.9778640809314557,
+          1.0474916034703
+        ],
+        "candidate_faster": false,
+        "candidate_wins": 4
+      },
+      "samples_seconds": {
+        "candidate": [
+          0.2989664580090903,
+          0.3223723749979399,
+          0.29952975001651794,
+          0.30632679199334234,
+          0.299447416968178,
+          0.3022220829734579,
+          0.30797562503721565
+        ],
+        "baseline": [
+          0.3000018750317395,
+          0.2994452500133775,
+          0.3063102079904638,
+          0.2938494580448605,
+          0.30500474997097626,
+          0.31201604194939137,
+          0.2940124999731779
+        ]
+      },
+      "paired_order": [
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ]
+      ],
+      "template_bytes": 42225,
+      "expected_output_sha256": "4e56c9c90df40f1220505a94d45687410be6308d49e53306e2c7e7d21d1e4cc5",
+      "all_outputs_verified": true
+    },
+    "threshold-64/allherehtml-1x": {
+      "candidate_median_seconds": 0.2979757909779437,
+      "baseline_median_seconds": 0.3003563749953173,
+      "candidate_over_baseline": {
+        "median_ratio": 0.9887849892318917,
+        "bootstrap_95_interval": [
+          0.968283037788987,
+          0.9938344091406895
+        ],
+        "candidate_faster": true,
+        "candidate_wins": 6
+      },
+      "samples_seconds": {
+        "candidate": [
+          0.30103604099713266,
+          0.2979757909779437,
+          0.29809075000230223,
+          0.2980797500349581,
+          0.29193241702159867,
+          0.29191591701237485,
+          0.29698787501547486
+        ],
+        "baseline": [
+          0.29308704199502245,
+          0.30773624998982996,
+          0.3000102919759229,
+          0.30636345798848197,
+          0.3066757920314558,
+          0.2937269170070067,
+          0.3003563749953173
+        ]
+      },
+      "paired_order": [
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ]
+      ],
+      "template_bytes": 42225,
+      "expected_output_sha256": "4e56c9c90df40f1220505a94d45687410be6308d49e53306e2c7e7d21d1e4cc5",
+      "all_outputs_verified": true
+    },
+    "threshold-16/allherehtml-4x": {
+      "candidate_median_seconds": 1.1805432920227759,
+      "baseline_median_seconds": 1.148269707977306,
+      "candidate_over_baseline": {
+        "median_ratio": 1.0202038818813053,
+        "bootstrap_95_interval": [
+          1.0125339550671986,
+          1.0313376219823713
+        ],
+        "candidate_faster": false,
+        "candidate_wins": 1
+      },
+      "samples_seconds": {
+        "candidate": [
+          1.1805432920227759,
+          1.1842537500197068,
+          1.1575658750371076,
+          1.1872437080019154,
+          1.1912797500262968,
+          1.1608479169663042,
+          1.161701958044432
+        ],
+        "baseline": [
+          1.1659295830177143,
+          1.148269707977306,
+          1.1346417079912499,
+          1.1527668330236338,
+          1.1390796669875272,
+          1.1754635000252165,
+          1.1448926669545472
+        ]
+      },
+      "paired_order": [
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ]
+      ],
+      "template_bytes": 170325,
+      "expected_output_sha256": "f1cc66773729e819d0b1fe5fad97ce19ed42a9506d2f79103630cbf0d774a6a6",
+      "all_outputs_verified": true
+    },
+    "threshold-64/allherehtml-4x": {
+      "candidate_median_seconds": 1.146784958022181,
+      "baseline_median_seconds": 1.1716752080246806,
+      "candidate_over_baseline": {
+        "median_ratio": 0.9805802611377428,
+        "bootstrap_95_interval": [
+          0.9478134877590692,
+          0.982336529807163
+        ],
+        "candidate_faster": true,
+        "candidate_wins": 6
+      },
+      "samples_seconds": {
+        "candidate": [
+          1.146784958022181,
+          1.1326459589763544,
+          1.149987915996462,
+          1.1491908330353908,
+          1.1230557499802671,
+          1.1404187500011176,
+          1.1600627499865368
+        ],
+        "baseline": [
+          1.428301417035982,
+          1.1631425420055166,
+          1.1716752080246806,
+          1.1719497919548303,
+          1.1848910829867236,
+          1.1609247089945711,
+          1.1363214160082862
+        ]
+      },
+      "paired_order": [
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ]
+      ],
+      "template_bytes": 170325,
+      "expected_output_sha256": "f1cc66773729e819d0b1fe5fad97ce19ed42a9506d2f79103630cbf0d774a6a6",
+      "all_outputs_verified": true
+    }
+  },
+  "candidate_revision": "threshold variants explored from working tree after eb46ba0"
+}

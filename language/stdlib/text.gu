@@ -47,7 +47,7 @@ pub fn text_trim(value: Text) -> Text:
     return result
 
 fn text_join_range(values: List[Text], delimiter: Text, start: Int, end: Int) -> Text:
-    if end - start <= 32:
+    if end - start <= 64:
         var result = ""
         var index = start
         while index < end:

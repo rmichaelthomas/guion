@@ -1,0 +1,696 @@
+{
+  "schema_version": 1,
+  "kind": "text-join-chunk-size-confirmation",
+  "baseline_revision": "eb46ba0",
+  "candidate_revision": "threshold-64 working tree after eb46ba0",
+  "binary_sha256": "6be9feaa4b1c59ad5771007b0504d9a318ab3737c9736bc7dc7ac89a138e9a7e",
+  "baseline_text_stdlib_sha256": "001d20492743660b869217f408bf730a6dfec7010c2657336bba0cc91e637e1c",
+  "candidate_text_stdlib_sha256": "7afc78abc541bbc9b781a6608023625ec49d127c019522dc7ed201d475963a64",
+  "trials_per_case": 15,
+  "warmup_pairs_per_case": 2,
+  "random_seed": 20261028,
+  "measurement": "Fresh Guion source processes, source cache bypassed, frozen outputs and HTML hashes checked each run; process and oracle time included; OS cache uncontrolled.",
+  "comparisons": {
+    "app/doc-index": {
+      "candidate_median_seconds": 0.048988000000000004,
+      "baseline_median_seconds": 0.049875,
+      "candidate_over_baseline": {
+        "median_ratio": 0.9858097333521729,
+        "bootstrap_95_interval": [
+          0.927855283099522,
+          1.0174884725626223
+        ],
+        "candidate_faster": false,
+        "candidate_wins": 9
+      },
+      "samples_seconds": {
+        "candidate": [
+          0.050727999999999995,
+          0.050738,
+          0.048574,
+          0.049603,
+          0.048265,
+          0.065295,
+          0.054743,
+          0.048838,
+          0.048988000000000004,
+          0.046645,
+          0.048277,
+          0.051832,
+          0.04932,
+          0.047753000000000004,
+          0.046244
+        ],
+        "baseline": [
+          0.050693,
+          0.049622,
+          0.047569,
+          0.047158000000000005,
+          0.048518,
+          0.069398,
+          0.075951,
+          0.049541,
+          0.048145999999999994,
+          0.051026,
+          0.049875,
+          0.047703999999999996,
+          0.050755,
+          0.051466000000000005,
+          0.050028
+        ]
+      },
+      "paired_order": [
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ]
+      ],
+      "case_id": "doc-index-build-check-backlinks",
+      "all_outputs_verified": true
+    },
+    "app/release-notes": {
+      "candidate_median_seconds": 0.022631,
+      "baseline_median_seconds": 0.022391,
+      "candidate_over_baseline": {
+        "median_ratio": 0.985184190501768,
+        "bootstrap_95_interval": [
+          0.9735190439343134,
+          0.9976678251326139
+        ],
+        "candidate_faster": true,
+        "candidate_wins": 12
+      },
+      "samples_seconds": {
+        "candidate": [
+          0.022495,
+          0.020669,
+          0.020786,
+          0.021817,
+          0.022156,
+          0.022646,
+          0.022728,
+          0.023137,
+          0.022158,
+          0.022945,
+          0.02201,
+          0.023058,
+          0.022986,
+          0.022855,
+          0.022631
+        ],
+        "baseline": [
+          0.022021,
+          0.022207,
+          0.021679,
+          0.021868,
+          0.024165,
+          0.023262,
+          0.026291,
+          0.023638,
+          0.022391,
+          0.022079,
+          0.022341,
+          0.022287,
+          0.023262,
+          0.023412,
+          0.022894
+        ]
+      },
+      "paired_order": [
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ]
+      ],
+      "case_id": "release-notes-initial",
+      "all_outputs_verified": true
+    },
+    "app/jsonl-summary": {
+      "candidate_median_seconds": 0.014457,
+      "baseline_median_seconds": 0.015147,
+      "candidate_over_baseline": {
+        "median_ratio": 0.9651581898277933,
+        "bootstrap_95_interval": [
+          0.9372197309417041,
+          1.003280061413916
+        ],
+        "candidate_faster": false,
+        "candidate_wins": 10
+      },
+      "samples_seconds": {
+        "candidate": [
+          0.016867,
+          0.015463,
+          0.014161,
+          0.015575,
+          0.015097,
+          0.01446,
+          0.015838,
+          0.014457,
+          0.015028,
+          0.013475,
+          0.014376,
+          0.013794,
+          0.014436,
+          0.01325,
+          0.013504
+        ],
+        "baseline": [
+          0.016081,
+          0.01522,
+          0.015218,
+          0.015584,
+          0.01625,
+          0.014982,
+          0.015147,
+          0.015763,
+          0.015935,
+          0.013624,
+          0.014329,
+          0.014718,
+          0.014196,
+          0.013923,
+          0.014406
+        ]
+      },
+      "paired_order": [
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ]
+      ],
+      "case_id": "jsonl-normal-summary",
+      "all_outputs_verified": true
+    },
+    "allherehtml/1x": {
+      "candidate_median_seconds": 0.2948960000067018,
+      "baseline_median_seconds": 0.29750029096612707,
+      "candidate_over_baseline": {
+        "median_ratio": 0.9971440844387247,
+        "bootstrap_95_interval": [
+          0.9850680383148082,
+          1.005646678816512
+        ],
+        "candidate_faster": false,
+        "candidate_wins": 10
+      },
+      "samples_seconds": {
+        "candidate": [
+          0.2929353329818696,
+          0.29955420800251886,
+          0.30239020904991776,
+          0.3050841669901274,
+          0.29592225002124906,
+          0.2926185419782996,
+          0.29274795803939924,
+          0.2948960000067018,
+          0.2921370000112802,
+          0.29094849998364225,
+          0.29286154196597636,
+          0.3350977919762954,
+          0.2984444159665145,
+          0.3031745419721119,
+          0.2947999169700779
+        ],
+        "baseline": [
+          0.29339908401016146,
+          0.29750029096612707,
+          0.29354366700863466,
+          0.29578566702548414,
+          0.29799125000135973,
+          0.2980080839479342,
+          0.2935864160535857,
+          0.2932401669677347,
+          0.29615887498948723,
+          0.296715792035684,
+          0.3045649169944227,
+          0.3007559580146335,
+          0.29920879198471084,
+          0.3045133750420064,
+          0.2992685839999467
+        ]
+      },
+      "paired_order": [
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ]
+      ],
+      "template_bytes": 42225,
+      "expected_output_sha256": "4e56c9c90df40f1220505a94d45687410be6308d49e53306e2c7e7d21d1e4cc5",
+      "all_outputs_verified": true
+    },
+    "allherehtml/2x": {
+      "candidate_median_seconds": 0.5743817079928704,
+      "baseline_median_seconds": 0.5840867919614539,
+      "candidate_over_baseline": {
+        "median_ratio": 0.9792630565713661,
+        "bootstrap_95_interval": [
+          0.9687160373778398,
+          0.9978058034689073
+        ],
+        "candidate_faster": true,
+        "candidate_wins": 11
+      },
+      "samples_seconds": {
+        "candidate": [
+          0.6062490830081515,
+          0.5676267500384711,
+          0.5663855000166222,
+          0.5644381250021979,
+          0.5668891670065932,
+          0.5783310830011033,
+          0.5836872920044698,
+          0.5743817079928704,
+          0.5810185839654878,
+          0.5770162499975413,
+          0.5627558749984019,
+          0.5793072919477709,
+          0.5677017499692738,
+          0.5743467090069316,
+          0.584178457967937
+        ],
+        "baseline": [
+          0.6615860410383902,
+          0.585957832983695,
+          0.5786717920564115,
+          0.5840867919614539,
+          0.6079303330043331,
+          0.5905270419898443,
+          0.5849708329769783,
+          0.5722860000096262,
+          0.5721795419813134,
+          0.5918145420146175,
+          0.5746728330268525,
+          0.5715925830299966,
+          0.5793505410547368,
+          0.5973954579676501,
+          0.5817864159471355
+        ]
+      },
+      "paired_order": [
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ]
+      ],
+      "template_bytes": 84931,
+      "expected_output_sha256": "1a3bb6ef65b0db9ef3ccbfa281f147ef296e19befbe5348f2b6ae9a5f7b86b4e",
+      "all_outputs_verified": true
+    },
+    "allherehtml/4x": {
+      "candidate_median_seconds": 1.1568930000066757,
+      "baseline_median_seconds": 1.157065415987745,
+      "candidate_over_baseline": {
+        "median_ratio": 0.9861689349526725,
+        "bootstrap_95_interval": [
+          0.979869445997345,
+          0.9956052688736123
+        ],
+        "candidate_faster": true,
+        "candidate_wins": 12
+      },
+      "samples_seconds": {
+        "candidate": [
+          1.1320287499693222,
+          1.141556499991566,
+          1.2116912080091424,
+          1.1358766250195913,
+          1.1421264589880593,
+          1.140855583944358,
+          1.189479749999009,
+          1.1459696250385605,
+          1.1611756249913014,
+          1.1355980830267072,
+          1.1568930000066757,
+          1.1775745839695446,
+          1.1657085830229335,
+          1.1800256660208106,
+          1.1605954159749672
+        ],
+        "baseline": [
+          1.141972082958091,
+          1.238141791021917,
+          1.1557622920372523,
+          1.1592122089932673,
+          1.1552332919673063,
+          1.157065415987745,
+          1.3530750420177355,
+          1.1510280839866027,
+          1.177461166982539,
+          1.1549442079849541,
+          1.1879731669905595,
+          1.2068486250354908,
+          1.1667510420084,
+          1.1448800000362098,
+          1.1500334169832058
+        ]
+      },
+      "paired_order": [
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ]
+      ],
+      "template_bytes": 170325,
+      "expected_output_sha256": "f1cc66773729e819d0b1fe5fad97ce19ed42a9506d2f79103630cbf0d774a6a6",
+      "all_outputs_verified": true
+    }
+  }
+}
