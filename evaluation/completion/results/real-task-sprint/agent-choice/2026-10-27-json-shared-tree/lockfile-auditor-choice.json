@@ -1,0 +1,28 @@
+{
+  "choice": "Guion",
+  "rationale": "Both implementations match all acceptance checks. For this closely related audit task, Guion’s deny rules, SemVer bounds, dated exceptions, and sorted JSON report align directly with the requested behavior, and its fresh median runtime was about 6× lower.",
+  "acceptance": {
+    "outcome": "passed",
+    "guion": {
+      "cases": "17/17",
+      "checks": "43/43"
+    },
+    "python": {
+      "cases": "17/17",
+      "checks": "43/43"
+    }
+  },
+  "timing": {
+    "trials": 7,
+    "median_seconds": {
+      "guion": 0.016667,
+      "python": 0.101324
+    },
+    "guion_over_python_median": 0.16776,
+    "bootstrap_95_interval": [
+      0.14456,
+      0.19534
+    ],
+    "note": "Process and oracle-check time; Guion source cache bypassed; OS file cache uncontrolled."
+  }
+}

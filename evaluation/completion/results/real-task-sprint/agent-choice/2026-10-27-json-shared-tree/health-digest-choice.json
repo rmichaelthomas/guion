@@ -1,0 +1,23 @@
+{
+  "choice": "Guion",
+  "rationale": "Both implementations passed all 10 acceptance cases, including concurrency and slow-trickle deadline checks. The Guion source uses bounded parallel_map and a request timeout; Python uses ThreadPoolExecutor and an explicit monotonic response deadline. The seven-pair measurement for the related health-digest case favored Guion on observed runtime. This is specific to this workload, not a causal or language-wide claim.",
+  "acceptance": {
+    "guion": "10/10 passed",
+    "python": "10/10 passed",
+    "cases": 10
+  },
+  "timing": {
+    "commit": "54603bd",
+    "trials": 7,
+    "median_seconds": {
+      "guion": 0.53599,
+      "python": 0.642536
+    },
+    "guion_over_python_ratio": 0.831966,
+    "bootstrap_95_interval": [
+      0.816364,
+      0.847597
+    ],
+    "context": "Process and oracle-check time included; fixture setup excluded. Guion source cache bypassed; OS cache uncontrolled."
+  }
+}

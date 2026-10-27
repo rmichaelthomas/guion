@@ -1,0 +1,23 @@
+{
+  "choice": "Guion",
+  "rationale": "Both implementations validate signed payloads, persist event state, retry delivery, and expose dead-letter details. Guion’s delivery flow commits each event’s outcome separately and keeps the network call outside the state update transaction.",
+  "acceptance": {
+    "outcome": "passed",
+    "guion": "9/9 cases and 98/98 checks",
+    "python": "9/9 cases and 98/98 checks",
+    "failures": 0
+  },
+  "timing": {
+    "trials": 7,
+    "median_seconds": {
+      "guion": 0.15544,
+      "python": 0.752384
+    },
+    "guion_over_python_ratio": 0.206348,
+    "bootstrap_95_interval": [
+      0.202847,
+      0.2180788
+    ],
+    "note": "Process plus oracle-check time, not end-to-end deployment latency. Failure reporting is a dead-letter report; there is no direct operator alert integration."
+  }
+}
