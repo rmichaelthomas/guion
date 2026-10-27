@@ -33,7 +33,9 @@ Earlier rejected runtime changes have been removed from the branch. The benchmar
 
 ## Next target
 
-The Richards-specific `0.60` gate is achieved. The next measured opportunity is runtime list copying: the candidate's one-shot profile still records 84,497 copy-on-write list copies, mostly of lists with at most eight elements. Treat this as a hypothesis for the remaining repeated-run cost, not as proof that host CPU time is allocation-bound. Any follow-up should first distinguish the cost of these copies from helper dispatch and list ownership checks, then optimize one measured source while preserving alias semantics.
+The Richards-specific `0.60` gate is achieved. A follow-up that removed one intermediate array copy in the small-list arena did not produce a reliable fresh-source gain: candidate/baseline was `0.997` with paired 95% interval `0.983–1.008`. That implementation was discarded. The profile still reports 84,497 copy-on-write list copies per execution, but the older host profile attributed only 12 of 98 terminal samples to the list helper and 14 to allocator or memory movement; it predates the regional-fuel change and cannot attribute the current candidate's remaining CPU time.
+
+The next compile-side probe is to avoid emitting per-instruction exit IP constants where no fuel fallback or cancellation check can consume them. The current `main` remains at 358 Cranelift IR blocks and 6,569 instructions after the accepted change. This is a hypothesis to measure, not an assumed bottleneck.
 
 The inline-store attempt increased `main` from 7,510 to 8,395 Cranelift IR instructions and slowed the complete fresh-source cohort. That makes a smaller IR lowering or a cheaper JIT compilation path a stronger next target than further hand-written list stores.
 
@@ -64,3 +66,4 @@ The inline-store attempt increased `main` from 7,510 to 8,395 Cranelift IR instr
 - [Regional fuel reservation comparison](2026-10-26-richards-regional-fuel-comparison.json)
 - [Regional fuel baseline profile](2026-10-26-richards-regional-fuel-baseline-profile.json)
 - [Regional fuel candidate profile](2026-10-26-richards-regional-fuel-candidate-profile.json)
+- [Inline list-copy probe](2026-10-26-richards-list-copy-comparison.json)
