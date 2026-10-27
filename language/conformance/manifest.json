@@ -5608,6 +5608,62 @@
       }
     },
     {
+      "id": "opcode-sort-by-int-key",
+      "kind": "opcode",
+      "name": "SortByIntKey",
+      "owner_task": 4,
+      "source": "crates/model/src/lib.rs::Op",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "implemented_current_subset"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "opcode.sort-by-int-key.positive",
+          "state": "implemented",
+          "owner_task": 4
+        },
+        "negative": {
+          "case_id": "opcode.sort-by-int-key.negative",
+          "state": "implemented",
+          "owner_task": 4
+        },
+        "interaction": {
+          "case_id": "opcode.sort-by-int-key.interaction",
+          "state": "implemented",
+          "owner_task": 4
+        }
+      }
+    },
+    {
+      "id": "opcode-merge-sorted-by-int-key",
+      "kind": "opcode",
+      "name": "MergeSortedByIntKey",
+      "owner_task": 4,
+      "source": "crates/model/src/lib.rs::Op",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "implemented_current_subset"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "opcode.merge-sorted-by-int-key.positive",
+          "state": "implemented",
+          "owner_task": 4
+        },
+        "negative": {
+          "case_id": "opcode.merge-sorted-by-int-key.negative",
+          "state": "implemented",
+          "owner_task": 4
+        },
+        "interaction": {
+          "case_id": "opcode.merge-sorted-by-int-key.interaction",
+          "state": "implemented",
+          "owner_task": 4
+        }
+      }
+    },
+    {
       "id": "opcode-text-parse-float",
       "kind": "opcode",
       "name": "TextParseFloat",

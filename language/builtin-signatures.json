@@ -626,6 +626,15 @@
       "operation": "MapSet"
     },
     {
+      "name": "merge_sorted_by_int_key",
+      "parameters": [
+        "List[List[$T]]",
+        "NamedIntKey[$T]"
+      ],
+      "result": "List[$T]",
+      "operation": "MergeSortedByIntKey"
+    },
+    {
       "name": "native_calendar_parse",
       "parameters": [
         "Text"
@@ -878,6 +887,15 @@
       ],
       "result": "List[$T]",
       "operation": "SortBy"
+    },
+    {
+      "name": "sort_by_int_key",
+      "parameters": [
+        "List[$T]",
+        "NamedIntKey[$T]"
+      ],
+      "result": "List[$T]",
+      "operation": "SortByIntKey"
     },
     {
       "name": "sqrt",

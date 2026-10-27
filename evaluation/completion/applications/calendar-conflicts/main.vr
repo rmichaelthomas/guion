@@ -12,16 +12,23 @@ record CalendarEventRow:
     start_us: Int
     end_us: Int
 
+record EventRange:
+    start_us: Int
+    end_us: Int
+    feed_index: Int
+
 record CalendarFetch:
     name: Text
     error: Text
     events: List[CalendarEvent]
+    intervals: List[EventRange]
     has_events: Bool
+    events_in_order: Bool
     min_start_us: Int
     max_end_us: Int
 
 fn failed_source(name: Text, category: Text) -> CalendarFetch:
-    return CalendarFetch(name, category, [], false, 0, 0)
+    return CalendarFetch(name, category, [], [], false, true, 0, 0)
 
 fn fetch_calendar(source: Json) -> CalendarFetch:
     let name = json_as_text(json_get(source, "name"))
@@ -46,7 +53,12 @@ fn fetch_calendar(source: Json) -> CalendarFetch:
     let window_start = unwrap(parse_timestamp(json_as_text(json_get(source, "window_start"))))
     let window_end = unwrap(parse_timestamp(json_as_text(json_get(source, "window_end"))))
     let include_tentative = json_as_bool(json_get(source, "include_tentative"))
+    let feed_index = json_as_int(json_get(source, "feed_index"))
+    var intervals: List[EventRange] = []
     var has_events = false
+    var events_in_order = true
+    var has_previous_event = false
+    var previous_start_us = 0
     var min_start_us = 0
     var max_end_us = 0
     let parsed_events = unwrap(parsed)
@@ -67,6 +79,11 @@ fn fetch_calendar(source: Json) -> CalendarFetch:
                     set clipped_start = window_start
                 if clipped_end.unix_microseconds > window_end.unix_microseconds:
                     set clipped_end = window_end
+                set intervals = list_push(intervals, EventRange(clipped_start.unix_microseconds, clipped_end.unix_microseconds, feed_index))
+                if has_previous_event and clipped_start.unix_microseconds < previous_start_us:
+                    set events_in_order = false
+                set has_previous_event = true
+                set previous_start_us = clipped_start.unix_microseconds
                 if not has_events:
                     set has_events = true
                     set min_start_us = clipped_start.unix_microseconds
@@ -76,7 +93,7 @@ fn fetch_calendar(source: Json) -> CalendarFetch:
                         set min_start_us = clipped_start.unix_microseconds
                     if clipped_end.unix_microseconds > max_end_us:
                         set max_end_us = clipped_end.unix_microseconds
-    return CalendarFetch(name, "", parsed_events, has_events, min_start_us, max_end_us)
+    return CalendarFetch(name, "", parsed_events, intervals, has_events, events_in_order, min_start_us, max_end_us)
 
 fn conflict_before(left: Json, right: Json) -> Bool:
     let left_start = json_as_int(json_get(left, "start_us"))
@@ -108,6 +125,58 @@ fn compare_events(left: CalendarEventRow, right: CalendarEventRow) -> Int:
     if id_order != 0:
         return id_order
     return text_compare_bytes(left.calendar, right.calendar)
+
+fn event_range_start(event: EventRange) -> Int:
+    return event.start_us
+
+fn calendar_events_overlap(sources: List[CalendarFetch]) -> Bool:
+    var feeds: List[List[EventRange]] = []
+    for source in sources:
+        var intervals: List[EventRange] = []
+        if source.error == "":
+            set intervals = source.intervals
+        set feeds = list_push(feeds, intervals)
+
+    let ordered = merge_sorted_by_int_key(feeds, event_range_start)
+    var primary_feed = -1
+    var primary_end = 0
+    var secondary_feed = -1
+    var secondary_end = 0
+    for event in ordered:
+        if primary_end <= event.start_us:
+            set primary_feed = -1
+            set primary_end = 0
+            set secondary_feed = -1
+            set secondary_end = 0
+        else:
+            if secondary_end <= event.start_us:
+                set secondary_feed = -1
+                set secondary_end = 0
+
+        if primary_feed >= 0 and primary_feed != event.feed_index and primary_end > event.start_us:
+            return true
+        if secondary_feed >= 0 and secondary_feed != event.feed_index and secondary_end > event.start_us:
+            return true
+
+        if event.feed_index == primary_feed:
+            if event.end_us > primary_end:
+                set primary_end = event.end_us
+        else:
+            if event.feed_index == secondary_feed:
+                if event.end_us > secondary_end:
+                    set secondary_end = event.end_us
+            else:
+                if event.end_us > primary_end:
+                    set secondary_feed = primary_feed
+                    set secondary_end = primary_end
+                    set primary_feed = event.feed_index
+                    set primary_end = event.end_us
+                else:
+                    if event.end_us > secondary_end:
+                        set secondary_feed = event.feed_index
+                        set secondary_end = event.end_us
+
+    return false
 
 fn sort_events(values: List[CalendarEventRow], already_sorted: Bool) -> List[CalendarEventRow]:
     if already_sorted:
@@ -317,6 +386,7 @@ fn main() -> Int:
         set item = json_set(item, "window_start", json_text(window_start_text))
         set item = json_set(item, "window_end", json_text(window_end_text))
         set item = json_set(item, "include_tentative", json_bool(include_tentative))
+        set item = json_set(item, "feed_index", json_int(calendar_index))
         set work = list_push(work, item)
         set calendar_index = calendar_index + 1
     let fetched = parallel_map(work, fetch_calendar, concurrency)
@@ -345,8 +415,17 @@ fn main() -> Int:
                 set right_source_index = right_source_index + 1
         set left_source_index = left_source_index + 1
 
+    var feeds_in_order = true
+    for result in fetched_sources:
+        if result.error == "" and result.has_events and not result.events_in_order:
+            set feeds_in_order = false
+
+    var events_overlap = false
+    if ranges_may_overlap and feeds_in_order:
+        set events_overlap = calendar_events_overlap(fetched_sources)
+
     var sorted_conflicts: List[Json] = []
-    if ranges_may_overlap:
+    if ranges_may_overlap and (not feeds_in_order or events_overlap):
         var events: List[CalendarEventRow] = []
         var events_in_order = true
         var has_adjacent_overlap = false

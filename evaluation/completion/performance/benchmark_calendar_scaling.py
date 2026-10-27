@@ -29,11 +29,11 @@ def interval(values: list[float], rng: random.Random) -> list[float]:
     return [medians[124], medians[4874]]
 
 
-def calendar_body(name: str, base: datetime, count: int) -> str:
+def calendar_body(name: str, base: datetime, count: int, spacing_seconds: int, duration_seconds: int) -> str:
     lines = ["BEGIN:VCALENDAR", "VERSION:2.0"]
     for index in range(count):
-        start = base + timedelta(seconds=index * 11)
-        end = start + timedelta(seconds=10)
+        start = base + timedelta(seconds=index * spacing_seconds)
+        end = start + timedelta(seconds=duration_seconds)
         lines.extend(
             [
                 "BEGIN:VEVENT",
@@ -48,25 +48,36 @@ def calendar_body(name: str, base: datetime, count: int) -> str:
     return "\n".join(lines) + "\n"
 
 
-def make_case(event_count: int) -> dict:
+def make_case(event_count: int, layout: str) -> dict:
     manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
     task = next(item for item in manifest["tasks"] if item["id"] == "04-calendar-conflict-report")
     case = copy.deepcopy(task["initial"]["cases"][0])
-    case["id"] = f"calendar-scale-{event_count}-per-source"
+    case["id"] = f"calendar-scale-{layout}-{event_count}-per-source"
     first_start = datetime(2025, 1, 1, 0, tzinfo=timezone.utc)
     window_end = first_start + timedelta(days=3)
     window_end_index = case["command_args"].index("--window-end") + 1
     case["command_args"][window_end_index] = window_end.strftime("%Y-%m-%dT%H:%M:%SZ")
-    calendar_span_seconds = event_count * 11 + 1
-    bases = {
-        "team": first_start,
-        "personal": first_start + timedelta(seconds=calendar_span_seconds),
-        "other": first_start + timedelta(seconds=calendar_span_seconds * 2),
-    }
+    if layout == "disjoint":
+        spacing_seconds = 11
+        duration_seconds = 10
+        calendar_span_seconds = event_count * spacing_seconds + 1
+        bases = {
+            "team": first_start,
+            "personal": first_start + timedelta(seconds=calendar_span_seconds),
+            "other": first_start + timedelta(seconds=calendar_span_seconds * 2),
+        }
+    else:
+        spacing_seconds = 3
+        duration_seconds = 1
+        bases = {
+            "team": first_start,
+            "personal": first_start + timedelta(seconds=1),
+            "other": first_start + timedelta(seconds=2),
+        }
     fixtures = case["http_fixtures"]["calendar"]
     for name in bases:
         fixture = fixtures[f"/{name}.ics"]
-        fixture["body"] = calendar_body(name, bases[name], event_count)
+        fixture["body"] = calendar_body(name, bases[name], event_count, spacing_seconds, duration_seconds)
         fixture["delay_ms"] = 50
     expected = {
         "conflicts": [],
@@ -89,10 +100,12 @@ def main() -> int:
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--sizes", nargs="+", type=int, default=[50, 100, 250])
     parser.add_argument("--trials", type=int, default=7)
+    parser.add_argument("--layout", choices=["disjoint", "interleaved"], default="disjoint")
     args = parser.parse_args()
     if args.trials < 3 or any(size < 1 for size in args.sizes):
         parser.error("trials must be at least three and sizes must be positive")
-    if any(size * 33 + 1 > 3 * 24 * 60 * 60 for size in args.sizes):
+    longest_stream = (lambda size: size * 33 + 1) if args.layout == "disjoint" else (lambda size: size * 3 + 2)
+    if any(longest_stream(size) > 3 * 24 * 60 * 60 for size in args.sizes):
         parser.error("three non-overlapping event streams must fit inside the three-day test window")
 
     binary = args.binary.resolve(strict=True)
@@ -114,16 +127,18 @@ def main() -> int:
         "python": sys.version,
         "platform": platform.platform(),
         "trials": args.trials,
+        "layout": args.layout,
         "measurement": (
             "One unmeasured randomized warmup pair plus randomized paired trials. Fresh-process source execution, "
             "Guion cache bypassed, output and concurrency checks included, fixture setup excluded, OS cache uncontrolled. "
-            "Three calendars contain non-overlapping events inside a three-day window; the other two endpoints retain fixed error cases."
+            f"Three calendars use the {args.layout} event-time layout inside a three-day window; "
+            "the other two endpoints retain fixed error cases."
         ),
         "workloads": {},
     }
 
     for event_count in args.sizes:
-        case = make_case(event_count)
+        case = make_case(event_count, args.layout)
         candidates = {
             "guion": (
                 {

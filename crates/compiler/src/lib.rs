@@ -1922,6 +1922,115 @@ impl<'a> FnCompiler<'a> {
                     self.emit(Op::SortBy(comparator_index), *s);
                     return Ok(Type::List(Box::new(item_type)));
                 }
+                if name == "sort_by_int_key" {
+                    if args.len() != 2 {
+                        return Err(diagnostic(
+                            "E_CALL_ARITY",
+                            "sort_by_int_key expects a list and a named key function",
+                            *s,
+                        ));
+                    }
+                    let item_type = match self.expr(&args[0])? {
+                        Type::List(item) => *item,
+                        _ => {
+                            return Err(diagnostic(
+                                "E_TYPE_ARGUMENT",
+                                "sort_by_int_key first argument must be a List",
+                                args[0].span(),
+                            ))
+                        }
+                    };
+                    let Expr::Name(key_name, key_span) = &args[1] else {
+                        return Err(diagnostic(
+                            "E_SORT_KEY",
+                            "sort_by_int_key key function must be a named function",
+                            args[1].span(),
+                        ));
+                    };
+                    let Some(key_symbol) = self.visible_functions.get(key_name) else {
+                        return Err(diagnostic(
+                            "E_NAME_UNKNOWN",
+                            format!("unknown key function `{key_name}`"),
+                            *key_span,
+                        ));
+                    };
+                    let Some((key_index, parameters, result)) =
+                        self.signatures.get(key_symbol).cloned()
+                    else {
+                        return Err(diagnostic(
+                            "E_NAME_UNKNOWN",
+                            format!("unknown key function `{key_name}`"),
+                            *key_span,
+                        ));
+                    };
+                    if parameters != vec![item_type.clone()] || result != Type::Int {
+                        return Err(diagnostic(
+                            "E_SORT_KEY",
+                            "sort_by_int_key key function must have type (T) -> Int for the list item type",
+                            *key_span,
+                        ));
+                    }
+                    self.emit(Op::SortByIntKey(key_index), *s);
+                    return Ok(Type::List(Box::new(item_type)));
+                }
+                if name == "merge_sorted_by_int_key" {
+                    if args.len() != 2 {
+                        return Err(diagnostic(
+                            "E_CALL_ARITY",
+                            "merge_sorted_by_int_key expects sorted feeds and a named key function",
+                            *s,
+                        ));
+                    }
+                    let item_type = match self.expr(&args[0])? {
+                        Type::List(feed) => match *feed {
+                            Type::List(item) => *item,
+                            _ => return Err(diagnostic(
+                                "E_TYPE_ARGUMENT",
+                                "merge_sorted_by_int_key first argument must be a List of Lists",
+                                args[0].span(),
+                            )),
+                        },
+                        _ => {
+                            return Err(diagnostic(
+                                "E_TYPE_ARGUMENT",
+                                "merge_sorted_by_int_key first argument must be a List of Lists",
+                                args[0].span(),
+                            ))
+                        }
+                    };
+                    let Expr::Name(key_name, key_span) = &args[1] else {
+                        return Err(diagnostic(
+                            "E_SORT_KEY",
+                            "merge_sorted_by_int_key key function must be a named function",
+                            args[1].span(),
+                        ));
+                    };
+                    let Some(key_symbol) = self.visible_functions.get(key_name) else {
+                        return Err(diagnostic(
+                            "E_NAME_UNKNOWN",
+                            format!("unknown key function `{key_name}`"),
+                            *key_span,
+                        ));
+                    };
+                    let Some((key_index, parameters, result)) =
+                        self.signatures.get(key_symbol).cloned()
+                    else {
+                        return Err(diagnostic(
+                            "E_NAME_UNKNOWN",
+                            format!("unknown key function `{key_name}`"),
+                            *key_span,
+                        ));
+                    };
+                    if parameters != vec![item_type.clone()] || result != Type::Int {
+                        return Err(diagnostic(
+                            "E_SORT_KEY",
+                            "merge_sorted_by_int_key key function must have type (T) -> Int for the feed item type",
+                            *key_span,
+                        ));
+                    }
+                    self.emit(Op::MergeSortedByIntKey(key_index), *s);
+                    return Ok(Type::List(Box::new(item_type)));
+                }
                 if name == "list_get" || name == "map_get" {
                     if args.len() != 2 {
                         return Err(diagnostic(

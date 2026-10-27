@@ -21,6 +21,7 @@ The starter program prints `Hello, Guion!`. The same CLI can format and lint sou
 
 - A self-hosted compiler checks and builds `.gu` programs into versioned `.gub` artifacts.
 - The Rust runtime supports typed functions and records, collections, JSON, files, SQLite, TOML, HTTP, bounded concurrency, and explicit host permissions.
+- The standard library can stably sort records by an integer key and merge feeds that are already sorted by that key.
 - The portable shared VM also exposes a versioned WebAssembly ABI for typed browser calls. ABI 1.0 preserves the legacy exports, grants no host capabilities, and bounds requests, values, output, and execution; see the [browser ABI guide](docs/browser-wasm-abi/README.md).
 - The core CLI can create, check, format, lint, test, run, build, package, install, and inspect programs.
 - Optional Python interoperability exists for projects that need it. It is off in the default core build.

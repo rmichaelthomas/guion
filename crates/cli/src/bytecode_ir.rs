@@ -266,6 +266,26 @@ fn parse_instruction(
                 .ok_or_else(|| format!("SortBy.function references unknown function `{name}`"))?;
             Op::SortBy(index)
         }
+        "SortByIntKey" => {
+            let name = required_str(object.get("function"), "SortByIntKey.function")?;
+            let index = functions
+                .iter()
+                .position(|function| function == name)
+                .ok_or_else(|| {
+                    format!("SortByIntKey.function references unknown function `{name}`")
+                })?;
+            Op::SortByIntKey(index)
+        }
+        "MergeSortedByIntKey" => {
+            let name = required_str(object.get("function"), "MergeSortedByIntKey.function")?;
+            let index = functions
+                .iter()
+                .position(|function| function == name)
+                .ok_or_else(|| {
+                    format!("MergeSortedByIntKey.function references unknown function `{name}`")
+                })?;
+            Op::MergeSortedByIntKey(index)
+        }
         "ListSet" => Op::ListSet,
         "ListSetLocal" => {
             Op::ListSetLocal(required_usize(object.get("local"), "ListSetLocal.local")?)

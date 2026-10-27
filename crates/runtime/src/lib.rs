@@ -563,6 +563,24 @@ fn value_limit_error(value: &Value, policy: &HostPolicy, span: Span) -> Option<R
     guion_vm_core::value_limit_error(value, &policy.vm_limits(), span)
 }
 
+fn consume_sort_step(budget: &Budget, span: Span) -> Result<(), RuntimeError> {
+    if budget.is_cancelled() {
+        return Err(RuntimeError::new(
+            "R_CANCELLED",
+            "parallel task was cancelled after a sibling failed",
+            span,
+        ));
+    }
+    if !budget.consume() {
+        return Err(RuntimeError::new(
+            "R_STEP_LIMIT",
+            "instruction budget exhausted",
+            span,
+        ));
+    }
+    Ok(())
+}
+
 fn value_limit_error_at_boundary(
     value: &Value,
     policy: &HostPolicy,
@@ -889,6 +907,248 @@ impl VmHost for Instance {
                     }
                 }
                 push_stack!(Value::from_list_items(values));
+            }
+            Op::SortByIntKey(target) => {
+                let mut values = match pop!() {
+                    Value::List(values) => values.as_ref().clone(),
+                    Value::Float64List(values) => {
+                        values.iter().copied().map(Value::Float64).collect()
+                    }
+                    _ => {
+                        return Err(RuntimeError::new(
+                            "R_TYPE_INVALID",
+                            "sort_by_int_key requires a List",
+                            instruction.span,
+                        ))
+                    }
+                };
+                let length = values.len();
+                let value_allocation = size_of::<Vec<Value>>()
+                    .saturating_add(length.saturating_mul(size_of::<Value>()))
+                    .saturating_add(
+                        values
+                            .iter()
+                            .map(cloned_value_allocation)
+                            .fold(0usize, usize::saturating_add),
+                    );
+                let sort_storage = size_of::<Vec<BigInt>>()
+                    .saturating_add(size_of::<Vec<usize>>().saturating_mul(2))
+                    .saturating_add(size_of::<Vec<bool>>())
+                    .saturating_add(
+                        length.saturating_mul(
+                            size_of::<BigInt>()
+                                .saturating_add(size_of::<usize>().saturating_mul(2))
+                                .saturating_add(size_of::<bool>()),
+                        ),
+                    );
+                charge_allocation(
+                    budget.as_ref(),
+                    value_allocation.saturating_add(sort_storage),
+                    instruction.span,
+                )?;
+
+                let mut keys = Vec::with_capacity(length);
+                for value in &values {
+                    match self.invoke_inner(target, vec![value.clone()], depth + 1, budget.clone())
+                    {
+                        Ok(Value::Int(key)) => keys.push(key),
+                        Ok(_) => {
+                            return Err(RuntimeError::new(
+                                "R_TYPE_INVALID",
+                                "sort_by_int_key key function must return Int",
+                                instruction.span,
+                            ))
+                        }
+                        Err(mut error) => {
+                            error.trace.push(instruction.span);
+                            return Err(error);
+                        }
+                    }
+                }
+
+                let mut order: Vec<usize> = (0..length).collect();
+                if length <= 32 {
+                    for index in 1..length {
+                        let value = order[index];
+                        let mut position = index;
+                        while position > 0 {
+                            consume_sort_step(budget.as_ref(), instruction.span)?;
+                            if keys[value] < keys[order[position - 1]] {
+                                order[position] = order[position - 1];
+                                position -= 1;
+                            } else {
+                                break;
+                            }
+                        }
+                        order[position] = value;
+                    }
+                } else {
+                    let mut merged = Vec::with_capacity(length);
+                    let mut width = 1usize;
+                    while width < length {
+                        merged.clear();
+                        let mut run_start = 0usize;
+                        while run_start < length {
+                            let middle = run_start.saturating_add(width).min(length);
+                            let run_end = middle.saturating_add(width).min(length);
+                            let (mut left, mut right) = (run_start, middle);
+                            while left < middle && right < run_end {
+                                consume_sort_step(budget.as_ref(), instruction.span)?;
+                                if keys[order[left]] <= keys[order[right]] {
+                                    merged.push(order[left]);
+                                    left += 1;
+                                } else {
+                                    merged.push(order[right]);
+                                    right += 1;
+                                }
+                            }
+                            merged.extend_from_slice(&order[left..middle]);
+                            merged.extend_from_slice(&order[right..run_end]);
+                            run_start = run_end;
+                        }
+                        std::mem::swap(&mut order, &mut merged);
+                        width = width.saturating_mul(2);
+                    }
+                }
+
+                let mut visited = vec![false; length];
+                for start in 0..length {
+                    if visited[start] {
+                        continue;
+                    }
+                    let mut current = start;
+                    loop {
+                        visited[current] = true;
+                        let next = order[current];
+                        if next == start {
+                            break;
+                        }
+                        values.swap(current, next);
+                        current = next;
+                    }
+                }
+                push_stack!(Value::from_list_items(values));
+            }
+            Op::MergeSortedByIntKey(target) => {
+                let input_feeds = match pop!() {
+                    Value::List(feeds) => feeds.as_ref().clone(),
+                    _ => {
+                        return Err(RuntimeError::new(
+                            "R_TYPE_INVALID",
+                            "merge_sorted_by_int_key requires a List of Lists",
+                            instruction.span,
+                        ))
+                    }
+                };
+                let mut feeds = Vec::with_capacity(input_feeds.len());
+                let mut total = 0usize;
+                for feed in input_feeds {
+                    let values: Arc<Vec<Value>> = match feed {
+                        Value::List(values) => values,
+                        Value::Float64List(values) => {
+                            Arc::new(values.iter().copied().map(Value::Float64).collect())
+                        }
+                        _ => {
+                            return Err(RuntimeError::new(
+                                "R_TYPE_INVALID",
+                                "merge_sorted_by_int_key requires each feed to be a List",
+                                instruction.span,
+                            ))
+                        }
+                    };
+                    total = total.saturating_add(values.len());
+                    feeds.push(values);
+                }
+                if total > self.policy.max_collection_items {
+                    return Err(RuntimeError::new(
+                        "R_COLLECTION_LIMIT",
+                        "merged list exceeds the configured collection limit",
+                        instruction.span,
+                    ));
+                }
+                let value_allocation = size_of::<Vec<Value>>()
+                    .saturating_add(total.saturating_mul(size_of::<Value>()))
+                    .saturating_add(
+                        feeds
+                            .iter()
+                            .flat_map(|feed| feed.iter())
+                            .map(cloned_value_allocation)
+                            .fold(0usize, usize::saturating_add),
+                    );
+                let key_storage = size_of::<Vec<Arc<Vec<Value>>>>()
+                    .saturating_add(feeds.len().saturating_mul(size_of::<Arc<Vec<Value>>>()))
+                    .saturating_add(size_of::<Vec<Vec<BigInt>>>())
+                    .saturating_add(feeds.len().saturating_mul(size_of::<Vec<BigInt>>()))
+                    .saturating_add(total.saturating_mul(size_of::<BigInt>()))
+                    .saturating_add(size_of::<Vec<usize>>())
+                    .saturating_add(feeds.len().saturating_mul(size_of::<usize>()));
+                charge_allocation(
+                    budget.as_ref(),
+                    value_allocation.saturating_add(key_storage),
+                    instruction.span,
+                )?;
+
+                let mut keys = Vec::with_capacity(feeds.len());
+                for feed in &feeds {
+                    let mut feed_keys = Vec::with_capacity(feed.len());
+                    for value in feed.iter() {
+                        match self.invoke_inner(
+                            target,
+                            vec![value.clone()],
+                            depth + 1,
+                            budget.clone(),
+                        ) {
+                            Ok(Value::Int(key)) => feed_keys.push(key),
+                            Ok(_) => {
+                                return Err(RuntimeError::new(
+                                    "R_TYPE_INVALID",
+                                    "merge_sorted_by_int_key key function must return Int",
+                                    instruction.span,
+                                ))
+                            }
+                            Err(mut error) => {
+                                error.trace.push(instruction.span);
+                                return Err(error);
+                            }
+                        }
+                    }
+                    for index in 1..feed_keys.len() {
+                        consume_sort_step(budget.as_ref(), instruction.span)?;
+                        if feed_keys[index] < feed_keys[index - 1] {
+                            return Err(RuntimeError::new(
+                                "R_SORT_ORDER",
+                                "merge_sorted_by_int_key feeds must already be sorted by key",
+                                instruction.span,
+                            ));
+                        }
+                    }
+                    keys.push(feed_keys);
+                }
+
+                let mut positions = vec![0usize; feeds.len()];
+                let mut output = Vec::with_capacity(total);
+                while output.len() < total {
+                    let mut selected: Option<usize> = None;
+                    for feed_index in 0..feeds.len() {
+                        let position = positions[feed_index];
+                        if position >= feeds[feed_index].len() {
+                            continue;
+                        }
+                        if let Some(best) = selected {
+                            consume_sort_step(budget.as_ref(), instruction.span)?;
+                            if keys[feed_index][position] < keys[best][positions[best]] {
+                                selected = Some(feed_index);
+                            }
+                        } else {
+                            selected = Some(feed_index);
+                        }
+                    }
+                    let feed_index = selected.expect("remaining merge item must have a feed");
+                    let position = positions[feed_index];
+                    output.push(feeds[feed_index][position].clone());
+                    positions[feed_index] = position + 1;
+                }
+                push_stack!(Value::from_list_items(output));
             }
             Op::HttpGet => {
                 let url = match pop!() {

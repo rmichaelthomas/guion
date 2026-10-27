@@ -566,6 +566,10 @@ fn ab_plain_opcode(name: Text) -> Int:
         return 131
     if name == "SortBy":
         return 132
+    if name == "SortByIntKey":
+        return 158
+    if name == "MergeSortedByIntKey":
+        return 159
     if name == "TextCaseFold":
         return 133
     if name == "TextCollapseWhitespace":
@@ -631,7 +635,7 @@ fn ab_instruction(instruction: Json, pc: Int, functions: Json, records: Json, ex
         if name == "Jump" or name == "JumpIfFalse":
             set parts = list_push(parts, ab_count(ab_target(instruction, labels)))
         else:
-            if name == "Call" or name == "ParallelMap" or name == "SortBy":
+            if name == "Call" or name == "ParallelMap" or name == "SortBy" or name == "SortByIntKey" or name == "MergeSortedByIntKey":
                 let target = ab_function_index(functions, json_as_text(json_get(instruction, "function")))
                 set parts = list_push(parts, ab_count(target))
                 if name == "Call":
@@ -735,7 +739,7 @@ pub fn artifact_assemble(ir: Json) -> Bytes:
     let records = json_get(ir, "records")
     let externals = json_get(ir, "externals")
     let functions = json_get(ir, "functions")
-    var parts: List[Bytes] = [bytes_from_text("VRTA"), ab_u32(39), ab_string(source_name), ab_string(entry), ab_count(json_len(sources))]
+    var parts: List[Bytes] = [bytes_from_text("VRTA"), ab_u32(40), ab_string(source_name), ab_string(entry), ab_count(json_len(sources))]
     var cursor = 0
     while cursor < json_len(sources):
         set parts = list_push(parts, ab_string(json_as_text(json_index(sources, cursor))))

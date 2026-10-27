@@ -2797,6 +2797,26 @@ pub fn verify(artifact: &Artifact) -> Result<(), RuntimeError> {
                         f.name
                     )))
                 }
+                Op::SortByIntKey(target)
+                    if target >= artifact.functions.len()
+                        || artifact.functions[target].parameters.len() != 1
+                        || artifact.functions[target].result != Type::Int =>
+                {
+                    return Err(fail(format!(
+                        "function `{}` contains an invalid integer sort key function",
+                        f.name
+                    )))
+                }
+                Op::MergeSortedByIntKey(target)
+                    if target >= artifact.functions.len()
+                        || artifact.functions[target].parameters.len() != 1
+                        || artifact.functions[target].result != Type::Int =>
+                {
+                    return Err(fail(format!(
+                        "function `{}` contains an invalid sorted-feed key function",
+                        f.name
+                    )))
+                }
                 Op::PythonCall(target, argc)
                     if target >= artifact.externals.len()
                         || argc != artifact.externals[target].parameters.len() =>
@@ -3724,6 +3744,53 @@ fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result
                 if *item != comparator.parameters[0] {
                     return Err(format!(
                         "sort comparator parameter type differs from list item at instruction {pc}"
+                    ));
+                }
+                state.stack.push(Type::List(item));
+            }
+            Op::SortByIntKey(target) => {
+                let key_function = artifact.functions.get(*target).ok_or_else(|| {
+                    format!("sort_by_int_key references missing key function at instruction {pc}")
+                })?;
+                if key_function.parameters.len() != 1 || key_function.result != Type::Int {
+                    return Err(format!(
+                        "sort_by_int_key key function must have type (T) -> Int at instruction {pc}"
+                    ));
+                }
+                let Type::List(item) = pop_type(&mut state.stack, pc)? else {
+                    return Err(format!(
+                        "sort_by_int_key input must be a List at instruction {pc}"
+                    ));
+                };
+                if *item != key_function.parameters[0] {
+                    return Err(format!(
+                        "sort_by_int_key key function parameter type differs from list item at instruction {pc}"
+                    ));
+                }
+                state.stack.push(Type::List(item));
+            }
+            Op::MergeSortedByIntKey(target) => {
+                let key_function = artifact.functions.get(*target).ok_or_else(|| {
+                    format!("merge_sorted_by_int_key references missing key function at instruction {pc}")
+                })?;
+                if key_function.parameters.len() != 1 || key_function.result != Type::Int {
+                    return Err(format!(
+                        "merge_sorted_by_int_key key function must have type (T) -> Int at instruction {pc}"
+                    ));
+                }
+                let Type::List(feed_item) = pop_type(&mut state.stack, pc)? else {
+                    return Err(format!(
+                        "merge_sorted_by_int_key input must be a List of Lists at instruction {pc}"
+                    ));
+                };
+                let Type::List(item) = *feed_item else {
+                    return Err(format!(
+                        "merge_sorted_by_int_key input must be a List of Lists at instruction {pc}"
+                    ));
+                };
+                if *item != key_function.parameters[0] {
+                    return Err(format!(
+                        "merge_sorted_by_int_key key function parameter type differs from feed item at instruction {pc}"
                     ));
                 }
                 state.stack.push(Type::List(item));

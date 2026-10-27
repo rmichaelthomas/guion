@@ -297,7 +297,9 @@ mod tests {
             assert!(
                 operation(&signature.operation).is_some()
                     || signature.operation == "ParallelMap"
-                    || signature.operation == "SortBy",
+                    || signature.operation == "SortBy"
+                    || signature.operation == "SortByIntKey"
+                    || signature.operation == "MergeSortedByIntKey",
                 "{name}: {}",
                 signature.operation
             );

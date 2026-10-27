@@ -107,6 +107,7 @@ list_set(List[$T], Int, $T) -> List[$T]
 map_get(Map[Text, $T], Text) -> Option[$T]
 map_has(Map[$T], Text) -> Bool
 map_set(Map[$T], Text, $T) -> Map[$T]
+merge_sorted_by_int_key(List[List[$T]], NamedIntKey[$T]) -> List[$T]
 native_calendar_parse(Text) -> Result[List[Record[CalendarEvent]], Record[StdError]]
 native_crypto_hmac_sha256(Bytes, Bytes) -> Bytes
 native_crypto_verify_hmac_sha256(Bytes, Bytes, Bytes) -> Bool
@@ -136,6 +137,7 @@ read_text(Text) -> Result[Text, FileError]
 semver_compare(Record[SemVer], Record[SemVer]) -> Int
 semver_parse(Text) -> Result[Record[SemVer], FileError]
 sort_by(List[$T], NamedComparator[$T]) -> List[$T]
+sort_by_int_key(List[$T], NamedIntKey[$T]) -> List[$T]
 sqrt(Float64) -> Float64
 task_code(TaskError) -> Text
 task_index(TaskError) -> Int
@@ -154,7 +156,7 @@ write_text(Text, Text) -> Result[Unit, FileError]
 write_text_atomic(Text, Text) -> Result[Unit, FileError]
 ```
 
-`sort_by` is stable, preserves the input list and its aliases, and uses an insertion sort for lists up to 32 items and a stable O(n log n) merge sort for larger lists. Its temporary index storage is charged to the guest allocation budget.
+`sort_by_int_key` requires a named pure `(T) -> Int` function, evaluates that key once per item, uses a stable sort, and preserves the input and its aliases. `merge_sorted_by_int_key` stably merges sorted `List[List[T]]` feeds using the same key contract and returns `R_SORT_ORDER` if any feed is not already sorted by key. Native comparisons count against the guest instruction budget.
 
 ## Standard-library public signatures
 
@@ -330,6 +332,14 @@ TOML parsing preserves the original source bytes for an unedited document. Typed
 Codes below are collected from compiler/runtime source and self-hosted language files. Host error codes are also documented beside their operations in the host API contract.
 
 ```text
+E_ABI_ARTIFACT
+E_ABI_ENTRY
+E_ABI_LIMIT
+E_ABI_POINTER
+E_ABI_REQUEST
+E_ABI_VALUE
+E_ABI_VALUE_UNSUPPORTED
+E_ABI_VERSION
 E_ARTIFACT_BOOL
 E_ARTIFACT_FLOAT
 E_ARTIFACT_INT
@@ -360,11 +370,13 @@ E_BYTES
 E_CACHE
 E_CALL_ARITY
 E_CALL_KEYWORD
+E_CAPABILITY_UNSUPPORTED
 E_CLI_DUPLICATE
 E_CLI_REQUIRED
 E_CLI_SCHEMA
 E_CLI_UNKNOWN
 E_CLI_VALUE
+E_COLLECTION_ITEMS
 E_COMPILE_ARGUMENTS
 E_COUNT
 E_DATA_VERSION
@@ -410,8 +422,11 @@ E_IMPORT_ROOT
 E_INDENT_TAB
 E_INDENT_WIDTH
 E_INLINE_LIST_ITEMS
+E_INPUTS
+E_INPUT_BYTES
 E_INSTALL_LIBDIR
 E_INSTALL_PREFIX
+E_INTEGER_DIGITS
 E_INT_LITERAL
 E_INT_PARSE
 E_JSON_INDEX
@@ -443,6 +458,7 @@ E_MS
 E_NAME_AMBIGUOUS
 E_NAME_DUPLICATE
 E_NAME_UNKNOWN
+E_NODES
 E_NOREPLACE
 E_NORMALIZATION_FORM
 E_NUMBER_KEY
@@ -502,6 +518,7 @@ E_SEMVER_LIMIT
 E_SEMVER_PRERELEASE
 E_SORT_COMPARATOR
 E_SORT_EFFECT
+E_SORT_KEY
 E_SOURCE_BYTES
 E_SOURCE_IDENTITY
 E_SOURCE_READ
@@ -563,6 +580,7 @@ E_TYPE_UNKNOWN
 E_UV_NOT_FOUND
 E_UV_UNAVAILABLE
 E_UV_VERSION_MISMATCH
+E_VALUE_BYTES
 R_ALLOCATION_BYTES
 R_ALLOCATION_LIMIT
 R_ARGUMENT_INDEX
@@ -648,6 +666,7 @@ R_RESOURCE_STALE
 R_RESULT_ERROR
 R_RESULT_UNWRAP
 R_RETURN_INVALID
+R_SORT_ORDER
 R_SQLITE_VALUE
 R_STACK_INVALID
 R_STEPS
@@ -873,4 +892,4 @@ fn main() -> Int:
 - [Host API and effects](../../language/host-api.md)
 - [Agent recipes](recipes.md)
 
-<!-- Generated reference content digest: sha256:440a2f01b591f0b758ad35bba44438f2721d91c6c5a1fd647b95eb73c818709b. Validated by `cargo xtask agent-reference --check`. -->
+<!-- Generated reference content digest: sha256:319d9c42604035d7156b66d1d24e71a251355d57faa74bcb9106e6c3cdddfa40. Validated by `cargo xtask agent-reference --check`. -->

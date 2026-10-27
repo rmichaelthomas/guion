@@ -1593,6 +1593,8 @@ pub enum Op {
     TextParseInt,
     TextParseFloat,
     SortBy(usize),
+    SortByIntKey(usize),
+    MergeSortedByIntKey(usize),
     TextCaseFold,
     TextCollapseWhitespace,
     TextNormalize,
@@ -1692,7 +1694,7 @@ pub struct Artifact {
 }
 
 impl Artifact {
-    pub const CURRENT_VERSION: u32 = 39;
+    pub const CURRENT_VERSION: u32 = 40;
     pub fn entry(&self) -> &str {
         &self.entry
     }
@@ -1840,6 +1842,18 @@ impl Artifact {
             return Err(ArtifactError::new(
                 "E_ARTIFACT_VERSION",
                 "clock operations require artifact format 39",
+            ));
+        }
+        if self.format_version < 40 && artifact_uses_sort_by_int_key(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "stable integer-key sorting requires artifact format 40",
+            ));
+        }
+        if self.format_version < 40 && artifact_uses_merge_sorted_by_int_key(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "stable integer-key feed merging requires artifact format 40",
             ));
         }
         validate_sort_comparator_effects(self)
@@ -2117,6 +2131,14 @@ impl Artifact {
                     Op::HttpRequestBytes => w.u8(155),
                     Op::UnixTimeMs => w.u8(156),
                     Op::TimeTodayLocal => w.u8(157),
+                    Op::SortByIntKey(target) => {
+                        w.u8(158);
+                        w.count(*target)?;
+                    }
+                    Op::MergeSortedByIntKey(target) => {
+                        w.u8(159);
+                        w.count(*target)?;
+                    }
                 }
             }
         }
@@ -2427,6 +2449,8 @@ impl Artifact {
                     155 => Op::HttpRequestBytes,
                     156 => Op::UnixTimeMs,
                     157 => Op::TimeTodayLocal,
+                    158 => Op::SortByIntKey(r.count()?),
+                    159 => Op::MergeSortedByIntKey(r.count()?),
                     _ => {
                         return Err(ArtifactError::new(
                             "E_ARTIFACT_OPCODE",
@@ -2657,6 +2681,18 @@ impl Artifact {
             return Err(ArtifactError::new(
                 "E_ARTIFACT_VERSION",
                 "artifact uses clock operations before format 39",
+            ));
+        }
+        if format_version < 40 && artifact_uses_sort_by_int_key(&artifact) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "stable integer-key sorting requires artifact format 40",
+            ));
+        }
+        if format_version < 40 && artifact_uses_merge_sorted_by_int_key(&artifact) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "stable integer-key feed merging requires artifact format 40",
             ));
         }
         validate_sort_comparator_effects(&artifact)
@@ -2925,6 +2961,24 @@ fn artifact_uses_sort_by(artifact: &Artifact) -> bool {
     })
 }
 
+fn artifact_uses_sort_by_int_key(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function
+            .code
+            .iter()
+            .any(|instruction| matches!(instruction.op, Op::SortByIntKey(_)))
+    })
+}
+
+fn artifact_uses_merge_sorted_by_int_key(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function
+            .code
+            .iter()
+            .any(|instruction| matches!(instruction.op, Op::MergeSortedByIntKey(_)))
+    })
+}
+
 fn artifact_uses_task5_services(artifact: &Artifact) -> bool {
     fn has_resource_type(ty: &Type) -> bool {
         match ty {
@@ -2975,12 +3029,13 @@ fn artifact_uses_task5_services(artifact: &Artifact) -> bool {
     })
 }
 
-/// Validates that each named sort comparator and its transitive call graph are pure.
+/// Validates that each named sort comparator/key function and its transitive call graph are pure.
 pub fn validate_sort_comparator_effects(artifact: &Artifact) -> Result<(), String> {
     for caller in &artifact.functions {
         for instruction in &caller.code {
-            let Op::SortBy(root) = instruction.op else {
-                continue;
+            let root = match instruction.op {
+                Op::SortBy(root) | Op::SortByIntKey(root) | Op::MergeSortedByIntKey(root) => root,
+                _ => continue,
             };
             let mut pending = vec![root];
             let mut seen = HashSet::new();
@@ -2995,7 +3050,10 @@ pub fn validate_sort_comparator_effects(artifact: &Artifact) -> Result<(), Strin
                 };
                 for instruction in &callee.code {
                     match instruction.op {
-                        Op::Call(target, _) | Op::SortBy(target) => pending.push(target),
+                        Op::Call(target, _)
+                        | Op::SortBy(target)
+                        | Op::SortByIntKey(target)
+                        | Op::MergeSortedByIntKey(target) => pending.push(target),
                         Op::Print
                         | Op::PrintErr
                         | Op::ReadText
