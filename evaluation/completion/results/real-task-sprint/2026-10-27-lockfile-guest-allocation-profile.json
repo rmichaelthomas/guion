@@ -1,0 +1,115 @@
+{
+  "schema_version": 1,
+  "kind": "lockfile-auditor-guest-allocation-profile",
+  "binary_sha256": "7dece407c1e91370de7537f39fd2d223d69d079b196d6c1b20d2b91f369a4a63",
+  "source_sha256": "08d8bda3964295e54466a1fe5bf95db8d0f80b4976a1320c0d884b4f81d2953a",
+  "measurement_scope": "Untimed Guion runtime counters. Allocation values are estimated guest-budget charges, not host allocator calls or peak RSS. Every report is compared with the exact expected JSON.",
+  "workloads": {
+    "4096": {
+      "exit_code": 0,
+      "elapsed_seconds_instrumented": 0.24636183300754055,
+      "report_bytes": 368671,
+      "output_matches_expected": true,
+      "runtime_profile": {
+        "dynamic_guest_conditional_branch_executions": 139309,
+        "estimated_guest_allocation_budget_charges": {
+          "estimated_gross_bytes": 19111795,
+          "estimated_net_bytes": 19111795,
+          "estimated_refunded_bytes": 0,
+          "successful_events": 573645
+        },
+        "list_set": {
+          "copy_on_write_copies": 0,
+          "copy_size_histogram": {
+            "buckets": {
+              "0-8": {
+                "copies": 0,
+                "estimated_copy_bytes": 0
+              },
+              "129+": {
+                "copies": 0,
+                "estimated_copy_bytes": 0
+              },
+              "33-128": {
+                "copies": 0,
+                "estimated_copy_bytes": 0
+              },
+              "9-32": {
+                "copies": 0,
+                "estimated_copy_bytes": 0
+              }
+            },
+            "unit": "elements"
+          },
+          "estimated_copy_bytes": 0,
+          "in_place_updates": 0,
+          "operations": 0
+        },
+        "metric_limits": {
+          "allocation": "estimated guest-data budget charges, not host allocator calls",
+          "branches": "executed guest conditional branches, not hardware branch-misprediction counts"
+        },
+        "record_charges": {
+          "estimated_bytes": 2678784,
+          "events": 4096
+        },
+        "scope": "latest guest invocation"
+      },
+      "diagnostic": null,
+      "program_stderr": ""
+    },
+    "8192": {
+      "exit_code": 0,
+      "elapsed_seconds_instrumented": 0.2414359159884043,
+      "report_bytes": 737311,
+      "output_matches_expected": true,
+      "runtime_profile": {
+        "dynamic_guest_conditional_branch_executions": 278573,
+        "estimated_guest_allocation_budget_charges": {
+          "estimated_gross_bytes": 38211467,
+          "estimated_net_bytes": 38211467,
+          "estimated_refunded_bytes": 0,
+          "successful_events": 1147085
+        },
+        "list_set": {
+          "copy_on_write_copies": 0,
+          "copy_size_histogram": {
+            "buckets": {
+              "0-8": {
+                "copies": 0,
+                "estimated_copy_bytes": 0
+              },
+              "129+": {
+                "copies": 0,
+                "estimated_copy_bytes": 0
+              },
+              "33-128": {
+                "copies": 0,
+                "estimated_copy_bytes": 0
+              },
+              "9-32": {
+                "copies": 0,
+                "estimated_copy_bytes": 0
+              }
+            },
+            "unit": "elements"
+          },
+          "estimated_copy_bytes": 0,
+          "in_place_updates": 0,
+          "operations": 0
+        },
+        "metric_limits": {
+          "allocation": "estimated guest-data budget charges, not host allocator calls",
+          "branches": "executed guest conditional branches, not hardware branch-misprediction counts"
+        },
+        "record_charges": {
+          "estimated_bytes": 5357568,
+          "events": 8192
+        },
+        "scope": "latest guest invocation"
+      },
+      "diagnostic": null,
+      "program_stderr": ""
+    }
+  }
+}

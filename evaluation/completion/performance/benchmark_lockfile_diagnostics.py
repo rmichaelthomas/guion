@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import atexit
 import argparse
 import hashlib
 import json
@@ -32,12 +33,16 @@ def interval(values: list[float], rng: random.Random) -> list[float]:
 
 def build_case(package_count: int) -> dict:
     packages = [{"name": f"pkg-{index:04d}", "version": "1.0.0"} for index in range(package_count)]
-    expected = {
-        "violations": [
+    violations = sorted(
+        [
             {"name": f"pkg-{index:04d}", "rule": rule}
             for index in range(package_count)
             for rule in ("missing_checksum", "missing_source")
         ],
+        key=lambda item: (item["name"], item["rule"]),
+    )
+    expected = {
+        "violations": violations,
         "warnings": [],
     }
     return {
@@ -143,9 +148,11 @@ def main() -> int:
         parser.error("trials must be at least 3, memory trials must be positive, and sizes must be positive")
 
     binary = args.binary.resolve(strict=True)
-    scratch = ROOT / "target/perf-session/lockfile-scale"
-    scratch.mkdir(parents=True, exist_ok=True)
-    temp_root = ROOT / "target/perf-session/real-tasks-tmp"
+    scratch_parent = ROOT / "target/perf-session"
+    scratch_parent.mkdir(parents=True, exist_ok=True)
+    scratch = Path(tempfile.mkdtemp(prefix="lockfile-scale-", dir=scratch_parent))
+    atexit.register(lambda: shutil.rmtree(scratch, ignore_errors=True))
+    temp_root = scratch / "real-tasks-tmp"
     temp_root.mkdir(parents=True, exist_ok=True)
     os.environ["TMPDIR"] = str(temp_root)
     tempfile.tempdir = str(temp_root)
