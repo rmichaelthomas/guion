@@ -188,6 +188,24 @@
   },
   "examples": [
     {
+      "id": "native_temporal_resolution",
+      "source": "docs/agents/examples/native_temporal_resolution.gu",
+      "recipe": "docs/agents/recipes.md",
+      "fixtures": [],
+      "expected_output": "Shows the packaged timezone-data version, exact/gap/fold results with original local inputs and all UTC candidates, one explicit caller choice for a fold, and the E_DATE error code.",
+      "run_requirements": [
+        "core_profile"
+      ],
+      "verification_cases": [
+        {
+          "id": "native_temporal_resolution_run",
+          "arguments": [],
+          "stdout": "timezone rules\n2026c\nexact\nexact\nAmerica/Los_Angeles\n2026\n3\n8\n1\n30\n0\n0\n1772962200000000\ngap\ngap\nAmerica/Los_Angeles\n2026\n3\n8\n2\n30\n0\n0\nno instant; caller policy required\nfold\nfold\nAmerica/Los_Angeles\n2026\n11\n1\n1\n30\n0\n0\n1793521800000000\n1793525400000000\ncaller policy: choose earlier occurrence\n1793521800000000\ninvalid date error\nE_DATE\n",
+          "exit_code": 0
+        }
+      ]
+    },
+    {
       "id": "file_data_cli",
       "source": "docs/agents/examples/file_data_cli.gu",
       "recipe": "docs/agents/recipes.md",

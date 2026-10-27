@@ -222,6 +222,8 @@ pub(crate) fn operation(name: &str) -> Option<Op> {
         "TimeFormatUtc" => Op::TimeFormatUtc,
         "UnixTimeMs" => Op::UnixTimeMs,
         "TimeTodayLocal" => Op::TimeTodayLocal,
+        "TimeResolveLocal" => Op::TimeResolveLocal,
+        "TimeZoneDataVersion" => Op::TimeZoneDataVersion,
         "SemVerParse" => Op::SemVerParse,
         "SemVerCompare" => Op::SemVerCompare,
         "CliParse" => Op::CliParse,

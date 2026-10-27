@@ -18,6 +18,16 @@ Expected output:
 
 The program reads the named file, parses its JSON array, reports the row count, and returns a nonzero status with an error code if reading or parsing fails. When the input is outside the source directory, pass a granted directory with `--file-root` and keep the guest path relative to that grant.
 
+## Resolve a local time without hiding ambiguity
+
+Source: [`native_temporal_resolution.gu`](examples/native_temporal_resolution.gu).
+
+```sh
+cargo run --locked -p guion-cli -- run docs/agents/examples/native_temporal_resolution.gu
+```
+
+The example reports the packaged timezone-data version, preserves the original local fields and timezone, and prints every matching UTC candidate. A daylight-saving gap has no candidate; a fold has two in chronological order. The example then demonstrates a caller-owned policy that chooses the earlier fold occurrence. Guion's resolver itself never chooses or shifts a time. An invalid calendar date returns the stable `E_DATE` code. The operation is pure and needs no clock, filesystem, or network grant.
+
 ## Make an HTTP request with a narrow grant
 
 Source: [`http_request.gu`](examples/http_request.gu).

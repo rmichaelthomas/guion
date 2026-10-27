@@ -10,6 +10,25 @@ fn failed_source(name: Text, category: Text) -> Json:
     set value = json_set(value, "error", json_text(category))
     return value
 
+fn public_resolution(resolution: TemporalResolution) -> Json:
+    var local = json_object()
+    set local = json_set(local, "year", json_int(resolution.local.year))
+    set local = json_set(local, "month", json_int(resolution.local.month))
+    set local = json_set(local, "day", json_int(resolution.local.day))
+    set local = json_set(local, "hour", json_int(resolution.local.hour))
+    set local = json_set(local, "minute", json_int(resolution.local.minute))
+    set local = json_set(local, "second", json_int(resolution.local.second))
+    set local = json_set(local, "microsecond", json_int(resolution.local.microsecond))
+    var candidates = json_array()
+    for instant in resolution.instants:
+        set candidates = json_push(candidates, json_int(instant.unix_microseconds))
+    var value = json_object()
+    set value = json_set(value, "kind", json_text(resolution.kind))
+    set value = json_set(value, "local", local)
+    set value = json_set(value, "timezone", json_text(resolution.timezone))
+    set value = json_set(value, "instants", candidates)
+    return value
+
 fn fetch_calendar(source: Json) -> Json:
     let name = json_as_text(json_get(source, "name"))
     let url = json_as_text(json_get(source, "url"))
@@ -34,35 +53,50 @@ fn fetch_calendar(source: Json) -> Json:
     let window_end = unwrap(parse_timestamp(json_as_text(json_get(source, "window_end"))))
     let include_tentative = json_as_bool(json_get(source, "include_tentative"))
     var events = json_array()
+    var temporal_reviews = json_array()
     for event in unwrap(parsed):
-        let ignored = event.all_day or event.status == "CANCELLED" or (event.status == "TENTATIVE" and not include_tentative)
+        let ignored = event.all_day or event.status == "CANCELLED" or(event.status == "TENTATIVE" and not include_tentative)
         if not ignored:
-            if not is_some(event.start) or not is_some(event.end):
+            if event.uid == "" or not is_some(event.start_resolution) or not is_some(event.end_resolution):
                 return failed_source(name, "invalid_calendar")
-            let start = unwrap(event.start)
-            let end = unwrap(event.end)
-            if event.uid == "" or end.unix_microseconds <= start.unix_microseconds:
-                return failed_source(name, "invalid_calendar")
-            let outside_window = start.unix_microseconds >= window_end.unix_microseconds or end.unix_microseconds <= window_start.unix_microseconds
-            if not outside_window:
-                var clipped_start = start
-                var clipped_end = end
-                if clipped_start.unix_microseconds < window_start.unix_microseconds:
-                    set clipped_start = window_start
-                if clipped_end.unix_microseconds > window_end.unix_microseconds:
-                    set clipped_end = window_end
-                var value = json_object()
-                set value = json_set(value, "calendar", json_text(name))
-                set value = json_set(value, "id", json_text(event.uid))
-                set value = json_set(value, "start", json_text(format_utc(clipped_start)))
-                set value = json_set(value, "end", json_text(format_utc(clipped_end)))
-                set value = json_set(value, "start_us", json_int(clipped_start.unix_microseconds))
-                set value = json_set(value, "end_us", json_int(clipped_end.unix_microseconds))
-                set events = json_push(events, value)
+            let start_resolution = unwrap(event.start_resolution)
+            let end_resolution = unwrap(event.end_resolution)
+            if start_resolution.kind != "exact" or end_resolution.kind != "exact":
+                var review = json_object()
+                set review = json_set(review, "calendar", json_text(name))
+                set review = json_set(review, "id", json_text(event.uid))
+                set review = json_set(review, "summary", json_text(event.summary))
+                set review = json_set(review, "start_resolution", public_resolution(start_resolution))
+                set review = json_set(review, "end_resolution", public_resolution(end_resolution))
+                set temporal_reviews = json_push(temporal_reviews, review)
+            else:
+                if len(start_resolution.instants) != 1 or len(end_resolution.instants) != 1:
+                    return failed_source(name, "invalid_calendar")
+                let start = start_resolution.instants[0]
+                let end = end_resolution.instants[0]
+                if end.unix_microseconds <= start.unix_microseconds:
+                    return failed_source(name, "invalid_calendar")
+                let outside_window = start.unix_microseconds >= window_end.unix_microseconds or end.unix_microseconds <= window_start.unix_microseconds
+                if not outside_window:
+                    var clipped_start = start
+                    var clipped_end = end
+                    if clipped_start.unix_microseconds < window_start.unix_microseconds:
+                        set clipped_start = window_start
+                    if clipped_end.unix_microseconds > window_end.unix_microseconds:
+                        set clipped_end = window_end
+                    var value = json_object()
+                    set value = json_set(value, "calendar", json_text(name))
+                    set value = json_set(value, "id", json_text(event.uid))
+                    set value = json_set(value, "start", json_text(format_utc(clipped_start)))
+                    set value = json_set(value, "end", json_text(format_utc(clipped_end)))
+                    set value = json_set(value, "start_us", json_int(clipped_start.unix_microseconds))
+                    set value = json_set(value, "end_us", json_int(clipped_end.unix_microseconds))
+                    set events = json_push(events, value)
     var result = json_object()
     set result = json_set(result, "name", json_text(name))
     set result = json_set(result, "ok", json_bool(true))
     set result = json_set(result, "events", events)
+    set result = json_set(result, "temporal_reviews", temporal_reviews)
     return result
 
 fn conflict_before(left: Json, right: Json) -> Bool:
@@ -101,7 +135,7 @@ fn sort_events(values: List[Json]) -> List[Json]:
     var ordered = values
     var width = 1
     while width < len(ordered):
-        var merged: List[Json] = []
+        var merged: List[Json] =[]
         var merge_start = 0
         while merge_start < len(ordered):
             var left_index = merge_start
@@ -134,7 +168,7 @@ fn sort_conflicts(values: List[Json]) -> List[Json]:
     var ordered = values
     var width = 1
     while width < len(ordered):
-        var merged: List[Json] = []
+        var merged: List[Json] =[]
         var merge_start = 0
         while merge_start < len(ordered):
             var left_index = merge_start
@@ -244,7 +278,7 @@ fn main() -> Int:
         return 1
     let calendars = unwrap(calendars_result)
     var seen_names: Map[Text, Bool] = {}
-    var work: List[Json] = []
+    var work: List[Json] =[]
     var calendar_index = 0
     while calendar_index < json_len(calendars):
         let source = json_index(calendars, calendar_index)
@@ -275,7 +309,8 @@ fn main() -> Int:
         eprint("calendar requests failed: " + task_code(problem))
         return 1
 
-    var events: List[Json] = []
+    var events: List[Json] =[]
+    var temporal_reviews: List[Json] =[]
     var source_errors: Map[Text, Text] = {}
     for result in unwrap(fetched):
         let name = json_as_text(json_get(result, "name"))
@@ -287,9 +322,14 @@ fn main() -> Int:
             while event_index < json_len(found):
                 set events = list_push(events, json_index(found, event_index))
                 set event_index = event_index + 1
+            let reviews = json_get(result, "temporal_reviews")
+            var review_index = 0
+            while review_index < json_len(reviews):
+                set temporal_reviews = list_push(temporal_reviews, json_index(reviews, review_index))
+                set review_index = review_index + 1
 
     let sorted_events = sort_events(events)
-    var conflicts: List[Json] = []
+    var conflicts: List[Json] =[]
     var left_index = 0
     while left_index < len(sorted_events):
         let left = sorted_events[left_index]
@@ -361,6 +401,11 @@ fn main() -> Int:
     var report = json_object()
     set report = json_set(report, "conflicts", conflict_output)
     set report = json_set(report, "source_errors", errors)
+    if len(temporal_reviews) > 0:
+        var review_output = json_array()
+        for review in temporal_reviews:
+            set review_output = json_push(review_output, review)
+        set report = json_set(report, "temporal_reviews", review_output)
     let written = write_text_atomic(output_path, json_stringify(report) + "\n")
     if not is_ok(written):
         eprint("cannot write conflict report")

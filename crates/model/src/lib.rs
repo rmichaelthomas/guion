@@ -253,6 +253,51 @@ mod tests {
     }
 
     #[test]
+    fn temporal_opcodes_round_trip_only_in_format_40_with_append_only_tags() {
+        for (op, expected_tag) in [(Op::TimeResolveLocal, 158), (Op::TimeZoneDataVersion, 159)] {
+            let artifact = Artifact {
+                format_version: 40,
+                build_metadata: None,
+                compiled_source_sha256: None,
+                source_name: "temporal.gu".into(),
+                sources: vec!["temporal.gu".into()],
+                entry: "main".into(),
+                functions: vec![Function {
+                    name: "main".into(),
+                    parameters: vec![],
+                    result: Type::Int,
+                    local_count: 0,
+                    code: vec![
+                        Instruction {
+                            op,
+                            span: Span::default(),
+                        },
+                        Instruction {
+                            op: Op::Return,
+                            span: Span::default(),
+                        },
+                    ],
+                }],
+                externals: vec![],
+                records: vec![],
+            };
+            let bytes = artifact.to_bytes().unwrap();
+            assert!(bytes.contains(&expected_tag));
+            assert_eq!(Artifact::from_bytes(&bytes).unwrap(), artifact);
+
+            let mut legacy_bytes = bytes;
+            legacy_bytes[4..8].copy_from_slice(&39u32.to_le_bytes());
+            assert_eq!(
+                Artifact::from_bytes(&legacy_bytes).unwrap_err().code,
+                "E_ARTIFACT_VERSION"
+            );
+            let mut legacy = artifact;
+            legacy.format_version = 39;
+            assert_eq!(legacy.to_bytes().unwrap_err().code, "E_ARTIFACT_VERSION");
+        }
+    }
+
+    #[test]
     fn http_bytecode_round_trips_only_in_format_19() {
         let artifact = Artifact {
             format_version: Artifact::CURRENT_VERSION,
@@ -1573,6 +1618,8 @@ pub enum Op {
     TimeFormatUtc,
     UnixTimeMs,
     TimeTodayLocal,
+    TimeResolveLocal,
+    TimeZoneDataVersion,
     SemVerParse,
     SemVerCompare,
     CliParse,
@@ -1681,7 +1728,7 @@ pub struct Artifact {
 }
 
 impl Artifact {
-    pub const CURRENT_VERSION: u32 = 39;
+    pub const CURRENT_VERSION: u32 = 40;
     pub fn entry(&self) -> &str {
         &self.entry
     }
@@ -1829,6 +1876,12 @@ impl Artifact {
             return Err(ArtifactError::new(
                 "E_ARTIFACT_VERSION",
                 "clock operations require artifact format 39",
+            ));
+        }
+        if self.format_version < 40 && artifact_uses_temporal_resolution(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "local time resolution requires artifact format 40",
             ));
         }
         validate_sort_comparator_effects(self)
@@ -2106,6 +2159,8 @@ impl Artifact {
                     Op::HttpRequestBytes => w.u8(155),
                     Op::UnixTimeMs => w.u8(156),
                     Op::TimeTodayLocal => w.u8(157),
+                    Op::TimeResolveLocal => w.u8(158),
+                    Op::TimeZoneDataVersion => w.u8(159),
                 }
             }
         }
@@ -2416,6 +2471,8 @@ impl Artifact {
                     155 => Op::HttpRequestBytes,
                     156 => Op::UnixTimeMs,
                     157 => Op::TimeTodayLocal,
+                    158 => Op::TimeResolveLocal,
+                    159 => Op::TimeZoneDataVersion,
                     _ => {
                         return Err(ArtifactError::new(
                             "E_ARTIFACT_OPCODE",
@@ -2648,6 +2705,12 @@ impl Artifact {
                 "artifact uses clock operations before format 39",
             ));
         }
+        if format_version < 40 && artifact_uses_temporal_resolution(&artifact) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "artifact uses local time resolution before format 40",
+            ));
+        }
         validate_sort_comparator_effects(&artifact)
             .map_err(|message| ArtifactError::new("E_SORT_EFFECT", message))?;
         Ok(artifact)
@@ -2752,6 +2815,17 @@ fn artifact_uses_clock(artifact: &Artifact) -> bool {
             .code
             .iter()
             .any(|instruction| matches!(instruction.op, Op::UnixTimeMs | Op::TimeTodayLocal))
+    })
+}
+
+fn artifact_uses_temporal_resolution(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function.code.iter().any(|instruction| {
+            matches!(
+                instruction.op,
+                Op::TimeResolveLocal | Op::TimeZoneDataVersion
+            )
+        })
     })
 }
 

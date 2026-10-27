@@ -128,7 +128,7 @@ fn bounded_byte_construction_primitives_remain_compatible_with_format_34() {
     let source = "fn main() -> Int:\n    let raw = bytes_from_ints([0, 255])\n    let utf8 = bytes_from_text(\"é\")\n    let joined = bytes_join([raw, utf8])\n    print(len(joined))\n    print(float64_bits(1.0))\n    return 0\n";
     let artifact =
         compile("artifact-byte-primitives.gu", source).expect("byte construction source compiles");
-    assert_eq!(artifact.format_version, 39);
+    assert_eq!(artifact.format_version, 40);
     let mut previous_format = artifact.clone();
     previous_format.format_version = 33;
     assert_eq!(

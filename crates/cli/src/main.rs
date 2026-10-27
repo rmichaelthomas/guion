@@ -42,9 +42,10 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
     };
     if command == "--version" || command == "version" {
         println!(
-            "guion {} (artifact format {})",
+            "guion {} (artifact format {}, timezone data {})",
             env!("CARGO_PKG_VERSION"),
-            guion_model::Artifact::CURRENT_VERSION
+            guion_model::Artifact::CURRENT_VERSION,
+            guion_runtime::stdlib_services::IANA_TZDB_VERSION
         );
         return Ok(ExitCode::SUCCESS);
     }
