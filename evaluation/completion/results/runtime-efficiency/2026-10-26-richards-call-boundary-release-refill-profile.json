@@ -1,0 +1,544 @@
+{
+  "cache_conditions": {
+    "os_file_cache": "uncontrolled; not a cold-disk measurement",
+    "source_compile_cache": "bypassed with --no-cache"
+  },
+  "candidate_source_provenance": {
+    "description": "Release binary built from the working tree based on baseline revision e01b503ce9140a5231c5b3e16966068ae4906f82; release_binary_sha256 identifies the measured executable.",
+    "native_backend_source_sha256": "073722ec95aa538e5554dccb9ad81db801b6d83547b54db26dc82594c610d0e1"
+  },
+  "copy_size_distribution": {
+    "one_shot": {
+      "copies_0_to_8_elements": 84497,
+      "copy_bytes_share_of_gross_guest_allocation_percent": 77.18593517066888,
+      "estimated_copy_bytes_0_to_8_elements": 66189688,
+      "share_of_copies_percent": 100.0,
+      "share_of_estimated_copy_bytes_percent": 100.0,
+      "total_copy_on_write_copies": 84497,
+      "total_estimated_copy_bytes": 66189688,
+      "total_estimated_gross_guest_allocation_bytes": 85753561
+    },
+    "repeated_25": {
+      "copies_0_to_8_elements": 2112425,
+      "copy_bytes_share_of_gross_guest_allocation_percent": 77.18593517066888,
+      "estimated_copy_bytes_0_to_8_elements": 1654742200,
+      "share_of_copies_percent": 100.0,
+      "share_of_estimated_copy_bytes_percent": 100.0,
+      "total_copy_on_write_copies": 2112425,
+      "total_estimated_copy_bytes": 1654742200,
+      "total_estimated_gross_guest_allocation_bytes": 2143839025
+    }
+  },
+  "expected_output_per_execution": [
+    "9297",
+    "23246"
+  ],
+  "host": {
+    "architecture": "arm64",
+    "platform": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+    "python_version": "3.14.7"
+  },
+  "kind": "guion-richards-runtime-profile",
+  "metric_interpretation": {
+    "allocation": "estimated guest-data budget charges, not host allocator calls",
+    "branches": "dynamic guest conditional executions, not hardware branch-misprediction counts",
+    "copy_size_histogram": "copy-on-write list lengths in elements; estimated bytes follow the existing guest-copy estimate and are not allocator traffic",
+    "warm_lane": "25 executions in one process; reported timing is elapsed process time divided by 25"
+  },
+  "release_binary_sha256": "23e14d198430ad44c9349565e2d9a6a030d63ed7e9a4f2942e5568259a62abe4",
+  "repetitions_in_repeated_source_lane": 25,
+  "runtime_source_sha256": {
+    "crates/runtime/src/lib.rs": "183fa26f2dec2a9e6dfdb0a270432cda29d3f2b0a99df5eb7856f4ce1d1a9f50",
+    "crates/runtime/tests/execution.rs": "4f75e2928825663b26b54be73716eaf4d5751a0e51ca442c488c5959115e5b15"
+  },
+  "schema_version": 1,
+  "source_revision": "e01b503ce9140a5231c5b3e16966068ae4906f82",
+  "status": "passed",
+  "timed_trials_per_lane": 15,
+  "timed_uninstrumented_samples_per_logical_execution": {
+    "guion_source_uncached": {
+      "median_seconds": 0.0421355830039829,
+      "p95_seconds_nearest_rank": 0.061183375015389174,
+      "samples_seconds": [
+        0.03812387498328462,
+        0.037624082993716,
+        0.03823025000747293,
+        0.03991212500841357,
+        0.03960054198978469,
+        0.03959754202514887,
+        0.061183375015389174,
+        0.04460741701768711,
+        0.0421355830039829,
+        0.04532416598522104,
+        0.038794874999439344,
+        0.047389083018060774,
+        0.05110645800596103,
+        0.04410233302041888,
+        0.04547499999171123
+      ]
+    },
+    "guion_source_warm_25": {
+      "median_seconds": 0.011884738359367476,
+      "p95_seconds_nearest_rank": 0.030608853360172363,
+      "samples_seconds": [
+        0.009977943359408527,
+        0.010049839999992401,
+        0.010046515000285581,
+        0.010288790001068264,
+        0.02421783167985268,
+        0.013694678359897808,
+        0.030608853360172363,
+        0.012548558320850134,
+        0.010776591680478304,
+        0.011884738359367476,
+        0.012198358320165425,
+        0.013049131640000268,
+        0.0119808566395659,
+        0.010905074999900535,
+        0.011624688319861888
+      ]
+    }
+  },
+  "trial_metadata": {
+    "native_backend_reports": {
+      "guion_source_uncached": {
+        "bytecode_blocks": 126,
+        "bytecode_instructions": 944,
+        "calls": 37547,
+        "compilations": 1,
+        "compile_profile": {
+          "finalize_nanoseconds": 24792,
+          "functions": [
+            {
+              "bytecode_blocks": 4,
+              "bytecode_instructions": 11,
+              "cranelift_ir_blocks": 15,
+              "cranelift_ir_instructions": 228,
+              "define_nanoseconds": 495667,
+              "lowering_nanoseconds": 183542,
+              "name": "next_worker_count",
+              "verification_nanoseconds": 71333
+            },
+            {
+              "bytecode_blocks": 9,
+              "bytecode_instructions": 46,
+              "cranelift_ir_blocks": 31,
+              "cranelift_ir_instructions": 502,
+              "define_nanoseconds": 696334,
+              "lowering_nanoseconds": 82083,
+              "name": "xor_d008",
+              "verification_nanoseconds": 62458
+            },
+            {
+              "bytecode_blocks": 10,
+              "bytecode_instructions": 91,
+              "cranelift_ir_blocks": 50,
+              "cranelift_ir_instructions": 1006,
+              "define_nanoseconds": 1241917,
+              "lowering_nanoseconds": 202458,
+              "name": "route_packet",
+              "verification_nanoseconds": 114000
+            },
+            {
+              "bytecode_blocks": 103,
+              "bytecode_instructions": 796,
+              "cranelift_ir_blocks": 376,
+              "cranelift_ir_instructions": 6590,
+              "define_nanoseconds": 12718375,
+              "lowering_nanoseconds": 1920250,
+              "name": "main",
+              "verification_nanoseconds": 814250
+            }
+          ]
+        },
+        "compiled_functions": [
+          "next_worker_count",
+          "xor_d008",
+          "route_packet",
+          "main"
+        ],
+        "cranelift_ir_blocks": 472,
+        "cranelift_ir_instructions": 8326,
+        "deoptimizations": 0
+      },
+      "guion_source_warm_25": {
+        "bytecode_blocks": 126,
+        "bytecode_instructions": 944,
+        "calls": 938675,
+        "compilations": 1,
+        "compile_profile": {
+          "finalize_nanoseconds": 33541,
+          "functions": [
+            {
+              "bytecode_blocks": 4,
+              "bytecode_instructions": 11,
+              "cranelift_ir_blocks": 15,
+              "cranelift_ir_instructions": 228,
+              "define_nanoseconds": 718542,
+              "lowering_nanoseconds": 529083,
+              "name": "next_worker_count",
+              "verification_nanoseconds": 55833
+            },
+            {
+              "bytecode_blocks": 9,
+              "bytecode_instructions": 46,
+              "cranelift_ir_blocks": 31,
+              "cranelift_ir_instructions": 502,
+              "define_nanoseconds": 656166,
+              "lowering_nanoseconds": 97583,
+              "name": "xor_d008",
+              "verification_nanoseconds": 64708
+            },
+            {
+              "bytecode_blocks": 10,
+              "bytecode_instructions": 91,
+              "cranelift_ir_blocks": 50,
+              "cranelift_ir_instructions": 1006,
+              "define_nanoseconds": 1171500,
+              "lowering_nanoseconds": 188958,
+              "name": "route_packet",
+              "verification_nanoseconds": 109750
+            },
+            {
+              "bytecode_blocks": 103,
+              "bytecode_instructions": 796,
+              "cranelift_ir_blocks": 376,
+              "cranelift_ir_instructions": 6590,
+              "define_nanoseconds": 18163125,
+              "lowering_nanoseconds": 1870625,
+              "name": "benchmark_once",
+              "verification_nanoseconds": 761459
+            }
+          ]
+        },
+        "compiled_functions": [
+          "next_worker_count",
+          "xor_d008",
+          "route_packet",
+          "benchmark_once"
+        ],
+        "cranelift_ir_blocks": 472,
+        "cranelift_ir_instructions": 8326,
+        "deoptimizations": 0
+      }
+    },
+    "paired_trial_order": [
+      [
+        "guion_source_warm_25",
+        "guion_source_uncached"
+      ],
+      [
+        "guion_source_warm_25",
+        "guion_source_uncached"
+      ],
+      [
+        "guion_source_uncached",
+        "guion_source_warm_25"
+      ],
+      [
+        "guion_source_warm_25",
+        "guion_source_uncached"
+      ],
+      [
+        "guion_source_uncached",
+        "guion_source_warm_25"
+      ],
+      [
+        "guion_source_uncached",
+        "guion_source_warm_25"
+      ],
+      [
+        "guion_source_warm_25",
+        "guion_source_uncached"
+      ],
+      [
+        "guion_source_warm_25",
+        "guion_source_uncached"
+      ],
+      [
+        "guion_source_warm_25",
+        "guion_source_uncached"
+      ],
+      [
+        "guion_source_uncached",
+        "guion_source_warm_25"
+      ],
+      [
+        "guion_source_uncached",
+        "guion_source_warm_25"
+      ],
+      [
+        "guion_source_uncached",
+        "guion_source_warm_25"
+      ],
+      [
+        "guion_source_warm_25",
+        "guion_source_uncached"
+      ],
+      [
+        "guion_source_uncached",
+        "guion_source_warm_25"
+      ],
+      [
+        "guion_source_warm_25",
+        "guion_source_uncached"
+      ]
+    ],
+    "source_cache_states": {
+      "guion_source_uncached": [
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed"
+      ],
+      "guion_source_warm_25": [
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed"
+      ]
+    }
+  },
+  "untimed_phase_profiles": {
+    "one_shot": {
+      "cache_status": "bypassed",
+      "elapsed_seconds_including_process_startup": 0.04319691698765382,
+      "native_compilation_profile_total_ns": 19131585,
+      "program_execute_ns_includes_native_compilation": true,
+      "reported_phase_timings_ns": {
+        "artifact_runtime_load_ns": 1485375,
+        "cli_to_report_excluding_process_startup_ns": 36072583,
+        "compiler_pipeline": {
+          "compiler_backend": "rust",
+          "rust_compiler_compile_ns": 1556083
+        },
+        "input_artifact_decode_ns": null,
+        "native_compilation": {
+          "finalize_nanoseconds": 28542,
+          "functions": [
+            {
+              "bytecode_blocks": 4,
+              "bytecode_instructions": 11,
+              "cranelift_ir_blocks": 15,
+              "cranelift_ir_instructions": 229,
+              "define_nanoseconds": 354375,
+              "lowering_nanoseconds": 90125,
+              "name": "next_worker_count",
+              "verification_nanoseconds": 46084
+            },
+            {
+              "bytecode_blocks": 9,
+              "bytecode_instructions": 46,
+              "cranelift_ir_blocks": 31,
+              "cranelift_ir_instructions": 505,
+              "define_nanoseconds": 652666,
+              "lowering_nanoseconds": 69416,
+              "name": "xor_d008",
+              "verification_nanoseconds": 59042
+            },
+            {
+              "bytecode_blocks": 10,
+              "bytecode_instructions": 91,
+              "cranelift_ir_blocks": 50,
+              "cranelift_ir_instructions": 1009,
+              "define_nanoseconds": 1182333,
+              "lowering_nanoseconds": 175834,
+              "name": "route_packet",
+              "verification_nanoseconds": 106209
+            },
+            {
+              "bytecode_blocks": 103,
+              "bytecode_instructions": 796,
+              "cranelift_ir_blocks": 376,
+              "cranelift_ir_instructions": 6629,
+              "define_nanoseconds": 13603375,
+              "lowering_nanoseconds": 1921250,
+              "name": "main",
+              "verification_nanoseconds": 842334
+            }
+          ]
+        },
+        "program_execute_ns": 32508792,
+        "source_compile_or_cache_ns": 1686666
+      },
+      "runtime_profile": {
+        "dynamic_guest_conditional_branch_executions": 1555377,
+        "estimated_guest_allocation_budget_charges": {
+          "estimated_gross_bytes": 85753561,
+          "estimated_net_bytes": 85753561,
+          "estimated_refunded_bytes": 0,
+          "successful_events": 247240
+        },
+        "list_set": {
+          "copy_on_write_copies": 84497,
+          "copy_size_histogram": {
+            "buckets": {
+              "0-8": {
+                "copies": 84497,
+                "estimated_copy_bytes": 66189688
+              },
+              "129+": {
+                "copies": 0,
+                "estimated_copy_bytes": 0
+              },
+              "33-128": {
+                "copies": 0,
+                "estimated_copy_bytes": 0
+              },
+              "9-32": {
+                "copies": 0,
+                "estimated_copy_bytes": 0
+              }
+            },
+            "unit": "elements"
+          },
+          "estimated_copy_bytes": 66189688,
+          "in_place_updates": 209960,
+          "operations": 294457
+        },
+        "metric_limits": {
+          "allocation": "estimated guest-data budget charges, not host allocator calls",
+          "branches": "executed guest conditional branches, not hardware branch-misprediction counts"
+        },
+        "record_charges": {
+          "estimated_bytes": 19549886,
+          "events": 162722
+        },
+        "scope": "latest guest invocation"
+      }
+    },
+    "repeated_25": {
+      "cache_status": "bypassed",
+      "elapsed_seconds_including_process_startup": 0.28944308299105614,
+      "native_compilation_profile_total_ns": 20106166,
+      "program_execute_ns_includes_native_compilation": true,
+      "reported_phase_timings_ns": {
+        "artifact_runtime_load_ns": 1563666,
+        "cli_to_report_excluding_process_startup_ns": 281535458,
+        "compiler_pipeline": {
+          "compiler_backend": "rust",
+          "rust_compiler_compile_ns": 1200084
+        },
+        "input_artifact_decode_ns": null,
+        "native_compilation": {
+          "finalize_nanoseconds": 42833,
+          "functions": [
+            {
+              "bytecode_blocks": 4,
+              "bytecode_instructions": 11,
+              "cranelift_ir_blocks": 15,
+              "cranelift_ir_instructions": 229,
+              "define_nanoseconds": 357042,
+              "lowering_nanoseconds": 88250,
+              "name": "next_worker_count",
+              "verification_nanoseconds": 45917
+            },
+            {
+              "bytecode_blocks": 9,
+              "bytecode_instructions": 46,
+              "cranelift_ir_blocks": 31,
+              "cranelift_ir_instructions": 505,
+              "define_nanoseconds": 657875,
+              "lowering_nanoseconds": 74167,
+              "name": "xor_d008",
+              "verification_nanoseconds": 63000
+            },
+            {
+              "bytecode_blocks": 10,
+              "bytecode_instructions": 91,
+              "cranelift_ir_blocks": 50,
+              "cranelift_ir_instructions": 1009,
+              "define_nanoseconds": 1202666,
+              "lowering_nanoseconds": 179875,
+              "name": "route_packet",
+              "verification_nanoseconds": 108125
+            },
+            {
+              "bytecode_blocks": 103,
+              "bytecode_instructions": 796,
+              "cranelift_ir_blocks": 376,
+              "cranelift_ir_instructions": 6629,
+              "define_nanoseconds": 13038541,
+              "lowering_nanoseconds": 3475917,
+              "name": "benchmark_once",
+              "verification_nanoseconds": 771958
+            }
+          ]
+        },
+        "program_execute_ns": 278212375,
+        "source_compile_or_cache_ns": 1458166
+      },
+      "runtime_profile": {
+        "dynamic_guest_conditional_branch_executions": 38884476,
+        "estimated_guest_allocation_budget_charges": {
+          "estimated_gross_bytes": 2143839025,
+          "estimated_net_bytes": 2143839025,
+          "estimated_refunded_bytes": 0,
+          "successful_events": 6181179
+        },
+        "list_set": {
+          "copy_on_write_copies": 2112425,
+          "copy_size_histogram": {
+            "buckets": {
+              "0-8": {
+                "copies": 2112425,
+                "estimated_copy_bytes": 1654742200
+              },
+              "129+": {
+                "copies": 0,
+                "estimated_copy_bytes": 0
+              },
+              "33-128": {
+                "copies": 0,
+                "estimated_copy_bytes": 0
+              },
+              "9-32": {
+                "copies": 0,
+                "estimated_copy_bytes": 0
+              }
+            },
+            "unit": "elements"
+          },
+          "estimated_copy_bytes": 1654742200,
+          "in_place_updates": 5249000,
+          "operations": 7361425
+        },
+        "metric_limits": {
+          "allocation": "estimated guest-data budget charges, not host allocator calls",
+          "branches": "executed guest conditional branches, not hardware branch-misprediction counts"
+        },
+        "record_charges": {
+          "estimated_bytes": 488747150,
+          "events": 4068050
+        },
+        "scope": "latest guest invocation"
+      }
+    }
+  }
+}

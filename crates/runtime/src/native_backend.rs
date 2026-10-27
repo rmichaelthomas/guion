@@ -1230,12 +1230,6 @@ impl NativeBackend {
                         builder
                             .ins()
                             .store(MemFlagsData::new(), call_ip, trace_frame, 8);
-                        let unused_fuel = builder.use_var(fuel_var);
-                        builder
-                            .ins()
-                            .call(release_fuel, &[budget_pointer, unused_fuel]);
-                        let zero_fuel = builder.ins().iconst(types::I64, 0);
-                        builder.def_var(fuel_var, zero_fuel);
                         let child_depth = builder.ins().iadd_imm_s(depth_value, 1);
                         builder.ins().store(
                             MemFlagsData::new(),
@@ -1254,6 +1248,10 @@ impl NativeBackend {
                             .ins()
                             .brif(depth_exceeded, too_deep, &[], allowed_depth, &[]);
                         builder.switch_to_block(too_deep);
+                        let unused_fuel = builder.use_var(fuel_var);
+                        builder
+                            .ins()
+                            .call(release_fuel, &[budget_pointer, unused_fuel]);
                         let target_span = builder.ins().iconst(types::I64, 0);
                         let calls = builder.use_var(native_calls_var);
                         emit_exit(
@@ -1288,6 +1286,10 @@ impl NativeBackend {
                         builder.ins().brif(succeeded, success, &[], failure, &[]);
 
                         builder.switch_to_block(failure);
+                        let unused_fuel = builder.use_var(fuel_var);
+                        builder
+                            .ins()
+                            .call(release_fuel, &[budget_pointer, unused_fuel]);
                         let child_steps =
                             builder
                                 .ins()
@@ -2367,8 +2369,8 @@ fn bytecode_block_layout(
     Some((leader_indices, block_for_ip))
 }
 
-// Reserve enough fuel at function entry and loop headers for the longest
-// reachable path to the next header or return. Backedges make new regions.
+// Reserve enough fuel at function entry, call continuations, and loop headers
+// for the longest reachable path to the next boundary or return.
 fn fuel_reservation_requirements(
     function: &Function,
     leader_indices: &[Option<usize>],
@@ -2407,25 +2409,26 @@ fn fuel_reservation_requirements(
         let last_ip = (start..end)
             .rev()
             .find(|ip| block_for_ip.get(*ip).copied() == Some(block))?;
-        let mut add_successor = |target_ip: usize| -> Option<()> {
+        let mut add_successor = |target_ip: usize, force_region_start: bool| -> Option<()> {
             let target_block = *block_for_ip.get(target_ip)?;
             if !successors[block].contains(&target_block) {
                 successors[block].push(target_block);
             }
-            if target_ip <= last_ip {
+            if target_ip <= last_ip || force_region_start {
                 region_starts[target_block] = true;
             }
             Some(())
         };
 
         match &function.code[last_ip].op {
-            Op::Jump(target) => add_successor(*target)?,
+            Op::Jump(target) => add_successor(*target, false)?,
             Op::JumpIfFalse(target) => {
-                add_successor(*target)?;
-                add_successor(last_ip.checked_add(1)?)?;
+                add_successor(*target, false)?;
+                add_successor(last_ip.checked_add(1)?, false)?;
             }
+            Op::Call(_, _) => add_successor(last_ip.checked_add(1)?, true)?,
             Op::Return => {}
-            _ if last_ip + 1 < function.code.len() => add_successor(last_ip + 1)?,
+            _ if last_ip + 1 < function.code.len() => add_successor(last_ip + 1, false)?,
             _ => return None,
         }
     }
