@@ -3464,6 +3464,34 @@
       }
     },
     {
+      "id": "opcode-jsonsetlocal",
+      "kind": "opcode",
+      "name": "JsonSetLocal",
+      "owner_task": 3,
+      "source": "crates/model/src/lib.rs::Op",
+      "compiler_status": {
+        "bootstrap": "current_subset",
+        "self_hosted": "current_subset"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "opcode.jsonsetlocal.positive",
+          "state": "planned",
+          "owner_task": 3
+        },
+        "negative": {
+          "case_id": "opcode.jsonsetlocal.negative",
+          "state": "planned",
+          "owner_task": 3
+        },
+        "interaction": {
+          "case_id": "opcode.jsonsetlocal.interaction",
+          "state": "planned",
+          "owner_task": 3
+        }
+      }
+    },
+    {
       "id": "opcode-jsonset",
       "kind": "opcode",
       "name": "JsonSet",

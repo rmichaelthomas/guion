@@ -2445,6 +2445,29 @@ pub fn shared_json_push_local_allocation(value: &Arc<SharedJson>) -> usize {
     allocation
 }
 
+pub fn shared_json_set_local_allocation(value: &Arc<SharedJson>, key: &str) -> usize {
+    let SharedJson::Object(fields) = value.as_ref() else {
+        return 0;
+    };
+    let outer_shared = Arc::strong_count(value) > 1;
+    let mut allocation = if outer_shared {
+        size_of::<SharedJson>()
+    } else {
+        0
+    };
+    if outer_shared || Arc::strong_count(fields) > 1 {
+        allocation = allocation.saturating_add(size_of::<BTreeMap<String, Arc<SharedJson>>>());
+        for (existing_key, _) in fields.iter() {
+            allocation = allocation
+                .saturating_add(size_of::<String>() + existing_key.len())
+                .saturating_add(size_of::<Arc<SharedJson>>() * 3);
+        }
+    }
+    allocation
+        .saturating_add(size_of::<String>() + key.len())
+        .saturating_add(size_of::<Arc<SharedJson>>() * 3)
+}
+
 #[inline]
 pub fn value_matches(value: &Value, ty: &Type, records: &[guion_model::RecordDefinition]) -> bool {
     match (value, ty) {
@@ -2754,6 +2777,7 @@ pub fn verify(artifact: &Artifact) -> Result<(), RuntimeError> {
                 | Op::ListSetLocal(s)
                 | Op::ListPushLocal(s)
                 | Op::JsonPushLocal(s)
+                | Op::JsonSetLocal(s)
                     if s >= f.local_count =>
                 {
                     return Err(fail(format!(
@@ -3018,6 +3042,17 @@ fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result
                 }
                 if state.locals.get(*slot).and_then(Option::as_ref) != Some(&Type::Json) {
                     return Err(format!("json_push local is not Json at instruction {pc}"));
+                }
+            }
+            Op::JsonSetLocal(slot) => {
+                if pop_type(&mut state.stack, pc)? != Type::Json {
+                    return Err(format!("json_set value must be Json at instruction {pc}"));
+                }
+                if pop_type(&mut state.stack, pc)? != Type::Text {
+                    return Err(format!("json_set key must be Text at instruction {pc}"));
+                }
+                if state.locals.get(*slot).and_then(Option::as_ref) != Some(&Type::Json) {
+                    return Err(format!("json_set local is not Json at instruction {pc}"));
                 }
             }
             Op::ListSetLocal(slot) => {

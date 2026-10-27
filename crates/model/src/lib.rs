@@ -125,7 +125,7 @@ mod tests {
     }
 
     #[test]
-    fn task5_service_opcodes_and_resource_types_round_trip_only_in_format_37() {
+    fn task5_service_opcodes_and_resource_types_require_format_37_or_newer() {
         let operations = [
             Op::TextCaseFold,
             Op::TextCollapseWhitespace,
@@ -188,7 +188,7 @@ mod tests {
     }
 
     #[test]
-    fn byte_http_opcode_round_trips_only_in_format_38() {
+    fn byte_http_opcode_requires_format_38_or_newer() {
         let artifact = Artifact {
             format_version: Artifact::CURRENT_VERSION,
             build_metadata: None,
@@ -219,7 +219,7 @@ mod tests {
     }
 
     #[test]
-    fn clock_opcodes_round_trip_only_in_format_39() {
+    fn clock_opcodes_require_format_39_or_newer() {
         let artifact = Artifact {
             format_version: Artifact::CURRENT_VERSION,
             build_metadata: None,
@@ -264,7 +264,7 @@ mod tests {
     }
 
     #[test]
-    fn http_bytecode_round_trips_only_in_format_19() {
+    fn http_bytecode_requires_format_19_or_newer() {
         let artifact = Artifact {
             format_version: Artifact::CURRENT_VERSION,
             build_metadata: None,
@@ -305,7 +305,7 @@ mod tests {
     }
 
     #[test]
-    fn json_construction_bytecode_round_trips_only_in_format_20() {
+    fn json_construction_bytecode_requires_format_20_or_newer() {
         let artifact = Artifact {
             format_version: Artifact::CURRENT_VERSION,
             build_metadata: None,
@@ -346,7 +346,7 @@ mod tests {
     }
 
     #[test]
-    fn atomic_text_write_bytecode_round_trips_only_in_format_21() {
+    fn atomic_text_write_bytecode_requires_format_21_or_newer() {
         let artifact = Artifact {
             format_version: Artifact::CURRENT_VERSION,
             build_metadata: None,
@@ -1542,6 +1542,7 @@ pub enum Op {
     JsonProjectColumns,
     JsonTextCategoriesValues,
     JsonPushLocal(usize),
+    JsonSetLocal(usize),
     JsonErrorMessage,
     JsonErrorLine,
     JsonErrorColumn,
@@ -1694,7 +1695,7 @@ pub struct Artifact {
 }
 
 impl Artifact {
-    pub const CURRENT_VERSION: u32 = 40;
+    pub const CURRENT_VERSION: u32 = 41;
     pub fn entry(&self) -> &str {
         &self.entry
     }
@@ -1854,6 +1855,12 @@ impl Artifact {
             return Err(ArtifactError::new(
                 "E_ARTIFACT_VERSION",
                 "stable integer-key feed merging requires artifact format 40",
+            ));
+        }
+        if self.format_version < 41 && artifact_uses_json_set_local(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "in-place JSON object field updates require artifact format 41",
             ));
         }
         validate_sort_comparator_effects(self)
@@ -2073,6 +2080,10 @@ impl Artifact {
                     }
                     Op::JsonPushLocal(slot) => {
                         w.u8(104);
+                        w.count(*slot)?;
+                    }
+                    Op::JsonSetLocal(slot) => {
+                        w.u8(160);
                         w.count(*slot)?;
                     }
                     Op::BytesFromInts => w.u8(105),
@@ -2451,6 +2462,7 @@ impl Artifact {
                     157 => Op::TimeTodayLocal,
                     158 => Op::SortByIntKey(r.count()?),
                     159 => Op::MergeSortedByIntKey(r.count()?),
+                    160 => Op::JsonSetLocal(r.count()?),
                     _ => {
                         return Err(ArtifactError::new(
                             "E_ARTIFACT_OPCODE",
@@ -2695,6 +2707,12 @@ impl Artifact {
                 "stable integer-key feed merging requires artifact format 40",
             ));
         }
+        if format_version < 41 && artifact_uses_json_set_local(&artifact) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "in-place JSON object field updates require artifact format 41",
+            ));
+        }
         validate_sort_comparator_effects(&artifact)
             .map_err(|message| ArtifactError::new("E_SORT_EFFECT", message))?;
         Ok(artifact)
@@ -2905,6 +2923,15 @@ fn artifact_uses_json_push_local(artifact: &Artifact) -> bool {
             .code
             .iter()
             .any(|instruction| matches!(instruction.op, Op::JsonPushLocal(_)))
+    })
+}
+
+fn artifact_uses_json_set_local(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function
+            .code
+            .iter()
+            .any(|instruction| matches!(instruction.op, Op::JsonSetLocal(_)))
     })
 }
 

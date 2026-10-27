@@ -4,6 +4,7 @@ Changes are recorded here as the project moves toward its first release. No publ
 
 ## Unreleased — pre-release development
 
+- Added format-41 `JsonSetLocal` bytecode for alias-safe, copy-on-write local JSON-object updates; added a fast artifact-format assertion audit that runs before long validation gates.
 - Renamed active product surfaces from Veritas to Guion: CLI, Cargo packages, source and artifact extensions, project filenames, examples, standard library, compiler seed, and packaging tools.
 - Added transition reads for selected legacy Veritas manifests, locks, project state, source files, and existing artifacts.
 - Added a Guion-named acceptance-report cohort for nine retained applications; the frozen Veritas evidence remains unchanged.

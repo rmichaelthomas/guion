@@ -2514,6 +2514,38 @@ impl<'a> FnCompiler<'a> {
                         }
                         _ => None,
                     };
+                    let optimized_json_set = match value {
+                        Expr::Call(call, args, keywords, _)
+                            if call == "json_set"
+                                && keywords.is_empty()
+                                && args.len() == 3
+                                && matches!(&args[0], Expr::Name(source, _) if source == name) =>
+                        {
+                            if local.ty != Type::Json {
+                                return Err(diagnostic(
+                                    "E_TYPE_ASSIGN",
+                                    "json_set assignment requires a Json local",
+                                    *span,
+                                ));
+                            }
+                            if self.expr_with_expected(&args[1], Some(&Type::Text))? != Type::Text {
+                                return Err(diagnostic(
+                                    "E_TYPE_ARGUMENT",
+                                    "json_set key must be Text",
+                                    args[1].span(),
+                                ));
+                            }
+                            if self.expr_with_expected(&args[2], Some(&Type::Json))? != Type::Json {
+                                return Err(diagnostic(
+                                    "E_TYPE_ARGUMENT",
+                                    "json_set value must be Json",
+                                    args[2].span(),
+                                ));
+                            }
+                            Some(Op::JsonSetLocal(local.slot))
+                        }
+                        _ => None,
+                    };
                     let optimized_list_set = match value {
                         Expr::Call(call, args, keywords, _)
                             if call == "list_set"
@@ -2548,8 +2580,9 @@ impl<'a> FnCompiler<'a> {
                     };
                     let optimized_local_list_update =
                         optimized_list_push.is_some() || optimized_list_set.is_some();
-                    let optimized_local_update =
-                        optimized_local_list_update || optimized_json_push.is_some();
+                    let optimized_local_update = optimized_local_list_update
+                        || optimized_json_push.is_some()
+                        || optimized_json_set.is_some();
                     let ty = if optimized_local_update {
                         local.ty.clone()
                     } else {
@@ -2563,7 +2596,8 @@ impl<'a> FnCompiler<'a> {
                         ));
                     }
                     self.emit(
-                        optimized_json_push
+                        optimized_json_set
+                            .or(optimized_json_push)
                             .or(optimized_list_push)
                             .or(optimized_list_set)
                             .unwrap_or(Op::Store(local.slot)),

@@ -788,6 +788,17 @@ fn is_local_json_push(value: Json, name: Text) -> Bool:
     let first = json_index(arguments, 0)
     return json_as_text(json_get(first, "kind")) == "Name" and json_as_text(json_get(first, "text")) == name
 
+fn is_local_json_set(value: Json, name: Text) -> Bool:
+    if json_as_text(json_get(value, "kind")) != "Call":
+        return false
+    if json_as_text(json_get(value, "callee")) != "json_set":
+        return false
+    let arguments = json_get(value, "arguments")
+    if json_len(arguments) != 3:
+        return false
+    let first = json_index(arguments, 0)
+    return json_as_text(json_get(first, "kind")) == "Name" and json_as_text(json_get(first, "text")) == name
+
 fn is_local_list_push(value: Json, name: Text) -> Bool:
     if json_as_text(json_get(value, "kind")) != "Call":
         return false
@@ -1170,22 +1181,30 @@ fn compile_statement(statement: Json, state: CompilerState, functions: List[Func
         assert(slot >= 0)
         let value_node = json_get(statement, "value")
         var next_code = code
-        if local_type(locals, name) == "Json" and is_local_json_push(value_node, name):
+        if local_type(locals, name) == "Json" and is_local_json_set(value_node, name):
             let arguments = json_get(value_node, "arguments")
-            let item = expression(json_index(arguments, 1), state, functions, records, "Json")
-            set next_code = append_code(code, expression_code(item))
-            set next_code = append_code(next_code, singleton(ir_integer("JsonPushLocal", "local", slot)))
+            let key = expression(json_index(arguments, 1), state, functions, records, "Text")
+            let item = expression(json_index(arguments, 2), state, functions, records, "Json")
+            set next_code = append_code(code, expression_code(key))
+            set next_code = append_code(next_code, expression_code(item))
+            set next_code = append_code(next_code, singleton(ir_integer("JsonSetLocal", "local", slot)))
         else:
-            if is_local_list_push(value_node, name):
+            if local_type(locals, name) == "Json" and is_local_json_push(value_node, name):
                 let arguments = json_get(value_node, "arguments")
-                let item_type = list_element_type(local_type(locals, name), records)
-                let item = expression(json_index(arguments, 1), state, functions, records, item_type)
+                let item = expression(json_index(arguments, 1), state, functions, records, "Json")
                 set next_code = append_code(code, expression_code(item))
-                set next_code = append_code(next_code, singleton(ir_integer("ListPushLocal", "local", slot)))
+                set next_code = append_code(next_code, singleton(ir_integer("JsonPushLocal", "local", slot)))
             else:
-                let value = expression(value_node, state, functions, records, local_type(locals, name))
-                set next_code = append_code(code, expression_code(value))
-                set next_code = append_code(next_code, singleton(ir_integer("Store", "local", slot)))
+                if is_local_list_push(value_node, name):
+                    let arguments = json_get(value_node, "arguments")
+                    let item_type = list_element_type(local_type(locals, name), records)
+                    let item = expression(json_index(arguments, 1), state, functions, records, item_type)
+                    set next_code = append_code(code, expression_code(item))
+                    set next_code = append_code(next_code, singleton(ir_integer("ListPushLocal", "local", slot)))
+                else:
+                    let value = expression(value_node, state, functions, records, local_type(locals, name))
+                    set next_code = append_code(code, expression_code(value))
+                    set next_code = append_code(next_code, singleton(ir_integer("Store", "local", slot)))
         return state_with_code(state, next_code)
     if kind == "Return":
         var next_code = append_code(code, expression_code(expression(json_get(statement, "value"), state, functions, records, state.return_type)))

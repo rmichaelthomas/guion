@@ -2568,7 +2568,10 @@ fn build_json_reports_artifact_identity_and_source_diagnostics() {
     assert_eq!(report["schema_version"], 1);
     assert_eq!(report["source"], source.to_string_lossy().as_ref());
     assert_eq!(report["artifact"], artifact.to_string_lossy().as_ref());
-    assert_eq!(report["artifact_format"], 39);
+    assert_eq!(
+        report["artifact_format"],
+        guion_model::Artifact::CURRENT_VERSION
+    );
     assert_eq!(
         report["artifact_size_bytes"],
         fs::metadata(&artifact).unwrap().len()

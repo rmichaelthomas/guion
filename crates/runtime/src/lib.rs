@@ -6,8 +6,8 @@ pub use guion_vm_core::CancellationToken;
 use guion_vm_core::{
     charge_allocation, check_call_depth, cloned_value_allocation, finish_json_value,
     finish_shared_json, json_exact_integer, new_vm_frame, shared_json_push_local_allocation,
-    value_matches, verify, Budget, FrameStart, HostOpContext, OutputStream, RuntimeProfileCounters,
-    VmFrame, VmHost, VmLimits,
+    shared_json_set_local_allocation, value_matches, verify, Budget, FrameStart, HostOpContext,
+    OutputStream, RuntimeProfileCounters, VmFrame, VmHost, VmLimits,
 };
 use std::{
     borrow::Cow,
@@ -720,6 +720,77 @@ impl VmHost for Instance {
                     .as_array_mut()
                     .expect("array type was checked before copy-on-write")
                     .push(value);
+                if let Some(error) = value_limit_error(local, &self.policy, instruction.span) {
+                    return Err(error);
+                }
+            }
+            Op::JsonSetLocal(slot) => {
+                let value = match pop!() {
+                    Value::Json(value) => value,
+                    _ => {
+                        return Err(RuntimeError::new(
+                            "R_TYPE_INVALID",
+                            "json_set value must be Json",
+                            instruction.span,
+                        ))
+                    }
+                };
+                let key = match pop!() {
+                    Value::Text(key) => key,
+                    _ => {
+                        return Err(RuntimeError::new(
+                            "R_TYPE_INVALID",
+                            "json_set key must be Text",
+                            instruction.span,
+                        ))
+                    }
+                };
+                if key.len() > self.policy.max_text_bytes {
+                    return Err(RuntimeError::new(
+                        "R_TEXT_LIMIT",
+                        "JSON key exceeds the configured byte limit",
+                        instruction.span,
+                    ));
+                }
+                let local = locals.get_mut(slot).ok_or_else(|| {
+                    RuntimeError::new(
+                        "R_LOCAL_UNINITIALIZED",
+                        "json_set assignment targets an uninitialized local",
+                        instruction.span,
+                    )
+                })?;
+                let Value::Json(object) = local else {
+                    return Err(RuntimeError::new(
+                        "R_TYPE_INVALID",
+                        "json_set assignment target must be Json",
+                        instruction.span,
+                    ));
+                };
+                let Some(fields) = object.as_object() else {
+                    return Err(RuntimeError::new(
+                        "R_JSON_TYPE",
+                        "json_set requires an object",
+                        instruction.span,
+                    ));
+                };
+                if !fields.contains_key(key.as_ref())
+                    && fields.len() >= self.policy.max_collection_items
+                {
+                    return Err(RuntimeError::new(
+                        "R_COLLECTION_LIMIT",
+                        "JSON object exceeds the configured item limit",
+                        instruction.span,
+                    ));
+                }
+                charge_allocation(
+                    budget.as_ref(),
+                    shared_json_set_local_allocation(object, &key),
+                    instruction.span,
+                )?;
+                Arc::make_mut(object)
+                    .as_object_mut()
+                    .expect("object type was checked before copy-on-write")
+                    .insert(key.to_string(), value);
                 if let Some(error) = value_limit_error(local, &self.policy, instruction.span) {
                     return Err(error);
                 }

@@ -304,6 +304,9 @@ fn parse_instruction(
         "JsonPushLocal" => {
             Op::JsonPushLocal(required_usize(object.get("local"), "JsonPushLocal.local")?)
         }
+        "JsonSetLocal" => {
+            Op::JsonSetLocal(required_usize(object.get("local"), "JsonSetLocal.local")?)
+        }
         "JsonSet" => Op::JsonSet,
         "JsonGet" => Op::JsonGet,
         "JsonIndex" => Op::JsonIndex,

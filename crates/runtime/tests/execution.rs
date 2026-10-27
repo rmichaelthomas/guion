@@ -147,11 +147,11 @@ fn text_chars_reuses_immutable_storage_for_ascii_scalars() {
 }
 
 #[test]
-fn bounded_byte_construction_primitives_remain_compatible_with_format_34() {
+fn bounded_byte_construction_primitives_require_format_34_or_newer() {
     let source = "fn main() -> Int:\n    let raw = bytes_from_ints([0, 255])\n    let utf8 = bytes_from_text(\"é\")\n    let joined = bytes_join([raw, utf8])\n    print(len(joined))\n    print(float64_bits(1.0))\n    return 0\n";
     let artifact =
         compile("artifact-byte-primitives.gu", source).expect("byte construction source compiles");
-    assert_eq!(artifact.format_version, 39);
+    assert_eq!(artifact.format_version, Artifact::CURRENT_VERSION);
     let mut previous_format = artifact.clone();
     previous_format.format_version = 33;
     assert_eq!(
@@ -606,6 +606,32 @@ fn optimized_list_push_preserves_older_shared_aliases() {
         .code
         .iter()
         .any(|instruction| matches!(instruction.op, Op::ListPushLocal(_))));
+    let mut instance = Runtime::new()
+        .load(artifact, HostPolicy::default())
+        .unwrap();
+
+    instance.invoke("main", vec![]).unwrap();
+}
+
+#[test]
+fn mutable_json_object_set_is_local_and_preserves_aliases() {
+    let source = "fn main() -> Int:\n    var value = json_object()\n    set value = json_set(value, \"left\", json_text(\"old\"))\n    let previous = value\n    set value = json_set(value, \"right\", json_text(\"new\"))\n    assert(json_has(previous, \"right\") == false)\n    assert(json_stringify(value) == \"{\\\"left\\\":\\\"old\\\",\\\"right\\\":\\\"new\\\"}\")\n    return 0\n";
+    let artifact = compile("json-set-local.gu", source).unwrap();
+    assert!(artifact.functions[0]
+        .code
+        .iter()
+        .any(|instruction| matches!(instruction.op, Op::JsonSetLocal(_))));
+    assert_eq!(artifact.format_version, Artifact::CURRENT_VERSION);
+    let artifact = Artifact::from_bytes(&artifact.to_bytes().unwrap()).unwrap();
+    let mut legacy = artifact.clone();
+    legacy.format_version = 40;
+    assert_eq!(legacy.to_bytes().unwrap_err().code, "E_ARTIFACT_VERSION");
+    let mut legacy_bytes = artifact.to_bytes().unwrap();
+    legacy_bytes[4..8].copy_from_slice(&40u32.to_be_bytes());
+    assert_eq!(
+        Artifact::from_bytes(&legacy_bytes).unwrap_err().code,
+        "E_ARTIFACT_VERSION"
+    );
     let mut instance = Runtime::new()
         .load(artifact, HostPolicy::default())
         .unwrap();

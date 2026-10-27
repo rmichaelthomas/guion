@@ -570,6 +570,8 @@ fn ab_plain_opcode(name: Text) -> Int:
         return 158
     if name == "MergeSortedByIntKey":
         return 159
+    if name == "JsonSetLocal":
+        return 160
     if name == "TextCaseFold":
         return 133
     if name == "TextCollapseWhitespace":
@@ -626,7 +628,7 @@ fn ab_instruction(instruction: Json, pc: Int, functions: Json, records: Json, ex
     if tag < 0:
         return ab_u8(255)
     var parts: List[Bytes] = [ab_instruction_span(instruction, pc, source_id), ab_u8(tag)]
-    if name == "Load" or name == "Store" or name == "MakeList" or name == "MakeMap" or name == "ListSetLocal" or name == "ListPushLocal" or name == "JsonPushLocal":
+    if name == "Load" or name == "Store" or name == "MakeList" or name == "MakeMap" or name == "ListSetLocal" or name == "ListPushLocal" or name == "JsonPushLocal" or name == "JsonSetLocal":
         var field = "local"
         if name == "MakeList" or name == "MakeMap":
             set field = "count"
@@ -739,7 +741,7 @@ pub fn artifact_assemble(ir: Json) -> Bytes:
     let records = json_get(ir, "records")
     let externals = json_get(ir, "externals")
     let functions = json_get(ir, "functions")
-    var parts: List[Bytes] = [bytes_from_text("VRTA"), ab_u32(40), ab_string(source_name), ab_string(entry), ab_count(json_len(sources))]
+    var parts: List[Bytes] = [bytes_from_text("VRTA"), ab_u32(41), ab_string(source_name), ab_string(entry), ab_count(json_len(sources))]
     var cursor = 0
     while cursor < json_len(sources):
         set parts = list_push(parts, ab_string(json_as_text(json_index(sources, cursor))))
