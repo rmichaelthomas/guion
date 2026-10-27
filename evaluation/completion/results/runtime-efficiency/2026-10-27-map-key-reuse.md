@@ -39,6 +39,12 @@ The complete nine-app acceptance rerun passed **127/127** cases in both Guion an
 
 A separate seven-pair run measured this candidate against the existing Python reference on the same selected frozen case for each application. Every output passed its oracle. Guion/Python median ratios were: SLA report **0.173**, JSONL summary **0.165**, release notes **0.254**, calendar conflicts **0.660**, webhook replay **0.197**, service health **0.841**, config migrator **0.136**, document index **0.182**, and lockfile audit **0.167**. These ratios describe the named implementations and cases, not general language performance. Full timings and intervals are in the [current Python comparison](../real-task-sprint/2026-10-27-map-key-reuse-nine-task-python-comparison.json).
 
+### Post-commit confirmation
+
+After commit `901db22`, a fresh seven-pair run repeated the Guion/Python comparison. The Guion/Python median ratios were: SLA report **0.170** (95% interval 0.167–0.174), JSONL summary **0.157** (0.154–0.161), release notes **0.264** (0.237–0.282), calendar conflicts **0.649** (0.630–0.664), webhook replay **0.206** (0.199–0.211), service health **0.837** (0.822–0.841), config migrator **0.136** (0.135–0.141), document index **0.184** (0.164–0.190), and lockfile audit **0.173** (0.164–0.178). Every measured output passed its oracle. This confirms the selected-task comparisons on the committed build; it is not a general comparison of the languages. See the [post-commit timing data](../real-task-sprint/2026-10-27-map-key-reuse-postcommit-nine-task-python-comparison.json).
+
+Three further sequential agent evaluations used the committed build and these fresh timings. All three chose Guion, unchanged from the prior **3/3** result, which was already the maximum possible score. Guion and Python passed all 10 health-digest cases, all 17 lockfile-auditor cases (43 checks), and all 9 webhook-replay cases (98 checks). This remains an exploratory, unblinded study across three related tasks, not a broad adoption measure. Full prompts, choices, acceptance results, and traces are in the [preference-study summary](../real-task-sprint/agent-choice/summary.json) and its neighboring files.
+
 ## Verification and limits
 
 - `cargo test -p guion-vm-core --locked --offline --jobs 2`: passed, including the key-storage test and 7 portable execution tests.

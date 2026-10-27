@@ -1,18 +1,5 @@
 {
-  "schema_version": 2,
   "choice": "Guion",
-  "rationale": "Both implementations passed all 9 cases and 98 checks. Guion expresses delivery state changes with SQLite transactions and records retry failures as dead letters with categories and attempt details. Guion measured 0.151560 seconds versus Python at 0.767109 seconds on the selected case.",
-  "task": "Build a small durable notification relay that validates incoming payloads, records their state, retries delivery, and reports failures to an operator.",
-  "trial_observation": "Seven randomized pairs: Guion 0.151560s, Python 0.767109s; ratio 0.198. Both passed 9/9 cases and 98/98 checks. Candidate/previous Guion ratio 0.981 (95% interval 0.971–1.016).",
-  "acceptance_outcome": {
-    "passed": true,
-    "cases": 9,
-    "checks_passed": 98,
-    "checks_total": 98
-  },
-  "caveat": "This measures a frozen application case with oracle-check time, not deployed end-to-end relay performance. The candidate/previous-build interval crosses parity.",
-  "study_commit": "709b2d5",
-  "guion_sha256": "a8728d613aaf43c3f81ed0fedc5d59fa49ea38709da2067a264d8b2bad55e65d",
-  "timing_evidence": "../2026-10-27-ascii-text-scalar-nine-task-comparison.json",
-  "direct_build_comparison": "../2026-10-27-ascii-text-scalar-nine-task-head-to-head.json"
+  "rationale": "Both variants passed the same functional checks. Guion closely matches the relay flow with HMAC and payload validation, SQLite state, retries, and dead-letter reporting. On the seven-trial frozen case, its median was 0.157246s versus Python\u2019s 0.756934s. That timing includes process and oracle-check time, so I treat it as workload-specific evidence, not a throughput forecast.",
+  "trial_observation": "The acceptance command exited successfully. Both implementations passed all 9 cases and 98/98 checks, including malformed payloads, invalid secrets, retry limits, and dead-letter reporting."
 }

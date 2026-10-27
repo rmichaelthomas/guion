@@ -1,18 +1,5 @@
 {
-  "schema_version": 2,
   "choice": "Guion",
-  "rationale": "Both languages passed all 10 acceptance cases. The Guion implementation supports concurrent probes, per-request timeouts, and JSON plus human-readable output; the Python reference uses a thread pool and deadline-bounded reads.",
-  "task": "Build an internal inventory of device endpoints, querying each concurrently under a hard deadline and writing a human-readable health digest.",
-  "trial_observation": "Seven randomized pairs: Guion 0.537813s, Python 0.642550s; ratio 0.840 (95% interval 0.828–0.845). Both passed 10/10 cases.",
-  "acceptance_outcome": {
-    "passed": true,
-    "cases": 10,
-    "initial": 6,
-    "follow_up": 4
-  },
-  "caveat": "The fixed network timeout dominates this selected case. The preference result is exploratory and unblinded.",
-  "study_commit": "709b2d5",
-  "guion_sha256": "a8728d613aaf43c3f81ed0fedc5d59fa49ea38709da2067a264d8b2bad55e65d",
-  "timing_evidence": "../2026-10-27-ascii-text-scalar-nine-task-comparison.json",
-  "direct_build_comparison": "../2026-10-27-ascii-text-scalar-nine-task-head-to-head.json"
+  "rationale": "It closely matches the tested workload: bounded concurrent probes, request timeouts, response validation, and JSON plus text output. A compiled binary also fits repeated runs on one controlled host. The measured speed edge supports the choice, but it is only evidence from one case.",
+  "trial_observation": "The exact acceptance command exited 0; all 10 cases passed in both implementations, including bounded concurrency and the slow-trickle timeout case. In the supplied seven-pair measurement for health-mixed-results-and-cap, median time was 0.540193 s for Guion and 0.646912 s for Python (about 16% lower for Guion). Those timings include process and oracle-check time, so they describe that frozen case rather than general runtime performance. The suite does not establish a single hard deadline for the entire inventory if that is what the new task requires."
 }
