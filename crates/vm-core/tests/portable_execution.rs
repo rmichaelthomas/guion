@@ -53,6 +53,33 @@ fn pure_computation_uses_loops_and_arithmetic() {
 }
 
 #[test]
+fn local_resolver_signature_verifies_with_the_portable_vm_stack_types() {
+    use std::{collections::HashMap, fs, path::PathBuf};
+
+    let root = std::env::temp_dir().join(format!(
+        "guion-vm-temporal-types-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    fs::create_dir_all(&root).unwrap();
+    let entry = root.join("main.gu");
+    fs::write(
+        &entry,
+        "import \"std:time\"\nfn main() -> Int:\n    let resolution = unwrap(resolve_local(LocalDateTime(2026, 11, 1, 1, 30, 0, 0), \"America/Los_Angeles\"))\n    return len(resolution.instants)\n",
+    )
+    .unwrap();
+    let stdlib = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../language/stdlib");
+    let artifact =
+        guion_compiler::compile_project_with_roots(&entry, &root, Some(&stdlib), &HashMap::new())
+            .expect("local resolver source compiles");
+    guion_vm_core::verify(&artifact).expect("resolver stack types verify in portable VM");
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
 fn function_calls_recurse_and_return() {
     let source = "fn fib(n: Int) -> Int:\n    if n < 2:\n        return n\n    return fib(n - 1) + fib(n - 2)\n\nfn main() -> Int:\n    return fib(10)\n";
     let mut host = PortableHost::new(artifact_from_source("fib.gu", source), VmLimits::default());

@@ -2,7 +2,7 @@
 
 - **Owner:** `rmichaelthomas/guion`, `crates/vm-wasm`
 - **Status:** ABI 1.0 is implemented on `codex/guion-browser-abi-contract`; release/merge is coordinated by the parent task.
-- **Artifact format:** independent from the WebAssembly ABI. Current `.gub` format is version 40.
+- **Artifact format:** independent from the WebAssembly ABI. Current `.gub` format is version 42.
 
 ## Exports and compatibility
 

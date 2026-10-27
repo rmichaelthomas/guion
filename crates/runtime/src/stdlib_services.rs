@@ -71,6 +71,145 @@ impl std::fmt::Display for ServiceError {
 
 impl std::error::Error for ServiceError {}
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct LocalDateTime {
+    pub year: i64,
+    pub month: i64,
+    pub day: i64,
+    pub hour: i64,
+    pub minute: i64,
+    pub second: i64,
+    pub microsecond: i64,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TemporalResolution {
+    pub kind: &'static str,
+    pub local: LocalDateTime,
+    pub timezone: String,
+    pub unix_microseconds: Vec<i64>,
+}
+
+unsafe extern "C" {
+    fn guion_time_resolve_local(
+        year: i32,
+        month: i32,
+        day: i32,
+        hour: i32,
+        minute: i32,
+        second: i32,
+        microsecond: i32,
+        tzid: *const std::ffi::c_char,
+        candidate_count: *mut i32,
+        candidate0: *mut i64,
+        candidate1: *mut i64,
+        error_code: *mut std::ffi::c_char,
+        error_code_capacity: usize,
+        error: *mut std::ffi::c_char,
+        error_capacity: usize,
+    ) -> i32;
+}
+
+pub fn resolve_local_time(
+    local: LocalDateTime,
+    timezone: &str,
+) -> Result<TemporalResolution, ServiceError> {
+    let as_c_int = |value: i64, code: &str, field: &str| {
+        i32::try_from(value).map_err(|_| {
+            ServiceError::new(
+                code,
+                format!("{field} is outside the supported integer range"),
+            )
+        })
+    };
+    let year = as_c_int(local.year, "E_DATE", "year")?;
+    let month = as_c_int(local.month, "E_DATE", "month")?;
+    let day = as_c_int(local.day, "E_DATE", "day")?;
+    let hour = as_c_int(local.hour, "E_TIME", "hour")?;
+    let minute = as_c_int(local.minute, "E_TIME", "minute")?;
+    let second = as_c_int(local.second, "E_TIME", "second")?;
+    let microsecond = as_c_int(local.microsecond, "E_TIME", "microsecond")?;
+    let timezone_c = std::ffi::CString::new(timezone).map_err(|_| {
+        ServiceError::new(
+            "E_TIMEZONE_UNKNOWN",
+            "time zone identifier contains a NUL byte",
+        )
+    })?;
+    let mut candidate_count = 0;
+    let mut candidate_seconds = [0i64; 2];
+    let mut error_code = [0 as std::ffi::c_char; 64];
+    let mut error = [0 as std::ffi::c_char; 256];
+    let result = unsafe {
+        guion_time_resolve_local(
+            year,
+            month,
+            day,
+            hour,
+            minute,
+            second,
+            microsecond,
+            timezone_c.as_ptr(),
+            &mut candidate_count,
+            &mut candidate_seconds[0],
+            &mut candidate_seconds[1],
+            error_code.as_mut_ptr(),
+            error_code.len(),
+            error.as_mut_ptr(),
+            error.len(),
+        )
+    };
+    if result != 0 {
+        let code = unsafe { std::ffi::CStr::from_ptr(error_code.as_ptr()) }
+            .to_string_lossy()
+            .into_owned();
+        let message = unsafe { std::ffi::CStr::from_ptr(error.as_ptr()) }
+            .to_string_lossy()
+            .into_owned();
+        return Err(ServiceError::new(
+            if code.is_empty() {
+                "E_TIMEZONE_DATA"
+            } else {
+                &code
+            },
+            message,
+        ));
+    }
+    let count = usize::try_from(candidate_count)
+        .ok()
+        .filter(|count| *count <= 2)
+        .ok_or_else(|| {
+            ServiceError::new(
+                "E_TIMEZONE_DATA",
+                "native timezone resolver returned an invalid candidate count",
+            )
+        })?;
+    let mut unix_microseconds = Vec::with_capacity(count);
+    for seconds in candidate_seconds.into_iter().take(count) {
+        let micros = seconds
+            .checked_mul(1_000_000)
+            .and_then(|value| value.checked_add(local.microsecond))
+            .ok_or_else(|| {
+                ServiceError::new(
+                    "E_TIME_RANGE",
+                    "resolved instant is outside the supported microsecond range",
+                )
+            })?;
+        unix_microseconds.push(micros);
+    }
+    let kind = match count {
+        0 => "gap",
+        1 => "exact",
+        2 => "fold",
+        _ => unreachable!(),
+    };
+    Ok(TemporalResolution {
+        kind,
+        local,
+        timezone: timezone.to_owned(),
+        unix_microseconds,
+    })
+}
+
 pub fn crypto_hmac_sha256(key: &[u8], body: &[u8]) -> Vec<u8> {
     let mut mac = HmacSha256::new_from_slice(key).expect("HMAC accepts keys of every size");
     mac.update(body);
@@ -1183,29 +1322,30 @@ fn wrong_toml_type(expected: &str, path: &[&str]) -> ServiceError {
 pub struct CalendarEvent {
     pub uid: String,
     pub summary: String,
-    pub status: String,
-    pub all_day: bool,
-    pub start_unix_seconds: Option<i64>,
-    pub end_unix_seconds: Option<i64>,
+    pub start_resolution: Option<TemporalResolution>,
+    pub end_resolution: Option<TemporalResolution>,
     pub start_date: Option<(i32, u8, u8)>,
     pub end_date: Option<(i32, u8, u8)>,
+    pub status: String,
+    pub all_day: bool,
     pub recurrence_rule: Option<String>,
 }
 
-impl CalendarEvent {
-    pub fn timed(uid: &str, summary: &str, start: i64, end: i64) -> Self {
-        Self {
-            uid: uid.to_owned(),
-            summary: summary.to_owned(),
-            status: "CONFIRMED".to_owned(),
-            all_day: false,
-            start_unix_seconds: Some(start),
-            end_unix_seconds: Some(end),
-            start_date: None,
-            end_date: None,
-            recurrence_rule: None,
-        }
-    }
+#[repr(C)]
+#[derive(Clone, Copy, Default)]
+struct IcalCalendarTime {
+    is_date: i32,
+    year: i32,
+    month: i32,
+    day: i32,
+    hour: i32,
+    minute: i32,
+    second: i32,
+    microsecond: i32,
+    timezone: *const std::ffi::c_char,
+    candidate_count: i32,
+    candidate0: i64,
+    candidate1: i64,
 }
 
 unsafe extern "C" {
@@ -1224,14 +1364,8 @@ unsafe extern "C" {
         status: *mut *const std::ffi::c_char,
         rrule: *mut *mut std::ffi::c_char,
         all_day: *mut i32,
-        start_seconds: *mut i64,
-        end_seconds: *mut i64,
-        start_year: *mut i32,
-        start_month: *mut i32,
-        start_day: *mut i32,
-        end_year: *mut i32,
-        end_month: *mut i32,
-        end_day: *mut i32,
+        start: *mut IcalCalendarTime,
+        end: *mut IcalCalendarTime,
         error: *mut std::ffi::c_char,
         error_capacity: usize,
     ) -> i32;
@@ -1291,14 +1425,8 @@ pub fn calendar_parse(source: &str) -> Result<Vec<CalendarEvent>, ServiceError> 
         let mut status = std::ptr::null();
         let mut recurrence = std::ptr::null_mut();
         let mut all_day = 0;
-        let mut start_seconds = 0i64;
-        let mut end_seconds = 0i64;
-        let mut start_year = 0;
-        let mut start_month = 0;
-        let mut start_day = 0;
-        let mut end_year = 0;
-        let mut end_month = 0;
-        let mut end_day = 0;
+        let mut start = IcalCalendarTime::default();
+        let mut end = IcalCalendarTime::default();
         error.fill(0);
         let result = unsafe {
             guion_ical_event(
@@ -1309,14 +1437,8 @@ pub fn calendar_parse(source: &str) -> Result<Vec<CalendarEvent>, ServiceError> 
                 &mut status,
                 &mut recurrence,
                 &mut all_day,
-                &mut start_seconds,
-                &mut end_seconds,
-                &mut start_year,
-                &mut start_month,
-                &mut start_day,
-                &mut end_year,
-                &mut end_month,
-                &mut end_day,
+                &mut start,
+                &mut end,
                 error.as_mut_ptr(),
                 error.len(),
             )
@@ -1326,7 +1448,7 @@ pub fn calendar_parse(source: &str) -> Result<Vec<CalendarEvent>, ServiceError> 
             let message = unsafe { std::ffi::CStr::from_ptr(error.as_ptr()) }
                 .to_string_lossy()
                 .into_owned();
-            let code = if message.contains("UID") {
+            let code = if message.contains("requires a non-empty UID") {
                 "E_ICAL_UID"
             } else if message.contains("floating") {
                 "E_ICAL_FLOATING"
@@ -1368,27 +1490,80 @@ pub fn calendar_parse(source: &str) -> Result<Vec<CalendarEvent>, ServiceError> 
             )
         };
         let is_all_day = all_day != 0;
-        let (start, end, start_date, end_date) = if is_all_day {
+        let (start_resolution, end_resolution, start_date, end_date) = if is_all_day {
             (
                 None,
                 None,
-                Some((start_year, start_month as u8, start_day as u8)),
-                Some((end_year, end_month as u8, end_day as u8)),
+                Some((start.year, start.month as u8, start.day as u8)),
+                Some((end.year, end.month as u8, end.day as u8)),
             )
         } else {
-            (Some(start_seconds), Some(end_seconds), None, None)
+            (
+                Some(ical_calendar_resolution(start)?),
+                Some(ical_calendar_resolution(end)?),
+                None,
+                None,
+            )
         };
         events.push(CalendarEvent {
             uid: text(uid, "UID")?,
             summary: text(summary, "SUMMARY")?,
-            status: text(status, "STATUS")?,
-            all_day: is_all_day,
-            start_unix_seconds: start,
-            end_unix_seconds: end,
+            start_resolution,
+            end_resolution,
             start_date,
             end_date,
+            status: text(status, "STATUS")?,
+            all_day: is_all_day,
             recurrence_rule,
         });
     }
     Ok(events)
+}
+
+fn ical_calendar_resolution(time: IcalCalendarTime) -> Result<TemporalResolution, ServiceError> {
+    let kind = match time.candidate_count {
+        0 => "gap",
+        1 => "exact",
+        2 => "fold",
+        _ => {
+            return Err(ServiceError::new(
+                "E_ICAL_TIMEZONE",
+                "native calendar parser returned an invalid candidate count",
+            ))
+        }
+    };
+    if time.timezone.is_null() {
+        return Err(ServiceError::new(
+            "E_ICAL_TIMEZONE",
+            "timed calendar value has no timezone identifier",
+        ));
+    }
+    let timezone = unsafe { std::ffi::CStr::from_ptr(time.timezone) }
+        .to_str()
+        .map(str::to_owned)
+        .map_err(|_| ServiceError::new("E_ICAL_UTF8", "calendar timezone is not valid UTF-8"))?;
+    let seconds = [time.candidate0, time.candidate1];
+    let mut unix_microseconds = Vec::with_capacity(time.candidate_count as usize);
+    for second in seconds.into_iter().take(time.candidate_count as usize) {
+        unix_microseconds.push(second.checked_mul(1_000_000).ok_or_else(|| {
+            ServiceError::new(
+                "E_TIME_RANGE",
+                "calendar instant exceeds the supported range",
+            )
+        })?);
+    }
+    Ok(TemporalResolution {
+        kind,
+        local: LocalDateTime {
+            year: i64::from(time.year),
+            month: i64::from(time.month),
+            day: i64::from(time.day),
+            hour: i64::from(time.hour),
+            minute: i64::from(time.minute),
+            second: i64::from(time.second),
+            microsecond: i64::from(time.microsecond),
+        },
+        timezone,
+        unix_microseconds,
+    })
 }

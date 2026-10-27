@@ -22,13 +22,33 @@ record CalendarFetch:
     error: Text
     events: List[CalendarEvent]
     intervals: List[EventRange]
+    temporal_reviews: List[Json]
     has_events: Bool
     events_in_order: Bool
     min_start_us: Int
     max_end_us: Int
 
 fn failed_source(name: Text, category: Text) -> CalendarFetch:
-    return CalendarFetch(name, category, [], [], false, true, 0, 0)
+    return CalendarFetch(name, category, [], [], [], false, true, 0, 0)
+
+fn public_resolution(resolution: TemporalResolution) -> Json:
+    var local = json_object()
+    set local = json_set(local, "year", json_int(resolution.local.year))
+    set local = json_set(local, "month", json_int(resolution.local.month))
+    set local = json_set(local, "day", json_int(resolution.local.day))
+    set local = json_set(local, "hour", json_int(resolution.local.hour))
+    set local = json_set(local, "minute", json_int(resolution.local.minute))
+    set local = json_set(local, "second", json_int(resolution.local.second))
+    set local = json_set(local, "microsecond", json_int(resolution.local.microsecond))
+    var candidates = json_array()
+    for instant in resolution.instants:
+        set candidates = json_push(candidates, json_int(instant.unix_microseconds))
+    var value = json_object()
+    set value = json_set(value, "kind", json_text(resolution.kind))
+    set value = json_set(value, "local", local)
+    set value = json_set(value, "timezone", json_text(resolution.timezone))
+    set value = json_set(value, "instants", candidates)
+    return value
 
 fn fetch_calendar(source: Json) -> CalendarFetch:
     let name = json_as_text(json_get(source, "name"))
@@ -55,6 +75,7 @@ fn fetch_calendar(source: Json) -> CalendarFetch:
     let include_tentative = json_as_bool(json_get(source, "include_tentative"))
     let feed_index = json_as_int(json_get(source, "feed_index"))
     var intervals: List[EventRange] = []
+    var temporal_reviews: List[Json] = []
     var has_events = false
     var events_in_order = true
     var has_previous_event = false
@@ -65,35 +86,48 @@ fn fetch_calendar(source: Json) -> CalendarFetch:
     for event in parsed_events:
         let ignored = event.all_day or event.status == "CANCELLED" or (event.status == "TENTATIVE" and not include_tentative)
         if not ignored:
-            if not is_some(event.start) or not is_some(event.end):
+            if event.uid == "" or not is_some(event.start_resolution) or not is_some(event.end_resolution):
                 return failed_source(name, "invalid_calendar")
-            let start = unwrap(event.start)
-            let end = unwrap(event.end)
-            if event.uid == "" or end.unix_microseconds <= start.unix_microseconds:
-                return failed_source(name, "invalid_calendar")
-            let outside_window = start.unix_microseconds >= window_end.unix_microseconds or end.unix_microseconds <= window_start.unix_microseconds
-            if not outside_window:
-                var clipped_start = start
-                var clipped_end = end
-                if clipped_start.unix_microseconds < window_start.unix_microseconds:
-                    set clipped_start = window_start
-                if clipped_end.unix_microseconds > window_end.unix_microseconds:
-                    set clipped_end = window_end
-                set intervals = list_push(intervals, EventRange(clipped_start.unix_microseconds, clipped_end.unix_microseconds, feed_index))
-                if has_previous_event and clipped_start.unix_microseconds < previous_start_us:
-                    set events_in_order = false
-                set has_previous_event = true
-                set previous_start_us = clipped_start.unix_microseconds
-                if not has_events:
-                    set has_events = true
-                    set min_start_us = clipped_start.unix_microseconds
-                    set max_end_us = clipped_end.unix_microseconds
-                else:
-                    if clipped_start.unix_microseconds < min_start_us:
+            let start_resolution = unwrap(event.start_resolution)
+            let end_resolution = unwrap(event.end_resolution)
+            if start_resolution.kind != "exact" or end_resolution.kind != "exact":
+                var review = json_object()
+                set review = json_set(review, "calendar", json_text(name))
+                set review = json_set(review, "id", json_text(event.uid))
+                set review = json_set(review, "summary", json_text(event.summary))
+                set review = json_set(review, "start_resolution", public_resolution(start_resolution))
+                set review = json_set(review, "end_resolution", public_resolution(end_resolution))
+                set temporal_reviews = list_push(temporal_reviews, review)
+            else:
+                if len(start_resolution.instants) != 1 or len(end_resolution.instants) != 1:
+                    return failed_source(name, "invalid_calendar")
+                let start = start_resolution.instants[0]
+                let end = end_resolution.instants[0]
+                if end.unix_microseconds <= start.unix_microseconds:
+                    return failed_source(name, "invalid_calendar")
+                let outside_window = start.unix_microseconds >= window_end.unix_microseconds or end.unix_microseconds <= window_start.unix_microseconds
+                if not outside_window:
+                    var clipped_start = start
+                    var clipped_end = end
+                    if clipped_start.unix_microseconds < window_start.unix_microseconds:
+                        set clipped_start = window_start
+                    if clipped_end.unix_microseconds > window_end.unix_microseconds:
+                        set clipped_end = window_end
+                    set intervals = list_push(intervals, EventRange(clipped_start.unix_microseconds, clipped_end.unix_microseconds, feed_index))
+                    if has_previous_event and clipped_start.unix_microseconds < previous_start_us:
+                        set events_in_order = false
+                    set has_previous_event = true
+                    set previous_start_us = clipped_start.unix_microseconds
+                    if not has_events:
+                        set has_events = true
                         set min_start_us = clipped_start.unix_microseconds
-                    if clipped_end.unix_microseconds > max_end_us:
                         set max_end_us = clipped_end.unix_microseconds
-    return CalendarFetch(name, "", parsed_events, intervals, has_events, events_in_order, min_start_us, max_end_us)
+                    else:
+                        if clipped_start.unix_microseconds < min_start_us:
+                            set min_start_us = clipped_start.unix_microseconds
+                        if clipped_end.unix_microseconds > max_end_us:
+                            set max_end_us = clipped_end.unix_microseconds
+    return CalendarFetch(name, "", parsed_events, intervals, temporal_reviews, has_events, events_in_order, min_start_us, max_end_us)
 
 fn conflict_before(left: Json, right: Json) -> Bool:
     let left_start = json_as_int(json_get(left, "start_us"))
@@ -368,9 +402,13 @@ fn main() -> Int:
 
     let fetched_sources = unwrap(fetched)
     var source_errors: Map[Text, Text] = {}
+    var temporal_reviews: List[Json] = []
     for result in fetched_sources:
         if result.error != "":
             set source_errors = map_set(source_errors, result.name, result.error)
+        else:
+            for review in result.temporal_reviews:
+                set temporal_reviews = list_push(temporal_reviews, review)
 
     var ranges_may_overlap = false
     var left_source_index = 0
@@ -407,26 +445,29 @@ fn main() -> Int:
                 for event in result.events:
                     let ignored = event.all_day or event.status == "CANCELLED" or (event.status == "TENTATIVE" and not include_tentative)
                     if not ignored:
-                        let start = unwrap(event.start)
-                        let end = unwrap(event.end)
-                        let outside_window = start.unix_microseconds >= window_end.unix_microseconds or end.unix_microseconds <= window_start.unix_microseconds
-                        if not outside_window:
-                            var clipped_start = start
-                            var clipped_end = end
-                            if clipped_start.unix_microseconds < window_start.unix_microseconds:
-                                set clipped_start = window_start
-                            if clipped_end.unix_microseconds > window_end.unix_microseconds:
-                                set clipped_end = window_end
-                            let row = CalendarEventRow(result.name, event.uid, format_utc(clipped_start), format_utc(clipped_end), clipped_start.unix_microseconds, clipped_end.unix_microseconds)
-                            if has_previous_event and events_in_order:
-                                if compare_events(previous_event, row) > 0:
-                                    set events_in_order = false
-                                else:
-                                    if previous_event.end_us > row.start_us:
-                                        set has_adjacent_overlap = true
-                            set previous_event = row
-                            set has_previous_event = true
-                            set events = list_push(events, row)
+                        let start_resolution = unwrap(event.start_resolution)
+                        let end_resolution = unwrap(event.end_resolution)
+                        if start_resolution.kind == "exact" and end_resolution.kind == "exact":
+                            let start = start_resolution.instants[0]
+                            let end = end_resolution.instants[0]
+                            let outside_window = start.unix_microseconds >= window_end.unix_microseconds or end.unix_microseconds <= window_start.unix_microseconds
+                            if not outside_window:
+                                var clipped_start = start
+                                var clipped_end = end
+                                if clipped_start.unix_microseconds < window_start.unix_microseconds:
+                                    set clipped_start = window_start
+                                if clipped_end.unix_microseconds > window_end.unix_microseconds:
+                                    set clipped_end = window_end
+                                let row = CalendarEventRow(result.name, event.uid, format_utc(clipped_start), format_utc(clipped_end), clipped_start.unix_microseconds, clipped_end.unix_microseconds)
+                                if has_previous_event and events_in_order:
+                                    if compare_events(previous_event, row) > 0:
+                                        set events_in_order = false
+                                    else:
+                                        if previous_event.end_us > row.start_us:
+                                            set has_adjacent_overlap = true
+                                set previous_event = row
+                                set has_previous_event = true
+                                set events = list_push(events, row)
 
         let sorted_events = sort_events(events, events_in_order)
         if not (events_in_order and not has_adjacent_overlap):
@@ -448,6 +489,11 @@ fn main() -> Int:
     var report = json_object()
     set report = json_set(report, "conflicts", conflict_output)
     set report = json_set(report, "source_errors", errors)
+    if len(temporal_reviews) > 0:
+        var review_output = json_array()
+        for review in temporal_reviews:
+            set review_output = json_push(review_output, review)
+        set report = json_set(report, "temporal_reviews", review_output)
     let written = write_text_atomic(output_path, json_stringify(report) + "\n")
     if not is_ok(written):
         eprint("cannot write conflict report")

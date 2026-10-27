@@ -1,4 +1,4 @@
-use guion_compiler::{compile, compile_project, Diagnostic};
+use guion_compiler::{compile, compile_project, compile_project_with_roots, Diagnostic};
 
 #[test]
 fn compiles_a_general_function_and_rejects_unknown_names_with_a_span() {
@@ -12,6 +12,42 @@ fn compiles_a_general_function_and_rejects_unknown_names_with_a_span() {
     assert_eq!(error.code, "E_NAME_UNKNOWN");
     assert_eq!(error.span.line, 2);
     assert_eq!(error.span.column, 12);
+}
+
+#[test]
+fn local_resolver_has_the_public_typed_signature_and_rejects_wrong_arguments() {
+    use std::{collections::HashMap, fs, path::PathBuf};
+
+    let root = std::env::temp_dir().join(format!(
+        "guion-temporal-signature-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    fs::create_dir_all(&root).unwrap();
+    let entry = root.join("main.gu");
+    fs::write(
+        &entry,
+        "import \"std:time\"\nfn main() -> Int:\n    let resolution = resolve_local(LocalDateTime(2026, 11, 1, 1, 30, 0, 0), \"America/Los_Angeles\")\n    return 0\n",
+    )
+    .unwrap();
+    let stdlib = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../language/stdlib");
+    let artifact = compile_project_with_roots(&entry, &root, Some(&stdlib), &HashMap::new())
+        .expect("the public local resolver signature type-checks");
+    assert_eq!(artifact.format_version, guion_model::Artifact::CURRENT_VERSION);
+
+    let bad_entry = root.join("bad.gu");
+    fs::write(
+        &bad_entry,
+        "import \"std:time\"\nfn main() -> Int:\n    let resolution = resolve_local(42, \"America/Los_Angeles\")\n    return 0\n",
+    )
+    .unwrap();
+    let error = compile_project_with_roots(&bad_entry, &root, Some(&stdlib), &HashMap::new())
+        .expect_err("an integer is not a LocalDateTime");
+    assert_eq!(error.code, "E_TYPE_ARGUMENT");
+    let _ = fs::remove_dir_all(root);
 }
 
 #[test]

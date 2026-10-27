@@ -252,6 +252,10 @@ pub fn builtin_catalog_signature(name: Text) -> Text:
             return "1:TimeParseDate:Result[Record[Date], FileError]:Text"
         if name == "time_parse_timestamp":
             return "1:TimeParseTimestamp:Result[Record[Instant], FileError]:Text"
+        if name == "time_resolve_local":
+            return "2:TimeResolveLocal:Result[Record[TemporalResolution], Record[TimeError]]:Record[LocalDateTime];Text"
+        if name == "time_zone_data_version_native":
+            return "0:TimeZoneDataVersion:Text:"
         if name == "time_today_local":
             return "0:TimeTodayLocal:Record[Date]:"
     if name[0] == "u":

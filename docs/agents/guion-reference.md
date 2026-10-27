@@ -148,7 +148,9 @@ text_parse_int(Text) -> Result[Int, FileError]
 time_format_utc(Record[Instant]) -> Text
 time_parse_date(Text) -> Result[Record[Date], FileError]
 time_parse_timestamp(Text) -> Result[Record[Instant], FileError]
+time_resolve_local(Record[LocalDateTime], Text) -> Result[Record[TemporalResolution], Record[TimeError]]
 time_today_local() -> Record[Date]
+time_zone_data_version_native() -> Text
 unix_time_ms() -> Int
 unwrap(Result[$T, $E]|Option[$T]) -> $T
 write_bytes(Text, Bytes) -> Result[Unit, FileError]
@@ -209,6 +211,8 @@ std:time — pub fn today_local() -> Date
 std:time — pub fn parse_date(value: Text) -> Result[Date, FileError]
 std:time — pub fn parse_timestamp(value: Text) -> Result[Instant, FileError]
 std:time — pub fn format_utc(value: Instant) -> Text
+std:time — pub fn resolve_local(local: LocalDateTime, timezone: Text) -> Result[TemporalResolution, TimeError]
+std:time — pub fn time_zone_data_version() -> Text
 std:toml — pub fn toml_parse(source: Text) -> Result[TomlDocument, StdError]
 std:toml — pub fn toml_has(document: TomlDocument, path: List[Text]) -> Bool
 std:toml — pub fn toml_get_text(document: TomlDocument, path: List[Text]) -> Result[Text, StdError]
@@ -325,7 +329,7 @@ HMAC operations consume exact `Bytes` without text conversion. `crypto_hmac_sha2
 
 TOML parsing preserves the original source bytes for an unedited document. Typed `toml_get_*` and `toml_put_*` operations reject missing paths, invalid keys, and mismatched scalar types. Edits are reparsed and checked before publication; targeted scalar replacements preserve surrounding source formatting. Unknown TOML values remain intact. `toml_render` returns the original bytes for a no-op and the validated edited document otherwise.
 
-`calendar_parse` returns each `VEVENT` with UID, summary, status, recurrence rule, and either explicit all-day dates or UTC Unix seconds. It resolves an embedded `VTIMEZONE` before a same-named IANA zone, rejects floating times and unknown zones, and retains event RRULE text without expanding events. Timezone observance recurrence is still used for transition lookup. DST ambiguity and nonexistent local-time handling follow libical's timezone conversion behavior. The bundled libical timezone database is tzdata 2026c. Exact dependency versions, source hashes, and licenses are recorded in `distribution/native-components.lock.json`.
+`calendar_parse` returns each `VEVENT` with UID, summary, status, recurrence rule, and either explicit all-day dates or timed `TemporalResolution` values. Timed endpoints preserve their original local values and timezone, and classify gaps and folds without selecting an instant. Embedded `VTIMEZONE` rules take precedence over a same-named IANA zone; floating times and unknown zones are errors. Event RRULE text is retained without expanding events. Exact dependency versions, source hashes, and licenses are recorded in `distribution/native-components.lock.json`.
 
 ## Stable compiler and runtime error codes
 
@@ -380,6 +384,7 @@ E_COLLECTION_ITEMS
 E_COMPILE_ARGUMENTS
 E_COUNT
 E_DATA_VERSION
+E_DATE
 E_DATE_FORMAT
 E_DATE_RANGE
 E_DEPENDENCY_INSTALL_FAILED
@@ -410,6 +415,7 @@ E_ICAL_FLOATING
 E_ICAL_LIMIT
 E_ICAL_PARSE
 E_ICAL_RANGE
+E_ICAL_TIMEZONE
 E_ICAL_TZID
 E_ICAL_UID
 E_ICAL_UTF8
@@ -551,10 +557,16 @@ E_SYNTAX
 E_TEMP_PREFIX
 E_TEST_SIGNATURE
 E_TEXT_DELIMITER
+E_TIME
 E_TIMESTAMP_FORMAT
 E_TIMESTAMP_OFFSET
 E_TIMESTAMP_PRECISION
 E_TIMESTAMP_RANGE
+E_TIMEZONE_COMPLEX
+E_TIMEZONE_DATA
+E_TIMEZONE_UNKNOWN
+E_TIME_INPUT
+E_TIME_RANGE
 E_TIMINGS
 E_TOML_EDIT
 E_TOML_INTEGER_RANGE
@@ -892,4 +904,4 @@ fn main() -> Int:
 - [Host API and effects](../../language/host-api.md)
 - [Agent recipes](recipes.md)
 
-<!-- Generated reference content digest: sha256:319d9c42604035d7156b66d1d24e71a251355d57faa74bcb9106e6c3cdddfa40. Validated by `cargo xtask agent-reference --check`. -->
+<!-- Generated reference content digest: sha256:212a4a769ac2d18b31b2486d7bf226732a07085331f3168c7252f875aab62c14. Validated by `cargo xtask agent-reference --check`. -->

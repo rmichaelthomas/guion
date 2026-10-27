@@ -339,6 +339,8 @@ fn parse_instruction(
         "TimeFormatUtc" => Op::TimeFormatUtc,
         "UnixTimeMs" => Op::UnixTimeMs,
         "TimeTodayLocal" => Op::TimeTodayLocal,
+        "TimeResolveLocal" => Op::TimeResolveLocal,
+        "TimeZoneDataVersion" => Op::TimeZoneDataVersion,
         "SemVerParse" => Op::SemVerParse,
         "SemVerCompare" => Op::SemVerCompare,
         "CliParse" => Op::CliParse,

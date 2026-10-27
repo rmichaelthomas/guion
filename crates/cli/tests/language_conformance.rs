@@ -560,9 +560,20 @@ fn host_case(id: &str, class: &str) -> Option<String> {
         ("host_operation-clock", "positive") => "record Date:\n    year: Int\n    month: Int\n    day: Int\n\nfn main() -> Int:\n    let timestamp = unix_time_ms()\n    let current_date = time_today_local()\n    if current_date.month >= 1 and current_date.month <= 12:\n        return timestamp - timestamp\n    else:\n        return 1\n",
         ("host_operation-clock", "negative") => "fn main() -> Int:\n    let timestamp = unix_time_ms(1)\n    return timestamp\n",
         ("host_operation-clock", "interaction") => "record Date:\n    year: Int\n    month: Int\n    day: Int\n\nfn main() -> Int:\n    let first = unix_time_ms()\n    let current_date = time_today_local()\n    let second = unix_time_ms()\n    if second >= first and current_date.day >= 1 and current_date.day <= 31:\n        return 42\n    else:\n        return 0\n",
+        ("host_operation-local-time-resolution", "positive") => "record LocalDateTime:\n    year: Int\n    month: Int\n    day: Int\n    hour: Int\n    minute: Int\n    second: Int\n    microsecond: Int\nrecord Instant:\n    unix_microseconds: Int\nrecord TemporalResolution:\n    kind: Text\n    local: LocalDateTime\n    timezone: Text\n    instants: List[Instant]\nrecord TimeError:\n    code: Text\n    message: Text\nfn main() -> Int:\n    let result = resolve_local(LocalDateTime(2026, 11, 1, 1, 30, 0, 0), \"America/Los_Angeles\")\n    if is_ok(result) and len(time_zone_data_version()) > 0:\n        return 0\n    else:\n        return 1\n",
+        ("host_operation-local-time-resolution", "negative") => "record LocalDateTime:\n    year: Int\n    month: Int\n    day: Int\n    hour: Int\n    minute: Int\n    second: Int\n    microsecond: Int\nrecord Instant:\n    unix_microseconds: Int\nrecord TemporalResolution:\n    kind: Text\n    local: LocalDateTime\n    timezone: Text\n    instants: List[Instant]\nrecord TimeError:\n    code: Text\n    message: Text\nfn main() -> Int:\n    let result = resolve_local(42, \"America/Los_Angeles\")\n    return 0\n",
+        ("host_operation-local-time-resolution", "interaction") => "record LocalDateTime:\n    year: Int\n    month: Int\n    day: Int\n    hour: Int\n    minute: Int\n    second: Int\n    microsecond: Int\nrecord Instant:\n    unix_microseconds: Int\nrecord TemporalResolution:\n    kind: Text\n    local: LocalDateTime\n    timezone: Text\n    instants: List[Instant]\nrecord TimeError:\n    code: Text\n    message: Text\nfn main() -> Int:\n    let exact = unwrap(resolve_local(LocalDateTime(2026, 3, 8, 1, 30, 0, 0), \"America/Los_Angeles\"))\n    let gap = unwrap(resolve_local(LocalDateTime(2026, 3, 8, 2, 30, 0, 0), \"America/Los_Angeles\"))\n    let fold = unwrap(resolve_local(LocalDateTime(2026, 11, 1, 1, 30, 0, 0), \"America/Los_Angeles\"))\n    if exact.kind == \"exact\" and len(exact.instants) == 1 and gap.kind == \"gap\" and len(gap.instants) == 0 and fold.kind == \"fold\" and len(fold.instants) == 2 and fold.instants[0].unix_microseconds < fold.instants[1].unix_microseconds and time_zone_data_version() == \"2026c\":\n        return 0\n    else:\n        return 1\n",
         _ => return None,
     };
-    Some(source.into())
+    let source = if id == "host_operation-local-time-resolution" {
+        source.replace(
+            "fn main() -> Int:",
+            "fn resolve_local(local: LocalDateTime, timezone: Text) -> Result[TemporalResolution, TimeError]:\n    return time_resolve_local(local, timezone)\n\nfn time_zone_data_version() -> Text:\n    return time_zone_data_version_native()\n\nfn main() -> Int:",
+        )
+    } else {
+        source.to_owned()
+    };
+    Some(source)
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -784,7 +795,7 @@ fn manifest_current_language_corpus_has_bootstrap_and_self_host_parity() {
         .collect();
     assert_eq!(
         task_two.len(),
-        65,
+        66,
         "Task 2 manifest feature count changed; update corpus classification"
     );
 
@@ -843,7 +854,7 @@ fn manifest_current_language_corpus_has_bootstrap_and_self_host_parity() {
         }
     }
     assert_eq!(
-        ran, 195,
+        ran, 198,
         "every current positive, negative and interaction case must run"
     );
     assert!(
@@ -851,6 +862,26 @@ fn manifest_current_language_corpus_has_bootstrap_and_self_host_parity() {
         "compiler corpus mismatches:\n{}",
         failures.join("\n")
     );
+}
+
+#[test]
+fn temporal_resolver_conformance_is_declared_for_both_compilers() {
+    let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let manifest: Value = serde_json::from_slice(
+        &fs::read(repository.join("language/conformance/manifest.json")).unwrap(),
+    )
+    .unwrap();
+    let entry = manifest["entries"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|entry| entry["id"] == "host_operation-local-time-resolution")
+        .expect("temporal resolver has a conformance entry");
+    assert_eq!(entry["compiler_status"]["bootstrap"], "implemented");
+    assert_eq!(entry["compiler_status"]["self_hosted"], "implemented");
+    assert_eq!(entry["coverage"]["positive"]["state"], "implemented");
+    assert_eq!(entry["coverage"]["negative"]["state"], "implemented");
+    assert_eq!(entry["coverage"]["interaction"]["state"], "implemented");
 }
 
 #[test]
@@ -899,14 +930,14 @@ fn compiler_stages_compile_full_task_two_corpus_and_locked_roots() {
         .iter()
         .filter(|entry| entry["owner_task"] == 2)
         .collect();
-    assert_eq!(task_two.len(), 65, "Task 2 conformance inventory changed");
+    assert_eq!(task_two.len(), 66, "Task 2 conformance inventory changed");
     let mut cases_run = 0usize;
     for entry in task_two {
         let id = entry["id"].as_str().expect("feature ID");
         for class in ["positive", "negative", "interaction"] {
             let fixture =
                 source_case(id, class).unwrap_or_else(|| panic!("missing {class} case for {id}"));
-            eprintln!("C2/C3 corpus case {}/195: {id}.{class}", cases_run + 1);
+            eprintln!("C2/C3 corpus case {}/198: {id}.{class}", cases_run + 1);
             let case_root = format!("cases/{id}/{class}");
             let source_name = format!("{case_root}/main.gu");
             project.write(&source_name, &fixture.source);

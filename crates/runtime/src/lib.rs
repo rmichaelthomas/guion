@@ -1692,6 +1692,71 @@ impl VmHost for Instance {
                     ))),
                 }
             }
+            Op::TimeResolveLocal => {
+                let timezone = match pop!() {
+                    Value::Text(timezone) => timezone,
+                    _ => {
+                        return Err(RuntimeError::new(
+                            "R_TYPE_INVALID",
+                            "resolve_local timezone must be Text",
+                            instruction.span,
+                        ))
+                    }
+                };
+                let fields = match pop!() {
+                    Value::Record(name, fields) if name == "LocalDateTime" && fields.len() == 7 => {
+                        fields
+                    }
+                    _ => {
+                        return Err(RuntimeError::new(
+                            "R_TYPE_INVALID",
+                            "resolve_local requires a LocalDateTime record",
+                            instruction.span,
+                        ))
+                    }
+                };
+                let integer_field = |index: usize, field: &str, code: &str| match &fields[index] {
+                    Value::Int(value) => value.to_i64().ok_or_else(|| {
+                        stdlib_services::ServiceError::new(
+                            code,
+                            format!("{field} is outside the supported integer range"),
+                        )
+                    }),
+                    _ => Err(stdlib_services::ServiceError::new(
+                        "E_TIME_INPUT",
+                        format!("LocalDateTime.{field} is not an integer"),
+                    )),
+                };
+                let local = (|| {
+                    Ok(stdlib_services::LocalDateTime {
+                        year: integer_field(0, "year", "E_DATE")?,
+                        month: integer_field(1, "month", "E_DATE")?,
+                        day: integer_field(2, "day", "E_DATE")?,
+                        hour: integer_field(3, "hour", "E_TIME")?,
+                        minute: integer_field(4, "minute", "E_TIME")?,
+                        second: integer_field(5, "second", "E_TIME")?,
+                        microsecond: integer_field(6, "microsecond", "E_TIME")?,
+                    })
+                })();
+                let result =
+                    local.and_then(|local| stdlib_services::resolve_local_time(local, &timezone));
+                let value = temporal_resolution_result_value(result);
+                charge_allocation(
+                    budget.as_ref(),
+                    cloned_value_allocation(&value),
+                    instruction.span,
+                )?;
+                push_stack!(value);
+            }
+            Op::TimeZoneDataVersion => {
+                let version = Value::Text(stdlib_services::IANA_TZDB_VERSION.to_owned().into());
+                charge_allocation(
+                    budget.as_ref(),
+                    stdlib_services::IANA_TZDB_VERSION.len(),
+                    instruction.span,
+                )?;
+                push_stack!(version);
+            }
             Op::TimeFormatUtc => {
                 let value = pop!();
                 let Value::Record(name, fields) = value else {
@@ -6015,6 +6080,18 @@ fn service_error_value(error: stdlib_services::ServiceError) -> Value {
     )
 }
 
+fn temporal_resolution_result_value(
+    result: Result<stdlib_services::TemporalResolution, stdlib_services::ServiceError>,
+) -> Value {
+    match result {
+        Ok(resolution) => Value::ResultOk(Box::new(temporal_resolution_value(resolution))),
+        Err(error) => Value::ResultErr(Box::new(Value::Record(
+            "TimeError".into(),
+            Arc::new(vec![Value::Text(error.code.into()), Value::Text(error.message.into())]),
+        ))),
+    }
+}
+
 fn service_result_value(result: Result<Value, stdlib_services::ServiceError>) -> Value {
     match result {
         Ok(value) => Value::ResultOk(Box::new(value)),
@@ -6045,15 +6122,9 @@ fn service_sql_value(value: stdlib_services::SqlValue) -> Value {
 }
 
 fn service_calendar_event(event: stdlib_services::CalendarEvent) -> Value {
-    let instant = |seconds: Option<i64>| {
-        seconds
-            .map(|seconds| {
-                let microseconds = &BigInt::from_i64(seconds) * &BigInt::from_i64(1_000_000);
-                Value::OptionSome(Box::new(Value::Record(
-                    "Instant".into(),
-                    Arc::new(vec![Value::Int(microseconds)]),
-                )))
-            })
+    let resolution = |resolution: Option<stdlib_services::TemporalResolution>| {
+        resolution
+            .map(|resolution| Value::OptionSome(Box::new(temporal_resolution_value(resolution))))
             .unwrap_or(Value::OptionNone)
     };
     let date = |date: Option<(i32, u8, u8)>| {
@@ -6077,13 +6148,48 @@ fn service_calendar_event(event: stdlib_services::CalendarEvent) -> Value {
         "CalendarEvent".into(),
         Arc::new(vec![
             Value::Text(event.uid.into()),
-            instant(event.start_unix_seconds),
-            instant(event.end_unix_seconds),
+            Value::Text(event.summary.into()),
+            resolution(event.start_resolution),
+            resolution(event.end_resolution),
             date(event.start_date),
             date(event.end_date),
             Value::Text(event.status.into()),
             Value::Bool(event.all_day),
             recurrence,
+        ]),
+    )
+}
+
+fn temporal_resolution_value(resolution: stdlib_services::TemporalResolution) -> Value {
+    let local = resolution.local;
+    let instants = resolution
+        .unix_microseconds
+        .into_iter()
+        .map(|microseconds| {
+            Value::Record(
+                "Instant".into(),
+                Arc::new(vec![Value::Int(BigInt::from_i64(microseconds))]),
+            )
+        })
+        .collect();
+    Value::Record(
+        "TemporalResolution".into(),
+        Arc::new(vec![
+            Value::Text(resolution.kind.into()),
+            Value::Record(
+                "LocalDateTime".into(),
+                Arc::new(vec![
+                    Value::Int(BigInt::from_i64(local.year)),
+                    Value::Int(BigInt::from_i64(local.month)),
+                    Value::Int(BigInt::from_i64(local.day)),
+                    Value::Int(BigInt::from_i64(local.hour)),
+                    Value::Int(BigInt::from_i64(local.minute)),
+                    Value::Int(BigInt::from_i64(local.second)),
+                    Value::Int(BigInt::from_i64(local.microsecond)),
+                ]),
+            ),
+            Value::Text(resolution.timezone.into()),
+            Value::from_list_items(instants),
         ]),
     )
 }

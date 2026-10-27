@@ -59,6 +59,7 @@ try:
         raise ValueError("duplicate example id in docs/agents/index.json")
 
     expected_sources = {
+        "native_temporal_resolution",
         "file_data_cli",
         "http_request",
         "sqlite_toml",
@@ -84,8 +85,8 @@ try:
             seen_case_ids.add(case_id)
             cases.append((example, case))
 
-    if len(cases) != 7:
-        raise ValueError(f"expected 7 indexed runtime cases, found {len(cases)}")
+    if len(cases) != 8:
+        raise ValueError(f"expected 8 indexed runtime cases, found {len(cases)}")
 
     for example, case in cases:
         source = Path(example["source"]).name

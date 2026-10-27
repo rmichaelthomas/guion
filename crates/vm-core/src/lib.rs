@@ -4156,6 +4156,20 @@ fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result
             }
             Op::UnixTimeMs => state.stack.push(Type::Int),
             Op::TimeTodayLocal => state.stack.push(Type::Record("Date".into())),
+            Op::TimeResolveLocal => {
+                if pop_type(&mut state.stack, pc)? != Type::Text
+                    || pop_type(&mut state.stack, pc)? != Type::Record("LocalDateTime".into())
+                {
+                    return Err(format!(
+                        "resolve_local requires LocalDateTime and Text at instruction {pc}"
+                    ));
+                }
+                state.stack.push(Type::Result(
+                    Box::new(Type::Record("TemporalResolution".into())),
+                    Box::new(Type::Record("TimeError".into())),
+                ));
+            }
+            Op::TimeZoneDataVersion => state.stack.push(Type::Text),
             Op::SemVerCompare => {
                 if pop_type(&mut state.stack, pc)? != Type::Record("SemVer".into())
                     || pop_type(&mut state.stack, pc)? != Type::Record("SemVer".into())

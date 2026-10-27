@@ -264,7 +264,63 @@ mod tests {
     }
 
     #[test]
-    fn http_bytecode_requires_format_19_or_newer() {
+    fn temporal_opcodes_round_trip_in_format_40_and_current_format_with_append_only_tags() {
+        for (op, expected_tag) in [(Op::TimeResolveLocal, 158), (Op::TimeZoneDataVersion, 159)] {
+            let artifact = Artifact {
+                format_version: 40,
+                build_metadata: None,
+                compiled_source_sha256: None,
+                source_name: "temporal.gu".into(),
+                sources: vec!["temporal.gu".into()],
+                entry: "main".into(),
+                functions: vec![Function {
+                    name: "main".into(),
+                    parameters: vec![],
+                    result: Type::Int,
+                    local_count: 0,
+                    code: vec![
+                        Instruction {
+                            op,
+                            span: Span::default(),
+                        },
+                        Instruction {
+                            op: Op::Return,
+                            span: Span::default(),
+                        },
+                    ],
+                }],
+                externals: vec![],
+                records: vec![],
+            };
+            let bytes = artifact.to_bytes().unwrap();
+            assert!(bytes.contains(&expected_tag));
+            assert_eq!(Artifact::from_bytes(&bytes).unwrap(), artifact);
+
+            let mut legacy_bytes = bytes;
+            legacy_bytes[4..8].copy_from_slice(&39u32.to_le_bytes());
+            assert_eq!(
+                Artifact::from_bytes(&legacy_bytes).unwrap_err().code,
+                "E_ARTIFACT_VERSION"
+            );
+            let mut legacy = artifact.clone();
+            legacy.format_version = 39;
+            assert_eq!(legacy.to_bytes().unwrap_err().code, "E_ARTIFACT_VERSION");
+
+            let mut current = artifact;
+            current.format_version = Artifact::CURRENT_VERSION;
+            let current_tag = match op {
+                Op::TimeResolveLocal => 161,
+                Op::TimeZoneDataVersion => 162,
+                _ => unreachable!(),
+            };
+            let current_bytes = current.to_bytes().unwrap();
+            assert!(current_bytes.contains(&current_tag));
+            assert_eq!(Artifact::from_bytes(&current_bytes).unwrap(), current);
+        }
+    }
+
+    #[test]
+    fn http_bytecode_round_trips_only_in_format_19() {
         let artifact = Artifact {
             format_version: Artifact::CURRENT_VERSION,
             build_metadata: None,
@@ -1585,6 +1641,8 @@ pub enum Op {
     TimeFormatUtc,
     UnixTimeMs,
     TimeTodayLocal,
+    TimeResolveLocal,
+    TimeZoneDataVersion,
     SemVerParse,
     SemVerCompare,
     CliParse,
@@ -1695,7 +1753,7 @@ pub struct Artifact {
 }
 
 impl Artifact {
-    pub const CURRENT_VERSION: u32 = 41;
+    pub const CURRENT_VERSION: u32 = 42;
     pub fn entry(&self) -> &str {
         &self.entry
     }
@@ -1845,22 +1903,30 @@ impl Artifact {
                 "clock operations require artifact format 39",
             ));
         }
-        if self.format_version < 40 && artifact_uses_sort_by_int_key(self) {
+        if self.format_version < 41 && artifact_uses_sort_by_int_key(self) {
             return Err(ArtifactError::new(
                 "E_ARTIFACT_VERSION",
-                "stable integer-key sorting requires artifact format 40",
+                "stable integer-key sorting requires artifact format 41",
             ));
         }
-        if self.format_version < 40 && artifact_uses_merge_sorted_by_int_key(self) {
+        if self.format_version < 41 && artifact_uses_merge_sorted_by_int_key(self) {
             return Err(ArtifactError::new(
                 "E_ARTIFACT_VERSION",
-                "stable integer-key feed merging requires artifact format 40",
+                "stable integer-key feed merging requires artifact format 41",
             ));
         }
         if self.format_version < 41 && artifact_uses_json_set_local(self) {
             return Err(ArtifactError::new(
                 "E_ARTIFACT_VERSION",
                 "in-place JSON object field updates require artifact format 41",
+            ));
+        }
+        if (self.format_version < 40 || self.format_version == 41)
+            && artifact_uses_temporal_resolution(self)
+        {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "local time resolution requires artifact format 40 or 42",
             ));
         }
         validate_sort_comparator_effects(self)
@@ -2149,6 +2215,12 @@ impl Artifact {
                     Op::MergeSortedByIntKey(target) => {
                         w.u8(159);
                         w.count(*target)?;
+                    }
+                    Op::TimeResolveLocal => {
+                        w.u8(if self.format_version == 40 { 158 } else { 161 })
+                    }
+                    Op::TimeZoneDataVersion => {
+                        w.u8(if self.format_version == 40 { 159 } else { 162 })
                     }
                 }
             }
@@ -2460,9 +2532,19 @@ impl Artifact {
                     155 => Op::HttpRequestBytes,
                     156 => Op::UnixTimeMs,
                     157 => Op::TimeTodayLocal,
-                    158 => Op::SortByIntKey(r.count()?),
-                    159 => Op::MergeSortedByIntKey(r.count()?),
+                    158 if format_version == 40 => Op::TimeResolveLocal,
+                    159 if format_version == 40 => Op::TimeZoneDataVersion,
+                    158 if format_version >= 41 => Op::SortByIntKey(r.count()?),
+                    159 if format_version >= 41 => Op::MergeSortedByIntKey(r.count()?),
+                    158 | 159 => {
+                        return Err(ArtifactError::new(
+                            "E_ARTIFACT_VERSION",
+                            "artifact uses an instruction newer than its declared format",
+                        ))
+                    }
                     160 => Op::JsonSetLocal(r.count()?),
+                    161 if format_version >= 42 => Op::TimeResolveLocal,
+                    162 if format_version >= 42 => Op::TimeZoneDataVersion,
                     _ => {
                         return Err(ArtifactError::new(
                             "E_ARTIFACT_OPCODE",
@@ -2695,22 +2777,30 @@ impl Artifact {
                 "artifact uses clock operations before format 39",
             ));
         }
-        if format_version < 40 && artifact_uses_sort_by_int_key(&artifact) {
+        if format_version < 41 && artifact_uses_sort_by_int_key(&artifact) {
             return Err(ArtifactError::new(
                 "E_ARTIFACT_VERSION",
-                "stable integer-key sorting requires artifact format 40",
+                "stable integer-key sorting requires artifact format 41",
             ));
         }
-        if format_version < 40 && artifact_uses_merge_sorted_by_int_key(&artifact) {
+        if format_version < 41 && artifact_uses_merge_sorted_by_int_key(&artifact) {
             return Err(ArtifactError::new(
                 "E_ARTIFACT_VERSION",
-                "stable integer-key feed merging requires artifact format 40",
+                "stable integer-key feed merging requires artifact format 41",
             ));
         }
         if format_version < 41 && artifact_uses_json_set_local(&artifact) {
             return Err(ArtifactError::new(
                 "E_ARTIFACT_VERSION",
                 "in-place JSON object field updates require artifact format 41",
+            ));
+        }
+        if (format_version < 40 || format_version == 41)
+            && artifact_uses_temporal_resolution(&artifact)
+        {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "local time resolution requires artifact format 40 or 42",
             ));
         }
         validate_sort_comparator_effects(&artifact)
@@ -2817,6 +2907,17 @@ fn artifact_uses_clock(artifact: &Artifact) -> bool {
             .code
             .iter()
             .any(|instruction| matches!(instruction.op, Op::UnixTimeMs | Op::TimeTodayLocal))
+    })
+}
+
+fn artifact_uses_temporal_resolution(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function.code.iter().any(|instruction| {
+            matches!(
+                instruction.op,
+                Op::TimeResolveLocal | Op::TimeZoneDataVersion
+            )
+        })
     })
 }
 
