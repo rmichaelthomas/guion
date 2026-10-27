@@ -753,13 +753,18 @@ impl NativeBackend {
                     builder.switch_to_block(execute);
                     builder.seal_block(execute);
                 }
-                let remaining_fuel = builder.use_var(fuel_var);
-                let remaining_fuel = builder.ins().iadd_imm_s(remaining_fuel, -1);
-                builder.def_var(fuel_var, remaining_fuel);
                 match &instruction.op {
                     Op::Const(Value::Int(value)) => {
                         let Ok(value) = value.to_string().parse::<i64>() else {
                             let fault_ip = builder.ins().iconst(types::I64, ip as i64);
+                            let unused_fuel = fuel_count_after(
+                                &mut builder,
+                                fuel_var,
+                                block_instruction_offsets[ip] + 1,
+                            );
+                            builder
+                                .ins()
+                                .call(release_fuel, &[budget_pointer, unused_fuel]);
                             let steps = step_count_after(
                                 &mut builder,
                                 steps_var,
@@ -1222,6 +1227,9 @@ impl NativeBackend {
                         let block_steps =
                             step_count_after(&mut builder, steps_var, completed_instructions);
                         builder.def_var(steps_var, block_steps);
+                        let remaining_fuel =
+                            fuel_count_after(&mut builder, fuel_var, completed_instructions);
+                        builder.def_var(fuel_var, remaining_fuel);
                         let block_args: Vec<_> =
                             stack.iter().copied().map(BlockArg::Value).collect();
                         builder
@@ -1233,6 +1241,9 @@ impl NativeBackend {
                         let completed_instructions = block_instruction_counts[block_for_ip[ip]];
                         let steps =
                             step_count_after(&mut builder, steps_var, completed_instructions);
+                        let remaining_fuel =
+                            fuel_count_after(&mut builder, fuel_var, completed_instructions);
+                        builder.def_var(fuel_var, remaining_fuel);
                         let _function_id = function_ids
                             .get(*target)
                             .and_then(|function_id| *function_id)
@@ -1426,6 +1437,9 @@ impl NativeBackend {
                         let block_steps =
                             step_count_after(&mut builder, steps_var, completed_instructions);
                         builder.def_var(steps_var, block_steps);
+                        let remaining_fuel =
+                            fuel_count_after(&mut builder, fuel_var, completed_instructions);
+                        builder.def_var(fuel_var, remaining_fuel);
                         let value = stack.pop().ok_or_else(|| "stack underflow".to_owned())?;
                         if let Some(counter) = count_guest_branch {
                             builder.ins().call(counter, &[arena_pointer]);
@@ -1739,6 +1753,9 @@ impl NativeBackend {
                         let completed_instructions = block_instruction_counts[block_for_ip[ip]];
                         let steps =
                             step_count_after(&mut builder, steps_var, completed_instructions);
+                        let remaining_fuel =
+                            fuel_count_after(&mut builder, fuel_var, completed_instructions);
+                        builder.def_var(fuel_var, remaining_fuel);
                         let value = stack.pop().ok_or_else(|| "stack underflow".to_owned())?;
                         if let Type::Record(name) = &function.result {
                             let definition = records
@@ -1792,6 +1809,9 @@ impl NativeBackend {
                         let block_steps =
                             step_count_after(&mut builder, steps_var, completed_instructions);
                         builder.def_var(steps_var, block_steps);
+                        let remaining_fuel =
+                            fuel_count_after(&mut builder, fuel_var, completed_instructions);
+                        builder.def_var(fuel_var, remaining_fuel);
                     }
                     let block_args: Vec<_> = stack.iter().copied().map(BlockArg::Value).collect();
                     builder.ins().jump(blocks[next_block], &block_args);
@@ -1809,7 +1829,9 @@ impl NativeBackend {
             .zip(exit_params)
             {
                 builder.switch_to_block(block);
-                let unused_fuel = builder.use_var(fuel_var);
+                let reserved_fuel = builder.use_var(fuel_var);
+                let completed_instructions = params[2];
+                let unused_fuel = builder.ins().isub(reserved_fuel, completed_instructions);
                 builder
                     .ins()
                     .call(release_fuel, &[budget_pointer, unused_fuel]);
@@ -1875,6 +1897,18 @@ fn step_count_after(
     builder
         .ins()
         .iadd_imm_s(steps, completed_instructions.min(i64::MAX as usize) as i64)
+}
+
+fn fuel_count_after(
+    builder: &mut FunctionBuilder<'_>,
+    fuel_var: Variable,
+    completed_instructions: usize,
+) -> cranelift_codegen::ir::Value {
+    let remaining_fuel = builder.use_var(fuel_var);
+    builder.ins().iadd_imm_s(
+        remaining_fuel,
+        -(completed_instructions.min(i64::MAX as usize) as i64),
+    )
 }
 
 fn step_exit_args(

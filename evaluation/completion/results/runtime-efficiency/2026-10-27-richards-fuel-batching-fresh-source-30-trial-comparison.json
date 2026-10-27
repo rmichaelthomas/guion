@@ -1,0 +1,526 @@
+{
+  "schema_version": 1,
+  "kind": "guion-richards-fuel-batching-fresh-source-comparison",
+  "repetitions_per_process": 1,
+  "trials_per_arm": 30,
+  "warmup_trials_per_arm": 2,
+  "output_checked_each_warmup_and_trial": true,
+  "measurement_design": {
+    "randomized_paired_order": true,
+    "guion_cache_condition": "--no-cache bypasses Guion source cache",
+    "os_file_cache": "uncontrolled",
+    "expected_stdout_per_execution": [
+      "9297",
+      "23246"
+    ]
+  },
+  "baseline_revision": "bdf43b6fca9ac963c276d0363c5eefb48bc74e26",
+  "candidate_revision": "fuel-batching-working-tree",
+  "candidate_source_sha256": {
+    "crates/runtime/src/native_backend.rs": "02984527082c51bc2e0bf3f285e4d7ad868534967c2917c0738bd998d8f7cdeb",
+    "crates/runtime/tests/execution.rs": "2b5b8efb38096afabfbed57faedd0ea67cf9f67743c471b26b781452ba7f3647"
+  },
+  "baseline_binary_sha256": "f7f66ca5ebf3379512876c8ae0edd8c17264ee766a49789821039ddb96882b19",
+  "candidate_binary_sha256": "08bc0e1dcd76dcab466fc78332203e2807af9636d40796c10ff3a24cd0b674eb",
+  "host": {
+    "platform": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+    "architecture": "arm64",
+    "python_version": "3.14.7"
+  },
+  "arm_medians_seconds": {
+    "guion_baseline_source_uncached": 0.03481279201514553,
+    "guion_candidate_source_uncached": 0.031024104013340548,
+    "python_reference": 0.07401814548939001
+  },
+  "candidate_over_baseline": {
+    "median_ratio": 0.8875043558717568,
+    "ci95_percentile": [
+      0.8644294459727365,
+      0.9000769056395366
+    ],
+    "win": true,
+    "ties_or_regressions": 3
+  },
+  "candidate_over_python": {
+    "median_ratio": 0.41906277716081686,
+    "ci95_percentile": [
+      0.41219325556529784,
+      0.43201310271008136
+    ],
+    "win": true,
+    "ties_or_regressions": 0
+  },
+  "baseline_over_python": {
+    "median_ratio": 0.47030354933067087,
+    "ci95_percentile": [
+      0.4647793840840343,
+      0.4757879669628463
+    ],
+    "win": true,
+    "ties_or_regressions": 1
+  },
+  "samples_per_execution": {
+    "guion_baseline_source_uncached": {
+      "samples_seconds": [
+        0.03528312500566244,
+        0.050997667014598846,
+        0.03489545901538804,
+        0.03480458402191289,
+        0.035965209011919796,
+        0.03460166702279821,
+        0.03416983401984908,
+        0.08292179100681096,
+        0.03539433400146663,
+        0.046247291000327095,
+        0.047786165989236906,
+        0.03392566699767485,
+        0.04360458301380277,
+        0.03482100000837818,
+        0.033600708993617445,
+        0.0338976249913685,
+        0.03325433298596181,
+        0.034844832989620045,
+        0.0354857080092188,
+        0.03571545801241882,
+        0.03458124998724088,
+        0.03613416600273922,
+        0.03404308302560821,
+        0.03422399997361936,
+        0.034355250012595206,
+        0.034140000003390014,
+        0.034281875006854534,
+        0.03507112502120435,
+        0.03398608398856595,
+        0.03403933299705386
+      ],
+      "median_seconds": 0.03481279201514553,
+      "p95_seconds_nearest_rank": 0.050997667014598846
+    },
+    "guion_candidate_source_uncached": {
+      "samples_seconds": [
+        0.031417124992003664,
+        0.040680459002032876,
+        0.031033708015456796,
+        0.0317601669812575,
+        0.03411862498614937,
+        0.0310145000112243,
+        0.034430582978529856,
+        0.0666651249921415,
+        0.030602249986259267,
+        0.035969207994639874,
+        0.051219417015090585,
+        0.034173958003520966,
+        0.03049841700703837,
+        0.03006233400083147,
+        0.02886370799387805,
+        0.029982165986439213,
+        0.029202042001998052,
+        0.031527999992249534,
+        0.029943249974166974,
+        0.03028924998943694,
+        0.03222970900242217,
+        0.03122895900742151,
+        0.030301000020699576,
+        0.030773375008720905,
+        0.031366709008580074,
+        0.03016620801645331,
+        0.03172749999794178,
+        0.030075665999902412,
+        0.03010062500834465,
+        0.03066870800103061
+      ],
+      "median_seconds": 0.031024104013340548,
+      "p95_seconds_nearest_rank": 0.051219417015090585
+    },
+    "python_reference": {
+      "samples_seconds": [
+        0.07141616599983536,
+        0.0833872499933932,
+        0.07610266702249646,
+        0.07388008298585191,
+        0.07349170799716376,
+        0.07477283399202861,
+        0.0773374580021482,
+        0.08059162501012906,
+        0.07454129197867587,
+        0.17019108298700303,
+        0.08712808298878372,
+        0.07815250000567175,
+        0.07886604100349359,
+        0.07412620799732395,
+        0.0724551250168588,
+        0.07127583300461993,
+        0.07106541699613445,
+        0.07391008298145607,
+        0.0789805419917684,
+        0.07297495901002549,
+        0.07423837500391528,
+        0.07141262499499135,
+        0.07349958299892023,
+        0.07190033397637308,
+        0.07513420798932202,
+        0.07319662501686253,
+        0.07280783299938776,
+        0.07106404099613428,
+        0.07249795898678713,
+        0.07642537500942126
+      ],
+      "median_seconds": 0.07401814548939001,
+      "p95_seconds_nearest_rank": 0.08712808298878372
+    }
+  },
+  "metadata": {
+    "paired_trial_order": [
+      [
+        "guion_baseline_source_uncached",
+        "guion_candidate_source_uncached",
+        "python_reference"
+      ],
+      [
+        "python_reference",
+        "guion_candidate_source_uncached",
+        "guion_baseline_source_uncached"
+      ],
+      [
+        "python_reference",
+        "guion_baseline_source_uncached",
+        "guion_candidate_source_uncached"
+      ],
+      [
+        "guion_candidate_source_uncached",
+        "guion_baseline_source_uncached",
+        "python_reference"
+      ],
+      [
+        "python_reference",
+        "guion_candidate_source_uncached",
+        "guion_baseline_source_uncached"
+      ],
+      [
+        "guion_baseline_source_uncached",
+        "python_reference",
+        "guion_candidate_source_uncached"
+      ],
+      [
+        "guion_candidate_source_uncached",
+        "guion_baseline_source_uncached",
+        "python_reference"
+      ],
+      [
+        "python_reference",
+        "guion_baseline_source_uncached",
+        "guion_candidate_source_uncached"
+      ],
+      [
+        "guion_baseline_source_uncached",
+        "guion_candidate_source_uncached",
+        "python_reference"
+      ],
+      [
+        "guion_candidate_source_uncached",
+        "guion_baseline_source_uncached",
+        "python_reference"
+      ],
+      [
+        "guion_candidate_source_uncached",
+        "guion_baseline_source_uncached",
+        "python_reference"
+      ],
+      [
+        "guion_candidate_source_uncached",
+        "python_reference",
+        "guion_baseline_source_uncached"
+      ],
+      [
+        "guion_baseline_source_uncached",
+        "python_reference",
+        "guion_candidate_source_uncached"
+      ],
+      [
+        "python_reference",
+        "guion_baseline_source_uncached",
+        "guion_candidate_source_uncached"
+      ],
+      [
+        "python_reference",
+        "guion_baseline_source_uncached",
+        "guion_candidate_source_uncached"
+      ],
+      [
+        "python_reference",
+        "guion_candidate_source_uncached",
+        "guion_baseline_source_uncached"
+      ],
+      [
+        "python_reference",
+        "guion_candidate_source_uncached",
+        "guion_baseline_source_uncached"
+      ],
+      [
+        "guion_baseline_source_uncached",
+        "guion_candidate_source_uncached",
+        "python_reference"
+      ],
+      [
+        "guion_baseline_source_uncached",
+        "python_reference",
+        "guion_candidate_source_uncached"
+      ],
+      [
+        "guion_candidate_source_uncached",
+        "python_reference",
+        "guion_baseline_source_uncached"
+      ],
+      [
+        "guion_baseline_source_uncached",
+        "python_reference",
+        "guion_candidate_source_uncached"
+      ],
+      [
+        "guion_candidate_source_uncached",
+        "guion_baseline_source_uncached",
+        "python_reference"
+      ],
+      [
+        "guion_baseline_source_uncached",
+        "python_reference",
+        "guion_candidate_source_uncached"
+      ],
+      [
+        "guion_candidate_source_uncached",
+        "python_reference",
+        "guion_baseline_source_uncached"
+      ],
+      [
+        "python_reference",
+        "guion_baseline_source_uncached",
+        "guion_candidate_source_uncached"
+      ],
+      [
+        "guion_baseline_source_uncached",
+        "guion_candidate_source_uncached",
+        "python_reference"
+      ],
+      [
+        "guion_baseline_source_uncached",
+        "guion_candidate_source_uncached",
+        "python_reference"
+      ],
+      [
+        "guion_baseline_source_uncached",
+        "python_reference",
+        "guion_candidate_source_uncached"
+      ],
+      [
+        "guion_baseline_source_uncached",
+        "guion_candidate_source_uncached",
+        "python_reference"
+      ],
+      [
+        "guion_baseline_source_uncached",
+        "guion_candidate_source_uncached",
+        "python_reference"
+      ]
+    ],
+    "native_backend_reports": {
+      "guion_baseline_source_uncached": {
+        "bytecode_blocks": 126,
+        "bytecode_instructions": 944,
+        "calls": 37547,
+        "compilations": 1,
+        "compile_profile": {
+          "finalize_nanoseconds": 27417,
+          "functions": [
+            {
+              "bytecode_blocks": 4,
+              "bytecode_instructions": 11,
+              "cranelift_ir_blocks": 15,
+              "cranelift_ir_instructions": 214,
+              "define_nanoseconds": 350916,
+              "lowering_nanoseconds": 79833,
+              "name": "next_worker_count",
+              "verification_nanoseconds": 46042
+            },
+            {
+              "bytecode_blocks": 9,
+              "bytecode_instructions": 46,
+              "cranelift_ir_blocks": 31,
+              "cranelift_ir_instructions": 403,
+              "define_nanoseconds": 573541,
+              "lowering_nanoseconds": 62000,
+              "name": "xor_d008",
+              "verification_nanoseconds": 52292
+            },
+            {
+              "bytecode_blocks": 10,
+              "bytecode_instructions": 91,
+              "cranelift_ir_blocks": 50,
+              "cranelift_ir_instructions": 802,
+              "define_nanoseconds": 1068083,
+              "lowering_nanoseconds": 161167,
+              "name": "route_packet",
+              "verification_nanoseconds": 92416
+            },
+            {
+              "bytecode_blocks": 103,
+              "bytecode_instructions": 796,
+              "cranelift_ir_blocks": 358,
+              "cranelift_ir_instructions": 4656,
+              "define_nanoseconds": 9690875,
+              "lowering_nanoseconds": 1646458,
+              "name": "main",
+              "verification_nanoseconds": 572000
+            }
+          ]
+        },
+        "compiled_functions": [
+          "next_worker_count",
+          "xor_d008",
+          "route_packet",
+          "main"
+        ],
+        "cranelift_ir_blocks": 454,
+        "cranelift_ir_instructions": 6075,
+        "deoptimizations": 0
+      },
+      "guion_candidate_source_uncached": {
+        "bytecode_blocks": 126,
+        "bytecode_instructions": 944,
+        "calls": 37547,
+        "compilations": 1,
+        "compile_profile": {
+          "finalize_nanoseconds": 30750,
+          "functions": [
+            {
+              "bytecode_blocks": 4,
+              "bytecode_instructions": 11,
+              "cranelift_ir_blocks": 15,
+              "cranelift_ir_instructions": 205,
+              "define_nanoseconds": 341000,
+              "lowering_nanoseconds": 77875,
+              "name": "next_worker_count",
+              "verification_nanoseconds": 46083
+            },
+            {
+              "bytecode_blocks": 9,
+              "bytecode_instructions": 46,
+              "cranelift_ir_blocks": 31,
+              "cranelift_ir_instructions": 334,
+              "define_nanoseconds": 537125,
+              "lowering_nanoseconds": 65916,
+              "name": "xor_d008",
+              "verification_nanoseconds": 46125
+            },
+            {
+              "bytecode_blocks": 10,
+              "bytecode_instructions": 91,
+              "cranelift_ir_blocks": 50,
+              "cranelift_ir_instructions": 645,
+              "define_nanoseconds": 933333,
+              "lowering_nanoseconds": 152667,
+              "name": "route_packet",
+              "verification_nanoseconds": 78042
+            },
+            {
+              "bytecode_blocks": 103,
+              "bytecode_instructions": 796,
+              "cranelift_ir_blocks": 358,
+              "cranelift_ir_instructions": 3275,
+              "define_nanoseconds": 8131459,
+              "lowering_nanoseconds": 1713875,
+              "name": "main",
+              "verification_nanoseconds": 478666
+            }
+          ]
+        },
+        "compiled_functions": [
+          "next_worker_count",
+          "xor_d008",
+          "route_packet",
+          "main"
+        ],
+        "cranelift_ir_blocks": 454,
+        "cranelift_ir_instructions": 4459,
+        "deoptimizations": 0
+      }
+    },
+    "source_cache_states": {
+      "guion_baseline_source_uncached": [
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed"
+      ],
+      "guion_candidate_source_uncached": [
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed"
+      ]
+    }
+  },
+  "candidate_source_provenance": {
+    "description": "Release binary built offline from this working tree based on the stated baseline revision; binary SHA-256 identifies the measured executable, and these source hashes identify the implementation and focused test.",
+    "baseline_revision": "bdf43b6fca9ac963c276d0363c5eefb48bc74e26",
+    "source_sha256": {
+      "crates/runtime/src/native_backend.rs": "02984527082c51bc2e0bf3f285e4d7ad868534967c2917c0738bd998d8f7cdeb",
+      "crates/runtime/tests/execution.rs": "2b5b8efb38096afabfbed57faedd0ea67cf9f67743c471b26b781452ba7f3647"
+    }
+  }
+}

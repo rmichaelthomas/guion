@@ -1526,8 +1526,8 @@ fn native_fuel_metering_adds_control_flow_per_bytecode_block() {
         "fuel control flow should scale by bytecode block, not instruction: {ir_blocks} IR blocks for {instructions} instructions"
     );
     assert!(
-        ir_instructions < 2_100,
-        "step-count bookkeeping should avoid one generated update per instruction: {ir_instructions} IR instructions for {instructions} guest instructions"
+        ir_instructions < 1_200,
+        "step and fuel bookkeeping should batch updates at bytecode boundaries: {ir_instructions} IR instructions for {instructions} guest instructions"
     );
 
     let exact_policy = HostPolicy {

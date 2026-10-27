@@ -30,6 +30,18 @@ The randomized 30-trial 25-execution lane showed the expected distinction betwee
 
 The untimed phase profile measured total native compilation at 17.49 ms before and 15.06 ms after the change. The `main` function's Cranelift `define` phase fell from 11.84 ms to 9.89 ms. These are instrumented diagnostics; the uninstrumented paired cohort is the primary end-to-end result. The profile is available [here](2026-10-27-richards-step-count-batching-profile.json).
 
+## Follow-up: batch native fuel debits
+
+After the step-counter change, native code still subtracted one unit from its reserved fuel variable for every guest instruction. The backend now subtracts a bytecode block's completed instruction count at the block boundary. A failure or cancellation exit subtracts the instructions already completed in the current block before returning unused fuel. Calls and returns use the adjusted reserve. This keeps the external instruction limit exact while removing repeated generated counter updates.
+
+The focused 324-instruction regression fixture measured 1,268 Cranelift IR instructions before this change; its tightened invariant now requires fewer than 1,200. The exact-limit and one-instruction-short cases still match VM behavior. Nested-call parity, unbounded-loop budget exhaustion, native cancellation, and the full runtime crate suite also passed.
+
+The output-checked, randomized 30-trial fresh-source cohort measured 34.81 ms for the preceding build, 31.02 ms for the fuel-batched candidate, and 74.02 ms for CPython 3.14.7. Candidate/preceding-build was `0.888` (paired 95% interval `0.864–0.900`), an 11.2% median reduction with 3 of 30 paired samples tied or slower. Candidate/Python was `0.419` (`0.412–0.432`). Source compilation cache was bypassed; OS file cache was uncontrolled. See the [fresh-source comparison](2026-10-27-richards-fuel-batching-fresh-source-30-trial-comparison.json).
+
+In the output-checked randomized 30-trial lane with 25 Richards executions per process, the candidate measured 7.310 ms per logical execution versus 9.534 ms for the preceding build. Candidate/preceding-build was `0.766` (95% interval `0.763–0.770`), a 23.4% median reduction with no ties or regressions. This provides evidence of an execution-time improvement as well as the fresh-source improvement. See the [25-execution comparison](2026-10-27-richards-fuel-batching-25-run-30-trial-comparison.json).
+
+The untimed phase profile measured native compilation at 15.06 ms before and 12.74 ms after; `main`'s Cranelift `define` phase fell from 9.89 ms to 8.35 ms. These instrumented timings help explain the fresh-source result, while the paired uninstrumented cohorts remain the primary speed evidence. The [candidate profile](2026-10-27-richards-fuel-batching-profile.json) records the phase details.
+
 ## What the phase profile says
 
 The corrected one-shot diagnostic profile measured 19.93 ms of native JIT compilation, including 14.46 ms in Cranelift's `define` phase for `main`. These are instrumented phase timings, not host CPU samples. `main` fell from 652 to 376 Cranelift IR blocks and from 7,549 to 6,629 IR instructions. Its measured `define` time fell from 23.00 ms to 14.46 ms (37.1%); total native compilation profile time fell from 30.64 ms to 19.93 ms (35.0%).
@@ -105,6 +117,9 @@ The inline-store attempt increased `main` from 7,510 to 8,395 Cranelift IR instr
 - [Step-count batching fresh-source 30-trial comparison](2026-10-27-richards-step-count-batching-fresh-source-30-trial-comparison.json)
 - [Step-count batching repeated-workload 30-trial comparison](2026-10-27-richards-step-count-batching-30-trial-comparison.json)
 - [Step-count batching phase profile](2026-10-27-richards-step-count-batching-profile.json)
+- [Fuel batching fresh-source 30-trial comparison](2026-10-27-richards-fuel-batching-fresh-source-30-trial-comparison.json)
+- [Fuel batching 25-execution 30-trial comparison](2026-10-27-richards-fuel-batching-25-run-30-trial-comparison.json)
+- [Fuel batching phase profile](2026-10-27-richards-fuel-batching-profile.json)
 - [Inline list-copy probe](2026-10-26-richards-list-copy-comparison.json)
 - [Exit-metadata 15-trial comparison](2026-10-26-richards-exit-args-comparison.json)
 - [Exit-metadata 30-trial comparison](2026-10-26-richards-exit-args-30-trial-comparison.json)
