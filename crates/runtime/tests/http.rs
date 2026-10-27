@@ -246,7 +246,10 @@ fn main() -> Int:
     let response = instance
         .invoke(
             "send",
-            vec![Value::Text("session-secret".into()), Value::Text(url)],
+            vec![
+                Value::Text("session-secret".into()),
+                Value::Text(url.into()),
+            ],
         )
         .unwrap();
     let Value::ResultOk(response) = response else {
@@ -296,7 +299,9 @@ fn main() -> Int:
     let mut instance = Runtime::new().load(artifact, policy).unwrap();
 
     let started_at = Instant::now();
-    let response = instance.invoke("send", vec![Value::Text(url)]).unwrap();
+    let response = instance
+        .invoke("send", vec![Value::Text(url.into())])
+        .unwrap();
     assert!(started.recv_timeout(Duration::from_secs(1)).is_ok());
     assert!(matches!(response, Value::ResultErr(_)));
     assert!(format!("{response:?}").contains("R_HTTP_TIMEOUT"));
@@ -321,7 +326,9 @@ fn main() -> Int:
     let mut instance = Runtime::new().load(artifact, policy).unwrap();
 
     let started_at = Instant::now();
-    let response = instance.invoke("send", vec![Value::Text(url)]).unwrap();
+    let response = instance
+        .invoke("send", vec![Value::Text(url.into())])
+        .unwrap();
     assert!(started.recv_timeout(Duration::from_secs(1)).is_ok());
     assert!(matches!(response, Value::ResultErr(_)));
     assert!(format!("{response:?}").contains("R_HTTP_TIMEOUT"));
@@ -373,7 +380,7 @@ fn byte_http_preserves_binary_request_and_response_bodies() {
         .invoke(
             "send",
             vec![
-                Value::Text(url),
+                Value::Text(url.into()),
                 Value::Bytes(std::sync::Arc::new(payload.clone())),
             ],
         )
@@ -477,7 +484,9 @@ fn byte_http_total_deadline_applies_across_trickled_body_chunks() {
         HostPolicy::default().with_network_hosts(["127.0.0.1"], Duration::from_secs(1), 1024);
     let mut instance = Runtime::new().load(artifact, policy).unwrap();
     let started = Instant::now();
-    let result = instance.invoke("response", vec![Value::Text(url)]).unwrap();
+    let result = instance
+        .invoke("response", vec![Value::Text(url.into())])
+        .unwrap();
     assert!(
         format!("{result:?}").contains("R_HTTP_TIMEOUT"),
         "{result:?}"
@@ -493,6 +502,8 @@ fn byte_http_rejects_oversized_response_before_returning_partial_bytes() {
     let artifact = compile("http-byte-response-limit.gu", &source).unwrap();
     let policy = HostPolicy::default().with_network_hosts(["127.0.0.1"], Duration::from_secs(2), 4);
     let mut instance = Runtime::new().load(artifact, policy).unwrap();
-    let result = instance.invoke("response", vec![Value::Text(url)]).unwrap();
+    let result = instance
+        .invoke("response", vec![Value::Text(url.into())])
+        .unwrap();
     assert!(format!("{result:?}").contains("R_HTTP_LIMIT"));
 }

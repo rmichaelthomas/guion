@@ -1,0 +1,231 @@
+{
+  "binary_sha256": "d4a6f35700e91c514f71b1cfb18b9d673cacdf60120e98c7dca3f84844e0313d",
+  "captured_at_utc": "2026-10-27T05:35:09.291964+00:00",
+  "diagnostics_only": true,
+  "host": {
+    "architecture": "arm64",
+    "platform": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+    "python_version": "3.14.7"
+  },
+  "host_cpu_sampling": "not performed",
+  "kind": "guion-richards-gap-speed-profile",
+  "profiles": {
+    "one_shot": {
+      "cache_status": "bypassed",
+      "elapsed_seconds_including_process_startup": 0.06994629200198688,
+      "native_compilation_profile_total_ns": 37018293,
+      "program_execute_ns_includes_native_compilation": true,
+      "reported_phase_timings_ns": {
+        "artifact_runtime_load_ns": 2769542,
+        "cli_to_report_excluding_process_startup_ns": 59005333,
+        "compiler_pipeline": {
+          "compiler_backend": "rust",
+          "rust_compiler_compile_ns": 2398834
+        },
+        "input_artifact_decode_ns": null,
+        "native_compilation": {
+          "finalize_nanoseconds": 36917,
+          "functions": [
+            {
+              "bytecode_blocks": 4,
+              "bytecode_instructions": 11,
+              "cranelift_ir_blocks": 21,
+              "cranelift_ir_instructions": 249,
+              "define_nanoseconds": 1924625,
+              "lowering_nanoseconds": 1296708,
+              "name": "next_worker_count",
+              "verification_nanoseconds": 195791
+            },
+            {
+              "bytecode_blocks": 9,
+              "bytecode_instructions": 46,
+              "cranelift_ir_blocks": 52,
+              "cranelift_ir_instructions": 575,
+              "define_nanoseconds": 1494875,
+              "lowering_nanoseconds": 100875,
+              "name": "xor_d008",
+              "verification_nanoseconds": 76125
+            },
+            {
+              "bytecode_blocks": 10,
+              "bytecode_instructions": 91,
+              "cranelift_ir_blocks": 68,
+              "cranelift_ir_instructions": 1069,
+              "define_nanoseconds": 2215292,
+              "lowering_nanoseconds": 207667,
+              "name": "route_packet",
+              "verification_nanoseconds": 128375
+            },
+            {
+              "bytecode_blocks": 103,
+              "bytecode_instructions": 796,
+              "cranelift_ir_blocks": 652,
+              "cranelift_ir_instructions": 7549,
+              "define_nanoseconds": 25948292,
+              "lowering_nanoseconds": 2281667,
+              "name": "main",
+              "verification_nanoseconds": 1111084
+            }
+          ]
+        },
+        "program_execute_ns": 51800333,
+        "source_compile_or_cache_ns": 3395583
+      },
+      "runtime_profile": {
+        "dynamic_guest_conditional_branch_executions": 1555377,
+        "estimated_guest_allocation_budget_charges": {
+          "estimated_gross_bytes": 85753561,
+          "estimated_net_bytes": 85753561,
+          "estimated_refunded_bytes": 0,
+          "successful_events": 247240
+        },
+        "list_set": {
+          "copy_on_write_copies": 84497,
+          "copy_size_histogram": {
+            "buckets": {
+              "0-8": {
+                "copies": 84497,
+                "estimated_copy_bytes": 66189688
+              },
+              "129+": {
+                "copies": 0,
+                "estimated_copy_bytes": 0
+              },
+              "33-128": {
+                "copies": 0,
+                "estimated_copy_bytes": 0
+              },
+              "9-32": {
+                "copies": 0,
+                "estimated_copy_bytes": 0
+              }
+            },
+            "unit": "elements"
+          },
+          "estimated_copy_bytes": 66189688,
+          "in_place_updates": 209960,
+          "operations": 294457
+        },
+        "metric_limits": {
+          "allocation": "estimated guest-data budget charges, not host allocator calls",
+          "branches": "executed guest conditional branches, not hardware branch-misprediction counts"
+        },
+        "record_charges": {
+          "estimated_bytes": 19549886,
+          "events": 162722
+        },
+        "scope": "latest guest invocation"
+      }
+    },
+    "repeated_25": {
+      "cache_status": "bypassed",
+      "elapsed_seconds_including_process_startup": 0.2681363329757005,
+      "native_compilation_profile_total_ns": 34400209,
+      "program_execute_ns_includes_native_compilation": true,
+      "reported_phase_timings_ns": {
+        "artifact_runtime_load_ns": 1700333,
+        "cli_to_report_excluding_process_startup_ns": 261861292,
+        "compiler_pipeline": {
+          "compiler_backend": "rust",
+          "rust_compiler_compile_ns": 898833
+        },
+        "input_artifact_decode_ns": null,
+        "native_compilation": {
+          "finalize_nanoseconds": 38000,
+          "functions": [
+            {
+              "bytecode_blocks": 4,
+              "bytecode_instructions": 11,
+              "cranelift_ir_blocks": 21,
+              "cranelift_ir_instructions": 249,
+              "define_nanoseconds": 536459,
+              "lowering_nanoseconds": 84916,
+              "name": "next_worker_count",
+              "verification_nanoseconds": 54583
+            },
+            {
+              "bytecode_blocks": 9,
+              "bytecode_instructions": 46,
+              "cranelift_ir_blocks": 52,
+              "cranelift_ir_instructions": 575,
+              "define_nanoseconds": 1244625,
+              "lowering_nanoseconds": 83708,
+              "name": "xor_d008",
+              "verification_nanoseconds": 72084
+            },
+            {
+              "bytecode_blocks": 10,
+              "bytecode_instructions": 91,
+              "cranelift_ir_blocks": 68,
+              "cranelift_ir_instructions": 1069,
+              "define_nanoseconds": 2298166,
+              "lowering_nanoseconds": 188709,
+              "name": "route_packet",
+              "verification_nanoseconds": 120292
+            },
+            {
+              "bytecode_blocks": 103,
+              "bytecode_instructions": 796,
+              "cranelift_ir_blocks": 652,
+              "cranelift_ir_instructions": 7549,
+              "define_nanoseconds": 26416625,
+              "lowering_nanoseconds": 2164667,
+              "name": "benchmark_once",
+              "verification_nanoseconds": 1097375
+            }
+          ]
+        },
+        "program_execute_ns": 258892417,
+        "source_compile_or_cache_ns": 1021292
+      },
+      "runtime_profile": {
+        "dynamic_guest_conditional_branch_executions": 38884476,
+        "estimated_guest_allocation_budget_charges": {
+          "estimated_gross_bytes": 2143839025,
+          "estimated_net_bytes": 2143839025,
+          "estimated_refunded_bytes": 0,
+          "successful_events": 6181179
+        },
+        "list_set": {
+          "copy_on_write_copies": 2112425,
+          "copy_size_histogram": {
+            "buckets": {
+              "0-8": {
+                "copies": 2112425,
+                "estimated_copy_bytes": 1654742200
+              },
+              "129+": {
+                "copies": 0,
+                "estimated_copy_bytes": 0
+              },
+              "33-128": {
+                "copies": 0,
+                "estimated_copy_bytes": 0
+              },
+              "9-32": {
+                "copies": 0,
+                "estimated_copy_bytes": 0
+              }
+            },
+            "unit": "elements"
+          },
+          "estimated_copy_bytes": 1654742200,
+          "in_place_updates": 5249000,
+          "operations": 7361425
+        },
+        "metric_limits": {
+          "allocation": "estimated guest-data budget charges, not host allocator calls",
+          "branches": "executed guest conditional branches, not hardware branch-misprediction counts"
+        },
+        "record_charges": {
+          "estimated_bytes": 488747150,
+          "events": 4068050
+        },
+        "scope": "latest guest invocation"
+      }
+    }
+  },
+  "schema_version": 1,
+  "source_revision": "0824e0ed304eada17eaefc3f22be6a98fc52ee21",
+  "status": "passed"
+}

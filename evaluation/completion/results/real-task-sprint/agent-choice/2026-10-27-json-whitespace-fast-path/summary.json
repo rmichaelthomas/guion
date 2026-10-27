@@ -1,0 +1,98 @@
+{
+  "schema_version": 1,
+  "kind": "post-commit-agent-choice-refresh",
+  "evaluated_commit": "1a0815d",
+  "guion_binary_sha256": "0d4f2e3b8145f97f6385a29e9d3f2e865f82a7ad4030bcfbf5ebefb5c00b7f40",
+  "previous_study_commit": "901db22c63fd2b0944940d2a1bf851449b6078ec",
+  "previous_choices": {
+    "guion": 3,
+    "total": 3
+  },
+  "current_choices": {
+    "guion": 3,
+    "total": 3
+  },
+  "score_change": "Unchanged; 3/3 was already the maximum score.",
+  "acceptance": {
+    "health-digest": "10/10 for both",
+    "lockfile-auditor": "17/17 for both",
+    "webhook-replay": "9/9 for both",
+    "current_binary_hash_matches_all_acceptance_runs": true
+  },
+  "evaluations": {
+    "health-digest": {
+      "choice": "Guion",
+      "new_task": "Build an internal inventory of device endpoints, query them concurrently under a hard deadline, and write a human-readable health digest for repeated runs on one controlled host.",
+      "rationale": "Both implementations passed all 10 health-digest cases, including concurrency and slow-trickle deadline cases. The related seven-pair health measurement favored Guion on observed runtime. This is workload-specific evidence, not a causal or language-wide claim.",
+      "acceptance": {
+        "guion": "10/10 passed",
+        "python": "10/10 passed",
+        "file": "health-digest-acceptance.json"
+      },
+      "timing": {
+        "guion_median_seconds": 0.540193,
+        "python_median_seconds": 0.646912,
+        "guion_over_python_ratio": 0.83651,
+        "bootstrap_95_interval": [
+          0.82231,
+          0.84117
+        ],
+        "pairs": 7,
+        "note": "Process and oracle-check time included; fixture setup excluded; OS cache uncontrolled."
+      }
+    },
+    "lockfile-auditor": {
+      "choice": "Guion",
+      "new_task": "Build a command-line software-bill-of-materials audit against team policy, reporting disallowed packages, version limits, and exceptions in deterministic JSON.",
+      "rationale": "Both implementations passed all 17 acceptance cases and 43 checks. In the evaluator\u2019s seven-trial comparison, Guion\u2019s median was about 5.5 times faster. This benchmark is a related lockfile task, not the exact new SBOM task.",
+      "acceptance": {
+        "guion": "17/17 cases; 43/43 checks passed",
+        "python": "17/17 cases; 43/43 checks passed",
+        "file": "lockfile-webhook-acceptance.json"
+      },
+      "timing": {
+        "guion_median_seconds": 0.015355,
+        "python_median_seconds": 0.084636,
+        "approximate_speedup": 5.5,
+        "pairs": 7,
+        "note": "Named lockfile-auditor case; not the new SBOM task."
+      }
+    },
+    "webhook-replay": {
+      "choice": "Guion",
+      "new_task": "Build a small durable notification relay that validates incoming payloads, records state, retries delivery, and reports failures to an operator.",
+      "rationale": "Both implementations passed the same 98 acceptance checks. Guion\u2019s implementation makes transaction state explicit and records retry failures as dead letters with category and attempt details. The evaluator\u2019s named webhook timing favored Guion.",
+      "acceptance": {
+        "guion": "9/9 cases; 98/98 checks passed",
+        "python": "9/9 cases; 98/98 checks passed",
+        "file": "lockfile-webhook-acceptance.json"
+      },
+      "timing": {
+        "guion_median_seconds": 0.15156,
+        "python_median_seconds": 0.767109,
+        "approximate_speedup": 5.1,
+        "pairs": 7,
+        "note": "Named webhook-replay case; process and oracle-check time, not deployed relay latency."
+      }
+    }
+  },
+  "current_runtime_change": {
+    "workload": "JSONL summary, 200,000 generated rows",
+    "candidate_over_baseline_median_ratio": 0.9926226215905548,
+    "bootstrap_95_interval": [
+      0.9793535335955929,
+      1.0002452748520836
+    ],
+    "interpretation": "No clear latency improvement; estimated guest allocation-budget charges fell 0.36% in one profile."
+  },
+  "limitations": [
+    "Exploratory and unblinded: evaluators saw source and measurements.",
+    "Related, author-defined cases do not represent a broad adoption sample.",
+    "A choice made after trying examples is not evidence that this runtime change caused the choice.",
+    "Task timing includes process and oracle-check overhead and does not establish general performance."
+  ],
+  "acceptance_files": [
+    "health-digest-acceptance.json",
+    "lockfile-webhook-acceptance.json"
+  ]
+}

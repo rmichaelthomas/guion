@@ -11,7 +11,7 @@ const HELLO: &str = include_str!("fixtures/hello.gu");
 fn artifact_from_source(name: &str, source: &str) -> Arc<Artifact> {
     let compiled = compile(name, source).expect("fixture compiles");
     let bytes = compiled.to_bytes().expect("artifact serializes");
-    assert_eq!(compiled.format_version, 40, "fixture uses format 40");
+    assert_eq!(compiled.format_version, Artifact::CURRENT_VERSION);
     Arc::new(Artifact::from_bytes(&bytes).expect("artifact decodes"))
 }
 

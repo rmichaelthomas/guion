@@ -1,0 +1,744 @@
+{
+  "schema_version": 1,
+  "kind": "matched-frozen-case-acceptance",
+  "platform": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+  "python": "3.14.7 (main, Aug  5 2026, 10:29:49) [Clang 21.0.0 (clang-2100.1.1.101)]",
+  "guion_sha256": "0d4f2e3b8145f97f6385a29e9d3f2e865f82a7ad4030bcfbf5ebefb5c00b7f40",
+  "manifest_sha256": "1f8f4f2db73c39d397a8334a86ff955cc76d7e1481d9c2a512ada73d675b0213",
+  "note": "Per-step times are acceptance observations, not randomized benchmark results.",
+  "applications": {
+    "health-digest": {
+      "cases": [
+        {
+          "stage": "initial",
+          "case_id": "health-mixed-results-and-cap",
+          "outcomes": {
+            "guion": {
+              "case_id": "health-mixed-results-and-cap",
+              "candidate": {},
+              "passed": true,
+              "exit_code": 0,
+              "checks_passed": 5,
+              "checks_total": 5,
+              "steps": [
+                {
+                  "exit_code": 0,
+                  "checks_passed": 5,
+                  "checks_total": 5,
+                  "failures": [],
+                  "elapsed_seconds": 0.542508
+                }
+              ],
+              "elapsed_seconds": 1.030235,
+              "http_fixtures": {
+                "health": {
+                  "requests": [
+                    {
+                      "method": "GET",
+                      "path": "/worker"
+                    },
+                    {
+                      "method": "GET",
+                      "path": "/api"
+                    },
+                    {
+                      "method": "GET",
+                      "path": "/slow"
+                    },
+                    {
+                      "method": "GET",
+                      "path": "/invalid"
+                    }
+                  ],
+                  "max_in_flight": 2
+                }
+              },
+              "stdout": "",
+              "stderr": "",
+              "failures": []
+            },
+            "python": {
+              "case_id": "health-mixed-results-and-cap",
+              "candidate": {},
+              "passed": true,
+              "exit_code": 0,
+              "checks_passed": 5,
+              "checks_total": 5,
+              "steps": [
+                {
+                  "exit_code": 0,
+                  "checks_passed": 5,
+                  "checks_total": 5,
+                  "failures": [],
+                  "elapsed_seconds": 0.694346
+                }
+              ],
+              "elapsed_seconds": 1.179311,
+              "http_fixtures": {
+                "health": {
+                  "requests": [
+                    {
+                      "method": "GET",
+                      "path": "/worker"
+                    },
+                    {
+                      "method": "GET",
+                      "path": "/api"
+                    },
+                    {
+                      "method": "GET",
+                      "path": "/slow"
+                    },
+                    {
+                      "method": "GET",
+                      "path": "/invalid"
+                    }
+                  ],
+                  "max_in_flight": 2
+                }
+              },
+              "stdout": "",
+              "stderr": "",
+              "failures": []
+            }
+          }
+        },
+        {
+          "stage": "initial",
+          "case_id": "health-concurrency-bound",
+          "outcomes": {
+            "guion": {
+              "case_id": "health-concurrency-bound",
+              "candidate": {},
+              "passed": true,
+              "exit_code": 0,
+              "checks_passed": 5,
+              "checks_total": 5,
+              "steps": [
+                {
+                  "exit_code": 0,
+                  "checks_passed": 5,
+                  "checks_total": 5,
+                  "failures": [],
+                  "elapsed_seconds": 0.155514
+                }
+              ],
+              "elapsed_seconds": 0.525835,
+              "http_fixtures": {
+                "health": {
+                  "requests": [
+                    {
+                      "method": "GET",
+                      "path": "/api"
+                    },
+                    {
+                      "method": "GET",
+                      "path": "/worker"
+                    }
+                  ],
+                  "max_in_flight": 2
+                }
+              },
+              "stdout": "",
+              "stderr": "",
+              "failures": []
+            },
+            "python": {
+              "case_id": "health-concurrency-bound",
+              "candidate": {},
+              "passed": true,
+              "exit_code": 0,
+              "checks_passed": 5,
+              "checks_total": 5,
+              "steps": [
+                {
+                  "exit_code": 0,
+                  "checks_passed": 5,
+                  "checks_total": 5,
+                  "failures": [],
+                  "elapsed_seconds": 0.272838
+                }
+              ],
+              "elapsed_seconds": 0.636935,
+              "http_fixtures": {
+                "health": {
+                  "requests": [
+                    {
+                      "method": "GET",
+                      "path": "/worker"
+                    },
+                    {
+                      "method": "GET",
+                      "path": "/api"
+                    }
+                  ],
+                  "max_in_flight": 2
+                }
+              },
+              "stdout": "",
+              "stderr": "",
+              "failures": []
+            }
+          }
+        },
+        {
+          "stage": "initial",
+          "case_id": "health-empty-configuration",
+          "outcomes": {
+            "guion": {
+              "case_id": "health-empty-configuration",
+              "candidate": {},
+              "passed": true,
+              "exit_code": 0,
+              "checks_passed": 3,
+              "checks_total": 3,
+              "steps": [
+                {
+                  "exit_code": 0,
+                  "checks_passed": 3,
+                  "checks_total": 3,
+                  "failures": [],
+                  "elapsed_seconds": 0.03404
+                }
+              ],
+              "elapsed_seconds": 0.040728,
+              "http_fixtures": {},
+              "stdout": "",
+              "stderr": "",
+              "failures": []
+            },
+            "python": {
+              "case_id": "health-empty-configuration",
+              "candidate": {},
+              "passed": true,
+              "exit_code": 0,
+              "checks_passed": 3,
+              "checks_total": 3,
+              "steps": [
+                {
+                  "exit_code": 0,
+                  "checks_passed": 3,
+                  "checks_total": 3,
+                  "failures": [],
+                  "elapsed_seconds": 0.101355
+                }
+              ],
+              "elapsed_seconds": 0.103769,
+              "http_fixtures": {},
+              "stdout": "",
+              "stderr": "",
+              "failures": []
+            }
+          }
+        },
+        {
+          "stage": "initial",
+          "case_id": "health-http-error-is-unhealthy",
+          "outcomes": {
+            "guion": {
+              "case_id": "health-http-error-is-unhealthy",
+              "candidate": {},
+              "passed": true,
+              "exit_code": 0,
+              "checks_passed": 4,
+              "checks_total": 4,
+              "steps": [
+                {
+                  "exit_code": 0,
+                  "checks_passed": 4,
+                  "checks_total": 4,
+                  "failures": [],
+                  "elapsed_seconds": 0.021777
+                }
+              ],
+              "elapsed_seconds": 0.51715,
+              "http_fixtures": {
+                "health": {
+                  "requests": [
+                    {
+                      "method": "GET",
+                      "path": "/api?token=fixture-only-secret"
+                    }
+                  ],
+                  "max_in_flight": 1
+                }
+              },
+              "stdout": "",
+              "stderr": "",
+              "failures": []
+            },
+            "python": {
+              "case_id": "health-http-error-is-unhealthy",
+              "candidate": {},
+              "passed": true,
+              "exit_code": 0,
+              "checks_passed": 4,
+              "checks_total": 4,
+              "steps": [
+                {
+                  "exit_code": 0,
+                  "checks_passed": 4,
+                  "checks_total": 4,
+                  "failures": [],
+                  "elapsed_seconds": 0.146964
+                }
+              ],
+              "elapsed_seconds": 0.647325,
+              "http_fixtures": {
+                "health": {
+                  "requests": [
+                    {
+                      "method": "GET",
+                      "path": "/api?token=fixture-only-secret"
+                    }
+                  ],
+                  "max_in_flight": 1
+                }
+              },
+              "stdout": "",
+              "stderr": "",
+              "failures": []
+            }
+          }
+        },
+        {
+          "stage": "initial",
+          "case_id": "health-duplicate-service-names-rejected",
+          "outcomes": {
+            "guion": {
+              "case_id": "health-duplicate-service-names-rejected",
+              "candidate": {},
+              "passed": true,
+              "exit_code": 1,
+              "checks_passed": 1,
+              "checks_total": 1,
+              "steps": [
+                {
+                  "exit_code": 1,
+                  "checks_passed": 1,
+                  "checks_total": 1,
+                  "failures": [],
+                  "elapsed_seconds": 0.017207
+                }
+              ],
+              "elapsed_seconds": 0.508329,
+              "http_fixtures": {
+                "health": {
+                  "requests": [],
+                  "max_in_flight": 0
+                }
+              },
+              "stdout": "",
+              "stderr": "service names must be unique: api\n",
+              "failures": []
+            },
+            "python": {
+              "case_id": "health-duplicate-service-names-rejected",
+              "candidate": {},
+              "passed": true,
+              "exit_code": 1,
+              "checks_passed": 1,
+              "checks_total": 1,
+              "steps": [
+                {
+                  "exit_code": 1,
+                  "checks_passed": 1,
+                  "checks_total": 1,
+                  "failures": [],
+                  "elapsed_seconds": 0.111924
+                }
+              ],
+              "elapsed_seconds": 0.506246,
+              "http_fixtures": {
+                "health": {
+                  "requests": [],
+                  "max_in_flight": 0
+                }
+              },
+              "stdout": "",
+              "stderr": "service names must be unique\n",
+              "failures": []
+            }
+          }
+        },
+        {
+          "stage": "initial",
+          "case_id": "health-slow-trickle-exceeds-total-deadline",
+          "outcomes": {
+            "guion": {
+              "case_id": "health-slow-trickle-exceeds-total-deadline",
+              "candidate": {},
+              "passed": true,
+              "exit_code": 0,
+              "checks_passed": 4,
+              "checks_total": 4,
+              "steps": [
+                {
+                  "exit_code": 0,
+                  "checks_passed": 4,
+                  "checks_total": 4,
+                  "failures": [],
+                  "elapsed_seconds": 0.134824
+                }
+              ],
+              "elapsed_seconds": 0.527437,
+              "http_fixtures": {
+                "health": {
+                  "requests": [
+                    {
+                      "method": "GET",
+                      "path": "/slow"
+                    }
+                  ],
+                  "max_in_flight": 1
+                }
+              },
+              "stdout": "",
+              "stderr": "",
+              "failures": []
+            },
+            "python": {
+              "case_id": "health-slow-trickle-exceeds-total-deadline",
+              "candidate": {},
+              "passed": true,
+              "exit_code": 0,
+              "checks_passed": 4,
+              "checks_total": 4,
+              "steps": [
+                {
+                  "exit_code": 0,
+                  "checks_passed": 4,
+                  "checks_total": 4,
+                  "failures": [],
+                  "elapsed_seconds": 0.233826
+                }
+              ],
+              "elapsed_seconds": 0.62307,
+              "http_fixtures": {
+                "health": {
+                  "requests": [
+                    {
+                      "method": "GET",
+                      "path": "/slow"
+                    }
+                  ],
+                  "max_in_flight": 1
+                }
+              },
+              "stdout": "",
+              "stderr": "",
+              "failures": []
+            }
+          }
+        },
+        {
+          "stage": "follow_up",
+          "case_id": "health-maintenance-boundaries",
+          "outcomes": {
+            "guion": {
+              "case_id": "health-maintenance-boundaries",
+              "candidate": {},
+              "passed": true,
+              "exit_code": 0,
+              "checks_passed": 4,
+              "checks_total": 4,
+              "steps": [
+                {
+                  "exit_code": 0,
+                  "checks_passed": 4,
+                  "checks_total": 4,
+                  "failures": [],
+                  "elapsed_seconds": 0.042789
+                }
+              ],
+              "elapsed_seconds": 0.540961,
+              "http_fixtures": {
+                "health": {
+                  "requests": [
+                    {
+                      "method": "GET",
+                      "path": "/worker"
+                    },
+                    {
+                      "method": "GET",
+                      "path": "/worker"
+                    },
+                    {
+                      "method": "GET",
+                      "path": "/api"
+                    },
+                    {
+                      "method": "GET",
+                      "path": "/unavailable"
+                    },
+                    {
+                      "method": "GET",
+                      "path": "/invalid"
+                    }
+                  ],
+                  "max_in_flight": 1
+                }
+              },
+              "stdout": "",
+              "stderr": "",
+              "failures": []
+            },
+            "python": {
+              "case_id": "health-maintenance-boundaries",
+              "candidate": {},
+              "passed": true,
+              "exit_code": 0,
+              "checks_passed": 4,
+              "checks_total": 4,
+              "steps": [
+                {
+                  "exit_code": 0,
+                  "checks_passed": 4,
+                  "checks_total": 4,
+                  "failures": [],
+                  "elapsed_seconds": 0.1354
+                }
+              ],
+              "elapsed_seconds": 0.632409,
+              "http_fixtures": {
+                "health": {
+                  "requests": [
+                    {
+                      "method": "GET",
+                      "path": "/worker"
+                    },
+                    {
+                      "method": "GET",
+                      "path": "/worker"
+                    },
+                    {
+                      "method": "GET",
+                      "path": "/api"
+                    },
+                    {
+                      "method": "GET",
+                      "path": "/unavailable"
+                    },
+                    {
+                      "method": "GET",
+                      "path": "/invalid"
+                    }
+                  ],
+                  "max_in_flight": 2
+                }
+              },
+              "stdout": "",
+              "stderr": "",
+              "failures": []
+            }
+          }
+        },
+        {
+          "stage": "follow_up",
+          "case_id": "health-timeout-and-invalid-shapes-in-maintenance",
+          "outcomes": {
+            "guion": {
+              "case_id": "health-timeout-and-invalid-shapes-in-maintenance",
+              "candidate": {},
+              "passed": true,
+              "exit_code": 0,
+              "checks_passed": 3,
+              "checks_total": 3,
+              "steps": [
+                {
+                  "exit_code": 0,
+                  "checks_passed": 3,
+                  "checks_total": 3,
+                  "failures": [],
+                  "elapsed_seconds": 0.537549
+                }
+              ],
+              "elapsed_seconds": 1.033558,
+              "http_fixtures": {
+                "health": {
+                  "requests": [
+                    {
+                      "method": "GET",
+                      "path": "/array"
+                    },
+                    {
+                      "method": "GET",
+                      "path": "/slow"
+                    },
+                    {
+                      "method": "GET",
+                      "path": "/missing"
+                    },
+                    {
+                      "method": "GET",
+                      "path": "/numeric"
+                    }
+                  ],
+                  "max_in_flight": 2
+                }
+              },
+              "stdout": "",
+              "stderr": "",
+              "failures": []
+            },
+            "python": {
+              "case_id": "health-timeout-and-invalid-shapes-in-maintenance",
+              "candidate": {},
+              "passed": true,
+              "exit_code": 0,
+              "checks_passed": 3,
+              "checks_total": 3,
+              "steps": [
+                {
+                  "exit_code": 0,
+                  "checks_passed": 3,
+                  "checks_total": 3,
+                  "failures": [],
+                  "elapsed_seconds": 0.642242
+                }
+              ],
+              "elapsed_seconds": 1.128407,
+              "http_fixtures": {
+                "health": {
+                  "requests": [
+                    {
+                      "method": "GET",
+                      "path": "/slow"
+                    },
+                    {
+                      "method": "GET",
+                      "path": "/array"
+                    },
+                    {
+                      "method": "GET",
+                      "path": "/missing"
+                    },
+                    {
+                      "method": "GET",
+                      "path": "/numeric"
+                    }
+                  ],
+                  "max_in_flight": 2
+                }
+              },
+              "stdout": "",
+              "stderr": "",
+              "failures": []
+            }
+          }
+        },
+        {
+          "stage": "follow_up",
+          "case_id": "health-maintenance-requires-now",
+          "outcomes": {
+            "guion": {
+              "case_id": "health-maintenance-requires-now",
+              "candidate": {},
+              "passed": true,
+              "exit_code": 1,
+              "checks_passed": 1,
+              "checks_total": 1,
+              "steps": [
+                {
+                  "exit_code": 1,
+                  "checks_passed": 1,
+                  "checks_total": 1,
+                  "failures": [],
+                  "elapsed_seconds": 0.017987
+                }
+              ],
+              "elapsed_seconds": 0.505265,
+              "http_fixtures": {
+                "health": {
+                  "requests": [],
+                  "max_in_flight": 0
+                }
+              },
+              "stdout": "",
+              "stderr": "--now is required when maintenance windows are configured\n",
+              "failures": []
+            },
+            "python": {
+              "case_id": "health-maintenance-requires-now",
+              "candidate": {},
+              "passed": true,
+              "exit_code": 1,
+              "checks_passed": 1,
+              "checks_total": 1,
+              "steps": [
+                {
+                  "exit_code": 1,
+                  "checks_passed": 1,
+                  "checks_total": 1,
+                  "failures": [],
+                  "elapsed_seconds": 0.099896
+                }
+              ],
+              "elapsed_seconds": 0.505496,
+              "http_fixtures": {
+                "health": {
+                  "requests": [],
+                  "max_in_flight": 0
+                }
+              },
+              "stdout": "",
+              "stderr": "--now is required when maintenance is configured\n",
+              "failures": []
+            }
+          }
+        },
+        {
+          "stage": "follow_up",
+          "case_id": "health-maintenance-invalid-rfc3339-preserves-output",
+          "outcomes": {
+            "guion": {
+              "case_id": "health-maintenance-invalid-rfc3339-preserves-output",
+              "candidate": {},
+              "passed": true,
+              "exit_code": 1,
+              "checks_passed": 3,
+              "checks_total": 3,
+              "steps": [
+                {
+                  "exit_code": 1,
+                  "checks_passed": 3,
+                  "checks_total": 3,
+                  "failures": [],
+                  "elapsed_seconds": 0.011557
+                }
+              ],
+              "elapsed_seconds": 0.019695,
+              "http_fixtures": {},
+              "stdout": "",
+              "stderr": "timestamp must use RFC3339 date-time syntax\n",
+              "failures": []
+            },
+            "python": {
+              "case_id": "health-maintenance-invalid-rfc3339-preserves-output",
+              "candidate": {},
+              "passed": true,
+              "exit_code": 1,
+              "checks_passed": 3,
+              "checks_total": 3,
+              "steps": [
+                {
+                  "exit_code": 1,
+                  "checks_passed": 3,
+                  "checks_total": 3,
+                  "failures": [],
+                  "elapsed_seconds": 0.100287
+                }
+              ],
+              "elapsed_seconds": 0.102342,
+              "http_fixtures": {},
+              "stdout": "",
+              "stderr": "timestamp must use RFC3339 date-time syntax\n",
+              "failures": []
+            }
+          }
+        }
+      ],
+      "passed": true
+    }
+  }
+}

@@ -788,6 +788,17 @@ fn is_local_json_push(value: Json, name: Text) -> Bool:
     let first = json_index(arguments, 0)
     return json_as_text(json_get(first, "kind")) == "Name" and json_as_text(json_get(first, "text")) == name
 
+fn is_local_json_set(value: Json, name: Text) -> Bool:
+    if json_as_text(json_get(value, "kind")) != "Call":
+        return false
+    if json_as_text(json_get(value, "callee")) != "json_set":
+        return false
+    let arguments = json_get(value, "arguments")
+    if json_len(arguments) != 3:
+        return false
+    let first = json_index(arguments, 0)
+    return json_as_text(json_get(first, "kind")) == "Name" and json_as_text(json_get(first, "text")) == name
+
 fn is_local_list_push(value: Json, name: Text) -> Bool:
     if json_as_text(json_get(value, "kind")) != "Call":
         return false
@@ -1048,6 +1059,20 @@ fn expression(node: Json, state: CompilerState, functions: List[FunctionSignatur
             var sort_code = expression_code(values)
             set sort_code = append_code(sort_code, singleton(ir_text("SortBy", "function", functions[comparator_index].symbol)))
             return expression_result(sort_code, expression_type(values))
+        if callee == "sort_by_int_key":
+            let values = expression(json_index(arguments, 0), state, functions, records, "")
+            let key_name = json_as_text(json_get(json_index(arguments, 1), "text"))
+            let key_index = function_index(functions, key_name)
+            var sort_code = expression_code(values)
+            set sort_code = append_code(sort_code, singleton(ir_text("SortByIntKey", "function", functions[key_index].symbol)))
+            return expression_result(sort_code, expression_type(values))
+        if callee == "merge_sorted_by_int_key":
+            let values = expression(json_index(arguments, 0), state, functions, records, "")
+            let key_name = json_as_text(json_get(json_index(arguments, 1), "text"))
+            let key_index = function_index(functions, key_name)
+            var merge_code = expression_code(values)
+            set merge_code = append_code(merge_code, singleton(ir_text("MergeSortedByIntKey", "function", functions[key_index].symbol)))
+            return expression_result(merge_code, list_element_type(expression_type(values), records))
         var code = empty_code()
         var cursor = 0
         while cursor < json_len(arguments):
@@ -1156,22 +1181,30 @@ fn compile_statement(statement: Json, state: CompilerState, functions: List[Func
         assert(slot >= 0)
         let value_node = json_get(statement, "value")
         var next_code = code
-        if local_type(locals, name) == "Json" and is_local_json_push(value_node, name):
+        if local_type(locals, name) == "Json" and is_local_json_set(value_node, name):
             let arguments = json_get(value_node, "arguments")
-            let item = expression(json_index(arguments, 1), state, functions, records, "Json")
-            set next_code = append_code(code, expression_code(item))
-            set next_code = append_code(next_code, singleton(ir_integer("JsonPushLocal", "local", slot)))
+            let key = expression(json_index(arguments, 1), state, functions, records, "Text")
+            let item = expression(json_index(arguments, 2), state, functions, records, "Json")
+            set next_code = append_code(code, expression_code(key))
+            set next_code = append_code(next_code, expression_code(item))
+            set next_code = append_code(next_code, singleton(ir_integer("JsonSetLocal", "local", slot)))
         else:
-            if is_local_list_push(value_node, name):
+            if local_type(locals, name) == "Json" and is_local_json_push(value_node, name):
                 let arguments = json_get(value_node, "arguments")
-                let item_type = list_element_type(local_type(locals, name), records)
-                let item = expression(json_index(arguments, 1), state, functions, records, item_type)
+                let item = expression(json_index(arguments, 1), state, functions, records, "Json")
                 set next_code = append_code(code, expression_code(item))
-                set next_code = append_code(next_code, singleton(ir_integer("ListPushLocal", "local", slot)))
+                set next_code = append_code(next_code, singleton(ir_integer("JsonPushLocal", "local", slot)))
             else:
-                let value = expression(value_node, state, functions, records, local_type(locals, name))
-                set next_code = append_code(code, expression_code(value))
-                set next_code = append_code(next_code, singleton(ir_integer("Store", "local", slot)))
+                if is_local_list_push(value_node, name):
+                    let arguments = json_get(value_node, "arguments")
+                    let item_type = list_element_type(local_type(locals, name), records)
+                    let item = expression(json_index(arguments, 1), state, functions, records, item_type)
+                    set next_code = append_code(code, expression_code(item))
+                    set next_code = append_code(next_code, singleton(ir_integer("ListPushLocal", "local", slot)))
+                else:
+                    let value = expression(value_node, state, functions, records, local_type(locals, name))
+                    set next_code = append_code(code, expression_code(value))
+                    set next_code = append_code(next_code, singleton(ir_integer("Store", "local", slot)))
         return state_with_code(state, next_code)
     if kind == "Return":
         var next_code = append_code(code, expression_code(expression(json_get(statement, "value"), state, functions, records, state.return_type)))
@@ -1478,6 +1511,26 @@ fn find_unknown_call(node: Json, functions: List[FunctionSignature], records: Li
                 return failure_at_node("E_NAME_UNKNOWN", "unknown sort comparator `" + comparator_name + "`", comparator, source_name, source, len(comparator_name))
             if len(functions[comparator_index].parameters) != 2:
                 return failure_at_node("E_SORT_COMPARATOR", "sort comparator must accept exactly two values", comparator, source_name, source, len(comparator_name))
+        if callee == "sort_by_int_key":
+            let key_node = json_index(arguments, 1)
+            if json_as_text(json_get(key_node, "kind")) != "Name":
+                return failure_at_node("E_SORT_KEY", "sort_by_int_key key function must be a named function", key_node, source_name, source, 1)
+            let key_name = json_as_text(json_get(key_node, "text"))
+            let key_index = function_index(functions, key_name)
+            if key_index < 0:
+                return failure_at_node("E_NAME_UNKNOWN", "unknown sort key function `" + key_name + "`", key_node, source_name, source, len(key_name))
+            if len(functions[key_index].parameters) != 1:
+                return failure_at_node("E_SORT_KEY", "sort key function must accept exactly one value", key_node, source_name, source, len(key_name))
+        if callee == "merge_sorted_by_int_key":
+            let key_node = json_index(arguments, 1)
+            if json_as_text(json_get(key_node, "kind")) != "Name":
+                return failure_at_node("E_SORT_KEY", "merge_sorted_by_int_key key function must be a named function", key_node, source_name, source, 1)
+            let key_name = json_as_text(json_get(key_node, "text"))
+            let key_index = function_index(functions, key_name)
+            if key_index < 0:
+                return failure_at_node("E_NAME_UNKNOWN", "unknown sort key function `" + key_name + "`", key_node, source_name, source, len(key_name))
+            if len(functions[key_index].parameters) != 1:
+                return failure_at_node("E_SORT_KEY", "sort key function must accept exactly one value", key_node, source_name, source, len(key_name))
         var cursor = 0
         while cursor < json_len(arguments):
             let failure = find_unknown_call(json_index(arguments, cursor), functions, records, source_name, source)
@@ -1578,7 +1631,7 @@ fn find_unbound_name(node: Json, locals: List[Json], functions: List[FunctionSig
         let arguments = json_get(node, "arguments")
         var cursor = 0
         while cursor < json_len(arguments):
-            if (callee != "parallel_map" and callee != "sort_by") or cursor != 1:
+            if (callee != "parallel_map" and callee != "sort_by" and callee != "sort_by_int_key" and callee != "merge_sorted_by_int_key") or cursor != 1:
                 let failure = find_unbound_name(json_index(arguments, cursor), locals, functions, records, source_name, source)
                 if not json_is_null(failure):
                     return failure
@@ -1780,7 +1833,7 @@ fn find_type_error_expression(node: Json, state: CompilerState, functions: List[
                 let len_type = expression_type(expression(json_index(arguments, 0), state, functions, records, ""))
                 if not is_list_type(len_type) and not is_map_type(len_type) and len_type != "Text" and len_type != "Bytes":
                     return failure_at_node("E_TYPE_ARGUMENT", "len requires List, Map, Bytes, or Text", json_index(arguments, 0), source_name, source, 1)
-            if (callee == "parallel_map" or callee == "sort_by") and cursor == 0:
+            if (callee == "parallel_map" or callee == "sort_by" or callee == "sort_by_int_key" or callee == "merge_sorted_by_int_key") and cursor == 0:
                 set argument_expected = ""
             let argument = json_index(arguments, cursor)
             let failure = find_type_error_expression(argument, state, functions, records, source_name, source, argument_expected)
@@ -1820,6 +1873,32 @@ fn find_type_error_expression(node: Json, state: CompilerState, functions: List[
             let expected_item_type = list_element_type(values_type, records)
             if functions[comparator_index].parameters[0] != expected_item_type or functions[comparator_index].parameters[1] != expected_item_type or type_name(functions[comparator_index].result, records) != "Int":
                 return failure_at_node("E_SORT_COMPARATOR", "sort comparator must have type (T, T) -> Int for the list item type", comparator, source_name, source, len(comparator_name))
+        if callee == "sort_by_int_key":
+            let values_type = expression_type(expression(json_index(arguments, 0), state, functions, records, ""))
+            if not is_list_type(values_type):
+                return failure_at_node("E_TYPE_ARGUMENT", "sort_by_int_key first argument must be a List", json_index(arguments, 0), source_name, source, 1)
+            let key_node = json_index(arguments, 1)
+            if json_as_text(json_get(key_node, "kind")) != "Name":
+                return failure_at_node("E_SORT_KEY", "sort_by_int_key key function must be a named function", key_node, source_name, source, 1)
+            let key_name = json_as_text(json_get(key_node, "text"))
+            let key_index = function_index(functions, key_name)
+            if key_index < 0:
+                return failure_at_node("E_NAME_UNKNOWN", "unknown sort key function `" + key_name + "`", key_node, source_name, source, len(key_name))
+            let expected_item_type = list_element_type(values_type, records)
+            if len(functions[key_index].parameters) != 1 or functions[key_index].parameters[0] != expected_item_type or type_name(functions[key_index].result, records) != "Int":
+                return failure_at_node("E_SORT_KEY", "sort_by_int_key key function must have type (T) -> Int for the list item type", key_node, source_name, source, len(key_name))
+        if callee == "merge_sorted_by_int_key":
+            let feeds_type = expression_type(expression(json_index(arguments, 0), state, functions, records, ""))
+            if not is_list_type(feeds_type) or not is_list_type(list_element_type(feeds_type, records)):
+                return failure_at_node("E_TYPE_ARGUMENT", "merge_sorted_by_int_key first argument must be a List of Lists", json_index(arguments, 0), source_name, source, 1)
+            let key_node = json_index(arguments, 1)
+            if json_as_text(json_get(key_node, "kind")) != "Name":
+                return failure_at_node("E_SORT_KEY", "merge_sorted_by_int_key key function must be a named function", key_node, source_name, source, 1)
+            let key_name = json_as_text(json_get(key_node, "text"))
+            let key_index = function_index(functions, key_name)
+            let expected_item_type = list_element_type(list_element_type(feeds_type, records), records)
+            if len(functions[key_index].parameters) != 1 or functions[key_index].parameters[0] != expected_item_type or type_name(functions[key_index].result, records) != "Int":
+                return failure_at_node("E_SORT_KEY", "merge_sorted_by_int_key key function must have type (T) -> Int for the feed item type", key_node, source_name, source, len(key_name))
         if callee == "list_get" or callee == "map_get":
             let collection_type = expression_type(expression(json_index(arguments, 0), state, functions, records, ""))
             if callee == "list_get" and not is_list_type(collection_type):

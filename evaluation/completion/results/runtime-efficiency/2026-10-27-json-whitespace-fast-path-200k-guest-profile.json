@@ -1,0 +1,140 @@
+{
+  "schema_version": 1,
+  "kind": "jsonl-whitespace-fast-path-guest-profile",
+  "git_revision": "1a0815d922ad13492b3eca5b5403a6feb1e7d0e7",
+  "rows": 200000,
+  "baseline_binary_sha256": "19999b5444b086b545a0bfd698931447ed4d3ac8eaf761aab9a2b8a668ca2430",
+  "candidate_binary_sha256": "0d4f2e3b8145f97f6385a29e9d3f2e865f82a7ad4030bcfbf5ebefb5c00b7f40",
+  "output_checked": true,
+  "scope_note": "Guest allocation-budget counters and phase times only; not host allocation calls, RSS, or CPU attribution.",
+  "profiles": {
+    "baseline": {
+      "elapsed_seconds_including_process_startup": 3.8138038750039414,
+      "cache_status": "bypassed",
+      "reported_phase_timings_ns": {
+        "artifact_runtime_load_ns": 3213083,
+        "cli_to_report_excluding_process_startup_ns": 3804867750,
+        "compiler_pipeline": {
+          "compiler_backend": "rust",
+          "rust_compiler_compile_ns": 4328875
+        },
+        "input_artifact_decode_ns": null,
+        "native_compilation": {
+          "finalize_nanoseconds": 0,
+          "functions": []
+        },
+        "program_execute_ns": 3794420708,
+        "source_compile_or_cache_ns": 5956541
+      },
+      "runtime_profile": {
+        "dynamic_guest_conditional_branch_executions": 4173319,
+        "estimated_guest_allocation_budget_charges": {
+          "estimated_gross_bytes": 4009001609,
+          "estimated_net_bytes": 4009001609,
+          "estimated_refunded_bytes": 0,
+          "successful_events": 31901258
+        },
+        "list_set": {
+          "copy_on_write_copies": 0,
+          "copy_size_histogram": {
+            "buckets": {
+              "0-8": {
+                "copies": 0,
+                "estimated_copy_bytes": 0
+              },
+              "129+": {
+                "copies": 0,
+                "estimated_copy_bytes": 0
+              },
+              "33-128": {
+                "copies": 0,
+                "estimated_copy_bytes": 0
+              },
+              "9-32": {
+                "copies": 0,
+                "estimated_copy_bytes": 0
+              }
+            },
+            "unit": "elements"
+          },
+          "estimated_copy_bytes": 0,
+          "in_place_updates": 0,
+          "operations": 0
+        },
+        "metric_limits": {
+          "allocation": "estimated guest-data budget charges, not host allocator calls",
+          "branches": "executed guest conditional branches, not hardware branch-misprediction counts"
+        },
+        "record_charges": {
+          "estimated_bytes": 117225203,
+          "events": 400947
+        },
+        "scope": "latest guest invocation"
+      }
+    },
+    "candidate": {
+      "elapsed_seconds_including_process_startup": 4.217357916000765,
+      "cache_status": "bypassed",
+      "reported_phase_timings_ns": {
+        "artifact_runtime_load_ns": 2667125,
+        "cli_to_report_excluding_process_startup_ns": 4208032084,
+        "compiler_pipeline": {
+          "compiler_backend": "rust",
+          "rust_compiler_compile_ns": 2548916
+        },
+        "input_artifact_decode_ns": null,
+        "native_compilation": {
+          "finalize_nanoseconds": 0,
+          "functions": []
+        },
+        "program_execute_ns": 4200026666,
+        "source_compile_or_cache_ns": 4189916
+      },
+      "runtime_profile": {
+        "dynamic_guest_conditional_branch_executions": 4173319,
+        "estimated_guest_allocation_budget_charges": {
+          "estimated_gross_bytes": 3994548252,
+          "estimated_net_bytes": 3994548252,
+          "estimated_refunded_bytes": 0,
+          "successful_events": 31701258
+        },
+        "list_set": {
+          "copy_on_write_copies": 0,
+          "copy_size_histogram": {
+            "buckets": {
+              "0-8": {
+                "copies": 0,
+                "estimated_copy_bytes": 0
+              },
+              "129+": {
+                "copies": 0,
+                "estimated_copy_bytes": 0
+              },
+              "33-128": {
+                "copies": 0,
+                "estimated_copy_bytes": 0
+              },
+              "9-32": {
+                "copies": 0,
+                "estimated_copy_bytes": 0
+              }
+            },
+            "unit": "elements"
+          },
+          "estimated_copy_bytes": 0,
+          "in_place_updates": 0,
+          "operations": 0
+        },
+        "metric_limits": {
+          "allocation": "estimated guest-data budget charges, not host allocator calls",
+          "branches": "executed guest conditional branches, not hardware branch-misprediction counts"
+        },
+        "record_charges": {
+          "estimated_bytes": 117225203,
+          "events": 400947
+        },
+        "scope": "latest guest invocation"
+      }
+    }
+  }
+}

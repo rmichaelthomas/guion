@@ -178,7 +178,7 @@ pub fn render(root: &Path) -> Result<String, String> {
         output.push_str(&signature);
         output.push('\n');
     }
-    output.push_str("```\n\n## Standard-library public signatures\n\n```text\n");
+    output.push_str("```\n\n`sort_by_int_key` requires a named pure `(T) -> Int` function, evaluates that key once per item, uses a stable sort, and preserves the input and its aliases. `merge_sorted_by_int_key` stably merges sorted `List[List[T]]` feeds using the same key contract and returns `R_SORT_ORDER` if any feed is not already sorted by key. Native comparisons count against the guest instruction budget.\n\n## Standard-library public signatures\n\n```text\n");
     for signature in standard_library {
         output.push_str(&signature);
         output.push('\n');

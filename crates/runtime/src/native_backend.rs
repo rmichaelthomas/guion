@@ -12,7 +12,7 @@ use super::NativeListArena;
 use cranelift_codegen::{
     ir::{
         condcodes::{FloatCC, IntCC},
-        types, AbiParam, BlockArg, InstBuilder, MemFlagsData, Signature, StackSlotData,
+        types, AbiParam, BlockArg, FuncRef, InstBuilder, MemFlagsData, Signature, StackSlotData,
         StackSlotKind, UserFuncName,
     },
     Context,
@@ -40,7 +40,12 @@ pub(crate) struct NativeSymbols {
     pub(crate) release_fuel: *const u8,
     pub(crate) poll_cancellation: *const u8,
     pub(crate) make_list: *const u8,
-    pub(crate) list_set: *const u8,
+    pub(crate) list_set_float_copy: *const u8,
+    pub(crate) list_set_int_copy: *const u8,
+    pub(crate) list_set_bool_copy: *const u8,
+    pub(crate) list_set_float_local: *const u8,
+    pub(crate) list_set_int_local: *const u8,
+    pub(crate) list_set_bool_local: *const u8,
     pub(crate) charge_record: *const u8,
     pub(crate) print: *const u8,
     pub(crate) count_guest_branch: *const u8,
@@ -78,7 +83,12 @@ pub(crate) struct NativeBackend {
     release_fuel: FuncId,
     poll_cancellation: FuncId,
     make_list: FuncId,
-    list_set: FuncId,
+    list_set_float_copy: FuncId,
+    list_set_int_copy: FuncId,
+    list_set_bool_copy: FuncId,
+    list_set_float_local: FuncId,
+    list_set_int_local: FuncId,
+    list_set_bool_local: FuncId,
     charge_record: FuncId,
     print: FuncId,
     count_guest_branch: Option<FuncId>,
@@ -151,7 +161,12 @@ impl NativeBackend {
         builder.symbol("guion_release_fuel", symbols.release_fuel);
         builder.symbol("guion_poll_cancellation", symbols.poll_cancellation);
         builder.symbol("guion_make_list", symbols.make_list);
-        builder.symbol("guion_list_set", symbols.list_set);
+        builder.symbol("guion_list_set_float_copy", symbols.list_set_float_copy);
+        builder.symbol("guion_list_set_int_copy", symbols.list_set_int_copy);
+        builder.symbol("guion_list_set_bool_copy", symbols.list_set_bool_copy);
+        builder.symbol("guion_list_set_float_local", symbols.list_set_float_local);
+        builder.symbol("guion_list_set_int_local", symbols.list_set_int_local);
+        builder.symbol("guion_list_set_bool_local", symbols.list_set_bool_local);
         builder.symbol("guion_charge_record", symbols.charge_record);
         builder.symbol("guion_print", symbols.print);
         if profile_guest_branches {
@@ -202,11 +217,48 @@ impl NativeBackend {
         list_set_signature.params.push(AbiParam::new(pointer_type));
         list_set_signature.params.push(AbiParam::new(types::I64));
         list_set_signature.params.push(AbiParam::new(types::I64));
-        list_set_signature.params.push(AbiParam::new(types::I64));
-        list_set_signature.params.push(AbiParam::new(types::I64));
         list_set_signature.returns.push(AbiParam::new(pointer_type));
-        let list_set_id = module
-            .declare_function("guion_list_set", Linkage::Import, &list_set_signature)
+        let list_set_float_copy_id = module
+            .declare_function(
+                "guion_list_set_float_copy",
+                Linkage::Import,
+                &list_set_signature,
+            )
+            .ok()?;
+        let list_set_int_copy_id = module
+            .declare_function(
+                "guion_list_set_int_copy",
+                Linkage::Import,
+                &list_set_signature,
+            )
+            .ok()?;
+        let list_set_bool_copy_id = module
+            .declare_function(
+                "guion_list_set_bool_copy",
+                Linkage::Import,
+                &list_set_signature,
+            )
+            .ok()?;
+        let list_set_float_local_id = module
+            .declare_function(
+                "guion_list_set_float_local",
+                Linkage::Import,
+                &list_set_signature,
+            )
+            .ok()?;
+        let list_set_int_local_id = module
+            .declare_function(
+                "guion_list_set_int_local",
+                Linkage::Import,
+                &list_set_signature,
+            )
+            .ok()?;
+        let list_set_bool_local_id = module
+            .declare_function(
+                "guion_list_set_bool_local",
+                Linkage::Import,
+                &list_set_signature,
+            )
             .ok()?;
         let mut charge_record_signature = Signature::new(module.target_config().default_call_conv);
         charge_record_signature
@@ -250,7 +302,12 @@ impl NativeBackend {
             release_fuel: release_fuel_id,
             poll_cancellation: poll_cancellation_id,
             make_list: make_list_id,
-            list_set: list_set_id,
+            list_set_float_copy: list_set_float_copy_id,
+            list_set_int_copy: list_set_int_copy_id,
+            list_set_bool_copy: list_set_bool_copy_id,
+            list_set_float_local: list_set_float_local_id,
+            list_set_int_local: list_set_int_local_id,
+            list_set_bool_local: list_set_bool_local_id,
             charge_record: charge_record_id,
             print: print_id,
             count_guest_branch: count_guest_branch_id,
@@ -557,9 +614,26 @@ impl NativeBackend {
         let make_list = self
             .module
             .declare_func_in_func(self.make_list, &mut context.func);
-        let list_set = self
-            .module
-            .declare_func_in_func(self.list_set, &mut context.func);
+        let list_set_functions = NativeListSetFunctions {
+            float_copy: self
+                .module
+                .declare_func_in_func(self.list_set_float_copy, &mut context.func),
+            int_copy: self
+                .module
+                .declare_func_in_func(self.list_set_int_copy, &mut context.func),
+            bool_copy: self
+                .module
+                .declare_func_in_func(self.list_set_bool_copy, &mut context.func),
+            float_local: self
+                .module
+                .declare_func_in_func(self.list_set_float_local, &mut context.func),
+            int_local: self
+                .module
+                .declare_func_in_func(self.list_set_int_local, &mut context.func),
+            bool_local: self
+                .module
+                .declare_func_in_func(self.list_set_bool_local, &mut context.func),
+        };
         let charge_record = self
             .module
             .declare_func_in_func(self.charge_record, &mut context.func);
@@ -610,11 +684,20 @@ impl NativeBackend {
                 stack_params[*block_index] = values;
             }
             let mut block_instruction_counts = vec![0usize; blocks.len()];
+            let mut block_instruction_offsets = vec![0usize; function.code.len()];
             for (ip, block_index) in block_for_ip.iter().enumerate() {
                 if depths[ip].is_some() {
+                    block_instruction_offsets[ip] = block_instruction_counts[*block_index];
                     block_instruction_counts[*block_index] += 1;
                 }
             }
+            let fuel_reservation_requirements = fuel_reservation_requirements(
+                function,
+                &leader_indices,
+                &block_for_ip,
+                &block_instruction_counts,
+            )
+            .ok_or_else(|| "invalid fuel reservation graph".to_owned())?;
             let fallback = builder.create_block();
             let divide_zero = builder.create_block();
             let float_nonfinite = builder.create_block();
@@ -630,7 +713,8 @@ impl NativeBackend {
             ] {
                 let steps = builder.append_block_param(block, types::I64);
                 let source_ip = builder.append_block_param(block, types::I64);
-                exit_params.push([steps, source_ip]);
+                let completed_instructions = builder.append_block_param(block, types::I64);
+                exit_params.push([steps, source_ip, completed_instructions]);
             }
 
             builder.switch_to_block(entry);
@@ -690,10 +774,9 @@ impl NativeBackend {
                         &instruction.op,
                         Op::Jump(target) | Op::JumpIfFalse(target) if *target <= ip
                     );
-                let steps_before = builder.use_var(steps_var);
-                let current_ip = builder.ins().iconst(types::I64, ip as i64);
-                let exit_args = [BlockArg::Value(steps_before), BlockArg::Value(current_ip)];
                 if polls_cancellation {
+                    let exit_args =
+                        step_exit_args(&mut builder, steps_var, ip, block_instruction_offsets[ip]);
                     let cancellation = builder.ins().call(poll_cancellation, &[budget_pointer]);
                     let cancellation = builder.inst_results(cancellation)[0];
                     let no_cancel = builder.ins().iconst(types::I32, 0);
@@ -705,8 +788,12 @@ impl NativeBackend {
                     builder.switch_to_block(check_fuel);
                     builder.seal_block(check_fuel);
                 }
-                if let Some(block_index) = leader_indices[ip] {
-                    let required = block_instruction_counts[block_index].max(1);
+                if let Some(required) = leader_indices[ip]
+                    .map(|block_index| fuel_reservation_requirements[block_index])
+                    .filter(|required| *required > 0)
+                {
+                    let exit_args =
+                        step_exit_args(&mut builder, steps_var, ip, block_instruction_offsets[ip]);
                     let remaining_fuel = builder.use_var(fuel_var);
                     let required_fuel = builder.ins().iconst(types::I64, required as i64);
                     let enough_fuel = builder.ins().icmp(
@@ -740,17 +827,23 @@ impl NativeBackend {
                     builder.switch_to_block(execute);
                     builder.seal_block(execute);
                 }
-                let remaining_fuel = builder.use_var(fuel_var);
-                let remaining_fuel = builder.ins().iadd_imm_s(remaining_fuel, -1);
-                builder.def_var(fuel_var, remaining_fuel);
-                let steps = builder.use_var(steps_var);
-                let steps = builder.ins().iadd_imm_s(steps, 1);
-                builder.def_var(steps_var, steps);
-
                 match &instruction.op {
                     Op::Const(Value::Int(value)) => {
                         let Ok(value) = value.to_string().parse::<i64>() else {
                             let fault_ip = builder.ins().iconst(types::I64, ip as i64);
+                            let unused_fuel = fuel_count_after(
+                                &mut builder,
+                                fuel_var,
+                                block_instruction_offsets[ip] + 1,
+                            );
+                            builder
+                                .ins()
+                                .call(release_fuel, &[budget_pointer, unused_fuel]);
+                            let steps = step_count_after(
+                                &mut builder,
+                                steps_var,
+                                block_instruction_offsets[ip] + 1,
+                            );
                             let calls = builder.use_var(native_calls_var);
                             emit_exit(
                                 &mut builder,
@@ -825,6 +918,12 @@ impl NativeBackend {
                         let null = builder.ins().iconst(ptr, 0);
                         let succeeded = builder.ins().icmp(IntCC::NotEqual, list, null);
                         let success = builder.create_block();
+                        let exit_args = step_exit_args(
+                            &mut builder,
+                            steps_var,
+                            ip,
+                            block_instruction_offsets[ip] + 1,
+                        );
                         builder
                             .ins()
                             .brif(succeeded, success, &[], fallback, &exit_args);
@@ -847,6 +946,12 @@ impl NativeBackend {
                         let null = builder.ins().iconst(ptr, 0);
                         let succeeded = builder.ins().icmp(IntCC::NotEqual, list, null);
                         let success = builder.create_block();
+                        let exit_args = step_exit_args(
+                            &mut builder,
+                            steps_var,
+                            ip,
+                            block_instruction_offsets[ip] + 1,
+                        );
                         builder
                             .ins()
                             .brif(succeeded, success, &[], fallback, &exit_args);
@@ -862,6 +967,12 @@ impl NativeBackend {
                             .and_then(|types| types.last());
                         let clone_bytes = loaded_type.map(native_cloned_value_bytes).unwrap_or(0);
                         if clone_bytes > 0 {
+                            let exit_args = step_exit_args(
+                                &mut builder,
+                                steps_var,
+                                ip,
+                                block_instruction_offsets[ip] + 1,
+                            );
                             let bytes = builder
                                 .ins()
                                 .iconst(types::I64, i64::try_from(clone_bytes).unwrap_or(i64::MAX));
@@ -901,6 +1012,12 @@ impl NativeBackend {
                             .map(|field| &field.ty);
                         let clone_bytes = field_type.map(native_cloned_value_bytes).unwrap_or(0);
                         if clone_bytes > 0 {
+                            let exit_args = step_exit_args(
+                                &mut builder,
+                                steps_var,
+                                ip,
+                                block_instruction_offsets[ip] + 1,
+                            );
                             let bytes = builder
                                 .ins()
                                 .iconst(types::I64, i64::try_from(clone_bytes).unwrap_or(i64::MAX));
@@ -940,6 +1057,12 @@ impl NativeBackend {
                         let zero = builder.ins().iconst(types::I32, 0);
                         let succeeded = builder.ins().icmp(IntCC::NotEqual, charged, zero);
                         let success = builder.create_block();
+                        let exit_args = step_exit_args(
+                            &mut builder,
+                            steps_var,
+                            ip,
+                            block_instruction_offsets[ip] + 1,
+                        );
                         builder
                             .ins()
                             .brif(succeeded, success, &[], fallback, &exit_args);
@@ -995,16 +1118,6 @@ impl NativeBackend {
                     Op::Index => {
                         let index = stack.pop().ok_or_else(|| "stack underflow".to_owned())?;
                         let handle = stack.pop().ok_or_else(|| "stack underflow".to_owned())?;
-                        let zero = builder.ins().iconst(types::I64, 0);
-                        let negative = builder.ins().icmp(IntCC::SignedLessThan, index, zero);
-                        let check_upper = builder.create_block();
-                        let fault_ip = builder.ins().iconst(types::I64, ip as i64);
-                        let fault_steps = builder.use_var(steps_var);
-                        let fault_args = [BlockArg::Value(fault_steps), BlockArg::Value(fault_ip)];
-                        builder
-                            .ins()
-                            .brif(negative, fallback, &fault_args, check_upper, &[]);
-                        builder.switch_to_block(check_upper);
                         let list = handle;
                         let length = builder.ins().load(
                             types::I64,
@@ -1012,11 +1125,16 @@ impl NativeBackend {
                             list,
                             std::mem::offset_of!(NativeFloatList, len) as i32,
                         );
+                        // Unsigned comparison also rejects negative signed indices, whose
+                        // bit patterns sort above any valid list length.
                         let in_bounds = builder.ins().icmp(IntCC::UnsignedLessThan, index, length);
                         let load_item = builder.create_block();
-                        let fault_ip = builder.ins().iconst(types::I64, ip as i64);
-                        let fault_steps = builder.use_var(steps_var);
-                        let fault_args = [BlockArg::Value(fault_steps), BlockArg::Value(fault_ip)];
+                        let fault_args = step_exit_args(
+                            &mut builder,
+                            steps_var,
+                            ip,
+                            block_instruction_offsets[ip] + 1,
+                        );
                         builder
                             .ins()
                             .brif(in_bounds, load_item, &[], fallback, &fault_args);
@@ -1034,7 +1152,6 @@ impl NativeBackend {
                                 .ins()
                                 .load(types::I64, MemFlagsData::new(), item_address, 0);
                         stack.push(value);
-                        builder.seal_block(check_upper);
                         builder.seal_block(load_item);
                     }
                     Op::Store(slot) => {
@@ -1067,8 +1184,9 @@ impl NativeBackend {
                                 &mut builder,
                                 value,
                                 float_nonfinite,
-                                steps,
+                                steps_var,
                                 ip,
+                                block_instruction_offsets[ip] + 1,
                             );
                             stack.push(builder.ins().bitcast(
                                 types::I64,
@@ -1083,12 +1201,12 @@ impl NativeBackend {
                                 _ => unreachable!(),
                             };
                             let ok = builder.create_block();
-                            let overflow_ip = builder.ins().iconst(types::I64, ip as i64);
-                            let overflow_steps = builder.use_var(steps_var);
-                            let exit_args = [
-                                BlockArg::Value(overflow_steps),
-                                BlockArg::Value(overflow_ip),
-                            ];
+                            let exit_args = step_exit_args(
+                                &mut builder,
+                                steps_var,
+                                ip,
+                                block_instruction_offsets[ip] + 1,
+                            );
                             builder.ins().brif(overflow, fallback, &exit_args, ok, &[]);
                             builder.switch_to_block(ok);
                             builder.seal_block(ok);
@@ -1106,12 +1224,12 @@ impl NativeBackend {
                             let zero = builder.ins().iconst(types::I64, 0);
                             let (negated, overflow) = builder.ins().ssub_overflow(zero, value);
                             let ok = builder.create_block();
-                            let overflow_ip = builder.ins().iconst(types::I64, ip as i64);
-                            let overflow_steps = builder.use_var(steps_var);
-                            let exit_args = [
-                                BlockArg::Value(overflow_steps),
-                                BlockArg::Value(overflow_ip),
-                            ];
+                            let exit_args = step_exit_args(
+                                &mut builder,
+                                steps_var,
+                                ip,
+                                block_instruction_offsets[ip] + 1,
+                            );
                             builder.ins().brif(overflow, fallback, &exit_args, ok, &[]);
                             builder.switch_to_block(ok);
                             builder.seal_block(ok);
@@ -1167,6 +1285,13 @@ impl NativeBackend {
                         }
                     }
                     Op::Jump(target) => {
+                        let completed_instructions = block_instruction_counts[block_for_ip[ip]];
+                        let block_steps =
+                            step_count_after(&mut builder, steps_var, completed_instructions);
+                        builder.def_var(steps_var, block_steps);
+                        let remaining_fuel =
+                            fuel_count_after(&mut builder, fuel_var, completed_instructions);
+                        builder.def_var(fuel_var, remaining_fuel);
                         let block_args: Vec<_> =
                             stack.iter().copied().map(BlockArg::Value).collect();
                         builder
@@ -1175,6 +1300,12 @@ impl NativeBackend {
                         continue;
                     }
                     Op::Call(target, argc) => {
+                        let completed_instructions = block_instruction_counts[block_for_ip[ip]];
+                        let steps =
+                            step_count_after(&mut builder, steps_var, completed_instructions);
+                        let remaining_fuel =
+                            fuel_count_after(&mut builder, fuel_var, completed_instructions);
+                        builder.def_var(fuel_var, remaining_fuel);
                         let _function_id = function_ids
                             .get(*target)
                             .and_then(|function_id| *function_id)
@@ -1221,12 +1352,6 @@ impl NativeBackend {
                         builder
                             .ins()
                             .store(MemFlagsData::new(), call_ip, trace_frame, 8);
-                        let unused_fuel = builder.use_var(fuel_var);
-                        builder
-                            .ins()
-                            .call(release_fuel, &[budget_pointer, unused_fuel]);
-                        let zero_fuel = builder.ins().iconst(types::I64, 0);
-                        builder.def_var(fuel_var, zero_fuel);
                         let child_depth = builder.ins().iadd_imm_s(depth_value, 1);
                         builder.ins().store(
                             MemFlagsData::new(),
@@ -1245,6 +1370,10 @@ impl NativeBackend {
                             .ins()
                             .brif(depth_exceeded, too_deep, &[], allowed_depth, &[]);
                         builder.switch_to_block(too_deep);
+                        let unused_fuel = builder.use_var(fuel_var);
+                        builder
+                            .ins()
+                            .call(release_fuel, &[budget_pointer, unused_fuel]);
                         let target_span = builder.ins().iconst(types::I64, 0);
                         let calls = builder.use_var(native_calls_var);
                         emit_exit(
@@ -1279,12 +1408,15 @@ impl NativeBackend {
                         builder.ins().brif(succeeded, success, &[], failure, &[]);
 
                         builder.switch_to_block(failure);
+                        let unused_fuel = builder.use_var(fuel_var);
+                        builder
+                            .ins()
+                            .call(release_fuel, &[budget_pointer, unused_fuel]);
                         let child_steps =
                             builder
                                 .ins()
                                 .load(types::I64, MemFlagsData::new(), child_metadata, 8);
-                        let parent_steps = builder.use_var(steps_var);
-                        let total_steps = builder.ins().iadd(parent_steps, child_steps);
+                        let total_steps = builder.ins().iadd(steps, child_steps);
                         let fault_ip =
                             builder
                                 .ins()
@@ -1316,8 +1448,7 @@ impl NativeBackend {
                             builder
                                 .ins()
                                 .load(types::I64, MemFlagsData::new(), child_metadata, 8);
-                        let parent_steps = builder.use_var(steps_var);
-                        let total_steps = builder.ins().iadd(parent_steps, child_steps);
+                        let total_steps = builder.ins().iadd(steps, child_steps);
                         builder.def_var(steps_var, total_steps);
                         let child_calls =
                             builder
@@ -1364,6 +1495,13 @@ impl NativeBackend {
                         builder.seal_block(failure);
                     }
                     Op::JumpIfFalse(target) => {
+                        let completed_instructions = block_instruction_counts[block_for_ip[ip]];
+                        let block_steps =
+                            step_count_after(&mut builder, steps_var, completed_instructions);
+                        builder.def_var(steps_var, block_steps);
+                        let remaining_fuel =
+                            fuel_count_after(&mut builder, fuel_var, completed_instructions);
+                        builder.def_var(fuel_var, remaining_fuel);
                         let value = stack.pop().ok_or_else(|| "stack underflow".to_owned())?;
                         if let Some(counter) = count_guest_branch {
                             builder.ins().call(counter, &[arena_pointer]);
@@ -1390,27 +1528,22 @@ impl NativeBackend {
                             .as_ref()
                             .and_then(|types| types.last())
                             .ok_or_else(|| "missing list update item type".to_owned())?;
-                        let kind = builder.ins().iconst(
-                            types::I64,
-                            native_list_kind(item_type)
-                                .ok_or_else(|| "unsupported native list item".to_owned())?,
-                        );
-                        let always_copy = builder.ins().iconst(types::I64, 0);
-                        let result = builder.ins().call(
-                            list_set,
-                            &[
-                                arena_pointer,
-                                list_handle,
-                                list_index,
-                                value,
-                                kind,
-                                always_copy,
-                            ],
-                        );
+                        let list_set =
+                            native_list_set_function(item_type, false, list_set_functions)
+                                .ok_or_else(|| "unsupported native list item".to_owned())?;
+                        let result = builder
+                            .ins()
+                            .call(list_set, &[arena_pointer, list_handle, list_index, value]);
                         let updated = builder.inst_results(result)[0];
                         let null = builder.ins().iconst(ptr, 0);
                         let succeeded = builder.ins().icmp(IntCC::NotEqual, updated, null);
                         let success = builder.create_block();
+                        let exit_args = step_exit_args(
+                            &mut builder,
+                            steps_var,
+                            ip,
+                            block_instruction_offsets[ip] + 1,
+                        );
                         builder
                             .ins()
                             .brif(succeeded, success, &[], fallback, &exit_args);
@@ -1428,20 +1561,22 @@ impl NativeBackend {
                         let item_type = type_stack
                             .get(type_stack.len().checked_sub(1).ok_or("stack underflow")?)
                             .ok_or_else(|| "missing list item type".to_owned())?;
-                        let kind = builder.ins().iconst(
-                            types::I64,
-                            native_list_kind(item_type)
-                                .ok_or_else(|| "unsupported native list item".to_owned())?,
-                        );
-                        let always_copy = builder.ins().iconst(types::I64, 1);
-                        let result = builder.ins().call(
-                            list_set,
-                            &[arena_pointer, list, list_index, value, kind, always_copy],
-                        );
+                        let list_set =
+                            native_list_set_function(item_type, true, list_set_functions)
+                                .ok_or_else(|| "unsupported native list item".to_owned())?;
+                        let result = builder
+                            .ins()
+                            .call(list_set, &[arena_pointer, list, list_index, value]);
                         let updated = builder.inst_results(result)[0];
                         let null = builder.ins().iconst(ptr, 0);
                         let succeeded = builder.ins().icmp(IntCC::NotEqual, updated, null);
                         let success = builder.create_block();
+                        let exit_args = step_exit_args(
+                            &mut builder,
+                            steps_var,
+                            ip,
+                            block_instruction_offsets[ip] + 1,
+                        );
                         builder
                             .ins()
                             .brif(succeeded, success, &[], fallback, &exit_args);
@@ -1463,10 +1598,12 @@ impl NativeBackend {
                             let zero = builder.ins().f64const(0.0);
                             let is_zero = builder.ins().fcmp(FloatCC::Equal, right, zero);
                             let continue_division = builder.create_block();
-                            let fault_ip = builder.ins().iconst(types::I64, ip as i64);
-                            let fault_steps = builder.use_var(steps_var);
-                            let exit_args =
-                                [BlockArg::Value(fault_steps), BlockArg::Value(fault_ip)];
+                            let exit_args = step_exit_args(
+                                &mut builder,
+                                steps_var,
+                                ip,
+                                block_instruction_offsets[ip] + 1,
+                            );
                             builder.ins().brif(
                                 is_zero,
                                 divide_zero,
@@ -1481,8 +1618,9 @@ impl NativeBackend {
                                 &mut builder,
                                 value,
                                 float_nonfinite,
-                                steps,
+                                steps_var,
                                 ip,
+                                block_instruction_offsets[ip] + 1,
                             );
                             stack.push(builder.ins().bitcast(
                                 types::I64,
@@ -1493,10 +1631,12 @@ impl NativeBackend {
                             let zero = builder.ins().iconst(types::I64, 0);
                             let is_zero = builder.ins().icmp(IntCC::Equal, right, zero);
                             let continue_division = builder.create_block();
-                            let fault_ip = builder.ins().iconst(types::I64, ip as i64);
-                            let fault_steps = builder.use_var(steps_var);
-                            let exit_args =
-                                [BlockArg::Value(fault_steps), BlockArg::Value(fault_ip)];
+                            let exit_args = step_exit_args(
+                                &mut builder,
+                                steps_var,
+                                ip,
+                                block_instruction_offsets[ip] + 1,
+                            );
                             builder.ins().brif(
                                 is_zero,
                                 divide_zero,
@@ -1512,10 +1652,12 @@ impl NativeBackend {
                             let is_minus_one = builder.ins().icmp(IntCC::Equal, right, minus_one);
                             let overflow = builder.ins().band(is_min, is_minus_one);
                             let safe_division = builder.create_block();
-                            let fault_ip = builder.ins().iconst(types::I64, ip as i64);
-                            let fault_steps = builder.use_var(steps_var);
-                            let exit_args =
-                                [BlockArg::Value(fault_steps), BlockArg::Value(fault_ip)];
+                            let exit_args = step_exit_args(
+                                &mut builder,
+                                steps_var,
+                                ip,
+                                block_instruction_offsets[ip] + 1,
+                            );
                             builder
                                 .ins()
                                 .brif(overflow, fallback, &exit_args, safe_division, &[]);
@@ -1532,9 +1674,12 @@ impl NativeBackend {
                         let zero = builder.ins().f64const(0.0);
                         let is_negative = builder.ins().fcmp(FloatCC::LessThan, value, zero);
                         let continue_sqrt = builder.create_block();
-                        let fault_ip = builder.ins().iconst(types::I64, ip as i64);
-                        let fault_steps = builder.use_var(steps_var);
-                        let exit_args = [BlockArg::Value(fault_steps), BlockArg::Value(fault_ip)];
+                        let exit_args = step_exit_args(
+                            &mut builder,
+                            steps_var,
+                            ip,
+                            block_instruction_offsets[ip] + 1,
+                        );
                         builder.ins().brif(
                             is_negative,
                             math_domain,
@@ -1545,7 +1690,14 @@ impl NativeBackend {
                         builder.switch_to_block(continue_sqrt);
                         builder.seal_block(continue_sqrt);
                         let result = builder.ins().sqrt(value);
-                        emit_float_finite_guard(&mut builder, result, float_nonfinite, steps, ip);
+                        emit_float_finite_guard(
+                            &mut builder,
+                            result,
+                            float_nonfinite,
+                            steps_var,
+                            ip,
+                            block_instruction_offsets[ip] + 1,
+                        );
                         stack.push(
                             builder
                                 .ins()
@@ -1555,60 +1707,179 @@ impl NativeBackend {
                     Op::IntegerDivide | Op::FloorDivide | Op::Remainder => {
                         let right = stack.pop().ok_or_else(|| "stack underflow".to_owned())?;
                         let left = stack.pop().ok_or_else(|| "stack underflow".to_owned())?;
-                        let zero = builder.ins().iconst(types::I64, 0);
-                        let is_zero = builder.ins().icmp(IntCC::Equal, right, zero);
-                        let nonzero = builder.create_block();
-                        let fault_ip = builder.ins().iconst(types::I64, ip as i64);
-                        let fault_steps = builder.use_var(steps_var);
-                        let exit_args = [BlockArg::Value(fault_steps), BlockArg::Value(fault_ip)];
-                        builder
-                            .ins()
-                            .brif(is_zero, divide_zero, &exit_args, nonzero, &[]);
-                        builder.switch_to_block(nonzero);
-                        builder.seal_block(nonzero);
-                        let min = builder.ins().iconst(types::I64, i64::MIN);
-                        let minus_one = builder.ins().iconst(types::I64, -1);
-                        let is_min = builder.ins().icmp(IntCC::Equal, left, min);
-                        let is_minus_one = builder.ins().icmp(IntCC::Equal, right, minus_one);
-                        let overflow = builder.ins().band(is_min, is_minus_one);
-                        let one = builder.ins().iconst(types::I64, 1);
-                        let safe_right = builder.ins().select(overflow, one, right);
-                        if !matches!(instruction.op, Op::Remainder) {
-                            let continue_division = builder.create_block();
-                            let fault_steps = builder.use_var(steps_var);
-                            let fault_ip = builder.ins().iconst(types::I64, ip as i64);
-                            let exit_args =
-                                [BlockArg::Value(fault_steps), BlockArg::Value(fault_ip)];
-                            builder.ins().brif(
-                                overflow,
-                                fallback,
-                                &exit_args,
-                                continue_division,
-                                &[],
+                        let constant_power_of_two_divisor = if ip > 0
+                            && leader_indices[ip].is_none()
+                        {
+                            let decode_divisor = |value: i64, negated: bool| {
+                                let negative = value < 0 || negated;
+                                let magnitude = value.unsigned_abs();
+                                (value != 0
+                                    && !(negative && magnitude == 1)
+                                    && magnitude.is_power_of_two()
+                                    && magnitude <= (1_u64 << 62))
+                                    .then_some((magnitude as i64, negative))
+                            };
+                            function
+                                .code
+                                .get(ip - 1)
+                                .and_then(|previous| match &previous.op {
+                                    Op::Const(Value::Int(value)) => value
+                                        .to_i64()
+                                        .and_then(|value| decode_divisor(value, false)),
+                                    Op::Negate if ip >= 2 && leader_indices[ip - 1].is_none() => {
+                                        function.code.get(ip - 2).and_then(|literal| {
+                                            if let Op::Const(Value::Int(value)) = &literal.op {
+                                                value.to_i64().and_then(|value| {
+                                                    (value > 0)
+                                                        .then(|| decode_divisor(value, true))
+                                                        .flatten()
+                                                })
+                                            } else {
+                                                None
+                                            }
+                                        })
+                                    }
+                                    _ => None,
+                                })
+                        } else {
+                            None
+                        };
+                        if let Some((divisor, negative_divisor)) = constant_power_of_two_divisor
+                            .filter(|_| {
+                                matches!(
+                                    instruction.op,
+                                    Op::IntegerDivide | Op::FloorDivide | Op::Remainder
+                                )
+                            })
+                        {
+                            if negative_divisor {
+                                let shift = (divisor as u64).trailing_zeros() as i64;
+                                let zero = builder.ins().iconst(types::I64, 0);
+                                if matches!(instruction.op, Op::FloorDivide) {
+                                    let floor_quotient = builder.ins().sshr_imm_s(left, shift);
+                                    let mask = builder.ins().iconst(types::I64, divisor - 1);
+                                    let remainder = builder.ins().band(left, mask);
+                                    let remainder_nonzero =
+                                        builder.ins().icmp(IntCC::NotEqual, remainder, zero);
+                                    let one = builder.ins().iconst(types::I64, 1);
+                                    let adjustment =
+                                        builder.ins().select(remainder_nonzero, one, zero);
+                                    let ceiling = builder.ins().iadd(floor_quotient, adjustment);
+                                    stack.push(builder.ins().isub(zero, ceiling));
+                                } else if matches!(instruction.op, Op::IntegerDivide) {
+                                    // Compute truncation for the positive magnitude, then flip the sign.
+                                    let negative =
+                                        builder.ins().icmp(IntCC::SignedLessThan, left, zero);
+                                    let bias = builder.ins().iconst(types::I64, divisor - 1);
+                                    let bias = builder.ins().select(negative, bias, zero);
+                                    let adjusted = builder.ins().iadd(left, bias);
+                                    let quotient = builder.ins().sshr_imm_s(adjusted, shift);
+                                    stack.push(builder.ins().isub(zero, quotient));
+                                } else {
+                                    let mask = builder.ins().iconst(types::I64, divisor - 1);
+                                    let remainder = builder.ins().band(left, mask);
+                                    let remainder_nonzero =
+                                        builder.ins().icmp(IntCC::NotEqual, remainder, zero);
+                                    let divisor_value = builder.ins().iconst(types::I64, divisor);
+                                    let adjusted = builder.ins().isub(remainder, divisor_value);
+                                    stack.push(builder.ins().select(
+                                        remainder_nonzero,
+                                        adjusted,
+                                        zero,
+                                    ));
+                                }
+                            } else {
+                                if matches!(instruction.op, Op::FloorDivide) {
+                                    let shift = (divisor as u64).trailing_zeros() as i64;
+                                    if shift == 0 {
+                                        stack.push(left);
+                                    } else {
+                                        stack.push(builder.ins().sshr_imm_s(left, shift));
+                                    }
+                                } else if matches!(instruction.op, Op::IntegerDivide) {
+                                    let shift = (divisor as u64).trailing_zeros() as i64;
+                                    if shift == 0 {
+                                        stack.push(left);
+                                    } else {
+                                        // Bias negative values so this keeps `/`'s truncation toward zero.
+                                        let zero = builder.ins().iconst(types::I64, 0);
+                                        let negative =
+                                            builder.ins().icmp(IntCC::SignedLessThan, left, zero);
+                                        let bias = builder.ins().iconst(types::I64, divisor - 1);
+                                        let bias = builder.ins().select(negative, bias, zero);
+                                        let adjusted = builder.ins().iadd(left, bias);
+                                        stack.push(builder.ins().sshr_imm_s(adjusted, shift));
+                                    }
+                                } else if divisor == 1 {
+                                    stack.push(builder.ins().iconst(types::I64, 0));
+                                } else {
+                                    let mask = builder.ins().iconst(types::I64, divisor - 1);
+                                    stack.push(builder.ins().band(left, mask));
+                                }
+                            }
+                        } else {
+                            let zero = builder.ins().iconst(types::I64, 0);
+                            let is_zero = builder.ins().icmp(IntCC::Equal, right, zero);
+                            let nonzero = builder.create_block();
+                            let exit_args = step_exit_args(
+                                &mut builder,
+                                steps_var,
+                                ip,
+                                block_instruction_offsets[ip] + 1,
                             );
-                            builder.switch_to_block(continue_division);
-                            builder.seal_block(continue_division);
-                        }
-                        let quotient = builder.ins().sdiv(left, safe_right);
-                        let truncating = builder.ins().srem(left, safe_right);
-                        let truncating = builder.ins().select(overflow, zero, truncating);
-                        let left_negative = builder.ins().icmp(IntCC::SignedLessThan, left, zero);
-                        let right_negative = builder.ins().icmp(IntCC::SignedLessThan, right, zero);
-                        let signs_differ =
                             builder
                                 .ins()
-                                .icmp(IntCC::NotEqual, left_negative, right_negative);
-                        let remainder_nonzero =
-                            builder.ins().icmp(IntCC::NotEqual, truncating, zero);
-                        let adjust = builder.ins().band(signs_differ, remainder_nonzero);
-                        if matches!(instruction.op, Op::Remainder) {
-                            let adjusted = builder.ins().iadd(truncating, right);
-                            stack.push(builder.ins().select(adjust, adjusted, truncating));
-                        } else if matches!(instruction.op, Op::FloorDivide) {
-                            let adjusted = builder.ins().isub(quotient, one);
-                            stack.push(builder.ins().select(adjust, adjusted, quotient));
-                        } else {
-                            stack.push(quotient);
+                                .brif(is_zero, divide_zero, &exit_args, nonzero, &[]);
+                            builder.switch_to_block(nonzero);
+                            builder.seal_block(nonzero);
+                            let min = builder.ins().iconst(types::I64, i64::MIN);
+                            let minus_one = builder.ins().iconst(types::I64, -1);
+                            let is_min = builder.ins().icmp(IntCC::Equal, left, min);
+                            let is_minus_one = builder.ins().icmp(IntCC::Equal, right, minus_one);
+                            let overflow = builder.ins().band(is_min, is_minus_one);
+                            let one = builder.ins().iconst(types::I64, 1);
+                            let safe_right = builder.ins().select(overflow, one, right);
+                            if !matches!(instruction.op, Op::Remainder) {
+                                let continue_division = builder.create_block();
+                                let exit_args = step_exit_args(
+                                    &mut builder,
+                                    steps_var,
+                                    ip,
+                                    block_instruction_offsets[ip] + 1,
+                                );
+                                builder.ins().brif(
+                                    overflow,
+                                    fallback,
+                                    &exit_args,
+                                    continue_division,
+                                    &[],
+                                );
+                                builder.switch_to_block(continue_division);
+                                builder.seal_block(continue_division);
+                            }
+                            let quotient = builder.ins().sdiv(left, safe_right);
+                            let truncating = builder.ins().srem(left, safe_right);
+                            let truncating = builder.ins().select(overflow, zero, truncating);
+                            let left_negative =
+                                builder.ins().icmp(IntCC::SignedLessThan, left, zero);
+                            let right_negative =
+                                builder.ins().icmp(IntCC::SignedLessThan, right, zero);
+                            let signs_differ =
+                                builder
+                                    .ins()
+                                    .icmp(IntCC::NotEqual, left_negative, right_negative);
+                            let remainder_nonzero =
+                                builder.ins().icmp(IntCC::NotEqual, truncating, zero);
+                            let adjust = builder.ins().band(signs_differ, remainder_nonzero);
+                            if matches!(instruction.op, Op::Remainder) {
+                                let adjusted = builder.ins().iadd(truncating, right);
+                                stack.push(builder.ins().select(adjust, adjusted, truncating));
+                            } else if matches!(instruction.op, Op::FloorDivide) {
+                                let adjusted = builder.ins().isub(quotient, one);
+                                stack.push(builder.ins().select(adjust, adjusted, quotient));
+                            } else {
+                                stack.push(quotient);
+                            }
                         }
                     }
                     Op::Print => {
@@ -1627,6 +1898,12 @@ impl NativeBackend {
                         let zero = builder.ins().iconst(types::I32, 0);
                         let succeeded = builder.ins().icmp(IntCC::NotEqual, printed, zero);
                         let success = builder.create_block();
+                        let exit_args = step_exit_args(
+                            &mut builder,
+                            steps_var,
+                            ip,
+                            block_instruction_offsets[ip] + 1,
+                        );
                         builder
                             .ins()
                             .brif(succeeded, success, &[], fallback, &exit_args);
@@ -1634,6 +1911,12 @@ impl NativeBackend {
                         builder.seal_block(success);
                     }
                     Op::Return => {
+                        let completed_instructions = block_instruction_counts[block_for_ip[ip]];
+                        let steps =
+                            step_count_after(&mut builder, steps_var, completed_instructions);
+                        let remaining_fuel =
+                            fuel_count_after(&mut builder, fuel_var, completed_instructions);
+                        builder.def_var(fuel_var, remaining_fuel);
                         let value = stack.pop().ok_or_else(|| "stack underflow".to_owned())?;
                         if let Type::Record(name) = &function.result {
                             let definition = records
@@ -1682,6 +1965,15 @@ impl NativeBackend {
                     return Err("missing function terminator".into());
                 }
                 if let Some(next_block) = leader_indices[ip + 1] {
+                    if !matches!(instruction.op, Op::Call(_, _)) {
+                        let completed_instructions = block_instruction_counts[block_for_ip[ip]];
+                        let block_steps =
+                            step_count_after(&mut builder, steps_var, completed_instructions);
+                        builder.def_var(steps_var, block_steps);
+                        let remaining_fuel =
+                            fuel_count_after(&mut builder, fuel_var, completed_instructions);
+                        builder.def_var(fuel_var, remaining_fuel);
+                    }
                     let block_args: Vec<_> = stack.iter().copied().map(BlockArg::Value).collect();
                     builder.ins().jump(blocks[next_block], &block_args);
                 }
@@ -1698,16 +1990,19 @@ impl NativeBackend {
             .zip(exit_params)
             {
                 builder.switch_to_block(block);
-                let unused_fuel = builder.use_var(fuel_var);
+                let reserved_fuel = builder.use_var(fuel_var);
+                let completed_instructions = params[2];
+                let unused_fuel = builder.ins().isub(reserved_fuel, completed_instructions);
                 builder
                     .ins()
                     .call(release_fuel, &[budget_pointer, unused_fuel]);
                 let calls = builder.use_var(native_calls_var);
+                let steps = builder.ins().iadd(params[0], params[2]);
                 emit_exit(
                     &mut builder,
                     output_pointer,
                     status,
-                    params[0],
+                    steps,
                     params[1],
                     index,
                     calls,
@@ -1754,12 +2049,55 @@ impl NativeBackend {
     }
 }
 
+fn step_count_after(
+    builder: &mut FunctionBuilder<'_>,
+    steps_var: Variable,
+    completed_instructions: usize,
+) -> cranelift_codegen::ir::Value {
+    let steps = builder.use_var(steps_var);
+    builder
+        .ins()
+        .iadd_imm_s(steps, completed_instructions.min(i64::MAX as usize) as i64)
+}
+
+fn fuel_count_after(
+    builder: &mut FunctionBuilder<'_>,
+    fuel_var: Variable,
+    completed_instructions: usize,
+) -> cranelift_codegen::ir::Value {
+    let remaining_fuel = builder.use_var(fuel_var);
+    builder.ins().iadd_imm_s(
+        remaining_fuel,
+        -(completed_instructions.min(i64::MAX as usize) as i64),
+    )
+}
+
+fn step_exit_args(
+    builder: &mut FunctionBuilder<'_>,
+    steps_var: Variable,
+    ip: usize,
+    completed_instructions: usize,
+) -> [BlockArg; 3] {
+    let steps = builder.use_var(steps_var);
+    let fault_ip = builder.ins().iconst(types::I64, ip as i64);
+    let completed_instructions = builder.ins().iconst(
+        types::I64,
+        completed_instructions.min(i64::MAX as usize) as i64,
+    );
+    [
+        BlockArg::Value(steps),
+        BlockArg::Value(fault_ip),
+        BlockArg::Value(completed_instructions),
+    ]
+}
+
 fn emit_float_finite_guard(
     builder: &mut FunctionBuilder<'_>,
     value: cranelift_codegen::ir::Value,
     failure: cranelift_codegen::ir::Block,
-    steps: cranelift_codegen::ir::Value,
+    steps_var: Variable,
     ip: usize,
+    completed_instructions: usize,
 ) {
     let max = builder.ins().f64const(f64::MAX);
     let min = builder.ins().f64const(-f64::MAX);
@@ -1769,8 +2107,7 @@ fn emit_float_finite_guard(
     let too_small = builder.ins().fcmp(FloatCC::UnorderedOrLessThan, value, min);
     let invalid = builder.ins().bor(too_large, too_small);
     let okay = builder.create_block();
-    let fault_ip = builder.ins().iconst(types::I64, ip as i64);
-    let exit_args = [BlockArg::Value(steps), BlockArg::Value(fault_ip)];
+    let exit_args = step_exit_args(builder, steps_var, ip, completed_instructions);
     builder.ins().brif(invalid, failure, &exit_args, okay, &[]);
     builder.switch_to_block(okay);
     builder.seal_block(okay);
@@ -2232,6 +2569,32 @@ fn native_list_kind(item_type: &Type) -> Option<i64> {
     }
 }
 
+#[derive(Clone, Copy)]
+struct NativeListSetFunctions {
+    float_copy: FuncRef,
+    int_copy: FuncRef,
+    bool_copy: FuncRef,
+    float_local: FuncRef,
+    int_local: FuncRef,
+    bool_local: FuncRef,
+}
+
+fn native_list_set_function(
+    item_type: &Type,
+    always_copy: bool,
+    functions: NativeListSetFunctions,
+) -> Option<FuncRef> {
+    match item_type {
+        Type::Float64 if always_copy => Some(functions.float_copy),
+        Type::Int if always_copy => Some(functions.int_copy),
+        Type::Bool if always_copy => Some(functions.bool_copy),
+        Type::Float64 => Some(functions.float_local),
+        Type::Int => Some(functions.int_local),
+        Type::Bool => Some(functions.bool_local),
+        _ => None,
+    }
+}
+
 fn native_print_kind(value_type: &Type) -> Option<i64> {
     match value_type {
         Type::Int => Some(1),
@@ -2356,4 +2719,92 @@ fn bytecode_block_layout(
         block_for_ip.push(current_block?);
     }
     Some((leader_indices, block_for_ip))
+}
+
+// Reserve enough fuel at function entry and loop headers for the longest
+// reachable path to the next header or return. Backedges make new regions.
+fn fuel_reservation_requirements(
+    function: &Function,
+    leader_indices: &[Option<usize>],
+    block_for_ip: &[usize],
+    block_instruction_counts: &[usize],
+) -> Option<Vec<usize>> {
+    if leader_indices.len() != function.code.len()
+        || block_for_ip.len() != function.code.len()
+        || block_instruction_counts.is_empty()
+    {
+        return None;
+    }
+
+    let block_starts: Vec<_> = leader_indices
+        .iter()
+        .enumerate()
+        .filter_map(|(ip, block)| block.map(|_| ip))
+        .collect();
+    if block_starts.len() != block_instruction_counts.len() {
+        return None;
+    }
+
+    let mut region_starts = vec![false; block_instruction_counts.len()];
+    region_starts[0] = true;
+    let mut successors = vec![Vec::new(); block_instruction_counts.len()];
+
+    for block in 0..block_starts.len() {
+        if block_instruction_counts[block] == 0 {
+            continue;
+        }
+        let start = block_starts[block];
+        let end = block_starts
+            .get(block + 1)
+            .copied()
+            .unwrap_or(function.code.len());
+        let last_ip = (start..end)
+            .rev()
+            .find(|ip| block_for_ip.get(*ip).copied() == Some(block))?;
+        let mut add_successor = |target_ip: usize| -> Option<()> {
+            let target_block = *block_for_ip.get(target_ip)?;
+            if !successors[block].contains(&target_block) {
+                successors[block].push(target_block);
+            }
+            if target_ip <= last_ip {
+                region_starts[target_block] = true;
+            }
+            Some(())
+        };
+
+        match &function.code[last_ip].op {
+            Op::Jump(target) => add_successor(*target)?,
+            Op::JumpIfFalse(target) => {
+                add_successor(*target)?;
+                add_successor(last_ip.checked_add(1)?)?;
+            }
+            Op::Call(_, _) => add_successor(last_ip.checked_add(1)?)?,
+            Op::Return => {}
+            _ if last_ip + 1 < function.code.len() => add_successor(last_ip + 1)?,
+            _ => return None,
+        }
+    }
+
+    let mut longest_region_path = vec![0usize; block_instruction_counts.len()];
+    for block in (0..block_instruction_counts.len()).rev() {
+        if block_instruction_counts[block] == 0 {
+            continue;
+        }
+        let longest_tail = successors[block]
+            .iter()
+            .copied()
+            .filter(|successor| !region_starts[*successor])
+            .map(|successor| longest_region_path[successor])
+            .max()
+            .unwrap_or(0);
+        longest_region_path[block] = block_instruction_counts[block].checked_add(longest_tail)?;
+    }
+
+    Some(
+        longest_region_path
+            .into_iter()
+            .zip(region_starts)
+            .map(|(required, region_start)| if region_start { required } else { 0 })
+            .collect(),
+    )
 }

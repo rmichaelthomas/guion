@@ -1,10 +1,12 @@
 {
   "artifact_identities": {
-    "compiler_seed": null,
-    "runtime": "sha256:549f39686f74c906767841400ec881c3c32db993d5317f8ab13e3e4f9d36b378",
-    "stdlib": null
+    "artifact_schema": "sha256:fcab739bb93b48493100a4581aa8f965eb70849461fd3100bf7666398fabf891",
+    "compiler_seed": "sha256:a714dba0e50eec7d30a30b95acd7d6773e2f73abc9a5a30acd5a416609b5e6d4",
+    "compiler_seed_manifest": "sha256:8ffad8d6650598825c74814c94e9bf362ef1fe1c1389646dcb24badfffe53dea",
+    "runtime": "sha256:564cfd0cca4f221185374e8445511856afc6b297deddda210d7207fc8daff2f1",
+    "stdlib": "sha256:d64eba2fc1e922398d04815b3375f5b610feaeee959dab3260034947f3221f7d"
   },
-  "changed_path_count": 2263,
+  "changed_path_count": 16,
   "checks": [
     {
       "command": [
@@ -15,7 +17,7 @@
       ],
       "exit_status": 0,
       "id": "builtin-signature-catalog",
-      "output": "declarative builtin signatures validate and generated Veritas catalog is current",
+      "output": "declarative builtin signatures validate and generated Guion catalog is current",
       "status": "passed"
     },
     {
@@ -33,7 +35,7 @@
   ],
   "command": "conformance",
   "completed_targets": [
-    "debian-aarch64"
+    "macos-aarch64"
   ],
   "exact_command": "cargo xtask conformance --inventory-only",
   "exit_status": 0,
@@ -42,20 +44,16 @@
   "missing_evidence": [],
   "report": "conformance-inventory",
   "required_targets": [
-    "debian-aarch64"
+    "macos-aarch64"
   ],
-  "runtime_hash": "sha256:549f39686f74c906767841400ec881c3c32db993d5317f8ab13e3e4f9d36b378",
+  "runtime_hash": "sha256:564cfd0cca4f221185374e8445511856afc6b297deddda210d7207fc8daff2f1",
   "schema_version": 1,
-  "seed_hash": null,
+  "seed_hash": "sha256:a714dba0e50eec7d30a30b95acd7d6773e2f73abc9a5a30acd5a416609b5e6d4",
   "skipped_targets": [],
-  "source_revision": "b8755f08e8c453051572b9e57a34fd1da0a73199",
+  "source_revision": "dade6783b28dafd7028bc6b3c062953ace78873c",
   "status": "passed",
-  "stdlib_hash": null,
-  "target": "debian-aarch64",
-  "unsatisfied_goal_ids": [
-    "G1",
-    "G2",
-    "G3"
-  ],
-  "working_tree_digest": "sha256:6e3d8a72ccece5d0fd5a6ffe4ba063b492c9bdd8dbed933990db840332a8d872"
+  "stdlib_hash": "sha256:d64eba2fc1e922398d04815b3375f5b610feaeee959dab3260034947f3221f7d",
+  "target": "macos-aarch64",
+  "unsatisfied_goal_ids": [],
+  "working_tree_digest": "sha256:ddef1adf45f36d3945a6ca1fedef485467155a6982f3395dc65e2cc751721fb1"
 }

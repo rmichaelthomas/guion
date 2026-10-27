@@ -139,7 +139,9 @@ fn parse_instruction(
                 .ok_or("ConstBool.value must be boolean")?,
         )),
         "ConstText" => Op::Const(Value::Text(
-            required_str(object.get("value"), "ConstText.value")?.to_owned(),
+            required_str(object.get("value"), "ConstText.value")?
+                .to_owned()
+                .into(),
         )),
         "ConstFloat64" => {
             let value = required_str(object.get("value"), "ConstFloat64.value")?
@@ -264,6 +266,26 @@ fn parse_instruction(
                 .ok_or_else(|| format!("SortBy.function references unknown function `{name}`"))?;
             Op::SortBy(index)
         }
+        "SortByIntKey" => {
+            let name = required_str(object.get("function"), "SortByIntKey.function")?;
+            let index = functions
+                .iter()
+                .position(|function| function == name)
+                .ok_or_else(|| {
+                    format!("SortByIntKey.function references unknown function `{name}`")
+                })?;
+            Op::SortByIntKey(index)
+        }
+        "MergeSortedByIntKey" => {
+            let name = required_str(object.get("function"), "MergeSortedByIntKey.function")?;
+            let index = functions
+                .iter()
+                .position(|function| function == name)
+                .ok_or_else(|| {
+                    format!("MergeSortedByIntKey.function references unknown function `{name}`")
+                })?;
+            Op::MergeSortedByIntKey(index)
+        }
         "ListSet" => Op::ListSet,
         "ListSetLocal" => {
             Op::ListSetLocal(required_usize(object.get("local"), "ListSetLocal.local")?)
@@ -281,6 +303,9 @@ fn parse_instruction(
         "JsonPush" => Op::JsonPush,
         "JsonPushLocal" => {
             Op::JsonPushLocal(required_usize(object.get("local"), "JsonPushLocal.local")?)
+        }
+        "JsonSetLocal" => {
+            Op::JsonSetLocal(required_usize(object.get("local"), "JsonSetLocal.local")?)
         }
         "JsonSet" => Op::JsonSet,
         "JsonGet" => Op::JsonGet,

@@ -1,0 +1,364 @@
+{
+  "schema_version": 1,
+  "kind": "allherehtml-randomized-build-comparison",
+  "host": {
+    "platform": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+    "architecture": "arm64"
+  },
+  "baseline_sha256": "b7d3499e5548e0e901eaf14cb19052b38cf3af32436bf4c75beab35b13abd000",
+  "candidate_sha256": "f85a615353bc1479be161c99335a799e6018751fa37465006ad269c16865e31f",
+  "source_sha256": "e1d4054a9c2d341d5b535aafe7a4d529d00c25762321dfc400875d1d990e4e37",
+  "trials_per_arm_per_scale": 15,
+  "warmup_pairs_per_scale": 2,
+  "measurement": "Fresh process, source cache bypassed, output SHA-256 checked after every run; OS file cache uncontrolled.",
+  "scales": {
+    "1": {
+      "template_bytes": 42225,
+      "expected_output_sha256": "4e56c9c90df40f1220505a94d45687410be6308d49e53306e2c7e7d21d1e4cc5",
+      "output_checked_each_warmup_and_trial": true,
+      "arm_medians_seconds": {
+        "baseline": 0.33705633296631277,
+        "candidate": 0.31301824998809025
+      },
+      "candidate_over_baseline": {
+        "median_ratio": 0.941424628395956,
+        "ci95_percentile": [
+          0.9261409882674835,
+          0.948464712346755
+        ],
+        "win": true,
+        "ties_or_regressions": 1
+      },
+      "samples_seconds": {
+        "baseline": [
+          0.3348015829687938,
+          0.32534020801540464,
+          0.3379812079947442,
+          0.3388683749944903,
+          0.3270369590027258,
+          0.3263677909853868,
+          0.3690005830139853,
+          0.3455949999624863,
+          0.34112475003348663,
+          0.3505195420002565,
+          0.3355313749634661,
+          0.3331264579901472,
+          0.34322270896518603,
+          0.32580970897106454,
+          0.33705633296631277
+        ],
+        "candidate": [
+          0.3111624169978313,
+          0.3086742910090834,
+          0.31301824998809025,
+          0.31318404199555516,
+          0.30910700000822544,
+          0.30954833299620077,
+          0.31200162501772866,
+          0.34607604099437594,
+          0.33394658297766,
+          0.3236446250230074,
+          0.31587749999016523,
+          0.313586917007342,
+          0.33542791701620445,
+          0.3083601660327986,
+          0.30999224999686703
+        ]
+      },
+      "paired_trial_order": [
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ]
+      ]
+    },
+    "2": {
+      "template_bytes": 84931,
+      "expected_output_sha256": "1a3bb6ef65b0db9ef3ccbfa281f147ef296e19befbe5348f2b6ae9a5f7b86b4e",
+      "output_checked_each_warmup_and_trial": true,
+      "arm_medians_seconds": {
+        "baseline": 0.637181416968815,
+        "candidate": 0.6254164999700151
+      },
+      "candidate_over_baseline": {
+        "median_ratio": 0.9728330622767859,
+        "ci95_percentile": [
+          0.9666036300067808,
+          0.9997867096118895
+        ],
+        "win": true,
+        "ties_or_regressions": 3
+      },
+      "samples_seconds": {
+        "baseline": [
+          0.6331327499938197,
+          0.630112916987855,
+          0.6376867499784566,
+          0.6428816250409,
+          0.6366575839929283,
+          0.6703247500117868,
+          0.6526602919911966,
+          0.6547175830346532,
+          0.6260786660131998,
+          0.6370334580424242,
+          0.6256751249893568,
+          0.637181416968815,
+          0.6361886250087991,
+          0.6617514999816194,
+          0.647561667021364
+        ],
+        "candidate": [
+          0.612671208975371,
+          0.6050438329693861,
+          0.602518042025622,
+          0.6254164999700151,
+          0.6365217910497449,
+          0.7030877090292051,
+          0.6309694580268115,
+          0.6400010000215843,
+          0.6304396669729613,
+          0.6046660839929245,
+          0.6114316660095938,
+          0.6139661250053905,
+          0.620024541974999,
+          0.8813687500078231,
+          0.6259354579960927
+        ]
+      },
+      "paired_trial_order": [
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ]
+      ]
+    },
+    "4": {
+      "template_bytes": 170325,
+      "expected_output_sha256": "f1cc66773729e819d0b1fe5fad97ce19ed42a9506d2f79103630cbf0d774a6a6",
+      "output_checked_each_warmup_and_trial": true,
+      "arm_medians_seconds": {
+        "baseline": 1.2684457919676788,
+        "candidate": 1.2205036249943078
+      },
+      "candidate_over_baseline": {
+        "median_ratio": 0.9722521997120559,
+        "ci95_percentile": [
+          0.9637653462596878,
+          0.9752659294855016
+        ],
+        "win": true,
+        "ties_or_regressions": 1
+      },
+      "samples_seconds": {
+        "baseline": [
+          1.2843552080448717,
+          1.2602522079832852,
+          1.2574848749791272,
+          1.2429825420258567,
+          1.2707870829617605,
+          1.2684457919676788,
+          1.261724125011824,
+          1.2705727499560453,
+          1.315376041980926,
+          1.2794588340329938,
+          1.245047667005565,
+          1.248075042036362,
+          1.2728407079703175,
+          1.2893058329937048,
+          1.2358883330016397
+        ],
+        "candidate": [
+          1.250990540953353,
+          1.2290810410049744,
+          1.21354299999075,
+          1.1979435000102967,
+          1.2384190000011586,
+          1.2353891659877263,
+          1.2167729579959996,
+          1.2285269999993034,
+          1.2949454999761656,
+          1.2957070000120439,
+          1.210500332992524,
+          1.198606749996543,
+          1.2106380829936825,
+          1.2205036249943078,
+          1.2203072090051137
+        ]
+      },
+      "paired_trial_order": [
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ]
+      ]
+    }
+  }
+}

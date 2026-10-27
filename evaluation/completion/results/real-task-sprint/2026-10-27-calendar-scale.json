@@ -1,0 +1,92 @@
+{
+  "schema_version": 1,
+  "kind": "calendar-event-scaling-diagnostic",
+  "status": "passed",
+  "commit": "214bdb8",
+  "guion_sha256": "cdc227ab8547e318c5152610814aeb7c35340a4cbf07f4dd6477e0a0b59072c6",
+  "calendar_source_sha256": "6c5bfb7920432fd0c62e469cfc3f74037a1ed35a78cbcbc4d48d018b25c771c7",
+  "python": "3.14.7 (main, Aug  5 2026, 10:29:49) [Clang 21.0.0 (clang-2100.1.1.101)]",
+  "platform": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+  "trials": 7,
+  "measurement": "One unmeasured randomized warmup pair plus randomized paired trials. Fresh-process source execution, Guion cache bypassed, output and concurrency checks included, fixture setup excluded, OS cache uncontrolled. Three calendars contain non-overlapping events inside a three-day window; the other two endpoints retain fixed error cases.",
+  "workloads": {
+    "4500": {
+      "events_per_calendar": 4500,
+      "parsed_events": 13500,
+      "outputs_verified": true,
+      "preflight": {
+        "guion": {
+          "passed": true,
+          "elapsed_seconds": 0.284244,
+          "failures": [],
+          "stderr": ""
+        },
+        "python": {
+          "passed": true,
+          "elapsed_seconds": 12.358557,
+          "failures": [],
+          "stderr": ""
+        }
+      },
+      "samples_seconds": {
+        "guion": [
+          0.310853,
+          0.317652,
+          0.309107,
+          0.317139,
+          0.285915,
+          0.331589,
+          0.316127
+        ],
+        "python": [
+          13.667239,
+          11.902613,
+          11.813387,
+          12.018243,
+          11.778477,
+          12.45871,
+          11.956821
+        ]
+      },
+      "paired_order": [
+        [
+          "python",
+          "guion"
+        ],
+        [
+          "python",
+          "guion"
+        ],
+        [
+          "python",
+          "guion"
+        ],
+        [
+          "python",
+          "guion"
+        ],
+        [
+          "guion",
+          "python"
+        ],
+        [
+          "python",
+          "guion"
+        ],
+        [
+          "python",
+          "guion"
+        ]
+      ],
+      "median_seconds": {
+        "guion": 0.316127,
+        "python": 11.956821
+      },
+      "guion_over_python_median": 0.026388133440137632,
+      "bootstrap_95_interval": [
+        0.02427436076837438,
+        0.02661503478289486
+      ]
+    }
+  }
+}

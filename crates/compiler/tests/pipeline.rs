@@ -36,7 +36,7 @@ fn local_resolver_has_the_public_typed_signature_and_rejects_wrong_arguments() {
     let stdlib = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../language/stdlib");
     let artifact = compile_project_with_roots(&entry, &root, Some(&stdlib), &HashMap::new())
         .expect("the public local resolver signature type-checks");
-    assert_eq!(artifact.format_version, 40);
+    assert_eq!(artifact.format_version, guion_model::Artifact::CURRENT_VERSION);
 
     let bad_entry = root.join("bad.gu");
     fs::write(

@@ -1,0 +1,362 @@
+{
+  "schema_version": 1,
+  "kind": "text-split-single-scalar-real-task-head-to-head",
+  "baseline_revision": "bb31cc3",
+  "candidate_revision": "working tree after bb31cc3",
+  "baseline_binary_sha256": "6be9feaa4b1c59ad5771007b0504d9a318ab3737c9736bc7dc7ac89a138e9a7e",
+  "candidate_binary_sha256": "6be9feaa4b1c59ad5771007b0504d9a318ab3737c9736bc7dc7ac89a138e9a7e",
+  "baseline_text_stdlib_sha256": "f5a7d5b6ae4feae2db75decc1983b0df62c0775ed386eb25e5d4fdadcf305b95",
+  "candidate_text_stdlib_sha256": "001d20492743660b869217f408bf730a6dfec7010c2657336bba0cc91e637e1c",
+  "trials_per_application": 15,
+  "warmup_pairs_per_application": 2,
+  "random_seed": 20261027,
+  "measurement": "Fresh Guion processes with source cache bypassed; each output checked by the frozen case oracle; elapsed time sums process and oracle-check time; OS file cache uncontrolled.",
+  "applications": {
+    "doc-index": {
+      "case_id": "doc-index-build-check-backlinks",
+      "samples_seconds": {
+        "baseline": [
+          0.048748,
+          0.049009,
+          0.047812,
+          0.049520999999999996,
+          0.051404,
+          0.051336,
+          0.049823,
+          0.049689,
+          0.048747,
+          0.050313,
+          0.050731,
+          0.047473,
+          0.054902,
+          0.048559,
+          0.048085
+        ],
+        "candidate": [
+          0.050595,
+          0.04964,
+          0.050986,
+          0.050145,
+          0.048569,
+          0.049154,
+          0.05106,
+          0.050389,
+          0.048931,
+          0.050067,
+          0.049919,
+          0.048464,
+          0.048008,
+          0.048919,
+          0.048401
+        ]
+      },
+      "paired_order": [
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ]
+      ],
+      "median_seconds": {
+        "baseline": 0.049520999999999996,
+        "candidate": 0.04964
+      },
+      "candidate_over_baseline": {
+        "median_ratio": 1.00741366173109,
+        "bootstrap_95_interval": [
+          0.9839940076087599,
+          1.0208750236976807
+        ],
+        "candidate_faster": false,
+        "candidate_wins": 5
+      },
+      "all_outputs_verified": true
+    },
+    "release-notes": {
+      "case_id": "release-notes-initial",
+      "samples_seconds": {
+        "baseline": [
+          0.023609,
+          0.02238,
+          0.023055,
+          0.022579,
+          0.023575,
+          0.025628,
+          0.022262,
+          0.024058,
+          0.024236,
+          0.0226,
+          0.023237,
+          0.024786,
+          0.022683,
+          0.022454,
+          0.023676
+        ],
+        "candidate": [
+          0.022081,
+          0.022325,
+          0.022417,
+          0.022191,
+          0.021399,
+          0.021888,
+          0.02167,
+          0.022212,
+          0.02211,
+          0.021958,
+          0.023121,
+          0.022326,
+          0.022099,
+          0.022738,
+          0.022437
+        ]
+      },
+      "paired_order": [
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ]
+      ],
+      "median_seconds": {
+        "baseline": 0.023237,
+        "candidate": 0.022191
+      },
+      "candidate_over_baseline": {
+        "median_ratio": 0.9715929203539823,
+        "bootstrap_95_interval": [
+          0.9232687671460637,
+          0.9742538464929684
+        ],
+        "candidate_faster": true,
+        "candidate_wins": 14
+      },
+      "all_outputs_verified": true
+    },
+    "jsonl-summary": {
+      "case_id": "jsonl-normal-summary",
+      "samples_seconds": {
+        "baseline": [
+          0.013962,
+          0.015131,
+          0.013321,
+          0.014241,
+          0.013993,
+          0.014314,
+          0.014547,
+          0.014178,
+          0.018188,
+          0.014941,
+          0.015003,
+          0.015683,
+          0.014211,
+          0.014255,
+          0.014432
+        ],
+        "candidate": [
+          0.016424,
+          0.013444,
+          0.0132,
+          0.015483,
+          0.014517,
+          0.013598,
+          0.01415,
+          0.016138,
+          0.01464,
+          0.014411,
+          0.015941,
+          0.014806,
+          0.014098,
+          0.013862,
+          0.014028
+        ]
+      },
+      "paired_order": [
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ]
+      ],
+      "median_seconds": {
+        "baseline": 0.014314,
+        "candidate": 0.014411
+      },
+      "candidate_over_baseline": {
+        "median_ratio": 0.9727091496528494,
+        "bootstrap_95_interval": [
+          0.9645271400843317,
+          1.0625208291675
+        ],
+        "candidate_faster": false,
+        "candidate_wins": 10
+      },
+      "all_outputs_verified": true
+    }
+  },
+  "baseline_stdlib_revision": "bb31cc3"
+}

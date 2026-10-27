@@ -1,0 +1,72 @@
+{
+  "captured_at_utc": "2026-10-27T06:01:35.029035+00:00",
+  "kind": "guion-richards-native-vm-python-triage",
+  "measurement_design": {
+    "os_file_cache": "uncontrolled",
+    "output_checked_every_run": true,
+    "purpose": "triage only; not used as a release performance claim",
+    "randomized_paired_order": true,
+    "source_cache": "native Guion bypassed with --no-cache; VM probe compiles source each process",
+    "trials_per_arm": 5,
+    "warmups_per_arm": 2
+  },
+  "medians_seconds": {
+    "guion_native_source_uncached": 0.04906483300146647,
+    "python_reference": 0.07531841602758504,
+    "vmrunner_source_uncached": 0.7170604580023792
+  },
+  "paired_trial_order": [
+    [
+      "guion_native_source_uncached",
+      "vmrunner_source_uncached",
+      "python_reference"
+    ],
+    [
+      "python_reference",
+      "vmrunner_source_uncached",
+      "guion_native_source_uncached"
+    ],
+    [
+      "python_reference",
+      "guion_native_source_uncached",
+      "vmrunner_source_uncached"
+    ],
+    [
+      "vmrunner_source_uncached",
+      "guion_native_source_uncached",
+      "python_reference"
+    ],
+    [
+      "python_reference",
+      "vmrunner_source_uncached",
+      "guion_native_source_uncached"
+    ]
+  ],
+  "pinned_python_version": "3.14.7",
+  "raw_samples_seconds": {
+    "guion_native_source_uncached": [
+      0.04997454199474305,
+      0.04906483300146647,
+      0.04872929101111367,
+      0.051824499998474494,
+      0.04809062500135042
+    ],
+    "python_reference": [
+      0.07895320799434558,
+      0.10070220800116658,
+      0.07531841602758504,
+      0.07321674999548122,
+      0.07243491700501181
+    ],
+    "vmrunner_source_uncached": [
+      0.7683853330090642,
+      0.7261949579988141,
+      0.6980548329884186,
+      0.7170604580023792,
+      0.6903250830073375
+    ]
+  },
+  "schema_version": 1,
+  "status": "passed",
+  "workload": "richards-scheduler"
+}

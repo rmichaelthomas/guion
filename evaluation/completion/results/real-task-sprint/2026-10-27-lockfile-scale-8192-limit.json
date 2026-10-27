@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "kind": "lockfile-diagnostic-scaling",
+  "baseline_commit": "8e1b43b",
+  "baseline_source_sha256": "e112be22cecaa5dff785376af84a8583a400b9ecf810951d6f2f4300db686648",
+  "candidate_source_sha256": "08d8bda3964295e54466a1fe5bf95db8d0f80b4976a1320c0d884b4f81d2953a",
+  "guion_binary_sha256": "672d90d1e32462d256e76ad991e1e85ed86dd41ccb1670cdda0d29027cc0084d",
+  "platform": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+  "python": "3.14.7 (main, Aug  5 2026, 10:29:49) [Clang 21.0.0 (clang-2100.1.1.101)]",
+  "trials": 3,
+  "measurement": "Fresh-process source runs with Guion source cache bypassed; fixture setup excluded. Every report is checked against the expected sorted JSON. OS file cache is uncontrolled.",
+  "workloads": {
+    "8192": {
+      "packages": 8192,
+      "diagnostics": 16384,
+      "preflight": {
+        "baseline_source": {
+          "passed": false,
+          "elapsed_seconds": 0.081472,
+          "failures": [
+            "step 1: expected exit code 0, received 1",
+            "step 1: check 1: json_equals could not be evaluated: [Errno 2] No such file or directory: '/Users/rmichaelthomas/guion/target/perf-session/real-tasks-tmp/veritas-independent-case-l3_ubrcx/report.json'"
+          ],
+          "stderr": "main.vr:14:12: runtime error[R_ALLOCATION_LIMIT]: cumulative allocation budget exhausted during this invocation\n  at main.vr:269:30\n",
+          "runner_wall_seconds": 0.08410129201365635
+        },
+        "candidate_source": {
+          "passed": false,
+          "elapsed_seconds": 0.090408,
+          "failures": [
+            "step 1: expected exit code 0, received 1",
+            "step 1: check 1: json_equals could not be evaluated: [Errno 2] No such file or directory: '/Users/rmichaelthomas/guion/target/perf-session/real-tasks-tmp/veritas-independent-case-rsli9e6u/report.json'"
+          ],
+          "stderr": "main.vr:305:9: runtime error[R_STEP_LIMIT]: instruction budget exhausted\n",
+          "runner_wall_seconds": 0.09405170899117365
+        },
+        "python": {
+          "passed": true,
+          "elapsed_seconds": 0.12949,
+          "failures": [],
+          "stderr": "",
+          "runner_wall_seconds": 0.1323942500166595
+        }
+      },
+      "status": "failed"
+    }
+  }
+}

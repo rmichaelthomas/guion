@@ -1360,7 +1360,7 @@ impl<'a> FnCompiler<'a> {
                 Ok(Type::Bool)
             }
             Expr::Text(v, s) => {
-                self.emit(Op::Const(Value::Text(v.clone())), *s);
+                self.emit(Op::Const(Value::Text(v.clone().into())), *s);
                 Ok(Type::Text)
             }
             Expr::List(values, span) => {
@@ -1426,7 +1426,7 @@ impl<'a> FnCompiler<'a> {
                             *key_span,
                         ));
                     }
-                    self.emit(Op::Const(Value::Text(key_text.clone())), *key_span);
+                    self.emit(Op::Const(Value::Text(key_text.clone().into())), *key_span);
                     let actual = self.expr_with_expected(value, expected_item)?;
                     if item_type
                         .as_ref()
@@ -1922,6 +1922,115 @@ impl<'a> FnCompiler<'a> {
                     self.emit(Op::SortBy(comparator_index), *s);
                     return Ok(Type::List(Box::new(item_type)));
                 }
+                if name == "sort_by_int_key" {
+                    if args.len() != 2 {
+                        return Err(diagnostic(
+                            "E_CALL_ARITY",
+                            "sort_by_int_key expects a list and a named key function",
+                            *s,
+                        ));
+                    }
+                    let item_type = match self.expr(&args[0])? {
+                        Type::List(item) => *item,
+                        _ => {
+                            return Err(diagnostic(
+                                "E_TYPE_ARGUMENT",
+                                "sort_by_int_key first argument must be a List",
+                                args[0].span(),
+                            ))
+                        }
+                    };
+                    let Expr::Name(key_name, key_span) = &args[1] else {
+                        return Err(diagnostic(
+                            "E_SORT_KEY",
+                            "sort_by_int_key key function must be a named function",
+                            args[1].span(),
+                        ));
+                    };
+                    let Some(key_symbol) = self.visible_functions.get(key_name) else {
+                        return Err(diagnostic(
+                            "E_NAME_UNKNOWN",
+                            format!("unknown key function `{key_name}`"),
+                            *key_span,
+                        ));
+                    };
+                    let Some((key_index, parameters, result)) =
+                        self.signatures.get(key_symbol).cloned()
+                    else {
+                        return Err(diagnostic(
+                            "E_NAME_UNKNOWN",
+                            format!("unknown key function `{key_name}`"),
+                            *key_span,
+                        ));
+                    };
+                    if parameters != vec![item_type.clone()] || result != Type::Int {
+                        return Err(diagnostic(
+                            "E_SORT_KEY",
+                            "sort_by_int_key key function must have type (T) -> Int for the list item type",
+                            *key_span,
+                        ));
+                    }
+                    self.emit(Op::SortByIntKey(key_index), *s);
+                    return Ok(Type::List(Box::new(item_type)));
+                }
+                if name == "merge_sorted_by_int_key" {
+                    if args.len() != 2 {
+                        return Err(diagnostic(
+                            "E_CALL_ARITY",
+                            "merge_sorted_by_int_key expects sorted feeds and a named key function",
+                            *s,
+                        ));
+                    }
+                    let item_type = match self.expr(&args[0])? {
+                        Type::List(feed) => match *feed {
+                            Type::List(item) => *item,
+                            _ => return Err(diagnostic(
+                                "E_TYPE_ARGUMENT",
+                                "merge_sorted_by_int_key first argument must be a List of Lists",
+                                args[0].span(),
+                            )),
+                        },
+                        _ => {
+                            return Err(diagnostic(
+                                "E_TYPE_ARGUMENT",
+                                "merge_sorted_by_int_key first argument must be a List of Lists",
+                                args[0].span(),
+                            ))
+                        }
+                    };
+                    let Expr::Name(key_name, key_span) = &args[1] else {
+                        return Err(diagnostic(
+                            "E_SORT_KEY",
+                            "merge_sorted_by_int_key key function must be a named function",
+                            args[1].span(),
+                        ));
+                    };
+                    let Some(key_symbol) = self.visible_functions.get(key_name) else {
+                        return Err(diagnostic(
+                            "E_NAME_UNKNOWN",
+                            format!("unknown key function `{key_name}`"),
+                            *key_span,
+                        ));
+                    };
+                    let Some((key_index, parameters, result)) =
+                        self.signatures.get(key_symbol).cloned()
+                    else {
+                        return Err(diagnostic(
+                            "E_NAME_UNKNOWN",
+                            format!("unknown key function `{key_name}`"),
+                            *key_span,
+                        ));
+                    };
+                    if parameters != vec![item_type.clone()] || result != Type::Int {
+                        return Err(diagnostic(
+                            "E_SORT_KEY",
+                            "merge_sorted_by_int_key key function must have type (T) -> Int for the feed item type",
+                            *key_span,
+                        ));
+                    }
+                    self.emit(Op::MergeSortedByIntKey(key_index), *s);
+                    return Ok(Type::List(Box::new(item_type)));
+                }
                 if name == "list_get" || name == "map_get" {
                     if args.len() != 2 {
                         return Err(diagnostic(
@@ -2405,6 +2514,38 @@ impl<'a> FnCompiler<'a> {
                         }
                         _ => None,
                     };
+                    let optimized_json_set = match value {
+                        Expr::Call(call, args, keywords, _)
+                            if call == "json_set"
+                                && keywords.is_empty()
+                                && args.len() == 3
+                                && matches!(&args[0], Expr::Name(source, _) if source == name) =>
+                        {
+                            if local.ty != Type::Json {
+                                return Err(diagnostic(
+                                    "E_TYPE_ASSIGN",
+                                    "json_set assignment requires a Json local",
+                                    *span,
+                                ));
+                            }
+                            if self.expr_with_expected(&args[1], Some(&Type::Text))? != Type::Text {
+                                return Err(diagnostic(
+                                    "E_TYPE_ARGUMENT",
+                                    "json_set key must be Text",
+                                    args[1].span(),
+                                ));
+                            }
+                            if self.expr_with_expected(&args[2], Some(&Type::Json))? != Type::Json {
+                                return Err(diagnostic(
+                                    "E_TYPE_ARGUMENT",
+                                    "json_set value must be Json",
+                                    args[2].span(),
+                                ));
+                            }
+                            Some(Op::JsonSetLocal(local.slot))
+                        }
+                        _ => None,
+                    };
                     let optimized_list_set = match value {
                         Expr::Call(call, args, keywords, _)
                             if call == "list_set"
@@ -2439,8 +2580,9 @@ impl<'a> FnCompiler<'a> {
                     };
                     let optimized_local_list_update =
                         optimized_list_push.is_some() || optimized_list_set.is_some();
-                    let optimized_local_update =
-                        optimized_local_list_update || optimized_json_push.is_some();
+                    let optimized_local_update = optimized_local_list_update
+                        || optimized_json_push.is_some()
+                        || optimized_json_set.is_some();
                     let ty = if optimized_local_update {
                         local.ty.clone()
                     } else {
@@ -2454,7 +2596,8 @@ impl<'a> FnCompiler<'a> {
                         ));
                     }
                     self.emit(
-                        optimized_json_push
+                        optimized_json_set
+                            .or(optimized_json_push)
                             .or(optimized_list_push)
                             .or(optimized_list_set)
                             .unwrap_or(Op::Store(local.slot)),

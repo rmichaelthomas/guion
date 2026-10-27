@@ -1,0 +1,21 @@
+{
+  "choice": "Guion",
+  "new_task": "Build an internal inventory of device endpoints, query them concurrently under a hard deadline, and write a human-readable health digest for repeated runs on one controlled host.",
+  "rationale": "Both implementations passed all 10 health-digest cases, including concurrency and slow-trickle deadline cases. The related seven-pair health measurement favored Guion on observed runtime. This is workload-specific evidence, not a causal or language-wide claim.",
+  "acceptance": {
+    "guion": "10/10 passed",
+    "python": "10/10 passed",
+    "file": "health-digest-acceptance.json"
+  },
+  "timing": {
+    "guion_median_seconds": 0.540193,
+    "python_median_seconds": 0.646912,
+    "guion_over_python_ratio": 0.83651,
+    "bootstrap_95_interval": [
+      0.82231,
+      0.84117
+    ],
+    "pairs": 7,
+    "note": "Process and oracle-check time included; fixture setup excluded; OS cache uncontrolled."
+  }
+}

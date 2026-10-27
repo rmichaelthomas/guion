@@ -1,0 +1,935 @@
+{
+  "baseline_binary_sha256": "5183606986e983ef683e63745b579ffa654eabc193ada5bba236b6b190d1611a",
+  "baseline_revision": "94a013bc63c801bde9041aa9fb9ba2b5ff3dc879",
+  "candidate_binary_sha256": "264d53a57070b12e908b6e7bad292b38a0c8bfbe25c46dc74debbd71848b2841",
+  "candidate_revision": "truncating-power-of-two-working-tree",
+  "fresh_source": {
+    "arm_medians_seconds": {
+      "guion_baseline_source_uncached": 0.008507000020472333,
+      "guion_candidate_source_uncached": 0.007931625004857779,
+      "python_reference": 0.03683462500339374
+    },
+    "baseline_over_python": {
+      "ci95_percentile": [
+        0.22274148061261406,
+        0.2348022422386909
+      ],
+      "median_ratio": 0.22837270853736222,
+      "ties_or_regressions": 0,
+      "win": true
+    },
+    "candidate_over_baseline": {
+      "ci95_percentile": [
+        0.9080236871649356,
+        0.9577140373511704
+      ],
+      "median_ratio": 0.9214018690637473,
+      "ties_or_regressions": 7,
+      "win": true
+    },
+    "candidate_over_python": {
+      "ci95_percentile": [
+        0.20649622497767817,
+        0.2239448382723389
+      ],
+      "median_ratio": 0.21086142127436341,
+      "ties_or_regressions": 0,
+      "win": true
+    },
+    "metadata": {
+      "native_backend_reports": {
+        "guion_baseline_source_uncached": {
+          "bytecode_blocks": 6,
+          "bytecode_instructions": 58,
+          "calls": 2,
+          "compilations": 1,
+          "compile_profile": {
+            "finalize_nanoseconds": 11875,
+            "functions": [
+              {
+                "bytecode_blocks": 4,
+                "bytecode_instructions": 53,
+                "cranelift_ir_blocks": 36,
+                "cranelift_ir_instructions": 344,
+                "define_nanoseconds": 747708,
+                "lowering_nanoseconds": 117959,
+                "name": "calculate",
+                "verification_nanoseconds": 70250
+              },
+              {
+                "bytecode_blocks": 2,
+                "bytecode_instructions": 5,
+                "cranelift_ir_blocks": 17,
+                "cranelift_ir_instructions": 223,
+                "define_nanoseconds": 293333,
+                "lowering_nanoseconds": 30917,
+                "name": "main",
+                "verification_nanoseconds": 28792
+              }
+            ]
+          },
+          "compiled_functions": [
+            "calculate",
+            "main"
+          ],
+          "cranelift_ir_blocks": 53,
+          "cranelift_ir_instructions": 567,
+          "deoptimizations": 0
+        },
+        "guion_candidate_source_uncached": {
+          "bytecode_blocks": 6,
+          "bytecode_instructions": 58,
+          "calls": 2,
+          "compilations": 1,
+          "compile_profile": {
+            "finalize_nanoseconds": 9125,
+            "functions": [
+              {
+                "bytecode_blocks": 4,
+                "bytecode_instructions": 53,
+                "cranelift_ir_blocks": 26,
+                "cranelift_ir_instructions": 259,
+                "define_nanoseconds": 528458,
+                "lowering_nanoseconds": 110958,
+                "name": "calculate",
+                "verification_nanoseconds": 56917
+              },
+              {
+                "bytecode_blocks": 2,
+                "bytecode_instructions": 5,
+                "cranelift_ir_blocks": 17,
+                "cranelift_ir_instructions": 223,
+                "define_nanoseconds": 289584,
+                "lowering_nanoseconds": 32208,
+                "name": "main",
+                "verification_nanoseconds": 30291
+              }
+            ]
+          },
+          "compiled_functions": [
+            "calculate",
+            "main"
+          ],
+          "cranelift_ir_blocks": 43,
+          "cranelift_ir_instructions": 482,
+          "deoptimizations": 0
+        }
+      },
+      "paired_trial_order": [
+        [
+          "guion_baseline_source_uncached",
+          "guion_candidate_source_uncached",
+          "python_reference"
+        ],
+        [
+          "python_reference",
+          "guion_candidate_source_uncached",
+          "guion_baseline_source_uncached"
+        ],
+        [
+          "python_reference",
+          "guion_baseline_source_uncached",
+          "guion_candidate_source_uncached"
+        ],
+        [
+          "guion_candidate_source_uncached",
+          "guion_baseline_source_uncached",
+          "python_reference"
+        ],
+        [
+          "python_reference",
+          "guion_candidate_source_uncached",
+          "guion_baseline_source_uncached"
+        ],
+        [
+          "guion_baseline_source_uncached",
+          "python_reference",
+          "guion_candidate_source_uncached"
+        ],
+        [
+          "guion_candidate_source_uncached",
+          "guion_baseline_source_uncached",
+          "python_reference"
+        ],
+        [
+          "python_reference",
+          "guion_baseline_source_uncached",
+          "guion_candidate_source_uncached"
+        ],
+        [
+          "guion_baseline_source_uncached",
+          "guion_candidate_source_uncached",
+          "python_reference"
+        ],
+        [
+          "guion_candidate_source_uncached",
+          "guion_baseline_source_uncached",
+          "python_reference"
+        ],
+        [
+          "guion_candidate_source_uncached",
+          "guion_baseline_source_uncached",
+          "python_reference"
+        ],
+        [
+          "guion_candidate_source_uncached",
+          "python_reference",
+          "guion_baseline_source_uncached"
+        ],
+        [
+          "guion_baseline_source_uncached",
+          "python_reference",
+          "guion_candidate_source_uncached"
+        ],
+        [
+          "python_reference",
+          "guion_baseline_source_uncached",
+          "guion_candidate_source_uncached"
+        ],
+        [
+          "python_reference",
+          "guion_baseline_source_uncached",
+          "guion_candidate_source_uncached"
+        ],
+        [
+          "python_reference",
+          "guion_candidate_source_uncached",
+          "guion_baseline_source_uncached"
+        ],
+        [
+          "python_reference",
+          "guion_candidate_source_uncached",
+          "guion_baseline_source_uncached"
+        ],
+        [
+          "guion_baseline_source_uncached",
+          "guion_candidate_source_uncached",
+          "python_reference"
+        ],
+        [
+          "guion_baseline_source_uncached",
+          "python_reference",
+          "guion_candidate_source_uncached"
+        ],
+        [
+          "guion_candidate_source_uncached",
+          "python_reference",
+          "guion_baseline_source_uncached"
+        ],
+        [
+          "guion_baseline_source_uncached",
+          "python_reference",
+          "guion_candidate_source_uncached"
+        ],
+        [
+          "guion_candidate_source_uncached",
+          "guion_baseline_source_uncached",
+          "python_reference"
+        ],
+        [
+          "guion_baseline_source_uncached",
+          "python_reference",
+          "guion_candidate_source_uncached"
+        ],
+        [
+          "guion_candidate_source_uncached",
+          "python_reference",
+          "guion_baseline_source_uncached"
+        ],
+        [
+          "python_reference",
+          "guion_baseline_source_uncached",
+          "guion_candidate_source_uncached"
+        ],
+        [
+          "guion_baseline_source_uncached",
+          "guion_candidate_source_uncached",
+          "python_reference"
+        ],
+        [
+          "guion_baseline_source_uncached",
+          "guion_candidate_source_uncached",
+          "python_reference"
+        ],
+        [
+          "guion_baseline_source_uncached",
+          "python_reference",
+          "guion_candidate_source_uncached"
+        ],
+        [
+          "guion_baseline_source_uncached",
+          "guion_candidate_source_uncached",
+          "python_reference"
+        ],
+        [
+          "guion_baseline_source_uncached",
+          "guion_candidate_source_uncached",
+          "python_reference"
+        ]
+      ],
+      "source_cache_states": {
+        "guion_baseline_source_uncached": [
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed"
+        ],
+        "guion_candidate_source_uncached": [
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed"
+        ]
+      }
+    },
+    "samples_seconds": {
+      "guion_baseline_source_uncached": {
+        "median_seconds": 0.008507000020472333,
+        "p95_seconds_nearest_rank": 0.01105762500083074,
+        "samples_seconds": [
+          0.007946541998535395,
+          0.008954707998782396,
+          0.008627084025647491,
+          0.00954766699578613,
+          0.0081218330306001,
+          0.008632624987512827,
+          0.008810167026240379,
+          0.008004541974514723,
+          0.008083958004135638,
+          0.007906957995146513,
+          0.008444290957413614,
+          0.01105762500083074,
+          0.008448207983747125,
+          0.009396375040523708,
+          0.009207167022395879,
+          0.008217290975153446,
+          0.008058417006395757,
+          0.008485208032652736,
+          0.011577250028494745,
+          0.00818987499224022,
+          0.009027291962411255,
+          0.00852879200829193,
+          0.007809999980963767,
+          0.010081374959554523,
+          0.009720875008497387,
+          0.007784999965224415,
+          0.008893334015738219,
+          0.008352667035069317,
+          0.008361375017557293,
+          0.0085491249919869
+        ]
+      },
+      "guion_candidate_source_uncached": {
+        "median_seconds": 0.007931625004857779,
+        "p95_seconds_nearest_rank": 0.011480165994726121,
+        "samples_seconds": [
+          0.007903790974523872,
+          0.008162458019796759,
+          0.007440999965183437,
+          0.007910874963272363,
+          0.00736333301756531,
+          0.008002165996003896,
+          0.008068666968028992,
+          0.007512624957598746,
+          0.007403417024761438,
+          0.007483208959456533,
+          0.007952375046443194,
+          0.00754312495701015,
+          0.007478790997993201,
+          0.00854541698936373,
+          0.017204041010700166,
+          0.008614542020950466,
+          0.010163083032239228,
+          0.009104042022954673,
+          0.00870445801410824,
+          0.00746912497561425,
+          0.007345625024754554,
+          0.011480165994726121,
+          0.0109140410204418,
+          0.010325832990929484,
+          0.00754370802314952,
+          0.007486834016162902,
+          0.007673582993447781,
+          0.008285374962724745,
+          0.007439792039804161,
+          0.008153541013598442
+        ]
+      },
+      "python_reference": {
+        "median_seconds": 0.03683462500339374,
+        "p95_seconds_nearest_rank": 0.04220866697141901,
+        "samples_seconds": [
+          0.03645941597642377,
+          0.04375570802949369,
+          0.04009604098973796,
+          0.03954450000310317,
+          0.036849541997071356,
+          0.038539125001989305,
+          0.03861770802177489,
+          0.036066000000573695,
+          0.03621633298462257,
+          0.034859458974096924,
+          0.035963417030870914,
+          0.03686687501613051,
+          0.037262291996739805,
+          0.040798042027745396,
+          0.04220866697141901,
+          0.03696987498551607,
+          0.038114875031169504,
+          0.03681970800971612,
+          0.03655100002652034,
+          0.03537150000920519,
+          0.03577037499053404,
+          0.036578583996742964,
+          0.03803600004175678,
+          0.038860415981616825,
+          0.03787383402232081,
+          0.036710290994960815,
+          0.03644358296878636,
+          0.036537166975904256,
+          0.03476512501947582,
+          0.03561875002924353
+        ]
+      }
+    }
+  },
+  "host": {
+    "architecture": "arm64",
+    "platform": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+    "python_version": "3.14.7"
+  },
+  "kind": "guion-truncating-power-of-two-integer-loop-comparison",
+  "measurement_design": {
+    "execution": "serial",
+    "expected_stdout_per_execution": [
+      "-605454689"
+    ],
+    "guion_cache_condition": "--no-cache bypasses Guion source cache",
+    "os_file_cache": "uncontrolled",
+    "output_checked_each_warmup_and_trial": true,
+    "randomized_paired_order": true,
+    "trials_per_arm": 30,
+    "warmup_trials_per_arm": 2
+  },
+  "python_reference_sha256": "84bf3b6d33c5aaf5707ffb6151765c84af7b3b5df9bf9beafb46ba81fae60923",
+  "repeated_25": {
+    "arm_medians_seconds_per_execution": {
+      "guion_baseline_warm": 0.0006785683403722942,
+      "guion_candidate_warm": 0.00048208750085905195,
+      "python_warm": 0.009745706680696457
+    },
+    "candidate_over_baseline": {
+      "ci95_percentile": [
+        0.6951287388084563,
+        0.7269710763091326
+      ],
+      "median_ratio": 0.7126964145839151,
+      "ties_or_regressions": 2,
+      "win": true
+    },
+    "candidate_over_python": {
+      "ci95_percentile": [
+        0.04844102626013362,
+        0.05048058391660469
+      ],
+      "median_ratio": 0.049436235921649155,
+      "ties_or_regressions": 0,
+      "win": true
+    },
+    "metadata": {
+      "native_backend_reports": {
+        "guion_baseline_warm": {
+          "bytecode_blocks": 14,
+          "bytecode_instructions": 80,
+          "calls": 51,
+          "compilations": 1,
+          "compile_profile": {
+            "finalize_nanoseconds": 12417,
+            "functions": [
+              {
+                "bytecode_blocks": 4,
+                "bytecode_instructions": 53,
+                "cranelift_ir_blocks": 36,
+                "cranelift_ir_instructions": 344,
+                "define_nanoseconds": 699125,
+                "lowering_nanoseconds": 121041,
+                "name": "calculate",
+                "verification_nanoseconds": 70208
+              },
+              {
+                "bytecode_blocks": 2,
+                "bytecode_instructions": 5,
+                "cranelift_ir_blocks": 17,
+                "cranelift_ir_instructions": 223,
+                "define_nanoseconds": 296417,
+                "lowering_nanoseconds": 34125,
+                "name": "benchmark_once",
+                "verification_nanoseconds": 29125
+              },
+              {
+                "bytecode_blocks": 8,
+                "bytecode_instructions": 22,
+                "cranelift_ir_blocks": 27,
+                "cranelift_ir_instructions": 310,
+                "define_nanoseconds": 400917,
+                "lowering_nanoseconds": 43333,
+                "name": "main",
+                "verification_nanoseconds": 40375
+              }
+            ]
+          },
+          "compiled_functions": [
+            "calculate",
+            "benchmark_once",
+            "main"
+          ],
+          "cranelift_ir_blocks": 80,
+          "cranelift_ir_instructions": 877,
+          "deoptimizations": 0
+        },
+        "guion_candidate_warm": {
+          "bytecode_blocks": 14,
+          "bytecode_instructions": 80,
+          "calls": 51,
+          "compilations": 1,
+          "compile_profile": {
+            "finalize_nanoseconds": 11500,
+            "functions": [
+              {
+                "bytecode_blocks": 4,
+                "bytecode_instructions": 53,
+                "cranelift_ir_blocks": 26,
+                "cranelift_ir_instructions": 259,
+                "define_nanoseconds": 550958,
+                "lowering_nanoseconds": 121833,
+                "name": "calculate",
+                "verification_nanoseconds": 66500
+              },
+              {
+                "bytecode_blocks": 2,
+                "bytecode_instructions": 5,
+                "cranelift_ir_blocks": 17,
+                "cranelift_ir_instructions": 223,
+                "define_nanoseconds": 280291,
+                "lowering_nanoseconds": 31250,
+                "name": "benchmark_once",
+                "verification_nanoseconds": 28542
+              },
+              {
+                "bytecode_blocks": 8,
+                "bytecode_instructions": 22,
+                "cranelift_ir_blocks": 27,
+                "cranelift_ir_instructions": 310,
+                "define_nanoseconds": 388125,
+                "lowering_nanoseconds": 51083,
+                "name": "main",
+                "verification_nanoseconds": 37250
+              }
+            ]
+          },
+          "compiled_functions": [
+            "calculate",
+            "benchmark_once",
+            "main"
+          ],
+          "cranelift_ir_blocks": 70,
+          "cranelift_ir_instructions": 792,
+          "deoptimizations": 0
+        }
+      },
+      "paired_trial_order": [
+        [
+          "guion_baseline_warm",
+          "guion_candidate_warm",
+          "python_warm"
+        ],
+        [
+          "python_warm",
+          "guion_candidate_warm",
+          "guion_baseline_warm"
+        ],
+        [
+          "python_warm",
+          "guion_baseline_warm",
+          "guion_candidate_warm"
+        ],
+        [
+          "guion_candidate_warm",
+          "guion_baseline_warm",
+          "python_warm"
+        ],
+        [
+          "python_warm",
+          "guion_candidate_warm",
+          "guion_baseline_warm"
+        ],
+        [
+          "guion_baseline_warm",
+          "python_warm",
+          "guion_candidate_warm"
+        ],
+        [
+          "guion_candidate_warm",
+          "guion_baseline_warm",
+          "python_warm"
+        ],
+        [
+          "python_warm",
+          "guion_baseline_warm",
+          "guion_candidate_warm"
+        ],
+        [
+          "guion_baseline_warm",
+          "guion_candidate_warm",
+          "python_warm"
+        ],
+        [
+          "guion_candidate_warm",
+          "guion_baseline_warm",
+          "python_warm"
+        ],
+        [
+          "guion_candidate_warm",
+          "guion_baseline_warm",
+          "python_warm"
+        ],
+        [
+          "guion_candidate_warm",
+          "python_warm",
+          "guion_baseline_warm"
+        ],
+        [
+          "guion_baseline_warm",
+          "python_warm",
+          "guion_candidate_warm"
+        ],
+        [
+          "python_warm",
+          "guion_baseline_warm",
+          "guion_candidate_warm"
+        ],
+        [
+          "python_warm",
+          "guion_baseline_warm",
+          "guion_candidate_warm"
+        ],
+        [
+          "python_warm",
+          "guion_candidate_warm",
+          "guion_baseline_warm"
+        ],
+        [
+          "python_warm",
+          "guion_candidate_warm",
+          "guion_baseline_warm"
+        ],
+        [
+          "guion_baseline_warm",
+          "guion_candidate_warm",
+          "python_warm"
+        ],
+        [
+          "guion_baseline_warm",
+          "python_warm",
+          "guion_candidate_warm"
+        ],
+        [
+          "guion_candidate_warm",
+          "python_warm",
+          "guion_baseline_warm"
+        ],
+        [
+          "guion_baseline_warm",
+          "python_warm",
+          "guion_candidate_warm"
+        ],
+        [
+          "guion_candidate_warm",
+          "guion_baseline_warm",
+          "python_warm"
+        ],
+        [
+          "guion_baseline_warm",
+          "python_warm",
+          "guion_candidate_warm"
+        ],
+        [
+          "guion_candidate_warm",
+          "python_warm",
+          "guion_baseline_warm"
+        ],
+        [
+          "python_warm",
+          "guion_baseline_warm",
+          "guion_candidate_warm"
+        ],
+        [
+          "guion_baseline_warm",
+          "guion_candidate_warm",
+          "python_warm"
+        ],
+        [
+          "guion_baseline_warm",
+          "guion_candidate_warm",
+          "python_warm"
+        ],
+        [
+          "guion_baseline_warm",
+          "python_warm",
+          "guion_candidate_warm"
+        ],
+        [
+          "guion_baseline_warm",
+          "guion_candidate_warm",
+          "python_warm"
+        ],
+        [
+          "guion_baseline_warm",
+          "guion_candidate_warm",
+          "python_warm"
+        ]
+      ],
+      "source_cache_states": {
+        "guion_baseline_warm": [
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed"
+        ],
+        "guion_candidate_warm": [
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed"
+        ]
+      }
+    },
+    "repetitions_per_process": 25,
+    "samples_seconds_per_execution": {
+      "guion_baseline_warm": {
+        "median_seconds": 0.0006785683403722942,
+        "p95_seconds_nearest_rank": 0.0008838483598083257,
+        "samples_seconds": [
+          0.0006619149981997907,
+          0.0006527033215388655,
+          0.0007859183195978403,
+          0.0006796450004912912,
+          0.0009102116804569959,
+          0.0008838483598083257,
+          0.0006956099998205901,
+          0.0008348616794683039,
+          0.0007341883587650955,
+          0.0007068183203227818,
+          0.0006713700015097857,
+          0.000668206678237766,
+          0.0006692850007675588,
+          0.0006718049990013242,
+          0.000706395001616329,
+          0.0006692333612591028,
+          0.0006570866797119379,
+          0.000670539999846369,
+          0.0006793466815724968,
+          0.0006715250015258789,
+          0.0006696016807109117,
+          0.0006838149996474385,
+          0.0006818099995143711,
+          0.0006510133203119039,
+          0.0006777899991720915,
+          0.0006978333601728082,
+          0.0006553600006736815,
+          0.0006817616801708937,
+          0.0006615349999628961,
+          0.0007521516806446016
+        ]
+      },
+      "guion_candidate_warm": {
+        "median_seconds": 0.00048208750085905195,
+        "p95_seconds_nearest_rank": 0.0007179700001142919,
+        "samples_seconds": [
+          0.0006030800007283687,
+          0.0005260516796261072,
+          0.0004744516406208277,
+          0.00048148500034585597,
+          0.0007066766801290214,
+          0.00047584000043570995,
+          0.00048269000137224794,
+          0.0005017533199861646,
+          0.0005352750001475215,
+          0.0005176966404542327,
+          0.0005182549986056984,
+          0.0007179700001142919,
+          0.0014187933201901615,
+          0.0004685133206658065,
+          0.0005113983200863004,
+          0.00048510835971683265,
+          0.0004839866398833692,
+          0.00046901500085368754,
+          0.00045633332105353473,
+          0.000466573319863528,
+          0.00048094999976456166,
+          0.00045812499942258,
+          0.0004888283205218613,
+          0.0005350183183327318,
+          0.00046264831908047197,
+          0.0004678099998272955,
+          0.00047407831996679303,
+          0.0004785700002685189,
+          0.00046007168013602497,
+          0.00046747500076889994
+        ]
+      },
+      "python_warm": {
+        "median_seconds": 0.009745706680696457,
+        "p95_seconds_nearest_rank": 0.011012119997758418,
+        "samples_seconds": [
+          0.009713066681288183,
+          0.009676764998584986,
+          0.009778346680104733,
+          0.009795718360692263,
+          0.0105066133197397,
+          0.0098374449997209,
+          0.009949956638738513,
+          0.011450980000663549,
+          0.01020269667962566,
+          0.009656179999001323,
+          0.011012119997758418,
+          0.009897056678310036,
+          0.010718970000743866,
+          0.010163613320328295,
+          0.010019141680095345,
+          0.009611288318410516,
+          0.009611051639076322,
+          0.009602188318967819,
+          0.009574244997929781,
+          0.010190403361339122,
+          0.009668356638867408,
+          0.009563826678786427,
+          0.00983164831995964,
+          0.009512301681097598,
+          0.00957082831999287,
+          0.009581648360472173,
+          0.009420950000640005,
+          0.009478811679873616,
+          0.009517645000014454,
+          0.009836899999063462
+        ]
+      }
+    }
+  },
+  "schema_version": 1,
+  "source_sha256": "4c7930701b6be20c529e8770733048968cb73639ab3c74e4d6faf2ef4972cceb",
+  "status": "passed",
+  "workload": "25,000 iterations over negative-to-zero integers; each iteration performs truncating integer division by 1, 2, 4, 8, and 16, then accumulates the result"
+}

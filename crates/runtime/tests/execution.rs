@@ -124,11 +124,34 @@ fn text_chars_materializes_unicode_scalars_for_linear_scanning() {
 }
 
 #[test]
-fn bounded_byte_construction_primitives_remain_compatible_with_format_34() {
+fn text_chars_reuses_immutable_storage_for_ascii_scalars() {
+    let source = "fn ascii_characters() -> List[Text]:\n    return text_chars(\"aa\")\n\nfn main() -> Int:\n    return len(ascii_characters())\n";
+    let artifact = compile("text-chars-shared-ascii.gu", source)
+        .expect("text_chars compiles for an ASCII pair");
+    let mut instance = Runtime::new()
+        .load(artifact, HostPolicy::default())
+        .expect("runtime loads the artifact");
+
+    instance.invoke("main", vec![]).expect("entry point runs");
+    let Value::List(characters) = instance
+        .invoke("ascii_characters", vec![])
+        .expect("program returns its characters")
+    else {
+        panic!("text_chars must return a list");
+    };
+    let (Value::Text(first), Value::Text(second)) = (&characters[0], &characters[1]) else {
+        panic!("text_chars must return text values");
+    };
+
+    assert!(std::sync::Arc::ptr_eq(first, second));
+}
+
+#[test]
+fn bounded_byte_construction_primitives_require_format_34_or_newer() {
     let source = "fn main() -> Int:\n    let raw = bytes_from_ints([0, 255])\n    let utf8 = bytes_from_text(\"é\")\n    let joined = bytes_join([raw, utf8])\n    print(len(joined))\n    print(float64_bits(1.0))\n    return 0\n";
     let artifact =
         compile("artifact-byte-primitives.gu", source).expect("byte construction source compiles");
-    assert_eq!(artifact.format_version, 40);
+    assert_eq!(artifact.format_version, Artifact::CURRENT_VERSION);
     let mut previous_format = artifact.clone();
     previous_format.format_version = 33;
     assert_eq!(
@@ -398,6 +421,52 @@ fn list_set_assignment_keeps_old_aliases_unchanged() {
 }
 
 #[test]
+fn native_list_set_uses_element_typed_helpers_without_changing_copy_semantics() {
+    let source = "fn main() -> Int:\n    let original_ints = [1, 2, 3]\n    let updated_ints = list_set(original_ints, 1, 9)\n    let original_bools = [true, false, true]\n    let updated_bools = list_set(original_bools, 1, true)\n    let original_floats = [1.0, 2.0, 3.0]\n    let updated_floats = list_set(original_floats, 1, 9.0)\n    var local_ints = [1, 2, 3]\n    set local_ints = list_set(local_ints, 1, 8)\n    var local_bools = [true, false, true]\n    set local_bools = list_set(local_bools, 1, true)\n    var local_floats = [1.0, 2.0, 3.0]\n    set local_floats = list_set(local_floats, 1, 8.0)\n    print(updated_ints[1])\n    print(updated_bools[1])\n    print(updated_floats[1])\n    print(original_ints[1])\n    print(original_bools[1])\n    print(original_floats[1])\n    print(local_ints[1])\n    print(local_bools[1])\n    print(local_floats[1])\n    return 0\n";
+    let artifact = compile("native-typed-list-set.gu", source).expect("source compiles");
+    assert!(
+        artifact.functions[0]
+            .code
+            .iter()
+            .filter(|instruction| matches!(instruction.op, Op::ListSetLocal(_)))
+            .count()
+            >= 3,
+        "all local element types should use the in-place-capable opcode"
+    );
+    let mut native = Runtime::new()
+        .load(artifact.clone(), HostPolicy::default())
+        .expect("native runtime loads");
+    let mut vm = Runtime::vm_only()
+        .load(artifact, HostPolicy::default())
+        .expect("VM runtime loads");
+
+    for runtime in [&mut native, &mut vm] {
+        assert_eq!(
+            runtime.invoke("main", vec![]).unwrap(),
+            Value::Int(BigInt::from_i64(0))
+        );
+        assert_eq!(
+            runtime.take_output(),
+            "9\ntrue\n9\n2\nfalse\n2\n8\ntrue\n8\n"
+        );
+    }
+
+    let profile = native.native_compile_profile();
+    let main_instructions = profile["functions"]
+        .as_array()
+        .expect("native compile profile has functions")
+        .iter()
+        .find(|function| function["name"].as_str() == Some("main"))
+        .expect("main has a native compile profile")["cranelift_ir_instructions"]
+        .as_u64()
+        .expect("main IR instruction count is present");
+    assert!(
+        main_instructions <= 461,
+        "typed list-set calls should remove runtime kind and copy-mode operands: {main_instructions} instructions"
+    );
+}
+
+#[test]
 fn same_local_list_updates_do_not_accumulate_full_list_copies() {
     let source = "fn main() -> Int:\n    var values = [0.0]\n    var i = 0\n    while i < 5000:\n        set values = list_set(values, 0, values[0] + 1.0)\n        set i = i + 1\n    print(values[0])\n    return i\n";
     let artifact = compile("list-update-budget.gu", source).unwrap();
@@ -455,6 +524,20 @@ fn same_local_map_update_preserves_other_shared_aliases() {
     assert_eq!(
         instance.invoke("main", vec![]).unwrap(),
         Value::Int(BigInt::from_usize(3))
+    );
+}
+
+#[test]
+fn map_set_existing_key_preserves_nonlocal_aliases() {
+    let source = "fn main() -> Int:\n    let original: Map[Text, Int] = {\"one\": 1}\n    let updated = map_set(original, \"one\", 2)\n    assert(original[\"one\"] == 1)\n    assert(updated[\"one\"] == 2)\n    return len(original) + len(updated)\n";
+    let artifact = compile("map-update-existing-alias.gu", source).unwrap();
+    let mut instance = Runtime::new()
+        .load(artifact, HostPolicy::default())
+        .unwrap();
+
+    assert_eq!(
+        instance.invoke("main", vec![]).unwrap(),
+        Value::Int(BigInt::from_usize(2))
     );
 }
 
@@ -523,6 +606,32 @@ fn optimized_list_push_preserves_older_shared_aliases() {
         .code
         .iter()
         .any(|instruction| matches!(instruction.op, Op::ListPushLocal(_))));
+    let mut instance = Runtime::new()
+        .load(artifact, HostPolicy::default())
+        .unwrap();
+
+    instance.invoke("main", vec![]).unwrap();
+}
+
+#[test]
+fn mutable_json_object_set_is_local_and_preserves_aliases() {
+    let source = "fn main() -> Int:\n    var value = json_object()\n    set value = json_set(value, \"left\", json_text(\"old\"))\n    let previous = value\n    set value = json_set(value, \"right\", json_text(\"new\"))\n    assert(json_has(previous, \"right\") == false)\n    assert(json_stringify(value) == \"{\\\"left\\\":\\\"old\\\",\\\"right\\\":\\\"new\\\"}\")\n    return 0\n";
+    let artifact = compile("json-set-local.gu", source).unwrap();
+    assert!(artifact.functions[0]
+        .code
+        .iter()
+        .any(|instruction| matches!(instruction.op, Op::JsonSetLocal(_))));
+    assert_eq!(artifact.format_version, Artifact::CURRENT_VERSION);
+    let artifact = Artifact::from_bytes(&artifact.to_bytes().unwrap()).unwrap();
+    let mut legacy = artifact.clone();
+    legacy.format_version = 40;
+    assert_eq!(legacy.to_bytes().unwrap_err().code, "E_ARTIFACT_VERSION");
+    let mut legacy_bytes = artifact.to_bytes().unwrap();
+    legacy_bytes[4..8].copy_from_slice(&40u32.to_be_bytes());
+    assert_eq!(
+        Artifact::from_bytes(&legacy_bytes).unwrap_err().code,
+        "E_ARTIFACT_VERSION"
+    );
     let mut instance = Runtime::new()
         .load(artifact, HostPolicy::default())
         .unwrap();
@@ -681,6 +790,414 @@ fn integer_division_floor_division_and_remainder_follow_the_numeric_contract() {
         instance.take_output(),
         "-2\n-3\n2\n-2\n-3\n-2\n17636684144620811271604938270\n3.5\n"
     );
+}
+
+#[test]
+fn native_constant_division_by_two_uses_compact_code_and_preserves_floor_semantics() {
+    let source = "fn floor_half(value: Int) -> Int:\n    return value // 2\n\nfn odd_bit(value: Int) -> Int:\n    return value % 2\n\nfn main() -> Int:\n    return 0\n";
+    let artifact = compile("native-divide-by-two.gu", source).expect("source compiles");
+    let mut native = Runtime::new()
+        .load(artifact.clone(), HostPolicy::default())
+        .expect("native runtime loads");
+    let mut vm = Runtime::vm_only()
+        .load(artifact, HostPolicy::default())
+        .expect("VM runtime loads");
+
+    for (value, expected_half, expected_bit) in [
+        (i64::MIN, "-4611686018427387904", "0"),
+        (-9, "-5", "1"),
+        (-3, "-2", "1"),
+        (-1, "-1", "1"),
+        (0, "0", "0"),
+        (1, "0", "1"),
+        (3, "1", "1"),
+        (9, "4", "1"),
+        (i64::MAX, "4611686018427387903", "1"),
+    ] {
+        let argument = || vec![Value::Int(BigInt::from_i64(value))];
+        let expected_half = Value::Int(BigInt::parse(expected_half).unwrap());
+        let expected_bit = Value::Int(BigInt::parse(expected_bit).unwrap());
+        assert_eq!(
+            native.invoke("floor_half", argument()).unwrap(),
+            expected_half
+        );
+        assert_eq!(vm.invoke("floor_half", argument()).unwrap(), expected_half);
+        assert_eq!(native.invoke("odd_bit", argument()).unwrap(), expected_bit);
+        assert_eq!(vm.invoke("odd_bit", argument()).unwrap(), expected_bit);
+    }
+
+    let ir_instructions = native.native_cranelift_ir_instructions();
+    assert!(
+        ir_instructions < 451,
+        "constant divide/remainder by two should use compact native code, got {ir_instructions} IR instructions"
+    );
+}
+
+#[test]
+fn native_positive_power_of_two_divisors_use_compact_code_and_preserve_floor_semantics() {
+    let source = "fn floor_by_one(value: Int) -> Int:\n    return value // 1\n\nfn remainder_by_one(value: Int) -> Int:\n    return value % 1\n\nfn floor_by_four(value: Int) -> Int:\n    return value // 4\n\nfn remainder_by_eight(value: Int) -> Int:\n    return value % 8\n\nfn floor_by_large(value: Int) -> Int:\n    return value // 4611686018427387904\n\nfn remainder_by_large(value: Int) -> Int:\n    return value % 4611686018427387904\n\nfn floor_by_dynamic(value: Int, divisor: Int) -> Int:\n    return value // divisor\n\nfn remainder_by_dynamic(value: Int, divisor: Int) -> Int:\n    return value % divisor\n\nfn main() -> Int:\n    return 0\n";
+    let artifact = compile("native-power-of-two-divisors.gu", source).expect("source compiles");
+    let mut native = Runtime::new()
+        .load(artifact.clone(), HostPolicy::default())
+        .expect("native runtime loads");
+    let mut vm = Runtime::vm_only()
+        .load(artifact, HostPolicy::default())
+        .expect("VM runtime loads");
+
+    for (
+        value,
+        expected_one,
+        expected_mod_one,
+        expected_four,
+        expected_mod_eight,
+        expected_large,
+        expected_mod_large,
+    ) in [
+        (
+            i64::MIN,
+            "-9223372036854775808",
+            "0",
+            "-2305843009213693952",
+            "0",
+            "-2",
+            "0",
+        ),
+        (-17, "-17", "0", "-5", "7", "-1", "4611686018427387887"),
+        (-9, "-9", "0", "-3", "7", "-1", "4611686018427387895"),
+        (-1, "-1", "0", "-1", "7", "-1", "4611686018427387903"),
+        (0, "0", "0", "0", "0", "0", "0"),
+        (1, "1", "0", "0", "1", "0", "1"),
+        (9, "9", "0", "2", "1", "0", "9"),
+        (17, "17", "0", "4", "1", "0", "17"),
+        (
+            i64::MAX,
+            "9223372036854775807",
+            "0",
+            "2305843009213693951",
+            "7",
+            "1",
+            "4611686018427387903",
+        ),
+    ] {
+        let argument = || vec![Value::Int(BigInt::from_i64(value))];
+        for (function, expected, divisor) in [
+            ("floor_by_one", expected_one, 1),
+            ("remainder_by_one", expected_mod_one, 1),
+            ("floor_by_four", expected_four, 4),
+            ("remainder_by_eight", expected_mod_eight, 8),
+            ("floor_by_large", expected_large, 4_611_686_018_427_387_904),
+            (
+                "remainder_by_large",
+                expected_mod_large,
+                4_611_686_018_427_387_904,
+            ),
+        ] {
+            let expected = Value::Int(BigInt::parse(expected).unwrap());
+            assert_eq!(native.invoke(function, argument()).unwrap(), expected);
+            assert_eq!(vm.invoke(function, argument()).unwrap(), expected);
+            let dynamic_arguments = || {
+                vec![
+                    Value::Int(BigInt::from_i64(value)),
+                    Value::Int(BigInt::from_i64(divisor)),
+                ]
+            };
+            let dynamic_function = if function.starts_with("floor") {
+                "floor_by_dynamic"
+            } else {
+                "remainder_by_dynamic"
+            };
+            assert_eq!(
+                native
+                    .invoke(dynamic_function, dynamic_arguments())
+                    .unwrap(),
+                expected
+            );
+            assert_eq!(
+                vm.invoke(dynamic_function, dynamic_arguments()).unwrap(),
+                expected
+            );
+        }
+    }
+
+    let profile = native.native_compile_profile();
+    let functions = profile["functions"]
+        .as_array()
+        .expect("native profile has functions");
+    let ir_instructions = |name: &str| {
+        functions
+            .iter()
+            .find(|function| function["name"].as_str() == Some(name))
+            .unwrap_or_else(|| panic!("missing native profile for {name}"))
+            ["cranelift_ir_instructions"]
+            .as_u64()
+            .unwrap() as usize
+    };
+    let dynamic_floor_instructions = ir_instructions("floor_by_dynamic");
+    for name in ["floor_by_one", "floor_by_four", "floor_by_large"] {
+        assert!(
+            ir_instructions(name) + 15 < dynamic_floor_instructions,
+            "literal {name} should emit at least 16 fewer native instructions than dynamic floor division"
+        );
+    }
+    let dynamic_remainder_instructions = ir_instructions("remainder_by_dynamic");
+    for name in [
+        "remainder_by_one",
+        "remainder_by_eight",
+        "remainder_by_large",
+    ] {
+        assert!(
+            ir_instructions(name) + 15 < dynamic_remainder_instructions,
+            "literal {name} should emit at least 16 fewer native instructions than dynamic remainder"
+        );
+    }
+}
+
+#[test]
+fn native_positive_power_of_two_integer_division_truncates_toward_zero() {
+    let source = "fn trunc_by_one(value: Int) -> Int:\n    return value / 1\n\nfn trunc_by_two(value: Int) -> Int:\n    return value / 2\n\nfn trunc_by_four(value: Int) -> Int:\n    return value / 4\n\nfn trunc_by_large(value: Int) -> Int:\n    return value / 4611686018427387904\n\nfn trunc_by_dynamic(value: Int, divisor: Int) -> Int:\n    return value / divisor\n\nfn main() -> Int:\n    return 0\n";
+    let artifact = compile("native-truncating-power-of-two.gu", source).expect("source compiles");
+    let mut native = Runtime::new()
+        .load(artifact.clone(), HostPolicy::default())
+        .expect("native runtime loads");
+    let mut vm = Runtime::vm_only()
+        .load(artifact, HostPolicy::default())
+        .expect("VM runtime loads");
+
+    for (value, expected_one, expected_two, expected_four, expected_large) in [
+        (
+            i64::MIN,
+            "-9223372036854775808",
+            "-4611686018427387904",
+            "-2305843009213693952",
+            "-2",
+        ),
+        (-17, "-17", "-8", "-4", "0"),
+        (-9, "-9", "-4", "-2", "0"),
+        (-5, "-5", "-2", "-1", "0"),
+        (-1, "-1", "0", "0", "0"),
+        (0, "0", "0", "0", "0"),
+        (1, "1", "0", "0", "0"),
+        (5, "5", "2", "1", "0"),
+        (9, "9", "4", "2", "0"),
+        (17, "17", "8", "4", "0"),
+        (
+            i64::MAX,
+            "9223372036854775807",
+            "4611686018427387903",
+            "2305843009213693951",
+            "1",
+        ),
+    ] {
+        let argument = || vec![Value::Int(BigInt::from_i64(value))];
+        for (function, expected, divisor) in [
+            ("trunc_by_one", expected_one, 1),
+            ("trunc_by_two", expected_two, 2),
+            ("trunc_by_four", expected_four, 4),
+            ("trunc_by_large", expected_large, 4_611_686_018_427_387_904),
+        ] {
+            let expected = Value::Int(BigInt::parse(expected).unwrap());
+            assert_eq!(native.invoke(function, argument()).unwrap(), expected);
+            assert_eq!(vm.invoke(function, argument()).unwrap(), expected);
+            let dynamic_arguments = || {
+                vec![
+                    Value::Int(BigInt::from_i64(value)),
+                    Value::Int(BigInt::from_i64(divisor)),
+                ]
+            };
+            assert_eq!(
+                native
+                    .invoke("trunc_by_dynamic", dynamic_arguments())
+                    .unwrap(),
+                expected
+            );
+            assert_eq!(
+                vm.invoke("trunc_by_dynamic", dynamic_arguments()).unwrap(),
+                expected
+            );
+        }
+    }
+
+    let profile = native.native_compile_profile();
+    let functions = profile["functions"]
+        .as_array()
+        .expect("native profile has functions");
+    let ir_instructions = |name: &str| {
+        functions
+            .iter()
+            .find(|function| function["name"].as_str() == Some(name))
+            .unwrap_or_else(|| panic!("missing native profile for {name}"))
+            ["cranelift_ir_instructions"]
+            .as_u64()
+            .unwrap() as usize
+    };
+    let dynamic_instructions = ir_instructions("trunc_by_dynamic");
+    for name in [
+        "trunc_by_one",
+        "trunc_by_two",
+        "trunc_by_four",
+        "trunc_by_large",
+    ] {
+        assert!(
+            ir_instructions(name) + 15 < dynamic_instructions,
+            "literal {name} should emit at least 16 fewer native instructions than dynamic integer division"
+        );
+    }
+}
+
+#[test]
+fn native_negative_power_of_two_divisors_preserve_signed_integer_semantics() {
+    let source = "fn floor_by_negative_four(value: Int) -> Int:\n    return value // -4\n\nfn floor_by_negative_large(value: Int) -> Int:\n    return value // -4611686018427387904\n\nfn remainder_by_negative_eight(value: Int) -> Int:\n    return value % -8\n\nfn remainder_by_negative_large(value: Int) -> Int:\n    return value % -4611686018427387904\n\nfn trunc_by_negative_four(value: Int) -> Int:\n    return value / -4\n\nfn trunc_by_negative_large(value: Int) -> Int:\n    return value / -4611686018427387904\n\nfn floor_by_negative_one(value: Int) -> Int:\n    return value // -1\n\nfn floor_by_dynamic(value: Int, divisor: Int) -> Int:\n    return value // divisor\n\nfn remainder_by_dynamic(value: Int, divisor: Int) -> Int:\n    return value % divisor\n\nfn trunc_by_dynamic(value: Int, divisor: Int) -> Int:\n    return value / divisor\n\nfn main() -> Int:\n    return 0\n";
+    let artifact = compile("native-negative-power-of-two.gu", source).expect("source compiles");
+    let mut native = Runtime::new()
+        .load(artifact.clone(), HostPolicy::default())
+        .expect("native runtime loads");
+    let mut vm = Runtime::vm_only()
+        .load(artifact, HostPolicy::default())
+        .expect("VM runtime loads");
+
+    for (
+        value,
+        expected_floor_four,
+        expected_floor_large,
+        expected_remainder_eight,
+        expected_remainder_large,
+        expected_trunc_four,
+        expected_trunc_large,
+        expected_floor_negative_one,
+    ) in [
+        (
+            i64::MIN,
+            "2305843009213693952",
+            "2",
+            "0",
+            "0",
+            "2305843009213693952",
+            "2",
+            "9223372036854775808",
+        ),
+        (-17, "4", "0", "-1", "-17", "4", "0", "17"),
+        (-9, "2", "0", "-1", "-9", "2", "0", "9"),
+        (-1, "0", "0", "-1", "-1", "0", "0", "1"),
+        (0, "0", "0", "0", "0", "0", "0", "0"),
+        (1, "-1", "-1", "-7", "-4611686018427387903", "0", "0", "-1"),
+        (5, "-2", "-1", "-3", "-4611686018427387899", "-1", "0", "-5"),
+        (
+            17,
+            "-5",
+            "-1",
+            "-7",
+            "-4611686018427387887",
+            "-4",
+            "0",
+            "-17",
+        ),
+        (
+            i64::MAX,
+            "-2305843009213693952",
+            "-2",
+            "-1",
+            "-1",
+            "-2305843009213693951",
+            "-1",
+            "-9223372036854775807",
+        ),
+    ] {
+        let argument = || vec![Value::Int(BigInt::from_i64(value))];
+        for (function, expected, divisor, dynamic_function) in [
+            (
+                "floor_by_negative_four",
+                expected_floor_four,
+                -4,
+                "floor_by_dynamic",
+            ),
+            (
+                "floor_by_negative_large",
+                expected_floor_large,
+                -4_611_686_018_427_387_904,
+                "floor_by_dynamic",
+            ),
+            (
+                "remainder_by_negative_eight",
+                expected_remainder_eight,
+                -8,
+                "remainder_by_dynamic",
+            ),
+            (
+                "remainder_by_negative_large",
+                expected_remainder_large,
+                -4_611_686_018_427_387_904,
+                "remainder_by_dynamic",
+            ),
+            (
+                "trunc_by_negative_four",
+                expected_trunc_four,
+                -4,
+                "trunc_by_dynamic",
+            ),
+            (
+                "trunc_by_negative_large",
+                expected_trunc_large,
+                -4_611_686_018_427_387_904,
+                "trunc_by_dynamic",
+            ),
+            (
+                "floor_by_negative_one",
+                expected_floor_negative_one,
+                -1,
+                "floor_by_dynamic",
+            ),
+        ] {
+            let expected = Value::Int(BigInt::parse(expected).unwrap());
+            assert_eq!(native.invoke(function, argument()).unwrap(), expected);
+            assert_eq!(vm.invoke(function, argument()).unwrap(), expected);
+            let dynamic_arguments = || {
+                vec![
+                    Value::Int(BigInt::from_i64(value)),
+                    Value::Int(BigInt::from_i64(divisor)),
+                ]
+            };
+            assert_eq!(
+                native
+                    .invoke(dynamic_function, dynamic_arguments())
+                    .unwrap(),
+                expected
+            );
+            assert_eq!(
+                vm.invoke(dynamic_function, dynamic_arguments()).unwrap(),
+                expected
+            );
+        }
+    }
+    assert!(native.native_deoptimizations() > 0);
+
+    let profile = native.native_compile_profile();
+    let functions = profile["functions"]
+        .as_array()
+        .expect("native profile has functions");
+    let ir_instructions = |name: &str| {
+        functions
+            .iter()
+            .find(|function| function["name"].as_str() == Some(name))
+            .unwrap_or_else(|| panic!("missing native profile for {name}"))
+            ["cranelift_ir_instructions"]
+            .as_u64()
+            .unwrap() as usize
+    };
+    for (constant, dynamic) in [
+        ("floor_by_negative_four", "floor_by_dynamic"),
+        ("floor_by_negative_large", "floor_by_dynamic"),
+        ("remainder_by_negative_eight", "remainder_by_dynamic"),
+        ("remainder_by_negative_large", "remainder_by_dynamic"),
+        ("trunc_by_negative_four", "trunc_by_dynamic"),
+        ("trunc_by_negative_large", "trunc_by_dynamic"),
+    ] {
+        assert!(
+            ir_instructions(constant) + 7 < ir_instructions(dynamic),
+            "literal {constant} should emit at least 8 fewer native instructions than dynamic division ({} vs {})",
+            ir_instructions(constant),
+            ir_instructions(dynamic)
+        );
+    }
 }
 
 #[test]
@@ -1125,6 +1642,42 @@ fn native_backend_keeps_integer_record_list_updates_in_a_repeated_loop() {
 }
 
 #[test]
+fn native_index_bounds_use_one_unsigned_check_and_preserve_faults() {
+    let source = "fn at(index: Int) -> Int:\n    let values = [7, 8]\n    return values[index]\n\nfn main() -> Int:\n    return 0\n";
+    let artifact = compile("native-index-bounds.gu", source).expect("index source compiles");
+    let mut native = Runtime::new()
+        .load(artifact.clone(), HostPolicy::default())
+        .expect("native artifact loads");
+    let value = native
+        .invoke("at", vec![Value::Int(BigInt::from_usize(1))])
+        .expect("valid index runs natively");
+    assert_eq!(value, Value::Int(BigInt::from_usize(8)));
+    assert!(native
+        .native_function_names()
+        .iter()
+        .any(|name| name == "at"));
+    let ir_blocks = native.native_cranelift_ir_blocks();
+    assert!(
+        ir_blocks < 25,
+        "a native list index should use one unsigned bounds check: {ir_blocks} IR blocks"
+    );
+
+    for index in [-1, 2] {
+        let args = vec![Value::Int(BigInt::from_i64(index))];
+        let native_error = native
+            .invoke("at", args.clone())
+            .expect_err("invalid list index fails");
+        let mut vm = Runtime::vm_only()
+            .load(artifact.clone(), HostPolicy::default())
+            .expect("VM artifact loads");
+        let vm_error = vm
+            .invoke("at", args)
+            .expect_err("VM rejects the same invalid index");
+        assert_eq!(native_error, vm_error);
+    }
+}
+
+#[test]
 fn native_integer_list_bounds_fault_deopts_to_the_vm() {
     let source = "record Queue:\n    values: List[Int]\n\nfn update(queue: Queue) -> Queue:\n    var values = queue.values\n    set values = list_set(values, 4, 9)\n    return Queue(values)\n\nfn main() -> Int:\n    let queue = Queue([1, 2])\n    let changed = update(queue)\n    return 0\n";
     let artifact = compile("native-int-list-bounds.gu", source).unwrap();
@@ -1520,9 +2073,14 @@ fn native_fuel_metering_adds_control_flow_per_bytecode_block() {
     );
     let instructions = instance.native_bytecode_instructions();
     let ir_blocks = instance.native_cranelift_ir_blocks();
+    let ir_instructions = instance.native_cranelift_ir_instructions();
     assert!(
         ir_blocks < instructions * 2,
         "fuel control flow should scale by bytecode block, not instruction: {ir_blocks} IR blocks for {instructions} instructions"
+    );
+    assert!(
+        ir_instructions < 1_200,
+        "step and fuel bookkeeping should batch updates at bytecode boundaries: {ir_instructions} IR instructions for {instructions} guest instructions"
     );
 
     let exact_policy = HostPolicy {

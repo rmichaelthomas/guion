@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "status": "passed",
+  "kind": "guion-instruction-budget-parity-check",
+  "workload": "Richards with instruction_limit 1000",
+  "source": "evaluation/development/famous_benchmarks/richards.vr",
+  "source_sha256": "5fb23857e7e2c3bcc7af247ebf9847408fbb0389e8cc895a582598f87f007f5f",
+  "instruction_limit": 1000,
+  "baseline_revision": "e01b503ce9140a5231c5b3e16966068ae4906f82",
+  "baseline_binary_sha256": "f8a774fa494534cb028bae8773ed9f1417c57345d214e4a95683e503cb39f72a",
+  "candidate_revision": "working tree based on e01b503ce9140a5231c5b3e16966068ae4906f82",
+  "candidate_native_backend_source_sha256": "7f8a4763968e43f7c5aaf78f06d2d662f3d2ab21a559789c0179b679e5358bee",
+  "candidate_binary_sha256": "95d95da2405b14b90bda5e5c0a5bcb8ea0a3f4dc8383a4f6c886336bc4d07927",
+  "measurement": {
+    "baseline_exit_code": 1,
+    "candidate_exit_code": 1,
+    "baseline_stdout": "",
+    "candidate_stdout": "",
+    "baseline_stderr": "",
+    "candidate_stderr": "",
+    "baseline_diagnostic": {
+      "code": "R_STEP_LIMIT",
+      "message": "instruction budget exhausted",
+      "trace": [
+        {
+          "source": "main.gu",
+          "line": 145,
+          "column": 48
+        }
+      ]
+    },
+    "candidate_diagnostic": {
+      "code": "R_STEP_LIMIT",
+      "message": "instruction budget exhausted",
+      "trace": [
+        {
+          "source": "main.gu",
+          "line": 145,
+          "column": 48
+        }
+      ]
+    },
+    "normalized_outcomes_match": true
+  },
+  "interpretation": "The baseline and corrected candidate stop at the same instruction-budget failure and source location in this low-budget Richards run. The focused nested-call parity test additionally passed across VM, JIT, and fallback."
+}

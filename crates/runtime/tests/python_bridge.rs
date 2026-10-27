@@ -537,7 +537,7 @@ fn bridge_reports_native_images_loaded_dynamically_by_python() {
         .call(
             "native_loader",
             "load",
-            &[Value::Text(library.to_string_lossy().into_owned())],
+            &[Value::Text(library.to_string_lossy().into_owned().into())],
             &[],
             &Type::Int,
         )

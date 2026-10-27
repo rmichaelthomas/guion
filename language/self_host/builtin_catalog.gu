@@ -165,6 +165,8 @@ pub fn builtin_catalog_signature(name: Text) -> Text:
             return "2:MapHas:Bool:;Text"
         if name == "map_set":
             return "3:MapSet:Map[$T]:;Text;"
+        if name == "merge_sorted_by_int_key":
+            return "2:MergeSortedByIntKey:List[$T]:;"
     if name[0] == "n":
         if name == "native_calendar_parse":
             return "1:CalendarParse:Result[List[Record[CalendarEvent]], Record[StdError]]:Text"
@@ -227,6 +229,8 @@ pub fn builtin_catalog_signature(name: Text) -> Text:
             return "1:SemVerParse:Result[Record[SemVer], FileError]:Text"
         if name == "sort_by":
             return "2:SortBy:List[$T]:;"
+        if name == "sort_by_int_key":
+            return "2:SortByIntKey:List[$T]:;"
         if name == "sqrt":
             return "1:FloatSqrt:Float64:Float64"
     if name[0] == "t":

@@ -1,0 +1,17 @@
+{
+  "choice": "Guion",
+  "rationale": "Both implementations passed the frozen health-digest cases, including concurrency and deadline checks. The seven-pair timing showed a lower Guion median for the related mixed-results case; this is a workload-specific observation, not a causal or language-wide claim.",
+  "acceptance": {
+    "guion": {"cases": "10/10", "checks": "33/33"},
+    "python": {"cases": "10/10", "checks": "33/33"}
+  },
+  "timing": {
+    "commit": "6004e9a",
+    "trials": 7,
+    "median_seconds": {"guion": 0.539802, "python": 0.643867},
+    "guion_over_python_ratio": 0.8390768076677475,
+    "bootstrap_95_interval": [0.8369846784071969, 0.8442743716495502],
+    "outputs_verified": true
+  },
+  "scope": "Exploratory and workload-specific."
+}

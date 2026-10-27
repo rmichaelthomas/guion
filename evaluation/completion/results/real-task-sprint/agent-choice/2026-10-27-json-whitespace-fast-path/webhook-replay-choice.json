@@ -1,0 +1,17 @@
+{
+  "choice": "Guion",
+  "new_task": "Build a small durable notification relay that validates incoming payloads, records state, retries delivery, and reports failures to an operator.",
+  "rationale": "Both implementations passed the same 98 acceptance checks. Guion\u2019s implementation makes transaction state explicit and records retry failures as dead letters with category and attempt details. The evaluator\u2019s named webhook timing favored Guion.",
+  "acceptance": {
+    "guion": "9/9 cases; 98/98 checks passed",
+    "python": "9/9 cases; 98/98 checks passed",
+    "file": "lockfile-webhook-acceptance.json"
+  },
+  "timing": {
+    "guion_median_seconds": 0.15156,
+    "python_median_seconds": 0.767109,
+    "approximate_speedup": 5.1,
+    "pairs": 7,
+    "note": "Named webhook-replay case; process and oracle-check time, not deployed relay latency."
+  }
+}

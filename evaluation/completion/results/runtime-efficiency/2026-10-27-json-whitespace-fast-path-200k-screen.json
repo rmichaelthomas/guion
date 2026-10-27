@@ -1,0 +1,78 @@
+{
+  "schema_version": 1,
+  "kind": "jsonl-whitespace-fast-path-screen",
+  "status": "passed",
+  "git_revision": "1a0815d922ad13492b3eca5b5403a6feb1e7d0e7",
+  "rows": 200000,
+  "generator_seed": 20261025,
+  "baseline_binary_sha256": "19999b5444b086b545a0bfd698931447ed4d3ac8eaf761aab9a2b8a668ca2430",
+  "candidate_binary_sha256": "0d4f2e3b8145f97f6385a29e9d3f2e865f82a7ad4030bcfbf5ebefb5c00b7f40",
+  "output_checked_every_trial": true,
+  "trials": {
+    "guion_baseline": {
+      "samples_seconds": [
+        3.7768674579565413,
+        3.7084573750034906,
+        3.708372374996543,
+        3.742675916000735,
+        3.710981875017751,
+        3.694413874996826,
+        3.786788000026718
+      ],
+      "median_seconds": 3.710981875017751,
+      "p95_seconds_nearest_rank": 3.786788000026718
+    },
+    "guion_candidate": {
+      "samples_seconds": [
+        3.7130768329952843,
+        3.681638917012606,
+        3.705058417050168,
+        3.759457415959332,
+        3.6911475830129348,
+        3.7955191250075586,
+        3.692058459040709
+      ],
+      "median_seconds": 3.705058417050168,
+      "p95_seconds_nearest_rank": 3.7955191250075586
+    }
+  },
+  "paired_order": [
+    [
+      "guion_candidate",
+      "guion_baseline"
+    ],
+    [
+      "guion_candidate",
+      "guion_baseline"
+    ],
+    [
+      "guion_baseline",
+      "guion_candidate"
+    ],
+    [
+      "guion_candidate",
+      "guion_baseline"
+    ],
+    [
+      "guion_baseline",
+      "guion_candidate"
+    ],
+    [
+      "guion_baseline",
+      "guion_candidate"
+    ],
+    [
+      "guion_candidate",
+      "guion_baseline"
+    ]
+  ],
+  "candidate_over_baseline": {
+    "median_ratio": 0.994655244171808,
+    "ci95_percentile": [
+      0.9831101764434776,
+      1.0044838239631844
+    ],
+    "win": false,
+    "ties_or_regressions": 2
+  }
+}

@@ -6,8 +6,8 @@ pub use guion_vm_core::CancellationToken;
 use guion_vm_core::{
     charge_allocation, check_call_depth, cloned_value_allocation, finish_json_value,
     finish_shared_json, json_exact_integer, new_vm_frame, shared_json_push_local_allocation,
-    value_matches, verify, Budget, FrameStart, HostOpContext, OutputStream, RuntimeProfileCounters,
-    VmFrame, VmHost, VmLimits,
+    shared_json_set_local_allocation, value_matches, verify, Budget, FrameStart, HostOpContext,
+    OutputStream, RuntimeProfileCounters, VmFrame, VmHost, VmLimits,
 };
 use std::{
     borrow::Cow,
@@ -563,6 +563,24 @@ fn value_limit_error(value: &Value, policy: &HostPolicy, span: Span) -> Option<R
     guion_vm_core::value_limit_error(value, &policy.vm_limits(), span)
 }
 
+fn consume_sort_step(budget: &Budget, span: Span) -> Result<(), RuntimeError> {
+    if budget.is_cancelled() {
+        return Err(RuntimeError::new(
+            "R_CANCELLED",
+            "parallel task was cancelled after a sibling failed",
+            span,
+        ));
+    }
+    if !budget.consume() {
+        return Err(RuntimeError::new(
+            "R_STEP_LIMIT",
+            "instruction budget exhausted",
+            span,
+        ));
+    }
+    Ok(())
+}
+
 fn value_limit_error_at_boundary(
     value: &Value,
     policy: &HostPolicy,
@@ -706,6 +724,77 @@ impl VmHost for Instance {
                     return Err(error);
                 }
             }
+            Op::JsonSetLocal(slot) => {
+                let value = match pop!() {
+                    Value::Json(value) => value,
+                    _ => {
+                        return Err(RuntimeError::new(
+                            "R_TYPE_INVALID",
+                            "json_set value must be Json",
+                            instruction.span,
+                        ))
+                    }
+                };
+                let key = match pop!() {
+                    Value::Text(key) => key,
+                    _ => {
+                        return Err(RuntimeError::new(
+                            "R_TYPE_INVALID",
+                            "json_set key must be Text",
+                            instruction.span,
+                        ))
+                    }
+                };
+                if key.len() > self.policy.max_text_bytes {
+                    return Err(RuntimeError::new(
+                        "R_TEXT_LIMIT",
+                        "JSON key exceeds the configured byte limit",
+                        instruction.span,
+                    ));
+                }
+                let local = locals.get_mut(slot).ok_or_else(|| {
+                    RuntimeError::new(
+                        "R_LOCAL_UNINITIALIZED",
+                        "json_set assignment targets an uninitialized local",
+                        instruction.span,
+                    )
+                })?;
+                let Value::Json(object) = local else {
+                    return Err(RuntimeError::new(
+                        "R_TYPE_INVALID",
+                        "json_set assignment target must be Json",
+                        instruction.span,
+                    ));
+                };
+                let Some(fields) = object.as_object() else {
+                    return Err(RuntimeError::new(
+                        "R_JSON_TYPE",
+                        "json_set requires an object",
+                        instruction.span,
+                    ));
+                };
+                if !fields.contains_key(key.as_ref())
+                    && fields.len() >= self.policy.max_collection_items
+                {
+                    return Err(RuntimeError::new(
+                        "R_COLLECTION_LIMIT",
+                        "JSON object exceeds the configured item limit",
+                        instruction.span,
+                    ));
+                }
+                charge_allocation(
+                    budget.as_ref(),
+                    shared_json_set_local_allocation(object, &key),
+                    instruction.span,
+                )?;
+                Arc::make_mut(object)
+                    .as_object_mut()
+                    .expect("object type was checked before copy-on-write")
+                    .insert(key.to_string(), value);
+                if let Some(error) = value_limit_error(local, &self.policy, instruction.span) {
+                    return Err(error);
+                }
+            }
             Op::ParallelMap(target) => {
                 let limit = match pop!() {
                     Value::Int(n) => n.to_usize(),
@@ -794,21 +883,297 @@ impl VmHost for Instance {
                             .fold(0usize, usize::saturating_add),
                     );
                 charge_allocation(budget.as_ref(), allocation, instruction.span)?;
-                for index in 1..values.len() {
-                    let value = values[index].clone();
-                    let mut position = index;
-                    while position > 0 {
-                        let ordering = match self.invoke_inner(
+                if values.len() <= 32 {
+                    for index in 1..values.len() {
+                        let value = values[index].clone();
+                        let mut position = index;
+                        while position > 0 {
+                            let ordering = match self.invoke_inner(
+                                target,
+                                vec![value.clone(), values[position - 1].clone()],
+                                depth + 1,
+                                budget.clone(),
+                            ) {
+                                Ok(Value::Int(ordering)) => ordering,
+                                Ok(_) => {
+                                    return Err(RuntimeError::new(
+                                        "R_TYPE_INVALID",
+                                        "sort comparator must return Int",
+                                        instruction.span,
+                                    ))
+                                }
+                                Err(mut error) => {
+                                    error.trace.push(instruction.span);
+                                    return Err(error);
+                                }
+                            };
+                            if ordering.is_negative() {
+                                values[position] = values[position - 1].clone();
+                                position -= 1;
+                            } else {
+                                break;
+                            }
+                        }
+                        values[position] = value;
+                    }
+                } else {
+                    let length = values.len();
+                    let index_storage = size_of::<Vec<usize>>()
+                        .saturating_mul(2)
+                        .saturating_add(size_of::<Vec<bool>>())
+                        .saturating_add(length.saturating_mul(size_of::<usize>()).saturating_mul(2))
+                        .saturating_add(length);
+                    charge_allocation(budget.as_ref(), index_storage, instruction.span)?;
+
+                    let mut order: Vec<usize> = (0..length).collect();
+                    let mut merged = Vec::with_capacity(length);
+                    let mut width = 1usize;
+                    while width < length {
+                        merged.clear();
+                        let mut run_start = 0usize;
+                        while run_start < length {
+                            let middle = run_start.saturating_add(width).min(length);
+                            let run_end = middle.saturating_add(width).min(length);
+                            let (mut left, mut right) = (run_start, middle);
+                            while left < middle && right < run_end {
+                                let take_left = self.sort_by_left_before_or_equal(
+                                    target,
+                                    &values[order[left]],
+                                    &values[order[right]],
+                                    depth,
+                                    budget.clone(),
+                                    instruction.span,
+                                )?;
+                                if take_left {
+                                    merged.push(order[left]);
+                                    left += 1;
+                                } else {
+                                    merged.push(order[right]);
+                                    right += 1;
+                                }
+                            }
+                            merged.extend_from_slice(&order[left..middle]);
+                            merged.extend_from_slice(&order[right..run_end]);
+                            run_start = run_end;
+                        }
+                        std::mem::swap(&mut order, &mut merged);
+                        width = width.saturating_mul(2);
+                    }
+
+                    let mut visited = vec![false; length];
+                    for start in 0..length {
+                        if visited[start] {
+                            continue;
+                        }
+                        let mut current = start;
+                        loop {
+                            visited[current] = true;
+                            let next = order[current];
+                            if next == start {
+                                break;
+                            }
+                            values.swap(current, next);
+                            current = next;
+                        }
+                    }
+                }
+                push_stack!(Value::from_list_items(values));
+            }
+            Op::SortByIntKey(target) => {
+                let mut values = match pop!() {
+                    Value::List(values) => values.as_ref().clone(),
+                    Value::Float64List(values) => {
+                        values.iter().copied().map(Value::Float64).collect()
+                    }
+                    _ => {
+                        return Err(RuntimeError::new(
+                            "R_TYPE_INVALID",
+                            "sort_by_int_key requires a List",
+                            instruction.span,
+                        ))
+                    }
+                };
+                let length = values.len();
+                let value_allocation = size_of::<Vec<Value>>()
+                    .saturating_add(length.saturating_mul(size_of::<Value>()))
+                    .saturating_add(
+                        values
+                            .iter()
+                            .map(cloned_value_allocation)
+                            .fold(0usize, usize::saturating_add),
+                    );
+                let sort_storage = size_of::<Vec<BigInt>>()
+                    .saturating_add(size_of::<Vec<usize>>().saturating_mul(2))
+                    .saturating_add(size_of::<Vec<bool>>())
+                    .saturating_add(
+                        length.saturating_mul(
+                            size_of::<BigInt>()
+                                .saturating_add(size_of::<usize>().saturating_mul(2))
+                                .saturating_add(size_of::<bool>()),
+                        ),
+                    );
+                charge_allocation(
+                    budget.as_ref(),
+                    value_allocation.saturating_add(sort_storage),
+                    instruction.span,
+                )?;
+
+                let mut keys = Vec::with_capacity(length);
+                for value in &values {
+                    match self.invoke_inner(target, vec![value.clone()], depth + 1, budget.clone())
+                    {
+                        Ok(Value::Int(key)) => keys.push(key),
+                        Ok(_) => {
+                            return Err(RuntimeError::new(
+                                "R_TYPE_INVALID",
+                                "sort_by_int_key key function must return Int",
+                                instruction.span,
+                            ))
+                        }
+                        Err(mut error) => {
+                            error.trace.push(instruction.span);
+                            return Err(error);
+                        }
+                    }
+                }
+
+                let mut order: Vec<usize> = (0..length).collect();
+                if length <= 32 {
+                    for index in 1..length {
+                        let value = order[index];
+                        let mut position = index;
+                        while position > 0 {
+                            consume_sort_step(budget.as_ref(), instruction.span)?;
+                            if keys[value] < keys[order[position - 1]] {
+                                order[position] = order[position - 1];
+                                position -= 1;
+                            } else {
+                                break;
+                            }
+                        }
+                        order[position] = value;
+                    }
+                } else {
+                    let mut merged = Vec::with_capacity(length);
+                    let mut width = 1usize;
+                    while width < length {
+                        merged.clear();
+                        let mut run_start = 0usize;
+                        while run_start < length {
+                            let middle = run_start.saturating_add(width).min(length);
+                            let run_end = middle.saturating_add(width).min(length);
+                            let (mut left, mut right) = (run_start, middle);
+                            while left < middle && right < run_end {
+                                consume_sort_step(budget.as_ref(), instruction.span)?;
+                                if keys[order[left]] <= keys[order[right]] {
+                                    merged.push(order[left]);
+                                    left += 1;
+                                } else {
+                                    merged.push(order[right]);
+                                    right += 1;
+                                }
+                            }
+                            merged.extend_from_slice(&order[left..middle]);
+                            merged.extend_from_slice(&order[right..run_end]);
+                            run_start = run_end;
+                        }
+                        std::mem::swap(&mut order, &mut merged);
+                        width = width.saturating_mul(2);
+                    }
+                }
+
+                let mut visited = vec![false; length];
+                for start in 0..length {
+                    if visited[start] {
+                        continue;
+                    }
+                    let mut current = start;
+                    loop {
+                        visited[current] = true;
+                        let next = order[current];
+                        if next == start {
+                            break;
+                        }
+                        values.swap(current, next);
+                        current = next;
+                    }
+                }
+                push_stack!(Value::from_list_items(values));
+            }
+            Op::MergeSortedByIntKey(target) => {
+                let input_feeds = match pop!() {
+                    Value::List(feeds) => feeds.as_ref().clone(),
+                    _ => {
+                        return Err(RuntimeError::new(
+                            "R_TYPE_INVALID",
+                            "merge_sorted_by_int_key requires a List of Lists",
+                            instruction.span,
+                        ))
+                    }
+                };
+                let mut feeds = Vec::with_capacity(input_feeds.len());
+                let mut total = 0usize;
+                for feed in input_feeds {
+                    let values: Arc<Vec<Value>> = match feed {
+                        Value::List(values) => values,
+                        Value::Float64List(values) => {
+                            Arc::new(values.iter().copied().map(Value::Float64).collect())
+                        }
+                        _ => {
+                            return Err(RuntimeError::new(
+                                "R_TYPE_INVALID",
+                                "merge_sorted_by_int_key requires each feed to be a List",
+                                instruction.span,
+                            ))
+                        }
+                    };
+                    total = total.saturating_add(values.len());
+                    feeds.push(values);
+                }
+                if total > self.policy.max_collection_items {
+                    return Err(RuntimeError::new(
+                        "R_COLLECTION_LIMIT",
+                        "merged list exceeds the configured collection limit",
+                        instruction.span,
+                    ));
+                }
+                let value_allocation = size_of::<Vec<Value>>()
+                    .saturating_add(total.saturating_mul(size_of::<Value>()))
+                    .saturating_add(
+                        feeds
+                            .iter()
+                            .flat_map(|feed| feed.iter())
+                            .map(cloned_value_allocation)
+                            .fold(0usize, usize::saturating_add),
+                    );
+                let key_storage = size_of::<Vec<Arc<Vec<Value>>>>()
+                    .saturating_add(feeds.len().saturating_mul(size_of::<Arc<Vec<Value>>>()))
+                    .saturating_add(size_of::<Vec<Vec<BigInt>>>())
+                    .saturating_add(feeds.len().saturating_mul(size_of::<Vec<BigInt>>()))
+                    .saturating_add(total.saturating_mul(size_of::<BigInt>()))
+                    .saturating_add(size_of::<Vec<usize>>())
+                    .saturating_add(feeds.len().saturating_mul(size_of::<usize>()));
+                charge_allocation(
+                    budget.as_ref(),
+                    value_allocation.saturating_add(key_storage),
+                    instruction.span,
+                )?;
+
+                let mut keys = Vec::with_capacity(feeds.len());
+                for feed in &feeds {
+                    let mut feed_keys = Vec::with_capacity(feed.len());
+                    for value in feed.iter() {
+                        match self.invoke_inner(
                             target,
-                            vec![value.clone(), values[position - 1].clone()],
+                            vec![value.clone()],
                             depth + 1,
                             budget.clone(),
                         ) {
-                            Ok(Value::Int(ordering)) => ordering,
+                            Ok(Value::Int(key)) => feed_keys.push(key),
                             Ok(_) => {
                                 return Err(RuntimeError::new(
                                     "R_TYPE_INVALID",
-                                    "sort comparator must return Int",
+                                    "merge_sorted_by_int_key key function must return Int",
                                     instruction.span,
                                 ))
                             }
@@ -816,17 +1181,45 @@ impl VmHost for Instance {
                                 error.trace.push(instruction.span);
                                 return Err(error);
                             }
-                        };
-                        if ordering.is_negative() {
-                            values[position] = values[position - 1].clone();
-                            position -= 1;
-                        } else {
-                            break;
                         }
                     }
-                    values[position] = value;
+                    for index in 1..feed_keys.len() {
+                        consume_sort_step(budget.as_ref(), instruction.span)?;
+                        if feed_keys[index] < feed_keys[index - 1] {
+                            return Err(RuntimeError::new(
+                                "R_SORT_ORDER",
+                                "merge_sorted_by_int_key feeds must already be sorted by key",
+                                instruction.span,
+                            ));
+                        }
+                    }
+                    keys.push(feed_keys);
                 }
-                push_stack!(Value::from_list_items(values));
+
+                let mut positions = vec![0usize; feeds.len()];
+                let mut output = Vec::with_capacity(total);
+                while output.len() < total {
+                    let mut selected: Option<usize> = None;
+                    for feed_index in 0..feeds.len() {
+                        let position = positions[feed_index];
+                        if position >= feeds[feed_index].len() {
+                            continue;
+                        }
+                        if let Some(best) = selected {
+                            consume_sort_step(budget.as_ref(), instruction.span)?;
+                            if keys[feed_index][position] < keys[best][positions[best]] {
+                                selected = Some(feed_index);
+                            }
+                        } else {
+                            selected = Some(feed_index);
+                        }
+                    }
+                    let feed_index = selected.expect("remaining merge item must have a feed");
+                    let position = positions[feed_index];
+                    output.push(feeds[feed_index][position].clone());
+                    positions[feed_index] = position + 1;
+                }
+                push_stack!(Value::from_list_items(output));
             }
             Op::HttpGet => {
                 let url = match pop!() {
@@ -847,10 +1240,10 @@ impl VmHost for Instance {
                         self.finish_effect(effect, EffectOutcome::Returned);
                         charge_allocation(
                             budget.as_ref(),
-                            size_of::<String>().saturating_add(text.capacity()),
+                            size_of::<String>().saturating_add(text.len()),
                             instruction.span,
                         )?;
-                        push_stack!(Value::ResultOk(Box::new(Value::Text(text))));
+                        push_stack!(Value::ResultOk(Box::new(Value::Text(text.into()))));
                     }
                     Err(mut error) => {
                         if budget.is_cancelled() {
@@ -900,7 +1293,7 @@ impl VmHost for Instance {
                     self.policy.http_timeout
                 };
                 let body = match pop!() {
-                    Value::Text(body) if !byte_response => body.into_bytes(),
+                    Value::Text(body) if !byte_response => body.as_bytes().to_vec(),
                     Value::Bytes(body) if byte_response => body.as_ref().clone(),
                     _ => {
                         return Err(RuntimeError::new(
@@ -925,7 +1318,7 @@ impl VmHost for Instance {
                                     instruction.span,
                                 ));
                             };
-                            decoded.insert(name.clone(), value.clone());
+                            decoded.insert(name.clone(), value.to_string());
                         }
                         decoded
                     }
@@ -986,7 +1379,7 @@ impl VmHost for Instance {
                             let response_headers = response
                                 .headers
                                 .into_iter()
-                                .map(|(key, value)| (key, Value::Text(value)))
+                                .map(|(key, value)| (key, Value::Text(value.into())))
                                 .collect();
                             push_stack!(Value::ResultOk(Box::new(Value::Record(
                                 "HttpResponse".into(),
@@ -1047,7 +1440,7 @@ impl VmHost for Instance {
                         return Ok(());
                     }
                 };
-                let effect = self.begin_effect(EffectKind::FileRead, path.as_str());
+                let effect = self.begin_effect(EffectKind::FileRead, path.as_ref());
                 let opened = if instruction.op == Op::FileOpenLines {
                     self.readers.open_lines(resolved)
                 } else {
@@ -1107,7 +1500,7 @@ impl VmHost for Instance {
                                 "SourceLine".into(),
                                 Arc::new(vec![
                                     Value::Int(BigInt::from_usize(line.number)),
-                                    Value::Text(line.text)
+                                    Value::Text(line.text.into())
                                 ]),
                             )))
                         ))),
@@ -1128,7 +1521,10 @@ impl VmHost for Instance {
                                 Arc::new(vec![
                                     Value::Int(BigInt::from_usize(row.start_line)),
                                     Value::from_list_items(
-                                        row.fields.into_iter().map(Value::Text).collect()
+                                        row.fields
+                                            .into_iter()
+                                            .map(|field| Value::Text(field.into()))
+                                            .collect()
                                     )
                                 ]),
                             ))
@@ -1198,7 +1594,7 @@ impl VmHost for Instance {
                     let fields = fields
                         .iter()
                         .map(|value| match value {
-                            Value::Text(text) => Ok(text.clone()),
+                            Value::Text(text) => Ok(text.to_string()),
                             _ => Err(RuntimeError::new(
                                 "R_TYPE_INVALID",
                                 "csv_encode field requires Text",
@@ -1218,8 +1614,12 @@ impl VmHost for Instance {
                         instruction.span,
                     ));
                 }
-                charge_allocation(budget.as_ref(), text.len(), instruction.span)?;
-                push_stack!(Value::ResultOk(Box::new(Value::Text(text))));
+                charge_allocation(
+                    budget.as_ref(),
+                    size_of::<String>().saturating_add(text.len()),
+                    instruction.span,
+                )?;
+                push_stack!(Value::ResultOk(Box::new(Value::Text(text.into()))));
             }
             Op::TimeParseDate | Op::TimeParseTimestamp | Op::SemVerParse => {
                 let text = match pop!() {
@@ -1260,16 +1660,24 @@ impl VmHost for Instance {
                         Value::Record(
                             "SemVer".into(),
                             Arc::new(vec![
-                                Value::Text(version.major),
-                                Value::Text(version.minor),
-                                Value::Text(version.patch),
+                                Value::Text(version.major.into()),
+                                Value::Text(version.minor.into()),
+                                Value::Text(version.patch.into()),
                                 Value::from_list_items(
-                                    version.prerelease.into_iter().map(Value::Text).collect(),
+                                    version
+                                        .prerelease
+                                        .into_iter()
+                                        .map(|value| Value::Text(value.into()))
+                                        .collect(),
                                 ),
                                 Value::from_list_items(
-                                    version.build.into_iter().map(Value::Text).collect(),
+                                    version
+                                        .build
+                                        .into_iter()
+                                        .map(|value| Value::Text(value.into()))
+                                        .collect(),
                                 ),
-                                Value::Text(version.original),
+                                Value::Text(version.original.into()),
                             ]),
                         )
                     }),
@@ -1341,7 +1749,7 @@ impl VmHost for Instance {
                 push_stack!(value);
             }
             Op::TimeZoneDataVersion => {
-                let version = Value::Text(stdlib_services::IANA_TZDB_VERSION.to_owned());
+                let version = Value::Text(stdlib_services::IANA_TZDB_VERSION.to_owned().into());
                 charge_allocation(
                     budget.as_ref(),
                     stdlib_services::IANA_TZDB_VERSION.len(),
@@ -1389,8 +1797,12 @@ impl VmHost for Instance {
                         instruction.span,
                     ));
                 }
-                charge_allocation(budget.as_ref(), text.len(), instruction.span)?;
-                push_stack!(Value::Text(text));
+                charge_allocation(
+                    budget.as_ref(),
+                    size_of::<String>().saturating_add(text.len()),
+                    instruction.span,
+                )?;
+                push_stack!(Value::Text(text.into()));
             }
             Op::UnixTimeMs | Op::TimeTodayLocal => {
                 if !self.policy.allow_clock {
@@ -1504,7 +1916,7 @@ impl VmHost for Instance {
                 let arguments = arguments
                     .iter()
                     .map(|value| match value {
-                        Value::Text(value) => Ok(value.clone()),
+                        Value::Text(value) => Ok(value.to_string()),
                         _ => Err(RuntimeError::new(
                             "R_TYPE_INVALID",
                             "cli_parse argument must be Text",
@@ -1542,7 +1954,7 @@ impl VmHost for Instance {
                         ));
                     };
                     parsed_options.push(stdlib_data::CliOption::new(
-                        name.clone(),
+                        name.to_string(),
                         *takes_value,
                         *repeatable,
                         *required,
@@ -1557,7 +1969,10 @@ impl VmHost for Instance {
                                 (
                                     key,
                                     Value::from_list_items(
-                                        values.into_iter().map(Value::Text).collect(),
+                                        values
+                                            .into_iter()
+                                            .map(|value| Value::Text(value.into()))
+                                            .collect(),
                                     ),
                                 )
                             })
@@ -1567,7 +1982,11 @@ impl VmHost for Instance {
                             Arc::new(vec![
                                 Value::Map(Arc::new(values)),
                                 Value::from_list_items(
-                                    parsed.positionals.into_iter().map(Value::Text).collect(),
+                                    parsed
+                                        .positionals
+                                        .into_iter()
+                                        .map(|value| Value::Text(value.into()))
+                                        .collect(),
                                 ),
                             ]),
                         );
@@ -1616,8 +2035,8 @@ impl VmHost for Instance {
                                 Value::Record(
                                     "DirectoryEntry".into(),
                                     Arc::new(vec![
-                                        Value::Text(entry.relative_path),
-                                        Value::Text(entry.kind),
+                                        Value::Text(entry.relative_path.into()),
+                                        Value::Text(entry.kind.into()),
                                     ]),
                                 )
                             })
@@ -1675,7 +2094,7 @@ impl VmHost for Instance {
                     }
                 };
                 push_stack!(map
-                    .get(&key)
+                    .get(key.as_ref())
                     .cloned()
                     .map(|value| Value::OptionSome(Box::new(value)))
                     .unwrap_or(Value::OptionNone));
@@ -1735,20 +2154,32 @@ impl VmHost for Instance {
                         ))
                     }
                 };
-                let output = if instruction.op == Op::TextCaseFold {
-                    stdlib_services::text_casefold(&text)
+                if instruction.op == Op::TextCaseFold {
+                    let output = stdlib_services::text_casefold(&text);
+                    if output.len() > self.policy.max_text_bytes {
+                        return Err(RuntimeError::new(
+                            "R_TEXT_LIMIT",
+                            "Unicode result exceeds the configured text limit",
+                            instruction.span,
+                        ));
+                    }
+                    charge_allocation(budget.as_ref(), output.len(), instruction.span)?;
+                    push_stack!(Value::Text(output.into()));
+                } else if let Some(output) =
+                    stdlib_services::text_collapse_whitespace_if_changed(&text)
+                {
+                    if output.len() > self.policy.max_text_bytes {
+                        return Err(RuntimeError::new(
+                            "R_TEXT_LIMIT",
+                            "Unicode result exceeds the configured text limit",
+                            instruction.span,
+                        ));
+                    }
+                    charge_allocation(budget.as_ref(), output.len(), instruction.span)?;
+                    push_stack!(Value::Text(output.into()));
                 } else {
-                    stdlib_services::text_collapse_whitespace(&text)
-                };
-                if output.len() > self.policy.max_text_bytes {
-                    return Err(RuntimeError::new(
-                        "R_TEXT_LIMIT",
-                        "Unicode result exceeds the configured text limit",
-                        instruction.span,
-                    ));
+                    push_stack!(Value::Text(text));
                 }
-                charge_allocation(budget.as_ref(), output.len(), instruction.span)?;
-                push_stack!(Value::Text(output));
             }
             Op::TextNormalize => {
                 let form = match pop!() {
@@ -1774,7 +2205,7 @@ impl VmHost for Instance {
                 match stdlib_services::text_normalize(&text, &form) {
                     Ok(output) if output.len() <= self.policy.max_text_bytes => {
                         charge_allocation(budget.as_ref(), output.len(), instruction.span)?;
-                        push_stack!(Value::ResultOk(Box::new(Value::Text(output))));
+                        push_stack!(Value::ResultOk(Box::new(Value::Text(output.into()))));
                     }
                     Ok(_) => {
                         return Err(RuntimeError::new(
@@ -1874,7 +2305,7 @@ impl VmHost for Instance {
                             "E_SQLITE_PATH",
                             error.message,
                         )
-                        .at_path(path.clone())),
+                        .at_path(path.to_string())),
                     }
                 };
                 push_stack!(service_result_value(result));
@@ -1937,7 +2368,7 @@ impl VmHost for Instance {
                                                 Value::from_list_items(
                                                     row.columns
                                                         .into_iter()
-                                                        .map(Value::Text)
+                                                        .map(|text| Value::Text(text.into()))
                                                         .collect(),
                                                 ),
                                                 Value::from_list_items(
@@ -2010,7 +2441,10 @@ impl VmHost for Instance {
                 let handle = stdlib_services::TomlHandle::from_parts(owner, id);
                 let result = match instruction.op {
                     Op::TomlHas => self.toml_documents.has(handle, &path).map(Value::Bool),
-                    Op::TomlGetText => self.toml_documents.get_text(handle, &path).map(Value::Text),
+                    Op::TomlGetText => self
+                        .toml_documents
+                        .get_text(handle, &path)
+                        .map(|text| Value::Text(text.into())),
                     Op::TomlGetInt => self
                         .toml_documents
                         .get_integer(handle, &path)
@@ -2076,8 +2510,12 @@ impl VmHost for Instance {
                         instruction.span,
                     ));
                 }
-                charge_allocation(budget.as_ref(), text.len(), instruction.span)?;
-                push_stack!(Value::Text(text));
+                charge_allocation(
+                    budget.as_ref(),
+                    size_of::<String>().saturating_add(text.len()),
+                    instruction.span,
+                )?;
+                push_stack!(Value::Text(text.into()));
             }
             Op::CalendarParse => {
                 let source = match pop!() {
@@ -2170,12 +2608,12 @@ impl VmHost for Instance {
                 }
                 charge_allocation(
                     budget.as_ref(),
-                    size_of::<String>().saturating_add(text.capacity()),
+                    size_of::<String>().saturating_add(text.len()),
                     instruction.span,
                 )?;
                 let effect = self.begin_effect(EffectKind::FileRead, path);
                 self.finish_effect(effect, EffectOutcome::Returned);
-                push_stack!(Value::ResultOk(Box::new(Value::Text(text))));
+                push_stack!(Value::ResultOk(Box::new(Value::Text(text.into()))));
             }
             Op::WriteText => {
                 let content = match pop!() {
@@ -2212,8 +2650,8 @@ impl VmHost for Instance {
                         return Ok(());
                     }
                 };
-                let effect = self.begin_effect(EffectKind::FileWrite, path.as_str());
-                if let Err(error) = fs::write(&resolved, content) {
+                let effect = self.begin_effect(EffectKind::FileWrite, path.as_ref());
+                if let Err(error) = fs::write(&resolved, content.as_bytes()) {
                     self.finish_effect(effect, EffectOutcome::ReturnedError);
                     push_stack!(file_error_result(RuntimeError::new(
                         "R_FILE_WRITE",
@@ -2267,7 +2705,7 @@ impl VmHost for Instance {
                         return Ok(());
                     }
                 };
-                let effect = self.begin_effect(EffectKind::FileWrite, path.as_str());
+                let effect = self.begin_effect(EffectKind::FileWrite, path.as_ref());
                 if let Err(error) = atomic_replace_text(&resolved, &content) {
                     self.finish_effect(effect, EffectOutcome::ReturnedError);
                     push_stack!(file_error_result(RuntimeError::new(
@@ -2339,7 +2777,7 @@ impl VmHost for Instance {
                     bytes.capacity().saturating_add(size_of::<Vec<u8>>()),
                     instruction.span,
                 )?;
-                let effect = self.begin_effect(EffectKind::FileRead, path);
+                let effect = self.begin_effect(EffectKind::FileRead, path.as_ref());
                 self.finish_effect(effect, EffectOutcome::Returned);
                 push_stack!(Value::ResultOk(Box::new(Value::Bytes(Arc::new(bytes)))));
             }
@@ -2378,7 +2816,7 @@ impl VmHost for Instance {
                         return Ok(());
                     }
                 };
-                let effect = self.begin_effect(EffectKind::FileWrite, path.as_str());
+                let effect = self.begin_effect(EffectKind::FileWrite, path.as_ref());
                 if let Err(error) = fs::write(&resolved, content.as_slice()) {
                     self.finish_effect(effect, EffectOutcome::ReturnedError);
                     push_stack!(file_error_result(RuntimeError::new(
@@ -2407,7 +2845,7 @@ impl VmHost for Instance {
                     .arguments
                     .iter()
                     .cloned()
-                    .map(Value::Text)
+                    .map(|value| Value::Text(value.into()))
                     .collect::<Vec<_>>();
                 if values.len() > self.policy.max_collection_items {
                     return Err(RuntimeError::new(
@@ -2450,7 +2888,7 @@ impl VmHost for Instance {
                     .iter()
                     .skip(start)
                     .cloned()
-                    .map(Value::Text)
+                    .map(|value| Value::Text(value.into()))
                     .collect::<Vec<_>>();
                 let allocation = values.iter().fold(
                     size_of::<Vec<Value>>()
@@ -2487,18 +2925,22 @@ impl VmHost for Instance {
                         ))
                     }
                 };
-                if !self.policy.allowed_environment_variables.contains(&name) {
+                if !self
+                    .policy
+                    .allowed_environment_variables
+                    .contains(name.as_ref())
+                {
                     return Err(RuntimeError::new(
                         "R_ENV_DENIED",
                         format!("environment variable `{name}` is not granted"),
                         instruction.span,
                     ));
                 }
-                let effect = self.begin_effect(EffectKind::EnvironmentRead, name.as_str());
-                match std::env::var(name) {
+                let effect = self.begin_effect(EffectKind::EnvironmentRead, name.as_ref());
+                match std::env::var(name.as_ref()) {
                     Ok(value) => {
                         self.finish_effect(effect, EffectOutcome::Returned);
-                        push_stack!(Value::OptionSome(Box::new(Value::Text(value))))
+                        push_stack!(Value::OptionSome(Box::new(Value::Text(value.into()))))
                     }
                     Err(std::env::VarError::NotPresent) => {
                         self.finish_effect(effect, EffectOutcome::Returned);
@@ -2526,10 +2968,10 @@ impl VmHost for Instance {
                     }
                 };
                 push_stack!(match instruction.op {
-                    Op::JsonErrorMessage => Value::Text(error.message),
+                    Op::JsonErrorMessage => Value::Text(error.message.into()),
                     Op::JsonErrorLine => Value::Int(BigInt::from_usize(error.line)),
                     Op::JsonErrorColumn => Value::Int(BigInt::from_usize(error.column)),
-                    Op::JsonErrorCode => Value::Text(error.code),
+                    Op::JsonErrorCode => Value::Text(error.code.into()),
                     _ => unreachable!(),
                 });
             }
@@ -2545,8 +2987,8 @@ impl VmHost for Instance {
                     }
                 };
                 push_stack!(match instruction.op {
-                    Op::FileErrorCode => Value::Text(error.code),
-                    Op::FileErrorMessage => Value::Text(error.message),
+                    Op::FileErrorCode => Value::Text(error.code.into()),
+                    Op::FileErrorMessage => Value::Text(error.message.into()),
                     Op::FileErrorLine => Value::Int(BigInt::from_usize(
                         error.trace.first().map(|span| span.line).unwrap_or(0),
                     )),
@@ -2569,9 +3011,9 @@ impl VmHost for Instance {
                 };
                 push_stack!(Value::Text(
                     if matches!(instruction.op, Op::HttpErrorCode) {
-                        error.code
+                        error.code.into()
                     } else {
-                        error.message
+                        error.message.into()
                     }
                 ));
             }
@@ -2586,7 +3028,7 @@ impl VmHost for Instance {
                 }
             },
             Op::TaskCode => match pop!() {
-                Value::TaskError(error) => push_stack!(Value::Text(error.code)),
+                Value::TaskError(error) => push_stack!(Value::Text(error.code.into())),
                 _ => {
                     return Err(RuntimeError::new(
                         "R_TYPE_INVALID",
@@ -2596,7 +3038,7 @@ impl VmHost for Instance {
                 }
             },
             Op::TaskMessage => match pop!() {
-                Value::TaskError(error) => push_stack!(Value::Text(error.message)),
+                Value::TaskError(error) => push_stack!(Value::Text(error.message.into())),
                 _ => {
                     return Err(RuntimeError::new(
                         "R_TYPE_INVALID",
@@ -2734,7 +3176,7 @@ impl VmHost for Instance {
                     ));
                 }
                 push_stack!(finish_json_value(
-                    serde_json::Value::String(text),
+                    serde_json::Value::String(text.to_string()),
                     &self.policy.vm_limits(),
                     budget.as_ref(),
                     instruction.span,
@@ -2837,7 +3279,7 @@ impl VmHost for Instance {
                         instruction.span,
                     ));
                 };
-                fields.insert(key, Arc::new(child));
+                fields.insert(key.to_string(), Arc::new(child));
                 push_stack!(finish_shared_json(
                     object,
                     &self.policy.vm_limits(),
@@ -2863,7 +3305,7 @@ impl VmHost for Instance {
                         instruction.span,
                     ));
                 }
-                let value = match parse_unique_json(&source) {
+                let value = match parse_unique_shared_json(&source) {
                     Ok(value) => value,
                     Err(JsonDecodeError::Parse(error)) => {
                         push_stack!(Value::ResultErr(Box::new(Value::JsonError(
@@ -2888,7 +3330,7 @@ impl VmHost for Instance {
                         return Ok(());
                     }
                 };
-                let value = finish_json_value(
+                let value = finish_shared_json(
                     value,
                     &self.policy.vm_limits(),
                     budget.as_ref(),
@@ -2919,10 +3361,10 @@ impl VmHost for Instance {
                 }
                 charge_allocation(
                     budget.as_ref(),
-                    size_of::<String>().saturating_add(text.capacity()),
+                    size_of::<String>().saturating_add(text.len()),
                     instruction.span,
                 )?;
-                push_stack!(Value::Text(text));
+                push_stack!(Value::Text(text.into()));
             }
             Op::JsonTryGet
             | Op::JsonTryIndex
@@ -2996,9 +3438,8 @@ impl VmHost for Instance {
                             }
                         };
                         match instruction.op {
-                            Op::JsonTryText => {
-                                stdlib_data::json_try_text(value.as_ref()).map(Value::Text)
-                            }
+                            Op::JsonTryText => stdlib_data::json_try_text(value.as_ref())
+                                .map(|text| Value::Text(text.into())),
                             Op::JsonTryInt => {
                                 stdlib_data::json_try_int(value.as_ref()).map(Value::Int)
                             }
@@ -3075,7 +3516,7 @@ impl VmHost for Instance {
                         instruction.span,
                     )
                 })?;
-                let value = object.get(&key).cloned().ok_or_else(|| {
+                let value = object.get(key.as_ref()).cloned().ok_or_else(|| {
                     RuntimeError::new(
                         "R_JSON_KEY",
                         format!("JSON object has no key `{key}`"),
@@ -3153,7 +3594,7 @@ impl VmHost for Instance {
                         instruction.span,
                     )
                 })?;
-                push_stack!(Value::Bool(object.contains_key(&key)));
+                push_stack!(Value::Bool(object.contains_key(key.as_ref())));
             }
             Op::JsonLength => {
                 let value = match pop!() {
@@ -3225,7 +3666,7 @@ impl VmHost for Instance {
                             instruction.span,
                         )
                     })?;
-                    let value = object.get(field.as_str()).ok_or_else(|| {
+                    let value = object.get(field.as_ref()).ok_or_else(|| {
                         RuntimeError::new(
                             "R_JSON_FIELD",
                             format!("JSON row has no field {field:?}"),
@@ -3300,7 +3741,7 @@ impl VmHost for Instance {
                             instruction.span,
                         )
                     })?;
-                    let value = object.get(field.as_str()).ok_or_else(|| {
+                    let value = object.get(field.as_ref()).ok_or_else(|| {
                         RuntimeError::new(
                             "R_JSON_FIELD",
                             format!("JSON row has no field {field:?}"),
@@ -3461,6 +3902,8 @@ impl VmHost for Instance {
                         instruction.span,
                     ));
                 }
+                let path = path.iter().map(|part| part.to_string()).collect();
+                let fields = fields.iter().map(|field| field.to_string()).collect();
                 let result = json_projection::project_columns(
                     &source,
                     path,
@@ -3562,7 +4005,7 @@ impl VmHost for Instance {
                             size_of::<String>().saturating_add(text.len()),
                             instruction.span,
                         )?;
-                        push_stack!(Value::Text(text.to_string()))
+                        push_stack!(Value::Text(text.to_string().into()))
                     }
                     _ => {
                         return Err(RuntimeError::new(
@@ -3853,7 +4296,12 @@ impl Instance {
                     release_fuel: native_release_fuel as *const () as *const u8,
                     poll_cancellation: native_poll_cancellation as *const () as *const u8,
                     make_list: native_make_list as *const () as *const u8,
-                    list_set: native_list_set as *const () as *const u8,
+                    list_set_float_copy: native_list_set_float_copy as *const () as *const u8,
+                    list_set_int_copy: native_list_set_int_copy as *const () as *const u8,
+                    list_set_bool_copy: native_list_set_bool_copy as *const () as *const u8,
+                    list_set_float_local: native_list_set_float_local as *const () as *const u8,
+                    list_set_int_local: native_list_set_int_local as *const () as *const u8,
+                    list_set_bool_local: native_list_set_bool_local as *const () as *const u8,
                     charge_record: native_charge_record as *const () as *const u8,
                     print: native_print as *const () as *const u8,
                     count_guest_branch: native_count_guest_branch as *const () as *const u8,
@@ -3989,6 +4437,37 @@ impl Instance {
             FrameStart::Returned(value) => Ok(value),
             FrameStart::Vm(frame) => self.run_guest_frames(frame, budget),
         }
+    }
+
+    fn sort_by_left_before_or_equal(
+        &mut self,
+        comparator: usize,
+        left: &Value,
+        right: &Value,
+        depth: usize,
+        budget: Arc<Budget>,
+        span: Span,
+    ) -> Result<bool, RuntimeError> {
+        let ordering = match self.invoke_inner(
+            comparator,
+            vec![left.clone(), right.clone()],
+            depth + 1,
+            budget,
+        ) {
+            Ok(Value::Int(ordering)) => ordering,
+            Ok(_) => {
+                return Err(RuntimeError::new(
+                    "R_TYPE_INVALID",
+                    "sort comparator must return Int",
+                    span,
+                ))
+            }
+            Err(mut error) => {
+                error.trace.push(span);
+                return Err(error);
+            }
+        };
+        Ok(ordering.is_negative() || ordering.is_zero())
     }
 
     fn start_guest_frame(
@@ -5119,22 +5598,21 @@ unsafe extern "C" fn native_make_list(
     }
 }
 
-unsafe extern "C" fn native_list_set(
+#[inline(always)]
+unsafe fn native_list_set_impl<const ITEM_KIND: i64, const ALWAYS_COPY: bool>(
     arena: *mut NativeListArena,
     list: *mut std::ffi::c_void,
     index: i64,
     value: i64,
-    item_kind: i64,
-    always_copy: i64,
 ) -> *mut std::ffi::c_void {
-    if arena.is_null() || list.is_null() || index < 0 || !(1..=3).contains(&item_kind) {
+    if arena.is_null() || list.is_null() || index < 0 {
         return std::ptr::null_mut();
     }
     let arena = unsafe { &mut *arena };
     let Ok(index) = usize::try_from(index) else {
         return std::ptr::null_mut();
     };
-    if item_kind == NATIVE_LIST_FLOAT_KIND {
+    if ITEM_KIND == NATIVE_LIST_FLOAT_KIND {
         let descriptor = unsafe { &mut *(list.cast::<NativeFloatList>()) };
         if index >= descriptor.len {
             return std::ptr::null_mut();
@@ -5143,7 +5621,7 @@ unsafe extern "C" fn native_list_set(
         let Some(value) = Float64::new(f64::from_bits(value as u64)) else {
             return std::ptr::null_mut();
         };
-        if always_copy == 0 && descriptor.owned {
+        if !ALWAYS_COPY && descriptor.owned {
             if descriptor.inline_storage {
                 descriptor.inline[index] = value.get().to_bits();
             } else {
@@ -5206,10 +5684,10 @@ unsafe extern "C" fn native_list_set(
             return std::ptr::null_mut();
         }
         arena.record_list_set_operation();
-        if item_kind == NATIVE_LIST_BOOL_KIND && value != 0 && value != 1 {
+        if ITEM_KIND == NATIVE_LIST_BOOL_KIND && value != 0 && value != 1 {
             return std::ptr::null_mut();
         }
-        if always_copy == 0 && descriptor.owned {
+        if !ALWAYS_COPY && descriptor.owned {
             if descriptor.inline_storage {
                 descriptor.inline[index] = value;
             } else {
@@ -5251,6 +5729,58 @@ unsafe extern "C" fn native_list_set(
         (&mut **arena.int_lists.last_mut().unwrap() as *mut NativeIntList).cast()
     }
 }
+
+#[cfg(test)]
+unsafe extern "C" fn native_list_set(
+    arena: *mut NativeListArena,
+    list: *mut std::ffi::c_void,
+    index: i64,
+    value: i64,
+    item_kind: i64,
+    always_copy: i64,
+) -> *mut std::ffi::c_void {
+    match (item_kind, always_copy == 0) {
+        (NATIVE_LIST_FLOAT_KIND, true) => unsafe {
+            native_list_set_impl::<NATIVE_LIST_FLOAT_KIND, false>(arena, list, index, value)
+        },
+        (NATIVE_LIST_INT_KIND, true) => unsafe {
+            native_list_set_impl::<NATIVE_LIST_INT_KIND, false>(arena, list, index, value)
+        },
+        (NATIVE_LIST_BOOL_KIND, true) => unsafe {
+            native_list_set_impl::<NATIVE_LIST_BOOL_KIND, false>(arena, list, index, value)
+        },
+        (NATIVE_LIST_FLOAT_KIND, false) => unsafe {
+            native_list_set_impl::<NATIVE_LIST_FLOAT_KIND, true>(arena, list, index, value)
+        },
+        (NATIVE_LIST_INT_KIND, false) => unsafe {
+            native_list_set_impl::<NATIVE_LIST_INT_KIND, true>(arena, list, index, value)
+        },
+        (NATIVE_LIST_BOOL_KIND, false) => unsafe {
+            native_list_set_impl::<NATIVE_LIST_BOOL_KIND, true>(arena, list, index, value)
+        },
+        _ => std::ptr::null_mut(),
+    }
+}
+
+macro_rules! native_list_set_entry {
+    ($name:ident, $item_kind:ident, $always_copy:literal) => {
+        unsafe extern "C" fn $name(
+            arena: *mut NativeListArena,
+            list: *mut std::ffi::c_void,
+            index: i64,
+            value: i64,
+        ) -> *mut std::ffi::c_void {
+            unsafe { native_list_set_impl::<$item_kind, $always_copy>(arena, list, index, value) }
+        }
+    };
+}
+
+native_list_set_entry!(native_list_set_float_copy, NATIVE_LIST_FLOAT_KIND, true);
+native_list_set_entry!(native_list_set_int_copy, NATIVE_LIST_INT_KIND, true);
+native_list_set_entry!(native_list_set_bool_copy, NATIVE_LIST_BOOL_KIND, true);
+native_list_set_entry!(native_list_set_float_local, NATIVE_LIST_FLOAT_KIND, false);
+native_list_set_entry!(native_list_set_int_local, NATIVE_LIST_INT_KIND, false);
+native_list_set_entry!(native_list_set_bool_local, NATIVE_LIST_BOOL_KIND, false);
 
 unsafe extern "C" fn native_charge_record(arena: *mut NativeListArena, bytes: i64) -> i32 {
     if arena.is_null() || bytes < 0 {
@@ -5453,7 +5983,7 @@ fn runtime_text_path(value: &Value, span: Span) -> Result<Vec<String>, RuntimeEr
     items
         .iter()
         .map(|item| match item {
-            Value::Text(text) => Ok(text.clone()),
+            Value::Text(text) => Ok(text.to_string()),
             _ => Err(RuntimeError::new(
                 "R_TYPE_INVALID",
                 "TOML path must contain only Text",
@@ -5510,7 +6040,7 @@ fn runtime_sql_values(
             let zero_real = real.get() == 0.0;
             let empty_text = text.is_empty();
             let empty_blob = blob.is_empty();
-            let decoded = match kind.as_str() {
+            let decoded = match kind.as_ref() {
                 "null" if zero_integer && zero_real && empty_text && empty_blob => {
                     stdlib_services::SqlValue::Null
                 }
@@ -5521,7 +6051,7 @@ fn runtime_sql_values(
                     stdlib_services::SqlValue::Real(real.get())
                 }
                 "text" if zero_integer && zero_real && empty_blob => {
-                    stdlib_services::SqlValue::Text(text.clone())
+                    stdlib_services::SqlValue::Text(text.to_string())
                 }
                 "blob" if zero_integer && zero_real && empty_text => {
                     stdlib_services::SqlValue::Blob(blob.as_ref().clone())
@@ -5541,9 +6071,9 @@ fn service_error_value(error: stdlib_services::ServiceError) -> Value {
     Value::Record(
         "StdError".into(),
         Arc::new(vec![
-            Value::Text(error.code),
-            Value::Text(error.message),
-            Value::Text(error.path),
+            Value::Text(error.code.into()),
+            Value::Text(error.message.into()),
+            Value::Text(error.path.into()),
             Value::Int(BigInt::from_usize(error.line)),
             Value::Int(BigInt::from_usize(error.column)),
         ]),
@@ -5557,7 +6087,7 @@ fn temporal_resolution_result_value(
         Ok(resolution) => Value::ResultOk(Box::new(temporal_resolution_value(resolution))),
         Err(error) => Value::ResultErr(Box::new(Value::Record(
             "TimeError".into(),
-            Arc::new(vec![Value::Text(error.code), Value::Text(error.message)]),
+            Arc::new(vec![Value::Text(error.code.into()), Value::Text(error.message.into())]),
         ))),
     }
 }
@@ -5585,7 +6115,7 @@ fn service_sql_value(value: stdlib_services::SqlValue) -> Value {
             Value::Text(kind.into()),
             Value::Int(BigInt::from_i64(integer)),
             Value::Float64(Float64::new(real).expect("SQLite service returns finite reals")),
-            Value::Text(text),
+            Value::Text(text.into()),
             Value::Bytes(Arc::new(blob)),
         ]),
     )
@@ -5612,18 +6142,18 @@ fn service_calendar_event(event: stdlib_services::CalendarEvent) -> Value {
     };
     let recurrence = event
         .recurrence_rule
-        .map(|rule| Value::OptionSome(Box::new(Value::Text(rule))))
+        .map(|rule| Value::OptionSome(Box::new(Value::Text(rule.into()))))
         .unwrap_or(Value::OptionNone);
     Value::Record(
         "CalendarEvent".into(),
         Arc::new(vec![
-            Value::Text(event.uid),
-            Value::Text(event.summary),
+            Value::Text(event.uid.into()),
+            Value::Text(event.summary.into()),
             resolution(event.start_resolution),
             resolution(event.end_resolution),
             date(event.start_date),
             date(event.end_date),
-            Value::Text(event.status),
+            Value::Text(event.status.into()),
             Value::Bool(event.all_day),
             recurrence,
         ]),
@@ -5658,7 +6188,7 @@ fn temporal_resolution_value(resolution: stdlib_services::TemporalResolution) ->
                     Value::Int(BigInt::from_i64(local.microsecond)),
                 ]),
             ),
-            Value::Text(resolution.timezone),
+            Value::Text(resolution.timezone.into()),
             Value::from_list_items(instants),
         ]),
     )
@@ -6071,14 +6601,15 @@ enum JsonDecodeError {
     },
 }
 
+#[cfg(test)]
 fn parse_unique_json(source: &str) -> Result<serde_json::Value, JsonDecodeError> {
     use serde::de::DeserializeSeed;
 
     let (safe_source, reserved_key) = escape_reserved_json_keys(source);
-    let duplicate = std::rc::Rc::new(std::cell::RefCell::new(None));
+    let mut duplicate = None;
     let mut deserializer = serde_json::Deserializer::from_str(&safe_source);
     let parsed = UniqueJsonSeed {
-        duplicate: std::rc::Rc::clone(&duplicate),
+        duplicate: &mut duplicate,
     }
     .deserialize(&mut deserializer);
     match parsed {
@@ -6090,7 +6621,7 @@ fn parse_unique_json(source: &str) -> Result<serde_json::Value, JsonDecodeError>
             Ok(value)
         }
         Err(error) => {
-            if let Some(key) = duplicate.borrow_mut().take() {
+            if let Some(key) = duplicate.take() {
                 let offset = duplicate_json_key(source)
                     .map(|(_, offset)| offset)
                     .unwrap_or(source.len());
@@ -6105,6 +6636,64 @@ fn parse_unique_json(source: &str) -> Result<serde_json::Value, JsonDecodeError>
                 Err(JsonDecodeError::Parse(error))
             }
         }
+    }
+}
+
+fn parse_unique_shared_json(source: &str) -> Result<SharedJson, JsonDecodeError> {
+    use serde::de::DeserializeSeed;
+
+    let (safe_source, reserved_key) = escape_reserved_json_keys(source);
+    let mut duplicate = None;
+    let mut deserializer = serde_json::Deserializer::from_str(&safe_source);
+    let parsed = SharedJsonSeed {
+        duplicate: &mut duplicate,
+    }
+    .deserialize(&mut deserializer);
+    match parsed {
+        Ok(mut value) => {
+            deserializer.end().map_err(JsonDecodeError::Parse)?;
+            if let Some(reserved_key) = reserved_key.as_deref() {
+                restore_reserved_shared_json_keys(&mut value, reserved_key);
+            }
+            Ok(value)
+        }
+        Err(error) => {
+            if let Some(key) = duplicate.take() {
+                let offset = duplicate_json_key(source)
+                    .map(|(_, offset)| offset)
+                    .unwrap_or(source.len());
+                let (line, column) = source_position(source, offset);
+                let key = if reserved_key.as_deref() == Some(key.as_str()) {
+                    "$serde_json::private::Number".to_owned()
+                } else {
+                    key
+                };
+                Err(JsonDecodeError::DuplicateKey { key, line, column })
+            } else {
+                Err(JsonDecodeError::Parse(error))
+            }
+        }
+    }
+}
+
+fn restore_reserved_shared_json_keys(value: &mut SharedJson, reserved_key: &str) {
+    match value {
+        SharedJson::Array(values) => {
+            for value in Arc::make_mut(values) {
+                restore_reserved_shared_json_keys(Arc::make_mut(value), reserved_key);
+            }
+        }
+        SharedJson::Object(values) => {
+            let values = Arc::make_mut(values);
+            if let Some(mut value) = values.remove(reserved_key) {
+                restore_reserved_shared_json_keys(Arc::make_mut(&mut value), reserved_key);
+                values.insert("$serde_json::private::Number".to_owned(), value);
+            }
+            for value in values.values_mut() {
+                restore_reserved_shared_json_keys(Arc::make_mut(value), reserved_key);
+            }
+        }
+        _ => {}
     }
 }
 
@@ -6263,12 +6852,146 @@ pub(crate) fn restore_reserved_json_keys(value: &mut serde_json::Value, reserved
     }
 }
 
-#[derive(Clone)]
-struct UniqueJsonSeed {
-    duplicate: std::rc::Rc<std::cell::RefCell<Option<String>>>,
+struct UniqueJsonSeed<'duplicate> {
+    duplicate: &'duplicate mut Option<String>,
 }
 
-impl<'de> serde::de::DeserializeSeed<'de> for UniqueJsonSeed {
+struct SharedJsonSeed<'duplicate> {
+    duplicate: &'duplicate mut Option<String>,
+}
+
+impl<'de> serde::de::DeserializeSeed<'de> for SharedJsonSeed<'_> {
+    type Value = SharedJson;
+
+    fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        deserializer.deserialize_any(SharedJsonVisitor {
+            duplicate: self.duplicate,
+        })
+    }
+}
+
+struct SharedJsonVisitor<'duplicate> {
+    duplicate: &'duplicate mut Option<String>,
+}
+
+impl<'de> serde::de::Visitor<'de> for SharedJsonVisitor<'_> {
+    type Value = SharedJson;
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("a JSON value")
+    }
+
+    fn visit_bool<E>(self, value: bool) -> Result<Self::Value, E> {
+        Ok(SharedJson::Bool(value))
+    }
+
+    fn visit_i64<E>(self, value: i64) -> Result<Self::Value, E> {
+        Ok(SharedJson::Number(value.into()))
+    }
+
+    fn visit_u64<E>(self, value: u64) -> Result<Self::Value, E> {
+        Ok(SharedJson::Number(value.into()))
+    }
+
+    fn visit_i128<E>(self, value: i128) -> Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        serde_json::Number::from_i128(value)
+            .map(SharedJson::Number)
+            .ok_or_else(|| E::custom("JSON integer is out of range"))
+    }
+
+    fn visit_u128<E>(self, value: u128) -> Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        serde_json::Number::from_u128(value)
+            .map(SharedJson::Number)
+            .ok_or_else(|| E::custom("JSON integer is out of range"))
+    }
+
+    fn visit_f64<E>(self, value: f64) -> Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        serde_json::Number::from_f64(value)
+            .map(SharedJson::Number)
+            .ok_or_else(|| E::custom("JSON number is out of range"))
+    }
+
+    fn visit_str<E>(self, value: &str) -> Result<Self::Value, E> {
+        Ok(SharedJson::String(Arc::from(value)))
+    }
+
+    fn visit_string<E>(self, value: String) -> Result<Self::Value, E> {
+        Ok(SharedJson::String(Arc::from(value)))
+    }
+
+    fn visit_unit<E>(self) -> Result<Self::Value, E> {
+        Ok(SharedJson::Null)
+    }
+
+    fn visit_none<E>(self) -> Result<Self::Value, E> {
+        Ok(SharedJson::Null)
+    }
+
+    fn visit_some<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        use serde::de::DeserializeSeed;
+        SharedJsonSeed {
+            duplicate: &mut *self.duplicate,
+        }
+        .deserialize(deserializer)
+    }
+
+    fn visit_seq<A>(self, mut sequence: A) -> Result<Self::Value, A::Error>
+    where
+        A: serde::de::SeqAccess<'de>,
+    {
+        let mut values = Vec::new();
+        while let Some(value) = sequence.next_element_seed(SharedJsonSeed {
+            duplicate: &mut *self.duplicate,
+        })? {
+            values.push(Arc::new(value));
+        }
+        Ok(SharedJson::Array(Arc::new(values)))
+    }
+
+    fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
+    where
+        A: serde::de::MapAccess<'de>,
+    {
+        let mut object = BTreeMap::new();
+        while let Some(key) = map.next_key::<String>()? {
+            if object.contains_key(&key) {
+                *self.duplicate = Some(key);
+                return Err(serde::de::Error::custom("duplicate JSON object key"));
+            }
+            let value = map.next_value_seed(SharedJsonSeed {
+                duplicate: &mut *self.duplicate,
+            })?;
+            object.insert(key, Arc::new(value));
+        }
+        if object.len() == 1 {
+            if let Some(SharedJson::String(number)) =
+                object.get("$serde_json::private::Number").map(Arc::as_ref)
+            {
+                if let Ok(number) = number.parse::<serde_json::Number>() {
+                    return Ok(SharedJson::Number(number));
+                }
+            }
+        }
+        Ok(SharedJson::Object(Arc::new(object)))
+    }
+}
+
+impl<'de> serde::de::DeserializeSeed<'de> for UniqueJsonSeed<'_> {
     type Value = serde_json::Value;
 
     fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
@@ -6281,11 +7004,11 @@ impl<'de> serde::de::DeserializeSeed<'de> for UniqueJsonSeed {
     }
 }
 
-struct UniqueJsonVisitor {
-    duplicate: std::rc::Rc<std::cell::RefCell<Option<String>>>,
+struct UniqueJsonVisitor<'duplicate> {
+    duplicate: &'duplicate mut Option<String>,
 }
 
-impl<'de> serde::de::Visitor<'de> for UniqueJsonVisitor {
+impl<'de> serde::de::Visitor<'de> for UniqueJsonVisitor<'_> {
     type Value = serde_json::Value;
 
     fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -6367,7 +7090,7 @@ impl<'de> serde::de::Visitor<'de> for UniqueJsonVisitor {
     {
         let mut values = Vec::new();
         while let Some(value) = sequence.next_element_seed(UniqueJsonSeed {
-            duplicate: std::rc::Rc::clone(&self.duplicate),
+            duplicate: &mut *self.duplicate,
         })? {
             values.push(value);
         }
@@ -6387,7 +7110,7 @@ impl<'de> serde::de::Visitor<'de> for UniqueJsonVisitor {
         let mut keys = HashSet::new();
         let mut object = serde_json::Map::new();
         let first_value = map.next_value_seed(UniqueJsonSeed {
-            duplicate: std::rc::Rc::clone(&self.duplicate),
+            duplicate: &mut *self.duplicate,
         })?;
         let next_key = map.next_key::<String>()?;
         if first_key == "$serde_json::private::Number" && next_key.is_none() {
@@ -6402,11 +7125,11 @@ impl<'de> serde::de::Visitor<'de> for UniqueJsonVisitor {
         let mut key = next_key;
         while let Some(current_key) = key {
             if !keys.insert(current_key.clone()) {
-                *self.duplicate.borrow_mut() = Some(current_key);
+                *self.duplicate = Some(current_key);
                 return Err(serde::de::Error::custom("duplicate JSON object key"));
             }
             let value = map.next_value_seed(UniqueJsonSeed {
-                duplicate: std::rc::Rc::clone(&self.duplicate),
+                duplicate: &mut *self.duplicate,
             })?;
             object.insert(current_key, value);
             key = map.next_key::<String>()?;
@@ -6479,7 +7202,9 @@ fn duplicate_json_key(source: &str) -> Option<(String, usize)> {
 
 #[cfg(test)]
 mod unique_json_parser_tests {
-    use super::{escape_reserved_json_keys, parse_unique_json, JsonDecodeError};
+    use super::{
+        escape_reserved_json_keys, parse_unique_json, parse_unique_shared_json, JsonDecodeError,
+    };
 
     #[test]
     fn does_not_copy_input_when_no_reserved_key_needs_rewriting() {
@@ -6532,6 +7257,47 @@ mod unique_json_parser_tests {
     fn reports_malformed_json_as_a_parser_error() {
         assert!(matches!(
             parse_unique_json("{\"value\": [}"),
+            Err(JsonDecodeError::Parse(_))
+        ));
+    }
+
+    #[test]
+    fn shared_parser_matches_generic_parser_for_supported_json_values() {
+        for source in [
+            "null",
+            "true",
+            "-17",
+            "1.25e3",
+            r#"{"rows":[{"value":42,"label":"東京"}]}"#,
+            r#"{"rows":[{"value":123456789012345678901234567890,"label":"東京"}]}"#,
+            r#"{"value":{"$serde_json::private::Number":{"nested":1}}}"#,
+            r#"{"value":{"\u0024serde_json::private::Number":"123"}}"#,
+        ] {
+            let generic = parse_unique_json(source).expect("generic JSON parser accepts fixture");
+            let shared =
+                parse_unique_shared_json(source).expect("shared JSON parser accepts fixture");
+
+            assert_eq!(shared.to_serde(), generic, "source: {source}");
+        }
+    }
+
+    #[test]
+    fn shared_parser_rejects_escaped_duplicate_keys_at_the_same_location() {
+        let source = "{\n \"rows\": [{\"name\": \"first\", \"\\u006eame\": \"second\"}]\n}";
+
+        match parse_unique_shared_json(source) {
+            Err(JsonDecodeError::DuplicateKey { key, line, column }) => {
+                assert_eq!(key, "name");
+                assert_eq!((line, column), (2, 29));
+            }
+            other => panic!("expected duplicate-key error, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn shared_parser_reports_malformed_json_as_a_parser_error() {
+        assert!(matches!(
+            parse_unique_shared_json("{\"value\": [}"),
             Err(JsonDecodeError::Parse(_))
         ));
     }

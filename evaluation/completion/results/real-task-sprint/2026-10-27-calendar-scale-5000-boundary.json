@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "kind": "calendar-event-scaling-diagnostic",
+  "status": "failed",
+  "commit": "214bdb8",
+  "guion_sha256": "cdc227ab8547e318c5152610814aeb7c35340a4cbf07f4dd6477e0a0b59072c6",
+  "calendar_source_sha256": "6c5bfb7920432fd0c62e469cfc3f74037a1ed35a78cbcbc4d48d018b25c771c7",
+  "python": "3.14.7 (main, Aug  5 2026, 10:29:49) [Clang 21.0.0 (clang-2100.1.1.101)]",
+  "platform": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+  "trials": 3,
+  "measurement": "One unmeasured randomized warmup pair plus randomized paired trials. Fresh-process source execution, Guion cache bypassed, output and concurrency checks included, fixture setup excluded, OS cache uncontrolled. Three calendars contain non-overlapping events inside a three-day window; the other two endpoints retain fixed error cases.",
+  "workloads": {
+    "5000": {
+      "events_per_calendar": 5000,
+      "parsed_events": 15000,
+      "preflight": {
+        "guion": {
+          "passed": false,
+          "elapsed_seconds": 0.313195,
+          "failures": [
+            "step 1: expected exit code 0, received 1",
+            "step 1: check 1: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/Users/rmichaelthomas/guion/target/perf-session/real-tasks-tmp/veritas-independent-case-7yggrl_c/report.json'",
+            "step 1: check 2: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/Users/rmichaelthomas/guion/target/perf-session/real-tasks-tmp/veritas-independent-case-7yggrl_c/report.json'",
+            "step 1: check 6: json_equals could not be evaluated: [Errno 2] No such file or directory: '/Users/rmichaelthomas/guion/target/perf-session/real-tasks-tmp/veritas-independent-case-7yggrl_c/report.json'"
+          ],
+          "stderr": "calendar requests failed: R_STEP_LIMIT\n"
+        },
+        "python": {
+          "passed": true,
+          "elapsed_seconds": 14.831044,
+          "failures": [],
+          "stderr": ""
+        }
+      },
+      "status": "failed"
+    }
+  }
+}

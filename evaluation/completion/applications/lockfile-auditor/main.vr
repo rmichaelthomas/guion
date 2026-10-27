@@ -7,38 +7,27 @@ fn is_container(value: Json, opening: Text) -> Bool:
     let chars = text_chars(json_stringify(value))
     return len(chars) > 0 and chars[0] == opening
 
-fn add_diagnostic(records: List[Json], name: Text, rule: Text) -> List[Json]:
-    var item = json_object()
-    set item = json_set(item, "name", json_text(name))
-    set item = json_set(item, "rule", json_text(rule))
-    return list_push(records, item)
+fn compare_diagnostic_rules(left: Text, right: Text) -> Int:
+    return text_compare_bytes(left, right)
 
-fn diagnostic_before(left: Json, right: Json) -> Bool:
-    let left_name = json_as_text(json_get(left, "name"))
-    let right_name = json_as_text(json_get(right, "name"))
-    if left_name != right_name:
-        return text_compare_bytes(left_name, right_name) < 0
-    return text_compare_bytes(json_as_text(json_get(left, "rule")), json_as_text(json_get(right, "rule"))) < 0
-
-fn sort_diagnostics(values: List[Json]) -> List[Json]:
-    var remaining = values
-    var ordered: List[Json] = []
-    while len(remaining) > 0:
-        var best = 0
-        var scan = 1
-        while scan < len(remaining):
-            if diagnostic_before(remaining[scan], remaining[best]):
-                set best = scan
-            set scan = scan + 1
-        set ordered = list_push(ordered, remaining[best])
-        var next: List[Json] = []
-        var copy_index = 0
-        while copy_index < len(remaining):
-            if copy_index != best:
-                set next = list_push(next, remaining[copy_index])
-            set copy_index = copy_index + 1
-        set remaining = next
-    return ordered
+fn merge_diagnostic_rules(left: List[Text], right: List[Text]) -> List[Text]:
+    var merged: List[Text] = []
+    var left_index = 0
+    var right_index = 0
+    while left_index < len(left) and right_index < len(right):
+        if compare_diagnostic_rules(left[left_index], right[right_index]) <= 0:
+            set merged = list_push(merged, left[left_index])
+            set left_index = left_index + 1
+        else:
+            set merged = list_push(merged, right[right_index])
+            set right_index = right_index + 1
+    while left_index < len(left):
+        set merged = list_push(merged, left[left_index])
+        set left_index = left_index + 1
+    while right_index < len(right):
+        set merged = list_push(merged, right[right_index])
+        set right_index = right_index + 1
+    return merged
 
 fn main() -> Int:
     let arguments = args()
@@ -87,17 +76,22 @@ fn main() -> Int:
         return 1
     let lock = unwrap(lock_result)
     let policy = unwrap(policy_result)
-    if not is_container(lock, "{") or not is_container(policy, "{"):
+    if not is_container(policy, "{"):
         eprint("lockfile and policy roots must be objects")
         return 1
     let packages_result = json_get_safe(lock, "packages")
     if not is_ok(packages_result):
+        if json_error_code(error(packages_result)) == "E_JSON_SHAPE":
+            eprint("lockfile and policy roots must be objects")
+            return 1
         eprint("lockfile requires a packages array")
         return 1
     let packages = unwrap(packages_result)
-    if not is_container(packages, "["):
+    let first_package_probe = json_index_safe(packages, 0)
+    if not is_ok(first_package_probe) and json_error_code(error(first_package_probe)) != "E_JSON_INDEX":
         eprint("lockfile packages must be an array")
         return 1
+    let package_count = json_len(packages)
 
     var deny = json_array()
     var minimum_versions = json_object()
@@ -119,6 +113,10 @@ fn main() -> Int:
         if not is_container(maximum_versions, "{"):
             eprint("maximum_versions must be an object")
             return 1
+    let deny_count = json_len(deny)
+    let has_deny = deny_count > 0
+    let has_minimum_versions = json_len(minimum_versions) > 0
+    let has_maximum_versions = json_len(maximum_versions) > 0
     if json_has(policy, "require_source"):
         let required = json_bool_safe(json_get(policy, "require_source"))
         if not is_ok(required):
@@ -138,23 +136,24 @@ fn main() -> Int:
         if not is_container(exceptions, "["):
             eprint("exceptions must be an array")
             return 1
-    if json_len(exceptions) > 0 and not has_as_of:
+    let exception_count = json_len(exceptions)
+    if exception_count > 0 and not has_as_of:
         eprint("--as-of is required when exceptions are configured")
         return 1
     var exception_dates: Map[Text, Text] = {}
     var exception_index = 0
-    while exception_index < json_len(exceptions):
+    while exception_index < exception_count:
         let exception = json_index_safe(exceptions, exception_index)
         if not is_ok(exception):
             eprint("exceptions must contain objects")
             return 1
         let exception_object = unwrap(exception)
-        if not is_container(exception_object, "{"):
-            eprint("exceptions must contain objects")
-            return 1
         let name_json = json_get_safe(exception_object, "name")
         let expires_json = json_get_safe(exception_object, "expires")
         if not is_ok(name_json) or not is_ok(expires_json):
+            if (not is_ok(name_json) and json_error_code(error(name_json)) == "E_JSON_SHAPE") or (not is_ok(expires_json) and json_error_code(error(expires_json)) == "E_JSON_SHAPE"):
+                eprint("exceptions must contain objects")
+                return 1
             eprint("each exception requires name and expires")
             return 1
         let name_result = json_text_safe(unwrap(name_json))
@@ -179,21 +178,23 @@ fn main() -> Int:
         set exception_dates = map_set(exception_dates, exception_name, expires)
         set exception_index = exception_index + 1
 
-    var violations: List[Json] = []
-    var warnings: List[Json] = []
+    var violations_by_name: Map[Text, List[Text]] = {}
+    var warnings_by_name: Map[Text, List[Text]] = {}
+    var versions_by_text: Map[Text, SemVer] = {}
+    let has_exceptions = len(exception_dates) > 0
     var package_index = 0
-    while package_index < json_len(packages):
+    while package_index < package_count:
         let package_result = json_index_safe(packages, package_index)
         if not is_ok(package_result):
             eprint("packages must contain objects")
             return 1
         let package = unwrap(package_result)
-        if not is_container(package, "{"):
-            eprint("packages must contain objects")
-            return 1
         let name_json = json_get_safe(package, "name")
         let version_json = json_get_safe(package, "version")
         if not is_ok(name_json) or not is_ok(version_json):
+            if (not is_ok(name_json) and json_error_code(error(name_json)) == "E_JSON_SHAPE") or (not is_ok(version_json) and json_error_code(error(version_json)) == "E_JSON_SHAPE"):
+                eprint("packages must contain objects")
+                return 1
             eprint("each package requires name and version")
             return 1
         let name_result = json_text_safe(unwrap(name_json))
@@ -203,13 +204,22 @@ fn main() -> Int:
             return 1
         let name = unwrap(name_result)
         let version_text = unwrap(version_result)
-        let version_parse = parse_version(version_text)
-        if not is_ok(version_parse):
-            eprint("invalid SemVer for package " + name)
-            return 1
-        let version = unwrap(version_parse)
+        var version = SemVer("", "", "", [], [], "")
+        if map_has(versions_by_text, version_text):
+            set version = versions_by_text[version_text]
+        else:
+            let version_parse = parse_version(version_text)
+            if not is_ok(version_parse):
+                eprint("invalid SemVer for package " + name)
+                return 1
+            set version = unwrap(version_parse)
+            set versions_by_text = map_set(versions_by_text, version_text, version)
+        var package_violations: List[Text] = []
+        var package_warnings: List[Text] = []
         var source_present = false
         var checksum_present = false
+        var below_minimum = false
+        var above_maximum = false
         if json_has(package, "source") and not json_is_null(json_get(package, "source")):
             let source_value = json_text_safe(json_get(package, "source"))
             if not is_ok(source_value):
@@ -224,26 +234,24 @@ fn main() -> Int:
             set checksum_present = unwrap(checksum_value) != ""
 
         var exception_active = false
-        if map_has(exception_dates, name):
+        if has_exceptions and map_has(exception_dates, name):
             let expires = exception_dates[name]
             if as_of < expires:
                 set exception_active = true
             else:
-                set warnings = add_diagnostic(warnings, name, "expired_exception")
+                set package_warnings = list_push(package_warnings, "expired_exception")
         var denied = false
-        var deny_index = 0
-        while deny_index < json_len(deny):
-            let denied_name = json_text_safe(json_index(deny, deny_index))
-            if not is_ok(denied_name):
-                eprint("policy deny entries must be strings")
-                return 1
-            if unwrap(denied_name) == name:
-                set denied = true
-            set deny_index = deny_index + 1
-        if denied and not exception_active:
-            set violations = add_diagnostic(violations, name, "denied")
-
-        if json_has(minimum_versions, name):
+        if has_deny:
+            var deny_index = 0
+            while deny_index < deny_count:
+                let denied_name = json_text_safe(json_index(deny, deny_index))
+                if not is_ok(denied_name):
+                    eprint("policy deny entries must be strings")
+                    return 1
+                if unwrap(denied_name) == name:
+                    set denied = true
+                set deny_index = deny_index + 1
+        if has_minimum_versions and json_has(minimum_versions, name):
             let minimum_result = json_text_safe(json_get(minimum_versions, name))
             if not is_ok(minimum_result):
                 eprint("minimum version entries must be SemVer strings")
@@ -253,8 +261,8 @@ fn main() -> Int:
                 eprint("invalid minimum SemVer for " + name)
                 return 1
             if compare_versions(version, unwrap(minimum_parse)) < 0:
-                set violations = add_diagnostic(violations, name, "below_minimum")
-        if json_has(maximum_versions, name):
+                set below_minimum = true
+        if has_maximum_versions and json_has(maximum_versions, name):
             let maximum_result = json_text_safe(json_get(maximum_versions, name))
             if not is_ok(maximum_result):
                 eprint("maximum version entries must be SemVer strings")
@@ -264,21 +272,48 @@ fn main() -> Int:
                 eprint("invalid maximum SemVer for " + name)
                 return 1
             if compare_versions(version, unwrap(maximum_parse)) > 0:
-                set violations = add_diagnostic(violations, name, "above_maximum")
-        if require_source and not source_present:
-            set violations = add_diagnostic(violations, name, "missing_source")
+                set above_maximum = true
+        if above_maximum:
+            set package_violations = list_push(package_violations, "above_maximum")
+        if below_minimum:
+            set package_violations = list_push(package_violations, "below_minimum")
+        if denied and not exception_active:
+            set package_violations = list_push(package_violations, "denied")
         if require_checksum and not checksum_present:
-            set violations = add_diagnostic(violations, name, "missing_checksum")
+            set package_violations = list_push(package_violations, "missing_checksum")
+        if require_source and not source_present:
+            set package_violations = list_push(package_violations, "missing_source")
+        if len(package_violations) > 0:
+            if map_has(violations_by_name, name):
+                var grouped_violations = violations_by_name[name]
+                set grouped_violations = merge_diagnostic_rules(grouped_violations, package_violations)
+                set violations_by_name = map_set(violations_by_name, name, grouped_violations)
+            else:
+                set violations_by_name = map_set(violations_by_name, name, package_violations)
+        if len(package_warnings) > 0:
+            if map_has(warnings_by_name, name):
+                var grouped_warnings = warnings_by_name[name]
+                for rule in package_warnings:
+                    set grouped_warnings = list_push(grouped_warnings, rule)
+                set warnings_by_name = map_set(warnings_by_name, name, grouped_warnings)
+            else:
+                set warnings_by_name = map_set(warnings_by_name, name, package_warnings)
         set package_index = package_index + 1
 
-    let sorted_violations = sort_diagnostics(violations)
-    let sorted_warnings = sort_diagnostics(warnings)
     var violation_array = json_array()
-    for item in sorted_violations:
-        set violation_array = json_push(violation_array, item)
+    for name in violations_by_name:
+        for rule in violations_by_name[name]:
+            var encoded = json_object()
+            set encoded = json_set(encoded, "name", json_text(name))
+            set encoded = json_set(encoded, "rule", json_text(rule))
+            set violation_array = json_push(violation_array, encoded)
     var warning_array = json_array()
-    for item in sorted_warnings:
-        set warning_array = json_push(warning_array, item)
+    for name in warnings_by_name:
+        for rule in warnings_by_name[name]:
+            var encoded = json_object()
+            set encoded = json_set(encoded, "name", json_text(name))
+            set encoded = json_set(encoded, "rule", json_text(rule))
+            set warning_array = json_push(warning_array, encoded)
     var report = json_object()
     set report = json_set(report, "violations", violation_array)
     set report = json_set(report, "warnings", warning_array)

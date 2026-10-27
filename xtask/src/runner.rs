@@ -1071,7 +1071,7 @@ fn print_json(value: &Value) -> Result<(), String> {
 
 pub fn run(root: &Path, args: &[String]) -> i32 {
     if args.is_empty() {
-        eprintln!("usage: cargo xtask <conformance|bootstrap|stdlib|runtime|product|release|performance|builders|closeout|agent-reference> [options]");
+        eprintln!("usage: cargo xtask <conformance|bootstrap|stdlib|runtime|product|release|performance|builders|closeout|agent-reference|artifact-format-audit> [options]");
         return 2;
     }
     let command = args[0].as_str();
@@ -1109,6 +1109,18 @@ pub fn run(root: &Path, args: &[String]) -> i32 {
             }
         };
     }
+    if command == "artifact-format-audit" {
+        return match crate::artifact_format::audit_repository(root) {
+            Ok(()) => {
+                println!("artifact-format test assertions use the current-version constant");
+                0
+            }
+            Err(error) => {
+                eprintln!("{error}");
+                1
+            }
+        };
+    }
     let mut invocation = match invocation(command, args[1..].to_vec()) {
         Ok(value) => value,
         Err(error) => {
@@ -1124,7 +1136,56 @@ pub fn run(root: &Path, args: &[String]) -> i32 {
         invocation.requested_targets.clear();
     }
 
-    if invocation.report_name == "closeout-schema" {
+    let format_preflight_failed = if matches!(
+        command,
+        "conformance"
+            | "bootstrap"
+            | "stdlib"
+            | "runtime"
+            | "product"
+            | "release"
+            | "performance"
+            | "builders"
+    ) {
+        match crate::artifact_format::audit_repository(root) {
+            Ok(()) => {
+                invocation.checks.push(CheckResult {
+                    id: "artifact-format-test-audit".into(),
+                    status: "passed".into(),
+                    command: vec!["cargo".into(), "xtask".into(), "artifact-format-audit".into()],
+                    exit_status: Some(0),
+                    output: format!(
+                        "artifact-format equality assertions use guion_model::Artifact::CURRENT_VERSION ({})",
+                        guion_model::Artifact::CURRENT_VERSION
+                    ),
+                });
+                false
+            }
+            Err(error) => {
+                invocation.explicit_status = Some("failed".into());
+                invocation.exit_status = 1;
+                invocation.message = Some(error.clone());
+                invocation.checks.push(CheckResult {
+                    id: "artifact-format-test-audit".into(),
+                    status: "failed".into(),
+                    command: vec![
+                        "cargo".into(),
+                        "xtask".into(),
+                        "artifact-format-audit".into(),
+                    ],
+                    exit_status: Some(1),
+                    output: error,
+                });
+                true
+            }
+        }
+    } else {
+        false
+    };
+
+    if format_preflight_failed {
+        // The fast source check found a likely stale expectation; skip every long gate.
+    } else if invocation.report_name == "closeout-schema" {
         match validate_completion_schema(root) {
             Ok(()) => {
                 invocation.explicit_status = Some("incomplete".into());

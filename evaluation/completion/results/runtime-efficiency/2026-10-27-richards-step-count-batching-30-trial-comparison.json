@@ -1,0 +1,522 @@
+{
+  "schema_version": 1,
+  "kind": "guion-richards-step-count-batching-comparison",
+  "repetitions_per_process": 25,
+  "trials_per_arm": 30,
+  "warmup_trials_per_arm": 2,
+  "output_checked_each_warmup_and_trial": true,
+  "measurement_design": {
+    "randomized_paired_order": true,
+    "guion_cache_condition": "--no-cache bypasses Guion source cache",
+    "os_file_cache": "uncontrolled",
+    "expected_stdout_per_execution": [
+      "9297",
+      "23246"
+    ]
+  },
+  "baseline_revision": "b61c932",
+  "candidate_revision": "step-count-batching-working-tree",
+  "baseline_binary_sha256": "aa98accc190779c13e54e00879305584639d755a14b6c58ea071caebea0eaa2b",
+  "candidate_binary_sha256": "f7f66ca5ebf3379512876c8ae0edd8c17264ee766a49789821039ddb96882b19",
+  "host": {
+    "platform": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+    "architecture": "arm64",
+    "python_version": "3.14.7"
+  },
+  "arm_medians_seconds": {
+    "guion_baseline_warm": 0.009559468320803717,
+    "guion_candidate_warm": 0.009554163319990039,
+    "python_reference_warm": 0.036823236659984104
+  },
+  "candidate_over_baseline": {
+    "median_ratio": 1.0007103913506272,
+    "ci95_percentile": [
+      0.9892845753838766,
+      1.0068481188973042
+    ],
+    "win": false,
+    "ties_or_regressions": 16
+  },
+  "candidate_over_python": {
+    "median_ratio": 0.2594838289093423,
+    "ci95_percentile": [
+      0.2583724670566677,
+      0.2612004822160293
+    ],
+    "win": true,
+    "ties_or_regressions": 0
+  },
+  "baseline_over_python": {
+    "median_ratio": 0.2596861903780675,
+    "ci95_percentile": [
+      0.2578356029426782,
+      0.2614763825441352
+    ],
+    "win": true,
+    "ties_or_regressions": 0
+  },
+  "samples_per_execution": {
+    "guion_baseline_warm": {
+      "samples_seconds": [
+        0.009560068320715799,
+        0.009629730000160635,
+        0.009858036680379883,
+        0.009558868320891634,
+        0.009650001680711284,
+        0.009671803360106423,
+        0.009490201680455357,
+        0.009520868320250883,
+        0.009481033319607377,
+        0.009801740000257268,
+        0.009495968359988182,
+        0.009457553359679878,
+        0.009483923320658505,
+        0.009828650000272318,
+        0.00955493664019741,
+        0.010099115000339226,
+        0.009605021679308266,
+        0.009511100000236184,
+        0.009779585000360384,
+        0.009588935000356286,
+        0.009514779999153688,
+        0.009535996639169753,
+        0.009576001679524779,
+        0.010289875000016763,
+        0.009496341680642218,
+        0.009528061640448868,
+        0.009440726640168578,
+        0.011196459999773652,
+        0.009507844999898225,
+        0.009787558320676909
+      ],
+      "median_seconds": 0.009559468320803717,
+      "p95_seconds_nearest_rank": 0.010289875000016763
+    },
+    "guion_candidate_warm": {
+      "samples_seconds": [
+        0.009566883320221677,
+        0.009713911639992148,
+        0.009478058360982686,
+        0.00945183499949053,
+        0.009511973320040851,
+        0.00951983500039205,
+        0.009496920000528916,
+        0.009455531680723652,
+        0.009586896679829806,
+        0.009662703319918364,
+        0.009723443359835073,
+        0.009474779999582097,
+        0.00955490831984207,
+        0.010049845000030472,
+        0.009475336639443412,
+        0.00989002168062143,
+        0.010295583319384604,
+        0.009783784999744966,
+        0.009543144999770447,
+        0.009523461679928005,
+        0.009553418320138007,
+        0.009548046679701655,
+        0.009478004999691621,
+        0.00949000500026159,
+        0.00956564664025791,
+        0.00960526500013657,
+        0.009501129999989644,
+        0.009939396639820188,
+        0.009602314999792725,
+        0.009646133360220119
+      ],
+      "median_seconds": 0.009554163319990039,
+      "p95_seconds_nearest_rank": 0.010049845000030472
+    },
+    "python_reference_warm": {
+      "samples_seconds": [
+        0.036524543360574174,
+        0.03646186500089243,
+        0.03760856332024559,
+        0.037257003319682555,
+        0.03636769499978982,
+        0.03642273831996135,
+        0.03645208331989124,
+        0.03667834668071009,
+        0.03673043663962744,
+        0.03712311667972244,
+        0.03660919164074585,
+        0.036684296680614355,
+        0.036893463359447196,
+        0.036800386679824444,
+        0.03716144836042076,
+        0.036341688320972024,
+        0.039820206639124084,
+        0.03693780667963438,
+        0.03688836336019449,
+        0.036846086640143765,
+        0.03642591499956325,
+        0.03698102331953123,
+        0.03685983499977738,
+        0.0367030016402714,
+        0.036645731639582665,
+        0.03664917999994941,
+        0.0374010066408664,
+        0.04861354163964279,
+        0.036934655000222846,
+        0.03873252499965019
+      ],
+      "median_seconds": 0.036823236659984104,
+      "p95_seconds_nearest_rank": 0.039820206639124084
+    }
+  },
+  "metadata": {
+    "paired_trial_order": [
+      [
+        "guion_baseline_warm",
+        "guion_candidate_warm",
+        "python_reference_warm"
+      ],
+      [
+        "python_reference_warm",
+        "guion_candidate_warm",
+        "guion_baseline_warm"
+      ],
+      [
+        "python_reference_warm",
+        "guion_baseline_warm",
+        "guion_candidate_warm"
+      ],
+      [
+        "guion_candidate_warm",
+        "guion_baseline_warm",
+        "python_reference_warm"
+      ],
+      [
+        "python_reference_warm",
+        "guion_candidate_warm",
+        "guion_baseline_warm"
+      ],
+      [
+        "guion_baseline_warm",
+        "python_reference_warm",
+        "guion_candidate_warm"
+      ],
+      [
+        "guion_candidate_warm",
+        "guion_baseline_warm",
+        "python_reference_warm"
+      ],
+      [
+        "python_reference_warm",
+        "guion_baseline_warm",
+        "guion_candidate_warm"
+      ],
+      [
+        "guion_baseline_warm",
+        "guion_candidate_warm",
+        "python_reference_warm"
+      ],
+      [
+        "guion_candidate_warm",
+        "guion_baseline_warm",
+        "python_reference_warm"
+      ],
+      [
+        "guion_candidate_warm",
+        "guion_baseline_warm",
+        "python_reference_warm"
+      ],
+      [
+        "guion_candidate_warm",
+        "python_reference_warm",
+        "guion_baseline_warm"
+      ],
+      [
+        "guion_baseline_warm",
+        "python_reference_warm",
+        "guion_candidate_warm"
+      ],
+      [
+        "python_reference_warm",
+        "guion_baseline_warm",
+        "guion_candidate_warm"
+      ],
+      [
+        "python_reference_warm",
+        "guion_baseline_warm",
+        "guion_candidate_warm"
+      ],
+      [
+        "python_reference_warm",
+        "guion_candidate_warm",
+        "guion_baseline_warm"
+      ],
+      [
+        "python_reference_warm",
+        "guion_candidate_warm",
+        "guion_baseline_warm"
+      ],
+      [
+        "guion_baseline_warm",
+        "guion_candidate_warm",
+        "python_reference_warm"
+      ],
+      [
+        "guion_baseline_warm",
+        "python_reference_warm",
+        "guion_candidate_warm"
+      ],
+      [
+        "guion_candidate_warm",
+        "python_reference_warm",
+        "guion_baseline_warm"
+      ],
+      [
+        "guion_baseline_warm",
+        "python_reference_warm",
+        "guion_candidate_warm"
+      ],
+      [
+        "guion_candidate_warm",
+        "guion_baseline_warm",
+        "python_reference_warm"
+      ],
+      [
+        "guion_baseline_warm",
+        "python_reference_warm",
+        "guion_candidate_warm"
+      ],
+      [
+        "guion_candidate_warm",
+        "python_reference_warm",
+        "guion_baseline_warm"
+      ],
+      [
+        "python_reference_warm",
+        "guion_baseline_warm",
+        "guion_candidate_warm"
+      ],
+      [
+        "guion_baseline_warm",
+        "guion_candidate_warm",
+        "python_reference_warm"
+      ],
+      [
+        "guion_baseline_warm",
+        "guion_candidate_warm",
+        "python_reference_warm"
+      ],
+      [
+        "guion_baseline_warm",
+        "python_reference_warm",
+        "guion_candidate_warm"
+      ],
+      [
+        "guion_baseline_warm",
+        "guion_candidate_warm",
+        "python_reference_warm"
+      ],
+      [
+        "guion_baseline_warm",
+        "guion_candidate_warm",
+        "python_reference_warm"
+      ]
+    ],
+    "native_backend_reports": {
+      "guion_baseline_warm": {
+        "bytecode_blocks": 126,
+        "bytecode_instructions": 944,
+        "calls": 938675,
+        "compilations": 1,
+        "compile_profile": {
+          "finalize_nanoseconds": 23750,
+          "functions": [
+            {
+              "bytecode_blocks": 4,
+              "bytecode_instructions": 11,
+              "cranelift_ir_blocks": 15,
+              "cranelift_ir_instructions": 228,
+              "define_nanoseconds": 353708,
+              "lowering_nanoseconds": 87500,
+              "name": "next_worker_count",
+              "verification_nanoseconds": 46875
+            },
+            {
+              "bytecode_blocks": 9,
+              "bytecode_instructions": 46,
+              "cranelift_ir_blocks": 31,
+              "cranelift_ir_instructions": 502,
+              "define_nanoseconds": 641333,
+              "lowering_nanoseconds": 74667,
+              "name": "xor_d008",
+              "verification_nanoseconds": 62167
+            },
+            {
+              "bytecode_blocks": 10,
+              "bytecode_instructions": 91,
+              "cranelift_ir_blocks": 50,
+              "cranelift_ir_instructions": 1006,
+              "define_nanoseconds": 1196000,
+              "lowering_nanoseconds": 174209,
+              "name": "route_packet",
+              "verification_nanoseconds": 109375
+            },
+            {
+              "bytecode_blocks": 103,
+              "bytecode_instructions": 796,
+              "cranelift_ir_blocks": 358,
+              "cranelift_ir_instructions": 6530,
+              "define_nanoseconds": 11165750,
+              "lowering_nanoseconds": 2059625,
+              "name": "benchmark_once",
+              "verification_nanoseconds": 821666
+            }
+          ]
+        },
+        "compiled_functions": [
+          "next_worker_count",
+          "xor_d008",
+          "route_packet",
+          "benchmark_once"
+        ],
+        "cranelift_ir_blocks": 454,
+        "cranelift_ir_instructions": 8266,
+        "deoptimizations": 0
+      },
+      "guion_candidate_warm": {
+        "bytecode_blocks": 126,
+        "bytecode_instructions": 944,
+        "calls": 938675,
+        "compilations": 1,
+        "compile_profile": {
+          "finalize_nanoseconds": 29084,
+          "functions": [
+            {
+              "bytecode_blocks": 4,
+              "bytecode_instructions": 11,
+              "cranelift_ir_blocks": 15,
+              "cranelift_ir_instructions": 214,
+              "define_nanoseconds": 372208,
+              "lowering_nanoseconds": 81833,
+              "name": "next_worker_count",
+              "verification_nanoseconds": 47708
+            },
+            {
+              "bytecode_blocks": 9,
+              "bytecode_instructions": 46,
+              "cranelift_ir_blocks": 31,
+              "cranelift_ir_instructions": 403,
+              "define_nanoseconds": 579417,
+              "lowering_nanoseconds": 63042,
+              "name": "xor_d008",
+              "verification_nanoseconds": 52916
+            },
+            {
+              "bytecode_blocks": 10,
+              "bytecode_instructions": 91,
+              "cranelift_ir_blocks": 50,
+              "cranelift_ir_instructions": 802,
+              "define_nanoseconds": 1122708,
+              "lowering_nanoseconds": 199458,
+              "name": "route_packet",
+              "verification_nanoseconds": 100958
+            },
+            {
+              "bytecode_blocks": 103,
+              "bytecode_instructions": 796,
+              "cranelift_ir_blocks": 358,
+              "cranelift_ir_instructions": 4656,
+              "define_nanoseconds": 9868709,
+              "lowering_nanoseconds": 1996958,
+              "name": "benchmark_once",
+              "verification_nanoseconds": 611709
+            }
+          ]
+        },
+        "compiled_functions": [
+          "next_worker_count",
+          "xor_d008",
+          "route_packet",
+          "benchmark_once"
+        ],
+        "cranelift_ir_blocks": 454,
+        "cranelift_ir_instructions": 6075,
+        "deoptimizations": 0
+      }
+    },
+    "source_cache_states": {
+      "guion_baseline_warm": [
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed"
+      ],
+      "guion_candidate_warm": [
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed"
+      ]
+    }
+  },
+  "candidate_source_provenance": {
+    "description": "Release binary built offline from this working tree based on the stated baseline revision; binary SHA-256 identifies the measured executable, and these source hashes identify the implementation and focused test.",
+    "baseline_revision": "b61c932397379eb7acbfbd2a6caa99ea308020cd",
+    "source_sha256": {
+      "crates/runtime/src/native_backend.rs": "fab80b979c41ff62757798269c60adb33987e4251272888aa1096769be39af29",
+      "crates/runtime/tests/execution.rs": "35916184905716103b102f34382c761d26e70c4710b115178df9867175de0f8f"
+    }
+  }
+}

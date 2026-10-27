@@ -107,6 +107,7 @@ list_set(List[$T], Int, $T) -> List[$T]
 map_get(Map[Text, $T], Text) -> Option[$T]
 map_has(Map[$T], Text) -> Bool
 map_set(Map[$T], Text, $T) -> Map[$T]
+merge_sorted_by_int_key(List[List[$T]], NamedIntKey[$T]) -> List[$T]
 native_calendar_parse(Text) -> Result[List[Record[CalendarEvent]], Record[StdError]]
 native_crypto_hmac_sha256(Bytes, Bytes) -> Bytes
 native_crypto_verify_hmac_sha256(Bytes, Bytes, Bytes) -> Bool
@@ -136,6 +137,7 @@ read_text(Text) -> Result[Text, FileError]
 semver_compare(Record[SemVer], Record[SemVer]) -> Int
 semver_parse(Text) -> Result[Record[SemVer], FileError]
 sort_by(List[$T], NamedComparator[$T]) -> List[$T]
+sort_by_int_key(List[$T], NamedIntKey[$T]) -> List[$T]
 sqrt(Float64) -> Float64
 task_code(TaskError) -> Text
 task_index(TaskError) -> Int
@@ -155,6 +157,8 @@ write_bytes(Text, Bytes) -> Result[Unit, FileError]
 write_text(Text, Text) -> Result[Unit, FileError]
 write_text_atomic(Text, Text) -> Result[Unit, FileError]
 ```
+
+`sort_by_int_key` requires a named pure `(T) -> Int` function, evaluates that key once per item, uses a stable sort, and preserves the input and its aliases. `merge_sorted_by_int_key` stably merges sorted `List[List[T]]` feeds using the same key contract and returns `R_SORT_ORDER` if any feed is not already sorted by key. Native comparisons count against the guest instruction budget.
 
 ## Standard-library public signatures
 
@@ -520,6 +524,7 @@ E_SEMVER_LIMIT
 E_SEMVER_PRERELEASE
 E_SORT_COMPARATOR
 E_SORT_EFFECT
+E_SORT_KEY
 E_SOURCE_BYTES
 E_SOURCE_IDENTITY
 E_SOURCE_READ
@@ -673,6 +678,7 @@ R_RESOURCE_STALE
 R_RESULT_ERROR
 R_RESULT_UNWRAP
 R_RETURN_INVALID
+R_SORT_ORDER
 R_SQLITE_VALUE
 R_STACK_INVALID
 R_STEPS
@@ -898,4 +904,4 @@ fn main() -> Int:
 - [Host API and effects](../../language/host-api.md)
 - [Agent recipes](recipes.md)
 
-<!-- Generated reference content digest: sha256:fbf84ee077c52eae8c20d01ed0c51c1b52bb05cad2f3d15852b52529e2042a14. Validated by `cargo xtask agent-reference --check`. -->
+<!-- Generated reference content digest: sha256:212a4a769ac2d18b31b2486d7bf226732a07085331f3168c7252f875aab62c14. Validated by `cargo xtask agent-reference --check`. -->

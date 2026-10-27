@@ -18,7 +18,7 @@ fn version_reports_artifact_and_pinned_timezone_data_versions() {
     assert_eq!(
         String::from_utf8(output.stdout).unwrap(),
         format!(
-            "guion {} (artifact format 40, timezone data 2026c)\n",
+            "guion {} (artifact format 42, timezone data 2026c)\n",
             env!("CARGO_PKG_VERSION")
         )
     );
@@ -2612,7 +2612,10 @@ fn build_json_reports_artifact_identity_and_source_diagnostics() {
     assert_eq!(report["schema_version"], 1);
     assert_eq!(report["source"], source.to_string_lossy().as_ref());
     assert_eq!(report["artifact"], artifact.to_string_lossy().as_ref());
-    assert_eq!(report["artifact_format"], 40);
+    assert_eq!(
+        report["artifact_format"],
+        guion_model::Artifact::CURRENT_VERSION
+    );
     assert_eq!(
         report["artifact_size_bytes"],
         fs::metadata(&artifact).unwrap().len()

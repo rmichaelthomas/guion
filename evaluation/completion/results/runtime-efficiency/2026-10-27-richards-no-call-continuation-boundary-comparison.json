@@ -1,0 +1,217 @@
+{
+  "arm_medians_seconds": {
+    "guion_baseline_source_uncached": 0.03668441600166261,
+    "guion_candidate_source_uncached": 0.03608179200091399,
+    "python_reference": 0.07331445900490507
+  },
+  "baseline_binary_sha256": "95d95da2405b14b90bda5e5c0a5bcb8ea0a3f4dc8383a4f6c886336bc4d07927",
+  "baseline_revision": "5ebda585f0a1f548645357033bc506310fd35aa1",
+  "candidate_binary_sha256": "aa98accc190779c13e54e00879305584639d755a14b6c58ea071caebea0eaa2b",
+  "candidate_revision": "no-call-continuation-fuel-boundary-working-tree",
+  "commands": {
+    "guion_baseline_source_uncached": [
+      "/Users/rmichaelthomas/guion/target/perf-session/call-continuation-region/baseline/bin/guion",
+      "run",
+      "--json",
+      "--no-cache",
+      "/Users/rmichaelthomas/guion/target/perf-session/call-continuation-region/cohort/richards-followup-_s7s1o7g/project/main.gu"
+    ],
+    "guion_candidate_source_uncached": [
+      "/Users/rmichaelthomas/guion/target/perf-session/call-continuation-region/candidate/bin/guion",
+      "run",
+      "--json",
+      "--no-cache",
+      "/Users/rmichaelthomas/guion/target/perf-session/call-continuation-region/cohort/richards-followup-_s7s1o7g/project/main.gu"
+    ],
+    "python_reference": [
+      "/opt/homebrew/opt/python@3.14/bin/python3.14",
+      "/Users/rmichaelthomas/guion/evaluation/development/famous_benchmarks/richards_reference.py"
+    ]
+  },
+  "comparisons": {
+    "baseline_over_python": {
+      "ci95_percentile": [
+        0.49628018767747556,
+        0.5104835021895595
+      ],
+      "median_ratio": 0.5044068643461974,
+      "ties_or_regressions": 0,
+      "win": true
+    },
+    "candidate_over_baseline": {
+      "ci95_percentile": [
+        0.9527748841487553,
+        0.9983077477394962
+      ],
+      "median_ratio": 0.9820922106140484,
+      "ties_or_regressions": 3,
+      "win": true
+    },
+    "candidate_over_python": {
+      "ci95_percentile": [
+        0.4855562095492166,
+        0.5011045175290461
+      ],
+      "median_ratio": 0.49038128459565034,
+      "ties_or_regressions": 0,
+      "win": true
+    }
+  },
+  "host": {
+    "architecture": "arm64",
+    "platform": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+    "python_version": "3.14.7"
+  },
+  "kind": "guion-richards-python-comparison",
+  "measurement_design": {
+    "expected_stdout_per_execution": [
+      "9297",
+      "23246"
+    ],
+    "guion_cache_condition": "--no-cache bypasses Guion's source cache",
+    "os_file_cache": "uncontrolled",
+    "output_checked_on_every_warmup_and_trial": true,
+    "randomized_paired_order": true,
+    "sampled_arms": [
+      "guion_baseline_source_uncached",
+      "guion_candidate_source_uncached",
+      "python_reference"
+    ],
+    "trials_per_arm": 15,
+    "warmup_trials_per_arm": 2
+  },
+  "paired_trial_order": [
+    [
+      "guion_baseline_source_uncached",
+      "guion_candidate_source_uncached",
+      "python_reference"
+    ],
+    [
+      "python_reference",
+      "guion_candidate_source_uncached",
+      "guion_baseline_source_uncached"
+    ],
+    [
+      "python_reference",
+      "guion_baseline_source_uncached",
+      "guion_candidate_source_uncached"
+    ],
+    [
+      "guion_candidate_source_uncached",
+      "guion_baseline_source_uncached",
+      "python_reference"
+    ],
+    [
+      "python_reference",
+      "guion_candidate_source_uncached",
+      "guion_baseline_source_uncached"
+    ],
+    [
+      "guion_baseline_source_uncached",
+      "python_reference",
+      "guion_candidate_source_uncached"
+    ],
+    [
+      "guion_candidate_source_uncached",
+      "guion_baseline_source_uncached",
+      "python_reference"
+    ],
+    [
+      "python_reference",
+      "guion_baseline_source_uncached",
+      "guion_candidate_source_uncached"
+    ],
+    [
+      "guion_baseline_source_uncached",
+      "guion_candidate_source_uncached",
+      "python_reference"
+    ],
+    [
+      "guion_candidate_source_uncached",
+      "guion_baseline_source_uncached",
+      "python_reference"
+    ],
+    [
+      "guion_candidate_source_uncached",
+      "guion_baseline_source_uncached",
+      "python_reference"
+    ],
+    [
+      "guion_candidate_source_uncached",
+      "python_reference",
+      "guion_baseline_source_uncached"
+    ],
+    [
+      "guion_baseline_source_uncached",
+      "python_reference",
+      "guion_candidate_source_uncached"
+    ],
+    [
+      "python_reference",
+      "guion_baseline_source_uncached",
+      "guion_candidate_source_uncached"
+    ],
+    [
+      "python_reference",
+      "guion_baseline_source_uncached",
+      "guion_candidate_source_uncached"
+    ]
+  ],
+  "raw_samples_seconds": {
+    "guion_baseline_source_uncached": [
+      0.036657415999798104,
+      0.03664137501618825,
+      0.037438583007315174,
+      0.03624533300171606,
+      0.03636550001101568,
+      0.03842554098810069,
+      0.03752900002291426,
+      0.037080374982906505,
+      0.037677957996493205,
+      0.03628891700645909,
+      0.037327166995964944,
+      0.03743995900731534,
+      0.03668441600166261,
+      0.03572570902178995,
+      0.03647670798818581
+    ],
+    "guion_candidate_source_uncached": [
+      0.03608175000408664,
+      0.03598520898958668,
+      0.035193667019484565,
+      0.03657508300966583,
+      0.036946000007446855,
+      0.03764666701317765,
+      0.03644358299789019,
+      0.03532924997853115,
+      0.03542966701206751,
+      0.035735500016016886,
+      0.03726400001323782,
+      0.0362400829908438,
+      0.03485208400525153,
+      0.03642874999786727,
+      0.03608179200091399
+    ],
+    "python_reference": [
+      0.0718092080205679,
+      0.07354124999255873,
+      0.07430754200322554,
+      0.07409008301328868,
+      0.0734150419884827,
+      0.07512737502111122,
+      0.0750553329999093,
+      0.07286712498171255,
+      0.07259941697702743,
+      0.07312183300382458,
+      0.07331445900490507,
+      0.07200466599897482,
+      0.07268833299167454,
+      0.07428658299613744,
+      0.07231604200205766
+    ]
+  },
+  "schema_version": 1,
+  "source_sha256": "5fb23857e7e2c3bcc7af247ebf9847408fbb0389e8cc895a582598f87f007f5f",
+  "status": "passed",
+  "workload": "richards-scheduler"
+}

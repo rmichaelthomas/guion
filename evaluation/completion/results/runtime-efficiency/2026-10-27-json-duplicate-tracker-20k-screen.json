@@ -1,0 +1,115 @@
+{
+  "baseline_binary_sha256": "6be9feaa4b1c59ad5771007b0504d9a318ab3737c9736bc7dc7ac89a138e9a7e",
+  "candidate_binary_sha256": "19999b5444b086b545a0bfd698931447ed4d3ac8eaf761aab9a2b8a668ca2430",
+  "candidate_over_baseline": {
+    "ci95_percentile": [
+      0.9812508797052175,
+      1.009743316344601
+    ],
+    "median_ratio": 0.9886860439996684,
+    "ties_or_regressions": 2,
+    "win": false
+  },
+  "candidate_over_python": {
+    "ci95_percentile": [
+      0.2179070467582282,
+      0.22744212052493507
+    ],
+    "median_ratio": 0.22525038776345635,
+    "ties_or_regressions": 0,
+    "win": true
+  },
+  "candidate_source_sha256": {
+    "crates/runtime/src/json_projection.rs": "9f78c3e187bbb54ee44e27840b4bf8564ac8821e4302ce0ce6a694ac48f97ef5",
+    "crates/runtime/src/lib.rs": "700d9647a38f22ed43824fb454638993fbf10296b8dd2462fc74638f6fc84d9c"
+  },
+  "created_at_utc": "2026-10-27T12:49:20Z",
+  "elapsed_wall_seconds": 23.594,
+  "every_run_output_checked": true,
+  "git_revision": "fa8bcc41232fbdb9f8562e84c01a6349d8b0de84",
+  "kind": "guion-jsonl-parser-screen",
+  "paired_trial_order": [
+    [
+      "guion_baseline",
+      "guion_candidate",
+      "python_data"
+    ],
+    [
+      "python_data",
+      "guion_candidate",
+      "guion_baseline"
+    ],
+    [
+      "python_data",
+      "guion_baseline",
+      "guion_candidate"
+    ],
+    [
+      "guion_candidate",
+      "guion_baseline",
+      "python_data"
+    ],
+    [
+      "python_data",
+      "guion_candidate",
+      "guion_baseline"
+    ],
+    [
+      "guion_baseline",
+      "python_data",
+      "guion_candidate"
+    ],
+    [
+      "guion_candidate",
+      "guion_baseline",
+      "python_data"
+    ]
+  ],
+  "rows": 20000,
+  "samples": {
+    "guion_baseline": {
+      "median_seconds": 0.39298291702289134,
+      "p95_seconds_nearest_rank": 0.4024163750000298,
+      "samples_seconds": [
+        0.3880072920001112,
+        0.3846648749895394,
+        0.39298291702289134,
+        0.38942683301866055,
+        0.39480066701071337,
+        0.4024163750000298,
+        0.39600233297096565
+      ]
+    },
+    "guion_candidate": {
+      "median_seconds": 0.38825024996185675,
+      "p95_seconds_nearest_rank": 0.4053081669844687,
+      "samples_seconds": [
+        0.3847898329840973,
+        0.4053081669844687,
+        0.3856148330378346,
+        0.38502087496453896,
+        0.3886648750049062,
+        0.38825024996185675,
+        0.3998607089743018
+      ]
+    },
+    "python_data": {
+      "median_seconds": 1.7442350419587456,
+      "p95_seconds_nearest_rank": 1.8154619580018334,
+      "samples_seconds": [
+        1.7658439169754274,
+        1.7442350419587456,
+        1.8154619580018334,
+        1.7358818749780767,
+        1.7088517909869552,
+        1.7236385420546867,
+        1.7724379589781165
+      ]
+    }
+  },
+  "schema_version": 1,
+  "status": "passed",
+  "timed_trials_per_candidate": 7,
+  "warmups_per_candidate": 2,
+  "workload": "jsonl-summary-data-20000"
+}

@@ -1,0 +1,442 @@
+{
+  "artifact_sha256": "1eb9f91306bdbca93e2f99c0d8425e29ca4fbfec3bb20967ab505fd3b42bfbbd",
+  "binary_sha256": "6be9feaa4b1c59ad5771007b0504d9a318ab3737c9736bc7dc7ac89a138e9a7e",
+  "captured_at_utc": "2026-10-27T12:40:05Z",
+  "elapsed_wall_seconds": 928.007,
+  "git_revision": "fa8bcc41232fbdb9f8562e84c01a6349d8b0de84",
+  "host": {
+    "architecture": "arm64",
+    "platform": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+    "python": "3.14.7"
+  },
+  "kind": "guion-jsonl-200k-current-build",
+  "output_checked_each_trial": true,
+  "peak_rss_bytes": {
+    "guion_artifact": 13041664,
+    "guion_source": 13238272,
+    "guion_source_uncached": 14417920,
+    "python_data": 77807616,
+    "python_sqlite_native": 87359488
+  },
+  "python_and_sqlite_oracles_agree": true,
+  "rows": 200000,
+  "schema_version": 1,
+  "source_sha256": "4cb05ac5abaa1b893a879b2efd838936e56ff857e037802178909e245dbcff9a",
+  "status": "passed",
+  "timing_and_profiles": {
+    "cache_policy": {
+      "cached_source": "fresh Guion process; source cache warmed by correctness-checked calls",
+      "uncached_source": "--no-cache bypasses the Guion compilation cache; OS file cache uncontrolled"
+    },
+    "comparison": {
+      "guion_artifact_over_python": {
+        "ci95_percentile": [
+          0.21786885775787312,
+          0.22789506021673228
+        ],
+        "median_ratio": 0.2207803444980989,
+        "ties_or_regressions": 0,
+        "win": true
+      },
+      "guion_artifact_over_sqlite_native": {
+        "ci95_percentile": [
+          0.21624005059935122,
+          0.2246750217466696
+        ],
+        "median_ratio": 0.220226368703614,
+        "ties_or_regressions": 0,
+        "win": true
+      },
+      "guion_source_over_python": {
+        "ci95_percentile": [
+          0.21727459156223777,
+          0.2275937172280686
+        ],
+        "median_ratio": 0.2206498890680414,
+        "ties_or_regressions": 0,
+        "win": true
+      },
+      "guion_source_uncached_over_python": {
+        "ci95_percentile": [
+          0.21461477880527666,
+          0.22061360921168038
+        ],
+        "median_ratio": 0.21780070726449535,
+        "ties_or_regressions": 0,
+        "win": true
+      }
+    },
+    "generator_seed": 20261025,
+    "guion_artifact": {
+      "median_seconds": 3.8497555624926463,
+      "p95_seconds_nearest_rank": 4.030903542006854,
+      "samples_seconds": [
+        3.8520449579809792,
+        3.987082833016757,
+        4.030903542006854,
+        3.9259195839986205,
+        3.8813629999640398,
+        3.836308750032913,
+        3.830886166950222,
+        3.7430637080105953,
+        3.8149201670312323,
+        3.818755083018914,
+        3.9186435830197297,
+        3.8558374579879455,
+        3.8184998749638908,
+        3.7586451250244863,
+        3.8474661670043133,
+        3.952833625022322
+      ]
+    },
+    "guion_source": {
+      "median_seconds": 3.844098624511389,
+      "p95_seconds_nearest_rank": 4.366990375041496,
+      "samples_seconds": [
+        3.8702826660010032,
+        3.912577415991109,
+        3.8364317910163663,
+        3.9305974160088226,
+        3.912023707991466,
+        3.851765458006412,
+        3.8204369170125574,
+        3.8073360419948585,
+        3.8183651250437833,
+        3.76973454200197,
+        4.366990375041496,
+        3.827013583970256,
+        3.746858041966334,
+        3.8661106250365265,
+        4.136967915983405,
+        3.7597777500050142
+      ]
+    },
+    "guion_source_uncached": {
+      "median_seconds": 3.7992708329984453,
+      "p95_seconds_nearest_rank": 3.896630500035826,
+      "samples_seconds": [
+        3.7899518749909475,
+        3.896630500035826,
+        3.808589791005943,
+        3.848662875010632,
+        3.818426207988523,
+        3.818619375000708,
+        3.7694523339741863,
+        3.772030374966562,
+        3.7484345409902744,
+        3.8304027089616284,
+        3.784803999995347,
+        3.775338749983348,
+        3.724861124996096,
+        3.7279175420408137,
+        3.82403916696785,
+        3.8290222499636
+      ]
+    },
+    "native_backend_reports": {
+      "guion_artifact": {
+        "bytecode_blocks": 0,
+        "bytecode_instructions": 0,
+        "calls": 0,
+        "compilations": 0,
+        "compile_profile": {
+          "finalize_nanoseconds": 0,
+          "functions": []
+        },
+        "compiled_functions": [],
+        "cranelift_ir_blocks": 0,
+        "cranelift_ir_instructions": 0,
+        "deoptimizations": 0
+      },
+      "guion_source": {
+        "bytecode_blocks": 0,
+        "bytecode_instructions": 0,
+        "calls": 0,
+        "compilations": 0,
+        "compile_profile": {
+          "finalize_nanoseconds": 0,
+          "functions": []
+        },
+        "compiled_functions": [],
+        "cranelift_ir_blocks": 0,
+        "cranelift_ir_instructions": 0,
+        "deoptimizations": 0
+      },
+      "guion_source_uncached": {
+        "bytecode_blocks": 0,
+        "bytecode_instructions": 0,
+        "calls": 0,
+        "compilations": 0,
+        "compile_profile": {
+          "finalize_nanoseconds": 0,
+          "functions": []
+        },
+        "compiled_functions": [],
+        "cranelift_ir_blocks": 0,
+        "cranelift_ir_instructions": 0,
+        "deoptimizations": 0
+      }
+    },
+    "paired_trial_order": [
+      [
+        "python_data",
+        "guion_source",
+        "python_sqlite_native",
+        "guion_source_uncached",
+        "guion_artifact"
+      ],
+      [
+        "python_sqlite_native",
+        "python_data",
+        "guion_source_uncached",
+        "guion_artifact",
+        "guion_source"
+      ],
+      [
+        "guion_source_uncached",
+        "python_sqlite_native",
+        "python_data",
+        "guion_artifact",
+        "guion_source"
+      ],
+      [
+        "guion_source_uncached",
+        "python_sqlite_native",
+        "guion_artifact",
+        "guion_source",
+        "python_data"
+      ],
+      [
+        "python_data",
+        "guion_artifact",
+        "guion_source_uncached",
+        "python_sqlite_native",
+        "guion_source"
+      ],
+      [
+        "guion_artifact",
+        "guion_source",
+        "python_sqlite_native",
+        "guion_source_uncached",
+        "python_data"
+      ],
+      [
+        "python_data",
+        "guion_source_uncached",
+        "python_sqlite_native",
+        "guion_artifact",
+        "guion_source"
+      ],
+      [
+        "guion_source",
+        "guion_artifact",
+        "guion_source_uncached",
+        "python_data",
+        "python_sqlite_native"
+      ],
+      [
+        "guion_source",
+        "guion_artifact",
+        "python_data",
+        "python_sqlite_native",
+        "guion_source_uncached"
+      ],
+      [
+        "python_data",
+        "python_sqlite_native",
+        "guion_source_uncached",
+        "guion_artifact",
+        "guion_source"
+      ],
+      [
+        "guion_artifact",
+        "python_data",
+        "guion_source_uncached",
+        "guion_source",
+        "python_sqlite_native"
+      ],
+      [
+        "guion_source",
+        "python_data",
+        "guion_source_uncached",
+        "python_sqlite_native",
+        "guion_artifact"
+      ],
+      [
+        "guion_source",
+        "guion_source_uncached",
+        "python_data",
+        "guion_artifact",
+        "python_sqlite_native"
+      ],
+      [
+        "guion_source_uncached",
+        "python_data",
+        "guion_artifact",
+        "python_sqlite_native",
+        "guion_source"
+      ],
+      [
+        "guion_artifact",
+        "python_sqlite_native",
+        "python_data",
+        "guion_source_uncached",
+        "guion_source"
+      ],
+      [
+        "guion_source",
+        "guion_source_uncached",
+        "python_data",
+        "guion_artifact",
+        "python_sqlite_native"
+      ]
+    ],
+    "phase_profiles": {
+      "prebuilt_artifact": {
+        "cache_status": "not_applicable",
+        "elapsed_seconds_including_process_startup": 3.971630624961108,
+        "reported_phase_timings_ns": {
+          "artifact_runtime_load_ns": 1379833,
+          "cli_to_report_excluding_process_startup_ns": 3965722750,
+          "compiler_pipeline": null,
+          "input_artifact_decode_ns": 126875,
+          "native_compilation": {
+            "finalize_nanoseconds": 0,
+            "functions": []
+          },
+          "program_execute_ns": 3963738833,
+          "source_compile_or_cache_ns": null
+        }
+      },
+      "uncached_source": {
+        "cache_status": "bypassed",
+        "elapsed_seconds_including_process_startup": 3.855980791966431,
+        "reported_phase_timings_ns": {
+          "artifact_runtime_load_ns": 2386416,
+          "cli_to_report_excluding_process_startup_ns": 3844221542,
+          "compiler_pipeline": {
+            "compiler_backend": "rust",
+            "rust_compiler_compile_ns": 4197917
+          },
+          "input_artifact_decode_ns": null,
+          "native_compilation": {
+            "finalize_nanoseconds": 0,
+            "functions": []
+          },
+          "program_execute_ns": 3835042334,
+          "source_compile_or_cache_ns": 5289417
+        }
+      }
+    },
+    "python_data": {
+      "median_seconds": 17.4516247085121,
+      "p95_seconds_nearest_rank": 18.70355183299398,
+      "samples_seconds": [
+        17.619644792051986,
+        18.156394083052874,
+        17.74328950000927,
+        18.020366707991343,
+        18.70355183299398,
+        17.67763220902998,
+        17.583450000034645,
+        17.177822416997515,
+        16.679173915996216,
+        16.75663825002266,
+        17.157352083013393,
+        16.537538125005085,
+        16.884733042039443,
+        16.933574875001796,
+        18.176986458012834,
+        17.319799416989554
+      ]
+    },
+    "python_sqlite_native": {
+      "median_seconds": 17.625185021024663,
+      "p95_seconds_nearest_rank": 18.13039920805022,
+      "samples_seconds": [
+        17.813744249986485,
+        17.745999542006757,
+        17.816372834029607,
+        17.787692874961067,
+        17.979283458029386,
+        18.13039920805022,
+        17.627168750041164,
+        17.033835707989056,
+        16.993489166954532,
+        17.506945083034225,
+        17.01833779196022,
+        17.075520917016547,
+        16.758271207974758,
+        17.453284583985806,
+        17.94948779203696,
+        17.62320129200816
+      ]
+    },
+    "repetitions_per_process": 1,
+    "rows": 200000,
+    "source_cache_states": {
+      "guion_artifact": [
+        "not_applicable",
+        "not_applicable",
+        "not_applicable",
+        "not_applicable",
+        "not_applicable",
+        "not_applicable",
+        "not_applicable",
+        "not_applicable",
+        "not_applicable",
+        "not_applicable",
+        "not_applicable",
+        "not_applicable",
+        "not_applicable",
+        "not_applicable",
+        "not_applicable",
+        "not_applicable",
+        "not_applicable",
+        "not_applicable"
+      ],
+      "guion_source": [
+        "hit",
+        "hit",
+        "hit",
+        "hit",
+        "hit",
+        "hit",
+        "hit",
+        "hit",
+        "hit",
+        "hit",
+        "hit",
+        "hit",
+        "hit",
+        "hit",
+        "hit",
+        "hit",
+        "hit",
+        "hit"
+      ],
+      "guion_source_uncached": [
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed"
+      ]
+    },
+    "timed_trials_per_candidate": 16
+  },
+  "trials": 16
+}

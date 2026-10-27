@@ -1,0 +1,102 @@
+{
+  "schema_version": 1,
+  "kind": "post-commit-agent-choice-refresh",
+  "evaluated_commit": "54603bd",
+  "guion_binary_sha256": "dd6bfcdfd53d4432c2f453b98f283e40bfa0e639f9e092d9a1f4edc580bf6883",
+  "previous_choices": {
+    "guion": 3,
+    "total": 3
+  },
+  "current_choices": {
+    "guion": 3,
+    "total": 3
+  },
+  "score_change": "Unchanged; 3/3 was already the maximum score.",
+  "acceptance": {
+    "health-digest": "10/10 for both",
+    "lockfile-auditor": "17/17 and 43/43 checks for both",
+    "webhook-replay": "9/9 and 98/98 checks for both"
+  },
+  "fresh_timing_source": "../../2026-10-27-json-shared-tree-postcommit-three-task-comparison.json",
+  "evaluations": {
+    "health-digest": {
+      "choice": "Guion",
+      "rationale": "Both implementations passed all 10 acceptance cases, including concurrency and slow-trickle deadline checks. The Guion source uses bounded parallel_map and a request timeout; Python uses ThreadPoolExecutor and an explicit monotonic response deadline. The seven-pair measurement for the related health-digest case favored Guion on observed runtime. This is specific to this workload, not a causal or language-wide claim.",
+      "acceptance": {
+        "guion": "10/10 passed",
+        "python": "10/10 passed",
+        "cases": 10
+      },
+      "timing": {
+        "commit": "54603bd",
+        "trials": 7,
+        "median_seconds": {
+          "guion": 0.53599,
+          "python": 0.642536
+        },
+        "guion_over_python_ratio": 0.831966,
+        "bootstrap_95_interval": [
+          0.816364,
+          0.847597
+        ],
+        "context": "Process and oracle-check time included; fixture setup excluded. Guion source cache bypassed; OS cache uncontrolled."
+      }
+    },
+    "lockfile-auditor": {
+      "choice": "Guion",
+      "rationale": "Both implementations match all acceptance checks. For this closely related audit task, Guion’s deny rules, SemVer bounds, dated exceptions, and sorted JSON report align directly with the requested behavior, and its fresh median runtime was about 6× lower.",
+      "acceptance": {
+        "outcome": "passed",
+        "guion": {
+          "cases": "17/17",
+          "checks": "43/43"
+        },
+        "python": {
+          "cases": "17/17",
+          "checks": "43/43"
+        }
+      },
+      "timing": {
+        "trials": 7,
+        "median_seconds": {
+          "guion": 0.016667,
+          "python": 0.101324
+        },
+        "guion_over_python_median": 0.16776,
+        "bootstrap_95_interval": [
+          0.14456,
+          0.19534
+        ],
+        "note": "Process and oracle-check time; Guion source cache bypassed; OS file cache uncontrolled."
+      }
+    },
+    "webhook-replay": {
+      "choice": "Guion",
+      "rationale": "Both implementations validate signed payloads, persist event state, retry delivery, and expose dead-letter details. Guion’s delivery flow commits each event’s outcome separately and keeps the network call outside the state update transaction.",
+      "acceptance": {
+        "outcome": "passed",
+        "guion": "9/9 cases and 98/98 checks",
+        "python": "9/9 cases and 98/98 checks",
+        "failures": 0
+      },
+      "timing": {
+        "trials": 7,
+        "median_seconds": {
+          "guion": 0.15544,
+          "python": 0.752384
+        },
+        "guion_over_python_ratio": 0.206348,
+        "bootstrap_95_interval": [
+          0.202847,
+          0.2180788
+        ],
+        "note": "Process plus oracle-check time, not end-to-end deployment latency. Failure reporting is a dead-letter report; there is no direct operator alert integration."
+      }
+    }
+  },
+  "limitations": [
+    "Exploratory and unblinded: evaluators saw source and measurements.",
+    "Three related, author-defined evaluations do not represent a broad adoption sample.",
+    "A preference result does not show that the runtime change caused the choice or predict a broad adoption result."
+  ]
+}

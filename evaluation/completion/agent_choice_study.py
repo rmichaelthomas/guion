@@ -25,8 +25,15 @@ SOURCE = {
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--application", choices=sorted(BRIEFS), action="append")
+    parser.add_argument("--timings", type=Path,
+                        default=Path("evaluation/completion/results/real-task-sprint/nine-task-timings-final.json"))
+    parser.add_argument("--evidence-dir", type=Path,
+                        default=Path("evaluation/completion/results/real-task-sprint/agent-choice"))
     args = parser.parse_args()
-    evidence = ROOT / "evaluation/completion/results/real-task-sprint/agent-choice"
+    timings = args.timings.resolve()
+    if not timings.is_file():
+        parser.error(f"timings file does not exist: {timings}")
+    evidence = args.evidence_dir if args.evidence_dir.is_absolute() else ROOT / args.evidence_dir
     scratch = ROOT / "target/perf-session/agent-choice"
     evidence.mkdir(parents=True, exist_ok=True)
     scratch.mkdir(parents=True, exist_ok=True)
@@ -45,7 +52,7 @@ def main() -> None:
 First run this exact acceptance command to try both implementations:
 PYTHONPATH="{ROOT}/target/perf-session/python-deps" python3 evaluation/completion/compare_real_tasks.py --binary target/release/guion --application {name} --output {acceptance}
 
-Read the acceptance result, inspect the Guion source at {SOURCE[name]} and Python reference at evaluation/calibration/python-reference/main.py, and inspect this application's measurements in evaluation/completion/results/real-task-sprint/nine-task-timings-final.json. The timings measure the named frozen case and include oracle-check time. Decide which language you would use for the following related, new task and explain the reasons based on what you observed. You may choose either language; do not optimize for a particular result.
+Read the acceptance result, inspect the Guion source at {SOURCE[name]} and Python reference at evaluation/calibration/python-reference/main.py, and inspect this application's measurements in {timings}. The timings measure the named frozen case and include oracle-check time. Decide which language you would use for the following related, new task and explain the reasons based on what you observed. You may choose either language; do not optimize for a particular result.
 
 New task: {BRIEFS[name]}
 

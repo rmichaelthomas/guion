@@ -1,0 +1,110 @@
+{
+  "baseline": {
+    "median_seconds": 3.7495038750348613,
+    "p95_seconds_nearest_rank": 3.977896625001449,
+    "samples_seconds": [
+      3.977896625001449,
+      3.7344666669960134,
+      3.798653292004019,
+      3.7495038750348613,
+      3.7445253750192933,
+      3.825258083990775,
+      3.7096611669985577
+    ]
+  },
+  "baseline_binary_sha256": "0d4f2e3b8145f97f6385a29e9d3f2e865f82a7ad4030bcfbf5ebefb5c00b7f40",
+  "baseline_commit": "0380197",
+  "candidate": {
+    "median_seconds": 3.6895087499869987,
+    "p95_seconds_nearest_rank": 3.77988570794696,
+    "samples_seconds": [
+      3.6095433330046944,
+      3.698983959038742,
+      3.657695917005185,
+      3.6895087499869987,
+      3.618499125004746,
+      3.77988570794696,
+      3.708173834020272
+    ]
+  },
+  "candidate_binary_sha256": "dd6bfcdfd53d4432c2f453b98f283e40bfa0e639f9e092d9a1f4edc580bf6883",
+  "commit": "54603bd",
+  "kind": "post-commit-json-parser-benchmark",
+  "output_validation": "all baseline and post-commit candidate outputs matched the independent Python-generated JSON output",
+  "paired_candidate_over_baseline": {
+    "ci95_percentile": [
+      0.9628928032743755,
+      0.9904985875839096
+    ],
+    "median_ratio": 0.9839991830793068,
+    "ties_or_regressions": 0,
+    "win": true
+  },
+  "paired_ratios": [
+    0.9073999837799654,
+    0.9904985875839096,
+    0.9628928032743755,
+    0.9839991830793068,
+    0.9663438654053992,
+    0.9881387412175653,
+    0.9995990650058508
+  ],
+  "paired_trial_order": [
+    [
+      "guion_candidate",
+      "guion_baseline"
+    ],
+    [
+      "guion_candidate",
+      "guion_baseline"
+    ],
+    [
+      "guion_baseline",
+      "guion_candidate"
+    ],
+    [
+      "guion_candidate",
+      "guion_baseline"
+    ],
+    [
+      "guion_baseline",
+      "guion_candidate"
+    ],
+    [
+      "guion_baseline",
+      "guion_candidate"
+    ],
+    [
+      "guion_candidate",
+      "guion_baseline"
+    ]
+  ],
+  "schema_version": 1,
+  "source_cache_states": {
+    "guion_baseline": [
+      "bypassed",
+      "bypassed",
+      "bypassed",
+      "bypassed",
+      "bypassed",
+      "bypassed",
+      "bypassed",
+      "bypassed",
+      "bypassed"
+    ],
+    "guion_candidate": [
+      "bypassed",
+      "bypassed",
+      "bypassed",
+      "bypassed",
+      "bypassed",
+      "bypassed",
+      "bypassed",
+      "bypassed",
+      "bypassed"
+    ]
+  },
+  "status": "passed",
+  "trials": 7,
+  "workload": "JSONL summary, 200,000 generated rows; uncached Guion source; every run output-checked against Python oracle"
+}

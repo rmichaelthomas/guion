@@ -1,47 +1,48 @@
 {
-  "schema_version": 1,
+  "schema_version": 4,
+  "method": "Three sequential ephemeral Codex evaluations on committed build 901db22. Each inspected the matching Guion and Python implementations and fresh Guion/Python timing data, then chose a language for a related new task. Each ran frozen acceptance cases first.",
+  "study_commit": "901db22c63fd2b0944940d2a1bf851449b6078ec",
+  "guion_sha256": "6be9feaa4b1c59ad5771007b0504d9a318ab3737c9736bc7dc7ac89a138e9a7e",
+  "comparison": {
+    "previous_study_commit": "709b2d5",
+    "previous_guion_choices": 3,
+    "previous_total": 3,
+    "current_guion_choices": 3,
+    "current_total": 3,
+    "change": "No change. Guion remained 3/3, already the maximum possible score."
+  },
   "model_choices": {
     "health-digest": {
       "choice": "Guion",
-      "acceptance_invocations": [
-        {
-          "exit_code": 1,
-          "success": false
-        },
-        {
-          "exit_code": 0,
-          "success": true
-        }
-      ],
-      "command_count": 17,
-      "nonzero_commands": 3
+      "acceptance_passed": true,
+      "acceptance_cases": 10,
+      "checks_passed": null,
+      "command_count": 20,
+      "nonzero_commands": 0
     },
     "lockfile-auditor": {
       "choice": "Guion",
-      "acceptance_invocations": [
-        {
-          "exit_code": 0,
-          "success": true
-        }
-      ],
+      "acceptance_passed": true,
+      "acceptance_cases": 17,
+      "checks_passed": 43,
       "command_count": 14,
-      "nonzero_commands": 1
+      "nonzero_commands": 0
     },
     "webhook-replay": {
       "choice": "Guion",
-      "acceptance_invocations": [
-        {
-          "exit_code": 0,
-          "success": true
-        }
-      ],
-      "command_count": 26,
-      "nonzero_commands": 3
+      "acceptance_passed": true,
+      "acceptance_cases": 9,
+      "checks_passed": 98,
+      "command_count": 16,
+      "nonzero_commands": 0
     }
   },
-  "method": "three sequential ephemeral Codex evaluations after running matched acceptance cases",
+  "timing_inputs": [
+    "2026-10-27-map-key-reuse-postcommit-nine-task-python-comparison.json"
+  ],
   "limitations": [
-    "One evaluator encountered a local-network restriction before retrying successfully.",
-    "Evaluators could read repository history; the webhook evaluator consulted earlier session records, so this is an exploratory study, not a blinded comparison."
+    "Exploratory and unblinded; evaluators inspected source and measurement files.",
+    "The three related tasks are not a representative adoption sample.",
+    "Timing values include process and oracle-check overhead and do not establish general performance."
   ]
 }

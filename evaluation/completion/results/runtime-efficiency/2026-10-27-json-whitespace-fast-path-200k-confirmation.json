@@ -1,0 +1,132 @@
+{
+  "schema_version": 1,
+  "kind": "jsonl-whitespace-fast-path-confirmation",
+  "status": "passed",
+  "git_revision": "1a0815d922ad13492b3eca5b5403a6feb1e7d0e7",
+  "rows": 200000,
+  "generator_seed": 20261025,
+  "baseline_binary_sha256": "19999b5444b086b545a0bfd698931447ed4d3ac8eaf761aab9a2b8a668ca2430",
+  "candidate_binary_sha256": "0d4f2e3b8145f97f6385a29e9d3f2e865f82a7ad4030bcfbf5ebefb5c00b7f40",
+  "output_checked_every_trial": true,
+  "trials": {
+    "guion_baseline": {
+      "samples_seconds": [
+        3.761109208979178,
+        4.060747499985155,
+        3.836117875005584,
+        3.821660834015347,
+        4.056938832974993,
+        3.8759201670181938,
+        3.7857551660272293,
+        3.7871051249676384,
+        3.7902433749986812,
+        4.028780874970835,
+        3.7602770419907756,
+        3.865558124962263,
+        3.7274266250315122,
+        3.746650040964596,
+        3.7302585830329917,
+        3.7379376250319183
+      ],
+      "median_seconds": 3.78867424998316,
+      "p95_seconds_nearest_rank": 4.060747499985155
+    },
+    "guion_candidate": {
+      "samples_seconds": [
+        3.7263800419750623,
+        3.749146791000385,
+        3.7884903749800287,
+        3.7427570419968106,
+        3.7868697500089183,
+        3.844631041982211,
+        3.8985274999868125,
+        3.7617994580068626,
+        3.781178417033516,
+        3.822319500031881,
+        3.7816196670173667,
+        3.783537333016284,
+        3.7315263749915175,
+        3.747568999999203,
+        3.7402411659713835,
+        3.735473249980714
+      ],
+      "median_seconds": 3.771488937520189,
+      "p95_seconds_nearest_rank": 3.8985274999868125
+    }
+  },
+  "paired_order": [
+    [
+      "guion_candidate",
+      "guion_baseline"
+    ],
+    [
+      "guion_candidate",
+      "guion_baseline"
+    ],
+    [
+      "guion_baseline",
+      "guion_candidate"
+    ],
+    [
+      "guion_candidate",
+      "guion_baseline"
+    ],
+    [
+      "guion_baseline",
+      "guion_candidate"
+    ],
+    [
+      "guion_baseline",
+      "guion_candidate"
+    ],
+    [
+      "guion_candidate",
+      "guion_baseline"
+    ],
+    [
+      "guion_candidate",
+      "guion_baseline"
+    ],
+    [
+      "guion_candidate",
+      "guion_baseline"
+    ],
+    [
+      "guion_baseline",
+      "guion_candidate"
+    ],
+    [
+      "guion_baseline",
+      "guion_candidate"
+    ],
+    [
+      "guion_baseline",
+      "guion_candidate"
+    ],
+    [
+      "guion_candidate",
+      "guion_baseline"
+    ],
+    [
+      "guion_baseline",
+      "guion_candidate"
+    ],
+    [
+      "guion_candidate",
+      "guion_baseline"
+    ],
+    [
+      "guion_baseline",
+      "guion_candidate"
+    ]
+  ],
+  "candidate_over_baseline": {
+    "median_ratio": 0.9926226215905548,
+    "ci95_percentile": [
+      0.9793535335955929,
+      1.0002452748520836
+    ],
+    "win": false,
+    "ties_or_regressions": 5
+  }
+}

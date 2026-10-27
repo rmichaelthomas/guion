@@ -149,7 +149,7 @@
         }
       },
       "source_signature": "`resolve_local(LocalDateTime, Text) -> Result[TemporalResolution, TimeError]`, `time_zone_data_version() -> Text`",
-      "declared_status": "Pure local-time resolution with exact, gap, and fold results in artifact format 40; timezone rules are packaged tzdata 2026c"
+      "declared_status": "Pure local-time resolution with exact, gap, and fold results in artifact format 42; timezone rules are packaged tzdata 2026c"
     },
     {
       "id": "host_operation-clock",
@@ -3494,6 +3494,34 @@
       }
     },
     {
+      "id": "opcode-jsonsetlocal",
+      "kind": "opcode",
+      "name": "JsonSetLocal",
+      "owner_task": 3,
+      "source": "crates/model/src/lib.rs::Op",
+      "compiler_status": {
+        "bootstrap": "current_subset",
+        "self_hosted": "current_subset"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "opcode.jsonsetlocal.positive",
+          "state": "planned",
+          "owner_task": 3
+        },
+        "negative": {
+          "case_id": "opcode.jsonsetlocal.negative",
+          "state": "planned",
+          "owner_task": 3
+        },
+        "interaction": {
+          "case_id": "opcode.jsonsetlocal.interaction",
+          "state": "planned",
+          "owner_task": 3
+        }
+      }
+    },
+    {
       "id": "opcode-jsonset",
       "kind": "opcode",
       "name": "JsonSet",
@@ -5632,6 +5660,62 @@
         },
         "interaction": {
           "case_id": "opcode-sort-by.interaction",
+          "state": "implemented",
+          "owner_task": 4
+        }
+      }
+    },
+    {
+      "id": "opcode-sort-by-int-key",
+      "kind": "opcode",
+      "name": "SortByIntKey",
+      "owner_task": 4,
+      "source": "crates/model/src/lib.rs::Op",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "implemented_current_subset"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "opcode.sort-by-int-key.positive",
+          "state": "implemented",
+          "owner_task": 4
+        },
+        "negative": {
+          "case_id": "opcode.sort-by-int-key.negative",
+          "state": "implemented",
+          "owner_task": 4
+        },
+        "interaction": {
+          "case_id": "opcode.sort-by-int-key.interaction",
+          "state": "implemented",
+          "owner_task": 4
+        }
+      }
+    },
+    {
+      "id": "opcode-merge-sorted-by-int-key",
+      "kind": "opcode",
+      "name": "MergeSortedByIntKey",
+      "owner_task": 4,
+      "source": "crates/model/src/lib.rs::Op",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "implemented_current_subset"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "opcode.merge-sorted-by-int-key.positive",
+          "state": "implemented",
+          "owner_task": 4
+        },
+        "negative": {
+          "case_id": "opcode.merge-sorted-by-int-key.negative",
+          "state": "implemented",
+          "owner_task": 4
+        },
+        "interaction": {
+          "case_id": "opcode.merge-sorted-by-int-key.interaction",
           "state": "implemented",
           "owner_task": 4
         }

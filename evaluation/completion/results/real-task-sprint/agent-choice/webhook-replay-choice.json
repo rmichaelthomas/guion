@@ -1,5 +1,5 @@
 {
   "choice": "Guion",
-  "rationale": "The new task closely matches the tested relay: Guion\u2019s example validates HMAC signatures, stores event state in SQLite, retries delivery, and reports dead letters. Both implementations passed the acceptance checks, while Guion had much lower measured time for the matching frozen case. Python\u2019s implementation was more compact, which could make future changes easier.",
-  "trial_observation": "The acceptance run passed all 9 cases for both implementations: 98/98 checks each. Across 7 trials of the named frozen case, median time was 0.144264 s for Guion and 0.818263 s for Python. Those measurements include process and oracle-check time, exclude fixture setup, and apply to this case rather than predicting general performance."
+  "rationale": "Both variants passed the same functional checks. Guion closely matches the relay flow with HMAC and payload validation, SQLite state, retries, and dead-letter reporting. On the seven-trial frozen case, its median was 0.157246s versus Python\u2019s 0.756934s. That timing includes process and oracle-check time, so I treat it as workload-specific evidence, not a throughput forecast.",
+  "trial_observation": "The acceptance command exited successfully. Both implementations passed all 9 cases and 98/98 checks, including malformed payloads, invalid secrets, retry limits, and dead-letter reporting."
 }

@@ -11,12 +11,15 @@ Install Rust and Cargo, clone the repository, and use the locked dependency vers
 From the repository root, run the checks relevant to the change:
 
 ```sh
+cargo xtask artifact-format-audit
 cargo fmt --all -- --check
 cargo check --locked --offline --workspace
 cargo test --locked --offline --workspace
 ```
 
 Changes to the language, compiler seed, artifact reader, runtime, standard library, or packaging path may need the matching `cargo xtask` conformance, bootstrap, runtime, product, release, and closeout checks. The approved pre-release plan lists the full matrix. Do not describe a target as passing if it was skipped.
+
+Artifact-format assertions in Rust tests must compare against `guion_model::Artifact::CURRENT_VERSION`, not a numeric format literal. The conformance, bootstrap, standard-library, runtime, product, release, performance, and builders gates run this source audit before their longer checks; `cargo xtask artifact-format-audit` runs the quick check by itself.
 
 ## Change expectations
 

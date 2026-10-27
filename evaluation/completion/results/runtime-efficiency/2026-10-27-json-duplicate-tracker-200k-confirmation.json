@@ -1,0 +1,150 @@
+{
+  "baseline_binary_sha256": "6be9feaa4b1c59ad5771007b0504d9a318ab3737c9736bc7dc7ac89a138e9a7e",
+  "candidate_binary_sha256": "19999b5444b086b545a0bfd698931447ed4d3ac8eaf761aab9a2b8a668ca2430",
+  "candidate_over_baseline": {
+    "ci95_percentile": [
+      0.9871592362092445,
+      0.9979704127045642
+    ],
+    "median_ratio": 0.9935192661334998,
+    "ties_or_regressions": 4,
+    "win": true
+  },
+  "candidate_source_sha256": {
+    "crates/runtime/src/json_projection.rs": "9f78c3e187bbb54ee44e27840b4bf8564ac8821e4302ce0ce6a694ac48f97ef5",
+    "crates/runtime/src/lib.rs": "700d9647a38f22ed43824fb454638993fbf10296b8dd2462fc74638f6fc84d9c"
+  },
+  "captured_at_utc": "2026-10-27T12:52:33Z",
+  "elapsed_wall_seconds": 144.951,
+  "git_revision": "fa8bcc41232fbdb9f8562e84c01a6349d8b0de84",
+  "host": {
+    "architecture": "arm64",
+    "platform": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+    "python": "3.14.7"
+  },
+  "kind": "guion-jsonl-parser-200k-ab",
+  "output_checked_every_trial": true,
+  "paired_trial_order": [
+    [
+      "guion_candidate",
+      "guion_baseline"
+    ],
+    [
+      "guion_candidate",
+      "guion_baseline"
+    ],
+    [
+      "guion_baseline",
+      "guion_candidate"
+    ],
+    [
+      "guion_candidate",
+      "guion_baseline"
+    ],
+    [
+      "guion_baseline",
+      "guion_candidate"
+    ],
+    [
+      "guion_baseline",
+      "guion_candidate"
+    ],
+    [
+      "guion_candidate",
+      "guion_baseline"
+    ],
+    [
+      "guion_candidate",
+      "guion_baseline"
+    ],
+    [
+      "guion_candidate",
+      "guion_baseline"
+    ],
+    [
+      "guion_baseline",
+      "guion_candidate"
+    ],
+    [
+      "guion_baseline",
+      "guion_candidate"
+    ],
+    [
+      "guion_baseline",
+      "guion_candidate"
+    ],
+    [
+      "guion_candidate",
+      "guion_baseline"
+    ],
+    [
+      "guion_baseline",
+      "guion_candidate"
+    ],
+    [
+      "guion_candidate",
+      "guion_baseline"
+    ],
+    [
+      "guion_baseline",
+      "guion_candidate"
+    ]
+  ],
+  "peak_rss_bytes": {
+    "guion_baseline": 14254080,
+    "guion_candidate": 14188544
+  },
+  "randomized_paired_order": true,
+  "rows": 200000,
+  "samples": {
+    "guion_baseline": {
+      "median_seconds": 3.7963376669795252,
+      "p95_seconds_nearest_rank": 3.903359582996927,
+      "samples_seconds": [
+        3.7939167500007898,
+        3.816405499994289,
+        3.8180361250415444,
+        3.7619924169848673,
+        3.7335647090221755,
+        3.8512447079992853,
+        3.8022843340295367,
+        3.76657045801403,
+        3.7625879169791006,
+        3.761406083998736,
+        3.839871500036679,
+        3.7366472499561496,
+        3.903359582996927,
+        3.7749171670293435,
+        3.7987585839582607,
+        3.8289209580398165
+      ]
+    },
+    "guion_candidate": {
+      "median_seconds": 3.762954167003045,
+      "p95_seconds_nearest_rank": 4.070851834025234,
+      "samples_seconds": [
+        3.8911073749768548,
+        3.7710231249802746,
+        3.7690096250153147,
+        3.754357124969829,
+        4.070851834025234,
+        3.8382779169478454,
+        3.760172459005844,
+        3.8107027919613756,
+        3.7445500000030734,
+        3.7455056670005433,
+        3.765735875000246,
+        3.757510459050536,
+        3.730298208014574,
+        3.7224307080032304,
+        3.767732416978106,
+        3.7315298749599606
+      ]
+    }
+  },
+  "schema_version": 1,
+  "status": "passed",
+  "timed_trials_per_candidate": 16,
+  "warmups_per_candidate": 2,
+  "workload": "jsonl-summary-data-200000"
+}

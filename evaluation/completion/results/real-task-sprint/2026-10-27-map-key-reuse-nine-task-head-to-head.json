@@ -1,0 +1,608 @@
+{
+  "schema_version": 1,
+  "kind": "map-key-reuse-nine-task-head-to-head",
+  "trials_per_application": 7,
+  "warmup_pairs_per_application": 2,
+  "measurement": "Fresh process, source cache bypassed; both outputs checked by frozen case oracle; OS file cache uncontrolled.",
+  "platform": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+  "baseline_revision": "709b2d5",
+  "baseline_sha256": "a8728d613aaf43c3f81ed0fedc5d59fa49ea38709da2067a264d8b2bad55e65d",
+  "candidate_revision": "working tree map-key reuse",
+  "candidate_sha256": "6be9feaa4b1c59ad5771007b0504d9a318ab3737c9736bc7dc7ac89a138e9a7e",
+  "applications": {
+    "sla-report": {
+      "case_id": "sla-initial-report",
+      "samples_seconds": {
+        "baseline": [
+          0.014915,
+          0.014018,
+          0.014208,
+          0.013407,
+          0.014511,
+          0.015337,
+          0.013966
+        ],
+        "candidate": [
+          0.013745,
+          0.014252,
+          0.013489,
+          0.014299,
+          0.014583,
+          0.014743,
+          0.013768
+        ]
+      },
+      "paired_trial_order": [
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ]
+      ],
+      "median_seconds": {
+        "baseline": 0.014208,
+        "candidate": 0.014252
+      },
+      "candidate_over_baseline": {
+        "median_ratio": 0.9858227123013033,
+        "ci95_percentile": [
+          0.9493947072072072,
+          1.0166928235126267
+        ],
+        "candidate_faster": false,
+        "candidate_wins": 4
+      }
+    },
+    "jsonl-summary": {
+      "case_id": "jsonl-normal-summary",
+      "samples_seconds": {
+        "baseline": [
+          0.013398,
+          0.013745,
+          0.013802,
+          0.013618,
+          0.014561,
+          0.014109,
+          0.014864
+        ],
+        "candidate": [
+          0.014479,
+          0.01435,
+          0.014244,
+          0.014184,
+          0.013571,
+          0.014591,
+          0.014491
+        ]
+      },
+      "paired_trial_order": [
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ]
+      ],
+      "median_seconds": {
+        "baseline": 0.013802,
+        "candidate": 0.01435
+      },
+      "candidate_over_baseline": {
+        "median_ratio": 1.0341625912538097,
+        "ci95_percentile": [
+          0.97490581270183,
+          1.0440160058202983
+        ],
+        "candidate_faster": false,
+        "candidate_wins": 2
+      }
+    },
+    "release-notes": {
+      "case_id": "release-notes-initial",
+      "samples_seconds": {
+        "baseline": [
+          0.021748,
+          0.021855,
+          0.022517,
+          0.029022,
+          0.022697,
+          0.022549,
+          0.021897
+        ],
+        "candidate": [
+          0.020859,
+          0.020845,
+          0.020861,
+          0.021693,
+          0.02142,
+          0.022441,
+          0.02154
+        ]
+      },
+      "paired_trial_order": [
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ]
+      ],
+      "median_seconds": {
+        "baseline": 0.022517,
+        "candidate": 0.02142
+      },
+      "candidate_over_baseline": {
+        "median_ratio": 0.9537863189201555,
+        "ci95_percentile": [
+          0.9264555669050052,
+          0.9836963967666804
+        ],
+        "candidate_faster": true,
+        "candidate_wins": 7
+      }
+    },
+    "calendar-conflicts": {
+      "case_id": "calendar-overlap-and-boundary",
+      "samples_seconds": {
+        "baseline": [
+          0.240581,
+          0.241133,
+          0.243334,
+          0.256408,
+          0.247487,
+          0.25174,
+          0.253537
+        ],
+        "candidate": [
+          0.239542,
+          0.247951,
+          0.242925,
+          0.251122,
+          0.251104,
+          0.250097,
+          0.252157
+        ]
+      },
+      "paired_trial_order": [
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ]
+      ],
+      "median_seconds": {
+        "baseline": 0.247487,
+        "candidate": 0.250097
+      },
+      "candidate_over_baseline": {
+        "median_ratio": 0.9956812882147801,
+        "ci95_percentile": [
+          0.9934734249622627,
+          1.0146149090659307
+        ],
+        "candidate_faster": false,
+        "candidate_wins": 5
+      }
+    },
+    "webhook-replay": {
+      "case_id": "webhook-durable-retry-and-privacy",
+      "samples_seconds": {
+        "baseline": [
+          0.151925,
+          0.156567,
+          0.15792899999999999,
+          0.142802,
+          0.153262,
+          0.14307999999999998,
+          0.157428
+        ],
+        "candidate": [
+          0.154172,
+          0.156243,
+          0.152784,
+          0.155977,
+          0.13528,
+          0.142839,
+          0.15360200000000002
+        ]
+      },
+      "paired_trial_order": [
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ]
+      ],
+      "median_seconds": {
+        "baseline": 0.153262,
+        "candidate": 0.15360200000000002
+      },
+      "candidate_over_baseline": {
+        "median_ratio": 0.997930598401962,
+        "ci95_percentile": [
+          0.9674220694109379,
+          1.0147901925292084
+        ],
+        "candidate_faster": false,
+        "candidate_wins": 5
+      }
+    },
+    "health-digest": {
+      "case_id": "health-mixed-results-and-cap",
+      "samples_seconds": {
+        "baseline": [
+          0.539415,
+          0.536658,
+          0.532582,
+          0.5412,
+          0.540841,
+          0.542023,
+          0.546879
+        ],
+        "candidate": [
+          0.539085,
+          0.528831,
+          0.634469,
+          0.632426,
+          0.543472,
+          0.542831,
+          0.53828
+        ]
+      },
+      "paired_trial_order": [
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ]
+      ],
+      "median_seconds": {
+        "baseline": 0.540841,
+        "candidate": 0.542831
+      },
+      "candidate_over_baseline": {
+        "median_ratio": 1.0014907116487675,
+        "ci95_percentile": [
+          0.9854152924208716,
+          1.1685624538063564
+        ],
+        "candidate_faster": false,
+        "candidate_wins": 3
+      }
+    },
+    "config-migrator": {
+      "case_id": "config-migrator-v1-to-v2",
+      "samples_seconds": {
+        "baseline": [
+          0.012854,
+          0.012842,
+          0.01252,
+          0.012401,
+          0.012666,
+          0.012783,
+          0.012439
+        ],
+        "candidate": [
+          0.013331,
+          0.013088,
+          0.012375,
+          0.013345,
+          0.013052,
+          0.012976,
+          0.012417
+        ]
+      },
+      "paired_trial_order": [
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ]
+      ],
+      "median_seconds": {
+        "baseline": 0.012666,
+        "candidate": 0.013052
+      },
+      "candidate_over_baseline": {
+        "median_ratio": 1.0191558947204487,
+        "ci95_percentile": [
+          0.9982313690811158,
+          1.0371090711062705
+        ],
+        "candidate_faster": false,
+        "candidate_wins": 2
+      }
+    },
+    "doc-index": {
+      "case_id": "doc-index-build-check-backlinks",
+      "samples_seconds": {
+        "baseline": [
+          0.053224999999999995,
+          0.05309,
+          0.048397,
+          0.052902000000000005,
+          0.049262,
+          0.050192,
+          0.049615
+        ],
+        "candidate": [
+          0.051243,
+          0.050234,
+          0.048228,
+          0.048792999999999996,
+          0.052171999999999996,
+          0.048847,
+          0.049957
+        ]
+      },
+      "paired_trial_order": [
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ]
+      ],
+      "median_seconds": {
+        "baseline": 0.050192,
+        "candidate": 0.049957
+      },
+      "candidate_over_baseline": {
+        "median_ratio": 0.9732029008606949,
+        "ci95_percentile": [
+          0.9462045582972312,
+          1.006893076690517
+        ],
+        "candidate_faster": false,
+        "candidate_wins": 5
+      }
+    },
+    "lockfile-auditor": {
+      "case_id": "lockfile-auditor-policy-report",
+      "samples_seconds": {
+        "baseline": [
+          0.015308,
+          0.016845,
+          0.015769,
+          0.016908,
+          0.017581,
+          0.015634,
+          0.014877
+        ],
+        "candidate": [
+          0.015519,
+          0.015944,
+          0.021557,
+          0.016437,
+          0.015854,
+          0.016797,
+          0.014552
+        ]
+      },
+      "paired_trial_order": [
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ]
+      ],
+      "median_seconds": {
+        "baseline": 0.015769,
+        "candidate": 0.015944
+      },
+      "candidate_over_baseline": {
+        "median_ratio": 0.9781541977549237,
+        "ci95_percentile": [
+          0.9465123181953102,
+          1.0743891518485353
+        ],
+        "candidate_faster": false,
+        "candidate_wins": 4
+      }
+    }
+  }
+}

@@ -1,0 +1,548 @@
+{
+  "schema_version": 1,
+  "kind": "guion-richards-runtime-profile",
+  "status": "passed",
+  "host": {
+    "platform": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+    "architecture": "arm64",
+    "python_version": "3.14.7"
+  },
+  "source_revision": "b61c932397379eb7acbfbd2a6caa99ea308020cd",
+  "runtime_source_sha256": {
+    "crates/runtime/src/lib.rs": "183fa26f2dec2a9e6dfdb0a270432cda29d3f2b0a99df5eb7856f4ce1d1a9f50",
+    "crates/runtime/tests/execution.rs": "35916184905716103b102f34382c761d26e70c4710b115178df9867175de0f8f"
+  },
+  "release_binary_sha256": "f7f66ca5ebf3379512876c8ae0edd8c17264ee766a49789821039ddb96882b19",
+  "repetitions_in_repeated_source_lane": 25,
+  "timed_trials_per_lane": 15,
+  "expected_output_per_execution": [
+    "9297",
+    "23246"
+  ],
+  "cache_conditions": {
+    "source_compile_cache": "bypassed with --no-cache",
+    "os_file_cache": "uncontrolled; not a cold-disk measurement"
+  },
+  "timed_uninstrumented_samples_per_logical_execution": {
+    "guion_source_uncached": {
+      "samples_seconds": [
+        0.03641649999190122,
+        0.04801141598727554,
+        0.06652112500160001,
+        0.037388875003671274,
+        0.038208666985156015,
+        0.0342146250186488,
+        0.033714916004100814,
+        0.03430629099602811,
+        0.03544791700551286,
+        0.040671167022082955,
+        0.03362362500047311,
+        0.03413362498395145,
+        0.04046166699845344,
+        0.03800816700095311,
+        0.03599262499483302
+      ],
+      "median_seconds": 0.03641649999190122,
+      "p95_seconds_nearest_rank": 0.06652112500160001
+    },
+    "guion_source_warm_25": {
+      "samples_seconds": [
+        0.00975967500009574,
+        0.009813128360547126,
+        0.013100843320135027,
+        0.009687846680171787,
+        0.009813464999897405,
+        0.009787263360340148,
+        0.009642979999771342,
+        0.009567214999115094,
+        0.009491535000270232,
+        0.009519944998901337,
+        0.009514380000764504,
+        0.009594926639692858,
+        0.009679286639438942,
+        0.009895795000484214,
+        0.010683105000061914
+      ],
+      "median_seconds": 0.009687846680171787,
+      "p95_seconds_nearest_rank": 0.013100843320135027
+    }
+  },
+  "trial_metadata": {
+    "paired_trial_order": [
+      [
+        "guion_source_warm_25",
+        "guion_source_uncached"
+      ],
+      [
+        "guion_source_warm_25",
+        "guion_source_uncached"
+      ],
+      [
+        "guion_source_uncached",
+        "guion_source_warm_25"
+      ],
+      [
+        "guion_source_warm_25",
+        "guion_source_uncached"
+      ],
+      [
+        "guion_source_uncached",
+        "guion_source_warm_25"
+      ],
+      [
+        "guion_source_uncached",
+        "guion_source_warm_25"
+      ],
+      [
+        "guion_source_warm_25",
+        "guion_source_uncached"
+      ],
+      [
+        "guion_source_warm_25",
+        "guion_source_uncached"
+      ],
+      [
+        "guion_source_warm_25",
+        "guion_source_uncached"
+      ],
+      [
+        "guion_source_uncached",
+        "guion_source_warm_25"
+      ],
+      [
+        "guion_source_uncached",
+        "guion_source_warm_25"
+      ],
+      [
+        "guion_source_uncached",
+        "guion_source_warm_25"
+      ],
+      [
+        "guion_source_warm_25",
+        "guion_source_uncached"
+      ],
+      [
+        "guion_source_uncached",
+        "guion_source_warm_25"
+      ],
+      [
+        "guion_source_warm_25",
+        "guion_source_uncached"
+      ]
+    ],
+    "native_backend_reports": {
+      "guion_source_uncached": {
+        "bytecode_blocks": 126,
+        "bytecode_instructions": 944,
+        "calls": 37547,
+        "compilations": 1,
+        "compile_profile": {
+          "finalize_nanoseconds": 29000,
+          "functions": [
+            {
+              "bytecode_blocks": 4,
+              "bytecode_instructions": 11,
+              "cranelift_ir_blocks": 15,
+              "cranelift_ir_instructions": 214,
+              "define_nanoseconds": 370708,
+              "lowering_nanoseconds": 93625,
+              "name": "next_worker_count",
+              "verification_nanoseconds": 48208
+            },
+            {
+              "bytecode_blocks": 9,
+              "bytecode_instructions": 46,
+              "cranelift_ir_blocks": 31,
+              "cranelift_ir_instructions": 403,
+              "define_nanoseconds": 594250,
+              "lowering_nanoseconds": 68500,
+              "name": "xor_d008",
+              "verification_nanoseconds": 55125
+            },
+            {
+              "bytecode_blocks": 10,
+              "bytecode_instructions": 91,
+              "cranelift_ir_blocks": 50,
+              "cranelift_ir_instructions": 802,
+              "define_nanoseconds": 1060833,
+              "lowering_nanoseconds": 159541,
+              "name": "route_packet",
+              "verification_nanoseconds": 91875
+            },
+            {
+              "bytecode_blocks": 103,
+              "bytecode_instructions": 796,
+              "cranelift_ir_blocks": 358,
+              "cranelift_ir_instructions": 4656,
+              "define_nanoseconds": 9339584,
+              "lowering_nanoseconds": 1765000,
+              "name": "main",
+              "verification_nanoseconds": 587416
+            }
+          ]
+        },
+        "compiled_functions": [
+          "next_worker_count",
+          "xor_d008",
+          "route_packet",
+          "main"
+        ],
+        "cranelift_ir_blocks": 454,
+        "cranelift_ir_instructions": 6075,
+        "deoptimizations": 0
+      },
+      "guion_source_warm_25": {
+        "bytecode_blocks": 126,
+        "bytecode_instructions": 944,
+        "calls": 938675,
+        "compilations": 1,
+        "compile_profile": {
+          "finalize_nanoseconds": 28750,
+          "functions": [
+            {
+              "bytecode_blocks": 4,
+              "bytecode_instructions": 11,
+              "cranelift_ir_blocks": 15,
+              "cranelift_ir_instructions": 214,
+              "define_nanoseconds": 390292,
+              "lowering_nanoseconds": 92917,
+              "name": "next_worker_count",
+              "verification_nanoseconds": 48458
+            },
+            {
+              "bytecode_blocks": 9,
+              "bytecode_instructions": 46,
+              "cranelift_ir_blocks": 31,
+              "cranelift_ir_instructions": 403,
+              "define_nanoseconds": 599917,
+              "lowering_nanoseconds": 69750,
+              "name": "xor_d008",
+              "verification_nanoseconds": 52834
+            },
+            {
+              "bytecode_blocks": 10,
+              "bytecode_instructions": 91,
+              "cranelift_ir_blocks": 50,
+              "cranelift_ir_instructions": 802,
+              "define_nanoseconds": 1101209,
+              "lowering_nanoseconds": 170458,
+              "name": "route_packet",
+              "verification_nanoseconds": 95000
+            },
+            {
+              "bytecode_blocks": 103,
+              "bytecode_instructions": 796,
+              "cranelift_ir_blocks": 358,
+              "cranelift_ir_instructions": 4656,
+              "define_nanoseconds": 9725417,
+              "lowering_nanoseconds": 1846125,
+              "name": "benchmark_once",
+              "verification_nanoseconds": 606792
+            }
+          ]
+        },
+        "compiled_functions": [
+          "next_worker_count",
+          "xor_d008",
+          "route_packet",
+          "benchmark_once"
+        ],
+        "cranelift_ir_blocks": 454,
+        "cranelift_ir_instructions": 6075,
+        "deoptimizations": 0
+      }
+    },
+    "source_cache_states": {
+      "guion_source_uncached": [
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed"
+      ],
+      "guion_source_warm_25": [
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed"
+      ]
+    }
+  },
+  "untimed_phase_profiles": {
+    "one_shot": {
+      "elapsed_seconds_including_process_startup": 0.036570124997524545,
+      "cache_status": "bypassed",
+      "reported_phase_timings_ns": {
+        "artifact_runtime_load_ns": 1687583,
+        "cli_to_report_excluding_process_startup_ns": 30247500,
+        "compiler_pipeline": {
+          "compiler_backend": "rust",
+          "rust_compiler_compile_ns": 932500
+        },
+        "input_artifact_decode_ns": null,
+        "native_compilation": {
+          "finalize_nanoseconds": 37542,
+          "functions": [
+            {
+              "bytecode_blocks": 4,
+              "bytecode_instructions": 11,
+              "cranelift_ir_blocks": 15,
+              "cranelift_ir_instructions": 215,
+              "define_nanoseconds": 451000,
+              "lowering_nanoseconds": 90667,
+              "name": "next_worker_count",
+              "verification_nanoseconds": 48583
+            },
+            {
+              "bytecode_blocks": 9,
+              "bytecode_instructions": 46,
+              "cranelift_ir_blocks": 31,
+              "cranelift_ir_instructions": 406,
+              "define_nanoseconds": 658416,
+              "lowering_nanoseconds": 79291,
+              "name": "xor_d008",
+              "verification_nanoseconds": 55500
+            },
+            {
+              "bytecode_blocks": 10,
+              "bytecode_instructions": 91,
+              "cranelift_ir_blocks": 50,
+              "cranelift_ir_instructions": 805,
+              "define_nanoseconds": 1217709,
+              "lowering_nanoseconds": 180708,
+              "name": "route_packet",
+              "verification_nanoseconds": 98292
+            },
+            {
+              "bytecode_blocks": 103,
+              "bytecode_instructions": 796,
+              "cranelift_ir_blocks": 358,
+              "cranelift_ir_instructions": 4695,
+              "define_nanoseconds": 9886334,
+              "lowering_nanoseconds": 1655000,
+              "name": "main",
+              "verification_nanoseconds": 596375
+            }
+          ]
+        },
+        "program_execute_ns": 27280958,
+        "source_compile_or_cache_ns": 1049250
+      },
+      "runtime_profile": {
+        "dynamic_guest_conditional_branch_executions": 1555377,
+        "estimated_guest_allocation_budget_charges": {
+          "estimated_gross_bytes": 85753561,
+          "estimated_net_bytes": 85753561,
+          "estimated_refunded_bytes": 0,
+          "successful_events": 247240
+        },
+        "list_set": {
+          "copy_on_write_copies": 84497,
+          "copy_size_histogram": {
+            "buckets": {
+              "0-8": {
+                "copies": 84497,
+                "estimated_copy_bytes": 66189688
+              },
+              "129+": {
+                "copies": 0,
+                "estimated_copy_bytes": 0
+              },
+              "33-128": {
+                "copies": 0,
+                "estimated_copy_bytes": 0
+              },
+              "9-32": {
+                "copies": 0,
+                "estimated_copy_bytes": 0
+              }
+            },
+            "unit": "elements"
+          },
+          "estimated_copy_bytes": 66189688,
+          "in_place_updates": 209960,
+          "operations": 294457
+        },
+        "metric_limits": {
+          "allocation": "estimated guest-data budget charges, not host allocator calls",
+          "branches": "executed guest conditional branches, not hardware branch-misprediction counts"
+        },
+        "record_charges": {
+          "estimated_bytes": 19549886,
+          "events": 162722
+        },
+        "scope": "latest guest invocation"
+      },
+      "native_compilation_profile_total_ns": 15055417,
+      "program_execute_ns_includes_native_compilation": true
+    },
+    "repeated_25": {
+      "elapsed_seconds_including_process_startup": 0.2598476249841042,
+      "cache_status": "bypassed",
+      "reported_phase_timings_ns": {
+        "artifact_runtime_load_ns": 1477250,
+        "cli_to_report_excluding_process_startup_ns": 253041584,
+        "compiler_pipeline": {
+          "compiler_backend": "rust",
+          "rust_compiler_compile_ns": 932833
+        },
+        "input_artifact_decode_ns": null,
+        "native_compilation": {
+          "finalize_nanoseconds": 33959,
+          "functions": [
+            {
+              "bytecode_blocks": 4,
+              "bytecode_instructions": 11,
+              "cranelift_ir_blocks": 15,
+              "cranelift_ir_instructions": 215,
+              "define_nanoseconds": 403833,
+              "lowering_nanoseconds": 97083,
+              "name": "next_worker_count",
+              "verification_nanoseconds": 51333
+            },
+            {
+              "bytecode_blocks": 9,
+              "bytecode_instructions": 46,
+              "cranelift_ir_blocks": 31,
+              "cranelift_ir_instructions": 406,
+              "define_nanoseconds": 614125,
+              "lowering_nanoseconds": 77875,
+              "name": "xor_d008",
+              "verification_nanoseconds": 55000
+            },
+            {
+              "bytecode_blocks": 10,
+              "bytecode_instructions": 91,
+              "cranelift_ir_blocks": 50,
+              "cranelift_ir_instructions": 805,
+              "define_nanoseconds": 1117583,
+              "lowering_nanoseconds": 168958,
+              "name": "route_packet",
+              "verification_nanoseconds": 96458
+            },
+            {
+              "bytecode_blocks": 103,
+              "bytecode_instructions": 796,
+              "cranelift_ir_blocks": 358,
+              "cranelift_ir_instructions": 4695,
+              "define_nanoseconds": 10219083,
+              "lowering_nanoseconds": 2173083,
+              "name": "benchmark_once",
+              "verification_nanoseconds": 590625
+            }
+          ]
+        },
+        "program_execute_ns": 250201417,
+        "source_compile_or_cache_ns": 1061083
+      },
+      "runtime_profile": {
+        "dynamic_guest_conditional_branch_executions": 38884476,
+        "estimated_guest_allocation_budget_charges": {
+          "estimated_gross_bytes": 2143839025,
+          "estimated_net_bytes": 2143839025,
+          "estimated_refunded_bytes": 0,
+          "successful_events": 6181179
+        },
+        "list_set": {
+          "copy_on_write_copies": 2112425,
+          "copy_size_histogram": {
+            "buckets": {
+              "0-8": {
+                "copies": 2112425,
+                "estimated_copy_bytes": 1654742200
+              },
+              "129+": {
+                "copies": 0,
+                "estimated_copy_bytes": 0
+              },
+              "33-128": {
+                "copies": 0,
+                "estimated_copy_bytes": 0
+              },
+              "9-32": {
+                "copies": 0,
+                "estimated_copy_bytes": 0
+              }
+            },
+            "unit": "elements"
+          },
+          "estimated_copy_bytes": 1654742200,
+          "in_place_updates": 5249000,
+          "operations": 7361425
+        },
+        "metric_limits": {
+          "allocation": "estimated guest-data budget charges, not host allocator calls",
+          "branches": "executed guest conditional branches, not hardware branch-misprediction counts"
+        },
+        "record_charges": {
+          "estimated_bytes": 488747150,
+          "events": 4068050
+        },
+        "scope": "latest guest invocation"
+      },
+      "native_compilation_profile_total_ns": 15698998,
+      "program_execute_ns_includes_native_compilation": true
+    }
+  },
+  "copy_size_distribution": {
+    "one_shot": {
+      "copies_0_to_8_elements": 84497,
+      "total_copy_on_write_copies": 84497,
+      "share_of_copies_percent": 100.0,
+      "estimated_copy_bytes_0_to_8_elements": 66189688,
+      "total_estimated_copy_bytes": 66189688,
+      "share_of_estimated_copy_bytes_percent": 100.0,
+      "total_estimated_gross_guest_allocation_bytes": 85753561,
+      "copy_bytes_share_of_gross_guest_allocation_percent": 77.18593517066888
+    },
+    "repeated_25": {
+      "copies_0_to_8_elements": 2112425,
+      "total_copy_on_write_copies": 2112425,
+      "share_of_copies_percent": 100.0,
+      "estimated_copy_bytes_0_to_8_elements": 1654742200,
+      "total_estimated_copy_bytes": 1654742200,
+      "share_of_estimated_copy_bytes_percent": 100.0,
+      "total_estimated_gross_guest_allocation_bytes": 2143839025,
+      "copy_bytes_share_of_gross_guest_allocation_percent": 77.18593517066888
+    }
+  },
+  "metric_interpretation": {
+    "allocation": "estimated guest-data budget charges, not host allocator calls",
+    "branches": "dynamic guest conditional executions, not hardware branch-misprediction counts",
+    "copy_size_histogram": "copy-on-write list lengths in elements; estimated bytes follow the existing guest-copy estimate and are not allocator traffic",
+    "warm_lane": "25 executions in one process; reported timing is elapsed process time divided by 25"
+  },
+  "candidate_source_provenance": {
+    "description": "Release binary built offline from this working tree based on the stated baseline revision; binary SHA-256 identifies the measured executable, and these source hashes identify the implementation and focused test.",
+    "baseline_revision": "b61c932397379eb7acbfbd2a6caa99ea308020cd",
+    "source_sha256": {
+      "crates/runtime/src/native_backend.rs": "fab80b979c41ff62757798269c60adb33987e4251272888aa1096769be39af29",
+      "crates/runtime/tests/execution.rs": "35916184905716103b102f34382c761d26e70c4710b115178df9867175de0f8f"
+    }
+  }
+}

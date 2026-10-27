@@ -7,6 +7,17 @@ mod tests {
     use std::sync::Arc;
 
     #[test]
+    fn cloned_text_values_share_immutable_storage() {
+        let value = Value::Text("a sufficiently long immutable string value".into());
+        let cloned = value.clone();
+        let (Value::Text(original), Value::Text(copy)) = (value, cloned) else {
+            panic!("text values remain text after cloning")
+        };
+
+        assert_eq!(original.as_ptr(), copy.as_ptr());
+    }
+
+    #[test]
     fn decimal_integer_math_is_unbounded_and_normalized() {
         let a = BigInt::parse("999999999999999999999999999999").unwrap();
         let b = BigInt::parse("1").unwrap();
@@ -114,7 +125,7 @@ mod tests {
     }
 
     #[test]
-    fn task5_service_opcodes_and_resource_types_round_trip_only_in_format_37() {
+    fn task5_service_opcodes_and_resource_types_require_format_37_or_newer() {
         let operations = [
             Op::TextCaseFold,
             Op::TextCollapseWhitespace,
@@ -177,7 +188,7 @@ mod tests {
     }
 
     #[test]
-    fn byte_http_opcode_round_trips_only_in_format_38() {
+    fn byte_http_opcode_requires_format_38_or_newer() {
         let artifact = Artifact {
             format_version: Artifact::CURRENT_VERSION,
             build_metadata: None,
@@ -208,7 +219,7 @@ mod tests {
     }
 
     #[test]
-    fn clock_opcodes_round_trip_only_in_format_39() {
+    fn clock_opcodes_require_format_39_or_newer() {
         let artifact = Artifact {
             format_version: Artifact::CURRENT_VERSION,
             build_metadata: None,
@@ -253,7 +264,7 @@ mod tests {
     }
 
     #[test]
-    fn temporal_opcodes_round_trip_only_in_format_40_with_append_only_tags() {
+    fn temporal_opcodes_round_trip_in_format_40_and_current_format_with_append_only_tags() {
         for (op, expected_tag) in [(Op::TimeResolveLocal, 158), (Op::TimeZoneDataVersion, 159)] {
             let artifact = Artifact {
                 format_version: 40,
@@ -291,9 +302,20 @@ mod tests {
                 Artifact::from_bytes(&legacy_bytes).unwrap_err().code,
                 "E_ARTIFACT_VERSION"
             );
-            let mut legacy = artifact;
+            let mut legacy = artifact.clone();
             legacy.format_version = 39;
             assert_eq!(legacy.to_bytes().unwrap_err().code, "E_ARTIFACT_VERSION");
+
+            let mut current = artifact;
+            current.format_version = Artifact::CURRENT_VERSION;
+            let current_tag = match op {
+                Op::TimeResolveLocal => 161,
+                Op::TimeZoneDataVersion => 162,
+                _ => unreachable!(),
+            };
+            let current_bytes = current.to_bytes().unwrap();
+            assert!(current_bytes.contains(&current_tag));
+            assert_eq!(Artifact::from_bytes(&current_bytes).unwrap(), current);
         }
     }
 
@@ -339,7 +361,7 @@ mod tests {
     }
 
     #[test]
-    fn json_construction_bytecode_round_trips_only_in_format_20() {
+    fn json_construction_bytecode_requires_format_20_or_newer() {
         let artifact = Artifact {
             format_version: Artifact::CURRENT_VERSION,
             build_metadata: None,
@@ -380,7 +402,7 @@ mod tests {
     }
 
     #[test]
-    fn atomic_text_write_bytecode_round_trips_only_in_format_21() {
+    fn atomic_text_write_bytecode_requires_format_21_or_newer() {
         let artifact = Artifact {
             format_version: Artifact::CURRENT_VERSION,
             build_metadata: None,
@@ -1251,7 +1273,7 @@ pub enum Value {
     Record(String, Arc<Vec<Value>>),
     Bytes(Arc<Vec<u8>>),
     Bool(bool),
-    Text(String),
+    Text(Arc<str>),
     List(Arc<Vec<Value>>),
     Float64List(Arc<Vec<Float64>>),
     Map(Arc<BTreeMap<String, Value>>),
@@ -1576,6 +1598,7 @@ pub enum Op {
     JsonProjectColumns,
     JsonTextCategoriesValues,
     JsonPushLocal(usize),
+    JsonSetLocal(usize),
     JsonErrorMessage,
     JsonErrorLine,
     JsonErrorColumn,
@@ -1629,6 +1652,8 @@ pub enum Op {
     TextParseInt,
     TextParseFloat,
     SortBy(usize),
+    SortByIntKey(usize),
+    MergeSortedByIntKey(usize),
     TextCaseFold,
     TextCollapseWhitespace,
     TextNormalize,
@@ -1728,7 +1753,7 @@ pub struct Artifact {
 }
 
 impl Artifact {
-    pub const CURRENT_VERSION: u32 = 40;
+    pub const CURRENT_VERSION: u32 = 42;
     pub fn entry(&self) -> &str {
         &self.entry
     }
@@ -1878,10 +1903,30 @@ impl Artifact {
                 "clock operations require artifact format 39",
             ));
         }
-        if self.format_version < 40 && artifact_uses_temporal_resolution(self) {
+        if self.format_version < 41 && artifact_uses_sort_by_int_key(self) {
             return Err(ArtifactError::new(
                 "E_ARTIFACT_VERSION",
-                "local time resolution requires artifact format 40",
+                "stable integer-key sorting requires artifact format 41",
+            ));
+        }
+        if self.format_version < 41 && artifact_uses_merge_sorted_by_int_key(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "stable integer-key feed merging requires artifact format 41",
+            ));
+        }
+        if self.format_version < 41 && artifact_uses_json_set_local(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "in-place JSON object field updates require artifact format 41",
+            ));
+        }
+        if (self.format_version < 40 || self.format_version == 41)
+            && artifact_uses_temporal_resolution(self)
+        {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "local time resolution requires artifact format 40 or 42",
             ));
         }
         validate_sort_comparator_effects(self)
@@ -2103,6 +2148,10 @@ impl Artifact {
                         w.u8(104);
                         w.count(*slot)?;
                     }
+                    Op::JsonSetLocal(slot) => {
+                        w.u8(160);
+                        w.count(*slot)?;
+                    }
                     Op::BytesFromInts => w.u8(105),
                     Op::BytesFromText => w.u8(106),
                     Op::BytesJoin => w.u8(107),
@@ -2159,8 +2208,20 @@ impl Artifact {
                     Op::HttpRequestBytes => w.u8(155),
                     Op::UnixTimeMs => w.u8(156),
                     Op::TimeTodayLocal => w.u8(157),
-                    Op::TimeResolveLocal => w.u8(158),
-                    Op::TimeZoneDataVersion => w.u8(159),
+                    Op::SortByIntKey(target) => {
+                        w.u8(158);
+                        w.count(*target)?;
+                    }
+                    Op::MergeSortedByIntKey(target) => {
+                        w.u8(159);
+                        w.count(*target)?;
+                    }
+                    Op::TimeResolveLocal => {
+                        w.u8(if self.format_version == 40 { 158 } else { 161 })
+                    }
+                    Op::TimeZoneDataVersion => {
+                        w.u8(if self.format_version == 40 { 159 } else { 162 })
+                    }
                 }
             }
         }
@@ -2471,8 +2532,19 @@ impl Artifact {
                     155 => Op::HttpRequestBytes,
                     156 => Op::UnixTimeMs,
                     157 => Op::TimeTodayLocal,
-                    158 => Op::TimeResolveLocal,
-                    159 => Op::TimeZoneDataVersion,
+                    158 if format_version == 40 => Op::TimeResolveLocal,
+                    159 if format_version == 40 => Op::TimeZoneDataVersion,
+                    158 if format_version >= 41 => Op::SortByIntKey(r.count()?),
+                    159 if format_version >= 41 => Op::MergeSortedByIntKey(r.count()?),
+                    158 | 159 => {
+                        return Err(ArtifactError::new(
+                            "E_ARTIFACT_VERSION",
+                            "artifact uses an instruction newer than its declared format",
+                        ))
+                    }
+                    160 => Op::JsonSetLocal(r.count()?),
+                    161 if format_version >= 42 => Op::TimeResolveLocal,
+                    162 if format_version >= 42 => Op::TimeZoneDataVersion,
                     _ => {
                         return Err(ArtifactError::new(
                             "E_ARTIFACT_OPCODE",
@@ -2705,10 +2777,30 @@ impl Artifact {
                 "artifact uses clock operations before format 39",
             ));
         }
-        if format_version < 40 && artifact_uses_temporal_resolution(&artifact) {
+        if format_version < 41 && artifact_uses_sort_by_int_key(&artifact) {
             return Err(ArtifactError::new(
                 "E_ARTIFACT_VERSION",
-                "artifact uses local time resolution before format 40",
+                "stable integer-key sorting requires artifact format 41",
+            ));
+        }
+        if format_version < 41 && artifact_uses_merge_sorted_by_int_key(&artifact) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "stable integer-key feed merging requires artifact format 41",
+            ));
+        }
+        if format_version < 41 && artifact_uses_json_set_local(&artifact) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "in-place JSON object field updates require artifact format 41",
+            ));
+        }
+        if (format_version < 40 || format_version == 41)
+            && artifact_uses_temporal_resolution(&artifact)
+        {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "local time resolution requires artifact format 40 or 42",
             ));
         }
         validate_sort_comparator_effects(&artifact)
@@ -2935,6 +3027,15 @@ fn artifact_uses_json_push_local(artifact: &Artifact) -> bool {
     })
 }
 
+fn artifact_uses_json_set_local(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function
+            .code
+            .iter()
+            .any(|instruction| matches!(instruction.op, Op::JsonSetLocal(_)))
+    })
+}
+
 fn artifact_uses_byte_construction(artifact: &Artifact) -> bool {
     artifact.functions.iter().any(|function| {
         function.code.iter().any(|instruction| {
@@ -2988,6 +3089,24 @@ fn artifact_uses_sort_by(artifact: &Artifact) -> bool {
     })
 }
 
+fn artifact_uses_sort_by_int_key(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function
+            .code
+            .iter()
+            .any(|instruction| matches!(instruction.op, Op::SortByIntKey(_)))
+    })
+}
+
+fn artifact_uses_merge_sorted_by_int_key(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function
+            .code
+            .iter()
+            .any(|instruction| matches!(instruction.op, Op::MergeSortedByIntKey(_)))
+    })
+}
+
 fn artifact_uses_task5_services(artifact: &Artifact) -> bool {
     fn has_resource_type(ty: &Type) -> bool {
         match ty {
@@ -3038,12 +3157,13 @@ fn artifact_uses_task5_services(artifact: &Artifact) -> bool {
     })
 }
 
-/// Validates that each named sort comparator and its transitive call graph are pure.
+/// Validates that each named sort comparator/key function and its transitive call graph are pure.
 pub fn validate_sort_comparator_effects(artifact: &Artifact) -> Result<(), String> {
     for caller in &artifact.functions {
         for instruction in &caller.code {
-            let Op::SortBy(root) = instruction.op else {
-                continue;
+            let root = match instruction.op {
+                Op::SortBy(root) | Op::SortByIntKey(root) | Op::MergeSortedByIntKey(root) => root,
+                _ => continue,
             };
             let mut pending = vec![root];
             let mut seen = HashSet::new();
@@ -3058,7 +3178,10 @@ pub fn validate_sort_comparator_effects(artifact: &Artifact) -> Result<(), Strin
                 };
                 for instruction in &callee.code {
                     match instruction.op {
-                        Op::Call(target, _) | Op::SortBy(target) => pending.push(target),
+                        Op::Call(target, _)
+                        | Op::SortBy(target)
+                        | Op::SortByIntKey(target)
+                        | Op::MergeSortedByIntKey(target) => pending.push(target),
                         Op::Print
                         | Op::PrintErr
                         | Op::ReadText
@@ -3509,7 +3632,7 @@ impl<'a> Reader<'a> {
                     "invalid boolean encoding",
                 )),
             },
-            2 => Ok(Value::Text(self.string()?)),
+            2 => Ok(Value::Text(self.string()?.into())),
             3 => Ok(Value::Unit),
             4 => {
                 let n = self.count()?;

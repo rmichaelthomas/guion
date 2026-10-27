@@ -16,9 +16,19 @@ use std::{
     mem::size_of,
     sync::{
         atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering},
-        Arc,
+        Arc, OnceLock,
     },
 };
+
+fn shared_text_scalar(scalar: char) -> Arc<str> {
+    if !scalar.is_ascii() {
+        return Arc::<str>::from(scalar.to_string());
+    }
+
+    static ASCII_SCALARS: OnceLock<[OnceLock<Arc<str>>; 128]> = OnceLock::new();
+    let scalars = ASCII_SCALARS.get_or_init(|| std::array::from_fn(|_| OnceLock::new()));
+    Arc::clone(scalars[scalar as usize].get_or_init(|| Arc::<str>::from(scalar.to_string())))
+}
 
 /// Size and depth limits the shared VM enforces while executing guest code.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -307,7 +317,10 @@ pub fn execute_vm_frame<H: VmHost>(
                                 instruction.span,
                             ));
                         }
-                        Value::Text(x + &y)
+                        let mut text = String::with_capacity(x.len() + y.len());
+                        text.push_str(&x);
+                        text.push_str(&y);
+                        Value::Text(text.into())
                     }
                     _ => {
                         return Err(RuntimeError::new(
@@ -571,7 +584,7 @@ pub fn execute_vm_frame<H: VmHost>(
                             .saturating_add(size_of::<String>() + size_of::<Value>() * 2),
                         instruction.span,
                     )?;
-                    if values.insert(key.clone(), value).is_some() {
+                    if values.insert(key.to_string(), value).is_some() {
                         return Err(RuntimeError::new(
                             "R_MAP_DUPLICATE_KEY",
                             format!("duplicate map key `{key}`"),
@@ -678,7 +691,10 @@ pub fn execute_vm_frame<H: VmHost>(
                         |total, key| total.saturating_add(size_of::<String>() + key.len()),
                     );
                     charge_allocation(budget.as_ref(), allocation, instruction.span)?;
-                    let keys = values.keys().cloned().map(Value::Text).collect::<Vec<_>>();
+                    let keys = values
+                        .keys()
+                        .map(|key| Value::Text(Arc::<str>::from(key.as_str())))
+                        .collect::<Vec<_>>();
                     push_stack!(Value::List(Arc::new(keys)));
                 }
                 _ => {
@@ -740,7 +756,7 @@ pub fn execute_vm_frame<H: VmHost>(
                             instruction.span,
                         ));
                     };
-                    let contains_key = items.contains_key(&key);
+                    let contains_key = items.contains_key(key.as_ref());
                     if !contains_key && items.len() >= limits.max_collection_items {
                         return Err(RuntimeError::new(
                             "R_COLLECTION_LIMIT",
@@ -757,7 +773,7 @@ pub fn execute_vm_frame<H: VmHost>(
                     }
                     let shared = Arc::strong_count(items) > 1;
                     let allocation = if shared {
-                        map_clone_allocation(items.as_ref(), Some(&key), &value)
+                        map_clone_allocation(items.as_ref(), Some(key.as_ref()), &value)
                     } else if contains_key {
                         0
                     } else {
@@ -767,11 +783,12 @@ pub fn execute_vm_frame<H: VmHost>(
                     if let Some(error) = value_limit_error(&value, &limits, instruction.span) {
                         return Err(error);
                     }
-                    Arc::make_mut(items).insert(key, value);
+                    replace_map_value(Arc::make_mut(items), key.as_ref(), value);
                     push_stack!(Value::Map(Arc::clone(items)));
                     continue;
                 }
-                if !values.contains_key(&key) && values.len() >= limits.max_collection_items {
+                if !values.contains_key(key.as_ref()) && values.len() >= limits.max_collection_items
+                {
                     return Err(RuntimeError::new(
                         "R_COLLECTION_LIMIT",
                         "map exceeds the configured item limit",
@@ -785,10 +802,11 @@ pub fn execute_vm_frame<H: VmHost>(
                         instruction.span,
                     ));
                 }
-                let map_clone_bytes = map_clone_allocation(values.as_ref(), Some(&key), &value);
+                let map_clone_bytes =
+                    map_clone_allocation(values.as_ref(), Some(key.as_ref()), &value);
                 charge_allocation(budget.as_ref(), map_clone_bytes, instruction.span)?;
                 let mut updated = values.as_ref().clone();
-                updated.insert(key, value);
+                replace_map_value(&mut updated, key.as_ref(), value);
                 let map = Value::Map(Arc::new(updated));
                 if let Some(error) = value_limit_error(&map, &limits, instruction.span) {
                     return Err(error);
@@ -816,7 +834,7 @@ pub fn execute_vm_frame<H: VmHost>(
                         ))
                     }
                 };
-                push_stack!(Value::Bool(values.contains_key(&key)));
+                push_stack!(Value::Bool(values.contains_key(key.as_ref())));
             }
             Op::Length => {
                 let len = match pop!() {
@@ -862,7 +880,7 @@ pub fn execute_vm_frame<H: VmHost>(
                 charge_allocation(budget.as_ref(), allocation, instruction.span)?;
                 let values = text
                     .chars()
-                    .map(|scalar| Value::Text(scalar.to_string()))
+                    .map(|scalar| Value::Text(shared_text_scalar(scalar)))
                     .collect::<Vec<_>>();
                 push_stack!(Value::from_list_items(values));
             }
@@ -931,7 +949,7 @@ pub fn execute_vm_frame<H: VmHost>(
                     ));
                 }
                 charge_allocation(budget.as_ref(), text.len(), instruction.span)?;
-                push_stack!(Value::Bytes(Arc::new(text.into_bytes())));
+                push_stack!(Value::Bytes(Arc::new(text.as_bytes().to_vec())));
             }
             Op::BytesJoin => {
                 let values = match pop!() {
@@ -1056,7 +1074,7 @@ pub fn execute_vm_frame<H: VmHost>(
                         push_stack!(value);
                     }
                     (Value::Map(items), Value::Text(key)) => {
-                        let value = items.get(&key).cloned().ok_or_else(|| {
+                        let value = items.get(key.as_ref()).cloned().ok_or_else(|| {
                             RuntimeError::new(
                                 "R_MAP_KEY_MISSING",
                                 format!("map has no key `{key}`"),
@@ -1092,10 +1110,10 @@ pub fn execute_vm_frame<H: VmHost>(
                                     instruction.span,
                                 )
                             })?;
-                        let value = Value::Text(value);
+                        let value = Value::Text(value.into());
                         charge_allocation(
                             budget.as_ref(),
-                            cloned_value_allocation(&value),
+                            new_value_allocation(&value),
                             instruction.span,
                         )?;
                         push_stack!(value);
@@ -2032,7 +2050,7 @@ pub fn new_value_allocation(value: &Value) -> usize {
         // Integer size and growth are bounded separately by max_integer_digits.
         // Counting transient scalar values here made VM and JIT budgets differ.
         Value::Int(_) => 0,
-        Value::Text(text) => size_of::<String>().saturating_add(text.capacity()),
+        Value::Text(text) => size_of::<String>().saturating_add(text.len()),
         Value::Bytes(bytes) => size_of::<Vec<u8>>().saturating_add(bytes.capacity()),
         Value::Float64List(items) => size_of::<Vec<Float64>>()
             .saturating_add(items.len().saturating_mul(size_of::<Float64>())),
@@ -2069,6 +2087,8 @@ pub fn new_value_allocation(value: &Value) -> usize {
 pub fn cloned_value_allocation(value: &Value) -> usize {
     match value {
         Value::Int(_) => 0,
+        // Keep the existing logical copy quota even though the clone now
+        // shares its immutable backing storage.
         Value::Text(text) => size_of::<String>().saturating_add(text.len()),
         Value::Record(name, _) => size_of::<String>().saturating_add(name.len()),
         Value::OptionSome(value) | Value::ResultOk(value) | Value::ResultErr(value) => {
@@ -2095,6 +2115,15 @@ pub fn cloned_value_allocation(value: &Value) -> usize {
         // Lists, maps, and JSON trees use shared immutable storage.
         Value::List(_) | Value::Float64List(_) | Value::Map(_) | Value::Json(_) => 0,
         _ => 0,
+    }
+}
+
+#[inline]
+fn replace_map_value(values: &mut BTreeMap<String, Value>, key: &str, value: Value) {
+    if let Some(existing_value) = values.get_mut(key) {
+        *existing_value = value;
+    } else {
+        values.insert(key.to_owned(), value);
     }
 }
 
@@ -2416,6 +2445,29 @@ pub fn shared_json_push_local_allocation(value: &Arc<SharedJson>) -> usize {
     allocation
 }
 
+pub fn shared_json_set_local_allocation(value: &Arc<SharedJson>, key: &str) -> usize {
+    let SharedJson::Object(fields) = value.as_ref() else {
+        return 0;
+    };
+    let outer_shared = Arc::strong_count(value) > 1;
+    let mut allocation = if outer_shared {
+        size_of::<SharedJson>()
+    } else {
+        0
+    };
+    if outer_shared || Arc::strong_count(fields) > 1 {
+        allocation = allocation.saturating_add(size_of::<BTreeMap<String, Arc<SharedJson>>>());
+        for (existing_key, _) in fields.iter() {
+            allocation = allocation
+                .saturating_add(size_of::<String>() + existing_key.len())
+                .saturating_add(size_of::<Arc<SharedJson>>() * 3);
+        }
+    }
+    allocation
+        .saturating_add(size_of::<String>() + key.len())
+        .saturating_add(size_of::<Arc<SharedJson>>() * 3)
+}
+
 #[inline]
 pub fn value_matches(value: &Value, ty: &Type, records: &[guion_model::RecordDefinition]) -> bool {
     match (value, ty) {
@@ -2725,6 +2777,7 @@ pub fn verify(artifact: &Artifact) -> Result<(), RuntimeError> {
                 | Op::ListSetLocal(s)
                 | Op::ListPushLocal(s)
                 | Op::JsonPushLocal(s)
+                | Op::JsonSetLocal(s)
                     if s >= f.local_count =>
                 {
                     return Err(fail(format!(
@@ -2765,6 +2818,26 @@ pub fn verify(artifact: &Artifact) -> Result<(), RuntimeError> {
                 {
                     return Err(fail(format!(
                         "function `{}` contains an invalid sort comparator",
+                        f.name
+                    )))
+                }
+                Op::SortByIntKey(target)
+                    if target >= artifact.functions.len()
+                        || artifact.functions[target].parameters.len() != 1
+                        || artifact.functions[target].result != Type::Int =>
+                {
+                    return Err(fail(format!(
+                        "function `{}` contains an invalid integer sort key function",
+                        f.name
+                    )))
+                }
+                Op::MergeSortedByIntKey(target)
+                    if target >= artifact.functions.len()
+                        || artifact.functions[target].parameters.len() != 1
+                        || artifact.functions[target].result != Type::Int =>
+                {
+                    return Err(fail(format!(
+                        "function `{}` contains an invalid sorted-feed key function",
                         f.name
                     )))
                 }
@@ -2969,6 +3042,17 @@ fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result
                 }
                 if state.locals.get(*slot).and_then(Option::as_ref) != Some(&Type::Json) {
                     return Err(format!("json_push local is not Json at instruction {pc}"));
+                }
+            }
+            Op::JsonSetLocal(slot) => {
+                if pop_type(&mut state.stack, pc)? != Type::Json {
+                    return Err(format!("json_set value must be Json at instruction {pc}"));
+                }
+                if pop_type(&mut state.stack, pc)? != Type::Text {
+                    return Err(format!("json_set key must be Text at instruction {pc}"));
+                }
+                if state.locals.get(*slot).and_then(Option::as_ref) != Some(&Type::Json) {
+                    return Err(format!("json_set local is not Json at instruction {pc}"));
                 }
             }
             Op::ListSetLocal(slot) => {
@@ -3699,6 +3783,53 @@ fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result
                 }
                 state.stack.push(Type::List(item));
             }
+            Op::SortByIntKey(target) => {
+                let key_function = artifact.functions.get(*target).ok_or_else(|| {
+                    format!("sort_by_int_key references missing key function at instruction {pc}")
+                })?;
+                if key_function.parameters.len() != 1 || key_function.result != Type::Int {
+                    return Err(format!(
+                        "sort_by_int_key key function must have type (T) -> Int at instruction {pc}"
+                    ));
+                }
+                let Type::List(item) = pop_type(&mut state.stack, pc)? else {
+                    return Err(format!(
+                        "sort_by_int_key input must be a List at instruction {pc}"
+                    ));
+                };
+                if *item != key_function.parameters[0] {
+                    return Err(format!(
+                        "sort_by_int_key key function parameter type differs from list item at instruction {pc}"
+                    ));
+                }
+                state.stack.push(Type::List(item));
+            }
+            Op::MergeSortedByIntKey(target) => {
+                let key_function = artifact.functions.get(*target).ok_or_else(|| {
+                    format!("merge_sorted_by_int_key references missing key function at instruction {pc}")
+                })?;
+                if key_function.parameters.len() != 1 || key_function.result != Type::Int {
+                    return Err(format!(
+                        "merge_sorted_by_int_key key function must have type (T) -> Int at instruction {pc}"
+                    ));
+                }
+                let Type::List(feed_item) = pop_type(&mut state.stack, pc)? else {
+                    return Err(format!(
+                        "merge_sorted_by_int_key input must be a List of Lists at instruction {pc}"
+                    ));
+                };
+                let Type::List(item) = *feed_item else {
+                    return Err(format!(
+                        "merge_sorted_by_int_key input must be a List of Lists at instruction {pc}"
+                    ));
+                };
+                if *item != key_function.parameters[0] {
+                    return Err(format!(
+                        "merge_sorted_by_int_key key function parameter type differs from feed item at instruction {pc}"
+                    ));
+                }
+                state.stack.push(Type::List(item));
+            }
             Op::TextCaseFold | Op::TextCollapseWhitespace => {
                 if pop_type(&mut state.stack, pc)? != Type::Text {
                     return Err(format!(
@@ -4358,5 +4489,26 @@ impl VmHost for PortableHost {
             format!("host operation `{name}` is not available in this environment"),
             context.instruction.span,
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn map_update_existing_key_preserves_owned_key_storage() {
+        let mut values = BTreeMap::new();
+        let key = String::from("service");
+        let original_key_ptr = key.as_ptr();
+        values.insert(key, Value::Bool(false));
+
+        replace_map_value(&mut values, "service", Value::Bool(true));
+
+        let (stored_key, stored_value) = values
+            .get_key_value("service")
+            .expect("the existing map key remains present");
+        assert_eq!(stored_key.as_ptr(), original_key_ptr);
+        assert_eq!(stored_value, &Value::Bool(true));
     }
 }

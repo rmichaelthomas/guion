@@ -529,7 +529,12 @@ import "std:time"
 fn main() -> Int:
     assert(text_trim("　 hello \n") == "hello")
     assert(text_join(text_split("a::b::", "::"), "|") == "a|b|")
+    assert(text_join(text_split("a,b,,c,", ","), "|") == "a|b||c|")
+    assert(text_join(text_split("α🧬β🧬", "🧬"), "|") == "α|β|")
+    assert(len(text_split("", ",")) == 1)
+    assert(text_join(text_split("abc", ""), "|") == "abc")
     assert(text_replace("aba", "a", "x") == "xbx")
+    assert(text_replace("αββ", "β", "X") == "αXX")
     assert(unwrap(text_parse_integer("-123")) == -123)
     assert(unwrap(list_get([1, 2], 1)) == 2)
     assert(not(is_some(list_get([1, 2], 8))))
@@ -689,4 +694,189 @@ fn main() -> Int:
 "#;
     let error = compile("sort-effect.gu", effectful).unwrap_err();
     assert_eq!(error.code, "E_SORT_EFFECT");
+}
+
+#[test]
+fn sort_by_large_reverse_list_fits_log_linear_instruction_budget() {
+    let source = r#"fn compare(left: Int, right: Int) -> Int:
+    if left < right:
+        return -1
+    if left > right:
+        return 1
+    return 0
+fn main() -> Int:
+    var values: List[Int] = []
+    var value = 2048
+    while value > 0:
+        set value = value - 1
+        set values = list_push(values, value)
+    let sorted = sort_by(values, compare)
+    assert(len(sorted) == 2048)
+    assert(sorted[0] == 0)
+    assert(sorted[2047] == 2047)
+    return 0
+"#;
+    let artifact = compile("sort-by-large.gu", source).expect("sort program compiles");
+    let mut policy = HostPolicy::default();
+    policy.instruction_limit = 1_000_000;
+    let mut runtime = Runtime::vm_only().load(artifact, policy).unwrap();
+    runtime
+        .invoke("main", vec![])
+        .expect("a stable log-linear sort should fit this instruction budget");
+}
+
+#[test]
+fn sort_by_large_list_is_stable_and_preserves_original_values() {
+    let source = r#"record Item:
+    key: Int
+    order: Int
+fn compare_key(left: Item, right: Item) -> Int:
+    return left.key - right.key
+fn main() -> Int:
+    var items: List[Item] = []
+    var index = 0
+    while index < 96:
+        set items = list_push(items, Item((index * 7) % 5, index))
+        set index = index + 1
+    let sorted = sort_by(items, compare_key)
+    assert(len(sorted) == 96)
+    assert(items[0].order == 0)
+    var previous = sorted[0]
+    var position = 1
+    while position < len(sorted):
+        let current = sorted[position]
+        assert(previous.key <= current.key)
+        if previous.key == current.key:
+            assert(previous.order < current.order)
+        set previous = current
+        set position = position + 1
+    return 0
+"#;
+    let artifact = compile("sort-by-stable-large.gu", source).expect("sort program compiles");
+    for runtime in [Runtime::vm_only(), Runtime::new()] {
+        let mut instance = runtime
+            .load(artifact.clone(), HostPolicy::default())
+            .unwrap();
+        instance.invoke("main", vec![]).unwrap();
+    }
+}
+
+#[test]
+fn sort_by_int_key_is_stable_and_preserves_original_values() {
+    let source = r#"record Item:
+    key: Int
+    order: Int
+fn item_key(item: Item) -> Int:
+    return item.key
+fn main() -> Int:
+    let items = [Item(1, 1), Item(0, 2), Item(1, 3)]
+    let sorted = sort_by_int_key(items, item_key)
+    assert(sorted[0].order == 2)
+    assert(sorted[1].order == 1)
+    assert(sorted[2].order == 3)
+    assert(items[0].order == 1)
+    return 0
+"#;
+    let artifact = compile("sort-by-int-key.gu", source).expect("named key function compiles");
+    assert_eq!(artifact.format_version, Artifact::CURRENT_VERSION);
+    let mut too_old = artifact.clone();
+    too_old.format_version = 39;
+    assert_eq!(too_old.to_bytes().unwrap_err().code, "E_ARTIFACT_VERSION");
+    for runtime in [Runtime::vm_only(), Runtime::new()] {
+        let mut instance = runtime
+            .load(artifact.clone(), HostPolicy::default())
+            .unwrap();
+        instance.invoke("main", vec![]).unwrap();
+    }
+}
+
+#[test]
+fn sort_by_int_key_large_reverse_list_fits_log_linear_instruction_budget() {
+    let source = r#"fn int_key(value: Int) -> Int:
+    return value
+fn main() -> Int:
+    var values: List[Int] = []
+    var value = 2048
+    while value > 0:
+        set value = value - 1
+        set values = list_push(values, value)
+    let sorted = sort_by_int_key(values, int_key)
+    assert(len(sorted) == 2048)
+    assert(sorted[0] == 0)
+    assert(sorted[2047] == 2047)
+    return 0
+"#;
+    let artifact = compile("sort-by-int-key-large.gu", source).expect("sort program compiles");
+    let mut policy = HostPolicy::default();
+    policy.instruction_limit = 1_000_000;
+    let mut runtime = Runtime::vm_only().load(artifact, policy).unwrap();
+    runtime
+        .invoke("main", vec![])
+        .expect("key extraction and native merge sort fit the logarithmic instruction budget");
+}
+
+#[test]
+fn sort_by_int_key_rejects_transitive_effects() {
+    let effectful = r#"fn helper(value: Int) -> Int:
+    print(value)
+    return value
+fn int_key(value: Int) -> Int:
+    return helper(value)
+fn main() -> Int:
+    let values = sort_by_int_key([2, 1], int_key)
+    return values[0]
+"#;
+    let error = compile("sort-by-int-key-effect.gu", effectful).unwrap_err();
+    assert_eq!(error.code, "E_SORT_EFFECT");
+}
+
+#[test]
+fn merge_sorted_by_int_key_is_stable_across_feeds() {
+    let source = r#"record Item:
+    key: Int
+    order: Int
+fn item_key(item: Item) -> Int:
+    return item.key
+fn main() -> Int:
+    let first = [Item(1, 1), Item(3, 2)]
+    let second = [Item(1, 3), Item(2, 4)]
+    let feeds = [first, second]
+    let merged = merge_sorted_by_int_key(feeds, item_key)
+    assert(merged[0].order == 1)
+    assert(merged[1].order == 3)
+    assert(merged[2].order == 4)
+    assert(merged[3].order == 2)
+    assert(first[0].order == 1)
+    assert(second[0].order == 3)
+    return 0
+"#;
+    let artifact = compile("merge-sorted-by-int-key.gu", source)
+        .expect("named key function compiles for sorted feed merge");
+    assert_eq!(artifact.format_version, Artifact::CURRENT_VERSION);
+    let mut too_old = artifact.clone();
+    too_old.format_version = 39;
+    assert_eq!(too_old.to_bytes().unwrap_err().code, "E_ARTIFACT_VERSION");
+    for runtime in [Runtime::vm_only(), Runtime::new()] {
+        let mut instance = runtime
+            .load(artifact.clone(), HostPolicy::default())
+            .unwrap();
+        instance.invoke("main", vec![]).unwrap();
+    }
+}
+
+#[test]
+fn merge_sorted_by_int_key_rejects_unsorted_feeds() {
+    let source = r#"fn int_key(value: Int) -> Int:
+    return value
+fn main() -> Int:
+    let merged = merge_sorted_by_int_key([[2, 1]], int_key)
+    return merged[0]
+"#;
+    let artifact = compile("merge-sorted-by-int-key-unsorted.gu", source)
+        .expect("merge source compiles before runtime order validation");
+    let mut runtime = Runtime::vm_only()
+        .load(artifact, HostPolicy::default())
+        .unwrap();
+    let error = runtime.invoke("main", vec![]).unwrap_err();
+    assert_eq!(error.code, "R_SORT_ORDER");
 }
