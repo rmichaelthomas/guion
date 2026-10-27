@@ -1,0 +1,21 @@
+fn calculate(count: Int) -> Int:
+    var value = 0 - 12500
+    var index = 0
+    var total = 0
+    while index < count:
+        set total = total + (value // -4)
+        set total = total + (value // -8)
+        set total = total + (value // -16)
+        set total = total + (value % -4)
+        set total = total + (value % -8)
+        set total = total + (value % -16)
+        set total = total + (value / -2)
+        set total = total + (value / -4)
+        set total = total + (value / -8)
+        set value = value + 1
+        set index = index + 1
+    return total
+
+fn main() -> Int:
+    print(calculate(25000))
+    return 0

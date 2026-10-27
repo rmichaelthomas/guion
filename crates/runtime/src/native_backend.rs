@@ -1648,52 +1648,115 @@ impl NativeBackend {
                     Op::IntegerDivide | Op::FloorDivide | Op::Remainder => {
                         let right = stack.pop().ok_or_else(|| "stack underflow".to_owned())?;
                         let left = stack.pop().ok_or_else(|| "stack underflow".to_owned())?;
-                        let constant_power_of_two_divisor =
-                            if ip > 0 && leader_indices[ip].is_none() {
-                                function.code.get(ip - 1).and_then(|previous| {
-                                    if let Op::Const(Value::Int(value)) = &previous.op {
-                                        value.to_i64().filter(|value| {
-                                            *value > 0 && (*value as u64).is_power_of_two()
-                                        })
-                                    } else {
-                                        None
-                                    }
-                                })
-                            } else {
-                                None
+                        let constant_power_of_two_divisor = if ip > 0
+                            && leader_indices[ip].is_none()
+                        {
+                            let decode_divisor = |value: i64, negated: bool| {
+                                let negative = value < 0 || negated;
+                                let magnitude = value.unsigned_abs();
+                                (value != 0
+                                    && !(negative && magnitude == 1)
+                                    && magnitude.is_power_of_two()
+                                    && magnitude <= (1_u64 << 62))
+                                    .then_some((magnitude as i64, negative))
                             };
-                        if let Some(divisor) = constant_power_of_two_divisor.filter(|_| {
-                            matches!(
-                                instruction.op,
-                                Op::IntegerDivide | Op::FloorDivide | Op::Remainder
-                            )
-                        }) {
-                            if matches!(instruction.op, Op::FloorDivide) {
+                            function
+                                .code
+                                .get(ip - 1)
+                                .and_then(|previous| match &previous.op {
+                                    Op::Const(Value::Int(value)) => value
+                                        .to_i64()
+                                        .and_then(|value| decode_divisor(value, false)),
+                                    Op::Negate if ip >= 2 && leader_indices[ip - 1].is_none() => {
+                                        function.code.get(ip - 2).and_then(|literal| {
+                                            if let Op::Const(Value::Int(value)) = &literal.op {
+                                                value.to_i64().and_then(|value| {
+                                                    (value > 0)
+                                                        .then(|| decode_divisor(value, true))
+                                                        .flatten()
+                                                })
+                                            } else {
+                                                None
+                                            }
+                                        })
+                                    }
+                                    _ => None,
+                                })
+                        } else {
+                            None
+                        };
+                        if let Some((divisor, negative_divisor)) = constant_power_of_two_divisor
+                            .filter(|_| {
+                                matches!(
+                                    instruction.op,
+                                    Op::IntegerDivide | Op::FloorDivide | Op::Remainder
+                                )
+                            })
+                        {
+                            if negative_divisor {
                                 let shift = (divisor as u64).trailing_zeros() as i64;
-                                if shift == 0 {
-                                    stack.push(left);
-                                } else {
-                                    stack.push(builder.ins().sshr_imm_s(left, shift));
-                                }
-                            } else if matches!(instruction.op, Op::IntegerDivide) {
-                                let shift = (divisor as u64).trailing_zeros() as i64;
-                                if shift == 0 {
-                                    stack.push(left);
-                                } else {
-                                    // Bias negative values so this keeps `/`'s truncation toward zero.
-                                    let zero = builder.ins().iconst(types::I64, 0);
+                                let zero = builder.ins().iconst(types::I64, 0);
+                                if matches!(instruction.op, Op::FloorDivide) {
+                                    let floor_quotient = builder.ins().sshr_imm_s(left, shift);
+                                    let mask = builder.ins().iconst(types::I64, divisor - 1);
+                                    let remainder = builder.ins().band(left, mask);
+                                    let remainder_nonzero =
+                                        builder.ins().icmp(IntCC::NotEqual, remainder, zero);
+                                    let one = builder.ins().iconst(types::I64, 1);
+                                    let adjustment =
+                                        builder.ins().select(remainder_nonzero, one, zero);
+                                    let ceiling = builder.ins().iadd(floor_quotient, adjustment);
+                                    stack.push(builder.ins().isub(zero, ceiling));
+                                } else if matches!(instruction.op, Op::IntegerDivide) {
+                                    // Compute truncation for the positive magnitude, then flip the sign.
                                     let negative =
                                         builder.ins().icmp(IntCC::SignedLessThan, left, zero);
                                     let bias = builder.ins().iconst(types::I64, divisor - 1);
                                     let bias = builder.ins().select(negative, bias, zero);
                                     let adjusted = builder.ins().iadd(left, bias);
-                                    stack.push(builder.ins().sshr_imm_s(adjusted, shift));
+                                    let quotient = builder.ins().sshr_imm_s(adjusted, shift);
+                                    stack.push(builder.ins().isub(zero, quotient));
+                                } else {
+                                    let mask = builder.ins().iconst(types::I64, divisor - 1);
+                                    let remainder = builder.ins().band(left, mask);
+                                    let remainder_nonzero =
+                                        builder.ins().icmp(IntCC::NotEqual, remainder, zero);
+                                    let divisor_value = builder.ins().iconst(types::I64, divisor);
+                                    let adjusted = builder.ins().isub(remainder, divisor_value);
+                                    stack.push(builder.ins().select(
+                                        remainder_nonzero,
+                                        adjusted,
+                                        zero,
+                                    ));
                                 }
-                            } else if divisor == 1 {
-                                stack.push(builder.ins().iconst(types::I64, 0));
                             } else {
-                                let mask = builder.ins().iconst(types::I64, divisor - 1);
-                                stack.push(builder.ins().band(left, mask));
+                                if matches!(instruction.op, Op::FloorDivide) {
+                                    let shift = (divisor as u64).trailing_zeros() as i64;
+                                    if shift == 0 {
+                                        stack.push(left);
+                                    } else {
+                                        stack.push(builder.ins().sshr_imm_s(left, shift));
+                                    }
+                                } else if matches!(instruction.op, Op::IntegerDivide) {
+                                    let shift = (divisor as u64).trailing_zeros() as i64;
+                                    if shift == 0 {
+                                        stack.push(left);
+                                    } else {
+                                        // Bias negative values so this keeps `/`'s truncation toward zero.
+                                        let zero = builder.ins().iconst(types::I64, 0);
+                                        let negative =
+                                            builder.ins().icmp(IntCC::SignedLessThan, left, zero);
+                                        let bias = builder.ins().iconst(types::I64, divisor - 1);
+                                        let bias = builder.ins().select(negative, bias, zero);
+                                        let adjusted = builder.ins().iadd(left, bias);
+                                        stack.push(builder.ins().sshr_imm_s(adjusted, shift));
+                                    }
+                                } else if divisor == 1 {
+                                    stack.push(builder.ins().iconst(types::I64, 0));
+                                } else {
+                                    let mask = builder.ins().iconst(types::I64, divisor - 1);
+                                    stack.push(builder.ins().band(left, mask));
+                                }
                             }
                         } else {
                             let zero = builder.ins().iconst(types::I64, 0);

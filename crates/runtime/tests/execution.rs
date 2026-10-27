@@ -936,6 +936,162 @@ fn native_positive_power_of_two_integer_division_truncates_toward_zero() {
 }
 
 #[test]
+fn native_negative_power_of_two_divisors_preserve_signed_integer_semantics() {
+    let source = "fn floor_by_negative_four(value: Int) -> Int:\n    return value // -4\n\nfn floor_by_negative_large(value: Int) -> Int:\n    return value // -4611686018427387904\n\nfn remainder_by_negative_eight(value: Int) -> Int:\n    return value % -8\n\nfn remainder_by_negative_large(value: Int) -> Int:\n    return value % -4611686018427387904\n\nfn trunc_by_negative_four(value: Int) -> Int:\n    return value / -4\n\nfn trunc_by_negative_large(value: Int) -> Int:\n    return value / -4611686018427387904\n\nfn floor_by_negative_one(value: Int) -> Int:\n    return value // -1\n\nfn floor_by_dynamic(value: Int, divisor: Int) -> Int:\n    return value // divisor\n\nfn remainder_by_dynamic(value: Int, divisor: Int) -> Int:\n    return value % divisor\n\nfn trunc_by_dynamic(value: Int, divisor: Int) -> Int:\n    return value / divisor\n\nfn main() -> Int:\n    return 0\n";
+    let artifact = compile("native-negative-power-of-two.gu", source).expect("source compiles");
+    let mut native = Runtime::new()
+        .load(artifact.clone(), HostPolicy::default())
+        .expect("native runtime loads");
+    let mut vm = Runtime::vm_only()
+        .load(artifact, HostPolicy::default())
+        .expect("VM runtime loads");
+
+    for (
+        value,
+        expected_floor_four,
+        expected_floor_large,
+        expected_remainder_eight,
+        expected_remainder_large,
+        expected_trunc_four,
+        expected_trunc_large,
+        expected_floor_negative_one,
+    ) in [
+        (
+            i64::MIN,
+            "2305843009213693952",
+            "2",
+            "0",
+            "0",
+            "2305843009213693952",
+            "2",
+            "9223372036854775808",
+        ),
+        (-17, "4", "0", "-1", "-17", "4", "0", "17"),
+        (-9, "2", "0", "-1", "-9", "2", "0", "9"),
+        (-1, "0", "0", "-1", "-1", "0", "0", "1"),
+        (0, "0", "0", "0", "0", "0", "0", "0"),
+        (1, "-1", "-1", "-7", "-4611686018427387903", "0", "0", "-1"),
+        (5, "-2", "-1", "-3", "-4611686018427387899", "-1", "0", "-5"),
+        (
+            17,
+            "-5",
+            "-1",
+            "-7",
+            "-4611686018427387887",
+            "-4",
+            "0",
+            "-17",
+        ),
+        (
+            i64::MAX,
+            "-2305843009213693952",
+            "-2",
+            "-1",
+            "-1",
+            "-2305843009213693951",
+            "-1",
+            "-9223372036854775807",
+        ),
+    ] {
+        let argument = || vec![Value::Int(BigInt::from_i64(value))];
+        for (function, expected, divisor, dynamic_function) in [
+            (
+                "floor_by_negative_four",
+                expected_floor_four,
+                -4,
+                "floor_by_dynamic",
+            ),
+            (
+                "floor_by_negative_large",
+                expected_floor_large,
+                -4_611_686_018_427_387_904,
+                "floor_by_dynamic",
+            ),
+            (
+                "remainder_by_negative_eight",
+                expected_remainder_eight,
+                -8,
+                "remainder_by_dynamic",
+            ),
+            (
+                "remainder_by_negative_large",
+                expected_remainder_large,
+                -4_611_686_018_427_387_904,
+                "remainder_by_dynamic",
+            ),
+            (
+                "trunc_by_negative_four",
+                expected_trunc_four,
+                -4,
+                "trunc_by_dynamic",
+            ),
+            (
+                "trunc_by_negative_large",
+                expected_trunc_large,
+                -4_611_686_018_427_387_904,
+                "trunc_by_dynamic",
+            ),
+            (
+                "floor_by_negative_one",
+                expected_floor_negative_one,
+                -1,
+                "floor_by_dynamic",
+            ),
+        ] {
+            let expected = Value::Int(BigInt::parse(expected).unwrap());
+            assert_eq!(native.invoke(function, argument()).unwrap(), expected);
+            assert_eq!(vm.invoke(function, argument()).unwrap(), expected);
+            let dynamic_arguments = || {
+                vec![
+                    Value::Int(BigInt::from_i64(value)),
+                    Value::Int(BigInt::from_i64(divisor)),
+                ]
+            };
+            assert_eq!(
+                native
+                    .invoke(dynamic_function, dynamic_arguments())
+                    .unwrap(),
+                expected
+            );
+            assert_eq!(
+                vm.invoke(dynamic_function, dynamic_arguments()).unwrap(),
+                expected
+            );
+        }
+    }
+    assert!(native.native_deoptimizations() > 0);
+
+    let profile = native.native_compile_profile();
+    let functions = profile["functions"]
+        .as_array()
+        .expect("native profile has functions");
+    let ir_instructions = |name: &str| {
+        functions
+            .iter()
+            .find(|function| function["name"].as_str() == Some(name))
+            .unwrap_or_else(|| panic!("missing native profile for {name}"))
+            ["cranelift_ir_instructions"]
+            .as_u64()
+            .unwrap() as usize
+    };
+    for (constant, dynamic) in [
+        ("floor_by_negative_four", "floor_by_dynamic"),
+        ("floor_by_negative_large", "floor_by_dynamic"),
+        ("remainder_by_negative_eight", "remainder_by_dynamic"),
+        ("remainder_by_negative_large", "remainder_by_dynamic"),
+        ("trunc_by_negative_four", "trunc_by_dynamic"),
+        ("trunc_by_negative_large", "trunc_by_dynamic"),
+    ] {
+        assert!(
+            ir_instructions(constant) + 7 < ir_instructions(dynamic),
+            "literal {constant} should emit at least 8 fewer native instructions than dynamic division ({} vs {})",
+            ir_instructions(constant),
+            ir_instructions(dynamic)
+        );
+    }
+}
+
+#[test]
 fn native_integer_division_overflow_deoptimizes_to_arbitrary_precision_vm() {
     let source = "fn quotient(left: Int, right: Int) -> Int:\n    return left // right\n\nfn main() -> Int:\n    return quotient(-9223372036854775808, -1)\n";
     let artifact = compile("native-int-divide-overflow.gu", source).unwrap();

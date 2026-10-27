@@ -1,0 +1,931 @@
+{
+  "schema_version": 1,
+  "status": "passed",
+  "workload": "negative-power-of-two-division",
+  "baseline_revision": "d103bf39e9159c2fa978f2018ca38171a42a9a78",
+  "candidate_revision": "working tree based on d103bf39e9159c2fa978f2018ca38171a42a9a78",
+  "baseline_binary_sha256": "264d53a57070b12e908b6e7bad292b38a0c8bfbe25c46dc74debbd71848b2841",
+  "candidate_binary_sha256": "8a06f58e5412f0f552409d80070ea85c119fade9f858182f325b7adf6ca1a6cb",
+  "fixture_sha256": {
+    "guion_source": "e9ee8416ed21739dcdcde576dca1936a5ece17f9e8680ec60b2603bd03bdb21a",
+    "python_reference": "8456a8b58815c3e0c79591c985763420224aba5f5d19d051d6de939f09675ae4"
+  },
+  "host": {
+    "platform": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+    "architecture": "arm64",
+    "python_version": "3.14.7"
+  },
+  "measurement_design": {
+    "trials_per_arm": 30,
+    "warmups_per_arm": 2,
+    "paired_order_randomized": true,
+    "output_checked_every_run": true,
+    "guion_source_cache": "bypassed with --no-cache",
+    "os_file_cache": "uncontrolled",
+    "warm_lane_repetitions_per_process": 25,
+    "warm_lane_reported_as": "seconds per calculation"
+  },
+  "expected_stdout": [
+    "-328117"
+  ],
+  "fresh_source": {
+    "arm_medians_seconds": {
+      "guion_baseline_source_uncached": 0.009204187022987753,
+      "guion_candidate_source_uncached": 0.008382999512832612,
+      "python_reference": 0.03879693799535744
+    },
+    "p95_seconds_nearest_rank": {
+      "guion_baseline_source_uncached": 0.010144791973289102,
+      "guion_candidate_source_uncached": 0.009249916998669505,
+      "python_reference": 0.04518804099643603
+    },
+    "comparisons": {
+      "candidate_over_baseline": {
+        "median_ratio": 0.9040156788422311,
+        "ci95_percentile": [
+          0.8563082925596444,
+          0.9339608235979073
+        ],
+        "win": true,
+        "ties_or_regressions": 3
+      },
+      "candidate_over_python": {
+        "median_ratio": 0.21353823154008517,
+        "ci95_percentile": [
+          0.20335759076370785,
+          0.21999352289197327
+        ],
+        "win": true,
+        "ties_or_regressions": 0
+      },
+      "baseline_over_python": {
+        "median_ratio": 0.23958090569651275,
+        "ci95_percentile": [
+          0.23135859557069316,
+          0.2440828311563246
+        ],
+        "win": true,
+        "ties_or_regressions": 0
+      }
+    },
+    "native_backend_reports": {
+      "guion_baseline_source_uncached": {
+        "bytecode_blocks": 6,
+        "bytecode_instructions": 91,
+        "calls": 2,
+        "compilations": 1,
+        "compile_profile": {
+          "finalize_nanoseconds": 9334,
+          "functions": [
+            {
+              "bytecode_blocks": 4,
+              "bytecode_instructions": 86,
+              "cranelift_ir_blocks": 54,
+              "cranelift_ir_instructions": 505,
+              "define_nanoseconds": 957584,
+              "lowering_nanoseconds": 134250,
+              "name": "calculate",
+              "verification_nanoseconds": 89875
+            },
+            {
+              "bytecode_blocks": 2,
+              "bytecode_instructions": 5,
+              "cranelift_ir_blocks": 17,
+              "cranelift_ir_instructions": 223,
+              "define_nanoseconds": 291709,
+              "lowering_nanoseconds": 32417,
+              "name": "main",
+              "verification_nanoseconds": 28750
+            }
+          ]
+        },
+        "compiled_functions": [
+          "calculate",
+          "main"
+        ],
+        "cranelift_ir_blocks": 71,
+        "cranelift_ir_instructions": 728,
+        "deoptimizations": 0
+      },
+      "guion_candidate_source_uncached": {
+        "bytecode_blocks": 6,
+        "bytecode_instructions": 91,
+        "calls": 2,
+        "compilations": 1,
+        "compile_profile": {
+          "finalize_nanoseconds": 6917,
+          "functions": [
+            {
+              "bytecode_blocks": 4,
+              "bytecode_instructions": 86,
+              "cranelift_ir_blocks": 39,
+              "cranelift_ir_instructions": 372,
+              "define_nanoseconds": 676833,
+              "lowering_nanoseconds": 126417,
+              "name": "calculate",
+              "verification_nanoseconds": 70875
+            },
+            {
+              "bytecode_blocks": 2,
+              "bytecode_instructions": 5,
+              "cranelift_ir_blocks": 17,
+              "cranelift_ir_instructions": 223,
+              "define_nanoseconds": 296167,
+              "lowering_nanoseconds": 31875,
+              "name": "main",
+              "verification_nanoseconds": 28541
+            }
+          ]
+        },
+        "compiled_functions": [
+          "calculate",
+          "main"
+        ],
+        "cranelift_ir_blocks": 56,
+        "cranelift_ir_instructions": 595,
+        "deoptimizations": 0
+      }
+    },
+    "source_cache_states": {
+      "guion_baseline_source_uncached": [
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed"
+      ],
+      "guion_candidate_source_uncached": [
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed"
+      ]
+    },
+    "raw_samples_seconds": {
+      "guion_baseline_source_uncached": [
+        0.008958292019087821,
+        0.009243541047908366,
+        0.00982616696273908,
+        0.010015874984674156,
+        0.009510958974715322,
+        0.009385916986502707,
+        0.009269540954846889,
+        0.009267040994018316,
+        0.008746542036533356,
+        0.008787124999798834,
+        0.009879874996840954,
+        0.00977591599803418,
+        0.008991125039756298,
+        0.009497207996901125,
+        0.010144791973289102,
+        0.009029708977323025,
+        0.00916483299806714,
+        0.011655624955892563,
+        0.00916095799766481,
+        0.009973375010304153,
+        0.008662249951157719,
+        0.008761290984693915,
+        0.009906166000291705,
+        0.009051207976881415,
+        0.009085334022529423,
+        0.008946207992266864,
+        0.008749291999265552,
+        0.00913083297200501,
+        0.009700207971036434,
+        0.008784083009231836
+      ],
+      "guion_candidate_source_uncached": [
+        0.008962499967310578,
+        0.008059707994107157,
+        0.007915458001662046,
+        0.00861320795956999,
+        0.007859791978262365,
+        0.008776667003985494,
+        0.0075475419871509075,
+        0.008684208034537733,
+        0.007763208006508648,
+        0.00834279099944979,
+        0.008254499989561737,
+        0.008335541991982609,
+        0.00845249998383224,
+        0.00926299998536706,
+        0.008453792019281536,
+        0.008423208026215434,
+        0.008435833035036922,
+        0.008703125000465661,
+        0.008507541962899268,
+        0.007438542030286044,
+        0.009094624954741448,
+        0.008110291964840144,
+        0.0076368749723769724,
+        0.00789549999171868,
+        0.00869925000006333,
+        0.008427999971900135,
+        0.007724041002802551,
+        0.009249916998669505,
+        0.007372624997515231,
+        0.00809154094895348
+      ],
+      "python_reference": [
+        0.039228832989465445,
+        0.03854774998035282,
+        0.0404782920377329,
+        0.038716332986950874,
+        0.03873304201988503,
+        0.03857712500030175,
+        0.04031354101607576,
+        0.038395792013034225,
+        0.041164750000461936,
+        0.03889799996977672,
+        0.045350125001277775,
+        0.039046208024956286,
+        0.03908712504198775,
+        0.0392770420294255,
+        0.040426667022984475,
+        0.03872429102193564,
+        0.041605165984947234,
+        0.03763487498508766,
+        0.036418584000784904,
+        0.03712145797908306,
+        0.03947629197500646,
+        0.03979670803528279,
+        0.038860833970829844,
+        0.03696437500184402,
+        0.04518804099643603,
+        0.03750649996800348,
+        0.03708887496031821,
+        0.03814570797840133,
+        0.037918750022072345,
+        0.03775024996139109
+      ]
+    },
+    "paired_trial_order": [
+      [
+        "guion_baseline_source_uncached",
+        "guion_candidate_source_uncached",
+        "python_reference"
+      ],
+      [
+        "python_reference",
+        "guion_candidate_source_uncached",
+        "guion_baseline_source_uncached"
+      ],
+      [
+        "python_reference",
+        "guion_baseline_source_uncached",
+        "guion_candidate_source_uncached"
+      ],
+      [
+        "guion_candidate_source_uncached",
+        "guion_baseline_source_uncached",
+        "python_reference"
+      ],
+      [
+        "python_reference",
+        "guion_candidate_source_uncached",
+        "guion_baseline_source_uncached"
+      ],
+      [
+        "guion_baseline_source_uncached",
+        "python_reference",
+        "guion_candidate_source_uncached"
+      ],
+      [
+        "guion_candidate_source_uncached",
+        "guion_baseline_source_uncached",
+        "python_reference"
+      ],
+      [
+        "python_reference",
+        "guion_baseline_source_uncached",
+        "guion_candidate_source_uncached"
+      ],
+      [
+        "guion_baseline_source_uncached",
+        "guion_candidate_source_uncached",
+        "python_reference"
+      ],
+      [
+        "guion_candidate_source_uncached",
+        "guion_baseline_source_uncached",
+        "python_reference"
+      ],
+      [
+        "guion_candidate_source_uncached",
+        "guion_baseline_source_uncached",
+        "python_reference"
+      ],
+      [
+        "guion_candidate_source_uncached",
+        "python_reference",
+        "guion_baseline_source_uncached"
+      ],
+      [
+        "guion_baseline_source_uncached",
+        "python_reference",
+        "guion_candidate_source_uncached"
+      ],
+      [
+        "python_reference",
+        "guion_baseline_source_uncached",
+        "guion_candidate_source_uncached"
+      ],
+      [
+        "python_reference",
+        "guion_baseline_source_uncached",
+        "guion_candidate_source_uncached"
+      ],
+      [
+        "python_reference",
+        "guion_candidate_source_uncached",
+        "guion_baseline_source_uncached"
+      ],
+      [
+        "python_reference",
+        "guion_candidate_source_uncached",
+        "guion_baseline_source_uncached"
+      ],
+      [
+        "guion_baseline_source_uncached",
+        "guion_candidate_source_uncached",
+        "python_reference"
+      ],
+      [
+        "guion_baseline_source_uncached",
+        "python_reference",
+        "guion_candidate_source_uncached"
+      ],
+      [
+        "guion_candidate_source_uncached",
+        "python_reference",
+        "guion_baseline_source_uncached"
+      ],
+      [
+        "guion_baseline_source_uncached",
+        "python_reference",
+        "guion_candidate_source_uncached"
+      ],
+      [
+        "guion_candidate_source_uncached",
+        "guion_baseline_source_uncached",
+        "python_reference"
+      ],
+      [
+        "guion_baseline_source_uncached",
+        "python_reference",
+        "guion_candidate_source_uncached"
+      ],
+      [
+        "guion_candidate_source_uncached",
+        "python_reference",
+        "guion_baseline_source_uncached"
+      ],
+      [
+        "python_reference",
+        "guion_baseline_source_uncached",
+        "guion_candidate_source_uncached"
+      ],
+      [
+        "guion_baseline_source_uncached",
+        "guion_candidate_source_uncached",
+        "python_reference"
+      ],
+      [
+        "guion_baseline_source_uncached",
+        "guion_candidate_source_uncached",
+        "python_reference"
+      ],
+      [
+        "guion_baseline_source_uncached",
+        "python_reference",
+        "guion_candidate_source_uncached"
+      ],
+      [
+        "guion_baseline_source_uncached",
+        "guion_candidate_source_uncached",
+        "python_reference"
+      ],
+      [
+        "guion_baseline_source_uncached",
+        "guion_candidate_source_uncached",
+        "python_reference"
+      ]
+    ]
+  },
+  "warm_25": {
+    "arm_medians_seconds_per_calculation": {
+      "guion_baseline_source_warm_25": 0.001183180840453133,
+      "guion_candidate_source_warm_25": 0.000635024179937318,
+      "python_reference_warm_25": 0.01185433250037022
+    },
+    "p95_seconds_per_calculation": {
+      "guion_baseline_source_warm_25": 0.0012523866794072092,
+      "guion_candidate_source_warm_25": 0.0008506449987180531,
+      "python_reference_warm_25": 0.014353569999802857
+    },
+    "comparisons": {
+      "candidate_over_baseline": {
+        "median_ratio": 0.533666842542162,
+        "ci95_percentile": [
+          0.5266337138074373,
+          0.5433138495243252
+        ],
+        "win": true,
+        "ties_or_regressions": 1
+      },
+      "candidate_over_python": {
+        "median_ratio": 0.05311128958426717,
+        "ci95_percentile": [
+          0.05288616320384251,
+          0.053881470454168676
+        ],
+        "win": true,
+        "ties_or_regressions": 0
+      },
+      "baseline_over_python": {
+        "median_ratio": 0.09987433008382518,
+        "ci95_percentile": [
+          0.09801914415769952,
+          0.10070445072980377
+        ],
+        "win": true,
+        "ties_or_regressions": 0
+      }
+    },
+    "native_backend_reports": {
+      "guion_baseline_source_warm_25": {
+        "bytecode_blocks": 14,
+        "bytecode_instructions": 113,
+        "calls": 51,
+        "compilations": 1,
+        "compile_profile": {
+          "finalize_nanoseconds": 18292,
+          "functions": [
+            {
+              "bytecode_blocks": 4,
+              "bytecode_instructions": 86,
+              "cranelift_ir_blocks": 54,
+              "cranelift_ir_instructions": 505,
+              "define_nanoseconds": 1026208,
+              "lowering_nanoseconds": 229959,
+              "name": "calculate",
+              "verification_nanoseconds": 92709
+            },
+            {
+              "bytecode_blocks": 2,
+              "bytecode_instructions": 5,
+              "cranelift_ir_blocks": 17,
+              "cranelift_ir_instructions": 223,
+              "define_nanoseconds": 296292,
+              "lowering_nanoseconds": 42750,
+              "name": "benchmark_once",
+              "verification_nanoseconds": 30958
+            },
+            {
+              "bytecode_blocks": 8,
+              "bytecode_instructions": 22,
+              "cranelift_ir_blocks": 27,
+              "cranelift_ir_instructions": 310,
+              "define_nanoseconds": 404625,
+              "lowering_nanoseconds": 49417,
+              "name": "main",
+              "verification_nanoseconds": 38000
+            }
+          ]
+        },
+        "compiled_functions": [
+          "calculate",
+          "benchmark_once",
+          "main"
+        ],
+        "cranelift_ir_blocks": 98,
+        "cranelift_ir_instructions": 1038,
+        "deoptimizations": 0
+      },
+      "guion_candidate_source_warm_25": {
+        "bytecode_blocks": 14,
+        "bytecode_instructions": 113,
+        "calls": 51,
+        "compilations": 1,
+        "compile_profile": {
+          "finalize_nanoseconds": 10000,
+          "functions": [
+            {
+              "bytecode_blocks": 4,
+              "bytecode_instructions": 86,
+              "cranelift_ir_blocks": 39,
+              "cranelift_ir_instructions": 372,
+              "define_nanoseconds": 769792,
+              "lowering_nanoseconds": 125208,
+              "name": "calculate",
+              "verification_nanoseconds": 70125
+            },
+            {
+              "bytecode_blocks": 2,
+              "bytecode_instructions": 5,
+              "cranelift_ir_blocks": 17,
+              "cranelift_ir_instructions": 223,
+              "define_nanoseconds": 297916,
+              "lowering_nanoseconds": 31833,
+              "name": "benchmark_once",
+              "verification_nanoseconds": 28833
+            },
+            {
+              "bytecode_blocks": 8,
+              "bytecode_instructions": 22,
+              "cranelift_ir_blocks": 27,
+              "cranelift_ir_instructions": 310,
+              "define_nanoseconds": 394541,
+              "lowering_nanoseconds": 50709,
+              "name": "main",
+              "verification_nanoseconds": 39042
+            }
+          ]
+        },
+        "compiled_functions": [
+          "calculate",
+          "benchmark_once",
+          "main"
+        ],
+        "cranelift_ir_blocks": 83,
+        "cranelift_ir_instructions": 905,
+        "deoptimizations": 0
+      }
+    },
+    "source_cache_states": {
+      "guion_baseline_source_warm_25": [
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed"
+      ],
+      "guion_candidate_source_warm_25": [
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed"
+      ]
+    },
+    "raw_samples_seconds_per_calculation": {
+      "guion_baseline_source_warm_25": [
+        0.0011444950010627507,
+        0.0012024650000967084,
+        0.0011833266797475516,
+        0.0011821216787211597,
+        0.0012188049987889827,
+        0.0011659449990838765,
+        0.0012885266402736307,
+        0.0012029516813345253,
+        0.0012523866794072092,
+        0.0012135483208112418,
+        0.0011820449982769788,
+        0.0012120216805487872,
+        0.0012108499999158085,
+        0.0011792200012132525,
+        0.0011542683211155237,
+        0.0011423999979160726,
+        0.0012249716813676058,
+        0.0012259549996815622,
+        0.0012133066402748227,
+        0.0011830350011587142,
+        0.0011720199999399484,
+        0.0011781866382807493,
+        0.0011914499988779426,
+        0.0012194616394117475,
+        0.0011537083191797137,
+        0.0011681516794487833,
+        0.0011605966812931001,
+        0.0011824683588929474,
+        0.0011762566398829221,
+        0.0011916749994270504
+      ],
+      "guion_candidate_source_warm_25": [
+        0.0006168550020083785,
+        0.0006250549992546439,
+        0.0006184233189560473,
+        0.0006434116791933775,
+        0.0006766683212481439,
+        0.0015469666803255677,
+        0.0008506449987180531,
+        0.0006489566783420741,
+        0.0006496650003828109,
+        0.0006492300005629659,
+        0.0006253316812217236,
+        0.0006230999995023012,
+        0.0006110149994492531,
+        0.0006683883187361062,
+        0.0006301116803660989,
+        0.000607333320658654,
+        0.0006540366401895881,
+        0.000639936679508537,
+        0.0006272249994799494,
+        0.0006812116806395352,
+        0.0006478066788986325,
+        0.0006199916405603289,
+        0.000646969999652356,
+        0.0006211583199910819,
+        0.0006088249990716576,
+        0.0006231083208695054,
+        0.00061168332118541,
+        0.0006428099982440471,
+        0.000618418320082128,
+        0.000658563319593668
+      ],
+      "python_reference_warm_25": [
+        0.01164880332071334,
+        0.01176642500096932,
+        0.011697461679577827,
+        0.012104544998146593,
+        0.011734480001032353,
+        0.0322860150015913,
+        0.014353569999802857,
+        0.012431830000132323,
+        0.012517571679782123,
+        0.011997519999276847,
+        0.011776343318633736,
+        0.011797483360860497,
+        0.012470623319968581,
+        0.012349875001236797,
+        0.01190126335946843,
+        0.01164571668021381,
+        0.011861528321169316,
+        0.011705486681312322,
+        0.011834468320012092,
+        0.011902318322099745,
+        0.012059461639728397,
+        0.011719146638642996,
+        0.011811303321737797,
+        0.01166382331866771,
+        0.011858845001552255,
+        0.011716858360450715,
+        0.011849819999188185,
+        0.011893926679622382,
+        0.0117361083580181,
+        0.01189712667837739
+      ]
+    },
+    "paired_trial_order": [
+      [
+        "guion_baseline_source_warm_25",
+        "guion_candidate_source_warm_25",
+        "python_reference_warm_25"
+      ],
+      [
+        "python_reference_warm_25",
+        "guion_candidate_source_warm_25",
+        "guion_baseline_source_warm_25"
+      ],
+      [
+        "python_reference_warm_25",
+        "guion_baseline_source_warm_25",
+        "guion_candidate_source_warm_25"
+      ],
+      [
+        "guion_candidate_source_warm_25",
+        "guion_baseline_source_warm_25",
+        "python_reference_warm_25"
+      ],
+      [
+        "python_reference_warm_25",
+        "guion_candidate_source_warm_25",
+        "guion_baseline_source_warm_25"
+      ],
+      [
+        "guion_baseline_source_warm_25",
+        "python_reference_warm_25",
+        "guion_candidate_source_warm_25"
+      ],
+      [
+        "guion_candidate_source_warm_25",
+        "guion_baseline_source_warm_25",
+        "python_reference_warm_25"
+      ],
+      [
+        "python_reference_warm_25",
+        "guion_baseline_source_warm_25",
+        "guion_candidate_source_warm_25"
+      ],
+      [
+        "guion_baseline_source_warm_25",
+        "guion_candidate_source_warm_25",
+        "python_reference_warm_25"
+      ],
+      [
+        "guion_candidate_source_warm_25",
+        "guion_baseline_source_warm_25",
+        "python_reference_warm_25"
+      ],
+      [
+        "guion_candidate_source_warm_25",
+        "guion_baseline_source_warm_25",
+        "python_reference_warm_25"
+      ],
+      [
+        "guion_candidate_source_warm_25",
+        "python_reference_warm_25",
+        "guion_baseline_source_warm_25"
+      ],
+      [
+        "guion_baseline_source_warm_25",
+        "python_reference_warm_25",
+        "guion_candidate_source_warm_25"
+      ],
+      [
+        "python_reference_warm_25",
+        "guion_baseline_source_warm_25",
+        "guion_candidate_source_warm_25"
+      ],
+      [
+        "python_reference_warm_25",
+        "guion_baseline_source_warm_25",
+        "guion_candidate_source_warm_25"
+      ],
+      [
+        "python_reference_warm_25",
+        "guion_candidate_source_warm_25",
+        "guion_baseline_source_warm_25"
+      ],
+      [
+        "python_reference_warm_25",
+        "guion_candidate_source_warm_25",
+        "guion_baseline_source_warm_25"
+      ],
+      [
+        "guion_baseline_source_warm_25",
+        "guion_candidate_source_warm_25",
+        "python_reference_warm_25"
+      ],
+      [
+        "guion_baseline_source_warm_25",
+        "python_reference_warm_25",
+        "guion_candidate_source_warm_25"
+      ],
+      [
+        "guion_candidate_source_warm_25",
+        "python_reference_warm_25",
+        "guion_baseline_source_warm_25"
+      ],
+      [
+        "guion_baseline_source_warm_25",
+        "python_reference_warm_25",
+        "guion_candidate_source_warm_25"
+      ],
+      [
+        "guion_candidate_source_warm_25",
+        "guion_baseline_source_warm_25",
+        "python_reference_warm_25"
+      ],
+      [
+        "guion_baseline_source_warm_25",
+        "python_reference_warm_25",
+        "guion_candidate_source_warm_25"
+      ],
+      [
+        "guion_candidate_source_warm_25",
+        "python_reference_warm_25",
+        "guion_baseline_source_warm_25"
+      ],
+      [
+        "python_reference_warm_25",
+        "guion_baseline_source_warm_25",
+        "guion_candidate_source_warm_25"
+      ],
+      [
+        "guion_baseline_source_warm_25",
+        "guion_candidate_source_warm_25",
+        "python_reference_warm_25"
+      ],
+      [
+        "guion_baseline_source_warm_25",
+        "guion_candidate_source_warm_25",
+        "python_reference_warm_25"
+      ],
+      [
+        "guion_baseline_source_warm_25",
+        "python_reference_warm_25",
+        "guion_candidate_source_warm_25"
+      ],
+      [
+        "guion_baseline_source_warm_25",
+        "guion_candidate_source_warm_25",
+        "python_reference_warm_25"
+      ],
+      [
+        "guion_baseline_source_warm_25",
+        "guion_candidate_source_warm_25",
+        "python_reference_warm_25"
+      ]
+    ]
+  }
+}
