@@ -1696,20 +1696,32 @@ impl VmHost for Instance {
                         ))
                     }
                 };
-                let output = if instruction.op == Op::TextCaseFold {
-                    stdlib_services::text_casefold(&text)
+                if instruction.op == Op::TextCaseFold {
+                    let output = stdlib_services::text_casefold(&text);
+                    if output.len() > self.policy.max_text_bytes {
+                        return Err(RuntimeError::new(
+                            "R_TEXT_LIMIT",
+                            "Unicode result exceeds the configured text limit",
+                            instruction.span,
+                        ));
+                    }
+                    charge_allocation(budget.as_ref(), output.len(), instruction.span)?;
+                    push_stack!(Value::Text(output.into()));
+                } else if let Some(output) =
+                    stdlib_services::text_collapse_whitespace_if_changed(&text)
+                {
+                    if output.len() > self.policy.max_text_bytes {
+                        return Err(RuntimeError::new(
+                            "R_TEXT_LIMIT",
+                            "Unicode result exceeds the configured text limit",
+                            instruction.span,
+                        ));
+                    }
+                    charge_allocation(budget.as_ref(), output.len(), instruction.span)?;
+                    push_stack!(Value::Text(output.into()));
                 } else {
-                    stdlib_services::text_collapse_whitespace(&text)
-                };
-                if output.len() > self.policy.max_text_bytes {
-                    return Err(RuntimeError::new(
-                        "R_TEXT_LIMIT",
-                        "Unicode result exceeds the configured text limit",
-                        instruction.span,
-                    ));
+                    push_stack!(Value::Text(text));
                 }
-                charge_allocation(budget.as_ref(), output.len(), instruction.span)?;
-                push_stack!(Value::Text(output.into()));
             }
             Op::TextNormalize => {
                 let form = match pop!() {

@@ -7,8 +7,8 @@ use std::{
 use guion_model::{Artifact, BigInt, SharedJson, Value};
 use guion_runtime::stdlib_services::{
     calendar_parse, crypto_hmac_sha256, crypto_verify_hmac_sha256, text_casefold,
-    text_collapse_whitespace, text_normalize, CalendarEvent, DatabaseRegistry, SqlValue,
-    TomlDocument, TomlRegistry,
+    text_collapse_whitespace, text_collapse_whitespace_if_changed, text_normalize, CalendarEvent,
+    DatabaseRegistry, SqlValue, TomlDocument, TomlRegistry,
 };
 use guion_runtime::{HostPolicy, Runtime};
 
@@ -53,6 +53,20 @@ fn unicode_casefold_and_whitespace_use_unicode_properties_without_normalizing() 
     assert_eq!(text_casefold(decomposed), decomposed);
     assert_eq!(text_normalize(decomposed, "NFC").unwrap(), "é");
     assert!(text_normalize("x", "unknown").is_err());
+}
+
+#[test]
+fn whitespace_collapse_fast_path_only_returns_changes_when_needed() {
+    assert_eq!(text_collapse_whitespace_if_changed("compact JSON"), None);
+    assert_eq!(text_collapse_whitespace_if_changed("one space"), None);
+    assert_eq!(
+        text_collapse_whitespace_if_changed(" \t one\u{2003}two  "),
+        Some("one two".to_owned())
+    );
+    assert_eq!(
+        text_collapse_whitespace_if_changed("a\u{00a0}b"),
+        Some("a b".to_owned())
+    );
 }
 
 #[test]

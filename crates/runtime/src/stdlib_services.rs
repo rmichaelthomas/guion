@@ -110,6 +110,35 @@ pub fn text_collapse_whitespace(text: &str) -> String {
     output
 }
 
+/// Normalize Unicode whitespace only when the input would actually change.
+///
+/// The common case for machine-readable text is already normalized. Returning
+/// `None` lets the VM keep its owned text value without allocating and copying
+/// an identical string.
+pub fn text_collapse_whitespace_if_changed(text: &str) -> Option<String> {
+    let whitespace = CodePointSetData::new::<WhiteSpace>();
+    let mut first = true;
+    let mut previous_was_whitespace = false;
+
+    for scalar in text.chars() {
+        if whitespace.contains(scalar) {
+            if first || previous_was_whitespace || scalar != ' ' {
+                return Some(text_collapse_whitespace(text));
+            }
+            previous_was_whitespace = true;
+        } else {
+            previous_was_whitespace = false;
+        }
+        first = false;
+    }
+
+    if previous_was_whitespace {
+        Some(text_collapse_whitespace(text))
+    } else {
+        None
+    }
+}
+
 pub fn text_normalize(text: &str, form: &str) -> Result<String, ServiceError> {
     let normalized = match form {
         "NFC" => ComposingNormalizerBorrowed::new_nfc().normalize(text),
