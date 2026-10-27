@@ -1,0 +1,7 @@
+{
+  "abi": {"major": 1, "minor": 0},
+  "entry": "greet",
+  "arguments": [{"type": "Text", "value": "Ada"}],
+  "capabilities": [],
+  "limits": {"steps": 1000, "outputBytes": 1024}
+}

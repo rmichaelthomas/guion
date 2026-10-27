@@ -536,9 +536,12 @@ dependencies = [
 name = "guion-vm-wasm"
 version = "0.1.0"
 dependencies = [
+ "base64",
  "guion-compiler",
  "guion-model",
  "guion-vm-core",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

@@ -1,0 +1,6 @@
+fn greet(name: Text) -> Text:
+    return "Hello, " + name
+
+fn main() -> Int:
+    print("Hello from typed Wasm!")
+    return 7

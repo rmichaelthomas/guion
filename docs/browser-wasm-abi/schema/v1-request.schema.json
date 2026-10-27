@@ -1,0 +1,110 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Guion WebAssembly ABI 1.0 request",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["abi", "entry", "arguments", "capabilities"],
+  "properties": {
+    "abi": {"$ref": "#/$defs/version"},
+    "entry": {"type": "string", "minLength": 1, "maxLength": 128},
+    "arguments": {"type": "array", "maxItems": 4096, "items": {"$ref": "#/$defs/value"}},
+    "capabilities": {"const": []},
+    "limits": {"$ref": "#/$defs/limits"}
+  },
+  "$defs": {
+    "version": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["major", "minor"],
+      "properties": {"major": {"const": 1}, "minor": {"const": 0}}
+    },
+    "limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "steps": {"type": "integer", "minimum": 0, "maximum": 10000},
+        "outputBytes": {"type": "integer", "minimum": 0, "maximum": 65536}
+      }
+    },
+    "value": {
+      "oneOf": [
+        {"$ref": "#/$defs/int"},
+        {"$ref": "#/$defs/float64"},
+        {"$ref": "#/$defs/bool"},
+        {"$ref": "#/$defs/text"},
+        {"$ref": "#/$defs/bytes"},
+        {"$ref": "#/$defs/unit"},
+        {"$ref": "#/$defs/list"},
+        {"$ref": "#/$defs/map"},
+        {"$ref": "#/$defs/record"},
+        {"$ref": "#/$defs/optionNone"},
+        {"$ref": "#/$defs/optionSome"},
+        {"$ref": "#/$defs/resultOk"},
+        {"$ref": "#/$defs/resultErr"},
+        {"$ref": "#/$defs/json"}
+      ]
+    },
+    "int": {
+      "type": "object", "additionalProperties": false, "required": ["type", "value"],
+      "properties": {"type": {"const": "Int"}, "value": {"type": "string", "pattern": "^(0|-?[1-9][0-9]*)$", "maxLength": 4097}}
+    },
+    "float64": {
+      "type": "object", "additionalProperties": false, "required": ["type", "value"],
+      "properties": {"type": {"const": "Float64"}, "value": {"type": "string", "pattern": "^[0-9a-fA-F]{16}$"}}
+    },
+    "bool": {
+      "type": "object", "additionalProperties": false, "required": ["type", "value"],
+      "properties": {"type": {"const": "Bool"}, "value": {"type": "boolean"}}
+    },
+    "text": {
+      "type": "object", "additionalProperties": false, "required": ["type", "value"],
+      "properties": {"type": {"const": "Text"}, "value": {"type": "string", "maxLength": 65536}}
+    },
+    "bytes": {
+      "type": "object", "additionalProperties": false, "required": ["type", "value"],
+      "properties": {"type": {"const": "Bytes"}, "value": {"type": "string", "contentEncoding": "base64", "maxLength": 87384}}
+    },
+    "unit": {"type": "object", "additionalProperties": false, "required": ["type"], "properties": {"type": {"const": "Unit"}}},
+    "list": {
+      "type": "object", "additionalProperties": false, "required": ["type", "value"],
+      "properties": {"type": {"const": "List"}, "value": {"type": "array", "maxItems": 4096, "items": {"$ref": "#/$defs/value"}}}
+    },
+    "map": {
+      "type": "object", "additionalProperties": false, "required": ["type", "value"],
+      "properties": {"type": {"const": "Map"}, "value": {"type": "array", "maxItems": 4096, "items": {"$ref": "#/$defs/mapEntry"}}}
+    },
+    "mapEntry": {
+      "type": "object", "additionalProperties": false, "required": ["key", "value"],
+      "properties": {"key": {"type": "string", "maxLength": 65536}, "value": {"$ref": "#/$defs/value"}}
+    },
+    "record": {
+      "type": "object", "additionalProperties": false, "required": ["type", "value"],
+      "properties": {"type": {"const": "Record"}, "value": {"$ref": "#/$defs/recordValue"}}
+    },
+    "recordValue": {
+      "type": "object", "additionalProperties": false, "required": ["name", "fields"],
+      "properties": {"name": {"type": "string", "minLength": 1, "maxLength": 65536}, "fields": {"type": "array", "maxItems": 4096, "items": {"$ref": "#/$defs/recordField"}}}
+    },
+    "recordField": {
+      "type": "object", "additionalProperties": false, "required": ["name", "value"],
+      "properties": {"name": {"type": "string", "minLength": 1, "maxLength": 65536}, "value": {"$ref": "#/$defs/value"}}
+    },
+    "optionNone": {"type": "object", "additionalProperties": false, "required": ["type"], "properties": {"type": {"const": "OptionNone"}}},
+    "optionSome": {
+      "type": "object", "additionalProperties": false, "required": ["type", "value"],
+      "properties": {"type": {"const": "OptionSome"}, "value": {"$ref": "#/$defs/value"}}
+    },
+    "resultOk": {
+      "type": "object", "additionalProperties": false, "required": ["type", "value"],
+      "properties": {"type": {"const": "ResultOk"}, "value": {"$ref": "#/$defs/value"}}
+    },
+    "resultErr": {
+      "type": "object", "additionalProperties": false, "required": ["type", "value"],
+      "properties": {"type": {"const": "ResultErr"}, "value": {"$ref": "#/$defs/value"}}
+    },
+    "json": {
+      "type": "object", "additionalProperties": false, "required": ["type", "value"],
+      "properties": {"type": {"const": "Json"}, "value": {}}
+    }
+  }
+}
