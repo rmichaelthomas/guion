@@ -3,7 +3,7 @@
   "kind": "matched-frozen-case-acceptance",
   "platform": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
   "python": "3.14.7 (main, Aug  5 2026, 10:29:49) [Clang 21.0.0 (clang-2100.1.1.101)]",
-  "guion_sha256": "705b5cc69659f9863a5e0839459aebda2b42dfdc43f39ad5f36e7939eb496bec",
+  "guion_sha256": "f85a615353bc1479be161c99335a799e6018751fa37465006ad269c16865e31f",
   "manifest_sha256": "1f8f4f2db73c39d397a8334a86ff955cc76d7e1481d9c2a512ada73d675b0213",
   "note": "Per-step times are acceptance observations, not randomized benchmark results.",
   "applications": {
@@ -26,10 +26,10 @@
                   "checks_passed": 3,
                   "checks_total": 3,
                   "failures": [],
-                  "elapsed_seconds": 0.025889
+                  "elapsed_seconds": 0.028874
                 }
               ],
-              "elapsed_seconds": 0.029669,
+              "elapsed_seconds": 0.032391,
               "http_fixtures": {},
               "stdout": "",
               "stderr": "",
@@ -48,10 +48,10 @@
                   "checks_passed": 3,
                   "checks_total": 3,
                   "failures": [],
-                  "elapsed_seconds": 0.104606
+                  "elapsed_seconds": 0.089101
                 }
               ],
-              "elapsed_seconds": 0.106869,
+              "elapsed_seconds": 0.091174,
               "http_fixtures": {},
               "stdout": "",
               "stderr": "",
@@ -76,10 +76,10 @@
                   "checks_passed": 2,
                   "checks_total": 2,
                   "failures": [],
-                  "elapsed_seconds": 0.010871
+                  "elapsed_seconds": 0.009615
                 }
               ],
-              "elapsed_seconds": 0.013229,
+              "elapsed_seconds": 0.011788,
               "http_fixtures": {},
               "stdout": "",
               "stderr": "each package requires name and version\n",
@@ -98,10 +98,10 @@
                   "checks_passed": 2,
                   "checks_total": 2,
                   "failures": [],
-                  "elapsed_seconds": 0.100722
+                  "elapsed_seconds": 0.08508
                 }
               ],
-              "elapsed_seconds": 0.102755,
+              "elapsed_seconds": 0.087114,
               "http_fixtures": {},
               "stdout": "",
               "stderr": "each lock entry requires non-empty name and version\n",
@@ -126,10 +126,10 @@
                   "checks_passed": 3,
                   "checks_total": 3,
                   "failures": [],
-                  "elapsed_seconds": 0.033743
+                  "elapsed_seconds": 0.035225
                 }
               ],
-              "elapsed_seconds": 0.036546,
+              "elapsed_seconds": 0.037467,
               "http_fixtures": {},
               "stdout": "",
               "stderr": "",
@@ -148,10 +148,10 @@
                   "checks_passed": 3,
                   "checks_total": 3,
                   "failures": [],
-                  "elapsed_seconds": 0.098948
+                  "elapsed_seconds": 0.087381
                 }
               ],
-              "elapsed_seconds": 0.10126,
+              "elapsed_seconds": 0.089736,
               "http_fixtures": {},
               "stdout": "",
               "stderr": "",
@@ -176,10 +176,10 @@
                   "checks_passed": 3,
                   "checks_total": 3,
                   "failures": [],
-                  "elapsed_seconds": 0.018273
+                  "elapsed_seconds": 0.015933
                 }
               ],
-              "elapsed_seconds": 0.020471,
+              "elapsed_seconds": 0.01998,
               "http_fixtures": {},
               "stdout": "",
               "stderr": "",
@@ -198,10 +198,10 @@
                   "checks_passed": 3,
                   "checks_total": 3,
                   "failures": [],
-                  "elapsed_seconds": 0.097801
+                  "elapsed_seconds": 0.086417
                 }
               ],
-              "elapsed_seconds": 0.099585,
+              "elapsed_seconds": 0.08807,
               "http_fixtures": {},
               "stdout": "",
               "stderr": "",
@@ -226,10 +226,10 @@
                   "checks_passed": 3,
                   "checks_total": 3,
                   "failures": [],
-                  "elapsed_seconds": 0.016646
+                  "elapsed_seconds": 0.021218
                 }
               ],
-              "elapsed_seconds": 0.018739,
+              "elapsed_seconds": 0.023252,
               "http_fixtures": {},
               "stdout": "",
               "stderr": "",
@@ -248,10 +248,10 @@
                   "checks_passed": 3,
                   "checks_total": 3,
                   "failures": [],
-                  "elapsed_seconds": 0.09861
+                  "elapsed_seconds": 0.084597
                 }
               ],
-              "elapsed_seconds": 0.100599,
+              "elapsed_seconds": 0.086235,
               "http_fixtures": {},
               "stdout": "",
               "stderr": "",
@@ -276,10 +276,10 @@
                   "checks_passed": 3,
                   "checks_total": 3,
                   "failures": [],
-                  "elapsed_seconds": 0.016583
+                  "elapsed_seconds": 0.016254
                 }
               ],
-              "elapsed_seconds": 0.018784,
+              "elapsed_seconds": 0.018288,
               "http_fixtures": {},
               "stdout": "",
               "stderr": "",
@@ -298,10 +298,10 @@
                   "checks_passed": 3,
                   "checks_total": 3,
                   "failures": [],
-                  "elapsed_seconds": 0.100685
+                  "elapsed_seconds": 0.086118
                 }
               ],
-              "elapsed_seconds": 0.102718,
+              "elapsed_seconds": 0.087716,
               "http_fixtures": {},
               "stdout": "",
               "stderr": "",
@@ -326,10 +326,10 @@
                   "checks_passed": 3,
                   "checks_total": 3,
                   "failures": [],
-                  "elapsed_seconds": 0.017053
+                  "elapsed_seconds": 0.016122
                 }
               ],
-              "elapsed_seconds": 0.019347,
+              "elapsed_seconds": 0.018103,
               "http_fixtures": {},
               "stdout": "",
               "stderr": "",
@@ -348,10 +348,10 @@
                   "checks_passed": 3,
                   "checks_total": 3,
                   "failures": [],
-                  "elapsed_seconds": 0.101518
+                  "elapsed_seconds": 0.085859
                 }
               ],
-              "elapsed_seconds": 0.103379,
+              "elapsed_seconds": 0.087448,
               "http_fixtures": {},
               "stdout": "",
               "stderr": "",
@@ -376,10 +376,10 @@
                   "checks_passed": 3,
                   "checks_total": 3,
                   "failures": [],
-                  "elapsed_seconds": 0.019649
+                  "elapsed_seconds": 0.014977
                 }
               ],
-              "elapsed_seconds": 0.021917,
+              "elapsed_seconds": 0.01696,
               "http_fixtures": {},
               "stdout": "",
               "stderr": "",
@@ -398,10 +398,10 @@
                   "checks_passed": 3,
                   "checks_total": 3,
                   "failures": [],
-                  "elapsed_seconds": 0.107027
+                  "elapsed_seconds": 0.084861
                 }
               ],
-              "elapsed_seconds": 0.109094,
+              "elapsed_seconds": 0.086524,
               "http_fixtures": {},
               "stdout": "",
               "stderr": "",
@@ -426,10 +426,10 @@
                   "checks_passed": 3,
                   "checks_total": 3,
                   "failures": [],
-                  "elapsed_seconds": 0.017336
+                  "elapsed_seconds": 0.016182
                 }
               ],
-              "elapsed_seconds": 0.019455,
+              "elapsed_seconds": 0.01817,
               "http_fixtures": {},
               "stdout": "",
               "stderr": "",
@@ -448,10 +448,10 @@
                   "checks_passed": 3,
                   "checks_total": 3,
                   "failures": [],
-                  "elapsed_seconds": 0.10093
+                  "elapsed_seconds": 0.085683
                 }
               ],
-              "elapsed_seconds": 0.102664,
+              "elapsed_seconds": 0.087328,
               "http_fixtures": {},
               "stdout": "",
               "stderr": "",
@@ -476,10 +476,10 @@
                   "checks_passed": 2,
                   "checks_total": 2,
                   "failures": [],
-                  "elapsed_seconds": 0.012652
+                  "elapsed_seconds": 0.00996
                 }
               ],
-              "elapsed_seconds": 0.015086,
+              "elapsed_seconds": 0.012108,
               "http_fixtures": {},
               "stdout": "",
               "stderr": "duplicate exception name: blocked-lib\n",
@@ -498,10 +498,10 @@
                   "checks_passed": 2,
                   "checks_total": 2,
                   "failures": [],
-                  "elapsed_seconds": 0.100791
+                  "elapsed_seconds": 0.084133
                 }
               ],
-              "elapsed_seconds": 0.102821,
+              "elapsed_seconds": 0.08597,
               "http_fixtures": {},
               "stdout": "",
               "stderr": "duplicate exception name\n",
@@ -526,10 +526,10 @@
                   "checks_passed": 2,
                   "checks_total": 2,
                   "failures": [],
-                  "elapsed_seconds": 0.010718
+                  "elapsed_seconds": 0.009667
                 }
               ],
-              "elapsed_seconds": 0.012997,
+              "elapsed_seconds": 0.011789,
               "http_fixtures": {},
               "stdout": "",
               "stderr": "invalid exception: objects must contain exactly name and expires\n",
@@ -548,10 +548,10 @@
                   "checks_passed": 2,
                   "checks_total": 2,
                   "failures": [],
-                  "elapsed_seconds": 0.100268
+                  "elapsed_seconds": 0.083481
                 }
               ],
-              "elapsed_seconds": 0.102397,
+              "elapsed_seconds": 0.085286,
               "http_fixtures": {},
               "stdout": "",
               "stderr": "invalid exception entry\n",
@@ -576,10 +576,10 @@
                   "checks_passed": 2,
                   "checks_total": 2,
                   "failures": [],
-                  "elapsed_seconds": 0.010874
+                  "elapsed_seconds": 0.009406
                 }
               ],
-              "elapsed_seconds": 0.013229,
+              "elapsed_seconds": 0.011565,
               "http_fixtures": {},
               "stdout": "",
               "stderr": "invalid exception expiry date: expected YYYY-MM-DD\n",
@@ -598,10 +598,10 @@
                   "checks_passed": 2,
                   "checks_total": 2,
                   "failures": [],
-                  "elapsed_seconds": 0.099432
+                  "elapsed_seconds": 0.085259
                 }
               ],
-              "elapsed_seconds": 0.101329,
+              "elapsed_seconds": 0.08709,
               "http_fixtures": {},
               "stdout": "",
               "stderr": "invalid exception date\n",
@@ -626,10 +626,10 @@
                   "checks_passed": 2,
                   "checks_total": 2,
                   "failures": [],
-                  "elapsed_seconds": 0.010394
+                  "elapsed_seconds": 0.009712
                 }
               ],
-              "elapsed_seconds": 0.012977,
+              "elapsed_seconds": 0.011856,
               "http_fixtures": {},
               "stdout": "",
               "stderr": "--as-of is required when exceptions are configured\n",
@@ -648,10 +648,10 @@
                   "checks_passed": 2,
                   "checks_total": 2,
                   "failures": [],
-                  "elapsed_seconds": 0.098434
+                  "elapsed_seconds": 0.083805
                 }
               ],
-              "elapsed_seconds": 0.100948,
+              "elapsed_seconds": 0.085668,
               "http_fixtures": {},
               "stdout": "",
               "stderr": "--as-of is required when exceptions are configured\n",
@@ -676,10 +676,10 @@
                   "checks_passed": 2,
                   "checks_total": 2,
                   "failures": [],
-                  "elapsed_seconds": 0.010821
+                  "elapsed_seconds": 0.009322
                 }
               ],
-              "elapsed_seconds": 0.01355,
+              "elapsed_seconds": 0.011807,
               "http_fixtures": {},
               "stdout": "",
               "stderr": "invalid --as-of date: expected a valid YYYY-MM-DD date\n",
@@ -698,10 +698,10 @@
                   "checks_passed": 2,
                   "checks_total": 2,
                   "failures": [],
-                  "elapsed_seconds": 0.101505
+                  "elapsed_seconds": 0.084975
                 }
               ],
-              "elapsed_seconds": 0.103556,
+              "elapsed_seconds": 0.087319,
               "http_fixtures": {},
               "stdout": "",
               "stderr": "invalid --as-of date\n",
@@ -726,10 +726,10 @@
                   "checks_passed": 3,
                   "checks_total": 3,
                   "failures": [],
-                  "elapsed_seconds": 0.018723
+                  "elapsed_seconds": 0.018523
                 }
               ],
-              "elapsed_seconds": 0.020955,
+              "elapsed_seconds": 0.020847,
               "http_fixtures": {},
               "stdout": "",
               "stderr": "",
@@ -748,10 +748,10 @@
                   "checks_passed": 3,
                   "checks_total": 3,
                   "failures": [],
-                  "elapsed_seconds": 0.102873
+                  "elapsed_seconds": 0.087159
                 }
               ],
-              "elapsed_seconds": 0.104792,
+              "elapsed_seconds": 0.088828,
               "http_fixtures": {},
               "stdout": "",
               "stderr": "",
@@ -776,10 +776,10 @@
                   "checks_passed": 1,
                   "checks_total": 1,
                   "failures": [],
-                  "elapsed_seconds": 0.011092
+                  "elapsed_seconds": 0.009531
                 }
               ],
-              "elapsed_seconds": 0.013635,
+              "elapsed_seconds": 0.011652,
               "http_fixtures": {},
               "stdout": "",
               "stderr": "invalid --as-of date: expected a valid YYYY-MM-DD date\n",
@@ -798,10 +798,10 @@
                   "checks_passed": 1,
                   "checks_total": 1,
                   "failures": [],
-                  "elapsed_seconds": 0.103464
+                  "elapsed_seconds": 0.084785
                 }
               ],
-              "elapsed_seconds": 0.105758,
+              "elapsed_seconds": 0.086842,
               "http_fixtures": {},
               "stdout": "",
               "stderr": "invalid --as-of date\n",
@@ -826,10 +826,10 @@
                   "checks_passed": 3,
                   "checks_total": 3,
                   "failures": [],
-                  "elapsed_seconds": 0.017581
+                  "elapsed_seconds": 0.015903
                 }
               ],
-              "elapsed_seconds": 0.020368,
+              "elapsed_seconds": 0.018261,
               "http_fixtures": {},
               "stdout": "",
               "stderr": "",
@@ -848,10 +848,10 @@
                   "checks_passed": 3,
                   "checks_total": 3,
                   "failures": [],
-                  "elapsed_seconds": 0.103372
+                  "elapsed_seconds": 0.085011
                 }
               ],
-              "elapsed_seconds": 0.105644,
+              "elapsed_seconds": 0.086614,
               "http_fixtures": {},
               "stdout": "",
               "stderr": "",

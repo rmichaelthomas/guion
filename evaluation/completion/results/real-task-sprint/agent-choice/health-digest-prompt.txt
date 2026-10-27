@@ -1,4 +1,4 @@
-You are evaluating two programming languages after trying working examples. Work only in this repository. Do not change project files or create chats.
+You are evaluating two programming languages after trying working examples. Work only in this repository. Keep any session contract and all temporary files inside /Users/rmichaelthomas/guion/target/perf-session/agent-choice; do not inspect unrelated historical session contracts. Do not change project files or create chats.
 
 First run this exact acceptance command to try both implementations:
 PYTHONPATH="/Users/rmichaelthomas/guion/target/perf-session/python-deps" python3 evaluation/completion/compare_real_tasks.py --binary target/release/guion --application health-digest --output /Users/rmichaelthomas/guion/target/perf-session/agent-choice/health-digest-acceptance.json
