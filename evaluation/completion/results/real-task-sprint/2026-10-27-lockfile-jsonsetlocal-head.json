@@ -1,0 +1,164 @@
+{
+  "schema_version": 1,
+  "kind": "lockfile-diagnostic-scaling",
+  "baseline_commit": "6004e9a",
+  "baseline_source_sha256": "08d8bda3964295e54466a1fe5bf95db8d0f80b4976a1320c0d884b4f81d2953a",
+  "candidate_source_sha256": "08d8bda3964295e54466a1fe5bf95db8d0f80b4976a1320c0d884b4f81d2953a",
+  "guion_binary_sha256": "253d9fa2de19bfc99e5d62fd95427f1b17354eea79ae65b1227fa25a79ab2603",
+  "platform": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+  "python": "3.14.7 (main, Aug  5 2026, 10:29:49) [Clang 21.0.0 (clang-2100.1.1.101)]",
+  "trials": 7,
+  "measurement": "Fresh-process source runs with Guion source cache bypassed; fixture setup excluded. Every report is checked against the expected sorted JSON. OS file cache is uncontrolled.",
+  "workloads": {
+    "4096": {
+      "packages": 4096,
+      "diagnostics": 8192,
+      "preflight": {
+        "baseline_source": {
+          "passed": true,
+          "elapsed_seconds": 0.61119,
+          "failures": [],
+          "stderr": "",
+          "runner_wall_seconds": 0.6148012089543045
+        },
+        "candidate_source": {
+          "passed": true,
+          "elapsed_seconds": 0.077991,
+          "failures": [],
+          "stderr": "",
+          "runner_wall_seconds": 0.08146354201016948
+        },
+        "python": {
+          "passed": true,
+          "elapsed_seconds": 0.126327,
+          "failures": [],
+          "stderr": "",
+          "runner_wall_seconds": 0.13022275001276284
+        }
+      },
+      "samples_seconds": {
+        "baseline_source": [
+          0.079883,
+          0.078395,
+          0.076851,
+          0.080306,
+          0.076769,
+          0.076047,
+          0.077696
+        ],
+        "candidate_source": [
+          0.077843,
+          0.077802,
+          0.074327,
+          0.079523,
+          0.078805,
+          0.075817,
+          0.083311
+        ],
+        "python": [
+          0.118811,
+          0.117186,
+          0.114905,
+          0.117017,
+          0.116495,
+          0.119532,
+          0.115382
+        ]
+      },
+      "paired_order": [
+        [
+          "candidate_source",
+          "python",
+          "baseline_source"
+        ],
+        [
+          "candidate_source",
+          "python",
+          "baseline_source"
+        ],
+        [
+          "candidate_source",
+          "baseline_source",
+          "python"
+        ],
+        [
+          "python",
+          "baseline_source",
+          "candidate_source"
+        ],
+        [
+          "candidate_source",
+          "python",
+          "baseline_source"
+        ],
+        [
+          "python",
+          "candidate_source",
+          "baseline_source"
+        ],
+        [
+          "baseline_source",
+          "python",
+          "candidate_source"
+        ]
+      ],
+      "median_seconds": {
+        "baseline_source": 0.077696,
+        "candidate_source": 0.077843,
+        "python": 0.117017
+      },
+      "ratios": {
+        "candidate_over_python": {
+          "median": 0.6639188981618964,
+          "bootstrap_95_interval": [
+            0.6468560985161657,
+            0.6795850175615509
+          ]
+        },
+        "candidate_over_baseline": {
+          "median": 0.9924357420753873,
+          "bootstrap_95_interval": [
+            0.9744626516280059,
+            1.0265211218069794
+          ]
+        }
+      },
+      "all_outputs_verified": true,
+      "status": "passed"
+    },
+    "8192": {
+      "packages": 8192,
+      "diagnostics": 16384,
+      "preflight": {
+        "baseline_source": {
+          "passed": false,
+          "elapsed_seconds": 0.104728,
+          "failures": [
+            "step 1: expected exit code 0, received 1",
+            "step 1: check 1: json_equals could not be evaluated: [Errno 2] No such file or directory: '/Users/rmichaelthomas/guion/target/perf-session/real-tasks-tmp/veritas-independent-case-yk12kazt/report.json'"
+          ],
+          "stderr": "main.vr:305:40: runtime error[R_STEP_LIMIT]: instruction budget exhausted\n",
+          "runner_wall_seconds": 0.1073883330100216
+        },
+        "candidate_source": {
+          "passed": false,
+          "elapsed_seconds": 0.10257,
+          "failures": [
+            "step 1: expected exit code 0, received 1",
+            "step 1: check 1: json_equals could not be evaluated: [Errno 2] No such file or directory: '/Users/rmichaelthomas/guion/target/perf-session/real-tasks-tmp/veritas-independent-case-18lk9oyf/report.json'"
+          ],
+          "stderr": "main.vr:305:40: runtime error[R_STEP_LIMIT]: instruction budget exhausted\n",
+          "runner_wall_seconds": 0.10570633399765939
+        },
+        "python": {
+          "passed": true,
+          "elapsed_seconds": 0.144559,
+          "failures": [],
+          "stderr": "",
+          "runner_wall_seconds": 0.14719099999638274
+        }
+      },
+      "status": "failed"
+    }
+  }
+}

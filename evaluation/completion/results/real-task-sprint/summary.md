@@ -87,3 +87,7 @@ The requested post-commit agent-preference rerun remains incomplete. The user ex
 ## Interpretation
 
 These are meaningful gains on named programs and conditions. They do not establish that Guion is faster than Python on arbitrary tasks, that the Python alternatives are individually optimized, or that agents generally will choose Guion.
+
+## Branch-wide speed checkpoint
+
+Across the sprint, the latest measured Richards build fell from **48.38 ms** at the shared VM baseline to **24.72 ms** (about **49% less time**), and the 200,000-row JSONL comparison moved from **4.160 s** to **3.690 s** (about **11.3% less time**). Those measurements predate branch HEAD `b83b989` and are labeled with their exact revisions in the [branch speed checkpoint](2026-10-27-branch-speed-checkpoint.md). At HEAD, the lockfile audit remains about **1.51× faster** than Python at 4,096 packages, but Guion still reaches its default instruction limit at 8,192 packages. The checkpoint records the raw run, branch-wide comparison, and a clean stopping point.
