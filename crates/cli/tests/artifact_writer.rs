@@ -168,9 +168,9 @@ fn guion_artifact_writer_matches_native_writer_and_reader() {
     let smoke_source = "fn main() -> Int:\n    return 0\n";
     fs::write(&smoke_path, smoke_source).unwrap();
     let compiler_args = vec![
-        Value::Text(smoke_name),
+        Value::Text(smoke_name.into()),
         Value::Text(smoke_source.into()),
-        Value::Text(String::new()),
+        Value::Text(String::new().into()),
         Value::Json(guion_model::SharedJson::from_serde(serde_json::json!({}))),
     ];
     let smoke_policy = HostPolicy::default().with_file_access(&repository, true, false);

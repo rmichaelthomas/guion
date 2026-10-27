@@ -7,6 +7,17 @@ mod tests {
     use std::sync::Arc;
 
     #[test]
+    fn cloned_text_values_share_immutable_storage() {
+        let value = Value::Text("a sufficiently long immutable string value".into());
+        let cloned = value.clone();
+        let (Value::Text(original), Value::Text(copy)) = (value, cloned) else {
+            panic!("text values remain text after cloning")
+        };
+
+        assert_eq!(original.as_ptr(), copy.as_ptr());
+    }
+
+    #[test]
     fn decimal_integer_math_is_unbounded_and_normalized() {
         let a = BigInt::parse("999999999999999999999999999999").unwrap();
         let b = BigInt::parse("1").unwrap();
@@ -1206,7 +1217,7 @@ pub enum Value {
     Record(String, Arc<Vec<Value>>),
     Bytes(Arc<Vec<u8>>),
     Bool(bool),
-    Text(String),
+    Text(Arc<str>),
     List(Arc<Vec<Value>>),
     Float64List(Arc<Vec<Float64>>),
     Map(Arc<BTreeMap<String, Value>>),
@@ -3435,7 +3446,7 @@ impl<'a> Reader<'a> {
                     "invalid boolean encoding",
                 )),
             },
-            2 => Ok(Value::Text(self.string()?)),
+            2 => Ok(Value::Text(self.string()?.into())),
             3 => Ok(Value::Unit),
             4 => {
                 let n = self.count()?;

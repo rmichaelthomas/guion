@@ -10,7 +10,7 @@ fn compiler_output(runtime: &mut Instance, entry: &str, source: &str) -> Vec<u8>
             vec![
                 Value::Text(entry.into()),
                 Value::Text(source.into()),
-                Value::Text(String::new()),
+                Value::Text(String::new().into()),
                 Value::Json(guion_model::SharedJson::from_serde(serde_json::json!({}))),
             ],
         )

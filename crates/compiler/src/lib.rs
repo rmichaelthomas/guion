@@ -1360,7 +1360,7 @@ impl<'a> FnCompiler<'a> {
                 Ok(Type::Bool)
             }
             Expr::Text(v, s) => {
-                self.emit(Op::Const(Value::Text(v.clone())), *s);
+                self.emit(Op::Const(Value::Text(v.clone().into())), *s);
                 Ok(Type::Text)
             }
             Expr::List(values, span) => {
@@ -1426,7 +1426,7 @@ impl<'a> FnCompiler<'a> {
                             *key_span,
                         ));
                     }
-                    self.emit(Op::Const(Value::Text(key_text.clone())), *key_span);
+                    self.emit(Op::Const(Value::Text(key_text.clone().into())), *key_span);
                     let actual = self.expr_with_expected(value, expected_item)?;
                     if item_type
                         .as_ref()

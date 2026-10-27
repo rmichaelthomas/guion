@@ -628,7 +628,7 @@ fn decode_wire_value(
         WireValue::Bool(value) => Ok(Value::Bool(value)),
         WireValue::Text(value) => {
             check_string(&value)?;
-            Ok(Value::Text(value))
+            Ok(Value::Text(value.into()))
         }
         WireValue::Bytes(value) => {
             if value.len() > MAX_WIRE_VALUE_BYTES.saturating_mul(4).div_ceil(3) + 4 {
@@ -762,7 +762,7 @@ fn encode_wire_value(
         Value::Bool(value) => Ok(WireValue::Bool(*value)),
         Value::Text(value) => {
             check_string(value)?;
-            Ok(WireValue::Text(value.clone()))
+            Ok(WireValue::Text(value.to_string()))
         }
         Value::Bytes(value) => {
             if value.len() > MAX_WIRE_VALUE_BYTES {

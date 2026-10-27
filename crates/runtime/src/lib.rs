@@ -847,10 +847,10 @@ impl VmHost for Instance {
                         self.finish_effect(effect, EffectOutcome::Returned);
                         charge_allocation(
                             budget.as_ref(),
-                            size_of::<String>().saturating_add(text.capacity()),
+                            size_of::<String>().saturating_add(text.len()),
                             instruction.span,
                         )?;
-                        push_stack!(Value::ResultOk(Box::new(Value::Text(text))));
+                        push_stack!(Value::ResultOk(Box::new(Value::Text(text.into()))));
                     }
                     Err(mut error) => {
                         if budget.is_cancelled() {
@@ -900,7 +900,7 @@ impl VmHost for Instance {
                     self.policy.http_timeout
                 };
                 let body = match pop!() {
-                    Value::Text(body) if !byte_response => body.into_bytes(),
+                    Value::Text(body) if !byte_response => body.as_bytes().to_vec(),
                     Value::Bytes(body) if byte_response => body.as_ref().clone(),
                     _ => {
                         return Err(RuntimeError::new(
@@ -925,7 +925,7 @@ impl VmHost for Instance {
                                     instruction.span,
                                 ));
                             };
-                            decoded.insert(name.clone(), value.clone());
+                            decoded.insert(name.clone(), value.to_string());
                         }
                         decoded
                     }
@@ -986,7 +986,7 @@ impl VmHost for Instance {
                             let response_headers = response
                                 .headers
                                 .into_iter()
-                                .map(|(key, value)| (key, Value::Text(value)))
+                                .map(|(key, value)| (key, Value::Text(value.into())))
                                 .collect();
                             push_stack!(Value::ResultOk(Box::new(Value::Record(
                                 "HttpResponse".into(),
@@ -1047,7 +1047,7 @@ impl VmHost for Instance {
                         return Ok(());
                     }
                 };
-                let effect = self.begin_effect(EffectKind::FileRead, path.as_str());
+                let effect = self.begin_effect(EffectKind::FileRead, path.as_ref());
                 let opened = if instruction.op == Op::FileOpenLines {
                     self.readers.open_lines(resolved)
                 } else {
@@ -1107,7 +1107,7 @@ impl VmHost for Instance {
                                 "SourceLine".into(),
                                 Arc::new(vec![
                                     Value::Int(BigInt::from_usize(line.number)),
-                                    Value::Text(line.text)
+                                    Value::Text(line.text.into())
                                 ]),
                             )))
                         ))),
@@ -1128,7 +1128,10 @@ impl VmHost for Instance {
                                 Arc::new(vec![
                                     Value::Int(BigInt::from_usize(row.start_line)),
                                     Value::from_list_items(
-                                        row.fields.into_iter().map(Value::Text).collect()
+                                        row.fields
+                                            .into_iter()
+                                            .map(|field| Value::Text(field.into()))
+                                            .collect()
                                     )
                                 ]),
                             ))
@@ -1198,7 +1201,7 @@ impl VmHost for Instance {
                     let fields = fields
                         .iter()
                         .map(|value| match value {
-                            Value::Text(text) => Ok(text.clone()),
+                            Value::Text(text) => Ok(text.to_string()),
                             _ => Err(RuntimeError::new(
                                 "R_TYPE_INVALID",
                                 "csv_encode field requires Text",
@@ -1218,8 +1221,12 @@ impl VmHost for Instance {
                         instruction.span,
                     ));
                 }
-                charge_allocation(budget.as_ref(), text.len(), instruction.span)?;
-                push_stack!(Value::ResultOk(Box::new(Value::Text(text))));
+                charge_allocation(
+                    budget.as_ref(),
+                    size_of::<String>().saturating_add(text.len()),
+                    instruction.span,
+                )?;
+                push_stack!(Value::ResultOk(Box::new(Value::Text(text.into()))));
             }
             Op::TimeParseDate | Op::TimeParseTimestamp | Op::SemVerParse => {
                 let text = match pop!() {
@@ -1260,16 +1267,24 @@ impl VmHost for Instance {
                         Value::Record(
                             "SemVer".into(),
                             Arc::new(vec![
-                                Value::Text(version.major),
-                                Value::Text(version.minor),
-                                Value::Text(version.patch),
+                                Value::Text(version.major.into()),
+                                Value::Text(version.minor.into()),
+                                Value::Text(version.patch.into()),
                                 Value::from_list_items(
-                                    version.prerelease.into_iter().map(Value::Text).collect(),
+                                    version
+                                        .prerelease
+                                        .into_iter()
+                                        .map(|value| Value::Text(value.into()))
+                                        .collect(),
                                 ),
                                 Value::from_list_items(
-                                    version.build.into_iter().map(Value::Text).collect(),
+                                    version
+                                        .build
+                                        .into_iter()
+                                        .map(|value| Value::Text(value.into()))
+                                        .collect(),
                                 ),
-                                Value::Text(version.original),
+                                Value::Text(version.original.into()),
                             ]),
                         )
                     }),
@@ -1324,8 +1339,12 @@ impl VmHost for Instance {
                         instruction.span,
                     ));
                 }
-                charge_allocation(budget.as_ref(), text.len(), instruction.span)?;
-                push_stack!(Value::Text(text));
+                charge_allocation(
+                    budget.as_ref(),
+                    size_of::<String>().saturating_add(text.len()),
+                    instruction.span,
+                )?;
+                push_stack!(Value::Text(text.into()));
             }
             Op::UnixTimeMs | Op::TimeTodayLocal => {
                 if !self.policy.allow_clock {
@@ -1439,7 +1458,7 @@ impl VmHost for Instance {
                 let arguments = arguments
                     .iter()
                     .map(|value| match value {
-                        Value::Text(value) => Ok(value.clone()),
+                        Value::Text(value) => Ok(value.to_string()),
                         _ => Err(RuntimeError::new(
                             "R_TYPE_INVALID",
                             "cli_parse argument must be Text",
@@ -1477,7 +1496,7 @@ impl VmHost for Instance {
                         ));
                     };
                     parsed_options.push(stdlib_data::CliOption::new(
-                        name.clone(),
+                        name.to_string(),
                         *takes_value,
                         *repeatable,
                         *required,
@@ -1492,7 +1511,10 @@ impl VmHost for Instance {
                                 (
                                     key,
                                     Value::from_list_items(
-                                        values.into_iter().map(Value::Text).collect(),
+                                        values
+                                            .into_iter()
+                                            .map(|value| Value::Text(value.into()))
+                                            .collect(),
                                     ),
                                 )
                             })
@@ -1502,7 +1524,11 @@ impl VmHost for Instance {
                             Arc::new(vec![
                                 Value::Map(Arc::new(values)),
                                 Value::from_list_items(
-                                    parsed.positionals.into_iter().map(Value::Text).collect(),
+                                    parsed
+                                        .positionals
+                                        .into_iter()
+                                        .map(|value| Value::Text(value.into()))
+                                        .collect(),
                                 ),
                             ]),
                         );
@@ -1551,8 +1577,8 @@ impl VmHost for Instance {
                                 Value::Record(
                                     "DirectoryEntry".into(),
                                     Arc::new(vec![
-                                        Value::Text(entry.relative_path),
-                                        Value::Text(entry.kind),
+                                        Value::Text(entry.relative_path.into()),
+                                        Value::Text(entry.kind.into()),
                                     ]),
                                 )
                             })
@@ -1610,7 +1636,7 @@ impl VmHost for Instance {
                     }
                 };
                 push_stack!(map
-                    .get(&key)
+                    .get(key.as_ref())
                     .cloned()
                     .map(|value| Value::OptionSome(Box::new(value)))
                     .unwrap_or(Value::OptionNone));
@@ -1683,7 +1709,7 @@ impl VmHost for Instance {
                     ));
                 }
                 charge_allocation(budget.as_ref(), output.len(), instruction.span)?;
-                push_stack!(Value::Text(output));
+                push_stack!(Value::Text(output.into()));
             }
             Op::TextNormalize => {
                 let form = match pop!() {
@@ -1709,7 +1735,7 @@ impl VmHost for Instance {
                 match stdlib_services::text_normalize(&text, &form) {
                     Ok(output) if output.len() <= self.policy.max_text_bytes => {
                         charge_allocation(budget.as_ref(), output.len(), instruction.span)?;
-                        push_stack!(Value::ResultOk(Box::new(Value::Text(output))));
+                        push_stack!(Value::ResultOk(Box::new(Value::Text(output.into()))));
                     }
                     Ok(_) => {
                         return Err(RuntimeError::new(
@@ -1809,7 +1835,7 @@ impl VmHost for Instance {
                             "E_SQLITE_PATH",
                             error.message,
                         )
-                        .at_path(path.clone())),
+                        .at_path(path.to_string())),
                     }
                 };
                 push_stack!(service_result_value(result));
@@ -1872,7 +1898,7 @@ impl VmHost for Instance {
                                                 Value::from_list_items(
                                                     row.columns
                                                         .into_iter()
-                                                        .map(Value::Text)
+                                                        .map(|text| Value::Text(text.into()))
                                                         .collect(),
                                                 ),
                                                 Value::from_list_items(
@@ -1945,7 +1971,10 @@ impl VmHost for Instance {
                 let handle = stdlib_services::TomlHandle::from_parts(owner, id);
                 let result = match instruction.op {
                     Op::TomlHas => self.toml_documents.has(handle, &path).map(Value::Bool),
-                    Op::TomlGetText => self.toml_documents.get_text(handle, &path).map(Value::Text),
+                    Op::TomlGetText => self
+                        .toml_documents
+                        .get_text(handle, &path)
+                        .map(|text| Value::Text(text.into())),
                     Op::TomlGetInt => self
                         .toml_documents
                         .get_integer(handle, &path)
@@ -2011,8 +2040,12 @@ impl VmHost for Instance {
                         instruction.span,
                     ));
                 }
-                charge_allocation(budget.as_ref(), text.len(), instruction.span)?;
-                push_stack!(Value::Text(text));
+                charge_allocation(
+                    budget.as_ref(),
+                    size_of::<String>().saturating_add(text.len()),
+                    instruction.span,
+                )?;
+                push_stack!(Value::Text(text.into()));
             }
             Op::CalendarParse => {
                 let source = match pop!() {
@@ -2105,12 +2138,12 @@ impl VmHost for Instance {
                 }
                 charge_allocation(
                     budget.as_ref(),
-                    size_of::<String>().saturating_add(text.capacity()),
+                    size_of::<String>().saturating_add(text.len()),
                     instruction.span,
                 )?;
                 let effect = self.begin_effect(EffectKind::FileRead, path);
                 self.finish_effect(effect, EffectOutcome::Returned);
-                push_stack!(Value::ResultOk(Box::new(Value::Text(text))));
+                push_stack!(Value::ResultOk(Box::new(Value::Text(text.into()))));
             }
             Op::WriteText => {
                 let content = match pop!() {
@@ -2147,8 +2180,8 @@ impl VmHost for Instance {
                         return Ok(());
                     }
                 };
-                let effect = self.begin_effect(EffectKind::FileWrite, path.as_str());
-                if let Err(error) = fs::write(&resolved, content) {
+                let effect = self.begin_effect(EffectKind::FileWrite, path.as_ref());
+                if let Err(error) = fs::write(&resolved, content.as_bytes()) {
                     self.finish_effect(effect, EffectOutcome::ReturnedError);
                     push_stack!(file_error_result(RuntimeError::new(
                         "R_FILE_WRITE",
@@ -2202,7 +2235,7 @@ impl VmHost for Instance {
                         return Ok(());
                     }
                 };
-                let effect = self.begin_effect(EffectKind::FileWrite, path.as_str());
+                let effect = self.begin_effect(EffectKind::FileWrite, path.as_ref());
                 if let Err(error) = atomic_replace_text(&resolved, &content) {
                     self.finish_effect(effect, EffectOutcome::ReturnedError);
                     push_stack!(file_error_result(RuntimeError::new(
@@ -2274,7 +2307,7 @@ impl VmHost for Instance {
                     bytes.capacity().saturating_add(size_of::<Vec<u8>>()),
                     instruction.span,
                 )?;
-                let effect = self.begin_effect(EffectKind::FileRead, path);
+                let effect = self.begin_effect(EffectKind::FileRead, path.as_ref());
                 self.finish_effect(effect, EffectOutcome::Returned);
                 push_stack!(Value::ResultOk(Box::new(Value::Bytes(Arc::new(bytes)))));
             }
@@ -2313,7 +2346,7 @@ impl VmHost for Instance {
                         return Ok(());
                     }
                 };
-                let effect = self.begin_effect(EffectKind::FileWrite, path.as_str());
+                let effect = self.begin_effect(EffectKind::FileWrite, path.as_ref());
                 if let Err(error) = fs::write(&resolved, content.as_slice()) {
                     self.finish_effect(effect, EffectOutcome::ReturnedError);
                     push_stack!(file_error_result(RuntimeError::new(
@@ -2342,7 +2375,7 @@ impl VmHost for Instance {
                     .arguments
                     .iter()
                     .cloned()
-                    .map(Value::Text)
+                    .map(|value| Value::Text(value.into()))
                     .collect::<Vec<_>>();
                 if values.len() > self.policy.max_collection_items {
                     return Err(RuntimeError::new(
@@ -2385,7 +2418,7 @@ impl VmHost for Instance {
                     .iter()
                     .skip(start)
                     .cloned()
-                    .map(Value::Text)
+                    .map(|value| Value::Text(value.into()))
                     .collect::<Vec<_>>();
                 let allocation = values.iter().fold(
                     size_of::<Vec<Value>>()
@@ -2422,18 +2455,22 @@ impl VmHost for Instance {
                         ))
                     }
                 };
-                if !self.policy.allowed_environment_variables.contains(&name) {
+                if !self
+                    .policy
+                    .allowed_environment_variables
+                    .contains(name.as_ref())
+                {
                     return Err(RuntimeError::new(
                         "R_ENV_DENIED",
                         format!("environment variable `{name}` is not granted"),
                         instruction.span,
                     ));
                 }
-                let effect = self.begin_effect(EffectKind::EnvironmentRead, name.as_str());
-                match std::env::var(name) {
+                let effect = self.begin_effect(EffectKind::EnvironmentRead, name.as_ref());
+                match std::env::var(name.as_ref()) {
                     Ok(value) => {
                         self.finish_effect(effect, EffectOutcome::Returned);
-                        push_stack!(Value::OptionSome(Box::new(Value::Text(value))))
+                        push_stack!(Value::OptionSome(Box::new(Value::Text(value.into()))))
                     }
                     Err(std::env::VarError::NotPresent) => {
                         self.finish_effect(effect, EffectOutcome::Returned);
@@ -2461,10 +2498,10 @@ impl VmHost for Instance {
                     }
                 };
                 push_stack!(match instruction.op {
-                    Op::JsonErrorMessage => Value::Text(error.message),
+                    Op::JsonErrorMessage => Value::Text(error.message.into()),
                     Op::JsonErrorLine => Value::Int(BigInt::from_usize(error.line)),
                     Op::JsonErrorColumn => Value::Int(BigInt::from_usize(error.column)),
-                    Op::JsonErrorCode => Value::Text(error.code),
+                    Op::JsonErrorCode => Value::Text(error.code.into()),
                     _ => unreachable!(),
                 });
             }
@@ -2480,8 +2517,8 @@ impl VmHost for Instance {
                     }
                 };
                 push_stack!(match instruction.op {
-                    Op::FileErrorCode => Value::Text(error.code),
-                    Op::FileErrorMessage => Value::Text(error.message),
+                    Op::FileErrorCode => Value::Text(error.code.into()),
+                    Op::FileErrorMessage => Value::Text(error.message.into()),
                     Op::FileErrorLine => Value::Int(BigInt::from_usize(
                         error.trace.first().map(|span| span.line).unwrap_or(0),
                     )),
@@ -2504,9 +2541,9 @@ impl VmHost for Instance {
                 };
                 push_stack!(Value::Text(
                     if matches!(instruction.op, Op::HttpErrorCode) {
-                        error.code
+                        error.code.into()
                     } else {
-                        error.message
+                        error.message.into()
                     }
                 ));
             }
@@ -2521,7 +2558,7 @@ impl VmHost for Instance {
                 }
             },
             Op::TaskCode => match pop!() {
-                Value::TaskError(error) => push_stack!(Value::Text(error.code)),
+                Value::TaskError(error) => push_stack!(Value::Text(error.code.into())),
                 _ => {
                     return Err(RuntimeError::new(
                         "R_TYPE_INVALID",
@@ -2531,7 +2568,7 @@ impl VmHost for Instance {
                 }
             },
             Op::TaskMessage => match pop!() {
-                Value::TaskError(error) => push_stack!(Value::Text(error.message)),
+                Value::TaskError(error) => push_stack!(Value::Text(error.message.into())),
                 _ => {
                     return Err(RuntimeError::new(
                         "R_TYPE_INVALID",
@@ -2669,7 +2706,7 @@ impl VmHost for Instance {
                     ));
                 }
                 push_stack!(finish_json_value(
-                    serde_json::Value::String(text),
+                    serde_json::Value::String(text.to_string()),
                     &self.policy.vm_limits(),
                     budget.as_ref(),
                     instruction.span,
@@ -2772,7 +2809,7 @@ impl VmHost for Instance {
                         instruction.span,
                     ));
                 };
-                fields.insert(key, Arc::new(child));
+                fields.insert(key.to_string(), Arc::new(child));
                 push_stack!(finish_shared_json(
                     object,
                     &self.policy.vm_limits(),
@@ -2854,10 +2891,10 @@ impl VmHost for Instance {
                 }
                 charge_allocation(
                     budget.as_ref(),
-                    size_of::<String>().saturating_add(text.capacity()),
+                    size_of::<String>().saturating_add(text.len()),
                     instruction.span,
                 )?;
-                push_stack!(Value::Text(text));
+                push_stack!(Value::Text(text.into()));
             }
             Op::JsonTryGet
             | Op::JsonTryIndex
@@ -2931,9 +2968,8 @@ impl VmHost for Instance {
                             }
                         };
                         match instruction.op {
-                            Op::JsonTryText => {
-                                stdlib_data::json_try_text(value.as_ref()).map(Value::Text)
-                            }
+                            Op::JsonTryText => stdlib_data::json_try_text(value.as_ref())
+                                .map(|text| Value::Text(text.into())),
                             Op::JsonTryInt => {
                                 stdlib_data::json_try_int(value.as_ref()).map(Value::Int)
                             }
@@ -3010,7 +3046,7 @@ impl VmHost for Instance {
                         instruction.span,
                     )
                 })?;
-                let value = object.get(&key).cloned().ok_or_else(|| {
+                let value = object.get(key.as_ref()).cloned().ok_or_else(|| {
                     RuntimeError::new(
                         "R_JSON_KEY",
                         format!("JSON object has no key `{key}`"),
@@ -3088,7 +3124,7 @@ impl VmHost for Instance {
                         instruction.span,
                     )
                 })?;
-                push_stack!(Value::Bool(object.contains_key(&key)));
+                push_stack!(Value::Bool(object.contains_key(key.as_ref())));
             }
             Op::JsonLength => {
                 let value = match pop!() {
@@ -3160,7 +3196,7 @@ impl VmHost for Instance {
                             instruction.span,
                         )
                     })?;
-                    let value = object.get(field.as_str()).ok_or_else(|| {
+                    let value = object.get(field.as_ref()).ok_or_else(|| {
                         RuntimeError::new(
                             "R_JSON_FIELD",
                             format!("JSON row has no field {field:?}"),
@@ -3235,7 +3271,7 @@ impl VmHost for Instance {
                             instruction.span,
                         )
                     })?;
-                    let value = object.get(field.as_str()).ok_or_else(|| {
+                    let value = object.get(field.as_ref()).ok_or_else(|| {
                         RuntimeError::new(
                             "R_JSON_FIELD",
                             format!("JSON row has no field {field:?}"),
@@ -3396,6 +3432,8 @@ impl VmHost for Instance {
                         instruction.span,
                     ));
                 }
+                let path = path.iter().map(|part| part.to_string()).collect();
+                let fields = fields.iter().map(|field| field.to_string()).collect();
                 let result = json_projection::project_columns(
                     &source,
                     path,
@@ -3497,7 +3535,7 @@ impl VmHost for Instance {
                             size_of::<String>().saturating_add(text.len()),
                             instruction.span,
                         )?;
-                        push_stack!(Value::Text(text.to_string()))
+                        push_stack!(Value::Text(text.to_string().into()))
                     }
                     _ => {
                         return Err(RuntimeError::new(
@@ -5444,7 +5482,7 @@ fn runtime_text_path(value: &Value, span: Span) -> Result<Vec<String>, RuntimeEr
     items
         .iter()
         .map(|item| match item {
-            Value::Text(text) => Ok(text.clone()),
+            Value::Text(text) => Ok(text.to_string()),
             _ => Err(RuntimeError::new(
                 "R_TYPE_INVALID",
                 "TOML path must contain only Text",
@@ -5501,7 +5539,7 @@ fn runtime_sql_values(
             let zero_real = real.get() == 0.0;
             let empty_text = text.is_empty();
             let empty_blob = blob.is_empty();
-            let decoded = match kind.as_str() {
+            let decoded = match kind.as_ref() {
                 "null" if zero_integer && zero_real && empty_text && empty_blob => {
                     stdlib_services::SqlValue::Null
                 }
@@ -5512,7 +5550,7 @@ fn runtime_sql_values(
                     stdlib_services::SqlValue::Real(real.get())
                 }
                 "text" if zero_integer && zero_real && empty_blob => {
-                    stdlib_services::SqlValue::Text(text.clone())
+                    stdlib_services::SqlValue::Text(text.to_string())
                 }
                 "blob" if zero_integer && zero_real && empty_text => {
                     stdlib_services::SqlValue::Blob(blob.as_ref().clone())
@@ -5532,9 +5570,9 @@ fn service_error_value(error: stdlib_services::ServiceError) -> Value {
     Value::Record(
         "StdError".into(),
         Arc::new(vec![
-            Value::Text(error.code),
-            Value::Text(error.message),
-            Value::Text(error.path),
+            Value::Text(error.code.into()),
+            Value::Text(error.message.into()),
+            Value::Text(error.path.into()),
             Value::Int(BigInt::from_usize(error.line)),
             Value::Int(BigInt::from_usize(error.column)),
         ]),
@@ -5564,7 +5602,7 @@ fn service_sql_value(value: stdlib_services::SqlValue) -> Value {
             Value::Text(kind.into()),
             Value::Int(BigInt::from_i64(integer)),
             Value::Float64(Float64::new(real).expect("SQLite service returns finite reals")),
-            Value::Text(text),
+            Value::Text(text.into()),
             Value::Bytes(Arc::new(blob)),
         ]),
     )
@@ -5597,17 +5635,17 @@ fn service_calendar_event(event: stdlib_services::CalendarEvent) -> Value {
     };
     let recurrence = event
         .recurrence_rule
-        .map(|rule| Value::OptionSome(Box::new(Value::Text(rule))))
+        .map(|rule| Value::OptionSome(Box::new(Value::Text(rule.into()))))
         .unwrap_or(Value::OptionNone);
     Value::Record(
         "CalendarEvent".into(),
         Arc::new(vec![
-            Value::Text(event.uid),
+            Value::Text(event.uid.into()),
             instant(event.start_unix_seconds),
             instant(event.end_unix_seconds),
             date(event.start_date),
             date(event.end_date),
-            Value::Text(event.status),
+            Value::Text(event.status.into()),
             Value::Bool(event.all_day),
             recurrence,
         ]),

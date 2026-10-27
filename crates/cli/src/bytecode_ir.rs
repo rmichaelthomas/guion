@@ -139,7 +139,9 @@ fn parse_instruction(
                 .ok_or("ConstBool.value must be boolean")?,
         )),
         "ConstText" => Op::Const(Value::Text(
-            required_str(object.get("value"), "ConstText.value")?.to_owned(),
+            required_str(object.get("value"), "ConstText.value")?
+                .to_owned()
+                .into(),
         )),
         "ConstFloat64" => {
             let value = required_str(object.get("value"), "ConstFloat64.value")?

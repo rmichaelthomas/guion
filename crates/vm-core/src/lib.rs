@@ -307,7 +307,10 @@ pub fn execute_vm_frame<H: VmHost>(
                                 instruction.span,
                             ));
                         }
-                        Value::Text(x + &y)
+                        let mut text = String::with_capacity(x.len() + y.len());
+                        text.push_str(&x);
+                        text.push_str(&y);
+                        Value::Text(text.into())
                     }
                     _ => {
                         return Err(RuntimeError::new(
@@ -571,7 +574,7 @@ pub fn execute_vm_frame<H: VmHost>(
                             .saturating_add(size_of::<String>() + size_of::<Value>() * 2),
                         instruction.span,
                     )?;
-                    if values.insert(key.clone(), value).is_some() {
+                    if values.insert(key.to_string(), value).is_some() {
                         return Err(RuntimeError::new(
                             "R_MAP_DUPLICATE_KEY",
                             format!("duplicate map key `{key}`"),
@@ -678,7 +681,10 @@ pub fn execute_vm_frame<H: VmHost>(
                         |total, key| total.saturating_add(size_of::<String>() + key.len()),
                     );
                     charge_allocation(budget.as_ref(), allocation, instruction.span)?;
-                    let keys = values.keys().cloned().map(Value::Text).collect::<Vec<_>>();
+                    let keys = values
+                        .keys()
+                        .map(|key| Value::Text(Arc::<str>::from(key.as_str())))
+                        .collect::<Vec<_>>();
                     push_stack!(Value::List(Arc::new(keys)));
                 }
                 _ => {
@@ -740,7 +746,7 @@ pub fn execute_vm_frame<H: VmHost>(
                             instruction.span,
                         ));
                     };
-                    let contains_key = items.contains_key(&key);
+                    let contains_key = items.contains_key(key.as_ref());
                     if !contains_key && items.len() >= limits.max_collection_items {
                         return Err(RuntimeError::new(
                             "R_COLLECTION_LIMIT",
@@ -757,7 +763,7 @@ pub fn execute_vm_frame<H: VmHost>(
                     }
                     let shared = Arc::strong_count(items) > 1;
                     let allocation = if shared {
-                        map_clone_allocation(items.as_ref(), Some(&key), &value)
+                        map_clone_allocation(items.as_ref(), Some(key.as_ref()), &value)
                     } else if contains_key {
                         0
                     } else {
@@ -767,11 +773,12 @@ pub fn execute_vm_frame<H: VmHost>(
                     if let Some(error) = value_limit_error(&value, &limits, instruction.span) {
                         return Err(error);
                     }
-                    Arc::make_mut(items).insert(key, value);
+                    Arc::make_mut(items).insert(key.to_string(), value);
                     push_stack!(Value::Map(Arc::clone(items)));
                     continue;
                 }
-                if !values.contains_key(&key) && values.len() >= limits.max_collection_items {
+                if !values.contains_key(key.as_ref()) && values.len() >= limits.max_collection_items
+                {
                     return Err(RuntimeError::new(
                         "R_COLLECTION_LIMIT",
                         "map exceeds the configured item limit",
@@ -785,10 +792,11 @@ pub fn execute_vm_frame<H: VmHost>(
                         instruction.span,
                     ));
                 }
-                let map_clone_bytes = map_clone_allocation(values.as_ref(), Some(&key), &value);
+                let map_clone_bytes =
+                    map_clone_allocation(values.as_ref(), Some(key.as_ref()), &value);
                 charge_allocation(budget.as_ref(), map_clone_bytes, instruction.span)?;
                 let mut updated = values.as_ref().clone();
-                updated.insert(key, value);
+                updated.insert(key.to_string(), value);
                 let map = Value::Map(Arc::new(updated));
                 if let Some(error) = value_limit_error(&map, &limits, instruction.span) {
                     return Err(error);
@@ -816,7 +824,7 @@ pub fn execute_vm_frame<H: VmHost>(
                         ))
                     }
                 };
-                push_stack!(Value::Bool(values.contains_key(&key)));
+                push_stack!(Value::Bool(values.contains_key(key.as_ref())));
             }
             Op::Length => {
                 let len = match pop!() {
@@ -862,7 +870,7 @@ pub fn execute_vm_frame<H: VmHost>(
                 charge_allocation(budget.as_ref(), allocation, instruction.span)?;
                 let values = text
                     .chars()
-                    .map(|scalar| Value::Text(scalar.to_string()))
+                    .map(|scalar| Value::Text(scalar.to_string().into()))
                     .collect::<Vec<_>>();
                 push_stack!(Value::from_list_items(values));
             }
@@ -931,7 +939,7 @@ pub fn execute_vm_frame<H: VmHost>(
                     ));
                 }
                 charge_allocation(budget.as_ref(), text.len(), instruction.span)?;
-                push_stack!(Value::Bytes(Arc::new(text.into_bytes())));
+                push_stack!(Value::Bytes(Arc::new(text.as_bytes().to_vec())));
             }
             Op::BytesJoin => {
                 let values = match pop!() {
@@ -1056,7 +1064,7 @@ pub fn execute_vm_frame<H: VmHost>(
                         push_stack!(value);
                     }
                     (Value::Map(items), Value::Text(key)) => {
-                        let value = items.get(&key).cloned().ok_or_else(|| {
+                        let value = items.get(key.as_ref()).cloned().ok_or_else(|| {
                             RuntimeError::new(
                                 "R_MAP_KEY_MISSING",
                                 format!("map has no key `{key}`"),
@@ -1092,10 +1100,10 @@ pub fn execute_vm_frame<H: VmHost>(
                                     instruction.span,
                                 )
                             })?;
-                        let value = Value::Text(value);
+                        let value = Value::Text(value.into());
                         charge_allocation(
                             budget.as_ref(),
-                            cloned_value_allocation(&value),
+                            new_value_allocation(&value),
                             instruction.span,
                         )?;
                         push_stack!(value);
@@ -2032,7 +2040,7 @@ pub fn new_value_allocation(value: &Value) -> usize {
         // Integer size and growth are bounded separately by max_integer_digits.
         // Counting transient scalar values here made VM and JIT budgets differ.
         Value::Int(_) => 0,
-        Value::Text(text) => size_of::<String>().saturating_add(text.capacity()),
+        Value::Text(text) => size_of::<String>().saturating_add(text.len()),
         Value::Bytes(bytes) => size_of::<Vec<u8>>().saturating_add(bytes.capacity()),
         Value::Float64List(items) => size_of::<Vec<Float64>>()
             .saturating_add(items.len().saturating_mul(size_of::<Float64>())),
@@ -2069,6 +2077,8 @@ pub fn new_value_allocation(value: &Value) -> usize {
 pub fn cloned_value_allocation(value: &Value) -> usize {
     match value {
         Value::Int(_) => 0,
+        // Keep the existing logical copy quota even though the clone now
+        // shares its immutable backing storage.
         Value::Text(text) => size_of::<String>().saturating_add(text.len()),
         Value::Record(name, _) => size_of::<String>().saturating_add(name.len()),
         Value::OptionSome(value) | Value::ResultOk(value) | Value::ResultErr(value) => {
