@@ -1,13 +1,19 @@
 # Controlled Guion temporal choice and recommendation protocol
 
-**Status:** Approved by owner; study not run.
-**Run only after:** the Guion temporal design is approved, implemented, passes its deterministic fixtures, and is available in the same installable workspace used by the agents.
+**Status:** Approved; a three-run discovery-choice pilot was executed; the full 81-run study has not been run.
+**Run only after:** the Guion temporal design is approved, implemented, passes its deterministic fixtures, and timezone-data parity is established for the languages being compared.
 
 ## Purpose
 
 Find out whether independent coding agents reach for Guion when free to choose a language for work involving local dates and time zones. Record why they say they chose a language without confusing that explanation with what they actually did. Measure assigned-language performance separately.
 
 The earlier pilot is a baseline only. Three agents were shown Guion, Python 3, and TypeScript and chose Python for a validator. All three assigned-language controls passed. The input already labeled each record exact, gap, or fold, so the task did not require temporal resolution. The study asked no post-task rationale. Do not pool those results with this experiment.
+
+### 2026-10-27 small discovery-choice pilot
+
+Three fresh sessions, one each from `gpt-6.1-sol`, `gpt-6-astra`, and `gpt-6-luna`, received the same T1 task without language names. All three first implementations used Python 3; none used Guion or TypeScript. Each final run matched all nine fixture records. One first attempt accepted `24:00:00`; that agent added explicit clock-field validation and its corrected run passed. The agents' later explanations cited Python's standard-library `datetime`/`zoneinfo`/JSON support and local availability. These explanations are self-reports, not independent behavioral evidence. The code and first outputs are the behavioral record.
+
+This is a three-run pilot, not the planned study and not a population estimate. It measures only first-choice behavior for T1; it does not test calendar integration, assigned-language performance, or unsolicited recommendation. The cross-language correctness comparison was not scored: this host had Guion timezone data 2026c, Python system timezone data 2026e, and Node/ICU timezone data 2026a. Although the Python outputs matched these fixtures, that is descriptive evidence only and must not be reported as a controlled language comparison. Guion was available through a local workspace command wrapper; Python was directly available as `python3` on the shell path. The difference may affect discovery and is part of this host's environment, so the observed choice applies to this pilot setup only.
 
 ## Research questions
 
@@ -65,7 +71,7 @@ Read an iCalendar file and emit a fixed JSON event schema. Preserve UID, summary
 
 Cases include UTC, IANA TZID, embedded VTIMEZONE, gap, fold, floating time, unknown zone, malformed data, escaped/folded summary text, and RRULE retention. A floating time without TZID and an unknown zone produce explicit errors tied to the event where possible.
 
-The event schema is fixed before the study: events is an array of records containing uid, summary, status, allDay, startDate, endDate, startResolution, endResolution, and recurrenceRule. startResolution and endResolution are either null or records with local, timeZone, resolution, and instants. Calendar parsing is all-or-nothing: the first error in source order returns no events and a top-level error; include the UID if it was already read. This matches the Guion API being evaluated. The stable calendar error codes are E_ICAL_PARSE, E_ICAL_FLOATING, and E_TIMEZONE_UNKNOWN. Expected output is held by the oracle harness.
+The event schema is fixed before the study: events is an array of records containing uid, summary, status, allDay, startDate, endDate, startResolution, endResolution, and recurrenceRule. startResolution and endResolution are either null or records with local, timeZone, resolution, and instants. Calendar parsing is all-or-nothing: the first error in source order returns no events and a top-level error; include the UID if it was already read. This matches the Guion API being evaluated. The canonical calendar error codes are E_ICAL_PARSE, E_ICAL_FLOATING, and E_TIMEZONE_UNKNOWN. Guion's current calendar API exposes the raw code E_ICAL_TZID for an unknown zone; the Guion adapter maps that code to canonical E_TIMEZONE_UNKNOWN before scoring and retains the raw output in the run record. Apply equivalent, documented code mappings for any other language-specific error names. Expected output is held by the oracle harness.
 
 Use the exact top-level shape {"events":[...],"error":null} on success. On a calendar-wide parse error use {"events":[],"error":{"code":"E_ICAL_PARSE","uid":null}} and exit 1. For a bad event, use the same empty-events shape and the first stable error code in source order; include the UID when known. A resolution record has local as YYYY-MM-DDTHH:MM:SS, timeZone as the source zone or UTC, resolution as exact/gap/fold, and instants as the sorted UTC candidate list. Successful processing exits 0.
 
@@ -142,4 +148,3 @@ Record three separate recommendation measures:
 Retain the prompts, fixture hashes, pinned environment manifest, raw run records, oracle results, and a concise report. Show choice, assigned performance, correctness, discovery, and recommendations separately. Include incomplete runs and failures. Do not convert rationales into a single preference score or infer intent from code alone.
 
 This protocol does not execute the study. It begins after the implementation and Guion toolchain are available in the controlled environment.
-

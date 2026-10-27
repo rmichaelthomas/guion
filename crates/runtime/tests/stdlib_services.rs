@@ -7,8 +7,8 @@ use std::{
 use guion_model::{Artifact, BigInt, SharedJson, Value};
 use guion_runtime::stdlib_services::{
     calendar_parse, crypto_hmac_sha256, crypto_verify_hmac_sha256, text_casefold,
-    text_collapse_whitespace, text_normalize, CalendarEvent, DatabaseRegistry, SqlValue,
-    TomlDocument, TomlRegistry,
+    text_collapse_whitespace, text_normalize, DatabaseRegistry, SqlValue, TomlDocument,
+    TomlRegistry,
 };
 use guion_runtime::{HostPolicy, Runtime};
 
@@ -318,12 +318,19 @@ fn calendar_parses_utc_event_and_rejects_floating_times() {
     let source = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:one\r\nDTSTART:20261024T090000Z\r\nDTEND:20261024T100000Z\r\nSUMMARY:Example\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
     let events = calendar_parse(source).unwrap();
     assert_eq!(events.len(), 1);
-    assert_eq!(
-        events[0],
-        CalendarEvent::timed("one", "Example", 1792832400, 1792836000)
-    );
+    assert_eq!(events[0].uid, "one");
+    assert_eq!(events[0].summary, "Example");
+    let start = events[0].start_resolution.as_ref().unwrap();
+    assert_eq!(start.kind, "exact");
+    assert_eq!(start.timezone, "UTC");
+    assert_eq!(start.local.hour, 9);
+    assert_eq!(start.unix_microseconds, [1_792_832_400_000_000]);
+    let end = events[0].end_resolution.as_ref().unwrap();
+    assert_eq!(end.unix_microseconds, [1_792_836_000_000_000]);
     let floating = source.replace("20261024T090000Z", "20261024T090000");
-    assert!(calendar_parse(&floating).is_err());
+    let floating_error = calendar_parse(&floating).unwrap_err();
+    assert_eq!(floating_error.code, "E_ICAL_FLOATING");
+    assert!(floating_error.message.contains("one"));
 
     let all_day = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:all-day\r\nDTSTART;VALUE=DATE:20261024\r\nDTEND;VALUE=DATE:20261025\r\nSUMMARY:Holiday\r\nSTATUS:CANCELLED\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
     let events = calendar_parse(all_day).unwrap();
@@ -331,7 +338,8 @@ fn calendar_parses_utc_event_and_rejects_floating_times() {
     assert!(events[0].all_day);
     assert_eq!(events[0].start_date, Some((2026, 10, 24)));
     assert_eq!(events[0].end_date, Some((2026, 10, 25)));
-    assert_eq!(events[0].start_unix_seconds, None);
+    assert_eq!(events[0].start_resolution, None);
+    assert_eq!(events[0].end_resolution, None);
     assert_eq!(events[0].status, "CANCELLED");
 }
 
@@ -346,9 +354,13 @@ fn calendar_parses_an_upstream_libical_sample() {
         events[0].summary,
         "Calendaring Interoperability Planning Meeting"
     );
+    let start = events[0].start_resolution.as_ref().unwrap();
+    let end = events[0].end_resolution.as_ref().unwrap();
+    assert_eq!(start.kind, "exact");
+    assert_eq!(start.timezone, "UTC");
     assert_eq!(
-        events[0].end_unix_seconds.unwrap() - events[0].start_unix_seconds.unwrap(),
-        30_600
+        end.unix_microseconds[0] - start.unix_microseconds[0],
+        30_600_000_000
     );
 }
 
@@ -357,15 +369,41 @@ fn embedded_vtimezone_observance_rules_resolve_recurrent_transitions() {
     let source = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VTIMEZONE\r\nTZID:Example/Eastern\r\nBEGIN:STANDARD\r\nDTSTART:20251102T020000\r\nTZOFFSETFROM:-0400\r\nTZOFFSETTO:-0500\r\nRRULE:FREQ=YEARLY;BYMONTH=11;BYDAY=1SU\r\nTZNAME:EST\r\nEND:STANDARD\r\nBEGIN:DAYLIGHT\r\nDTSTART:20250309T020000\r\nTZOFFSETFROM:-0500\r\nTZOFFSETTO:-0400\r\nRRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=2SU\r\nTZNAME:EDT\r\nEND:DAYLIGHT\r\nEND:VTIMEZONE\r\nBEGIN:VEVENT\r\nUID:summer\r\nDTSTART;TZID=Example/Eastern:20260701T090000\r\nDTEND;TZID=Example/Eastern:20260701T100000\r\nSUMMARY:Summer\r\nEND:VEVENT\r\nBEGIN:VEVENT\r\nUID:winter\r\nDTSTART;TZID=Example/Eastern:20260101T090000\r\nDTEND;TZID=Example/Eastern:20260101T100000\r\nSUMMARY:Winter\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
     let events = calendar_parse(source).unwrap();
     assert_eq!(events.len(), 2);
-    assert_eq!(events[0].start_unix_seconds, Some(1_782_910_800));
-    assert_eq!(events[1].start_unix_seconds, Some(1_767_276_000));
+    assert_eq!(
+        events[0].start_resolution.as_ref().unwrap().timezone,
+        "Example/Eastern"
+    );
+    assert_eq!(
+        events[0]
+            .start_resolution
+            .as_ref()
+            .unwrap()
+            .unix_microseconds,
+        [1_782_910_800_000_000]
+    );
+    assert_eq!(
+        events[1].start_resolution.as_ref().unwrap().timezone,
+        "Example/Eastern"
+    );
+    assert_eq!(
+        events[1]
+            .start_resolution
+            .as_ref()
+            .unwrap()
+            .unix_microseconds,
+        [1_767_276_000_000_000]
+    );
 }
 
 #[test]
 fn calendar_handles_iana_offsets_folding_escapes_and_invalid_event_data() {
     let source = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:one\r\nDTSTART;TZID=America/Los_Angeles:20261024T090000\r\nDTEND;TZID=America/Los_Angeles:20261024T100000\r\nSUMMARY:Long\\, folded\\nname\r\nSTATUS:TENTATIVE\r\nRRULE:FREQ=WEEKLY;BYDAY=MO\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
     let events = calendar_parse(source).unwrap();
-    assert_eq!(events[0].start_unix_seconds, Some(1792857600));
+    let exact = events[0].start_resolution.as_ref().unwrap();
+    assert_eq!(exact.kind, "exact");
+    assert_eq!(exact.timezone, "America/Los_Angeles");
+    assert_eq!(exact.local.hour, 9);
+    assert_eq!(exact.unix_microseconds, [1_792_857_600_000_000]);
     assert_eq!(events[0].summary, "Long, folded\nname");
     assert_eq!(events[0].status, "TENTATIVE");
     assert_eq!(
@@ -384,31 +422,144 @@ fn calendar_handles_iana_offsets_folding_escapes_and_invalid_event_data() {
             .replace("20261024T100000", "20261101T023000"),
     )
     .unwrap();
+    let fold_start = ambiguous[0].start_resolution.as_ref().unwrap();
+    assert_eq!(fold_start.kind, "fold");
+    assert_eq!(fold_start.local.hour, 1);
     assert_eq!(
-        ambiguous[0].end_unix_seconds.unwrap() - ambiguous[0].start_unix_seconds.unwrap(),
-        7_200
+        fold_start.unix_microseconds,
+        [1_793_521_800_000_000, 1_793_525_400_000_000]
     );
+    let exact_end = ambiguous[0].end_resolution.as_ref().unwrap();
+    assert_eq!(exact_end.kind, "exact");
+    assert_eq!(exact_end.unix_microseconds, [1_793_529_000_000_000]);
     let nonexistent = calendar_parse(
         &source
             .replace("20261024T090000", "20260308T023000")
             .replace("20261024T100000", "20260308T033000"),
     )
     .unwrap();
+    let gap_start = nonexistent[0].start_resolution.as_ref().unwrap();
+    assert_eq!(gap_start.kind, "gap");
+    assert!(gap_start.unix_microseconds.is_empty());
     assert_eq!(
-        nonexistent[0].start_unix_seconds,
-        nonexistent[0].end_unix_seconds
+        nonexistent[0].end_resolution.as_ref().unwrap().kind,
+        "exact"
     );
-    assert!(calendar_parse(&source.replace("20261024T090000", "20261032T090000")).is_err());
-    assert!(calendar_parse(&source.replace("UID:one\r\n", "")).is_err());
-    assert!(calendar_parse(&source.replace("20261024T100000", "20261024T080000")).is_err());
+    let invalid_date =
+        calendar_parse(&source.replace("20261024T090000", "20261032T090000")).unwrap_err();
+    assert_eq!(invalid_date.code, "E_ICAL_DATE");
+    assert!(invalid_date.message.contains("one"));
+    assert_eq!(
+        calendar_parse(&source.replace("UID:one\r\n", ""))
+            .unwrap_err()
+            .code,
+        "E_ICAL_UID"
+    );
+    let unknown_zone =
+        calendar_parse(&source.replace("America/Los_Angeles", "Not/A_Real_Zone")).unwrap_err();
+    assert_eq!(unknown_zone.code, "E_ICAL_TZID");
+    assert!(unknown_zone.message.contains("one"));
+    let reversed =
+        calendar_parse(&source.replace("20261024T100000", "20261024T080000")).unwrap_err();
+    assert_eq!(reversed.code, "E_ICAL_RANGE");
+    assert!(reversed.message.contains("one"));
 }
 
 #[test]
 fn embedded_vtimezone_takes_precedence_over_the_matching_iana_identifier() {
     let source = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VTIMEZONE\r\nTZID:America/Los_Angeles\r\nBEGIN:STANDARD\r\nDTSTART:19700101T000000\r\nTZOFFSETFROM:-0500\r\nTZOFFSETTO:-0500\r\nTZNAME:Embedded\r\nEND:STANDARD\r\nEND:VTIMEZONE\r\nBEGIN:VEVENT\r\nUID:embedded\r\nDTSTART;TZID=America/Los_Angeles:20261024T090000\r\nDTEND;TZID=America/Los_Angeles:20261024T100000\r\nSUMMARY:Embedded zone wins\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
     let events = calendar_parse(source).unwrap();
-    assert_eq!(events[0].start_unix_seconds, Some(1_792_850_400));
-    assert_eq!(events[0].end_unix_seconds, Some(1_792_854_000));
+    let start = events[0].start_resolution.as_ref().unwrap();
+    let end = events[0].end_resolution.as_ref().unwrap();
+    assert_eq!(start.kind, "exact");
+    assert_eq!(start.timezone, "America/Los_Angeles");
+    assert_eq!(start.unix_microseconds, [1_792_850_400_000_000]);
+    assert_eq!(end.unix_microseconds, [1_792_854_000_000_000]);
+}
+
+#[test]
+fn calendar_parse_exposes_each_local_resolution_and_preserves_event_identity() {
+    let root = temp_path("calendar-resolution-api");
+    fs::create_dir_all(&root).unwrap();
+    let source = r#"import "std:calendar"
+import "std:types"
+import "std:time"
+fn main() -> Int:
+    let calendar = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:fold\r\nDTSTART;TZID=America/Los_Angeles:20261101T013000\r\nDTEND;TZID=America/Los_Angeles:20261101T023000\r\nSUMMARY:Fold event\r\nEND:VEVENT\r\nBEGIN:VEVENT\r\nUID:gap\r\nDTSTART;TZID=America/Los_Angeles:20260308T023000\r\nDTEND;TZID=America/Los_Angeles:20260308T033000\r\nSUMMARY:Gap event\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"
+    let events = unwrap(calendar_parse(calendar))
+    assert(events[0].uid == "fold" and events[0].summary == "Fold event")
+    let fold = unwrap(events[0].start_resolution)
+    assert(fold.kind == "fold")
+    assert(fold.local.hour == 1 and fold.local.minute == 30)
+    assert(fold.timezone == "America/Los_Angeles")
+    assert(len(fold.instants) == 2)
+    assert(format_utc(fold.instants[0]) == "2026-11-01T08:30:00Z")
+    assert(format_utc(fold.instants[1]) == "2026-11-01T09:30:00Z")
+    assert(events[1].uid == "gap" and events[1].summary == "Gap event")
+    let gap = unwrap(events[1].start_resolution)
+    assert(gap.kind == "gap" and len(gap.instants) == 0)
+    assert(gap.local.hour == 2 and gap.local.minute == 30)
+    assert(unwrap(events[1].end_resolution).kind == "exact")
+    return 0
+"#;
+    let entry = root.join("main.gu");
+    fs::write(&entry, source).unwrap();
+    let stdlib = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../language/stdlib");
+    let artifact = guion_compiler::compile_project_with_roots(
+        &entry,
+        &root,
+        Some(&stdlib),
+        &std::collections::HashMap::new(),
+    )
+    .expect("calendar resolution program compiles");
+    let mut runtime = Runtime::vm_only()
+        .load(artifact, HostPolicy::default())
+        .expect("calendar text parsing requires no file capability");
+    assert_eq!(
+        runtime.invoke("main", vec![]).unwrap(),
+        Value::Int(BigInt::from_i64(0))
+    );
+    assert!(runtime.effect_report().is_empty());
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn embedded_vtimezone_fold_is_reported_using_embedded_rules_for_matching_iana_id() {
+    let root = temp_path("calendar-embedded-fold-api");
+    fs::create_dir_all(&root).unwrap();
+    let source = r#"import "std:calendar"
+import "std:types"
+import "std:time"
+fn main() -> Int:
+    let calendar = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VTIMEZONE\r\nTZID:America/Los_Angeles\r\nBEGIN:STANDARD\r\nDTSTART:20261101T020000\r\nTZOFFSETFROM:-0600\r\nTZOFFSETTO:-0700\r\nRRULE:FREQ=YEARLY;BYMONTH=11;BYDAY=1SU\r\nTZNAME:Embedded Standard\r\nEND:STANDARD\r\nBEGIN:DAYLIGHT\r\nDTSTART:20260308T020000\r\nTZOFFSETFROM:-0700\r\nTZOFFSETTO:-0600\r\nRRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=2SU\r\nTZNAME:Embedded Daylight\r\nEND:DAYLIGHT\r\nEND:VTIMEZONE\r\nBEGIN:VEVENT\r\nUID:embedded-fold\r\nDTSTART;TZID=America/Los_Angeles:20261101T013000\r\nDTEND;TZID=America/Los_Angeles:20261101T023000\r\nSUMMARY:Embedded fold\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"
+    let event = unwrap(calendar_parse(calendar))[0]
+    let start = unwrap(event.start_resolution)
+    assert(start.kind == "fold")
+    assert(start.timezone == "America/Los_Angeles")
+    assert(start.local.hour == 1 and start.local.minute == 30)
+    assert(format_utc(start.instants[0]) == "2026-11-01T07:30:00Z")
+    assert(format_utc(start.instants[1]) == "2026-11-01T08:30:00Z")
+    return 0
+"#;
+    let entry = root.join("main.gu");
+    fs::write(&entry, source).unwrap();
+    let stdlib = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../language/stdlib");
+    let artifact = guion_compiler::compile_project_with_roots(
+        &entry,
+        &root,
+        Some(&stdlib),
+        &std::collections::HashMap::new(),
+    )
+    .expect("embedded-zone fold program compiles");
+    let mut runtime = Runtime::vm_only()
+        .load(artifact, HostPolicy::default())
+        .expect("parsing supplied calendar text requires no file capability");
+    assert_eq!(
+        runtime.invoke("main", vec![]).unwrap(),
+        Value::Int(BigInt::from_i64(0))
+    );
+    assert!(runtime.effect_report().is_empty());
+    let _ = fs::remove_dir_all(root);
 }
 
 #[test]

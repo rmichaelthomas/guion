@@ -960,6 +960,21 @@
       "operation": "TimeParseTimestamp"
     },
     {
+      "name": "time_resolve_local",
+      "parameters": [
+        "Record[LocalDateTime]",
+        "Text"
+      ],
+      "result": "Result[Record[TemporalResolution], Record[TimeError]]",
+      "operation": "TimeResolveLocal"
+    },
+    {
+      "name": "time_zone_data_version_native",
+      "parameters": [],
+      "result": "Text",
+      "operation": "TimeZoneDataVersion"
+    },
+    {
       "name": "time_today_local",
       "parameters": [],
       "result": "Record[Date]",

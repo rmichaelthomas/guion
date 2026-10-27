@@ -1,6 +1,6 @@
 # Guion-native temporal reasoning
 
-**Status:** Approved by owner; implementation not started.
+**Status:** Implemented on `codex/guion-native-temporal-design`; independent review follow-ups applied; final verification passed.
 **Repository basis:** Guion main snapshot 0824e0e (2026-10-26); Decan main snapshot 3a5285d (2026-10-16).
 
 ## Intent
@@ -99,4 +99,3 @@ Likely affected surfaces are the std:time public records and native operation, c
 - **Builder detail:** settle exact field names and operation signatures within the current type system, and search all examples and consumers before migrating the pre-release record.
 - **Builder detail:** confirm the best libical-supported way to derive zero, one, or two valid candidates from the original civil time without relying on its default policy.
 - **Open for owner review:** this first increment is bounded to structured local date-times and iCalendar. Natural-language temporal intent and recurrence expansion remain later investments.
-

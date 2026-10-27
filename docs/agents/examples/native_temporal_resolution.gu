@@ -1,0 +1,44 @@
+import "std:time"
+
+fn show_resolution(label: Text, resolution: TemporalResolution) -> Unit:
+    print(label)
+    print(resolution.kind)
+    print(resolution.timezone)
+    print(resolution.local.year)
+    print(resolution.local.month)
+    print(resolution.local.day)
+    print(resolution.local.hour)
+    print(resolution.local.minute)
+    print(resolution.local.second)
+    print(resolution.local.microsecond)
+    for candidate in resolution.instants:
+        print(candidate.unix_microseconds)
+
+fn main() -> Int:
+    print("timezone rules")
+    print(time_zone_data_version())
+
+    let exact = unwrap(resolve_local(LocalDateTime(2026, 3, 8, 1, 30, 0, 0), "America/Los_Angeles"))
+    show_resolution("exact", exact)
+
+    let gap = unwrap(resolve_local(LocalDateTime(2026, 3, 8, 2, 30, 0, 0), "America/Los_Angeles"))
+    show_resolution("gap", gap)
+    if len(gap.instants) == 0:
+        print("no instant; caller policy required")
+
+    let resolution = unwrap(resolve_local(LocalDateTime(2026, 11, 1, 1, 30, 0, 0), "America/Los_Angeles"))
+    show_resolution("fold", resolution)
+    if resolution.kind == "fold":
+        print("caller policy: choose earlier occurrence")
+        print(resolution.instants[0].unix_microseconds)
+    else:
+        return 1
+
+    match resolve_local(LocalDateTime(2026, 2, 30, 12, 0, 0, 0), "America/Los_Angeles"):
+        Ok(_unexpected):
+            return 1
+        Err(problem):
+            print("invalid date error")
+            print(problem.code)
+
+    return 0

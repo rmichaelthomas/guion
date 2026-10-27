@@ -122,6 +122,36 @@
       "declared_status": "Implemented in artifact format 21; atomic visibility does not serialize writers or guarantee directory-entry durability"
     },
     {
+      "id": "host_operation-local-time-resolution",
+      "kind": "host_operation",
+      "name": "local time resolution",
+      "owner_task": 2,
+      "source": "language/host-api.md#temporal-interpretation",
+      "compiler_status": {
+        "bootstrap": "implemented",
+        "self_hosted": "implemented"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "host_operation.local-time-resolution.positive",
+          "state": "implemented",
+          "owner_task": 2
+        },
+        "negative": {
+          "case_id": "host_operation.local-time-resolution.negative",
+          "state": "implemented",
+          "owner_task": 2
+        },
+        "interaction": {
+          "case_id": "host_operation.local-time-resolution.interaction",
+          "state": "implemented",
+          "owner_task": 2
+        }
+      },
+      "source_signature": "`resolve_local(LocalDateTime, Text) -> Result[TemporalResolution, TimeError]`, `time_zone_data_version() -> Text`",
+      "declared_status": "Pure local-time resolution with exact, gap, and fold results in artifact format 40; timezone rules are packaged tzdata 2026c"
+    },
+    {
       "id": "host_operation-clock",
       "kind": "host_operation",
       "name": "clock",
@@ -9095,6 +9125,62 @@
         }
       },
       "declared_status": "planned"
+    },
+    {
+      "id": "opcode-time-resolve-local",
+      "kind": "opcode",
+      "name": "TimeResolveLocal",
+      "owner_task": 3,
+      "source": "crates/model/src/lib.rs::Op",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "implemented_current_subset"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "opcode-time-resolve-local.positive",
+          "state": "implemented",
+          "owner_task": 3
+        },
+        "negative": {
+          "case_id": "opcode-time-resolve-local.negative",
+          "state": "implemented",
+          "owner_task": 3
+        },
+        "interaction": {
+          "case_id": "opcode-time-resolve-local.interaction",
+          "state": "implemented",
+          "owner_task": 3
+        }
+      }
+    },
+    {
+      "id": "opcode-time-zone-data-version",
+      "kind": "opcode",
+      "name": "TimeZoneDataVersion",
+      "owner_task": 3,
+      "source": "crates/model/src/lib.rs::Op",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "implemented_current_subset"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "opcode-time-zone-data-version.positive",
+          "state": "implemented",
+          "owner_task": 3
+        },
+        "negative": {
+          "case_id": "opcode-time-zone-data-version.negative",
+          "state": "implemented",
+          "owner_task": 3
+        },
+        "interaction": {
+          "case_id": "opcode-time-zone-data-version.interaction",
+          "state": "implemented",
+          "owner_task": 3
+        }
+      }
     }
   ],
   "regression_applications": [

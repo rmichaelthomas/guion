@@ -4,6 +4,7 @@ use guion_runtime::stdlib_data::{
     compare_semver, parse_semver, parse_timestamp, CsvError, Date, FileReaderRegistry,
     ReaderErrorKind, TextOptionMap,
 };
+use guion_runtime::stdlib_services::{resolve_local_time, LocalDateTime as ServiceLocalDateTime};
 use guion_runtime::{HostPolicy, Runtime};
 use std::io::Write;
 
@@ -19,6 +20,73 @@ fn temp_file(contents: &[u8]) -> std::path::PathBuf {
     let mut file = std::fs::File::create(&path).unwrap();
     file.write_all(contents).unwrap();
     path
+}
+
+#[test]
+fn native_timezone_candidate_enumeration_covers_fractional_and_non_hour_transitions() {
+    let resolve = |year, month, day, hour, minute, second, microsecond, timezone: &str| {
+        resolve_local_time(
+            ServiceLocalDateTime {
+                year,
+                month,
+                day,
+                hour,
+                minute,
+                second,
+                microsecond,
+            },
+            timezone,
+        )
+    };
+    let exact = resolve(2026, 3, 8, 1, 30, 0, 123456, "America/Los_Angeles").unwrap();
+    assert_eq!(exact.kind, "exact");
+    assert_eq!(exact.local.microsecond, 123456);
+    assert_eq!(exact.unix_microseconds, [1_772_962_200_123_456]);
+    assert_eq!(exact.timezone, "America/Los_Angeles");
+
+    let gap = resolve(2026, 3, 8, 2, 30, 0, 0, "America/Los_Angeles").unwrap();
+    assert_eq!(gap.kind, "gap");
+    assert!(gap.unix_microseconds.is_empty());
+
+    let fold = resolve(2026, 11, 1, 1, 30, 0, 0, "America/Los_Angeles").unwrap();
+    assert_eq!(fold.kind, "fold");
+    assert_eq!(
+        fold.unix_microseconds,
+        [1_793_521_800_000_000, 1_793_525_400_000_000]
+    );
+
+    let lord_howe_fold = resolve(2026, 4, 5, 1, 45, 0, 0, "Australia/Lord_Howe").unwrap();
+    assert_eq!(lord_howe_fold.kind, "fold");
+    assert_eq!(
+        lord_howe_fold.unix_microseconds,
+        [1_775_313_900_000_000, 1_775_315_700_000_000]
+    );
+    let lord_howe_gap = resolve(2026, 10, 4, 2, 15, 0, 0, "Australia/Lord_Howe").unwrap();
+    assert_eq!(lord_howe_gap.kind, "gap");
+    assert!(lord_howe_gap.unix_microseconds.is_empty());
+
+    let skipped_day = resolve(2011, 12, 30, 12, 0, 0, 0, "Pacific/Apia").unwrap();
+    assert_eq!(skipped_day.kind, "gap");
+    assert!(skipped_day.unix_microseconds.is_empty());
+
+    assert_eq!(
+        resolve(2026, 2, 29, 1, 30, 0, 0, "America/Los_Angeles")
+            .unwrap_err()
+            .code,
+        "E_DATE"
+    );
+    assert_eq!(
+        resolve(2026, 3, 8, 24, 0, 0, 0, "America/Los_Angeles")
+            .unwrap_err()
+            .code,
+        "E_TIME"
+    );
+    assert_eq!(
+        resolve(2026, 3, 8, 1, 30, 0, 0, "Not/A_Real_Zone")
+            .unwrap_err()
+            .code,
+        "E_TIMEZONE_UNKNOWN"
+    );
 }
 
 #[test]
@@ -133,6 +201,73 @@ fn strict_timestamps_validate_gregorian_dates_and_normalize_offsets_exactly() {
     ] {
         assert!(parse_timestamp(bad).is_err(), "accepted {bad}");
     }
+}
+
+#[test]
+fn local_time_resolver_reports_exact_gap_fold_and_typed_errors_without_capabilities() {
+    let root = std::env::temp_dir().join(format!(
+        "guion-local-time-resolution-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    std::fs::create_dir_all(&root).unwrap();
+    let source = r#"import "std:time"
+fn compare_local(left: Int, right: Int) -> Int:
+    let exact = unwrap(resolve_local(LocalDateTime(2026, 3, 8, 1, 30, 0, 0), "America/Los_Angeles"))
+    if exact.kind == "exact" and exact.instants[0].unix_microseconds == 1772962200000000:
+        return left - right
+    return 1
+fn main() -> Int:
+    assert(time_zone_data_version() == "2026c")
+    let exact = unwrap(resolve_local(LocalDateTime(2026, 3, 8, 1, 30, 0, 0), "America/Los_Angeles"))
+    assert(exact.kind == "exact")
+    assert(exact.local.hour == 1 and exact.timezone == "America/Los_Angeles")
+    assert(len(exact.instants) == 1)
+    assert(format_utc(exact.instants[0]) == "2026-03-08T09:30:00Z")
+    let gap = unwrap(resolve_local(LocalDateTime(2026, 3, 8, 2, 30, 0, 0), "America/Los_Angeles"))
+    assert(gap.kind == "gap" and len(gap.instants) == 0)
+    let fold = unwrap(resolve_local(LocalDateTime(2026, 11, 1, 1, 30, 0, 0), "America/Los_Angeles"))
+    assert(fold.kind == "fold" and len(fold.instants) == 2)
+    assert(format_utc(fold.instants[0]) == "2026-11-01T08:30:00Z")
+    assert(format_utc(fold.instants[1]) == "2026-11-01T09:30:00Z")
+    let invalid_date = resolve_local(LocalDateTime(2026, 2, 29, 1, 30, 0, 0), "America/Los_Angeles")
+    assert(not(is_ok(invalid_date)) and error(invalid_date).code == "E_DATE")
+    let invalid_time = resolve_local(LocalDateTime(2026, 3, 8, 24, 0, 0, 0), "America/Los_Angeles")
+    assert(not(is_ok(invalid_time)) and error(invalid_time).code == "E_TIME")
+    let unknown = resolve_local(LocalDateTime(2026, 11, 1, 1, 30, 0, 0), "Not/A_Real_Zone")
+    assert(not(is_ok(unknown)) and error(unknown).code == "E_TIMEZONE_UNKNOWN")
+    assert(sort_by([2, 1], compare_local) == [1, 2])
+    return 0
+"#;
+    let entry = root.join("main.gu");
+    std::fs::write(&entry, source).unwrap();
+    let stdlib = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../language/stdlib");
+    let artifact = guion_compiler::compile_project_with_roots(
+        &entry,
+        &root,
+        Some(&stdlib),
+        &std::collections::HashMap::new(),
+    )
+    .expect("temporal resolver program compiles");
+    for vm_only in [true, false] {
+        let mut runtime = if vm_only {
+            Runtime::vm_only()
+        } else {
+            Runtime::new()
+        }
+        .load(artifact.clone(), HostPolicy::default())
+        .expect("pure temporal program runs without file or clock grants");
+        assert_eq!(
+            runtime.invoke("main", vec![]).unwrap(),
+            guion_model::Value::Int(guion_model::BigInt::from_i64(0))
+        );
+        assert_eq!(runtime.take_output(), "");
+        assert!(runtime.effect_report().is_empty());
+    }
+    let _ = std::fs::remove_dir_all(root);
 }
 
 #[test]

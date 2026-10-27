@@ -11,7 +11,7 @@ const HELLO: &str = include_str!("fixtures/hello.gu");
 fn artifact_from_source(name: &str, source: &str) -> Arc<Artifact> {
     let compiled = compile(name, source).expect("fixture compiles");
     let bytes = compiled.to_bytes().expect("artifact serializes");
-    assert_eq!(compiled.format_version, 39, "fixture uses format 39");
+    assert_eq!(compiled.format_version, 40, "fixture uses format 40");
     Arc::new(Artifact::from_bytes(&bytes).expect("artifact decodes"))
 }
 
@@ -50,6 +50,33 @@ fn pure_computation_uses_loops_and_arithmetic() {
 
     assert_eq!(host.take_output(), "55\n");
     assert_eq!(run.return_value, int(55));
+}
+
+#[test]
+fn local_resolver_signature_verifies_with_the_portable_vm_stack_types() {
+    use std::{collections::HashMap, fs, path::PathBuf};
+
+    let root = std::env::temp_dir().join(format!(
+        "guion-vm-temporal-types-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    fs::create_dir_all(&root).unwrap();
+    let entry = root.join("main.gu");
+    fs::write(
+        &entry,
+        "import \"std:time\"\nfn main() -> Int:\n    let resolution = unwrap(resolve_local(LocalDateTime(2026, 11, 1, 1, 30, 0, 0), \"America/Los_Angeles\"))\n    return len(resolution.instants)\n",
+    )
+    .unwrap();
+    let stdlib = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../language/stdlib");
+    let artifact =
+        guion_compiler::compile_project_with_roots(&entry, &root, Some(&stdlib), &HashMap::new())
+            .expect("local resolver source compiles");
+    guion_vm_core::verify(&artifact).expect("resolver stack types verify in portable VM");
+    let _ = fs::remove_dir_all(root);
 }
 
 #[test]

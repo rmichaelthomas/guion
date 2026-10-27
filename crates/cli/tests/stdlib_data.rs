@@ -98,3 +98,112 @@ fn main() -> Int:
     assert!(String::from_utf8_lossy(&rejected.stderr).contains("E_SORT_EFFECT"));
     let _ = std::fs::remove_dir_all(root);
 }
+
+#[test]
+fn cli_reports_native_local_time_exact_gap_fold_and_errors() {
+    let root = std::env::temp_dir().join(format!(
+        "guion native time resolver {} {}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    std::fs::create_dir_all(&root).unwrap();
+    std::fs::write(
+        root.join("main.gu"),
+        r#"import "std:time"
+fn main() -> Int:
+    print(time_zone_data_version())
+    let exact = unwrap(resolve_local(LocalDateTime(2026, 3, 8, 1, 30, 0, 0), "America/Los_Angeles"))
+    print(exact.kind)
+    print(format_utc(exact.instants[0]))
+    let gap = unwrap(resolve_local(LocalDateTime(2026, 3, 8, 2, 30, 0, 0), "America/Los_Angeles"))
+    print(gap.kind)
+    print(len(gap.instants))
+    let fold = unwrap(resolve_local(LocalDateTime(2026, 11, 1, 1, 30, 0, 0), "America/Los_Angeles"))
+    print(fold.kind)
+    print(format_utc(fold.instants[0]))
+    print(format_utc(fold.instants[1]))
+    let bad = resolve_local(LocalDateTime(2026, 2, 29, 1, 30, 0, 0), "America/Los_Angeles")
+    print(error(bad).code)
+    let unknown = resolve_local(LocalDateTime(2026, 11, 1, 1, 30, 0, 0), "Not/A_Real_Zone")
+    print(error(unknown).code)
+    return 0
+"#,
+    )
+    .unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_guion"))
+        .arg("run")
+        .arg("main.gu")
+        .current_dir(&root)
+        .output()
+        .expect("start Guion CLI");
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "2026c\nexact\n2026-03-08T09:30:00Z\ngap\n0\nfold\n2026-11-01T08:30:00Z\n2026-11-01T09:30:00Z\nE_DATE\nE_TIMEZONE_UNKNOWN\n"
+    );
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[test]
+fn cli_calendar_parse_preserves_ambiguous_times_and_event_identity() {
+    let root = std::env::temp_dir().join(format!(
+        "guion calendar local results {} {}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    std::fs::create_dir_all(&root).unwrap();
+    std::fs::write(
+        root.join("main.gu"),
+        r#"import "std:calendar"
+import "std:time"
+import "std:types"
+fn main() -> Int:
+    let calendar = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:fold-id\r\nDTSTART;TZID=America/Los_Angeles:20261101T013000\r\nDTEND;TZID=America/Los_Angeles:20261101T023000\r\nSUMMARY:Fold summary\r\nRRULE:FREQ=WEEKLY;BYDAY=MO\r\nEND:VEVENT\r\nBEGIN:VEVENT\r\nUID:gap-id\r\nDTSTART;TZID=America/Los_Angeles:20260308T023000\r\nDTEND;TZID=America/Los_Angeles:20260308T033000\r\nSUMMARY:Gap summary\r\nEND:VEVENT\r\nBEGIN:VEVENT\r\nUID:all-day-id\r\nDTSTART;VALUE=DATE:20261024\r\nDTEND;VALUE=DATE:20261025\r\nSUMMARY:Holiday\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"
+    let events = unwrap(calendar_parse(calendar))
+    assert(events[0].uid == "fold-id" and events[0].summary == "Fold summary")
+    let fold = unwrap(events[0].start_resolution)
+    assert(fold.kind == "fold" and len(fold.instants) == 2)
+    assert(fold.local.year == 2026 and fold.local.hour == 1 and fold.local.minute == 30)
+    assert(fold.timezone == "America/Los_Angeles")
+    assert(format_utc(fold.instants[0]) == "2026-11-01T08:30:00Z")
+    assert(format_utc(fold.instants[1]) == "2026-11-01T09:30:00Z")
+    assert(unwrap(events[0].recurrence_rule) == "FREQ=WEEKLY;BYDAY=MO")
+    let gap = unwrap(events[1].start_resolution)
+    assert(gap.kind == "gap" and len(gap.instants) == 0)
+    assert(events[1].uid == "gap-id" and events[1].summary == "Gap summary")
+    assert(not(is_some(events[2].start_resolution)) and not(is_some(events[2].end_resolution)))
+    assert(unwrap(events[2].start_date).day == 24 and unwrap(events[2].end_date).day == 25)
+    print(fold.kind)
+    print(gap.kind)
+    print(events[2].uid)
+    return 0
+"#,
+    )
+    .unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_guion"))
+        .arg("run")
+        .arg("main.gu")
+        .current_dir(&root)
+        .output()
+        .expect("start Guion CLI");
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "fold\ngap\nall-day-id\n"
+    );
+    let _ = std::fs::remove_dir_all(root);
+}

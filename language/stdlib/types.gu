@@ -20,8 +20,9 @@ pub record SqlRow:
 
 pub record CalendarEvent:
     uid: Text
-    start: Option[Instant]
-    end: Option[Instant]
+    summary: Text
+    start_resolution: Option[TemporalResolution]
+    end_resolution: Option[TemporalResolution]
     start_date: Option[Date]
     end_date: Option[Date]
     status: Text

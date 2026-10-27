@@ -1,4 +1,5 @@
 import "std:types"
 
+# Timed endpoints retain exact/gap/fold results; callers choose any policy.
 pub fn calendar_parse(source: Text) -> Result[List[CalendarEvent], StdError]:
     return native_calendar_parse(source)

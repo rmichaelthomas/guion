@@ -184,6 +184,68 @@ def _calendar(size: int, _rng: random.Random) -> dict:
     }
 
 
+def _calendar_temporal_review() -> dict:
+    body = "\r\n".join((
+        "BEGIN:VCALENDAR",
+        "VERSION:2.0",
+        "BEGIN:VEVENT",
+        "UID:fold-start",
+        "SUMMARY:Repeated local start",
+        "DTSTART;TZID=America/Los_Angeles:20261101T013000",
+        "DTEND;TZID=America/Los_Angeles:20261101T023000",
+        "END:VEVENT",
+        "BEGIN:VEVENT",
+        "UID:gap-start",
+        "SUMMARY:Missing local start",
+        "DTSTART;TZID=America/Los_Angeles:20260308T023000",
+        "DTEND;TZID=America/Los_Angeles:20260308T033000",
+        "END:VEVENT",
+        "END:VCALENDAR",
+        "",
+    ))
+    timezone_name = "America/Los_Angeles"
+    fold_start = {
+        "kind": "fold",
+        "local": {"year": 2026, "month": 11, "day": 1, "hour": 1, "minute": 30, "second": 0, "microsecond": 0},
+        "timezone": timezone_name,
+        "instants": [1_793_521_800_000_000, 1_793_525_400_000_000],
+    }
+    fold_end = {
+        "kind": "exact",
+        "local": {"year": 2026, "month": 11, "day": 1, "hour": 2, "minute": 30, "second": 0, "microsecond": 0},
+        "timezone": timezone_name,
+        "instants": [1_793_529_000_000_000],
+    }
+    gap_start = {
+        "kind": "gap",
+        "local": {"year": 2026, "month": 3, "day": 8, "hour": 2, "minute": 30, "second": 0, "microsecond": 0},
+        "timezone": timezone_name,
+        "instants": [],
+    }
+    gap_end = {
+        "kind": "exact",
+        "local": {"year": 2026, "month": 3, "day": 8, "hour": 3, "minute": 30, "second": 0, "microsecond": 0},
+        "timezone": timezone_name,
+        "instants": [1_772_965_800_000_000],
+    }
+    source = {"calendars": [{"name": "dst", "url": "${http:calendar}/dst.ics"}]}
+    return {
+        "id": "generated-calendar-temporal-review",
+        "files": {"sources.json": json.dumps(source)},
+        "http_fixtures": {"calendar": {"/dst.ics": {"status": 200, "body": body}}},
+        "command_args": ["--sources", "sources.json", "--window-start", "2026-01-01T00:00:00Z", "--window-end", "2027-01-01T00:00:00Z", "--output", "report.json", "--concurrency", "1", "--timeout-ms", "2000"],
+        "expected_exit_code": 0,
+        "checks": [_check("json_equals", "report.json", {
+            "conflicts": [],
+            "source_errors": [],
+            "temporal_reviews": [
+                {"calendar": "dst", "id": "fold-start", "summary": "Repeated local start", "start_resolution": fold_start, "end_resolution": fold_end},
+                {"calendar": "dst", "id": "gap-start", "summary": "Missing local start", "start_resolution": gap_start, "end_resolution": gap_end},
+            ],
+        }), {"kind": "http_request_count_equals", "fixture": "calendar", "value": 1}],
+    }
+
+
 def _webhook(size: int, _rng: random.Random) -> dict:
     secret = f"generated-secret-{SEED}"
     files = {"secret.txt": secret, "accepted/.keep": ""}
@@ -338,4 +400,7 @@ _GENERATORS = {
 
 def generated_cases(application: str) -> list[dict]:
     generator = _GENERATORS[application]
-    return [generator(size, _rng(application, size)) for size in SIZES]
+    cases = [generator(size, _rng(application, size)) for size in SIZES]
+    if application == "calendar-conflicts":
+        cases.append(_calendar_temporal_review())
+    return cases

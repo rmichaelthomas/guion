@@ -8,6 +8,50 @@ use std::{
     thread,
 };
 
+#[test]
+fn version_reports_artifact_and_pinned_timezone_data_versions() {
+    let output = Command::new(env!("CARGO_BIN_EXE_guion"))
+        .arg("--version")
+        .output()
+        .expect("start Guion version command");
+    assert!(output.status.success());
+    assert_eq!(
+        String::from_utf8(output.stdout).unwrap(),
+        format!(
+            "guion {} (artifact format 40, timezone data 2026c)\n",
+            env!("CARGO_PKG_VERSION")
+        )
+    );
+}
+
+#[test]
+fn temporal_resolver_api_and_example_are_discoverable_to_agents() {
+    let repository = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let time = fs::read_to_string(repository.join("language/stdlib/time.gu")).unwrap();
+    assert!(time.contains("pub fn resolve_local"));
+    assert!(time.contains("pub fn time_zone_data_version"));
+    let host_api = fs::read_to_string(repository.join("language/host-api.md")).unwrap();
+    assert!(host_api.contains("resolve_local"));
+    assert!(host_api.contains("fold"));
+    assert!(host_api.contains("gap"));
+    assert!(host_api.contains("2026c"));
+
+    let index: serde_json::Value =
+        serde_json::from_slice(&fs::read(repository.join("docs/agents/index.json")).unwrap())
+            .unwrap();
+    let example = index["examples"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|example| example["id"] == "native_temporal_resolution")
+        .expect("agent index registers native temporal example");
+    let source_path = example["source"].as_str().unwrap();
+    let source = fs::read_to_string(repository.join(source_path)).unwrap();
+    assert!(source.contains("resolve_local"));
+    assert!(source.contains("resolution.kind == \"fold\""));
+    assert!(source.contains("time_zone_data_version"));
+}
+
 #[cfg(feature = "python-interop")]
 fn python3_path() -> String {
     let output = Command::new("python3")
@@ -2568,7 +2612,7 @@ fn build_json_reports_artifact_identity_and_source_diagnostics() {
     assert_eq!(report["schema_version"], 1);
     assert_eq!(report["source"], source.to_string_lossy().as_ref());
     assert_eq!(report["artifact"], artifact.to_string_lossy().as_ref());
-    assert_eq!(report["artifact_format"], 39);
+    assert_eq!(report["artifact_format"], 40);
     assert_eq!(
         report["artifact_size_bytes"],
         fs::metadata(&artifact).unwrap().len()

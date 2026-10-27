@@ -6,6 +6,32 @@ pub record Date:
 pub record Instant:
     unix_microseconds: Int
 
+pub record LocalDateTime:
+    year: Int
+    month: Int
+    day: Int
+    hour: Int
+    minute: Int
+    second: Int
+    microsecond: Int
+
+pub record TemporalResolution:
+    kind: Text
+    local: LocalDateTime
+    timezone: Text
+    instants: List[Instant]
+
+pub record TimeError:
+    code: Text
+    message: Text
+
+# Resolves a civil date and clock reading with Guion's packaged IANA timezone rules.
+# This operation does not read the clock, filesystem, or network. It returns every
+# matching instant: one for an exact time, none for a gap, and two for a fold.
+# Callers must decide what to do with gaps and folds. Supported years are 1–2582.
+# Stable error codes include E_DATE, E_TIME, E_TIMEZONE_UNKNOWN,
+# E_TIMEZONE_DATA, and E_TIMEZONE_COMPLEX.
+
 pub fn today_local() -> Date:
     return time_today_local()
 
@@ -17,3 +43,10 @@ pub fn parse_timestamp(value: Text) -> Result[Instant, FileError]:
 
 pub fn format_utc(value: Instant) -> Text:
     return time_format_utc(value)
+
+pub fn resolve_local(local: LocalDateTime, timezone: Text) -> Result[TemporalResolution, TimeError]:
+    return time_resolve_local(local, timezone)
+
+# Version of the timezone rules bundled with this Guion runtime.
+pub fn time_zone_data_version() -> Text:
+    return time_zone_data_version_native()
