@@ -4,13 +4,26 @@ import "std:text"
 import "std:time"
 import "std:types"
 
-fn failed_source(name: Text, category: Text) -> Json:
-    var value = json_object()
-    set value = json_set(value, "name", json_text(name))
-    set value = json_set(value, "error", json_text(category))
-    return value
+record CalendarEventRow:
+    calendar: Text
+    id: Text
+    start: Text
+    end: Text
+    start_us: Int
+    end_us: Int
 
-fn fetch_calendar(source: Json) -> Json:
+record CalendarFetch:
+    name: Text
+    error: Text
+    events: List[CalendarEvent]
+    has_events: Bool
+    min_start_us: Int
+    max_end_us: Int
+
+fn failed_source(name: Text, category: Text) -> CalendarFetch:
+    return CalendarFetch(name, category, [], false, 0, 0)
+
+fn fetch_calendar(source: Json) -> CalendarFetch:
     let name = json_as_text(json_get(source, "name"))
     let url = json_as_text(json_get(source, "url"))
     let deadline = json_as_int(json_get(source, "timeout_ms"))
@@ -33,8 +46,11 @@ fn fetch_calendar(source: Json) -> Json:
     let window_start = unwrap(parse_timestamp(json_as_text(json_get(source, "window_start"))))
     let window_end = unwrap(parse_timestamp(json_as_text(json_get(source, "window_end"))))
     let include_tentative = json_as_bool(json_get(source, "include_tentative"))
-    var events = json_array()
-    for event in unwrap(parsed):
+    var has_events = false
+    var min_start_us = 0
+    var max_end_us = 0
+    let parsed_events = unwrap(parsed)
+    for event in parsed_events:
         let ignored = event.all_day or event.status == "CANCELLED" or (event.status == "TENTATIVE" and not include_tentative)
         if not ignored:
             if not is_some(event.start) or not is_some(event.end):
@@ -51,19 +67,16 @@ fn fetch_calendar(source: Json) -> Json:
                     set clipped_start = window_start
                 if clipped_end.unix_microseconds > window_end.unix_microseconds:
                     set clipped_end = window_end
-                var value = json_object()
-                set value = json_set(value, "calendar", json_text(name))
-                set value = json_set(value, "id", json_text(event.uid))
-                set value = json_set(value, "start", json_text(format_utc(clipped_start)))
-                set value = json_set(value, "end", json_text(format_utc(clipped_end)))
-                set value = json_set(value, "start_us", json_int(clipped_start.unix_microseconds))
-                set value = json_set(value, "end_us", json_int(clipped_end.unix_microseconds))
-                set events = json_push(events, value)
-    var result = json_object()
-    set result = json_set(result, "name", json_text(name))
-    set result = json_set(result, "ok", json_bool(true))
-    set result = json_set(result, "events", events)
-    return result
+                if not has_events:
+                    set has_events = true
+                    set min_start_us = clipped_start.unix_microseconds
+                    set max_end_us = clipped_end.unix_microseconds
+                else:
+                    if clipped_start.unix_microseconds < min_start_us:
+                        set min_start_us = clipped_start.unix_microseconds
+                    if clipped_end.unix_microseconds > max_end_us:
+                        set max_end_us = clipped_end.unix_microseconds
+    return CalendarFetch(name, "", parsed_events, has_events, min_start_us, max_end_us)
 
 fn conflict_before(left: Json, right: Json) -> Bool:
     let left_start = json_as_int(json_get(left, "start_us"))
@@ -82,53 +95,24 @@ fn conflict_before(left: Json, right: Json) -> Bool:
         return first_left < first_right
     return json_as_text(json_index(left_ids, 1)) < json_as_text(json_index(right_ids, 1))
 
-fn event_before(left: Json, right: Json) -> Bool:
-    let left_start = json_as_int(json_get(left, "start_us"))
-    let right_start = json_as_int(json_get(right, "start_us"))
-    if left_start != right_start:
-        return left_start < right_start
-    let left_end = json_as_int(json_get(left, "end_us"))
-    let right_end = json_as_int(json_get(right, "end_us"))
-    if left_end != right_end:
-        return left_end < right_end
-    let left_id = json_as_text(json_get(left, "id"))
-    let right_id = json_as_text(json_get(right, "id"))
-    if left_id != right_id:
-        return text_compare_bytes(left_id, right_id) < 0
-    return text_compare_bytes(json_as_text(json_get(left, "calendar")), json_as_text(json_get(right, "calendar"))) < 0
+fn compare_events(left: CalendarEventRow, right: CalendarEventRow) -> Int:
+    if left.start_us != right.start_us:
+        if left.start_us < right.start_us:
+            return -1
+        return 1
+    if left.end_us != right.end_us:
+        if left.end_us < right.end_us:
+            return -1
+        return 1
+    let id_order = text_compare_bytes(left.id, right.id)
+    if id_order != 0:
+        return id_order
+    return text_compare_bytes(left.calendar, right.calendar)
 
-fn sort_events(values: List[Json]) -> List[Json]:
-    var ordered = values
-    var width = 1
-    while width < len(ordered):
-        var merged: List[Json] = []
-        var merge_start = 0
-        while merge_start < len(ordered):
-            var left_index = merge_start
-            var middle = merge_start + width
-            if middle > len(ordered):
-                set middle = len(ordered)
-            var right_index = middle
-            var end_index = middle + width
-            if end_index > len(ordered):
-                set end_index = len(ordered)
-            while left_index < middle and right_index < end_index:
-                if event_before(ordered[left_index], ordered[right_index]):
-                    set merged = list_push(merged, ordered[left_index])
-                    set left_index = left_index + 1
-                else:
-                    set merged = list_push(merged, ordered[right_index])
-                    set right_index = right_index + 1
-            while left_index < middle:
-                set merged = list_push(merged, ordered[left_index])
-                set left_index = left_index + 1
-            while right_index < end_index:
-                set merged = list_push(merged, ordered[right_index])
-                set right_index = right_index + 1
-            set merge_start = end_index
-        set ordered = merged
-        set width = width * 2
-    return ordered
+fn sort_events(values: List[CalendarEventRow], already_sorted: Bool) -> List[CalendarEventRow]:
+    if already_sorted:
+        return values
+    return sort_by(values, compare_events)
 
 fn sort_conflicts(values: List[Json]) -> List[Json]:
     var ordered = values
@@ -162,6 +146,72 @@ fn sort_conflicts(values: List[Json]) -> List[Json]:
         set ordered = merged
         set width = width * 2
     return ordered
+
+fn conflicts_for_events(sorted_events: List[CalendarEventRow]) -> List[Json]:
+    var adjacent_index = 1
+    var has_adjacent_overlap = false
+    while adjacent_index < len(sorted_events) and not has_adjacent_overlap:
+        let previous = sorted_events[adjacent_index - 1]
+        let current = sorted_events[adjacent_index]
+        if previous.end_us > current.start_us:
+            set has_adjacent_overlap = true
+        set adjacent_index = adjacent_index + 1
+    if not has_adjacent_overlap:
+        return []
+
+    var conflicts: List[Json] = []
+    var left_index = 0
+    while left_index < len(sorted_events):
+        let left = sorted_events[left_index]
+        let left_end = left.end_us
+        let left_calendar = left.calendar
+        let left_id = left.id
+        var right_index = left_index + 1
+        var within_left_window = true
+        while right_index < len(sorted_events) and within_left_window:
+            let right = sorted_events[right_index]
+            let right_start = right.start_us
+            if right_start >= left_end:
+                set within_left_window = false
+            else:
+                let right_calendar = right.calendar
+                if left_calendar != right_calendar:
+                    let right_end = right.end_us
+                    let overlap_start = right_start
+                    var overlap_end = left_end
+                    var end_text = left.end
+                    if right_end < overlap_end:
+                        set overlap_end = right_end
+                        set end_text = right.end
+                    if overlap_start < overlap_end:
+                        let right_id = right.id
+                        var first_id = left_id
+                        var second_id = right_id
+                        if right_id < left_id:
+                            set first_id = right_id
+                            set second_id = left_id
+                        var first_calendar = left_calendar
+                        var second_calendar = right_calendar
+                        if right_calendar < left_calendar:
+                            set first_calendar = right_calendar
+                            set second_calendar = left_calendar
+                        var ids = json_array()
+                        set ids = json_push(ids, json_text(first_id))
+                        set ids = json_push(ids, json_text(second_id))
+                        var names = json_array()
+                        set names = json_push(names, json_text(first_calendar))
+                        set names = json_push(names, json_text(second_calendar))
+                        var conflict = json_object()
+                        set conflict = json_set(conflict, "start", json_text(right.start))
+                        set conflict = json_set(conflict, "end", json_text(end_text))
+                        set conflict = json_set(conflict, "start_us", json_int(overlap_start))
+                        set conflict = json_set(conflict, "end_us", json_int(overlap_end))
+                        set conflict = json_set(conflict, "event_ids", ids)
+                        set conflict = json_set(conflict, "calendars", names)
+                        set conflicts = list_push(conflicts, conflict)
+            set right_index = right_index + 1
+        set left_index = left_index + 1
+    return sort_conflicts(conflicts)
 
 fn main() -> Int:
     let arguments = args()
@@ -275,75 +325,62 @@ fn main() -> Int:
         eprint("calendar requests failed: " + task_code(problem))
         return 1
 
-    var events: List[Json] = []
+    let fetched_sources = unwrap(fetched)
     var source_errors: Map[Text, Text] = {}
-    for result in unwrap(fetched):
-        let name = json_as_text(json_get(result, "name"))
-        if json_has(result, "error"):
-            set source_errors = map_set(source_errors, name, json_as_text(json_get(result, "error")))
-        else:
-            let found = json_get(result, "events")
-            var event_index = 0
-            while event_index < json_len(found):
-                set events = list_push(events, json_index(found, event_index))
-                set event_index = event_index + 1
+    for result in fetched_sources:
+        if result.error != "":
+            set source_errors = map_set(source_errors, result.name, result.error)
 
-    let sorted_events = sort_events(events)
-    var conflicts: List[Json] = []
-    var left_index = 0
-    while left_index < len(sorted_events):
-        let left = sorted_events[left_index]
-        let left_start = json_as_int(json_get(left, "start_us"))
-        let left_end = json_as_int(json_get(left, "end_us"))
-        let left_calendar = json_as_text(json_get(left, "calendar"))
-        let left_id = json_as_text(json_get(left, "id"))
-        var right_index = left_index + 1
-        var within_left_window = true
-        while right_index < len(sorted_events) and within_left_window:
-            let right = sorted_events[right_index]
-            let right_start = json_as_int(json_get(right, "start_us"))
-            if right_start >= left_end:
-                set within_left_window = false
-            else:
-                let right_calendar = json_as_text(json_get(right, "calendar"))
-                if left_calendar != right_calendar:
-                    let right_end = json_as_int(json_get(right, "end_us"))
-                    let overlap_start = right_start
-                    var overlap_end = left_end
-                    var end_text = json_as_text(json_get(left, "end"))
-                    if right_end < overlap_end:
-                        set overlap_end = right_end
-                        set end_text = json_as_text(json_get(right, "end"))
-                    if overlap_start < overlap_end:
-                        let right_id = json_as_text(json_get(right, "id"))
-                        var first_id = left_id
-                        var second_id = right_id
-                        if right_id < left_id:
-                            set first_id = right_id
-                            set second_id = left_id
-                        var first_calendar = left_calendar
-                        var second_calendar = right_calendar
-                        if right_calendar < left_calendar:
-                            set first_calendar = right_calendar
-                            set second_calendar = left_calendar
-                        var ids = json_array()
-                        set ids = json_push(ids, json_text(first_id))
-                        set ids = json_push(ids, json_text(second_id))
-                        var names = json_array()
-                        set names = json_push(names, json_text(first_calendar))
-                        set names = json_push(names, json_text(second_calendar))
-                        var conflict = json_object()
-                        set conflict = json_set(conflict, "start", json_get(right, "start"))
-                        set conflict = json_set(conflict, "end", json_text(end_text))
-                        set conflict = json_set(conflict, "start_us", json_int(overlap_start))
-                        set conflict = json_set(conflict, "end_us", json_int(overlap_end))
-                        set conflict = json_set(conflict, "event_ids", ids)
-                        set conflict = json_set(conflict, "calendars", names)
-                        set conflicts = list_push(conflicts, conflict)
-            set right_index = right_index + 1
-        set left_index = left_index + 1
+    var ranges_may_overlap = false
+    var left_source_index = 0
+    while left_source_index < len(fetched_sources) and not ranges_may_overlap:
+        let left_source = fetched_sources[left_source_index]
+        if left_source.error == "" and left_source.has_events:
+            var right_source_index = left_source_index + 1
+            while right_source_index < len(fetched_sources) and not ranges_may_overlap:
+                let right_source = fetched_sources[right_source_index]
+                if right_source.error == "" and right_source.has_events:
+                    if left_source.min_start_us < right_source.max_end_us and right_source.min_start_us < left_source.max_end_us:
+                        set ranges_may_overlap = true
+                set right_source_index = right_source_index + 1
+        set left_source_index = left_source_index + 1
 
-    let sorted_conflicts = sort_conflicts(conflicts)
+    var sorted_conflicts: List[Json] = []
+    if ranges_may_overlap:
+        var events: List[CalendarEventRow] = []
+        var events_in_order = true
+        var has_adjacent_overlap = false
+        var has_previous_event = false
+        var previous_event = CalendarEventRow("", "", "", "", 0, 0)
+        for result in fetched_sources:
+            if result.error == "":
+                for event in result.events:
+                    let ignored = event.all_day or event.status == "CANCELLED" or (event.status == "TENTATIVE" and not include_tentative)
+                    if not ignored:
+                        let start = unwrap(event.start)
+                        let end = unwrap(event.end)
+                        let outside_window = start.unix_microseconds >= window_end.unix_microseconds or end.unix_microseconds <= window_start.unix_microseconds
+                        if not outside_window:
+                            var clipped_start = start
+                            var clipped_end = end
+                            if clipped_start.unix_microseconds < window_start.unix_microseconds:
+                                set clipped_start = window_start
+                            if clipped_end.unix_microseconds > window_end.unix_microseconds:
+                                set clipped_end = window_end
+                            let row = CalendarEventRow(result.name, event.uid, format_utc(clipped_start), format_utc(clipped_end), clipped_start.unix_microseconds, clipped_end.unix_microseconds)
+                            if has_previous_event and events_in_order:
+                                if compare_events(previous_event, row) > 0:
+                                    set events_in_order = false
+                                else:
+                                    if previous_event.end_us > row.start_us:
+                                        set has_adjacent_overlap = true
+                            set previous_event = row
+                            set has_previous_event = true
+                            set events = list_push(events, row)
+
+        let sorted_events = sort_events(events, events_in_order)
+        if not (events_in_order and not has_adjacent_overlap):
+            set sorted_conflicts = conflicts_for_events(sorted_events)
     var conflict_output = json_array()
     for conflict in sorted_conflicts:
         var public_conflict = json_object()
