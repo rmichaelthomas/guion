@@ -1,0 +1,17 @@
+{
+  "choice": "Guion",
+  "new_task": "Build a command-line software-bill-of-materials audit against team policy, reporting disallowed packages, version limits, and exceptions in deterministic JSON.",
+  "rationale": "Both implementations passed all 17 acceptance cases and 43 checks. In the evaluator\u2019s seven-trial comparison, Guion\u2019s median was about 5.5 times faster. This benchmark is a related lockfile task, not the exact new SBOM task.",
+  "acceptance": {
+    "guion": "17/17 cases; 43/43 checks passed",
+    "python": "17/17 cases; 43/43 checks passed",
+    "file": "lockfile-webhook-acceptance.json"
+  },
+  "timing": {
+    "guion_median_seconds": 0.015355,
+    "python_median_seconds": 0.084636,
+    "approximate_speedup": 5.5,
+    "pairs": 7,
+    "note": "Named lockfile-auditor case; not the new SBOM task."
+  }
+}
