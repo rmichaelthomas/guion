@@ -394,7 +394,12 @@ import "std:time"
 fn main() -> Int:
     assert(text_trim("　 hello \n") == "hello")
     assert(text_join(text_split("a::b::", "::"), "|") == "a|b|")
+    assert(text_join(text_split("a,b,,c,", ","), "|") == "a|b||c|")
+    assert(text_join(text_split("α🧬β🧬", "🧬"), "|") == "α|β|")
+    assert(len(text_split("", ",")) == 1)
+    assert(text_join(text_split("abc", ""), "|") == "abc")
     assert(text_replace("aba", "a", "x") == "xbx")
+    assert(text_replace("αββ", "β", "X") == "αXX")
     assert(unwrap(text_parse_integer("-123")) == -123)
     assert(unwrap(list_get([1, 2], 1)) == 2)
     assert(not(is_some(list_get([1, 2], 8))))

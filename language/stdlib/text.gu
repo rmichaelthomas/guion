@@ -5,8 +5,12 @@ fn text_has_space(value: Text) -> Bool:
     return value == " " or value == "\t" or value == "\n" or value == "\r" or value == "\u{000b}" or value == "\u{000c}" or value == "\u{0085}" or value == "\u{00a0}" or value == "\u{1680}" or value == "\u{2000}" or value == "\u{2001}" or value == "\u{2002}" or value == "\u{2003}" or value == "\u{2004}" or value == "\u{2005}" or value == "\u{2006}" or value == "\u{2007}" or value == "\u{2008}" or value == "\u{2009}" or value == "\u{200a}" or value == "\u{2028}" or value == "\u{2029}" or value == "\u{202f}" or value == "\u{205f}" or value == "\u{3000}"
 
 fn text_matches_at(source: List[Text], needle: List[Text], start: Int) -> Bool:
-    if len(needle) == 0 or start + len(needle) > len(source):
+    if len(needle) == 0:
         return false
+    if start + len(needle) > len(source):
+        return false
+    if len(needle) == 1:
+        return source[start] == needle[0]
     var index = 0
     while index < len(needle):
         if source[start + index] != needle[index]:
