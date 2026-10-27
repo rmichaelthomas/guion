@@ -3788,9 +3788,12 @@ impl Instance {
                     release_fuel: native_release_fuel as *const () as *const u8,
                     poll_cancellation: native_poll_cancellation as *const () as *const u8,
                     make_list: native_make_list as *const () as *const u8,
-                    list_set_float: native_list_set_float as *const () as *const u8,
-                    list_set_int: native_list_set_int as *const () as *const u8,
-                    list_set_bool: native_list_set_bool as *const () as *const u8,
+                    list_set_float_copy: native_list_set_float_copy as *const () as *const u8,
+                    list_set_int_copy: native_list_set_int_copy as *const () as *const u8,
+                    list_set_bool_copy: native_list_set_bool_copy as *const () as *const u8,
+                    list_set_float_local: native_list_set_float_local as *const () as *const u8,
+                    list_set_int_local: native_list_set_int_local as *const () as *const u8,
+                    list_set_bool_local: native_list_set_bool_local as *const () as *const u8,
                     charge_record: native_charge_record as *const () as *const u8,
                     print: native_print as *const () as *const u8,
                     count_guest_branch: native_count_guest_branch as *const () as *const u8,
@@ -5057,22 +5060,20 @@ unsafe extern "C" fn native_make_list(
 }
 
 #[inline(always)]
-unsafe fn native_list_set_impl(
+unsafe fn native_list_set_impl<const ITEM_KIND: i64, const ALWAYS_COPY: bool>(
     arena: *mut NativeListArena,
     list: *mut std::ffi::c_void,
     index: i64,
     value: i64,
-    item_kind: i64,
-    always_copy: i64,
 ) -> *mut std::ffi::c_void {
-    if arena.is_null() || list.is_null() || index < 0 || !(1..=3).contains(&item_kind) {
+    if arena.is_null() || list.is_null() || index < 0 {
         return std::ptr::null_mut();
     }
     let arena = unsafe { &mut *arena };
     let Ok(index) = usize::try_from(index) else {
         return std::ptr::null_mut();
     };
-    if item_kind == NATIVE_LIST_FLOAT_KIND {
+    if ITEM_KIND == NATIVE_LIST_FLOAT_KIND {
         let descriptor = unsafe { &mut *(list.cast::<NativeFloatList>()) };
         if index >= descriptor.len {
             return std::ptr::null_mut();
@@ -5081,7 +5082,7 @@ unsafe fn native_list_set_impl(
         let Some(value) = Float64::new(f64::from_bits(value as u64)) else {
             return std::ptr::null_mut();
         };
-        if always_copy == 0 && descriptor.owned {
+        if !ALWAYS_COPY && descriptor.owned {
             if descriptor.inline_storage {
                 descriptor.inline[index] = value.get().to_bits();
             } else {
@@ -5144,10 +5145,10 @@ unsafe fn native_list_set_impl(
             return std::ptr::null_mut();
         }
         arena.record_list_set_operation();
-        if item_kind == NATIVE_LIST_BOOL_KIND && value != 0 && value != 1 {
+        if ITEM_KIND == NATIVE_LIST_BOOL_KIND && value != 0 && value != 1 {
             return std::ptr::null_mut();
         }
-        if always_copy == 0 && descriptor.owned {
+        if !ALWAYS_COPY && descriptor.owned {
             if descriptor.inline_storage {
                 descriptor.inline[index] = value;
             } else {
@@ -5190,6 +5191,7 @@ unsafe fn native_list_set_impl(
     }
 }
 
+#[cfg(test)]
 unsafe extern "C" fn native_list_set(
     arena: *mut NativeListArena,
     list: *mut std::ffi::c_void,
@@ -5198,56 +5200,48 @@ unsafe extern "C" fn native_list_set(
     item_kind: i64,
     always_copy: i64,
 ) -> *mut std::ffi::c_void {
-    unsafe { native_list_set_impl(arena, list, index, value, item_kind, always_copy) }
-}
-
-unsafe extern "C" fn native_list_set_float(
-    arena: *mut NativeListArena,
-    list: *mut std::ffi::c_void,
-    index: i64,
-    value: i64,
-    always_copy: i64,
-) -> *mut std::ffi::c_void {
-    unsafe {
-        native_list_set_impl(
-            arena,
-            list,
-            index,
-            value,
-            NATIVE_LIST_FLOAT_KIND,
-            always_copy,
-        )
+    match (item_kind, always_copy == 0) {
+        (NATIVE_LIST_FLOAT_KIND, true) => unsafe {
+            native_list_set_impl::<NATIVE_LIST_FLOAT_KIND, false>(arena, list, index, value)
+        },
+        (NATIVE_LIST_INT_KIND, true) => unsafe {
+            native_list_set_impl::<NATIVE_LIST_INT_KIND, false>(arena, list, index, value)
+        },
+        (NATIVE_LIST_BOOL_KIND, true) => unsafe {
+            native_list_set_impl::<NATIVE_LIST_BOOL_KIND, false>(arena, list, index, value)
+        },
+        (NATIVE_LIST_FLOAT_KIND, false) => unsafe {
+            native_list_set_impl::<NATIVE_LIST_FLOAT_KIND, true>(arena, list, index, value)
+        },
+        (NATIVE_LIST_INT_KIND, false) => unsafe {
+            native_list_set_impl::<NATIVE_LIST_INT_KIND, true>(arena, list, index, value)
+        },
+        (NATIVE_LIST_BOOL_KIND, false) => unsafe {
+            native_list_set_impl::<NATIVE_LIST_BOOL_KIND, true>(arena, list, index, value)
+        },
+        _ => std::ptr::null_mut(),
     }
 }
 
-unsafe extern "C" fn native_list_set_int(
-    arena: *mut NativeListArena,
-    list: *mut std::ffi::c_void,
-    index: i64,
-    value: i64,
-    always_copy: i64,
-) -> *mut std::ffi::c_void {
-    unsafe { native_list_set_impl(arena, list, index, value, NATIVE_LIST_INT_KIND, always_copy) }
+macro_rules! native_list_set_entry {
+    ($name:ident, $item_kind:ident, $always_copy:literal) => {
+        unsafe extern "C" fn $name(
+            arena: *mut NativeListArena,
+            list: *mut std::ffi::c_void,
+            index: i64,
+            value: i64,
+        ) -> *mut std::ffi::c_void {
+            unsafe { native_list_set_impl::<$item_kind, $always_copy>(arena, list, index, value) }
+        }
+    };
 }
 
-unsafe extern "C" fn native_list_set_bool(
-    arena: *mut NativeListArena,
-    list: *mut std::ffi::c_void,
-    index: i64,
-    value: i64,
-    always_copy: i64,
-) -> *mut std::ffi::c_void {
-    unsafe {
-        native_list_set_impl(
-            arena,
-            list,
-            index,
-            value,
-            NATIVE_LIST_BOOL_KIND,
-            always_copy,
-        )
-    }
-}
+native_list_set_entry!(native_list_set_float_copy, NATIVE_LIST_FLOAT_KIND, true);
+native_list_set_entry!(native_list_set_int_copy, NATIVE_LIST_INT_KIND, true);
+native_list_set_entry!(native_list_set_bool_copy, NATIVE_LIST_BOOL_KIND, true);
+native_list_set_entry!(native_list_set_float_local, NATIVE_LIST_FLOAT_KIND, false);
+native_list_set_entry!(native_list_set_int_local, NATIVE_LIST_INT_KIND, false);
+native_list_set_entry!(native_list_set_bool_local, NATIVE_LIST_BOOL_KIND, false);
 
 unsafe extern "C" fn native_charge_record(arena: *mut NativeListArena, bytes: i64) -> i32 {
     if arena.is_null() || bytes < 0 {

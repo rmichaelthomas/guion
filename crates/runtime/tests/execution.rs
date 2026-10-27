@@ -399,8 +399,17 @@ fn list_set_assignment_keeps_old_aliases_unchanged() {
 
 #[test]
 fn native_list_set_uses_element_typed_helpers_without_changing_copy_semantics() {
-    let source = "fn main() -> Int:\n    let original_ints = [1, 2, 3]\n    let updated_ints = list_set(original_ints, 1, 9)\n    let original_bools = [true, false, true]\n    let updated_bools = list_set(original_bools, 1, true)\n    let original_floats = [1.0, 2.0, 3.0]\n    let updated_floats = list_set(original_floats, 1, 9.0)\n    print(updated_ints[1])\n    print(updated_bools[1])\n    print(updated_floats[1])\n    print(original_ints[1])\n    print(original_bools[1])\n    print(original_floats[1])\n    return 0\n";
+    let source = "fn main() -> Int:\n    let original_ints = [1, 2, 3]\n    let updated_ints = list_set(original_ints, 1, 9)\n    let original_bools = [true, false, true]\n    let updated_bools = list_set(original_bools, 1, true)\n    let original_floats = [1.0, 2.0, 3.0]\n    let updated_floats = list_set(original_floats, 1, 9.0)\n    var local_ints = [1, 2, 3]\n    set local_ints = list_set(local_ints, 1, 8)\n    var local_bools = [true, false, true]\n    set local_bools = list_set(local_bools, 1, true)\n    var local_floats = [1.0, 2.0, 3.0]\n    set local_floats = list_set(local_floats, 1, 8.0)\n    print(updated_ints[1])\n    print(updated_bools[1])\n    print(updated_floats[1])\n    print(original_ints[1])\n    print(original_bools[1])\n    print(original_floats[1])\n    print(local_ints[1])\n    print(local_bools[1])\n    print(local_floats[1])\n    return 0\n";
     let artifact = compile("native-typed-list-set.gu", source).expect("source compiles");
+    assert!(
+        artifact.functions[0]
+            .code
+            .iter()
+            .filter(|instruction| matches!(instruction.op, Op::ListSetLocal(_)))
+            .count()
+            >= 3,
+        "all local element types should use the in-place-capable opcode"
+    );
     let mut native = Runtime::new()
         .load(artifact.clone(), HostPolicy::default())
         .expect("native runtime loads");
@@ -413,7 +422,10 @@ fn native_list_set_uses_element_typed_helpers_without_changing_copy_semantics() 
             runtime.invoke("main", vec![]).unwrap(),
             Value::Int(BigInt::from_i64(0))
         );
-        assert_eq!(runtime.take_output(), "9\ntrue\n9\n2\nfalse\n2\n");
+        assert_eq!(
+            runtime.take_output(),
+            "9\ntrue\n9\n2\nfalse\n2\n8\ntrue\n8\n"
+        );
     }
 
     let profile = native.native_compile_profile();
@@ -426,8 +438,8 @@ fn native_list_set_uses_element_typed_helpers_without_changing_copy_semantics() 
         .as_u64()
         .expect("main IR instruction count is present");
     assert!(
-        main_instructions <= 335,
-        "element-typed list-set calls should remove dynamic kind operands: {main_instructions} instructions"
+        main_instructions <= 461,
+        "typed list-set calls should remove runtime kind and copy-mode operands: {main_instructions} instructions"
     );
 }
 
