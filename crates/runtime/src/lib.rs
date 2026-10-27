@@ -6063,10 +6063,10 @@ fn parse_unique_json(source: &str) -> Result<serde_json::Value, JsonDecodeError>
     use serde::de::DeserializeSeed;
 
     let (safe_source, reserved_key) = escape_reserved_json_keys(source);
-    let duplicate = std::rc::Rc::new(std::cell::RefCell::new(None));
+    let mut duplicate = None;
     let mut deserializer = serde_json::Deserializer::from_str(&safe_source);
     let parsed = UniqueJsonSeed {
-        duplicate: std::rc::Rc::clone(&duplicate),
+        duplicate: &mut duplicate,
     }
     .deserialize(&mut deserializer);
     match parsed {
@@ -6078,7 +6078,7 @@ fn parse_unique_json(source: &str) -> Result<serde_json::Value, JsonDecodeError>
             Ok(value)
         }
         Err(error) => {
-            if let Some(key) = duplicate.borrow_mut().take() {
+            if let Some(key) = duplicate.take() {
                 let offset = duplicate_json_key(source)
                     .map(|(_, offset)| offset)
                     .unwrap_or(source.len());
@@ -6251,12 +6251,11 @@ pub(crate) fn restore_reserved_json_keys(value: &mut serde_json::Value, reserved
     }
 }
 
-#[derive(Clone)]
-struct UniqueJsonSeed {
-    duplicate: std::rc::Rc<std::cell::RefCell<Option<String>>>,
+struct UniqueJsonSeed<'duplicate> {
+    duplicate: &'duplicate mut Option<String>,
 }
 
-impl<'de> serde::de::DeserializeSeed<'de> for UniqueJsonSeed {
+impl<'de> serde::de::DeserializeSeed<'de> for UniqueJsonSeed<'_> {
     type Value = serde_json::Value;
 
     fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
@@ -6269,11 +6268,11 @@ impl<'de> serde::de::DeserializeSeed<'de> for UniqueJsonSeed {
     }
 }
 
-struct UniqueJsonVisitor {
-    duplicate: std::rc::Rc<std::cell::RefCell<Option<String>>>,
+struct UniqueJsonVisitor<'duplicate> {
+    duplicate: &'duplicate mut Option<String>,
 }
 
-impl<'de> serde::de::Visitor<'de> for UniqueJsonVisitor {
+impl<'de> serde::de::Visitor<'de> for UniqueJsonVisitor<'_> {
     type Value = serde_json::Value;
 
     fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -6355,7 +6354,7 @@ impl<'de> serde::de::Visitor<'de> for UniqueJsonVisitor {
     {
         let mut values = Vec::new();
         while let Some(value) = sequence.next_element_seed(UniqueJsonSeed {
-            duplicate: std::rc::Rc::clone(&self.duplicate),
+            duplicate: &mut *self.duplicate,
         })? {
             values.push(value);
         }
@@ -6375,7 +6374,7 @@ impl<'de> serde::de::Visitor<'de> for UniqueJsonVisitor {
         let mut keys = HashSet::new();
         let mut object = serde_json::Map::new();
         let first_value = map.next_value_seed(UniqueJsonSeed {
-            duplicate: std::rc::Rc::clone(&self.duplicate),
+            duplicate: &mut *self.duplicate,
         })?;
         let next_key = map.next_key::<String>()?;
         if first_key == "$serde_json::private::Number" && next_key.is_none() {
@@ -6390,11 +6389,11 @@ impl<'de> serde::de::Visitor<'de> for UniqueJsonVisitor {
         let mut key = next_key;
         while let Some(current_key) = key {
             if !keys.insert(current_key.clone()) {
-                *self.duplicate.borrow_mut() = Some(current_key);
+                *self.duplicate = Some(current_key);
                 return Err(serde::de::Error::custom("duplicate JSON object key"));
             }
             let value = map.next_value_seed(UniqueJsonSeed {
-                duplicate: std::rc::Rc::clone(&self.duplicate),
+                duplicate: &mut *self.duplicate,
             })?;
             object.insert(current_key, value);
             key = map.next_key::<String>()?;

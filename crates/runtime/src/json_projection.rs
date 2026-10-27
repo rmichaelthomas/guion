@@ -481,8 +481,14 @@ impl<'de> Visitor<'de> for ProjectVisitor {
                         .field_indices
                         .contains_key(current_key.as_ref());
                     if selected {
-                        let duplicate = Rc::clone(&self.state.borrow().duplicate);
-                        let mut value = map.next_value_seed(UniqueJsonSeed { duplicate })?;
+                        let mut duplicate = None;
+                        let value_result = map.next_value_seed(UniqueJsonSeed {
+                            duplicate: &mut duplicate,
+                        });
+                        if let Some(key) = duplicate.take() {
+                            *self.state.borrow().duplicate.borrow_mut() = Some(key);
+                        }
+                        let mut value = value_result?;
                         if let Some(reserved_key) = self.state.borrow().reserved_key.clone() {
                             restore_reserved_json_keys(&mut value, &reserved_key);
                         }
