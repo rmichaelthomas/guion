@@ -5,3 +5,7 @@ entry = "main.vr"
 
 [package]
 resources = []
+
+[runtime]
+# The 8,192-package regression needs a minimum 2,154,912-instruction ceiling.
+instruction_limit = 2250000

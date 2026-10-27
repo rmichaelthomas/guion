@@ -1,0 +1,98 @@
+{
+  "schema_version": 1,
+  "kind": "lockfile-diagnostic-scaling",
+  "baseline_commit": "HEAD",
+  "baseline_source_sha256": "08d8bda3964295e54466a1fe5bf95db8d0f80b4976a1320c0d884b4f81d2953a",
+  "candidate_source_sha256": "08d8bda3964295e54466a1fe5bf95db8d0f80b4976a1320c0d884b4f81d2953a",
+  "guion_binary_sha256": "7dece407c1e91370de7537f39fd2d223d69d079b196d6c1b20d2b91f369a4a63",
+  "platform": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+  "python": "3.14.7 (main, Aug  5 2026, 10:29:49) [Clang 21.0.0 (clang-2100.1.1.101)]",
+  "trials": 3,
+  "measurement": "Fresh-process source runs with Guion source cache bypassed; fixture setup excluded. Every report is checked against the expected sorted JSON. OS file cache is uncontrolled.",
+  "workloads": {
+    "4096": {
+      "packages": 4096,
+      "diagnostics": 8192,
+      "preflight": {
+        "baseline_source": {
+          "passed": true,
+          "elapsed_seconds": 0.080721,
+          "failures": [],
+          "stderr": "",
+          "runner_wall_seconds": 0.08343499997863546
+        },
+        "candidate_source": {
+          "passed": true,
+          "elapsed_seconds": 0.077749,
+          "failures": [],
+          "stderr": "",
+          "runner_wall_seconds": 0.0810762089677155
+        },
+        "python": {
+          "passed": true,
+          "elapsed_seconds": 0.11489,
+          "failures": [],
+          "stderr": "",
+          "runner_wall_seconds": 0.11691712500760332
+        }
+      },
+      "samples_seconds": {
+        "baseline_source": [
+          0.073673,
+          0.079225,
+          0.075995
+        ],
+        "candidate_source": [
+          0.076792,
+          0.078406,
+          0.077274
+        ],
+        "python": [
+          0.116566,
+          0.113447,
+          0.115013
+        ]
+      },
+      "paired_order": [
+        [
+          "candidate_source",
+          "python",
+          "baseline_source"
+        ],
+        [
+          "candidate_source",
+          "python",
+          "baseline_source"
+        ],
+        [
+          "candidate_source",
+          "baseline_source",
+          "python"
+        ]
+      ],
+      "median_seconds": {
+        "baseline_source": 0.075995,
+        "candidate_source": 0.077274,
+        "python": 0.115013
+      },
+      "ratios": {
+        "candidate_over_python": {
+          "median": 0.6718718753532209,
+          "bootstrap_95_interval": [
+            0.6587855807010621,
+            0.6911244898498858
+          ]
+        },
+        "candidate_over_baseline": {
+          "median": 1.0168300546088558,
+          "bootstrap_95_interval": [
+            0.9896623540549069,
+            1.0423357267927191
+          ]
+        }
+      },
+      "all_outputs_verified": true,
+      "status": "passed"
+    }
+  }
+}

@@ -9,6 +9,7 @@ import json
 import os
 import platform
 import random
+import shutil
 import statistics
 import subprocess
 import sys
@@ -21,11 +22,112 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "evaluation/completion"))
 from compare_real_tasks import APPS, PYTHON_REFERENCE  # noqa: E402
 from evaluation.protocol.case_runner import run_case  # noqa: E402
+from evaluation.completion.performance.runner import peak_memory  # noqa: E402
 
 
 def interval(values: list[float], rng: random.Random) -> list[float]:
     medians = sorted(statistics.median(rng.choices(values, k=len(values))) for _ in range(5000))
     return [medians[124], medians[4874]]
+
+
+def build_case(package_count: int) -> dict:
+    packages = [{"name": f"pkg-{index:04d}", "version": "1.0.0"} for index in range(package_count)]
+    expected = {
+        "violations": [
+            {"name": f"pkg-{index:04d}", "rule": rule}
+            for index in range(package_count)
+            for rule in ("missing_checksum", "missing_source")
+        ],
+        "warnings": [],
+    }
+    return {
+        "id": f"lockfile-diagnostics-{package_count}",
+        "files": {
+            "lock.json": json.dumps({"packages": packages}, separators=(",", ":")),
+            "policy.json": json.dumps(
+                {"require_source": True, "require_checksum": True}, separators=(",", ":")
+            ),
+        },
+        "command_args": ["--lockfile", "lock.json", "--policy", "policy.json", "--output", "report.json"],
+        "expected_exit_code": 0,
+        "checks": [{"kind": "json_equals", "file": "report.json", "value": expected}],
+    }
+
+
+def measure_memory(
+    binary: Path,
+    package_count: int,
+    case: dict,
+    candidates: dict,
+    scratch: Path,
+    trials: int,
+    rng: random.Random,
+    include_baseline: bool,
+) -> dict:
+    expected = case["checks"][0]["value"]
+    command_args = case["command_args"]
+    arms = ["candidate_source", "python"]
+    if include_baseline:
+        arms.insert(0, "baseline_source")
+    samples = {name: [] for name in arms}
+    workspace_root = scratch / "memory" / str(package_count)
+    shutil.rmtree(workspace_root, ignore_errors=True)
+    workspace_root.mkdir(parents=True, exist_ok=True)
+    workspaces: dict[str, Path] = {}
+    commands: dict[str, list[str]] = {}
+
+    for name in arms:
+        candidate_root = candidates[name][1]
+        project = workspace_root / name
+        if name == "python":
+            project.mkdir()
+            commands[name] = [sys.executable, str(candidate_root / "main.py"), *command_args]
+        else:
+            shutil.copytree(candidate_root, project)
+            commands[name] = [
+                str(binary),
+                "run",
+                "--no-cache",
+                str(project / "main.vr"),
+                *command_args,
+            ]
+        for filename, content in case["files"].items():
+            (project / filename).write_text(content, encoding="utf-8")
+        workspaces[name] = project
+
+    orders = []
+    for _ in range(trials):
+        order = arms[:]
+        rng.shuffle(order)
+        orders.append(order)
+        for name in order:
+            project = workspaces[name]
+            output = project / "report.json"
+            output.unlink(missing_ok=True)
+            peak_rss = peak_memory(commands[name], project)
+            if peak_rss is None:
+                raise RuntimeError(f"{package_count} packages: {name} failed during memory sampling")
+            if not output.is_file():
+                raise RuntimeError(f"{package_count} packages: {name} did not write report.json")
+            actual = json.loads(output.read_text(encoding="utf-8"))
+            if actual != expected:
+                raise RuntimeError(f"{package_count} packages: {name} produced incorrect output during memory sampling")
+            samples[name].append(peak_rss)
+
+    medians = {name: statistics.median(values) for name, values in samples.items()}
+    ratios = {
+        "candidate_over_python": medians["candidate_source"] / medians["python"],
+    }
+    if "baseline_source" in medians:
+        ratios["candidate_over_baseline"] = medians["candidate_source"] / medians["baseline_source"]
+    return {
+        "runs_per_arm": trials,
+        "peak_rss_bytes": samples,
+        "median_peak_rss_bytes": medians,
+        "ratios": ratios,
+        "paired_order": orders,
+        "all_outputs_verified": True,
+    }
 
 
 def main() -> int:
@@ -35,9 +137,10 @@ def main() -> int:
     parser.add_argument("--baseline-commit", default="8e1b43b")
     parser.add_argument("--sizes", nargs="+", type=int, default=[64, 128, 256, 512])
     parser.add_argument("--trials", type=int, default=7)
+    parser.add_argument("--memory-trials", type=int, default=3)
     args = parser.parse_args()
-    if args.trials < 3 or any(size < 1 for size in args.sizes):
-        parser.error("trials must be at least 3 and sizes must be positive")
+    if args.trials < 3 or args.memory_trials < 1 or any(size < 1 for size in args.sizes):
+        parser.error("trials must be at least 3, memory trials must be positive, and sizes must be positive")
 
     binary = args.binary.resolve(strict=True)
     scratch = ROOT / "target/perf-session/lockfile-scale"
@@ -88,6 +191,10 @@ def main() -> int:
             "Fresh-process source runs with Guion source cache bypassed; fixture setup excluded. "
             "Every report is checked against the expected sorted JSON. OS file cache is uncontrolled."
         ),
+        "memory_measurement": (
+            "Direct-child peak RSS from resource.getrusage(RUSAGE_CHILDREN).ru_maxrss; "
+            "each memory run is checked against the exact expected report."
+        ),
         "workloads": {},
     }
 
@@ -103,28 +210,9 @@ def main() -> int:
         }
 
     for package_count in args.sizes:
-        packages = [{"name": f"pkg-{index:04d}", "version": "1.0.0"} for index in range(package_count)]
-        expected = {
-            "violations": [
-                {"name": f"pkg-{index:04d}", "rule": rule}
-                for index in range(package_count)
-                for rule in ("missing_checksum", "missing_source")
-            ],
-            "warnings": [],
-        }
-        command_args = ["--lockfile", "lock.json", "--policy", "policy.json", "--output", "report.json"]
-        case = {
-            "id": f"lockfile-diagnostics-{package_count}",
-            "files": {
-                "lock.json": json.dumps({"packages": packages}, separators=(",", ":")),
-                "policy.json": json.dumps(
-                    {"require_source": True, "require_checksum": True}, separators=(",", ":")
-                ),
-            },
-            "command_args": command_args,
-            "expected_exit_code": 0,
-            "checks": [{"kind": "json_equals", "file": "report.json", "value": expected}],
-        }
+        case = build_case(package_count)
+        expected = case["checks"][0]["value"]
+        command_args = case["command_args"]
         candidates = {
             "baseline_source": (
                 {
@@ -210,6 +298,16 @@ def main() -> int:
                 "median": statistics.median(values),
                 "bootstrap_95_interval": interval(values, rng),
             }
+        workload["memory"] = measure_memory(
+            binary,
+            package_count,
+            case,
+            candidates,
+            scratch,
+            args.memory_trials,
+            rng,
+            preflight["baseline_source"]["passed"],
+        )
         report["workloads"][str(package_count)] = workload
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")

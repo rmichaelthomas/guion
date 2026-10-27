@@ -308,9 +308,9 @@ mod tests {
 
             let mut current = artifact;
             current.format_version = Artifact::CURRENT_VERSION;
-            let current_tag = match op {
-                Op::TimeResolveLocal => 161,
-                Op::TimeZoneDataVersion => 162,
+            let current_tag = match expected_tag {
+                158 => 161,
+                159 => 162,
                 _ => unreachable!(),
             };
             let current_bytes = current.to_bytes().unwrap();
