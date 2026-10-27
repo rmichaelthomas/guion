@@ -1520,9 +1520,14 @@ fn native_fuel_metering_adds_control_flow_per_bytecode_block() {
     );
     let instructions = instance.native_bytecode_instructions();
     let ir_blocks = instance.native_cranelift_ir_blocks();
+    let ir_instructions = instance.native_cranelift_ir_instructions();
     assert!(
         ir_blocks < instructions * 2,
         "fuel control flow should scale by bytecode block, not instruction: {ir_blocks} IR blocks for {instructions} instructions"
+    );
+    assert!(
+        ir_instructions < 2_100,
+        "step-count bookkeeping should avoid one generated update per instruction: {ir_instructions} IR instructions for {instructions} guest instructions"
     );
 
     let exact_policy = HostPolicy {

@@ -610,8 +610,10 @@ impl NativeBackend {
                 stack_params[*block_index] = values;
             }
             let mut block_instruction_counts = vec![0usize; blocks.len()];
+            let mut block_instruction_offsets = vec![0usize; function.code.len()];
             for (ip, block_index) in block_for_ip.iter().enumerate() {
                 if depths[ip].is_some() {
+                    block_instruction_offsets[ip] = block_instruction_counts[*block_index];
                     block_instruction_counts[*block_index] += 1;
                 }
             }
@@ -637,7 +639,8 @@ impl NativeBackend {
             ] {
                 let steps = builder.append_block_param(block, types::I64);
                 let source_ip = builder.append_block_param(block, types::I64);
-                exit_params.push([steps, source_ip]);
+                let completed_instructions = builder.append_block_param(block, types::I64);
+                exit_params.push([steps, source_ip, completed_instructions]);
             }
 
             builder.switch_to_block(entry);
@@ -697,10 +700,9 @@ impl NativeBackend {
                         &instruction.op,
                         Op::Jump(target) | Op::JumpIfFalse(target) if *target <= ip
                     );
-                let steps_before = builder.use_var(steps_var);
-                let current_ip = builder.ins().iconst(types::I64, ip as i64);
-                let exit_args = [BlockArg::Value(steps_before), BlockArg::Value(current_ip)];
                 if polls_cancellation {
+                    let exit_args =
+                        step_exit_args(&mut builder, steps_var, ip, block_instruction_offsets[ip]);
                     let cancellation = builder.ins().call(poll_cancellation, &[budget_pointer]);
                     let cancellation = builder.inst_results(cancellation)[0];
                     let no_cancel = builder.ins().iconst(types::I32, 0);
@@ -716,6 +718,8 @@ impl NativeBackend {
                     .map(|block_index| fuel_reservation_requirements[block_index])
                     .filter(|required| *required > 0)
                 {
+                    let exit_args =
+                        step_exit_args(&mut builder, steps_var, ip, block_instruction_offsets[ip]);
                     let remaining_fuel = builder.use_var(fuel_var);
                     let required_fuel = builder.ins().iconst(types::I64, required as i64);
                     let enough_fuel = builder.ins().icmp(
@@ -752,14 +756,15 @@ impl NativeBackend {
                 let remaining_fuel = builder.use_var(fuel_var);
                 let remaining_fuel = builder.ins().iadd_imm_s(remaining_fuel, -1);
                 builder.def_var(fuel_var, remaining_fuel);
-                let steps = builder.use_var(steps_var);
-                let steps = builder.ins().iadd_imm_s(steps, 1);
-                builder.def_var(steps_var, steps);
-
                 match &instruction.op {
                     Op::Const(Value::Int(value)) => {
                         let Ok(value) = value.to_string().parse::<i64>() else {
                             let fault_ip = builder.ins().iconst(types::I64, ip as i64);
+                            let steps = step_count_after(
+                                &mut builder,
+                                steps_var,
+                                block_instruction_offsets[ip] + 1,
+                            );
                             let calls = builder.use_var(native_calls_var);
                             emit_exit(
                                 &mut builder,
@@ -834,6 +839,12 @@ impl NativeBackend {
                         let null = builder.ins().iconst(ptr, 0);
                         let succeeded = builder.ins().icmp(IntCC::NotEqual, list, null);
                         let success = builder.create_block();
+                        let exit_args = step_exit_args(
+                            &mut builder,
+                            steps_var,
+                            ip,
+                            block_instruction_offsets[ip] + 1,
+                        );
                         builder
                             .ins()
                             .brif(succeeded, success, &[], fallback, &exit_args);
@@ -856,6 +867,12 @@ impl NativeBackend {
                         let null = builder.ins().iconst(ptr, 0);
                         let succeeded = builder.ins().icmp(IntCC::NotEqual, list, null);
                         let success = builder.create_block();
+                        let exit_args = step_exit_args(
+                            &mut builder,
+                            steps_var,
+                            ip,
+                            block_instruction_offsets[ip] + 1,
+                        );
                         builder
                             .ins()
                             .brif(succeeded, success, &[], fallback, &exit_args);
@@ -871,6 +888,12 @@ impl NativeBackend {
                             .and_then(|types| types.last());
                         let clone_bytes = loaded_type.map(native_cloned_value_bytes).unwrap_or(0);
                         if clone_bytes > 0 {
+                            let exit_args = step_exit_args(
+                                &mut builder,
+                                steps_var,
+                                ip,
+                                block_instruction_offsets[ip] + 1,
+                            );
                             let bytes = builder
                                 .ins()
                                 .iconst(types::I64, i64::try_from(clone_bytes).unwrap_or(i64::MAX));
@@ -910,6 +933,12 @@ impl NativeBackend {
                             .map(|field| &field.ty);
                         let clone_bytes = field_type.map(native_cloned_value_bytes).unwrap_or(0);
                         if clone_bytes > 0 {
+                            let exit_args = step_exit_args(
+                                &mut builder,
+                                steps_var,
+                                ip,
+                                block_instruction_offsets[ip] + 1,
+                            );
                             let bytes = builder
                                 .ins()
                                 .iconst(types::I64, i64::try_from(clone_bytes).unwrap_or(i64::MAX));
@@ -949,6 +978,12 @@ impl NativeBackend {
                         let zero = builder.ins().iconst(types::I32, 0);
                         let succeeded = builder.ins().icmp(IntCC::NotEqual, charged, zero);
                         let success = builder.create_block();
+                        let exit_args = step_exit_args(
+                            &mut builder,
+                            steps_var,
+                            ip,
+                            block_instruction_offsets[ip] + 1,
+                        );
                         builder
                             .ins()
                             .brif(succeeded, success, &[], fallback, &exit_args);
@@ -1007,9 +1042,12 @@ impl NativeBackend {
                         let zero = builder.ins().iconst(types::I64, 0);
                         let negative = builder.ins().icmp(IntCC::SignedLessThan, index, zero);
                         let check_upper = builder.create_block();
-                        let fault_ip = builder.ins().iconst(types::I64, ip as i64);
-                        let fault_steps = builder.use_var(steps_var);
-                        let fault_args = [BlockArg::Value(fault_steps), BlockArg::Value(fault_ip)];
+                        let fault_args = step_exit_args(
+                            &mut builder,
+                            steps_var,
+                            ip,
+                            block_instruction_offsets[ip] + 1,
+                        );
                         builder
                             .ins()
                             .brif(negative, fallback, &fault_args, check_upper, &[]);
@@ -1023,9 +1061,12 @@ impl NativeBackend {
                         );
                         let in_bounds = builder.ins().icmp(IntCC::UnsignedLessThan, index, length);
                         let load_item = builder.create_block();
-                        let fault_ip = builder.ins().iconst(types::I64, ip as i64);
-                        let fault_steps = builder.use_var(steps_var);
-                        let fault_args = [BlockArg::Value(fault_steps), BlockArg::Value(fault_ip)];
+                        let fault_args = step_exit_args(
+                            &mut builder,
+                            steps_var,
+                            ip,
+                            block_instruction_offsets[ip] + 1,
+                        );
                         builder
                             .ins()
                             .brif(in_bounds, load_item, &[], fallback, &fault_args);
@@ -1076,8 +1117,9 @@ impl NativeBackend {
                                 &mut builder,
                                 value,
                                 float_nonfinite,
-                                steps,
+                                steps_var,
                                 ip,
+                                block_instruction_offsets[ip] + 1,
                             );
                             stack.push(builder.ins().bitcast(
                                 types::I64,
@@ -1092,12 +1134,12 @@ impl NativeBackend {
                                 _ => unreachable!(),
                             };
                             let ok = builder.create_block();
-                            let overflow_ip = builder.ins().iconst(types::I64, ip as i64);
-                            let overflow_steps = builder.use_var(steps_var);
-                            let exit_args = [
-                                BlockArg::Value(overflow_steps),
-                                BlockArg::Value(overflow_ip),
-                            ];
+                            let exit_args = step_exit_args(
+                                &mut builder,
+                                steps_var,
+                                ip,
+                                block_instruction_offsets[ip] + 1,
+                            );
                             builder.ins().brif(overflow, fallback, &exit_args, ok, &[]);
                             builder.switch_to_block(ok);
                             builder.seal_block(ok);
@@ -1115,12 +1157,12 @@ impl NativeBackend {
                             let zero = builder.ins().iconst(types::I64, 0);
                             let (negated, overflow) = builder.ins().ssub_overflow(zero, value);
                             let ok = builder.create_block();
-                            let overflow_ip = builder.ins().iconst(types::I64, ip as i64);
-                            let overflow_steps = builder.use_var(steps_var);
-                            let exit_args = [
-                                BlockArg::Value(overflow_steps),
-                                BlockArg::Value(overflow_ip),
-                            ];
+                            let exit_args = step_exit_args(
+                                &mut builder,
+                                steps_var,
+                                ip,
+                                block_instruction_offsets[ip] + 1,
+                            );
                             builder.ins().brif(overflow, fallback, &exit_args, ok, &[]);
                             builder.switch_to_block(ok);
                             builder.seal_block(ok);
@@ -1176,6 +1218,10 @@ impl NativeBackend {
                         }
                     }
                     Op::Jump(target) => {
+                        let completed_instructions = block_instruction_counts[block_for_ip[ip]];
+                        let block_steps =
+                            step_count_after(&mut builder, steps_var, completed_instructions);
+                        builder.def_var(steps_var, block_steps);
                         let block_args: Vec<_> =
                             stack.iter().copied().map(BlockArg::Value).collect();
                         builder
@@ -1184,6 +1230,9 @@ impl NativeBackend {
                         continue;
                     }
                     Op::Call(target, argc) => {
+                        let completed_instructions = block_instruction_counts[block_for_ip[ip]];
+                        let steps =
+                            step_count_after(&mut builder, steps_var, completed_instructions);
                         let _function_id = function_ids
                             .get(*target)
                             .and_then(|function_id| *function_id)
@@ -1294,8 +1343,7 @@ impl NativeBackend {
                             builder
                                 .ins()
                                 .load(types::I64, MemFlagsData::new(), child_metadata, 8);
-                        let parent_steps = builder.use_var(steps_var);
-                        let total_steps = builder.ins().iadd(parent_steps, child_steps);
+                        let total_steps = builder.ins().iadd(steps, child_steps);
                         let fault_ip =
                             builder
                                 .ins()
@@ -1327,8 +1375,7 @@ impl NativeBackend {
                             builder
                                 .ins()
                                 .load(types::I64, MemFlagsData::new(), child_metadata, 8);
-                        let parent_steps = builder.use_var(steps_var);
-                        let total_steps = builder.ins().iadd(parent_steps, child_steps);
+                        let total_steps = builder.ins().iadd(steps, child_steps);
                         builder.def_var(steps_var, total_steps);
                         let child_calls =
                             builder
@@ -1375,6 +1422,10 @@ impl NativeBackend {
                         builder.seal_block(failure);
                     }
                     Op::JumpIfFalse(target) => {
+                        let completed_instructions = block_instruction_counts[block_for_ip[ip]];
+                        let block_steps =
+                            step_count_after(&mut builder, steps_var, completed_instructions);
+                        builder.def_var(steps_var, block_steps);
                         let value = stack.pop().ok_or_else(|| "stack underflow".to_owned())?;
                         if let Some(counter) = count_guest_branch {
                             builder.ins().call(counter, &[arena_pointer]);
@@ -1422,6 +1473,12 @@ impl NativeBackend {
                         let null = builder.ins().iconst(ptr, 0);
                         let succeeded = builder.ins().icmp(IntCC::NotEqual, updated, null);
                         let success = builder.create_block();
+                        let exit_args = step_exit_args(
+                            &mut builder,
+                            steps_var,
+                            ip,
+                            block_instruction_offsets[ip] + 1,
+                        );
                         builder
                             .ins()
                             .brif(succeeded, success, &[], fallback, &exit_args);
@@ -1453,6 +1510,12 @@ impl NativeBackend {
                         let null = builder.ins().iconst(ptr, 0);
                         let succeeded = builder.ins().icmp(IntCC::NotEqual, updated, null);
                         let success = builder.create_block();
+                        let exit_args = step_exit_args(
+                            &mut builder,
+                            steps_var,
+                            ip,
+                            block_instruction_offsets[ip] + 1,
+                        );
                         builder
                             .ins()
                             .brif(succeeded, success, &[], fallback, &exit_args);
@@ -1474,10 +1537,12 @@ impl NativeBackend {
                             let zero = builder.ins().f64const(0.0);
                             let is_zero = builder.ins().fcmp(FloatCC::Equal, right, zero);
                             let continue_division = builder.create_block();
-                            let fault_ip = builder.ins().iconst(types::I64, ip as i64);
-                            let fault_steps = builder.use_var(steps_var);
-                            let exit_args =
-                                [BlockArg::Value(fault_steps), BlockArg::Value(fault_ip)];
+                            let exit_args = step_exit_args(
+                                &mut builder,
+                                steps_var,
+                                ip,
+                                block_instruction_offsets[ip] + 1,
+                            );
                             builder.ins().brif(
                                 is_zero,
                                 divide_zero,
@@ -1492,8 +1557,9 @@ impl NativeBackend {
                                 &mut builder,
                                 value,
                                 float_nonfinite,
-                                steps,
+                                steps_var,
                                 ip,
+                                block_instruction_offsets[ip] + 1,
                             );
                             stack.push(builder.ins().bitcast(
                                 types::I64,
@@ -1504,10 +1570,12 @@ impl NativeBackend {
                             let zero = builder.ins().iconst(types::I64, 0);
                             let is_zero = builder.ins().icmp(IntCC::Equal, right, zero);
                             let continue_division = builder.create_block();
-                            let fault_ip = builder.ins().iconst(types::I64, ip as i64);
-                            let fault_steps = builder.use_var(steps_var);
-                            let exit_args =
-                                [BlockArg::Value(fault_steps), BlockArg::Value(fault_ip)];
+                            let exit_args = step_exit_args(
+                                &mut builder,
+                                steps_var,
+                                ip,
+                                block_instruction_offsets[ip] + 1,
+                            );
                             builder.ins().brif(
                                 is_zero,
                                 divide_zero,
@@ -1523,10 +1591,12 @@ impl NativeBackend {
                             let is_minus_one = builder.ins().icmp(IntCC::Equal, right, minus_one);
                             let overflow = builder.ins().band(is_min, is_minus_one);
                             let safe_division = builder.create_block();
-                            let fault_ip = builder.ins().iconst(types::I64, ip as i64);
-                            let fault_steps = builder.use_var(steps_var);
-                            let exit_args =
-                                [BlockArg::Value(fault_steps), BlockArg::Value(fault_ip)];
+                            let exit_args = step_exit_args(
+                                &mut builder,
+                                steps_var,
+                                ip,
+                                block_instruction_offsets[ip] + 1,
+                            );
                             builder
                                 .ins()
                                 .brif(overflow, fallback, &exit_args, safe_division, &[]);
@@ -1543,9 +1613,12 @@ impl NativeBackend {
                         let zero = builder.ins().f64const(0.0);
                         let is_negative = builder.ins().fcmp(FloatCC::LessThan, value, zero);
                         let continue_sqrt = builder.create_block();
-                        let fault_ip = builder.ins().iconst(types::I64, ip as i64);
-                        let fault_steps = builder.use_var(steps_var);
-                        let exit_args = [BlockArg::Value(fault_steps), BlockArg::Value(fault_ip)];
+                        let exit_args = step_exit_args(
+                            &mut builder,
+                            steps_var,
+                            ip,
+                            block_instruction_offsets[ip] + 1,
+                        );
                         builder.ins().brif(
                             is_negative,
                             math_domain,
@@ -1556,7 +1629,14 @@ impl NativeBackend {
                         builder.switch_to_block(continue_sqrt);
                         builder.seal_block(continue_sqrt);
                         let result = builder.ins().sqrt(value);
-                        emit_float_finite_guard(&mut builder, result, float_nonfinite, steps, ip);
+                        emit_float_finite_guard(
+                            &mut builder,
+                            result,
+                            float_nonfinite,
+                            steps_var,
+                            ip,
+                            block_instruction_offsets[ip] + 1,
+                        );
                         stack.push(
                             builder
                                 .ins()
@@ -1569,9 +1649,12 @@ impl NativeBackend {
                         let zero = builder.ins().iconst(types::I64, 0);
                         let is_zero = builder.ins().icmp(IntCC::Equal, right, zero);
                         let nonzero = builder.create_block();
-                        let fault_ip = builder.ins().iconst(types::I64, ip as i64);
-                        let fault_steps = builder.use_var(steps_var);
-                        let exit_args = [BlockArg::Value(fault_steps), BlockArg::Value(fault_ip)];
+                        let exit_args = step_exit_args(
+                            &mut builder,
+                            steps_var,
+                            ip,
+                            block_instruction_offsets[ip] + 1,
+                        );
                         builder
                             .ins()
                             .brif(is_zero, divide_zero, &exit_args, nonzero, &[]);
@@ -1586,10 +1669,12 @@ impl NativeBackend {
                         let safe_right = builder.ins().select(overflow, one, right);
                         if !matches!(instruction.op, Op::Remainder) {
                             let continue_division = builder.create_block();
-                            let fault_steps = builder.use_var(steps_var);
-                            let fault_ip = builder.ins().iconst(types::I64, ip as i64);
-                            let exit_args =
-                                [BlockArg::Value(fault_steps), BlockArg::Value(fault_ip)];
+                            let exit_args = step_exit_args(
+                                &mut builder,
+                                steps_var,
+                                ip,
+                                block_instruction_offsets[ip] + 1,
+                            );
                             builder.ins().brif(
                                 overflow,
                                 fallback,
@@ -1638,6 +1723,12 @@ impl NativeBackend {
                         let zero = builder.ins().iconst(types::I32, 0);
                         let succeeded = builder.ins().icmp(IntCC::NotEqual, printed, zero);
                         let success = builder.create_block();
+                        let exit_args = step_exit_args(
+                            &mut builder,
+                            steps_var,
+                            ip,
+                            block_instruction_offsets[ip] + 1,
+                        );
                         builder
                             .ins()
                             .brif(succeeded, success, &[], fallback, &exit_args);
@@ -1645,6 +1736,9 @@ impl NativeBackend {
                         builder.seal_block(success);
                     }
                     Op::Return => {
+                        let completed_instructions = block_instruction_counts[block_for_ip[ip]];
+                        let steps =
+                            step_count_after(&mut builder, steps_var, completed_instructions);
                         let value = stack.pop().ok_or_else(|| "stack underflow".to_owned())?;
                         if let Type::Record(name) = &function.result {
                             let definition = records
@@ -1693,6 +1787,12 @@ impl NativeBackend {
                     return Err("missing function terminator".into());
                 }
                 if let Some(next_block) = leader_indices[ip + 1] {
+                    if !matches!(instruction.op, Op::Call(_, _)) {
+                        let completed_instructions = block_instruction_counts[block_for_ip[ip]];
+                        let block_steps =
+                            step_count_after(&mut builder, steps_var, completed_instructions);
+                        builder.def_var(steps_var, block_steps);
+                    }
                     let block_args: Vec<_> = stack.iter().copied().map(BlockArg::Value).collect();
                     builder.ins().jump(blocks[next_block], &block_args);
                 }
@@ -1714,11 +1814,12 @@ impl NativeBackend {
                     .ins()
                     .call(release_fuel, &[budget_pointer, unused_fuel]);
                 let calls = builder.use_var(native_calls_var);
+                let steps = builder.ins().iadd(params[0], params[2]);
                 emit_exit(
                     &mut builder,
                     output_pointer,
                     status,
-                    params[0],
+                    steps,
                     params[1],
                     index,
                     calls,
@@ -1765,12 +1866,43 @@ impl NativeBackend {
     }
 }
 
+fn step_count_after(
+    builder: &mut FunctionBuilder<'_>,
+    steps_var: Variable,
+    completed_instructions: usize,
+) -> cranelift_codegen::ir::Value {
+    let steps = builder.use_var(steps_var);
+    builder
+        .ins()
+        .iadd_imm_s(steps, completed_instructions.min(i64::MAX as usize) as i64)
+}
+
+fn step_exit_args(
+    builder: &mut FunctionBuilder<'_>,
+    steps_var: Variable,
+    ip: usize,
+    completed_instructions: usize,
+) -> [BlockArg; 3] {
+    let steps = builder.use_var(steps_var);
+    let fault_ip = builder.ins().iconst(types::I64, ip as i64);
+    let completed_instructions = builder.ins().iconst(
+        types::I64,
+        completed_instructions.min(i64::MAX as usize) as i64,
+    );
+    [
+        BlockArg::Value(steps),
+        BlockArg::Value(fault_ip),
+        BlockArg::Value(completed_instructions),
+    ]
+}
+
 fn emit_float_finite_guard(
     builder: &mut FunctionBuilder<'_>,
     value: cranelift_codegen::ir::Value,
     failure: cranelift_codegen::ir::Block,
-    steps: cranelift_codegen::ir::Value,
+    steps_var: Variable,
     ip: usize,
+    completed_instructions: usize,
 ) {
     let max = builder.ins().f64const(f64::MAX);
     let min = builder.ins().f64const(-f64::MAX);
@@ -1780,8 +1912,7 @@ fn emit_float_finite_guard(
     let too_small = builder.ins().fcmp(FloatCC::UnorderedOrLessThan, value, min);
     let invalid = builder.ins().bor(too_large, too_small);
     let okay = builder.create_block();
-    let fault_ip = builder.ins().iconst(types::I64, ip as i64);
-    let exit_args = [BlockArg::Value(steps), BlockArg::Value(fault_ip)];
+    let exit_args = step_exit_args(builder, steps_var, ip, completed_instructions);
     builder.ins().brif(invalid, failure, &exit_args, okay, &[]);
     builder.switch_to_block(okay);
     builder.seal_block(okay);

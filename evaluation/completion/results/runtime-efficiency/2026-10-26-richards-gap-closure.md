@@ -20,6 +20,16 @@ The diagnostic profile shows the expected compile-time change: `main` fell from 
 
 This candidate also has 358 `main` IR blocks, the same count as the superseded first candidate, but it keeps the caller's unused reservation available to the caller across child calls. The existing exact-budget parity test passed for nested VM/JIT/fallback execution, as did the IR-metering invariant test.
 
+## Follow-up: batch step-count bookkeeping
+
+The native backend previously emitted a guest-step counter update for every bytecode instruction. The new candidate accumulates completed instructions and updates that counter at bytecode-block boundaries. Fuel is still charged for every guest instruction, and cancellation, fallback, call, return, and error exits retain the completed-step count. The focused 324-instruction regression fixture was 2,149 Cranelift IR instructions before this change; the new invariant requires it to stay below 2,100. Exact instruction-budget parity tests remain part of the focused runtime checks.
+
+The output-checked, randomized 30-trial fresh-source cohort measured 36.86 ms for the preceding build, 35.22 ms for the step-batched candidate, and 74.91 ms for CPython 3.14.7. Candidate/preceding-build was `0.957` (paired 95% interval `0.939–0.980`), a 4.3% median reduction; 7 of 30 paired samples were ties or regressions. Candidate/Python was `0.465` (`0.459–0.477`). Source compilation cache was bypassed and OS file cache was uncontrolled. This is a measured first-source improvement on Richards, not evidence of general superiority over Python. See the [fresh-source 30-trial comparison](2026-10-27-richards-step-count-batching-fresh-source-30-trial-comparison.json).
+
+The randomized 30-trial 25-execution lane showed the expected distinction between startup and sustained execution: 9.559 ms per logical execution for the preceding build and 9.554 ms for the candidate. Candidate/preceding-build was `1.001` (95% interval `0.989–1.007`), so it did not establish a repeated-runtime win. The Python arm in that diagnostic reloads the reference module for every repetition and is not used for a cross-language sustained-runtime claim. See the [repeated-workload comparison](2026-10-27-richards-step-count-batching-30-trial-comparison.json).
+
+The untimed phase profile measured total native compilation at 17.49 ms before and 15.06 ms after the change. The `main` function's Cranelift `define` phase fell from 11.84 ms to 9.89 ms. These are instrumented diagnostics; the uninstrumented paired cohort is the primary end-to-end result. The profile is available [here](2026-10-27-richards-step-count-batching-profile.json).
+
 ## What the phase profile says
 
 The corrected one-shot diagnostic profile measured 19.93 ms of native JIT compilation, including 14.46 ms in Cranelift's `define` phase for `main`. These are instrumented phase timings, not host CPU samples. `main` fell from 652 to 376 Cranelift IR blocks and from 7,549 to 6,629 IR instructions. Its measured `define` time fell from 23.00 ms to 14.46 ms (37.1%); total native compilation profile time fell from 30.64 ms to 19.93 ms (35.0%).
@@ -92,6 +102,9 @@ The inline-store attempt increased `main` from 7,510 to 8,395 Cranelift IR instr
 - [Call-continuation-boundary 15-trial probe](2026-10-27-richards-no-call-continuation-boundary-comparison.json)
 - [Call-continuation-boundary 30-trial comparison](2026-10-27-richards-no-call-continuation-boundary-30-trial-comparison.json)
 - [Call-continuation-boundary phase profile](2026-10-27-richards-no-call-continuation-boundary-profile.json)
+- [Step-count batching fresh-source 30-trial comparison](2026-10-27-richards-step-count-batching-fresh-source-30-trial-comparison.json)
+- [Step-count batching repeated-workload 30-trial comparison](2026-10-27-richards-step-count-batching-30-trial-comparison.json)
+- [Step-count batching phase profile](2026-10-27-richards-step-count-batching-profile.json)
 - [Inline list-copy probe](2026-10-26-richards-list-copy-comparison.json)
 - [Exit-metadata 15-trial comparison](2026-10-26-richards-exit-args-comparison.json)
 - [Exit-metadata 30-trial comparison](2026-10-26-richards-exit-args-30-trial-comparison.json)
