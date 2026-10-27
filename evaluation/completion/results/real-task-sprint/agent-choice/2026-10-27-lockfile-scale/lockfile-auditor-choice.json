@@ -1,0 +1,17 @@
+{
+  "choice": "Guion",
+  "rationale": "Both implementations passed full frozen acceptance. On the matched policy-report case, Guion's median was about 5.6 times faster and the bootstrap interval remained below parity. The separate scale study identifies an 8,192-package instruction-limit boundary.",
+  "acceptance": {
+    "guion": {"cases": "17/17", "checks": "43/43"},
+    "python": {"cases": "17/17", "checks": "43/43"}
+  },
+  "timing": {
+    "commit": "6004e9a",
+    "trials": 7,
+    "median_seconds": {"guion": 0.016882, "python": 0.093288},
+    "guion_over_python_ratio": 0.17859825443004498,
+    "bootstrap_95_interval": [0.17536017494211473, 0.18847820980932248],
+    "outputs_verified": true
+  },
+  "scope": "Exploratory and workload-specific."
+}

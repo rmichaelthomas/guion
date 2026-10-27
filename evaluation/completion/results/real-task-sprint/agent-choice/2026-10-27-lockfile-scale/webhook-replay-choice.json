@@ -1,0 +1,17 @@
+{
+  "choice": "Guion",
+  "rationale": "Both implementations passed the frozen acceptance. Guion validates HMAC signatures and JSON payloads, records delivery state in SQLite, commits event outcomes separately from network calls, and exposes dead-letter details for operator review. This preference is specific to the tested workload.",
+  "acceptance": {
+    "guion": {"cases": "9/9", "checks": "98/98"},
+    "python": {"cases": "9/9", "checks": "98/98"}
+  },
+  "timing": {
+    "commit": "6004e9a",
+    "trials": 7,
+    "median_seconds": {"guion": 0.152133, "python": 0.736648},
+    "guion_over_python_ratio": 0.20613336522415077,
+    "bootstrap_95_interval": [0.19176600978563513, 0.21743730866386737],
+    "outputs_verified": true
+  },
+  "scope": "Exploratory and workload-specific; this does not measure deployed relay latency."
+}

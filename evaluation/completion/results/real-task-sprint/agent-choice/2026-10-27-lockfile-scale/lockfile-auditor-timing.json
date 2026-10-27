@@ -1,0 +1,75 @@
+{
+  "schema_version": 1,
+  "kind": "real-task-randomized-pairs",
+  "trials": 7,
+  "python": "3.14.7 (main, Aug  5 2026, 10:29:49) [Clang 21.0.0 (clang-2100.1.1.101)]",
+  "platform": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+  "guion_sha256": "cdc227ab8547e318c5152610814aeb7c35340a4cbf07f4dd6477e0a0b59072c6",
+  "text_stdlib_sha256": "7afc78abc541bbc9b781a6608023625ec49d127c019522dc7ed201d475963a64",
+  "manifest_sha256": "1f8f4f2db73c39d397a8334a86ff955cc76d7e1481d9c2a512ada73d675b0213",
+  "measurement": "Sum of process and oracle-check time per case step; fixture setup excluded. Guion source cache bypassed, OS cache uncontrolled. Each output verified.",
+  "applications": {
+    "lockfile-auditor": {
+      "case_id": "lockfile-auditor-policy-report",
+      "samples_seconds": {
+        "guion": [
+          0.016716,
+          0.016882,
+          0.016271,
+          0.018113,
+          0.017654,
+          0.017003,
+          0.016359
+        ],
+        "python": [
+          0.109535,
+          0.094525,
+          0.091883,
+          0.092794,
+          0.093666,
+          0.09109,
+          0.093288
+        ]
+      },
+      "paired_order": [
+        [
+          "python",
+          "guion"
+        ],
+        [
+          "python",
+          "guion"
+        ],
+        [
+          "guion",
+          "python"
+        ],
+        [
+          "guion",
+          "python"
+        ],
+        [
+          "python",
+          "guion"
+        ],
+        [
+          "python",
+          "guion"
+        ],
+        [
+          "guion",
+          "python"
+        ]
+      ],
+      "median_seconds": {
+        "guion": 0.016882,
+        "python": 0.093288
+      },
+      "guion_over_python_median": 0.17859825443004498,
+      "bootstrap_95_interval": [
+        0.17536017494211473,
+        0.18847820980932248
+      ]
+    }
+  }
+}

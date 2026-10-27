@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "kind": "post-commit-agent-choice-refresh",
+  "evaluated_commit": "6004e9a",
+  "guion_binary_sha256": "cdc227ab8547e318c5152610814aeb7c35340a4cbf07f4dd6477e0a0b59072c6",
+  "previous_choices": {"guion": 3, "total": 3},
+  "current_choices": {"guion": 3, "total": 3},
+  "score_change": "Unchanged; the previous 3/3 was already the maximum score.",
+  "acceptance": {
+    "health-digest": "10/10 cases and 33/33 checks for both",
+    "lockfile-auditor": "17/17 cases and 43/43 checks for both",
+    "webhook-replay": "9/9 cases and 98/98 checks for both"
+  },
+  "limitations": [
+    "These three related evaluations are exploratory and unblinded; they do not represent a broad adoption sample.",
+    "Preference and timing results are specific to the tested tasks and do not establish that the runtime change caused a choice."
+  ],
+  "evaluations": {
+    "health-digest": {
+      "choice": "Guion",
+      "rationale": "Both implementations passed the frozen health-digest cases, including concurrency and deadline checks. The seven-pair timing showed a lower Guion median for the related mixed-results case; this is a workload-specific observation, not a causal or language-wide claim.",
+      "acceptance": {"guion": "10/10 cases; 33/33 checks", "python": "10/10 cases; 33/33 checks"},
+      "timing": {
+        "case": "health-mixed-results-and-cap",
+        "trials": 7,
+        "median_seconds": {"guion": 0.539802, "python": 0.643867},
+        "guion_over_python_ratio": 0.8390768076677475,
+        "bootstrap_95_interval": [0.8369846784071969, 0.8442743716495502],
+        "outputs_verified": true
+      },
+      "raw_acceptance": "health-digest-acceptance.json",
+      "raw_timing": "health-digest-timing.json"
+    },
+    "lockfile-auditor": {
+      "choice": "Guion",
+      "rationale": "Both implementations passed full frozen acceptance. On the matched policy-report case, Guion's median was about 5.6 times faster and the bootstrap interval remained below parity. The separate scale study identifies an 8,192-package instruction-limit boundary.",
+      "acceptance": {"guion": "17/17 cases; 43/43 checks", "python": "17/17 cases; 43/43 checks"},
+      "timing": {
+        "case": "lockfile-auditor-policy-report",
+        "trials": 7,
+        "median_seconds": {"guion": 0.016882, "python": 0.093288},
+        "guion_over_python_ratio": 0.17859825443004498,
+        "bootstrap_95_interval": [0.17536017494211473, 0.18847820980932248],
+        "outputs_verified": true
+      },
+      "raw_acceptance": "lockfile-auditor-acceptance.json",
+      "raw_timing": "lockfile-auditor-timing.json"
+    },
+    "webhook-replay": {
+      "choice": "Guion",
+      "rationale": "Both implementations passed the frozen acceptance. Guion validates HMAC signatures and JSON payloads, records delivery state in SQLite, commits event outcomes separately from network calls, and exposes dead-letter details for operator review. This preference is specific to the tested workload.",
+      "acceptance": {"guion": "9/9 cases; 98/98 checks", "python": "9/9 cases; 98/98 checks"},
+      "timing": {
+        "case": "webhook-durable-retry-and-privacy",
+        "trials": 7,
+        "median_seconds": {"guion": 0.152133, "python": 0.736648},
+        "guion_over_python_ratio": 0.20613336522415077,
+        "bootstrap_95_interval": [0.19176600978563513, 0.21743730866386737],
+        "outputs_verified": true,
+        "scope": "Process plus oracle-check time; not deployed relay latency."
+      },
+      "raw_acceptance": "webhook-replay-acceptance.json",
+      "raw_timing": "webhook-replay-timing.json"
+    }
+  }
+}

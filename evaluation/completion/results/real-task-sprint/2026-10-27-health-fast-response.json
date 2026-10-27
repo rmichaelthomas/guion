@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "kind": "health-fast-response-diagnostic",
+  "status": "passed",
+  "commit": "6004e9a",
+  "guion_sha256": "cdc227ab8547e318c5152610814aeb7c35340a4cbf07f4dd6477e0a0b59072c6",
+  "python": "3.14.7 (main, Aug  5 2026, 10:29:49) [Clang 21.0.0 (clang-2100.1.1.101)]",
+  "platform": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+  "case_id": "health-mixed-fast-response-diagnostic",
+  "case_change": "Removed the 700 ms delay from the slow endpoint and changed its expected result from timeout to healthy. Other endpoints, concurrency checks, and output checks are unchanged.",
+  "measurement": "One unmeasured warmup pair and randomized paired trials; fresh-process source execution, Guion cache bypassed, every output checked, fixture setup excluded, OS cache uncontrolled. This diagnostic is not part of the frozen acceptance suite.",
+  "trials": 7,
+  "samples_seconds": {
+    "guion": [
+      0.038744,
+      0.032979,
+      0.024786,
+      0.034214,
+      0.033776,
+      0.032984,
+      0.037723
+    ],
+    "python": [
+      0.122563,
+      0.126918,
+      0.127698,
+      0.133553,
+      0.131539,
+      0.108039,
+      0.129029
+    ]
+  },
+  "paired_order": [
+    [
+      "python",
+      "guion"
+    ],
+    [
+      "python",
+      "guion"
+    ],
+    [
+      "python",
+      "guion"
+    ],
+    [
+      "python",
+      "guion"
+    ],
+    [
+      "guion",
+      "python"
+    ],
+    [
+      "python",
+      "guion"
+    ],
+    [
+      "python",
+      "guion"
+    ]
+  ],
+  "median_seconds": {
+    "guion": 0.033776,
+    "python": 0.127698
+  },
+  "guion_over_python_median": 0.25984493925211555,
+  "bootstrap_95_interval": [
+    0.2561829386086423,
+    0.3052971612103037
+  ],
+  "all_outputs_verified": true
+}
