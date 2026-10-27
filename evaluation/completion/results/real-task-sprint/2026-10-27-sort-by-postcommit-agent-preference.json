@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "kind": "exploratory-agent-preference-postcommit",
+  "commit": "8e1b43b",
+  "guion_binary_sha256": "672d90d1e32462d256e76ad991e1e85ed86dd41ccb1670cdda0d29027cc0084d",
+  "preference_score": {
+    "guion": 3,
+    "python": 0,
+    "evaluations": 3,
+    "previous_score": "3/3",
+    "interpretation": "Unchanged at the previous 3/3 ceiling; these are exploratory workload-specific model preferences."
+  },
+  "evaluations": {
+    "health-digest": {
+      "choice": "Guion",
+      "acceptance": {
+        "guion": {"cases": 10, "checks_passed": 33, "checks_total": 33},
+        "python": {"cases": 10, "checks_passed": 33, "checks_total": 33}
+      },
+      "timing_seconds": {
+        "trials": 7,
+        "median": {"guion": 0.536973, "python": 0.642356},
+        "guion_over_python": 0.833961,
+        "bootstrap_95_interval": [0.824504, 0.856697]
+      },
+      "rationale": "Both implementations pass the frozen cases. Guion is faster on this measured mixed-results workload; Python expresses its response deadline explicitly while Guion uses a timed request call.",
+      "scope": "Exploratory and specific to this task."
+    },
+    "lockfile-auditor": {
+      "choice": "Guion",
+      "acceptance": {
+        "guion": {"cases": 17, "checks_passed": 43, "checks_total": 43},
+        "python": {"cases": 17, "checks_passed": 43, "checks_total": 43}
+      },
+      "timing_seconds": {
+        "trials": 7,
+        "median": {"guion": 0.017362, "python": 0.089956},
+        "guion_over_python": 0.1808883269,
+        "bootstrap_95_interval": [0.1775312375, 0.1996865419]
+      },
+      "rationale": "Both implementations pass full acceptance and Guion is faster on the measured policy-report case. The evaluator flagged quadratic diagnostic sorting as a potential cost for large finding sets.",
+      "scope": "Exploratory and specific to this task."
+    },
+    "webhook-replay": {
+      "choice": "Guion",
+      "acceptance": {
+        "guion": {"cases": 9, "checks_passed": 98, "checks_total": 98},
+        "python": {"cases": 9, "checks_passed": 98, "checks_total": 98}
+      },
+      "timing_seconds": {
+        "trials": 7,
+        "median": {"guion": 0.150398, "python": 0.761346},
+        "guion_over_python": 0.1949144809,
+        "bootstrap_95_interval": [0.1893618521, 0.2064627176]
+      },
+      "rationale": "Both implementations validate signed payloads, persist event state, retry delivery, and report dead-letter outcomes. Guion keeps network calls separate from each event's SQLite state update.",
+      "scope": "Exploratory and specific to this task; failure reporting is not a direct operator alert."
+    }
+  },
+  "measurement_context": "Fresh-process timing includes execution and output-oracle checks; fixture setup is excluded, Guion source cache is bypassed, and OS file cache is uncontrolled."
+}

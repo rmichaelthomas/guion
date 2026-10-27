@@ -1,0 +1,171 @@
+{
+  "schema_version": 1,
+  "kind": "stable-sort-postcommit-head-to-head",
+  "candidate_commit": "8e1b43b",
+  "candidate_sha256": "672d90d1e32462d256e76ad991e1e85ed86dd41ccb1670cdda0d29027cc0084d",
+  "baseline_commit": "5404e86",
+  "baseline_sha256": "dd6bfcdfd53d4432c2f453b98f283e40bfa0e639f9e092d9a1f4edc580bf6883",
+  "platform": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+  "python": "3.14.7 (main, Aug  5 2026, 10:29:49) [Clang 21.0.0 (clang-2100.1.1.101)]",
+  "trials": 7,
+  "measurement": "Fresh process guion run --no-cache; includes source compilation and execution. Reverse integer input. In-program length and endpoint assertions plus zero exit and empty stdout required. Default runtime instruction budget. OS cache is uncontrolled.",
+  "scaling": {
+    "128": {
+      "samples_seconds": {
+        "baseline": [
+          0.011428666999563575,
+          0.010044416994787753,
+          0.009153917024377733,
+          0.008243583026342094,
+          0.007546000008005649,
+          0.007410000020172447,
+          0.007477958977688104
+        ],
+        "candidate": [
+          0.00902145798318088,
+          0.007071665953844786,
+          0.006424334016628563,
+          0.005854625022038817,
+          0.005593832989688963,
+          0.005274833005387336,
+          0.005205959023442119
+        ]
+      },
+      "paired_order": [
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ]
+      ],
+      "median_seconds": {
+        "baseline": 0.008243583026342094,
+        "candidate": 0.005854625022038817
+      },
+      "candidate_over_baseline_median": 0.7102039250809459,
+      "bootstrap_95_interval": [
+        0.7018125682721357,
+        0.7412977715020399
+      ],
+      "all_outputs_and_assertions_passed": true
+    },
+    "512": {
+      "samples_seconds": {
+        "baseline": [
+          0.04540145897772163,
+          0.04784033400937915,
+          0.047169041994493455,
+          0.047305500018410385,
+          0.04767108301166445,
+          0.047940291988197714,
+          0.045757415995467454
+        ],
+        "candidate": [
+          0.007646834012120962,
+          0.007565165986306965,
+          0.007028667023405433,
+          0.0071175419725477695,
+          0.0072963329730555415,
+          0.007647874997928739,
+          0.006961625011172146
+        ]
+      },
+      "paired_order": [
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ],
+        [
+          "baseline",
+          "candidate"
+        ]
+      ],
+      "median_seconds": {
+        "baseline": 0.047305500018410385,
+        "candidate": 0.0072963329730555415
+      },
+      "candidate_over_baseline_median": 0.1530557418062063,
+      "bootstrap_95_interval": [
+        0.15045907917214194,
+        0.1595291701563175
+      ],
+      "all_outputs_and_assertions_passed": true
+    }
+  },
+  "completion_boundary": {
+    "1024": {
+      "baseline": {
+        "seconds": 0.17010620899964124,
+        "exit_code": 1,
+        "stderr": "sort-1024-simple.gu:2:17: runtime error[R_STEP_LIMIT]: instruction budget exhausted\n  at sort-1024-simple.gu:9:18\n",
+        "passed": false
+      },
+      "candidate": {
+        "seconds": 0.02427291701314971,
+        "exit_code": 0,
+        "stderr": "",
+        "passed": true
+      },
+      "fixture": "reverse integers with compare(left, right) returning left - right"
+    },
+    "2048": {
+      "baseline": {
+        "seconds": 0.09783408395014703,
+        "exit_code": 1,
+        "stderr": "sort-2048.gu:3:17: runtime error[R_STEP_LIMIT]: instruction budget exhausted\n  at sort-2048.gu:13:18\n",
+        "passed": false
+      },
+      "candidate": {
+        "seconds": 0.015394332993309945,
+        "exit_code": 0,
+        "stderr": "",
+        "passed": true
+      },
+      "fixture": "reverse integers with branch comparator (same source used in paired 128/512 scaling run)"
+    }
+  },
+  "boundary_interpretation": "The previous committed binary reaches the default instruction limit at 1024 and 2048 items; the candidate completes both. Boundary attempts are single observations, not timing estimates."
+}

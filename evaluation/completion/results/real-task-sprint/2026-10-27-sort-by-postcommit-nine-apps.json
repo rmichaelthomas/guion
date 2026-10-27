@@ -1,0 +1,571 @@
+{
+  "schema_version": 1,
+  "kind": "real-task-randomized-pairs",
+  "trials": 7,
+  "python": "3.14.7 (main, Aug  5 2026, 10:29:49) [Clang 21.0.0 (clang-2100.1.1.101)]",
+  "platform": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+  "guion_sha256": "672d90d1e32462d256e76ad991e1e85ed86dd41ccb1670cdda0d29027cc0084d",
+  "text_stdlib_sha256": "7afc78abc541bbc9b781a6608023625ec49d127c019522dc7ed201d475963a64",
+  "manifest_sha256": "1f8f4f2db73c39d397a8334a86ff955cc76d7e1481d9c2a512ada73d675b0213",
+  "measurement": "Sum of process and oracle-check time per case step; fixture setup excluded. Guion source cache bypassed, OS cache uncontrolled. Each output verified.",
+  "applications": {
+    "sla-report": {
+      "case_id": "sla-initial-report",
+      "samples_seconds": {
+        "guion": [
+          0.016252,
+          0.015487,
+          0.01556,
+          0.01459,
+          0.01525,
+          0.014309,
+          0.014574
+        ],
+        "python": [
+          0.086387,
+          0.088287,
+          0.092796,
+          0.097432,
+          0.102346,
+          0.094877,
+          0.088989
+        ]
+      },
+      "paired_order": [
+        [
+          "python",
+          "guion"
+        ],
+        [
+          "python",
+          "guion"
+        ],
+        [
+          "guion",
+          "python"
+        ],
+        [
+          "guion",
+          "python"
+        ],
+        [
+          "python",
+          "guion"
+        ],
+        [
+          "python",
+          "guion"
+        ],
+        [
+          "guion",
+          "python"
+        ]
+      ],
+      "median_seconds": {
+        "guion": 0.01525,
+        "python": 0.092796
+      },
+      "guion_over_python_median": 0.16377305060175978,
+      "bootstrap_95_interval": [
+        0.14974546350275064,
+        0.1754165392413379
+      ]
+    },
+    "jsonl-summary": {
+      "case_id": "jsonl-normal-summary",
+      "samples_seconds": {
+        "guion": [
+          0.01504,
+          0.014318,
+          0.013293,
+          0.014026,
+          0.016361,
+          0.015173,
+          0.014801
+        ],
+        "python": [
+          0.089601,
+          0.089911,
+          0.091395,
+          0.089775,
+          0.093094,
+          0.091689,
+          0.096962
+        ]
+      },
+      "paired_order": [
+        [
+          "guion",
+          "python"
+        ],
+        [
+          "python",
+          "guion"
+        ],
+        [
+          "guion",
+          "python"
+        ],
+        [
+          "guion",
+          "python"
+        ],
+        [
+          "python",
+          "guion"
+        ],
+        [
+          "python",
+          "guion"
+        ],
+        [
+          "guion",
+          "python"
+        ]
+      ],
+      "median_seconds": {
+        "guion": 0.014801,
+        "python": 0.091395
+      },
+      "guion_over_python_median": 0.15924636585067456,
+      "bootstrap_95_interval": [
+        0.15264742888966812,
+        0.16785526947243892
+      ]
+    },
+    "release-notes": {
+      "case_id": "release-notes-initial",
+      "samples_seconds": {
+        "guion": [
+          0.028083,
+          0.022226,
+          0.022226,
+          0.060641,
+          0.021686,
+          0.021381,
+          0.021281
+        ],
+        "python": [
+          0.094003,
+          0.092961,
+          0.109884,
+          0.122303,
+          0.094056,
+          0.095853,
+          0.087669
+        ]
+      },
+      "paired_order": [
+        [
+          "python",
+          "guion"
+        ],
+        [
+          "guion",
+          "python"
+        ],
+        [
+          "guion",
+          "python"
+        ],
+        [
+          "python",
+          "guion"
+        ],
+        [
+          "python",
+          "guion"
+        ],
+        [
+          "guion",
+          "python"
+        ],
+        [
+          "python",
+          "guion"
+        ]
+      ],
+      "median_seconds": {
+        "guion": 0.022226,
+        "python": 0.094056
+      },
+      "guion_over_python_median": 0.23908951065500586,
+      "bootstrap_95_interval": [
+        0.223060311101374,
+        0.29874578470899865
+      ]
+    },
+    "calendar-conflicts": {
+      "case_id": "calendar-overlap-and-boundary",
+      "samples_seconds": {
+        "guion": [
+          0.244961,
+          0.24494,
+          0.25479,
+          0.243271,
+          0.249115,
+          0.251604,
+          0.23486
+        ],
+        "python": [
+          0.356863,
+          0.352984,
+          0.373851,
+          0.391722,
+          0.383962,
+          0.364487,
+          0.393493
+        ]
+      },
+      "paired_order": [
+        [
+          "python",
+          "guion"
+        ],
+        [
+          "python",
+          "guion"
+        ],
+        [
+          "python",
+          "guion"
+        ],
+        [
+          "guion",
+          "python"
+        ],
+        [
+          "python",
+          "guion"
+        ],
+        [
+          "guion",
+          "python"
+        ],
+        [
+          "guion",
+          "python"
+        ]
+      ],
+      "median_seconds": {
+        "guion": 0.244961,
+        "python": 0.373851
+      },
+      "guion_over_python_median": 0.681528202412191,
+      "bootstrap_95_interval": [
+        0.6210297098452473,
+        0.6902962245567057
+      ]
+    },
+    "webhook-replay": {
+      "case_id": "webhook-durable-retry-and-privacy",
+      "samples_seconds": {
+        "guion": [
+          0.158935,
+          0.150398,
+          0.153332,
+          0.168019,
+          0.14738400000000001,
+          0.144712,
+          0.133655
+        ],
+        "python": [
+          0.7698,
+          0.794236,
+          0.759468,
+          0.755046,
+          0.756147,
+          0.761346,
+          0.813658
+        ]
+      },
+      "paired_order": [
+        [
+          "python",
+          "guion"
+        ],
+        [
+          "guion",
+          "python"
+        ],
+        [
+          "guion",
+          "python"
+        ],
+        [
+          "python",
+          "guion"
+        ],
+        [
+          "guion",
+          "python"
+        ],
+        [
+          "python",
+          "guion"
+        ],
+        [
+          "guion",
+          "python"
+        ]
+      ],
+      "median_seconds": {
+        "guion": 0.150398,
+        "python": 0.761346
+      },
+      "guion_over_python_median": 0.1949144809144254,
+      "bootstrap_95_interval": [
+        0.18936185214470258,
+        0.20646271758898413
+      ]
+    },
+    "health-digest": {
+      "case_id": "health-mixed-results-and-cap",
+      "samples_seconds": {
+        "guion": [
+          0.532127,
+          0.537008,
+          0.532342,
+          0.536973,
+          0.5357,
+          0.541028,
+          0.541904
+        ],
+        "python": [
+          0.762705,
+          0.65131,
+          0.63762,
+          0.626794,
+          0.642356,
+          0.629279,
+          0.651642
+        ]
+      },
+      "paired_order": [
+        [
+          "python",
+          "guion"
+        ],
+        [
+          "guion",
+          "python"
+        ],
+        [
+          "python",
+          "guion"
+        ],
+        [
+          "python",
+          "guion"
+        ],
+        [
+          "python",
+          "guion"
+        ],
+        [
+          "guion",
+          "python"
+        ],
+        [
+          "guion",
+          "python"
+        ]
+      ],
+      "median_seconds": {
+        "guion": 0.536973,
+        "python": 0.642356
+      },
+      "guion_over_python_median": 0.8339612302212479,
+      "bootstrap_95_interval": [
+        0.8245044602416669,
+        0.8566977348219671
+      ]
+    },
+    "config-migrator": {
+      "case_id": "config-migrator-v1-to-v2",
+      "samples_seconds": {
+        "guion": [
+          0.013841,
+          0.013134,
+          0.012444,
+          0.012643,
+          0.013062,
+          0.014316,
+          0.011508
+        ],
+        "python": [
+          0.097054,
+          0.089133,
+          0.098226,
+          0.099325,
+          0.088497,
+          0.087203,
+          0.087599
+        ]
+      },
+      "paired_order": [
+        [
+          "python",
+          "guion"
+        ],
+        [
+          "python",
+          "guion"
+        ],
+        [
+          "python",
+          "guion"
+        ],
+        [
+          "guion",
+          "python"
+        ],
+        [
+          "guion",
+          "python"
+        ],
+        [
+          "python",
+          "guion"
+        ],
+        [
+          "guion",
+          "python"
+        ]
+      ],
+      "median_seconds": {
+        "guion": 0.013062,
+        "python": 0.089133
+      },
+      "guion_over_python_median": 0.14261132977517668,
+      "bootstrap_95_interval": [
+        0.12728920211427133,
+        0.14759822366859893
+      ]
+    },
+    "doc-index": {
+      "case_id": "doc-index-build-check-backlinks",
+      "samples_seconds": {
+        "guion": [
+          0.051759,
+          0.050463,
+          0.055729,
+          0.056232000000000004,
+          0.054412,
+          0.055301,
+          0.056440000000000004
+        ],
+        "python": [
+          0.299085,
+          0.305911,
+          0.292519,
+          0.2787,
+          0.289246,
+          0.293248,
+          0.276037
+        ]
+      },
+      "paired_order": [
+        [
+          "python",
+          "guion"
+        ],
+        [
+          "guion",
+          "python"
+        ],
+        [
+          "python",
+          "guion"
+        ],
+        [
+          "python",
+          "guion"
+        ],
+        [
+          "python",
+          "guion"
+        ],
+        [
+          "guion",
+          "python"
+        ],
+        [
+          "python",
+          "guion"
+        ]
+      ],
+      "median_seconds": {
+        "guion": 0.055301,
+        "python": 0.292519
+      },
+      "guion_over_python_median": 0.18858099628982977,
+      "bootstrap_95_interval": [
+        0.17305782637042982,
+        0.20176533907427344
+      ]
+    },
+    "lockfile-auditor": {
+      "case_id": "lockfile-auditor-policy-report",
+      "samples_seconds": {
+        "guion": [
+          0.01597,
+          0.018086,
+          0.020695,
+          0.017455,
+          0.016164,
+          0.017362,
+          0.016119
+        ],
+        "python": [
+          0.089956,
+          0.103729,
+          0.094698,
+          0.087412,
+          0.089359,
+          0.092026,
+          0.089511
+        ]
+      },
+      "paired_order": [
+        [
+          "guion",
+          "python"
+        ],
+        [
+          "guion",
+          "python"
+        ],
+        [
+          "guion",
+          "python"
+        ],
+        [
+          "guion",
+          "python"
+        ],
+        [
+          "python",
+          "guion"
+        ],
+        [
+          "python",
+          "guion"
+        ],
+        [
+          "guion",
+          "python"
+        ]
+      ],
+      "median_seconds": {
+        "guion": 0.017362,
+        "python": 0.089956
+      },
+      "guion_over_python_median": 0.18088832686131226,
+      "bootstrap_95_interval": [
+        0.17753123749388594,
+        0.1996865418935615
+      ]
+    }
+  }
+}
