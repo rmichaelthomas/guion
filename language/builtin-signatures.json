@@ -938,6 +938,15 @@
       "operation": "TextChars"
     },
     {
+      "name": "text_join_native",
+      "parameters": [
+        "List[Text]",
+        "Text"
+      ],
+      "result": "Text",
+      "operation": "TextJoin"
+    },
+    {
       "name": "text_parse_float",
       "parameters": [
         "Text"

@@ -1,0 +1,366 @@
+{
+  "schema_version": 1,
+  "kind": "lockfile-diagnostic-scaling",
+  "baseline_commit": "b21c987",
+  "baseline_source_sha256": "af3e83340854c7c4ace3c630f318e74fb67ef9e5a5fc6d5ee9791f3c46af8636",
+  "candidate_source_sha256": "aa859ff7f9d5e8423b6c9c6e6d3cfc44414e4a64334a403251edea7fb32af456",
+  "guion_binary_sha256": "1de49fa402295ff170a37794b2b5a4e3066c43e8ddcd500b32102e0c4744d098",
+  "platform": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+  "python": "3.14.7 (main, Aug  5 2026, 10:29:49) [Clang 21.0.0 (clang-2100.1.1.101)]",
+  "trials": 7,
+  "measurement": "Fresh-process source runs with Guion source cache bypassed; fixture setup excluded. Every report is checked against the expected sorted JSON. OS file cache is uncontrolled.",
+  "memory_measurement": "Direct-child peak RSS from resource.getrusage(RUSAGE_CHILDREN).ru_maxrss; each memory run is checked against the exact expected report.",
+  "workloads": {
+    "8192": {
+      "packages": 8192,
+      "diagnostics": 16384,
+      "preflight": {
+        "baseline_source": {
+          "passed": true,
+          "elapsed_seconds": 0.135963,
+          "failures": [],
+          "stderr": "",
+          "runner_wall_seconds": 0.13882891699904576
+        },
+        "candidate_source": {
+          "passed": true,
+          "elapsed_seconds": 0.132687,
+          "failures": [],
+          "stderr": "",
+          "runner_wall_seconds": 0.13689900003373623
+        },
+        "python": {
+          "passed": true,
+          "elapsed_seconds": 0.153844,
+          "failures": [],
+          "stderr": "",
+          "runner_wall_seconds": 0.15757666603894904
+        }
+      },
+      "samples_seconds": {
+        "baseline_source": [
+          0.149223,
+          0.232483,
+          0.255429,
+          0.16236,
+          0.138572,
+          0.134742,
+          0.136213
+        ],
+        "candidate_source": [
+          0.132876,
+          0.142582,
+          0.215879,
+          0.346513,
+          0.179382,
+          0.137321,
+          0.137371
+        ],
+        "python": [
+          0.142034,
+          0.210583,
+          0.350771,
+          0.156182,
+          0.1543,
+          0.144248,
+          0.141713
+        ]
+      },
+      "paired_order": [
+        [
+          "candidate_source",
+          "python",
+          "baseline_source"
+        ],
+        [
+          "candidate_source",
+          "python",
+          "baseline_source"
+        ],
+        [
+          "candidate_source",
+          "baseline_source",
+          "python"
+        ],
+        [
+          "python",
+          "baseline_source",
+          "candidate_source"
+        ],
+        [
+          "candidate_source",
+          "python",
+          "baseline_source"
+        ],
+        [
+          "python",
+          "candidate_source",
+          "baseline_source"
+        ],
+        [
+          "baseline_source",
+          "python",
+          "candidate_source"
+        ]
+      ],
+      "median_seconds": {
+        "baseline_source": 0.149223,
+        "candidate_source": 0.142582,
+        "python": 0.1543
+      },
+      "ratios": {
+        "candidate_over_python": {
+          "median": 0.9519785369641174,
+          "bootstrap_95_interval": [
+            0.6770821956188295,
+            1.1625534672715492
+          ]
+        },
+        "candidate_over_baseline": {
+          "median": 1.0085013912034828,
+          "bootstrap_95_interval": [
+            0.8451624521882792,
+            1.2945039401899374
+          ]
+        }
+      },
+      "all_outputs_verified": true,
+      "status": "passed",
+      "memory": {
+        "runs_per_arm": 7,
+        "peak_rss_bytes": {
+          "baseline_source": [
+            52854784,
+            52051968,
+            52035584,
+            51986432,
+            51953664,
+            52084736,
+            52412416
+          ],
+          "candidate_source": [
+            30048256,
+            29294592,
+            29048832,
+            29343744,
+            28786688,
+            28590080,
+            29032448
+          ],
+          "python": [
+            42303488,
+            42336256,
+            41566208,
+            42729472,
+            42221568,
+            42385408,
+            42991616
+          ]
+        },
+        "median_peak_rss_bytes": {
+          "baseline_source": 52051968,
+          "candidate_source": 29048832,
+          "python": 42336256
+        },
+        "ratios": {
+          "candidate_over_python": 0.6861455108359134,
+          "candidate_over_baseline": 0.5580736543909348
+        },
+        "paired_order": [
+          [
+            "baseline_source",
+            "python",
+            "candidate_source"
+          ],
+          [
+            "candidate_source",
+            "python",
+            "baseline_source"
+          ],
+          [
+            "candidate_source",
+            "python",
+            "baseline_source"
+          ],
+          [
+            "baseline_source",
+            "candidate_source",
+            "python"
+          ],
+          [
+            "python",
+            "candidate_source",
+            "baseline_source"
+          ],
+          [
+            "python",
+            "baseline_source",
+            "candidate_source"
+          ],
+          [
+            "candidate_source",
+            "python",
+            "baseline_source"
+          ]
+        ],
+        "all_outputs_verified": true
+      }
+    },
+    "16384": {
+      "packages": 16384,
+      "diagnostics": 32768,
+      "preflight": {
+        "baseline_source": {
+          "passed": false,
+          "elapsed_seconds": 0.100298,
+          "failures": [
+            "step 1: expected exit code 0, received 1",
+            "step 1: check 1: json_equals could not be evaluated: [Errno 2] No such file or directory: '/Users/rmichaelthomas/guion/target/perf-session/lockfile-scale-iucv9wve/real-tasks-tmp/veritas-independent-case-3ogfjyc2/report.json'"
+          ],
+          "stderr": "main.vr:191:23: runtime error[R_STEP_LIMIT]: instruction budget exhausted\n",
+          "runner_wall_seconds": 0.10326537495711818
+        },
+        "candidate_source": {
+          "passed": true,
+          "elapsed_seconds": 0.243148,
+          "failures": [],
+          "stderr": "",
+          "runner_wall_seconds": 0.24623987497761846
+        },
+        "python": {
+          "passed": true,
+          "elapsed_seconds": 0.177742,
+          "failures": [],
+          "stderr": "",
+          "runner_wall_seconds": 0.18048329197335988
+        }
+      },
+      "samples_seconds": {
+        "candidate_source": [
+          0.249271,
+          0.252283,
+          0.264855,
+          0.255724,
+          0.253871,
+          0.254595,
+          0.251099
+        ],
+        "python": [
+          0.176049,
+          0.177706,
+          0.289418,
+          0.185695,
+          0.177545,
+          0.177105,
+          0.182349
+        ]
+      },
+      "paired_order": [
+        [
+          "python",
+          "candidate_source"
+        ],
+        [
+          "python",
+          "candidate_source"
+        ],
+        [
+          "candidate_source",
+          "python"
+        ],
+        [
+          "candidate_source",
+          "python"
+        ],
+        [
+          "candidate_source",
+          "python"
+        ],
+        [
+          "candidate_source",
+          "python"
+        ],
+        [
+          "python",
+          "candidate_source"
+        ]
+      ],
+      "median_seconds": {
+        "candidate_source": 0.253871,
+        "python": 0.177706
+      },
+      "ratios": {
+        "candidate_over_python": {
+          "median": 1.4159182954745553,
+          "bootstrap_95_interval": [
+            1.377024277621484,
+            1.4298966459207525
+          ]
+        }
+      },
+      "all_outputs_verified": true,
+      "status": "passed",
+      "memory": {
+        "runs_per_arm": 7,
+        "peak_rss_bytes": {
+          "candidate_source": [
+            46546944,
+            46825472,
+            46645248,
+            48381952,
+            48496640,
+            49364992,
+            46563328
+          ],
+          "python": [
+            50495488,
+            50200576,
+            49856512,
+            50118656,
+            50184192,
+            50298880,
+            49135616
+          ]
+        },
+        "median_peak_rss_bytes": {
+          "candidate_source": 46825472,
+          "python": 50184192
+        },
+        "ratios": {
+          "candidate_over_python": 0.9330721514854717
+        },
+        "paired_order": [
+          [
+            "candidate_source",
+            "python"
+          ],
+          [
+            "candidate_source",
+            "python"
+          ],
+          [
+            "candidate_source",
+            "python"
+          ],
+          [
+            "python",
+            "candidate_source"
+          ],
+          [
+            "candidate_source",
+            "python"
+          ],
+          [
+            "python",
+            "candidate_source"
+          ],
+          [
+            "candidate_source",
+            "python"
+          ]
+        ],
+        "all_outputs_verified": true
+      }
+    }
+  }
+}

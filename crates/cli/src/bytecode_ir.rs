@@ -318,6 +318,7 @@ fn parse_instruction(
         "JsonAsBool" => Op::JsonAsBool,
         "JsonIsNull" => Op::JsonIsNull,
         "TextChars" => Op::TextChars,
+        "TextJoin" => Op::TextJoin,
         "BytesFromInts" => Op::BytesFromInts,
         "BytesFromText" => Op::BytesFromText,
         "BytesJoin" => Op::BytesJoin,

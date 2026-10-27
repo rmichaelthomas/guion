@@ -7,5 +7,5 @@ entry = "main.vr"
 resources = []
 
 [runtime]
-# The 8,192-package regression needs a minimum 2,154,912-instruction ceiling.
-instruction_limit = 2250000
+# The 16,384-package regression uses bounded text batches under this app-local ceiling.
+instruction_limit = 5000000

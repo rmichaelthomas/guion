@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "kind": "lockfile-input-only-memory-control",
+  "packages": 8192,
+  "diagnostics": 0,
+  "trials": 7,
+  "measurement": "Same 8,192-package input as the findings benchmark; policy disables findings to isolate input parsing and validation. Direct-child peak RSS; every empty report was output-checked. OS cache uncontrolled.",
+  "candidate_source_sha256": "aa859ff7f9d5e8423b6c9c6e6d3cfc44414e4a64334a403251edea7fb32af456",
+  "binary_sha256": "1de49fa402295ff170a37794b2b5a4e3066c43e8ddcd500b32102e0c4744d098",
+  "platform": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+  "runs_per_arm": 7,
+  "peak_rss_bytes": {
+    "candidate_source": [
+      17645568,
+      17809408,
+      17612800,
+      17694720,
+      17645568,
+      17645568,
+      17727488
+    ],
+    "python": [
+      36356096,
+      36257792,
+      36519936,
+      36585472,
+      36208640,
+      36388864,
+      36323328
+    ]
+  },
+  "median_peak_rss_bytes": {
+    "candidate_source": 17645568,
+    "python": 36356096
+  },
+  "ratios": {
+    "candidate_over_python": 0.4853537629562866
+  },
+  "paired_order": [
+    [
+      "python",
+      "candidate_source"
+    ],
+    [
+      "python",
+      "candidate_source"
+    ],
+    [
+      "python",
+      "candidate_source"
+    ],
+    [
+      "python",
+      "candidate_source"
+    ],
+    [
+      "python",
+      "candidate_source"
+    ],
+    [
+      "candidate_source",
+      "python"
+    ],
+    [
+      "python",
+      "candidate_source"
+    ]
+  ],
+  "all_outputs_verified": true
+}
