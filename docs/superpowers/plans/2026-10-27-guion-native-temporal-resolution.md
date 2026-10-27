@@ -92,7 +92,7 @@
 - [ ] **Step 2: Replace the single-result C helper with a bounded candidate result** and unit-test that the native boundary returns exactly 0/1/2 candidates for the Task 1 gap/exact/fold fixtures, plus deterministic errors for invalid civil fields and unknown zones.
 - [ ] **Step 3: Add Rust service conversion and runtime record construction** for typed `TemporalResolution`/`TimeError`, checking microsecond and integer bounds and preserving the original fields exactly.
 - [ ] **Step 4: Execute Guion source fixtures through the compiled CLI** and assert typed results, stable error codes, and `time_zone_data_version() == "2026c"`; verify no capability grant or filesystem/network call is recorded.
-- [ ] **Step 5: Run** `/Users/rmichaelthomas/.cargo/bin/cargo test --locked --offline -p guion-runtime --test stdlib_data` **and the focused CLI data test**; require exact/gap/fold/error assertions to pass.
+- [ ] **Step 5: Run** `/Users/rmichaelthomas/.cargo/bin/cargo test --locked --offline -p guion-runtime --test stdlib_data` **and** `/Users/rmichaelthomas/.cargo/bin/cargo test --locked --offline -p guion-cli --test stdlib_data`; require exact/gap/fold/error assertions to pass.
 
 ### Task 4: Route Calendar Parsing Through the Same Resolution Contract
 
@@ -114,7 +114,7 @@
 - [ ] **Step 2: Change the native event boundary to return each endpoint's local fields, TZID, classification, and candidates independently**, preserving embedded `VTIMEZONE` precedence and UTC exactness; verify this through Rust FFI service tests and do not convert a fold or gap to one timestamp.
 - [ ] **Step 3: Update Rust service types and `service_calendar_event`** to construct the new public record in the declared field order, including summary and separate all-day date data.
 - [ ] **Step 4: Preserve ordering validation only when both endpoint resolutions are exact**; when either endpoint is a gap or fold, preserve both classifications and avoid claiming a single duration/order. Add fixtures for exact reversed endpoints and non-exact endpoints.
-- [ ] **Step 5: Run** `/Users/rmichaelthomas/.cargo/bin/cargo test --locked --offline -p guion-runtime --test stdlib_services` **and** `/Users/rmichaelthomas/.cargo/bin/cargo test --locked --offline -p guion-cli --test stdlib_services`; require existing UTC, date-only, embedded-zone precedence, RRULE, floating-time, unknown-zone, malformed-input, and new gap/fold coverage to pass.
+- [ ] **Step 5: Run** `/Users/rmichaelthomas/.cargo/bin/cargo test --locked --offline -p guion-runtime --test stdlib_services` **and** `/Users/rmichaelthomas/.cargo/bin/cargo test --locked --offline -p guion-cli --test stdlib_data`; require existing UTC, date-only, embedded-zone precedence, RRULE, floating-time, unknown-zone, malformed-input, and new gap/fold coverage to pass.
 
 ### Task 5: Publish the API, Version, and Agent-Usable Examples
 
@@ -135,7 +135,7 @@
 - The example demonstrates exact/gap/fold and an explicit caller policy branch, without choosing on the caller's behalf inside the resolver.
 - Conformance records mark the new operations as implemented in the hosted and self-hosted compiler subsets once both are verified.
 
-- [ ] **Step 1: Add failing CLI/API documentation checks** for timezone-data version reporting, standard-library signature visibility, and example registration; run the focused CLI/conformance tests and confirm the new assertions fail.
+- [ ] **Step 1: Add failing CLI/API documentation checks** for timezone-data version reporting, standard-library signature visibility, and example registration; run `/Users/rmichaelthomas/.cargo/bin/cargo test --locked --offline -p guion-cli --test cli` and `/Users/rmichaelthomas/.cargo/bin/cargo test --locked --offline -p guion-cli --test language_conformance -- --test-threads=1`, confirming the new assertions fail.
 - [ ] **Step 2: Write the public API text and runnable example**, documenting stable error codes, packaged tzdata versioning, the pure/no-I/O behavior, and the absence of an automatic gap/fold policy.
 - [ ] **Step 3: Add conformance manifest entries** for correct generic exact/gap/fold results, typed errors, and calendar preservation; run `/Users/rmichaelthomas/.cargo/bin/cargo test --locked --offline -p guion-cli --test language_conformance -- --test-threads=1`.
 - [ ] **Step 4: Add the timezone-data version to `guion --version` metadata** and assert the exact format in CLI tests; preserve the existing artifact-format value.
