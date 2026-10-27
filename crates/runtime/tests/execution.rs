@@ -640,6 +640,41 @@ fn mutable_json_object_set_is_local_and_preserves_aliases() {
 }
 
 #[test]
+fn json_stringify_pairs_writes_sorted_escaped_rows_and_empty_arrays() {
+    let source = r#"fn main() -> Int:
+    let groups: Map[Text, List[Text]] = {"é\"group": ["line\nbreak", "quote\""], "alpha": [], "beta": ["café"]}
+    let empty: Map[Text, List[Text]] = {}
+    print(json_stringify_pairs_native(groups, "na\nme", "ru\"le"))
+    print(json_stringify_pairs_native(empty, "na\nme", "ru\"le"))
+    return 0
+"#;
+    let artifact = compile("json-stringify-pairs.gu", source).expect("JSON pair serializer compiles");
+    assert_eq!(artifact.format_version, Artifact::CURRENT_VERSION);
+    assert!(artifact.functions.iter().any(|function| {
+        function
+            .code
+            .iter()
+            .any(|instruction| matches!(instruction.op, Op::JsonStringifyPairs))
+    }));
+    let artifact = Artifact::from_bytes(&artifact.to_bytes().unwrap()).unwrap();
+    let mut legacy = artifact.clone();
+    legacy.format_version = 43;
+    assert_eq!(legacy.to_bytes().unwrap_err().code, "E_ARTIFACT_VERSION");
+
+    let mut instance = Runtime::new()
+        .load(artifact, HostPolicy::default())
+        .unwrap();
+    instance.invoke("main", vec![]).unwrap();
+
+    assert_eq!(
+        instance.take_output(),
+        r#"[{"na\nme":"beta","ru\"le":"café"},{"na\nme":"é\"group","ru\"le":"line\nbreak"},{"na\nme":"é\"group","ru\"le":"quote\""}]
+[]
+"#
+    );
+}
+
+#[test]
 fn mutable_json_array_push_is_linear_and_preserves_aliases() {
     let source = "fn main() -> Int:\n    var values = json_array()\n    var cursor = 0\n    while cursor < 2500:\n        set values = json_push(values, json_int(cursor))\n        set cursor = cursor + 1\n    let previous = values\n    set values = json_push(values, json_int(2500))\n    assert(json_len(previous) == 2500)\n    assert(json_len(values) == 2501)\n    assert(json_as_int(json_index(previous, 2499)) == 2499)\n    assert(json_as_int(json_index(values, 2500)) == 2500)\n    return json_len(values)\n";
     let artifact = compile("json-push-local.gu", source).unwrap();

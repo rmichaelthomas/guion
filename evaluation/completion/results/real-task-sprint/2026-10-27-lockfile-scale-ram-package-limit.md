@@ -1,44 +1,43 @@
-# Lockfile auditor RAM and scale result — 2026-10-27
+# Lockfile auditor speed, RAM, and scale result — 2026-10-27
 
 ## Result
 
-The lockfile auditor now processes **16,384 packages and writes the exact sorted diagnostic report**. Its peak RAM is below Python at both tested sizes. The change applies an app-specific 5,000,000-instruction ceiling; Guion's global runtime default is unchanged.
+The lockfile auditor now passes its exact-output checks through **16,384 packages and 32,768 diagnostics**, while using less peak RAM than Python. The latest run also closes the measured speed gap for this workload: Guion is slightly faster than Python at 16,384 packages and substantially faster at 4,096 and 8,192.
 
-The memory result closes the measured gap for this workload. The speed result is mixed: Guion is near Python at 8,192 packages, but remains slower at 16,384.
+This is a confirmed win for this lockfile workload on this Mac. It is not evidence that Guion is generally faster than Python.
 
-## Measurements
+## Latest measurements
 
-Seven fresh-process timing pairs and seven output-checked peak-RSS runs were collected for each size on one Apple Silicon Mac. Guion source ran with its source cache bypassed. The harness checked every report against the expected JSON. OS file-cache state was uncontrolled.
+Seven randomized fresh-process timing pairs and seven output-checked peak-RSS samples per arm were collected at each size. Guion's source cache was bypassed and fixture setup was excluded. The benchmark checks every generated report against the exact expected sorted JSON.
 
-| Packages | Guion median | Python median | Paired timing ratio (Guion/Python) | Guion peak RSS | Python peak RSS | RAM change |
-| ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| 8,192 | 0.143 s | 0.154 s | 0.952× (95% interval 0.677–1.163) | 27.70 MiB | 40.38 MiB | 31.4% lower |
-| 16,384 | 0.254 s | 0.178 s | 1.416× (95% interval 1.377–1.430) | 44.66 MiB | 47.86 MiB | 6.7% lower |
+| Packages | Guion median | Python median | Guion/Python time ratio (95% interval) | Guion/Python peak RSS | Versus previous committed implementation (`ed06a82`) |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 4,096 | 56.35 ms | 117.45 ms | 0.479× (0.469–0.490) | 18.55 / 36.14 MiB | 0.750× time |
+| 8,192 | 95.29 ms | 137.88 ms | 0.692× (0.676–0.700) | 26.16 / 40.44 MiB | 0.717× time |
+| 16,384 | 171.82 ms | 179.87 ms | 0.948× (0.942–0.975) | 40.92 / 47.13 MiB | 0.699× time |
 
-At 8,192 packages, the timing interval includes parity, so the small median speed advantage is not a conclusive speed win. At 16,384, Guion is about 42% slower, while using about 3.2 MiB less peak RAM. The prior implementation used 49.64 MiB at 8,192 packages; the new version uses 27.70 MiB, a 44.2% reduction.
+A ratio below 1 means Guion took less time. At 16,384 packages, Guion used about **13% less peak RAM** and took about **5% less time** than Python. The 95% interval stays below parity. Against the previous committed implementation, the new run takes about **30% less time** at that scale.
 
-The 16,384-package fixture contains 32,768 diagnostics and produces a 1,487,359-byte report. Both the 8,192- and 16,384-package acceptance checks passed with exact output.
+The earlier scale run had Guion at 1.416× Python for 16,384 packages. The new native report serializer changes that result to 0.948×. Its full raw timings, memory samples, run order, platform details, and output-verification flags are in [`2026-10-27-lockfile-native-pair-serialization.json`](2026-10-27-lockfile-native-pair-serialization.json).
 
-An output-checked 8,192-package control with findings disabled used 16.83 MiB in Guion and 34.68 MiB in Python (seven runs each). This confirms that parsing and validating the input are not the source of Guion's former higher peak; retaining all report fragments at once caused the excess. The control uses the same final Guion source snapshot as the scale benchmark; raw control samples are in [`2026-10-27-lockfile-input-only-memory-control.json`](2026-10-27-lockfile-input-only-memory-control.json).
+The frozen lockfile auditor acceptance suite also passes **17/17 cases in Guion and 17/17 in Python**, including malformed-input handling and preservation of existing output on failure. The exact results are in [`2026-10-27-lockfile-native-pair-acceptance.json`](2026-10-27-lockfile-native-pair-acceptance.json).
 
 ## What changed
 
-- Added a native, linear `text_join_native` primitive and routed `std:text.text_join` through it. It checks collection/text ceilings and charges the joined output to the guest allocation budget.
-- The lockfile auditor serializes diagnostic rows in batches of 128. This releases row fragments between batches instead of retaining all 32,768 fragments together.
-- Raised only the lockfile auditor's configured instruction ceiling to 5,000,000 so the 16,384-package case completes. The global default remains unchanged.
-- Added artifact opcode tag 163 and format 43, with checks that reject the new operation in older artifact formats. Regenerated the self-host compiler seed and documented the format change.
+- Added `json_stringify_pairs`, a standard-library operation that streams `Map[Text, List[Text]]` into a sorted JSON array of two-field text objects. It preserves list order, escapes names and values, and checks collection, text, and allocation limits before creating the output.
+- Added artifact opcode tag 164 and artifact format 44, updated the self-hosted compiler's opcode table, and regenerated its embedded compiler seed.
+- Replaced the auditor's interpreted per-row JSON encoding and chunk assembly with one call to `json_stringify_pairs`.
+- Added direct Serde serialization for shared JSON values, avoiding a cloned intermediate `serde_json::Value` for ordinary `json_stringify` calls.
+- Kept the auditor's app-specific 5,000,000-instruction limit. Guion's global runtime limit remains unchanged.
 
 ## Verification
 
-- Release CLI build passed.
-- Model unit tests passed: 18/18.
-- Standard-library data tests passed: 22/22, including empty joins, Unicode delimiters, both VM modes, artifact round-trip recognition, and rejection under format 42.
-- Three-stage self-host compiler equality passed: 1/1 in 325.39 seconds. The regenerated compiler artifact produced identical C2 and C3 bytes.
-- Lockfile scale tests passed for exact sorted output at both package counts.
-- The full seven-run benchmark and its raw samples are in [`2026-10-27-lockfile-scale-native-text-join.json`](2026-10-27-lockfile-scale-native-text-join.json).
+- Release CLI build passed; the build confirmed the regenerated embedded compiler seed matches its source.
+- The generated builtin catalog and artifact-format audit passed.
+- Model direct-serialization test passed, and all **17 JSON-focused runtime tests** passed.
+- All **17 frozen lockfile cases** passed in each language.
+- The 4,096-, 8,192-, and 16,384-package timing and memory runs passed with exact output checks.
 
-The workspace-wide formatting check reports existing formatting differences in `crates/compiler/tests/pipeline.rs`, `crates/runtime/src/lib.rs`, and pre-existing lines in `crates/model/src/lib.rs`; no unrelated formatting changes were retained.
+## Measurement limits
 
-## Scope
-
-This closes the lockfile auditor's measured RAM gap and doubles its verified package scale from 8,192 to 16,384. It does not establish that Guion is generally faster than Python; the 16,384-package timing is still slower, and these results cover one application workload on one host.
+These are fresh-process source runs on one Apple Silicon host, using Python 3.14.7. OS file-cache state was uncontrolled. They establish the lockfile auditor's speed, memory, and scale behavior on this workload; other programs, hosts, and cold-cache conditions need their own measurements.

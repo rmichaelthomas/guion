@@ -293,6 +293,7 @@ fn parse_instruction(
         "FloatSqrt" => Op::FloatSqrt,
         "JsonParse" => Op::JsonParse,
         "JsonStringify" => Op::JsonStringify,
+        "JsonStringifyPairs" => Op::JsonStringifyPairs,
         "JsonNull" => Op::JsonNull,
         "JsonBool" => Op::JsonBool,
         "JsonInt" => Op::JsonInt,

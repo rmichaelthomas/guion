@@ -3304,6 +3304,18 @@ fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result
                 }
                 state.stack.push(Type::Text);
             }
+            Op::JsonStringifyPairs => {
+                if pop_type(&mut state.stack, pc)? != Type::Text
+                    || pop_type(&mut state.stack, pc)? != Type::Text
+                    || pop_type(&mut state.stack, pc)?
+                        != Type::Map(Box::new(Type::List(Box::new(Type::Text))))
+                {
+                    return Err(format!(
+                        "json_stringify_pairs requires Map[Text, List[Text]], Text and Text at instruction {pc}"
+                    ));
+                }
+                state.stack.push(Type::Text);
+            }
             Op::JsonGet | Op::JsonHas => {
                 if pop_type(&mut state.stack, pc)? != Type::Text
                     || pop_type(&mut state.stack, pc)? != Type::Json

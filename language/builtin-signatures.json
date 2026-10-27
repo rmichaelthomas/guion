@@ -487,6 +487,16 @@
       "operation": "JsonStringify"
     },
     {
+      "name": "json_stringify_pairs_native",
+      "parameters": [
+        "Map[Text,List[Text]]",
+        "Text",
+        "Text"
+      ],
+      "result": "Text",
+      "operation": "JsonStringifyPairs"
+    },
+    {
       "name": "json_text",
       "parameters": [
         "Text"

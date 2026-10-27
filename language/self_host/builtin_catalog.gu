@@ -131,6 +131,8 @@ pub fn builtin_catalog_signature(name: Text) -> Text:
             return "3:JsonSet:Json:Json;Text;Json"
         if name == "json_stringify":
             return "1:JsonStringify:Text:Json"
+        if name == "json_stringify_pairs_native":
+            return "3:JsonStringifyPairs:Text:Map[Text,List[Text]];Text;Text"
         if name == "json_text":
             return "1:JsonText:Json:Text"
         if name == "json_text_categories":

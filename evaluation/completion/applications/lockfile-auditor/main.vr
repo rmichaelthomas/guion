@@ -30,20 +30,7 @@ fn merge_diagnostic_rules(left: List[Text], right: List[Text]) -> List[Text]:
     return merged
 
 fn diagnostic_array_text(values: Map[Text, List[Text]]) -> Text:
-    var encoded_chunks: List[Text] = []
-    var encoded_rows: List[Text] = []
-    for name in values:
-        let encoded_name = json_stringify(json_text(name))
-        for rule in values[name]:
-            let encoded_rule = json_stringify(json_text(rule))
-            let encoded_row = "{\"name\":" + encoded_name + ",\"rule\":" + encoded_rule + "}"
-            set encoded_rows = list_push(encoded_rows, encoded_row)
-            if len(encoded_rows) == 128:
-                set encoded_chunks = list_push(encoded_chunks, text_join(encoded_rows, ","))
-                set encoded_rows = []
-    if len(encoded_rows) > 0:
-        set encoded_chunks = list_push(encoded_chunks, text_join(encoded_rows, ","))
-    return "[" + text_join(encoded_chunks, ",") + "]"
+    return json_stringify_pairs(values, "name", "rule")
 
 fn main() -> Int:
     let arguments = args()

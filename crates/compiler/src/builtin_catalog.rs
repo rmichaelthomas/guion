@@ -166,6 +166,7 @@ pub(crate) fn operation(name: &str) -> Option<Op> {
         "JsonSet" => Op::JsonSet,
         "JsonParse" => Op::JsonParse,
         "JsonStringify" => Op::JsonStringify,
+        "JsonStringifyPairs" => Op::JsonStringifyPairs,
         "JsonGet" => Op::JsonGet,
         "JsonIndex" => Op::JsonIndex,
         "JsonHas" => Op::JsonHas,

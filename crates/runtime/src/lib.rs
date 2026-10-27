@@ -4,7 +4,8 @@ use guion_model::{
 };
 pub use guion_vm_core::CancellationToken;
 use guion_vm_core::{
-    charge_allocation, check_call_depth, cloned_value_allocation, finish_json_value,
+    charge_allocation, check_call_depth, cloned_value_allocation, encoded_json_string_len,
+    finish_json_value,
     finish_shared_json, json_exact_integer, new_vm_frame, shared_json_push_local_allocation,
     shared_json_set_local_allocation, value_matches, verify, Budget, FrameStart, HostOpContext,
     OutputStream, RuntimeProfileCounters, VmFrame, VmHost, VmLimits,
@@ -33,6 +34,66 @@ use native_backend::{
     NativeBackend, NativeCode, NativeFloatList, NativeIntList, NativeRecord, NativeSymbols,
     NATIVE_INLINE_LIST_ITEMS,
 };
+
+struct JsonTextPairRows<'a> {
+    groups: &'a BTreeMap<String, Value>,
+    key_field: &'a str,
+    value_field: &'a str,
+    row_count: usize,
+}
+
+impl serde::Serialize for JsonTextPairRows<'_> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeSeq;
+
+        let mut sequence = serializer.serialize_seq(Some(self.row_count))?;
+        for (key, values) in self.groups {
+            let Value::List(values) = values else {
+                return Err(serde::ser::Error::custom(
+                    "json_stringify_pairs requires Map[Text, List[Text]]",
+                ));
+            };
+            for value in values.iter() {
+                let Value::Text(value) = value else {
+                    return Err(serde::ser::Error::custom(
+                        "json_stringify_pairs requires Map[Text, List[Text]]",
+                    ));
+                };
+                sequence.serialize_element(&JsonTextPair {
+                    key_field: self.key_field,
+                    key,
+                    value_field: self.value_field,
+                    value: value.as_ref(),
+                })?;
+            }
+        }
+        sequence.end()
+    }
+}
+
+struct JsonTextPair<'a> {
+    key_field: &'a str,
+    key: &'a str,
+    value_field: &'a str,
+    value: &'a str,
+}
+
+impl serde::Serialize for JsonTextPair<'_> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeMap;
+
+        let mut object = serializer.serialize_map(Some(2))?;
+        object.serialize_entry(self.key_field, self.key)?;
+        object.serialize_entry(self.value_field, self.value)?;
+        object.end()
+    }
+}
 
 #[cfg(test)]
 mod native_inline_arena_tests {
@@ -3349,7 +3410,7 @@ impl VmHost for Instance {
                         ))
                     }
                 };
-                let text = serde_json::to_string(&value.to_serde()).map_err(|error| {
+                let text = serde_json::to_string(value.as_ref()).map_err(|error| {
                     RuntimeError::new("R_JSON_ENCODE", error.to_string(), instruction.span)
                 })?;
                 if text.len() > self.policy.max_text_bytes {
@@ -3364,6 +3425,142 @@ impl VmHost for Instance {
                     size_of::<String>().saturating_add(text.len()),
                     instruction.span,
                 )?;
+                push_stack!(Value::Text(text.into()));
+            }
+            Op::JsonStringifyPairs => {
+                let value_field = match pop!() {
+                    Value::Text(value) => value,
+                    _ => {
+                        return Err(RuntimeError::new(
+                            "R_TYPE_INVALID",
+                            "json_stringify_pairs value field must be Text",
+                            instruction.span,
+                        ))
+                    }
+                };
+                let key_field = match pop!() {
+                    Value::Text(value) => value,
+                    _ => {
+                        return Err(RuntimeError::new(
+                            "R_TYPE_INVALID",
+                            "json_stringify_pairs key field must be Text",
+                            instruction.span,
+                        ))
+                    }
+                };
+                let groups = match pop!() {
+                    Value::Map(values) => values,
+                    _ => {
+                        return Err(RuntimeError::new(
+                            "R_TYPE_INVALID",
+                            "json_stringify_pairs requires Map[Text, List[Text]]",
+                            instruction.span,
+                        ))
+                    }
+                };
+                if key_field == value_field {
+                    return Err(RuntimeError::new(
+                        "R_JSON_ENCODE",
+                        "json_stringify_pairs field names must be distinct",
+                        instruction.span,
+                    ));
+                }
+                if groups.len() > self.policy.max_collection_items {
+                    return Err(RuntimeError::new(
+                        "R_COLLECTION_LIMIT",
+                        "json_stringify_pairs exceeds the configured group limit",
+                        instruction.span,
+                    ));
+                }
+
+                let encoded_key_field_len = encoded_json_string_len(&key_field);
+                let encoded_value_field_len = encoded_json_string_len(&value_field);
+                let mut row_count = 0usize;
+                let mut output_length = 2usize;
+                for (key, values) in groups.iter() {
+                    let Value::List(values) = values else {
+                        return Err(RuntimeError::new(
+                            "R_TYPE_INVALID",
+                            "json_stringify_pairs requires Map[Text, List[Text]]",
+                            instruction.span,
+                        ));
+                    };
+                    if values.len() > self.policy.max_collection_items {
+                        return Err(RuntimeError::new(
+                            "R_COLLECTION_LIMIT",
+                            "json_stringify_pairs exceeds the configured group size limit",
+                            instruction.span,
+                        ));
+                    }
+                    let encoded_key_len = encoded_json_string_len(key);
+                    for value in values.iter() {
+                        let Value::Text(value) = value else {
+                            return Err(RuntimeError::new(
+                                "R_TYPE_INVALID",
+                                "json_stringify_pairs requires Map[Text, List[Text]]",
+                                instruction.span,
+                            ));
+                        };
+                        if row_count >= self.policy.max_collection_items {
+                            return Err(RuntimeError::new(
+                                "R_COLLECTION_LIMIT",
+                                "json_stringify_pairs exceeds the configured row limit",
+                                instruction.span,
+                            ));
+                        }
+                        if row_count > 0 {
+                            output_length = output_length.saturating_add(1);
+                        }
+                        output_length = output_length
+                            .saturating_add(5)
+                            .saturating_add(encoded_key_field_len)
+                            .saturating_add(encoded_key_len)
+                            .saturating_add(encoded_value_field_len)
+                            .saturating_add(encoded_json_string_len(value));
+                        row_count += 1;
+                        if output_length > self.policy.max_text_bytes {
+                            return Err(RuntimeError::new(
+                                "R_TEXT_LIMIT",
+                                "JSON pair output exceeds the configured text limit",
+                                instruction.span,
+                            ));
+                        }
+                    }
+                }
+                if output_length > self.policy.max_text_bytes {
+                    return Err(RuntimeError::new(
+                        "R_TEXT_LIMIT",
+                        "JSON pair output exceeds the configured text limit",
+                        instruction.span,
+                    ));
+                }
+                charge_allocation(
+                    budget.as_ref(),
+                    size_of::<String>().saturating_add(output_length),
+                    instruction.span,
+                )?;
+
+                let mut output = Vec::with_capacity(output_length);
+                let rows = JsonTextPairRows {
+                    groups: groups.as_ref(),
+                    key_field: &key_field,
+                    value_field: &value_field,
+                    row_count,
+                };
+                let mut serializer = serde_json::Serializer::new(&mut output);
+                serde::Serialize::serialize(&rows, &mut serializer).map_err(|error| {
+                    RuntimeError::new("R_JSON_ENCODE", error.to_string(), instruction.span)
+                })?;
+                if output.len() != output_length {
+                    return Err(RuntimeError::new(
+                        "R_JSON_ENCODE",
+                        "JSON pair output length did not match its checked size",
+                        instruction.span,
+                    ));
+                }
+                let text = String::from_utf8(output).map_err(|error| {
+                    RuntimeError::new("R_JSON_ENCODE", error.to_string(), instruction.span)
+                })?;
                 push_stack!(Value::Text(text.into()));
             }
             Op::JsonTryGet
