@@ -3,9 +3,9 @@
   "kind": "matched-frozen-case-acceptance",
   "platform": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
   "python": "3.14.7 (main, Aug  5 2026, 10:29:49) [Clang 21.0.0 (clang-2100.1.1.101)]",
-  "guion_sha256": "f85a615353bc1479be161c99335a799e6018751fa37465006ad269c16865e31f",
+  "guion_sha256": "a8728d613aaf43c3f81ed0fedc5d59fa49ea38709da2067a264d8b2bad55e65d",
   "manifest_sha256": "1f8f4f2db73c39d397a8334a86ff955cc76d7e1481d9c2a512ada73d675b0213",
-  "note": "Per-step times are acceptance observations, not randomized benchmark results.",
+  "note": "Per-step times are acceptance observations, not randomized benchmark results. Temporary acceptance files stayed under ignored repository scratch.",
   "applications": {
     "webhook-replay": {
       "cases": [
@@ -26,59 +26,59 @@
                   "checks_passed": 3,
                   "checks_total": 3,
                   "failures": [],
-                  "elapsed_seconds": 0.017008
+                  "elapsed_seconds": 0.029649
                 },
                 {
                   "exit_code": 0,
                   "checks_passed": 3,
                   "checks_total": 3,
                   "failures": [],
-                  "elapsed_seconds": 0.024306
+                  "elapsed_seconds": 0.018641
                 },
                 {
                   "exit_code": 1,
                   "checks_passed": 5,
                   "checks_total": 5,
                   "failures": [],
-                  "elapsed_seconds": 0.016092
+                  "elapsed_seconds": 0.015838
                 },
                 {
                   "exit_code": 1,
                   "checks_passed": 3,
                   "checks_total": 3,
                   "failures": [],
-                  "elapsed_seconds": 0.015475
+                  "elapsed_seconds": 0.016036
                 },
                 {
                   "exit_code": 1,
                   "checks_passed": 2,
                   "checks_total": 2,
                   "failures": [],
-                  "elapsed_seconds": 0.019282
+                  "elapsed_seconds": 0.021726
                 },
                 {
                   "exit_code": 0,
                   "checks_passed": 3,
                   "checks_total": 3,
                   "failures": [],
-                  "elapsed_seconds": 0.017648
+                  "elapsed_seconds": 0.016404
                 },
                 {
                   "exit_code": 0,
                   "checks_passed": 2,
                   "checks_total": 2,
                   "failures": [],
-                  "elapsed_seconds": 0.02026
+                  "elapsed_seconds": 0.017848
                 },
                 {
                   "exit_code": 0,
                   "checks_passed": 4,
                   "checks_total": 4,
                   "failures": [],
-                  "elapsed_seconds": 0.0183
+                  "elapsed_seconds": 0.016142
                 }
               ],
-              "elapsed_seconds": 0.640212,
+              "elapsed_seconds": 0.642503,
               "http_fixtures": {
                 "downstream": {
                   "requests": [
@@ -111,59 +111,59 @@
                   "checks_passed": 3,
                   "checks_total": 3,
                   "failures": [],
-                  "elapsed_seconds": 0.122349
+                  "elapsed_seconds": 0.123548
                 },
                 {
                   "exit_code": 0,
                   "checks_passed": 3,
                   "checks_total": 3,
                   "failures": [],
-                  "elapsed_seconds": 0.087781
+                  "elapsed_seconds": 0.09541
                 },
                 {
                   "exit_code": 1,
                   "checks_passed": 5,
                   "checks_total": 5,
                   "failures": [],
-                  "elapsed_seconds": 0.088381
+                  "elapsed_seconds": 0.091486
                 },
                 {
                   "exit_code": 1,
                   "checks_passed": 3,
                   "checks_total": 3,
                   "failures": [],
-                  "elapsed_seconds": 0.086749
+                  "elapsed_seconds": 0.087167
                 },
                 {
                   "exit_code": 1,
                   "checks_passed": 2,
                   "checks_total": 2,
                   "failures": [],
-                  "elapsed_seconds": 0.107004
+                  "elapsed_seconds": 0.107042
                 },
                 {
                   "exit_code": 0,
                   "checks_passed": 3,
                   "checks_total": 3,
                   "failures": [],
-                  "elapsed_seconds": 0.085408
+                  "elapsed_seconds": 0.08574
                 },
                 {
                   "exit_code": 0,
                   "checks_passed": 2,
                   "checks_total": 2,
                   "failures": [],
-                  "elapsed_seconds": 0.097155
+                  "elapsed_seconds": 0.09973
                 },
                 {
                   "exit_code": 0,
                   "checks_passed": 4,
                   "checks_total": 4,
                   "failures": [],
-                  "elapsed_seconds": 0.083825
+                  "elapsed_seconds": 0.088775
                 }
               ],
-              "elapsed_seconds": 1.180206,
+              "elapsed_seconds": 1.193082,
               "http_fixtures": {
                 "downstream": {
                   "requests": [
@@ -202,24 +202,24 @@
                   "checks_passed": 1,
                   "checks_total": 1,
                   "failures": [],
-                  "elapsed_seconds": 0.021874
+                  "elapsed_seconds": 0.024358
                 },
                 {
                   "exit_code": 1,
                   "checks_passed": 4,
                   "checks_total": 4,
                   "failures": [],
-                  "elapsed_seconds": 0.024506
+                  "elapsed_seconds": 0.021489
                 },
                 {
                   "exit_code": 1,
                   "checks_passed": 2,
                   "checks_total": 2,
                   "failures": [],
-                  "elapsed_seconds": 0.019871
+                  "elapsed_seconds": 0.018976
                 }
               ],
-              "elapsed_seconds": 0.072316,
+              "elapsed_seconds": 0.078231,
               "http_fixtures": {},
               "stdout": "",
               "stderr": "",
@@ -238,24 +238,24 @@
                   "checks_passed": 1,
                   "checks_total": 1,
                   "failures": [],
-                  "elapsed_seconds": 0.088015
+                  "elapsed_seconds": 0.092861
                 },
                 {
                   "exit_code": 1,
                   "checks_passed": 4,
                   "checks_total": 4,
                   "failures": [],
-                  "elapsed_seconds": 0.083253
+                  "elapsed_seconds": 0.089676
                 },
                 {
                   "exit_code": 1,
                   "checks_passed": 2,
                   "checks_total": 2,
                   "failures": [],
-                  "elapsed_seconds": 0.083447
+                  "elapsed_seconds": 0.08782
                 }
               ],
-              "elapsed_seconds": 0.256992,
+              "elapsed_seconds": 0.272643,
               "http_fixtures": {},
               "stdout": "",
               "stderr": "",
@@ -280,38 +280,38 @@
                   "checks_passed": 1,
                   "checks_total": 1,
                   "failures": [],
-                  "elapsed_seconds": 0.012528
+                  "elapsed_seconds": 0.012504
                 },
                 {
                   "exit_code": 1,
                   "checks_passed": 2,
                   "checks_total": 2,
                   "failures": [],
-                  "elapsed_seconds": 0.016615
+                  "elapsed_seconds": 0.0187
                 },
                 {
                   "exit_code": 0,
                   "checks_passed": 3,
                   "checks_total": 3,
                   "failures": [],
-                  "elapsed_seconds": 0.018619
+                  "elapsed_seconds": 0.01702
                 },
                 {
                   "exit_code": 1,
                   "checks_passed": 2,
                   "checks_total": 2,
                   "failures": [],
-                  "elapsed_seconds": 0.015907
+                  "elapsed_seconds": 0.015307
                 },
                 {
                   "exit_code": 0,
                   "checks_passed": 3,
                   "checks_total": 3,
                   "failures": [],
-                  "elapsed_seconds": 0.016018
+                  "elapsed_seconds": 0.016527
                 }
               ],
-              "elapsed_seconds": 0.082143,
+              "elapsed_seconds": 0.082784,
               "http_fixtures": {},
               "stdout": "",
               "stderr": "",
@@ -330,38 +330,38 @@
                   "checks_passed": 1,
                   "checks_total": 1,
                   "failures": [],
-                  "elapsed_seconds": 0.085315
+                  "elapsed_seconds": 0.091213
                 },
                 {
                   "exit_code": 1,
                   "checks_passed": 2,
                   "checks_total": 2,
                   "failures": [],
-                  "elapsed_seconds": 0.084958
+                  "elapsed_seconds": 0.086477
                 },
                 {
                   "exit_code": 0,
                   "checks_passed": 3,
                   "checks_total": 3,
                   "failures": [],
-                  "elapsed_seconds": 0.092488
+                  "elapsed_seconds": 0.086003
                 },
                 {
                   "exit_code": 1,
                   "checks_passed": 2,
                   "checks_total": 2,
                   "failures": [],
-                  "elapsed_seconds": 0.107591
+                  "elapsed_seconds": 0.085076
                 },
                 {
                   "exit_code": 0,
                   "checks_passed": 3,
                   "checks_total": 3,
                   "failures": [],
-                  "elapsed_seconds": 0.091212
+                  "elapsed_seconds": 0.0881
                 }
               ],
-              "elapsed_seconds": 0.463756,
+              "elapsed_seconds": 0.43923,
               "http_fixtures": {},
               "stdout": "",
               "stderr": "",
@@ -386,59 +386,59 @@
                   "checks_passed": 1,
                   "checks_total": 1,
                   "failures": [],
-                  "elapsed_seconds": 0.011936
+                  "elapsed_seconds": 0.01173
                 },
                 {
                   "exit_code": 0,
                   "checks_passed": 3,
                   "checks_total": 3,
                   "failures": [],
-                  "elapsed_seconds": 0.020547
+                  "elapsed_seconds": 0.017371
                 },
                 {
                   "exit_code": 1,
                   "checks_passed": 2,
                   "checks_total": 2,
                   "failures": [],
-                  "elapsed_seconds": 0.016986
+                  "elapsed_seconds": 0.015698
                 },
                 {
                   "exit_code": 0,
                   "checks_passed": 3,
                   "checks_total": 3,
                   "failures": [],
-                  "elapsed_seconds": 0.017381
+                  "elapsed_seconds": 0.015633
                 },
                 {
                   "exit_code": 1,
                   "checks_passed": 2,
                   "checks_total": 2,
                   "failures": [],
-                  "elapsed_seconds": 0.017198
+                  "elapsed_seconds": 0.016216
                 },
                 {
                   "exit_code": 0,
                   "checks_passed": 3,
                   "checks_total": 3,
                   "failures": [],
-                  "elapsed_seconds": 0.016868
+                  "elapsed_seconds": 0.016159
                 },
                 {
                   "exit_code": 1,
                   "checks_passed": 2,
                   "checks_total": 2,
                   "failures": [],
-                  "elapsed_seconds": 0.015944
+                  "elapsed_seconds": 0.016176
                 },
                 {
                   "exit_code": 0,
                   "checks_passed": 3,
                   "checks_total": 3,
                   "failures": [],
-                  "elapsed_seconds": 0.016852
+                  "elapsed_seconds": 0.015431
                 }
               ],
-              "elapsed_seconds": 0.136451,
+              "elapsed_seconds": 0.12721,
               "http_fixtures": {},
               "stdout": "",
               "stderr": "",
@@ -457,59 +457,59 @@
                   "checks_passed": 1,
                   "checks_total": 1,
                   "failures": [],
-                  "elapsed_seconds": 0.091772
+                  "elapsed_seconds": 0.090353
                 },
                 {
                   "exit_code": 0,
                   "checks_passed": 3,
                   "checks_total": 3,
                   "failures": [],
-                  "elapsed_seconds": 0.09097
+                  "elapsed_seconds": 0.10433
                 },
                 {
                   "exit_code": 1,
                   "checks_passed": 2,
                   "checks_total": 2,
                   "failures": [],
-                  "elapsed_seconds": 0.087387
+                  "elapsed_seconds": 0.100633
                 },
                 {
                   "exit_code": 0,
                   "checks_passed": 3,
                   "checks_total": 3,
                   "failures": [],
-                  "elapsed_seconds": 0.087962
+                  "elapsed_seconds": 0.100917
                 },
                 {
                   "exit_code": 1,
                   "checks_passed": 2,
                   "checks_total": 2,
                   "failures": [],
-                  "elapsed_seconds": 0.08497
+                  "elapsed_seconds": 0.100956
                 },
                 {
                   "exit_code": 0,
                   "checks_passed": 3,
                   "checks_total": 3,
                   "failures": [],
-                  "elapsed_seconds": 0.084573
+                  "elapsed_seconds": 0.099214
                 },
                 {
                   "exit_code": 1,
                   "checks_passed": 2,
                   "checks_total": 2,
                   "failures": [],
-                  "elapsed_seconds": 0.084807
+                  "elapsed_seconds": 0.097323
                 },
                 {
                   "exit_code": 0,
                   "checks_passed": 3,
                   "checks_total": 3,
                   "failures": [],
-                  "elapsed_seconds": 0.086219
+                  "elapsed_seconds": 0.102376
                 }
               ],
-              "elapsed_seconds": 0.701114,
+              "elapsed_seconds": 0.79862,
               "http_fixtures": {},
               "stdout": "",
               "stderr": "",
@@ -534,17 +534,17 @@
                   "checks_passed": 1,
                   "checks_total": 1,
                   "failures": [],
-                  "elapsed_seconds": 0.011718
+                  "elapsed_seconds": 0.013355
                 },
                 {
                   "exit_code": 0,
                   "checks_passed": 3,
                   "checks_total": 3,
                   "failures": [],
-                  "elapsed_seconds": 0.020132
+                  "elapsed_seconds": 0.025294
                 }
               ],
-              "elapsed_seconds": 0.033937,
+              "elapsed_seconds": 0.040963,
               "http_fixtures": {},
               "stdout": "",
               "stderr": "",
@@ -563,17 +563,17 @@
                   "checks_passed": 1,
                   "checks_total": 1,
                   "failures": [],
-                  "elapsed_seconds": 0.086522
+                  "elapsed_seconds": 0.221492
                 },
                 {
                   "exit_code": 0,
                   "checks_passed": 3,
                   "checks_total": 3,
                   "failures": [],
-                  "elapsed_seconds": 0.095467
+                  "elapsed_seconds": 0.219667
                 }
               ],
-              "elapsed_seconds": 0.183811,
+              "elapsed_seconds": 0.443367,
               "http_fixtures": {},
               "stdout": "",
               "stderr": "",
@@ -598,24 +598,24 @@
                   "checks_passed": 2,
                   "checks_total": 2,
                   "failures": [],
-                  "elapsed_seconds": 0.011232
+                  "elapsed_seconds": 0.013821
                 },
                 {
                   "exit_code": 1,
                   "checks_passed": 2,
                   "checks_total": 2,
                   "failures": [],
-                  "elapsed_seconds": 0.011218
+                  "elapsed_seconds": 0.016363
                 },
                 {
                   "exit_code": 1,
                   "checks_passed": 1,
                   "checks_total": 1,
                   "failures": [],
-                  "elapsed_seconds": 0.011032
+                  "elapsed_seconds": 0.017575
                 }
               ],
-              "elapsed_seconds": 0.035759,
+              "elapsed_seconds": 0.050125,
               "http_fixtures": {},
               "stdout": "",
               "stderr": "invalid_secret\n",
@@ -634,24 +634,24 @@
                   "checks_passed": 2,
                   "checks_total": 2,
                   "failures": [],
-                  "elapsed_seconds": 0.091488
+                  "elapsed_seconds": 0.144027
                 },
                 {
                   "exit_code": 1,
                   "checks_passed": 2,
                   "checks_total": 2,
                   "failures": [],
-                  "elapsed_seconds": 0.093423
+                  "elapsed_seconds": 0.290059
                 },
                 {
                   "exit_code": 1,
                   "checks_passed": 1,
                   "checks_total": 1,
                   "failures": [],
-                  "elapsed_seconds": 0.09686
+                  "elapsed_seconds": 0.101569
                 }
               ],
-              "elapsed_seconds": 0.283797,
+              "elapsed_seconds": 0.538292,
               "http_fixtures": {},
               "stdout": "",
               "stderr": "invalid_secret\n",
@@ -676,17 +676,17 @@
                   "checks_passed": 1,
                   "checks_total": 1,
                   "failures": [],
-                  "elapsed_seconds": 0.012815
+                  "elapsed_seconds": 0.013536
                 },
                 {
                   "exit_code": 0,
                   "checks_passed": 3,
                   "checks_total": 3,
                   "failures": [],
-                  "elapsed_seconds": 0.01795
+                  "elapsed_seconds": 0.021069
                 }
               ],
-              "elapsed_seconds": 0.033422,
+              "elapsed_seconds": 0.037045,
               "http_fixtures": {},
               "stdout": "",
               "stderr": "",
@@ -705,17 +705,17 @@
                   "checks_passed": 1,
                   "checks_total": 1,
                   "failures": [],
-                  "elapsed_seconds": 0.099181
+                  "elapsed_seconds": 0.100661
                 },
                 {
                   "exit_code": 0,
                   "checks_passed": 3,
                   "checks_total": 3,
                   "failures": [],
-                  "elapsed_seconds": 0.089852
+                  "elapsed_seconds": 0.096659
                 }
               ],
-              "elapsed_seconds": 0.19103,
+              "elapsed_seconds": 0.199527,
               "http_fixtures": {},
               "stdout": "",
               "stderr": "",
@@ -740,38 +740,38 @@
                   "checks_passed": 1,
                   "checks_total": 1,
                   "failures": [],
-                  "elapsed_seconds": 0.012331
+                  "elapsed_seconds": 0.013052
                 },
                 {
                   "exit_code": 0,
                   "checks_passed": 2,
                   "checks_total": 2,
                   "failures": [],
-                  "elapsed_seconds": 0.016618
+                  "elapsed_seconds": 0.019875
                 },
                 {
                   "exit_code": 1,
                   "checks_passed": 2,
                   "checks_total": 2,
                   "failures": [],
-                  "elapsed_seconds": 0.017097
+                  "elapsed_seconds": 0.020425
                 },
                 {
                   "exit_code": 1,
                   "checks_passed": 2,
                   "checks_total": 2,
                   "failures": [],
-                  "elapsed_seconds": 0.017908
+                  "elapsed_seconds": 0.01921
                 },
                 {
                   "exit_code": 0,
                   "checks_passed": 4,
                   "checks_total": 4,
                   "failures": [],
-                  "elapsed_seconds": 0.01637
+                  "elapsed_seconds": 0.016156
                 }
               ],
-              "elapsed_seconds": 0.567683,
+              "elapsed_seconds": 0.580197,
               "http_fixtures": {
                 "downstream": {
                   "requests": [
@@ -804,38 +804,38 @@
                   "checks_passed": 1,
                   "checks_total": 1,
                   "failures": [],
-                  "elapsed_seconds": 0.103903
+                  "elapsed_seconds": 0.116443
                 },
                 {
                   "exit_code": 0,
                   "checks_passed": 2,
                   "checks_total": 2,
                   "failures": [],
-                  "elapsed_seconds": 0.094976
+                  "elapsed_seconds": 0.094304
                 },
                 {
                   "exit_code": 1,
                   "checks_passed": 2,
                   "checks_total": 2,
                   "failures": [],
-                  "elapsed_seconds": 0.108427
+                  "elapsed_seconds": 0.120106
                 },
                 {
                   "exit_code": 1,
                   "checks_passed": 2,
                   "checks_total": 2,
                   "failures": [],
-                  "elapsed_seconds": 0.11345
+                  "elapsed_seconds": 0.112099
                 },
                 {
                   "exit_code": 0,
                   "checks_passed": 4,
                   "checks_total": 4,
                   "failures": [],
-                  "elapsed_seconds": 0.086182
+                  "elapsed_seconds": 0.095413
                 }
               ],
-              "elapsed_seconds": 0.920988,
+              "elapsed_seconds": 0.943933,
               "http_fixtures": {
                 "downstream": {
                   "requests": [
@@ -874,45 +874,45 @@
                   "checks_passed": 1,
                   "checks_total": 1,
                   "failures": [],
-                  "elapsed_seconds": 0.018777
+                  "elapsed_seconds": 0.015591
                 },
                 {
                   "exit_code": 0,
                   "checks_passed": 2,
                   "checks_total": 2,
                   "failures": [],
-                  "elapsed_seconds": 0.021961
+                  "elapsed_seconds": 0.01949
                 },
                 {
                   "exit_code": 1,
                   "checks_passed": 2,
                   "checks_total": 2,
                   "failures": [],
-                  "elapsed_seconds": 0.020074
+                  "elapsed_seconds": 0.01847
                 },
                 {
                   "exit_code": 1,
                   "checks_passed": 2,
                   "checks_total": 2,
                   "failures": [],
-                  "elapsed_seconds": 0.019497
+                  "elapsed_seconds": 0.020636
                 },
                 {
                   "exit_code": 1,
                   "checks_passed": 3,
                   "checks_total": 3,
                   "failures": [],
-                  "elapsed_seconds": 0.01723
+                  "elapsed_seconds": 0.017549
                 },
                 {
                   "exit_code": 0,
                   "checks_passed": 2,
                   "checks_total": 2,
                   "failures": [],
-                  "elapsed_seconds": 0.016197
+                  "elapsed_seconds": 0.0172
                 }
               ],
-              "elapsed_seconds": 0.587698,
+              "elapsed_seconds": 0.579892,
               "http_fixtures": {
                 "downstream": {
                   "requests": [
@@ -945,45 +945,45 @@
                   "checks_passed": 1,
                   "checks_total": 1,
                   "failures": [],
-                  "elapsed_seconds": 0.111481
+                  "elapsed_seconds": 0.108488
                 },
                 {
                   "exit_code": 0,
                   "checks_passed": 2,
                   "checks_total": 2,
                   "failures": [],
-                  "elapsed_seconds": 0.085814
+                  "elapsed_seconds": 0.092574
                 },
                 {
                   "exit_code": 1,
                   "checks_passed": 2,
                   "checks_total": 2,
                   "failures": [],
-                  "elapsed_seconds": 0.099313
+                  "elapsed_seconds": 0.111372
                 },
                 {
                   "exit_code": 1,
                   "checks_passed": 2,
                   "checks_total": 2,
                   "failures": [],
-                  "elapsed_seconds": 0.100529
+                  "elapsed_seconds": 0.10492
                 },
                 {
                   "exit_code": 1,
                   "checks_passed": 3,
                   "checks_total": 3,
                   "failures": [],
-                  "elapsed_seconds": 0.090391
+                  "elapsed_seconds": 0.09143
                 },
                 {
                   "exit_code": 0,
                   "checks_passed": 2,
                   "checks_total": 2,
                   "failures": [],
-                  "elapsed_seconds": 0.091887
+                  "elapsed_seconds": 0.091793
                 }
               ],
-              "elapsed_seconds": 0.898666,
+              "elapsed_seconds": 0.918976,
               "http_fixtures": {
                 "downstream": {
                   "requests": [

@@ -1,7 +1,11 @@
 {
-  "command_count": 4,
-  "nonzero_commands": 0,
-  "acceptance_exit_codes": [
-    0
-  ]
+  "schema_version": 2,
+  "study_commit": "709b2d5",
+  "application": "lockfile-auditor",
+  "acceptance_runner": "target/perf-session/agent-choice/run_acceptance.py (repo-local scratch path)",
+  "acceptance_invocations": 1,
+  "cases": 17,
+  "guion_sha256": "a8728d613aaf43c3f81ed0fedc5d59fa49ea38709da2067a264d8b2bad55e65d",
+  "passed": true,
+  "timing_evidence": "../2026-10-27-ascii-text-scalar-nine-task-comparison.json"
 }

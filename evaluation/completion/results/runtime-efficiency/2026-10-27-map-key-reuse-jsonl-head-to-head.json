@@ -1,0 +1,129 @@
+{
+  "schema_version": 1,
+  "kind": "map-key-reuse-jsonl-20000-head-to-head",
+  "workload": "20,000 deterministic JSONL records; fresh uncached source execution",
+  "trials_per_arm": 15,
+  "warmup_pairs": 2,
+  "output_checked_each_run": true,
+  "independent_python_and_sqlite_oracles_agree": true,
+  "expected_output_sha256": "50149835d981ac4b910c89429b8e07e3d72e20cd044f47fdf23b89d7e5f0bda9",
+  "baseline_revision": "709b2d5",
+  "baseline_sha256": "a8728d613aaf43c3f81ed0fedc5d59fa49ea38709da2067a264d8b2bad55e65d",
+  "candidate_revision": "working tree map-key reuse",
+  "candidate_sha256": "6be9feaa4b1c59ad5771007b0504d9a318ab3737c9736bc7dc7ac89a138e9a7e",
+  "source_sha256": "4cb05ac5abaa1b893a879b2efd838936e56ff857e037802178909e245dbcff9a",
+  "input_sha256": "f234de1ffad1633ab452e86d7a5c60026c58671a65df41f3d99a60d4f0e1af3a",
+  "measurements": {
+    "baseline": {
+      "samples_seconds": [
+        0.3513614580151625,
+        0.36549066699808463,
+        0.35600520798470825,
+        0.353394916979596,
+        0.3536072499700822,
+        0.3581946670310572,
+        0.3600369580090046,
+        0.34910437499638647,
+        0.35733475000597537,
+        0.3497688749921508,
+        0.34786708297906443,
+        0.3599499160191044,
+        0.35408487502718344,
+        0.3710260840016417,
+        0.3649578749900684
+      ],
+      "median_seconds": 0.35600520798470825
+    },
+    "candidate": {
+      "samples_seconds": [
+        0.3610057500191033,
+        0.3505357079557143,
+        0.3576397090218961,
+        0.3528314579743892,
+        0.35829237499274313,
+        0.3547389169689268,
+        0.35951670800568536,
+        0.3578109159716405,
+        0.35362058400642127,
+        0.3607918749912642,
+        0.3500312920077704,
+        0.3496415840345435,
+        0.3691707079997286,
+        0.368822792021092,
+        0.37237579200882465
+      ],
+      "median_seconds": 0.3578109159716405
+    }
+  },
+  "candidate_over_baseline": {
+    "median_ratio": 1.004591227882425,
+    "ci95_percentile": [
+      0.9903523129175155,
+      1.0249396501414345
+    ],
+    "candidate_faster": false,
+    "candidate_wins": 7
+  },
+  "paired_trial_order": [
+    [
+      "baseline",
+      "candidate"
+    ],
+    [
+      "baseline",
+      "candidate"
+    ],
+    [
+      "baseline",
+      "candidate"
+    ],
+    [
+      "candidate",
+      "baseline"
+    ],
+    [
+      "baseline",
+      "candidate"
+    ],
+    [
+      "baseline",
+      "candidate"
+    ],
+    [
+      "candidate",
+      "baseline"
+    ],
+    [
+      "baseline",
+      "candidate"
+    ],
+    [
+      "baseline",
+      "candidate"
+    ],
+    [
+      "candidate",
+      "baseline"
+    ],
+    [
+      "baseline",
+      "candidate"
+    ],
+    [
+      "candidate",
+      "baseline"
+    ],
+    [
+      "candidate",
+      "baseline"
+    ],
+    [
+      "baseline",
+      "candidate"
+    ],
+    [
+      "baseline",
+      "candidate"
+    ]
+  ]
+}

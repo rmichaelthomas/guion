@@ -528,6 +528,20 @@ fn same_local_map_update_preserves_other_shared_aliases() {
 }
 
 #[test]
+fn map_set_existing_key_preserves_nonlocal_aliases() {
+    let source = "fn main() -> Int:\n    let original: Map[Text, Int] = {\"one\": 1}\n    let updated = map_set(original, \"one\", 2)\n    assert(original[\"one\"] == 1)\n    assert(updated[\"one\"] == 2)\n    return len(original) + len(updated)\n";
+    let artifact = compile("map-update-existing-alias.gu", source).unwrap();
+    let mut instance = Runtime::new()
+        .load(artifact, HostPolicy::default())
+        .unwrap();
+
+    assert_eq!(
+        instance.invoke("main", vec![]).unwrap(),
+        Value::Int(BigInt::from_usize(2))
+    );
+}
+
+#[test]
 fn same_local_map_update_still_enforces_text_limits_on_new_values() {
     let source = "fn main() -> Int:\n    var values: Map[Text, Text] = {}\n    set values = map_set(values, \"ok\", \"long\")\n    return 0\n";
     let artifact = compile("map-update-text-limit.gu", source).unwrap();

@@ -3,9 +3,9 @@
   "kind": "matched-frozen-case-acceptance",
   "platform": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
   "python": "3.14.7 (main, Aug  5 2026, 10:29:49) [Clang 21.0.0 (clang-2100.1.1.101)]",
-  "guion_sha256": "f85a615353bc1479be161c99335a799e6018751fa37465006ad269c16865e31f",
+  "guion_sha256": "a8728d613aaf43c3f81ed0fedc5d59fa49ea38709da2067a264d8b2bad55e65d",
   "manifest_sha256": "1f8f4f2db73c39d397a8334a86ff955cc76d7e1481d9c2a512ada73d675b0213",
-  "note": "Per-step times are acceptance observations, not randomized benchmark results.",
+  "note": "Per-step times are acceptance observations, not randomized benchmark results. Temporary acceptance files stayed under ignored repository scratch.",
   "applications": {
     "health-digest": {
       "cases": [
@@ -26,10 +26,10 @@
                   "checks_passed": 5,
                   "checks_total": 5,
                   "failures": [],
-                  "elapsed_seconds": 0.543082
+                  "elapsed_seconds": 1.087953
                 }
               ],
-              "elapsed_seconds": 1.034275,
+              "elapsed_seconds": 1.584907,
               "http_fixtures": {
                 "health": {
                   "requests": [
@@ -70,20 +70,20 @@
                   "checks_passed": 5,
                   "checks_total": 5,
                   "failures": [],
-                  "elapsed_seconds": 0.658048
+                  "elapsed_seconds": 0.650807
                 }
               ],
-              "elapsed_seconds": 1.1445,
+              "elapsed_seconds": 1.138775,
               "http_fixtures": {
                 "health": {
                   "requests": [
                     {
                       "method": "GET",
-                      "path": "/api"
+                      "path": "/worker"
                     },
                     {
                       "method": "GET",
-                      "path": "/worker"
+                      "path": "/api"
                     },
                     {
                       "method": "GET",
@@ -120,10 +120,10 @@
                   "checks_passed": 5,
                   "checks_total": 5,
                   "failures": [],
-                  "elapsed_seconds": 0.158004
+                  "elapsed_seconds": 0.169283
                 }
               ],
-              "elapsed_seconds": 0.529625,
+              "elapsed_seconds": 0.531637,
               "http_fixtures": {
                 "health": {
                   "requests": [
@@ -156,10 +156,10 @@
                   "checks_passed": 5,
                   "checks_total": 5,
                   "failures": [],
-                  "elapsed_seconds": 0.261827
+                  "elapsed_seconds": 0.24827
                 }
               ],
-              "elapsed_seconds": 0.634222,
+              "elapsed_seconds": 0.619214,
               "http_fixtures": {
                 "health": {
                   "requests": [
@@ -198,10 +198,10 @@
                   "checks_passed": 3,
                   "checks_total": 3,
                   "failures": [],
-                  "elapsed_seconds": 0.024041
+                  "elapsed_seconds": 0.032811
                 }
               ],
-              "elapsed_seconds": 0.027849,
+              "elapsed_seconds": 0.038982,
               "http_fixtures": {},
               "stdout": "",
               "stderr": "",
@@ -220,10 +220,10 @@
                   "checks_passed": 3,
                   "checks_total": 3,
                   "failures": [],
-                  "elapsed_seconds": 0.107487
+                  "elapsed_seconds": 0.09826
                 }
               ],
-              "elapsed_seconds": 0.109089,
+              "elapsed_seconds": 0.100517,
               "http_fixtures": {},
               "stdout": "",
               "stderr": "",
@@ -248,10 +248,10 @@
                   "checks_passed": 4,
                   "checks_total": 4,
                   "failures": [],
-                  "elapsed_seconds": 0.021377
+                  "elapsed_seconds": 0.018578
                 }
               ],
-              "elapsed_seconds": 0.518979,
+              "elapsed_seconds": 0.51646,
               "http_fixtures": {
                 "health": {
                   "requests": [
@@ -280,10 +280,10 @@
                   "checks_passed": 4,
                   "checks_total": 4,
                   "failures": [],
-                  "elapsed_seconds": 0.125575
+                  "elapsed_seconds": 0.126635
                 }
               ],
-              "elapsed_seconds": 0.625605,
+              "elapsed_seconds": 0.629046,
               "http_fixtures": {
                 "health": {
                   "requests": [
@@ -318,10 +318,10 @@
                   "checks_passed": 1,
                   "checks_total": 1,
                   "failures": [],
-                  "elapsed_seconds": 0.00993
+                  "elapsed_seconds": 0.015384
                 }
               ],
-              "elapsed_seconds": 0.508141,
+              "elapsed_seconds": 0.507756,
               "http_fixtures": {
                 "health": {
                   "requests": [],
@@ -345,10 +345,10 @@
                   "checks_passed": 1,
                   "checks_total": 1,
                   "failures": [],
-                  "elapsed_seconds": 0.107806
+                  "elapsed_seconds": 0.103929
                 }
               ],
-              "elapsed_seconds": 0.509826,
+              "elapsed_seconds": 0.505062,
               "http_fixtures": {
                 "health": {
                   "requests": [],
@@ -378,10 +378,10 @@
                   "checks_passed": 4,
                   "checks_total": 4,
                   "failures": [],
-                  "elapsed_seconds": 0.134889
+                  "elapsed_seconds": 0.136467
                 }
               ],
-              "elapsed_seconds": 0.52738,
+              "elapsed_seconds": 0.526053,
               "http_fixtures": {
                 "health": {
                   "requests": [
@@ -410,10 +410,10 @@
                   "checks_passed": 4,
                   "checks_total": 4,
                   "failures": [],
-                  "elapsed_seconds": 0.241004
+                  "elapsed_seconds": 0.230547
                 }
               ],
-              "elapsed_seconds": 0.626062,
+              "elapsed_seconds": 0.64724,
               "http_fixtures": {
                 "health": {
                   "requests": [
@@ -448,10 +448,10 @@
                   "checks_passed": 4,
                   "checks_total": 4,
                   "failures": [],
-                  "elapsed_seconds": 0.023808
+                  "elapsed_seconds": 0.029207
                 }
               ],
-              "elapsed_seconds": 0.523586,
+              "elapsed_seconds": 0.529381,
               "http_fixtures": {
                 "health": {
                   "requests": [
@@ -465,18 +465,18 @@
                     },
                     {
                       "method": "GET",
-                      "path": "/api"
+                      "path": "/unavailable"
                     },
                     {
                       "method": "GET",
-                      "path": "/unavailable"
+                      "path": "/api"
                     },
                     {
                       "method": "GET",
                       "path": "/invalid"
                     }
                   ],
-                  "max_in_flight": 1
+                  "max_in_flight": 2
                 }
               },
               "stdout": "",
@@ -496,10 +496,10 @@
                   "checks_passed": 4,
                   "checks_total": 4,
                   "failures": [],
-                  "elapsed_seconds": 0.123403
+                  "elapsed_seconds": 0.128415
                 }
               ],
-              "elapsed_seconds": 0.626851,
+              "elapsed_seconds": 0.629654,
               "http_fixtures": {
                 "health": {
                   "requests": [
@@ -550,20 +550,20 @@
                   "checks_passed": 3,
                   "checks_total": 3,
                   "failures": [],
-                  "elapsed_seconds": 0.540765
+                  "elapsed_seconds": 0.538637
                 }
               ],
-              "elapsed_seconds": 1.035487,
+              "elapsed_seconds": 1.033997,
               "http_fixtures": {
                 "health": {
                   "requests": [
                     {
                       "method": "GET",
-                      "path": "/slow"
+                      "path": "/array"
                     },
                     {
                       "method": "GET",
-                      "path": "/array"
+                      "path": "/slow"
                     },
                     {
                       "method": "GET",
@@ -594,10 +594,10 @@
                   "checks_passed": 3,
                   "checks_total": 3,
                   "failures": [],
-                  "elapsed_seconds": 0.630551
+                  "elapsed_seconds": 0.637118
                 }
               ],
-              "elapsed_seconds": 1.127346,
+              "elapsed_seconds": 1.133684,
               "http_fixtures": {
                 "health": {
                   "requests": [
@@ -644,10 +644,10 @@
                   "checks_passed": 1,
                   "checks_total": 1,
                   "failures": [],
-                  "elapsed_seconds": 0.017637
+                  "elapsed_seconds": 0.012164
                 }
               ],
-              "elapsed_seconds": 0.510281,
+              "elapsed_seconds": 0.507299,
               "http_fixtures": {
                 "health": {
                   "requests": [],
@@ -671,10 +671,10 @@
                   "checks_passed": 1,
                   "checks_total": 1,
                   "failures": [],
-                  "elapsed_seconds": 0.105744
+                  "elapsed_seconds": 0.105181
                 }
               ],
-              "elapsed_seconds": 0.509024,
+              "elapsed_seconds": 0.508422,
               "http_fixtures": {
                 "health": {
                   "requests": [],
@@ -704,10 +704,10 @@
                   "checks_passed": 3,
                   "checks_total": 3,
                   "failures": [],
-                  "elapsed_seconds": 0.022246
+                  "elapsed_seconds": 0.009763
                 }
               ],
-              "elapsed_seconds": 0.028996,
+              "elapsed_seconds": 0.013328,
               "http_fixtures": {},
               "stdout": "",
               "stderr": "timestamp must use RFC3339 date-time syntax\n",
@@ -726,10 +726,10 @@
                   "checks_passed": 3,
                   "checks_total": 3,
                   "failures": [],
-                  "elapsed_seconds": 0.099038
+                  "elapsed_seconds": 0.096428
                 }
               ],
-              "elapsed_seconds": 0.101854,
+              "elapsed_seconds": 0.098399,
               "http_fixtures": {},
               "stdout": "",
               "stderr": "timestamp must use RFC3339 date-time syntax\n",

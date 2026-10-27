@@ -1,5 +1,18 @@
 {
+  "schema_version": 2,
   "choice": "Guion",
-  "rationale": "The Guion example already handles the closely related work: denied packages, SemVer minimum and maximum limits, expiring exceptions, sorted diagnostics, and atomic JSON output. Python implements the same core behavior and also passed the acceptance checks, but the relevant timing favors Guion.",
-  "trial_observation": "The acceptance command completed successfully: both implementations passed all 17 checks. For the named lockfile-auditor-policy-report case, the timing file reports seven paired samples and medians of 0.016369s for Guion and 0.094047s for Python, including process and oracle-check time. That is about 5.8\u00d7 faster for Guion on this frozen case, not a broad benchmark."
+  "rationale": "Both languages passed all 17 acceptance cases and 43 checks. The Guion median was 0.015355 seconds versus Python at 0.084636 seconds, about 5.5 times faster, and the deterministic JSON audit fits the task.",
+  "task": "Build a command-line audit of a software bill of materials against a team policy, reporting disallowed packages, version limits, and exceptions in deterministic JSON.",
+  "trial_observation": "Seven randomized pairs: Guion 0.015355s, Python 0.084636s; ratio 0.181 (about 5.5x faster for the named case). Both passed 17/17 cases and 43/43 checks. Candidate/previous Guion ratio 1.053 (95% interval 0.992–1.095).",
+  "acceptance_outcome": {
+    "passed": true,
+    "cases": 17,
+    "checks_passed": 43,
+    "checks_total": 43
+  },
+  "caveat": "The selected related task is not the exact frozen lockfile-auditor task. The candidate/previous-build timing interval crosses parity, so no speed improvement is established for this app.",
+  "study_commit": "709b2d5",
+  "guion_sha256": "a8728d613aaf43c3f81ed0fedc5d59fa49ea38709da2067a264d8b2bad55e65d",
+  "timing_evidence": "../2026-10-27-ascii-text-scalar-nine-task-comparison.json",
+  "direct_build_comparison": "../2026-10-27-ascii-text-scalar-nine-task-head-to-head.json"
 }

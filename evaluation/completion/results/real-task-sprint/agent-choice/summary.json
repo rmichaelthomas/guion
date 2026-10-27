@@ -1,38 +1,48 @@
 {
-  "schema_version": 2,
-  "method": "Three sequential ephemeral Codex evaluations. Each evaluator ran the current Guion/Python acceptance case, inspected the implementations and frozen timing data, then selected a language for a related task.",
+  "schema_version": 3,
+  "method": "Three sequential ephemeral Codex evaluations on the committed 2026-10-27 build. Each inspected the matching Guion and Python implementations, current Guion/Python timing data, and current/previous Guion comparisons, then chose a language for a related new task. Each ran the frozen acceptance cases first.",
+  "study_commit": "709b2d5",
+  "guion_sha256": "a8728d613aaf43c3f81ed0fedc5d59fa49ea38709da2067a264d8b2bad55e65d",
   "comparison": {
     "previous_guion_choices": 3,
     "previous_total": 3,
     "current_guion_choices": 3,
     "current_total": 3,
-    "change": "No change; Guion remained 3/3."
+    "change": "No change. Guion remained 3/3, already the maximum possible score."
   },
   "model_choices": {
     "health-digest": {
       "choice": "Guion",
       "acceptance_passed": true,
       "acceptance_cases": 10,
-      "command_count": 7,
+      "checks_passed": null,
+      "command_count": 1,
       "nonzero_commands": 0
     },
     "lockfile-auditor": {
       "choice": "Guion",
       "acceptance_passed": true,
       "acceptance_cases": 17,
-      "command_count": 4,
+      "checks_passed": 43,
+      "command_count": 1,
       "nonzero_commands": 0
     },
     "webhook-replay": {
       "choice": "Guion",
       "acceptance_passed": true,
       "acceptance_cases": 9,
-      "command_count": 4,
+      "checks_passed": 98,
+      "command_count": 1,
       "nonzero_commands": 0
     }
   },
+  "timing_inputs": [
+    "2026-10-27-ascii-text-scalar-nine-task-comparison.json",
+    "2026-10-27-ascii-text-scalar-nine-task-head-to-head.json"
+  ],
   "limitations": [
-    "The study is exploratory and unblinded; the evaluators could inspect the repository implementations and existing measurement data.",
-    "The evaluators received the frozen nine-task timing file, which predates the immutable-text-storage change, so the unchanged choice count cannot be attributed to this optimization."
+    "Exploratory and unblinded; evaluators inspected source and measurement files.",
+    "The three related tasks are not a representative adoption sample.",
+    "Timing values include process and oracle-check overhead and do not establish general performance."
   ]
 }

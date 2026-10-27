@@ -1,10 +1,1 @@
-You are evaluating two programming languages after trying working examples. Work only in this repository. Keep any session contract and all temporary files inside /Users/rmichaelthomas/guion/target/perf-session/agent-choice; do not inspect unrelated historical session contracts. Do not change project files or create chats.
-
-First run this exact acceptance command to try both implementations:
-PYTHONPATH="/Users/rmichaelthomas/guion/target/perf-session/python-deps" python3 evaluation/completion/compare_real_tasks.py --binary target/release/guion --application webhook-replay --output /Users/rmichaelthomas/guion/target/perf-session/agent-choice/webhook-replay-acceptance.json
-
-Read the acceptance result, inspect the Guion source at evaluation/completion/applications/webhook-replay/main.vr and Python reference at evaluation/calibration/python-reference/main.py, and inspect this application's measurements in evaluation/completion/results/real-task-sprint/nine-task-timings-final.json. The timings measure the named frozen case and include oracle-check time. Decide which language you would use for the following related, new task and explain the reasons based on what you observed. You may choose either language; do not optimize for a particular result.
-
-New task: Build a small durable notification relay that validates incoming payloads, records their state, retries delivery, and reports failures to an operator.
-
-Return the required JSON including your choice, concise rationale, and what happened when you ran the two implementations.
+Evaluate Guion and Python after trying the webhook-replay examples. Run the repo-local acceptance helper in ignored scratch and inspect the Guion and Python implementations, current nine-task Guion/Python timings, and direct current/previous Guion comparison. Choose a language without being steered for this related task: build a small durable notification relay that validates incoming payloads, records state, retries delivery, and reports failures to an operator. Return a concise JSON choice, rationale, and acceptance outcome.

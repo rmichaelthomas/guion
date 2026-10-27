@@ -783,7 +783,7 @@ pub fn execute_vm_frame<H: VmHost>(
                     if let Some(error) = value_limit_error(&value, &limits, instruction.span) {
                         return Err(error);
                     }
-                    Arc::make_mut(items).insert(key.to_string(), value);
+                    replace_map_value(Arc::make_mut(items), key.as_ref(), value);
                     push_stack!(Value::Map(Arc::clone(items)));
                     continue;
                 }
@@ -806,7 +806,7 @@ pub fn execute_vm_frame<H: VmHost>(
                     map_clone_allocation(values.as_ref(), Some(key.as_ref()), &value);
                 charge_allocation(budget.as_ref(), map_clone_bytes, instruction.span)?;
                 let mut updated = values.as_ref().clone();
-                updated.insert(key.to_string(), value);
+                replace_map_value(&mut updated, key.as_ref(), value);
                 let map = Value::Map(Arc::new(updated));
                 if let Some(error) = value_limit_error(&map, &limits, instruction.span) {
                     return Err(error);
@@ -2115,6 +2115,15 @@ pub fn cloned_value_allocation(value: &Value) -> usize {
         // Lists, maps, and JSON trees use shared immutable storage.
         Value::List(_) | Value::Float64List(_) | Value::Map(_) | Value::Json(_) => 0,
         _ => 0,
+    }
+}
+
+#[inline]
+fn replace_map_value(values: &mut BTreeMap<String, Value>, key: &str, value: Value) {
+    if let Some(existing_value) = values.get_mut(key) {
+        *existing_value = value;
+    } else {
+        values.insert(key.to_owned(), value);
     }
 }
 
@@ -4364,5 +4373,26 @@ impl VmHost for PortableHost {
             format!("host operation `{name}` is not available in this environment"),
             context.instruction.span,
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn map_update_existing_key_preserves_owned_key_storage() {
+        let mut values = BTreeMap::new();
+        let key = String::from("service");
+        let original_key_ptr = key.as_ptr();
+        values.insert(key, Value::Bool(false));
+
+        replace_map_value(&mut values, "service", Value::Bool(true));
+
+        let (stored_key, stored_value) = values
+            .get_key_value("service")
+            .expect("the existing map key remains present");
+        assert_eq!(stored_key.as_ptr(), original_key_ptr);
+        assert_eq!(stored_value, &Value::Bool(true));
     }
 }

@@ -1,5 +1,18 @@
 {
+  "schema_version": 2,
   "choice": "Guion",
-  "rationale": "Its bounded concurrency and request timeouts fit the task, and both implementations passed the relevant deadline and concurrency cases. For repeated runs on one controlled host, Guion\u2019s lower measured median also favors it.",
-  "trial_observation": "The requested command completed successfully: both implementations passed all 10 cases. In the seven-trial health-mixed-results-and-cap timing, Guion\u2019s median was 0.531912 s versus Python\u2019s 0.628826 s (ratio 0.846). This measurement includes process and oracle-check time, so it describes that frozen case rather than standalone runtime."
+  "rationale": "Both languages passed all 10 acceptance cases. The Guion implementation supports concurrent probes, per-request timeouts, and JSON plus human-readable output; the Python reference uses a thread pool and deadline-bounded reads.",
+  "task": "Build an internal inventory of device endpoints, querying each concurrently under a hard deadline and writing a human-readable health digest.",
+  "trial_observation": "Seven randomized pairs: Guion 0.537813s, Python 0.642550s; ratio 0.840 (95% interval 0.828–0.845). Both passed 10/10 cases.",
+  "acceptance_outcome": {
+    "passed": true,
+    "cases": 10,
+    "initial": 6,
+    "follow_up": 4
+  },
+  "caveat": "The fixed network timeout dominates this selected case. The preference result is exploratory and unblinded.",
+  "study_commit": "709b2d5",
+  "guion_sha256": "a8728d613aaf43c3f81ed0fedc5d59fa49ea38709da2067a264d8b2bad55e65d",
+  "timing_evidence": "../2026-10-27-ascii-text-scalar-nine-task-comparison.json",
+  "direct_build_comparison": "../2026-10-27-ascii-text-scalar-nine-task-head-to-head.json"
 }
