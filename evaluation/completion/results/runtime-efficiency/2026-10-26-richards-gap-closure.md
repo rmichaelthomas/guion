@@ -12,6 +12,14 @@ Every warmup and timed run checked Richards' expected output (`9297`, `23246`). 
 
 **Correction to the first report:** the earlier `0.498` result (36.28 ms; 358 main-function IR blocks) came from a candidate that returned unused parent fuel before a native call but did not start a new fuel-reservation region at the call continuation. That meant the speed result did not establish correct instruction-budget behavior on that path. It is superseded and must not be used as the accepted result. The original raw comparison remains in the evidence list as historical experiment data.
 
+## Follow-up: remove the call-continuation boundary
+
+After preserving the parent's fuel reservation across native calls, the compiler no longer needs to start a new reservation region immediately after each call. In a randomized 30-trial follow-up, the latest candidate measured 36.55 ms versus 37.13 ms for the preceding corrected build and 73.33 ms for Python. The paired candidate/preceding-build ratio was `0.992` (95% interval `0.979–0.999`), a small 0.8% median improvement; 10 of 30 paired samples were ties or regressions. Candidate/Python was `0.502` (`0.494–0.505`). Use the 30-trial [comparison](2026-10-27-richards-no-call-continuation-boundary-30-trial-comparison.json) as the primary follow-up result; the initial 15-trial probe is preserved [here](2026-10-27-richards-no-call-continuation-boundary-comparison.json).
+
+The diagnostic profile shows the expected compile-time change: `main` fell from 376 to 358 Cranelift IR blocks and from 6,629 to 6,569 IR instructions. Measured `define` time fell from 14.46 ms to 11.84 ms, while total native compilation profile time fell from 19.93 ms to 17.50 ms. The 25-execution diagnostic medians were 9.619 ms and 9.594 ms per run, effectively flat; the profile sessions were separate, not paired. These lower-level data support a smaller JIT workload, while the end-to-end improvement remains modest. See the [candidate profile](2026-10-27-richards-no-call-continuation-boundary-profile.json).
+
+This candidate also has 358 `main` IR blocks, the same count as the superseded first candidate, but it keeps the caller's unused reservation available to the caller across child calls. The existing exact-budget parity test passed for nested VM/JIT/fallback execution, as did the IR-metering invariant test.
+
 ## What the phase profile says
 
 The corrected one-shot diagnostic profile measured 19.93 ms of native JIT compilation, including 14.46 ms in Cranelift's `define` phase for `main`. These are instrumented phase timings, not host CPU samples. `main` fell from 652 to 376 Cranelift IR blocks and from 7,549 to 6,629 IR instructions. Its measured `define` time fell from 23.00 ms to 14.46 ms (37.1%); total native compilation profile time fell from 30.64 ms to 19.93 ms (35.0%).
@@ -48,7 +56,7 @@ The inline-store attempt increased `main` from 7,510 to 8,395 Cranelift IR instr
 
 ## Verification and hygiene
 
-- The candidate release binary built with locked, offline Cargo dependencies and two build jobs; `cargo fmt --all -- --check` passed. The focused existing `nested_calls_keep_exact_instruction_budget_parity_across_vm_jit_and_fallback` test passed in release mode; the full Rust test suite was not run.
+- The candidate release binary built with locked, offline Cargo dependencies and two build jobs; `cargo fmt --all -- --check` passed. The focused existing `nested_calls_keep_exact_instruction_budget_parity_across_vm_jit_and_fallback` and `native_fuel_metering_adds_control_flow_per_bytecode_block` tests passed in release mode; the full Rust test suite was not run.
 - Baseline and candidate both returned `R_STEP_LIMIT` with the same message and source location at instruction limit 1,000; the machine-readable comparison is [here](2026-10-26-richards-call-boundary-budget-check.json).
 - Randomized cohorts used 15 trials per arm, two warmups, uncached source runs, serial execution, and output checks on every warmup and trial; the extended exit-metadata cohort used 30 trials per arm. OS file cache remained uncontrolled.
 - Native diagnostic profiles also checked the expected output in their timed lanes. Their phase timings are instrumented diagnostics, separate from the uninstrumented comparison cohort.
@@ -81,6 +89,9 @@ The inline-store attempt increased `main` from 7,510 to 8,395 Cranelift IR instr
 - [Call-boundary baseline profile](2026-10-26-richards-call-boundary-baseline-profile.json)
 - [Call-boundary corrected candidate profile](2026-10-26-richards-call-boundary-retained-fuel-profile.json)
 - [Call-boundary instruction-budget check](2026-10-26-richards-call-boundary-budget-check.json)
+- [Call-continuation-boundary 15-trial probe](2026-10-27-richards-no-call-continuation-boundary-comparison.json)
+- [Call-continuation-boundary 30-trial comparison](2026-10-27-richards-no-call-continuation-boundary-30-trial-comparison.json)
+- [Call-continuation-boundary phase profile](2026-10-27-richards-no-call-continuation-boundary-profile.json)
 - [Inline list-copy probe](2026-10-26-richards-list-copy-comparison.json)
 - [Exit-metadata 15-trial comparison](2026-10-26-richards-exit-args-comparison.json)
 - [Exit-metadata 30-trial comparison](2026-10-26-richards-exit-args-30-trial-comparison.json)

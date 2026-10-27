@@ -1,0 +1,339 @@
+{
+  "arm_medians_seconds": {
+    "guion_baseline_source_uncached": 0.03713335399515927,
+    "guion_candidate_source_uncached": 0.03655287450237665,
+    "python_reference": 0.07332972949370742
+  },
+  "baseline_binary_sha256": "95d95da2405b14b90bda5e5c0a5bcb8ea0a3f4dc8383a4f6c886336bc4d07927",
+  "baseline_revision": "5ebda585f0a1f548645357033bc506310fd35aa1",
+  "candidate_binary_sha256": "aa98accc190779c13e54e00879305584639d755a14b6c58ea071caebea0eaa2b",
+  "candidate_revision": "no-call-continuation-fuel-boundary-working-tree",
+  "commands": {
+    "guion_baseline_source_uncached": [
+      "/Users/rmichaelthomas/guion/target/perf-session/call-continuation-region/baseline/bin/guion",
+      "run",
+      "--json",
+      "--no-cache",
+      "/Users/rmichaelthomas/guion/target/perf-session/call-continuation-region/cohort-30/richards-followup-u6iujujh/project/main.gu"
+    ],
+    "guion_candidate_source_uncached": [
+      "/Users/rmichaelthomas/guion/target/perf-session/call-continuation-region/candidate/bin/guion",
+      "run",
+      "--json",
+      "--no-cache",
+      "/Users/rmichaelthomas/guion/target/perf-session/call-continuation-region/cohort-30/richards-followup-u6iujujh/project/main.gu"
+    ],
+    "python_reference": [
+      "/opt/homebrew/opt/python@3.14/bin/python3.14",
+      "/Users/rmichaelthomas/guion/evaluation/development/famous_benchmarks/richards_reference.py"
+    ]
+  },
+  "comparisons": {
+    "baseline_over_python": {
+      "ci95_percentile": [
+        0.49872897295468044,
+        0.5140634903832615
+      ],
+      "median_ratio": 0.5082369042755321,
+      "ties_or_regressions": 0,
+      "win": true
+    },
+    "candidate_over_baseline": {
+      "ci95_percentile": [
+        0.9791297369223702,
+        0.9986082560878494
+      ],
+      "median_ratio": 0.992380035357777,
+      "ties_or_regressions": 10,
+      "win": true
+    },
+    "candidate_over_python": {
+      "ci95_percentile": [
+        0.4944704917065431,
+        0.5047449602368637
+      ],
+      "median_ratio": 0.5015222922313258,
+      "ties_or_regressions": 0,
+      "win": true
+    }
+  },
+  "host": {
+    "architecture": "arm64",
+    "platform": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+    "python_version": "3.14.7"
+  },
+  "kind": "guion-richards-python-comparison",
+  "measurement_design": {
+    "expected_stdout_per_execution": [
+      "9297",
+      "23246"
+    ],
+    "guion_cache_condition": "--no-cache bypasses Guion's source cache",
+    "os_file_cache": "uncontrolled",
+    "output_checked_on_every_warmup_and_trial": true,
+    "randomized_paired_order": true,
+    "sampled_arms": [
+      "guion_baseline_source_uncached",
+      "guion_candidate_source_uncached",
+      "python_reference"
+    ],
+    "trials_per_arm": 30,
+    "warmup_trials_per_arm": 2
+  },
+  "paired_trial_order": [
+    [
+      "guion_baseline_source_uncached",
+      "guion_candidate_source_uncached",
+      "python_reference"
+    ],
+    [
+      "python_reference",
+      "guion_candidate_source_uncached",
+      "guion_baseline_source_uncached"
+    ],
+    [
+      "python_reference",
+      "guion_baseline_source_uncached",
+      "guion_candidate_source_uncached"
+    ],
+    [
+      "guion_candidate_source_uncached",
+      "guion_baseline_source_uncached",
+      "python_reference"
+    ],
+    [
+      "python_reference",
+      "guion_candidate_source_uncached",
+      "guion_baseline_source_uncached"
+    ],
+    [
+      "guion_baseline_source_uncached",
+      "python_reference",
+      "guion_candidate_source_uncached"
+    ],
+    [
+      "guion_candidate_source_uncached",
+      "guion_baseline_source_uncached",
+      "python_reference"
+    ],
+    [
+      "python_reference",
+      "guion_baseline_source_uncached",
+      "guion_candidate_source_uncached"
+    ],
+    [
+      "guion_baseline_source_uncached",
+      "guion_candidate_source_uncached",
+      "python_reference"
+    ],
+    [
+      "guion_candidate_source_uncached",
+      "guion_baseline_source_uncached",
+      "python_reference"
+    ],
+    [
+      "guion_candidate_source_uncached",
+      "guion_baseline_source_uncached",
+      "python_reference"
+    ],
+    [
+      "guion_candidate_source_uncached",
+      "python_reference",
+      "guion_baseline_source_uncached"
+    ],
+    [
+      "guion_baseline_source_uncached",
+      "python_reference",
+      "guion_candidate_source_uncached"
+    ],
+    [
+      "python_reference",
+      "guion_baseline_source_uncached",
+      "guion_candidate_source_uncached"
+    ],
+    [
+      "python_reference",
+      "guion_baseline_source_uncached",
+      "guion_candidate_source_uncached"
+    ],
+    [
+      "python_reference",
+      "guion_candidate_source_uncached",
+      "guion_baseline_source_uncached"
+    ],
+    [
+      "python_reference",
+      "guion_candidate_source_uncached",
+      "guion_baseline_source_uncached"
+    ],
+    [
+      "guion_baseline_source_uncached",
+      "guion_candidate_source_uncached",
+      "python_reference"
+    ],
+    [
+      "guion_baseline_source_uncached",
+      "python_reference",
+      "guion_candidate_source_uncached"
+    ],
+    [
+      "guion_candidate_source_uncached",
+      "python_reference",
+      "guion_baseline_source_uncached"
+    ],
+    [
+      "guion_baseline_source_uncached",
+      "python_reference",
+      "guion_candidate_source_uncached"
+    ],
+    [
+      "guion_candidate_source_uncached",
+      "guion_baseline_source_uncached",
+      "python_reference"
+    ],
+    [
+      "guion_baseline_source_uncached",
+      "python_reference",
+      "guion_candidate_source_uncached"
+    ],
+    [
+      "guion_candidate_source_uncached",
+      "python_reference",
+      "guion_baseline_source_uncached"
+    ],
+    [
+      "python_reference",
+      "guion_baseline_source_uncached",
+      "guion_candidate_source_uncached"
+    ],
+    [
+      "guion_baseline_source_uncached",
+      "guion_candidate_source_uncached",
+      "python_reference"
+    ],
+    [
+      "guion_baseline_source_uncached",
+      "guion_candidate_source_uncached",
+      "python_reference"
+    ],
+    [
+      "guion_baseline_source_uncached",
+      "python_reference",
+      "guion_candidate_source_uncached"
+    ],
+    [
+      "guion_baseline_source_uncached",
+      "guion_candidate_source_uncached",
+      "python_reference"
+    ],
+    [
+      "guion_baseline_source_uncached",
+      "guion_candidate_source_uncached",
+      "python_reference"
+    ]
+  ],
+  "raw_samples_seconds": {
+    "guion_baseline_source_uncached": [
+      0.03693283299799077,
+      0.037232208997011185,
+      0.04016466598841362,
+      0.038252208003541455,
+      0.043229541974142194,
+      0.04815866699209437,
+      0.038537666987394914,
+      0.039327792008407414,
+      0.03676266598631628,
+      0.037394208018667996,
+      0.037904374999925494,
+      0.036802624992560595,
+      0.037662999995518476,
+      0.03581262502120808,
+      0.037241832993458956,
+      0.036279624997405335,
+      0.037062874995172024,
+      0.036457625014008954,
+      0.03751674998784438,
+      0.03694820898817852,
+      0.03630820900434628,
+      0.03588370798388496,
+      0.037271957990014926,
+      0.036321333987871185,
+      0.03720383299514651,
+      0.037229042005492374,
+      0.0362791660008952,
+      0.036227624979801476,
+      0.03586845798417926,
+      0.03630137498839758
+    ],
+    "guion_candidate_source_uncached": [
+      0.03837654198287055,
+      0.03699287501513027,
+      0.037477832986041903,
+      0.03736383400973864,
+      0.03847191599197686,
+      0.047756125015439466,
+      0.04065129198716022,
+      0.03887899999972433,
+      0.03749724998488091,
+      0.03620954099460505,
+      0.03705524999531917,
+      0.0354197499982547,
+      0.03592891598236747,
+      0.03651920802076347,
+      0.03558354199049063,
+      0.036068334011361,
+      0.03634612500900403,
+      0.03632758400635794,
+      0.03617904201382771,
+      0.03636229201219976,
+      0.03637508300016634,
+      0.03607491700677201,
+      0.036115875001996756,
+      0.036586540983989835,
+      0.03675324999494478,
+      0.037258208001730964,
+      0.03605499997502193,
+      0.035978332976810634,
+      0.03670574998250231,
+      0.03724674999830313
+    ],
+    "python_reference": [
+      0.07592629198916256,
+      0.07180500001413748,
+      0.07597445798455738,
+      0.07373729199753143,
+      0.07254633397678845,
+      0.10775475000264123,
+      0.07321441697422415,
+      0.07614175000344403,
+      0.07527345899143256,
+      0.0733932500006631,
+      0.07352641699253581,
+      0.0741398329846561,
+      0.07367225000052713,
+      0.0724382920016069,
+      0.07235562498681247,
+      0.07301662501413375,
+      0.07218800002010539,
+      0.07204783300403506,
+      0.07234624997363426,
+      0.07196533301612362,
+      0.0734899579838384,
+      0.0733103749807924,
+      0.07334908400662243,
+      0.0714524170034565,
+      0.07199258301989175,
+      0.0742694580112584,
+      0.07228166700224392,
+      0.07390329201007262,
+      0.07165237501612864,
+      0.07428816700121388
+    ]
+  },
+  "schema_version": 1,
+  "source_sha256": "5fb23857e7e2c3bcc7af247ebf9847408fbb0389e8cc895a582598f87f007f5f",
+  "status": "passed",
+  "workload": "richards-scheduler",
+  "candidate_native_backend_source_sha256": "fdbbbedd0b5356a3bfae043189b6f3986cdad6b91d531a63c8bffb23d6a76791",
+  "candidate_source_provenance": "Built from the working tree based on baseline revision 5ebda585f0a1f548645357033bc506310fd35aa1; binary SHA-256 identifies the measured executable."
+}

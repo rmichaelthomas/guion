@@ -2369,8 +2369,8 @@ fn bytecode_block_layout(
     Some((leader_indices, block_for_ip))
 }
 
-// Reserve enough fuel at function entry, call continuations, and loop headers
-// for the longest reachable path to the next boundary or return.
+// Reserve enough fuel at function entry and loop headers for the longest
+// reachable path to the next header or return. Backedges make new regions.
 fn fuel_reservation_requirements(
     function: &Function,
     leader_indices: &[Option<usize>],
@@ -2409,26 +2409,26 @@ fn fuel_reservation_requirements(
         let last_ip = (start..end)
             .rev()
             .find(|ip| block_for_ip.get(*ip).copied() == Some(block))?;
-        let mut add_successor = |target_ip: usize, force_region_start: bool| -> Option<()> {
+        let mut add_successor = |target_ip: usize| -> Option<()> {
             let target_block = *block_for_ip.get(target_ip)?;
             if !successors[block].contains(&target_block) {
                 successors[block].push(target_block);
             }
-            if target_ip <= last_ip || force_region_start {
+            if target_ip <= last_ip {
                 region_starts[target_block] = true;
             }
             Some(())
         };
 
         match &function.code[last_ip].op {
-            Op::Jump(target) => add_successor(*target, false)?,
+            Op::Jump(target) => add_successor(*target)?,
             Op::JumpIfFalse(target) => {
-                add_successor(*target, false)?;
-                add_successor(last_ip.checked_add(1)?, false)?;
+                add_successor(*target)?;
+                add_successor(last_ip.checked_add(1)?)?;
             }
-            Op::Call(_, _) => add_successor(last_ip.checked_add(1)?, true)?,
+            Op::Call(_, _) => add_successor(last_ip.checked_add(1)?)?,
             Op::Return => {}
-            _ if last_ip + 1 < function.code.len() => add_successor(last_ip + 1, false)?,
+            _ if last_ip + 1 < function.code.len() => add_successor(last_ip + 1)?,
             _ => return None,
         }
     }
