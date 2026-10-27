@@ -1,6 +1,6 @@
 # Guion-native temporal reasoning
 
-**Status:** Draft for owner review. No implementation changes are included.  
+**Status:** Approved by owner; implementation not started.
 **Repository basis:** Guion main snapshot 0824e0e (2026-10-26); Decan main snapshot 3a5285d (2026-10-16).
 
 ## Intent

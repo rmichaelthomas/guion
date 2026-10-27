@@ -1,6 +1,6 @@
 # Controlled Guion temporal choice and recommendation protocol
 
-**Status:** Draft protocol; not run.  
+**Status:** Approved by owner; study not run.
 **Run only after:** the Guion temporal design is approved, implemented, passes its deterministic fixtures, and is available in the same installable workspace used by the agents.
 
 ## Purpose
