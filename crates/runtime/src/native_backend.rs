@@ -1648,22 +1648,35 @@ impl NativeBackend {
                     Op::IntegerDivide | Op::FloorDivide | Op::Remainder => {
                         let right = stack.pop().ok_or_else(|| "stack underflow".to_owned())?;
                         let left = stack.pop().ok_or_else(|| "stack underflow".to_owned())?;
-                        let constant_two_divisor = ip > 0
-                            && leader_indices[ip].is_none()
-                            && function.code.get(ip - 1).is_some_and(|previous| {
-                                matches!(
-                                    &previous.op,
-                                    Op::Const(Value::Int(value)) if value.to_i64() == Some(2)
-                                )
-                            });
-                        if constant_two_divisor
-                            && matches!(instruction.op, Op::FloorDivide | Op::Remainder)
+                        let constant_power_of_two_divisor =
+                            if ip > 0 && leader_indices[ip].is_none() {
+                                function.code.get(ip - 1).and_then(|previous| {
+                                    if let Op::Const(Value::Int(value)) = &previous.op {
+                                        value.to_i64().filter(|value| {
+                                            *value > 0 && (*value as u64).is_power_of_two()
+                                        })
+                                    } else {
+                                        None
+                                    }
+                                })
+                            } else {
+                                None
+                            };
+                        if let Some(divisor) = constant_power_of_two_divisor
+                            .filter(|_| matches!(instruction.op, Op::FloorDivide | Op::Remainder))
                         {
                             if matches!(instruction.op, Op::FloorDivide) {
-                                stack.push(builder.ins().sshr_imm_s(left, 1));
+                                let shift = (divisor as u64).trailing_zeros() as i64;
+                                if shift == 0 {
+                                    stack.push(left);
+                                } else {
+                                    stack.push(builder.ins().sshr_imm_s(left, shift));
+                                }
+                            } else if divisor == 1 {
+                                stack.push(builder.ins().iconst(types::I64, 0));
                             } else {
-                                let one = builder.ins().iconst(types::I64, 1);
-                                stack.push(builder.ins().band(left, one));
+                                let mask = builder.ins().iconst(types::I64, divisor - 1);
+                                stack.push(builder.ins().band(left, mask));
                             }
                         } else {
                             let zero = builder.ins().iconst(types::I64, 0);

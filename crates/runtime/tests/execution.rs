@@ -725,6 +725,125 @@ fn native_constant_division_by_two_uses_compact_code_and_preserves_floor_semanti
 }
 
 #[test]
+fn native_positive_power_of_two_divisors_use_compact_code_and_preserve_floor_semantics() {
+    let source = "fn floor_by_one(value: Int) -> Int:\n    return value // 1\n\nfn remainder_by_one(value: Int) -> Int:\n    return value % 1\n\nfn floor_by_four(value: Int) -> Int:\n    return value // 4\n\nfn remainder_by_eight(value: Int) -> Int:\n    return value % 8\n\nfn floor_by_large(value: Int) -> Int:\n    return value // 4611686018427387904\n\nfn remainder_by_large(value: Int) -> Int:\n    return value % 4611686018427387904\n\nfn floor_by_dynamic(value: Int, divisor: Int) -> Int:\n    return value // divisor\n\nfn remainder_by_dynamic(value: Int, divisor: Int) -> Int:\n    return value % divisor\n\nfn main() -> Int:\n    return 0\n";
+    let artifact = compile("native-power-of-two-divisors.gu", source).expect("source compiles");
+    let mut native = Runtime::new()
+        .load(artifact.clone(), HostPolicy::default())
+        .expect("native runtime loads");
+    let mut vm = Runtime::vm_only()
+        .load(artifact, HostPolicy::default())
+        .expect("VM runtime loads");
+
+    for (
+        value,
+        expected_one,
+        expected_mod_one,
+        expected_four,
+        expected_mod_eight,
+        expected_large,
+        expected_mod_large,
+    ) in [
+        (
+            i64::MIN,
+            "-9223372036854775808",
+            "0",
+            "-2305843009213693952",
+            "0",
+            "-2",
+            "0",
+        ),
+        (-17, "-17", "0", "-5", "7", "-1", "4611686018427387887"),
+        (-9, "-9", "0", "-3", "7", "-1", "4611686018427387895"),
+        (-1, "-1", "0", "-1", "7", "-1", "4611686018427387903"),
+        (0, "0", "0", "0", "0", "0", "0"),
+        (1, "1", "0", "0", "1", "0", "1"),
+        (9, "9", "0", "2", "1", "0", "9"),
+        (17, "17", "0", "4", "1", "0", "17"),
+        (
+            i64::MAX,
+            "9223372036854775807",
+            "0",
+            "2305843009213693951",
+            "7",
+            "1",
+            "4611686018427387903",
+        ),
+    ] {
+        let argument = || vec![Value::Int(BigInt::from_i64(value))];
+        for (function, expected, divisor) in [
+            ("floor_by_one", expected_one, 1),
+            ("remainder_by_one", expected_mod_one, 1),
+            ("floor_by_four", expected_four, 4),
+            ("remainder_by_eight", expected_mod_eight, 8),
+            ("floor_by_large", expected_large, 4_611_686_018_427_387_904),
+            (
+                "remainder_by_large",
+                expected_mod_large,
+                4_611_686_018_427_387_904,
+            ),
+        ] {
+            let expected = Value::Int(BigInt::parse(expected).unwrap());
+            assert_eq!(native.invoke(function, argument()).unwrap(), expected);
+            assert_eq!(vm.invoke(function, argument()).unwrap(), expected);
+            let dynamic_arguments = || {
+                vec![
+                    Value::Int(BigInt::from_i64(value)),
+                    Value::Int(BigInt::from_i64(divisor)),
+                ]
+            };
+            let dynamic_function = if function.starts_with("floor") {
+                "floor_by_dynamic"
+            } else {
+                "remainder_by_dynamic"
+            };
+            assert_eq!(
+                native
+                    .invoke(dynamic_function, dynamic_arguments())
+                    .unwrap(),
+                expected
+            );
+            assert_eq!(
+                vm.invoke(dynamic_function, dynamic_arguments()).unwrap(),
+                expected
+            );
+        }
+    }
+
+    let profile = native.native_compile_profile();
+    let functions = profile["functions"]
+        .as_array()
+        .expect("native profile has functions");
+    let ir_instructions = |name: &str| {
+        functions
+            .iter()
+            .find(|function| function["name"].as_str() == Some(name))
+            .unwrap_or_else(|| panic!("missing native profile for {name}"))
+            ["cranelift_ir_instructions"]
+            .as_u64()
+            .unwrap() as usize
+    };
+    let dynamic_floor_instructions = ir_instructions("floor_by_dynamic");
+    for name in ["floor_by_one", "floor_by_four", "floor_by_large"] {
+        assert!(
+            ir_instructions(name) + 15 < dynamic_floor_instructions,
+            "literal {name} should emit at least 16 fewer native instructions than dynamic floor division"
+        );
+    }
+    let dynamic_remainder_instructions = ir_instructions("remainder_by_dynamic");
+    for name in [
+        "remainder_by_one",
+        "remainder_by_eight",
+        "remainder_by_large",
+    ] {
+        assert!(
+            ir_instructions(name) + 15 < dynamic_remainder_instructions,
+            "literal {name} should emit at least 16 fewer native instructions than dynamic remainder"
+        );
+    }
+}
+
+#[test]
 fn native_integer_division_overflow_deoptimizes_to_arbitrary_precision_vm() {
     let source = "fn quotient(left: Int, right: Int) -> Int:\n    return left // right\n\nfn main() -> Int:\n    return quotient(-9223372036854775808, -1)\n";
     let artifact = compile("native-int-divide-overflow.gu", source).unwrap();
