@@ -42,6 +42,16 @@ In the output-checked randomized 30-trial lane with 25 Richards executions per p
 
 The untimed phase profile measured native compilation at 15.06 ms before and 12.74 ms after; `main`'s Cranelift `define` phase fell from 9.89 ms to 8.35 ms. These instrumented timings help explain the fresh-source result, while the paired uninstrumented cohorts remain the primary speed evidence. The [candidate profile](2026-10-27-richards-fuel-batching-profile.json) records the phase details.
 
+## Follow-up: combine native list-index bounds checks
+
+The native `Index` lowering previously branched once to reject negative indices and again to reject indices at or above the list length. A single unsigned comparison handles both cases: negative signed values have high unsigned bit patterns and therefore compare above any valid list length. The failure path still deoptimizes to the VM with the same source trace.
+
+A focused test verifies valid indexing, negative and too-large index errors against the VM, and a reduction in generated IR blocks. The full runtime crate suite passed with the new case: 173 tests total.
+
+The output-checked randomized 30-trial fresh-source Richards cohort measured 31.23 ms for the preceding build, 30.02 ms for the single-check candidate, and 73.58 ms for CPython 3.14.7. Candidate/preceding-build was `0.969` (paired 95% interval `0.956–0.979`), a 3.1% median reduction; 8 of 30 paired samples were ties or regressions. Candidate/Python was `0.409` (`0.405–0.414`). The 25-execution lane measured 7.370 ms per execution before and 7.168 ms after; candidate/preceding-build was `0.970` (`0.964–0.976`), with 3 of 30 ties or regressions. Both lanes bypassed Guion's source cache and left the OS file cache uncontrolled. See the [fresh-source comparison](2026-10-27-richards-index-bounds-fresh-source-30-trial-comparison.json) and [25-execution comparison](2026-10-27-richards-index-bounds-25-run-30-trial-comparison.json).
+
+The recorded compiler report for Richards reduced total Cranelift IR from 454 blocks and 4,459 instructions to 409 blocks and 4,234 instructions; `main` fell from 358 blocks and 3,275 instructions to 320 blocks and 3,085 instructions. These structural counts explain the smaller compilation path; the paired end-to-end runs remain the timing evidence.
+
 ## What the phase profile says
 
 The corrected one-shot diagnostic profile measured 19.93 ms of native JIT compilation, including 14.46 ms in Cranelift's `define` phase for `main`. These are instrumented phase timings, not host CPU samples. `main` fell from 652 to 376 Cranelift IR blocks and from 7,549 to 6,629 IR instructions. Its measured `define` time fell from 23.00 ms to 14.46 ms (37.1%); total native compilation profile time fell from 30.64 ms to 19.93 ms (35.0%).
@@ -120,6 +130,8 @@ The inline-store attempt increased `main` from 7,510 to 8,395 Cranelift IR instr
 - [Fuel batching fresh-source 30-trial comparison](2026-10-27-richards-fuel-batching-fresh-source-30-trial-comparison.json)
 - [Fuel batching 25-execution 30-trial comparison](2026-10-27-richards-fuel-batching-25-run-30-trial-comparison.json)
 - [Fuel batching phase profile](2026-10-27-richards-fuel-batching-profile.json)
+- [Unsigned index-bounds fresh-source 30-trial comparison](2026-10-27-richards-index-bounds-fresh-source-30-trial-comparison.json)
+- [Unsigned index-bounds 25-execution 30-trial comparison](2026-10-27-richards-index-bounds-25-run-30-trial-comparison.json)
 - [Inline list-copy probe](2026-10-26-richards-list-copy-comparison.json)
 - [Exit-metadata 15-trial comparison](2026-10-26-richards-exit-args-comparison.json)
 - [Exit-metadata 30-trial comparison](2026-10-26-richards-exit-args-30-trial-comparison.json)

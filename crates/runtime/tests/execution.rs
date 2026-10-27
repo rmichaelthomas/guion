@@ -1125,6 +1125,42 @@ fn native_backend_keeps_integer_record_list_updates_in_a_repeated_loop() {
 }
 
 #[test]
+fn native_index_bounds_use_one_unsigned_check_and_preserve_faults() {
+    let source = "fn at(index: Int) -> Int:\n    let values = [7, 8]\n    return values[index]\n\nfn main() -> Int:\n    return 0\n";
+    let artifact = compile("native-index-bounds.gu", source).expect("index source compiles");
+    let mut native = Runtime::new()
+        .load(artifact.clone(), HostPolicy::default())
+        .expect("native artifact loads");
+    let value = native
+        .invoke("at", vec![Value::Int(BigInt::from_usize(1))])
+        .expect("valid index runs natively");
+    assert_eq!(value, Value::Int(BigInt::from_usize(8)));
+    assert!(native
+        .native_function_names()
+        .iter()
+        .any(|name| name == "at"));
+    let ir_blocks = native.native_cranelift_ir_blocks();
+    assert!(
+        ir_blocks < 25,
+        "a native list index should use one unsigned bounds check: {ir_blocks} IR blocks"
+    );
+
+    for index in [-1, 2] {
+        let args = vec![Value::Int(BigInt::from_i64(index))];
+        let native_error = native
+            .invoke("at", args.clone())
+            .expect_err("invalid list index fails");
+        let mut vm = Runtime::vm_only()
+            .load(artifact.clone(), HostPolicy::default())
+            .expect("VM artifact loads");
+        let vm_error = vm
+            .invoke("at", args)
+            .expect_err("VM rejects the same invalid index");
+        assert_eq!(native_error, vm_error);
+    }
+}
+
+#[test]
 fn native_integer_list_bounds_fault_deopts_to_the_vm() {
     let source = "record Queue:\n    values: List[Int]\n\nfn update(queue: Queue) -> Queue:\n    var values = queue.values\n    set values = list_set(values, 4, 9)\n    return Queue(values)\n\nfn main() -> Int:\n    let queue = Queue([1, 2])\n    let changed = update(queue)\n    return 0\n";
     let artifact = compile("native-int-list-bounds.gu", source).unwrap();

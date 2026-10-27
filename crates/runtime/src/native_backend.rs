@@ -1044,19 +1044,6 @@ impl NativeBackend {
                     Op::Index => {
                         let index = stack.pop().ok_or_else(|| "stack underflow".to_owned())?;
                         let handle = stack.pop().ok_or_else(|| "stack underflow".to_owned())?;
-                        let zero = builder.ins().iconst(types::I64, 0);
-                        let negative = builder.ins().icmp(IntCC::SignedLessThan, index, zero);
-                        let check_upper = builder.create_block();
-                        let fault_args = step_exit_args(
-                            &mut builder,
-                            steps_var,
-                            ip,
-                            block_instruction_offsets[ip] + 1,
-                        );
-                        builder
-                            .ins()
-                            .brif(negative, fallback, &fault_args, check_upper, &[]);
-                        builder.switch_to_block(check_upper);
                         let list = handle;
                         let length = builder.ins().load(
                             types::I64,
@@ -1064,6 +1051,8 @@ impl NativeBackend {
                             list,
                             std::mem::offset_of!(NativeFloatList, len) as i32,
                         );
+                        // Unsigned comparison also rejects negative signed indices, whose
+                        // bit patterns sort above any valid list length.
                         let in_bounds = builder.ins().icmp(IntCC::UnsignedLessThan, index, length);
                         let load_item = builder.create_block();
                         let fault_args = step_exit_args(
@@ -1089,7 +1078,6 @@ impl NativeBackend {
                                 .ins()
                                 .load(types::I64, MemFlagsData::new(), item_address, 0);
                         stack.push(value);
-                        builder.seal_block(check_upper);
                         builder.seal_block(load_item);
                     }
                     Op::Store(slot) => {
