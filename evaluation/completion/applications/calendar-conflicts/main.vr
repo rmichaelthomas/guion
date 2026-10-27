@@ -138,43 +138,14 @@ fn calendar_events_overlap(sources: List[CalendarFetch]) -> Bool:
         set feeds = list_push(feeds, intervals)
 
     let ordered = merge_sorted_by_int_key(feeds, event_range_start)
-    var primary_feed = -1
-    var primary_end = 0
-    var secondary_feed = -1
-    var secondary_end = 0
+    var active_feed = -1
+    var active_end = 0
     for event in ordered:
-        if primary_end <= event.start_us:
-            set primary_feed = -1
-            set primary_end = 0
-            set secondary_feed = -1
-            set secondary_end = 0
-        else:
-            if secondary_end <= event.start_us:
-                set secondary_feed = -1
-                set secondary_end = 0
-
-        if primary_feed >= 0 and primary_feed != event.feed_index and primary_end > event.start_us:
+        if active_feed >= 0 and active_feed != event.feed_index and active_end > event.start_us:
             return true
-        if secondary_feed >= 0 and secondary_feed != event.feed_index and secondary_end > event.start_us:
-            return true
-
-        if event.feed_index == primary_feed:
-            if event.end_us > primary_end:
-                set primary_end = event.end_us
-        else:
-            if event.feed_index == secondary_feed:
-                if event.end_us > secondary_end:
-                    set secondary_end = event.end_us
-            else:
-                if event.end_us > primary_end:
-                    set secondary_feed = primary_feed
-                    set secondary_end = primary_end
-                    set primary_feed = event.feed_index
-                    set primary_end = event.end_us
-                else:
-                    if event.end_us > secondary_end:
-                        set secondary_feed = event.feed_index
-                        set secondary_end = event.end_us
+        if event.end_us > active_end:
+            set active_feed = event.feed_index
+            set active_end = event.end_us
 
     return false
 

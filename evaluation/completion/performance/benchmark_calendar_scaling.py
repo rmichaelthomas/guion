@@ -14,6 +14,7 @@ import statistics
 import subprocess
 import sys
 import tempfile
+import tomllib
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -109,6 +110,10 @@ def main() -> int:
         parser.error("three non-overlapping event streams must fit inside the three-day test window")
 
     binary = args.binary.resolve(strict=True)
+    calendar_project = APPS / "calendar-conflicts"
+    project_config_path = calendar_project / "guion.toml"
+    project_config = tomllib.loads(project_config_path.read_text(encoding="utf-8"))
+    instruction_limit = project_config["runtime"]["instruction_limit"]
     scratch = ROOT / "target/perf-session/real-tasks-tmp"
     scratch.mkdir(parents=True, exist_ok=True)
     os.environ["TMPDIR"] = str(scratch)
@@ -124,13 +129,16 @@ def main() -> int:
         ).stdout.strip(),
         "guion_sha256": hashlib.sha256(binary.read_bytes()).hexdigest(),
         "calendar_source_sha256": hashlib.sha256((APPS / "calendar-conflicts/main.vr").read_bytes()).hexdigest(),
+        "calendar_project_config_sha256": hashlib.sha256(project_config_path.read_bytes()).hexdigest(),
+        "runtime_instruction_limit": instruction_limit,
         "python": sys.version,
         "platform": platform.platform(),
         "trials": args.trials,
         "layout": args.layout,
         "measurement": (
             "One unmeasured randomized warmup pair plus randomized paired trials. Fresh-process source execution, "
-            "Guion cache bypassed, output and concurrency checks included, fixture setup excluded, OS cache uncontrolled. "
+            f"Guion cache bypassed with the project instruction limit set to {instruction_limit}, "
+            "output and concurrency checks included, fixture setup excluded, OS cache uncontrolled. "
             f"Three calendars use the {args.layout} event-time layout inside a three-day window; "
             "the other two endpoints retain fixed error cases."
         ),
@@ -146,7 +154,7 @@ def main() -> int:
                     "workspace_root_project": True,
                     "env": {"GUION_FILE_ROOT": "${workspace}"},
                 },
-                APPS / "calendar-conflicts",
+                calendar_project,
             ),
             "python": ({"command": [sys.executable, "${candidate}/main.py"]}, PYTHON_REFERENCE),
         }

@@ -27,11 +27,13 @@ def main() -> None:
     parser.add_argument("--application", choices=sorted(BRIEFS), action="append")
     parser.add_argument("--timings", type=Path,
                         default=Path("evaluation/completion/results/real-task-sprint/nine-task-timings-final.json"))
+    parser.add_argument("--evidence-dir", type=Path,
+                        default=Path("evaluation/completion/results/real-task-sprint/agent-choice"))
     args = parser.parse_args()
     timings = args.timings.resolve()
     if not timings.is_file():
         parser.error(f"timings file does not exist: {timings}")
-    evidence = ROOT / "evaluation/completion/results/real-task-sprint/agent-choice"
+    evidence = args.evidence_dir if args.evidence_dir.is_absolute() else ROOT / args.evidence_dir
     scratch = ROOT / "target/perf-session/agent-choice"
     evidence.mkdir(parents=True, exist_ok=True)
     scratch.mkdir(parents=True, exist_ok=True)
