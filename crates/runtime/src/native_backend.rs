@@ -1662,15 +1662,32 @@ impl NativeBackend {
                             } else {
                                 None
                             };
-                        if let Some(divisor) = constant_power_of_two_divisor
-                            .filter(|_| matches!(instruction.op, Op::FloorDivide | Op::Remainder))
-                        {
+                        if let Some(divisor) = constant_power_of_two_divisor.filter(|_| {
+                            matches!(
+                                instruction.op,
+                                Op::IntegerDivide | Op::FloorDivide | Op::Remainder
+                            )
+                        }) {
                             if matches!(instruction.op, Op::FloorDivide) {
                                 let shift = (divisor as u64).trailing_zeros() as i64;
                                 if shift == 0 {
                                     stack.push(left);
                                 } else {
                                     stack.push(builder.ins().sshr_imm_s(left, shift));
+                                }
+                            } else if matches!(instruction.op, Op::IntegerDivide) {
+                                let shift = (divisor as u64).trailing_zeros() as i64;
+                                if shift == 0 {
+                                    stack.push(left);
+                                } else {
+                                    // Bias negative values so this keeps `/`'s truncation toward zero.
+                                    let zero = builder.ins().iconst(types::I64, 0);
+                                    let negative =
+                                        builder.ins().icmp(IntCC::SignedLessThan, left, zero);
+                                    let bias = builder.ins().iconst(types::I64, divisor - 1);
+                                    let bias = builder.ins().select(negative, bias, zero);
+                                    let adjusted = builder.ins().iadd(left, bias);
+                                    stack.push(builder.ins().sshr_imm_s(adjusted, shift));
                                 }
                             } else if divisor == 1 {
                                 stack.push(builder.ins().iconst(types::I64, 0));

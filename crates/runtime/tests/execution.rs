@@ -844,6 +844,98 @@ fn native_positive_power_of_two_divisors_use_compact_code_and_preserve_floor_sem
 }
 
 #[test]
+fn native_positive_power_of_two_integer_division_truncates_toward_zero() {
+    let source = "fn trunc_by_one(value: Int) -> Int:\n    return value / 1\n\nfn trunc_by_two(value: Int) -> Int:\n    return value / 2\n\nfn trunc_by_four(value: Int) -> Int:\n    return value / 4\n\nfn trunc_by_large(value: Int) -> Int:\n    return value / 4611686018427387904\n\nfn trunc_by_dynamic(value: Int, divisor: Int) -> Int:\n    return value / divisor\n\nfn main() -> Int:\n    return 0\n";
+    let artifact = compile("native-truncating-power-of-two.gu", source).expect("source compiles");
+    let mut native = Runtime::new()
+        .load(artifact.clone(), HostPolicy::default())
+        .expect("native runtime loads");
+    let mut vm = Runtime::vm_only()
+        .load(artifact, HostPolicy::default())
+        .expect("VM runtime loads");
+
+    for (value, expected_one, expected_two, expected_four, expected_large) in [
+        (
+            i64::MIN,
+            "-9223372036854775808",
+            "-4611686018427387904",
+            "-2305843009213693952",
+            "-2",
+        ),
+        (-17, "-17", "-8", "-4", "0"),
+        (-9, "-9", "-4", "-2", "0"),
+        (-5, "-5", "-2", "-1", "0"),
+        (-1, "-1", "0", "0", "0"),
+        (0, "0", "0", "0", "0"),
+        (1, "1", "0", "0", "0"),
+        (5, "5", "2", "1", "0"),
+        (9, "9", "4", "2", "0"),
+        (17, "17", "8", "4", "0"),
+        (
+            i64::MAX,
+            "9223372036854775807",
+            "4611686018427387903",
+            "2305843009213693951",
+            "1",
+        ),
+    ] {
+        let argument = || vec![Value::Int(BigInt::from_i64(value))];
+        for (function, expected, divisor) in [
+            ("trunc_by_one", expected_one, 1),
+            ("trunc_by_two", expected_two, 2),
+            ("trunc_by_four", expected_four, 4),
+            ("trunc_by_large", expected_large, 4_611_686_018_427_387_904),
+        ] {
+            let expected = Value::Int(BigInt::parse(expected).unwrap());
+            assert_eq!(native.invoke(function, argument()).unwrap(), expected);
+            assert_eq!(vm.invoke(function, argument()).unwrap(), expected);
+            let dynamic_arguments = || {
+                vec![
+                    Value::Int(BigInt::from_i64(value)),
+                    Value::Int(BigInt::from_i64(divisor)),
+                ]
+            };
+            assert_eq!(
+                native
+                    .invoke("trunc_by_dynamic", dynamic_arguments())
+                    .unwrap(),
+                expected
+            );
+            assert_eq!(
+                vm.invoke("trunc_by_dynamic", dynamic_arguments()).unwrap(),
+                expected
+            );
+        }
+    }
+
+    let profile = native.native_compile_profile();
+    let functions = profile["functions"]
+        .as_array()
+        .expect("native profile has functions");
+    let ir_instructions = |name: &str| {
+        functions
+            .iter()
+            .find(|function| function["name"].as_str() == Some(name))
+            .unwrap_or_else(|| panic!("missing native profile for {name}"))
+            ["cranelift_ir_instructions"]
+            .as_u64()
+            .unwrap() as usize
+    };
+    let dynamic_instructions = ir_instructions("trunc_by_dynamic");
+    for name in [
+        "trunc_by_one",
+        "trunc_by_two",
+        "trunc_by_four",
+        "trunc_by_large",
+    ] {
+        assert!(
+            ir_instructions(name) + 15 < dynamic_instructions,
+            "literal {name} should emit at least 16 fewer native instructions than dynamic integer division"
+        );
+    }
+}
+
+#[test]
 fn native_integer_division_overflow_deoptimizes_to_arbitrary_precision_vm() {
     let source = "fn quotient(left: Int, right: Int) -> Int:\n    return left // right\n\nfn main() -> Int:\n    return quotient(-9223372036854775808, -1)\n";
     let artifact = compile("native-int-divide-overflow.gu", source).unwrap();
