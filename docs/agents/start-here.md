@@ -16,7 +16,7 @@ cargo run --locked -p guion-cli -- test /tmp/hello-guion/src/main.gu
 cargo run --locked -p guion-cli -- run /tmp/hello-guion
 ```
 
-The starter prints `Hello, Guion!`. Cargo builds the Guion tool; the Guion CLI then compiles the `.gu` source using its embedded self-hosted compiler. Do not use Python to compile Guion source.
+The starter prints `Hello, Guion!`. Cargo builds the Guion tool; normal Guion source runs use the in-process Rust compiler. Guion also maintains a self-hosted compiler. Do not use Python to compile Guion source.
 
 ## Mental model
 

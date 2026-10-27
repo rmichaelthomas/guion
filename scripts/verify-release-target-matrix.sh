@@ -32,6 +32,7 @@ export CARGO_NET_OFFLINE=true
 export CARGO_NET_RETRY=0
 export TMPDIR="$REPO_ROOT/target/perf-session/tmp"
 export GUION_APPLICATION_RESULTS="$EVIDENCE_ROOT/applications"
+export GUION_RUNTIME_MEMORY_RESULTS="$EVIDENCE_ROOT/reports"
 mkdir -p "$TMPDIR"
 
 report_names=(conformance-inventory bootstrap conformance stdlib-data stdlib-services runtime product-dependencies product-lifecycle product-applications release)
@@ -74,11 +75,6 @@ run_gate() {
     tail -n 60 "$log_path"
     if [[ -f "$report_path" ]]; then
         cp "$report_path" "$copied_report"
-    fi
-    if [[ "$gate_id" == "runtime" ]]; then
-        for memory_report in "$REPO_ROOT"/evaluation/completion/results/runtime-memory-*.json; do
-            [[ ! -f "$memory_report" ]] || cp "$memory_report" "$EVIDENCE_ROOT/reports/"
-        done
     fi
 
     local result

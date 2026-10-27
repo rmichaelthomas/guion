@@ -1,0 +1,288 @@
+{
+  "schema_version": 1,
+  "repetitions_per_process": 25,
+  "trials_per_arm": 15,
+  "baseline_sha256": "74fb8df02670a99edc717e59dadb09f89b12c9b0b24472d375d29ae7bb302d75",
+  "candidate_sha256": "9ae6bf1c695270a9fe3946e2f4851a8a0d3bbb99174b75e5a90f1449782edd49",
+  "samples_per_execution": {
+    "guion_baseline_warm": {
+      "samples_seconds": [
+        0.012105066640069708,
+        0.011990681679453701,
+        0.012023790000239388,
+        0.011900436680298299,
+        0.01196649668039754,
+        0.012060269999783485,
+        0.011957353320904076,
+        0.011935436639469117,
+        0.01206009331974201,
+        0.012269074999494478,
+        0.011841256679035723,
+        0.01189962835982442,
+        0.01185911164036952,
+        0.011908554999390617,
+        0.012110136679839343
+      ],
+      "median_seconds": 0.01196649668039754,
+      "p95_seconds_nearest_rank": 0.012269074999494478
+    },
+    "guion_candidate_warm": {
+      "samples_seconds": [
+        0.010548766639549284,
+        0.010543073359876871,
+        0.010501776679884643,
+        0.010442801640601828,
+        0.010526135000400245,
+        0.01055611668038182,
+        0.010446728320093825,
+        0.010501681680325418,
+        0.010496120000025257,
+        0.010425743359373883,
+        0.010439718320267275,
+        0.010377255000639707,
+        0.01051728831953369,
+        0.010409293319098652,
+        0.01050374164013192
+      ],
+      "median_seconds": 0.010501681680325418,
+      "p95_seconds_nearest_rank": 0.01055611668038182
+    }
+  },
+  "candidate_over_baseline": {
+    "median_ratio": 0.8741021324275964,
+    "ci95_percentile": [
+      0.871433999762643,
+      0.879633804406868
+    ],
+    "win": true,
+    "ties_or_regressions": 0
+  },
+  "metadata": {
+    "paired_trial_order": [
+      [
+        "guion_candidate_warm",
+        "guion_baseline_warm"
+      ],
+      [
+        "guion_candidate_warm",
+        "guion_baseline_warm"
+      ],
+      [
+        "guion_baseline_warm",
+        "guion_candidate_warm"
+      ],
+      [
+        "guion_candidate_warm",
+        "guion_baseline_warm"
+      ],
+      [
+        "guion_baseline_warm",
+        "guion_candidate_warm"
+      ],
+      [
+        "guion_baseline_warm",
+        "guion_candidate_warm"
+      ],
+      [
+        "guion_candidate_warm",
+        "guion_baseline_warm"
+      ],
+      [
+        "guion_candidate_warm",
+        "guion_baseline_warm"
+      ],
+      [
+        "guion_candidate_warm",
+        "guion_baseline_warm"
+      ],
+      [
+        "guion_baseline_warm",
+        "guion_candidate_warm"
+      ],
+      [
+        "guion_baseline_warm",
+        "guion_candidate_warm"
+      ],
+      [
+        "guion_baseline_warm",
+        "guion_candidate_warm"
+      ],
+      [
+        "guion_candidate_warm",
+        "guion_baseline_warm"
+      ],
+      [
+        "guion_baseline_warm",
+        "guion_candidate_warm"
+      ],
+      [
+        "guion_candidate_warm",
+        "guion_baseline_warm"
+      ]
+    ],
+    "native_backend_reports": {
+      "guion_baseline_warm": {
+        "bytecode_blocks": 126,
+        "bytecode_instructions": 944,
+        "calls": 938675,
+        "compilations": 1,
+        "compile_profile": {
+          "finalize_nanoseconds": 37917,
+          "functions": [
+            {
+              "bytecode_blocks": 4,
+              "bytecode_instructions": 11,
+              "cranelift_ir_blocks": 21,
+              "cranelift_ir_instructions": 248,
+              "define_nanoseconds": 422000,
+              "lowering_nanoseconds": 91166,
+              "name": "next_worker_count",
+              "verification_nanoseconds": 55000
+            },
+            {
+              "bytecode_blocks": 9,
+              "bytecode_instructions": 46,
+              "cranelift_ir_blocks": 52,
+              "cranelift_ir_instructions": 572,
+              "define_nanoseconds": 866750,
+              "lowering_nanoseconds": 86750,
+              "name": "xor_d008",
+              "verification_nanoseconds": 74292
+            },
+            {
+              "bytecode_blocks": 10,
+              "bytecode_instructions": 91,
+              "cranelift_ir_blocks": 68,
+              "cranelift_ir_instructions": 1066,
+              "define_nanoseconds": 1406375,
+              "lowering_nanoseconds": 191625,
+              "name": "route_packet",
+              "verification_nanoseconds": 129458
+            },
+            {
+              "bytecode_blocks": 103,
+              "bytecode_instructions": 796,
+              "cranelift_ir_blocks": 652,
+              "cranelift_ir_instructions": 7510,
+              "define_nanoseconds": 19772667,
+              "lowering_nanoseconds": 2319666,
+              "name": "benchmark_once",
+              "verification_nanoseconds": 1221333
+            }
+          ]
+        },
+        "compiled_functions": [
+          "next_worker_count",
+          "xor_d008",
+          "route_packet",
+          "benchmark_once"
+        ],
+        "cranelift_ir_blocks": 793,
+        "cranelift_ir_instructions": 9396,
+        "deoptimizations": 0
+      },
+      "guion_candidate_warm": {
+        "bytecode_blocks": 126,
+        "bytecode_instructions": 944,
+        "calls": 938675,
+        "compilations": 1,
+        "compile_profile": {
+          "finalize_nanoseconds": 36208,
+          "functions": [
+            {
+              "bytecode_blocks": 4,
+              "bytecode_instructions": 11,
+              "cranelift_ir_blocks": 21,
+              "cranelift_ir_instructions": 248,
+              "define_nanoseconds": 408958,
+              "lowering_nanoseconds": 90167,
+              "name": "next_worker_count",
+              "verification_nanoseconds": 55833
+            },
+            {
+              "bytecode_blocks": 9,
+              "bytecode_instructions": 46,
+              "cranelift_ir_blocks": 52,
+              "cranelift_ir_instructions": 572,
+              "define_nanoseconds": 815750,
+              "lowering_nanoseconds": 87333,
+              "name": "xor_d008",
+              "verification_nanoseconds": 72917
+            },
+            {
+              "bytecode_blocks": 10,
+              "bytecode_instructions": 91,
+              "cranelift_ir_blocks": 68,
+              "cranelift_ir_instructions": 1066,
+              "define_nanoseconds": 1365875,
+              "lowering_nanoseconds": 185667,
+              "name": "route_packet",
+              "verification_nanoseconds": 123958
+            },
+            {
+              "bytecode_blocks": 103,
+              "bytecode_instructions": 796,
+              "cranelift_ir_blocks": 652,
+              "cranelift_ir_instructions": 7510,
+              "define_nanoseconds": 19905167,
+              "lowering_nanoseconds": 2547000,
+              "name": "benchmark_once",
+              "verification_nanoseconds": 1138667
+            }
+          ]
+        },
+        "compiled_functions": [
+          "next_worker_count",
+          "xor_d008",
+          "route_packet",
+          "benchmark_once"
+        ],
+        "cranelift_ir_blocks": 793,
+        "cranelift_ir_instructions": 9396,
+        "deoptimizations": 0
+      }
+    },
+    "source_cache_states": {
+      "guion_baseline_warm": [
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed"
+      ],
+      "guion_candidate_warm": [
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed"
+      ]
+    }
+  },
+  "output_checked": true,
+  "os_cache": "uncontrolled"
+}

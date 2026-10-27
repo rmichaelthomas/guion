@@ -40,6 +40,17 @@ jobs:
       - name: Run workspace tests
         run: cargo test --workspace --locked
 
+      - name: Check AllHereHTML and large text regressions
+        run: |
+          cargo build --locked -p guion-cli
+          python3 evaluation/completion/test_text_scaling.py --binary target/debug/guion
+          python3 evaluation/completion/check_allherehtml.py --binary target/debug/guion
+
+      - name: Build the shared VM for WebAssembly
+        run: |
+          rustup target add wasm32-unknown-unknown --toolchain 1.97.1
+          cargo build --locked --target wasm32-unknown-unknown -p guion-vm-wasm
+
       - name: Check completion report schemas only
         run: cargo xtask closeout --check-schema
 

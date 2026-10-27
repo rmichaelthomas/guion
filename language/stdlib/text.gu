@@ -42,34 +42,41 @@ pub fn text_trim(value: Text) -> Text:
         set start = start + 1
     return result
 
+fn text_join_range(values: List[Text], delimiter: Text, start: Int, end: Int) -> Text:
+    if end - start <= 32:
+        var result = ""
+        var index = start
+        while index < end:
+            if index > start:
+                set result = result + delimiter
+            set result = result + values[index]
+            set index = index + 1
+        return result
+    let middle = start + (end - start) / 2
+    let left = text_join_range(values, delimiter, start, middle)
+    let right = text_join_range(values, delimiter, middle, end)
+    return left + delimiter + right
+
 pub fn text_split(value: Text, delimiter: Text) -> List[Text]:
     if delimiter == "":
         return [value]
     let characters = text_chars(value)
     let needle = text_chars(delimiter)
     var fields: List[Text] = []
-    var field = ""
+    var field_start = 0
     var cursor = 0
     while cursor < len(characters):
         if text_matches_at(characters, needle, cursor):
-            set fields = list_push(fields, field)
-            set field = ""
+            set fields = list_push(fields, text_join_range(characters, "", field_start, cursor))
             set cursor = cursor + len(needle)
+            set field_start = cursor
         else:
-            set field = field + characters[cursor]
             set cursor = cursor + 1
-    set fields = list_push(fields, field)
+    set fields = list_push(fields, text_join_range(characters, "", field_start, cursor))
     return fields
 
 pub fn text_join(values: List[Text], delimiter: Text) -> Text:
-    var result = ""
-    var index = 0
-    while index < len(values):
-        if index > 0:
-            set result = result + delimiter
-        set result = result + values[index]
-        set index = index + 1
-    return result
+    return text_join_range(values, delimiter, 0, len(values))
 
 pub fn text_replace(value: Text, needle: Text, replacement: Text) -> Text:
     if needle == "":

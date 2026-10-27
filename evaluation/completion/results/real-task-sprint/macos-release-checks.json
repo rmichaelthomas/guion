@@ -1,0 +1,122 @@
+{
+  "checks": [
+    {
+      "command": [
+        "cargo",
+        "build",
+        "--locked",
+        "--offline",
+        "--release",
+        "-p",
+        "guion-cli",
+        "--bin",
+        "guion"
+      ],
+      "exit_status": 0,
+      "id": "release-binary-build",
+      "output": "built /Users/rmichaelthomas/guion/xtask/../target/release/guion (0.1.0-macos-aarch64-705b5cc69659)",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo xtask release"
+      ],
+      "exit_status": 0,
+      "id": "release-package-contents",
+      "output": "compiler seed, standard library, docs, native component manifest, installer, 169 dependency license sets; archive has 496 safe members",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "Rust path/type audit + tar listing"
+      ],
+      "exit_status": 0,
+      "id": "release-archive-audit",
+      "output": "/Users/rmichaelthomas/guion/xtask/../target/completion/releases/macos-aarch64/guion-macos-aarch64.tar.gz (5442799 bytes, sha256 433ab7280a0f3b1717bc26bac24a2034da604fcfb022670c9f9f81c7dc6b654c)",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "Rust release manifest verification"
+      ],
+      "exit_status": 0,
+      "id": "release-tamper-rejected",
+      "output": "modified compiler seed rejected by SHA-256 manifest verification",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "Rust release target verification"
+      ],
+      "exit_status": 0,
+      "id": "release-dependency-target-mismatch",
+      "output": "package built for a different target (aarch64-unknown-linux-gnu) rejected",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "/Users/rmichaelthomas/guion/xtask/../target/completion/releases/macos-aarch64/relocated ✓ package/bin/guion",
+        "--version"
+      ],
+      "exit_status": 0,
+      "id": "source-free-readonly-relocation",
+      "output": "PATH=/nonexistent; package tree read-only; cwd=/Users/rmichaelthomas/guion/target/perf-session; guion 0.1.0 (artifact format 39)\n",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "sh",
+        "/Users/rmichaelthomas/guion/xtask/../target/completion/releases/macos-aarch64/current/install.sh",
+        "/Users/rmichaelthomas/guion/xtask/../target/completion/releases/macos-aarch64/install-prefix ✓"
+      ],
+      "exit_status": 0,
+      "id": "release-installer-clean-room",
+      "output": "installer and installed command use PATH=/usr/bin:/bin (no Python/uv path); Installed Guion current\nCommand: /Users/rmichaelthomas/guion/target/completion/releases/macos-aarch64/install-prefix ✓/bin/guion\nAdd /Users/rmichaelthomas/guion/target/completion/releases/macos-aarch64/install-prefix ✓/bin to PATH to invoke `guion` from any directory.\nguion 0.1.0 (artifact format 39)\n",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "/Users/rmichaelthomas/guion/xtask/../target/completion/releases/macos-aarch64/relocated ✓ package/bin/guion",
+        "new",
+        "example app"
+      ],
+      "exit_status": 0,
+      "id": "readonly-install-writable-caller-data",
+      "output": "read-only install; writable project created at /Users/rmichaelthomas/guion/xtask/../target/completion/releases/macos-aarch64/caller-data ✓/example app/src/main.gu; created example app\n",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "/Users/rmichaelthomas/guion/xtask/../target/completion/releases/macos-aarch64/relocated ✓ package/bin/guion",
+        "check",
+        "/Users/rmichaelthomas/guion/xtask/../target/completion/releases/macos-aarch64/caller-data ✓/example app/src/main.gu"
+      ],
+      "exit_status": 0,
+      "id": "bundled-stdlib-from-relocated-install",
+      "output": "checked /Users/rmichaelthomas/guion/xtask/../target/completion/releases/macos-aarch64/caller-data ✓/example app/src/main.gu (2 functions)\n",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "otool",
+        "-L",
+        "/Users/rmichaelthomas/guion/xtask/../target/completion/releases/macos-aarch64/relocated ✓ package/bin/guion"
+      ],
+      "exit_status": 0,
+      "id": "dynamic-library-audit",
+      "output": "/Users/rmichaelthomas/guion/xtask/../target/completion/releases/macos-aarch64/relocated ✓ package/bin/guion:\n\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1359.0.0)\n\t/usr/lib/libiconv.2.dylib (compatibility version 7.0.0, current version 7.0.0)\n",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "Rust release manifest verification"
+      ],
+      "exit_status": 0,
+      "id": "release-hashes-stable-after-execution",
+      "output": "immutable current package hashes remain unchanged after relocation and launches",
+      "status": "passed"
+    }
+  ],
+  "passed": true,
+  "schema_version": 1
+}

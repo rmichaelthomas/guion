@@ -1,6 +1,7 @@
 use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use guion_compiler::{compile, compile_project, Diagnostic};
@@ -8,17 +9,41 @@ use serde_json::Value;
 
 struct TempProject(PathBuf);
 
+#[test]
+fn concurrent_temporary_projects_remain_distinct_with_the_same_clock_tick() {
+    let projects = std::thread::scope(|scope| {
+        let threads: Vec<_> = (0..24)
+            .map(|_| scope.spawn(|| TempProject::with_nonce(123456789)))
+            .collect();
+        threads
+            .into_iter()
+            .map(|thread| thread.join().unwrap())
+            .collect::<Vec<_>>()
+    });
+    let paths: std::collections::HashSet<_> = projects.iter().map(|project| &project.0).collect();
+    assert_eq!(paths.len(), projects.len());
+    for project in &projects {
+        assert!(fs::metadata(project.0.join("compiler.gub")).unwrap().len() > 0);
+    }
+}
+
 impl TempProject {
     fn new() -> Self {
         let nonce = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .expect("clock is after Unix epoch")
             .as_nanos();
+        Self::with_nonce(nonce)
+    }
+
+    fn with_nonce(nonce: u128) -> Self {
+        static NEXT_PROJECT: AtomicU64 = AtomicU64::new(0);
+        let sequence = NEXT_PROJECT.fetch_add(1, Ordering::Relaxed);
         let path = std::env::temp_dir().join(format!(
-            "guion-compiler-conformance-{}-{nonce}",
+            "guion-compiler-conformance-{}-{nonce}-{sequence}",
             std::process::id()
         ));
-        fs::create_dir_all(&path).expect("create temporary project");
+        fs::create_dir(&path).expect("create unique temporary project");
         let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
         fs::copy(
             repository.join("language/self_host/compiler.gub"),

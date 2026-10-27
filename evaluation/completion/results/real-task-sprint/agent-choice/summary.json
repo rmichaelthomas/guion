@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "model_choices": {
+    "health-digest": {
+      "choice": "Guion",
+      "acceptance_invocations": [
+        {
+          "exit_code": 1,
+          "success": false
+        },
+        {
+          "exit_code": 0,
+          "success": true
+        }
+      ],
+      "command_count": 17,
+      "nonzero_commands": 3
+    },
+    "lockfile-auditor": {
+      "choice": "Guion",
+      "acceptance_invocations": [
+        {
+          "exit_code": 0,
+          "success": true
+        }
+      ],
+      "command_count": 14,
+      "nonzero_commands": 1
+    },
+    "webhook-replay": {
+      "choice": "Guion",
+      "acceptance_invocations": [
+        {
+          "exit_code": 0,
+          "success": true
+        }
+      ],
+      "command_count": 26,
+      "nonzero_commands": 3
+    }
+  },
+  "method": "three sequential ephemeral Codex evaluations after running matched acceptance cases",
+  "limitations": [
+    "One evaluator encountered a local-network restriction before retrying successfully.",
+    "Evaluators could read repository history; the webhook evaluator consulted earlier session records, so this is an exploratory study, not a blinded comparison."
+  ]
+}

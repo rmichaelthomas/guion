@@ -1,0 +1,317 @@
+{
+  "arm_medians_seconds": {
+    "guion_baseline_source_uncached": 0.04728370899101719,
+    "guion_candidate_source_uncached": 0.045673334010643885,
+    "python_reference": 0.07016150001436472
+  },
+  "baseline_binary_sha256": "74fb8df02670a99edc717e59dadb09f89b12c9b0b24472d375d29ae7bb302d75",
+  "baseline_revision": "9d57434",
+  "candidate_binary_sha256": "705b5cc69659f9863a5e0839459aebda2b42dfdc43f39ad5f36e7939eb496bec",
+  "candidate_revision": "working-tree",
+  "commands": {
+    "guion_baseline_source_uncached": [
+      "/Users/rmichaelthomas/guion/target/perf-session/baseline-bin/guion",
+      "run",
+      "--json",
+      "--no-cache",
+      "/Users/rmichaelthomas/guion/target/perf-session/richards-followup/richards-followup-qo9qavcu/project/main.gu"
+    ],
+    "guion_candidate_source_uncached": [
+      "/Users/rmichaelthomas/guion/target/release/guion",
+      "run",
+      "--json",
+      "--no-cache",
+      "/Users/rmichaelthomas/guion/target/perf-session/richards-followup/richards-followup-qo9qavcu/project/main.gu"
+    ],
+    "python_reference": [
+      "/opt/homebrew/opt/python@3.14/bin/python3.14",
+      "/Users/rmichaelthomas/guion/evaluation/development/famous_benchmarks/richards_reference.py"
+    ]
+  },
+  "comparisons": {
+    "baseline_over_python": {
+      "ci95_percentile": [
+        0.6609778971848378,
+        0.6868849981889863
+      ],
+      "median_ratio": 0.6739267116771509,
+      "ties_or_regressions": 0,
+      "win": true
+    },
+    "candidate_over_baseline": {
+      "ci95_percentile": [
+        0.9519330896231358,
+        0.9732570759592631
+      ],
+      "median_ratio": 0.9663829968892058,
+      "ties_or_regressions": 2,
+      "win": true
+    },
+    "candidate_over_python": {
+      "ci95_percentile": [
+        0.6492617839685485,
+        0.6560041966020644
+      ],
+      "median_ratio": 0.6525539520891199,
+      "ties_or_regressions": 0,
+      "win": true
+    }
+  },
+  "host": {
+    "architecture": "arm64",
+    "platform": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+    "python_version": "3.14.7"
+  },
+  "kind": "guion-richards-python-comparison",
+  "measurement_design": {
+    "expected_stdout_per_execution": [
+      "9297",
+      "23246"
+    ],
+    "guion_cache_condition": "--no-cache bypasses Guion's source cache",
+    "os_file_cache": "uncontrolled",
+    "output_checked_on_every_warmup_and_trial": true,
+    "randomized_paired_order": true,
+    "sampled_arms": [
+      "guion_baseline_source_uncached",
+      "guion_candidate_source_uncached",
+      "python_reference"
+    ],
+    "trials_per_arm": 15,
+    "warmup_trials_per_arm": 2
+  },
+  "paired_trial_order": [
+    [
+      "guion_baseline_source_uncached",
+      "guion_candidate_source_uncached",
+      "python_reference"
+    ],
+    [
+      "python_reference",
+      "guion_candidate_source_uncached",
+      "guion_baseline_source_uncached"
+    ],
+    [
+      "python_reference",
+      "guion_baseline_source_uncached",
+      "guion_candidate_source_uncached"
+    ],
+    [
+      "guion_candidate_source_uncached",
+      "guion_baseline_source_uncached",
+      "python_reference"
+    ],
+    [
+      "python_reference",
+      "guion_candidate_source_uncached",
+      "guion_baseline_source_uncached"
+    ],
+    [
+      "guion_baseline_source_uncached",
+      "python_reference",
+      "guion_candidate_source_uncached"
+    ],
+    [
+      "guion_candidate_source_uncached",
+      "guion_baseline_source_uncached",
+      "python_reference"
+    ],
+    [
+      "python_reference",
+      "guion_baseline_source_uncached",
+      "guion_candidate_source_uncached"
+    ],
+    [
+      "guion_baseline_source_uncached",
+      "guion_candidate_source_uncached",
+      "python_reference"
+    ],
+    [
+      "guion_candidate_source_uncached",
+      "guion_baseline_source_uncached",
+      "python_reference"
+    ],
+    [
+      "guion_candidate_source_uncached",
+      "guion_baseline_source_uncached",
+      "python_reference"
+    ],
+    [
+      "guion_candidate_source_uncached",
+      "python_reference",
+      "guion_baseline_source_uncached"
+    ],
+    [
+      "guion_baseline_source_uncached",
+      "python_reference",
+      "guion_candidate_source_uncached"
+    ],
+    [
+      "python_reference",
+      "guion_baseline_source_uncached",
+      "guion_candidate_source_uncached"
+    ],
+    [
+      "python_reference",
+      "guion_baseline_source_uncached",
+      "guion_candidate_source_uncached"
+    ]
+  ],
+  "peak_rss_measurements": {
+    "baseline_binary_sha256": "74fb8df02670a99edc717e59dadb09f89b12c9b0b24472d375d29ae7bb302d75",
+    "baseline_revision": "9d57434",
+    "candidate_binary_sha256": "705b5cc69659f9863a5e0839459aebda2b42dfdc43f39ad5f36e7939eb496bec",
+    "candidate_revision": "working-tree",
+    "host": {
+      "architecture": "arm64",
+      "platform": "macOS-27.0.1-arm64-arm-64bit-Mach-O"
+    },
+    "lanes": {
+      "fresh_source": {
+        "baseline": {
+          "median_peak_rss_bytes": 31784960,
+          "samples_peak_rss_bytes": [
+            31784960,
+            31997952,
+            31719424,
+            32194560,
+            31670272
+          ]
+        },
+        "candidate": {
+          "median_peak_rss_bytes": 32260096,
+          "samples_peak_rss_bytes": [
+            32030720,
+            32260096,
+            31981568,
+            32587776,
+            32358400
+          ]
+        },
+        "candidate_minus_baseline_bytes": 475136,
+        "candidate_minus_baseline_percent": 1.4948453608247423,
+        "commands": {
+          "baseline": [
+            "/Users/rmichaelthomas/guion/target/perf-session/baseline-bin/guion",
+            "run",
+            "--json",
+            "--no-cache",
+            "/Users/rmichaelthomas/guion/target/perf-session/richards-memory/richards-rss-w7sb95jz/project/main.gu"
+          ],
+          "candidate": [
+            "/Users/rmichaelthomas/guion/target/release/guion",
+            "run",
+            "--json",
+            "--no-cache",
+            "/Users/rmichaelthomas/guion/target/perf-session/richards-memory/richards-rss-w7sb95jz/project/main.gu"
+          ]
+        },
+        "repetitions_per_process": 1
+      },
+      "repeated_source_25": {
+        "baseline": {
+          "median_peak_rss_bytes": 32374784,
+          "samples_peak_rss_bytes": [
+            32358400,
+            32014336,
+            32374784,
+            32604160,
+            32473088
+          ]
+        },
+        "candidate": {
+          "median_peak_rss_bytes": 32538624,
+          "samples_peak_rss_bytes": [
+            32194560,
+            32260096,
+            32538624,
+            32768000,
+            32899072
+          ]
+        },
+        "candidate_minus_baseline_bytes": 163840,
+        "candidate_minus_baseline_percent": 0.5060728744939271,
+        "commands": {
+          "baseline": [
+            "/Users/rmichaelthomas/guion/target/perf-session/baseline-bin/guion",
+            "run",
+            "--json",
+            "--no-cache",
+            "/Users/rmichaelthomas/guion/target/perf-session/richards-memory/richards-rss-w7sb95jz/project/main-warm.gu"
+          ],
+          "candidate": [
+            "/Users/rmichaelthomas/guion/target/release/guion",
+            "run",
+            "--json",
+            "--no-cache",
+            "/Users/rmichaelthomas/guion/target/perf-session/richards-memory/richards-rss-w7sb95jz/project/main-warm.gu"
+          ]
+        },
+        "repetitions_per_process": 25
+      }
+    },
+    "method": "resource.getrusage(resource.RUSAGE_CHILDREN).ru_maxrss",
+    "metric_scope": "direct child process",
+    "open_findings": [],
+    "output_checked_each_run": true,
+    "runs_per_binary_per_lane": 5,
+    "status": "passed"
+  },
+  "raw_samples_seconds": {
+    "guion_baseline_source_uncached": [
+      0.0459126659843605,
+      0.04728370899101719,
+      0.04887179197976366,
+      0.047834041994065046,
+      0.04788012499921024,
+      0.04711029099416919,
+      0.04923212499124929,
+      0.04715816699899733,
+      0.047421750001376495,
+      0.04789774998789653,
+      0.04776625000522472,
+      0.046731250011362135,
+      0.04680516599910334,
+      0.046542666997993365,
+      0.04582075000507757
+    ],
+    "guion_candidate_source_uncached": [
+      0.04517708299681544,
+      0.04507824999745935,
+      0.045692000014241785,
+      0.045673334010643885,
+      0.051607583998702466,
+      0.04706799998530187,
+      0.04610649999813177,
+      0.045828792004613206,
+      0.04514233299414627,
+      0.04535295901587233,
+      0.04633958300109953,
+      0.046930500015150756,
+      0.045553459000075236,
+      0.04497804201673716,
+      0.044110333983553573
+    ],
+    "python_reference": [
+      0.06813704100204632,
+      0.07016150001436472,
+      0.06979766598669812,
+      0.07149695898988284,
+      0.07371262498782016,
+      0.07174954097718,
+      0.07098341701203026,
+      0.0717304999998305,
+      0.06952870800159872,
+      0.06973183300578967,
+      0.07084499998018146,
+      0.07023804099299014,
+      0.06713108398253098,
+      0.06892616598634049,
+      0.06932266600779258
+    ]
+  },
+  "schema_version": 1,
+  "source_sha256": "5fb23857e7e2c3bcc7af247ebf9847408fbb0389e8cc895a582598f87f007f5f",
+  "status": "passed",
+  "workload": "richards-scheduler"
+}

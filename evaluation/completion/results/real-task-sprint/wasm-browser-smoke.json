@@ -1,0 +1,10 @@
+{
+  "passed": true,
+  "compilerToVm": true,
+  "importRejected": true,
+  "hostOperationRejected": true,
+  "compiler_sha256": "021f8ead0d4de870774ff0da3bb0ee0ba3cca0bffc800faa0508dcec8a02d2c3",
+  "vm_sha256": "63c0d1924991456910ef767af1c325a17e9664aed00a0e450c168adbcd553d0f",
+  "compiler_source": "AllHereHTML a6f3291",
+  "environment": "Node WebAssembly; no graphical browser"
+}

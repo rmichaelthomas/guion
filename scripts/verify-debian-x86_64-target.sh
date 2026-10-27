@@ -21,6 +21,7 @@ export CARGO_NET_OFFLINE=true
 export CARGO_NET_RETRY=0
 export TMPDIR="$REPO_ROOT/target/perf-session/tmp"
 export GUION_APPLICATION_RESULTS="$EVIDENCE_ROOT/applications"
+export GUION_RUNTIME_MEMORY_RESULTS="$EVIDENCE_ROOT/reports"
 export GUION_SOURCE_REVISION="${GITHUB_SHA:-}"
 mkdir -p "$TMPDIR"
 
@@ -43,9 +44,6 @@ run_gate() {
     tail -n 60 "$log_path"
     if [[ -f "$report_path" ]]; then
         cp "$report_path" "$copied_report"
-    fi
-    if [[ "$gate_id" == "runtime" && -f "$REPO_ROOT/evaluation/completion/results/runtime-memory-debian-x86_64.json" ]]; then
-        cp "$REPO_ROOT/evaluation/completion/results/runtime-memory-debian-x86_64.json" "$EVIDENCE_ROOT/reports/runtime-memory-debian-x86_64.json"
     fi
 
     local result
