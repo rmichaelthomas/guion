@@ -794,37 +794,99 @@ impl VmHost for Instance {
                             .fold(0usize, usize::saturating_add),
                     );
                 charge_allocation(budget.as_ref(), allocation, instruction.span)?;
-                for index in 1..values.len() {
-                    let value = values[index].clone();
-                    let mut position = index;
-                    while position > 0 {
-                        let ordering = match self.invoke_inner(
-                            target,
-                            vec![value.clone(), values[position - 1].clone()],
-                            depth + 1,
-                            budget.clone(),
-                        ) {
-                            Ok(Value::Int(ordering)) => ordering,
-                            Ok(_) => {
-                                return Err(RuntimeError::new(
-                                    "R_TYPE_INVALID",
-                                    "sort comparator must return Int",
+                if values.len() <= 32 {
+                    for index in 1..values.len() {
+                        let value = values[index].clone();
+                        let mut position = index;
+                        while position > 0 {
+                            let ordering = match self.invoke_inner(
+                                target,
+                                vec![value.clone(), values[position - 1].clone()],
+                                depth + 1,
+                                budget.clone(),
+                            ) {
+                                Ok(Value::Int(ordering)) => ordering,
+                                Ok(_) => {
+                                    return Err(RuntimeError::new(
+                                        "R_TYPE_INVALID",
+                                        "sort comparator must return Int",
+                                        instruction.span,
+                                    ))
+                                }
+                                Err(mut error) => {
+                                    error.trace.push(instruction.span);
+                                    return Err(error);
+                                }
+                            };
+                            if ordering.is_negative() {
+                                values[position] = values[position - 1].clone();
+                                position -= 1;
+                            } else {
+                                break;
+                            }
+                        }
+                        values[position] = value;
+                    }
+                } else {
+                    let length = values.len();
+                    let index_storage = size_of::<Vec<usize>>()
+                        .saturating_mul(2)
+                        .saturating_add(size_of::<Vec<bool>>())
+                        .saturating_add(length.saturating_mul(size_of::<usize>()).saturating_mul(2))
+                        .saturating_add(length);
+                    charge_allocation(budget.as_ref(), index_storage, instruction.span)?;
+
+                    let mut order: Vec<usize> = (0..length).collect();
+                    let mut merged = Vec::with_capacity(length);
+                    let mut width = 1usize;
+                    while width < length {
+                        merged.clear();
+                        let mut run_start = 0usize;
+                        while run_start < length {
+                            let middle = run_start.saturating_add(width).min(length);
+                            let run_end = middle.saturating_add(width).min(length);
+                            let (mut left, mut right) = (run_start, middle);
+                            while left < middle && right < run_end {
+                                let take_left = self.sort_by_left_before_or_equal(
+                                    target,
+                                    &values[order[left]],
+                                    &values[order[right]],
+                                    depth,
+                                    budget.clone(),
                                     instruction.span,
-                                ))
+                                )?;
+                                if take_left {
+                                    merged.push(order[left]);
+                                    left += 1;
+                                } else {
+                                    merged.push(order[right]);
+                                    right += 1;
+                                }
                             }
-                            Err(mut error) => {
-                                error.trace.push(instruction.span);
-                                return Err(error);
+                            merged.extend_from_slice(&order[left..middle]);
+                            merged.extend_from_slice(&order[right..run_end]);
+                            run_start = run_end;
+                        }
+                        std::mem::swap(&mut order, &mut merged);
+                        width = width.saturating_mul(2);
+                    }
+
+                    let mut visited = vec![false; length];
+                    for start in 0..length {
+                        if visited[start] {
+                            continue;
+                        }
+                        let mut current = start;
+                        loop {
+                            visited[current] = true;
+                            let next = order[current];
+                            if next == start {
+                                break;
                             }
-                        };
-                        if ordering.is_negative() {
-                            values[position] = values[position - 1].clone();
-                            position -= 1;
-                        } else {
-                            break;
+                            values.swap(current, next);
+                            current = next;
                         }
                     }
-                    values[position] = value;
                 }
                 push_stack!(Value::from_list_items(values));
             }
@@ -3979,6 +4041,37 @@ impl Instance {
             FrameStart::Returned(value) => Ok(value),
             FrameStart::Vm(frame) => self.run_guest_frames(frame, budget),
         }
+    }
+
+    fn sort_by_left_before_or_equal(
+        &mut self,
+        comparator: usize,
+        left: &Value,
+        right: &Value,
+        depth: usize,
+        budget: Arc<Budget>,
+        span: Span,
+    ) -> Result<bool, RuntimeError> {
+        let ordering = match self.invoke_inner(
+            comparator,
+            vec![left.clone(), right.clone()],
+            depth + 1,
+            budget,
+        ) {
+            Ok(Value::Int(ordering)) => ordering,
+            Ok(_) => {
+                return Err(RuntimeError::new(
+                    "R_TYPE_INVALID",
+                    "sort comparator must return Int",
+                    span,
+                ))
+            }
+            Err(mut error) => {
+                error.trace.push(span);
+                return Err(error);
+            }
+        };
+        Ok(ordering.is_negative() || ordering.is_zero())
     }
 
     fn start_guest_frame(

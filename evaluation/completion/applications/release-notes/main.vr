@@ -4,9 +4,21 @@ import "std:semver"
 import "std:text"
 import "std:time"
 
+record OrderedReleaseVersion:
+    name: Text
+    version: SemVer
+
 fn fail(message: Text) -> Int:
     eprint(message)
     return 1
+
+fn compare_release_versions(left: OrderedReleaseVersion, right: OrderedReleaseVersion) -> Int:
+    let version_order = compare_versions(left.version, right.version)
+    if version_order > 0:
+        return -1
+    if version_order < 0:
+        return 1
+    return text_compare_bytes(left.name, right.name)
 
 fn contains_text(value: Text, needle: Text) -> Bool:
     let characters = text_chars(value)
@@ -187,38 +199,20 @@ fn main() -> Int:
             set release_entries = map_set(release_entries, version, by_id)
             set versions = map_set(versions, version, unwrap(parsed_version))
 
-    var selected_versions: List[Text] = []
+    var selected_versions: List[OrderedReleaseVersion] = []
     for version in versions:
         var include = true
         if since != "" and compare_versions(versions[version], since_version) <= 0:
             set include = false
         if include:
-            set selected_versions = list_push(selected_versions, version)
-    var ordered_versions: List[Text] = []
-    while len(selected_versions) > 0:
-        var best_index = 0
-        var candidate_index = 1
-        while candidate_index < len(selected_versions):
-            let candidate = selected_versions[candidate_index]
-            let best = selected_versions[best_index]
-            let order = compare_versions(versions[candidate], versions[best])
-            if order > 0 or (order == 0 and text_compare_bytes(candidate, best) < 0):
-                set best_index = candidate_index
-            set candidate_index = candidate_index + 1
-        set ordered_versions = list_push(ordered_versions, selected_versions[best_index])
-        var remaining: List[Text] = []
-        var version_index = 0
-        while version_index < len(selected_versions):
-            if version_index != best_index:
-                set remaining = list_push(remaining, selected_versions[version_index])
-            set version_index = version_index + 1
-        set selected_versions = remaining
+            set selected_versions = list_push(selected_versions, OrderedReleaseVersion(version, versions[version]))
+    let ordered_versions = sort_by(selected_versions, compare_release_versions)
 
     var markdown = "# Release notes (" + release_date + ")"
     var summary_releases = json_array()
     var release_index = 0
     while release_index < len(ordered_versions):
-        let version = ordered_versions[release_index]
+        let version = ordered_versions[release_index].name
         let by_id = release_entries[version]
         var entry_count = 0
         set markdown = markdown + "\n\n## " + version

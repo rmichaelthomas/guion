@@ -154,6 +154,8 @@ write_text(Text, Text) -> Result[Unit, FileError]
 write_text_atomic(Text, Text) -> Result[Unit, FileError]
 ```
 
+`sort_by` is stable, preserves the input list and its aliases, and uses an insertion sort for lists up to 32 items and a stable O(n log n) merge sort for larger lists. Its temporary index storage is charged to the guest allocation budget.
+
 ## Standard-library public signatures
 
 ```text

@@ -560,3 +560,68 @@ fn main() -> Int:
     let error = compile("sort-effect.gu", effectful).unwrap_err();
     assert_eq!(error.code, "E_SORT_EFFECT");
 }
+
+#[test]
+fn sort_by_large_reverse_list_fits_log_linear_instruction_budget() {
+    let source = r#"fn compare(left: Int, right: Int) -> Int:
+    if left < right:
+        return -1
+    if left > right:
+        return 1
+    return 0
+fn main() -> Int:
+    var values: List[Int] = []
+    var value = 2048
+    while value > 0:
+        set value = value - 1
+        set values = list_push(values, value)
+    let sorted = sort_by(values, compare)
+    assert(len(sorted) == 2048)
+    assert(sorted[0] == 0)
+    assert(sorted[2047] == 2047)
+    return 0
+"#;
+    let artifact = compile("sort-by-large.gu", source).expect("sort program compiles");
+    let mut policy = HostPolicy::default();
+    policy.instruction_limit = 1_000_000;
+    let mut runtime = Runtime::vm_only().load(artifact, policy).unwrap();
+    runtime
+        .invoke("main", vec![])
+        .expect("a stable log-linear sort should fit this instruction budget");
+}
+
+#[test]
+fn sort_by_large_list_is_stable_and_preserves_original_values() {
+    let source = r#"record Item:
+    key: Int
+    order: Int
+fn compare_key(left: Item, right: Item) -> Int:
+    return left.key - right.key
+fn main() -> Int:
+    var items: List[Item] = []
+    var index = 0
+    while index < 96:
+        set items = list_push(items, Item((index * 7) % 5, index))
+        set index = index + 1
+    let sorted = sort_by(items, compare_key)
+    assert(len(sorted) == 96)
+    assert(items[0].order == 0)
+    var previous = sorted[0]
+    var position = 1
+    while position < len(sorted):
+        let current = sorted[position]
+        assert(previous.key <= current.key)
+        if previous.key == current.key:
+            assert(previous.order < current.order)
+        set previous = current
+        set position = position + 1
+    return 0
+"#;
+    let artifact = compile("sort-by-stable-large.gu", source).expect("sort program compiles");
+    for runtime in [Runtime::vm_only(), Runtime::new()] {
+        let mut instance = runtime
+            .load(artifact.clone(), HostPolicy::default())
+            .unwrap();
+        instance.invoke("main", vec![]).unwrap();
+    }
+}
