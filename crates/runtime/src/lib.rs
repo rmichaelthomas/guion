@@ -2847,7 +2847,7 @@ impl VmHost for Instance {
                         instruction.span,
                     ));
                 }
-                let value = match parse_unique_json(&source) {
+                let value = match parse_unique_shared_json(&source) {
                     Ok(value) => value,
                     Err(JsonDecodeError::Parse(error)) => {
                         push_stack!(Value::ResultErr(Box::new(Value::JsonError(
@@ -2872,7 +2872,7 @@ impl VmHost for Instance {
                         return Ok(());
                     }
                 };
-                let value = finish_json_value(
+                let value = finish_shared_json(
                     value,
                     &self.policy.vm_limits(),
                     budget.as_ref(),
@@ -6071,6 +6071,7 @@ enum JsonDecodeError {
     },
 }
 
+#[cfg(test)]
 fn parse_unique_json(source: &str) -> Result<serde_json::Value, JsonDecodeError> {
     use serde::de::DeserializeSeed;
 
@@ -6105,6 +6106,64 @@ fn parse_unique_json(source: &str) -> Result<serde_json::Value, JsonDecodeError>
                 Err(JsonDecodeError::Parse(error))
             }
         }
+    }
+}
+
+fn parse_unique_shared_json(source: &str) -> Result<SharedJson, JsonDecodeError> {
+    use serde::de::DeserializeSeed;
+
+    let (safe_source, reserved_key) = escape_reserved_json_keys(source);
+    let mut duplicate = None;
+    let mut deserializer = serde_json::Deserializer::from_str(&safe_source);
+    let parsed = SharedJsonSeed {
+        duplicate: &mut duplicate,
+    }
+    .deserialize(&mut deserializer);
+    match parsed {
+        Ok(mut value) => {
+            deserializer.end().map_err(JsonDecodeError::Parse)?;
+            if let Some(reserved_key) = reserved_key.as_deref() {
+                restore_reserved_shared_json_keys(&mut value, reserved_key);
+            }
+            Ok(value)
+        }
+        Err(error) => {
+            if let Some(key) = duplicate.take() {
+                let offset = duplicate_json_key(source)
+                    .map(|(_, offset)| offset)
+                    .unwrap_or(source.len());
+                let (line, column) = source_position(source, offset);
+                let key = if reserved_key.as_deref() == Some(key.as_str()) {
+                    "$serde_json::private::Number".to_owned()
+                } else {
+                    key
+                };
+                Err(JsonDecodeError::DuplicateKey { key, line, column })
+            } else {
+                Err(JsonDecodeError::Parse(error))
+            }
+        }
+    }
+}
+
+fn restore_reserved_shared_json_keys(value: &mut SharedJson, reserved_key: &str) {
+    match value {
+        SharedJson::Array(values) => {
+            for value in Arc::make_mut(values) {
+                restore_reserved_shared_json_keys(Arc::make_mut(value), reserved_key);
+            }
+        }
+        SharedJson::Object(values) => {
+            let values = Arc::make_mut(values);
+            if let Some(mut value) = values.remove(reserved_key) {
+                restore_reserved_shared_json_keys(Arc::make_mut(&mut value), reserved_key);
+                values.insert("$serde_json::private::Number".to_owned(), value);
+            }
+            for value in values.values_mut() {
+                restore_reserved_shared_json_keys(Arc::make_mut(value), reserved_key);
+            }
+        }
+        _ => {}
     }
 }
 
@@ -6265,6 +6324,141 @@ pub(crate) fn restore_reserved_json_keys(value: &mut serde_json::Value, reserved
 
 struct UniqueJsonSeed<'duplicate> {
     duplicate: &'duplicate mut Option<String>,
+}
+
+struct SharedJsonSeed<'duplicate> {
+    duplicate: &'duplicate mut Option<String>,
+}
+
+impl<'de> serde::de::DeserializeSeed<'de> for SharedJsonSeed<'_> {
+    type Value = SharedJson;
+
+    fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        deserializer.deserialize_any(SharedJsonVisitor {
+            duplicate: self.duplicate,
+        })
+    }
+}
+
+struct SharedJsonVisitor<'duplicate> {
+    duplicate: &'duplicate mut Option<String>,
+}
+
+impl<'de> serde::de::Visitor<'de> for SharedJsonVisitor<'_> {
+    type Value = SharedJson;
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("a JSON value")
+    }
+
+    fn visit_bool<E>(self, value: bool) -> Result<Self::Value, E> {
+        Ok(SharedJson::Bool(value))
+    }
+
+    fn visit_i64<E>(self, value: i64) -> Result<Self::Value, E> {
+        Ok(SharedJson::Number(value.into()))
+    }
+
+    fn visit_u64<E>(self, value: u64) -> Result<Self::Value, E> {
+        Ok(SharedJson::Number(value.into()))
+    }
+
+    fn visit_i128<E>(self, value: i128) -> Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        serde_json::Number::from_i128(value)
+            .map(SharedJson::Number)
+            .ok_or_else(|| E::custom("JSON integer is out of range"))
+    }
+
+    fn visit_u128<E>(self, value: u128) -> Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        serde_json::Number::from_u128(value)
+            .map(SharedJson::Number)
+            .ok_or_else(|| E::custom("JSON integer is out of range"))
+    }
+
+    fn visit_f64<E>(self, value: f64) -> Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        serde_json::Number::from_f64(value)
+            .map(SharedJson::Number)
+            .ok_or_else(|| E::custom("JSON number is out of range"))
+    }
+
+    fn visit_str<E>(self, value: &str) -> Result<Self::Value, E> {
+        Ok(SharedJson::String(Arc::from(value)))
+    }
+
+    fn visit_string<E>(self, value: String) -> Result<Self::Value, E> {
+        Ok(SharedJson::String(Arc::from(value)))
+    }
+
+    fn visit_unit<E>(self) -> Result<Self::Value, E> {
+        Ok(SharedJson::Null)
+    }
+
+    fn visit_none<E>(self) -> Result<Self::Value, E> {
+        Ok(SharedJson::Null)
+    }
+
+    fn visit_some<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        use serde::de::DeserializeSeed;
+        SharedJsonSeed {
+            duplicate: &mut *self.duplicate,
+        }
+        .deserialize(deserializer)
+    }
+
+    fn visit_seq<A>(self, mut sequence: A) -> Result<Self::Value, A::Error>
+    where
+        A: serde::de::SeqAccess<'de>,
+    {
+        let mut values = Vec::new();
+        while let Some(value) = sequence.next_element_seed(SharedJsonSeed {
+            duplicate: &mut *self.duplicate,
+        })? {
+            values.push(Arc::new(value));
+        }
+        Ok(SharedJson::Array(Arc::new(values)))
+    }
+
+    fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
+    where
+        A: serde::de::MapAccess<'de>,
+    {
+        let mut object = BTreeMap::new();
+        while let Some(key) = map.next_key::<String>()? {
+            if object.contains_key(&key) {
+                *self.duplicate = Some(key);
+                return Err(serde::de::Error::custom("duplicate JSON object key"));
+            }
+            let value = map.next_value_seed(SharedJsonSeed {
+                duplicate: &mut *self.duplicate,
+            })?;
+            object.insert(key, Arc::new(value));
+        }
+        if object.len() == 1 {
+            if let Some(SharedJson::String(number)) =
+                object.get("$serde_json::private::Number").map(Arc::as_ref)
+            {
+                if let Ok(number) = number.parse::<serde_json::Number>() {
+                    return Ok(SharedJson::Number(number));
+                }
+            }
+        }
+        Ok(SharedJson::Object(Arc::new(object)))
+    }
 }
 
 impl<'de> serde::de::DeserializeSeed<'de> for UniqueJsonSeed<'_> {
@@ -6478,7 +6672,9 @@ fn duplicate_json_key(source: &str) -> Option<(String, usize)> {
 
 #[cfg(test)]
 mod unique_json_parser_tests {
-    use super::{escape_reserved_json_keys, parse_unique_json, JsonDecodeError};
+    use super::{
+        escape_reserved_json_keys, parse_unique_json, parse_unique_shared_json, JsonDecodeError,
+    };
 
     #[test]
     fn does_not_copy_input_when_no_reserved_key_needs_rewriting() {
@@ -6531,6 +6727,47 @@ mod unique_json_parser_tests {
     fn reports_malformed_json_as_a_parser_error() {
         assert!(matches!(
             parse_unique_json("{\"value\": [}"),
+            Err(JsonDecodeError::Parse(_))
+        ));
+    }
+
+    #[test]
+    fn shared_parser_matches_generic_parser_for_supported_json_values() {
+        for source in [
+            "null",
+            "true",
+            "-17",
+            "1.25e3",
+            r#"{"rows":[{"value":42,"label":"東京"}]}"#,
+            r#"{"rows":[{"value":123456789012345678901234567890,"label":"東京"}]}"#,
+            r#"{"value":{"$serde_json::private::Number":{"nested":1}}}"#,
+            r#"{"value":{"\u0024serde_json::private::Number":"123"}}"#,
+        ] {
+            let generic = parse_unique_json(source).expect("generic JSON parser accepts fixture");
+            let shared =
+                parse_unique_shared_json(source).expect("shared JSON parser accepts fixture");
+
+            assert_eq!(shared.to_serde(), generic, "source: {source}");
+        }
+    }
+
+    #[test]
+    fn shared_parser_rejects_escaped_duplicate_keys_at_the_same_location() {
+        let source = "{\n \"rows\": [{\"name\": \"first\", \"\\u006eame\": \"second\"}]\n}";
+
+        match parse_unique_shared_json(source) {
+            Err(JsonDecodeError::DuplicateKey { key, line, column }) => {
+                assert_eq!(key, "name");
+                assert_eq!((line, column), (2, 29));
+            }
+            other => panic!("expected duplicate-key error, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn shared_parser_reports_malformed_json_as_a_parser_error() {
+        assert!(matches!(
+            parse_unique_shared_json("{\"value\": [}"),
             Err(JsonDecodeError::Parse(_))
         ));
     }

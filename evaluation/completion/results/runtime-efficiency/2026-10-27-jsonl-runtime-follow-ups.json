@@ -1,0 +1,1074 @@
+{
+  "baseline_binary_sha256": "0d4f2e3b8145f97f6385a29e9d3f2e865f82a7ad4030bcfbf5ebefb5c00b7f40",
+  "baseline_commit": "0380197",
+  "direct_shared_json_parser_experiment": "candidate for retention: 32-pair confirmation interval below 1",
+  "experiments": {
+    "parser_aggregate": {
+      "all_candidate_over_baseline": {
+        "ci95_percentile": [
+          0.9733661284391056,
+          0.9963400792011837
+        ],
+        "median_ratio": 0.9873949417140925,
+        "ties_or_regressions": 12,
+        "win": true
+      },
+      "all_candidate_over_baseline_median_ratio": 0.9873949417140925,
+      "all_pairs": 39,
+      "all_ties_or_regressions": 12,
+      "confirmation_baseline_median_seconds": 3.73934622950037,
+      "confirmation_candidate_median_seconds": 3.6809492709871847,
+      "confirmation_candidate_over_baseline": {
+        "ci95_percentile": [
+          0.9779453128999946,
+          0.9993706179447673
+        ],
+        "median_ratio": 0.9884749069174437,
+        "ties_or_regressions": 11,
+        "win": true
+      },
+      "confirmation_pairs": 32,
+      "interpretation": "Small repeatable latency gain in pooled confirmation; no demonstrated peak-RSS improvement; guest allocation estimates are not physical allocations."
+    },
+    "parser_confirmation_a": {
+      "baseline": {
+        "median_seconds": 3.735914958495414,
+        "p95_seconds_nearest_rank": 3.869959875009954,
+        "samples_seconds": [
+          3.728444165957626,
+          3.6872178750345483,
+          3.702247917011846,
+          3.7554166659829207,
+          3.7158738329890184,
+          3.717623625008855,
+          3.742223292007111,
+          3.7535607080208138,
+          3.7296066249837168,
+          3.6982242909725755,
+          3.7574909169925377,
+          3.691961792006623,
+          3.8640912920236588,
+          3.869959875009954,
+          3.759504374989774,
+          3.8662979590008035
+        ]
+      },
+      "baseline_binary_sha256": "0d4f2e3b8145f97f6385a29e9d3f2e865f82a7ad4030bcfbf5ebefb5c00b7f40",
+      "baseline_commit": "0380197 (runtime source unchanged from 1a0815d)",
+      "candidate": {
+        "median_seconds": 3.6976929795055185,
+        "p95_seconds_nearest_rank": 4.125483916956,
+        "samples_seconds": [
+          3.7766977500286885,
+          3.6426357500022277,
+          3.6970542920171283,
+          3.6386122080148198,
+          3.6431977920001373,
+          3.7040174169815145,
+          3.6342393750092015,
+          3.6614066250040196,
+          3.69430208299309,
+          3.7440605409792624,
+          3.7055293330340646,
+          3.6983316669939086,
+          3.8849553749896586,
+          4.125483916956,
+          3.9229851660202257,
+          3.6740234580356628
+        ]
+      },
+      "candidate_binary_sha256": "dd6bfcdfd53d4432c2f453b98f283e40bfa0e639f9e092d9a1f4edc580bf6883",
+      "candidate_revision": "working tree direct SharedJson JSON parser",
+      "output_validation": "all baseline and candidate runs matched the independent Python-generated JSON output",
+      "paired_candidate_over_baseline": {
+        "ci95_percentile": [
+          0.9804417361150227,
+          1.0053994798231263
+        ],
+        "median_ratio": 0.9934370281143228,
+        "ties_or_regressions": 6,
+        "win": false
+      },
+      "paired_ratios": [
+        1.0129420160053997,
+        0.9879090071313177,
+        0.9985971698516318,
+        0.9688970709891843,
+        0.9804417361150227,
+        0.9963400792011837,
+        0.9711444484810544,
+        0.9754488896849666,
+        0.9905339770274618,
+        1.0123941238822571,
+        0.9861712017124282,
+        1.0017253361075071,
+        1.0053994798231263,
+        1.0660275688117797,
+        1.0434846657229642,
+        0.9502690938453094
+      ],
+      "paired_trial_order": [
+        [
+          "guion_candidate",
+          "guion_baseline"
+        ],
+        [
+          "guion_candidate",
+          "guion_baseline"
+        ],
+        [
+          "guion_baseline",
+          "guion_candidate"
+        ],
+        [
+          "guion_candidate",
+          "guion_baseline"
+        ],
+        [
+          "guion_baseline",
+          "guion_candidate"
+        ],
+        [
+          "guion_baseline",
+          "guion_candidate"
+        ],
+        [
+          "guion_candidate",
+          "guion_baseline"
+        ],
+        [
+          "guion_candidate",
+          "guion_baseline"
+        ],
+        [
+          "guion_candidate",
+          "guion_baseline"
+        ],
+        [
+          "guion_baseline",
+          "guion_candidate"
+        ],
+        [
+          "guion_baseline",
+          "guion_candidate"
+        ],
+        [
+          "guion_baseline",
+          "guion_candidate"
+        ],
+        [
+          "guion_candidate",
+          "guion_baseline"
+        ],
+        [
+          "guion_baseline",
+          "guion_candidate"
+        ],
+        [
+          "guion_candidate",
+          "guion_baseline"
+        ],
+        [
+          "guion_baseline",
+          "guion_candidate"
+        ]
+      ],
+      "rows": 200000,
+      "schema_version": 1,
+      "source_cache_states": {
+        "guion_baseline": [
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed"
+        ],
+        "guion_candidate": [
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed"
+        ]
+      },
+      "status": "passed",
+      "trials": 16,
+      "workload": "JSONL summary, 200,000 generated rows; uncached Guion source; every run output-checked against Python oracle"
+    },
+    "parser_confirmation_b": {
+      "baseline": {
+        "median_seconds": 3.73934622950037,
+        "p95_seconds_nearest_rank": 3.9929090830264613,
+        "samples_seconds": [
+          3.7885110830538906,
+          3.8583655830007046,
+          3.73972104198765,
+          3.7172960420139134,
+          3.6735477080219425,
+          3.6733708750107326,
+          3.802981666987762,
+          3.666100959002506,
+          3.741467082989402,
+          3.7278933330089785,
+          3.626818042015657,
+          3.7870370839955285,
+          3.9929090830264613,
+          3.73897141701309,
+          3.7880228749709204,
+          3.7237410829984583
+        ]
+      },
+      "baseline_binary_sha256": "0d4f2e3b8145f97f6385a29e9d3f2e865f82a7ad4030bcfbf5ebefb5c00b7f40",
+      "baseline_commit": "0380197 (runtime source unchanged from 1a0815d)",
+      "candidate": {
+        "median_seconds": 3.6717896875052247,
+        "p95_seconds_nearest_rank": 3.9005487500107847,
+        "samples_seconds": [
+          3.669679292012006,
+          3.6781701669679023,
+          3.6482012500055134,
+          3.5978459999896586,
+          3.683728375006467,
+          3.6739000829984434,
+          3.9005487500107847,
+          3.5965919999871403,
+          3.6949013749836013,
+          3.598340791009832,
+          3.5870710420422256,
+          3.611306417034939,
+          3.586188957968261,
+          3.7161635420052335,
+          3.863708792021498,
+          3.7596284999744967
+        ]
+      },
+      "candidate_binary_sha256": "dd6bfcdfd53d4432c2f453b98f283e40bfa0e639f9e092d9a1f4edc580bf6883",
+      "candidate_revision": "working tree direct SharedJson JSON parser",
+      "output_validation": "all baseline and candidate runs matched the independent Python-generated JSON output",
+      "paired_candidate_over_baseline": {
+        "ci95_percentile": [
+          0.9678664166979984,
+          1.0001440660379028
+        ],
+        "median_ratio": 0.9842971220050132,
+        "ties_or_regressions": 5,
+        "win": false
+      },
+      "paired_ratios": [
+        0.9686336430231333,
+        0.9532974747580394,
+        0.9755276420474683,
+        0.9678664166979984,
+        1.0027713447037296,
+        1.0001440660379028,
+        1.0256554176608228,
+        0.9810400859679876,
+        0.9875541580420386,
+        0.9652477873087163,
+        0.9890408067035695,
+        0.9535967926738166,
+        0.8981393974665902,
+        0.9938999600520945,
+        1.0199803220700348,
+        1.009637463018009
+      ],
+      "paired_trial_order": [
+        [
+          "guion_candidate",
+          "guion_baseline"
+        ],
+        [
+          "guion_baseline",
+          "guion_candidate"
+        ],
+        [
+          "guion_candidate",
+          "guion_baseline"
+        ],
+        [
+          "guion_baseline",
+          "guion_candidate"
+        ],
+        [
+          "guion_candidate",
+          "guion_baseline"
+        ],
+        [
+          "guion_baseline",
+          "guion_candidate"
+        ],
+        [
+          "guion_candidate",
+          "guion_baseline"
+        ],
+        [
+          "guion_candidate",
+          "guion_baseline"
+        ],
+        [
+          "guion_candidate",
+          "guion_baseline"
+        ],
+        [
+          "guion_candidate",
+          "guion_baseline"
+        ],
+        [
+          "guion_candidate",
+          "guion_baseline"
+        ],
+        [
+          "guion_baseline",
+          "guion_candidate"
+        ],
+        [
+          "guion_baseline",
+          "guion_candidate"
+        ],
+        [
+          "guion_baseline",
+          "guion_candidate"
+        ],
+        [
+          "guion_candidate",
+          "guion_baseline"
+        ],
+        [
+          "guion_candidate",
+          "guion_baseline"
+        ]
+      ],
+      "rows": 200000,
+      "schema_version": 1,
+      "source_cache_states": {
+        "guion_baseline": [
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed"
+        ],
+        "guion_candidate": [
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed"
+        ]
+      },
+      "status": "passed",
+      "trial_seed": 20261028,
+      "trials": 16,
+      "workload": "JSONL summary, 200,000 rows; uncached Guion source; every run output-checked against Python oracle"
+    },
+    "parser_peak_rss": {
+      "baseline_binary_sha256": "0d4f2e3b8145f97f6385a29e9d3f2e865f82a7ad4030bcfbf5ebefb5c00b7f40",
+      "candidate_binary_sha256": "dd6bfcdfd53d4432c2f453b98f283e40bfa0e639f9e092d9a1f4edc580bf6883",
+      "candidate_over_baseline_median": 0.9954128440366973,
+      "median_peak_rss_bytes": {
+        "baseline": 14286848,
+        "candidate": 14221312
+      },
+      "method": "resource.getrusage(RUSAGE_CHILDREN).ru_maxrss for direct Guion child; macOS values converted to bytes",
+      "order": [
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ]
+      ],
+      "output_validation": "all ten output files matched independent Python oracle",
+      "peak_rss_samples_bytes": {
+        "baseline": [
+          14336000,
+          14204928,
+          14286848,
+          14286848,
+          14286848
+        ],
+        "candidate": [
+          14204928,
+          14336000,
+          14237696,
+          14204928,
+          14221312
+        ]
+      },
+      "schema_version": 1,
+      "status": "passed",
+      "trials_per_build": 5,
+      "workload": "JSONL summary, 200,000 rows, uncached Guion source"
+    },
+    "parser_runtime_profile": {
+      "baseline_binary_sha256": "0d4f2e3b8145f97f6385a29e9d3f2e865f82a7ad4030bcfbf5ebefb5c00b7f40",
+      "candidate_binary_sha256": "dd6bfcdfd53d4432c2f453b98f283e40bfa0e639f9e092d9a1f4edc580bf6883",
+      "metric_scope": "guest allocation-budget charges and branch counts; not host allocator calls or CPU stack attribution",
+      "profiles": {
+        "baseline": {
+          "cache_status": "bypassed",
+          "elapsed_seconds_including_process_startup": 3.7830041659763083,
+          "reported_phase_timings_ns": {
+            "artifact_runtime_load_ns": 2932459,
+            "cli_to_report_excluding_process_startup_ns": 3774893417,
+            "compiler_pipeline": {
+              "compiler_backend": "rust",
+              "rust_compiler_compile_ns": 3633500
+            },
+            "input_artifact_decode_ns": null,
+            "native_compilation": {
+              "finalize_nanoseconds": 0,
+              "functions": []
+            },
+            "program_execute_ns": 3765978250,
+            "source_compile_or_cache_ns": 4981542
+          },
+          "runtime_profile": {
+            "dynamic_guest_conditional_branch_executions": 4173319,
+            "estimated_guest_allocation_budget_charges": {
+              "estimated_gross_bytes": 3994548252,
+              "estimated_net_bytes": 3994548252,
+              "estimated_refunded_bytes": 0,
+              "successful_events": 31701258
+            },
+            "list_set": {
+              "copy_on_write_copies": 0,
+              "copy_size_histogram": {
+                "buckets": {
+                  "0-8": {
+                    "copies": 0,
+                    "estimated_copy_bytes": 0
+                  },
+                  "129+": {
+                    "copies": 0,
+                    "estimated_copy_bytes": 0
+                  },
+                  "33-128": {
+                    "copies": 0,
+                    "estimated_copy_bytes": 0
+                  },
+                  "9-32": {
+                    "copies": 0,
+                    "estimated_copy_bytes": 0
+                  }
+                },
+                "unit": "elements"
+              },
+              "estimated_copy_bytes": 0,
+              "in_place_updates": 0,
+              "operations": 0
+            },
+            "metric_limits": {
+              "allocation": "estimated guest-data budget charges, not host allocator calls",
+              "branches": "executed guest conditional branches, not hardware branch-misprediction counts"
+            },
+            "record_charges": {
+              "estimated_bytes": 117225203,
+              "events": 400947
+            },
+            "scope": "latest guest invocation"
+          }
+        },
+        "candidate": {
+          "cache_status": "bypassed",
+          "elapsed_seconds_including_process_startup": 4.115294084011111,
+          "reported_phase_timings_ns": {
+            "artifact_runtime_load_ns": 2284833,
+            "cli_to_report_excluding_process_startup_ns": 4106504667,
+            "compiler_pipeline": {
+              "compiler_backend": "rust",
+              "rust_compiler_compile_ns": 3258416
+            },
+            "input_artifact_decode_ns": null,
+            "native_compilation": {
+              "finalize_nanoseconds": 0,
+              "functions": []
+            },
+            "program_execute_ns": 4097680541,
+            "source_compile_or_cache_ns": 5177667
+          },
+          "runtime_profile": {
+            "dynamic_guest_conditional_branch_executions": 4173319,
+            "estimated_guest_allocation_budget_charges": {
+              "estimated_gross_bytes": 3909519117,
+              "estimated_net_bytes": 3909519117,
+              "estimated_refunded_bytes": 0,
+              "successful_events": 31701258
+            },
+            "list_set": {
+              "copy_on_write_copies": 0,
+              "copy_size_histogram": {
+                "buckets": {
+                  "0-8": {
+                    "copies": 0,
+                    "estimated_copy_bytes": 0
+                  },
+                  "129+": {
+                    "copies": 0,
+                    "estimated_copy_bytes": 0
+                  },
+                  "33-128": {
+                    "copies": 0,
+                    "estimated_copy_bytes": 0
+                  },
+                  "9-32": {
+                    "copies": 0,
+                    "estimated_copy_bytes": 0
+                  }
+                },
+                "unit": "elements"
+              },
+              "estimated_copy_bytes": 0,
+              "in_place_updates": 0,
+              "operations": 0
+            },
+            "metric_limits": {
+              "allocation": "estimated guest-data budget charges, not host allocator calls",
+              "branches": "executed guest conditional branches, not hardware branch-misprediction counts"
+            },
+            "record_charges": {
+              "estimated_bytes": 117225203,
+              "events": 400947
+            },
+            "scope": "latest guest invocation"
+          }
+        }
+      },
+      "schema_version": 1,
+      "status": "passed",
+      "workload": "JSONL summary, 200,000 rows; untimed runtime profile; output checked against Python oracle"
+    },
+    "parser_screen": {
+      "baseline": {
+        "median_seconds": 3.7714832500205375,
+        "p95_seconds_nearest_rank": 3.7941909999935888,
+        "samples_seconds": [
+          3.7941909999935888,
+          3.779286375036463,
+          3.7710001249797642,
+          3.7788830409990624,
+          3.76974874996813,
+          3.7227771659963764,
+          3.7714832500205375
+        ]
+      },
+      "baseline_binary_sha256": "0d4f2e3b8145f97f6385a29e9d3f2e865f82a7ad4030bcfbf5ebefb5c00b7f40",
+      "baseline_commit": "0380197 (runtime source unchanged from 1a0815d)",
+      "candidate": {
+        "median_seconds": 3.660569458035752,
+        "p95_seconds_nearest_rank": 3.90035650000209,
+        "samples_seconds": [
+          3.6303100410150364,
+          3.90035650000209,
+          3.6705637919949368,
+          3.7312500000116415,
+          3.6546692499541678,
+          3.6149846659973264,
+          3.660569458035752
+        ]
+      },
+      "candidate_binary_sha256": "dd6bfcdfd53d4432c2f453b98f283e40bfa0e639f9e092d9a1f4edc580bf6883",
+      "candidate_revision": "working tree direct SharedJson JSON parser",
+      "output_validation": "all baseline and candidate runs matched the independent Python-generated JSON output",
+      "paired_candidate_over_baseline": {
+        "ci95_percentile": [
+          0.96947289921777,
+          0.9873949417140925
+        ],
+        "median_ratio": 0.9710451377580103,
+        "ties_or_regressions": 1,
+        "win": true
+      },
+      "paired_ratios": [
+        0.9568074040081721,
+        1.0320351815002267,
+        0.9733661284391056,
+        0.9873949417140925,
+        0.96947289921777,
+        0.9710451377580103,
+        0.9705914663722339
+      ],
+      "paired_trial_order": [
+        [
+          "guion_candidate",
+          "guion_baseline"
+        ],
+        [
+          "guion_candidate",
+          "guion_baseline"
+        ],
+        [
+          "guion_baseline",
+          "guion_candidate"
+        ],
+        [
+          "guion_candidate",
+          "guion_baseline"
+        ],
+        [
+          "guion_baseline",
+          "guion_candidate"
+        ],
+        [
+          "guion_baseline",
+          "guion_candidate"
+        ],
+        [
+          "guion_candidate",
+          "guion_baseline"
+        ]
+      ],
+      "rows": 200000,
+      "schema_version": 1,
+      "source_cache_states": {
+        "guion_baseline": [
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed"
+        ],
+        "guion_candidate": [
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed"
+        ]
+      },
+      "status": "passed",
+      "trials": 7,
+      "workload": "JSONL summary, 200,000 generated rows; uncached Guion source; every run output-checked against Python oracle"
+    },
+    "timestamp_confirmation": {
+      "baseline": {
+        "median_seconds": 3.753327291517053,
+        "p95_seconds_nearest_rank": 4.007406959019136,
+        "samples_seconds": [
+          3.6630923750344664,
+          3.977233542012982,
+          3.70640166697558,
+          4.007406959019136,
+          3.769280541979242,
+          3.7862521249917336,
+          3.77411449997453,
+          3.7535634160158224,
+          3.7258601669454947,
+          3.753091167018283,
+          3.7429861669661477,
+          3.9738188330084085,
+          3.741855999978725,
+          3.692417500016745,
+          3.7661137089598924,
+          3.7422385420068167
+        ]
+      },
+      "baseline_binary_sha256": "0d4f2e3b8145f97f6385a29e9d3f2e865f82a7ad4030bcfbf5ebefb5c00b7f40",
+      "baseline_commit": "0380197 (runtime source unchanged from 1a0815d)",
+      "candidate": {
+        "median_seconds": 3.748390916502103,
+        "p95_seconds_nearest_rank": 3.996486541000195,
+        "samples_seconds": [
+          3.6676976670278236,
+          3.801446834055241,
+          3.833555791003164,
+          3.996486541000195,
+          3.7438633749843575,
+          3.7550041250069626,
+          3.728661999979522,
+          3.725910000037402,
+          3.7214581250445917,
+          3.916812999988906,
+          3.8330918330466375,
+          3.69633437495213,
+          3.752918458019849,
+          3.6973233749740757,
+          3.7553484580130316,
+          3.6733648750232533
+        ]
+      },
+      "candidate_binary_sha256": "860c86a77caeaac7634001d7cf8ea3850f3ef9f78f45f2d9e296f9dad1651c16",
+      "output_validation": "all baseline and candidate runs matched the independent Python-generated JSON output",
+      "paired_candidate_over_baseline": {
+        "ci95_percentile": [
+          0.9906067683513584,
+          1.0013286349545543
+        ],
+        "median_ratio": 0.9972082453702276,
+        "ties_or_regressions": 6,
+        "win": false
+      },
+      "paired_ratios": [
+        1.0012572142664882,
+        0.9558017636880407,
+        1.0343066228251891,
+        0.9972749415942488,
+        0.9932567590255466,
+        0.9917469838369944,
+        0.9879567776771704,
+        0.9926327564200919,
+        0.9988185166099479,
+        1.043623196369273,
+        1.0240732030686408,
+        0.9301718398052367,
+        1.0029564093437018,
+        1.0013286349545543,
+        0.9971415491462062,
+        0.9815955968037705
+      ],
+      "paired_trial_order": [
+        [
+          "guion_candidate",
+          "guion_baseline"
+        ],
+        [
+          "guion_candidate",
+          "guion_baseline"
+        ],
+        [
+          "guion_baseline",
+          "guion_candidate"
+        ],
+        [
+          "guion_candidate",
+          "guion_baseline"
+        ],
+        [
+          "guion_baseline",
+          "guion_candidate"
+        ],
+        [
+          "guion_baseline",
+          "guion_candidate"
+        ],
+        [
+          "guion_candidate",
+          "guion_baseline"
+        ],
+        [
+          "guion_candidate",
+          "guion_baseline"
+        ],
+        [
+          "guion_candidate",
+          "guion_baseline"
+        ],
+        [
+          "guion_baseline",
+          "guion_candidate"
+        ],
+        [
+          "guion_baseline",
+          "guion_candidate"
+        ],
+        [
+          "guion_baseline",
+          "guion_candidate"
+        ],
+        [
+          "guion_candidate",
+          "guion_baseline"
+        ],
+        [
+          "guion_baseline",
+          "guion_candidate"
+        ],
+        [
+          "guion_candidate",
+          "guion_baseline"
+        ],
+        [
+          "guion_baseline",
+          "guion_candidate"
+        ]
+      ],
+      "rows": 200000,
+      "schema_version": 1,
+      "source_cache_states": {
+        "guion_baseline": [
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed"
+        ],
+        "guion_candidate": [
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed"
+        ]
+      },
+      "status": "passed",
+      "trials": 16,
+      "workload": "JSONL summary, 200,000 generated rows; uncached Guion source; every run output-checked against Python oracle"
+    },
+    "timestamp_peak_rss": {
+      "baseline_binary_sha256": "0d4f2e3b8145f97f6385a29e9d3f2e865f82a7ad4030bcfbf5ebefb5c00b7f40",
+      "candidate_binary_sha256": "860c86a77caeaac7634001d7cf8ea3850f3ef9f78f45f2d9e296f9dad1651c16",
+      "median_candidate_over_baseline": 0.9931192660550459,
+      "median_peak_rss_bytes": {
+        "baseline": 14286848,
+        "candidate": 14188544
+      },
+      "method": "resource.getrusage(RUSAGE_CHILDREN).ru_maxrss for one direct Guion child process; macOS unit converted to bytes by runner helper",
+      "order": [
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ],
+        [
+          "candidate",
+          "baseline"
+        ]
+      ],
+      "output_validation": "all 10 measured outputs matched the independent Python oracle",
+      "samples_peak_rss_bytes": {
+        "baseline": [
+          14270464,
+          14286848,
+          14319616,
+          14270464,
+          14286848
+        ],
+        "candidate": [
+          14237696,
+          14188544,
+          14172160,
+          14155776,
+          14254080
+        ]
+      },
+      "schema_version": 1,
+      "status": "passed",
+      "trials_per_build": 5,
+      "workload": "JSONL summary, 200,000 generated rows, uncached Guion source"
+    },
+    "timestamp_screen": {
+      "baseline": {
+        "median_seconds": 3.7640408750157803,
+        "p95_seconds_nearest_rank": 3.8203249580110423,
+        "samples_seconds": [
+          3.6962910419679247,
+          3.759741833957378,
+          3.7687405830365606,
+          3.764102792018093,
+          3.7437529169837944,
+          3.7640408750157803,
+          3.8203249580110423
+        ]
+      },
+      "baseline_binary_sha256": "0d4f2e3b8145f97f6385a29e9d3f2e865f82a7ad4030bcfbf5ebefb5c00b7f40",
+      "baseline_commit": "0380197 (runtime source unchanged from 1a0815d)",
+      "candidate": {
+        "median_seconds": 3.7270655420143157,
+        "p95_seconds_nearest_rank": 4.076865791983437,
+        "samples_seconds": [
+          3.726922958972864,
+          3.7089760410017334,
+          3.844863375008572,
+          3.698050457984209,
+          3.7270655420143157,
+          3.7575724580092356,
+          4.076865791983437
+        ]
+      },
+      "candidate_binary_sha256": "860c86a77caeaac7634001d7cf8ea3850f3ef9f78f45f2d9e296f9dad1651c16",
+      "output_validation": "all baseline and candidate runs matched the independent Python-generated JSON output",
+      "paired_candidate_over_baseline": {
+        "ci95_percentile": [
+          0.9864975322249161,
+          1.0201984695669017
+        ],
+        "median_ratio": 0.9982815231764672,
+        "ties_or_regressions": 3,
+        "win": false
+      },
+      "paired_ratios": [
+        1.0082872037556412,
+        0.9864975322249161,
+        1.0201984695669017,
+        0.9824520376611525,
+        0.9955426078217461,
+        0.9982815231764672,
+        1.067151573960859
+      ],
+      "paired_trial_order": [
+        [
+          "guion_candidate",
+          "guion_baseline"
+        ],
+        [
+          "guion_candidate",
+          "guion_baseline"
+        ],
+        [
+          "guion_baseline",
+          "guion_candidate"
+        ],
+        [
+          "guion_candidate",
+          "guion_baseline"
+        ],
+        [
+          "guion_baseline",
+          "guion_candidate"
+        ],
+        [
+          "guion_baseline",
+          "guion_candidate"
+        ],
+        [
+          "guion_candidate",
+          "guion_baseline"
+        ]
+      ],
+      "rows": 200000,
+      "schema_version": 1,
+      "source_cache_states": {
+        "guion_baseline": [
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed"
+        ],
+        "guion_candidate": [
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed"
+        ]
+      },
+      "status": "passed",
+      "trials": 7,
+      "workload": "JSONL summary, 200,000 generated rows; uncached Guion source, each run output-checked against Python oracle"
+    }
+  },
+  "kind": "jsonl-runtime-follow-up-evidence",
+  "schema_version": 1,
+  "status": "completed",
+  "timestamp_formatter_experiment": "discarded: no reliable speed result"
+}
