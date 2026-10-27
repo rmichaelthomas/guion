@@ -6,7 +6,7 @@ Workload: canonical Richards, fresh Guion source compilation, CPython 3.14.7 ref
 
 ## Result
 
-Guion remains faster than Python on this workload, but this pass did not reach the `0.60` Guion/Python ratio target. The clean baseline cohort measured 48.69 ms for Guion and 74.45 ms for Python, a ratio of `0.642` (paired 95% interval `0.620–0.664`). Other randomized cohorts put the baseline ratio between `0.642` and `0.656`; the target therefore needs about 4 ms less from a roughly 48–49 ms Guion run, or around an 8% reduction.
+The `0.60` Guion/Python ratio gate is now met. In the same randomized 15-trial cohort, the baseline measured 48.21 ms and the candidate measured 36.28 ms, while Python measured 73.12 ms. Candidate/Python median ratio was `0.498` (paired 95% interval `0.483–0.511`); candidate/baseline was `0.761` (`0.744–0.776`), a 23.9% reduction in median elapsed time. The upper confidence bound clears the gate by 0.089.
 
 Every measured run checked Richards' expected output (`9297`, `23246`). The 15-trial cohorts randomized paired order, used two warmups, bypassed Guion's source cache, and left the OS file cache uncontrolled. Across these cohorts, the paired baseline ratio ranged from `0.642` to `0.665`; compare candidates within their own paired cohort because the Python and Guion medians shifted between sessions.
 
@@ -14,7 +14,9 @@ Every measured run checked Richards' expected output (`9297`, `23246`). The 15-t
 
 The one-shot diagnostic profile attributed 30.51 ms to native JIT compilation, including 20.66 ms in Cranelift's `define` phase for the large `main` function. It estimated 15.80 ms of program execution after subtracting JIT compilation from the instrumented execution phase. These are phase measurements from an instrumented run, not host CPU samples. For 25 executions in one process, the profile estimated about 1.12 ms of compilation per execution and 10.51 ms of execution per run.
 
-That points the next optimization at the size and cost of compiling `main`. Tweaks to the list helper alone did not produce a reliable first-run gain, and the VM-only route is much slower.
+The accepted change moved fuel reservations from every bytecode block to function entry and loop-region boundaries. It calculates the longest reachable instruction path until the next loop boundary or function return and reserves enough fuel before entering that region. Existing cancellation polls remain at the same function and loop entries. If the budget cannot cover the whole region, native execution falls back before entering it.
+
+The change cut `main` from 652 to 358 Cranelift IR blocks (45.1%) and from 7,549 to 6,569 IR instructions (13.0%). Its measured Cranelift `define` time fell from 19.64 ms to 11.28 ms (42.6%), and total native compilation profile time fell from 27.10 ms to 17.01 ms (37.2%). The 25-execution lane also improved from 10.59 ms to 9.83 ms per execution (7.2%); the fresh-source win did not hide a repeated-execution regression.
 
 ## Experiments
 
@@ -27,21 +29,20 @@ That points the next optimization at the size and cost of compiling `main`. Twea
 | Guarded direct JIT writes for small local integer/boolean lists | 4.6% slower fresh-source; paired interval `2.1–6.5%` slower. A 25-run lane was 0.6% faster, a negligible change. | Reject; generated-code growth outweighed any repeated-run benefit. |
 | VM-only source execution | 717 ms median versus 49 ms native and 75 ms Python in a five-trial diagnostic. | Not a viable way to skip JIT compilation for Richards. This is triage data, not a release benchmark. |
 
-The rejected runtime changes have been removed from the branch. The benchmark reports remain as the record of what was tested and why it was not retained.
+Earlier rejected runtime changes have been removed from the branch. The benchmark reports remain as the record of what was tested and why it was not retained.
 
-## Recommended next pass
+## Next target
 
-Target native compilation cost directly. Reduce work emitted for Richards' `main` and lower the time spent in Cranelift `define`, while preserving bytecode fuel, cancellation, fallback, and source error behavior. The acceptance gate should be a fresh-source Richards ratio whose paired 95% upper bound is at most `0.60`, with the expected output checked on every run. Keep the repeated-execution lane as a secondary guard so a startup win does not hide a runtime regression.
+The Richards-specific `0.60` gate is achieved. The next measured opportunity is runtime list copying: the candidate's one-shot profile still records 84,497 copy-on-write list copies, mostly of lists with at most eight elements. Treat this as a hypothesis for the remaining repeated-run cost, not as proof that host CPU time is allocation-bound. Any follow-up should first distinguish the cost of these copies from helper dispatch and list ownership checks, then optimize one measured source while preserving alias semantics.
 
 The inline-store attempt increased `main` from 7,510 to 8,395 Cranelift IR instructions and slowed the complete fresh-source cohort. That makes a smaller IR lowering or a cheaper JIT compilation path a stronger next target than further hand-written list stores.
 
 ## Verification and hygiene
 
-- Runtime library tests: 17 passed.
-- Runtime execution tests: 109 passed, including alias preservation, native/VM parity, limits, and profiling.
-- A broader package run also reached HTTP integration tests, but 11 tests could not open their local test sockets under the current macOS process permissions. This is separate from the list/JIT change; no permission escalation was attempted.
-- Release builds were capped at two Cargo jobs. Benchmark processes ran serially. The 15-trial three-arm source cohort used about 2.7 seconds of user CPU and 0.5 seconds of system CPU across all arms.
-- All generated binaries, temporary VM harness files, and per-run scratch directories are removed after preserving the JSON results below. The existing Cargo build cache is retained.
+- The candidate release binary built with locked, offline Cargo dependencies and two build jobs; `cargo fmt --all -- --check` passed. No Rust test suite was run for this candidate change.
+- The randomized cohort used 15 trials per arm, two warmups, uncached source runs, serial execution, and output checks on every warmup and trial. OS file cache remained uncontrolled.
+- Native diagnostic profiles also checked the expected output in their timed lanes. Their phase timings are instrumented diagnostics, separate from the uninstrumented comparison cohort.
+- Baseline and candidate binaries and temporary run files are in ignored `target/perf-session/regional-fuel` scratch pending the next experiment; remove them after the follow-up. The existing Cargo build cache is retained.
 
 ## Evidence
 
@@ -60,3 +61,6 @@ The inline-store attempt increased `main` from 7,510 to 8,395 Cranelift IR instr
 - [Inline-store baseline profile](2026-10-26-gap-inline-baseline-profile.json)
 - [Inline-store repeated profile](2026-10-26-gap-inline-repeated-profile.json)
 - [VM-only triage](2026-10-26-gap-vm-native-triage.json)
+- [Regional fuel reservation comparison](2026-10-26-richards-regional-fuel-comparison.json)
+- [Regional fuel baseline profile](2026-10-26-richards-regional-fuel-baseline-profile.json)
+- [Regional fuel candidate profile](2026-10-26-richards-regional-fuel-candidate-profile.json)

@@ -615,6 +615,13 @@ impl NativeBackend {
                     block_instruction_counts[*block_index] += 1;
                 }
             }
+            let fuel_reservation_requirements = fuel_reservation_requirements(
+                function,
+                &leader_indices,
+                &block_for_ip,
+                &block_instruction_counts,
+            )
+            .ok_or_else(|| "invalid fuel reservation graph".to_owned())?;
             let fallback = builder.create_block();
             let divide_zero = builder.create_block();
             let float_nonfinite = builder.create_block();
@@ -705,8 +712,10 @@ impl NativeBackend {
                     builder.switch_to_block(check_fuel);
                     builder.seal_block(check_fuel);
                 }
-                if let Some(block_index) = leader_indices[ip] {
-                    let required = block_instruction_counts[block_index].max(1);
+                if let Some(required) = leader_indices[ip]
+                    .map(|block_index| fuel_reservation_requirements[block_index])
+                    .filter(|required| *required > 0)
+                {
                     let remaining_fuel = builder.use_var(fuel_var);
                     let required_fuel = builder.ins().iconst(types::I64, required as i64);
                     let enough_fuel = builder.ins().icmp(
@@ -2356,4 +2365,91 @@ fn bytecode_block_layout(
         block_for_ip.push(current_block?);
     }
     Some((leader_indices, block_for_ip))
+}
+
+// Reserve enough fuel at function entry and loop headers for the longest
+// reachable path to the next header or return. Backedges make new regions.
+fn fuel_reservation_requirements(
+    function: &Function,
+    leader_indices: &[Option<usize>],
+    block_for_ip: &[usize],
+    block_instruction_counts: &[usize],
+) -> Option<Vec<usize>> {
+    if leader_indices.len() != function.code.len()
+        || block_for_ip.len() != function.code.len()
+        || block_instruction_counts.is_empty()
+    {
+        return None;
+    }
+
+    let block_starts: Vec<_> = leader_indices
+        .iter()
+        .enumerate()
+        .filter_map(|(ip, block)| block.map(|_| ip))
+        .collect();
+    if block_starts.len() != block_instruction_counts.len() {
+        return None;
+    }
+
+    let mut region_starts = vec![false; block_instruction_counts.len()];
+    region_starts[0] = true;
+    let mut successors = vec![Vec::new(); block_instruction_counts.len()];
+
+    for block in 0..block_starts.len() {
+        if block_instruction_counts[block] == 0 {
+            continue;
+        }
+        let start = block_starts[block];
+        let end = block_starts
+            .get(block + 1)
+            .copied()
+            .unwrap_or(function.code.len());
+        let last_ip = (start..end)
+            .rev()
+            .find(|ip| block_for_ip.get(*ip).copied() == Some(block))?;
+        let mut add_successor = |target_ip: usize| -> Option<()> {
+            let target_block = *block_for_ip.get(target_ip)?;
+            if !successors[block].contains(&target_block) {
+                successors[block].push(target_block);
+            }
+            if target_ip <= last_ip {
+                region_starts[target_block] = true;
+            }
+            Some(())
+        };
+
+        match &function.code[last_ip].op {
+            Op::Jump(target) => add_successor(*target)?,
+            Op::JumpIfFalse(target) => {
+                add_successor(*target)?;
+                add_successor(last_ip.checked_add(1)?)?;
+            }
+            Op::Return => {}
+            _ if last_ip + 1 < function.code.len() => add_successor(last_ip + 1)?,
+            _ => return None,
+        }
+    }
+
+    let mut longest_region_path = vec![0usize; block_instruction_counts.len()];
+    for block in (0..block_instruction_counts.len()).rev() {
+        if block_instruction_counts[block] == 0 {
+            continue;
+        }
+        let longest_tail = successors[block]
+            .iter()
+            .copied()
+            .filter(|successor| !region_starts[*successor])
+            .map(|successor| longest_region_path[successor])
+            .max()
+            .unwrap_or(0);
+        longest_region_path[block] = block_instruction_counts[block].checked_add(longest_tail)?;
+    }
+
+    Some(
+        longest_region_path
+            .into_iter()
+            .zip(region_starts)
+            .map(|(required, region_start)| if region_start { required } else { 0 })
+            .collect(),
+    )
 }
