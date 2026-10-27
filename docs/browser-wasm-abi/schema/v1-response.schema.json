@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Guion WebAssembly ABI 1.0 response",
+  "oneOf": [
+    {"$ref": "#/$defs/success"},
+    {"$ref": "#/$defs/failure"}
+  ],
+  "$defs": {
+    "version": {
+      "type": "object", "additionalProperties": false, "required": ["major", "minor"],
+      "properties": {"major": {"const": 1}, "minor": {"const": 0}}
+    },
+    "value": {"$ref": "v1-request.schema.json#/$defs/value"},
+    "success": {
+      "type": "object", "additionalProperties": false,
+      "required": ["abi", "ok", "value", "stdout", "steps"],
+      "properties": {
+        "abi": {"$ref": "#/$defs/version"},
+        "ok": {"const": true},
+        "value": {"$ref": "#/$defs/value"},
+        "stdout": {"type": "string"},
+        "steps": {"type": "integer", "minimum": 0, "maximum": 10000}
+      }
+    },
+    "failure": {
+      "type": "object", "additionalProperties": false,
+      "required": ["abi", "ok", "code", "message"],
+      "properties": {
+        "abi": {"$ref": "#/$defs/version"},
+        "ok": {"const": false},
+        "code": {"type": "string", "minLength": 1},
+        "message": {"type": "string"},
+        "stdout": {"type": "string"},
+        "steps": {"type": "integer", "minimum": 0, "maximum": 10000}
+      }
+    }
+  }
+}

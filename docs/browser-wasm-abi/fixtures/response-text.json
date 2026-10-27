@@ -1,0 +1,7 @@
+{
+  "abi": {"major": 1, "minor": 0},
+  "ok": true,
+  "value": {"type": "Text", "value": "Hello, Ada"},
+  "stdout": "",
+  "steps": 4
+}
