@@ -1,0 +1,81 @@
+{
+  "schema_version": 1,
+  "kind": "ascii-text-scalar-jsonl-20000-head-to-head",
+  "workload": "20,000 deterministic JSONL events; fresh uncached source execution",
+  "trials_per_arm": 7,
+  "warmup_pairs": 2,
+  "output_checked_each_run": true,
+  "independent_python_and_sqlite_oracles_agree": true,
+  "expected_output_sha256": "50149835d981ac4b910c89429b8e07e3d72e20cd044f47fdf23b89d7e5f0bda9",
+  "baseline_revision": "5232bbb shared text storage without ASCII scalar cache",
+  "baseline_sha256": "8370dae716a06bd9bd638069b306a82a5c991b991c86c0f097220b29c81b80cc",
+  "candidate_revision": "uncommitted ASCII scalar cache candidate",
+  "candidate_sha256": "a8728d613aaf43c3f81ed0fedc5d59fa49ea38709da2067a264d8b2bad55e65d",
+  "source_sha256": "4cb05ac5abaa1b893a879b2efd838936e56ff857e037802178909e245dbcff9a",
+  "input_sha256": "f234de1ffad1633ab452e86d7a5c60026c58671a65df41f3d99a60d4f0e1af3a",
+  "measurements": {
+    "baseline": {
+      "samples_seconds": [
+        0.3645780420047231,
+        0.3663838329957798,
+        0.3699999579694122,
+        0.36349791701650247,
+        0.36450120800873265,
+        0.3611892919871025,
+        0.3640573750017211
+      ],
+      "median_seconds": 0.36450120800873265
+    },
+    "candidate": {
+      "samples_seconds": [
+        0.350321082980372,
+        0.3544667089590803,
+        0.3583652089582756,
+        0.3529375420184806,
+        0.35259616700932384,
+        0.3510135830147192,
+        0.3528340000193566
+      ],
+      "median_seconds": 0.3528340000193566
+    }
+  },
+  "candidate_over_baseline": {
+    "median_ratio": 0.9685547288302707,
+    "ci95_percentile": [
+      0.9673388160647095,
+      0.9709479078045379
+    ],
+    "candidate_faster": true,
+    "candidate_wins": 7
+  },
+  "paired_trial_order": [
+    [
+      "candidate",
+      "baseline"
+    ],
+    [
+      "baseline",
+      "candidate"
+    ],
+    [
+      "candidate",
+      "baseline"
+    ],
+    [
+      "baseline",
+      "candidate"
+    ],
+    [
+      "candidate",
+      "baseline"
+    ],
+    [
+      "baseline",
+      "candidate"
+    ],
+    [
+      "candidate",
+      "baseline"
+    ]
+  ]
+}

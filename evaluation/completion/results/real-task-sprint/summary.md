@@ -36,6 +36,8 @@ The pinned Guion AllHereHTML builder passes its 19 tests, reproduces the expecte
 
 For the original site, separately instrumented runs recorded estimated guest allocation-budget charges of **121.6 MB before** and **66.3 MB after**, a reduction of about **45.5%**. These are Guion accounting estimates, not measured physical allocations or RSS. A scaling run on the optimized build generated and checked 42 KB, 85 KB, and 170 KB templates in median fresh-source times of approximately **0.34 s, 0.65 s, and 1.28 s**, respectively. [Profile counters](allhere-runtime-profile.json) and [scaling samples](allherehtml-scaling-final.json).
 
+A later runtime follow-up cached immutable ASCII scalar text values. Against the immediately preceding build, the 20,000-row JSONL workload improved from **364.5 ms to 352.8 ms** (paired ratio 0.969; 95% interval 0.967–0.971; seven of seven pairs faster), and AllHereHTML improved by **1.9–2.1%** across the same three input sizes. The complete application acceptance rerun passed **127/127 cases** in both Guion and Python. The detailed [ASCII scalar report](../runtime-efficiency/2026-10-27-ascii-text-scalar-cache.md) includes direct nine-task comparisons and limitations.
+
 ## Installation
 
 The final macOS ARM64 core archive measured **5,442,799 bytes** compressed. The local release checks passed installation, relocated execution, standard-library discovery, integrity rejection, and operation with a PATH that did not provide Python or uv. The Linux targets need their own current-build runs; the earlier three-target validation does not prove this new build passed them. [macOS checks](macos-release-checks.json).

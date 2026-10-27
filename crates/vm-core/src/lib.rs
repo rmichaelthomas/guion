@@ -16,9 +16,19 @@ use std::{
     mem::size_of,
     sync::{
         atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering},
-        Arc,
+        Arc, OnceLock,
     },
 };
+
+fn shared_text_scalar(scalar: char) -> Arc<str> {
+    if !scalar.is_ascii() {
+        return Arc::<str>::from(scalar.to_string());
+    }
+
+    static ASCII_SCALARS: OnceLock<[OnceLock<Arc<str>>; 128]> = OnceLock::new();
+    let scalars = ASCII_SCALARS.get_or_init(|| std::array::from_fn(|_| OnceLock::new()));
+    Arc::clone(scalars[scalar as usize].get_or_init(|| Arc::<str>::from(scalar.to_string())))
+}
 
 /// Size and depth limits the shared VM enforces while executing guest code.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -870,7 +880,7 @@ pub fn execute_vm_frame<H: VmHost>(
                 charge_allocation(budget.as_ref(), allocation, instruction.span)?;
                 let values = text
                     .chars()
-                    .map(|scalar| Value::Text(scalar.to_string().into()))
+                    .map(|scalar| Value::Text(shared_text_scalar(scalar)))
                     .collect::<Vec<_>>();
                 push_stack!(Value::from_list_items(values));
             }

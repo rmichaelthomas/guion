@@ -124,6 +124,29 @@ fn text_chars_materializes_unicode_scalars_for_linear_scanning() {
 }
 
 #[test]
+fn text_chars_reuses_immutable_storage_for_ascii_scalars() {
+    let source = "fn ascii_characters() -> List[Text]:\n    return text_chars(\"aa\")\n\nfn main() -> Int:\n    return len(ascii_characters())\n";
+    let artifact = compile("text-chars-shared-ascii.gu", source)
+        .expect("text_chars compiles for an ASCII pair");
+    let mut instance = Runtime::new()
+        .load(artifact, HostPolicy::default())
+        .expect("runtime loads the artifact");
+
+    instance.invoke("main", vec![]).expect("entry point runs");
+    let Value::List(characters) = instance
+        .invoke("ascii_characters", vec![])
+        .expect("program returns its characters")
+    else {
+        panic!("text_chars must return a list");
+    };
+    let (Value::Text(first), Value::Text(second)) = (&characters[0], &characters[1]) else {
+        panic!("text_chars must return text values");
+    };
+
+    assert!(std::sync::Arc::ptr_eq(first, second));
+}
+
+#[test]
 fn bounded_byte_construction_primitives_remain_compatible_with_format_34() {
     let source = "fn main() -> Int:\n    let raw = bytes_from_ints([0, 255])\n    let utf8 = bytes_from_text(\"é\")\n    let joined = bytes_join([raw, utf8])\n    print(len(joined))\n    print(float64_bits(1.0))\n    return 0\n";
     let artifact =
