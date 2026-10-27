@@ -31,20 +31,24 @@ The change cut `main` from 652 to 358 Cranelift IR blocks (45.1%) and from 7,549
 
 Earlier rejected runtime changes have been removed from the branch. The benchmark reports remain as the record of what was tested and why it was not retained.
 
-## Next target
+## Follow-up probes
 
-The Richards-specific `0.60` gate is achieved. A follow-up that removed one intermediate array copy in the small-list arena did not produce a reliable fresh-source gain: candidate/baseline was `0.997` with paired 95% interval `0.983–1.008`. That implementation was discarded. The profile still reports 84,497 copy-on-write list copies per execution, but the older host profile attributed only 12 of 98 terminal samples to the list helper and 14 to allocator or memory movement; it predates the regional-fuel change and cannot attribute the current candidate's remaining CPU time.
+The Richards-specific `0.60` gate is achieved. Two further optimization hypotheses were measured and their code was discarded:
 
-The next compile-side probe is to avoid emitting per-instruction exit IP constants where no fuel fallback or cancellation check can consume them. The current `main` remains at 358 Cranelift IR blocks and 6,569 instructions after the accepted change. This is a hypothesis to measure, not an assumed bottleneck.
+- Removing an intermediate array copy in the small-list arena measured candidate/baseline `0.997` with paired 95% interval `0.983–1.008`. The direct-copy version was output-correct but produced no reliable fresh-source gain.
+- Emitting exit IP metadata only at fuel, cancellation, or operation-fallback points removed 497 IR instructions from `main` (6,569 → 6,072). Its 30-trial candidate/baseline median ratio was `1.003` (95% interval `0.999–1.014`), with medians 36.87 ms versus 36.40 ms. This did not establish a fresh-source improvement. Instrumented compilation profiles showed a smaller phase change: total native compile 16.52 → 15.89 ms and `main` define 10.98 → 10.82 ms. The 25-run lane was 9.69 → 9.77 ms per execution. The reduced IR did not justify retaining more compiler bookkeeping without a measured end-to-end win.
+
+The list-copy profile still counts 84,497 copy-on-write list copies per execution, but the older host profile attributed only 12 of 98 terminal samples to the list helper and 14 to allocator or memory movement. That profile predates the regional-fuel change and cannot attribute the current candidate's remaining CPU time. The measurements do not support treating list copying as the established next CPU bottleneck.
 
 The inline-store attempt increased `main` from 7,510 to 8,395 Cranelift IR instructions and slowed the complete fresh-source cohort. That makes a smaller IR lowering or a cheaper JIT compilation path a stronger next target than further hand-written list stores.
 
 ## Verification and hygiene
 
 - The candidate release binary built with locked, offline Cargo dependencies and two build jobs; `cargo fmt --all -- --check` passed. No Rust test suite was run for this candidate change.
-- The randomized cohort used 15 trials per arm, two warmups, uncached source runs, serial execution, and output checks on every warmup and trial. OS file cache remained uncontrolled.
+- Randomized cohorts used 15 trials per arm, two warmups, uncached source runs, serial execution, and output checks on every warmup and trial; the extended exit-metadata cohort used 30 trials per arm. OS file cache remained uncontrolled.
 - Native diagnostic profiles also checked the expected output in their timed lanes. Their phase timings are instrumented diagnostics, separate from the uninstrumented comparison cohort.
-- Baseline and candidate binaries and temporary run files are in ignored `target/perf-session/regional-fuel` scratch pending the next experiment; remove them after the follow-up. The existing Cargo build cache is retained.
+- Builds were limited to two Cargo jobs. Benchmark cohorts and profile lanes ran serially; the 30-trial exit-metadata cohort used 4.33 seconds of user CPU and 0.86 seconds of system CPU.
+- All three experiment-specific scratch folders and duplicate binaries were removed after preserving the reports. The existing 3.1 GB Cargo build cache is retained.
 
 ## Evidence
 
@@ -67,3 +71,7 @@ The inline-store attempt increased `main` from 7,510 to 8,395 Cranelift IR instr
 - [Regional fuel baseline profile](2026-10-26-richards-regional-fuel-baseline-profile.json)
 - [Regional fuel candidate profile](2026-10-26-richards-regional-fuel-candidate-profile.json)
 - [Inline list-copy probe](2026-10-26-richards-list-copy-comparison.json)
+- [Exit-metadata 15-trial comparison](2026-10-26-richards-exit-args-comparison.json)
+- [Exit-metadata 30-trial comparison](2026-10-26-richards-exit-args-30-trial-comparison.json)
+- [Exit-metadata baseline profile](2026-10-26-richards-exit-args-baseline-profile.json)
+- [Exit-metadata candidate profile](2026-10-26-richards-exit-args-profile.json)
