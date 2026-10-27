@@ -1,0 +1,237 @@
+{
+  "binary_sha256": "b07c40693591fe3775fe332e21221ee38ef4ac739e5d5adc9c01c3ffed8c3872",
+  "captured_at_utc": "2026-10-27T05:29:47.721346+00:00",
+  "host": {
+    "architecture": "arm64",
+    "platform": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+    "python_version": "3.14.7"
+  },
+  "instrumentation_scope": "Untimed diagnostics; output checked; phase timers and guest counters enabled.",
+  "kind": "guion-richards-gap-phase-profile",
+  "profile_limits": {
+    "allocation_counts": "estimated guest-budget charges, not host allocator calls",
+    "guest_branch_counts": "not hardware branch-misprediction counts",
+    "host_cpu_sampling": "not performed"
+  },
+  "profiles": {
+    "one_shot": {
+      "cache_status": "bypassed",
+      "elapsed_seconds_including_process_startup": 0.06316504199639894,
+      "native_compilation_profile_total_ns": 30510751,
+      "program_execute_ns_includes_native_compilation": true,
+      "reported_phase_timings_ns": {
+        "artifact_runtime_load_ns": 2391417,
+        "cli_to_report_excluding_process_startup_ns": 52606958,
+        "compiler_pipeline": {
+          "compiler_backend": "rust",
+          "rust_compiler_compile_ns": 1715375
+        },
+        "input_artifact_decode_ns": null,
+        "native_compilation": {
+          "finalize_nanoseconds": 39000,
+          "functions": [
+            {
+              "bytecode_blocks": 4,
+              "bytecode_instructions": 11,
+              "cranelift_ir_blocks": 21,
+              "cranelift_ir_instructions": 249,
+              "define_nanoseconds": 1322875,
+              "lowering_nanoseconds": 1699250,
+              "name": "next_worker_count",
+              "verification_nanoseconds": 201583
+            },
+            {
+              "bytecode_blocks": 9,
+              "bytecode_instructions": 46,
+              "cranelift_ir_blocks": 52,
+              "cranelift_ir_instructions": 575,
+              "define_nanoseconds": 952208,
+              "lowering_nanoseconds": 114167,
+              "name": "xor_d008",
+              "verification_nanoseconds": 88583
+            },
+            {
+              "bytecode_blocks": 10,
+              "bytecode_instructions": 91,
+              "cranelift_ir_blocks": 68,
+              "cranelift_ir_instructions": 1069,
+              "define_nanoseconds": 1460250,
+              "lowering_nanoseconds": 215542,
+              "name": "route_packet",
+              "verification_nanoseconds": 132417
+            },
+            {
+              "bytecode_blocks": 103,
+              "bytecode_instructions": 796,
+              "cranelift_ir_blocks": 652,
+              "cranelift_ir_instructions": 7549,
+              "define_nanoseconds": 20657459,
+              "lowering_nanoseconds": 2451125,
+              "name": "main",
+              "verification_nanoseconds": 1176292
+            }
+          ]
+        },
+        "program_execute_ns": 46306958,
+        "source_compile_or_cache_ns": 2689792
+      },
+      "runtime_profile": {
+        "dynamic_guest_conditional_branch_executions": 1555377,
+        "estimated_guest_allocation_budget_charges": {
+          "estimated_gross_bytes": 85753561,
+          "estimated_net_bytes": 85753561,
+          "estimated_refunded_bytes": 0,
+          "successful_events": 247240
+        },
+        "list_set": {
+          "copy_on_write_copies": 84497,
+          "copy_size_histogram": {
+            "buckets": {
+              "0-8": {
+                "copies": 84497,
+                "estimated_copy_bytes": 66189688
+              },
+              "129+": {
+                "copies": 0,
+                "estimated_copy_bytes": 0
+              },
+              "33-128": {
+                "copies": 0,
+                "estimated_copy_bytes": 0
+              },
+              "9-32": {
+                "copies": 0,
+                "estimated_copy_bytes": 0
+              }
+            },
+            "unit": "elements"
+          },
+          "estimated_copy_bytes": 66189688,
+          "in_place_updates": 209960,
+          "operations": 294457
+        },
+        "metric_limits": {
+          "allocation": "estimated guest-data budget charges, not host allocator calls",
+          "branches": "executed guest conditional branches, not hardware branch-misprediction counts"
+        },
+        "record_charges": {
+          "estimated_bytes": 19549886,
+          "events": 162722
+        },
+        "scope": "latest guest invocation"
+      }
+    },
+    "repeated_25": {
+      "cache_status": "bypassed",
+      "elapsed_seconds_including_process_startup": 0.3000988749845419,
+      "native_compilation_profile_total_ns": 27998042,
+      "program_execute_ns_includes_native_compilation": true,
+      "reported_phase_timings_ns": {
+        "artifact_runtime_load_ns": 1411791,
+        "cli_to_report_excluding_process_startup_ns": 293431417,
+        "compiler_pipeline": {
+          "compiler_backend": "rust",
+          "rust_compiler_compile_ns": 885125
+        },
+        "input_artifact_decode_ns": null,
+        "native_compilation": {
+          "finalize_nanoseconds": 58083,
+          "functions": [
+            {
+              "bytecode_blocks": 4,
+              "bytecode_instructions": 11,
+              "cranelift_ir_blocks": 21,
+              "cranelift_ir_instructions": 249,
+              "define_nanoseconds": 414250,
+              "lowering_nanoseconds": 82875,
+              "name": "next_worker_count",
+              "verification_nanoseconds": 52875
+            },
+            {
+              "bytecode_blocks": 9,
+              "bytecode_instructions": 46,
+              "cranelift_ir_blocks": 52,
+              "cranelift_ir_instructions": 575,
+              "define_nanoseconds": 879041,
+              "lowering_nanoseconds": 94583,
+              "name": "xor_d008",
+              "verification_nanoseconds": 75292
+            },
+            {
+              "bytecode_blocks": 10,
+              "bytecode_instructions": 91,
+              "cranelift_ir_blocks": 68,
+              "cranelift_ir_instructions": 1069,
+              "define_nanoseconds": 1617625,
+              "lowering_nanoseconds": 195625,
+              "name": "route_packet",
+              "verification_nanoseconds": 126334
+            },
+            {
+              "bytecode_blocks": 103,
+              "bytecode_instructions": 796,
+              "cranelift_ir_blocks": 652,
+              "cranelift_ir_instructions": 7549,
+              "define_nanoseconds": 20637584,
+              "lowering_nanoseconds": 2540875,
+              "name": "benchmark_once",
+              "verification_nanoseconds": 1223000
+            }
+          ]
+        },
+        "program_execute_ns": 290765250,
+        "source_compile_or_cache_ns": 1002875
+      },
+      "runtime_profile": {
+        "dynamic_guest_conditional_branch_executions": 38884476,
+        "estimated_guest_allocation_budget_charges": {
+          "estimated_gross_bytes": 2143839025,
+          "estimated_net_bytes": 2143839025,
+          "estimated_refunded_bytes": 0,
+          "successful_events": 6181179
+        },
+        "list_set": {
+          "copy_on_write_copies": 2112425,
+          "copy_size_histogram": {
+            "buckets": {
+              "0-8": {
+                "copies": 2112425,
+                "estimated_copy_bytes": 1654742200
+              },
+              "129+": {
+                "copies": 0,
+                "estimated_copy_bytes": 0
+              },
+              "33-128": {
+                "copies": 0,
+                "estimated_copy_bytes": 0
+              },
+              "9-32": {
+                "copies": 0,
+                "estimated_copy_bytes": 0
+              }
+            },
+            "unit": "elements"
+          },
+          "estimated_copy_bytes": 1654742200,
+          "in_place_updates": 5249000,
+          "operations": 7361425
+        },
+        "metric_limits": {
+          "allocation": "estimated guest-data budget charges, not host allocator calls",
+          "branches": "executed guest conditional branches, not hardware branch-misprediction counts"
+        },
+        "record_charges": {
+          "estimated_bytes": 488747150,
+          "events": 4068050
+        },
+        "scope": "latest guest invocation"
+      }
+    }
+  },
+  "richards_source_sha256": "5fb23857e7e2c3bcc7af247ebf9847408fbb0389e8cc895a582598f87f007f5f",
+  "runtime_source_sha256": "183fa26f2dec2a9e6dfdb0a270432cda29d3f2b0a99df5eb7856f4ce1d1a9f50",
+  "schema_version": 1,
+  "source_revision": "0824e0ed304eada17eaefc3f22be6a98fc52ee21",
+  "status": "passed"
+}

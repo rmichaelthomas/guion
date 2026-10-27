@@ -1,0 +1,236 @@
+{
+  "arm_medians_seconds": {
+    "guion_current_source_uncached": 0.048692624986870214,
+    "python_reference": 0.0744464170129504
+  },
+  "binary_sha256": "b07c40693591fe3775fe332e21221ee38ef4ac739e5d5adc9c01c3ffed8c3872",
+  "captured_at_utc": "2026-10-27T05:29:02.285623+00:00",
+  "commands": {
+    "guion_current_source_uncached": [
+      "/Users/rmichaelthomas/guion/target/perf-session/gap-baseline/bin/guion",
+      "run",
+      "--json",
+      "--no-cache",
+      "/Users/rmichaelthomas/guion/target/perf-session/gap-baseline/cohort/richards-gap-baseline-63qcfhtl/main.gu"
+    ],
+    "python_reference": [
+      "/opt/homebrew/opt/python@3.14/bin/python3.14",
+      "/Users/rmichaelthomas/guion/evaluation/development/famous_benchmarks/richards_reference.py"
+    ]
+  },
+  "current_over_python": {
+    "ci95_percentile": [
+      0.6203500382571574,
+      0.6637789342691459
+    ],
+    "median_ratio": 0.6418844889367221,
+    "ties_or_regressions": 0,
+    "win": true
+  },
+  "host": {
+    "architecture": "arm64",
+    "platform": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+    "python_version": "3.14.7"
+  },
+  "kind": "guion-richards-current-python-cohort",
+  "measurement_design": {
+    "expected_stdout_per_execution": [
+      "9297",
+      "23246"
+    ],
+    "guion_cache_condition": "--no-cache bypasses Guion's source cache",
+    "os_file_cache": "uncontrolled",
+    "output_checked_on_every_warmup_and_trial": true,
+    "peak_concurrency": 1,
+    "randomized_paired_order": true,
+    "trials_per_arm": 15,
+    "warmup_trials_per_arm": 2
+  },
+  "raw_samples_seconds": {
+    "guion_current_source_uncached": [
+      0.0512038340093568,
+      0.04791129200020805,
+      0.04994724999414757,
+      0.049156916997162625,
+      0.048925291979685426,
+      0.050211334018968046,
+      0.05188516600173898,
+      0.048029958008555695,
+      0.050150750001193956,
+      0.046988083980977535,
+      0.047444374999031425,
+      0.048692624986870214,
+      0.047626082989154384,
+      0.04739391600014642,
+      0.04829908401006833
+    ],
+    "python_reference": [
+      0.24676858299062587,
+      0.2198705000046175,
+      0.08044483300182037,
+      0.07871124998200685,
+      0.07370720800827257,
+      0.08010958301019855,
+      0.08394837501691654,
+      0.07336829099222086,
+      0.07348020799690858,
+      0.07320333298412152,
+      0.07040041600703262,
+      0.0720646670088172,
+      0.07247575002838857,
+      0.07639866700628772,
+      0.0744464170129504
+    ]
+  },
+  "runner_metadata": {
+    "native_backend_reports": {
+      "guion_current_source_uncached": {
+        "bytecode_blocks": 126,
+        "bytecode_instructions": 944,
+        "calls": 37547,
+        "compilations": 1,
+        "compile_profile": {
+          "finalize_nanoseconds": 33958,
+          "functions": [
+            {
+              "bytecode_blocks": 4,
+              "bytecode_instructions": 11,
+              "cranelift_ir_blocks": 21,
+              "cranelift_ir_instructions": 248,
+              "define_nanoseconds": 429333,
+              "lowering_nanoseconds": 85875,
+              "name": "next_worker_count",
+              "verification_nanoseconds": 58125
+            },
+            {
+              "bytecode_blocks": 9,
+              "bytecode_instructions": 46,
+              "cranelift_ir_blocks": 52,
+              "cranelift_ir_instructions": 572,
+              "define_nanoseconds": 830875,
+              "lowering_nanoseconds": 89666,
+              "name": "xor_d008",
+              "verification_nanoseconds": 75208
+            },
+            {
+              "bytecode_blocks": 10,
+              "bytecode_instructions": 91,
+              "cranelift_ir_blocks": 68,
+              "cranelift_ir_instructions": 1066,
+              "define_nanoseconds": 1625417,
+              "lowering_nanoseconds": 191041,
+              "name": "route_packet",
+              "verification_nanoseconds": 130125
+            },
+            {
+              "bytecode_blocks": 103,
+              "bytecode_instructions": 796,
+              "cranelift_ir_blocks": 652,
+              "cranelift_ir_instructions": 7510,
+              "define_nanoseconds": 20128125,
+              "lowering_nanoseconds": 2259084,
+              "name": "main",
+              "verification_nanoseconds": 1221292
+            }
+          ]
+        },
+        "compiled_functions": [
+          "next_worker_count",
+          "xor_d008",
+          "route_packet",
+          "main"
+        ],
+        "cranelift_ir_blocks": 793,
+        "cranelift_ir_instructions": 9396,
+        "deoptimizations": 0
+      }
+    },
+    "paired_trial_order": [
+      [
+        "python_reference",
+        "guion_current_source_uncached"
+      ],
+      [
+        "python_reference",
+        "guion_current_source_uncached"
+      ],
+      [
+        "guion_current_source_uncached",
+        "python_reference"
+      ],
+      [
+        "python_reference",
+        "guion_current_source_uncached"
+      ],
+      [
+        "guion_current_source_uncached",
+        "python_reference"
+      ],
+      [
+        "guion_current_source_uncached",
+        "python_reference"
+      ],
+      [
+        "python_reference",
+        "guion_current_source_uncached"
+      ],
+      [
+        "python_reference",
+        "guion_current_source_uncached"
+      ],
+      [
+        "python_reference",
+        "guion_current_source_uncached"
+      ],
+      [
+        "guion_current_source_uncached",
+        "python_reference"
+      ],
+      [
+        "guion_current_source_uncached",
+        "python_reference"
+      ],
+      [
+        "guion_current_source_uncached",
+        "python_reference"
+      ],
+      [
+        "python_reference",
+        "guion_current_source_uncached"
+      ],
+      [
+        "guion_current_source_uncached",
+        "python_reference"
+      ],
+      [
+        "python_reference",
+        "guion_current_source_uncached"
+      ]
+    ],
+    "source_cache_states": {
+      "guion_current_source_uncached": [
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed"
+      ]
+    }
+  },
+  "schema_version": 1,
+  "source_revision": "0824e0ed304eada17eaefc3f22be6a98fc52ee21",
+  "source_sha256": "5fb23857e7e2c3bcc7af247ebf9847408fbb0389e8cc895a582598f87f007f5f",
+  "status": "passed"
+}
