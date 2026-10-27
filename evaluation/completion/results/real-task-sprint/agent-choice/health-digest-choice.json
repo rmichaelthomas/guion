@@ -1,0 +1,5 @@
+{
+  "choice": "Guion",
+  "rationale": "Both implementations handle bounded concurrency, slow-response deadlines, errors, and digest output. Guion\u2019s `parallel_map`, request timeout, and atomic writes fit the task; on the frozen case its median was 0.532s versus Python\u2019s 0.629s. That measurement includes oracle-check time, so it is not a pure runtime comparison, but the observed edge favors Guion for repeated runs on a controlled host.",
+  "trial_observation": "The first run could not bind the local fixture server under the sandbox. Rerunning the exact command with localhost binding permitted succeeded: all 10 cases passed for Guion and all 10 for Python, with every check passing."
+}

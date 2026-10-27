@@ -1,0 +1,41 @@
+{
+  "passed": true,
+  "applications": {
+    "sla-report": {
+      "initial": "miss",
+      "relocated": "hit"
+    },
+    "jsonl-summary": {
+      "initial": "miss",
+      "relocated": "hit"
+    },
+    "release-notes": {
+      "initial": "miss",
+      "relocated": "hit"
+    },
+    "calendar-conflicts": {
+      "initial": "miss",
+      "relocated": "hit"
+    },
+    "webhook-replay": {
+      "initial": "miss",
+      "relocated": "hit"
+    },
+    "health-digest": {
+      "initial": "miss",
+      "relocated": "hit"
+    },
+    "config-migrator": {
+      "initial": "miss",
+      "relocated": "hit"
+    },
+    "doc-index": {
+      "initial": "miss",
+      "relocated": "hit"
+    },
+    "lockfile-auditor": {
+      "initial": "miss",
+      "relocated": "hit"
+    }
+  }
+}

@@ -188,7 +188,7 @@ fn all_nine_applications_pass_initial_and_follow_up_from_relocated_packages() {
     let runner = root.join("evaluation/completion/run_applications.py");
     let reports_root = std::env::var_os("GUION_APPLICATION_RESULTS")
         .map(PathBuf::from)
-        .unwrap_or_else(|| root.join("evaluation/completion/results/guion-applications"));
+        .unwrap_or_else(|| scratch.join("reports"));
     let output = run(
         Command::new("python3")
             .arg(runner)

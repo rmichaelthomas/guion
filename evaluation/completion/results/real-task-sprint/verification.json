@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "baseline_commit": "9d57434",
+  "branch": "codex/guion-real-tasks-richards",
+  "host": "macOS ARM64",
+  "checks": [
+    {
+      "name": "workspace tests",
+      "command": "cargo test --workspace --release --locked --offline",
+      "status": "passed",
+      "tests_passed": 359,
+      "tests_failed": 0,
+      "harness_invocations": 36,
+      "note": "Final run after directing generated application and runtime memory reports into ignored repository scratch."
+    },
+    {
+      "name": "Rust formatting",
+      "command": "cargo fmt --all -- --check",
+      "status": "passed"
+    },
+    {
+      "name": "Rust lint",
+      "command": "cargo clippy --workspace --all-targets --release --locked --offline -- -D warnings",
+      "status": "passed"
+    },
+    {
+      "name": "performance harness tests",
+      "command": "python3 -m unittest discover -s evaluation/completion/performance -p test_runner.py",
+      "status": "passed",
+      "tests_passed": 34
+    },
+    {
+      "name": "first-source harness tests",
+      "command": "python3 -m unittest discover -s evaluation/first_source_speed -p test_run.py",
+      "status": "passed",
+      "tests_passed": 5
+    },
+    {
+      "name": "generated agent reference",
+      "command": "cargo run --release --locked --offline -p xtask -- agent-reference --check",
+      "status": "passed"
+    },
+    {
+      "name": "switch-condition evidence ledger",
+      "command": "python3 evaluation/agent-choice/validate_switch_conditions.py",
+      "status": "passed",
+      "source_decisions": 36,
+      "condition_groups": 19
+    },
+    {
+      "name": "macOS ARM64 private release checks",
+      "report": "macos-release-checks.json",
+      "status": "passed",
+      "checks_passed": 11,
+      "checks_failed": 0,
+      "archive_bytes": 5442799,
+      "archive_sha256": "433ab7280a0f3b1717bc26bac24a2034da604fcfb022670c9f9f81c7dc6b654c"
+    },
+    {
+      "name": "WASM VM build and browser ABI smoke",
+      "report": "wasm-browser-smoke.json",
+      "status": "passed",
+      "note": "Node WebAssembly smoke test; not a graphical-browser test."
+    },
+    {
+      "name": "Linux ARM64 and x86_64 release target matrices",
+      "status": "pending_pr_ci",
+      "note": "The current build was not run locally on Linux. CI is sequential and must finish before cross-platform validation is complete."
+    }
+  ],
+  "retained_full_test_log": "workspace-tests.log",
+  "plain_english_results": "summary.md"
+}

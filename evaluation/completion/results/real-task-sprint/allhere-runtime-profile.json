@@ -1,0 +1,92 @@
+{
+  "before": {
+    "dynamic_guest_conditional_branch_executions": 1255736,
+    "estimated_guest_allocation_budget_charges": {
+      "estimated_gross_bytes": 121614769,
+      "estimated_net_bytes": 121614769,
+      "estimated_refunded_bytes": 0,
+      "successful_events": 4493042
+    },
+    "list_set": {
+      "copy_on_write_copies": 0,
+      "copy_size_histogram": {
+        "buckets": {
+          "0-8": {
+            "copies": 0,
+            "estimated_copy_bytes": 0
+          },
+          "129+": {
+            "copies": 0,
+            "estimated_copy_bytes": 0
+          },
+          "33-128": {
+            "copies": 0,
+            "estimated_copy_bytes": 0
+          },
+          "9-32": {
+            "copies": 0,
+            "estimated_copy_bytes": 0
+          }
+        },
+        "unit": "elements"
+      },
+      "estimated_copy_bytes": 0,
+      "in_place_updates": 397,
+      "operations": 397
+    },
+    "metric_limits": {
+      "allocation": "estimated guest-data budget charges, not host allocator calls",
+      "branches": "executed guest conditional branches, not hardware branch-misprediction counts"
+    },
+    "record_charges": {
+      "estimated_bytes": 796498,
+      "events": 1600
+    },
+    "scope": "latest guest invocation"
+  },
+  "after": {
+    "dynamic_guest_conditional_branch_executions": 1344882,
+    "estimated_guest_allocation_budget_charges": {
+      "estimated_gross_bytes": 66310606,
+      "estimated_net_bytes": 66310606,
+      "estimated_refunded_bytes": 0,
+      "successful_events": 4962554
+    },
+    "list_set": {
+      "copy_on_write_copies": 0,
+      "copy_size_histogram": {
+        "buckets": {
+          "0-8": {
+            "copies": 0,
+            "estimated_copy_bytes": 0
+          },
+          "129+": {
+            "copies": 0,
+            "estimated_copy_bytes": 0
+          },
+          "33-128": {
+            "copies": 0,
+            "estimated_copy_bytes": 0
+          },
+          "9-32": {
+            "copies": 0,
+            "estimated_copy_bytes": 0
+          }
+        },
+        "unit": "elements"
+      },
+      "estimated_copy_bytes": 0,
+      "in_place_updates": 397,
+      "operations": 397
+    },
+    "metric_limits": {
+      "allocation": "estimated guest-data budget charges, not host allocator calls",
+      "branches": "executed guest conditional branches, not hardware branch-misprediction counts"
+    },
+    "record_charges": {
+      "estimated_bytes": 796498,
+      "events": 1600
+    },
+    "scope": "latest guest invocation"
+  }
+}

@@ -1,0 +1,891 @@
+{
+  "schema_version": 1,
+  "kind": "real-task-delivery-modes",
+  "trials": 7,
+  "guion_sha256": "705b5cc69659f9863a5e0839459aebda2b42dfdc43f39ad5f36e7939eb496bec",
+  "measurement": "randomized pairs; process plus oracle-check time; setup excluded; cached source copied from a verified warm cache; OS cache uncontrolled",
+  "applications": {
+    "sla-report": {
+      "case_id": "sla-initial-report",
+      "cache_preflight": "hit",
+      "package_file_bytes": 12424785,
+      "samples_seconds": {
+        "guion_uncached": [
+          0.015725,
+          0.014868,
+          0.015568,
+          0.013358,
+          0.014396,
+          0.014288,
+          0.013808
+        ],
+        "guion_cached": [
+          0.014805,
+          0.014792,
+          0.014735,
+          0.015141,
+          0.015075,
+          0.016574,
+          0.014019
+        ],
+        "guion_package": [
+          0.023145,
+          0.02109,
+          0.021325,
+          0.021267,
+          0.022235,
+          0.021403,
+          0.023192
+        ],
+        "python": [
+          0.089889,
+          0.092757,
+          0.089374,
+          0.092553,
+          0.092023,
+          0.093666,
+          0.098832
+        ]
+      },
+      "paired_order": [
+        [
+          "python",
+          "guion_uncached",
+          "guion_package",
+          "guion_cached"
+        ],
+        [
+          "guion_cached",
+          "guion_package",
+          "guion_uncached",
+          "python"
+        ],
+        [
+          "guion_package",
+          "guion_cached",
+          "python",
+          "guion_uncached"
+        ],
+        [
+          "guion_package",
+          "guion_uncached",
+          "guion_cached",
+          "python"
+        ],
+        [
+          "python",
+          "guion_cached",
+          "guion_package",
+          "guion_uncached"
+        ],
+        [
+          "guion_package",
+          "guion_uncached",
+          "python",
+          "guion_cached"
+        ],
+        [
+          "python",
+          "guion_uncached",
+          "guion_cached",
+          "guion_package"
+        ]
+      ],
+      "median_seconds": {
+        "guion_uncached": 0.014396,
+        "guion_cached": 0.014805,
+        "guion_package": 0.021403,
+        "python": 0.092553
+      },
+      "median_over_python": {
+        "guion_uncached": 0.1564391510817948,
+        "guion_cached": 0.1638177412168697,
+        "guion_package": 0.23466083859478712
+      }
+    },
+    "jsonl-summary": {
+      "case_id": "jsonl-normal-summary",
+      "cache_preflight": "hit",
+      "package_file_bytes": 12444825,
+      "samples_seconds": {
+        "guion_uncached": [
+          0.014557,
+          0.015104,
+          0.015975,
+          0.01537,
+          0.014456,
+          0.014538,
+          0.0139
+        ],
+        "guion_cached": [
+          0.014626,
+          0.014557,
+          0.014448,
+          0.01408,
+          0.015452,
+          0.015169,
+          0.013137
+        ],
+        "guion_package": [
+          0.021222,
+          0.020951,
+          0.022055,
+          0.021669,
+          0.020098,
+          0.022791,
+          0.022651
+        ],
+        "python": [
+          0.090604,
+          0.095079,
+          0.101846,
+          0.098195,
+          0.092006,
+          0.0936,
+          0.090513
+        ]
+      },
+      "paired_order": [
+        [
+          "guion_package",
+          "guion_cached",
+          "guion_uncached",
+          "python"
+        ],
+        [
+          "python",
+          "guion_uncached",
+          "guion_cached",
+          "guion_package"
+        ],
+        [
+          "guion_cached",
+          "guion_package",
+          "python",
+          "guion_uncached"
+        ],
+        [
+          "python",
+          "guion_uncached",
+          "guion_cached",
+          "guion_package"
+        ],
+        [
+          "python",
+          "guion_cached",
+          "guion_uncached",
+          "guion_package"
+        ],
+        [
+          "guion_uncached",
+          "python",
+          "guion_package",
+          "guion_cached"
+        ],
+        [
+          "guion_uncached",
+          "guion_cached",
+          "python",
+          "guion_package"
+        ]
+      ],
+      "median_seconds": {
+        "guion_uncached": 0.014557,
+        "guion_cached": 0.014557,
+        "guion_package": 0.021669,
+        "python": 0.0936
+      },
+      "median_over_python": {
+        "guion_uncached": 0.15685446654753255,
+        "guion_cached": 0.15310426066744498,
+        "guion_package": 0.22067315036407148
+      }
+    },
+    "release-notes": {
+      "case_id": "release-notes-initial",
+      "cache_preflight": "hit",
+      "package_file_bytes": 12468460,
+      "samples_seconds": {
+        "guion_uncached": [
+          0.021702,
+          0.022483,
+          0.023163,
+          0.023669,
+          0.021231,
+          0.021828,
+          0.022144
+        ],
+        "guion_cached": [
+          0.021953,
+          0.020972,
+          0.020504,
+          0.023331,
+          0.023011,
+          0.022478,
+          0.02258
+        ],
+        "guion_package": [
+          0.02827,
+          0.02869,
+          0.031849,
+          0.029855,
+          0.029219,
+          0.028908,
+          0.030589
+        ],
+        "python": [
+          0.095252,
+          0.095366,
+          0.096313,
+          0.098122,
+          0.096608,
+          0.095217,
+          0.096539
+        ]
+      },
+      "paired_order": [
+        [
+          "guion_uncached",
+          "python",
+          "guion_cached",
+          "guion_package"
+        ],
+        [
+          "guion_cached",
+          "guion_uncached",
+          "python",
+          "guion_package"
+        ],
+        [
+          "guion_package",
+          "guion_cached",
+          "python",
+          "guion_uncached"
+        ],
+        [
+          "python",
+          "guion_uncached",
+          "guion_cached",
+          "guion_package"
+        ],
+        [
+          "guion_cached",
+          "python",
+          "guion_package",
+          "guion_uncached"
+        ],
+        [
+          "guion_package",
+          "python",
+          "guion_uncached",
+          "guion_cached"
+        ],
+        [
+          "python",
+          "guion_uncached",
+          "guion_package",
+          "guion_cached"
+        ]
+      ],
+      "median_seconds": {
+        "guion_uncached": 0.022144,
+        "guion_cached": 0.022478,
+        "guion_package": 0.029219,
+        "python": 0.096313
+      },
+      "median_over_python": {
+        "guion_uncached": 0.229378800277608,
+        "guion_cached": 0.23389510974839184,
+        "guion_package": 0.3036012476763603
+      }
+    },
+    "calendar-conflicts": {
+      "case_id": "calendar-overlap-and-boundary",
+      "cache_preflight": "hit",
+      "package_file_bytes": 12474388,
+      "samples_seconds": {
+        "guion_uncached": [
+          0.233816,
+          0.236733,
+          0.234476,
+          0.229418,
+          0.232145,
+          0.238176,
+          0.236519
+        ],
+        "guion_cached": [
+          0.231457,
+          0.236665,
+          0.236006,
+          0.247904,
+          0.233506,
+          0.241176,
+          0.232506
+        ],
+        "guion_package": [
+          0.243834,
+          0.249058,
+          0.25299,
+          0.244798,
+          0.231079,
+          0.248488,
+          0.240495
+        ],
+        "python": [
+          0.359506,
+          0.359669,
+          0.35721,
+          0.387418,
+          0.354997,
+          0.357419,
+          0.34941
+        ]
+      },
+      "paired_order": [
+        [
+          "guion_cached",
+          "guion_uncached",
+          "python",
+          "guion_package"
+        ],
+        [
+          "guion_cached",
+          "guion_uncached",
+          "guion_package",
+          "python"
+        ],
+        [
+          "guion_uncached",
+          "guion_cached",
+          "python",
+          "guion_package"
+        ],
+        [
+          "guion_uncached",
+          "guion_package",
+          "guion_cached",
+          "python"
+        ],
+        [
+          "guion_cached",
+          "guion_uncached",
+          "python",
+          "guion_package"
+        ],
+        [
+          "guion_uncached",
+          "guion_package",
+          "guion_cached",
+          "python"
+        ],
+        [
+          "guion_cached",
+          "guion_uncached",
+          "guion_package",
+          "python"
+        ]
+      ],
+      "median_seconds": {
+        "guion_uncached": 0.234476,
+        "guion_cached": 0.236006,
+        "guion_package": 0.244798,
+        "python": 0.357419
+      },
+      "median_over_python": {
+        "guion_uncached": 0.6564093950337336,
+        "guion_cached": 0.6580077793749252,
+        "guion_package": 0.6882888297415644
+      }
+    },
+    "webhook-replay": {
+      "case_id": "webhook-durable-retry-and-privacy",
+      "cache_preflight": "hit",
+      "package_file_bytes": 12479596,
+      "samples_seconds": {
+        "guion_uncached": [
+          0.141199,
+          0.148773,
+          0.140786,
+          0.13663999999999998,
+          0.148142,
+          0.139872,
+          0.14546800000000001
+        ],
+        "guion_cached": [
+          0.127452,
+          0.292543,
+          0.137143,
+          0.138972,
+          0.141618,
+          0.137817,
+          0.130217
+        ],
+        "guion_package": [
+          0.19637,
+          0.202481,
+          0.19586,
+          0.22099,
+          0.196944,
+          0.205492,
+          0.20148
+        ],
+        "python": [
+          0.799634,
+          0.79552,
+          0.794855,
+          0.843725,
+          0.842788,
+          0.8514390000000001,
+          0.819594
+        ]
+      },
+      "paired_order": [
+        [
+          "guion_uncached",
+          "guion_package",
+          "guion_cached",
+          "python"
+        ],
+        [
+          "guion_cached",
+          "python",
+          "guion_package",
+          "guion_uncached"
+        ],
+        [
+          "python",
+          "guion_cached",
+          "guion_uncached",
+          "guion_package"
+        ],
+        [
+          "python",
+          "guion_package",
+          "guion_uncached",
+          "guion_cached"
+        ],
+        [
+          "python",
+          "guion_package",
+          "guion_uncached",
+          "guion_cached"
+        ],
+        [
+          "guion_uncached",
+          "guion_cached",
+          "guion_package",
+          "python"
+        ],
+        [
+          "guion_uncached",
+          "python",
+          "guion_package",
+          "guion_cached"
+        ]
+      ],
+      "median_seconds": {
+        "guion_uncached": 0.141199,
+        "guion_cached": 0.137817,
+        "guion_package": 0.20148,
+        "python": 0.819594
+      },
+      "median_over_python": {
+        "guion_uncached": 0.17657953513732533,
+        "guion_cached": 0.1647124359240274,
+        "guion_package": 0.24582903242337056
+      }
+    },
+    "health-digest": {
+      "case_id": "health-mixed-results-and-cap",
+      "cache_preflight": "hit",
+      "package_file_bytes": 12454761,
+      "samples_seconds": {
+        "guion_uncached": [
+          0.528351,
+          0.534107,
+          0.52794,
+          0.543868,
+          0.530305,
+          0.529261,
+          0.529673
+        ],
+        "guion_cached": [
+          0.530503,
+          0.531279,
+          0.524386,
+          0.526988,
+          0.537373,
+          0.52841,
+          0.530272
+        ],
+        "guion_package": [
+          0.537818,
+          0.560698,
+          0.539388,
+          0.539946,
+          0.548911,
+          0.550325,
+          0.543943
+        ],
+        "python": [
+          0.628538,
+          0.643429,
+          0.628002,
+          0.629735,
+          0.620082,
+          0.628848,
+          0.635039
+        ]
+      },
+      "paired_order": [
+        [
+          "python",
+          "guion_cached",
+          "guion_package",
+          "guion_uncached"
+        ],
+        [
+          "guion_uncached",
+          "python",
+          "guion_package",
+          "guion_cached"
+        ],
+        [
+          "guion_cached",
+          "guion_package",
+          "guion_uncached",
+          "python"
+        ],
+        [
+          "guion_package",
+          "guion_cached",
+          "python",
+          "guion_uncached"
+        ],
+        [
+          "guion_cached",
+          "python",
+          "guion_uncached",
+          "guion_package"
+        ],
+        [
+          "guion_package",
+          "guion_uncached",
+          "guion_cached",
+          "python"
+        ],
+        [
+          "python",
+          "guion_uncached",
+          "guion_package",
+          "guion_cached"
+        ]
+      ],
+      "median_seconds": {
+        "guion_uncached": 0.529673,
+        "guion_cached": 0.530272,
+        "guion_package": 0.543943,
+        "python": 0.628848
+      },
+      "median_over_python": {
+        "guion_uncached": 0.840666112528304,
+        "guion_cached": 0.8368408933916647,
+        "guion_package": 0.8588953538364528
+      }
+    },
+    "config-migrator": {
+      "case_id": "config-migrator-v1-to-v2",
+      "cache_preflight": "hit",
+      "package_file_bytes": 12406167,
+      "samples_seconds": {
+        "guion_uncached": [
+          0.012312,
+          0.013541,
+          0.013298,
+          0.013815,
+          0.014197,
+          0.012868,
+          0.013973
+        ],
+        "guion_cached": [
+          0.012841,
+          0.012999,
+          0.013356,
+          0.014111,
+          0.012716,
+          0.013191,
+          0.013448
+        ],
+        "guion_package": [
+          0.01987,
+          0.022037,
+          0.019789,
+          0.021102,
+          0.021764,
+          0.019962,
+          0.021284
+        ],
+        "python": [
+          0.098442,
+          0.099909,
+          0.095096,
+          0.094933,
+          0.091045,
+          0.09501,
+          0.097608
+        ]
+      },
+      "paired_order": [
+        [
+          "guion_package",
+          "python",
+          "guion_cached",
+          "guion_uncached"
+        ],
+        [
+          "guion_cached",
+          "python",
+          "guion_uncached",
+          "guion_package"
+        ],
+        [
+          "guion_uncached",
+          "python",
+          "guion_package",
+          "guion_cached"
+        ],
+        [
+          "guion_package",
+          "guion_uncached",
+          "python",
+          "guion_cached"
+        ],
+        [
+          "python",
+          "guion_uncached",
+          "guion_cached",
+          "guion_package"
+        ],
+        [
+          "guion_cached",
+          "guion_package",
+          "guion_uncached",
+          "python"
+        ],
+        [
+          "guion_cached",
+          "guion_uncached",
+          "guion_package",
+          "python"
+        ]
+      ],
+      "median_seconds": {
+        "guion_uncached": 0.013541,
+        "guion_cached": 0.013191,
+        "guion_package": 0.021102,
+        "python": 0.095096
+      },
+      "median_over_python": {
+        "guion_uncached": 0.13983763775553126,
+        "guion_cached": 0.13883801705083676,
+        "guion_package": 0.21805589705761824
+      }
+    },
+    "doc-index": {
+      "case_id": "doc-index-build-check-backlinks",
+      "cache_preflight": "hit",
+      "package_file_bytes": 12511535,
+      "samples_seconds": {
+        "guion_uncached": [
+          0.051734,
+          0.051129999999999995,
+          0.049007999999999996,
+          0.048089,
+          0.052515,
+          0.049224000000000004,
+          0.051081
+        ],
+        "guion_cached": [
+          0.050705,
+          0.04937,
+          0.049679,
+          0.048849000000000004,
+          0.047793,
+          0.04980999999999999,
+          0.046661
+        ],
+        "guion_package": [
+          0.086739,
+          0.073745,
+          0.06979,
+          0.065365,
+          0.069949,
+          0.069776,
+          0.069288
+        ],
+        "python": [
+          0.342209,
+          0.289626,
+          0.289232,
+          0.287338,
+          0.28479,
+          0.28544,
+          0.278467
+        ]
+      },
+      "paired_order": [
+        [
+          "python",
+          "guion_package",
+          "guion_uncached",
+          "guion_cached"
+        ],
+        [
+          "guion_uncached",
+          "guion_cached",
+          "guion_package",
+          "python"
+        ],
+        [
+          "guion_cached",
+          "python",
+          "guion_uncached",
+          "guion_package"
+        ],
+        [
+          "python",
+          "guion_cached",
+          "guion_package",
+          "guion_uncached"
+        ],
+        [
+          "guion_package",
+          "python",
+          "guion_uncached",
+          "guion_cached"
+        ],
+        [
+          "guion_package",
+          "guion_cached",
+          "python",
+          "guion_uncached"
+        ],
+        [
+          "guion_cached",
+          "guion_uncached",
+          "guion_package",
+          "python"
+        ]
+      ],
+      "median_seconds": {
+        "guion_uncached": 0.051081,
+        "guion_cached": 0.04937,
+        "guion_package": 0.06979,
+        "python": 0.287338
+      },
+      "median_over_python": {
+        "guion_uncached": 0.17244955156950673,
+        "guion_cached": 0.1700053595417244,
+        "guion_package": 0.24561606797991503
+      }
+    },
+    "lockfile-auditor": {
+      "case_id": "lockfile-auditor-policy-report",
+      "cache_preflight": "hit",
+      "package_file_bytes": 12457441,
+      "samples_seconds": {
+        "guion_uncached": [
+          0.017493,
+          0.018216,
+          0.015744,
+          0.018735,
+          0.016215,
+          0.019025,
+          0.01709
+        ],
+        "guion_cached": [
+          0.01719,
+          0.019207,
+          0.01747,
+          0.016159,
+          0.016537,
+          0.017211,
+          0.015513
+        ],
+        "guion_package": [
+          0.028125,
+          0.02769,
+          0.026031,
+          0.027438,
+          0.02575,
+          0.027248,
+          0.027061
+        ],
+        "python": [
+          0.104073,
+          0.099704,
+          0.10471,
+          0.10321,
+          0.115485,
+          0.107425,
+          0.107362
+        ]
+      },
+      "paired_order": [
+        [
+          "python",
+          "guion_cached",
+          "guion_uncached",
+          "guion_package"
+        ],
+        [
+          "guion_uncached",
+          "guion_cached",
+          "guion_package",
+          "python"
+        ],
+        [
+          "guion_uncached",
+          "guion_package",
+          "python",
+          "guion_cached"
+        ],
+        [
+          "guion_cached",
+          "python",
+          "guion_package",
+          "guion_uncached"
+        ],
+        [
+          "python",
+          "guion_package",
+          "guion_uncached",
+          "guion_cached"
+        ],
+        [
+          "guion_package",
+          "guion_cached",
+          "guion_uncached",
+          "python"
+        ],
+        [
+          "guion_cached",
+          "guion_package",
+          "python",
+          "guion_uncached"
+        ]
+      ],
+      "median_seconds": {
+        "guion_uncached": 0.017493,
+        "guion_cached": 0.01719,
+        "guion_package": 0.027248,
+        "python": 0.10471
+      },
+      "median_over_python": {
+        "guion_uncached": 0.168083941079819,
+        "guion_cached": 0.16021410286246218,
+        "guion_package": 0.2536467302769374
+      }
+    }
+  }
+}

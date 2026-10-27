@@ -1,0 +1,585 @@
+   Compiling ring v0.17.14
+   Compiling rustls v0.23.43
+   Compiling rustls-webpki v0.103.15
+   Compiling tokio-rustls v0.26.4
+   Compiling hyper-rustls v0.27.9
+   Compiling reqwest v0.12.28
+   Compiling guion-runtime v0.1.0 (/Users/rmichaelthomas/guion/crates/runtime)
+   Compiling guion-cli v0.1.0 (/Users/rmichaelthomas/guion/crates/cli)
+    Finished `release` profile [optimized] target(s) in 25.82s
+     Running unittests src/lib.rs (target/release/deps/guion_bootstrap-951e491f71390e6b)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/main.rs (target/release/deps/guion_stage0-ccf2ce218c0b7584)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/main.rs (target/release/deps/guion-5e756b9b34aa3e0a)
+
+running 16 tests
+test native_dependencies::tests::detects_elf_images_without_relying_on_filename_extensions ... ok
+test compiler_driver::tests::compiler_cache_identity_includes_compiler_build_fingerprint ... ok
+test native_dependencies::tests::detects_macho_images_without_relying_on_filename_extensions ... ok
+test native_dependencies::tests::expands_origin_relative_elf_dependencies_from_the_image_directory ... ok
+test native_dependencies::tests::parses_quoted_python_record_paths_with_commas ... ok
+test native_dependencies::tests::maps_x86_64_readelf_machine_and_linux_target ... ok
+test native_dependencies::tests::parses_linux_dependency_paths_that_contain_spaces ... ok
+test native_dependencies::tests::parses_elf_direct_dependencies_and_runtime_resolutions ... ok
+test native_dependencies::tests::resolves_x86_64_linux_library_paths ... ok
+test native_dependencies::tests::distinguishes_macho_install_id_from_dynamic_loads ... ok
+test native_dependencies::tests::reads_each_runpath_from_load_commands ... ok
+test tests::runtime_profile_is_only_added_when_enabled ... ok
+test tests::package_publication_never_replaces_a_destination_created_after_preflight ... ok
+test native_packages::archive_tests::package_tar_extraction_accepts_files_and_rejects_escape_or_links ... ok
+test native_packages::archive_tests::url_package_dependency_paths_stay_in_archive_and_local_paths_may_be_external ... ok
+test tests::copies_and_records_rust_notices_from_the_runtime_distribution ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/application_acceptance.rs (target/release/deps/application_acceptance-c31d441981b112db)
+
+running 1 test
+test all_nine_applications_pass_initial_and_follow_up_from_relocated_packages ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 29.21s
+
+     Running tests/artifact_writer.rs (target/release/deps/artifact_writer-c742569180428f62)
+
+running 2 tests
+test native_reader_rejects_truncated_overflow_bad_opcode_and_forged_targets ... ok
+test guion_artifact_writer_matches_native_writer_and_reader ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
+
+     Running tests/bootstrap.rs (target/release/deps/bootstrap-a56e673f4e8c2d6f)
+
+running 1 test
+test compiler_stage_equality has been running for over 60 seconds
+test compiler_stage_equality ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 64.63s
+
+     Running tests/builder_lifecycle.rs (target/release/deps/builder_lifecycle-1fa0b2819a88412b)
+
+running 1 test
+test installed_core_completes_new_repair_format_lint_build_package_install_and_run ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.22s
+
+     Running tests/cli.rs (target/release/deps/cli-78b69416aca35b89)
+
+running 50 tests
+test assemble_ir_rejects_unknown_opcodes_without_creating_an_artifact ... ok
+test check_json_reports_compiler_success_and_source_diagnostics ... ok
+test build_json_reports_artifact_identity_and_source_diagnostics ... ok
+test core_doctor_json_reports_disabled_python_interop ... ok
+test build_creates_a_portable_artifact_that_runs_without_source ... ok
+test assemble_ir_resolves_symbolic_control_flow_labels ... ok
+test build_defaults_to_the_guion_artifact_extension ... ok
+test assemble_ir_creates_a_runnable_versioned_artifact ... ok
+test doc_json_reports_function_record_and_python_signatures ... ok
+test formatter_normalizes_line_endings_and_trailing_space_without_losing_comments_or_strings ... ok
+test inspect_json_explains_exact_http_grants_for_runtime_urls ... ok
+test built_artifact_carries_runtime_limits_when_moved_outside_project ... ok
+test inspect_json_reports_transitive_runtime_and_opaque_python_effects ... ok
+test cli_file_capabilities_are_limited_to_the_source_directory ... ok
+test inspect_json_compares_reachable_effects_with_manifest_grants ... ok
+test legacy_veritas_project_names_remain_readable_during_the_transition ... ok
+test new_creates_a_guion_project_using_guion_names ... ok
+test mutable_json_array_append_fits_a_bounded_allocation_budget ... ok
+test new_refuses_to_overwrite_an_existing_project ... ok
+test agent_failure_path_recipe_reports_four_expected_failures ... ok
+test guion_source_compiler_emits_ir_that_assembles_and_runs ... ok
+test native_lowering_coalesces_straight_line_bytecode ... ok
+test clock_grant_is_reported_and_can_be_enabled_by_manifest_or_run_option ... ok
+test agent_sqlite_recipe_handles_success_and_read_parse_open_query_failures ... ok
+test new_creates_a_runnable_project_without_requiring_python_naming ... ok
+test package_rejects_python_calls_instead_of_emitting_a_broken_bundle ... ok
+test package_rejects_resources_that_collide_with_runtime_files ... ok
+test project_manifest_rejects_entry_path_escape ... ok
+test parallel_map_reuses_one_native_backend_across_workers ... ok
+test project_runtime_manifest_enforces_the_allocation_budget ... ok
+test project_network_manifest_grants_only_the_listed_host ... ok
+test run_accepts_an_explicit_one_invocation_http_host_grant ... ok
+test run_executes_a_source_file_and_surfaces_source_errors ... ok
+test run_json_exposes_opt_in_compile_and_runtime_phase_timings ... ok
+test run_passes_user_arguments_to_guion_source ... ok
+test run_json_report_captures_program_output_status_and_runtime_failure ... ok
+test run_maps_main_results_to_process_exit_statuses ... ok
+test run_preserves_output_produced_before_a_runtime_error ... ok
+test project_import_compiles_the_module_graph_and_calls_only_public_functions ... ok
+test test_json_report_is_machine_readable_on_success_and_failure ... ok
+test source_run_cache_no_cache_concurrent_writers_and_clean_are_bounded ... ok
+test source_run_cache_hits_repeated_graph_and_invalidates_direct_and_transitive_edits ... ok
+test test_runs_discovered_source_tests_and_fails_on_assertions ... ok
+test source_run_cache_rejects_corrupt_entries_and_project_root_symlink_escape ... ok
+test source_run_cache_invalidates_manifest_lock_and_standard_library_changes ... ok
+test package_launcher_uses_and_cleans_a_temporary_uv_cache_when_bundle_is_read_only ... ok
+test packaged_cli_can_read_inputs_from_its_invocation_directory ... ok
+test package_builds_a_relocatable_app_with_declared_resources ... ok
+test package_json_reports_package_identity_verification_and_argument_failures ... ok
+test guion_source_compiler_compiles_itself_and_real_programs_with_parity has been running for over 60 seconds
+test guion_source_compiler_compiles_itself_and_real_programs_with_parity ... ok
+
+test result: ok. 50 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 94.16s
+
+     Running tests/compiler_conformance.rs (target/release/deps/compiler_conformance-58938083eded3b70)
+
+running 39 tests
+test option_and_result_constructors_use_nested_expected_types ... ok
+test accepts_unicode_scalar_escapes_in_text_literals ... ok
+test parallel_workers_cannot_accept_or_return_native_resources ... ok
+test rejects_the_current_type_and_control_flow_failures_with_stable_codes ... ok
+test private_imported_functions_are_not_visible_to_the_importer ... ok
+test public_import_collisions_are_reported_as_ambiguity ... ok
+test private_helpers_with_the_same_name_stay_module_local ... ok
+test cyclic_and_escaping_imports_fail_at_the_import_site ... ok
+test repeated_imports_resolve_to_one_module_instance ... ok
+test bootstrap_resolver_uses_explicit_standard_and_locked_package_roots ... ok
+test concurrent_temporary_projects_remain_distinct_with_the_same_clock_tick ... ok
+test self_host_compiler_accepts_unicode_scalar_escapes ... ok
+test self_host_compiler_lowers_exhaustive_option_match ... ok
+test self_host_compiler_emits_float64_literals ... ok
+test self_host_compiler_lowers_bytes_file_operations_and_result_propagation ... ok
+test self_host_compiler_lowers_list_for_loops ... ok
+test self_host_compiler_driver_reports_source_and_argument_errors_without_assertions ... ok
+test self_host_compiler_checks_builtin_arity_and_parallel_worker_names ... ok
+test self_host_compiler_lowers_result_match_and_propagation ... ok
+test self_host_compiler_preserves_python_external_declarations ... ok
+test self_host_compiler_lowers_parallel_map_with_a_named_worker ... ok
+test self_host_compiler_returns_a_source_diagnostic_for_parse_errors ... ok
+test self_host_compiler_rejects_native_resource_parallel_workers ... ok
+test self_host_compiler_lowers_remaining_public_host_builtins ... ok
+test self_host_compiler_rejects_immutable_assignment_and_duplicate_locals ... ok
+test self_host_duplicate_map_keys_use_the_stable_duplicate_key_code ... ok
+test self_host_lexer_preserves_unicode_escape_diagnostic_code_and_span ... ok
+test self_host_module_loader_rejects_project_root_escapes ... ok
+test self_host_module_loader_reports_import_cycles ... ok
+test self_host_compiler_returns_a_source_diagnostic_for_unknown_functions ... ok
+test unicode_source_paths_and_independent_projects_compile ... ok
+test self_host_module_loader_reports_missing_imports_without_asserting ... ok
+test self_host_resolver_enforces_direct_public_visibility_and_qualifies_private_helpers ... ok
+test self_host_resolver_uses_explicit_standard_and_locked_package_roots ... ok
+test self_host_module_loader_enforces_import_depth_limit ... ok
+test self_host_compiler_checks_entry_declarations_and_visible_types ... ok
+test python_syntax_recovery_cases_match_bootstrap_and_self_hosted_compilers ... ok
+test self_host_compiler_returns_type_and_field_diagnostics ... ok
+test both_compilers_consume_fixed_builtin_types_from_the_shared_catalog ... ok
+
+test result: ok. 39 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.01s
+
+     Running tests/compiler_driver.rs (target/release/deps/compiler_driver-c2a5614cb5d449bd)
+
+running 3 tests
+test default_cli_reports_rust_compiler_import_diagnostics ... ok
+test default_cli_compiles_without_external_compiler_tools ... ok
+test default_cli_resolves_standard_modules_through_their_virtual_grant ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/language_conformance.rs (target/release/deps/language_conformance-bf7c7b4958553119)
+
+running 3 tests
+test collection_updates_preserve_preexisting_aliases_in_both_compilers ... ok
+test compiler_stages_compile_full_task_two_corpus_and_locked_roots ... ok
+test manifest_current_language_corpus_has_bootstrap_and_self_host_parity ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.67s
+
+     Running tests/native_packages.rs (target/release/deps/native_packages-e956bf273c186ea8)
+
+running 7 tests
+test core_doctor_ignores_configured_python_and_reports_interop_disabled ... ok
+test core_check_works_with_python_and_uv_unavailable_on_path ... ok
+test package_url_requires_https_and_an_exact_sha256 ... ok
+test core_commands_leave_legacy_python_lock_alone_until_explicit_offline_sync ... ok
+test separately_packaged_library_is_added_offline_and_survives_source_removal ... ok
+test package_add_resolves_transitive_exact_dependencies_and_rejects_cycles ... ok
+test explicit_update_changes_locked_package_and_rolls_back_a_later_invalid_package ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+
+     Running tests/stdlib_data.rs (target/release/deps/stdlib_data-1cd464256f7c0b25)
+
+running 1 test
+test embedded_self_host_compiler_runs_shipped_data_modules_and_streams ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running unittests src/lib.rs (target/release/deps/guion_compiler-06ae8b1f12fd2a41)
+
+running 3 tests
+test builtin_catalog::tests::concrete_signature_types_parse_nested_generics ... ok
+test builtin_catalog::tests::signatures_are_loaded_from_the_declarative_catalog ... ok
+test builtin_catalog::tests::catalog_operations_are_supported_by_the_bootstrap_compiler ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/pipeline.rs (target/release/deps/pipeline-c33db73b94776d4d)
+
+running 6 tests
+test rejects_incomplete_source_instead_of_ignoring_trailing_tokens ... ok
+test source_columns_count_unicode_characters_while_spans_keep_byte_offsets ... ok
+test accepts_a_value_function_when_every_if_branch_returns ... ok
+test compiles_a_general_function_and_rejects_unknown_names_with_a_span ... ok
+test compiles_typed_python_declarations_and_rejects_signature_mismatches ... ok
+test imported_module_instruction_keeps_its_own_source_id ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/release/deps/guion_model-7e4b8fe268e64fbd)
+
+running 16 tests
+test tests::arbitrary_precision_integer_converts_to_usize_without_string_roundtrip ... ok
+test tests::arbitrary_precision_integer_converts_to_i64_only_when_in_range ... ok
+test tests::cloning_json_values_shares_immutable_storage ... ok
+test tests::clock_opcodes_round_trip_only_in_format_39 ... ok
+test tests::byte_http_opcode_round_trips_only_in_format_38 ... ok
+test tests::atomic_text_write_bytecode_round_trips_only_in_format_21 ... ok
+test tests::artifact_reader_rejects_truncation_and_oversized_fields ... ok
+test tests::decimal_integer_math_is_unbounded_and_normalized ... ok
+test tests::decimal_integer_multiplication_and_order_are_exact ... ok
+test tests::http_bytecode_round_trips_only_in_format_19 ... ok
+test tests::arbitrary_precision_division_truncates_and_floors_with_contract_signs ... ok
+test tests::json_construction_bytecode_round_trips_only_in_format_20 ... ok
+test tests::signed_and_unsigned_machine_integers_convert_without_decimal_parsing ... ok
+test tests::task5_service_opcodes_and_resource_types_round_trip_only_in_format_37 ... ok
+test tests::artifacts_round_trip_with_versioned_source_maps ... ok
+test tests::arbitrary_precision_long_division_handles_the_runtime_digit_ceiling ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/release/deps/guion_runtime-c07ae363e9839e07)
+
+running 16 tests
+test function_cache_tests::frame_and_worker_owners_share_immutable_artifact_storage ... ok
+test native_small_list_tests::small_float_list_copy_uses_inline_data_and_preserves_the_original ... ok
+test json_projection::tests::inline_and_spilled_object_key_sets_reject_duplicates ... ok
+test native_small_list_tests::large_native_lists_keep_external_storage ... ok
+test native_inline_arena_tests::inline_list_addresses_and_values_survive_arena_growth ... ok
+test json_projection::tests::plain_object_keys_borrow_the_source_and_escaped_keys_remain_exact ... ok
+test json_projection::tests::reused_row_buffer_does_not_hide_a_missing_field_in_a_later_row ... ok
+test json_projection::tests::reused_row_buffer_keeps_column_values_aligned_when_keys_are_reordered ... ok
+test native_small_list_tests::invalid_native_list_set_attempts_do_not_increment_the_operation_counter ... ok
+test native_small_list_tests::small_integer_list_copy_uses_inline_data_and_preserves_the_original ... ok
+test runtime_profile_histogram_tests::copy_size_histogram_tracks_bucket_boundaries_and_sums_to_total ... ok
+test unique_json_parser_tests::accepts_user_objects_with_serde_private_number_key ... ok
+test unique_json_parser_tests::does_not_copy_input_when_no_reserved_key_needs_rewriting ... ok
+test unique_json_parser_tests::rejects_escaped_duplicate_keys_with_the_duplicate_location ... ok
+test unique_json_parser_tests::reports_malformed_json_as_a_parser_error ... ok
+test unique_json_parser_tests::retains_arbitrary_precision_numbers_and_nested_objects ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/execution.rs (target/release/deps/execution-15f02731de5f081b)
+
+running 109 tests
+test artifact_loader_rejects_an_invalid_entry_signature ... ok
+test artifact_loader_rejects_stack_types_that_disagree_with_function_signatures ... ok
+test artifact_loader_rejects_forged_function_references_and_invalid_branches ... ok
+test artifact_loader_rejects_invalid_stack_control_flow_before_execution ... ok
+test artifact_verifier_rejects_record_instructions_with_invalid_record_indices ... ok
+test bytes_from_ints_rejects_values_outside_byte_range ... ok
+test allocation_limit_is_shared_across_nested_calls_and_resets_per_invocation ... ok
+test args_from_rejects_negative_and_past_end_indices ... ok
+test bounded_byte_construction_primitives_remain_compatible_with_format_34 ... ok
+test args_from_skips_cli_subcommands_and_round_trips_in_current_format ... ok
+test core_profile_reports_python_externals_as_unavailable_without_launching_them ... ok
+test binary_file_reads_preserve_bytes_and_enforce_the_file_limit ... ok
+test environment_access_requires_a_grant_and_preserves_unicode_values ... ok
+test float64_lists_keep_immutable_updates_and_aliases ... ok
+test effect_reporting_is_bounded_and_marks_omitted_events ... ok
+test executes_source_through_the_shared_artifact_path ... ok
+test allocation_limit_is_shared_across_parallel_workers ... ok
+test allocation_limit_accounts_for_guest_collection_construction ... ok
+test file_host_calls_need_a_root_and_cannot_escape_it ... ok
+test host_cancellation_interrupts_vm_execution ... ok
+test float64_literals_arithmetic_comparison_and_artifact_execution_work ... ok
+test clock_access_requires_an_explicit_grant_and_can_be_pinned ... ok
+test immutable_list_updates_reject_wrong_types_and_out_of_range_indices ... ok
+test float64_square_root_runs_in_native_code_and_checks_domain ... ok
+test host_supplied_json_obeys_depth_size_and_collection_limits ... ok
+test float64_rejects_implicit_integer_mixing_nonfinite_results_and_zero_division ... ok
+test allocation_limit_accounts_for_print_rendering ... ok
+test json_column_builtins_reject_wrong_shapes_and_non_integer_values ... ok
+test instances_support_repeated_invocation_and_reject_use_after_close ... ok
+test json_construction_rejects_wrong_container_kinds_and_policy_overruns ... ok
+test instruction_budget_stops_unbounded_programs_with_a_source_trace ... ok
+test integer_division_floor_division_and_remainder_follow_the_numeric_contract ... ok
+test json_projection_enforces_limits_inside_ignored_data ... ok
+test json_parse_returns_inspectable_errors_and_typed_access_fails ... ok
+test integer_division_operators_report_division_by_zero ... ok
+test json_column_builtins_preserve_exact_values_order_and_artifact_version ... ok
+test json_float_values_convert_explicitly_to_float64 ... ok
+test json_projection_builds_only_requested_columns_and_preserves_duplicate_checks ... ok
+test json_values_can_be_constructed_and_updated_from_typed_guion_values ... ok
+test json_projection_reports_shape_and_field_errors_as_results ... ok
+test json_projection_preserves_reserved_looking_user_keys_and_numeric_text ... ok
+test json_values_obey_integer_and_collection_limits ... ok
+test json_values_support_typed_access_exact_integers_and_stable_round_trip ... ok
+test list_set_assignment_keeps_old_aliases_unchanged ... ok
+test lists_support_immutable_push_and_index_replacement ... ok
+test lists_support_literals_indexing_and_for_loops ... ok
+test local_type_annotation_rejects_a_mismatched_initializer ... ok
+test json_columns_feed_native_integer_aggregation_with_stable_category_codes ... ok
+test logical_operators_return_a_boolean_on_both_short_circuit_paths ... ok
+test maps_support_typed_literals_text_key_lookup_and_length ... ok
+test map_literals_reject_duplicate_keys_and_missing_lookups_are_traced ... ok
+test maps_support_immutable_updates_sorted_key_iteration_and_typed_signatures ... ok
+test mutable_json_array_push_is_linear_and_preserves_aliases ... ok
+test native_backend_charges_each_guest_instruction_exactly ... ok
+test native_and_vm_modes_have_the_same_result_at_the_same_allocation_limit ... ok
+test native_backend_composes_record_valued_calls_with_list_fields ... ok
+test native_backend_calls_native_functions_and_obeys_call_depth_limit ... ok
+test cancellation_report_preserves_completed_file_effects ... ok
+test native_backend_executes_pure_integer_loops_and_falls_back_for_bigints ... ok
+test native_backend_executes_float64_loop_and_preserves_float_faults ... ok
+test native_backend_constructs_typed_lists_and_updates_them_in_a_loop ... ok
+test native_backend_keeps_record_list_updates_inside_a_repeated_native_loop ... ok
+test missing_text_file_is_classified_and_atomic_text_write_replaces_complete_contents ... ok
+test native_backend_preserves_aliases_for_functional_list_updates ... ok
+test native_backend_reads_float64_lists_with_vm_parity ... ok
+test native_backend_reads_float64_lists_from_record_fields ... ok
+test native_backend_keeps_integer_record_list_updates_in_a_repeated_loop ... ok
+test named_file_root_aliases_cannot_fall_through_to_another_grant_or_escape ... ok
+test native_backend_updates_copied_record_lists_and_returns_records ... ok
+test native_float_list_bounds_faults_deopt_to_the_vm_trace ... ok
+test native_backend_updates_boolean_lists_in_record_results ... ok
+test native_backend_reads_integer_lists_and_preserves_big_integer_fallback ... ok
+test host_cancellation_interrupts_native_execution ... ok
+test native_integer_division_overflow_deoptimizes_to_arbitrary_precision_vm ... ok
+test native_print_preserves_output_effects_and_falls_back_without_partial_output ... ok
+test native_nested_failure_keeps_every_call_site_in_the_runtime_trace ... ok
+test native_integer_list_bounds_fault_deopts_to_the_vm ... ok
+test native_record_list_update_bounds_fault_deopts_to_the_vm ... ok
+test native_list_local_update_keeps_later_record_reads_aliased_correctly ... ok
+test optimized_list_push_preserves_older_shared_aliases ... ok
+test option_and_result_matches_are_exhaustive_and_run_through_artifacts ... ok
+test option_and_result_matches_reject_incomplete_duplicate_and_wrong_variants ... ok
+test option_unwrap_reports_absence_and_none_needs_an_option_context ... ok
+test option_values_are_constructed_checked_unwrapped_and_portable ... ok
+test native_vm_matches_shared_portable_core ... ok
+test nested_calls_keep_exact_instruction_budget_parity_across_vm_jit_and_fallback ... ok
+test program_stderr_is_separate_and_reported_as_an_effect ... ok
+test records_reject_unknown_fields_types_and_wrong_constructor_arguments ... ok
+test records_construct_access_compare_and_round_trip_through_artifacts ... ok
+test runtime_enforces_a_configurable_integer_size_limit ... ok
+test native_functional_list_updates_match_vm_allocation_limit_outcomes ... ok
+test runtime_profile_is_absent_by_default_and_covers_native_and_vm_execution ... ok
+test result_constructors_and_try_propagate_file_errors ... ok
+test parallel_map_runs_pure_functions_on_multiple_workers_and_keeps_input_order ... ok
+test native_record_list_updates_match_vm_allocation_limit_outcomes ... ok
+test same_local_map_update_preserves_other_shared_aliases ... ok
+test same_local_map_update_still_enforces_text_limits_on_new_values ... ok
+test parallel_failures_cancel_pending_work_and_join_running_workers ... ok
+test text_chars_materializes_unicode_scalars_for_linear_scanning ... ok
+test same_local_map_update_still_enforces_collection_limits ... ok
+test text_length_and_index_use_unicode_scalar_positions ... ok
+test native_fuel_metering_adds_control_flow_per_bytecode_block ... ok
+test unit_functions_can_be_called_as_statements ... ok
+test host_cancellation_joins_parallel_native_workers_and_returns_cancelled ... ok
+test same_local_list_updates_do_not_accumulate_full_list_copies ... ok
+test typed_empty_collections_work_in_locals_mutations_and_calls ... ok
+test vm_guest_recursion_uses_heap_frames_and_enforces_one_beyond_depth ... ok
+test same_local_map_updates_fit_a_linear_allocation_budget ... ok
+test same_local_list_pushes_fit_a_linear_allocation_budget ... ok
+
+test result: ok. 109 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.09s
+
+     Running tests/http.rs (target/release/deps/http-baddddbccbee91bd)
+
+running 13 tests
+test http_is_denied_by_default_with_a_typed_result ... ok
+test general_http_request_rejects_oversized_request_body_before_network_access ... ok
+test byte_http_rejects_oversized_response_before_returning_partial_bytes ... ok
+test byte_http_preserves_binary_request_and_response_bodies ... ok
+test general_http_request_sends_method_headers_and_runtime_body_and_returns_status ... ok
+test allowed_http_get_runs_through_a_serialized_artifact ... ok
+test http_redirect_limit_allows_only_the_configured_number_of_hops ... ok
+test http_get_returns_typed_status_and_body_limit_errors ... ok
+test byte_http_cancellation_interrupts_during_response_body_read ... ok
+test byte_http_total_deadline_applies_across_trickled_body_chunks ... ok
+test per_request_http_timeout_cannot_exceed_the_manifest_ceiling ... ok
+test per_request_http_timeout_is_enforced_below_the_manifest_ceiling ... ok
+test http_cancellation_interrupts_in_flight_requests_and_marks_the_effect_interrupted ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.42s
+
+     Running tests/lifecycle.rs (target/release/deps/lifecycle-8c89ab80aba727d8)
+
+running 1 test
+test repeated_invocation_closes_native_resources_and_reaches_a_memory_plateau ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+     Running tests/stdlib_data.rs (target/release/deps/stdlib_data-dd3e631308f5a1d9)
+
+running 13 tests
+test cli_option_map_distinguishes_missing_from_supplied_empty ... ok
+test semver_supports_huge_components_and_full_prerelease_precedence ... ok
+test json_safe_accessors_keep_missing_null_and_boolean_types_distinct ... ok
+test strict_timestamps_validate_gregorian_dates_and_normalize_offsets_exactly ... ok
+test reader_handles_are_owned_typed_and_closed_with_registry ... ok
+test invalid_data_keeps_existing_output_untouched ... ok
+test csv_reader_handles_multiline_quotes_empty_fields_and_malformed_rows ... ok
+test fs_walk_is_sorted_bounded_and_does_not_follow_symlink_directories ... ok
+test fs_read_text_returns_content_and_preserves_missing_path_in_std_error ... ok
+test guion_line_and_csv_builtins_stream_records_through_owned_handles ... ok
+test sort_by_is_stable_preserves_aliases_and_rejects_transitive_effects ... ok
+test every_shipped_data_module_compiles_as_an_independent_std_import ... ok
+test line_reader_is_incremental_strict_utf8_and_tracks_physical_lines ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/stdlib_services.rs (target/release/deps/stdlib_services-245ed8e0b9113be6)
+
+running 20 tests
+test hmac_matches_rfc4231_and_rejects_wrong_digest ... ok
+test calendar_parses_an_upstream_libical_sample ... ok
+test calendar_parses_utc_event_and_rejects_floating_times ... ok
+test sqlite_denies_paths_and_sql_that_escape_the_granted_database_root ... ok
+test sqlite_rejects_nested_and_cross_registry_handles ... ok
+test embedded_vtimezone_takes_precedence_over_the_matching_iana_identifier ... ok
+test embedded_vtimezone_observance_rules_resolve_recurrent_transitions ... ok
+test toml_insert_into_new_nested_table_preserves_existing_source ... ok
+test toml_insert_into_existing_table_preserves_order_comments_and_line_endings ... ok
+test calendar_handles_iana_offsets_folding_escapes_and_invalid_event_data ... ok
+test toml_noop_is_byte_exact_and_edits_keep_unrelated_comments ... ok
+test toml_resources_reject_foreign_and_invocation_stale_handles ... ok
+test toml_targeted_scalar_edit_preserves_dotted_order_line_endings_and_final_newline ... ok
+test unicode_casefold_and_whitespace_use_unicode_properties_without_normalizing ... ok
+test sqlite_result_budgets_and_invalid_text_are_typed_errors ... ok
+test sqlite_bound_parameters_commit_and_survive_reopen ... ok
+test dropping_a_registry_rolls_back_open_transactions_and_reopens_durably ... ok
+test sqlite_cancellation_interrupts_work_and_close_releases_open_resources ... ok
+test concurrent_sqlite_writer_observes_a_finite_busy_deadline ... ok
+test guion_public_service_modules_call_typed_native_apis ... ok
+
+test result: ok. 20 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.62s
+
+     Running unittests src/lib.rs (target/release/deps/guion_vm_core-9cbd835ee40a188e)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/portable_execution.rs (target/release/deps/portable_execution-8bdce0d4cec04710)
+
+running 7 tests
+test unknown_export_and_arity_are_rejected ... ok
+test instruction_budget_exhaustion_is_an_error ... ok
+test unsupported_host_operation_fails_explicitly ... ok
+test pure_computation_uses_loops_and_arithmetic ... ok
+test hello_prints_and_returns_zero ... ok
+test call_depth_limit_is_enforced ... ok
+test function_calls_recurse_and_return ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/release/deps/guion_vm_wasm-a14e212b4dc88a5c)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/abi.rs (target/release/deps/abi-6e2eb8ed31721683)
+
+running 2 tests
+test hello_runs_through_the_shared_vm ... ok
+test failures_report_clear_errors ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/release/deps/xtask-094fef669632235e)
+
+running 22 tests
+test release::tests::release_listing_accepts_created_package_layout ... ok
+test release::tests::release_listing_rejects_traversal_and_wrong_roots ... ok
+test release::tests::release_binary_path_respects_cargo_target_directory ... ok
+test builders::tests::valid_builder_report_requires_all_measures_and_recommendation ... ok
+test builders::tests::builder_report_requires_followup_and_relocation_evidence ... ok
+test release::tests::release_package_selects_current_guion_documentation ... ok
+test release::tests::release_staging_stays_under_the_cargo_target_directory ... ok
+test release::tests::selects_x86_64_linux_release_identity ... ok
+test runner::dependency_graph_tests::default_cli_bundles_its_compiler_without_python_interop ... ok
+test runner::dependency_graph_tests::dependency_audit_rejects_missing_compiler_or_python_bridge ... ok
+test runner::target_report_tests::both_target_selection_includes_all_three_release_platforms ... ok
+test runner::target_report_tests::final_gates_require_the_prior_task_before_marking_their_own_task_complete ... ok
+test runner::target_report_tests::names_x86_64_linux_as_the_debian_release_target ... ok
+test runner::target_report_tests::source_revision_prefers_an_explicit_shared_revision_for_matrix_runs ... ok
+test snapshot::tests::excludes_completion_metadata_and_keeps_product_inputs ... ok
+test builtin_catalog::tests::rejects_duplicate_catalog_names ... ok
+test builtin_catalog::tests::renders_stable_guion_signatures_from_catalog ... ok
+test runner::target_report_tests::does_not_combine_reports_from_different_source_snapshots ... ok
+test runner::target_report_tests::aggregates_only_matching_passed_reports_for_every_target ... ok
+test builders::tests::audit_rejects_pair_order_that_does_not_match_recorded_assignments ... ok
+test builders::tests::audit_accepts_three_complete_matched_pairs ... ok
+test release::tests::release_license_inventory_uses_retained_libical_license_after_cleanup ... ok
+
+test result: ok. 22 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.41s
+
+     Running unittests src/main.rs (target/release/deps/xtask-1cfebb3c75d540fb)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/completion.rs (target/release/deps/completion-e21c4748b9000c45)
+
+running 7 tests
+test completion_missing_evidence_fails ... ok
+test completion_schema_accepts_numeric_task_ids ... ok
+test closeout_rejects_incomplete_required_report_even_when_named_checks_pass ... ok
+test closeout_rejects_required_report_with_nested_missing_or_skipped_entries ... ok
+test completion_schema_rejects_unknown_report_status ... ok
+test closeout_requires_release_and_performance_from_the_same_final_snapshot ... ok
+test inventory_covers_every_executable_type_operator_and_host_signature ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests guion_bootstrap
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests guion_compiler
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests guion_model
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests guion_runtime
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests guion_vm_core
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests guion_vm_wasm
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests xtask
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s

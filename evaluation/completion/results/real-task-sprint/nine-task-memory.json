@@ -1,0 +1,269 @@
+{
+  "schema_version": 1,
+  "platform": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+  "guion_sha256": "705b5cc69659f9863a5e0839459aebda2b42dfdc43f39ad5f36e7939eb496bec",
+  "method": "resource.getrusage(RUSAGE_CHILDREN) from one wrapper per process; max step RSS, not a simultaneous process-tree peak; separate from timings",
+  "applications": {
+    "sla-report": {
+      "case_id": "sla-initial-report",
+      "guion": {
+        "max_step_peak_rss_bytes": 8617984,
+        "step_samples": [
+          {
+            "peak_rss_bytes": 8617984,
+            "exit_code": 0
+          }
+        ]
+      },
+      "python": {
+        "max_step_peak_rss_bytes": 33390592,
+        "step_samples": [
+          {
+            "peak_rss_bytes": 33390592,
+            "exit_code": 0
+          }
+        ]
+      }
+    },
+    "jsonl-summary": {
+      "case_id": "jsonl-normal-summary",
+      "guion": {
+        "max_step_peak_rss_bytes": 8994816,
+        "step_samples": [
+          {
+            "peak_rss_bytes": 8994816,
+            "exit_code": 0
+          }
+        ]
+      },
+      "python": {
+        "max_step_peak_rss_bytes": 33341440,
+        "step_samples": [
+          {
+            "peak_rss_bytes": 33341440,
+            "exit_code": 0
+          }
+        ]
+      }
+    },
+    "release-notes": {
+      "case_id": "release-notes-initial",
+      "guion": {
+        "max_step_peak_rss_bytes": 12189696,
+        "step_samples": [
+          {
+            "peak_rss_bytes": 12189696,
+            "exit_code": 0
+          }
+        ]
+      },
+      "python": {
+        "max_step_peak_rss_bytes": 33177600,
+        "step_samples": [
+          {
+            "peak_rss_bytes": 33177600,
+            "exit_code": 0
+          }
+        ]
+      }
+    },
+    "calendar-conflicts": {
+      "case_id": "calendar-overlap-and-boundary",
+      "guion": {
+        "max_step_peak_rss_bytes": 13041664,
+        "step_samples": [
+          {
+            "peak_rss_bytes": 13041664,
+            "exit_code": 0
+          }
+        ]
+      },
+      "python": {
+        "max_step_peak_rss_bytes": 43778048,
+        "step_samples": [
+          {
+            "peak_rss_bytes": 43778048,
+            "exit_code": 0
+          }
+        ]
+      }
+    },
+    "webhook-replay": {
+      "case_id": "webhook-durable-retry-and-privacy",
+      "guion": {
+        "max_step_peak_rss_bytes": 16531456,
+        "step_samples": [
+          {
+            "peak_rss_bytes": 14893056,
+            "exit_code": 0
+          },
+          {
+            "peak_rss_bytes": 15155200,
+            "exit_code": 0
+          },
+          {
+            "peak_rss_bytes": 15024128,
+            "exit_code": 1
+          },
+          {
+            "peak_rss_bytes": 13910016,
+            "exit_code": 1
+          },
+          {
+            "peak_rss_bytes": 16515072,
+            "exit_code": 1
+          },
+          {
+            "peak_rss_bytes": 14958592,
+            "exit_code": 0
+          },
+          {
+            "peak_rss_bytes": 16531456,
+            "exit_code": 0
+          },
+          {
+            "peak_rss_bytes": 14974976,
+            "exit_code": 0
+          }
+        ]
+      },
+      "python": {
+        "max_step_peak_rss_bytes": 38912000,
+        "step_samples": [
+          {
+            "peak_rss_bytes": 34406400,
+            "exit_code": 0
+          },
+          {
+            "peak_rss_bytes": 34275328,
+            "exit_code": 0
+          },
+          {
+            "peak_rss_bytes": 34144256,
+            "exit_code": 1
+          },
+          {
+            "peak_rss_bytes": 33488896,
+            "exit_code": 1
+          },
+          {
+            "peak_rss_bytes": 38912000,
+            "exit_code": 1
+          },
+          {
+            "peak_rss_bytes": 34062336,
+            "exit_code": 0
+          },
+          {
+            "peak_rss_bytes": 38551552,
+            "exit_code": 0
+          },
+          {
+            "peak_rss_bytes": 34291712,
+            "exit_code": 0
+          }
+        ]
+      }
+    },
+    "health-digest": {
+      "case_id": "health-mixed-results-and-cap",
+      "guion": {
+        "max_step_peak_rss_bytes": 11354112,
+        "step_samples": [
+          {
+            "peak_rss_bytes": 11354112,
+            "exit_code": 0
+          }
+        ]
+      },
+      "python": {
+        "max_step_peak_rss_bytes": 39337984,
+        "step_samples": [
+          {
+            "peak_rss_bytes": 39337984,
+            "exit_code": 0
+          }
+        ]
+      }
+    },
+    "config-migrator": {
+      "case_id": "config-migrator-v1-to-v2",
+      "guion": {
+        "max_step_peak_rss_bytes": 6373376,
+        "step_samples": [
+          {
+            "peak_rss_bytes": 6373376,
+            "exit_code": 0
+          }
+        ]
+      },
+      "python": {
+        "max_step_peak_rss_bytes": 33456128,
+        "step_samples": [
+          {
+            "peak_rss_bytes": 33456128,
+            "exit_code": 0
+          }
+        ]
+      }
+    },
+    "doc-index": {
+      "case_id": "doc-index-build-check-backlinks",
+      "guion": {
+        "max_step_peak_rss_bytes": 14680064,
+        "step_samples": [
+          {
+            "peak_rss_bytes": 14565376,
+            "exit_code": 0
+          },
+          {
+            "peak_rss_bytes": 14188544,
+            "exit_code": 0
+          },
+          {
+            "peak_rss_bytes": 14680064,
+            "exit_code": 0
+          }
+        ]
+      },
+      "python": {
+        "max_step_peak_rss_bytes": 34308096,
+        "step_samples": [
+          {
+            "peak_rss_bytes": 34308096,
+            "exit_code": 0
+          },
+          {
+            "peak_rss_bytes": 34193408,
+            "exit_code": 0
+          },
+          {
+            "peak_rss_bytes": 34144256,
+            "exit_code": 0
+          }
+        ]
+      }
+    },
+    "lockfile-auditor": {
+      "case_id": "lockfile-auditor-policy-report",
+      "guion": {
+        "max_step_peak_rss_bytes": 10551296,
+        "step_samples": [
+          {
+            "peak_rss_bytes": 10551296,
+            "exit_code": 0
+          }
+        ]
+      },
+      "python": {
+        "max_step_peak_rss_bytes": 33570816,
+        "step_samples": [
+          {
+            "peak_rss_bytes": 33570816,
+            "exit_code": 0
+          }
+        ]
+      }
+    }
+  }
+}

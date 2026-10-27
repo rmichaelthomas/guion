@@ -130,14 +130,15 @@ fn main() -> Int:
         "native_resource_count_after_each_invocation": 0,
         "native_resource_count_after_close": 0,
     });
-    let results = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../evaluation/completion/results");
-    fs::create_dir_all(&results).unwrap();
-    fs::write(
-        results.join(format!("runtime-memory-{target}.json")),
-        serde_json::to_vec_pretty(&report).unwrap(),
-    )
-    .unwrap();
+    if let Some(results) = std::env::var_os("GUION_RUNTIME_MEMORY_RESULTS") {
+        let results = std::path::PathBuf::from(results);
+        fs::create_dir_all(&results).unwrap();
+        fs::write(
+            results.join(format!("runtime-memory-{target}.json")),
+            serde_json::to_vec_pretty(&report).unwrap(),
+        )
+        .unwrap();
+    }
     assert!(
         plateau_observed,
         "post-warm-up RSS tail did not plateau: {report}"

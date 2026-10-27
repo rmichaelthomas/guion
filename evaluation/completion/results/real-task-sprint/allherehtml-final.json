@@ -1,0 +1,26 @@
+{
+  "check": {
+    "exit_code": 0,
+    "stdout": "checked AllHereHTML.gu (78 functions)\n",
+    "stderr": ""
+  },
+  "tests": {
+    "exit_code": 0,
+    "stdout": "ok test_validator_accepts_balanced_document\nok test_validator_rejects_script\nok test_validator_rejects_external_assets\nok test_validator_rejects_source_attributes_even_with_spacing\nok test_validator_rejects_external_css_references\nok test_validator_allows_external_navigation_links\nok test_validator_rejects_duplicate_ids\nok test_validator_rejects_unresolved_internal_targets\nok test_validator_accepts_resolved_native_targets\nok test_validator_requires_document_showcase_features\nok test_validator_rejects_code_placeholders\nok test_validator_rejects_mismatched_tags\nok test_validator_handles_greater_than_inside_quoted_attribute\nok test_validator_rejects_unclosed_tag\nok test_highlighter_escapes_source_markup\nok test_highlighter_matches_showcase_token_classes\nok test_highlighter_matches_python_escape_for_apostrophe\nok test_build_page_is_complete\nok test_showcase_links_optional_browser_playground\n19 tests passed\n",
+    "stderr": ""
+  },
+  "build": {
+    "exit_code": 0,
+    "stdout": "Built guion-showcase.html atomically\n",
+    "stderr": ""
+  },
+  "output_sha256": "4e56c9c90df40f1220505a94d45687410be6308d49e53306e2c7e7d21d1e4cc5",
+  "unsafe_template": {
+    "exit_code": 1,
+    "output_unchanged": true
+  },
+  "missing_template": {
+    "exit_code": 1,
+    "output_unchanged": true
+  }
+}

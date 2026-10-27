@@ -431,6 +431,7 @@ E_MATCH_PATTERN
 E_MATCH_TYPE
 E_MATCH_UNCLOSED
 E_MATCH_VARIANT
+E_MEMORY_RESULTS
 E_MODULE_COUNT
 E_MODULE_CYCLE
 E_MODULE_DEPTH
@@ -870,4 +871,4 @@ fn main() -> Int:
 - [Host API and effects](../../language/host-api.md)
 - [Agent recipes](recipes.md)
 
-<!-- Generated reference content digest: sha256:eed6b8a69e0066abce82b920a64c6f64be1bea3967987951de8d814952c0923f. Validated by `cargo xtask agent-reference --check`. -->
+<!-- Generated reference content digest: sha256:440a2f01b591f0b758ad35bba44438f2721d91c6c5a1fd647b95eb73c818709b. Validated by `cargo xtask agent-reference --check`. -->

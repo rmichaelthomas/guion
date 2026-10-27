@@ -1,0 +1,105 @@
+{
+  "schema_version": 1,
+  "method": "one warm-OS-cache local observation; network download excluded",
+  "guion_archive_bytes": 5442799,
+  "guion_archive_sha256": "433ab7280a0f3b1717bc26bac24a2034da604fcfb022670c9f9f81c7dc6b654c",
+  "guion_extract_seconds": 0.22816583400708623,
+  "guion_install_seconds": 0.17051858399645425,
+  "guion_installed_file_bytes": 15135374,
+  "python_venv_create_seconds": 1.8922285420121625,
+  "python_calendar_dependencies_install_seconds": 0.5619830829964485,
+  "python_venv_file_bytes_including_calendar_dependencies": 14663870,
+  "python_interpreter_assumed_preinstalled": "/opt/homebrew/opt/python@3.14/bin/python3.14",
+  "applications": {
+    "sla-report": {
+      "guion_staging_seconds": 0.001966250012628734,
+      "guion_source_bytes": 8070,
+      "python_staging_seconds": 0.0008608339994680136,
+      "python_reference_bytes": 36316,
+      "guion_package_seconds": 0.14636270800838247,
+      "guion_package_file_bytes": 12424785,
+      "guion_package_verified": true,
+      "additional_dependency": null
+    },
+    "jsonl-summary": {
+      "guion_staging_seconds": 0.0017952080233953893,
+      "guion_source_bytes": 8944,
+      "python_staging_seconds": 0.00031379100983031094,
+      "python_reference_bytes": 36316,
+      "guion_package_seconds": 0.1414549160108436,
+      "guion_package_file_bytes": 12444825,
+      "guion_package_verified": true,
+      "additional_dependency": null
+    },
+    "release-notes": {
+      "guion_staging_seconds": 0.001551666995510459,
+      "guion_source_bytes": 13285,
+      "python_staging_seconds": 0.0002820419904310256,
+      "python_reference_bytes": 36316,
+      "guion_package_seconds": 0.14343158298288472,
+      "guion_package_file_bytes": 12468460,
+      "guion_package_verified": true,
+      "additional_dependency": null
+    },
+    "calendar-conflicts": {
+      "guion_staging_seconds": 0.0014789999986533076,
+      "guion_source_bytes": 18637,
+      "python_staging_seconds": 0.0002816669875755906,
+      "python_reference_bytes": 36316,
+      "guion_package_seconds": 0.14111987501382828,
+      "guion_package_file_bytes": 12474388,
+      "guion_package_verified": true,
+      "additional_dependency": "icalendar and its dependencies"
+    },
+    "webhook-replay": {
+      "guion_staging_seconds": 0.0014945410075597465,
+      "guion_source_bytes": 19274,
+      "python_staging_seconds": 0.00032183300936594605,
+      "python_reference_bytes": 36316,
+      "guion_package_seconds": 0.14096333301858976,
+      "guion_package_file_bytes": 12479596,
+      "guion_package_verified": true,
+      "additional_dependency": null
+    },
+    "health-digest": {
+      "guion_staging_seconds": 0.0015843749861232936,
+      "guion_source_bytes": 12145,
+      "python_staging_seconds": 0.00025058299070224166,
+      "python_reference_bytes": 36316,
+      "guion_package_seconds": 0.13870212499750778,
+      "guion_package_file_bytes": 12454761,
+      "guion_package_verified": true,
+      "additional_dependency": null
+    },
+    "config-migrator": {
+      "guion_staging_seconds": 0.0016817919968161732,
+      "guion_source_bytes": 4111,
+      "python_staging_seconds": 0.0002600420266389847,
+      "python_reference_bytes": 36316,
+      "guion_package_seconds": 0.1381803749827668,
+      "guion_package_file_bytes": 12406167,
+      "guion_package_verified": true,
+      "additional_dependency": null
+    },
+    "doc-index": {
+      "guion_staging_seconds": 0.001895207999041304,
+      "guion_source_bytes": 27334,
+      "python_staging_seconds": 0.0002884170098695904,
+      "python_reference_bytes": 36316,
+      "guion_package_seconds": 0.13748262499575503,
+      "guion_package_file_bytes": 12511535,
+      "guion_package_verified": true,
+      "additional_dependency": null
+    },
+    "lockfile-auditor": {
+      "guion_staging_seconds": 0.0017024169792421162,
+      "guion_source_bytes": 13244,
+      "python_staging_seconds": 0.000464749988168478,
+      "python_reference_bytes": 36316,
+      "guion_package_seconds": 0.19553479200112633,
+      "guion_package_file_bytes": 12457441,
+      "guion_package_verified": true,
+      "additional_dependency": null
+    }
+  }
+}

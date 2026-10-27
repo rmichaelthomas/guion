@@ -4,7 +4,7 @@
 
 ## What passed
 
-The current three-target validation cohort lives under [`evaluation/completion/results/guion-final/`](../evaluation/completion/results/guion-final/). Its [`README`](../evaluation/completion/results/guion-final/README.md) maps each aggregate to its detailed target records. The matrix passed on macOS ARM64 and Debian 12 GNU/Linux on ARM64 and x86_64, all with glibc:
+The earlier three-target validation cohort lives under [`evaluation/completion/results/guion-final/`](../evaluation/completion/results/guion-final/). Its [`README`](../evaluation/completion/results/guion-final/README.md) maps each aggregate to its detailed target records. That matrix passed on macOS ARM64 and Debian 12 GNU/Linux on ARM64 and x86_64, all with glibc:
 
 - Three-stage self-hosted compiler bootstrap and compiler-stage identity checks across all three targets, alongside the full language conformance corpus.
 - The full 195-case language conformance corpus, runtime execution/HTTP/lifecycle checks, and standard-library data and service suites.
@@ -13,9 +13,11 @@ The current three-target validation cohort lives under [`evaluation/completion/r
 - A Guion-identity installed-artifact performance cohort with correctness checks, paired randomized samples, and percentile intervals.
 - Formatting, strict Clippy, Rust unit/integration suites, schema validation, CI workflow validation, exact outgoing-tree secret scan, and package/license audits.
 
-The current runtime, application, lifecycle, and release aggregates list all three targets as completed with no skipped target. Individual target-attempt JSON files can say `incomplete` because each one contains only one side of the aggregate; use the matching aggregate to read the combined gate. The detailed target evidence is preserved under [`target-runs/`](../evaluation/completion/results/guion-final/target-runs/).
+That cohort's runtime, application, lifecycle, and release aggregates list all three targets as completed with no skipped target. Individual target-attempt JSON files can say `incomplete` because each one contains only one side of the aggregate; use the matching aggregate to read the combined gate. The detailed target evidence is preserved under [`target-runs/`](../evaluation/completion/results/guion-final/target-runs/).
 
 ## Performance result and boundary
+
+The later post-VM-core [real-task and runtime sprint](../evaluation/completion/results/real-task-sprint/summary.md) supersedes the earlier Richards source measurement on macOS: 45.67 ms for Guion versus 70.16 ms for CPython 3.14.7 in the named fresh-source cohort. It also records 127 passing cases in each language across nine applications, a validated AllHereHTML regression, text-allocation improvements, and the current macOS installation check. The three-target records below describe the earlier validation cohort; they do not by themselves establish that a later build passed on all three targets.
 
 The performance report compares the installed Guion artifact with pinned, GIL-enabled CPython 3.14.7 on macOS ARM64. Each reported ratio is the median of paired per-trial ratios (Guion time divided by Python time); below 1.0 means the Guion artifact was faster for that named comparison.
 

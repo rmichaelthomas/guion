@@ -1,0 +1,8 @@
+[project]
+name = "guion-allherehtml"
+version = "0.1.0"
+entry = "AllHereHTML.gu"
+
+[runtime]
+# The 44 KB showcase is scanned in Guion for structure, ids, and native targets.
+instruction_limit = 20000000

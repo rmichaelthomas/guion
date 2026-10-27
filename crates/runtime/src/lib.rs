@@ -34,12 +34,38 @@ use native_backend::{
     NATIVE_INLINE_LIST_ITEMS,
 };
 
+#[cfg(test)]
+mod native_inline_arena_tests {
+    use super::{NativeIntList, NativeListArena};
+
+    #[test]
+    fn inline_list_addresses_and_values_survive_arena_growth() {
+        let mut arena = NativeListArena::new(std::ptr::null(), 10000, 10000, 0, None);
+        let first = arena
+            .allocate_inline_int(&[10, 20, 30], 1, 99)
+            .cast::<NativeIntList>();
+        for value in 0..1000 {
+            let current = arena
+                .allocate_inline_int(&[value, value + 1], 0, value + 2)
+                .cast::<NativeIntList>();
+            let descriptor = unsafe { &*current };
+            assert_eq!(unsafe { *descriptor.data }, value + 2);
+        }
+        let descriptor = unsafe { &*first };
+        assert_eq!(
+            unsafe { std::slice::from_raw_parts(descriptor.data, descriptor.len) },
+            &[10, 99, 30]
+        );
+    }
+}
+
 // JIT code keeps raw pointers to these descriptors; Box preserves each address when the Vec grows.
 #[allow(clippy::vec_box)]
 struct NativeListArena {
     float_lists: Vec<Box<NativeFloatList>>,
     float_storage: Vec<Vec<Float64>>,
     int_lists: Vec<Box<NativeIntList>>,
+    inline_int_lists: Vec<Vec<NativeIntList>>,
     int_storage: Vec<Vec<i64>>,
     budget: *const Budget,
     profile: Option<Arc<RuntimeProfileCounters>>,
@@ -63,6 +89,7 @@ impl NativeListArena {
             float_lists: Vec::new(),
             float_storage: Vec::new(),
             int_lists: Vec::new(),
+            inline_int_lists: Vec::new(),
             int_storage: Vec::new(),
             budget,
             profile,
@@ -81,6 +108,39 @@ impl NativeListArena {
         }
         self.charged_bytes = self.charged_bytes.saturating_add(bytes);
         true
+    }
+
+    fn allocate_inline_int(
+        &mut self,
+        source: &[i64],
+        index: usize,
+        value: i64,
+    ) -> *mut std::ffi::c_void {
+        const CHUNK_SIZE: usize = 256;
+        let mut inline = [0; NATIVE_INLINE_LIST_ITEMS];
+        inline[..source.len()].copy_from_slice(source);
+        inline[index] = value;
+        if self
+            .inline_int_lists
+            .last()
+            .is_none_or(|chunk| chunk.len() == chunk.capacity())
+        {
+            self.inline_int_lists.push(Vec::with_capacity(CHUNK_SIZE));
+        }
+        // Each chunk is filled only up to its fixed capacity. Moving its Vec
+        // header never moves the backing allocation referenced by JIT code.
+        let chunk = self.inline_int_lists.last_mut().unwrap();
+        chunk.push(NativeIntList {
+            data: std::ptr::null_mut(),
+            len: source.len(),
+            storage_id: usize::MAX,
+            owned: true,
+            inline_storage: true,
+            inline,
+        });
+        let descriptor = chunk.last_mut().unwrap();
+        descriptor.data = descriptor.inline.as_mut_ptr();
+        (descriptor as *mut NativeIntList).cast()
     }
 
     fn record_list_set_operation(&self) {
@@ -5104,20 +5164,8 @@ unsafe extern "C" fn native_list_set(
         }
         if list_len <= NATIVE_INLINE_LIST_ITEMS {
             let source = unsafe { std::slice::from_raw_parts(descriptor.data, list_len) };
-            let mut copied = Box::new(NativeIntList {
-                data: std::ptr::null_mut(),
-                len: list_len,
-                storage_id: usize::MAX,
-                owned: true,
-                inline_storage: true,
-                inline: [0; NATIVE_INLINE_LIST_ITEMS],
-            });
-            copied.inline[..list_len].copy_from_slice(source);
-            copied.inline[index] = value;
-            copied.data = copied.inline.as_mut_ptr();
             arena.record_list_set_copy(list_len, bytes);
-            arena.int_lists.push(copied);
-            return (&mut **arena.int_lists.last_mut().unwrap() as *mut NativeIntList).cast();
+            return arena.allocate_inline_int(source, index, value);
         }
         let Some(storage) = arena.int_storage.get(descriptor.storage_id) else {
             return std::ptr::null_mut();
