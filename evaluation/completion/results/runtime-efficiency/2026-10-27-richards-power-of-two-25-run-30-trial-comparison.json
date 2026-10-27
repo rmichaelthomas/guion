@@ -1,0 +1,430 @@
+{
+  "arm_medians_seconds_per_logical_execution": {
+    "guion_baseline_warm": 0.007164251659996807,
+    "guion_candidate_warm": 0.006060952499974519
+  },
+  "baseline_binary_sha256": "e7322bcf1fdde222471287cf652fdecbdc4c43276aef354f7ef0de64762f894f",
+  "baseline_revision": "78d123eadecdd1f87ff595cffc5889efc72bbc48",
+  "candidate_binary_sha256": "16acd70dbb13ddabe9edde472e0143af1dac146b128cccd484de61fab53f898c",
+  "candidate_over_baseline": {
+    "ci95_percentile": [
+      0.8430296306101981,
+      0.8541418837884869
+    ],
+    "median_ratio": 0.8468939277576749,
+    "ties_or_regressions": 1,
+    "win": true
+  },
+  "candidate_revision": "constant-divide-by-two-working-tree",
+  "host": {
+    "architecture": "arm64",
+    "platform": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+    "python_version": "3.14.7"
+  },
+  "kind": "guion-richards-power-of-two-25-run-comparison",
+  "measurement_design": {
+    "expected_stdout_per_execution": [
+      "9297",
+      "23246"
+    ],
+    "guion_cache_condition": "--no-cache bypasses Guion source cache",
+    "os_file_cache": "uncontrolled",
+    "randomized_paired_order": true
+  },
+  "metadata": {
+    "native_backend_reports": {
+      "guion_baseline_warm": {
+        "bytecode_blocks": 126,
+        "bytecode_instructions": 944,
+        "calls": 938675,
+        "compilations": 1,
+        "compile_profile": {
+          "finalize_nanoseconds": 25250,
+          "functions": [
+            {
+              "bytecode_blocks": 4,
+              "bytecode_instructions": 11,
+              "cranelift_ir_blocks": 15,
+              "cranelift_ir_instructions": 205,
+              "define_nanoseconds": 333417,
+              "lowering_nanoseconds": 84000,
+              "name": "next_worker_count",
+              "verification_nanoseconds": 48000
+            },
+            {
+              "bytecode_blocks": 9,
+              "bytecode_instructions": 46,
+              "cranelift_ir_blocks": 31,
+              "cranelift_ir_instructions": 334,
+              "define_nanoseconds": 537041,
+              "lowering_nanoseconds": 66417,
+              "name": "xor_d008",
+              "verification_nanoseconds": 45792
+            },
+            {
+              "bytecode_blocks": 10,
+              "bytecode_instructions": 91,
+              "cranelift_ir_blocks": 43,
+              "cranelift_ir_instructions": 610,
+              "define_nanoseconds": 894791,
+              "lowering_nanoseconds": 163417,
+              "name": "route_packet",
+              "verification_nanoseconds": 73542
+            },
+            {
+              "bytecode_blocks": 103,
+              "bytecode_instructions": 796,
+              "cranelift_ir_blocks": 320,
+              "cranelift_ir_instructions": 3085,
+              "define_nanoseconds": 7299291,
+              "lowering_nanoseconds": 1756709,
+              "name": "benchmark_once",
+              "verification_nanoseconds": 425667
+            }
+          ]
+        },
+        "compiled_functions": [
+          "next_worker_count",
+          "xor_d008",
+          "route_packet",
+          "benchmark_once"
+        ],
+        "cranelift_ir_blocks": 409,
+        "cranelift_ir_instructions": 4234,
+        "deoptimizations": 0
+      },
+      "guion_candidate_warm": {
+        "bytecode_blocks": 126,
+        "bytecode_instructions": 944,
+        "calls": 938675,
+        "compilations": 1,
+        "compile_profile": {
+          "finalize_nanoseconds": 31333,
+          "functions": [
+            {
+              "bytecode_blocks": 4,
+              "bytecode_instructions": 11,
+              "cranelift_ir_blocks": 15,
+              "cranelift_ir_instructions": 205,
+              "define_nanoseconds": 340667,
+              "lowering_nanoseconds": 81917,
+              "name": "next_worker_count",
+              "verification_nanoseconds": 44917
+            },
+            {
+              "bytecode_blocks": 9,
+              "bytecode_instructions": 46,
+              "cranelift_ir_blocks": 25,
+              "cranelift_ir_instructions": 250,
+              "define_nanoseconds": 355000,
+              "lowering_nanoseconds": 63500,
+              "name": "xor_d008",
+              "verification_nanoseconds": 33917
+            },
+            {
+              "bytecode_blocks": 10,
+              "bytecode_instructions": 91,
+              "cranelift_ir_blocks": 43,
+              "cranelift_ir_instructions": 610,
+              "define_nanoseconds": 887667,
+              "lowering_nanoseconds": 160708,
+              "name": "route_packet",
+              "verification_nanoseconds": 73250
+            },
+            {
+              "bytecode_blocks": 103,
+              "bytecode_instructions": 796,
+              "cranelift_ir_blocks": 315,
+              "cranelift_ir_instructions": 3021,
+              "define_nanoseconds": 7691083,
+              "lowering_nanoseconds": 1645375,
+              "name": "benchmark_once",
+              "verification_nanoseconds": 415209
+            }
+          ]
+        },
+        "compiled_functions": [
+          "next_worker_count",
+          "xor_d008",
+          "route_packet",
+          "benchmark_once"
+        ],
+        "cranelift_ir_blocks": 398,
+        "cranelift_ir_instructions": 4086,
+        "deoptimizations": 0
+      }
+    },
+    "paired_trial_order": [
+      [
+        "guion_candidate_warm",
+        "guion_baseline_warm"
+      ],
+      [
+        "guion_candidate_warm",
+        "guion_baseline_warm"
+      ],
+      [
+        "guion_baseline_warm",
+        "guion_candidate_warm"
+      ],
+      [
+        "guion_candidate_warm",
+        "guion_baseline_warm"
+      ],
+      [
+        "guion_baseline_warm",
+        "guion_candidate_warm"
+      ],
+      [
+        "guion_baseline_warm",
+        "guion_candidate_warm"
+      ],
+      [
+        "guion_candidate_warm",
+        "guion_baseline_warm"
+      ],
+      [
+        "guion_candidate_warm",
+        "guion_baseline_warm"
+      ],
+      [
+        "guion_candidate_warm",
+        "guion_baseline_warm"
+      ],
+      [
+        "guion_baseline_warm",
+        "guion_candidate_warm"
+      ],
+      [
+        "guion_baseline_warm",
+        "guion_candidate_warm"
+      ],
+      [
+        "guion_baseline_warm",
+        "guion_candidate_warm"
+      ],
+      [
+        "guion_candidate_warm",
+        "guion_baseline_warm"
+      ],
+      [
+        "guion_baseline_warm",
+        "guion_candidate_warm"
+      ],
+      [
+        "guion_candidate_warm",
+        "guion_baseline_warm"
+      ],
+      [
+        "guion_baseline_warm",
+        "guion_candidate_warm"
+      ],
+      [
+        "guion_candidate_warm",
+        "guion_baseline_warm"
+      ],
+      [
+        "guion_candidate_warm",
+        "guion_baseline_warm"
+      ],
+      [
+        "guion_candidate_warm",
+        "guion_baseline_warm"
+      ],
+      [
+        "guion_candidate_warm",
+        "guion_baseline_warm"
+      ],
+      [
+        "guion_baseline_warm",
+        "guion_candidate_warm"
+      ],
+      [
+        "guion_baseline_warm",
+        "guion_candidate_warm"
+      ],
+      [
+        "guion_baseline_warm",
+        "guion_candidate_warm"
+      ],
+      [
+        "guion_candidate_warm",
+        "guion_baseline_warm"
+      ],
+      [
+        "guion_baseline_warm",
+        "guion_candidate_warm"
+      ],
+      [
+        "guion_candidate_warm",
+        "guion_baseline_warm"
+      ],
+      [
+        "guion_candidate_warm",
+        "guion_baseline_warm"
+      ],
+      [
+        "guion_baseline_warm",
+        "guion_candidate_warm"
+      ],
+      [
+        "guion_candidate_warm",
+        "guion_baseline_warm"
+      ],
+      [
+        "guion_baseline_warm",
+        "guion_candidate_warm"
+      ]
+    ],
+    "source_cache_states": {
+      "guion_baseline_warm": [
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed"
+      ],
+      "guion_candidate_warm": [
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed",
+        "bypassed"
+      ]
+    }
+  },
+  "output_checked_each_warmup_and_trial": true,
+  "repetitions_per_process": 25,
+  "samples_per_execution": {
+    "guion_baseline_warm": {
+      "median_seconds": 0.007164251659996807,
+      "p95_seconds_nearest_rank": 0.007347836680710315,
+      "samples_seconds": [
+        0.007171718319877982,
+        0.0072449883609078825,
+        0.007168020000681281,
+        0.007271678319666535,
+        0.0071548549993894995,
+        0.007160483319312334,
+        0.007170091680018231,
+        0.007178566639777273,
+        0.007335663320263848,
+        0.0071559233206789944,
+        0.0072850666800513865,
+        0.007115043359808624,
+        0.00715144999907352,
+        0.007114323319401592,
+        0.007264673360623419,
+        0.007309031640179455,
+        0.007134455000050366,
+        0.00715200331993401,
+        0.007184744999976829,
+        0.007131794999586418,
+        0.00701401500031352,
+        0.007198023359524086,
+        0.007347836680710315,
+        0.007146608319599182,
+        0.007182161679957062,
+        0.007090771639486775,
+        0.008813910000026227,
+        0.007123486680211499,
+        0.00704248663969338,
+        0.007024388359859586
+      ]
+    },
+    "guion_candidate_warm": {
+      "median_seconds": 0.006060952499974519,
+      "p95_seconds_nearest_rank": 0.0064126599999144674,
+      "samples_seconds": [
+        0.006157668320229277,
+        0.006196736679412424,
+        0.006185699999332428,
+        0.00601452000089921,
+        0.00606271832017228,
+        0.0064126599999144674,
+        0.00607082000002265,
+        0.006080973360221833,
+        0.006002201680094004,
+        0.006029306639684364,
+        0.006059186679776758,
+        0.005998293320881203,
+        0.005963396679144353,
+        0.006083513320190832,
+        0.0060054699995089325,
+        0.006070814999984578,
+        0.006028669999213889,
+        0.006037896680645645,
+        0.006139513320522383,
+        0.006012213320937008,
+        0.006003878320334479,
+        0.006127413319190964,
+        0.00605148500064388,
+        0.006064083320088684,
+        0.006056576679693535,
+        0.00609583331970498,
+        0.008893013320630416,
+        0.0059976499993354086,
+        0.006078798359958455,
+        0.005997163360007107
+      ]
+    }
+  },
+  "schema_version": 1,
+  "source_sha256": "5fb23857e7e2c3bcc7af247ebf9847408fbb0389e8cc895a582598f87f007f5f",
+  "trials_per_arm": 30,
+  "warmup_trials_per_arm": 2
+}

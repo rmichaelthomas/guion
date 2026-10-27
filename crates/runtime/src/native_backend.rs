@@ -1648,65 +1648,86 @@ impl NativeBackend {
                     Op::IntegerDivide | Op::FloorDivide | Op::Remainder => {
                         let right = stack.pop().ok_or_else(|| "stack underflow".to_owned())?;
                         let left = stack.pop().ok_or_else(|| "stack underflow".to_owned())?;
-                        let zero = builder.ins().iconst(types::I64, 0);
-                        let is_zero = builder.ins().icmp(IntCC::Equal, right, zero);
-                        let nonzero = builder.create_block();
-                        let exit_args = step_exit_args(
-                            &mut builder,
-                            steps_var,
-                            ip,
-                            block_instruction_offsets[ip] + 1,
-                        );
-                        builder
-                            .ins()
-                            .brif(is_zero, divide_zero, &exit_args, nonzero, &[]);
-                        builder.switch_to_block(nonzero);
-                        builder.seal_block(nonzero);
-                        let min = builder.ins().iconst(types::I64, i64::MIN);
-                        let minus_one = builder.ins().iconst(types::I64, -1);
-                        let is_min = builder.ins().icmp(IntCC::Equal, left, min);
-                        let is_minus_one = builder.ins().icmp(IntCC::Equal, right, minus_one);
-                        let overflow = builder.ins().band(is_min, is_minus_one);
-                        let one = builder.ins().iconst(types::I64, 1);
-                        let safe_right = builder.ins().select(overflow, one, right);
-                        if !matches!(instruction.op, Op::Remainder) {
-                            let continue_division = builder.create_block();
+                        let constant_two_divisor = ip > 0
+                            && leader_indices[ip].is_none()
+                            && function.code.get(ip - 1).is_some_and(|previous| {
+                                matches!(
+                                    &previous.op,
+                                    Op::Const(Value::Int(value)) if value.to_i64() == Some(2)
+                                )
+                            });
+                        if constant_two_divisor
+                            && matches!(instruction.op, Op::FloorDivide | Op::Remainder)
+                        {
+                            if matches!(instruction.op, Op::FloorDivide) {
+                                stack.push(builder.ins().sshr_imm_s(left, 1));
+                            } else {
+                                let one = builder.ins().iconst(types::I64, 1);
+                                stack.push(builder.ins().band(left, one));
+                            }
+                        } else {
+                            let zero = builder.ins().iconst(types::I64, 0);
+                            let is_zero = builder.ins().icmp(IntCC::Equal, right, zero);
+                            let nonzero = builder.create_block();
                             let exit_args = step_exit_args(
                                 &mut builder,
                                 steps_var,
                                 ip,
                                 block_instruction_offsets[ip] + 1,
                             );
-                            builder.ins().brif(
-                                overflow,
-                                fallback,
-                                &exit_args,
-                                continue_division,
-                                &[],
-                            );
-                            builder.switch_to_block(continue_division);
-                            builder.seal_block(continue_division);
-                        }
-                        let quotient = builder.ins().sdiv(left, safe_right);
-                        let truncating = builder.ins().srem(left, safe_right);
-                        let truncating = builder.ins().select(overflow, zero, truncating);
-                        let left_negative = builder.ins().icmp(IntCC::SignedLessThan, left, zero);
-                        let right_negative = builder.ins().icmp(IntCC::SignedLessThan, right, zero);
-                        let signs_differ =
                             builder
                                 .ins()
-                                .icmp(IntCC::NotEqual, left_negative, right_negative);
-                        let remainder_nonzero =
-                            builder.ins().icmp(IntCC::NotEqual, truncating, zero);
-                        let adjust = builder.ins().band(signs_differ, remainder_nonzero);
-                        if matches!(instruction.op, Op::Remainder) {
-                            let adjusted = builder.ins().iadd(truncating, right);
-                            stack.push(builder.ins().select(adjust, adjusted, truncating));
-                        } else if matches!(instruction.op, Op::FloorDivide) {
-                            let adjusted = builder.ins().isub(quotient, one);
-                            stack.push(builder.ins().select(adjust, adjusted, quotient));
-                        } else {
-                            stack.push(quotient);
+                                .brif(is_zero, divide_zero, &exit_args, nonzero, &[]);
+                            builder.switch_to_block(nonzero);
+                            builder.seal_block(nonzero);
+                            let min = builder.ins().iconst(types::I64, i64::MIN);
+                            let minus_one = builder.ins().iconst(types::I64, -1);
+                            let is_min = builder.ins().icmp(IntCC::Equal, left, min);
+                            let is_minus_one = builder.ins().icmp(IntCC::Equal, right, minus_one);
+                            let overflow = builder.ins().band(is_min, is_minus_one);
+                            let one = builder.ins().iconst(types::I64, 1);
+                            let safe_right = builder.ins().select(overflow, one, right);
+                            if !matches!(instruction.op, Op::Remainder) {
+                                let continue_division = builder.create_block();
+                                let exit_args = step_exit_args(
+                                    &mut builder,
+                                    steps_var,
+                                    ip,
+                                    block_instruction_offsets[ip] + 1,
+                                );
+                                builder.ins().brif(
+                                    overflow,
+                                    fallback,
+                                    &exit_args,
+                                    continue_division,
+                                    &[],
+                                );
+                                builder.switch_to_block(continue_division);
+                                builder.seal_block(continue_division);
+                            }
+                            let quotient = builder.ins().sdiv(left, safe_right);
+                            let truncating = builder.ins().srem(left, safe_right);
+                            let truncating = builder.ins().select(overflow, zero, truncating);
+                            let left_negative =
+                                builder.ins().icmp(IntCC::SignedLessThan, left, zero);
+                            let right_negative =
+                                builder.ins().icmp(IntCC::SignedLessThan, right, zero);
+                            let signs_differ =
+                                builder
+                                    .ins()
+                                    .icmp(IntCC::NotEqual, left_negative, right_negative);
+                            let remainder_nonzero =
+                                builder.ins().icmp(IntCC::NotEqual, truncating, zero);
+                            let adjust = builder.ins().band(signs_differ, remainder_nonzero);
+                            if matches!(instruction.op, Op::Remainder) {
+                                let adjusted = builder.ins().iadd(truncating, right);
+                                stack.push(builder.ins().select(adjust, adjusted, truncating));
+                            } else if matches!(instruction.op, Op::FloorDivide) {
+                                let adjusted = builder.ins().isub(quotient, one);
+                                stack.push(builder.ins().select(adjust, adjusted, quotient));
+                            } else {
+                                stack.push(quotient);
+                            }
                         }
                     }
                     Op::Print => {

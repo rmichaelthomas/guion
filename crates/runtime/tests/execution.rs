@@ -684,6 +684,47 @@ fn integer_division_floor_division_and_remainder_follow_the_numeric_contract() {
 }
 
 #[test]
+fn native_constant_division_by_two_uses_compact_code_and_preserves_floor_semantics() {
+    let source = "fn floor_half(value: Int) -> Int:\n    return value // 2\n\nfn odd_bit(value: Int) -> Int:\n    return value % 2\n\nfn main() -> Int:\n    return 0\n";
+    let artifact = compile("native-divide-by-two.gu", source).expect("source compiles");
+    let mut native = Runtime::new()
+        .load(artifact.clone(), HostPolicy::default())
+        .expect("native runtime loads");
+    let mut vm = Runtime::vm_only()
+        .load(artifact, HostPolicy::default())
+        .expect("VM runtime loads");
+
+    for (value, expected_half, expected_bit) in [
+        (i64::MIN, "-4611686018427387904", "0"),
+        (-9, "-5", "1"),
+        (-3, "-2", "1"),
+        (-1, "-1", "1"),
+        (0, "0", "0"),
+        (1, "0", "1"),
+        (3, "1", "1"),
+        (9, "4", "1"),
+        (i64::MAX, "4611686018427387903", "1"),
+    ] {
+        let argument = || vec![Value::Int(BigInt::from_i64(value))];
+        let expected_half = Value::Int(BigInt::parse(expected_half).unwrap());
+        let expected_bit = Value::Int(BigInt::parse(expected_bit).unwrap());
+        assert_eq!(
+            native.invoke("floor_half", argument()).unwrap(),
+            expected_half
+        );
+        assert_eq!(vm.invoke("floor_half", argument()).unwrap(), expected_half);
+        assert_eq!(native.invoke("odd_bit", argument()).unwrap(), expected_bit);
+        assert_eq!(vm.invoke("odd_bit", argument()).unwrap(), expected_bit);
+    }
+
+    let ir_instructions = native.native_cranelift_ir_instructions();
+    assert!(
+        ir_instructions < 451,
+        "constant divide/remainder by two should use compact native code, got {ir_instructions} IR instructions"
+    );
+}
+
+#[test]
 fn native_integer_division_overflow_deoptimizes_to_arbitrary_precision_vm() {
     let source = "fn quotient(left: Int, right: Int) -> Int:\n    return left // right\n\nfn main() -> Int:\n    return quotient(-9223372036854775808, -1)\n";
     let artifact = compile("native-int-divide-overflow.gu", source).unwrap();

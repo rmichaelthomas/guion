@@ -86,6 +86,14 @@ The list-copy profile still counts 84,497 copy-on-write list copies per executio
 
 The inline-store attempt increased `main` from 7,510 to 8,395 Cranelift IR instructions and slowed the complete fresh-source cohort. That makes a smaller IR lowering or a cheaper JIT compilation path a stronger next target than further hand-written list stores.
 
+## Follow-up: specialize literal division and remainder by two
+
+The native backend now recognizes a literal positive divisor of two in straight-line bytecode. Floor division uses a signed arithmetic shift; floor remainder uses the low bit. This is correct for negative values as well as positive values. The specialization does not change dynamic divisors or other integer division operators, and it preserves one guest instruction's fuel and step accounting.
+
+In the randomized, output-checked 30-trial fresh-source cohort, the new candidate measured 28.554 ms versus 30.045 ms for its preceding build and 73.617 ms for CPython 3.14.7. Candidate/preceding-build was `0.940` (paired 95% interval `0.930–0.967`), with 4 of 30 paired samples tied or slower. Candidate/Python was `0.389` (`0.382–0.395`). The separate randomized 25-execution lane measured 6.061 ms per execution versus 7.164 ms before; candidate/preceding-build was `0.847` (`0.843–0.854`), with 1 of 30 paired samples tied or slower. Every warmup and trial checked the expected output (`9297`, `23246`). Both cohorts bypassed Guion's source cache; the OS file cache was uncontrolled.
+
+The 25-execution profile recorded 398 Cranelift IR blocks and 4,086 instructions, down from 409 blocks and 4,234 instructions. No native deoptimizations occurred. The focused regression test checks floor division and remainder for negative inputs and both signed 64-bit boundaries, compares native execution with the VM, and requires the two generated functions to stay below 451 IR instructions (the prior generic lowering produced 489). The full runtime crate suite passed 160 tests, formatting passed, and the release CLI was built with locked offline dependencies and two Cargo jobs. This is a workload-specific improvement, not a general Python performance claim. A concise report is [here](2026-10-27-richards-power-of-two.md); machine-readable [fresh-source](2026-10-27-richards-power-of-two-fresh-source-30-trial-comparison.json) and [25-execution](2026-10-27-richards-power-of-two-25-run-30-trial-comparison.json) evidence is linked below.
+
 ## Verification and hygiene
 
 - The candidate release binary built with locked, offline Cargo dependencies and two build jobs; `cargo fmt --all -- --check` passed. The focused existing `nested_calls_keep_exact_instruction_budget_parity_across_vm_jit_and_fallback` and `native_fuel_metering_adds_control_flow_per_bytecode_block` tests passed in release mode; the full Rust test suite was not run.
@@ -132,6 +140,8 @@ The inline-store attempt increased `main` from 7,510 to 8,395 Cranelift IR instr
 - [Fuel batching phase profile](2026-10-27-richards-fuel-batching-profile.json)
 - [Unsigned index-bounds fresh-source 30-trial comparison](2026-10-27-richards-index-bounds-fresh-source-30-trial-comparison.json)
 - [Unsigned index-bounds 25-execution 30-trial comparison](2026-10-27-richards-index-bounds-25-run-30-trial-comparison.json)
+- [Literal divide-by-two fresh-source 30-trial comparison](2026-10-27-richards-power-of-two-fresh-source-30-trial-comparison.json)
+- [Literal divide-by-two 25-execution 30-trial comparison](2026-10-27-richards-power-of-two-25-run-30-trial-comparison.json)
 - [Inline list-copy probe](2026-10-26-richards-list-copy-comparison.json)
 - [Exit-metadata 15-trial comparison](2026-10-26-richards-exit-args-comparison.json)
 - [Exit-metadata 30-trial comparison](2026-10-26-richards-exit-args-30-trial-comparison.json)
