@@ -398,6 +398,40 @@ fn list_set_assignment_keeps_old_aliases_unchanged() {
 }
 
 #[test]
+fn native_list_set_uses_element_typed_helpers_without_changing_copy_semantics() {
+    let source = "fn main() -> Int:\n    let original_ints = [1, 2, 3]\n    let updated_ints = list_set(original_ints, 1, 9)\n    let original_bools = [true, false, true]\n    let updated_bools = list_set(original_bools, 1, true)\n    let original_floats = [1.0, 2.0, 3.0]\n    let updated_floats = list_set(original_floats, 1, 9.0)\n    print(updated_ints[1])\n    print(updated_bools[1])\n    print(updated_floats[1])\n    print(original_ints[1])\n    print(original_bools[1])\n    print(original_floats[1])\n    return 0\n";
+    let artifact = compile("native-typed-list-set.gu", source).expect("source compiles");
+    let mut native = Runtime::new()
+        .load(artifact.clone(), HostPolicy::default())
+        .expect("native runtime loads");
+    let mut vm = Runtime::vm_only()
+        .load(artifact, HostPolicy::default())
+        .expect("VM runtime loads");
+
+    for runtime in [&mut native, &mut vm] {
+        assert_eq!(
+            runtime.invoke("main", vec![]).unwrap(),
+            Value::Int(BigInt::from_i64(0))
+        );
+        assert_eq!(runtime.take_output(), "9\ntrue\n9\n2\nfalse\n2\n");
+    }
+
+    let profile = native.native_compile_profile();
+    let main_instructions = profile["functions"]
+        .as_array()
+        .expect("native compile profile has functions")
+        .iter()
+        .find(|function| function["name"].as_str() == Some("main"))
+        .expect("main has a native compile profile")["cranelift_ir_instructions"]
+        .as_u64()
+        .expect("main IR instruction count is present");
+    assert!(
+        main_instructions <= 335,
+        "element-typed list-set calls should remove dynamic kind operands: {main_instructions} instructions"
+    );
+}
+
+#[test]
 fn same_local_list_updates_do_not_accumulate_full_list_copies() {
     let source = "fn main() -> Int:\n    var values = [0.0]\n    var i = 0\n    while i < 5000:\n        set values = list_set(values, 0, values[0] + 1.0)\n        set i = i + 1\n    print(values[0])\n    return i\n";
     let artifact = compile("list-update-budget.gu", source).unwrap();

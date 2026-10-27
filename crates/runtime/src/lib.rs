@@ -3788,7 +3788,9 @@ impl Instance {
                     release_fuel: native_release_fuel as *const () as *const u8,
                     poll_cancellation: native_poll_cancellation as *const () as *const u8,
                     make_list: native_make_list as *const () as *const u8,
-                    list_set: native_list_set as *const () as *const u8,
+                    list_set_float: native_list_set_float as *const () as *const u8,
+                    list_set_int: native_list_set_int as *const () as *const u8,
+                    list_set_bool: native_list_set_bool as *const () as *const u8,
                     charge_record: native_charge_record as *const () as *const u8,
                     print: native_print as *const () as *const u8,
                     count_guest_branch: native_count_guest_branch as *const () as *const u8,
@@ -5054,7 +5056,8 @@ unsafe extern "C" fn native_make_list(
     }
 }
 
-unsafe extern "C" fn native_list_set(
+#[inline(always)]
+unsafe fn native_list_set_impl(
     arena: *mut NativeListArena,
     list: *mut std::ffi::c_void,
     index: i64,
@@ -5184,6 +5187,65 @@ unsafe extern "C" fn native_list_set(
             inline: [0; NATIVE_INLINE_LIST_ITEMS],
         }));
         (&mut **arena.int_lists.last_mut().unwrap() as *mut NativeIntList).cast()
+    }
+}
+
+unsafe extern "C" fn native_list_set(
+    arena: *mut NativeListArena,
+    list: *mut std::ffi::c_void,
+    index: i64,
+    value: i64,
+    item_kind: i64,
+    always_copy: i64,
+) -> *mut std::ffi::c_void {
+    unsafe { native_list_set_impl(arena, list, index, value, item_kind, always_copy) }
+}
+
+unsafe extern "C" fn native_list_set_float(
+    arena: *mut NativeListArena,
+    list: *mut std::ffi::c_void,
+    index: i64,
+    value: i64,
+    always_copy: i64,
+) -> *mut std::ffi::c_void {
+    unsafe {
+        native_list_set_impl(
+            arena,
+            list,
+            index,
+            value,
+            NATIVE_LIST_FLOAT_KIND,
+            always_copy,
+        )
+    }
+}
+
+unsafe extern "C" fn native_list_set_int(
+    arena: *mut NativeListArena,
+    list: *mut std::ffi::c_void,
+    index: i64,
+    value: i64,
+    always_copy: i64,
+) -> *mut std::ffi::c_void {
+    unsafe { native_list_set_impl(arena, list, index, value, NATIVE_LIST_INT_KIND, always_copy) }
+}
+
+unsafe extern "C" fn native_list_set_bool(
+    arena: *mut NativeListArena,
+    list: *mut std::ffi::c_void,
+    index: i64,
+    value: i64,
+    always_copy: i64,
+) -> *mut std::ffi::c_void {
+    unsafe {
+        native_list_set_impl(
+            arena,
+            list,
+            index,
+            value,
+            NATIVE_LIST_BOOL_KIND,
+            always_copy,
+        )
     }
 }
 

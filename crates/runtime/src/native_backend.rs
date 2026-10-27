@@ -12,7 +12,7 @@ use super::NativeListArena;
 use cranelift_codegen::{
     ir::{
         condcodes::{FloatCC, IntCC},
-        types, AbiParam, BlockArg, InstBuilder, MemFlagsData, Signature, StackSlotData,
+        types, AbiParam, BlockArg, FuncRef, InstBuilder, MemFlagsData, Signature, StackSlotData,
         StackSlotKind, UserFuncName,
     },
     Context,
@@ -40,7 +40,9 @@ pub(crate) struct NativeSymbols {
     pub(crate) release_fuel: *const u8,
     pub(crate) poll_cancellation: *const u8,
     pub(crate) make_list: *const u8,
-    pub(crate) list_set: *const u8,
+    pub(crate) list_set_float: *const u8,
+    pub(crate) list_set_int: *const u8,
+    pub(crate) list_set_bool: *const u8,
     pub(crate) charge_record: *const u8,
     pub(crate) print: *const u8,
     pub(crate) count_guest_branch: *const u8,
@@ -78,7 +80,9 @@ pub(crate) struct NativeBackend {
     release_fuel: FuncId,
     poll_cancellation: FuncId,
     make_list: FuncId,
-    list_set: FuncId,
+    list_set_float: FuncId,
+    list_set_int: FuncId,
+    list_set_bool: FuncId,
     charge_record: FuncId,
     print: FuncId,
     count_guest_branch: Option<FuncId>,
@@ -151,7 +155,9 @@ impl NativeBackend {
         builder.symbol("guion_release_fuel", symbols.release_fuel);
         builder.symbol("guion_poll_cancellation", symbols.poll_cancellation);
         builder.symbol("guion_make_list", symbols.make_list);
-        builder.symbol("guion_list_set", symbols.list_set);
+        builder.symbol("guion_list_set_float", symbols.list_set_float);
+        builder.symbol("guion_list_set_int", symbols.list_set_int);
+        builder.symbol("guion_list_set_bool", symbols.list_set_bool);
         builder.symbol("guion_charge_record", symbols.charge_record);
         builder.symbol("guion_print", symbols.print);
         if profile_guest_branches {
@@ -203,10 +209,15 @@ impl NativeBackend {
         list_set_signature.params.push(AbiParam::new(types::I64));
         list_set_signature.params.push(AbiParam::new(types::I64));
         list_set_signature.params.push(AbiParam::new(types::I64));
-        list_set_signature.params.push(AbiParam::new(types::I64));
         list_set_signature.returns.push(AbiParam::new(pointer_type));
-        let list_set_id = module
-            .declare_function("guion_list_set", Linkage::Import, &list_set_signature)
+        let list_set_float_id = module
+            .declare_function("guion_list_set_float", Linkage::Import, &list_set_signature)
+            .ok()?;
+        let list_set_int_id = module
+            .declare_function("guion_list_set_int", Linkage::Import, &list_set_signature)
+            .ok()?;
+        let list_set_bool_id = module
+            .declare_function("guion_list_set_bool", Linkage::Import, &list_set_signature)
             .ok()?;
         let mut charge_record_signature = Signature::new(module.target_config().default_call_conv);
         charge_record_signature
@@ -250,7 +261,9 @@ impl NativeBackend {
             release_fuel: release_fuel_id,
             poll_cancellation: poll_cancellation_id,
             make_list: make_list_id,
-            list_set: list_set_id,
+            list_set_float: list_set_float_id,
+            list_set_int: list_set_int_id,
+            list_set_bool: list_set_bool_id,
             charge_record: charge_record_id,
             print: print_id,
             count_guest_branch: count_guest_branch_id,
@@ -557,9 +570,15 @@ impl NativeBackend {
         let make_list = self
             .module
             .declare_func_in_func(self.make_list, &mut context.func);
-        let list_set = self
+        let list_set_float = self
             .module
-            .declare_func_in_func(self.list_set, &mut context.func);
+            .declare_func_in_func(self.list_set_float, &mut context.func);
+        let list_set_int = self
+            .module
+            .declare_func_in_func(self.list_set_int, &mut context.func);
+        let list_set_bool = self
+            .module
+            .declare_func_in_func(self.list_set_bool, &mut context.func);
         let charge_record = self
             .module
             .declare_func_in_func(self.charge_record, &mut context.func);
@@ -1454,22 +1473,17 @@ impl NativeBackend {
                             .as_ref()
                             .and_then(|types| types.last())
                             .ok_or_else(|| "missing list update item type".to_owned())?;
-                        let kind = builder.ins().iconst(
-                            types::I64,
-                            native_list_kind(item_type)
-                                .ok_or_else(|| "unsupported native list item".to_owned())?,
-                        );
+                        let list_set = native_list_set_function(
+                            item_type,
+                            list_set_float,
+                            list_set_int,
+                            list_set_bool,
+                        )
+                        .ok_or_else(|| "unsupported native list item".to_owned())?;
                         let always_copy = builder.ins().iconst(types::I64, 0);
                         let result = builder.ins().call(
                             list_set,
-                            &[
-                                arena_pointer,
-                                list_handle,
-                                list_index,
-                                value,
-                                kind,
-                                always_copy,
-                            ],
+                            &[arena_pointer, list_handle, list_index, value, always_copy],
                         );
                         let updated = builder.inst_results(result)[0];
                         let null = builder.ins().iconst(ptr, 0);
@@ -1498,15 +1512,17 @@ impl NativeBackend {
                         let item_type = type_stack
                             .get(type_stack.len().checked_sub(1).ok_or("stack underflow")?)
                             .ok_or_else(|| "missing list item type".to_owned())?;
-                        let kind = builder.ins().iconst(
-                            types::I64,
-                            native_list_kind(item_type)
-                                .ok_or_else(|| "unsupported native list item".to_owned())?,
-                        );
+                        let list_set = native_list_set_function(
+                            item_type,
+                            list_set_float,
+                            list_set_int,
+                            list_set_bool,
+                        )
+                        .ok_or_else(|| "unsupported native list item".to_owned())?;
                         let always_copy = builder.ins().iconst(types::I64, 1);
                         let result = builder.ins().call(
                             list_set,
-                            &[arena_pointer, list, list_index, value, kind, always_copy],
+                            &[arena_pointer, list, list_index, value, always_copy],
                         );
                         let updated = builder.inst_results(result)[0];
                         let null = builder.ins().iconst(ptr, 0);
@@ -2506,6 +2522,20 @@ fn native_list_kind(item_type: &Type) -> Option<i64> {
         Type::Float64 => Some(1),
         Type::Int => Some(2),
         Type::Bool => Some(3),
+        _ => None,
+    }
+}
+
+fn native_list_set_function(
+    item_type: &Type,
+    list_set_float: FuncRef,
+    list_set_int: FuncRef,
+    list_set_bool: FuncRef,
+) -> Option<FuncRef> {
+    match item_type {
+        Type::Float64 => Some(list_set_float),
+        Type::Int => Some(list_set_int),
+        Type::Bool => Some(list_set_bool),
         _ => None,
     }
 }
