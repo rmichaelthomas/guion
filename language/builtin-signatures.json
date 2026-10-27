@@ -487,6 +487,16 @@
       "operation": "JsonStringify"
     },
     {
+      "name": "json_stringify_pairs_native",
+      "parameters": [
+        "Map[Text,List[Text]]",
+        "Text",
+        "Text"
+      ],
+      "result": "Text",
+      "operation": "JsonStringifyPairs"
+    },
+    {
       "name": "json_text",
       "parameters": [
         "Text"
@@ -936,6 +946,15 @@
       ],
       "result": "List[Text]",
       "operation": "TextChars"
+    },
+    {
+      "name": "text_join_native",
+      "parameters": [
+        "List[Text]",
+        "Text"
+      ],
+      "result": "Text",
+      "operation": "TextJoin"
     },
     {
       "name": "text_parse_float",

@@ -1,5 +1,5 @@
 use guion_compiler::compile;
-use guion_model::{Artifact, SharedJson};
+use guion_model::{Artifact, Op, SharedJson};
 use guion_runtime::stdlib_data::{
     compare_semver, parse_semver, parse_timestamp, CsvError, Date, FileReaderRegistry,
     ReaderErrorKind, TextOptionMap,
@@ -531,6 +531,8 @@ fn main() -> Int:
     assert(text_join(text_split("a::b::", "::"), "|") == "a|b|")
     assert(text_join(text_split("a,b,,c,", ","), "|") == "a|b||c|")
     assert(text_join(text_split("α🧬β🧬", "🧬"), "|") == "α|β|")
+    assert(text_join([], "|") == "")
+    assert(text_join(["α", "β"], "🧬") == "α🧬β")
     assert(len(text_split("", ",")) == 1)
     assert(text_join(text_split("abc", ""), "|") == "abc")
     assert(text_replace("aba", "a", "x") == "xbx")
@@ -556,6 +558,27 @@ fn main() -> Int:
         &std::collections::HashMap::new(),
     )
     .expect("shipped stdlib imports compile");
+    assert_eq!(artifact.format_version, Artifact::CURRENT_VERSION);
+    assert!(artifact.functions.iter().any(|function| {
+        function
+            .code
+            .iter()
+            .any(|instruction| instruction.op == Op::TextJoin)
+    }));
+    let artifact_bytes = artifact.to_bytes().expect("artifact encoding succeeds");
+    let decoded = Artifact::from_bytes(&artifact_bytes).expect("artifact decoding succeeds");
+    assert!(decoded.functions.iter().any(|function| {
+        function
+            .code
+            .iter()
+            .any(|instruction| instruction.op == Op::TextJoin)
+    }));
+    let mut previous_format = artifact.clone();
+    previous_format.format_version = 42;
+    assert_eq!(
+        previous_format.to_bytes().unwrap_err().code,
+        "E_ARTIFACT_VERSION"
+    );
     for vm_only in [true, false] {
         let mut runtime = if vm_only {
             Runtime::vm_only()

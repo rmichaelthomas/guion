@@ -5,3 +5,7 @@ entry = "main.vr"
 
 [package]
 resources = []
+
+[runtime]
+# The 16,384-package regression uses bounded text batches under this app-local ceiling.
+instruction_limit = 5000000

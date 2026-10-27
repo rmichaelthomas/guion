@@ -18,6 +18,20 @@ mod tests {
     }
 
     #[test]
+    fn shared_json_direct_serde_matches_legacy_conversion() {
+        let value = SharedJson::from_serde(serde_json::json!({
+            "z": "line\nbreak",
+            "a": ["é", 3, true, null],
+            "float": 1.25,
+        }));
+
+        let direct = serde_json::to_string(value.as_ref()).unwrap();
+        let legacy = serde_json::to_string(&value.to_serde()).unwrap();
+
+        assert_eq!(direct, legacy);
+    }
+
+    #[test]
     fn decimal_integer_math_is_unbounded_and_normalized() {
         let a = BigInt::parse("999999999999999999999999999999").unwrap();
         let b = BigInt::parse("1").unwrap();
@@ -308,9 +322,9 @@ mod tests {
 
             let mut current = artifact;
             current.format_version = Artifact::CURRENT_VERSION;
-            let current_tag = match op {
-                Op::TimeResolveLocal => 161,
-                Op::TimeZoneDataVersion => 162,
+            let current_tag = match expected_tag {
+                158 => 161,
+                159 => 162,
                 _ => unreachable!(),
             };
             let current_bytes = current.to_bytes().unwrap();
@@ -1158,6 +1172,38 @@ pub enum SharedJson {
     Object(Arc<BTreeMap<String, Arc<SharedJson>>>),
 }
 
+impl serde::Serialize for SharedJson {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        match self {
+            Self::Null => serializer.serialize_unit(),
+            Self::Bool(value) => serializer.serialize_bool(*value),
+            Self::Number(value) => serde::Serialize::serialize(value, serializer),
+            Self::String(value) => serializer.serialize_str(value),
+            Self::Array(values) => {
+                use serde::ser::SerializeSeq;
+
+                let mut sequence = serializer.serialize_seq(Some(values.len()))?;
+                for value in values.iter() {
+                    sequence.serialize_element(value.as_ref())?;
+                }
+                sequence.end()
+            }
+            Self::Object(values) => {
+                use serde::ser::SerializeMap;
+
+                let mut map = serializer.serialize_map(Some(values.len()))?;
+                for (key, value) in values.iter() {
+                    map.serialize_entry(key, value.as_ref())?;
+                }
+                map.end()
+            }
+        }
+    }
+}
+
 impl SharedJson {
     pub fn from_serde(value: serde_json::Value) -> Arc<Self> {
         Arc::new(match value {
@@ -1259,7 +1305,7 @@ impl SharedJson {
 
 impl fmt::Display for SharedJson {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match serde_json::to_string(&self.to_serde()) {
+        match serde_json::to_string(self) {
             Ok(value) => f.write_str(&value),
             Err(_) => f.write_str("null"),
         }
@@ -1575,6 +1621,7 @@ pub enum Op {
     HttpGet,
     JsonParse,
     JsonStringify,
+    JsonStringifyPairs,
     JsonNull,
     JsonBool,
     JsonInt,
@@ -1620,6 +1667,7 @@ pub enum Op {
     HttpRequestBytes,
     Environment,
     TextChars,
+    TextJoin,
     BytesFromInts,
     BytesFromText,
     BytesJoin,
@@ -1753,7 +1801,7 @@ pub struct Artifact {
 }
 
 impl Artifact {
-    pub const CURRENT_VERSION: u32 = 42;
+    pub const CURRENT_VERSION: u32 = 44;
     pub fn entry(&self) -> &str {
         &self.entry
     }
@@ -1927,6 +1975,18 @@ impl Artifact {
             return Err(ArtifactError::new(
                 "E_ARTIFACT_VERSION",
                 "local time resolution requires artifact format 40 or 42",
+            ));
+        }
+        if self.format_version < 43 && artifact_uses_text_join(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "native text joining requires artifact format 43",
+            ));
+        }
+        if self.format_version < 44 && artifact_uses_json_stringify_pairs(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "streaming grouped text-pair JSON serialization requires artifact format 44",
             ));
         }
         validate_sort_comparator_effects(self)
@@ -2140,6 +2200,8 @@ impl Artifact {
                     Op::JsonProjectColumns => w.u8(100),
                     Op::JsonTextCategoriesValues => w.u8(101),
                     Op::TextChars => w.u8(102),
+                    Op::TextJoin => w.u8(163),
+                    Op::JsonStringifyPairs => w.u8(164),
                     Op::ListPushLocal(slot) => {
                         w.u8(103);
                         w.count(*slot)?;
@@ -2477,6 +2539,8 @@ impl Artifact {
                     100 => Op::JsonProjectColumns,
                     101 => Op::JsonTextCategoriesValues,
                     102 => Op::TextChars,
+                    163 => Op::TextJoin,
+                    164 => Op::JsonStringifyPairs,
                     103 => Op::ListPushLocal(r.count()?),
                     104 => Op::JsonPushLocal(r.count()?),
                     105 => Op::BytesFromInts,
@@ -2803,6 +2867,18 @@ impl Artifact {
                 "local time resolution requires artifact format 40 or 42",
             ));
         }
+        if format_version < 43 && artifact_uses_text_join(&artifact) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "native text joining requires artifact format 43",
+            ));
+        }
+        if format_version < 44 && artifact_uses_json_stringify_pairs(&artifact) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "streaming grouped text-pair JSON serialization requires artifact format 44",
+            ));
+        }
         validate_sort_comparator_effects(&artifact)
             .map_err(|message| ArtifactError::new("E_SORT_EFFECT", message))?;
         Ok(artifact)
@@ -3006,6 +3082,24 @@ fn artifact_uses_text_chars(artifact: &Artifact) -> bool {
             .code
             .iter()
             .any(|instruction| matches!(instruction.op, Op::TextChars))
+    })
+}
+
+fn artifact_uses_text_join(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function
+            .code
+            .iter()
+            .any(|instruction| matches!(instruction.op, Op::TextJoin))
+    })
+}
+
+fn artifact_uses_json_stringify_pairs(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function
+            .code
+            .iter()
+            .any(|instruction| matches!(instruction.op, Op::JsonStringifyPairs))
     })
 }
 

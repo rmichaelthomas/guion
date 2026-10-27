@@ -29,6 +29,9 @@ fn merge_diagnostic_rules(left: List[Text], right: List[Text]) -> List[Text]:
         set right_index = right_index + 1
     return merged
 
+fn diagnostic_array_text(values: Map[Text, List[Text]]) -> Text:
+    return json_stringify_pairs(values, "name", "rule")
+
 fn main() -> Int:
     let arguments = args()
     var lockfile_path = ""
@@ -204,16 +207,14 @@ fn main() -> Int:
             return 1
         let name = unwrap(name_result)
         let version_text = unwrap(version_result)
-        var version = SemVer("", "", "", [], [], "")
-        if map_has(versions_by_text, version_text):
-            set version = versions_by_text[version_text]
-        else:
+        if not map_has(versions_by_text, version_text):
             let version_parse = parse_version(version_text)
             if not is_ok(version_parse):
                 eprint("invalid SemVer for package " + name)
                 return 1
-            set version = unwrap(version_parse)
-            set versions_by_text = map_set(versions_by_text, version_text, version)
+            let parsed_version = unwrap(version_parse)
+            set versions_by_text = map_set(versions_by_text, version_text, parsed_version)
+        let parsed_version = unwrap(map_get(versions_by_text, version_text))
         var package_violations: List[Text] = []
         var package_warnings: List[Text] = []
         var source_present = false
@@ -260,7 +261,7 @@ fn main() -> Int:
             if not is_ok(minimum_parse):
                 eprint("invalid minimum SemVer for " + name)
                 return 1
-            if compare_versions(version, unwrap(minimum_parse)) < 0:
+            if compare_versions(parsed_version, unwrap(minimum_parse)) < 0:
                 set below_minimum = true
         if has_maximum_versions and json_has(maximum_versions, name):
             let maximum_result = json_text_safe(json_get(maximum_versions, name))
@@ -271,7 +272,7 @@ fn main() -> Int:
             if not is_ok(maximum_parse):
                 eprint("invalid maximum SemVer for " + name)
                 return 1
-            if compare_versions(version, unwrap(maximum_parse)) > 0:
+            if compare_versions(parsed_version, unwrap(maximum_parse)) > 0:
                 set above_maximum = true
         if above_maximum:
             set package_violations = list_push(package_violations, "above_maximum")
@@ -300,24 +301,10 @@ fn main() -> Int:
                 set warnings_by_name = map_set(warnings_by_name, name, package_warnings)
         set package_index = package_index + 1
 
-    var violation_array = json_array()
-    for name in violations_by_name:
-        for rule in violations_by_name[name]:
-            var encoded = json_object()
-            set encoded = json_set(encoded, "name", json_text(name))
-            set encoded = json_set(encoded, "rule", json_text(rule))
-            set violation_array = json_push(violation_array, encoded)
-    var warning_array = json_array()
-    for name in warnings_by_name:
-        for rule in warnings_by_name[name]:
-            var encoded = json_object()
-            set encoded = json_set(encoded, "name", json_text(name))
-            set encoded = json_set(encoded, "rule", json_text(rule))
-            set warning_array = json_push(warning_array, encoded)
-    var report = json_object()
-    set report = json_set(report, "violations", violation_array)
-    set report = json_set(report, "warnings", warning_array)
-    let written = write_text_atomic(output_path, json_stringify(report) + "\n")
+    let violation_text = diagnostic_array_text(violations_by_name)
+    let warning_text = diagnostic_array_text(warnings_by_name)
+    let report_text = "{\"violations\":" + violation_text + ",\"warnings\":" + warning_text + "}\n"
+    let written = write_text_atomic(output_path, report_text)
     if not is_ok(written):
         eprint("cannot write lockfile audit report")
         return 1

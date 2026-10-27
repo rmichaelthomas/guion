@@ -1,0 +1,113 @@
+{
+  "schema_version": 1,
+  "kind": "lockfile-auditor-guest-allocation-profile",
+  "binary_sha256": "7dece407c1e91370de7537f39fd2d223d69d079b196d6c1b20d2b91f369a4a63",
+  "source_sha256": "af3e83340854c7c4ace3c630f318e74fb67ef9e5a5fc6d5ee9791f3c46af8636",
+  "measurement_scope": "Untimed Guion runtime counters after avoiding the per-package placeholder SemVer record. Allocation values are estimated guest-budget charges, not host allocator calls or peak RSS. Every output was compared with the exact expected JSON.",
+  "platform": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+  "python": "3.14.7 (main, Aug  5 2026, 10:29:49) [Clang 21.0.0 (clang-2100.1.1.101)]",
+  "workloads": {
+    "4096": {
+      "packages": 4096,
+      "output_matches_expected": true,
+      "report_bytes": 368671,
+      "elapsed_seconds_instrumented": null,
+      "runtime_profile": {
+        "dynamic_guest_conditional_branch_executions": 139309,
+        "estimated_guest_allocation_budget_charges": {
+          "estimated_gross_bytes": 15720366,
+          "estimated_net_bytes": 15720366,
+          "estimated_refunded_bytes": 0,
+          "successful_events": 540880
+        },
+        "list_set": {
+          "copy_on_write_copies": 0,
+          "copy_size_histogram": {
+            "buckets": {
+              "0-8": {
+                "copies": 0,
+                "estimated_copy_bytes": 0
+              },
+              "129+": {
+                "copies": 0,
+                "estimated_copy_bytes": 0
+              },
+              "33-128": {
+                "copies": 0,
+                "estimated_copy_bytes": 0
+              },
+              "9-32": {
+                "copies": 0,
+                "estimated_copy_bytes": 0
+              }
+            },
+            "unit": "elements"
+          },
+          "estimated_copy_bytes": 0,
+          "in_place_updates": 0,
+          "operations": 0
+        },
+        "metric_limits": {
+          "allocation": "estimated guest-data budget charges, not host allocator calls",
+          "branches": "executed guest conditional branches, not hardware branch-misprediction counts"
+        },
+        "record_charges": {
+          "estimated_bytes": 0,
+          "events": 0
+        },
+        "scope": "latest guest invocation"
+      }
+    },
+    "8192": {
+      "packages": 8192,
+      "output_matches_expected": true,
+      "report_bytes": 737311,
+      "elapsed_seconds_instrumented": null,
+      "runtime_profile": {
+        "dynamic_guest_conditional_branch_executions": 278573,
+        "estimated_guest_allocation_budget_charges": {
+          "estimated_gross_bytes": 31428550,
+          "estimated_net_bytes": 31428550,
+          "estimated_refunded_bytes": 0,
+          "successful_events": 1081552
+        },
+        "list_set": {
+          "copy_on_write_copies": 0,
+          "copy_size_histogram": {
+            "buckets": {
+              "0-8": {
+                "copies": 0,
+                "estimated_copy_bytes": 0
+              },
+              "129+": {
+                "copies": 0,
+                "estimated_copy_bytes": 0
+              },
+              "33-128": {
+                "copies": 0,
+                "estimated_copy_bytes": 0
+              },
+              "9-32": {
+                "copies": 0,
+                "estimated_copy_bytes": 0
+              }
+            },
+            "unit": "elements"
+          },
+          "estimated_copy_bytes": 0,
+          "in_place_updates": 0,
+          "operations": 0
+        },
+        "metric_limits": {
+          "allocation": "estimated guest-data budget charges, not host allocator calls",
+          "branches": "executed guest conditional branches, not hardware branch-misprediction counts"
+        },
+        "record_charges": {
+          "estimated_bytes": 0,
+          "events": 0
+        },
+        "scope": "latest guest invocation"
+      }
+    }
+  }
+}

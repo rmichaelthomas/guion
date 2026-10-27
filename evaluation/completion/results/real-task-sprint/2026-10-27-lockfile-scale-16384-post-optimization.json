@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "kind": "lockfile-diagnostic-scaling",
+  "baseline_commit": "7257fc2",
+  "baseline_source_sha256": "08d8bda3964295e54466a1fe5bf95db8d0f80b4976a1320c0d884b4f81d2953a",
+  "candidate_source_sha256": "af3e83340854c7c4ace3c630f318e74fb67ef9e5a5fc6d5ee9791f3c46af8636",
+  "guion_binary_sha256": "7dece407c1e91370de7537f39fd2d223d69d079b196d6c1b20d2b91f369a4a63",
+  "platform": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+  "python": "3.14.7 (main, Aug  5 2026, 10:29:49) [Clang 21.0.0 (clang-2100.1.1.101)]",
+  "trials": 3,
+  "measurement": "Fresh-process source runs with Guion source cache bypassed; fixture setup excluded. Every report is checked against the expected sorted JSON. OS file cache is uncontrolled.",
+  "memory_measurement": "Direct-child peak RSS from resource.getrusage(RUSAGE_CHILDREN).ru_maxrss; each memory run is checked against the exact expected report.",
+  "workloads": {
+    "16384": {
+      "packages": 16384,
+      "diagnostics": 32768,
+      "preflight": {
+        "baseline_source": {
+          "passed": false,
+          "elapsed_seconds": 0.122918,
+          "failures": [
+            "step 1: expected exit code 0, received 1",
+            "step 1: check 1: json_equals could not be evaluated: [Errno 2] No such file or directory: '/Users/rmichaelthomas/guion/target/perf-session/lockfile-scale-gjnmsv7j/real-tasks-tmp/veritas-independent-case-0ql81olk/report.json'"
+          ],
+          "stderr": "std:json:2:12: runtime error[R_STEP_LIMIT]: instruction budget exhausted\n  at main.vr:193:28\n",
+          "runner_wall_seconds": 0.1265857499674894
+        },
+        "candidate_source": {
+          "passed": false,
+          "elapsed_seconds": 0.153074,
+          "failures": [
+            "step 1: expected exit code 0, received 1",
+            "step 1: check 1: json_equals could not be evaluated: [Errno 2] No such file or directory: '/Users/rmichaelthomas/guion/target/perf-session/lockfile-scale-gjnmsv7j/real-tasks-tmp/veritas-independent-case-81zogng1/report.json'"
+          ],
+          "stderr": "main.vr:191:23: runtime error[R_STEP_LIMIT]: instruction budget exhausted\n",
+          "runner_wall_seconds": 0.15762158302823082
+        },
+        "python": {
+          "passed": true,
+          "elapsed_seconds": 0.218761,
+          "failures": [],
+          "stderr": "",
+          "runner_wall_seconds": 0.22338945895899087
+        }
+      },
+      "status": "failed"
+    }
+  }
+}

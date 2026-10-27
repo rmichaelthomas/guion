@@ -884,6 +884,80 @@ pub fn execute_vm_frame<H: VmHost>(
                     .collect::<Vec<_>>();
                 push_stack!(Value::from_list_items(values));
             }
+            Op::TextJoin => {
+                let delimiter = match pop!() {
+                    Value::Text(text) => text,
+                    _ => {
+                        return Err(RuntimeError::new(
+                            "R_TYPE_INVALID",
+                            "text_join_native requires Text delimiter",
+                            instruction.span,
+                        ))
+                    }
+                };
+                let values = match pop!() {
+                    Value::List(values) => values,
+                    _ => {
+                        return Err(RuntimeError::new(
+                            "R_TYPE_INVALID",
+                            "text_join_native requires List[Text]",
+                            instruction.span,
+                        ))
+                    }
+                };
+                if values.len() > limits.max_collection_items {
+                    return Err(RuntimeError::new(
+                        "R_COLLECTION_LIMIT",
+                        "text_join_native exceeds the configured item limit",
+                        instruction.span,
+                    ));
+                }
+                let separator_bytes = delimiter
+                    .len()
+                    .checked_mul(values.len().saturating_sub(1))
+                    .ok_or_else(|| {
+                        RuntimeError::new(
+                            "R_ALLOCATION_LIMIT",
+                            "joined text length overflow",
+                            instruction.span,
+                        )
+                    })?;
+                let mut total = separator_bytes;
+                for value in values.iter() {
+                    let Value::Text(text) = value else {
+                        return Err(RuntimeError::new(
+                            "R_TYPE_INVALID",
+                            "text_join_native requires List[Text]",
+                            instruction.span,
+                        ));
+                    };
+                    total = total.checked_add(text.len()).ok_or_else(|| {
+                        RuntimeError::new(
+                            "R_ALLOCATION_LIMIT",
+                            "joined text length overflow",
+                            instruction.span,
+                        )
+                    })?;
+                    if total > limits.max_text_bytes {
+                        return Err(RuntimeError::new(
+                            "R_ALLOCATION_LIMIT",
+                            "joined text exceeds the configured text limit",
+                            instruction.span,
+                        ));
+                    }
+                }
+                charge_allocation(budget.as_ref(), total, instruction.span)?;
+                let mut joined = String::with_capacity(total);
+                for (index, value) in values.iter().enumerate() {
+                    if index > 0 {
+                        joined.push_str(&delimiter);
+                    }
+                    if let Value::Text(text) = value {
+                        joined.push_str(text);
+                    }
+                }
+                push_stack!(Value::Text(Arc::<str>::from(joined)));
+            }
             Op::BytesFromInts => {
                 let values = match pop!() {
                     Value::List(values) => values,
@@ -3230,6 +3304,18 @@ fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result
                 }
                 state.stack.push(Type::Text);
             }
+            Op::JsonStringifyPairs => {
+                if pop_type(&mut state.stack, pc)? != Type::Text
+                    || pop_type(&mut state.stack, pc)? != Type::Text
+                    || pop_type(&mut state.stack, pc)?
+                        != Type::Map(Box::new(Type::List(Box::new(Type::Text))))
+                {
+                    return Err(format!(
+                        "json_stringify_pairs requires Map[Text, List[Text]], Text and Text at instruction {pc}"
+                    ));
+                }
+                state.stack.push(Type::Text);
+            }
             Op::JsonGet | Op::JsonHas => {
                 if pop_type(&mut state.stack, pc)? != Type::Text
                     || pop_type(&mut state.stack, pc)? != Type::Json
@@ -3499,6 +3585,16 @@ fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result
                     return Err(format!("text_chars requires Text at instruction {pc}"));
                 }
                 state.stack.push(Type::List(Box::new(Type::Text)));
+            }
+            Op::TextJoin => {
+                let delimiter = pop_type(&mut state.stack, pc)?;
+                let values = pop_type(&mut state.stack, pc)?;
+                if delimiter != Type::Text || values != Type::List(Box::new(Type::Text)) {
+                    return Err(format!(
+                        "text_join_native requires List[Text] and Text at instruction {pc}"
+                    ));
+                }
+                state.stack.push(Type::Text);
             }
             Op::BytesFromInts => {
                 if pop_type(&mut state.stack, pc)? != Type::List(Box::new(Type::Int)) {
