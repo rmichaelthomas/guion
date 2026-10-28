@@ -1,7 +1,11 @@
 use super::CancellationToken;
 use base64::{engine::general_purpose::STANDARD, Engine as _};
-use guion_model::{BigInt, Float64, Type, Value};
-use serde_json::{json, Map as JsonObject, Value as JsonValue};
+use guion_model::{BigInt, Float64, SharedJson, Type, Value};
+use serde::{
+    ser::{SerializeMap, SerializeSeq},
+    Serialize, Serializer,
+};
+use serde_json::Value as JsonValue;
 use std::{
     io::{self, Read, Write},
     path::Path,
@@ -44,6 +48,163 @@ pub struct PythonBridge {
     closed: bool,
     native_image_observation: String,
     native_images: Vec<String>,
+}
+
+struct BridgeRequest<'a> {
+    id: u64,
+    module: &'a str,
+    function: &'a str,
+    args: &'a [Value],
+    kwargs: &'a [(String, Value)],
+    json_result: bool,
+    numpy_list_result: bool,
+}
+
+impl Serialize for BridgeRequest<'_> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut request = serializer.serialize_map(Some(9))?;
+        request.serialize_entry("protocol", &1)?;
+        request.serialize_entry("id", &self.id)?;
+        request.serialize_entry("kind", "call")?;
+        request.serialize_entry("module", self.module)?;
+        request.serialize_entry("function", self.function)?;
+        request.serialize_entry("args", &WireValues(self.args))?;
+        request.serialize_entry("kwargs", &WireKeywords(self.kwargs))?;
+        request.serialize_entry("json_result", &self.json_result)?;
+        request.serialize_entry("numpy_list_result", &self.numpy_list_result)?;
+        request.end()
+    }
+}
+
+struct WireValue<'a>(&'a Value);
+
+impl Serialize for WireValue<'_> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut value = serializer.serialize_map(Some(2))?;
+        match self.0 {
+            Value::Unit => value.serialize_entry("t", "unit")?,
+            Value::Bool(item) => {
+                value.serialize_entry("t", "bool")?;
+                value.serialize_entry("v", item)?;
+            }
+            Value::Int(item) => {
+                value.serialize_entry("t", "int")?;
+                value.serialize_entry("v", &item.to_string())?;
+            }
+            Value::Float64(item) => {
+                value.serialize_entry("t", "f64")?;
+                value.serialize_entry("v", &item.get().to_string())?;
+            }
+            Value::Text(item) => {
+                value.serialize_entry("t", "text")?;
+                value.serialize_entry("v", item.as_ref())?;
+            }
+            Value::Bytes(item) => {
+                value.serialize_entry("t", "bytes")?;
+                value.serialize_entry("v", &STANDARD.encode(item.as_slice()))?;
+            }
+            Value::List(items) => {
+                value.serialize_entry("t", "list")?;
+                value.serialize_entry("v", &WireValues(items))?;
+            }
+            Value::Float64List(items) => {
+                value.serialize_entry("t", "list")?;
+                value.serialize_entry("v", &WireFloat64Values(items))?;
+            }
+            Value::Map(items) => {
+                value.serialize_entry("t", "map")?;
+                value.serialize_entry("v", &WireMap(items))?;
+            }
+            Value::Json(item) => {
+                value.serialize_entry("t", "json")?;
+                value.serialize_entry("v", item.as_ref())?;
+            }
+            Value::OptionNone
+            | Value::OptionSome(_)
+            | Value::ResultOk(_)
+            | Value::ResultErr(_)
+            | Value::TaskError(_)
+            | Value::JsonError(_)
+            | Value::FileError(_)
+            | Value::HttpError(_)
+            | Value::NativeResource(_)
+            | Value::Record(_, _) => {
+                return Err(serde::ser::Error::custom(
+                    "unsupported Guion value in Python bridge request",
+                ));
+            }
+        }
+        value.end()
+    }
+}
+
+struct WireValues<'a>(&'a [Value]);
+
+impl Serialize for WireValues<'_> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut sequence = serializer.serialize_seq(Some(self.0.len()))?;
+        for value in self.0 {
+            sequence.serialize_element(&WireValue(value))?;
+        }
+        sequence.end()
+    }
+}
+
+struct WireFloat64Values<'a>(&'a [Float64]);
+
+impl Serialize for WireFloat64Values<'_> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut sequence = serializer.serialize_seq(Some(self.0.len()))?;
+        for value in self.0 {
+            let value = Value::Float64(*value);
+            sequence.serialize_element(&WireValue(&value))?;
+        }
+        sequence.end()
+    }
+}
+
+struct WireMap<'a>(&'a std::collections::BTreeMap<String, Value>);
+
+impl Serialize for WireMap<'_> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut map = serializer.serialize_map(Some(self.0.len()))?;
+        for (key, value) in self.0.iter() {
+            map.serialize_entry(key, &WireValue(value))?;
+        }
+        map.end()
+    }
+}
+
+struct WireKeywords<'a>(&'a [(String, Value)]);
+
+impl Serialize for WireKeywords<'_> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut map = serializer.serialize_map(Some(self.0.len()))?;
+        let mut entries = self.0.iter().collect::<Vec<_>>();
+        entries.sort_unstable_by(|(left, _), (right, _)| left.cmp(right));
+        for (key, value) in entries {
+            map.serialize_entry(key, &WireValue(value))?;
+        }
+        map.end()
+    }
 }
 
 impl PythonBridge {
@@ -158,33 +319,28 @@ impl PythonBridge {
             bridge_error("R_PYTHON_PROTOCOL", "Python bridge request ID exhausted")
         })?;
         let id = self.request_id;
-        let args = args
-            .iter()
-            .map(encode_value)
-            .collect::<Result<Vec<_>, _>>()?;
-        let mut encoded_kwargs = serde_json::Map::new();
+        for value in args {
+            validate_value(value, 0)?;
+        }
+        let mut keyword_names = std::collections::BTreeSet::new();
         for (name, value) in kwargs {
-            if encoded_kwargs
-                .insert(name.clone(), encode_value(value)?)
-                .is_some()
-            {
+            validate_value(value, 0)?;
+            if !keyword_names.insert(name) {
                 return Err(bridge_error(
                     "R_PYTHON_ARGUMENT",
                     format!("duplicate Python keyword argument `{name}`"),
                 ));
             }
         }
-        let request = json!({
-            "protocol": 1,
-            "id": id,
-            "kind": "call",
-            "module": module,
-            "function": function,
-            "args": args,
-            "kwargs": encoded_kwargs,
-            "json_result": matches!(result_type, Type::Json),
-            "numpy_list_result": matches!(result_type, Type::List(_)),
-        });
+        let request = BridgeRequest {
+            id,
+            module,
+            function,
+            args,
+            kwargs,
+            json_result: matches!(result_type, Type::Json),
+            numpy_list_result: matches!(result_type, Type::List(_)),
+        };
         write_frame(&mut self.input, &request)?;
         let deadline = Instant::now() + self.timeout;
         let bytes = loop {
@@ -337,42 +493,32 @@ fn bridge_error(code: &str, message: impl Into<String>) -> PythonBridgeError {
     }
 }
 
-fn encode_value(value: &Value) -> Result<JsonValue, PythonBridgeError> {
-    encode_value_at(value, 0)
-}
-
-fn encode_value_at(value: &Value, depth: usize) -> Result<JsonValue, PythonBridgeError> {
+fn validate_value(value: &Value, depth: usize) -> Result<(), PythonBridgeError> {
     if depth > 64 {
         return Err(bridge_error(
             "R_PYTHON_CONVERSION",
             "value nesting exceeds 64 levels",
         ));
     }
-    Ok(match value {
-        Value::Unit => json!({"t":"unit"}),
-        Value::Bool(value) => json!({"t":"bool","v":value}),
-        Value::Int(value) => json!({"t":"int","v":value.to_string()}),
-        Value::Float64(value) => json!({"t":"f64","v":value.get().to_string()}),
-        Value::Text(value) => json!({"t":"text","v":value.as_ref()}),
-        Value::Bytes(value) => json!({"t":"bytes","v":STANDARD.encode(value.as_slice())}),
-        Value::List(values) => {
-            json!({"t":"list","v":values.iter().map(|item| encode_value_at(item, depth + 1)).collect::<Result<Vec<_>,_>>()?})
-        }
+    match value {
+        Value::Unit | Value::Bool(_) | Value::Int(_) | Value::Float64(_) | Value::Text(_) | Value::Bytes(_) => Ok(()),
+        Value::List(values) => values
+            .iter()
+            .try_for_each(|item| validate_value(item, depth + 1)),
         Value::Float64List(values) => {
-            json!({"t":"list","v":values.iter().map(|item| encode_value_at(&Value::Float64(*item), depth + 1)).collect::<Result<Vec<_>,_>>()?})
-        }
-        Value::Map(values) => {
-            let mut encoded = JsonObject::new();
-            for (key, item) in values.iter() {
-                encoded.insert(key.clone(), encode_value_at(item, depth + 1)?);
+            if !values.is_empty() && depth + 1 > 64 {
+                Err(bridge_error(
+                    "R_PYTHON_CONVERSION",
+                    "value nesting exceeds 64 levels",
+                ))
+            } else {
+                Ok(())
             }
-            json!({"t":"map","v":encoded})
         }
-        Value::Json(value) => {
-            let json = value.to_serde();
-            validate_json_depth(&json, depth + 1)?;
-            json!({"t":"json","v":json})
-        }
+        Value::Map(values) => values
+            .values()
+            .try_for_each(|item| validate_value(item, depth + 1)),
+        Value::Json(value) => validate_shared_json_depth(value, depth + 1),
         Value::OptionNone
         | Value::OptionSome(_)
         | Value::ResultOk(_)
@@ -383,12 +529,32 @@ fn encode_value_at(value: &Value, depth: usize) -> Result<JsonValue, PythonBridg
         | Value::HttpError(_)
         | Value::NativeResource(_)
         | Value::Record(_, _) => {
-            return Err(bridge_error(
+            Err(bridge_error(
                 "R_PYTHON_CONVERSION",
                 "Option, Result, structured errors, and native resources cannot cross the current Python bridge",
-            ));
+            ))
         }
-    })
+    }
+}
+
+fn validate_shared_json_depth(value: &SharedJson, depth: usize) -> Result<(), PythonBridgeError> {
+    if depth > 64 {
+        return Err(bridge_error(
+            "R_PYTHON_CONVERSION",
+            "JSON nesting exceeds 64 levels",
+        ));
+    }
+    match value {
+        SharedJson::Array(items) => items
+            .iter()
+            .try_for_each(|item| validate_shared_json_depth(item, depth + 1)),
+        SharedJson::Object(fields) => fields
+            .values()
+            .try_for_each(|item| validate_shared_json_depth(item, depth + 1)),
+        SharedJson::Null | SharedJson::Bool(_) | SharedJson::Number(_) | SharedJson::String(_) => {
+            Ok(())
+        }
+    }
 }
 
 fn decode_value(value: &JsonValue, expected: &Type) -> Result<Value, PythonBridgeError> {
@@ -471,7 +637,7 @@ fn validate_json_depth(value: &JsonValue, depth: usize) -> Result<(), PythonBrid
     Ok(())
 }
 
-fn write_frame(writer: &mut impl Write, value: &JsonValue) -> Result<(), PythonBridgeError> {
+fn write_frame(writer: &mut impl Write, value: &impl Serialize) -> Result<(), PythonBridgeError> {
     let bytes = serde_json::to_vec(value)
         .map_err(|error| bridge_error("R_PYTHON_PROTOCOL", error.to_string()))?;
     if bytes.len() > MAX_FRAME {
