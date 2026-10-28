@@ -52,14 +52,18 @@ os.close(devnull)
 
 
 def read_exact(count):
-    chunks = bytearray()
-    while len(chunks) < count:
-        chunk = sys.stdin.buffer.read(count - len(chunks))
-        if not chunk:
-            if not chunks:
+    if count <= 0:
+        return bytearray()
+    chunks = bytearray(count)
+    view = memoryview(chunks)
+    offset = 0
+    while offset < count:
+        read = sys.stdin.buffer.readinto(view[offset:])
+        if not read:
+            if offset == 0:
                 return None
             raise EOFError("truncated frame")
-        chunks.extend(chunk)
+        offset += read
     return chunks
 
 
