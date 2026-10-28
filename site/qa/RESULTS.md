@@ -37,4 +37,4 @@ Screenshots in this folder are evidence for the items below; failures found and 
 - Firefox and WebKit (not installed).
 - A screen reader walkthrough (VoiceOver, NVDA) was not run.
 - Real browser zoom at 200% and 400%; width reflow at 640 px and 320 px was measured instead.
-- The Pages workflow has not run (CI is blocked by billing and the branch is unmerged).
+- No CI has run for the site. Actions is blocked by billing, so the site deploys from the `gh-pages` branch instead (`site/tools/publish-branch.mjs`). The live site was checked once in Chrome after the first branch deploy: playground run, both views, one origin contacted, clean console.

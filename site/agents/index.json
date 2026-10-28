@@ -22,6 +22,7 @@
     "build": "node site/tools/build.mjs",
     "check": "node site/tools/check-site.mjs site/public",
     "docs": "node site/tools/agent-docs.mjs",
-    "serve": "node site/tools/serve.mjs"
+    "serve": "node site/tools/serve.mjs",
+    "publish": "node site/tools/publish-branch.mjs"
   }
 }

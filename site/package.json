@@ -8,6 +8,7 @@
     "vendor": "node site/tools/vendor-instruments.mjs",
     "build": "node site/tools/build.mjs",
     "check": "node site/tools/check-site.mjs site/public",
-    "serve": "node site/tools/serve.mjs"
+    "serve": "node site/tools/serve.mjs",
+    "publish-branch": "node site/tools/publish-branch.mjs"
   }
 }
