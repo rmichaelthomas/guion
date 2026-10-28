@@ -4,13 +4,8 @@ set -euo pipefail
 if [[ "${GUION_FEED_DIGEST_CONTAINER:-}" != "1" ]]; then
   REPO_ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
   SCRATCH_ROOT="$REPO_ROOT/target/perf-session/guion-feed-digest-debian-x86_64"
-  CARGO_EXECUTABLE="$(command -v cargo || true)"
-  if [[ -z "$CARGO_EXECUTABLE" ]]; then
-    echo "Cargo is required to locate the warmed Rust registry cache" >&2
-    exit 2
-  fi
-  CARGO_ROOT="$(cd "$(dirname "$(dirname "$CARGO_EXECUTABLE")")" && pwd)"
-  CARGO_REGISTRY="$CARGO_ROOT/registry"
+  CARGO_CACHE_ROOT="${CARGO_HOME:-${HOME}/.cargo}"
+  CARGO_REGISTRY="$CARGO_CACHE_ROOT/registry"
   if [[ ! -d "$CARGO_REGISTRY" ]]; then
     echo "Warmed Cargo registry cache missing: $CARGO_REGISTRY" >&2
     exit 2
