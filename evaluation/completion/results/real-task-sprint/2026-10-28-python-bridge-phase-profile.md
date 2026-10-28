@@ -124,6 +124,14 @@ Rust measured **18.61 μs** from completed request write to the first response b
 
 The focused Rust bridge suite passed **26/26**, and the Python bridge suite passed **10/10**, including the opt-in profile assertions. See the [control-gap profile](2026-10-28-python-bridge-control-gap-profile.json).
 
+## Unix socket-pair transport — reverted
+
+The bridge was temporarily changed on Unix to use one duplex `UnixStream` socket pair for the Python sidecar's standard input and output, while retaining the existing length-prefixed JSON protocol. The platform-default pipe implementation remains available on non-Unix targets. All **26 Rust bridge integration tests** passed with the socket transport, including timeout, cancellation, exception, Unicode, native-image, and binary-payload cases.
+
+The five-run diagnostic profile did not show a faster response path: median Rust response wait was **23.27 μs** with the socket pair versus **22.57 μs** with pipes; request writing measured **5.83 μs** versus **4.90 μs**. The 30-pair comparison was worse at 1,000 calls: Guion/Python ratio moved from **1.409×** to **1.488×**. Median excess time per added call increased from **29.22 μs** to **32.12 μs**. A same-index bootstrap estimated a **3.54 μs increase** (95% interval **0.99–8.91 μs more**). The socket transport was reverted; the pipe transport remains in the code.
+
+Raw evidence: [pipe baseline](2026-10-28-python-bridge-repeated-calls-before-socketpair-30-pair.json), [socket-pair cohort](2026-10-28-python-bridge-repeated-calls-after-socketpair-30-pair.json), and [socket-pair phase profile](2026-10-28-python-bridge-socketpair-phase-profile.json).
+
 The profiling hook is off by default. Set `GUION_PYTHON_BRIDGE_PROFILE_OUT` to a JSON path to write diagnostic totals; normal runs do not collect phase timers or attach profile data to bridge responses.
 
 ## Method and limits

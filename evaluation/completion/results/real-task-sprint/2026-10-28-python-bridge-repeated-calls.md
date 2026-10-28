@@ -48,6 +48,8 @@ A borrowed-string/`RawValue` parser candidate did not pass the phase gate: five 
 
 Additional sidecar timings assigned about 2.1 μs per call to request setup, protocol/stream setup, stream restoration, response-object creation, and native-image response preparation. The five-run phase profile left about 2.24 μs unassigned after excluding profile-only serialization. These diagnostic values include timer overhead and do not change the end-to-end benchmark; Rust's first-byte wait remains the larger target at 18.61 μs. See the [control-gap profile](2026-10-28-python-bridge-control-gap-profile.json).
 
+A Unix socket-pair transport candidate passed the 26 Rust bridge integration tests but regressed the repeated-call workload. Its 30-pair 1,000-call ratio was 1.488× versus 1.409× for the fresh pipe baseline; same-index excess cost increased by 3.54 μs per added call (95% interval 0.99–8.91 μs more). It was reverted. See the [pipe baseline](2026-10-28-python-bridge-repeated-calls-before-socketpair-30-pair.json), [socket-pair samples](2026-10-28-python-bridge-repeated-calls-after-socketpair-30-pair.json), and [phase profile](2026-10-28-python-bridge-socketpair-phase-profile.json).
+
 ## Method and limits
 
 - Host: macOS ARM64; Guion artifact format 44; CPython 3.14.7, NumPy 2.5.1, and orjson 3.11.9.
