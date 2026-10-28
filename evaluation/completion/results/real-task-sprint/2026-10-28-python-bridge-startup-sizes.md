@@ -11,7 +11,11 @@ This four-lane control compares one typed `Bytes` call returning only `len(sourc
 
 The relative penalty as payload size grows was **1.045** (95% interval **1.001–1.088**). This points to work that scales with the bytes crossing the bridge. The zero-byte lane is at parity within measurement uncertainty; the 5.1 MB transfer is measurably slower in Guion. Every output matched the expected byte count and every stderr was empty.
 
-This isolates the payload-dependent portion of the no-op path, but it does not split file read, pipe transfer, frame parsing, and attachment conversion into CPU costs. The next optimization targets one avoidable copy in the sidecar's frame reader.
+This isolates the payload-dependent portion of the no-op path, but it does not split file read, pipe transfer, frame parsing, and attachment conversion into CPU costs.
+
+## Follow-up on the current PR binary
+
+The same control was rerun against the current PR binary (`296c750`) in 15 randomized pairs, preserving the earlier cohort and report. The empty-payload ratio was **1.017** (95% interval **0.993–1.065**), which does not distinguish Guion from Python. At 5,100,867 bytes, the ratio was **1.108** (**1.045–1.155**); the relative payload penalty was **1.055** (**1.007–1.210**). All outputs matched. This is weaker evidence than the 30-pair batch comparison and has a broad interval; it keeps large-payload transfer on the open list but does not localize its CPU cost. Raw samples and binary identity are in [`2026-10-28-python-bridge-startup-sizes-current-binary.json`](2026-10-28-python-bridge-startup-sizes-current-binary.json).
 
 ## Method and limits
 
