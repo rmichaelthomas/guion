@@ -67,11 +67,12 @@ OUTPUT_STEM="$REPO_ROOT/evaluation/completion/results/real-task-sprint/2026-10-2
 cleanup() {
   local status=$?
   trap - EXIT
-  rm -rf \
-    "$WARM_PROJECT" "$RUN_SCRATCH" "$CARGO_HOME_DIR" \
-    "$CARGO_TARGET_DIR" "$SCRATCH_ROOT/xdg-config"
-  if [[ "$status" -ne 0 ]]; then
-    echo "Temporary build and package scratch removed; log and reusable managed cache remain under $SCRATCH_ROOT" >&2
+  rm -rf "$WARM_PROJECT" "$RUN_SCRATCH" "$CARGO_HOME_DIR" "$SCRATCH_ROOT/xdg-config"
+  if [[ "$status" -eq 0 ]]; then
+    rm -rf "$CARGO_TARGET_DIR"
+  else
+    echo "Temporary project/package scratch removed." >&2
+    echo "Cargo incremental output, log, and managed cache retained under $SCRATCH_ROOT" >&2
   fi
   exit "$status"
 }
