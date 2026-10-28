@@ -46,7 +46,7 @@ pub struct PythonCallOutput {
 pub struct PythonBridge {
     child: Child,
     input: ChildStdin,
-    responses: Receiver<Result<Vec<u8>, String>>,
+    responses: Receiver<Result<ReaderFrame, String>>,
     request_id: u64,
     timeout: Duration,
     closed: bool,
@@ -54,6 +54,19 @@ pub struct PythonBridge {
     native_images: Vec<String>,
     profile_path: Option<PathBuf>,
     profile: Option<BridgeProfile>,
+}
+
+#[derive(Debug)]
+struct ReaderFrame {
+    bytes: Vec<u8>,
+    profile: Option<ReaderFrameProfile>,
+}
+
+#[derive(Debug)]
+struct ReaderFrameProfile {
+    first_byte_at: Instant,
+    after_first_byte: Duration,
+    queued_at: Instant,
 }
 
 #[derive(Debug, Default)]
@@ -379,8 +392,9 @@ impl PythonBridge {
             });
         }
         let (sender, responses) = mpsc::channel();
+        let profile_enabled = profile_path.is_some();
         thread::spawn(move || loop {
-            match read_frame(&mut output) {
+            match read_frame(&mut output, profile_enabled) {
                 Ok(Some(frame)) => {
                     if sender.send(Ok(frame)).is_err() {
                         break;
@@ -476,7 +490,7 @@ impl PythonBridge {
         )?;
         let deadline = Instant::now() + self.timeout;
         let response_wait_started = self.profile.as_ref().map(|_| Instant::now());
-        let bytes = loop {
+        let response = loop {
             if cancellation.is_cancelled() {
                 self.terminate();
                 return Err(bridge_error("R_CANCELLED", "invocation was cancelled"));
@@ -496,7 +510,7 @@ impl PythonBridge {
                 .responses
                 .recv_timeout(remaining.min(Duration::from_millis(20)))
             {
-                Ok(Ok(bytes)) => break bytes,
+                Ok(Ok(response)) => break response,
                 Ok(Err(message)) => {
                     self.terminate();
                     return Err(bridge_error("R_PYTHON_PROTOCOL", message));
@@ -511,11 +525,28 @@ impl PythonBridge {
                 }
             }
         };
+        if let (Some(profile), Some(reader_profile)) =
+            (self.profile.as_mut(), response.profile.as_ref())
+        {
+            if let Some(started) = response_wait_started {
+                profile.add(
+                    "response_first_byte_wait",
+                    reader_profile
+                        .first_byte_at
+                        .saturating_duration_since(started),
+                );
+            }
+            profile.add(
+                "reader_frame_after_first_byte",
+                reader_profile.after_first_byte,
+            );
+            profile.add("channel_delivery", reader_profile.queued_at.elapsed());
+        }
         if let (Some(profile), Some(started)) = (self.profile.as_mut(), response_wait_started) {
             profile.add("response_wait", started.elapsed());
         }
         let response_parse_started = self.profile.as_ref().map(|_| Instant::now());
-        let response: JsonValue = serde_json::from_slice(&bytes).map_err(|error| {
+        let response: JsonValue = serde_json::from_slice(&response.bytes).map_err(|error| {
             self.terminate();
             bridge_error(
                 "R_PYTHON_PROTOCOL",
@@ -939,13 +970,17 @@ fn write_request_frame<'data>(
     Ok(())
 }
 
-fn read_frame(reader: &mut impl Read) -> Result<Option<Vec<u8>>, String> {
+fn read_frame(
+    reader: &mut impl Read,
+    profile_enabled: bool,
+) -> Result<Option<ReaderFrame>, String> {
     let mut header = [0; 4];
     match reader.read(&mut header[..1]) {
         Ok(0) => return Ok(None),
         Ok(_) => {}
         Err(error) => return Err(error.to_string()),
     }
+    let first_byte_at = profile_enabled.then(Instant::now);
     reader
         .read_exact(&mut header[1..])
         .map_err(|error| format!("truncated Python response header: {error}"))?;
@@ -959,7 +994,15 @@ fn read_frame(reader: &mut impl Read) -> Result<Option<Vec<u8>>, String> {
     reader
         .read_exact(&mut frame)
         .map_err(|error| format!("truncated Python response frame: {error}"))?;
-    Ok(Some(frame))
+    let profile = first_byte_at.map(|first_byte_at| ReaderFrameProfile {
+        first_byte_at,
+        after_first_byte: first_byte_at.elapsed(),
+        queued_at: Instant::now(),
+    });
+    Ok(Some(ReaderFrame {
+        bytes: frame,
+        profile,
+    }))
 }
 
 #[cfg(test)]

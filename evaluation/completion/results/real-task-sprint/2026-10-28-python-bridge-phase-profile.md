@@ -22,7 +22,25 @@ The single-call ratio remains within its interval around parity: **1.046** befor
 
 Three opt-in diagnostic runs each made 1,000 bridge calls. The first call is separated from the remaining 999 so one-time package imports do not inflate the repeated-call estimate. On the first call, importing the fixture and its NumPy/orjson dependencies took about **31 ms** in Python. On later calls the measured Python work was small: about 4.7 μs parsing the request, 0.72 μs decoding its arguments, 0.98 μs dispatching the already-imported function, 0.26 μs calling it, and 0.45 μs encoding its result. The dyld count check averaged 0.80 μs, and no full scan ran on those calls.
 
-The Rust response-wait phase is end-to-end and overlaps the Python phases; the values must not be added together. The sidecar's frame-read timing mostly measures time waiting for Guion to send the next request, not Python CPU work. Remaining repeat-call time is concentrated in request writing, response waiting and transport, and response JSON parsing. The next target is to isolate the reader-thread/channel wakeup and response transport costs before changing that path.
+The Rust response-wait phase is end-to-end. The sidecar's frame-read timing mostly measures time waiting for Guion to send the next request, not Python CPU work. A follow-up profile now separates the response's first-byte delay, frame completion, and reader-thread channel delivery; see the next section.
+
+## Response-channel follow-up
+
+Three more opt-in profiles each made 1,000 calls, and all printed the expected `64000` result. The latest response wait measured **35.10 μs per repeated call**. Its recorded components were:
+
+| Response phase | Median per call |
+| --- | ---: |
+| Request write complete to first response byte | 30.54 μs |
+| Read remaining frame after first byte | 0.91 μs |
+| Reader-thread channel delivery | 3.53 μs |
+| End-to-end response wait | 35.10 μs |
+| Rust response JSON parse, after receipt | 5.14 μs |
+
+About **87%** of the measured response wait elapsed before the first response byte; about **10%** was channel delivery and **3%** completed the frame. The measured channel handoff is a relatively small target, so a synchronous-reader rewrite is not the next change. The profile points the next experiment toward response construction and parsing, while the pre-first-byte interval still includes Python work and host scheduling that this profile cannot separate cleanly.
+
+The Python-side `request_frame_read` timer includes waiting for Guion's next request after Python has already sent its response, so it does not line up with the Rust response interval. The Python `response_json_encode` and `response_write` timers include the diagnostic profile payload and should not be treated as normal, unprofiled costs. These values are diagnostic medians from three runs, not a new speed-comparison cohort.
+
+Raw samples: [response-channel phase profile](2026-10-28-python-bridge-response-channel-profile.json).
 
 The profiling hook is off by default. Set `GUION_PYTHON_BRIDGE_PROFILE_OUT` to a JSON path to write diagnostic totals; normal runs do not collect phase timers or attach profile data to bridge responses.
 

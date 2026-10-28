@@ -72,9 +72,18 @@ class PythonBridgeProfileTests(unittest.TestCase):
             self.assertEqual(profile["python"]["calls"], 3)
             self.assertGreater(profile["rust_first_call_ns"]["request_serialize"], 0)
             self.assertGreater(profile["rust_repeated_calls_ns"]["response_wait"], 0)
+            self.assertGreater(
+                profile["rust_repeated_calls_ns"]["response_first_byte_wait"], 0
+            )
+            self.assertGreater(
+                profile["rust_repeated_calls_ns"]["reader_frame_after_first_byte"], 0
+            )
+            self.assertGreater(profile["rust_repeated_calls_ns"]["channel_delivery"], 0)
             self.assertGreater(profile["python"]["first_call_ns"]["module_dispatch"], 0)
             self.assertGreater(profile["python"]["repeated_calls_ns"]["function_call"], 0)
             self.assertGreater(profile["python"]["repeated_calls_ns"]["request_frame_read"], 0)
+            self.assertGreater(profile["python"]["repeated_calls_ns"]["response_json_encode"], 0)
+            self.assertGreater(profile["python"]["repeated_calls_ns"]["response_write"], 0)
             if sys.platform == "darwin":
                 self.assertGreater(
                     profile["python"]["repeated_calls_ns"]["native_image_check"], 0

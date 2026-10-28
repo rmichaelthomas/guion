@@ -23,6 +23,9 @@ PHASES = (
     "request_serialize",
     "request_write",
     "response_wait",
+    "response_first_byte_wait",
+    "reader_frame_after_first_byte",
+    "channel_delivery",
     "response_json_parse",
     "result_decode",
     "request_frame_read",
@@ -35,6 +38,8 @@ PHASES = (
     "native_image_check",
     "native_image_snapshot",
     "response_envelope",
+    "response_json_encode",
+    "response_write",
 )
 
 
@@ -239,7 +244,17 @@ def main() -> int:
                 "wall_times_seconds": wall_times_seconds,
                 "profiles": profiles,
                 "phase_medians": profile_run_summaries(profiles),
-                "method": "Three opt-in diagnostic process runs. First-call phases are separated from calls 2..N. Rust response_wait is end-to-end and overlaps the Python phases; do not sum them.",
+                "method": (
+                    f"{args.runs} opt-in diagnostic process runs of {args.calls} calls each. "
+                    "First-call phases are separated from calls 2..N. Rust response_wait "
+                    "runs from completed request write through main-thread receipt. "
+                    "response_first_byte_wait, reader_frame_after_first_byte, and "
+                    "channel_delivery partition that interval. Python request_frame_read "
+                    "includes waiting for the next Guion request after a response, so it "
+                    "does not align to the same Rust response interval. Python "
+                    "response_json_encode and response_write include the diagnostic profile "
+                    "payload and are not representative of normal unprofiled responses."
+                ),
                 "all_profiled_outputs_checked": True,
             },
         }
