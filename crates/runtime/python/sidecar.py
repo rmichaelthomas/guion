@@ -9,6 +9,7 @@ import struct
 import sys
 import traceback
 
+_image_count = None
 try:
     if sys.platform == "darwin":
         import ctypes
@@ -29,19 +30,69 @@ try:
             return images
 
         _native_images_seen = _snapshot_native_images()
+        _native_image_count_seen = _image_count()
         _native_image_observation = "macos_dyld_snapshot"
+        _native_images_dirty = False
     else:
         _snapshot_native_images = None
         _native_images_seen = set()
+        _native_image_count_seen = None
         _native_image_observation = "unsupported"
+        _native_images_dirty = False
 except BaseException:
     _snapshot_native_images = None
     _native_images_seen = set()
+    _native_image_count_seen = None
     _native_image_observation = "unsupported"
+    _native_images_dirty = False
+
+
+if _snapshot_native_images is not None:
+    def _mark_native_images_dirty(event, _args):
+        global _native_images_dirty
+        if event in ("import", "ctypes.dlopen"):
+            _native_images_dirty = True
+
+    sys.addaudithook(_mark_native_images_dirty)
 
 MAX_FRAME = 24 * 1024 * 1024
 MAX_NUMPY_ELEMENTS = MAX_FRAME // 256
 BINARY_FRAME_MAGIC = b"GBIN"
+PROFILE_ENABLED = os.environ.get("GUION_PYTHON_BRIDGE_PROFILE") == "1"
+if PROFILE_ENABLED:
+    from time import perf_counter_ns
+
+    PROFILE_PHASES_NS = {
+        "first_call": {
+            "request_frame_read": 0,
+            "request_parse": 0,
+            "request_value_decode": 0,
+            "module_dispatch": 0,
+            "function_call": 0,
+            "result_encode": 0,
+            "output_capture": 0,
+            "native_image_check": 0,
+            "native_image_snapshot": 0,
+            "response_envelope": 0,
+        },
+        "repeated_calls": {
+            "request_frame_read": 0,
+            "request_parse": 0,
+            "request_value_decode": 0,
+            "module_dispatch": 0,
+            "function_call": 0,
+            "result_encode": 0,
+            "output_capture": 0,
+            "native_image_check": 0,
+            "native_image_snapshot": 0,
+            "response_envelope": 0,
+        },
+    }
+    PROFILE_ACTIVE_BUCKET = "first_call"
+else:
+    PROFILE_PHASES_NS = None
+    PROFILE_ACTIVE_BUCKET = None
+PROFILE_CALLS = 0
 PROTOCOL_OUT = os.fdopen(os.dup(sys.stdout.fileno()), "wb", buffering=0)
 # Keep native extension writes on fd 1/2 from corrupting the framed channel.
 # Python-level writes are captured with redirect_stdout/redirect_stderr below.
@@ -202,6 +253,9 @@ def write_frame(value):
 
 
 while True:
+    if PROFILE_ENABLED:
+        PROFILE_ACTIVE_BUCKET = "first_call" if PROFILE_CALLS == 0 else "repeated_calls"
+    started = perf_counter_ns() if PROFILE_ENABLED else 0
     header = read_exact(4)
     if header is None:
         break
@@ -211,29 +265,60 @@ while True:
     frame = read_exact(size)
     if frame is None:
         break
+    if PROFILE_ENABLED:
+        PROFILE_PHASES_NS[PROFILE_ACTIVE_BUCKET]["request_frame_read"] += (
+            perf_counter_ns() - started
+        )
+    if PROFILE_ENABLED:
+        PROFILE_CALLS += 1
     request_id = None
     stdout_capture = io.StringIO()
     stderr_capture = io.StringIO()
     try:
+        started = perf_counter_ns() if PROFILE_ENABLED else 0
         request, attachments = parse_request_frame(frame)
+        if PROFILE_ENABLED:
+            PROFILE_PHASES_NS[PROFILE_ACTIVE_BUCKET]["request_parse"] += (
+                perf_counter_ns() - started
+            )
         request_id = request["id"]
         if request.get("protocol") != 2 or request.get("kind") != "call":
             raise ValueError("unsupported bridge protocol request")
         with contextlib.redirect_stdout(stdout_capture), contextlib.redirect_stderr(stderr_capture):
+            started = perf_counter_ns() if PROFILE_ENABLED else 0
             module = importlib.import_module(request["module"])
             function = getattr(module, request["function"])
+            if PROFILE_ENABLED:
+                PROFILE_PHASES_NS[PROFILE_ACTIVE_BUCKET]["module_dispatch"] += (
+                    perf_counter_ns() - started
+                )
+            started = perf_counter_ns() if PROFILE_ENABLED else 0
             args = [decode(item, attachments) for item in request.get("args", [])]
             kwargs = {
                 name: decode(item, attachments)
                 for name, item in request.get("kwargs", {}).items()
             }
+            if PROFILE_ENABLED:
+                PROFILE_PHASES_NS[PROFILE_ACTIVE_BUCKET]["request_value_decode"] += (
+                    perf_counter_ns() - started
+                )
+            started = perf_counter_ns() if PROFILE_ENABLED else 0
             result = function(*args, **kwargs)
+            if PROFILE_ENABLED:
+                PROFILE_PHASES_NS[PROFILE_ACTIVE_BUCKET]["function_call"] += (
+                    perf_counter_ns() - started
+                )
+        started = perf_counter_ns() if PROFILE_ENABLED else 0
         if request.get("numpy_list_result") is True:
             result = normalize_numpy_list(result)
         if request.get("json_result") is True:
             encoded_result = {"t": "json", "v": encode_json(result)}
         else:
             encoded_result = encode(result)
+        if PROFILE_ENABLED:
+            PROFILE_PHASES_NS[PROFILE_ACTIVE_BUCKET]["result_encode"] += (
+                perf_counter_ns() - started
+            )
         response = {"protocol": 2, "id": request_id, "ok": True, "value": encoded_result}
     except BaseException as error:
         response = {
@@ -246,19 +331,57 @@ while True:
                 "traceback": traceback.format_exc()[-32768:],
             },
         }
+    started = perf_counter_ns() if PROFILE_ENABLED else 0
     response["stdout"] = stdout_capture.getvalue()[:65536]
     response["stderr"] = stderr_capture.getvalue()[:65536]
-    response["native_image_observation"] = _native_image_observation
+    if PROFILE_ENABLED:
+        PROFILE_PHASES_NS[PROFILE_ACTIVE_BUCKET]["output_capture"] += (
+            perf_counter_ns() - started
+        )
     response["native_images"] = []
-    if _snapshot_native_images is not None:
+    native_image_count_changed = False
+    if _image_count is not None:
+        started = perf_counter_ns() if PROFILE_ENABLED else 0
+        try:
+            native_image_count_changed = _image_count() != _native_image_count_seen
+        except BaseException:
+            _image_count = None
+            _native_image_observation = "unsupported"
+        if PROFILE_ENABLED:
+            PROFILE_PHASES_NS[PROFILE_ACTIVE_BUCKET]["native_image_check"] += (
+                perf_counter_ns() - started
+            )
+    if _snapshot_native_images is not None and (
+        _native_images_dirty or native_image_count_changed
+    ):
+        started = perf_counter_ns() if PROFILE_ENABLED else 0
         try:
             current_images = _snapshot_native_images()
             response["native_images"] = sorted(current_images - _native_images_seen)
             _native_images_seen.update(current_images)
+            _native_image_count_seen = _image_count()
+            _native_images_dirty = False
         except BaseException:
             response["native_image_observation"] = "unsupported"
             _native_image_observation = "unsupported"
             _snapshot_native_images = None
+            _image_count = None
+        if PROFILE_ENABLED:
+            PROFILE_PHASES_NS[PROFILE_ACTIVE_BUCKET]["native_image_snapshot"] += (
+                perf_counter_ns() - started
+            )
+    started = perf_counter_ns() if PROFILE_ENABLED else 0
+    response["native_image_observation"] = _native_image_observation
+    if PROFILE_ENABLED:
+        PROFILE_PHASES_NS[PROFILE_ACTIVE_BUCKET]["response_envelope"] += (
+            perf_counter_ns() - started
+        )
+    if PROFILE_ENABLED:
+        response["_bridge_profile"] = {
+            "calls": PROFILE_CALLS,
+            "first_call_ns": dict(PROFILE_PHASES_NS["first_call"]),
+            "repeated_calls_ns": dict(PROFILE_PHASES_NS["repeated_calls"]),
+        }
     try:
         write_frame(response)
     except BaseException:

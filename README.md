@@ -30,6 +30,8 @@ See the [getting-started guide](docs/getting-started.md), [language and command 
 
 ## Status and comparison with Python
 
+The current Guion-identity release matrix has passed on macOS ARM64 and Debian 12 GNU/Linux on ARM64 and x86_64 with glibc. Other operating systems, CPU architectures, and libc variants remain unverified.
+
 **Latest performance checkpoint: 2026-10-27.** The measured build at commit `6b5e5aba` (artifact format 44) was tested on macOS ARM64 against CPython 3.14.7. Guion and Python both passed **127/127** frozen application cases.
 
 | Workload | Guion result | Comparison |
@@ -50,7 +52,7 @@ A four-lane no-op control kept package imports and the `Bytes` call constant whi
 
 The next frame-reader change reduced measured temporary allocation for one 5.1 MB frame from **10.20 MB** to **5.10 MB**. A fresh 15-pair application run remained at parity with package-backed Python (ratio **1.019**, 95% interval **0.995–1.046**); an independent-cohort comparison found no measurable timing change. See the [frame-reader report](evaluation/completion/results/real-task-sprint/2026-10-28-python-bridge-readinto.md).
 
-A direct-read fast path was tested and reverted because it showed no measurable speed or memory improvement over `readinto`. A streaming-reader prototype also failed the one-copy allocation bound for a fragmented 5.1 MB attachment. The follow-up repeated-call benchmark shows a 0.241 ms excess per added Guion call (95% interval 0.236–0.254 ms); at 1,000 calls, Guion took 4.131× Python's time. The next optimization will target the measured per-call request/response path; see the [repeat-call report](evaluation/completion/results/real-task-sprint/2026-10-28-python-bridge-repeated-calls.md) and the [allocation experiment](evaluation/completion/results/real-task-sprint/2026-10-28-python-bridge-direct-read.md).
+A direct-read fast path was tested and reverted because it showed no measurable speed or memory improvement over `readinto`. A streaming-reader prototype also failed the one-copy allocation bound for a fragmented 5.1 MB attachment. Repeated-call profiling found that native-image snapshots cost 0.220 ms per call. The bridge now skips full snapshots when no import, `ctypes.dlopen`, or dyld image-count change is observed, while preserving the dynamic-library checks. In the latest 15-pair cohort, the 1,000-call ratio fell from 4.131× to 1.481× and excess time per added call fell from 0.241 ms to 0.0381 ms. Guion remains slower at 1,000 calls; the next target is response transport and reader wakeup overhead. See the [phase-profile report](evaluation/completion/results/real-task-sprint/2026-10-28-python-bridge-phase-profile.md), the [repeated-call report](evaluation/completion/results/real-task-sprint/2026-10-28-python-bridge-repeated-calls.md), and the [allocation experiment](evaluation/completion/results/real-task-sprint/2026-10-28-python-bridge-direct-read.md).
 
 These results come from named workloads on one Mac; operating-system file-cache state was uncontrolled. The current format-44 checkpoint does not validate other targets. It supports a real performance claim for the workloads shown, while overall competitiveness remains open.
 

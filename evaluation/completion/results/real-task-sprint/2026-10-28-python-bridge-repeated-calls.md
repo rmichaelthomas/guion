@@ -15,7 +15,7 @@ All timed outputs matched the expected sum. The single-call comparison does not 
 
 Subtracting the one-call time from each paired 1,000-call run estimates the added time per call after process startup. Guion added **0.239 ms per call**; Python added **0.00019 ms per call**, which is below the run-to-run noise. The paired excess was **0.241 ms per added call** (95% bootstrap interval **0.236–0.254 ms**), and all 15 paired differences were positive. This includes Guion loop execution, request serialization, pipe round trip, sidecar dispatch, response parsing, and Python loop cost; it does not yet attribute the time to one component.
 
-The next optimization target is the per-call request/response path. First measure its phases so the implementation change follows the cost rather than guessing among JSON serialization, pipe operations, sidecar dispatch, and response handling.
+Follow-up profiling found that full macOS native-image snapshots consumed 0.220 ms per repeated call. Gating snapshots on observed imports, `ctypes.dlopen`, or changed dyld image count reduced the 1,000-call ratio to 1.481 (1.439–1.559) and excess time per added call to 0.0381 ms (0.0324–0.0442). Guion remains slower than direct Python at 1,000 calls; response transport and reader wakeup are the next measured targets. See the [phase-profile report](2026-10-28-python-bridge-phase-profile.md) and [optimized repeated-call samples](2026-10-28-python-bridge-repeated-calls-after-native-image-gate.json).
 
 ## Method and limits
 
