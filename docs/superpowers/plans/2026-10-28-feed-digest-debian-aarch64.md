@@ -55,12 +55,12 @@
 - Create: `evaluation/completion/results/real-task-sprint/2026-10-28-feed-digest-managed-package-debian-aarch64.md`
 - Create: `evaluation/completion/results/real-task-sprint/2026-10-28-feed-digest-managed-package-debian-aarch64.json`
 
-- [ ] Verify the existing Colima VM is running, is ARM64, has no active containers, and has adequate disk space; do not start or reconfigure a VM.
-- [ ] Build the derived Debian 12/Rust 1.97/CMake image for `linux/arm64` and require `uname -m` = `aarch64` before compiling Guion.
-- [ ] Install native CPython 3.14.8 and uv 0.13.4 in ARM64 scratch, reuse the pure-Python wheel cache, and verify locked offline sync for feedparser 6.0.14 and feedparser-sgmllib 2.1.0.
-- [ ] Build the feature-enabled CLI with no more than two CPUs; run source and relocated-package acceptance with four CPUs maximum and 6 GiB maximum.
-- [ ] Require 6/6 source cases and 6/6 relocated-package cases, exact Python-reference output, zero parser native extensions, complete licenses, source-free package, exact loopback grant, offline sync, and Rosetta false.
-- [ ] Confirm temporary project, package, Cargo, and image-context scratch cleanup; retain only the ARM64 runtime cache and reusable builder image; commit report files and any required run fixes.
+- [x] Verify the existing Colima VM is running, is ARM64, has no active containers, and has adequate disk space; no VM was started or reconfigured.
+- [x] Build the derived Debian 12/Rust 1.97/CMake image for `linux/arm64` and require `uname -m` = `aarch64` before compiling Guion.
+- [x] Install native CPython 3.14.8 and uv 0.13.4 in ARM64 scratch, reuse the pure-Python wheel cache, and verify locked offline sync for feedparser 6.0.14 and feedparser-sgmllib 2.1.0.
+- [x] Build the feature-enabled CLI with no more than two CPUs; run source and relocated-package acceptance with four CPUs maximum and 6 GiB maximum.
+- [x] Require 6/6 source cases and 6/6 relocated-package cases, exact Python-reference output, zero parser native extensions, complete licenses, source-free package, exact loopback grant, offline sync, and Rosetta false.
+- [x] Confirm temporary project, package, Cargo, and image-context scratch cleanup; retain only the ARM64 runtime cache and reusable builder image; commit report files and any required run fixes.
 
 ### Task 3: Update status and close the target
 
@@ -70,6 +70,6 @@
 - Modify: `docs/pre-release-readiness.md`
 - Modify: `evaluation/completion/results/real-task-sprint/summary.md`
 
-- [ ] Update the Feed Digest target matrix with the Debian ARM64 result and its limits; preserve the x86_64 result unchanged.
-- [ ] Run the focused target tests, JSON report checks, documentation-link validation, shell syntax checks, and `git diff --check`; commit the documentation.
+- [x] Update the Feed Digest target matrix with the Debian ARM64 result and its limits; preserve the x86_64 result unchanged.
+- [x] Run the focused target tests, JSON report checks, documentation-link validation, shell syntax checks, and `git diff --check`; all checks passed.
 - [ ] Review the branch diff, open the PR, merge it under the already-authorized workflow, delete the merged branch, and leave unrelated untracked site work untouched.
