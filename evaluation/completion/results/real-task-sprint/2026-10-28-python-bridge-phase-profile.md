@@ -58,6 +58,16 @@ The sidecar was changed temporarily to combine the response header and body with
 
 Raw samples from the rejected candidate: [vectored-write phase profile](2026-10-28-python-bridge-vectored-write-phase-profile.json) and [15-pair benchmark](2026-10-28-python-bridge-repeated-calls-after-vectored-write.json).
 
+## Typed response envelope — reverted
+
+A follow-up candidate parsed responses into typed Rust structs instead of a generic JSON tree and omitted empty `stdout`, `stderr`, and `native_images` fields from the sidecar response. The focused bridge checks passed (11 Python checks and 26 Rust bridge tests) while this candidate was active.
+
+Three diagnostic runs showed a lower Rust response-parse median, from **5.18 μs** to **4.42 μs** per repeated call. End-to-end response wait moved from **24.11 μs** to **21.41 μs**, including **17.44 μs** before the first byte in the candidate profile. These are separate diagnostic cohorts and are too small to establish a speed gain by themselves.
+
+The 30-pair end-to-end cohort measured a **1.392×** Guion/Python ratio at 1,000 calls (95% interval **1.380–1.405**), with medians of **113.45 ms** for Guion and **81.12 ms** for Python. Against the preceding 15-pair fast-JSON cohort, estimated excess time fell from **30.93 μs** to **29.97 μs per added call**. An independent-cohort bootstrap estimated only **0.8 μs lower** per call, with a 95% interval from **3.6 μs higher to 4.3 μs lower**. The interval includes no change, so the typed parser and smaller envelope were reverted. The measured first-byte delay remains the next target.
+
+Raw candidate samples: [three-run typed-response profile](2026-10-28-python-bridge-typed-response-phase-profile.json), [initial 15-pair benchmark](2026-10-28-python-bridge-repeated-calls-after-typed-response.json), and [30-pair benchmark](2026-10-28-python-bridge-repeated-calls-after-typed-response-30-pair.json).
+
 The profiling hook is off by default. Set `GUION_PYTHON_BRIDGE_PROFILE_OUT` to a JSON path to write diagnostic totals; normal runs do not collect phase timers or attach profile data to bridge responses.
 
 ## Method and limits

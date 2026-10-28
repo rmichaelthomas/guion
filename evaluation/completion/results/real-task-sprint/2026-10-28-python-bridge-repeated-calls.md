@@ -36,6 +36,8 @@ The bridge remains slower than direct Python at 1,000 calls: the current ratio i
 
 A follow-up vectored-write experiment was reverted: the 1,000-call ratio stayed at 1.406×, and the same-index interval for its estimated per-call change crossed zero. The current code remains at the combined fast-JSON result above; see the [vectored-write samples](2026-10-28-python-bridge-repeated-calls-after-vectored-write.json) and [phase profile](2026-10-28-python-bridge-vectored-write-phase-profile.json).
 
+A typed Rust response envelope with empty optional fields omitted also failed to show a reliable end-to-end gain. Its 30-pair cohort measured 1.392× Guion/Python at 1,000 calls; an independent-cohort comparison estimated 0.8 μs less excess cost per added call, with a 95% interval spanning 3.6 μs more to 4.3 μs less. The change was reverted even though its three-run diagnostic profile measured response JSON parsing at 4.42 μs rather than 5.18 μs. See the [candidate profile](2026-10-28-python-bridge-typed-response-phase-profile.json) and [30-pair samples](2026-10-28-python-bridge-repeated-calls-after-typed-response-30-pair.json).
+
 ## Method and limits
 
 - Host: macOS ARM64; Guion artifact format 44; CPython 3.14.7, NumPy 2.5.1, and orjson 3.11.9.
