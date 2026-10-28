@@ -1,0 +1,28 @@
+{
+  "kind": "guion_site_agent_index",
+  "schema_version": 1,
+  "site": "https://rmichaelthomas.github.io/guion/",
+  "deployed_directory": "site/public",
+  "documents": {
+    "start_here": "agents/README.md",
+    "site_brief": "agents/site-brief.md",
+    "allhere_toolkit": "agents/allhere-toolkit.md",
+    "instrument_map": "agents/instrument-map.md",
+    "content_sources": "agents/content-sources.md",
+    "build_and_verify": "agents/build-and-verify.md",
+    "extending": "agents/extending.md",
+    "design": "../docs/superpowers/specs/2026-10-27-guion-site-design.md",
+    "plan": "../docs/superpowers/plans/2026-10-27-guion-site.md",
+    "qa_results": "qa/RESULTS.md"
+  },
+  "commands": {
+    "test": "node --test 'site/tests/*.test.mjs'",
+    "vendor": "node site/tools/vendor-instruments.mjs",
+    "wasm": "sh site/tools/build-wasm.sh",
+    "build": "node site/tools/build.mjs",
+    "check": "node site/tools/check-site.mjs site/public",
+    "docs": "node site/tools/agent-docs.mjs",
+    "serve": "node site/tools/serve.mjs",
+    "publish": "node site/tools/publish-branch.mjs"
+  }
+}

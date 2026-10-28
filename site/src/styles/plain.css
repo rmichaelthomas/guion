@@ -1,0 +1,5 @@
+@layer components {
+  /* Plain English: generous, editorial, one idea at a time. */
+  body:not(:has(#view-dev:checked)) .section > .shell > * + * { margin-top: clamp(1.2rem, 3vw, 2.4rem); }
+  body:not(:has(#view-dev:checked)) p { max-width: var(--measure); }
+}

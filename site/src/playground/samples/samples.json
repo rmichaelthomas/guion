@@ -1,0 +1,8 @@
+[
+  { "id": "hello", "title": "Say hello", "blurb": "A function, a greeting, a result.", "expect": { "ok": true, "stdout": "Hello, Guion!\n" } },
+  { "id": "option", "title": "Handle absence", "blurb": "A missing value you have to look at before you use it.", "expect": { "ok": true, "stdout": "24\n" } },
+  { "id": "records", "title": "Make a record", "blurb": "Typed data and a change to it.", "expect": { "ok": true, "stdout": "5\n3\n" } },
+  { "id": "denied", "title": "Ask for a file", "blurb": "Try to read a file. The playground grants nothing, and says so.", "expect": { "ok": false, "code": "R_HOST_UNSUPPORTED" } },
+  { "id": "loop", "title": "Never stop", "blurb": "A loop with no end. The playground stops it.", "expect": { "ok": false, "code": "R_STEP_LIMIT" } },
+  { "id": "mistake", "title": "Make a mistake", "blurb": "Add a number to a word. Guion says where.", "expect": { "ok": false, "code": "E_TYPE_OPERATOR", "line": 2 } }
+]

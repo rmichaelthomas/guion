@@ -1,0 +1,31 @@
+<section class="section lifecycle" id="lifecycle">
+<div class="shell">
+<div class="sectionhead">
+<div><p class="overline">03 / The apparatus</p><h2>One command.<br><span class="serif">The whole job.</span></h2></div>
+<p class="v-plain">Most languages leave you to put the tools together yourself. Guion ships one program that walks the whole path, from an empty folder to something you can hand to someone else.</p>
+<p class="v-dev">{{cli-count}} subcommands behind one binary. Core commands never discover or launch Python or uv.</p>
+</div>
+<div class="v-plain" data-ahi="ahi.relationships-diagrams.flow-map">
+<ol class="route">
+<li><code>guion new</code><strong>Start.</strong><span>Makes a small project: a program, a test, and a manifest.</span></li>
+<li><code>guion check</code><strong>Check.</strong><span>Reads your code and says what is wrong, with the line and a code that stays the same.</span></li>
+<li><code>guion test</code><strong>Test.</strong><span>Runs every test, each one from a fresh start.</span></li>
+<li><code>guion run</code><strong>Run.</strong><span>Runs it. Add <code>--json</code> and an assistant gets a report instead of text.</span></li>
+<li><code>guion build</code><strong>Build.</strong><span>Turns it into one portable file with a recorded fingerprint.</span></li>
+<li><code>guion package</code><strong>Hand over.</strong><span>Packs the program and the runtime it needs into a folder.</span></li>
+</ol>
+<p class="route-also">Also: <code>fmt</code> tidies spacing · <code>lint</code> flags unused code · <code>inspect</code> shows what a program can do · <code>doc</code> lists what it offers · <code>doctor</code> checks the machine · <code>verify-package</code>, <code>install</code>, <code>add</code>, <code>sync</code> and <code>update</code> handle delivery and dependencies.</p>
+</div>
+<div class="v-dev">
+<div class="table-wrap" tabindex="0" role="region" aria-label="All guion subcommands">
+<table class="cmdtable">
+<thead><tr><th scope="col">Command</th><th scope="col">Usage</th><th scope="col">What it does</th><th scope="col">JSON report</th></tr></thead>
+<tbody>
+{{cli-table}}
+</tbody>
+</table>
+</div>
+<p class="fineprint">Source: <code>docs/reference.md</code> and <code>docs/agents/index.json</code>. The list of subcommands is checked against the built binary by a test.</p>
+</div>
+</div>
+</section>

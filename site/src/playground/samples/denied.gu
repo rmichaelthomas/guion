@@ -1,0 +1,8 @@
+fn main() -> Int:
+    match read_text("notes.txt"):
+        Ok(text):
+            print(text)
+            return 0
+        Err(problem):
+            print(file_error_code(problem))
+            return 1

@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Guion evidence files</title>
+<style>
+:root{color-scheme:light;--paper:#e9ede3;--ink:#11251d;--blue:#2148e8;--muted:#607569;--line:#afbaad}
+body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.6 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+main{width:min(1200px,100%);margin:auto;padding:clamp(1.2rem,4vw,3rem)}
+h1{font-size:clamp(2rem,5vw,3.4rem);line-height:1;letter-spacing:-.04em;margin:.4em 0}
+a{color:var(--blue);text-underline-offset:.2em}a:focus-visible{outline:3px solid var(--blue);outline-offset:3px}
+.table-wrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:.85rem}
+th,td{text-align:left;vertical-align:top;padding:.6rem .7rem;border-bottom:1px solid var(--line)}
+code{font:.78rem ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;overflow-wrap:anywhere}
+.num{text-align:right;font-variant-numeric:tabular-nums}.muted{color:var(--muted)}
+</style>
+</head>
+<body>
+<main>
+<p><a href="../index.html">← guion</a></p>
+<h1>The files behind the numbers</h1>
+<p>Every figure on the Guion page comes from one of these reports or raw-sample files. Each is a byte-for-byte copy of a file in the project repository, listed with its size and SHA-256. Check a hash with <code>shasum -a 256 FILE</code>. The measurements describe named workloads on one machine; read each report's own limits before you rely on a number.</p>
+<div class="table-wrap">
+<table>
+<thead><tr><th scope="col">File</th><th scope="col">Bytes</th><th scope="col">SHA-256</th><th scope="col">Cited by</th><th scope="col">Reproduce with</th></tr></thead>
+<tbody>
+<tr>
+<td><a href="2026-10-27-current-format-managed-package-analysis-debian-aarch64.md">2026-10-27-current-format-managed-package-analysis-debian-aarch64.md</a></td>
+<td class="num">2,919</td>
+<td><code>4f7c1eacd50289e512a1ecdd66908d4a59c6fa602ef8a3a772ecb98b583465f5</code></td>
+<td>Packaging a Python-backed app into one folder</td>
+<td><span class="muted">see the report</span></td>
+</tr>
+<tr>
+<td><a href="2026-10-27-current-format-managed-package-analysis-debian-x86_64.md">2026-10-27-current-format-managed-package-analysis-debian-x86_64.md</a></td>
+<td class="num">2,021</td>
+<td><code>755d93e2a6fbe8924571e955837f2cda939b828eadf72b7eb780369dc93c7c81</code></td>
+<td>Packaging a Python-backed app into one folder</td>
+<td><span class="muted">see the report</span></td>
+</tr>
+<tr>
+<td><a href="2026-10-27-current-format-managed-package-analysis.md">2026-10-27-current-format-managed-package-analysis.md</a></td>
+<td class="num">4,726</td>
+<td><code>20731360405fcfecbff7e30a9b555526d607dbe82e16f9d1882eb2e408ad7763</code></td>
+<td>Packaging a Python-backed app into one folder</td>
+<td><span class="muted">see the report</span></td>
+</tr>
+<tr>
+<td><a href="2026-10-27-current-main-application-acceptance.json">2026-10-27-current-main-application-acceptance.json</a></td>
+<td class="num">249,774</td>
+<td><code>907fee49f7acf3d24d3ad96b4827c9201b11ca0181180861142fefb689297d66</code></td>
+<td>Does it behave the same as Python?</td>
+<td><span class="muted">see the report</span></td>
+</tr>
+<tr>
+<td><a href="2026-10-27-current-main-nine-app-comparison.json">2026-10-27-current-main-nine-app-comparison.json</a></td>
+<td class="num">10,913</td>
+<td><code>56638d271e10d1bbe8118a3a65acaae78c519fbc27b75fd79da9c4015f8d1dde</code></td>
+<td>Nine everyday applications</td>
+<td><span class="muted">see the report</span></td>
+</tr>
+<tr>
+<td><a href="2026-10-27-current-main-outcome-checkpoint.md">2026-10-27-current-main-outcome-checkpoint.md</a></td>
+<td class="num">5,828</td>
+<td><code>566d913d74a6c181dc74f07d75b31b54ab48cf81261b3b6cc6180eb6830214e6</code></td>
+<td>Richards, a classic benchmark program; Five short programs, start to finish; Nine everyday applications; Does it behave the same as Python?; 200,000 rows of JSON Lines; A lockfile auditor, up to 16,384 packages; Where it has been tested</td>
+<td><span class="muted">see the report</span></td>
+</tr>
+<tr>
+<td><a href="2026-10-27-current-main-short-source.json">2026-10-27-current-main-short-source.json</a></td>
+<td class="num">121,580</td>
+<td><code>728bf335cc9aa324fa0a1decf64a61619767a213488231b6f85ba60a2df23305</code></td>
+<td>Five short programs, start to finish</td>
+<td><span class="muted">see the report</span></td>
+</tr>
+<tr>
+<td><a href="2026-10-27-feed-digest-managed-package.json">2026-10-27-feed-digest-managed-package.json</a></td>
+<td class="num">2,915</td>
+<td><code>ede54a9ea5ac71f346576d48720bb7dd4df929e5f08988efc8f3e736633eade8</code></td>
+<td>A feed digest app with feedparser</td>
+<td><span class="muted">see the report</span></td>
+</tr>
+<tr>
+<td><a href="2026-10-27-feed-digest-managed-package.md">2026-10-27-feed-digest-managed-package.md</a></td>
+<td class="num">2,429</td>
+<td><code>19b0fc34061950757284a913020172085d0fc29c29fa2f991134d035a3696344</code></td>
+<td>A feed digest app with feedparser</td>
+<td><span class="muted">see the report</span></td>
+</tr>
+<tr>
+<td><a href="2026-10-27-lockfile-native-pair-acceptance.json">2026-10-27-lockfile-native-pair-acceptance.json</a></td>
+<td class="num">27,700</td>
+<td><code>4ff7820e9b7491994c2008c4aa9ed821297768ab2154c1de58cafe746e26d57c</code></td>
+<td>A lockfile auditor, up to 16,384 packages</td>
+<td><span class="muted">see the report</span></td>
+</tr>
+<tr>
+<td><a href="2026-10-27-lockfile-native-pair-serialization.json">2026-10-27-lockfile-native-pair-serialization.json</a></td>
+<td class="num">14,220</td>
+<td><code>4237f2510c0bd279b8392a127452f2cde2dbc0994ca0d262b2ba04d6b197bda4</code></td>
+<td>A lockfile auditor, up to 16,384 packages</td>
+<td><span class="muted">see the report</span></td>
+</tr>
+<tr>
+<td><a href="2026-10-27-lockfile-scale-ram-package-limit.md">2026-10-27-lockfile-scale-ram-package-limit.md</a></td>
+<td class="num">3,842</td>
+<td><code>a2e61268057c8a193164fd4bd098a408d977965f2708343298d3b9f14d0ce3e1</code></td>
+<td>A lockfile auditor, up to 16,384 packages</td>
+<td><span class="muted">see the report</span></td>
+</tr>
+<tr>
+<td><a href="2026-10-27-parallel-http-cancellation.md">2026-10-27-parallel-http-cancellation.md</a></td>
+<td class="num">2,832</td>
+<td><code>7e6cea58e350952da780160ab12f51d21f7c027cdffc2d9f4a3547c719562322</code></td>
+<td>A failing worker cancels its siblings</td>
+<td><code>cargo test --locked --offline --jobs 2 -p guion-runtime --test http parallel_worker_failure_cancels_in_flight_http_sibling_and_closes_socket -- --exact</code></td>
+</tr>
+<tr>
+<td><a href="2026-10-27-python-bridge-bytes.json">2026-10-27-python-bridge-bytes.json</a></td>
+<td class="num">9,875</td>
+<td><code>dc5713dcab7d11a35597927091ab0c474e00280d7584528c45d130235760fa13</code></td>
+<td>Calling NumPy from Guion: raw bytes</td>
+<td><code>GUION_PYTHON=/path/to/python3.14 python3 -B evaluation/completion/performance/benchmark_python_bridge_payloads.py --binary target/release/guion --python /path/to/python3.14 --trials 15</code></td>
+</tr>
+<tr>
+<td><a href="2026-10-27-python-bridge-bytes.md">2026-10-27-python-bridge-bytes.md</a></td>
+<td class="num">3,739</td>
+<td><code>d053df75c683173bc953535966b3926a13ac07cc2c31d62970f16d6de7833d8c</code></td>
+<td>Calling NumPy from Guion: raw bytes</td>
+<td><code>GUION_PYTHON=/path/to/python3.14 python3 -B evaluation/completion/performance/benchmark_python_bridge_payloads.py --binary target/release/guion --python /path/to/python3.14 --trials 15</code></td>
+</tr>
+<tr>
+<td><a href="2026-10-27-python-bridge-serialization.json">2026-10-27-python-bridge-serialization.json</a></td>
+<td class="num">15,755</td>
+<td><code>5b526e9624a13989c6f1d7d9f24867f277d3e1b9e5c200063c050055d8df1fbc</code></td>
+<td>Calling NumPy from Guion: fewer copies</td>
+<td><span class="muted">see the report</span></td>
+</tr>
+<tr>
+<td><a href="2026-10-27-python-bridge-serialization.md">2026-10-27-python-bridge-serialization.md</a></td>
+<td class="num">3,613</td>
+<td><code>fab5328926a7959d51c8f67ba9d121a81ddf6a12eb4a6fe8c05662c62d77c0d3</code></td>
+<td>Calling NumPy from Guion: fewer copies</td>
+<td><span class="muted">see the report</span></td>
+</tr>
+<tr>
+<td><a href="20261027T233155909692Z.json">20261027T233155909692Z.json</a></td>
+<td class="num">179,109</td>
+<td><code>6d9a9b72c309a9a744e2a44c15d7fd01399415496a7c3086702cbdba1a79e366</code></td>
+<td>Richards, a classic benchmark program; 200,000 rows of JSON Lines</td>
+<td><span class="muted">see the report</span></td>
+</tr>
+<tr>
+<td><a href="status.md">status.md</a></td>
+<td class="num">13,410</td>
+<td><code>a40ea834b3436fc3b454d94cb8670d841338f2b241f9fb419a578a31017b99b4</code></td>
+<td>Where it has been tested; When an assistant was asked to choose</td>
+<td><span class="muted">see the report</span></td>
+</tr>
+</tbody>
+</table>
+</div>
+</main>
+</body>
+</html>

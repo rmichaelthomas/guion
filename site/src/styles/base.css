@@ -1,0 +1,47 @@
+@layer reset {
+  *, *::before, *::after { box-sizing: border-box; }
+  html { scroll-behavior: smooth; scroll-padding-top: 8.5rem; -webkit-text-size-adjust: 100%; }
+  body, h1, h2, h3, h4, p, figure, blockquote, pre, dl, dd, ol, ul { margin: 0; }
+  ol, ul { padding: 0; }
+  button, input, textarea, select { font: inherit; color: inherit; }
+  img, svg { max-width: 100%; }
+  button { cursor: pointer; }
+}
+
+@layer base {
+  body {
+    min-width: 320px;
+    overflow-x: clip;
+    background: var(--paper);
+    color: var(--ink);
+    font: var(--step-0)/var(--leading) var(--sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: inherit; text-underline-offset: .23em; }
+  a:hover { text-decoration-color: var(--blue); }
+  ::selection { background: var(--lily); color: #0d1b17; }
+  :is(a, button, input, textarea, select, summary, [tabindex]):focus-visible { outline: 3px solid var(--blue); outline-offset: 3px; }
+  .darkzone :is(a, button, input, textarea, select, summary):focus-visible { outline-color: var(--lily); }
+  h1, h2, h3 { line-height: .98; letter-spacing: -.055em; font-weight: 750; text-wrap: balance; }
+  p { text-wrap: pretty; }
+  code, kbd, samp, pre { font-family: var(--mono); }
+  ::marker { color: var(--blue); }
+  .serif { font-family: var(--serif); font-weight: 400; letter-spacing: -.06em; font-style: italic; }
+  .mono { font-family: var(--mono); }
+  .muted { color: var(--muted); }
+  .smallcaps { font-size: var(--step--1); letter-spacing: .15em; text-transform: uppercase; font-weight: 800; }
+  .sr-only { position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+  .skip { position: absolute; transform: translateY(-200%); top: 10px; left: 10px; padding: 10px 14px; background: #fff; color: var(--ink); z-index: 100; border-radius: 8px; }
+  .skip:focus { transform: none; }
+}
+
+@layer states {
+  /* The two views are authored separately; the radio pair at the top of <body> chooses one. */
+  body:has(#view-dev:checked) .v-plain { display: none; }
+  body:not(:has(#view-dev:checked)) .v-dev { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
