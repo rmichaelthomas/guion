@@ -102,7 +102,13 @@ The reader thread was temporarily changed from `std::sync::mpsc::channel` to `sy
 
 Raw evidence: [channel microbenchmark results](2026-10-28-python-bridge-channel-handoff-microbenchmark.json), [reproducible microbenchmark](../../performance/benchmark_python_bridge_channel_handoff.rs), [bounded-channel phase profile](2026-10-28-python-bridge-bounded-channel-phase-profile.json), and [30-pair bridge benchmark](2026-10-28-python-bridge-repeated-calls-after-bounded-channel-30-pair.json).
 
-After this experiment, repeated Rust response JSON parsing at **5.47 μs** is the largest remaining named phase. The earlier typed-envelope candidate lowered its diagnostic parse time but did not establish an end-to-end gain, so any follow-up needs a different measured approach.
+## Typed Rust response parsing without wire changes — reverted
+
+The next candidate replaced generic `serde_json::Value` envelope parsing with derived typed response structs. It left the sidecar JSON wire format unchanged. In five diagnostic runs, repeated Rust response parsing measured **5.254 μs**, down from **5.472 μs** in the preceding profile. The 30-pair end-to-end cohort measured **1.395×** Guion/Python at 1,000 calls, versus **1.389×** immediately before the candidate. The independent-cohort estimate was **0.176 μs less** excess cost per added call, with a 95% interval from **2.326 μs more to 3.301 μs less**; the interval includes no change. This parsing-only change therefore did not establish a bridge speed gain and was reverted.
+
+Raw candidate samples: [typed-parser phase profile](2026-10-28-python-bridge-typed-parser-current-phase-profile.json) and [30-pair benchmark](2026-10-28-python-bridge-repeated-calls-after-typed-parser-30-pair.json).
+
+The typed parser result leaves repeated Rust response JSON parsing as the largest named phase, but a modest phase reduction alone has not translated into whole-workload improvement. The next experiment should test a materially different source of response-path cost or move to another measured bridge component.
 
 The profiling hook is off by default. Set `GUION_PYTHON_BRIDGE_PROFILE_OUT` to a JSON path to write diagnostic totals; normal runs do not collect phase timers or attach profile data to bridge responses.
 
