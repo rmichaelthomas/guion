@@ -1,0 +1,72 @@
+{
+  "artifact_format": 44,
+  "base_revision": "2405ba1cb98d9c68a095b1ee34c5b0938bc36270",
+  "captured_at_utc": "2026-10-28T01:56:58.668512+00:00",
+  "cleanup": {
+    "run_scratch_removed_on_exit": true,
+    "vm_started": false,
+    "warmed_toolchain_cache_preserved": "target/perf-session/managed-python-package"
+  },
+  "correctness": {
+    "all_console_output_matches_reference": true,
+    "all_launches_succeeded": true,
+    "all_relocated_report_bytes_match_reference": true,
+    "expected_stdout": "Rows:\n100000\nTotal:\n2500116287\n"
+  },
+  "guion_version": "0.1.0",
+  "host": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+  "kind": "guion-current-format-managed-package-analysis",
+  "managed_runtime": {
+    "cpython": "3.14.8",
+    "dependencies": {
+      "numpy": "2.5.4",
+      "orjson": "3.13.0"
+    },
+    "offline_cache_bytes": 27172671,
+    "runtime_bytes": 68119333,
+    "uv": "0.13.4"
+  },
+  "package": {
+    "files": 3802,
+    "launches_without_external_python_or_uv_settings": [
+      {
+        "elapsed_seconds": 1.6631558749941178,
+        "report_bytes": 1256,
+        "report_sha256": "86d880db3ae3bf9f1a7fa3f3e3b4f24b250bef4dc6f08e822b41ac977ab5d117",
+        "stderr_empty": true,
+        "stdout_matches_reference": true
+      },
+      {
+        "elapsed_seconds": 0.4464229579898529,
+        "report_bytes": 1256,
+        "report_sha256": "86d880db3ae3bf9f1a7fa3f3e3b4f24b250bef4dc6f08e822b41ac977ab5d117",
+        "stderr_empty": true,
+        "stdout_matches_reference": true
+      }
+    ],
+    "relocated_to_path_with_spaces_and_unicode": true,
+    "size_bytes": 157585367,
+    "verified_before_relocation": true
+  },
+  "schema_version": 1,
+  "status": "passed",
+  "timings_seconds": {
+    "managed_toolchain_preflight": 0.03442620800342411,
+    "offline_dependency_sync": 0.26235341699793935,
+    "package_assembly": 5.358429374988191,
+    "package_verification": 0.8121425000135787,
+    "standard_library_reference": 0.12001224997220561
+  },
+  "workload": {
+    "caller_data_embedded_in_package": false,
+    "group_by": "tag",
+    "groups": 13,
+    "input_bytes": 5100867,
+    "input_sha256": "7c34a5aeb714026e2624d64980999cc40612b6f230843516d5b6b9f59279a40b",
+    "report_bytes": 1256,
+    "report_sha256": "86d880db3ae3bf9f1a7fa3f3e3b4f24b250bef4dc6f08e822b41ac977ab5d117",
+    "rows": 100000,
+    "source_embedded_in_package": false,
+    "total": 2500116287
+  }
+}

@@ -104,10 +104,49 @@ fn copy_python_install_contents(source: &Path, destination: &Path) -> Result<(),
             source.display()
         )
     })?;
-    copy_python_install_tree(&source_root, &source_root, destination, destination)
+    copy_directory_tree(&source_root, &source_root, destination, destination)
 }
 
-fn copy_python_install_tree(
+fn copy_uv_cache_contents(source: &Path, destination: &Path) -> Result<(), String> {
+    if !source.is_dir() {
+        return Err(format!(
+            "shared uv cache directory does not exist: {}",
+            source.display()
+        ));
+    }
+    let source_root = fs::canonicalize(source).map_err(|error| {
+        format!(
+            "cannot resolve shared uv cache {}: {error}",
+            source.display()
+        )
+    })?;
+    fs::create_dir_all(destination).map_err(|error| {
+        format!(
+            "cannot create bundled uv cache directory {}: {error}",
+            destination.display()
+        )
+    })?;
+    let destination_root = fs::canonicalize(destination).map_err(|error| {
+        format!(
+            "cannot resolve bundled uv cache {}: {error}",
+            destination.display()
+        )
+    })?;
+    if source_root == destination_root {
+        return Ok(());
+    }
+    if source_root.starts_with(&destination_root) || destination_root.starts_with(&source_root) {
+        return Err("shared and bundled uv cache directories must not contain one another".into());
+    }
+    copy_directory_tree(
+        &source_root,
+        &source_root,
+        &destination_root,
+        &destination_root,
+    )
+}
+
+fn copy_directory_tree(
     source_root: &Path,
     source: &Path,
     destination_root: &Path,
@@ -115,23 +154,30 @@ fn copy_python_install_tree(
 ) -> Result<(), String> {
     fs::create_dir_all(destination).map_err(|error| {
         format!(
-            "cannot create bundled Python install directory {}: {error}",
+            "cannot create copied directory {}: {error}",
             destination.display()
         )
     })?;
     let mut entries = fs::read_dir(source)
-        .map_err(|error| format!("cannot inspect managed Python install: {error}"))?
+        .map_err(|error| {
+            format!(
+                "cannot inspect source directory {}: {error}",
+                source.display()
+            )
+        })?
         .map(|entry| entry.map(|entry| entry.path()))
         .collect::<Result<Vec<_>, _>>()
-        .map_err(|error| format!("cannot inspect managed Python install: {error}"))?;
-    entries.sort();
-    for source_path in entries {
-        let name = source_path.file_name().ok_or_else(|| {
+        .map_err(|error| {
             format!(
-                "managed Python path has no file name: {}",
-                source_path.display()
+                "cannot inspect source directory {}: {error}",
+                source.display()
             )
         })?;
+    entries.sort();
+    for source_path in entries {
+        let name = source_path
+            .file_name()
+            .ok_or_else(|| format!("source path has no file name: {}", source_path.display()))?;
         let destination_path = destination.join(name);
         let file_type = fs::symlink_metadata(&source_path)
             .map_err(|error| format!("cannot inspect {}: {error}", source_path.display()))?
@@ -155,7 +201,7 @@ fn copy_python_install_tree(
             };
             create_symlink(&copied_target, &source_path, &destination_path)?;
         } else if file_type.is_dir() {
-            copy_python_install_tree(
+            copy_directory_tree(
                 source_root,
                 &source_path,
                 destination_root,
@@ -163,14 +209,11 @@ fn copy_python_install_tree(
             )?;
         } else if file_type.is_file() {
             fs::copy(&source_path, &destination_path).map_err(|error| {
-                format!(
-                    "cannot copy managed Python file {}: {error}",
-                    source_path.display()
-                )
+                format!("cannot copy source file {}: {error}", source_path.display())
             })?;
         } else {
             return Err(format!(
-                "unsupported entry in managed Python install: {}",
+                "unsupported source directory entry: {}",
                 source_path.display()
             ));
         }
@@ -180,12 +223,8 @@ fn copy_python_install_tree(
 
 #[cfg(unix)]
 fn create_symlink(target: &Path, _source: &Path, destination: &Path) -> Result<(), String> {
-    std::os::unix::fs::symlink(target, destination).map_err(|error| {
-        format!(
-            "cannot copy managed Python link {}: {error}",
-            destination.display()
-        )
-    })
+    std::os::unix::fs::symlink(target, destination)
+        .map_err(|error| format!("cannot copy source link {}: {error}", destination.display()))
 }
 
 #[cfg(windows)]
@@ -203,18 +242,13 @@ fn create_symlink(target: &Path, source: &Path, destination: &Path) -> Result<()
     } else {
         std::os::windows::fs::symlink_file(target, destination)
     }
-    .map_err(|error| {
-        format!(
-            "cannot copy managed Python link {}: {error}",
-            destination.display()
-        )
-    })
+    .map_err(|error| format!("cannot copy source link {}: {error}", destination.display()))
 }
 
 #[cfg(not(any(unix, windows)))]
 fn create_symlink(_target: &Path, _source: &Path, destination: &Path) -> Result<(), String> {
     Err(format!(
-        "managed Python links are unsupported on this host: {}",
+        "source links are unsupported on this host: {}",
         destination.display()
     ))
 }
@@ -314,6 +348,9 @@ pub fn bundle_python(root: &Path, package_root: &Path) -> Result<Option<PythonBu
     let uv_cache = package_root.join(".uv-cache");
     fs::create_dir_all(&uv_cache)
         .map_err(|error| format!("cannot create package dependency cache: {error}"))?;
+    if let Some(source_cache) = env::var_os("GUION_PYTHON_CACHE_DIR") {
+        copy_uv_cache_contents(&PathBuf::from(source_cache), &uv_cache)?;
+    }
     let python_install = package_root.join("python");
     if let Some(source_install) = env::var_os("GUION_PYTHON_INSTALL_DIR") {
         let source_install = PathBuf::from(source_install);
@@ -2074,9 +2111,9 @@ fn ensure_success(label: &str, output: Output, recovery: &str) -> Result<(), Str
 #[cfg(test)]
 mod tests {
     use super::{
-        copy_python_install_contents, is_pinned_python_version, normalize_bridge_environment_links,
-        normalize_python_install_links, parse_python_project, render_pyproject,
-        verify_lock_metadata, write_lock_metadata,
+        copy_python_install_contents, copy_uv_cache_contents, is_pinned_python_version,
+        normalize_bridge_environment_links, normalize_python_install_links, parse_python_project,
+        render_pyproject, verify_lock_metadata, write_lock_metadata,
     };
     use std::fs;
 
@@ -2086,6 +2123,38 @@ mod tests {
         assert!(!is_pinned_python_version("3.14"));
         assert!(!is_pinned_python_version(">=3.14"));
         assert!(!is_pinned_python_version("3.14.8.1"));
+    }
+
+    #[test]
+    fn seeds_a_portable_package_cache_from_the_shared_uv_cache() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(format!(
+            "../../target/perf-session/uv-cache-copy-test-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let shared_cache = root.join("shared-cache");
+        let package_cache = root.join("package/.uv-cache");
+        let cached_wheel = shared_cache.join("archive-v0/orjson/orjson/__init__.py");
+        let cache_metadata = shared_cache.join("wheels-v7/pypi/orjson/wheel.msgpack");
+        fs::create_dir_all(cached_wheel.parent().unwrap()).unwrap();
+        fs::create_dir_all(cache_metadata.parent().unwrap()).unwrap();
+        fs::write(&cached_wheel, b"cached native wheel payload").unwrap();
+        fs::write(&cache_metadata, b"wheel-to-archive index").unwrap();
+
+        copy_uv_cache_contents(&shared_cache, &package_cache).unwrap();
+
+        assert_eq!(
+            fs::read(package_cache.join("archive-v0/orjson/orjson/__init__.py")).unwrap(),
+            b"cached native wheel payload"
+        );
+        assert_eq!(
+            fs::read(package_cache.join("wheels-v7/pypi/orjson/wheel.msgpack")).unwrap(),
+            b"wheel-to-archive index"
+        );
+        let _ = fs::remove_dir_all(root);
     }
 
     #[cfg(unix)]
