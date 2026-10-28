@@ -1,0 +1,371 @@
+{
+  "architecture": "aarch64",
+  "baseline_binary_sha256": "d3ed076fdc32a7a53f0f923675f78cb8c80b5f80e98759dd0866f7df98f9ff34",
+  "baseline_revision": "a1c0d40f1445e6806238ae252fc1842d0a18a6c1",
+  "candidate_binary_sha256": "8d81a63f80d6dca4ef2486cae93faca76f641d9688522ac1475a0c66da5fa085",
+  "candidate_revision": "working tree guarded reserved-key scan fast path",
+  "correctness": "every warmup, timed trial, runtime result-file comparison, and memory sample matched the independent Python oracle",
+  "decision": "rejected_and_reverted",
+  "decision_reason": "Both full-application medians favored the baseline; the predeclared 200k retention gate failed because the paired interval crossed 1.0 and median peak RSS was 128 KiB higher.",
+  "kind": "guion-core-sprint-jsonl-parser-fast-path-comparison",
+  "measurement": {
+    "cache": "prebuilt artifact in fresh process; OS file cache uncontrolled",
+    "paired_order": "seeded randomized runner order",
+    "peak_memory": "three direct-child RUSAGE_CHILDREN samples per arm; Linux ru_maxrss converted from KiB to bytes",
+    "timer": "child-process wall time from startup through exit; output validation excluded",
+    "trials_per_arm": 16,
+    "warmups_per_arm": 2
+  },
+  "platform": "Linux-6.8.0-117-generic-aarch64-with-glibc2.36",
+  "python": {
+    "executable": "/opt/cpython-3.14.7/bin/python3.14",
+    "version": "3.14.7 (main, Oct 28 2026, 17:28:03) [GCC 12.2.0]"
+  },
+  "retention_gate": "paired 95% interval upper bound < 1.0 and candidate median peak RSS <= baseline median + 1 MiB",
+  "schema_version": 1,
+  "status": "passed",
+  "workloads": {
+    "20000": {
+      "artifact_sha256": "95012652bb005352b31f6ad2d418fb3344e6345a4dc084e7386ebf3a6cbae33a",
+      "candidate_over_baseline": {
+        "ci95_percentile": [
+          0.9663718512472377,
+          1.023666503457801
+        ],
+        "median_ratio": 1.0052732133443576,
+        "ties_or_regressions": 10,
+        "win": false
+      },
+      "commands": {
+        "guion_baseline": [
+          "/var/cache/guion-core-north-star/baseline/guion-perf-session",
+          "run",
+          "--json",
+          "/var/cache/guion-core-north-star/profile-jsonl-20000/main.gub",
+          "--events",
+          "performance-inputs/events.jsonl",
+          "--output",
+          "performance-inputs/summary.json"
+        ],
+        "guion_candidate": [
+          "/Users/rmichaelthomas/guion/.worktrees/guion-core-sprint-spec/target/perf-session/cargo/release/guion",
+          "run",
+          "--json",
+          "/var/cache/guion-core-north-star/profile-jsonl-20000/main.gub",
+          "--events",
+          "performance-inputs/events.jsonl",
+          "--output",
+          "performance-inputs/summary.json"
+        ]
+      },
+      "expected_output_sha256": "17db4af1c17ebfae47a4a5b1406c97209420ef18e39038077865f0c1b34145c4",
+      "input_bytes": 1465660,
+      "input_sha256": "f234de1ffad1633ab452e86d7a5c60026c58671a65df41f3d99a60d4f0e1af3a",
+      "output_checked_on_every_warmup_trial_and_memory_sample": true,
+      "output_oracle": "independent Python data_reference; parsed JSON equality after canonical group sorting",
+      "paired_trial_order": [
+        [
+          "guion_candidate",
+          "guion_baseline"
+        ],
+        [
+          "guion_candidate",
+          "guion_baseline"
+        ],
+        [
+          "guion_baseline",
+          "guion_candidate"
+        ],
+        [
+          "guion_candidate",
+          "guion_baseline"
+        ],
+        [
+          "guion_baseline",
+          "guion_candidate"
+        ],
+        [
+          "guion_baseline",
+          "guion_candidate"
+        ],
+        [
+          "guion_candidate",
+          "guion_baseline"
+        ],
+        [
+          "guion_candidate",
+          "guion_baseline"
+        ],
+        [
+          "guion_candidate",
+          "guion_baseline"
+        ],
+        [
+          "guion_baseline",
+          "guion_candidate"
+        ],
+        [
+          "guion_baseline",
+          "guion_candidate"
+        ],
+        [
+          "guion_baseline",
+          "guion_candidate"
+        ],
+        [
+          "guion_candidate",
+          "guion_baseline"
+        ],
+        [
+          "guion_baseline",
+          "guion_candidate"
+        ],
+        [
+          "guion_candidate",
+          "guion_baseline"
+        ],
+        [
+          "guion_baseline",
+          "guion_candidate"
+        ]
+      ],
+      "peak_rss": {
+        "guion_baseline": {
+          "median_bytes": 10616832,
+          "samples_bytes": [
+            10616832,
+            10616832,
+            10616832
+          ]
+        },
+        "guion_candidate": {
+          "median_bytes": 10485760,
+          "samples_bytes": [
+            10485760,
+            10616832,
+            10485760
+          ]
+        }
+      },
+      "rows": 20000,
+      "samples": {
+        "guion_baseline": {
+          "median_seconds": 0.5513201604990172,
+          "p95_seconds_nearest_rank": 1.1311474770045606,
+          "samples_seconds": [
+            0.5269479290000163,
+            0.5792419920035172,
+            1.1311474770045606,
+            0.5557657059980556,
+            0.5628572319983505,
+            0.5504281159956008,
+            0.5469968050019816,
+            0.5542451290020836,
+            0.5472379739949247,
+            0.5522122050024336,
+            0.5497161580060492,
+            0.615511953998066,
+            0.5329596260053222,
+            0.600628421001602,
+            0.5341692720030551,
+            0.5465972649981268
+          ]
+        },
+        "guion_candidate": {
+          "median_seconds": 0.5540833525010385,
+          "p95_seconds_nearest_rank": 0.6237994689945481,
+          "samples_seconds": [
+            0.5411133150046226,
+            0.5383704000050784,
+            0.5717784110020148,
+            0.5689187370007858,
+            0.5528812910051784,
+            0.552246829996875,
+            0.5598199310043128,
+            0.5564320690027671,
+            0.5508500879950589,
+            0.5635298089982825,
+            0.5491378980004811,
+            0.5407708089987864,
+            0.6237994689945481,
+            0.5552854139968986,
+            0.5502914149983553,
+            0.5914433460056898
+          ]
+        }
+      },
+      "source_sha256": "4cb05ac5abaa1b893a879b2efd838936e56ff857e037802178909e245dbcff9a"
+    },
+    "200000": {
+      "artifact_sha256": "95012652bb005352b31f6ad2d418fb3344e6345a4dc084e7386ebf3a6cbae33a",
+      "candidate_over_baseline": {
+        "ci95_percentile": [
+          0.991065382640658,
+          1.0234532988226615
+        ],
+        "median_ratio": 1.0141255455876874,
+        "ties_or_regressions": 9,
+        "win": false
+      },
+      "commands": {
+        "guion_baseline": [
+          "/var/cache/guion-core-north-star/baseline/guion-perf-session",
+          "run",
+          "--json",
+          "/var/cache/guion-core-north-star/profile-jsonl-200000/main.gub",
+          "--events",
+          "performance-inputs/events.jsonl",
+          "--output",
+          "performance-inputs/summary.json"
+        ],
+        "guion_candidate": [
+          "/Users/rmichaelthomas/guion/.worktrees/guion-core-sprint-spec/target/perf-session/cargo/release/guion",
+          "run",
+          "--json",
+          "/var/cache/guion-core-north-star/profile-jsonl-200000/main.gub",
+          "--events",
+          "performance-inputs/events.jsonl",
+          "--output",
+          "performance-inputs/summary.json"
+        ]
+      },
+      "expected_output_sha256": "243cd6553ac055e077c99a45fc4cb455981e3f52648507c82528a5291e35213f",
+      "input_bytes": 14656198,
+      "input_sha256": "c87117d62d5559a5a907465c4ed035251aad4d112f9431a4bacd53faf550ce6c",
+      "output_checked_on_every_warmup_trial_and_memory_sample": true,
+      "output_oracle": "independent Python data_reference; parsed JSON equality after canonical group sorting",
+      "paired_trial_order": [
+        [
+          "guion_candidate",
+          "guion_baseline"
+        ],
+        [
+          "guion_candidate",
+          "guion_baseline"
+        ],
+        [
+          "guion_baseline",
+          "guion_candidate"
+        ],
+        [
+          "guion_candidate",
+          "guion_baseline"
+        ],
+        [
+          "guion_baseline",
+          "guion_candidate"
+        ],
+        [
+          "guion_baseline",
+          "guion_candidate"
+        ],
+        [
+          "guion_candidate",
+          "guion_baseline"
+        ],
+        [
+          "guion_candidate",
+          "guion_baseline"
+        ],
+        [
+          "guion_candidate",
+          "guion_baseline"
+        ],
+        [
+          "guion_baseline",
+          "guion_candidate"
+        ],
+        [
+          "guion_baseline",
+          "guion_candidate"
+        ],
+        [
+          "guion_baseline",
+          "guion_candidate"
+        ],
+        [
+          "guion_candidate",
+          "guion_baseline"
+        ],
+        [
+          "guion_baseline",
+          "guion_candidate"
+        ],
+        [
+          "guion_candidate",
+          "guion_baseline"
+        ],
+        [
+          "guion_baseline",
+          "guion_candidate"
+        ]
+      ],
+      "peak_rss": {
+        "guion_baseline": {
+          "median_bytes": 10485760,
+          "samples_bytes": [
+            10616832,
+            10485760,
+            10485760
+          ]
+        },
+        "guion_candidate": {
+          "median_bytes": 10616832,
+          "samples_bytes": [
+            10485760,
+            10616832,
+            10616832
+          ]
+        }
+      },
+      "rows": 200000,
+      "samples": {
+        "guion_baseline": {
+          "median_seconds": 5.477163150502747,
+          "p95_seconds_nearest_rank": 5.8277706439985195,
+          "samples_seconds": [
+            5.439236843994877,
+            5.459416352001426,
+            5.396924236003542,
+            5.545132712999475,
+            5.603270089995931,
+            5.426738313995884,
+            5.492100556002697,
+            5.534302014995774,
+            5.531925997995131,
+            5.8277706439985195,
+            5.532841421998455,
+            5.414388566998241,
+            5.462225745002797,
+            5.3657760029964265,
+            5.515276282996638,
+            5.26655673100322
+          ]
+        },
+        "guion_candidate": {
+          "median_seconds": 5.525084151002375,
+          "p95_seconds_nearest_rank": 5.9419976839999435,
+          "samples_seconds": [
+            5.375237742002355,
+            5.707582593997358,
+            5.508794462002697,
+            5.495589074002055,
+            5.579728630997124,
+            5.586316105000151,
+            5.355949248005345,
+            5.8336607230012305,
+            5.625435965004726,
+            5.8100331040041056,
+            5.436968560999958,
+            5.541373840002052,
+            5.9419976839999435,
+            5.450557812000625,
+            5.415668644003745,
+            5.332128608002677
+          ]
+        }
+      },
+      "source_sha256": "4cb05ac5abaa1b893a879b2efd838936e56ff857e037802178909e245dbcff9a"
+    }
+  }
+}

@@ -27,7 +27,7 @@
     "bootstrap_resamples": 20000,
     "candidate_order": "seeded randomized order within each paired trial",
     "cache_policy": "fresh source runs bypass Guion source cache; cached source and prebuilt artifact lanes are distinct; OS file cache is uncontrolled",
-    "timer": "time.perf_counter around each child process plus the per-run output check",
+    "timer": "time.perf_counter around the child process from startup through exit; output is validated immediately afterward and excluded from the timed duration",
     "memory": "resource.getrusage(RUSAGE_CHILDREN).ru_maxrss for direct child process; process-pool worker peaks are separate and their sum is only an upper bound",
     "heavy_runs": "sequential; no concurrent build or benchmark"
   },

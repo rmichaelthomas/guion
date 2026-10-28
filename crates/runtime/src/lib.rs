@@ -1483,6 +1483,50 @@ impl VmHost for Instance {
                     }
                 }
             }
+            Op::HttpResponseText => {
+                let fields = match pop!() {
+                    Value::Record(name, fields) if name == "HttpResponse" && fields.len() == 3 => {
+                        fields
+                    }
+                    _ => {
+                        return Err(RuntimeError::new(
+                            "R_TYPE_INVALID",
+                            "http_response_text argument must be HttpResponse",
+                            instruction.span,
+                        ))
+                    }
+                };
+                let Value::Bytes(body) = &fields[2] else {
+                    return Err(RuntimeError::new(
+                        "R_TYPE_INVALID",
+                        "HttpResponse body must be Bytes",
+                        instruction.span,
+                    ));
+                };
+                if body.len() > self.policy.max_text_bytes {
+                    let mut error = http_error(
+                        "R_HTTP_LIMIT",
+                        "HTTP response exceeds the configured text byte limit",
+                    );
+                    error.trace.push(instruction.span);
+                    push_stack!(Value::ResultErr(Box::new(Value::HttpError(error))));
+                } else {
+                    match std::str::from_utf8(body.as_ref()) {
+                        Ok(text) => {
+                            charge_allocation(budget.as_ref(), text.len(), instruction.span)?;
+                            push_stack!(Value::ResultOk(Box::new(Value::Text(text.into()))));
+                        }
+                        Err(_) => {
+                            let mut error = http_error(
+                                "R_HTTP_ENCODING",
+                                "HTTP response body is not valid UTF-8",
+                            );
+                            error.trace.push(instruction.span);
+                            push_stack!(Value::ResultErr(Box::new(Value::HttpError(error))));
+                        }
+                    }
+                }
+            }
             Op::FileOpenLines | Op::CsvOpen => {
                 let path = match pop!() {
                     Value::Text(path) => path,

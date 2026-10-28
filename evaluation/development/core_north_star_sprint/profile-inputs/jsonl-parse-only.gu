@@ -1,0 +1,23 @@
+import "std:jsonl"
+fn main() -> Int:
+    let opened = jsonl_open("performance-inputs/events.jsonl")
+    if not is_ok(opened):
+        return 1
+    let reader = unwrap(opened)
+    var count = 0
+    var done = false
+    while not done:
+        let next = jsonl_next(reader)
+        if not is_ok(next):
+            return 2
+        let maybe_line = unwrap(next)
+        if is_some(maybe_line):
+            let line = unwrap(maybe_line)
+            set count = count + 1
+        else:
+            set done = true
+    let closed = jsonl_close(reader)
+    if not is_ok(closed):
+        return 3
+    print(count)
+    return 0

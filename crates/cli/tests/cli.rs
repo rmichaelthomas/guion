@@ -54,6 +54,22 @@ fn temporal_resolver_api_and_example_are_discoverable_to_agents() {
     assert!(source.contains("time_zone_data_version"));
 }
 
+#[test]
+fn typed_http_response_example_compiles_through_the_cli_without_network_access() {
+    let repository = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let example = repository.join("docs/agents/examples/http_request.gu");
+    let output = Command::new(env!("CARGO_BIN_EXE_guion"))
+        .args(["check", example.to_str().unwrap()])
+        .output()
+        .expect("start Guion check command");
+    assert!(
+        output.status.success(),
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
 #[cfg(feature = "python-interop")]
 fn python3_path() -> String {
     let output = Command::new("python3")

@@ -24,7 +24,7 @@ Statements: `let`, `var`, `set`, `return`, `if`/`else`, `while`, `for name in li
 - Locals are frame-owned values. `let` cannot be assigned; `var` can. Each invocation owns its locals. Calls have a bounded stack depth, instructions consume a configurable budget, and output is captured per instance. A shared cumulative estimated guest-data allocation budget covers input values, collection and record construction, text/byte/JSON values, host results, and output rendering across nested calls and parallel workers; exhaustion reports `R_ALLOCATION_LIMIT`. The default is 256 MiB. Interpreter/JIT frames, operand stacks, and scalar arithmetic temporaries are excluded so changing execution backend does not change this limit. Integer growth is bounded separately by `max_integer_digits`. This is language-level estimate accounting, not an exact process-memory ceiling; limits for output, file bytes, text size, collection size, integer digits, and source/artifact size are separate.
 - `print(value)` writes its display form plus one newline to the instance output buffer. `args()` returns all CLI arguments as `List[Text]`; `args_from(start)` returns the suffix beginning at a zero-based index and reports `R_ARGUMENT_INDEX` for a negative or past-end index. `env(name) -> Option[Text]` reads one environment variable only when its exact name is granted in `[environment].variables` in `guion.toml` (or by an embedding `HostPolicy`); an ungranted name raises `R_ENV_DENIED`, and an unset granted name returns `None`. `read_text(path) -> Result[Text, FileError]`, `write_text(path, content) -> Result[Unit, FileError]`, `read_bytes(path) -> Result[Bytes, FileError]`, and `write_bytes(path, content) -> Result[Unit, FileError]` are host operations; runtime embedders grant a project root and read/write rights in `HostPolicy`. The CLI grants the source or artifact directory; `guion run --file-root DIRECTORY` adds a further root. Reads search roots in grant order; writes use the last granted root. Relative paths only are accepted, parent traversal is rejected, and canonicalized symlink targets must remain under one granted root. Access/path/filesystem failures return `FileError`; configured size-limit failures remain runtime errors. This is a path policy, not an OS security sandbox. Bytes preserve arbitrary byte sequences and are limited by `max_file_bytes`.
 - `http_get(url) -> Result[Text, HttpError]` performs a bounded GET for HTTP or HTTPS text. Network is denied by default. Embedders explicitly grant exact hostnames through `HostPolicy`; CLI projects list them under `[network].hosts` in `guion.toml`. A redirect is followed only when its destination hostname is also granted. Timeouts, response byte ceilings, and redirect counts are configurable; non-2xx statuses and transport/encoding failures return `HttpError`, inspectable through `http_error_code` and `http_error_message`. Host allowlists do not prevent DNS rebinding or provide OS-level egress confinement.
-- `http_request(method, url, headers, body) -> Result[Json, HttpError]` supports GET, POST, PUT, PATCH, DELETE, HEAD, and OPTIONS with `Map[Text]` headers and a UTF-8 text body. Its JSON envelope contains integer `status`, text `body`, and lowercase response headers. `http_request_bytes(method, url, headers, body, timeout_ms) -> Result[HttpResponse, HttpError]` preserves arbitrary request and response bytes; `HttpResponse` in `std:types` has `status: Int`, `headers: Map[Text, Text]`, and `body: Bytes`. Non-2xx responses remain values. A shared host client enforces one monotonic deadline through connection and body reads, bounds response accumulation, refuses cross-origin redirects, and interrupts in-flight reads on cancellation. Runtime URL hosts require exact grants in `[network].hosts` or `guion run --allow-http-host HOST`; network remains denied by default.
+- `http_request(method, url, headers, body) -> Result[Json, HttpError]` supports GET, POST, PUT, PATCH, DELETE, HEAD, and OPTIONS with `Map[Text]` headers and a UTF-8 text body. Its JSON envelope contains integer `status`, text `body`, and lowercase response headers. `http_request_bytes(method, url, headers, body, timeout_ms) -> Result[HttpResponse, HttpError]` preserves arbitrary request and response bytes; `HttpResponse` in `std:types` has `status: Int`, `headers: Map[Text, Text]`, and `body: Bytes`. Non-2xx responses remain values. `http_response_text(response) -> Result[Text, HttpError]` checks the body's UTF-8 encoding and text-size limit; `std:http.http_response_json(response) -> Result[Json, StdError]` composes that conversion with `json_parse` while preserving stable error codes and messages. A shared host client enforces one monotonic deadline through connection and body reads, bounds response accumulation, refuses cross-origin redirects, and interrupts in-flight reads on cancellation. Runtime URL hosts require exact grants in `[network].hosts` or `guion run --allow-http-host HOST`; network remains denied by default.
 - `unix_time_ms() -> Int` returns wall-clock milliseconds since the Unix epoch, and `today_local() -> Date` returns the current date in the host process time zone. Clock access is denied unless `[clock].enabled = true` or the caller uses `guion run --allow-clock` / an embedding `HostPolicy` grant. The host supplies local-time and daylight-saving rules; tests and embedders can pin the clock through `HostPolicy::with_clock_unix_time_ms`.
 - `parallel_map(items, worker, limit)` calls a named unary function on immutable list items in worker-local VM instances and returns `Result[List[U], TaskError]`. `is_ok(result)` tests the variant; `unwrap(result)` returns the list from `Ok`; `error(result)` returns the `TaskError` from `Err`. `task_index`, `task_code`, and `task_message` read its failed input index and failure details. Workers preserve result order, use a bounded shared worker instruction allowance, stop scheduling and poll cancellation after failure, join running tasks, and merge completed output by input index. An instruction-limit failure inside a worker is a `TaskError`; host setup errors still fail the invocation.
 - Runtime and compile errors preserve source spans. Format-17 artifacts add Bytes values and byte file operations; format-18 artifacts add source-level Python keyword calls; format-19 artifacts add HTTP GET and `HttpError`; format-38 artifacts add byte HTTP; format-39 artifacts add explicitly granted clock access; format-16 metadata carries source and dependency-lock provenance; format-15 metadata and format-14 artifacts remain readable. Runtime combines recorded ceilings with host policy by taking the stricter value. The bytecode is an implementation detail apart from the versioned artifact boundary.
@@ -63,6 +63,7 @@ http_get(Text) -> Result[Text, HttpError]
 http_request(Text, Text, Map[Text, Text], Text) -> Result[Json, HttpError]
 http_request_bytes(Text, Text, Map[Text, Text], Bytes, Int) -> Result[Record[HttpResponse], HttpError]
 http_request_with_timeout(Text, Text, Map[Text, Text], Text, Int) -> Result[Json, HttpError]
+http_response_text(Record[HttpResponse]) -> Result[Text, HttpError]
 is_ok(Result[$T, $E]) -> Bool
 is_some(Option[$T]) -> Bool
 json_array() -> Json
@@ -180,6 +181,7 @@ std:fs — pub fn fs_read_text(path: Text) -> Result[Text, StdError]
 std:fs — pub fn fs_open_lines(path: Text) -> Result[FileReader, FileError]
 std:fs — pub fn fs_next_line(reader: FileReader) -> Result[Option[SourceLine], FileError]
 std:fs — pub fn fs_close_reader(reader: FileReader) -> Result[Unit, FileError]
+std:http — pub fn http_response_json(response: HttpResponse) -> Result[Json, StdError]
 std:json — pub fn json_get_safe(value: Json, key: Text) -> Result[Json, JsonError]
 std:json — pub fn json_index_safe(value: Json, index: Int) -> Result[Json, JsonError]
 std:json — pub fn json_text_safe(value: Json) -> Result[Text, JsonError]
@@ -291,7 +293,7 @@ max_request_bytes = 1048576
 max_redirects = 5
 ```
 
-The default is no hosts, a 15-second total request timeout, a 1 MiB request limit, a 16 MiB response limit, and five redirects. Only HTTP/HTTPS URLs without embedded credentials are accepted. `http_get` follows redirects only to granted hosts and returns non-2xx statuses as typed errors. `http_request` restricts redirects to the initial host, caps request and response bodies while streaming, and returns non-2xx status, headers, and UTF-8 response text in its JSON envelope. Proxies are disabled so ambient proxy settings cannot route a request outside the declared host policy. HTTP requests share one total deadline across connection and response-body reads, and poll both invocation cancellation and `parallel_map` worker cancellation while active. A worker failure interrupts in-flight HTTP requests, stops new work, and joins the remaining workers before returning. Completed external effects are not rolled back. DNS rebinding and network egress confinement require operating-system controls outside the language runtime. Binary bodies and streaming APIs remain planned.
+The default is no hosts, a 15-second total request timeout, a 1 MiB request limit, a 16 MiB response limit, and five redirects. Only HTTP/HTTPS URLs without embedded credentials are accepted. `http_get` follows redirects only to granted hosts and returns non-2xx statuses as typed errors. `http_request` restricts redirects to the initial host, caps request and response bodies while streaming, and returns non-2xx status, headers, and UTF-8 response text in its JSON envelope. `http_request_bytes` returns the status, headers, and exact body bytes as a `HttpResponse`; use `http_response_text` or `std:http.http_response_json` when text decoding is required. Proxies are disabled so ambient proxy settings cannot route a request outside the declared host policy. HTTP requests share one total deadline across connection and response-body reads, and poll both invocation cancellation and `parallel_map` worker cancellation while active. A worker failure interrupts in-flight HTTP requests, stops new work, and joins the remaining workers before returning. Completed external effects are not rolled back. DNS rebinding and network egress confinement require operating-system controls outside the language runtime. Streaming response APIs remain planned.
 
 ## Structured concurrency behavior
 
@@ -488,6 +490,7 @@ E_PARALLEL_RESOURCE
 E_PARALLEL_WORKER
 E_PRINT_VALUE
 E_PROFILE
+E_PROFILE_OUT
 E_PROJECT_ENTRY
 E_PROJECT_NOT_FOUND
 E_PROJECT_ROOT
@@ -727,11 +730,33 @@ fn main() -> Int:
 Command: `cargo run --locked -p guion-cli -- run --allow-http-host api.example.org docs/agents/examples/http_request.gu https://api.example.org/health`
 
 ```guion
+import "std:http"
 import "std:types"
 
 fn get_response(url: Text) -> Result[HttpResponse, HttpError]:
     let headers: Map[Text, Text] = {}
     return http_request_bytes("GET", url, headers, bytes_from_text(""), 1000)
+
+fn show_response(response: HttpResponse) -> Int:
+    let body_text = http_response_text(response)
+    if not is_ok(body_text):
+        let problem = error(body_text)
+        eprint(http_error_code(problem))
+        eprint(http_error_message(problem))
+        return 1
+
+    print(response.status)
+    print(unwrap(body_text))
+
+    let body_json = http_response_json(response)
+    if not is_ok(body_json):
+        let problem = error(body_json)
+        eprint(problem.code)
+        eprint(problem.message)
+        return 1
+
+    print(json_stringify(unwrap(body_json)))
+    return 0
 
 fn main() -> Int:
     let arguments = args()
@@ -741,9 +766,7 @@ fn main() -> Int:
 
     match get_response(arguments[0]):
         Ok(response):
-            print(response.status)
-            print(len(response.body))
-            return 0
+            return show_response(response)
         Err(problem):
             eprint(http_error_code(problem))
             eprint(http_error_message(problem))
@@ -907,4 +930,4 @@ fn main() -> Int:
 - [Host API and effects](../../language/host-api.md)
 - [Agent recipes](recipes.md)
 
-<!-- Generated reference content digest: sha256:72245ba207d0e7f820eade26bc56ca1f1dbe173acbaae08c6369764d9a11dece. Validated by `cargo xtask agent-reference --check`. -->
+<!-- Generated reference content digest: sha256:0a5fb7ddef989ccc36ac7ad427d038fdaf49fe8bdae92554b4f6591a13e0a493. Validated by `cargo xtask agent-reference --check`. -->

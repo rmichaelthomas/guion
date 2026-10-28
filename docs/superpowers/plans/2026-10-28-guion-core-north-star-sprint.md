@@ -58,49 +58,49 @@ Keep `http_request_bytes(method, url, headers, body, timeout_ms) -> Result[HttpR
 
 **Files:** Change only the compiler/runtime/allocator/text code selected by the frozen profile; add focused tests alongside the owning crate. Store raw candidate results and the report under the Task 2 evidence directories.
 
-- [ ] Profile the selected representative workloads before choosing a code path. State the correctness oracle and baseline comparison before each candidate run.
-- [ ] Implement one focused compiler, runtime, allocation, or text optimization at a time. Each candidate must preserve output, security behavior, and meaningful memory limits; revert regressions or inconclusive candidates and retain their evidence as such.
-- [ ] Do not optimize the optional Python bridge unless a measured core outcome demonstrably depends on it.
-- [ ] **Gate:** each retained speed change is tied to a commit and a repeatable paired result; unsuccessful candidates are labeled and not shipped.
+- [x] Profile the selected representative workloads before choosing a code path. State the correctness oracle and baseline comparison before each candidate run.
+- [x] Implement one focused compiler, runtime, allocation, or text optimization at a time. Each candidate must preserve output, security behavior, and meaningful memory limits; revert regressions or inconclusive candidates and retain their evidence as such.
+- [x] Do not optimize the optional Python bridge unless a measured core outcome demonstrably depends on it.
+- [x] **Gate:** no speed change was retained; both unsuccessful candidates are labeled and preserved with their measurements.
 
 ### Task 4: Add explicit HTTP response text and JSON helpers
 
 **Files:** Modify `crates/model/src/lib.rs`, `crates/compiler/src/builtin_catalog.rs`, `crates/compiler/src/lib.rs`, `crates/vm-core/src/lib.rs`, `crates/runtime/src/lib.rs`, `language/self_host/builtin_catalog.gu`, `language/builtin-signatures.json`, `language/conformance/manifest.json`, `language/artifact-format.md`, `language/spec.md`, `language/host-api.md`, `language/stdlib/http.gu`, `docs/agents/examples/http_request.gu`, `docs/agents/recipes.md`, `CHANGELOG.md`, and `crates/runtime/tests/http.rs` plus the relevant compiler/CLI integration tests.
 
-- [ ] Add failing coverage first: runtime tests `http_response_text_decodes_utf8_and_preserves_non_2xx_response`, `http_response_text_returns_recoverable_error_for_invalid_utf8`, `http_response_json_parses_valid_json_body`, and `http_response_json_returns_recoverable_error_for_malformed_json`; compiler test `http_response_text_is_typechecked_for_http_response_only`; model test `http_response_text_requires_format_45_and_round_trips`.
-- [ ] Add the append-only `HttpResponseText` operation at tag 165, verify its `HttpResponse -> Result[Text, HttpError]` stack contract, implement checked UTF-8 conversion, and enforce format 45 in both serialization and reading paths.
-- [ ] Add `std:http.http_response_json` using the text helper and existing JSON parser; normalize failures to `StdError` without changing either legacy request function.
-- [ ] Update the catalog, self-hosted compiler signature source, conformance inventory, artifact-format contract, language/host API docs, runnable example, and generated agent reference.
-- [ ] Demonstrate malformed JSON, host denial, timeout, response-size limits, and local loopback success through documented commands. Keep request counts and performance claims measured separately.
-- [ ] **Gate:** focused runtime/compiler/CLI checks pass; format-44 compatibility and format-45 serialization are covered; examples match the actual typed API.
+- [x] Add failing coverage first: runtime tests `http_response_text_decodes_utf8_and_preserves_non_2xx_response`, `http_response_text_returns_recoverable_error_for_invalid_utf8`, `http_response_json_parses_valid_json_body`, and `http_response_json_returns_recoverable_error_for_malformed_json`; compiler test `http_response_text_is_typechecked_for_http_response_only`; model test `http_response_text_requires_format_45_and_round_trips`.
+- [x] Add the append-only `HttpResponseText` operation at tag 165, verify its `HttpResponse -> Result[Text, HttpError]` stack contract, implement checked UTF-8 conversion, and enforce format 45 in both serialization and reading paths.
+- [x] Add `std:http.http_response_json` using the text helper and existing JSON parser; normalize failures to `StdError` without changing either legacy request function.
+- [x] Update the catalog, self-hosted compiler signature source, conformance inventory, artifact-format contract, language/host API docs, runnable example, and generated agent reference.
+- [x] Demonstrate malformed JSON, host denial, timeout, response-size limits, and local loopback success through documented commands. Keep request counts and performance claims measured separately.
+- [x] **Gate:** focused runtime/compiler/CLI checks pass; format-44 compatibility and format-45 serialization are covered; examples match the actual typed API.
 
 ### Task 5: Audit capabilities and resource boundaries
 
 **Files:** Review `crates/runtime/src/lib.rs`, `crates/runtime/src/resources.rs`, `crates/cli/src/main.rs`, `crates/runtime/tests/http.rs`, `crates/runtime/tests/execution.rs`, `crates/cli/tests/cli.rs`, `docs/agents/cli-reports.schema.json`, and the capability sections of `language/host-api.md`; create an audit report under `evaluation/completion/results/real-task-sprint/`.
 
-- [ ] Exercise exact and dynamic URL hosts, redirects, denied grants, file roots and traversal, exact environment grants, cancellation, and resource ceilings. Compare enforcement with `inspect --json` and its schema.
-- [ ] Extend regression coverage only for confirmed gaps; inspection remains non-executing, dynamic URL targets remain unknown, and guest code cannot expand host grants.
-- [ ] State exercised boundaries and limitations, including DNS rebinding and the lack of OS process isolation. Do not describe static declarations as proof of arbitrary dynamic behavior.
-- [ ] **Gate:** each claimed boundary has a source read or a deterministic local test; unresolved gaps are named with a concrete next action.
+- [x] Exercise exact and dynamic URL hosts, redirects, denied grants, file roots and traversal, exact environment grants, cancellation, and resource ceilings. Compare enforcement with `inspect --json` and its schema.
+- [x] Extend regression coverage only for confirmed gaps; inspection remains non-executing, dynamic URL targets remain unknown, and guest code cannot expand host grants.
+- [x] State exercised boundaries and limitations, including DNS rebinding and the lack of OS process isolation. Do not describe static declarations as proof of arbitrary dynamic behavior.
+- [x] **Gate:** each claimed boundary has a source read or a deterministic local test; residual limitations are named with a concrete next action.
 
 ### Task 6: Reconcile tooling, compatibility, and agent guidance
 
 **Files:** Modify `README.md`, `docs/status.md`, `docs/compatibility-and-migrations.md`, `docs/agents/index.json`, `docs/agents/index.schema.json`, `docs/agents/start-here.md`, `docs/agents/recipes.md`, `language/host-api.md`, and generated `docs/agents/guion-reference.md` only where measured evidence shows a mismatch.
 
-- [ ] Compare target claims, CLI output/schema, compatibility boundaries, examples, and supported-target evidence. Correct only claims supported by current retained reports or checks run in this sprint.
-- [ ] Update the agent-facing instructions for the typed response path and its recoverable text/JSON errors. Keep the distinction between release-target evidence and the Ubuntu source-check job.
-- [ ] Generate and validate the agent reference from its authoritative source files; run the schema, reference, formatting, and artifact-format audits.
-- [ ] **Gate:** README, compatibility docs, machine-readable index/schema, examples, and generated agent reference agree with code and retained evidence.
+- [x] Compare target claims, CLI output/schema, compatibility boundaries, examples, and supported-target evidence. Correct only claims supported by current retained reports or checks run in this sprint.
+- [x] Update the agent-facing instructions for the typed response path and its recoverable text/JSON errors. Keep the distinction between release-target evidence and the Ubuntu source-check job.
+- [x] Generate and validate the agent reference from its authoritative source files; run the schema, reference, formatting, and artifact-format audits.
+- [x] **Gate:** README, compatibility docs, machine-readable index/schema, examples, and generated agent reference agree with code and retained evidence.
 
 ### Task 7: Prepare and run an unfamiliar-builder challenge
 
 **Files:** Create a frozen brief, acceptance cases, run instructions, and a results record under `evaluation/development/core_north_star_sprint/builder_challenge/` and `evaluation/completion/results/real-task-sprint/`.
 
-- [ ] Freeze the application brief and acceptance cases before the challenge; prepare the normal Guion documentation/tooling packet and a two-day run window.
+- [x] Freeze the application brief and acceptance cases before the challenge; prepare the normal Guion documentation/tooling packet and a two-day run window.
 - [ ] Before sharing any repository materials with an evaluator, ask the user to approve the specific evaluator and transfer. Previously approved studies do not authorize this transfer.
 - [ ] If approved, capture time, attempts, errors, documentation gaps, completed functionality, and reproducible acceptance results. Identify an isolated agent evaluator as such if selected; do not present it as broad adoption evidence.
-- [ ] Fix the highest-impact in-scope obstacles and rerun affected acceptance checks. If no suitable evaluator is authorized or available, record the exact blocker and leave this acceptance outcome open.
-- [ ] **Gate:** no hidden solutions or mid-run rule changes; the challenge either completes as specified or is explicitly reported incomplete.
+- [x] Fix the highest-impact in-scope obstacles and rerun affected acceptance checks. If no suitable evaluator is authorized or available, record the exact blocker and leave this acceptance outcome open.
+- [x] **Gate:** no hidden solutions or mid-run rule changes; the challenge either completes as specified or is explicitly reported incomplete.
 
 ### Task 8: Final measurements, acceptance, and handoff
 

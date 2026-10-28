@@ -137,3 +137,15 @@ fn imported_module_instruction_keeps_its_own_source_id() {
 
     let _ = fs::remove_dir_all(root);
 }
+
+#[test]
+fn http_response_text_is_typechecked_for_http_response_only() {
+    let valid = "record HttpResponse:\n    status: Int\n    headers: Map[Text, Text]\n    body: Bytes\n\nfn decode(response: HttpResponse) -> Result[Text, HttpError]:\n    return http_response_text(response)\n\nfn main() -> Int:\n    return 0\n";
+    compile("http-response-text.gu", valid)
+        .expect("HttpResponse is accepted by http_response_text");
+
+    let invalid = "fn decode(response: Text) -> Result[Text, HttpError]:\n    return http_response_text(response)\n\nfn main() -> Int:\n    return 0\n";
+    let error = compile("http-response-text-wrong-type.gu", invalid)
+        .expect_err("http_response_text rejects non-HttpResponse values");
+    assert_eq!(error.code, "E_TYPE_ARGUMENT");
+}

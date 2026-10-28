@@ -1,6 +1,6 @@
 # Guion artifact format
 
-This document specifies the canonical artifact encoding currently emitted by the Guion compiler and accepted by the native model reader. The current format is **43**. Multi-byte integers are unsigned little-endian unless a value is explicitly described as signed or textual. Strings are UTF-8 prefixed by a `u32` byte length; counts use a `u32` and are bounded to 1,000,000. A complete artifact is at most 64 MiB. Recursive values and types are limited to 64 nested levels. Readers reject truncation, overflow, unknown tags, invalid indexes, trailing bytes, and version-incompatible instructions.
+This document specifies the canonical artifact encoding currently emitted by the Guion compiler and accepted by the native model reader. The current format is **45**. Multi-byte integers are unsigned little-endian unless a value is explicitly described as signed or textual. Strings are UTF-8 prefixed by a `u32` byte length; counts use a `u32` and are bounded to 1,000,000. A complete artifact is at most 64 MiB. Recursive values and types are limited to 64 nested levels. Readers reject truncation, overflow, unknown tags, invalid indexes, trailing bytes, and version-incompatible instructions.
 
 ## Top-level layout
 
@@ -244,6 +244,7 @@ Every instruction is its span followed by a one-byte opcode tag and the listed o
 | 162 | `TimeZoneDataVersion` in format 42 | — |
 | 163 | `TextJoin` | — |
 | 164 | `JsonStringifyPairs` | — |
+| 165 | `HttpResponseText` | — |
 
 Opcode tags are append-only within a format version. Tags 73–132 were added by successive format versions; format-version checks reject artifacts that use an instruction newer than their declared version. Format 36 adds stable generic sorting; the named comparator has signature `(T, T) -> Int` and must have a pure transitive call graph. Format 37 adds Unicode normalization/case mapping, exact-byte HMAC, instance-owned SQLite/TOML resources, and iCalendar parsing. Native resource type tag 17 is valid in format 37; resource handles remain non-serializable values. Format 38 adds byte-preserving HTTP request and response bodies through `http_request_bytes`. Format 39 adds explicit-grant wall-clock access through `unix_time_ms()` and `time_today_local()`.
 
@@ -252,6 +253,8 @@ Format 40 adds pure local-time resolution against Guion's packaged timezone data
 Format 43 adds `TextJoin` (tag 163), which joins `List[Text]` using a text delimiter in one native pass. It checks the collection and text-size ceilings, accounts for the output against the guest allocation budget, and preserves older format-42 artifacts.
 
 Format 44 adds `JsonStringifyPairs` (tag 164), which streams a `Map[Text, List[Text]]` into a sorted JSON array of two-field text objects. It preserves map-key and per-list order, escapes field names and values, checks row and output limits before allocating the output, and avoids materializing an intermediate JSON tree.
+
+Format 45 adds `HttpResponseText` (tag 165), which converts the byte-preserving `HttpResponse.body` to checked UTF-8 text and returns `Result[Text, HttpError]`. It observes the configured text-size ceiling, charges the output against the guest allocation budget, reports invalid UTF-8 as `R_HTTP_ENCODING`, and preserves the response status as data, including non-2xx statuses. Format-44 artifacts remain readable and cannot contain this instruction.
 
 ## Build metadata and reproducibility
 

@@ -4154,6 +4154,17 @@ fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result
                     Box::new(Type::HttpError),
                 ));
             }
+            Op::HttpResponseText => {
+                if pop_type(&mut state.stack, pc)? != Type::Record("HttpResponse".into()) {
+                    return Err(format!(
+                        "http_response_text requires HttpResponse at instruction {pc}"
+                    ));
+                }
+                state.stack.push(Type::Result(
+                    Box::new(Type::Text),
+                    Box::new(Type::HttpError),
+                ));
+            }
             Op::WriteText => {
                 if pop_type(&mut state.stack, pc)? != Type::Text
                     || pop_type(&mut state.stack, pc)? != Type::Text

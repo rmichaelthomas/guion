@@ -1,0 +1,11 @@
+--- jsonl-summary-baseline.gu
++++ jsonl-text-join.gu
+@@ -118,7 +118,7 @@
+                     else:
+                         let at = format_utc(instant)
+                         let characters = text_chars(at)
+-                        let date = characters[0] + characters[1] + characters[2] + characters[3] + characters[4] + characters[5] + characters[6] + characters[7] + characters[8] + characters[9]
++                        let date = text_join([characters[0], characters[1], characters[2], characters[3], characters[4], characters[5], characters[6], characters[7], characters[8], characters[9]], "")
+                         var by_date: Map[Text, Json] = {}
+                         if map_has(groups, service):
+                             set by_date = groups[service]

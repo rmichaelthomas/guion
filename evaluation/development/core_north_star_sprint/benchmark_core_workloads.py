@@ -238,7 +238,7 @@ def main() -> None:
             "bootstrap_seed": runner.BOOTSTRAP_SEED,
             "bootstrap_resamples": runner.BOOTSTRAP_SAMPLES,
             "order": "randomized per paired trial by the existing performance runner",
-            "timing": "process startup through output oracle; fixture server startup excluded",
+            "timing": "child-process wall time from startup through exit; fixture startup and post-run output-oracle validation excluded",
             "cache": "Guion source cache bypassed with --no-cache; OS cache uncontrolled",
         },
         "binary": {

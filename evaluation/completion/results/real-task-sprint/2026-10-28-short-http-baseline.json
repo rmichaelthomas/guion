@@ -10,7 +10,7 @@
     "bootstrap_seed": 20261026,
     "cache": "Guion source cache bypassed with --no-cache; OS cache uncontrolled",
     "order": "randomized per paired trial by the existing performance runner",
-    "timing": "process startup through output oracle; fixture server startup excluded",
+    "timing": "child-process wall time from startup through exit; fixture server startup and post-run output-oracle validation are excluded",
     "trial_seed": 20261025,
     "trials_per_arm": 15,
     "warmups_per_arm": 2

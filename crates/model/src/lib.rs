@@ -7,6 +7,56 @@ mod tests {
     use std::sync::Arc;
 
     #[test]
+    fn http_response_text_requires_format_45_and_round_trips() {
+        let artifact = Artifact {
+            format_version: 45,
+            build_metadata: None,
+            compiled_source_sha256: None,
+            source_name: "http-response-text.gu".into(),
+            sources: vec![],
+            entry: "main".into(),
+            functions: vec![Function {
+                name: "main".into(),
+                parameters: vec![],
+                result: Type::Int,
+                local_count: 0,
+                code: vec![Instruction {
+                    op: Op::HttpResponseText,
+                    span: Span::default(),
+                }],
+            }],
+            externals: vec![],
+            records: vec![],
+        };
+        let encoded = artifact.to_bytes().expect("format 45 artifacts round-trip");
+        assert_eq!(Artifact::from_bytes(&encoded).unwrap(), artifact);
+
+        let mut format_44 = artifact.clone();
+        format_44.format_version = 44;
+        format_44.functions[0].code.clear();
+        assert_eq!(
+            Artifact::from_bytes(&format_44.to_bytes().unwrap()).unwrap(),
+            format_44
+        );
+
+        let mut format_44_with_new_op = artifact.clone();
+        format_44_with_new_op.format_version = 44;
+        assert_eq!(
+            format_44_with_new_op.to_bytes().unwrap_err().code,
+            "E_ARTIFACT_VERSION"
+        );
+
+        let mut legacy_header_with_new_instruction = encoded;
+        legacy_header_with_new_instruction[4..8].copy_from_slice(&44u32.to_le_bytes());
+        assert_eq!(
+            Artifact::from_bytes(&legacy_header_with_new_instruction)
+                .unwrap_err()
+                .code,
+            "E_ARTIFACT_VERSION"
+        );
+    }
+
+    #[test]
     fn cloned_text_values_share_immutable_storage() {
         let value = Value::Text("a sufficiently long immutable string value".into());
         let cloned = value.clone();
@@ -1665,6 +1715,7 @@ pub enum Op {
     HttpRequest,
     HttpRequestWithTimeout,
     HttpRequestBytes,
+    HttpResponseText,
     Environment,
     TextChars,
     TextJoin,
@@ -1801,7 +1852,7 @@ pub struct Artifact {
 }
 
 impl Artifact {
-    pub const CURRENT_VERSION: u32 = 44;
+    pub const CURRENT_VERSION: u32 = 45;
     pub fn entry(&self) -> &str {
         &self.entry
     }
@@ -1987,6 +2038,12 @@ impl Artifact {
             return Err(ArtifactError::new(
                 "E_ARTIFACT_VERSION",
                 "streaming grouped text-pair JSON serialization requires artifact format 44",
+            ));
+        }
+        if self.format_version < 45 && artifact_uses_http_response_text(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "HTTP response text decoding requires artifact format 45",
             ));
         }
         validate_sort_comparator_effects(self)
@@ -2202,6 +2259,7 @@ impl Artifact {
                     Op::TextChars => w.u8(102),
                     Op::TextJoin => w.u8(163),
                     Op::JsonStringifyPairs => w.u8(164),
+                    Op::HttpResponseText => w.u8(165),
                     Op::ListPushLocal(slot) => {
                         w.u8(103);
                         w.count(*slot)?;
@@ -2539,6 +2597,13 @@ impl Artifact {
                     102 => Op::TextChars,
                     163 => Op::TextJoin,
                     164 => Op::JsonStringifyPairs,
+                    165 if format_version >= 45 => Op::HttpResponseText,
+                    165 => {
+                        return Err(ArtifactError::new(
+                            "E_ARTIFACT_VERSION",
+                            "HTTP response text decoding requires artifact format 45",
+                        ))
+                    }
                     103 => Op::ListPushLocal(r.count()?),
                     104 => Op::JsonPushLocal(r.count()?),
                     105 => Op::BytesFromInts,
@@ -2877,6 +2942,12 @@ impl Artifact {
                 "streaming grouped text-pair JSON serialization requires artifact format 44",
             ));
         }
+        if format_version < 45 && artifact_uses_http_response_text(&artifact) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "HTTP response text decoding requires artifact format 45",
+            ));
+        }
         validate_sort_comparator_effects(&artifact)
             .map_err(|message| ArtifactError::new("E_SORT_EFFECT", message))?;
         Ok(artifact)
@@ -2940,7 +3011,11 @@ fn artifact_uses_http(artifact: &Artifact) -> bool {
             || function.code.iter().any(|instruction| {
                 matches!(
                     instruction.op,
-                    Op::HttpGet | Op::HttpErrorCode | Op::HttpErrorMessage | Op::HttpRequestBytes
+                    Op::HttpGet
+                        | Op::HttpErrorCode
+                        | Op::HttpErrorMessage
+                        | Op::HttpRequestBytes
+                        | Op::HttpResponseText
                 ) || matches!(&instruction.op, Op::Const(Value::HttpError(_)))
             })
     })
@@ -2972,6 +3047,15 @@ fn artifact_uses_http_request_bytes(artifact: &Artifact) -> bool {
             .code
             .iter()
             .any(|instruction| matches!(instruction.op, Op::HttpRequestBytes))
+    })
+}
+
+fn artifact_uses_http_response_text(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function
+            .code
+            .iter()
+            .any(|instruction| matches!(instruction.op, Op::HttpResponseText))
     })
 }
 

@@ -1,0 +1,221 @@
+{
+  "architecture": "aarch64",
+  "baseline_binary_sha256": "d3ed076fdc32a7a53f0f923675f78cb8c80b5f80e98759dd0866f7df98f9ff34",
+  "commands": {
+    "guion_jsonl_parse": [
+      "/Users/rmichaelthomas/guion/.worktrees/guion-core-sprint-spec/target/perf-session/cargo/release/guion",
+      "run",
+      "--json",
+      "/var/cache/guion-core-north-star/profile-jsonl-200000/jsonl-parse-only.gub"
+    ],
+    "guion_line_read": [
+      "/Users/rmichaelthomas/guion/.worktrees/guion-core-sprint-spec/target/perf-session/cargo/release/guion",
+      "run",
+      "--json",
+      "/var/cache/guion-core-north-star/profile-jsonl-200000/jsonl-read-only.gub"
+    ]
+  },
+  "expected_stdout": [
+    "200947"
+  ],
+  "input_bytes": 14656198,
+  "input_physical_lines": 200947,
+  "input_sha256": "c87117d62d5559a5a907465c4ed035251aad4d112f9431a4bacd53faf550ce6c",
+  "kind": "guion-core-north-star-jsonl-decomposition",
+  "measurement": {
+    "cache": "prebuilt artifact, fresh process; OS file cache uncontrolled",
+    "oracle": "exact physical line count checked on every warmup/trial and runtime-profile invocation",
+    "randomized_order": "runner.sample_candidates seeded order",
+    "timer": "child-process wall time from startup through exit; post-run output-oracle validation is excluded",
+    "trials_per_arm": 15,
+    "warmups_per_arm": 2
+  },
+  "paired_comparisons": {
+    "guion_jsonl_parse_over_guion_line_read": {
+      "ci95_percentile": [
+        3.326486370299817,
+        3.4123869471972763
+      ],
+      "median_ratio": 3.358681881777158,
+      "ties_or_regressions": 15,
+      "win": false
+    }
+  },
+  "platform": "Linux-6.8.0-117-generic-aarch64-with-glibc2.36",
+  "python": "3.14.7",
+  "rows": 200000,
+  "runtime_profiles": {
+    "guion_jsonl_parse": {
+      "cache_status": "not_applicable",
+      "elapsed_seconds_including_process_startup": 1.2155413489963394,
+      "reported_phase_timings_ns": {
+        "artifact_runtime_load_ns": 721890,
+        "cli_to_report_excluding_process_startup_ns": 1211379540,
+        "compiler_pipeline": null,
+        "input_artifact_decode_ns": 361154,
+        "native_compilation": {
+          "finalize_nanoseconds": 0,
+          "functions": []
+        },
+        "program_execute_ns": 1208956003,
+        "source_compile_or_cache_ns": null
+      },
+      "runtime_profile": {
+        "dynamic_guest_conditional_branch_executions": 1205690,
+        "estimated_guest_allocation_budget_charges": {
+          "estimated_gross_bytes": 637535536,
+          "estimated_net_bytes": 637535536,
+          "estimated_refunded_bytes": 0,
+          "successful_events": 6025916
+        },
+        "list_set": {
+          "copy_on_write_copies": 0,
+          "copy_size_histogram": {
+            "buckets": {
+              "0-8": {
+                "copies": 0,
+                "estimated_copy_bytes": 0
+              },
+              "129+": {
+                "copies": 0,
+                "estimated_copy_bytes": 0
+              },
+              "33-128": {
+                "copies": 0,
+                "estimated_copy_bytes": 0
+              },
+              "9-32": {
+                "copies": 0,
+                "estimated_copy_bytes": 0
+              }
+            },
+            "unit": "elements"
+          },
+          "estimated_copy_bytes": 0,
+          "in_place_updates": 0,
+          "operations": 0
+        },
+        "metric_limits": {
+          "allocation": "estimated guest-data budget charges, not host allocator calls",
+          "branches": "executed guest conditional branches, not hardware branch-misprediction counts"
+        },
+        "record_charges": {
+          "estimated_bytes": 90225203,
+          "events": 200947
+        },
+        "scope": "latest guest invocation"
+      }
+    },
+    "guion_line_read": {
+      "cache_status": "not_applicable",
+      "elapsed_seconds_including_process_startup": 0.3655759359971853,
+      "reported_phase_timings_ns": {
+        "artifact_runtime_load_ns": 763181,
+        "cli_to_report_excluding_process_startup_ns": 361965066,
+        "compiler_pipeline": null,
+        "input_artifact_decode_ns": 321239,
+        "native_compilation": {
+          "finalize_nanoseconds": 0,
+          "functions": []
+        },
+        "program_execute_ns": 359408617,
+        "source_compile_or_cache_ns": null
+      },
+      "runtime_profile": {
+        "dynamic_guest_conditional_branch_executions": 602847,
+        "estimated_guest_allocation_budget_charges": {
+          "estimated_gross_bytes": 172815357,
+          "estimated_net_bytes": 172815357,
+          "estimated_refunded_bytes": 0,
+          "successful_events": 2009490
+        },
+        "list_set": {
+          "copy_on_write_copies": 0,
+          "copy_size_histogram": {
+            "buckets": {
+              "0-8": {
+                "copies": 0,
+                "estimated_copy_bytes": 0
+              },
+              "129+": {
+                "copies": 0,
+                "estimated_copy_bytes": 0
+              },
+              "33-128": {
+                "copies": 0,
+                "estimated_copy_bytes": 0
+              },
+              "9-32": {
+                "copies": 0,
+                "estimated_copy_bytes": 0
+              }
+            },
+            "unit": "elements"
+          },
+          "estimated_copy_bytes": 0,
+          "in_place_updates": 0,
+          "operations": 0
+        },
+        "metric_limits": {
+          "allocation": "estimated guest-data budget charges, not host allocator calls",
+          "branches": "executed guest conditional branches, not hardware branch-misprediction counts"
+        },
+        "record_charges": {
+          "estimated_bytes": 0,
+          "events": 0
+        },
+        "scope": "latest guest invocation"
+      }
+    }
+  },
+  "samples": {
+    "guion_jsonl_parse": {
+      "median_seconds": 1.2201762439945014,
+      "p95_seconds_nearest_rank": 1.674645787999907,
+      "samples_seconds": [
+        1.238096751003468,
+        1.2141935000036028,
+        1.227941142002237,
+        1.674645787999907,
+        1.2122523230063962,
+        1.2351369850002811,
+        1.2180103439968661,
+        1.2216705050013843,
+        1.2212692339962814,
+        1.2226316059968667,
+        1.202325985999778,
+        1.2201762439945014,
+        1.2123669710053946,
+        1.1884702400056995,
+        1.2026099099966814
+      ]
+    },
+    "guion_line_read": {
+      "median_seconds": 0.360101518999727,
+      "p95_seconds_nearest_rank": 0.5151127739954973,
+      "samples_seconds": [
+        0.36120402800588636,
+        0.3558194069992169,
+        0.3599682499989285,
+        0.3552918849964044,
+        0.36422627399588237,
+        0.3567876230008551,
+        0.35754103799990844,
+        0.3696239729979425,
+        0.5151127739954973,
+        0.3660049070022069,
+        0.3698076370055787,
+        0.36680632600473473,
+        0.360101518999727,
+        0.3559235879947664,
+        0.3580600819987012
+      ]
+    }
+  },
+  "source_revision": "05a6e9c524b62c014d16cc15b23094cc43e16557",
+  "source_sha256": {
+    "jsonl-parse-only.gu": "29c6caee81d98b4f935e3106fa3bbec380faf70061a687abb5ab0a6ecc97a7e4",
+    "jsonl-read-only.gu": "9b678dfecd43feccf5394d857db8ab11f5dbcc10e20866f2d695ca5371d5b7b4"
+  },
+  "status": "passed"
+}

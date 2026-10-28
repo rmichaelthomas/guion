@@ -71,6 +71,8 @@ pub fn builtin_catalog_signature(name: Text) -> Text:
             return "4:HttpRequest:Result[Json, HttpError]:Text;Text;Map[Text, Text];Text"
         if name == "http_request_bytes":
             return "5:HttpRequestBytes:Result[Record[HttpResponse], HttpError]:Text;Text;Map[Text, Text];Bytes;Int"
+        if name == "http_response_text":
+            return "1:HttpResponseText:Result[Text, HttpError]:Record[HttpResponse]"
         if name == "http_request_with_timeout":
             return "5:HttpRequestWithTimeout:Result[Json, HttpError]:Text;Text;Map[Text, Text];Text;Int"
     if name[0] == "i":

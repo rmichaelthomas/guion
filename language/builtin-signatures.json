@@ -248,6 +248,14 @@
       "operation": "HttpRequestBytes"
     },
     {
+      "name": "http_response_text",
+      "parameters": [
+        "Record[HttpResponse]"
+      ],
+      "result": "Result[Text, HttpError]",
+      "operation": "HttpResponseText"
+    },
+    {
       "name": "http_request_with_timeout",
       "parameters": [
         "Text",

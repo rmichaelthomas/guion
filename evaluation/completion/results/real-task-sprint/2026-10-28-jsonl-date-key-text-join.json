@@ -1,0 +1,187 @@
+{
+  "architecture": "aarch64",
+  "baseline_binary_sha256": "d3ed076fdc32a7a53f0f923675f78cb8c80b5f80e98759dd0866f7df98f9ff34",
+  "baseline_revision": "a1c0d40f1445e6806238ae252fc1842d0a18a6c1",
+  "baseline_source_sha256": "4cb05ac5abaa1b893a879b2efd838936e56ff857e037802178909e245dbcff9a",
+  "candidate_binary_sha256": "d3ed076fdc32a7a53f0f923675f78cb8c80b5f80e98759dd0866f7df98f9ff34",
+  "candidate_over_baseline": {
+    "ci95_percentile": [
+      0.9760450469875446,
+      1.01027079217226
+    ],
+    "median_ratio": 0.9961675130515257,
+    "ties_or_regressions": 7,
+    "win": false
+  },
+  "candidate_source_sha256": "5244e07e382fae8c79a0924ec72f28e875aa9dc2fa976a078956a8f9fa842459",
+  "commands": {
+    "guion_baseline_app": [
+      "/var/cache/guion-core-north-star/baseline/guion-perf-session",
+      "run",
+      "--json",
+      "/var/cache/guion-core-north-star/profile-jsonl-200000/baseline-main.gub",
+      "--events",
+      "performance-inputs/events.jsonl",
+      "--output",
+      "performance-inputs/summary.json"
+    ],
+    "guion_text_join_app": [
+      "/var/cache/guion-core-north-star/baseline/guion-perf-session",
+      "run",
+      "--json",
+      "/var/cache/guion-core-north-star/profile-jsonl-200000/text-join-main.gub",
+      "--events",
+      "performance-inputs/events.jsonl",
+      "--output",
+      "performance-inputs/summary.json"
+    ]
+  },
+  "correctness": "every warmup, timed trial, and memory sample matched the independent Python output oracle",
+  "decision": "rejected_inconclusive",
+  "decision_reason": "The median ratio favored text_join by only 0.38%, but the paired interval crossed 1.0; both RSS medians were equal. The predeclared retention gate failed, so no workload-source change is retained.",
+  "expected_output_sha256": "243cd6553ac055e077c99a45fc4cb455981e3f52648507c82528a5291e35213f",
+  "kind": "guion-core-sprint-jsonl-date-key-text-join-probe",
+  "measurement": {
+    "cache": "prebuilt artifact in fresh process; OS file cache uncontrolled",
+    "oracle": "independent Python data_reference; parsed JSON equality after canonical group sorting",
+    "paired_order": [
+      [
+        "guion_text_join_app",
+        "guion_baseline_app"
+      ],
+      [
+        "guion_text_join_app",
+        "guion_baseline_app"
+      ],
+      [
+        "guion_baseline_app",
+        "guion_text_join_app"
+      ],
+      [
+        "guion_text_join_app",
+        "guion_baseline_app"
+      ],
+      [
+        "guion_baseline_app",
+        "guion_text_join_app"
+      ],
+      [
+        "guion_baseline_app",
+        "guion_text_join_app"
+      ],
+      [
+        "guion_text_join_app",
+        "guion_baseline_app"
+      ],
+      [
+        "guion_text_join_app",
+        "guion_baseline_app"
+      ],
+      [
+        "guion_text_join_app",
+        "guion_baseline_app"
+      ],
+      [
+        "guion_baseline_app",
+        "guion_text_join_app"
+      ],
+      [
+        "guion_baseline_app",
+        "guion_text_join_app"
+      ],
+      [
+        "guion_baseline_app",
+        "guion_text_join_app"
+      ],
+      [
+        "guion_text_join_app",
+        "guion_baseline_app"
+      ],
+      [
+        "guion_baseline_app",
+        "guion_text_join_app"
+      ],
+      [
+        "guion_text_join_app",
+        "guion_baseline_app"
+      ],
+      [
+        "guion_baseline_app",
+        "guion_text_join_app"
+      ]
+    ],
+    "rows": 200000,
+    "timer": "child-process wall time from startup through exit; output validation excluded",
+    "trials_per_arm": 16,
+    "warmups_per_arm": 2
+  },
+  "peak_rss": {
+    "guion_baseline_app": {
+      "median_bytes": 10616832,
+      "samples_bytes": [
+        10616832,
+        10616832,
+        10485760
+      ]
+    },
+    "guion_text_join_app": {
+      "median_bytes": 10616832,
+      "samples_bytes": [
+        10485760,
+        10616832,
+        10616832
+      ]
+    }
+  },
+  "platform": "Linux-6.8.0-117-generic-aarch64-with-glibc2.36",
+  "python": "3.14.7 (main, Oct 28 2026, 17:28:03) [GCC 12.2.0]",
+  "retention_gate": "paired 95% interval upper bound < 1.0 and candidate median peak RSS <= baseline median + 1 MiB",
+  "samples": {
+    "guion_baseline_app": {
+      "median_seconds": 5.571277530500083,
+      "p95_seconds_nearest_rank": 5.997337772998435,
+      "samples_seconds": [
+        5.3565135239987285,
+        5.595004837996385,
+        5.403362473996822,
+        5.535465107001073,
+        5.675150542003394,
+        5.771642219995556,
+        5.616958473998238,
+        5.525639583000157,
+        5.583379319999949,
+        5.493049805001647,
+        5.997337772998435,
+        5.5211342760012485,
+        5.488515265002206,
+        5.559175741000217,
+        5.626636991000851,
+        5.917236094996042
+      ]
+    },
+    "guion_text_join_app": {
+      "median_seconds": 5.543160257500858,
+      "p95_seconds_nearest_rank": 5.9718815610031015,
+      "samples_seconds": [
+        5.502213366999058,
+        5.46097675999772,
+        5.458859286998631,
+        5.385016017993621,
+        5.9718815610031015,
+        5.590712090001034,
+        5.656481409001572,
+        5.517769844002032,
+        5.5075259380028,
+        5.573632184001326,
+        5.5618382090033265,
+        5.52144613800192,
+        5.597010448000219,
+        5.52448230599839,
+        5.591437405004399,
+        5.634429384001123
+      ]
+    }
+  },
+  "schema_version": 1,
+  "status": "passed"
+}

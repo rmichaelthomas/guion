@@ -201,6 +201,7 @@ pub(crate) fn operation(name: &str) -> Option<Op> {
         "HttpRequest" => Op::HttpRequest,
         "HttpRequestWithTimeout" => Op::HttpRequestWithTimeout,
         "HttpRequestBytes" => Op::HttpRequestBytes,
+        "HttpResponseText" => Op::HttpResponseText,
         "TextChars" => Op::TextChars,
         "TextJoin" => Op::TextJoin,
         "BytesFromInts" => Op::BytesFromInts,
