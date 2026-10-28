@@ -132,6 +132,14 @@ The five-run diagnostic profile did not show a faster response path: median Rust
 
 Raw evidence: [pipe baseline](2026-10-28-python-bridge-repeated-calls-before-socketpair-30-pair.json), [socket-pair cohort](2026-10-28-python-bridge-repeated-calls-after-socketpair-30-pair.json), and [socket-pair phase profile](2026-10-28-python-bridge-socketpair-phase-profile.json).
 
+## Buffered stdout — no reliable end-to-end gain
+
+The sidecar was also tested without Python's `-u` flag. Its response writer already flushes each complete length-prefixed frame, so ordinary pipe buffering can combine the header and JSON body before that flush. All **26 Rust bridge integration tests** passed with this candidate.
+
+The five-run diagnostic profile measured **21.39 μs** per repeated response wait and **2.09 μs** writing the response, versus **22.57 μs** and **2.21 μs** in the immediately preceding pipe profile. The 30-pair cohort measured a **1.409×** ratio at 1,000 calls, compared with **1.422×** for the fresh baseline. However, a same-index bootstrap estimated only **0.46 μs saved** per added call, with a 95% interval from **7.41 μs more to 4.75 μs less**; the interval includes no change. The buffering candidate was reverted, and the bridge retains explicit unbuffered mode.
+
+Raw evidence: [pipe baseline](2026-10-28-python-bridge-repeated-calls-before-buffered-stdout-30-pair.json), [buffered-stdout cohort](2026-10-28-python-bridge-repeated-calls-after-buffered-stdout-30-pair.json), and [buffered-stdout phase profile](2026-10-28-python-bridge-buffered-stdout-phase-profile.json).
+
 The profiling hook is off by default. Set `GUION_PYTHON_BRIDGE_PROFILE_OUT` to a JSON path to write diagnostic totals; normal runs do not collect phase timers or attach profile data to bridge responses.
 
 ## Method and limits
