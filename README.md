@@ -30,7 +30,7 @@ See the [getting-started guide](docs/getting-started.md), [language and command 
 
 ## Status and comparison with Python
 
-**Latest checkpoint: 2026-10-27.** Current main commit `6b5e5aba` (artifact format 44) was measured on macOS ARM64 against CPython 3.14.7. Guion and Python both passed **127/127** frozen application cases.
+**Latest performance checkpoint: 2026-10-27.** The measured build at commit `6b5e5aba` (artifact format 44) was tested on macOS ARM64 against CPython 3.14.7. Guion and Python both passed **127/127** frozen application cases.
 
 | Workload | Guion result | Comparison |
 | --- | --- | --- |
@@ -48,7 +48,7 @@ A separate current-format bridge check processed 100,000 rows through NumPy and 
 
 These results come from named workloads on one Mac; operating-system file-cache state was uncontrolled. The current format-44 checkpoint does not validate other targets. It supports a real performance claim for the workloads shown, while overall competitiveness remains open.
 
-Current-format macOS packaging now covers both the mixed-dependency app and the 100,000-row NumPy/orjson analysis. The analysis bundle was 157,585,367 bytes on disk, relocated to a path with spaces and Unicode, and launched twice with matching reference output and no external Python or uv settings. This is a packaging result, not a speed claim; the bridge comparison remains slower than both Python lanes. See the [managed analysis package report](evaluation/completion/results/real-task-sprint/2026-10-27-current-format-managed-package-analysis.md) and [current status](docs/status.md). Linux format-44 packaging, broader package coverage, bridge performance, and language learnability remain open; see the [north-star design](docs/north-star-design.md) and [validation record](docs/pre-release-readiness.md).
+Current-format managed packaging covers the mixed-dependency app on macOS ARM64 and the 100,000-row NumPy/orjson analysis on macOS ARM64 and Debian 12 ARM64. The analysis bundles relocated and launched twice with matching reference output and no external Python or uv settings. Their on-disk directory sizes were 157,585,367 bytes on macOS and 244,199,858 bytes on Debian ARM64; these are uncompressed directory sizes, not download sizes. This is a packaging result, not a speed claim; the bridge comparison remains slower than both Python lanes. See the [managed analysis package reports](evaluation/completion/results/real-task-sprint/2026-10-27-current-format-managed-package-analysis.md) for macOS and [Debian ARM64](evaluation/completion/results/real-task-sprint/2026-10-27-current-format-managed-package-analysis-debian-aarch64.md), and the [current status](docs/status.md). Debian x86_64 format-44 packaging, broader package coverage, bridge performance, and language learnability remain open; see the [north-star design](docs/north-star-design.md) and [validation record](docs/pre-release-readiness.md).
 
 ## Project guide
 

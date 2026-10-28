@@ -1,0 +1,72 @@
+{
+  "artifact_format": 44,
+  "base_revision": "ba2790e3f643ec101978492fbc1a5c4f50144dc5",
+  "captured_at_utc": "2026-10-28T02:32:11.145292+00:00",
+  "cleanup": {
+    "run_scratch_removed_on_exit": true,
+    "vm_started": true,
+    "warmed_toolchain_cache_preserved": "target/perf-session/linux-aarch64-warmed"
+  },
+  "correctness": {
+    "all_console_output_matches_reference": true,
+    "all_launches_succeeded": true,
+    "all_relocated_report_bytes_match_reference": true,
+    "expected_stdout": "Rows:\n100000\nTotal:\n2500116287\n"
+  },
+  "guion_version": "0.1.0",
+  "host": "Linux-6.8.0-117-generic-aarch64-with-glibc2.36",
+  "kind": "guion-current-format-managed-package-analysis",
+  "managed_runtime": {
+    "cpython": "3.14.8",
+    "dependencies": {
+      "numpy": "2.5.4",
+      "orjson": "3.13.0"
+    },
+    "offline_cache_bytes": 60936598,
+    "runtime_bytes": 81670318,
+    "uv": "0.13.4"
+  },
+  "package": {
+    "files": 6731,
+    "launches_without_external_python_or_uv_settings": [
+      {
+        "elapsed_seconds": 0.6144985040000392,
+        "report_bytes": 1256,
+        "report_sha256": "86d880db3ae3bf9f1a7fa3f3e3b4f24b250bef4dc6f08e822b41ac977ab5d117",
+        "stderr_empty": true,
+        "stdout_matches_reference": true
+      },
+      {
+        "elapsed_seconds": 0.46540673499998775,
+        "report_bytes": 1256,
+        "report_sha256": "86d880db3ae3bf9f1a7fa3f3e3b4f24b250bef4dc6f08e822b41ac977ab5d117",
+        "stderr_empty": true,
+        "stdout_matches_reference": true
+      }
+    ],
+    "relocated_to_path_with_spaces_and_unicode": true,
+    "size_bytes": 244199858,
+    "verified_before_relocation": true
+  },
+  "schema_version": 1,
+  "status": "passed",
+  "timings_seconds": {
+    "managed_toolchain_preflight": 0.04016648500009978,
+    "offline_dependency_sync": 0.8989014789999601,
+    "package_assembly": 2.6974503200001436,
+    "package_verification": 1.1802441580000504,
+    "standard_library_reference": 0.23017714499997055
+  },
+  "workload": {
+    "caller_data_embedded_in_package": false,
+    "group_by": "tag",
+    "groups": 13,
+    "input_bytes": 5100867,
+    "input_sha256": "7c34a5aeb714026e2624d64980999cc40612b6f230843516d5b6b9f59279a40b",
+    "report_bytes": 1256,
+    "report_sha256": "86d880db3ae3bf9f1a7fa3f3e3b4f24b250bef4dc6f08e822b41ac977ab5d117",
+    "rows": 100000,
+    "source_embedded_in_package": false,
+    "total": 2500116287
+  }
+}
