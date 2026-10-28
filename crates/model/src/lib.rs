@@ -1715,7 +1715,6 @@ pub enum Op {
     HttpRequest,
     HttpRequestWithTimeout,
     HttpRequestBytes,
-    HttpResponseText,
     Environment,
     TextChars,
     TextJoin,
@@ -1775,6 +1774,7 @@ pub enum Op {
     TomlPutBool,
     TomlRender,
     CalendarParse,
+    HttpResponseText,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
