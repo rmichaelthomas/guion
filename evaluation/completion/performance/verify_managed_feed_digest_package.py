@@ -127,6 +127,68 @@ def resolve_from_root(path: Path) -> Path:
     return path if path.is_absolute() else ROOT / path
 
 
+def host_distribution() -> dict[str, str]:
+    if not hasattr(platform, "freedesktop_os_release"):
+        return {
+            "id": platform.system().lower(),
+            "version": platform.mac_ver()[0],
+            "name": platform.system(),
+        }
+    release = platform.freedesktop_os_release()
+    return {
+        "id": release.get("ID", "").lower(),
+        "version": release.get("VERSION_ID", ""),
+        "name": release.get("PRETTY_NAME", ""),
+    }
+
+
+def target_description(
+    system_name: str, architecture: str, distribution: dict[str, str]
+) -> str:
+    if system_name.lower() == "darwin":
+        display_architecture = {"arm64": "ARM64", "x86_64": "x86_64"}.get(
+            architecture.lower(), architecture
+        )
+        return f"macOS {display_architecture}"
+    name = distribution.get("name") or system_name
+    return f"{name} {architecture}"
+
+
+def validate_target(
+    args: argparse.Namespace,
+    system_name: str,
+    architecture: str,
+    distribution: dict[str, str],
+) -> None:
+    actual_os = system_name.lower()
+    actual_architecture = architecture.lower()
+    if args.expected_os and actual_os != args.expected_os.lower():
+        raise RuntimeError(f"expected OS {args.expected_os}, found {actual_os}")
+    if args.expected_arch and actual_architecture != args.expected_arch.lower():
+        raise RuntimeError(
+            f"expected architecture {args.expected_arch}, found {actual_architecture}"
+        )
+    if (
+        args.expected_distribution
+        and distribution.get("id") != args.expected_distribution.lower()
+    ):
+        raise RuntimeError(
+            f"expected distribution {args.expected_distribution}, found {distribution.get('id')}"
+        )
+    if (
+        args.expected_distribution_version
+        and distribution.get("version") != args.expected_distribution_version
+    ):
+        raise RuntimeError(
+            "expected distribution version "
+            f"{args.expected_distribution_version}, found {distribution.get('version')}"
+        )
+    if args.colima_vm_started and not args.colima_vm_used:
+        raise RuntimeError("a started Colima VM must also be recorded as used")
+    if args.rosetta_used and not args.colima_vm_used:
+        raise RuntimeError("Rosetta use must be recorded with a Colima VM")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -169,11 +231,37 @@ def main() -> int:
         action="store_true",
         help="copy verified Guion and uv locks back into the current-format app",
     )
+    parser.add_argument("--expected-os", help="require this platform.system() value")
+    parser.add_argument("--expected-arch", help="require this platform.machine() value")
+    parser.add_argument(
+        "--expected-distribution", help="require this Linux distribution ID"
+    )
+    parser.add_argument(
+        "--expected-distribution-version", help="require this Linux distribution version"
+    )
+    parser.add_argument(
+        "--colima-vm-used", action="store_true", help="record that this run used Colima"
+    )
+    parser.add_argument(
+        "--colima-vm-started",
+        action="store_true",
+        help="record that this run started a new Colima VM",
+    )
+    parser.add_argument(
+        "--rosetta-used", action="store_true", help="record Rosetta translation for amd64"
+    )
+    parser.add_argument("--builder-image", help="record the container builder image")
+    parser.add_argument(
+        "--builder-rust-version", help="record the Rust compiler version used for the build"
+    )
     args = parser.parse_args()
 
     binary = args.binary.resolve(strict=True)
     uv = args.uv.resolve(strict=True)
     warmed = args.warmed_dir.resolve(strict=True)
+    distribution = host_distribution()
+    validate_target(args, platform.system(), platform.machine(), distribution)
+    target_label = target_description(platform.system(), platform.machine(), distribution)
     scratch = resolve_from_root(args.scratch_dir).resolve()
     output_stem = resolve_from_root(args.output_stem)
     cache = warmed / "cache"
@@ -408,9 +496,14 @@ def main() -> int:
             .isoformat()
             .replace("+00:00", "Z"),
             "workload": "Feed Digest with managed feedparser",
+            "builder": {
+                "image": args.builder_image,
+                "rust_version": args.builder_rust_version,
+            },
             "host": {
                 "os": platform.system().lower(),
                 "architecture": platform.machine().lower(),
+                "distribution": distribution,
                 "guion_architecture": doctor["host"]["architecture"],
                 "artifact_format": artifact_format,
             },
@@ -456,13 +549,25 @@ def main() -> int:
             },
             "environment": {
                 "network_fixture": "loopback only",
-                "colima_vm_started_for_this_run": False,
+                "colima_vm_used": args.colima_vm_used,
+                "colima_vm_started_for_this_run": args.colima_vm_started,
+                "rosetta_translation_used": args.rosetta_used,
                 "scratch_root": scratch.relative_to(ROOT).as_posix(),
                 "warmed_cache": warmed.relative_to(ROOT).as_posix(),
-                "vm_or_rosetta_translation_used": False,
+                "vm_or_rosetta_translation_used": (
+                    args.colima_vm_used or args.rosetta_used
+                ),
+                "temporary_projects_and_package_scratch": "removed on exit",
+                "cargo_build_scratch": (
+                    "removed on exit by the Debian runner"
+                    if args.colima_vm_used
+                    else "not used"
+                ),
+                "managed_python_cache": "retained for reuse",
+                "docker_cache_pruned": False,
             },
             "interpretation": (
-                "This establishes one current-format macOS ARM64 package path for a "
+                f"This establishes one current-format {target_label} package path for a "
                 "pure-Python parser and this application; it is not broad Python "
                 "package compatibility or a speed comparison."
             ),
@@ -487,12 +592,17 @@ def main() -> int:
         "# Guion current-format Feed Digest package verification\n\n"
         "## Result\n\n"
         "The current-format Guion Feed Digest application built a source-free, "
-        "relocatable managed package on macOS ARM64. The package uses the pinned "
+        f"relocatable managed package on {target_label}. The package uses the pinned "
         "pure-Python feedparser dependency and passed the same six application "
         "acceptance cases as its independent Python reference.\n\n"
         "## Verified package\n\n"
         f"- Artifact format: {artifact_format}.\n"
-        f"- Managed CPython: {python_metadata.get('version')}.\n"
+        + (
+            f"- Builder image: {args.builder_image}; Rust {args.builder_rust_version}.\n"
+            if args.builder_image or args.builder_rust_version
+            else ""
+        )
+        + f"- Managed CPython: {python_metadata.get('version')}.\n"
         f"- Bundled uv: {python_metadata.get('uv_version')}.\n"
         "- Dependencies: feedparser 6.0.14 and feedparser-sgmllib 2.1.0.\n"
         "- Native extensions from these Python dependencies: 0.\n"
@@ -527,8 +637,17 @@ def main() -> int:
         "--preload-dependencies --write-lock\n\n"
         f"Raw evidence: {json_path.name}. All run scratch is under "
         f"{scratch.relative_to(ROOT).as_posix()} and is removed on exit; only the "
-        "small dependency cache is retained. No VM was started for this macOS "
-        "ARM64 result.\n"
+        "small dependency cache is retained. "
+        + (
+            "The existing Colima VM was reused; Rosetta provided the x86_64 container "
+            "path, and QEMU was not used.\n"
+            if args.rosetta_used
+            else (
+                "The existing Colima VM was reused.\n"
+                if args.colima_vm_used
+                else f"No VM was started for this {target_label} result.\n"
+            )
+        )
     )
     markdown_path.write_text(markdown, encoding="utf-8")
     print(f"passed: {json_path.relative_to(ROOT)}")
