@@ -1,0 +1,6 @@
+format_version = 1
+manifest_sha256 = "6a5be6686b4dbaff6a9e0878bb1247d167a641f73f8ac4fb11fcd7acf9079948"
+python_version = "3.14.8"
+target = "macos-aarch64"
+uv_lock_sha256 = "9aafafe50c85f647b8d08d0fdc713bc525ce4fc1a6ea280c24efef0ee949463d"
+uv_version = "0.13.4"

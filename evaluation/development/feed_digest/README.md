@@ -1,15 +1,10 @@
-# Feed digest development application
+# Legacy feed digest fixture
 
-This is a known development workload. It uses Veritas bounded HTTP GET, `parallel_map`, the typed Python bridge, and the managed `feedparser==6.0.14` dependency.
+This directory preserves the pre-rename Veritas project as a migration and
+compatibility fixture. It uses `main.vr`, `veritas.toml`, `.veritas/`, and the
+original `veritas_feed.py` adapter intentionally.
 
-Run `veritas sync evaluation/development/feed_digest` once, then run:
-
-```sh
-veritas run evaluation/development/feed_digest http://127.0.0.1:PORT/feed-a.xml http://127.0.0.1:PORT/feed-b.xml
-```
-
-The project manifest grants only the exact host `127.0.0.1`, which is intended for a local fixture server. `digest.md` is written in the project directory. Network access is denied when this manifest grant is absent.
-
-For a public feed, copy this example to a new project, add the feed's exact hostname to `[network].hosts`, and synchronize that project's pinned Python environment. The parser normalizes links, removes fragments, preserves Unicode titles and picks duplicate metadata without depending on URL input order. Its Python adapter is `veritas_feed.py`; project-local adapter imports are available even though the sidecar runs CPython in isolated mode.
-
-The local acceptance suite is `evaluation/tests/test_feed_digest.py`. It needs the Veritas CLI, the synchronized feed-digest environment and the pinned uv executable. It starts a loopback fixture server, copies the app into a temporary directory per case, and compares the Veritas output with `python_baseline.py`.
+The current Guion application uses current project names and is maintained in
+[`../guion_feed_digest`](../guion_feed_digest/README.md). The acceptance suite
+can still run this fixture by setting `GUION_FEED_PROJECT` to this directory;
+new examples and managed-package verification should use the Guion project.

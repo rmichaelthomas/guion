@@ -82,7 +82,7 @@ max_redirects = 5
 
 The per-request timeout operation requires artifact format 27. A host may cap the requested deadline through its `HostPolicy`; guest code cannot raise that ceiling.
 
-The known feed-digest workload in `evaluation/development/feed_digest` combines bounded concurrent HTTP, managed `feedparser`, a project-local Python adapter, and Guion output handling. It demonstrates this one integration path; its loopback-only host grant is for the local acceptance fixture. Edit the exact host allowlist before using it with external feeds. The acceptance harness in `evaluation/tests/test_feed_digest.py` compares output with an independent Python baseline and checks concurrency, order stability, Unicode, malformed feeds, HTTP failures, changed input and denied hosts.
+The current-format feed-digest workload in `evaluation/development/guion_feed_digest` combines bounded concurrent HTTP, managed `feedparser`, a project-local Python adapter, and Guion output handling. Its loopback-only host grant is for the local acceptance fixture; edit the exact host allowlist before using it with external feeds. The acceptance harness in `evaluation/tests/test_feed_digest.py` compares output with an independent Python baseline and checks concurrency, order stability, Unicode, malformed feeds, HTTP failures, changed input and denied hosts. The original Veritas-named project is retained separately at `evaluation/development/feed_digest` as a compatibility fixture.
 
 Runtime errors go to stderr and return a failing process status. Output produced before a runtime error is preserved on stdout. Diagnostics include stable error codes and source line/column locations.
 
