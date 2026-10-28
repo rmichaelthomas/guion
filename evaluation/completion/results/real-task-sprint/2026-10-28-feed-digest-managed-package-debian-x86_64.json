@@ -1,0 +1,91 @@
+{
+  "schema_version": 1,
+  "status": "passed",
+  "captured_at_utc": "2026-10-28T07:09:44Z",
+  "workload": "Feed Digest with managed feedparser",
+  "builder": {
+    "image": "guion-feed-digest-debian-x86_64:rust-1.97-cmake",
+    "rust_version": "1.97.1",
+    "cmake_version": "3.25.1"
+  },
+  "host": {
+    "os": "linux",
+    "architecture": "x86_64",
+    "distribution": {
+      "id": "debian",
+      "version": "12",
+      "name": "Debian GNU/Linux 12 (bookworm)"
+    },
+    "guion_architecture": "x86_64",
+    "artifact_format": 44
+  },
+  "python_runtime": {
+    "version": "3.14.8",
+    "uv_version": "0.13.4",
+    "runtime_size_bytes": 101960804,
+    "offline_cache_size_bytes": 275455
+  },
+  "dependencies": {
+    "feedparser": "6.0.14",
+    "feedparser-sgmllib": "2.1.0"
+  },
+  "python_native_extension_count": 0,
+  "license_records_complete": true,
+  "source_free": true,
+  "package_directory_bytes": 158943069,
+  "package_file_count": 4718,
+  "artifact_sha256": "041f11e09e61c5303c59106edea07bee4fc992100171b436957b6c1aa8af4614",
+  "source_file_sha256": {
+    "guion.toml": "6a5be6686b4dbaff6a9e0878bb1247d167a641f73f8ac4fb11fcd7acf9079948",
+    "main.gu": "41bd7789645c846d349491aa8f6f3ef972b7365092ea2c4eead3c0276475cd64",
+    "guion_feed.py": "d616455da89d7beecd77ac6541b5e3bb6a659aa8261e8e7c98e4a66a06db6fed",
+    "python_baseline.py": "aea93ea8868cdbfafb4cb22c7eb4d7572b2cdfaab8eeff4d1254186300ed2291"
+  },
+  "lock_file_sha256": {
+    "guion.lock": "74fb25cf09ce4ebf94b4bc58a403dc773fdb4e14180e57a6e3503f336c18726f",
+    ".guion/python-bridge/pyproject.toml": "b3e0b476582a841654ccc85257e859700d677c4dce8dce8585a39ef7a75c471f",
+    ".guion/python-bridge/uv.lock": "9aafafe50c85f647b8d08d0fdc713bc525ce4fc1a6ea280c24efef0ee949463d"
+  },
+  "checks": {
+    "managed_dependency_sync": "passed",
+    "offline_locked_resync": "passed",
+    "package_verification": "passed",
+    "relocation_verification": "passed",
+    "source_acceptance": {
+      "passed": 6,
+      "total": 6
+    },
+    "relocated_package_acceptance": {
+      "passed": 6,
+      "total": 6
+    },
+    "expected_output_parity": "all cases compared byte-for-byte with Python",
+    "loopback_http_concurrency": "both implementations reached two in-flight requests",
+    "external_dependency_network_during_acceptance": "disabled"
+  },
+  "phase_durations_seconds": {
+    "doctor_preflight": 0.121,
+    "managed_dependency_sync": 1.471,
+    "offline_locked_resync": 1.532,
+    "package_assembly": 9.872,
+    "artifact_inspection": 0.043,
+    "package_verification": 2.103,
+    "relocated_package_verification": 2.081,
+    "source_acceptance_suite": "23.360s",
+    "relocated_package_acceptance_suite": "22.909s"
+  },
+  "environment": {
+    "network_fixture": "loopback only",
+    "colima_vm_used": true,
+    "colima_vm_started_for_this_run": false,
+    "rosetta_translation_used": true,
+    "scratch_root": "target/perf-session/guion-feed-digest-debian-x86_64/package-run",
+    "warmed_cache": "target/perf-session/guion-feed-digest-debian-x86_64/managed",
+    "vm_or_rosetta_translation_used": true,
+    "temporary_projects_and_package_scratch": "removed on exit",
+    "cargo_build_scratch": "removed on exit by the Debian runner",
+    "managed_python_cache": "retained for reuse",
+    "docker_cache_pruned": false
+  },
+  "interpretation": "This establishes one current-format Debian GNU/Linux 12 (bookworm) x86_64 package path for a pure-Python parser and this application; it is not broad Python package compatibility or a speed comparison."
+}
