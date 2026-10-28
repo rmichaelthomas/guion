@@ -46,6 +46,10 @@ The retained three-pair builder study is from the historical Veritas identity, n
 
 The current merged main at commit `6b5e5aba` was rebuilt with artifact format 44 and compared on macOS ARM64 with CPython 3.14.7. Richards uncached source measured **27.46 ms vs. 72.92 ms**, ratio **0.375** (95% interval **0.370–0.379**), passing the Richards 0.60 target. All five 21-pair short-source gates passed. The output-checked 20k/200k JSONL and CPU cases passed, as did **127/127** frozen application cases in both languages. Seven-pair comparisons favored Guion across all nine selected everyday applications. The detailed [checkpoint report](../evaluation/completion/results/real-task-sprint/2026-10-27-current-main-outcome-checkpoint.md) links raw samples and records memory and measurement limits. This is current-main macOS evidence; it does not update the earlier three-target format-39 cohort.
 
+## Python bridge serialization pass (2026-10-27)
+
+A same-host comparison interleaved pre-change and candidate release binaries on the 100,000-row NumPy/orjson app. Across 15 randomized pairs, the candidate/pre-change ratio was **1.012** (95% interval **0.985–1.025**), so the run did not establish a speed improvement or regression. The candidate remains **1.129×** slower than the same package function run directly in Python and **1.406×** slower than the standard-library reference. Output matched byte-for-byte on every sample. The implementation reduces intermediate copies, but peak memory was not measured. See the [report](../evaluation/completion/results/real-task-sprint/2026-10-27-python-bridge-serialization.md) and [raw samples](../evaluation/completion/results/real-task-sprint/2026-10-27-python-bridge-serialization.json).
+
 ## Source-run and launch speed sprint (2026-10-25)
 
 The source-run cache and repeated-run results are in the [final source-loop comparison](../evaluation/completion/results/source-loop/final-comparison-20261026.json) and its [full dated run](../evaluation/completion/results/source-loop/20261026T052344191561Z.json). This is a separate, newer source-loop cohort; it does not rewrite the frozen installed-artifact report above.

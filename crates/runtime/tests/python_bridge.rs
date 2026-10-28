@@ -121,6 +121,80 @@ fn bridge_round_trips_typed_maps_as_python_dictionaries() {
 }
 
 #[test]
+fn bridge_sends_packed_float64_lists_as_tagged_python_arguments() {
+    let mut bridge = PythonBridge::launch(
+        &interpreter(),
+        &std::env::temp_dir(),
+        Duration::from_secs(5),
+    )
+    .unwrap();
+    let values = Value::Float64List(Arc::new(vec![
+        Float64::new(0.25).unwrap(),
+        Float64::new(0.5).unwrap(),
+    ]));
+    let output = bridge
+        .call("builtins", "sum", &[values], &[], &Type::Float64)
+        .expect("packed Float64 lists should use the same wire tags as regular lists");
+
+    assert_eq!(output.value, Value::Float64(Float64::new(0.75).unwrap()));
+}
+
+#[test]
+fn bridge_preserves_duplicate_keyword_error_precedence() {
+    let mut bridge = PythonBridge::launch(
+        &interpreter(),
+        &std::env::temp_dir(),
+        Duration::from_secs(5),
+    )
+    .unwrap();
+    let error = bridge
+        .call(
+            "builtins",
+            "dict",
+            &[],
+            &[
+                ("value".into(), Value::Int(BigInt::parse("1").unwrap())),
+                ("value".into(), Value::OptionNone),
+            ],
+            &Type::Unit,
+        )
+        .unwrap_err();
+    assert_eq!(error.code, "R_PYTHON_CONVERSION");
+
+    let error = bridge
+        .call(
+            "builtins",
+            "dict",
+            &[],
+            &[
+                ("value".into(), Value::Int(BigInt::parse("1").unwrap())),
+                ("value".into(), Value::Int(BigInt::parse("2").unwrap())),
+            ],
+            &Type::Unit,
+        )
+        .unwrap_err();
+    assert_eq!(error.code, "R_PYTHON_ARGUMENT");
+}
+
+#[test]
+fn bridge_accepts_empty_packed_float_list_at_the_nesting_boundary() {
+    let mut bridge = PythonBridge::launch(
+        &interpreter(),
+        &std::env::temp_dir(),
+        Duration::from_secs(5),
+    )
+    .unwrap();
+    let nested = (0..64).fold(Value::Float64List(Arc::new(Vec::new())), |value, _| {
+        Value::List(Arc::new(vec![value]))
+    });
+    let output = bridge
+        .call("builtins", "len", &[nested], &[], &Type::Int)
+        .expect("an empty packed list has no child value that exceeds the depth limit");
+
+    assert_eq!(output.value, Value::Int(BigInt::parse("1").unwrap()));
+}
+
+#[test]
 fn bridge_round_trips_unicode_text_with_shared_storage() {
     let input = Value::Text("Guion: 東京 — café".into());
     let mut bridge = PythonBridge::launch(
@@ -134,6 +208,44 @@ fn bridge_round_trips_unicode_text_with_shared_storage() {
         .expect("Text should cross the Python bridge in both directions");
 
     assert_eq!(output.value, input);
+}
+
+#[test]
+fn bridge_transports_large_escaped_unicode_text_without_corruption() {
+    let root = std::env::temp_dir().join(format!(
+        "guion-python-large-text-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    std::fs::create_dir_all(&root).unwrap();
+    std::fs::write(
+        root.join("text_size.py"),
+        "def size(value):\n    return len(value)\n",
+    )
+    .unwrap();
+    let repeated = "a\"\\\n東京";
+    let input_text = repeated.repeat(300_000);
+    let expected_characters = repeated.chars().count() * 300_000;
+    let mut bridge = PythonBridge::launch(&interpreter(), &root, Duration::from_secs(10)).unwrap();
+    let output = bridge
+        .call(
+            "text_size",
+            "size",
+            &[Value::Text(input_text.into())],
+            &[],
+            &Type::Int,
+        )
+        .expect("large Text should cross the framed Python bridge intact");
+
+    assert_eq!(
+        output.value,
+        Value::Int(BigInt::parse(&expected_characters.to_string()).unwrap())
+    );
+    bridge.close();
+    std::fs::remove_dir_all(root).unwrap();
 }
 
 #[test]

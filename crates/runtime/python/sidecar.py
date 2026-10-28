@@ -59,7 +59,7 @@ def read_exact(count):
                 return None
             raise EOFError("truncated frame")
         chunks.extend(chunk)
-    return bytes(chunks)
+    return chunks
 
 
 def decode(value, depth=0):
@@ -181,7 +181,7 @@ while True:
     stdout_capture = io.StringIO()
     stderr_capture = io.StringIO()
     try:
-        request = json.loads(frame.decode("utf-8"))
+        request = json.loads(frame)
         request_id = request["id"]
         if request.get("protocol") != 1 or request.get("kind") != "call":
             raise ValueError("unsupported bridge protocol request")
