@@ -123,7 +123,7 @@ if [[ "$("$UV" --version | awk '{print $2}')" != "0.13.4" ]]; then
   exit 2
 fi
 
-"$UV" python install 3.14.8 --install-dir "$WARMED/python"
+"$UV" python install 3.14.8 --install-dir "$WARMED/python" --no-bin
 cat > "$WARM_PROJECT/pyproject.toml" <<'TOML'
 [project]
 name = "guion-feed-digest-warmup"
@@ -135,7 +135,20 @@ TOML
 "$UV" sync --project "$WARM_PROJECT" --locked --python 3.14.8 --managed-python
 "$UV" sync --project "$WARM_PROJECT" --locked --python 3.14.8 --managed-python --offline
 "$UV" run --project "$WARM_PROJECT" --python 3.14.8 --managed-python --offline --no-sync \
-  python3 -B -c 'import feedparser, sgmllib; assert feedparser.__version__ == "6.0.14"; print("feedparser", feedparser.__version__, "preloaded")'
+  python3 -B - <<'PY'
+import feedparser
+from importlib.metadata import version
+
+assert feedparser.__version__ == "6.0.14"
+assert version("feedparser-sgmllib") == "2.1.0"
+print(
+    "feedparser",
+    version("feedparser"),
+    "feedparser-sgmllib",
+    version("feedparser-sgmllib"),
+    "preloaded",
+)
+PY
 
 cargo build --locked --offline --jobs 2 --release -p guion-cli --features python-interop
 GUION="$CARGO_TARGET_DIR/release/guion"
