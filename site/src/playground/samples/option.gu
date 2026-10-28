@@ -1,0 +1,13 @@
+fn maybe_positive(value: Int) -> Option[Int]:
+    if value > 0:
+        return Some(value)
+    return None
+
+fn main() -> Int:
+    let absent = maybe_positive(-5)
+    let present = maybe_positive(24)
+    if is_some(absent):
+        print(unwrap(absent))
+    if is_some(present):
+        print(unwrap(present))
+    return 0

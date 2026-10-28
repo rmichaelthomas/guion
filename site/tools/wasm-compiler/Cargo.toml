@@ -1,0 +1,16 @@
+[package]
+name = "guion-site-compiler-wasm"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Browser adapter that compiles one in-memory Guion source file; used by the site playground."
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+guion-compiler = { path = "../../../crates/compiler" }
+guion-model = { path = "../../../crates/model" }
+
+# Standalone: not a member of the repository workspace, so repository CI is unaffected.
+[workspace]

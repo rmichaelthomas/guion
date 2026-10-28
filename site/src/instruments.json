@@ -1,0 +1,101 @@
+{
+  "slots": [
+    {
+      "id": "hero-headline",
+      "mode": "render",
+      "instrumentId": "ahi.typography-reading.kinetic-headline",
+      "content": {
+        "heading": "A language for the work ahead.",
+        "body": "A general-purpose programming language and toolchain built around one challenge: make useful software easier to write, understand, run, and deliver.",
+        "caption": "Programming, re-examined"
+      }
+    },
+    {
+      "id": "why-pull-quote",
+      "mode": "render",
+      "instrumentId": "ahi.typography-reading.pull-quote",
+      "content": {
+        "heading": "",
+        "body": "Not simply different.\nWorth choosing.",
+        "caption": "An editorial paraphrase of the project's own north-star question, not a quotation."
+      }
+    },
+    {
+      "id": "receipts-richards-dossier",
+      "mode": "render",
+      "instrumentId": "ahi.publications-objects.case-dossier",
+      "content": {
+        "heading": "Richards, uncached source",
+        "body": "27.46 ms for Guion against 72.92 ms for CPython 3.14.7, from a fresh source run.",
+        "caption": "Case file 01",
+        "note": "One benchmark on one Mac. Guion also used more memory here: 24.2 MiB against 18.3 MiB."
+      }
+    },
+    {
+      "id": "python-accordion-ecosystem",
+      "mode": "render",
+      "instrumentId": "ahi.reveals-discoveries.accordion",
+      "content": {
+        "heading": "Packages and ecosystem",
+        "body": "Guion can call Python libraries such as NumPy through a typed bridge, and the packages tested so far work. Broad package compatibility is still open, so for a project that leans on many libraries, Python is the safer choice today.",
+        "caption": "Packages and ecosystem",
+        "note": "The bridge is an explicit typed call. It is not transparent Python compatibility."
+      }
+    },
+    {
+      "id": "python-accordion-bridge",
+      "mode": "render",
+      "instrumentId": "ahi.reveals-discoveries.accordion",
+      "content": {
+        "heading": "Calling NumPy from Guion",
+        "body": "On the one 100,000-row task measured, Guion took 1.025 times as long as the same function called from Python.",
+        "caption": "Calling NumPy from Guion",
+        "note": "Sending raw bytes instead of text closed most of the gap. Not all of it."
+      }
+    },
+    {
+      "id": "python-accordion-release",
+      "mode": "render",
+      "instrumentId": "ahi.reveals-discoveries.accordion",
+      "content": {
+        "heading": "A release you can use",
+        "body": "No public Guion release has been published. Python is a released language with a long track record.",
+        "caption": "A release you can use",
+        "note": "Guion is in active development. It has been validated on macOS ARM64 and on Debian 12 for ARM64 and x86_64. No other target is claimed."
+      }
+    },
+    {
+      "id": "python-accordion-learn",
+      "mode": "render",
+      "instrumentId": "ahi.reveals-discoveries.accordion",
+      "content": {
+        "heading": "Learning it",
+        "body": "Whether a new builder can learn Guion, find its APIs and make a realistic change from the guides is still being tested.",
+        "caption": "Learning it",
+        "note": "Learnability is listed as an open outcome on the project status page."
+      }
+    },
+    {
+      "id": "python-accordion-compare",
+      "mode": "render",
+      "instrumentId": "ahi.reveals-discoveries.accordion",
+      "content": {
+        "heading": "Beyond the tasks measured",
+        "body": "Every number on this page is for a named program on one machine against one Python version. Free-threaded Python was not available to compare.",
+        "caption": "Beyond the tasks measured",
+        "note": "Overall competitiveness remains open, in the project's own words."
+      }
+    },
+    {
+      "id": "read-annotated-example",
+      "mode": "render",
+      "instrumentId": "ahi.teaching-guidance.annotated-example",
+      "content": {
+        "heading": "Absence is a value",
+        "body": "maybe_positive(-5) comes back as None, and the program tests is_some before it prints.",
+        "caption": "option.gu",
+        "note": "A function that can come back empty says so in its type, so the reader knows to check."
+      }
+    }
+  ]
+}

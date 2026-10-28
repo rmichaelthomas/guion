@@ -1,0 +1,118 @@
+{
+  "version": "guion 0.1.0 (artifact format 44, timezone data 2026c)",
+  "artifactFormat": 44,
+  "commands": [
+    {
+      "name": "new",
+      "args": "DIRECTORY",
+      "plain": "Start a project: a small program, a test and a manifest.",
+      "dev": "Creates guion.toml, README.md and src/main.gu; refuses a path that already exists.",
+      "report": null
+    },
+    {
+      "name": "check",
+      "args": "FILE.gu [--json]",
+      "plain": "Read the code and say what is wrong, with the line and a stable code.",
+      "dev": "Compiles and reports the function count. --json gives a versioned report, or a diagnostic with a stable code and line/column.",
+      "report": "guion_check_report v1"
+    },
+    {
+      "name": "fmt",
+      "args": "FILE.gu [--check]",
+      "plain": "Tidy the spacing. Comments and text inside quotes are left alone.",
+      "dev": "Tokenizes outside comments and strings and normalizes spacing; --check reports unformatted files without writing.",
+      "report": null
+    },
+    {
+      "name": "lint",
+      "args": "FILE.gu [--json]",
+      "plain": "Point out names nobody uses and code that can never run.",
+      "dev": "Compiles first, then warns with W_UNUSED_IMPORT, W_UNUSED_LOCAL and W_UNREACHABLE_STATEMENT.",
+      "report": "guion_lint_report v1"
+    },
+    {
+      "name": "test",
+      "args": "FILE.gu [--json]",
+      "plain": "Run every test, each from a fresh start.",
+      "dev": "Runs each zero-argument Unit function named test_* in its own fresh runtime instance.",
+      "report": "guion_test_report v1"
+    },
+    {
+      "name": "run",
+      "args": "[--json] [--file-root DIR] TARGET [ARGS…]",
+      "plain": "Run a program, from source or from a built file.",
+      "dev": "Compiles and executes source, runs a .gub without source, or resolves the entry from a project directory. Grants come from flags and guion.toml.",
+      "report": "guion_run_report v1"
+    },
+    {
+      "name": "build",
+      "args": "FILE.gu [-o FILE.gub] [--json]",
+      "plain": "Turn the program into one portable file with a recorded fingerprint.",
+      "dev": "Writes a versioned bytecode artifact; metadata records compiler version, build host and the exact source graph digest.",
+      "report": "guion_build_report v1"
+    },
+    {
+      "name": "package",
+      "args": "PROJECT [--output DIR] [--json]",
+      "plain": "Pack the program and the runtime it needs into a folder you can hand over.",
+      "dev": "Creates a current-host, source-free application directory: compiled artifact, matching runtime, project policy, launcher and declared resources.",
+      "report": "guion_package_report v1"
+    },
+    {
+      "name": "verify-package",
+      "args": "PACKAGE_DIRECTORY [--json]",
+      "plain": "Check that a packed folder is what it says it is.",
+      "dev": "Checks the package target and the recorded SHA-256 digests of the artifact, runtime and resources.",
+      "report": "guion_package_verification_report v1"
+    },
+    {
+      "name": "add",
+      "args": "NAME --path DIR | --url HTTPS_URL --version V --sha256 H",
+      "plain": "Add a package from a local folder or from a web address you can check by hash.",
+      "dev": "Adds a local native package or a content-verified archive to the project.",
+      "report": null
+    },
+    {
+      "name": "sync",
+      "args": "PROJECT [--locked --offline] [--json]",
+      "plain": "Check that the dependencies match the lock.",
+      "dev": "In a core build, --locked --offline validates native packages against the lock.",
+      "report": "guion_sync_report v1"
+    },
+    {
+      "name": "update",
+      "args": "",
+      "plain": "Refresh dependencies on purpose, never by surprise.",
+      "dev": "Explicitly resolves native package sources and transactionally updates the lock.",
+      "report": null
+    },
+    {
+      "name": "inspect",
+      "args": "FILE.gu|FILE.gub [--json]",
+      "plain": "Show what a program is able to do, before it runs.",
+      "dev": "Prints artifact and function metadata plus statically reachable runtime effects.",
+      "report": "guion_inspection_report v1"
+    },
+    {
+      "name": "doc",
+      "args": "FILE.gu [--json]",
+      "plain": "Print what the program offers: its functions and records, and their types.",
+      "dev": "Prints signatures; --json emits guion_api_report with parameter names, checked types and reachable effects.",
+      "report": "guion_api_report v2"
+    },
+    {
+      "name": "doctor",
+      "args": "[--json]",
+      "plain": "Report what this machine and this build can do.",
+      "dev": "Reports the current host and enabled profile; a core build reports Python interoperability disabled.",
+      "report": "guion_doctor_report v1"
+    },
+    {
+      "name": "install",
+      "args": "PACKAGE_DIRECTORY [--prefix DIR]",
+      "plain": "Install a packed app and make it launchable.",
+      "dev": "Verifies the package, installs into share/guion/apps/NAME/VERSION and creates its launcher.",
+      "report": null
+    }
+  ]
+}

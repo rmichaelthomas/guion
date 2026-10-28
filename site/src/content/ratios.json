@@ -1,0 +1,110 @@
+[
+  {
+    "id": "richards",
+    "label": "Richards, uncached source",
+    "ratio": 0.375,
+    "low": 0.37,
+    "high": 0.379,
+    "source": "evaluation/completion/results/real-task-sprint/2026-10-27-current-main-outcome-checkpoint.md",
+    "against": "CPython 3.14.7"
+  },
+  {
+    "id": "nbody",
+    "label": "N-body, uncached source",
+    "ratio": 0.144,
+    "low": 0.14,
+    "high": 0.145,
+    "source": "evaluation/completion/results/real-task-sprint/2026-10-27-current-main-outcome-checkpoint.md",
+    "against": "CPython 3.14.7"
+  },
+  {
+    "id": "mandelbrot",
+    "label": "Mandelbrot, uncached source",
+    "ratio": 0.264,
+    "low": 0.249,
+    "high": 0.272,
+    "source": "evaluation/completion/results/real-task-sprint/2026-10-27-current-main-outcome-checkpoint.md",
+    "against": "CPython 3.14.7"
+  },
+  {
+    "id": "parallel",
+    "label": "Parallel CPU, 200,000 items",
+    "ratio": 0.141,
+    "low": 0.133,
+    "high": 0.162,
+    "source": "evaluation/completion/results/real-task-sprint/2026-10-27-current-main-outcome-checkpoint.md",
+    "against": "serial Python"
+  },
+  {
+    "id": "jsonl",
+    "label": "JSON Lines, 200,000 rows",
+    "ratio": 0.213,
+    "low": 0.211,
+    "high": 0.216,
+    "source": "evaluation/completion/results/real-task-sprint/2026-10-27-current-main-outcome-checkpoint.md",
+    "against": "Python data reference"
+  },
+  {
+    "id": "calendar",
+    "label": "Calendar conflicts app",
+    "ratio": 0.676,
+    "low": 0.66,
+    "high": 0.678,
+    "source": "evaluation/completion/results/real-task-sprint/2026-10-27-current-main-outcome-checkpoint.md",
+    "against": "Python application"
+  },
+  {
+    "id": "health",
+    "label": "Service health app",
+    "ratio": 0.845,
+    "low": 0.837,
+    "high": 0.854,
+    "source": "evaluation/completion/results/real-task-sprint/2026-10-27-current-main-outcome-checkpoint.md",
+    "against": "Python application"
+  },
+  {
+    "id": "lockfile",
+    "label": "Lockfile auditor, 16,384 packages",
+    "ratio": 0.948,
+    "low": 0.942,
+    "high": 0.975,
+    "source": "evaluation/completion/results/real-task-sprint/2026-10-27-lockfile-scale-ram-package-limit.md",
+    "against": "Python"
+  },
+  {
+    "id": "bridge-bytes-pkg",
+    "label": "NumPy call, raw bytes, vs the same Python function",
+    "ratio": 1.025,
+    "low": 1.001,
+    "high": 1.027,
+    "source": "evaluation/completion/results/real-task-sprint/2026-10-27-python-bridge-bytes.md",
+    "against": "NumPy/orjson function in Python"
+  },
+  {
+    "id": "bridge-bytes-std",
+    "label": "NumPy call, raw bytes, vs standard-library Python",
+    "ratio": 1.22,
+    "low": 1.211,
+    "high": 1.234,
+    "source": "evaluation/completion/results/real-task-sprint/2026-10-27-python-bridge-bytes.md",
+    "against": "standard-library Python"
+  },
+  {
+    "id": "bridge-ser-pkg",
+    "label": "NumPy call, fewer copies, vs the same Python function",
+    "ratio": 1.129,
+    "low": 1.106,
+    "high": 1.149,
+    "source": "evaluation/completion/results/real-task-sprint/2026-10-27-python-bridge-serialization.md",
+    "against": "NumPy/orjson function in Python"
+  },
+  {
+    "id": "bridge-ser-std",
+    "label": "NumPy call, fewer copies, vs standard-library Python",
+    "ratio": 1.406,
+    "low": 1.373,
+    "high": 1.442,
+    "source": "evaluation/completion/results/real-task-sprint/2026-10-27-python-bridge-serialization.md",
+    "against": "standard-library Python"
+  }
+]

@@ -1,0 +1,56 @@
+@layer layouts {
+  .shell { width: min(1500px, 100%); margin: auto; padding-inline: var(--gutter); }
+  .section { padding-block: var(--section-pad); }
+  .darkzone { background: var(--moss); color: #e7efe5; }
+  .darkzone p { color: #c4d4c8; }
+  .sectionhead { display: flex; justify-content: space-between; align-items: end; gap: 2.2rem; margin-bottom: clamp(1.6rem, 4vw, 3rem); flex-wrap: wrap; }
+  .sectionhead h2 { font-size: var(--step-4); max-width: 15ch; }
+  .sectionhead p { max-width: 38ch; color: var(--ink-2); }
+  .darkzone .sectionhead p { color: #c4d4c8; }
+  .overline { display: flex; gap: .8rem; align-items: center; color: var(--blue); font-size: var(--step--1); font-weight: 800; text-transform: uppercase; letter-spacing: .15em; margin-bottom: 1rem; }
+  .overline::before { content: ""; width: 29px; height: 2px; background: currentColor; flex: none; }
+  .darkzone .overline { color: var(--lily); }
+
+  /* Status bar and navigation */
+  .sitebar { background: var(--ink); color: #e5eddf; min-height: 39px; display: flex; align-items: center; font-size: .72rem; letter-spacing: .08em; }
+  .sitebar .shell { display: flex; justify-content: space-between; gap: 1rem; align-items: center; padding-block: .45rem; flex-wrap: wrap; }
+  .pillstatus { display: inline-flex; gap: .55rem; align-items: center; }
+  .pillstatus::before { content: ""; width: 7px; height: 7px; background: var(--lily); border-radius: 100%; box-shadow: 0 0 0 4px #d9f9872c; flex: none; }
+  .navwrap { position: sticky; top: 0; z-index: 30; border-bottom: 1px solid #10251d29; background: #e9edf0ed; background: color-mix(in srgb, var(--paper) 93%, transparent); backdrop-filter: blur(16px); }
+  .nav { min-height: 68px; display: flex; gap: 1.2rem; align-items: center; justify-content: space-between; flex-wrap: wrap; padding-block: .5rem; }
+  .wordmark { display: inline-flex; align-items: center; gap: .7rem; text-decoration: none; font-size: 1.5rem; font-weight: 800; letter-spacing: -.07em; }
+  .brandmark { width: 36px; height: 36px; background: var(--blue); border-radius: 11px 11px 11px 2px; display: grid; place-items: center; color: #fff; font: 800 1.6rem/1 var(--serif); transform: rotate(-4deg); }
+  .navlinks { display: flex; align-items: center; gap: clamp(.8rem, 1.8vw, 1.8rem); font-size: .84rem; font-weight: 650; flex: 1; justify-content: center; }
+  .navlinks a { text-decoration: none; white-space: nowrap; }
+  .navlinks a:hover { color: var(--blue); }
+  .navlinks .v-dev a { font-family: var(--mono); font-size: .74rem; font-weight: 600; }
+  .navlinks .v-dev a::before { content: "#"; color: var(--blue); }
+
+  /* The view switch: a native radio pair, shown as one pill */
+  .viewswitch { position: relative; display: inline-grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--ink); border-radius: 999px; padding: 3px; margin: 0; min-inline-size: 0; background: var(--cream); flex: none; }
+  .viewswitch label { position: relative; z-index: 1; padding: .5rem .95rem; font: 800 .7rem/1 var(--sans); letter-spacing: .07em; text-transform: uppercase; text-align: center; cursor: pointer; border-radius: 999px; transition: color .2s; white-space: nowrap; }
+  .viewswitch::before { content: ""; position: absolute; top: 3px; bottom: 3px; left: 3px; width: calc(50% - 3px); background: var(--ink); border-radius: 999px; transition: transform .3s var(--ease); }
+  body:has(#view-dev:checked) .viewswitch::before { transform: translateX(100%); }
+  body:not(:has(#view-dev:checked)) label[for="view-plain"],
+  body:has(#view-dev:checked) label[for="view-dev"] { color: var(--lily); }
+  body:has(#view-plain:focus-visible) label[for="view-plain"],
+  body:has(#view-dev:focus-visible) label[for="view-dev"] { outline: 3px solid var(--blue); outline-offset: 3px; }
+}
+
+@layer responsive {
+  @media (max-width: 900px) {
+    .nav { row-gap: .4rem; }
+    .navlinks { order: 3; flex-basis: 100%; justify-content: flex-start; overflow-x: auto; padding-bottom: .35rem; scrollbar-width: thin; }
+    html { scroll-padding-top: 9.5rem; }
+  }
+  @media (max-width: 460px) {
+    .navwrap .wm { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
+    .nav { gap: .5rem .8rem; justify-content: space-between; }
+    .navlinks { flex-basis: 100%; }
+  }
+  @media (max-width: 520px) {
+    .wordmark { font-size: 1.3rem; }
+    .viewswitch label { padding: .5rem .7rem; font-size: .66rem; }
+    .sitebar { font-size: .66rem; }
+  }
+}
