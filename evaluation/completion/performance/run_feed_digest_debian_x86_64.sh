@@ -67,7 +67,9 @@ OUTPUT_STEM="$REPO_ROOT/evaluation/completion/results/real-task-sprint/2026-10-2
 cleanup() {
   local status=$?
   trap - EXIT
-  rm -rf "$WARM_PROJECT" "$RUN_SCRATCH" "$CARGO_HOME_DIR" "$CARGO_TARGET_DIR"
+  rm -rf \
+    "$WARM_PROJECT" "$RUN_SCRATCH" "$CARGO_HOME_DIR" \
+    "$CARGO_TARGET_DIR" "$SCRATCH_ROOT/xdg-config"
   if [[ "$status" -ne 0 ]]; then
     echo "Temporary build and package scratch removed; log and reusable managed cache remain under $SCRATCH_ROOT" >&2
   fi
@@ -93,7 +95,9 @@ if [[ "$RUST_VERSION" != 1.97.* ]]; then
   exit 2
 fi
 
-mkdir -p "$WARMED/toolchain" "$WARMED/cache" "$WARMED/python" "$WARM_PROJECT" "$CARGO_HOME_DIR"
+mkdir -p \
+  "$WARMED/toolchain" "$WARMED/cache" "$WARMED/python" \
+  "$WARM_PROJECT" "$CARGO_HOME_DIR" "$SCRATCH_ROOT/xdg-config"
 ln -sfn /cargo-registry "$CARGO_HOME_DIR/registry"
 export CARGO_HOME="$CARGO_HOME_DIR"
 export CARGO_TARGET_DIR
@@ -101,12 +105,19 @@ export RUSTUP_HOME=/usr/local/rustup
 export PATH=/usr/local/cargo/bin:"$PATH"
 export UV_CACHE_DIR="$WARMED/cache"
 export UV_PYTHON_INSTALL_DIR="$WARMED/python"
+export XDG_CONFIG_HOME="$SCRATCH_ROOT/xdg-config"
 export UV_NO_PROGRESS=1
 export PYTHONDONTWRITEBYTECODE=1
 
-curl -LsSf https://astral.sh/uv/0.13.4/install.sh \
-  | env UV_INSTALL_DIR="$WARMED/toolchain" UV_NO_MODIFY_PATH=1 sh
 UV="$WARMED/toolchain/uv"
+UV_VERSION=""
+if [[ -x "$UV" ]]; then
+  UV_VERSION="$("$UV" --version | awk '{print $2}')"
+fi
+if [[ "$UV_VERSION" != "0.13.4" ]]; then
+  curl -LsSf https://astral.sh/uv/0.13.4/install.sh \
+    | env UV_INSTALL_DIR="$WARMED/toolchain" UV_NO_MODIFY_PATH=1 sh
+fi
 if [[ "$("$UV" --version | awk '{print $2}')" != "0.13.4" ]]; then
   echo "Expected pinned uv 0.13.4" >&2
   exit 2
