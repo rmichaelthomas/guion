@@ -68,6 +68,18 @@ The 30-pair end-to-end cohort measured a **1.392×** Guion/Python ratio at 1,000
 
 Raw candidate samples: [three-run typed-response profile](2026-10-28-python-bridge-typed-response-phase-profile.json), [initial 15-pair benchmark](2026-10-28-python-bridge-repeated-calls-after-typed-response.json), and [30-pair benchmark](2026-10-28-python-bridge-repeated-calls-after-typed-response-30-pair.json).
 
+## First-byte boundary and single-write request experiment
+
+The earlier profile measured Rust's wait for the first response byte but did not show how much of that interval Python spent processing the request before it began writing. An opt-in timer now measures from receipt of the complete request frame to the start of the response write. Across five diagnostic runs of 1,000 calls, Python used **12.51 μs** in that interval. Rust measured **18.80 μs** from finishing the request write to receiving the first response byte, **5.25 μs** writing the request, and **22.87 μs** through receipt of the complete response and channel handoff.
+
+The Python timer sums all work up to the first response write, while the existing phase timers attribute about **7.7 μs** of it to request parsing (2.56 μs), argument decoding (0.78 μs), module dispatch (1.17 μs), function call (0.28 μs), result encoding (0.50 μs), output capture (0.37 μs), native-image checking (0.86 μs), response envelope creation (0.16 μs), and JSON encoding (1.03 μs). Roughly **4.8 μs** remains between these instrumented phases. The difference between Rust's wait and Python's pre-write timer includes request delivery and wakeup before Python starts, plus response-write delivery to the Rust reader; it is not a direct CPU attribution.
+
+Because a normal request has no binary attachments, a candidate serialized its four-byte length prefix and JSON body into one frame buffer and wrote that buffer once. A focused writer test confirmed the old path made two writes and the candidate made one; the 26 Python bridge integration tests passed. The performance result did not justify keeping it: the 30-pair ratio was **1.406×** (95% interval **1.362–1.427**), essentially the same as the preceding 1.405× fast-JSON baseline. An independent-cohort bootstrap estimated **0.15 μs more** excess cost per added call, with a 95% interval from **5.63 μs less to 6.17 μs more**. The candidate's request-write phase also stayed at **5.25 μs**, so it was reverted.
+
+The largest currently instrumented repeated Python phase is module dispatch at **1.17 μs** per call. It includes `importlib.import_module`, function lookup, and the cached `orjson` lookup; direct module-cache access is the next narrow experiment.
+
+Raw samples: [five-run first-byte boundary profile](2026-10-28-python-bridge-first-byte-boundary-profile.json), [single-write candidate phase profile](2026-10-28-python-bridge-single-write-phase-profile.json), and [30-pair single-write benchmark](2026-10-28-python-bridge-repeated-calls-after-single-write-30-pair.json).
+
 The profiling hook is off by default. Set `GUION_PYTHON_BRIDGE_PROFILE_OUT` to a JSON path to write diagnostic totals; normal runs do not collect phase timers or attach profile data to bridge responses.
 
 ## Method and limits

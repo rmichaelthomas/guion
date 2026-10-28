@@ -38,6 +38,8 @@ A follow-up vectored-write experiment was reverted: the 1,000-call ratio stayed 
 
 A typed Rust response envelope with empty optional fields omitted also failed to show a reliable end-to-end gain. Its 30-pair cohort measured 1.392× Guion/Python at 1,000 calls; an independent-cohort comparison estimated 0.8 μs less excess cost per added call, with a 95% interval spanning 3.6 μs more to 4.3 μs less. The change was reverted even though its three-run diagnostic profile measured response JSON parsing at 4.42 μs rather than 5.18 μs. See the [candidate profile](2026-10-28-python-bridge-typed-response-phase-profile.json) and [30-pair samples](2026-10-28-python-bridge-repeated-calls-after-typed-response-30-pair.json).
 
+A single-write request-frame candidate also showed no reliable gain. It retained the same 1.406× Guion/Python ratio as the fast-JSON baseline and changed estimated excess cost by only 0.15 μs in the slower direction (95% interval: 5.63 μs lower to 6.17 μs higher), so it was reverted. A new five-run profile locates **12.51 μs** between complete request receipt and Python's first response write; repeated module dispatch accounts for 1.17 μs of measured Python work and is the next focused target. See the [first-byte boundary profile](2026-10-28-python-bridge-first-byte-boundary-profile.json), [single-write profile](2026-10-28-python-bridge-single-write-phase-profile.json), and [30-pair benchmark](2026-10-28-python-bridge-repeated-calls-after-single-write-30-pair.json).
+
 ## Method and limits
 
 - Host: macOS ARM64; Guion artifact format 44; CPython 3.14.7, NumPy 2.5.1, and orjson 3.11.9.

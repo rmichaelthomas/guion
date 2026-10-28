@@ -86,6 +86,12 @@ class PythonBridgeProfileTests(unittest.TestCase):
             self.assertGreater(profile["python"]["repeated_calls_ns"]["request_frame_read"], 0)
             self.assertGreater(profile["python"]["repeated_calls_ns"]["response_json_encode"], 0)
             self.assertGreater(profile["python"]["repeated_calls_ns"]["response_write"], 0)
+            self.assertGreater(
+                profile["python"]["repeated_calls_ns"][
+                    "request_to_response_first_write"
+                ],
+                0,
+            )
             if sys.platform == "darwin":
                 self.assertGreater(
                     profile["python"]["repeated_calls_ns"]["native_image_check"], 0

@@ -75,6 +75,7 @@ if PROFILE_ENABLED:
             "native_image_snapshot": 0,
             "response_envelope": 0,
             "response_json_encode": 0,
+            "request_to_response_first_write": 0,
             "response_write": 0,
         },
         "repeated_calls": {
@@ -89,6 +90,7 @@ if PROFILE_ENABLED:
             "native_image_snapshot": 0,
             "response_envelope": 0,
             "response_json_encode": 0,
+            "request_to_response_first_write": 0,
             "response_write": 0,
         },
     }
@@ -257,7 +259,7 @@ def normalize_numpy_list(value):
     return value
 
 
-def write_frame(value):
+def write_frame(value, request_ready_at=None):
     started = perf_counter_ns() if PROFILE_ENABLED else 0
     if RESPONSE_ORJSON_DUMPS is None:
         encoded = json.dumps(value, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
@@ -278,6 +280,10 @@ def write_frame(value):
         )
     if len(encoded) > MAX_FRAME:
         raise ValueError("bridge response exceeds the maximum frame size")
+    if PROFILE_ENABLED and request_ready_at is not None:
+        PROFILE_PHASES_NS[PROFILE_ACTIVE_BUCKET][
+            "request_to_response_first_write"
+        ] += perf_counter_ns() - request_ready_at
     started = perf_counter_ns() if PROFILE_ENABLED else 0
     PROTOCOL_OUT.write(struct.pack(">I", len(encoded)))
     PROTOCOL_OUT.write(encoded)
@@ -301,6 +307,7 @@ while True:
     frame = read_exact(size)
     if frame is None:
         break
+    request_ready_at = perf_counter_ns() if PROFILE_ENABLED else None
     if PROFILE_ENABLED:
         PROFILE_PHASES_NS[PROFILE_ACTIVE_BUCKET]["request_frame_read"] += (
             perf_counter_ns() - started
@@ -433,6 +440,6 @@ while True:
             "repeated_calls_ns": dict(PROFILE_PHASES_NS["repeated_calls"]),
         }
     try:
-        write_frame(response)
+        write_frame(response, request_ready_at=request_ready_at)
     except BaseException:
         break
