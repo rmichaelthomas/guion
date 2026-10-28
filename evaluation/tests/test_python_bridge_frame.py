@@ -139,7 +139,7 @@ class PythonBridgeFrameRejectionTests(unittest.TestCase):
             tracemalloc.stop()
 
         self.assertEqual(frame, payload)
-        self.assertIs(type(frame), bytearray)
+        self.assertIs(type(frame), bytes)
         self.assertLess(peak, len(payload) * 1.5)
 
     def test_frame_read_preserves_short_read_and_eof_behavior(self) -> None:
@@ -152,8 +152,12 @@ class PythonBridgeFrameRejectionTests(unittest.TestCase):
 
         reader = ShortReadBytesIO(b"hello")
         read_exact = read_exact_function(reader)
-        self.assertEqual(read_exact(5), bytearray(b"hello"))
-        self.assertEqual(read_exact(0), bytearray())
+        partial_frame = read_exact(5)
+        self.assertEqual(partial_frame, b"hello")
+        self.assertIs(type(partial_frame), bytearray)
+        zero_frame = read_exact(0)
+        self.assertEqual(zero_frame, bytearray())
+        self.assertIs(type(zero_frame), bytearray)
         self.assertIsNone(read_exact(1))
 
         partial = read_exact_function(ShortReadBytesIO(b"ab"))
