@@ -1,6 +1,6 @@
 # Guion status
 
-**Stage:** active development. An earlier validation cohort passed on macOS ARM64 and Debian 12 GNU/Linux on ARM64 and x86_64, all with glibc. That cohort predates artifact format 44. Current-format managed-package evidence now covers macOS ARM64 and Debian 12 ARM64; Debian x86_64 package validation remains open.
+**Stage:** active development. An earlier validation cohort passed on macOS ARM64 and Debian 12 GNU/Linux on ARM64 and x86_64, all with glibc. That cohort predates artifact format 44. Current-format managed-package evidence now covers macOS ARM64 and Debian 12 ARM64; Debian x86_64 package validation remains open after its first attempt stopped in QEMU's `ldd` process before package acceptance. See the [x86_64 attempt report](../evaluation/completion/results/real-task-sprint/2026-10-27-current-format-managed-package-analysis-debian-x86_64-attempt.md).
 
 ## What is established
 
@@ -31,7 +31,7 @@ GitHub Actions runs formatting, strict Clippy, workspace tests, schema checks, g
 
 ## Remaining product outcomes
 
-The current-main checkpoint and named managed-package fixtures are complete on macOS ARM64; the 100,000-row analysis package also passes on Debian 12 ARM64. Broader package usefulness and bridge overhead, language learnability, and artifact-format-44 managed-package validation on Debian x86_64 remain open. Historical recommendation exercises remain exploratory evidence, not a measure of broad adoption. See the [north-star design](north-star-design.md), [validation report](pre-release-readiness.md), and the [managed package reports](../evaluation/completion/results/real-task-sprint/2026-10-27-current-format-managed-python-package.md), [macOS analysis](../evaluation/completion/results/real-task-sprint/2026-10-27-current-format-managed-package-analysis.md), and [Debian ARM64 analysis](../evaluation/completion/results/real-task-sprint/2026-10-27-current-format-managed-package-analysis-debian-aarch64.md).
+The current-main checkpoint and named managed-package fixtures are complete on macOS ARM64; the 100,000-row analysis package also passes on Debian 12 ARM64. Broader package usefulness and bridge overhead, language learnability, and artifact-format-44 managed-package validation on Debian x86_64 remain open. The first x86_64 attempt stopped during QEMU `ldd` inspection before package acceptance, so it supplies no package correctness result. Historical recommendation exercises remain exploratory evidence, not a measure of broad adoption. See the [north-star design](north-star-design.md), [validation report](pre-release-readiness.md), and the [managed package reports](../evaluation/completion/results/real-task-sprint/2026-10-27-current-format-managed-python-package.md), [macOS analysis](../evaluation/completion/results/real-task-sprint/2026-10-27-current-format-managed-package-analysis.md), and [Debian ARM64 analysis](../evaluation/completion/results/real-task-sprint/2026-10-27-current-format-managed-package-analysis-debian-aarch64.md).
 
 This status page is a current summary, not the test record. The [historical index](history/README.md) links to the original completion report, checkpoints, campaigns, and preserved results.
 
