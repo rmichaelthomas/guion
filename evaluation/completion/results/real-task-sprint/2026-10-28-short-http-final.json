@@ -1,0 +1,577 @@
+{
+  "binary": {
+    "baseline_sha256": "d182bfffac526de8fe4828763558b523c14c1070af3c7c127863a16b9679ce92",
+    "candidate_sha256": "d8d495abbe220e5602f4c63f940394b2b65cb6f186104fbee2cfdcc9312ffb6b"
+  },
+  "created_at_utc": "2026-10-28T19:46:07.731474+00:00",
+  "kind": "guion-core-sprint-short-and-http-benchmarks",
+  "measurement": {
+    "bootstrap_resamples": 20000,
+    "bootstrap_seed": 20261026,
+    "cache": "Guion source cache bypassed with --no-cache; OS cache uncontrolled",
+    "order": "randomized per paired trial by the existing performance runner",
+    "timing": "child-process wall time from startup through exit; fixture startup and post-run output-oracle validation excluded",
+    "trial_seed": 20261025,
+    "trials_per_arm": 15,
+    "warmups_per_arm": 2
+  },
+  "platform": {
+    "architecture": "aarch64",
+    "platform": "Linux-6.8.0-117-generic-aarch64-with-glibc2.36"
+  },
+  "python": {
+    "executable": "/opt/cpython-3.14.7/bin/python3.14",
+    "version": "Python 3.14.7"
+  },
+  "schema_version": 1,
+  "source_revision": "7c7b8a95c774da6b0d08d5f804e138440b2896d8",
+  "status": "passed",
+  "workloads": {
+    "http-local-json": {
+      "commands": {
+        "guion_baseline": [
+          "/Users/rmichaelthomas/guion/.worktrees/guion-core-sprint-spec/target/perf-session/baseline-build/release/guion",
+          "run",
+          "--json",
+          "--no-cache",
+          "--allow-http-host",
+          "127.0.0.1",
+          "/Users/rmichaelthomas/guion/.worktrees/guion-core-sprint-spec/target/perf-session/final-short-http-rebuilt-baseline/core-workloads/http/http_legacy.gu"
+        ],
+        "guion_candidate": [
+          "/Users/rmichaelthomas/guion/.worktrees/guion-core-sprint-spec/target/perf-session/cargo/release/guion",
+          "run",
+          "--json",
+          "--no-cache",
+          "--allow-http-host",
+          "127.0.0.1",
+          "/Users/rmichaelthomas/guion/.worktrees/guion-core-sprint-spec/target/perf-session/final-short-http-rebuilt-baseline/core-workloads/http/http_typed.gu"
+        ],
+        "python_reference": [
+          "/opt/cpython-3.14.7/bin/python3.14",
+          "/Users/rmichaelthomas/guion/.worktrees/guion-core-sprint-spec/evaluation/development/core_north_star_sprint/http_reference.py",
+          "http://127.0.0.1:32913/json"
+        ]
+      },
+      "comparisons": {
+        "candidate_over_baseline": {
+          "ci95_percentile": [
+            1.0060529673215473,
+            1.2103818935203945
+          ],
+          "median_ratio": 1.0636460171420492,
+          "ties_or_regressions": 12,
+          "win": false
+        },
+        "guion_baseline_over_python": {
+          "ci95_percentile": [
+            0.19116517761061635,
+            0.218425283339475
+          ],
+          "median_ratio": 0.20368274844750028,
+          "ties_or_regressions": 0,
+          "win": true
+        },
+        "guion_candidate_over_python": {
+          "ci95_percentile": [
+            0.20323698305120477,
+            0.25258007812589883
+          ],
+          "median_ratio": 0.22383070690523907,
+          "ties_or_regressions": 0,
+          "win": true
+        }
+      },
+      "expected_fixture_request_count": 51,
+      "expected_output": [
+        "hello",
+        "42",
+        "65536"
+      ],
+      "fixture_request_count": 51,
+      "fixture_response_body_bytes": 65579,
+      "fixture_response_body_sha256": "46e2a169feef79fd603ef170f728913cbcc82b6aa424e6594624cb2f5d912857",
+      "fixture_response_status": 200,
+      "fixture_url_path": "/json",
+      "native_backend_reports": {
+        "guion_baseline": {
+          "bytecode_blocks": 0,
+          "bytecode_instructions": 0,
+          "calls": 0,
+          "compilations": 0,
+          "compile_profile": {
+            "finalize_nanoseconds": 0,
+            "functions": []
+          },
+          "compiled_functions": [],
+          "cranelift_ir_blocks": 0,
+          "cranelift_ir_instructions": 0,
+          "deoptimizations": 0
+        },
+        "guion_candidate": {
+          "bytecode_blocks": 0,
+          "bytecode_instructions": 0,
+          "calls": 0,
+          "compilations": 0,
+          "compile_profile": {
+            "finalize_nanoseconds": 0,
+            "functions": []
+          },
+          "compiled_functions": [],
+          "cranelift_ir_blocks": 0,
+          "cranelift_ir_instructions": 0,
+          "deoptimizations": 0
+        }
+      },
+      "paired_trial_order": [
+        [
+          "guion_baseline",
+          "python_reference",
+          "guion_candidate"
+        ],
+        [
+          "guion_candidate",
+          "python_reference",
+          "guion_baseline"
+        ],
+        [
+          "guion_candidate",
+          "guion_baseline",
+          "python_reference"
+        ],
+        [
+          "python_reference",
+          "guion_baseline",
+          "guion_candidate"
+        ],
+        [
+          "guion_candidate",
+          "python_reference",
+          "guion_baseline"
+        ],
+        [
+          "guion_baseline",
+          "guion_candidate",
+          "python_reference"
+        ],
+        [
+          "python_reference",
+          "guion_baseline",
+          "guion_candidate"
+        ],
+        [
+          "guion_candidate",
+          "guion_baseline",
+          "python_reference"
+        ],
+        [
+          "guion_baseline",
+          "python_reference",
+          "guion_candidate"
+        ],
+        [
+          "python_reference",
+          "guion_baseline",
+          "guion_candidate"
+        ],
+        [
+          "python_reference",
+          "guion_baseline",
+          "guion_candidate"
+        ],
+        [
+          "python_reference",
+          "guion_candidate",
+          "guion_baseline"
+        ],
+        [
+          "guion_baseline",
+          "guion_candidate",
+          "python_reference"
+        ],
+        [
+          "guion_candidate",
+          "guion_baseline",
+          "python_reference"
+        ],
+        [
+          "guion_candidate",
+          "guion_baseline",
+          "python_reference"
+        ]
+      ],
+      "samples": {
+        "guion_baseline": {
+          "median_seconds": 0.012658962994464673,
+          "p95_seconds_nearest_rank": 0.016044246003730223,
+          "samples_seconds": [
+            0.013959543000964914,
+            0.012658962994464673,
+            0.01279542099655373,
+            0.01312066999525996,
+            0.013027670000155922,
+            0.01086525999562582,
+            0.016044246003730223,
+            0.011581550003029406,
+            0.01243371400050819,
+            0.012273589003598318,
+            0.012400672996591311,
+            0.011078634001023602,
+            0.011984881995886099,
+            0.013182129005144816,
+            0.013612959999591112
+          ]
+        },
+        "guion_candidate": {
+          "median_seconds": 0.013409377999778371,
+          "p95_seconds_nearest_rank": 0.01751449100265745,
+          "samples_seconds": [
+            0.01389629299956141,
+            0.012859378999564797,
+            0.01351275199704105,
+            0.014806623999902513,
+            0.0121739649985102,
+            0.013294378004502505,
+            0.01751449100265745,
+            0.014206709005520679,
+            0.01678982600424206,
+            0.01145179999730317,
+            0.01321233699854929,
+            0.013409377999778371,
+            0.012747672000841703,
+            0.013261920001241378,
+            0.01389300099981483
+          ]
+        },
+        "python_reference": {
+          "median_seconds": 0.05951057699712692,
+          "p95_seconds_nearest_rank": 0.06853571599640418,
+          "samples_seconds": [
+            0.06853571599640418,
+            0.05819699700077763,
+            0.06466543599526631,
+            0.05406955200305674,
+            0.06814876099815592,
+            0.05896653700619936,
+            0.05951057699712692,
+            0.06118969700037269,
+            0.05692433499643812,
+            0.061618530002306215,
+            0.05814562399609713,
+            0.06554764300381066,
+            0.056952292994537856,
+            0.06525347799470183,
+            0.05500434200075688
+          ]
+        }
+      },
+      "source_cache_states": {
+        "guion_baseline": [
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed"
+        ],
+        "guion_candidate": [
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed"
+        ]
+      },
+      "source_sha256": {
+        "legacy": "580c46193002cfd1a4b243392e58cd41f5ca079792a98642492b0ed4da956fc5",
+        "python_reference": "04df36243edef7bef4389d6a7cfd6fd524c8c216cf6793aad723ec2750a41420",
+        "typed": "ea1de3784878f3be6c7c9f6cb7cca420e6dd9b550cfe48097f40d71c1931492b"
+      },
+      "url_host_grant": "127.0.0.1"
+    },
+    "tiny-source": {
+      "commands": {
+        "guion_baseline": [
+          "/Users/rmichaelthomas/guion/.worktrees/guion-core-sprint-spec/target/perf-session/baseline-build/release/guion",
+          "run",
+          "--json",
+          "--no-cache",
+          "--allow-http-host",
+          "127.0.0.1",
+          "/Users/rmichaelthomas/guion/.worktrees/guion-core-sprint-spec/target/perf-session/final-short-http-rebuilt-baseline/core-workloads/short-source/tiny.gu"
+        ],
+        "guion_candidate": [
+          "/Users/rmichaelthomas/guion/.worktrees/guion-core-sprint-spec/target/perf-session/cargo/release/guion",
+          "run",
+          "--json",
+          "--no-cache",
+          "--allow-http-host",
+          "127.0.0.1",
+          "/Users/rmichaelthomas/guion/.worktrees/guion-core-sprint-spec/target/perf-session/final-short-http-rebuilt-baseline/core-workloads/short-source/tiny.gu"
+        ],
+        "python_reference": [
+          "/opt/cpython-3.14.7/bin/python3.14",
+          "/Users/rmichaelthomas/guion/.worktrees/guion-core-sprint-spec/target/perf-session/final-short-http-rebuilt-baseline/core-workloads/short-source/tiny.py"
+        ]
+      },
+      "comparisons": {
+        "baseline_over_python": {
+          "ci95_percentile": [
+            0.9349083421180964,
+            1.0389793615126615
+          ],
+          "median_ratio": 1.01832468222249,
+          "ties_or_regressions": 8,
+          "win": false
+        },
+        "candidate_over_baseline": {
+          "ci95_percentile": [
+            0.9550531842385509,
+            1.0276447015154309
+          ],
+          "median_ratio": 0.9910083533640597,
+          "ties_or_regressions": 6,
+          "win": false
+        }
+      },
+      "expected_output": [
+        "ready"
+      ],
+      "native_backend_reports": {
+        "guion_baseline": {
+          "bytecode_blocks": 0,
+          "bytecode_instructions": 0,
+          "calls": 0,
+          "compilations": 0,
+          "compile_profile": {
+            "finalize_nanoseconds": 0,
+            "functions": []
+          },
+          "compiled_functions": [],
+          "cranelift_ir_blocks": 0,
+          "cranelift_ir_instructions": 0,
+          "deoptimizations": 0
+        },
+        "guion_candidate": {
+          "bytecode_blocks": 0,
+          "bytecode_instructions": 0,
+          "calls": 0,
+          "compilations": 0,
+          "compile_profile": {
+            "finalize_nanoseconds": 0,
+            "functions": []
+          },
+          "compiled_functions": [],
+          "cranelift_ir_blocks": 0,
+          "cranelift_ir_instructions": 0,
+          "deoptimizations": 0
+        }
+      },
+      "paired_trial_order": [
+        [
+          "guion_baseline",
+          "guion_candidate",
+          "python_reference"
+        ],
+        [
+          "python_reference",
+          "guion_candidate",
+          "guion_baseline"
+        ],
+        [
+          "python_reference",
+          "guion_baseline",
+          "guion_candidate"
+        ],
+        [
+          "guion_candidate",
+          "guion_baseline",
+          "python_reference"
+        ],
+        [
+          "python_reference",
+          "guion_candidate",
+          "guion_baseline"
+        ],
+        [
+          "guion_baseline",
+          "python_reference",
+          "guion_candidate"
+        ],
+        [
+          "guion_candidate",
+          "guion_baseline",
+          "python_reference"
+        ],
+        [
+          "python_reference",
+          "guion_baseline",
+          "guion_candidate"
+        ],
+        [
+          "guion_baseline",
+          "guion_candidate",
+          "python_reference"
+        ],
+        [
+          "guion_candidate",
+          "guion_baseline",
+          "python_reference"
+        ],
+        [
+          "guion_candidate",
+          "guion_baseline",
+          "python_reference"
+        ],
+        [
+          "guion_candidate",
+          "python_reference",
+          "guion_baseline"
+        ],
+        [
+          "guion_baseline",
+          "python_reference",
+          "guion_candidate"
+        ],
+        [
+          "python_reference",
+          "guion_baseline",
+          "guion_candidate"
+        ],
+        [
+          "python_reference",
+          "guion_baseline",
+          "guion_candidate"
+        ]
+      ],
+      "samples": {
+        "guion_baseline": {
+          "median_seconds": 0.009400972005096264,
+          "p95_seconds_nearest_rank": 0.0123787970005651,
+          "samples_seconds": [
+            0.0086486829968635,
+            0.009251472998585086,
+            0.009392430998559576,
+            0.009539471997413784,
+            0.0123787970005651,
+            0.00961609699879773,
+            0.009616472001653165,
+            0.009255806005967315,
+            0.009659679999458604,
+            0.009400972005096264,
+            0.00885772400215501,
+            0.00862014099402586,
+            0.011019468001904897,
+            0.009766347000550013,
+            0.008785933001490775
+          ]
+        },
+        "guion_candidate": {
+          "median_seconds": 0.009255555996787734,
+          "p95_seconds_nearest_rank": 0.013983501004986465,
+          "samples_seconds": [
+            0.00859268299973337,
+            0.00934147200314328,
+            0.009700431000965182,
+            0.009236015001079068,
+            0.013983501004986465,
+            0.009118139998463448,
+            0.009102098003495485,
+            0.009511680000287015,
+            0.009563346997310873,
+            0.009255555996787734,
+            0.009264765001717024,
+            0.009166472998913378,
+            0.010524178003834095,
+            0.009153389997663908,
+            0.008706932996574324
+          ]
+        },
+        "python_reference": {
+          "median_seconds": 0.009443055998417549,
+          "p95_seconds_nearest_rank": 0.01191438199748518,
+          "samples_seconds": [
+            0.008472100002109073,
+            0.008605390998127405,
+            0.010025429000961594,
+            0.010595594001642894,
+            0.01191438199748518,
+            0.009443055998417549,
+            0.00886472400452476,
+            0.010925384005531669,
+            0.009415556000021752,
+            0.008676099998410791,
+            0.009605514002032578,
+            0.009220305997587275,
+            0.010628511001414154,
+            0.010838009999133646,
+            0.009136847998888697
+          ]
+        }
+      },
+      "source_cache_states": {
+        "guion_baseline": [
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed"
+        ],
+        "guion_candidate": [
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed"
+        ]
+      }
+    }
+  }
+}

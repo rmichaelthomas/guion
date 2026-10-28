@@ -106,7 +106,7 @@ Keep `http_request_bytes(method, url, headers, body, timeout_ms) -> Result[HttpR
 
 **Files:** Create a plain-English sprint report and raw final samples in the Task 2 evidence directories; update the project docs from Task 6.
 
-- [ ] Re-run the frozen baseline workloads after code changes in the same pinned environment, with sequential randomized paired runs and checked outputs. Record results, intervals, peak-memory method, target, commit, versions, and limitations.
-- [ ] Run the relevant Rust formatting, artifact audit, compiler/runtime/CLI tests, conformance, bootstrap, agent-reference, and offline workspace checks. Report exact commands, counts, failures, and skips; run cross-target gates only where an available target can be exercised.
-- [ ] Review source and generated-file scope by name, check staged content, commit completed checkpoints, and preserve all raw samples and useful reports. Do not create a PR or merge without authorization.
-- [ ] **Gate:** every sprint acceptance item is evidenced, or its specific unresolved blocker, incomplete status, and next action are recorded.
+- [x] Re-ran the seven frozen Linux ARM64 workloads after code changes in the same pinned environment with randomized paired trials and checked outputs. Recorded results, intervals, peak-memory method, target, source revision, versions, and limits. A separate 15-pair short-source/HTTP comparison used a fresh same-toolchain rebuild of the frozen base.
+- [x] Ran Rust formatting, artifact audit, compiler/runtime/CLI tests, conformance, bootstrap, agent-reference, and offline workspace checks. Recorded exact commands, counts, and the one root-only test run separately; cross-target behavior beyond the pinned Debian ARM64 environment remains unclaimed.
+- [x] Reviewed source and generated-file scope by name, checked staged content, committed the implementation and final evidence, and preserved raw samples and diagnostic reports. No PR was created and no merge was performed.
+- [x] **Gate:** all completed acceptance items have evidence. Task 7 remains prepared but incomplete until the user approves a named evaluator and the exact recipient/materials transfer.
