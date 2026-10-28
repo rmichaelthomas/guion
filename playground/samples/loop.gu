@@ -1,0 +1,5 @@
+fn main() -> Int:
+    var count = 0
+    while true:
+        set count = count + 1
+    return count
