@@ -1,0 +1,14 @@
+extern python "bridge_batch:sum_repeated_lengths" fn sum_repeated_lengths(source: Bytes, count: Int) -> Int
+
+fn main() -> Int:
+    let arguments = args()
+    if len(arguments) != 1:
+        print("Usage: guion run main.gu INPUT.bin")
+        return 2
+    let input = read_bytes(arguments[0])
+    if not is_ok(input):
+        print("Cannot read input: " + file_error_code(error(input)))
+        return 1
+    let source = unwrap(input)
+    print(sum_repeated_lengths(source, __CALL_COUNT__))
+    return 0
