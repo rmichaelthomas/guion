@@ -72,6 +72,22 @@ A 30-triplet randomized fresh-process cohort compared the same 1,000-operation b
 
 In paired source/artifact samples, uncached source took a median **0.50 ms** longer (95% bootstrap interval **0.16–1.14 ms**). Prebuilding removes a small part of the roughly **5.26 ms** source-versus-Python gap, leaving about **4.36 ms**. Compilation is therefore a minor contributor for this workload; the next target is the fresh Guion runtime and bridge startup path. This conclusion is limited to this single batched bridge workload and host. See the [raw samples](2026-10-28-python-bridge-batch-artifact.json) and [source/artifact harness](../../performance/benchmark_python_bridge_batch_artifact.py).
 
+## Eager sidecar startup candidate — reverted
+
+An opt-in candidate started the Python sidecar when loading an artifact that declares Python externals, rather than at its first external call. Two 30-trial randomized quintuplet cohorts compared lazy/eager source and artifacts with direct Python. Every timed output matched.
+
+The first cohort appeared to improve uncached source by **1.40 ms** (95% paired interval **0.39–1.83 ms faster**), but its raw file was overwritten by the replication. The retained fresh cohort did not reproduce that result:
+
+| Lane | Median | Ratio to direct Python (95% interval) |
+| --- | ---: | ---: |
+| Uncached source, lazy | 75.11 ms | 1.070 (1.055–1.079) |
+| Uncached source, eager | 75.47 ms | 1.076 (1.060–1.097) |
+| Artifact, lazy | 74.89 ms | 1.071 (1.061–1.079) |
+| Artifact, eager | 75.01 ms | 1.060 (1.041–1.084) |
+| Direct Python | 70.39 ms | 1.000 |
+
+In the retained cohort, the source eager-minus-lazy difference was **0.42 ms slower** with a 95% interval from **0.07 ms faster to 1.37 ms slower**. For artifacts it was **0.37 ms faster**, with an interval from **0.81 ms faster to 1.05 ms slower**. Both intervals include no change. The instrumented profile also did not show a shorter pipe-write phase. The candidate was removed; lazy startup remains the only runtime behavior. See the [retained raw samples](2026-10-28-python-bridge-batch-eager-startup.json) and [one-run eager profile](2026-10-28-python-bridge-payload-transfer-profile-eager.json).
+
 ## Method and limits
 
 - Host: macOS ARM64; Guion artifact format 44; CPython 3.14.7, NumPy 2.5.1, and orjson 3.11.9.

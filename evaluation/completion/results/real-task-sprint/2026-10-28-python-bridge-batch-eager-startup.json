@@ -1,0 +1,528 @@
+{
+  "artifact_sha256": "dc60055ad9fec96c906eaa29382b30981d85df3ce6094ff5cc64e5214e988a6f",
+  "commit": "6cfea2eca5dc67f66359da02523ab2b833035c0f",
+  "correctness": {
+    "all_outputs_match_expected": true,
+    "all_timed_outputs_checked": true,
+    "expected_output": 64000
+  },
+  "guion_binary_sha256": "1d3e8575c3065605778589f2ea0235c2a62e17da038cabe48b406a8925203e19",
+  "guion_version": {
+    "artifact_format": 44,
+    "version": "0.1.0"
+  },
+  "host": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+  "kind": "guion-python-bridge-batched-eager-startup",
+  "measurement": {
+    "artifact_build_seconds_once_outside_timing": 0.008968790993094444,
+    "eager_vs_lazy": {
+      "artifact": {
+        "eager_minus_lazy_ms": {
+          "ci95_percentile_ms": [
+            -0.8119795238599181,
+            1.0479794873390347
+          ],
+          "median_ms": -0.37160448846407235,
+          "positive_in_all_pairs": false
+        },
+        "eager_over_lazy": {
+          "ci95_percentile": [
+            0.9890923912247624,
+            1.0139639700389596
+          ],
+          "median_ratio": 0.9950608297471716,
+          "ties_or_regressions": 13,
+          "win": false
+        }
+      },
+      "source": {
+        "eager_minus_lazy_ms": {
+          "ci95_percentile_ms": [
+            -0.07356199785135686,
+            1.3653325149789453
+          ],
+          "median_ms": 0.4174379864707589,
+          "positive_in_all_pairs": false
+        },
+        "eager_over_lazy": {
+          "ci95_percentile": [
+            0.9990339420320523,
+            1.0182585952549017
+          ],
+          "median_ratio": 1.0055675948610132,
+          "ties_or_regressions": 19,
+          "win": false
+        }
+      }
+    },
+    "medians_seconds": {
+      "artifact_eager": 0.0750088750210125,
+      "artifact_lazy": 0.07488754150108434,
+      "direct_python": 0.070387291489169,
+      "source_eager": 0.07547256248653866,
+      "source_lazy": 0.07511127096950077
+    },
+    "method": "Fresh process per sample; randomized quintuplets of uncached source, prebuilt artifact, their opt-in eager-sidecar candidates, and direct Python; all run the same operation and import the same packages. Artifact compilation occurs once outside the timed samples. Every stdout and stderr is checked. OS file-cache state is uncontrolled.",
+    "paired_comparisons": {
+      "artifact_eager_over_direct_python": {
+        "ci95_percentile": [
+          1.0406923758592295,
+          1.083578478061556
+        ],
+        "median_ratio": 1.0597717070198591,
+        "ties_or_regressions": 26,
+        "win": false
+      },
+      "artifact_lazy_over_direct_python": {
+        "ci95_percentile": [
+          1.060867827613763,
+          1.0790540882769215
+        ],
+        "median_ratio": 1.070555234811249,
+        "ties_or_regressions": 28,
+        "win": false
+      },
+      "source_eager_over_direct_python": {
+        "ci95_percentile": [
+          1.0595731880843784,
+          1.0972470879197918
+        ],
+        "median_ratio": 1.0758817379509003,
+        "ties_or_regressions": 28,
+        "win": false
+      },
+      "source_lazy_over_direct_python": {
+        "ci95_percentile": [
+          1.0549957779867531,
+          1.0791185287979002
+        ],
+        "median_ratio": 1.0696584070932522,
+        "ties_or_regressions": 27,
+        "win": false
+      }
+    },
+    "paired_order": [
+      [
+        "artifact_lazy",
+        "source_lazy",
+        "artifact_eager",
+        "direct_python",
+        "source_eager"
+      ],
+      [
+        "artifact_lazy",
+        "artifact_eager",
+        "source_eager",
+        "direct_python",
+        "source_lazy"
+      ],
+      [
+        "source_eager",
+        "artifact_lazy",
+        "artifact_eager",
+        "source_lazy",
+        "direct_python"
+      ],
+      [
+        "direct_python",
+        "source_lazy",
+        "source_eager",
+        "artifact_eager",
+        "artifact_lazy"
+      ],
+      [
+        "source_eager",
+        "direct_python",
+        "artifact_lazy",
+        "artifact_eager",
+        "source_lazy"
+      ],
+      [
+        "direct_python",
+        "artifact_lazy",
+        "source_eager",
+        "source_lazy",
+        "artifact_eager"
+      ],
+      [
+        "source_lazy",
+        "artifact_lazy",
+        "direct_python",
+        "artifact_eager",
+        "source_eager"
+      ],
+      [
+        "source_lazy",
+        "source_eager",
+        "artifact_lazy",
+        "direct_python",
+        "artifact_eager"
+      ],
+      [
+        "source_eager",
+        "artifact_eager",
+        "source_lazy",
+        "direct_python",
+        "artifact_lazy"
+      ],
+      [
+        "source_lazy",
+        "direct_python",
+        "artifact_eager",
+        "artifact_lazy",
+        "source_eager"
+      ],
+      [
+        "artifact_eager",
+        "direct_python",
+        "source_lazy",
+        "source_eager",
+        "artifact_lazy"
+      ],
+      [
+        "source_lazy",
+        "source_eager",
+        "artifact_eager",
+        "direct_python",
+        "artifact_lazy"
+      ],
+      [
+        "artifact_eager",
+        "source_lazy",
+        "artifact_lazy",
+        "direct_python",
+        "source_eager"
+      ],
+      [
+        "artifact_lazy",
+        "direct_python",
+        "source_eager",
+        "artifact_eager",
+        "source_lazy"
+      ],
+      [
+        "source_lazy",
+        "direct_python",
+        "artifact_eager",
+        "source_eager",
+        "artifact_lazy"
+      ],
+      [
+        "direct_python",
+        "artifact_eager",
+        "source_lazy",
+        "artifact_lazy",
+        "source_eager"
+      ],
+      [
+        "artifact_lazy",
+        "artifact_eager",
+        "source_lazy",
+        "source_eager",
+        "direct_python"
+      ],
+      [
+        "artifact_eager",
+        "artifact_lazy",
+        "source_lazy",
+        "source_eager",
+        "direct_python"
+      ],
+      [
+        "artifact_eager",
+        "artifact_lazy",
+        "source_lazy",
+        "source_eager",
+        "direct_python"
+      ],
+      [
+        "artifact_eager",
+        "artifact_lazy",
+        "source_eager",
+        "source_lazy",
+        "direct_python"
+      ],
+      [
+        "artifact_lazy",
+        "source_lazy",
+        "direct_python",
+        "source_eager",
+        "artifact_eager"
+      ],
+      [
+        "source_eager",
+        "direct_python",
+        "artifact_eager",
+        "source_lazy",
+        "artifact_lazy"
+      ],
+      [
+        "direct_python",
+        "source_eager",
+        "artifact_lazy",
+        "source_lazy",
+        "artifact_eager"
+      ],
+      [
+        "artifact_eager",
+        "source_eager",
+        "source_lazy",
+        "direct_python",
+        "artifact_lazy"
+      ],
+      [
+        "source_eager",
+        "artifact_eager",
+        "source_lazy",
+        "artifact_lazy",
+        "direct_python"
+      ],
+      [
+        "direct_python",
+        "artifact_lazy",
+        "source_eager",
+        "artifact_eager",
+        "source_lazy"
+      ],
+      [
+        "direct_python",
+        "artifact_eager",
+        "artifact_lazy",
+        "source_eager",
+        "source_lazy"
+      ],
+      [
+        "source_eager",
+        "source_lazy",
+        "direct_python",
+        "artifact_eager",
+        "artifact_lazy"
+      ],
+      [
+        "source_lazy",
+        "artifact_eager",
+        "direct_python",
+        "artifact_lazy",
+        "source_eager"
+      ],
+      [
+        "artifact_lazy",
+        "source_lazy",
+        "source_eager",
+        "direct_python",
+        "artifact_eager"
+      ]
+    ],
+    "samples_seconds": {
+      "artifact_eager": [
+        0.07708679203642532,
+        0.0788122090161778,
+        0.08184541697846726,
+        0.07468845800030977,
+        0.07313124998472631,
+        0.07492987503064796,
+        0.07442887499928474,
+        0.07377775001805276,
+        0.07541841600323096,
+        0.07319845899473876,
+        0.07285420800326392,
+        0.07643512496724725,
+        0.07316970796091482,
+        0.073022042051889,
+        0.0729411659995094,
+        0.07319550000829622,
+        0.07328741700621322,
+        0.07669979199999943,
+        0.07666399999288842,
+        0.07738454203354195,
+        0.07695474999491125,
+        0.07753979100380093,
+        0.07467075000749901,
+        0.07417604199144989,
+        0.07671170798130333,
+        0.07508787501137704,
+        0.07581779197789729,
+        0.07409187499433756,
+        0.08979841700056568,
+        0.07671212498098612
+      ],
+      "artifact_lazy": [
+        0.07307445898186415,
+        0.07299629098270088,
+        0.08225224999478087,
+        0.07483716600108892,
+        0.07390916702570394,
+        0.07464845798676834,
+        0.08393520797835663,
+        0.07422379200579599,
+        0.07376991695491597,
+        0.07467837497824803,
+        0.07424499996704981,
+        0.07497933396371081,
+        0.07729824999114498,
+        0.07547666603932157,
+        0.0733027079841122,
+        0.07357716700062156,
+        0.07313208398409188,
+        0.08041166700422764,
+        0.07584058301290497,
+        0.07554658403387293,
+        0.08439312502741814,
+        0.07540079101454467,
+        0.07519083301303908,
+        0.10122229100670666,
+        0.0736530419671908,
+        0.07359020796138793,
+        0.07454524998320267,
+        0.07493791700107977,
+        0.08005629200488329,
+        0.07997974997851998
+      ],
+      "direct_python": [
+        0.07116829097503796,
+        0.06944225000916049,
+        0.07369966595433652,
+        0.07270754198543727,
+        0.07087816600687802,
+        0.06859604199416935,
+        0.0761758330045268,
+        0.07099495799047872,
+        0.0689218330080621,
+        0.06907604198204353,
+        0.06584266596473753,
+        0.07679575000656769,
+        0.07046312501188368,
+        0.0696634579799138,
+        0.06882124999538064,
+        0.06848954100860283,
+        0.06961558404145762,
+        0.07833849999587983,
+        0.07082816603360698,
+        0.07843762502307072,
+        0.07383962499443442,
+        0.06972870795289055,
+        0.06981479201931506,
+        0.07359391602221876,
+        0.0695258749765344,
+        0.06926958297844976,
+        0.06925783300539479,
+        0.07031145796645433,
+        0.07503762503620237,
+        0.07459483400452882
+      ],
+      "source_eager": [
+        0.07832741702441126,
+        0.0770059580099769,
+        0.08588450000388548,
+        0.07685045897960663,
+        0.07480279199080542,
+        0.07393183297244832,
+        0.07318625005427748,
+        0.07540841697482392,
+        0.07539358298527077,
+        0.07721887499792501,
+        0.0766909999656491,
+        0.07517270802054554,
+        0.07377945899497718,
+        0.07514058396918699,
+        0.07383291696896777,
+        0.07357791601680219,
+        0.07984520896570757,
+        0.09061104099964723,
+        0.07291245798114687,
+        0.32401658297749236,
+        0.07687900000018999,
+        0.0755367079982534,
+        0.07514429104048759,
+        0.07758954103337601,
+        0.09609987499425188,
+        0.07706149999285117,
+        0.07388920796802267,
+        0.07371545903151855,
+        0.07513800001470372,
+        0.08022120897658169
+      ],
+      "source_lazy": [
+        0.07372516696341336,
+        0.07851966598536819,
+        0.07768208399647847,
+        0.07990133296698332,
+        0.07431266602361575,
+        0.07407037500524893,
+        0.07523233396932483,
+        0.07381870894460008,
+        0.07432058302219957,
+        0.07449379202444106,
+        0.07591308304108679,
+        0.0749902079696767,
+        0.07680812495527789,
+        0.07386545796180144,
+        0.07349924999289215,
+        0.07337583298794925,
+        0.0735259999637492,
+        0.08067966700764373,
+        0.07971795904450119,
+        0.2032424170174636,
+        0.07653424999443814,
+        0.07566758297616616,
+        0.0738569590030238,
+        0.0724738750141114,
+        0.07564499997533858,
+        0.07561816700035706,
+        0.07463183300569654,
+        0.07424579100916162,
+        0.07782170898281038,
+        0.08023745799437165
+      ]
+    },
+    "seed": 20261051,
+    "source_vs_artifact": {
+      "source_minus_artifact_ms": {
+        "ci95_percentile_ms": [
+          -0.4476040485315025,
+          0.3987074887845665
+        ],
+        "median_ms": 0.14156251563690603,
+        "positive_in_all_pairs": false
+      },
+      "source_over_artifact": {
+        "ci95_percentile": [
+          0.9941008546129926,
+          1.005422876900609
+        ],
+        "median_ratio": 1.001921360396588,
+        "ties_or_regressions": 17,
+        "win": false
+      }
+    },
+    "trials": 30
+  },
+  "python": {
+    "executable": "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
+    "numpy": "2.5.1",
+    "orjson": "3.11.9",
+    "version": "3.14.7"
+  },
+  "schema_version": 1,
+  "source_sha256": {
+    "crates/runtime/python/sidecar.py": "d3638dceef6597120820a6257a99925774b479d785371c3d5fe036f7539ffde8",
+    "crates/runtime/src/lib.rs": "64054f0c129d991dd2851586b4732bb10db4c8c5e4da32294484ff69ff614e05",
+    "crates/runtime/src/python_bridge.rs": "72b975096ff65d73932ab82226ba9f19965aa432e45a8e681035867613e16da2",
+    "evaluation/completion/performance/benchmark_python_bridge_batch_artifact.py": "79d12d0fa4fe0b0f7c6c7c42a0652fa1905ece0ea34c46b54983c6738a80823f",
+    "evaluation/development/guion_python_bridge_batch_probe/bridge_batch.py": "b653b0502252620706441c18b95ee7489b7313467d05de5ab97541fa0be8385c",
+    "evaluation/development/guion_python_bridge_batch_probe/main.template.gu": "099aeaffd75525131a1a0ceba75ecb01048ce75c8005c910b432921b2f02c328",
+    "evaluation/development/guion_python_bridge_batch_probe/reference.py": "232a991dd2fabd182d3dcbfe2eaa9fc1cfaa15e7f406758f7296a527858a1dcd"
+  },
+  "status": "passed",
+  "workload": {
+    "bridge_calls_per_process": 1,
+    "iteration_count": 1000,
+    "operation": "Read a 64-byte file, call the same Python payload_length helper 1,000 times, sum its results, and print the total. The eager candidate starts the Python sidecar at artifact load; the lazy baseline starts it on the first call.",
+    "payload_bytes": 64,
+    "python_package_imports": [
+      "numpy",
+      "orjson"
+    ]
+  },
+  "worktree_dirty_at_measurement": true
+}
