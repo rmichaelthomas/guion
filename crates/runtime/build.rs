@@ -20,12 +20,15 @@ fn main() {
     let source = out.join("libical-src");
     fs::create_dir_all(&source).expect("create libical build source directory");
     let mut extract = Command::new("tar");
+    extract.arg("-xzf").arg(&archive);
     if env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("linux") {
-        // The pinned archive records root ownership. Keep non-root Linux builds
-        // able to write the extracted tree while configuring the native library.
-        extract.arg("-o");
+        // Avoid restoring the archive's root ownership and permission bits in
+        // the shared Linux build tree; Cargo and CMake must be able to update it.
+        extract
+            .arg("--no-same-owner")
+            .arg("--no-same-permissions");
     }
-    extract.arg("-xzf").arg(&archive).arg("-C").arg(&source);
+    extract.arg("-C").arg(&source);
     run(&mut extract, "extract libical source");
     let source = source.join("libical-4.0.5");
     let build = out.join("libical-build");
