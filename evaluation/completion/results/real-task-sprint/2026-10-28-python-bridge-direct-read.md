@@ -8,13 +8,16 @@ It did not produce a measurable speed improvement over the readinto-only version
 
 The direct-read path measured **5,101,212 bytes** peak for a 5,100,867-byte complete frame, compared with **5,101,732 bytes** for the readinto-only path. That 520-byte difference is negligible. The fast path therefore adds complexity without a demonstrated speed or memory benefit and is reverted; the committed readinto implementation remains in place.
 
-The next target is the payload copy that remains after a complete frame has been read: the sidecar retains the full frame while materializing each immutable Python `bytes` attachment. A streaming binary-frame reader may be able to read attachment bytes directly while preserving the public `bytes` contract. It must retain exact frame-boundary validation, short-read handling, and malformed-frame behavior.
+I also screened a streaming-reader prototype for a single 5.1 MB attachment. The buffered pipe supplied the attachment in fragments, so the sidecar had to assemble a mutable buffer and copy it into the required immutable `bytes`; measured peak allocation was **10,203,084 bytes**, above the **7,651,300-byte** one-copy bound. The prototype was dropped before being retained in the branch. For this single-large-attachment case, the existing frame reader already avoids the extra conversion copy that the streaming prototype reintroduced.
+
+The next measurement will compare repeated small Python calls within one Guion process. The current one-call probe combines interpreter startup and one bridge call, so it does not reveal whether the persistent sidecar has excessive per-call overhead after startup is amortized.
 
 ## Method and limits
 
 - Host: macOS ARM64; Guion artifact format 44; CPython 3.14.7, NumPy 2.5.1, and orjson 3.11.9.
 - The application and no-op controls each used 15 randomized fresh-process pairs. Every timed output was checked against its expected result.
 - The direct-read and readinto-only cohorts ran separately. Their ratio comparison independently resampled the 15 within-cohort paired ratios 100,000 times, using fixed seeds 20261040 and 20261041. These estimates do not replace a same-session randomized binary comparison.
+- The streaming-reader prototype was checked against the same allocation bound and discarded when partial pipe reads forced an additional mutable-to-immutable copy.
 - OS file-cache state was uncontrolled. Host CPU attribution and whole-process peak RSS remain unavailable. The release build used two Cargo workers, and benchmark trials ran sequentially.
 - The benchmark recorded unrelated untracked site files in the worktree; those files were not used or changed.
 

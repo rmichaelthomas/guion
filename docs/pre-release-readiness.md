@@ -68,7 +68,7 @@ Changing the sidecar reader to preallocate the known frame size and use `readint
 
 ## Python bridge direct-read experiment (2026-10-28)
 
-A direct `read()` fast path for complete frames did not show a measurable speed change from the `readinto` version. The full application candidate/readinto ratio was **1.018** (95% interval **0.967–1.043**); the no-op payload-penalty ratio was **1.003** (**0.975–1.072**). Peak allocation differed by only 520 bytes, so the extra branch was reverted. The next measured target is streaming attachment extraction; see the [experiment report](../evaluation/completion/results/real-task-sprint/2026-10-28-python-bridge-direct-read.md).
+A direct `read()` fast path for complete frames did not show a measurable speed change from the `readinto` version. The full application candidate/readinto ratio was **1.018** (95% interval **0.967–1.043**); the no-op payload-penalty ratio was **1.003** (**0.975–1.072**). Peak allocation differed by only 520 bytes, so the extra branch was reverted. A streaming-reader prototype for one large attachment also failed the one-copy allocation bound when fragmented reads required an immutable-bytes copy. The next measurement compares repeated bridge calls after startup; see the [experiment report](../evaluation/completion/results/real-task-sprint/2026-10-28-python-bridge-direct-read.md).
 
 ## Source-run and launch speed sprint (2026-10-25)
 

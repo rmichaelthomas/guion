@@ -50,7 +50,7 @@ A four-lane no-op control kept package imports and the `Bytes` call constant whi
 
 The next frame-reader change reduced measured temporary allocation for one 5.1 MB frame from **10.20 MB** to **5.10 MB**. A fresh 15-pair application run remained at parity with package-backed Python (ratio **1.019**, 95% interval **0.995–1.046**); an independent-cohort comparison found no measurable timing change. See the [frame-reader report](evaluation/completion/results/real-task-sprint/2026-10-28-python-bridge-readinto.md).
 
-A direct-read fast path was tested and reverted because it showed no measurable speed or memory improvement over `readinto`. The next experiment examines whether streaming the binary frame can avoid retaining a second full-size copy while preserving Python's immutable `bytes` arguments; see the [experiment report](evaluation/completion/results/real-task-sprint/2026-10-28-python-bridge-direct-read.md).
+A direct-read fast path was tested and reverted because it showed no measurable speed or memory improvement over `readinto`. A streaming-reader prototype also failed the one-copy allocation bound for a fragmented 5.1 MB attachment, so the next measurement will test repeated Python calls within one process; see the [experiment report](evaluation/completion/results/real-task-sprint/2026-10-28-python-bridge-direct-read.md).
 
 These results come from named workloads on one Mac; operating-system file-cache state was uncontrolled. The current format-44 checkpoint does not validate other targets. It supports a real performance claim for the workloads shown, while overall competitiveness remains open.
 
