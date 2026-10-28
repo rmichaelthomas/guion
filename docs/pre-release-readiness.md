@@ -15,6 +15,12 @@ The earlier three-target validation cohort lives under [`evaluation/completion/r
 
 That cohort's runtime, application, lifecycle, and release aggregates list all three targets as completed with no skipped target. Individual target-attempt JSON files can say `incomplete` because each one contains only one side of the aggregate; use the matching aggregate to read the combined gate. The detailed target evidence is preserved under [`target-runs/`](../evaluation/completion/results/guion-final/target-runs/).
 
+## Current format-44 managed native-wheel package (2026-10-27)
+
+On macOS ARM64, the focused CLI integration test builds a format-44 source-free package with managed CPython 3.14.8, uv 0.13.4, NumPy 2.5.4, orjson 3.13.0, and requests 2.32.5. It checks dependency licenses and native-image attribution, verifies integrity failures, relocates the package into a path with spaces, and launches twice with host Python and uv settings removed. The embedded Python runtime is 68,121,972 bytes and the offline wheel cache is 23,433,579 bytes. The exact gate and limits are recorded in the [package report](../evaluation/completion/results/real-task-sprint/2026-10-27-current-format-managed-python-package.md).
+
+This is same-host evidence for one fixture. It does not validate the 100,000-row analysis app as a managed package or format 44 on Linux ARM64/x86_64; the earlier three-target cohort used format 39.
+
 ## Performance result and boundary
 
 The [real-task and runtime sprint](../evaluation/completion/results/real-task-sprint/summary.md) contains several historical cohorts. Its earlier post-VM-core Richards result was 45.67 ms for Guion versus 70.16 ms for CPython 3.14.7; the current-main measurement below supersedes that result. The older three-target records do not by themselves establish that a later build passed on all three targets.

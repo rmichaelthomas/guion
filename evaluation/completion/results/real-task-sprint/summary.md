@@ -95,3 +95,7 @@ Across the sprint, the latest measured Richards build fell from **48.38 ms** at 
 ## Current-main checkpoint — 2026-10-27
 
 The fresh post-PR #11 checkpoint used commit `6b5e5aba` and artifact format 44. Richards uncached source measured **27.46 ms vs. 72.92 ms** for CPython 3.14.7, ratio **0.375** (95% interval **0.370–0.379**); the current Richards 0.60 target passes. All five 21-pair short-source gates passed. The suite also passed output-checked N-body, Mandelbrot, parallel CPU, 20k/200k JSONL, and the 127-case application acceptance in both languages. Seven-pair comparisons across nine applications favored Guion in all nine named cases. This remains single-host workload evidence. See the [plain-English checkpoint](2026-10-27-current-main-outcome-checkpoint.md) and its linked raw reports.
+
+## Current format-44 managed native-wheel package (2026-10-27)
+
+The feature-enabled CLI package integration passed on macOS ARM64. It asserts the packaged artifact is format 44, bundles managed CPython 3.14.8 with NumPy/orjson native wheels and requests, checks license/native-image provenance and tamper rejection, then runs the source-free package twice after relocation without external Python/uv settings. The embedded interpreter is 68,121,972 bytes and the offline wheel cache is 23,433,579 bytes. The full evidence and limits are in the [package delivery report](2026-10-27-current-format-managed-python-package.md). The 100,000-row analysis workload and Linux format-44 targets remain open.
