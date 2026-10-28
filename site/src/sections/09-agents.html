@@ -1,0 +1,34 @@
+<section class="section darkzone" id="agents">
+<div class="shell">
+<div class="sectionhead">
+<div><p class="overline">08 / Made for agents too</p><h2>Your assistant<br><span class="serif">can read this.</span></h2></div>
+<p class="v-plain">More and more people ask an assistant which language to use. So this site is written to be read by one: every claim, with the conditions it holds under and what it does not tell you, in two plain files.</p>
+<p class="v-dev"><code>llms.txt</code> and <code>agents.json</code> carry the same receipts as this page. The project's own agent index is <code>docs/agents/index.json</code>; every <code>--json</code> command below returns a versioned envelope.</p>
+</div>
+<div class="agents-grid" data-ahi="ahi.teaching-guidance.source-explanation">
+<div class="agents-prompt">
+<p class="smallcaps">Ask it this</p>
+<label class="sr-only" for="agent-prompt">A prompt to give your assistant</label>
+<textarea id="agent-prompt" readonly rows="6">I'm deciding whether to use the Guion programming language for a project. Read https://rmichaelthomas.github.io/guion/llms.txt and agents.json. Then tell me which of its claims apply to my project, what each one does not tell me, and whether Python is the better choice for my case.</textarea>
+<p class="fineprint">Click in the box and copy it. Nothing here sends anything anywhere.</p>
+<div class="cta-row"><a class="btn btn-lily" href="{{base}}llms.txt">Read llms.txt</a><a class="btn btn-light-on-dark" href="{{base}}agents.json">Read agents.json</a></div>
+</div>
+<div class="agents-shape v-dev">
+<p class="smallcaps">agents.json</p>
+<pre class="code"><code>{
+  <span class="k">"product"</span>: "Guion",
+  <span class="k">"status"</span>: "Pre-release. No public Guion release has been published.",
+  <span class="k">"claims"</span>: [
+    { <span class="k">"id"</span>, <span class="k">"title"</span>, <span class="k">"say"</span>,
+      <span class="k">"holdsWhen"</span>, <span class="k">"doesntTell"</span>,
+      <span class="k">"evidence"</span>: ["evidence/…"] }
+  ]
+}</code></pre>
+<p class="smallcaps">Versioned reports from the CLI</p>
+<ul class="kinds">
+{{report-kinds}}
+</ul>
+</div>
+</div>
+</div>
+</section>

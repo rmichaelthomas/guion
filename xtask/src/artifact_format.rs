@@ -228,6 +228,8 @@ mod tests {
             std::env::temp_dir().join(format!("guion-format-audit-{}-{nonce}", std::process::id()));
         let source_path = root.join("crates/runtime/tests/stale_format.rs");
         fs::create_dir_all(source_path.parent().unwrap()).unwrap();
+        // The audit scans both `crates/` and `xtask/`, and requires each directory to exist.
+        fs::create_dir_all(root.join("xtask")).unwrap();
         fs::write(
             &source_path,
             "#[test] fn stale() { assert_eq!(artifact.format_version, 39); }",

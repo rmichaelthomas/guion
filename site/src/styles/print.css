@@ -1,0 +1,32 @@
+@layer print {
+  @media print {
+    @page { margin: 16mm; }
+    body { background: #fff !important; color: #000; background-image: none !important; font-size: 10.5pt; }
+    .sitebar, .navwrap, .skip, .pg-actions, .lab-bar, .pg-notice, [data-pg-load], .viewswitch, .filters { display: none !important; }
+    .darkzone { background: #fff !important; color: #000 !important; }
+    .darkzone p { color: #000 !important; }
+    .section { padding-block: 14mm; break-inside: auto; border-top: 1px solid #000; }
+    :is(.claim, pre, figure, .ahi, table) { break-inside: avoid; }
+    a { text-decoration: underline; }
+    a[href^="mailto:"]::after { content: " (" attr(href) ")"; font-size: .8em; }
+    h2 { break-after: avoid; }
+    /* Browsers do not print backgrounds by default, so nothing may depend on one for contrast. */
+    :is(.darkzone, .lab, .code, .claim, .story, .footer, .perm-proof, .ladder-panel, .python-says, .dossier, .ratio-figure, .tablist) *,
+    :is(.lab, .code, .perm-proof, .ladder-panel, .tablist) { color: #000 !important; background: transparent !important; text-shadow: none !important; box-shadow: none !important; }
+    .code, .lab, .claim, .ladder-panel, .perm-proof { border: 1px solid #000 !important; }
+    .code .k { font-weight: 700; }
+    .code .c { font-style: italic; }
+    .btn { color: #000 !important; background: transparent !important; border: 1px solid #000 !important; }
+    .panel { display: grid !important; }
+    .tablist, .tabs > input { display: none !important; }
+    .ladder-panel { display: block !important; }
+    .ladder-rungs, .ladder > input { display: none !important; }
+    .claim::after { display: none; }
+    .route > li::before { background: #fff !important; color: #000 !important; border: 2px solid #000; box-shadow: none !important; }
+    .route > li > code { background: transparent !important; color: #000 !important; font-weight: 700; }
+    .lab-input textarea { min-height: 0 !important; height: 7rem !important; color: #000 !important; background: transparent !important; }
+    #pg-output { min-height: 0 !important; }
+    .lab-result { gap: .3rem; }
+    .time-ribbon > li::before { box-shadow: none; border-color: #000; background: #000; }
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "name": "guion-site",
+  "private": true,
+  "type": "module",
+  "description": "Source, tools, and tests for the Guion landing page. Only site/public is deployed.",
+  "scripts": {
+    "test": "node --test site/tests/*.test.mjs",
+    "vendor": "node site/tools/vendor-instruments.mjs",
+    "build": "node site/tools/build.mjs",
+    "check": "node site/tools/check-site.mjs site/public",
+    "serve": "node site/tools/serve.mjs"
+  }
+}

@@ -1,0 +1,4 @@
+fn main() -> Int:
+    let greeting = "Hello, Guion!"
+    print(greeting)
+    return 0

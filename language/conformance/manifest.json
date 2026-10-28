@@ -9265,6 +9265,62 @@
           "owner_task": 3
         }
       }
+    },
+    {
+      "id": "opcode-json-stringify-pairs",
+      "kind": "opcode",
+      "name": "JsonStringifyPairs",
+      "owner_task": 3,
+      "source": "crates/model/src/lib.rs::Op",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "implemented_current_subset"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "opcode-json-stringify-pairs.positive",
+          "state": "implemented",
+          "owner_task": 3
+        },
+        "negative": {
+          "case_id": "opcode-json-stringify-pairs.negative",
+          "state": "planned",
+          "owner_task": 3
+        },
+        "interaction": {
+          "case_id": "opcode-json-stringify-pairs.interaction",
+          "state": "planned",
+          "owner_task": 3
+        }
+      }
+    },
+    {
+      "id": "opcode-text-join",
+      "kind": "opcode",
+      "name": "TextJoin",
+      "owner_task": 3,
+      "source": "crates/model/src/lib.rs::Op",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "implemented_current_subset"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "opcode-text-join.positive",
+          "state": "implemented",
+          "owner_task": 3
+        },
+        "negative": {
+          "case_id": "opcode-text-join.negative",
+          "state": "planned",
+          "owner_task": 3
+        },
+        "interaction": {
+          "case_id": "opcode-text-join.interaction",
+          "state": "planned",
+          "owner_task": 3
+        }
+      }
     }
   ],
   "regression_applications": [

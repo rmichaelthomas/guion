@@ -91,6 +91,7 @@ json_project_columns(Text, List[Text], List[Text]) -> Result[Json, JsonError]
 json_push(Json, Json) -> Json
 json_set(Json, Text, Json) -> Json
 json_stringify(Json) -> Text
+json_stringify_pairs_native(Map[Text,List[Text]], Text, Text) -> Text
 json_text(Text) -> Json
 json_text_categories(Json, Text) -> Json
 json_text_categories_values(Json) -> Json
@@ -143,6 +144,7 @@ task_code(TaskError) -> Text
 task_index(TaskError) -> Int
 task_message(TaskError) -> Text
 text_chars(Text) -> List[Text]
+text_join_native(List[Text], Text) -> Text
 text_parse_float(Text) -> Result[Float64, FileError]
 text_parse_int(Text) -> Result[Int, FileError]
 time_format_utc(Record[Instant]) -> Text
@@ -181,6 +183,7 @@ std:fs — pub fn fs_close_reader(reader: FileReader) -> Result[Unit, FileError]
 std:json — pub fn json_get_safe(value: Json, key: Text) -> Result[Json, JsonError]
 std:json — pub fn json_index_safe(value: Json, index: Int) -> Result[Json, JsonError]
 std:json — pub fn json_text_safe(value: Json) -> Result[Text, JsonError]
+std:json — pub fn json_stringify_pairs(values: Map[Text, List[Text]], key_field: Text, value_field: Text) -> Text
 std:json — pub fn json_int_safe(value: Json) -> Result[Int, JsonError]
 std:json — pub fn json_bool_safe(value: Json) -> Result[Bool, JsonError]
 std:json — pub fn json_float_safe(value: Json) -> Result[Float64, JsonError]
@@ -904,4 +907,4 @@ fn main() -> Int:
 - [Host API and effects](../../language/host-api.md)
 - [Agent recipes](recipes.md)
 
-<!-- Generated reference content digest: sha256:212a4a769ac2d18b31b2486d7bf226732a07085331f3168c7252f875aab62c14. Validated by `cargo xtask agent-reference --check`. -->
+<!-- Generated reference content digest: sha256:72245ba207d0e7f820eade26bc56ca1f1dbe173acbaae08c6369764d9a11dece. Validated by `cargo xtask agent-reference --check`. -->

@@ -1,0 +1,4 @@
+fn main() -> Int:
+    let total = 2 + "three"
+    print(total)
+    return 0

@@ -1,0 +1,58 @@
+<section class="section hero shell" id="top" aria-labelledby="hero-title">
+<div class="hero-grid">
+<div class="hero-copy">
+<h1 class="hero-title" id="hero-title">guion<span class="dot">.</span></h1>
+{{slot:hero-headline}}
+<div class="v-dev hero-specs">
+<dl class="specs">
+<div><dt>Version</dt><dd><code>{{cli-version}}</code></dd></div>
+<div><dt>Files</dt><dd><code>.gu</code> source · <code>.gub</code> artifact · <code>guion.toml</code> · <code>guion.lock</code> · <code>.guion/</code></dd></div>
+<div><dt>Compiler</dt><dd>self-hosted, written in Guion; normal source runs use the in-process Rust compiler</dd></div>
+<div><dt>Runtime</dt><dd>Rust, with explicit host permissions</dd></div>
+<div><dt>Tooling</dt><dd>{{cli-count}} subcommands in one binary, most with <code>--json</code></dd></div>
+</dl>
+</div>
+<div class="cta-row">
+<a class="btn btn-primary" href="#try">Run a program <span aria-hidden="true">↓</span></a>
+<a class="btn btn-light" href="#receipts">See how we know <span aria-hidden="true">↓</span></a>
+</div>
+<p class="fineprint">No public Guion release has been published. Today you can run programs on this page and read the evidence behind every claim.</p>
+</div>
+<figure class="hero-art" data-ahi="ahi.visual-art-media.svg-illustration" aria-label="A four-line Guion program and the {{hello-size}}-byte artifact the compiler turns it into">
+<svg viewBox="0 0 640 600" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false" class="orbit">
+<defs><pattern id="hero-grid" width="32" height="32" patternUnits="userSpaceOnUse"><path d="M32 0H0V32" fill="none" stroke="#11251d" stroke-opacity=".09"/></pattern></defs>
+<rect x="0" y="20" width="640" height="560" rx="28" fill="url(#hero-grid)"/>
+<g transform="rotate(-3 185 190)">
+<rect x="24" y="64" width="344" height="256" rx="18" fill="#f9faf3" stroke="#11251d" stroke-width="2.5"/>
+<rect x="24" y="64" width="344" height="42" rx="18" fill="#11251d"/><rect x="24" y="90" width="344" height="16" fill="#11251d"/>
+<text x="46" y="91" font-family="ui-monospace,Menlo,monospace" font-size="14" fill="#d9f987">hello.gu</text>
+<g font-family="ui-monospace,Menlo,monospace" font-size="15.5" fill="#11251d" style="white-space:pre">
+<text x="46" y="146" xml:space="preserve"><tspan fill="#2148e8" font-weight="700">fn</tspan> main() -&gt; <tspan fill="#5f7a00" font-weight="700">Int</tspan>:</text>
+<text x="46" y="180" xml:space="preserve">    <tspan fill="#2148e8" font-weight="700">let</tspan> greeting = <tspan fill="#c4471f">"Hello, Guion!"</tspan></text>
+<text x="46" y="214" xml:space="preserve">    print(greeting)</text>
+<text x="46" y="248" xml:space="preserve">    <tspan fill="#2148e8" font-weight="700">return</tspan> <tspan fill="#8a6a00">0</tspan></text>
+</g>
+<text x="46" y="296" font-family="ui-sans-serif,system-ui,sans-serif" font-size="12" letter-spacing="1.6" fill="#607569" font-weight="700">SOURCE · FOUR LINES</text>
+</g>
+<g transform="rotate(2 478 392)">
+<rect x="336" y="268" width="288" height="230" rx="18" fill="#10261e" stroke="#11251d" stroke-width="2.5"/>
+<text x="396" y="302" font-family="ui-monospace,Menlo,monospace" font-size="14" fill="#d9f987">hello.gub · {{hello-size}} bytes</text>
+<g font-family="ui-monospace,Menlo,monospace" font-size="12" fill="#e7efe5" style="white-space:pre">
+<text x="372" y="346" xml:space="preserve">{{hello-hex:0}}  <tspan fill="#7fa592">{{hello-ascii:0}}</tspan></text>
+<text x="372" y="374" xml:space="preserve">{{hello-hex:1}}  <tspan fill="#7fa592">{{hello-ascii:1}}</tspan></text>
+<text x="372" y="402" xml:space="preserve">{{hello-hex:2}}  <tspan fill="#7fa592">{{hello-ascii:2}}</tspan></text>
+<text x="372" y="430" xml:space="preserve" fill="#7fa592">…</text>
+</g>
+<text x="372" y="474" font-family="ui-sans-serif,system-ui,sans-serif" font-size="12" letter-spacing="1.6" fill="#c4d4c8" font-weight="700">ARTIFACT · PORTABLE</text>
+</g>
+<circle cx="338" cy="282" r="46" fill="#2148e8" stroke="#f9faf3" stroke-width="5"/>
+<g transform="translate(285 233.3) scale(.17)"><path d="M450 240c-19-59-71-90-136-90-91 0-149 65-149 160s62 162 151 162c79 0 140-54 143-129H320" fill="none" stroke="#d9f987" stroke-width="52" stroke-linecap="square"/></g>
+<path d="M486 506 C 486 536, 360 528, 300 546" fill="none" stroke="#2148e8" stroke-width="3" stroke-dasharray="2 9" stroke-linecap="round"/>
+<g><rect x="40" y="520" width="268" height="52" rx="26" fill="#d9f987" stroke="#11251d" stroke-width="2.5"/>
+<text x="68" y="552" font-family="ui-monospace,Menlo,monospace" font-size="17" font-weight="700" fill="#11251d">Hello, Guion!</text>
+<text x="224" y="551" font-family="ui-sans-serif,system-ui,sans-serif" font-size="12" fill="#3c594b" font-weight="700">{{sample-steps:hello}} steps</text></g>
+</svg>
+<figcaption class="caption"><span class="v-plain">A four-line program, and the {{hello-size}} bytes the compiler turns it into. This is the real output, not an illustration.</span><span class="v-dev">hello.gu → hello.gub, {{sample-facts:hello}}. The first four bytes are the ASCII letters <code>VRTA</code>.</span></figcaption>
+</figure>
+</div>
+</section>

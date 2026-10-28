@@ -1,0 +1,27 @@
+@layer components {
+  /* Developer: dense, labelled, ruled like an instrument panel. */
+  body:has(#view-dev:checked) {
+    --paper: #e3e9db;
+    background-image: linear-gradient(90deg, transparent 0, transparent calc(100% - 1px), #11251d12 calc(100% - 1px));
+    background-size: calc(100% / 12) 100%;
+  }
+  body:has(#view-dev:checked) :is(h1, h2, h3) { letter-spacing: -.035em; font-weight: 800; }
+  body:has(#view-dev:checked) .overline { font-family: var(--mono); letter-spacing: .06em; }
+  body:has(#view-dev:checked) .section { border-top: 1px solid var(--ink); }
+  body:has(#view-dev:checked) .darkzone { border-top-color: var(--lily); }
+  body:has(#view-dev:checked) .sectionhead { align-items: start; margin-bottom: 1.2rem; }
+  body:has(#view-dev:checked) .sectionhead h2 { max-width: 28ch; }
+  body:has(#view-dev:checked) .nav { min-height: 54px; }
+  body:has(#view-dev:checked) .brandmark { transform: none; border-radius: 6px; }
+  body:has(#view-dev:checked) .wordmark { font-family: var(--mono); letter-spacing: -.04em; font-size: 1.2rem; }
+}
+
+@layer components {
+  body:has(#view-dev:checked) .hero { min-height: 0; padding-top: 28px; padding-bottom: 36px; }
+  body:has(#view-dev:checked) .hero-title { font-size: clamp(3.4rem, 8.5vw, 7.5rem); margin-bottom: .2em; }
+  body:has(#view-dev:checked) .hero .ahi .kinetic-headline h2 { font-size: clamp(1.5rem, 2.6vw, 2.4rem); }
+  body:has(#view-dev:checked) .why-quote .pull-quote { font-size: clamp(1.4rem, 3vw, 2.5rem); }
+  body:has(#view-dev:checked) .cta-row { margin-top: 1rem; }
+  body:has(#view-dev:checked) .lab-input textarea { min-height: 0; height: 15rem; }
+  body:has(#view-dev:checked) .route-also { display: none; }
+}

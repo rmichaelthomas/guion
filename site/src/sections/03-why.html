@@ -1,0 +1,34 @@
+<section class="section shell" id="why">
+<div class="sectionhead">
+<div><p class="overline">02 / An ambitious question</p><h2>Another language?<br><span class="serif">Only if it earns its place.</span></h2></div>
+<p class="v-plain">New syntax alone isn't enough. The question Guion is built around is practical: when should someone confidently choose it to do real work?</p>
+<p class="v-dev">North-star question: when should a builder, or an assistant advising one, pick this over Python for real work? The first release has to say honestly where Python is still better.</p>
+</div>
+<div class="why-quote">{{slot:why-pull-quote}}</div>
+<ol class="reasons">
+<li data-ahi="ahi.typography-reading.marginalia">
+<div class="reason-main">
+<h3>Readable without guessing.</h3>
+<p class="v-plain">You say what kind of thing a <dfn data-ahi="ahi.annotation-evidence.context-definition" title="A type says what kind of value something is: a number, a piece of text, a record.">type</dfn> each function takes and gives back. Everything inside it is worked out for you. You can read a Guion program and know what goes in and what comes out.</p>
+<p class="v-dev">Typed function boundaries, inferred locals. <code>Option[T]</code> for absence, <code>Result[T, E]</code> for recoverable failure, <code>?</code> to propagate. Records, lists, maps, modules, bounded JSON, files, SQLite, TOML, HTTP.</p>
+</div>
+<aside class="marginalia v-dev"><span class="smallcaps">Margin note</span><p>“Plain English” is the goal for learning and diagnostics. Free-form natural-language code is not the claim. Authority: <code>language/spec.md</code>.</p></aside>
+</li>
+<li>
+<div class="reason-main">
+<h3>More than a language.</h3>
+<p class="v-plain">One command makes a project, checks it, tidies it, tests it, runs it, packs it up, and tells you what it can do. A person, or an assistant, can ask for a report instead of text.</p>
+<p class="v-dev">{{cli-count}} subcommands in one binary. <code>--json</code> on check, lint, test, run, build, package, verify-package, inspect, doc, doctor and sync returns a versioned report with stable fields and codes.</p>
+</div>
+<aside class="marginalia v-dev"><span class="smallcaps">Margin note</span><p>Report kinds and schemas are indexed in <code>docs/agents/index.json</code>; the table in section 03 lists each one.</p></aside>
+</li>
+<li>
+<div class="reason-main">
+<h3>A claim should survive contact.</h3>
+<p class="v-plain">Every number on this page says which program it measured, on which machine, and what it does not tell you. Then it points at the file it came from, so you can check.</p>
+<p class="v-dev">{{claim-count}} receipts, each with workload, host, interval, scope limit, and linked report and raw-sample files. A build step fails if a figure on this page is not in the file it cites.</p>
+</div>
+<aside class="marginalia v-dev"><span class="smallcaps">Margin note</span><p>Files are copied byte for byte to the <a href="{{base}}evidence/">evidence page</a> with their SHA-256.</p></aside>
+</li>
+</ol>
+</section>

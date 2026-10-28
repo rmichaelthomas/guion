@@ -1,0 +1,579 @@
+{
+  "baseline_binary_sha256": "cc8e0e321af2d836ff3e86d62b67cde50728e4d7c0db314737fe66b65d640f05",
+  "baseline_revision": "9c85caf53b765d0d6c5fbf772b02e61587ccbd4c",
+  "candidate_binary_sha256": "ccf9ad89dff02152cff0019b7626b79f43296dc09eedaa7df7b10c00149fb4ef",
+  "candidate_branch": "codex/guion-python-bridge-overhead",
+  "captured_at_local": "2026-10-27T21:19:49-07:00",
+  "host": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+  "interpretation": "The same-host 15-pair comparison did not establish a speed improvement or regression: the candidate/pre-change ratio interval includes 1.0. The code removes payload-sized intermediate copies by construction, but peak RSS was not measured. The candidate remains slower than both Python controls. This is not a general language performance claim.",
+  "kind": "guion-python-bridge-serialization-comparison",
+  "primary_workload": {
+    "all_outputs_checked": true,
+    "description": "100,000-row NumPy/orjson package-analysis app; fresh process per sample, output checked byte-for-byte.",
+    "groups": 13,
+    "input_bytes": 5100867,
+    "input_sha256": "7c34a5aeb714026e2624d64980999cc40612b6f230843516d5b6b9f59279a40b",
+    "medians_seconds": {
+      "after": 0.16787100001238286,
+      "before": 0.16673158400226384,
+      "python_packages": 0.15072675002738833,
+      "python_stdlib": 0.11991012503858656
+    },
+    "paired_order": [
+      [
+        "python_packages",
+        "after",
+        "before",
+        "python_stdlib"
+      ],
+      [
+        "python_packages",
+        "before",
+        "after",
+        "python_stdlib"
+      ],
+      [
+        "before",
+        "after",
+        "python_packages",
+        "python_stdlib"
+      ],
+      [
+        "python_stdlib",
+        "python_packages",
+        "after",
+        "before"
+      ],
+      [
+        "python_packages",
+        "before",
+        "python_stdlib",
+        "after"
+      ],
+      [
+        "before",
+        "python_packages",
+        "python_stdlib",
+        "after"
+      ],
+      [
+        "after",
+        "python_packages",
+        "python_stdlib",
+        "before"
+      ],
+      [
+        "before",
+        "after",
+        "python_stdlib",
+        "python_packages"
+      ],
+      [
+        "before",
+        "python_packages",
+        "python_stdlib",
+        "after"
+      ],
+      [
+        "python_stdlib",
+        "python_packages",
+        "before",
+        "after"
+      ],
+      [
+        "python_packages",
+        "after",
+        "python_stdlib",
+        "before"
+      ],
+      [
+        "python_packages",
+        "after",
+        "python_stdlib",
+        "before"
+      ],
+      [
+        "python_stdlib",
+        "before",
+        "after",
+        "python_packages"
+      ],
+      [
+        "before",
+        "python_stdlib",
+        "python_packages",
+        "after"
+      ],
+      [
+        "before",
+        "after",
+        "python_packages",
+        "python_stdlib"
+      ]
+    ],
+    "paired_ratios": {
+      "after_over_before": {
+        "ci95_percentile": [
+          0.9854006193989322,
+          1.0245116243836268
+        ],
+        "median_ratio": 1.0116783073291846,
+        "ties_or_regressions": 10,
+        "win": false
+      },
+      "after_over_python_packages": {
+        "ci95_percentile": [
+          1.105811566534335,
+          1.148929255572931
+        ],
+        "median_ratio": 1.1285445533470877,
+        "ties_or_regressions": 15,
+        "win": false
+      },
+      "after_over_python_stdlib": {
+        "ci95_percentile": [
+          1.373371815196405,
+          1.4418041020818966
+        ],
+        "median_ratio": 1.4056854331519857,
+        "ties_or_regressions": 15,
+        "win": false
+      },
+      "before_over_python_packages": {
+        "ci95_percentile": [
+          1.097685581664146,
+          1.129969845658349
+        ],
+        "median_ratio": 1.1176596940769183,
+        "ties_or_regressions": 15,
+        "win": false
+      }
+    },
+    "report_bytes": 1256,
+    "rows": 100000,
+    "samples_seconds": {
+      "after": [
+        0.1685559160541743,
+        0.16584745899308473,
+        0.17866791697451845,
+        0.16787100001238286,
+        0.18118533300003037,
+        0.1655785000184551,
+        0.1881650839932263,
+        0.17627887497656047,
+        0.166917749971617,
+        0.16686050000134856,
+        0.16764458402758464,
+        0.16504629200790077,
+        0.17007362499134615,
+        0.16558137501124293,
+        0.17108387500047684
+      ],
+      "before": [
+        0.16551137500209734,
+        0.1656617500120774,
+        0.18300912500126287,
+        0.16664904198842123,
+        0.16779241594485939,
+        0.1724384170374833,
+        0.16673158400226384,
+        0.1742439999943599,
+        0.16939075000118464,
+        0.16363245900720358,
+        0.1655533749726601,
+        0.166814666998107,
+        0.16600458300672472,
+        0.17031437502009794,
+        0.16640575003111735
+      ],
+      "python_packages": [
+        0.14670695801032707,
+        0.144727208011318,
+        0.15197791601531208,
+        0.15202679100912064,
+        0.15072675002738833,
+        0.1529619159991853,
+        0.1525859579560347,
+        0.15818070794921368,
+        0.14946575002977625,
+        0.14635595900472254,
+        0.15377525001531467,
+        0.14925354102160782,
+        0.1500646669883281,
+        0.15072470798622817,
+        0.15159691701410338
+      ],
+      "python_stdlib": [
+        0.11991012503858656,
+        0.12259345798520371,
+        0.12368054199032485,
+        0.12581037502968684,
+        0.11944095796206966,
+        0.11577433301135898,
+        0.11604941700352356,
+        0.12854825000977144,
+        0.11983474995940924,
+        0.11746662500081584,
+        0.12018054199870676,
+        0.12044800003059208,
+        0.11637804197380319,
+        0.12056558404583484,
+        0.11865958402631804
+      ]
+    },
+    "seed": 20261029,
+    "total": 2500116287,
+    "trials": 15
+  },
+  "python": {
+    "executable": "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
+    "numpy": "2.5.1",
+    "orjson": "3.11.9",
+    "version": "3.14.7"
+  },
+  "schema_version": 1,
+  "size_scaling_probe": {
+    "description": "same-host size-scaling diagnostic of pre-change and final bridge binaries against the same package-import Python control",
+    "results": {
+      "empty": {
+        "all_outputs_checked": true,
+        "input_bytes": 0,
+        "medians_seconds": {
+          "after": 0.08110637502977625,
+          "before": 0.08176308299880475,
+          "python_packages": 0.08202320901909843
+        },
+        "paired_order": [
+          [
+            "after",
+            "before",
+            "python_packages"
+          ],
+          [
+            "before",
+            "after",
+            "python_packages"
+          ],
+          [
+            "python_packages",
+            "before",
+            "after"
+          ],
+          [
+            "before",
+            "after",
+            "python_packages"
+          ],
+          [
+            "before",
+            "after",
+            "python_packages"
+          ],
+          [
+            "python_packages",
+            "after",
+            "before"
+          ],
+          [
+            "before",
+            "python_packages",
+            "after"
+          ]
+        ],
+        "paired_ratios": {
+          "after_over_before": {
+            "ci95_percentile": [
+              0.9686567335398647,
+              1.0057887338724665
+            ],
+            "median_ratio": 0.9804832580014167,
+            "ties_or_regressions": 2,
+            "win": false
+          },
+          "after_over_python_packages": {
+            "ci95_percentile": [
+              0.9533852280333199,
+              1.0000621570079835
+            ],
+            "median_ratio": 0.989938118351574,
+            "ties_or_regressions": 2,
+            "win": false
+          },
+          "before_over_python_packages": {
+            "ci95_percentile": [
+              0.9642413214529792,
+              1.034213086527239
+            ],
+            "median_ratio": 0.9945787660383588,
+            "ties_or_regressions": 3,
+            "win": false
+          }
+        },
+        "python_characters": 0,
+        "samples_seconds": {
+          "after": [
+            0.08033787499880418,
+            0.08016733400290832,
+            0.08121087501058355,
+            0.08110637502977625,
+            0.08038808399578556,
+            0.08204579103039578,
+            0.08445787499658763
+          ],
+          "before": [
+            0.07858679199125618,
+            0.08176308299880475,
+            0.0815785420127213,
+            0.0877184999990277,
+            0.07992541702697054,
+            0.08470058400416747,
+            0.0861514579737559
+          ],
+          "python_packages": [
+            0.08150116598699242,
+            0.08098216698272154,
+            0.08202320901909843,
+            0.0811013340135105,
+            0.09033637499669567,
+            0.08605733403237537,
+            0.08330145798390731
+          ]
+        }
+      },
+      "full": {
+        "all_outputs_checked": true,
+        "input_bytes": 5100867,
+        "medians_seconds": {
+          "after": 0.10589000000618398,
+          "before": 0.11917391599854454,
+          "python_packages": 0.08575762499822304
+        },
+        "paired_order": [
+          [
+            "python_packages",
+            "after",
+            "before"
+          ],
+          [
+            "before",
+            "python_packages",
+            "after"
+          ],
+          [
+            "python_packages",
+            "before",
+            "after"
+          ],
+          [
+            "after",
+            "before",
+            "python_packages"
+          ],
+          [
+            "before",
+            "python_packages",
+            "after"
+          ],
+          [
+            "after",
+            "before",
+            "python_packages"
+          ],
+          [
+            "after",
+            "before",
+            "python_packages"
+          ]
+        ],
+        "paired_ratios": {
+          "after_over_before": {
+            "ci95_percentile": [
+              0.7865289555428348,
+              0.9915842899762686
+            ],
+            "median_ratio": 0.9704363968233527,
+            "ties_or_regressions": 1,
+            "win": true
+          },
+          "after_over_python_packages": {
+            "ci95_percentile": [
+              1.2202573094325135,
+              1.3009939231256447
+            ],
+            "median_ratio": 1.2522263650378074,
+            "ties_or_regressions": 7,
+            "win": false
+          },
+          "before_over_python_packages": {
+            "ci95_percentile": [
+              1.2746893618537203,
+              1.5638560588876915
+            ],
+            "median_ratio": 1.3402265231023573,
+            "ties_or_regressions": 7,
+            "win": false
+          }
+        },
+        "python_characters": 5000867,
+        "samples_seconds": {
+          "after": [
+            0.12190995900891721,
+            0.10576300002867356,
+            0.10339583299355581,
+            0.1041920410352759,
+            0.10589000000618398,
+            0.10738795902580023,
+            0.12065358296968043
+          ],
+          "before": [
+            0.12734800000907853,
+            0.10895237501244992,
+            0.10654570802580565,
+            0.10507633298402652,
+            0.13462949998211116,
+            0.165861000015866,
+            0.11917391599854454
+          ],
+          "python_packages": [
+            0.09990512498188764,
+            0.08129400003235787,
+            0.08046962501248345,
+            0.09491350001189858,
+            0.08608816599007696,
+            0.08575762499822304,
+            0.08560649998253211
+          ]
+        }
+      },
+      "medium": {
+        "all_outputs_checked": true,
+        "input_bytes": 534772,
+        "medians_seconds": {
+          "after": 0.08584166702348739,
+          "before": 0.08519808301934972,
+          "python_packages": 0.0825609159655869
+        },
+        "paired_order": [
+          [
+            "after",
+            "python_packages",
+            "before"
+          ],
+          [
+            "after",
+            "python_packages",
+            "before"
+          ],
+          [
+            "python_packages",
+            "after",
+            "before"
+          ],
+          [
+            "python_packages",
+            "after",
+            "before"
+          ],
+          [
+            "before",
+            "after",
+            "python_packages"
+          ],
+          [
+            "before",
+            "after",
+            "python_packages"
+          ],
+          [
+            "python_packages",
+            "before",
+            "after"
+          ]
+        ],
+        "paired_ratios": {
+          "after_over_before": {
+            "ci95_percentile": [
+              0.6782134782919227,
+              1.014581364759715
+            ],
+            "median_ratio": 0.9930102649094942,
+            "ties_or_regressions": 3,
+            "win": false
+          },
+          "after_over_python_packages": {
+            "ci95_percentile": [
+              1.0174800969281008,
+              1.1005858263854027
+            ],
+            "median_ratio": 1.0308881186090888,
+            "ties_or_regressions": 7,
+            "win": false
+          },
+          "before_over_python_packages": {
+            "ci95_percentile": [
+              1.0231592017998328,
+              1.7714654159912508
+            ],
+            "median_ratio": 1.0521714570519802,
+            "ties_or_regressions": 7,
+            "win": false
+          }
+        },
+        "python_characters": 524288,
+        "samples_seconds": {
+          "after": [
+            0.08310412499122322,
+            0.08869891701033339,
+            0.08432866598013788,
+            0.0867444159812294,
+            0.10290137503761798,
+            0.08584166702348739,
+            0.08450866700150073
+          ],
+          "before": [
+            0.08980895800050348,
+            0.08479708398226649,
+            0.08492225001100451,
+            0.2486694159451872,
+            0.15172416699351743,
+            0.08519808301934972,
+            0.08329412498278543
+          ],
+          "python_packages": [
+            0.08206091698957607,
+            0.0805924580199644,
+            0.08287991699762642,
+            0.08241900004213676,
+            0.0856489579891786,
+            0.08326962497085333,
+            0.0825609159655869
+          ]
+        }
+      }
+    },
+    "seed": 20261030,
+    "trials_per_size": 7
+  },
+  "source_sha256": {
+    "baseline": {
+      "crates/runtime/python/sidecar.py": "852ac75d22146eee6690e96851264692560c821d534ef49e723b89db84869c47",
+      "crates/runtime/src/python_bridge.rs": "e0d816f3c579322893b910aa13deeddd7a3ed72cc031ae7a83fa903ba66c2c13",
+      "crates/runtime/tests/python_bridge.rs": "c91fe3b8186cf3507e2cd679569217188729c7220b1586b47bc9c6644774903c"
+    },
+    "candidate": {
+      "crates/runtime/python/sidecar.py": "f05175106a0c27c6cdae0d737c0ba57edcd4fcb91c054d34477f7ec5d016dd0d",
+      "crates/runtime/src/python_bridge.rs": "7124f0d84cb2b35fc4906c0b496b264c8bde4c4f5537fca61872e273dd86578a",
+      "crates/runtime/tests/python_bridge.rs": "15bd5f48c04920807dc1ccd5b3f69a142f9f8a76a7fda8a1ad8c0acca7f63061"
+    }
+  },
+  "status": "passed",
+  "verification": {
+    "formatting": "cargo fmt --all -- --check passed",
+    "full_runtime_feature_enabled_tests": {
+      "failed": 0,
+      "passed": 223
+    },
+    "note": "Full runtime suite emitted one existing unused-import warning for CalendarEvent in crates/runtime/tests/stdlib_services.rs; all tests passed.",
+    "release_build": "locked, offline, release, python-interop enabled passed"
+  }
+}

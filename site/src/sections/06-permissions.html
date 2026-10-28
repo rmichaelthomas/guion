@@ -1,0 +1,54 @@
+<section class="section shell" id="permissions">
+<div class="sectionhead">
+<div><p class="overline">05 / Permissions, not a sandbox</p><h2>A program says what it wants.<br><span class="serif">You decide.</span></h2></div>
+<p class="v-plain">Before a Guion program runs, you can ask what it is able to do: read files, reach a website, check the clock. When it runs, it gets only what you grant. Everything else is refused.</p>
+<p class="v-dev">Static reachability of host effects, read from bytecode. Grants are explicit and enforced by the runtime. This is not an OS-level sandbox.</p>
+</div>
+<div class="perm-grid">
+<div class="ladder" data-ahi="ahi.reveals-discoveries.layered-peek">
+<input type="radio" name="perm-tab" id="perm-none" class="sr-only" checked>
+<input type="radio" name="perm-tab" id="perm-folder" class="sr-only">
+<input type="radio" name="perm-tab" id="perm-site" class="sr-only">
+<input type="radio" name="perm-tab" id="perm-clock" class="sr-only">
+<div class="ladder-rungs" role="group" aria-label="Choose what to grant">
+<label for="perm-none"><span class="tab-n">0</span> Nothing</label>
+<label for="perm-folder"><span class="tab-n">1</span> A folder</label>
+<label for="perm-site"><span class="tab-n">2</span> One website</label>
+<label for="perm-clock"><span class="tab-n">3</span> The clock</label>
+</div>
+<div class="ladder-panel" id="perm-panel-none">
+<p class="v-plain">By default a program can print, and read files inside its own project. The network and the clock are refused.</p>
+<p class="v-dev"><code>guion run main.gu</code> · no <code>[network].hosts</code>, so <code>network.http</code> is denied; <code>[clock].enabled</code> is false, so <code>clock.read</code> is denied.</p>
+</div>
+<div class="ladder-panel" id="perm-panel-folder">
+<p class="v-plain">You hand it one more folder. It can read from there, and anything it writes goes there.</p>
+<p class="v-dev"><code>guion run --file-root ./data main.gu</code> · reads search the project or artifact root first, then added roots; writes use the last added root.</p>
+</div>
+<div class="ladder-panel" id="perm-panel-site">
+<p class="v-plain">You name one website, exactly. The program can make web requests to that host and no other.</p>
+<p class="v-dev"><code>[network]</code> <code>hosts = ["api.example.test"]</code> in <code>guion.toml</code>, or <code>guion run --allow-http-host api.example.test</code> for one run. The runtime checks the URL host and each redirect against the grants.</p>
+</div>
+<div class="ladder-panel" id="perm-panel-clock">
+<p class="v-plain">You switch the clock on. Then the program can ask what day it is.</p>
+<p class="v-dev"><code>[clock]</code> <code>enabled = true</code> in <code>guion.toml</code>, or <code>guion run --allow-clock</code>. Local dates use the host process time zone.</p>
+</div>
+</div>
+<aside class="perm-proof v-plain">
+<p class="smallcaps">Watch a refusal</p>
+<p>The playground grants nothing. Ask it for a file and you will see exactly what a refusal looks like.</p>
+<button type="button" class="btn btn-primary" data-pg-load="denied">Ask for a file <span aria-hidden="true">↑</span></button>
+</aside>
+</div>
+<div class="inspect v-dev">
+<p class="smallcaps">What <code>{{inspect-command}}</code> prints, before anything runs</p>
+<div class="inspect-grid">
+<div><p class="mono muted">main.gu</p><pre class="code light"><code>{{inspect-program}}</code></pre><p class="mono muted">guion.toml</p><pre class="code light"><code>{{inspect-manifest}}</code></pre></div>
+<div><p class="mono muted">report (schema_version 1, captured with {{cli-version}})</p><pre class="code light"><code>{{inspect-report}}</code></pre></div>
+</div>
+<p class="fineprint"><code>network_http</code> is <code>present_but_target_dynamic</code> because the URL comes from <code>args()</code>: the compiler can see that an HTTP call is reachable, not which host it will name. <code>filesystem_read</code> is <code>unknown_external_runner</code> because file roots are supplied to <code>run</code>, not to <code>inspect</code>.</p>
+</div>
+<details class="chamber" data-ahi="ahi.reveals-discoveries.hidden-chamber">
+<summary>Why this is not a sandbox</summary>
+<p>Permissions decide what the Guion runtime will do for a program. They do not stand in for an operating system's own limits. A host that needs to contain a program still has to do that itself, for example by limiting its network access. The report says so in its own fields: <code>capability_claim</code> is <code>static_bytecode_reachability_not_sandbox</code>.</p>
+</details>
+</section>

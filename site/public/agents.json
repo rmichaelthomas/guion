@@ -1,0 +1,191 @@
+{
+  "product": "Guion",
+  "status": "Pre-release. No public Guion release has been published.",
+  "summary": "Guion is an experimental general-purpose programming language and toolchain with readable typed syntax, a compiler written in Guion, and a Rust runtime.",
+  "site": "https://rmichaelthomas.github.io/guion/",
+  "contact": "rmichael@rmichaelthomas.com",
+  "howToUse": "Treat each claim as true only under its holdsWhen conditions, and say what it doesntTell the reader. None of these results shows that Guion generally replaces Python.",
+  "cli": {
+    "version": "guion 0.1.0 (artifact format 44, timezone data 2026c)",
+    "commands": [
+      "new",
+      "check",
+      "fmt",
+      "lint",
+      "test",
+      "run",
+      "build",
+      "package",
+      "verify-package",
+      "add",
+      "sync",
+      "update",
+      "inspect",
+      "doc",
+      "doctor",
+      "install"
+    ]
+  },
+  "claims": [
+    {
+      "id": "richards",
+      "title": "Richards, a classic benchmark program",
+      "group": "speed",
+      "say": "Starting from source with no compile cache, Guion finished the Richards benchmark in 27.46 ms. CPython took 72.92 ms.",
+      "holdsWhen": "A fresh-source run of 15 randomized trials on one Apple Silicon Mac running macOS 27, with CPython 3.14.7 and artifact format 44.",
+      "doesntTell": "Anything about other programs, other machines or other Python versions. On this same run Guion used more memory than Python for Richards: 24.2 MiB against 18.3 MiB. Free-threaded Python was not available to compare.",
+      "evidence": [
+        "evidence/2026-10-27-current-main-outcome-checkpoint.md",
+        "evidence/20261027T233155909692Z.json"
+      ]
+    },
+    {
+      "id": "short-source",
+      "title": "Five short programs, start to finish",
+      "group": "speed",
+      "say": "Five small programs were each run from source in 21 randomized pairs against Python. Guion took 0.182 to 0.236 of Python's time on every one.",
+      "holdsWhen": "The same Mac and CPython 3.14.7 as the Richards run, in fresh processes, with outputs checked.",
+      "doesntTell": "How Guion compares on long-running or heavily optimized programs. A ratio below 1 means Guion took less time. The operating system's file cache was not controlled.",
+      "evidence": [
+        "evidence/2026-10-27-current-main-outcome-checkpoint.md",
+        "evidence/2026-10-27-current-main-short-source.json"
+      ]
+    },
+    {
+      "id": "nine-apps",
+      "title": "Nine everyday applications",
+      "group": "speed",
+      "say": "On nine ordinary applications, timed in seven randomized pairs each, Guion's median was lower than Python's every time. The ratios run from 0.137 to 0.845.",
+      "holdsWhen": "The frozen application suite on one Mac with CPython 3.14.7, fresh processes, outputs checked against the expected results.",
+      "doesntTell": "That Guion is faster at every kind of application. The smallest gain was service health, at 0.845 of Python's time. Broader task classes and carefully matched Python implementations are still needed.",
+      "evidence": [
+        "evidence/2026-10-27-current-main-outcome-checkpoint.md",
+        "evidence/2026-10-27-current-main-nine-app-comparison.json"
+      ]
+    },
+    {
+      "id": "conformance",
+      "title": "Does it behave the same as Python?",
+      "group": "behaviour",
+      "say": "On the frozen application suite, Guion passed 127 of 127 cases and the independent Python version passed 127 of 127.",
+      "holdsWhen": "Current main at commit 6b5e5aba, artifact format 44, on macOS ARM64. Every measured program output matched its expected output.",
+      "doesntTell": "Anything about other operating systems or CPU architectures. This checkpoint is macOS ARM64 only, and the earlier three-target cohort used an older artifact format.",
+      "evidence": [
+        "evidence/2026-10-27-current-main-outcome-checkpoint.md",
+        "evidence/2026-10-27-current-main-application-acceptance.json"
+      ]
+    },
+    {
+      "id": "jsonl-200k",
+      "title": "200,000 rows of JSON Lines",
+      "group": "speed",
+      "say": "Summarising a 200,000-row JSON Lines file from source took Guion 3.81 s and 11.1 MiB of memory. The Python data reference took 17.93 s and 74.4 MiB.",
+      "holdsWhen": "Uncached source runs, 16 output-checked trials per size, one Mac, CPython 3.14.7.",
+      "doesntTell": "Other data shapes or machines. Memory varies by task: Richards used more memory in Guion than in Python (see that card). Python with SQLite used 89.2 MiB on the same data.",
+      "evidence": [
+        "evidence/2026-10-27-current-main-outcome-checkpoint.md",
+        "evidence/20261027T233155909692Z.json"
+      ]
+    },
+    {
+      "id": "lockfile",
+      "title": "A lockfile auditor, up to 16,384 packages",
+      "group": "speed",
+      "say": "Auditing 16,384 packages took Guion 171.82 ms and 40.92 MiB. Python took 179.87 ms and 47.13 MiB. Output was exact through 32,768 diagnostics.",
+      "holdsWhen": "Seven randomized fresh-process timing pairs per size, exact-output checks, Guion's source cache bypassed, one Apple Silicon host, Python 3.14.7.",
+      "doesntTell": "That Guion is generally faster than Python. An earlier run of this same workload was slower than Python (1.416×); a native report serializer changed that to 0.948×. Other programs, hosts and cold-cache runs need their own measurements.",
+      "evidence": [
+        "evidence/2026-10-27-lockfile-scale-ram-package-limit.md",
+        "evidence/2026-10-27-lockfile-native-pair-serialization.json",
+        "evidence/2026-10-27-lockfile-native-pair-acceptance.json",
+        "evidence/2026-10-27-current-main-outcome-checkpoint.md"
+      ]
+    },
+    {
+      "id": "concurrency-cancel",
+      "title": "A failing worker cancels its siblings",
+      "group": "behaviour",
+      "say": "When one parallel worker fails, a sibling still waiting on an HTTP response is interrupted and its connection is closed. The original failure is the one reported.",
+      "holdsWhen": "A local loopback test with two workers, on current main, artifact format 44, macOS ARM64. The focused test passed 1/1.",
+      "doesntTell": "That Guion has a general async runtime, that effects already received by a remote service are rolled back, or that this holds on Linux or other targets.",
+      "evidence": [
+        "evidence/2026-10-27-parallel-http-cancellation.md"
+      ]
+    },
+    {
+      "id": "bridge-bytes",
+      "title": "Calling NumPy from Guion: raw bytes",
+      "group": "python",
+      "say": "Sending the input as raw bytes instead of text cut the cost of a 100,000-row NumPy and orjson task by 13.7%, from 161.60 ms to 140.59 ms. Guion is still a little slower than the same Python function, which took 137.93 ms.",
+      "holdsWhen": "One typed Python call, 100,000 rows, 15 randomized fresh-process pairs, macOS ARM64, CPython 3.14.7, NumPy 2.5.1 and orjson 3.11.9. Outputs matched byte for byte.",
+      "doesntTell": "That Guion beats Python on this task: it took 1.025× as long as the same package function and 1.220× as long as plain standard-library Python. CPU attribution and peak memory were not measured.",
+      "evidence": [
+        "evidence/2026-10-27-python-bridge-bytes.md",
+        "evidence/2026-10-27-python-bridge-bytes.json"
+      ]
+    },
+    {
+      "id": "bridge-serialization",
+      "title": "Calling NumPy from Guion: fewer copies",
+      "group": "python",
+      "say": "A change that removes payload-sized copies did not measurably change the speed. The ratio against the previous build was 1.012, and its interval includes 1.",
+      "holdsWhen": "15 randomized pairs on the same 100,000-row task and host as the raw-bytes card.",
+      "doesntTell": "A speedup. The candidate was slower in 10 of 15 pairs, and peak memory was not measured. Against Python it stayed at 1.129× the same NumPy function and 1.406× the standard-library reference, slower in all 15 pairs.",
+      "evidence": [
+        "evidence/2026-10-27-python-bridge-serialization.md",
+        "evidence/2026-10-27-python-bridge-serialization.json"
+      ]
+    },
+    {
+      "id": "managed-packages",
+      "title": "Packaging a Python-backed app into one folder",
+      "group": "python",
+      "say": "A Guion program that uses NumPy and orjson was packaged into a self-contained folder. It ran after being moved to a path with spaces and Unicode, with no external Python or uv settings.",
+      "holdsWhen": "The 100,000-row analysis app on artifact format 44, passing on macOS ARM64 and, in separate runs, on Debian 12 for ARM64 and x86_64. Output matched the independent Python report exactly.",
+      "doesntTell": "Download size: the folder sizes are uncompressed. It is a packaging result, not a speed claim and not broad Python package compatibility.",
+      "evidence": [
+        "evidence/2026-10-27-current-format-managed-package-analysis.md",
+        "evidence/2026-10-27-current-format-managed-package-analysis-debian-aarch64.md",
+        "evidence/2026-10-27-current-format-managed-package-analysis-debian-x86_64.md"
+      ]
+    },
+    {
+      "id": "feed-digest",
+      "title": "A feed digest app with feedparser",
+      "group": "python",
+      "say": "A Guion Feed Digest app that uses the pure-Python feedparser library passed the same six acceptance cases as an independent Python version. Every digest matched byte for byte.",
+      "holdsWhen": "macOS ARM64, artifact format 44, managed CPython 3.14.8 and feedparser 6.0.14, run offline against a local loopback server.",
+      "doesntTell": "Broad package compatibility, native-wheel coverage, package-size advantages or any speed result. It is one more library and one more application shape.",
+      "evidence": [
+        "evidence/2026-10-27-feed-digest-managed-package.md",
+        "evidence/2026-10-27-feed-digest-managed-package.json"
+      ]
+    },
+    {
+      "id": "targets",
+      "title": "Where it has been tested",
+      "group": "reach",
+      "say": "An earlier cohort passed on macOS ARM64 and Debian 12 GNU/Linux on ARM64 and x86_64, all with glibc: 54 of 54 application reports. The current speed checkpoint ran on macOS ARM64 only.",
+      "holdsWhen": "For the earlier cohort: nine retained applications, initial and follow-up variants, on each of the three targets.",
+      "doesntTell": "Support for Windows, other Linux distributions, other CPU architectures or other C libraries. A target that did not run is reported as incomplete.",
+      "evidence": [
+        "evidence/status.md",
+        "evidence/2026-10-27-current-main-outcome-checkpoint.md"
+      ]
+    },
+    {
+      "id": "python-choice",
+      "title": "When an assistant was asked to choose",
+      "group": "python",
+      "say": "In a frozen, independent exercise where assistants chose a language, they picked Python in all 18 choices for an older candidate. A later three-pair builder study recommended either language for two kinds of work and Guion's predecessor, Veritas, for one.",
+      "holdsWhen": "These are historical studies from before the current builds, and they asked a different question from the performance results above.",
+      "doesntTell": "Today's recommendation. Neither study is an estimate of general adoption.",
+      "evidence": [
+        "evidence/status.md"
+      ]
+    }
+  ],
+  "docs": {
+    "agentIndex": "docs/agents/index.json in the project repository (private)"
+  }
+}

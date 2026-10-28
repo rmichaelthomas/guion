@@ -1,0 +1,14 @@
+record Point:
+    x: Int
+    y: Int
+
+fn translate(point: Point, dx: Int, dy: Int) -> Point:
+    return Point(point.x + dx, point.y + dy)
+
+fn main() -> Int:
+    let start = Point(3, 4)
+    let finish = translate(start, 2, -1)
+    assert(finish == Point(5, 3))
+    print(finish.x)
+    print(finish.y)
+    return 0

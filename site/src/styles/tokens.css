@@ -1,0 +1,53 @@
+@layer reset, base, layouts, components, states, responsive, print;
+
+@layer base {
+  :root {
+    color-scheme: light;
+    --paper: #e9ede3;
+    --paper-2: #dfe6d6;
+    --cream: #f9faf3;
+    --ink: #11251d;
+    --ink-2: #3c594b;
+    --moss: #10261e;
+    --muted: #52675b;
+    --line: #afbaad;
+    --blue: #2148e8;
+    --lily: #d9f987;
+    --orange: #fa784e;
+    /* The vendored instrument styles read these two names. */
+    --accent: var(--blue);
+    --rule: var(--line);
+
+    --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+    --serif: Georgia, "Times New Roman", serif;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+    --radius: 19px;
+    --ease: cubic-bezier(.22, 1, .36, 1);
+
+    /* Plain English scale: airy */
+    --step--1: .78rem;
+    --step-0: 1.02rem;
+    --step-1: 1.22rem;
+    --step-2: clamp(1.55rem, 2.3vw, 2.1rem);
+    --step-3: clamp(2.1rem, 4vw, 3.4rem);
+    --step-4: clamp(2.9rem, 6.3vw, 6.4rem);
+    --measure: 62ch;
+    --gutter: clamp(1.2rem, 4vw, 5rem);
+    --section-pad: clamp(72px, 9vw, 140px);
+    --leading: 1.7;
+  }
+
+  /* Developer scale: dense */
+  body:has(#view-dev:checked) {
+    --step--1: .7rem;
+    --step-0: .9rem;
+    --step-1: 1rem;
+    --step-2: 1.25rem;
+    --step-3: clamp(1.6rem, 2.6vw, 2.2rem);
+    --step-4: clamp(2.2rem, 4vw, 3.6rem);
+    --measure: 92ch;
+    --gutter: clamp(1rem, 2.5vw, 2.4rem);
+    --section-pad: clamp(36px, 4.5vw, 64px);
+    --leading: 1.5;
+  }
+}

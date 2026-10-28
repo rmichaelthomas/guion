@@ -1,0 +1,68 @@
+{
+  "command": "guion inspect --json main.gu",
+  "guionVersion": "guion 0.1.0 (artifact format 44, timezone data 2026c)",
+  "program": "fn main() -> Int:\n    let args_list = args()\n    let headers: Map[Text, Text] = {}\n    match read_text(\"notes.txt\"):\n        Ok(text):\n            print(text)\n        Err(problem):\n            print(file_error_code(problem))\n    match http_request_bytes(\"GET\", args_list[0], headers, bytes_from_text(\"\"), 1000):\n        Ok(response):\n            print(\"fetched\")\n        Err(problem):\n            print(http_error_code(problem))\n    return 0\n",
+  "manifest": "[project]\nname = \"notes\"\nversion = \"0.1.0\"\nentry = \"main.gu\"\n\n[network]\nhosts = [\"api.example.test\"]\n",
+  "report": {
+    "analysis_scope": "reachable direct calls and parallel_map worker functions; host effects are categorized from bytecode operations",
+    "artifact_format": 44,
+    "capability_claim": "static_bytecode_reachability_not_sandbox",
+    "clock_grant": {
+      "grant_model": "wall-clock reads are denied unless explicitly enabled",
+      "local_date_uses_host_process_time_zone": true,
+      "manifest_key": "[clock].enabled",
+      "required_for_entry": false,
+      "run_option": "guion run --allow-clock"
+    },
+    "entry": "main",
+    "functions": {
+      "main": {
+        "calls": [],
+        "direct_effects": [
+          "filesystem.read",
+          "network.http",
+          "output.write",
+          "process.arguments"
+        ],
+        "effects": [
+          "filesystem.read",
+          "network.http",
+          "output.write",
+          "process.arguments"
+        ],
+        "entry_reachable": true
+      }
+    },
+    "grant_assessment": {
+      "caller_cli_grants": "not_supplied_to_inspect",
+      "clock_read": "not_required",
+      "filesystem_read": "unknown_external_runner",
+      "filesystem_write": "not_required",
+      "network_http": "present_but_target_dynamic"
+    },
+    "kind": "guion_inspection_report",
+    "manifest_grants": {
+      "clock_enabled": false,
+      "network_hosts": [
+        "api.example.test"
+      ],
+      "provenance": "guion.toml"
+    },
+    "network_grant": {
+      "grant_model": "exact hostname; network access is denied when no grant is present",
+      "manifest_key": "[network].hosts",
+      "required_for_entry": true,
+      "run_option": "guion run --allow-http-host HOST",
+      "runtime_supplied_urls_require_an_explicit_hostname_grant": true
+    },
+    "python_calls": [],
+    "required_effects": [
+      "filesystem.read",
+      "network.http",
+      "output.write",
+      "process.arguments"
+    ],
+    "schema_version": 1,
+    "source": "main.gu"
+  }
+}

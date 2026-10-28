@@ -1,0 +1,44 @@
+<section class="section darkzone" id="read">
+<div class="shell">
+<div class="sectionhead">
+<div><p class="overline">04 / Code you can inspect</p><h2>Read it.<br><span class="serif">Then change it.</span></h2></div>
+<p class="v-plain">Real programs from the project's own examples, with what each one prints. Press the button under any of them to load it into the playground and change it.</p>
+<p class="v-dev">Sources are the files in <code>language/examples</code>. Output, artifact size and step count were produced by compiling and running each one when this page was built.</p>
+</div>
+<div class="tabs" data-ahi="ahi.reveals-discoveries.tabbed-scene">
+<input type="radio" name="read-tab" id="tab-hello" class="sr-only" checked>
+<input type="radio" name="read-tab" id="tab-option" class="sr-only">
+<input type="radio" name="read-tab" id="tab-records" class="sr-only">
+<div class="tablist" role="group" aria-label="Choose a program">
+<label for="tab-hello"><span class="tab-n">01</span> Start here</label>
+<label for="tab-option"><span class="tab-n">02</span> Handle absence</label>
+<label for="tab-records"><span class="tab-n">03</span> Make a record</label>
+</div>
+<article class="panel" id="panel-hello">
+<div class="panel-code"><p class="smallcaps">hello.gu</p><pre class="code"><code>{{sample-code:hello}}</code></pre><p class="prints"><span class="smallcaps">Prints</span> <code>{{sample-out:hello}}</code></p></div>
+<div class="panel-note">
+<p class="v-plain">Every program starts at <code>main</code>. This one names a greeting, prints it, and returns 0 to say it went fine.</p>
+<p class="v-dev"><code>fn main() -&gt; Int</code> is the entry point and its return value is the exit status. <code>let</code> binds immutably; <code>print</code> writes one line. <span class="facts">{{sample-facts:hello}}</span></p>
+<button type="button" class="btn btn-lily" data-pg-load="hello">Open in the playground <span aria-hidden="true">↑</span></button>
+</div>
+</article>
+<article class="panel" id="panel-option">
+<div class="panel-code"><p class="smallcaps">option.gu</p><pre class="code"><code>{{sample-code:option}}</code></pre><p class="prints"><span class="smallcaps">Prints</span> <code>{{sample-out:option}}</code></p></div>
+<div class="panel-note">
+<p class="v-plain">A function that might have no answer says so in its type, and returns <code>None</code> when it has none. The program checks before it uses the answer, so the empty case is out in the open.</p>
+<p class="v-dev"><code>Option[Int]</code> is built with <code>Some(value)</code> or <code>None</code>; <code>is_some</code> tests for presence and <code>unwrap</code> is for after that test. Only the present value prints. <span class="facts">{{sample-facts:option}}</span></p>
+{{slot:read-annotated-example}}
+<button type="button" class="btn btn-lily" data-pg-load="option">Open in the playground <span aria-hidden="true">↑</span></button>
+</div>
+</article>
+<article class="panel" id="panel-records">
+<div class="panel-code"><p class="smallcaps">records.gu</p><pre class="code"><code>{{sample-code:records}}</code></pre><p class="prints"><span class="smallcaps">Prints</span> <code>{{sample-out:records}}</code></p></div>
+<div class="panel-note">
+<p class="v-plain">A record is a named bundle of typed fields. This one moves a point two across and one down, then checks the result against what it should be.</p>
+<p class="v-dev"><code>record Point</code> has two <code>Int</code> fields; <code>translate</code> returns a new <code>Point</code>; <code>assert(finish == Point(5, 3))</code> compares the result to the expected record. <span class="facts">{{sample-facts:records}}</span></p>
+<button type="button" class="btn btn-lily" data-pg-load="records">Open in the playground <span aria-hidden="true">↑</span></button>
+</div>
+</article>
+</div>
+</div>
+</section>

@@ -1,0 +1,1391 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<meta name="theme-color" content="#e9ede3">
+<meta name="description" content="Guion is an experimental programming language with readable, typed syntax, a compiler written in Guion, and a Rust runtime. Pre-release: no public release has been published. Run a program in your browser.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 64 64%27%3E%3Crect width=%2764%27 height=%2764%27 rx=%2716%27 fill=%27%232148e8%27/%3E%3Ctext x=%2732%27 y=%2748%27 font-family=%27Georgia,serif%27 font-size=%2744%27 font-weight=%27700%27 text-anchor=%27middle%27 fill=%27%23fff%27%3Eg%3C/text%3E%3C/svg%3E">
+<meta name="robots" content="noindex">
+<title>Guion — A language for the work ahead</title>
+<style>
+@layer reset, base, layouts, components, states, responsive, print;
+
+@layer base {
+  :root {
+    color-scheme: light;
+    --paper: #e9ede3;
+    --paper-2: #dfe6d6;
+    --cream: #f9faf3;
+    --ink: #11251d;
+    --ink-2: #3c594b;
+    --moss: #10261e;
+    --muted: #52675b;
+    --line: #afbaad;
+    --blue: #2148e8;
+    --lily: #d9f987;
+    --orange: #fa784e;
+    /* The vendored instrument styles read these two names. */
+    --accent: var(--blue);
+    --rule: var(--line);
+
+    --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+    --serif: Georgia, "Times New Roman", serif;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+    --radius: 19px;
+    --ease: cubic-bezier(.22, 1, .36, 1);
+
+    /* Plain English scale: airy */
+    --step--1: .78rem;
+    --step-0: 1.02rem;
+    --step-1: 1.22rem;
+    --step-2: clamp(1.55rem, 2.3vw, 2.1rem);
+    --step-3: clamp(2.1rem, 4vw, 3.4rem);
+    --step-4: clamp(2.9rem, 6.3vw, 6.4rem);
+    --measure: 62ch;
+    --gutter: clamp(1.2rem, 4vw, 5rem);
+    --section-pad: clamp(72px, 9vw, 140px);
+    --leading: 1.7;
+  }
+
+  /* Developer scale: dense */
+  body:has(#view-dev:checked) {
+    --step--1: .7rem;
+    --step-0: .9rem;
+    --step-1: 1rem;
+    --step-2: 1.25rem;
+    --step-3: clamp(1.6rem, 2.6vw, 2.2rem);
+    --step-4: clamp(2.2rem, 4vw, 3.6rem);
+    --measure: 92ch;
+    --gutter: clamp(1rem, 2.5vw, 2.4rem);
+    --section-pad: clamp(36px, 4.5vw, 64px);
+    --leading: 1.5;
+  }
+}
+
+@layer reset {
+  *, *::before, *::after { box-sizing: border-box; }
+  html { scroll-behavior: smooth; scroll-padding-top: 8.5rem; -webkit-text-size-adjust: 100%; }
+  body, h1, h2, h3, h4, p, figure, blockquote, pre, dl, dd, ol, ul { margin: 0; }
+  ol, ul { padding: 0; }
+  button, input, textarea, select { font: inherit; color: inherit; }
+  img, svg { max-width: 100%; }
+  button { cursor: pointer; }
+}
+
+@layer base {
+  body {
+    min-width: 320px;
+    overflow-x: clip;
+    background: var(--paper);
+    color: var(--ink);
+    font: var(--step-0)/var(--leading) var(--sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: inherit; text-underline-offset: .23em; }
+  a:hover { text-decoration-color: var(--blue); }
+  ::selection { background: var(--lily); color: #0d1b17; }
+  :is(a, button, input, textarea, select, summary, [tabindex]):focus-visible { outline: 3px solid var(--blue); outline-offset: 3px; }
+  .darkzone :is(a, button, input, textarea, select, summary):focus-visible { outline-color: var(--lily); }
+  h1, h2, h3 { line-height: .98; letter-spacing: -.055em; font-weight: 750; text-wrap: balance; }
+  p { text-wrap: pretty; }
+  code, kbd, samp, pre { font-family: var(--mono); }
+  ::marker { color: var(--blue); }
+  .serif { font-family: var(--serif); font-weight: 400; letter-spacing: -.06em; font-style: italic; }
+  .mono { font-family: var(--mono); }
+  .muted { color: var(--muted); }
+  .smallcaps { font-size: var(--step--1); letter-spacing: .15em; text-transform: uppercase; font-weight: 800; }
+  .sr-only { position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+  .skip { position: absolute; transform: translateY(-200%); top: 10px; left: 10px; padding: 10px 14px; background: #fff; color: var(--ink); z-index: 100; border-radius: 8px; }
+  .skip:focus { transform: none; }
+}
+
+@layer states {
+  /* The two views are authored separately; the radio pair at the top of <body> chooses one. */
+  body:has(#view-dev:checked) .v-plain { display: none; }
+  body:not(:has(#view-dev:checked)) .v-dev { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+
+@layer layouts {
+  .shell { width: min(1500px, 100%); margin: auto; padding-inline: var(--gutter); }
+  .section { padding-block: var(--section-pad); }
+  .darkzone { background: var(--moss); color: #e7efe5; }
+  .darkzone p { color: #c4d4c8; }
+  .sectionhead { display: flex; justify-content: space-between; align-items: end; gap: 2.2rem; margin-bottom: clamp(1.6rem, 4vw, 3rem); flex-wrap: wrap; }
+  .sectionhead h2 { font-size: var(--step-4); max-width: 15ch; }
+  .sectionhead p { max-width: 38ch; color: var(--ink-2); }
+  .darkzone .sectionhead p { color: #c4d4c8; }
+  .overline { display: flex; gap: .8rem; align-items: center; color: var(--blue); font-size: var(--step--1); font-weight: 800; text-transform: uppercase; letter-spacing: .15em; margin-bottom: 1rem; }
+  .overline::before { content: ""; width: 29px; height: 2px; background: currentColor; flex: none; }
+  .darkzone .overline { color: var(--lily); }
+
+  /* Status bar and navigation */
+  .sitebar { background: var(--ink); color: #e5eddf; min-height: 39px; display: flex; align-items: center; font-size: .72rem; letter-spacing: .08em; }
+  .sitebar .shell { display: flex; justify-content: space-between; gap: 1rem; align-items: center; padding-block: .45rem; flex-wrap: wrap; }
+  .pillstatus { display: inline-flex; gap: .55rem; align-items: center; }
+  .pillstatus::before { content: ""; width: 7px; height: 7px; background: var(--lily); border-radius: 100%; box-shadow: 0 0 0 4px #d9f9872c; flex: none; }
+  .navwrap { position: sticky; top: 0; z-index: 30; border-bottom: 1px solid #10251d29; background: #e9edf0ed; background: color-mix(in srgb, var(--paper) 93%, transparent); backdrop-filter: blur(16px); }
+  .nav { min-height: 68px; display: flex; gap: 1.2rem; align-items: center; justify-content: space-between; flex-wrap: wrap; padding-block: .5rem; }
+  .wordmark { display: inline-flex; align-items: center; gap: .7rem; text-decoration: none; font-size: 1.5rem; font-weight: 800; letter-spacing: -.07em; }
+  .brandmark { width: 36px; height: 36px; background: var(--blue); border-radius: 11px 11px 11px 2px; display: grid; place-items: center; color: #fff; font: 800 1.6rem/1 var(--serif); transform: rotate(-4deg); }
+  .navlinks { display: flex; align-items: center; gap: clamp(.8rem, 1.8vw, 1.8rem); font-size: .84rem; font-weight: 650; flex: 1; justify-content: center; }
+  .navlinks a { text-decoration: none; white-space: nowrap; }
+  .navlinks a:hover { color: var(--blue); }
+  .navlinks .v-dev a { font-family: var(--mono); font-size: .74rem; font-weight: 600; }
+  .navlinks .v-dev a::before { content: "#"; color: var(--blue); }
+
+  /* The view switch: a native radio pair, shown as one pill */
+  .viewswitch { position: relative; display: inline-grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--ink); border-radius: 999px; padding: 3px; margin: 0; min-inline-size: 0; background: var(--cream); flex: none; }
+  .viewswitch label { position: relative; z-index: 1; padding: .5rem .95rem; font: 800 .7rem/1 var(--sans); letter-spacing: .07em; text-transform: uppercase; text-align: center; cursor: pointer; border-radius: 999px; transition: color .2s; white-space: nowrap; }
+  .viewswitch::before { content: ""; position: absolute; top: 3px; bottom: 3px; left: 3px; width: calc(50% - 3px); background: var(--ink); border-radius: 999px; transition: transform .3s var(--ease); }
+  body:has(#view-dev:checked) .viewswitch::before { transform: translateX(100%); }
+  body:not(:has(#view-dev:checked)) label[for="view-plain"],
+  body:has(#view-dev:checked) label[for="view-dev"] { color: var(--lily); }
+  body:has(#view-plain:focus-visible) label[for="view-plain"],
+  body:has(#view-dev:focus-visible) label[for="view-dev"] { outline: 3px solid var(--blue); outline-offset: 3px; }
+}
+
+@layer responsive {
+  @media (max-width: 900px) {
+    .nav { row-gap: .4rem; }
+    .navlinks { order: 3; flex-basis: 100%; justify-content: flex-start; overflow-x: auto; padding-bottom: .35rem; scrollbar-width: thin; }
+    html { scroll-padding-top: 9.5rem; }
+  }
+  @media (max-width: 460px) {
+    .navwrap .wm { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
+    .nav { gap: .5rem .8rem; justify-content: space-between; }
+    .navlinks { flex-basis: 100%; }
+  }
+  @media (max-width: 520px) {
+    .wordmark { font-size: 1.3rem; }
+    .viewswitch label { padding: .5rem .7rem; font-size: .66rem; }
+    .sitebar { font-size: .66rem; }
+  }
+}
+
+@layer components {
+  /* Plain English: generous, editorial, one idea at a time. */
+  body:not(:has(#view-dev:checked)) .section > .shell > * + * { margin-top: clamp(1.2rem, 3vw, 2.4rem); }
+  body:not(:has(#view-dev:checked)) p { max-width: var(--measure); }
+}
+
+@layer components {
+  /* Developer: dense, labelled, ruled like an instrument panel. */
+  body:has(#view-dev:checked) {
+    --paper: #e3e9db;
+    background-image: linear-gradient(90deg, transparent 0, transparent calc(100% - 1px), #11251d12 calc(100% - 1px));
+    background-size: calc(100% / 12) 100%;
+  }
+  body:has(#view-dev:checked) :is(h1, h2, h3) { letter-spacing: -.035em; font-weight: 800; }
+  body:has(#view-dev:checked) .overline { font-family: var(--mono); letter-spacing: .06em; }
+  body:has(#view-dev:checked) .section { border-top: 1px solid var(--ink); }
+  body:has(#view-dev:checked) .darkzone { border-top-color: var(--lily); }
+  body:has(#view-dev:checked) .sectionhead { align-items: start; margin-bottom: 1.2rem; }
+  body:has(#view-dev:checked) .sectionhead h2 { max-width: 28ch; }
+  body:has(#view-dev:checked) .nav { min-height: 54px; }
+  body:has(#view-dev:checked) .brandmark { transform: none; border-radius: 6px; }
+  body:has(#view-dev:checked) .wordmark { font-family: var(--mono); letter-spacing: -.04em; font-size: 1.2rem; }
+}
+
+@layer components {
+  body:has(#view-dev:checked) .hero { min-height: 0; padding-top: 28px; padding-bottom: 36px; }
+  body:has(#view-dev:checked) .hero-title { font-size: clamp(3.4rem, 8.5vw, 7.5rem); margin-bottom: .2em; }
+  body:has(#view-dev:checked) .hero .ahi .kinetic-headline h2 { font-size: clamp(1.5rem, 2.6vw, 2.4rem); }
+  body:has(#view-dev:checked) .why-quote .pull-quote { font-size: clamp(1.4rem, 3vw, 2.5rem); }
+  body:has(#view-dev:checked) .cta-row { margin-top: 1rem; }
+  body:has(#view-dev:checked) .lab-input textarea { min-height: 0; height: 15rem; }
+  body:has(#view-dev:checked) .route-also { display: none; }
+}
+
+@layer components {
+.ahi{.publication{max-width:62ch}.publication-copy{font-size:1.15rem}.publication-end{color:var(--accent);font-size:2rem}.recipe,.reference-sheet,.printable-deck{border:1px solid var(--rule);padding:18px}.reference-sheet dl{display:grid;grid-template-columns:max-content 1fr;gap:8px 20px}@media(max-width:580px){.publication-copy{font-size:1rem}}.zine-spread{font-family:Georgia,serif;border-top:5px double var(--ink);padding:14px}.zine-spread footer{margin-top:18px;color:var(--accent);font-style:italic}.newspaper-spread{font-family:Georgia,serif;border-block:3px double var(--ink);padding:12px}.newspaper-spread h2{font-size:clamp(2rem,6vw,4rem)}.dateline,.issue-line,.dossier-id,.booklet-cover{font:.75rem system-ui,sans-serif;text-transform:uppercase;letter-spacing:.12em}.booklet-pages,.archive-records{padding-left:1.4em}.booklet-pages li,.archive-records li{padding:12px;border-bottom:1px solid var(--rule);break-inside:avoid}.case-dossier details{padding:10px;border-bottom:1px solid var(--rule)}.recipe section{margin-block:12px}.exhibition-label{max-width:42ch;border-left:4px solid var(--accent);padding:12px 20px}.deck-cards{display:grid;grid-template-columns:1fr 1fr;gap:12px;list-style:none;padding:0}.deck-cards article{border:1px solid var(--ink);padding:14px;break-inside:avoid}.annotated-archive time{font-weight:700}}
+}
+
+@layer components {
+.ahi{.reveal,.scene-set details{margin:12px 0;padding:12px;border-top:1px solid var(--rule);border-bottom:1px solid var(--rule)}.card-front,.card-reverse,.foldout-panel,.spotlight-passage,.chamber-content{display:grid;gap:8px;padding:12px}.reveal-cue,.chamber-cue,.poster-label{font:.8rem system-ui,sans-serif;color:var(--accent)}.scene-set details{padding:12px}}
+}
+
+@layer components {
+.ahi{.guide-trail,.teaching-note{padding:18px 24px;border-left:3px solid var(--accent);background:color-mix(in srgb,var(--accent) 8%,var(--paper))}.guide-hint,.lesson details{margin:12px 0;padding:12px;border-top:1px solid var(--rule);border-bottom:1px solid var(--rule)}.practice-prompt,.annotated-example,.source-explanation,.step-card,.context-hint,.instructional-overlay{padding:12px;border-left:2px solid var(--accent)}.step-completion{border-top:1px dotted var(--rule);padding-top:8px}.hint-content,.inline-instruction{padding:10px}.linear-route{font-style:italic}}
+}
+
+@layer components {
+.ahi{.family-typography-reading .drop-cap:first-letter{float:left;font-size:4.1em;line-height:.8;padding:.05em .12em 0 0;color:var(--accent)}.pull-quote{margin:12px 0;border-left:4px solid var(--accent);padding:8px 24px;font-size:1.4rem}.pull-quote blockquote{margin:0}.margin-note{font-size:.9rem;color:var(--accent);margin:14px 0 0 15%;max-width:23ch}.columns{columns:2 220px;column-gap:2.4em}.ruler-control{display:flex;gap:8px;align-items:center;font:.9rem system-ui,sans-serif}.ruler-control:has(input:checked)~p{background:linear-gradient(transparent 43%,#ecd688 43%,#ecd688 93%,transparent 93%)}.type-grid{display:grid;grid-template-columns:max-content 1fr;gap:8px 20px}.kinetic-headline{border-top:2px solid var(--ink);padding-top:12px}.kinetic-headline h2{position:relative;width:fit-content;max-width:100%}.kinetic-headline h2::after{content:'';position:absolute;left:0;bottom:-.16em;width:100%;height:3px;background:var(--accent);transform:scaleX(0);transform-origin:left;transition:transform .32s ease}.kinetic-headline:hover h2::after,.kinetic-headline:focus-within h2::after{transform:scaleX(1)}.headline-deck,.variable-title .eyebrow{font-style:italic}.variable-title h2{font-size:clamp(2rem,7vw,5rem)}.text-collage{display:grid;grid-template-columns:1fr 1fr;gap:12px;list-style:none;padding:0}.text-collage li{padding:12px;border:1px solid var(--rule)}.text-collage li:nth-child(2){grid-column:span 2}.ruler-reading{padding:8px}.ruler-control:has(input:checked)+.ruler-reading{background:linear-gradient(transparent 43%,#ecd688 43%,#ecd688 93%,transparent 93%)}}
+}
+
+@layer components {
+  /* ---------- Buttons ---------- */
+  .btn { display: inline-flex; gap: .6rem; align-items: center; justify-content: center; padding: .9rem 1.3rem; border-radius: 999px; border: 2px solid var(--ink); font: 750 .95rem/1 var(--sans); text-decoration: none; color: var(--ink); background: transparent; transition: transform .25s var(--ease), background .2s, box-shadow .25s var(--ease); }
+  .btn:hover { transform: translateY(-2px); box-shadow: 0 8px 0 -4px #11251d22; }
+  .btn-primary { background: var(--blue); border-color: var(--blue); color: #fff; }
+  .btn-lily { background: var(--lily); border-color: var(--lily); color: var(--ink); }
+  .btn[disabled] { opacity: .55; cursor: progress; transform: none; box-shadow: none; }
+  .cta-row { display: flex; gap: .8rem; flex-wrap: wrap; margin-top: 1.8rem; align-items: center; }
+  .fineprint { font-size: var(--step--1); color: var(--muted); margin-top: 1.1rem; max-width: 52ch; }
+  .caption { font-size: var(--step--1); color: var(--muted); margin-top: .7rem; }
+  code { font-size: .92em; }
+  :is(p, li, dd, td) code { background: color-mix(in srgb, var(--ink) 7%, transparent); padding: .05em .35em; border-radius: 5px; }
+  .darkzone :is(p, li, dd, td) code { background: #ffffff1a; }
+  .table-wrap { overflow-x: auto; max-width: 100%; }
+
+  /* ---------- Hero ---------- */
+  .hero { min-height: min(780px, 88vh); padding-top: clamp(36px, 5vw, 84px); padding-bottom: clamp(40px, 5vw, 72px); isolation: isolate; }
+  .hero-grid { display: grid; grid-template-columns: minmax(0, 1.08fr) minmax(0, .92fr); gap: clamp(24px, 5vw, 80px); align-items: center; }
+  .hero-title { font-size: clamp(5.4rem, 17vw, 15.5rem); letter-spacing: -.085em; line-height: .86; margin: 0 0 .28em; position: relative; left: -.05em; }
+  .hero-title .dot { color: var(--blue); }
+  .hero .ahi .kinetic-headline { border: 0; padding: 0; display: flex; flex-direction: column; }
+  .hero .ahi .headline-deck { order: -1; margin: 0 0 .8rem; color: var(--blue); font: 800 var(--step--1)/1.4 var(--sans); letter-spacing: .15em; text-transform: uppercase; display: flex; gap: .8rem; align-items: center; }
+  .hero .ahi .headline-deck::before { content: ""; width: 29px; height: 2px; background: currentColor; }
+  .hero .ahi .kinetic-headline h2 { font-size: clamp(1.9rem, 3.7vw, 4rem); line-height: 1.03; max-width: 16ch; margin-bottom: 1.1rem; }
+  .hero .ahi .kinetic-headline > p:not(.headline-deck) { color: var(--ink-2); max-width: 46ch; }
+  .hero-desc { font-size: clamp(1rem, 1.25vw, 1.2rem); color: var(--ink-2); max-width: 49ch; margin-top: .4rem; }
+  .specs { display: grid; gap: 0; border-top: 1px solid var(--ink); margin-top: .4rem; max-width: 62ch; }
+  .specs > div { display: grid; grid-template-columns: 7.5rem minmax(0, 1fr); gap: .8rem; padding: .5rem 0; border-bottom: 1px solid var(--line); }
+  .specs dt { font: 800 var(--step--1)/1.6 var(--mono); text-transform: uppercase; letter-spacing: .06em; color: var(--blue); }
+  .hero-art { margin: 0; }
+  .hero-art svg { width: 100%; height: auto; display: block; filter: drop-shadow(0 22px 30px #11251d24); }
+  .hero-art figcaption { max-width: 46ch; }
+
+  /* ---------- Playground ---------- */
+  .lab { border-radius: 24px; background: #0d1715; color: #d4f5d9; border: 1px solid #2b5140; overflow: hidden; box-shadow: 0 26px 60px #0000003a; }
+  .lab-bar { display: flex; gap: .8rem; align-items: center; padding: .8rem 1rem; background: #162820; border-bottom: 1px solid #315241; flex-wrap: wrap; }
+  .lab-bar .smallcaps { color: #9bc2a8; }
+  .lab-bar select { background: #0d1715; color: #e7f5e3; border: 1px solid #3d6a55; border-radius: 10px; padding: .55rem .8rem; max-width: 100%; flex: 0 1 18rem; }
+  .lab-bar .btn { margin-left: auto; padding: .65rem 1.2rem; }
+  .lab-panes { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, .8fr); }
+  .lab-input textarea { display: block; width: 100%; min-height: 20rem; background: #0b1311; color: #e8f6df; border: 0; padding: 1.2rem 1.3rem; font: 500 .92rem/1.7 var(--mono); resize: vertical; tab-size: 4; caret-color: var(--lily); }
+  .lab-input textarea:focus-visible { outline: 3px solid var(--lily); outline-offset: -3px; }
+  .lab-result { padding: 1.2rem 1.3rem; border-left: 1px solid #315241; display: flex; flex-direction: column; gap: .8rem; min-width: 0; }
+  .lab-label { color: #9bc2a8; }
+  #pg-output { min-height: 8rem; white-space: pre-wrap; overflow-wrap: anywhere; font: 600 .95rem/1.6 var(--mono); color: var(--lily); }
+  #pg-output:empty::before { content: "Output appears here."; color: #7fa592; font-weight: 400; }
+  #pg-output[data-state="error"] { color: #ffb59d; font-weight: 500; }
+  #pg-status { color: #e7f5e3; font-size: .92rem; line-height: 1.55; }
+  #pg-meta { color: #9bc2a8; font-size: .76rem; margin-top: auto; }
+  .pg-notice { padding: .9rem 1.3rem; background: #1b2f26; border-top: 1px solid #315241; font-size: .88rem; color: #c4d4c8; }
+  .lab:has(#pg-run[data-ready]) .pg-notice { display: none; }
+  .lab:not(:has(#pg-run[data-ready])) :is(.lab-bar, #pg-meta) { display: none; }
+  /* Buttons that load an example into the playground are useless without it. */
+  body:not(:has(#pg-run[data-ready])) [data-pg-load] { display: none; }
+  .lab-explain { list-style: none; counter-reset: step; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; border-top: 1px solid #315241; }
+  .lab-explain li { counter-increment: step; padding: 1.1rem 1.3rem 1.3rem; border-left: 1px solid #315241; color: #c4d4c8; font-size: .95rem; }
+  .lab-explain li:first-child { border-left: 0; }
+  .lab-explain li::before { content: counter(step); display: block; font: 800 .8rem var(--mono); color: var(--lily); margin-bottom: .4rem; }
+  .lab-explain strong { color: #fff; }
+  .lab-limits { border-top: 1px solid #315241; padding: .4rem 1.3rem 1rem; }
+  .spec-table { width: 100%; border-collapse: collapse; font-size: .82rem; }
+  .spec-table caption { text-align: left; font: 800 var(--step--1)/1.6 var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--lily); padding: .7rem 0 .3rem; }
+  .spec-table :is(th, td) { text-align: left; vertical-align: top; padding: .38rem .8rem .38rem 0; border-top: 1px solid #315241; }
+  .spec-table th { width: 7rem; font: 700 .76rem var(--mono); color: #9bc2a8; text-transform: uppercase; letter-spacing: .05em; }
+
+  /* ---------- Why ---------- */
+  .why-quote { margin-bottom: clamp(1.6rem, 4vw, 3.4rem); }
+  .why-quote .ahi { max-width: 60rem; }
+  .why-quote .pull-quote { border-left: 0; padding: 0; margin: 0; font: italic 400 clamp(2rem, 5.2vw, 5.2rem)/1.04 var(--serif); letter-spacing: -.055em; }
+  .why-quote .pull-quote p { max-width: none; }
+  .why-quote figcaption, .why-quote cite { display: block; margin-top: 1rem; font: 600 var(--step--1)/1.5 var(--sans); letter-spacing: .02em; color: var(--muted); font-style: normal; }
+  .reasons { list-style: none; counter-reset: reason; border-bottom: 1px solid var(--ink); }
+  .reasons > li { display: grid; grid-template-columns: 4.5rem minmax(0, 1fr); gap: clamp(1rem, 3vw, 3rem); padding-block: clamp(1.4rem, 3vw, 2.6rem); border-top: 1px solid var(--ink); align-items: start; }
+  body:has(#view-dev:checked) .reasons > li { grid-template-columns: 3rem minmax(0, 1.3fr) minmax(0, .7fr); }
+  .reasons > li::before { counter-increment: reason; content: counter(reason, decimal-leading-zero); font: 800 .85rem var(--mono); color: var(--blue); padding-top: .5rem; }
+  .reasons h3 { font-size: var(--step-3); margin-bottom: .7rem; }
+  .reasons p { color: var(--ink-2); }
+  .marginalia { border-left: 3px solid var(--blue); padding-left: 1rem; font-size: var(--step--1); color: var(--ink-2); }
+  .marginalia .smallcaps { color: var(--blue); }
+  dfn { font-style: normal; text-decoration: underline dotted var(--blue); text-underline-offset: .25em; cursor: help; }
+
+  /* ---------- Lifecycle ---------- */
+  .lifecycle { background: var(--paper-2); }
+  .route { list-style: none; counter-reset: stop; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); position: relative; margin-top: .6rem; }
+  .route::before { content: ""; position: absolute; left: 1.35rem; right: 0; top: 1.3rem; border-top: 3px dotted var(--blue); }
+  .route > li { position: relative; padding: 3.6rem 1rem 0 0; display: flex; flex-direction: column; gap: .35rem; font-size: .95rem; }
+  .route > li::before { counter-increment: stop; content: counter(stop); position: absolute; top: 0; left: 0; width: 2.7rem; height: 2.7rem; border-radius: 50%; background: var(--blue); color: #fff; display: grid; place-items: center; font: 800 1rem var(--mono); box-shadow: 0 0 0 6px var(--paper-2); }
+  .route > li > code { align-self: flex-start; background: var(--ink) !important; color: var(--lily); padding: .2em .55em !important; border-radius: 6px; font-weight: 700; }
+  .route > li > strong { font-size: 1.35rem; letter-spacing: -.04em; }
+  .route > li > span { color: var(--ink-2); }
+  .route-also { margin-top: clamp(1.4rem, 3vw, 2.4rem); color: var(--ink-2); max-width: 78ch; font-size: .95rem; }
+  .cmdtable { width: 100%; border-collapse: collapse; font-size: .8rem; min-width: 760px; }
+  .cmdtable :is(th, td) { text-align: left; vertical-align: top; padding: .5rem .8rem .5rem 0; border-top: 1px solid var(--ink); }
+  .cmdtable thead th { font: 800 .68rem var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--blue); }
+  .cmdtable tbody th { white-space: nowrap; }
+  .cmdtable td:nth-child(2) code { overflow-wrap: anywhere; }
+
+  /* ---------- Read it ---------- */
+  .tablist { display: flex; gap: .6rem; flex-wrap: wrap; margin-bottom: 1.4rem; }
+  .tablist label { display: inline-flex; gap: .6rem; align-items: baseline; padding: .65rem 1.1rem; border: 2px solid #3d6a55; border-radius: 999px; font-weight: 750; cursor: pointer; color: #d4f5d9; transition: background .2s, color .2s, border-color .2s; }
+  .tablist label:hover { border-color: var(--lily); }
+  .tab-n { font: 800 .72rem var(--mono); opacity: .7; }
+  .tabs:has(#tab-hello:checked) label[for="tab-hello"],
+  .tabs:has(#tab-option:checked) label[for="tab-option"],
+  .tabs:has(#tab-records:checked) label[for="tab-records"] { background: var(--lily); border-color: var(--lily); color: var(--ink); }
+  .tabs:has(#tab-hello:focus-visible) label[for="tab-hello"],
+  .tabs:has(#tab-option:focus-visible) label[for="tab-option"],
+  .tabs:has(#tab-records:focus-visible) label[for="tab-records"] { outline: 3px solid var(--lily); outline-offset: 3px; }
+  .panel { display: none; grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr); gap: clamp(1.2rem, 3vw, 3rem); align-items: start; }
+  .tabs:has(#tab-hello:checked) #panel-hello,
+  .tabs:has(#tab-option:checked) #panel-option,
+  .tabs:has(#tab-records:checked) #panel-records { display: grid; }
+  .code { background: #0b1311; color: #e8f6df; padding: 1.2rem 1.4rem; border-radius: 14px; overflow-x: auto; font: 500 .9rem/1.75 var(--mono); border: 1px solid #2b5140; tab-size: 4; margin-top: .6rem; }
+  .code .k { color: #8fb4ff; font-weight: 700; }
+  .code .t { color: var(--lily); }
+  .code .s { color: #ffb59d; }
+  .code .n { color: #f5d99a; }
+  .code .c { color: #7fa592; font-style: italic; }
+  .prints { margin-top: .9rem; display: flex; gap: .8rem; align-items: baseline; flex-wrap: wrap; }
+  .prints .smallcaps { color: #9bc2a8; }
+  .prints code { white-space: pre-wrap; color: var(--lily); font-weight: 700; }
+  .panel-note { display: flex; flex-direction: column; gap: 1.1rem; align-items: flex-start; }
+  .panel-note p { color: #d4e4d8; }
+  .panel-note .facts { display: block; margin-top: .5rem; font: 600 .76rem var(--mono); color: #9bc2a8; }
+  .panel-note .ahi { width: 100%; }
+  .panel-note .annotated-example { background: #162820; border: 1px solid #315241; border-left: 4px solid var(--lily); padding: 1rem 1.2rem; border-radius: 10px; }
+  .panel-note .annotated-example h2 { font-size: 1.1rem; letter-spacing: -.02em; margin-bottom: .5rem; }
+  .panel-note .annotated-example blockquote { margin: 0 0 .5rem; }
+  .panel-note .annotated-example figcaption { font: 700 .74rem var(--mono); color: #9bc2a8; }
+  .panel-note .guide-explanation { font-size: .9rem; }
+
+  /* ---------- Permissions ---------- */
+  .perm-grid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, .75fr); gap: clamp(1.4rem, 4vw, 4rem); align-items: start; }
+  body:has(#view-dev:checked) .perm-grid { grid-template-columns: minmax(0, 1fr); }
+  .ladder-rungs { display: flex; flex-wrap: wrap; gap: .6rem; margin-bottom: 1.3rem; }
+  .ladder-rungs label { display: inline-flex; gap: .6rem; align-items: baseline; padding: .65rem 1.1rem; border: 2px solid var(--ink); border-radius: 999px; font-weight: 750; cursor: pointer; transition: background .2s, color .2s; }
+  .ladder-rungs label:hover { background: color-mix(in srgb, var(--blue) 10%, transparent); }
+  .ladder .tab-n { opacity: .6; }
+  .ladder:has(#perm-none:checked) label[for="perm-none"],
+  .ladder:has(#perm-folder:checked) label[for="perm-folder"],
+  .ladder:has(#perm-site:checked) label[for="perm-site"],
+  .ladder:has(#perm-clock:checked) label[for="perm-clock"] { background: var(--ink); color: var(--lily); }
+  .ladder:has(#perm-none:focus-visible) label[for="perm-none"],
+  .ladder:has(#perm-folder:focus-visible) label[for="perm-folder"],
+  .ladder:has(#perm-site:focus-visible) label[for="perm-site"],
+  .ladder:has(#perm-clock:focus-visible) label[for="perm-clock"] { outline: 3px solid var(--blue); outline-offset: 3px; }
+  .ladder-panel { display: none; padding: 1.2rem 1.4rem; border-left: 5px solid var(--blue); background: var(--cream); border-radius: 0 var(--radius) var(--radius) 0; font-size: 1.05rem; }
+  .ladder:has(#perm-none:checked) #perm-panel-none,
+  .ladder:has(#perm-folder:checked) #perm-panel-folder,
+  .ladder:has(#perm-site:checked) #perm-panel-site,
+  .ladder:has(#perm-clock:checked) #perm-panel-clock { display: block; }
+  .perm-proof { padding: 1.4rem; border: 2px solid var(--ink); border-radius: var(--radius); background: var(--lily); display: flex; flex-direction: column; gap: .8rem; align-items: flex-start; }
+  .perm-proof p { color: var(--ink); }
+  .inspect { margin-top: 1.2rem; }
+  .inspect-grid { display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); gap: 1.2rem; margin-top: .6rem; }
+  .code.light { background: #f9faf3; color: var(--ink); border-color: var(--line); font-size: .78rem; line-height: 1.55; margin-bottom: .8rem; }
+  .code.light .k { color: var(--blue); }
+  .code.light .t { color: #5f7a00; }
+  .code.light .s { color: #c4471f; }
+  .chamber { margin-top: clamp(1.2rem, 3vw, 2.4rem); border-top: 1px solid var(--ink); border-bottom: 1px solid var(--ink); padding: 1rem 0; max-width: 78ch; }
+  .chamber summary { cursor: pointer; font-weight: 750; font-size: 1.1rem; }
+  .chamber p { margin-top: .8rem; color: var(--ink-2); }
+
+  /* ---------- Receipts ---------- */
+  .receipts { background: var(--paper-2); }
+  .receipts-top { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, .5fr); gap: clamp(1.2rem, 3vw, 3rem); align-items: start; }
+  .ratio-figure { margin: 0; background: var(--cream); border: 1px solid var(--ink); border-radius: var(--radius); padding: clamp(.8rem, 2vw, 1.6rem); overflow-x: auto; }
+  .ratio-chart { width: 100%; min-width: 640px; height: auto; display: block; font-family: var(--sans); }
+  .ratio-chart .band-fast { fill: color-mix(in srgb, var(--blue) 8%, transparent); }
+  .ratio-chart .band-slow { fill: color-mix(in srgb, var(--orange) 14%, transparent); }
+  .ratio-chart .grid { stroke: var(--line); stroke-width: 1; stroke-dasharray: 2 4; }
+  .ratio-chart .reference { stroke: var(--ink); stroke-width: 2; stroke-dasharray: 6 5; }
+  .ratio-chart .reference-label, .ratio-chart .tick, .ratio-chart .band-label { fill: var(--muted); font-size: 11.5px; font-weight: 700; letter-spacing: .04em; }
+  .ratio-chart .reference-label { fill: var(--ink); }
+  .ratio-chart .group { fill: var(--ink); font-size: 12px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
+  .ratio-chart .row-label { fill: var(--ink); font-size: 13px; }
+  .ratio-chart .whisker { stroke: var(--ink-2); stroke-width: 2.5; stroke-linecap: round; }
+  .ratio-chart .dot { stroke: var(--cream); stroke-width: 2; }
+  .ratio-chart .dot-fast { fill: var(--blue); }
+  .ratio-chart .dot-slow { fill: var(--orange); }
+  .ratio-chart .value { fill: var(--ink); font: 700 12px var(--mono); }
+  .dossier .ahi { height: 100%; }
+  .dossier .case-dossier { background: var(--cream); border: 1px solid var(--ink); border-radius: var(--radius); padding: 1.2rem 1.3rem; }
+  .dossier .dossier-id { font: 800 .72rem var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--blue); }
+  .dossier h2 { font-size: 1.5rem; letter-spacing: -.04em; margin: .3rem 0 .7rem; }
+  .dossier details { border-top: 1px solid var(--line); padding: .6rem 0; font-size: .92rem; }
+  .dossier summary { cursor: pointer; font-weight: 750; }
+  .filters { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; margin: clamp(1.4rem, 3vw, 2.6rem) 0 1.2rem; }
+  .filters .smallcaps { margin-right: .4rem; color: var(--muted); }
+  .filters label { padding: .5rem 1rem; border: 2px solid var(--ink); border-radius: 999px; font-weight: 750; font-size: .88rem; cursor: pointer; transition: background .2s, color .2s; }
+  .receipts:has(#f-all:checked) label[for="f-all"],
+  .receipts:has(#f-speed:checked) label[for="f-speed"],
+  .receipts:has(#f-behaviour:checked) label[for="f-behaviour"],
+  .receipts:has(#f-reach:checked) label[for="f-reach"] { background: var(--ink); color: var(--lily); }
+  .receipts:has(#f-all:focus-visible) label[for="f-all"],
+  .receipts:has(#f-speed:focus-visible) label[for="f-speed"],
+  .receipts:has(#f-behaviour:focus-visible) label[for="f-behaviour"],
+  .receipts:has(#f-reach:focus-visible) label[for="f-reach"] { outline: 3px solid var(--blue); outline-offset: 3px; }
+  .receipts:has(#f-speed:checked) .claim:not([data-group="speed"]),
+  .receipts:has(#f-behaviour:checked) .claim:not([data-group="behaviour"]),
+  .receipts:has(#f-reach:checked) .claim:not([data-group="reach"]) { display: none; }
+  .receipt-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: clamp(1rem, 2.4vw, 2rem); counter-reset: receipt; align-items: start; }
+  body:has(#view-dev:checked) .receipt-list { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; }
+  .claim { counter-increment: receipt; position: relative; background: var(--cream); border: 1px solid var(--ink); border-radius: 4px 4px 0 0; padding: 1.5rem 1.4rem 1.7rem; font-size: .95rem; display: flex; flex-direction: column; gap: .8rem; min-width: 0; }
+  .claim::before { content: "RECEIPT № " counter(receipt, decimal-leading-zero); font: 800 .68rem var(--mono); letter-spacing: .14em; color: var(--blue); }
+  .claim::after { content: ""; position: absolute; left: -1px; right: -1px; bottom: -11px; height: 11px; background: linear-gradient(135deg, var(--cream) 50%, transparent 50%) 0 0 / 14px 11px, linear-gradient(225deg, var(--cream) 50%, transparent 50%) 0 0 / 14px 11px; filter: drop-shadow(0 1px 0 var(--ink)); }
+  .claim h3 { font-size: 1.45rem; letter-spacing: -.045em; line-height: 1.05; }
+  .receipt > div { display: grid; grid-template-columns: 7.2rem minmax(0, 1fr); gap: .9rem; padding: .55rem 0; border-top: 1px dashed var(--line); }
+  .receipt dt { font: 800 .66rem/1.7 var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+  .receipt dd { color: var(--ink); overflow-wrap: anywhere; }
+  .receipt > div:first-child dd { font-weight: 650; }
+  .receipt a { color: var(--blue); }
+  .claim-table { width: 100%; border-collapse: collapse; font-size: .76rem; margin-top: .2rem; }
+  .claim-table :is(th, td) { text-align: left; vertical-align: top; padding: .32rem .6rem .32rem 0; border-top: 1px solid var(--line); }
+  .claim-table th { font: 700 .68rem var(--mono); color: var(--muted); text-transform: uppercase; letter-spacing: .04em; width: 42%; }
+  .claim-table td { font-family: var(--mono); overflow-wrap: anywhere; }
+  .claim-command { background: var(--ink); color: var(--lily); padding: .7rem .9rem; border-radius: 8px; overflow-x: auto; font-size: .72rem; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+
+  /* ---------- Python ---------- */
+  .python-grid { display: grid; grid-template-columns: minmax(0, .85fr) minmax(0, 1.15fr); gap: clamp(1.2rem, 3vw, 3rem); align-items: start; }
+  .python-says { display: grid; gap: .8rem; }
+  .python-says .ahi .accordion { background: var(--cream); border: 1px solid var(--ink); border-radius: 14px; padding: .2rem 1.2rem; }
+  .python-says .ahi summary { padding: .9rem 0; cursor: pointer; font: 750 1.15rem/1.2 var(--sans); letter-spacing: -.03em; }
+  .python-says .ahi .accordion-content { padding-bottom: 1rem; display: grid; gap: .6rem; color: var(--ink-2); }
+  .python-receipts { grid-template-columns: minmax(0, 1fr); }
+  body:has(#view-dev:checked) .python-receipts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+  /* ---------- Agents ---------- */
+  .agents-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: clamp(1.4rem, 4vw, 4rem); align-items: start; }
+  body:not(:has(#view-dev:checked)) .agents-grid { grid-template-columns: minmax(0, 46rem); }
+  .agents-prompt textarea { width: 100%; background: #0b1311; color: #e8f6df; border: 1px solid #2b5140; border-radius: 14px; padding: 1.1rem 1.2rem; font: 500 .95rem/1.65 var(--mono); resize: vertical; margin-top: .6rem; }
+  .agents-prompt textarea:focus-visible { outline: 3px solid var(--lily); outline-offset: 2px; }
+  .agents-prompt .smallcaps, .agents-shape .smallcaps { color: #9bc2a8; display: block; margin-bottom: .2rem; }
+  .darkzone .fineprint { color: #9bc2a8; }
+  .btn-light-on-dark { border-color: #e7efe5; color: #e7efe5; }
+  .kinds { list-style: none; display: grid; gap: .1rem; font-size: .8rem; margin-top: .5rem; }
+  .kinds li { display: flex; gap: .8rem; justify-content: space-between; flex-wrap: wrap; padding: .35rem 0; border-top: 1px solid #315241; }
+  .kinds span { color: #9bc2a8; font-family: var(--mono); font-size: .74rem; }
+
+  /* ---------- Story ---------- */
+  .story { background: var(--lily); }
+  .story .sectionhead p { color: var(--ink-2); }
+  .story .overline { color: var(--ink); }
+  .time-ribbon { list-style: none; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; position: relative; counter-reset: ribbon; padding-top: 2.2rem; }
+  .time-ribbon::before { content: ""; position: absolute; left: 0; right: 0; top: .7rem; border-top: 3px solid var(--ink); }
+  .time-ribbon > li { position: relative; padding: 1rem clamp(1rem, 2.4vw, 2.4rem) 0 0; }
+  .time-ribbon > li::before { content: ""; position: absolute; top: -1.9rem; left: 0; width: 1.3rem; height: 1.3rem; border-radius: 50%; background: var(--blue); border: 4px solid var(--lily); box-shadow: 0 0 0 3px var(--ink); }
+  .time-ribbon time { display: block; font: 800 .78rem var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--ink); margin-bottom: .5rem; }
+  .time-ribbon h3 { font-size: clamp(1.5rem, 2.4vw, 2.2rem); margin-bottom: .6rem; }
+  .time-ribbon p { color: var(--ink-2); }
+  body:has(#view-dev:checked) .story .time-ribbon h3 { font-size: 1.2rem; }
+
+  /* ---------- Footer ---------- */
+  .footer { padding-block: clamp(2rem, 5vw, 4.5rem); }
+  .footer .wordmark { color: #fff; }
+  .footer-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.3fr); gap: clamp(1.4rem, 4vw, 4rem); align-items: start; }
+  .footer-brand p { margin-top: .7rem; }
+  .footer .made { font: 700 .74rem var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--lily); }
+  .footer-links { display: flex; flex-direction: column; gap: .5rem; }
+  .footer-links .smallcaps, .footer-about .smallcaps { color: #9bc2a8; }
+  .footer-links a { color: #e7efe5; }
+  .footer-about p { margin-top: .6rem; font-size: .92rem; }
+  .footer a { text-decoration-color: var(--lily); }
+  .footer .spec-table { margin-top: .6rem; }
+}
+
+@layer responsive {
+  @media (max-width: 1000px) {
+    .hero-grid { grid-template-columns: minmax(0, 1fr); }
+    .hero-title { font-size: clamp(5rem, 24vw, 11rem); }
+    .hero-art { max-width: 34rem; }
+    .lab-panes { grid-template-columns: minmax(0, 1fr); }
+    .lab-result { border-left: 0; border-top: 1px solid #315241; }
+    .lab-explain { grid-template-columns: minmax(0, 1fr); }
+    .lab-explain li { border-left: 0; border-top: 1px solid #315241; }
+    .lab-explain li:first-child { border-top: 0; }
+    .route { grid-template-columns: minmax(0, 1fr); gap: 1.6rem; }
+    .route::before { left: 1.3rem; right: auto; top: 1.4rem; bottom: 1.4rem; border-top: 0; border-left: 3px dotted var(--blue); }
+    .route > li { padding: 0 0 0 4rem; min-height: 2.7rem; }
+    .panel { grid-template-columns: minmax(0, 1fr); }
+    .perm-grid, .inspect-grid, .receipts-top, .python-grid, .agents-grid, .footer-grid { grid-template-columns: minmax(0, 1fr); }
+    .time-ribbon { grid-template-columns: minmax(0, 1fr); gap: 1.6rem; padding-top: 0; }
+    .time-ribbon::before { top: 0; bottom: 0; left: .6rem; right: auto; border-top: 0; border-left: 3px solid var(--ink); }
+    .time-ribbon > li { padding: 0 0 0 2.6rem; }
+    .time-ribbon > li::before { top: .1rem; left: 0; }
+    .receipt-list, body:has(#view-dev:checked) .receipt-list, body:has(#view-dev:checked) .python-receipts { grid-template-columns: minmax(0, 1fr); }
+
+    .reasons > li, body:has(#view-dev:checked) .reasons > li { grid-template-columns: 2.5rem minmax(0, 1fr); }
+    body:has(#view-dev:checked) .reasons .marginalia { grid-column: 2; }
+  }
+  @media (max-width: 520px) {
+    .specs > div { grid-template-columns: minmax(0, 1fr); gap: .1rem; }
+    .lab-bar .btn { margin-left: 0; }
+    .sectionhead h2 { font-size: clamp(2.5rem, 13vw, 3.4rem); }
+  }
+}
+
+@layer components {
+  .ratio-chart .value, .ratio-chart .row-label { paint-order: stroke; stroke: var(--cream); stroke-width: 4px; stroke-linejoin: round; }
+}
+
+@layer components {
+  /* Grid children must be allowed to shrink below their content, or code blocks stretch the page. */
+  :is(.panel, .inspect-grid, .perm-grid, .python-grid, .agents-grid, .hero-grid, .receipts-top, .lab-panes, .footer-grid, .time-ribbon, .receipt-list) > * { min-width: 0; }
+  :is(pre, .code) { max-width: 100%; }
+  :is(p, li, dd, td, th, figcaption) code { overflow-wrap: anywhere; }
+}
+
+@layer states {
+  /* Forced colors strip backgrounds, so every "selected" control needs a system-colour mark of its own. */
+  @media (forced-colors: active) {
+    .viewswitch::before { display: none; }
+    body:not(:has(#view-dev:checked)) label[for="view-plain"],
+    body:has(#view-dev:checked) label[for="view-dev"],
+    .tabs:has(#tab-hello:checked) label[for="tab-hello"],
+    .tabs:has(#tab-option:checked) label[for="tab-option"],
+    .tabs:has(#tab-records:checked) label[for="tab-records"],
+    .ladder:has(#perm-none:checked) label[for="perm-none"],
+    .ladder:has(#perm-folder:checked) label[for="perm-folder"],
+    .ladder:has(#perm-site:checked) label[for="perm-site"],
+    .ladder:has(#perm-clock:checked) label[for="perm-clock"],
+    .receipts:has(#f-all:checked) label[for="f-all"],
+    .receipts:has(#f-speed:checked) label[for="f-speed"],
+    .receipts:has(#f-behaviour:checked) label[for="f-behaviour"],
+    .receipts:has(#f-reach:checked) label[for="f-reach"] {
+      forced-color-adjust: none;
+      background: Highlight;
+      color: HighlightText;
+      border-color: Highlight;
+    }
+    .brandmark { forced-color-adjust: none; background: Highlight; color: HighlightText; }
+    .btn, .tablist label, .ladder-rungs label, .filters label { border-color: ButtonText; }
+    .claim, .lab, .ratio-figure { border: 1px solid CanvasText; }
+    .ratio-chart .dot { forced-color-adjust: none; }
+    .ratio-chart .dot-fast { fill: Highlight; }
+    .ratio-chart .dot-slow { fill: LinkText; }
+  }
+}
+
+@layer print {
+  @media print {
+    @page { margin: 16mm; }
+    body { background: #fff !important; color: #000; background-image: none !important; font-size: 10.5pt; }
+    .sitebar, .navwrap, .skip, .pg-actions, .lab-bar, .pg-notice, [data-pg-load], .viewswitch, .filters { display: none !important; }
+    .darkzone { background: #fff !important; color: #000 !important; }
+    .darkzone p { color: #000 !important; }
+    .section { padding-block: 14mm; break-inside: auto; border-top: 1px solid #000; }
+    :is(.claim, pre, figure, .ahi, table) { break-inside: avoid; }
+    a { text-decoration: underline; }
+    a[href^="mailto:"]::after { content: " (" attr(href) ")"; font-size: .8em; }
+    h2 { break-after: avoid; }
+    /* Browsers do not print backgrounds by default, so nothing may depend on one for contrast. */
+    :is(.darkzone, .lab, .code, .claim, .story, .footer, .perm-proof, .ladder-panel, .python-says, .dossier, .ratio-figure, .tablist) *,
+    :is(.lab, .code, .perm-proof, .ladder-panel, .tablist) { color: #000 !important; background: transparent !important; text-shadow: none !important; box-shadow: none !important; }
+    .code, .lab, .claim, .ladder-panel, .perm-proof { border: 1px solid #000 !important; }
+    .code .k { font-weight: 700; }
+    .code .c { font-style: italic; }
+    .btn { color: #000 !important; background: transparent !important; border: 1px solid #000 !important; }
+    .panel { display: grid !important; }
+    .tablist, .tabs > input { display: none !important; }
+    .ladder-panel { display: block !important; }
+    .ladder-rungs, .ladder > input { display: none !important; }
+    .claim::after { display: none; }
+    .route > li::before { background: #fff !important; color: #000 !important; border: 2px solid #000; box-shadow: none !important; }
+    .route > li > code { background: transparent !important; color: #000 !important; font-weight: 700; }
+    .lab-input textarea { min-height: 0 !important; height: 7rem !important; color: #000 !important; background: transparent !important; }
+    #pg-output { min-height: 0 !important; }
+    .lab-result { gap: .3rem; }
+    .time-ribbon > li::before { box-shadow: none; border-color: #000; background: #000; }
+  }
+}
+
+</style>
+</head>
+<body>
+<a class="skip" href="#content">Skip to the page</a>
+<input type="radio" name="view" id="view-plain" class="sr-only">
+<input type="radio" name="view" id="view-dev" class="sr-only" checked>
+<div class="sitebar"><div class="shell"><span class="pillstatus">Pre-release · No public Guion release has been published</span><span class="v-dev mono">artifact format 44 · browser ABI 1.0</span></div></div>
+<header class="navwrap"><div class="shell nav">
+<a class="wordmark" href="#top"><span class="brandmark" aria-hidden="true">g</span><span class="wm">guion</span></a>
+<nav class="navlinks" data-ahi="ahi.navigation-journeys.chapter-rail" aria-label="Page sections"><a href="#try">Try it</a><a href="#why">Why</a><a href="#lifecycle">One command</a><a href="#read">Read it</a><a href="#permissions">Permissions</a><a href="#receipts">Receipts</a><a href="#python">Python</a><a href="#agents">Agents</a><a href="#story">Story</a></nav>
+<fieldset class="viewswitch"><legend class="sr-only">Reading view</legend><label for="view-plain">Plain English</label><label for="view-dev">Developer</label></fieldset>
+</div></header>
+
+<main id="content">
+<section class="section hero shell" id="top" aria-labelledby="hero-title">
+<div class="hero-grid">
+<div class="hero-copy">
+<h1 class="hero-title" id="hero-title">guion<span class="dot">.</span></h1>
+<div class="ahi"><section id="slot-hero-headline" class="instrument family-typography-reading renderer-kinetic-headline interaction-progressive-css" data-ahi="ahi.typography-reading.kinetic-headline" data-ahi-renderer="kinetic-headline" data-ahi-element="section" data-ahi-version="1"><section class="instrument-semantic instrument-semantic-section" data-ahi-semantic="section"><header class="kinetic-headline"><h2>A language for the work ahead.</h2><p class="headline-deck">Programming, re-examined</p><p>A general-purpose programming language and toolchain built around one challenge: make useful software easier to write, understand, run, and deliver.</p></header></section></section></div>
+<div class="v-dev hero-specs">
+<dl class="specs">
+<div><dt>Version</dt><dd><code>guion 0.1.0 (artifact format 44, timezone data 2026c)</code></dd></div>
+<div><dt>Files</dt><dd><code>.gu</code> source · <code>.gub</code> artifact · <code>guion.toml</code> · <code>guion.lock</code> · <code>.guion/</code></dd></div>
+<div><dt>Compiler</dt><dd>self-hosted, written in Guion; normal source runs use the in-process Rust compiler</dd></div>
+<div><dt>Runtime</dt><dd>Rust, with explicit host permissions</dd></div>
+<div><dt>Tooling</dt><dd>16 subcommands in one binary, most with <code>--json</code></dd></div>
+</dl>
+</div>
+<div class="cta-row">
+<a class="btn btn-primary" href="#try">Run a program <span aria-hidden="true">↓</span></a>
+<a class="btn btn-light" href="#receipts">See how we know <span aria-hidden="true">↓</span></a>
+</div>
+<p class="fineprint">No public Guion release has been published. Today you can run programs on this page and read the evidence behind every claim.</p>
+</div>
+<figure class="hero-art" data-ahi="ahi.visual-art-media.svg-illustration" aria-label="A four-line Guion program and the 342-byte artifact the compiler turns it into">
+<svg viewBox="0 0 640 600" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false" class="orbit">
+<defs><pattern id="hero-grid" width="32" height="32" patternUnits="userSpaceOnUse"><path d="M32 0H0V32" fill="none" stroke="#11251d" stroke-opacity=".09"/></pattern></defs>
+<rect x="0" y="20" width="640" height="560" rx="28" fill="url(#hero-grid)"/>
+<g transform="rotate(-3 185 190)">
+<rect x="24" y="64" width="344" height="256" rx="18" fill="#f9faf3" stroke="#11251d" stroke-width="2.5"/>
+<rect x="24" y="64" width="344" height="42" rx="18" fill="#11251d"/><rect x="24" y="90" width="344" height="16" fill="#11251d"/>
+<text x="46" y="91" font-family="ui-monospace,Menlo,monospace" font-size="14" fill="#d9f987">hello.gu</text>
+<g font-family="ui-monospace,Menlo,monospace" font-size="15.5" fill="#11251d" style="white-space:pre">
+<text x="46" y="146" xml:space="preserve"><tspan fill="#2148e8" font-weight="700">fn</tspan> main() -&gt; <tspan fill="#5f7a00" font-weight="700">Int</tspan>:</text>
+<text x="46" y="180" xml:space="preserve">    <tspan fill="#2148e8" font-weight="700">let</tspan> greeting = <tspan fill="#c4471f">"Hello, Guion!"</tspan></text>
+<text x="46" y="214" xml:space="preserve">    print(greeting)</text>
+<text x="46" y="248" xml:space="preserve">    <tspan fill="#2148e8" font-weight="700">return</tspan> <tspan fill="#8a6a00">0</tspan></text>
+</g>
+<text x="46" y="296" font-family="ui-sans-serif,system-ui,sans-serif" font-size="12" letter-spacing="1.6" fill="#607569" font-weight="700">SOURCE · FOUR LINES</text>
+</g>
+<g transform="rotate(2 478 392)">
+<rect x="336" y="268" width="288" height="230" rx="18" fill="#10261e" stroke="#11251d" stroke-width="2.5"/>
+<text x="396" y="302" font-family="ui-monospace,Menlo,monospace" font-size="14" fill="#d9f987">hello.gub · 342 bytes</text>
+<g font-family="ui-monospace,Menlo,monospace" font-size="12" fill="#e7efe5" style="white-space:pre">
+<text x="372" y="346" xml:space="preserve">56 52 54 41 2c 00 00 00  <tspan fill="#7fa592">VRTA,...</tspan></text>
+<text x="372" y="374" xml:space="preserve">0d 00 00 00 70 6c 61 79  <tspan fill="#7fa592">....play</tspan></text>
+<text x="372" y="402" xml:space="preserve">67 72 6f 75 6e 64 2e 67  <tspan fill="#7fa592">ground.g</tspan></text>
+<text x="372" y="430" xml:space="preserve" fill="#7fa592">…</text>
+</g>
+<text x="372" y="474" font-family="ui-sans-serif,system-ui,sans-serif" font-size="12" letter-spacing="1.6" fill="#c4d4c8" font-weight="700">ARTIFACT · PORTABLE</text>
+</g>
+<circle cx="338" cy="282" r="46" fill="#2148e8" stroke="#f9faf3" stroke-width="5"/>
+<g transform="translate(285 233.3) scale(.17)"><path d="M450 240c-19-59-71-90-136-90-91 0-149 65-149 160s62 162 151 162c79 0 140-54 143-129H320" fill="none" stroke="#d9f987" stroke-width="52" stroke-linecap="square"/></g>
+<path d="M486 506 C 486 536, 360 528, 300 546" fill="none" stroke="#2148e8" stroke-width="3" stroke-dasharray="2 9" stroke-linecap="round"/>
+<g><rect x="40" y="520" width="268" height="52" rx="26" fill="#d9f987" stroke="#11251d" stroke-width="2.5"/>
+<text x="68" y="552" font-family="ui-monospace,Menlo,monospace" font-size="17" font-weight="700" fill="#11251d">Hello, Guion!</text>
+<text x="224" y="551" font-family="ui-sans-serif,system-ui,sans-serif" font-size="12" fill="#3c594b" font-weight="700">6 steps</text></g>
+</svg>
+<figcaption class="caption"><span class="v-plain">A four-line program, and the 342 bytes the compiler turns it into. This is the real output, not an illustration.</span><span class="v-dev">hello.gu → hello.gub, 342 artifact bytes · 6 steps. The first four bytes are the ASCII letters <code>VRTA</code>.</span></figcaption>
+</figure>
+</div>
+</section>
+
+<section class="section darkzone" id="try">
+<div class="shell">
+<div class="sectionhead">
+<div><p class="overline">01 / Try it</p><h2>Run one.<br><span class="serif">Right here.</span></h2></div>
+<p class="v-plain">Pick a program and press Run. Your browser compiles it, then runs it on the same virtual machine Guion uses everywhere else.</p>
+<p class="v-dev">Compiles one file in <code>guion_compiler.wasm</code>, then runs the artifact on <code>guion_vm.wasm</code> through browser ABI 1.0. Neither module is fetched until you press Run.</p>
+</div>
+<div class="lab" data-ahi="ahi.computational-experiences.executable-code-laboratory" role="group" aria-label="Guion playground">
+<div class="lab-bar">
+<label for="pg-sample" class="smallcaps">Example</label>
+<select id="pg-sample"><option value="hello">Say hello</option><option value="option">Handle absence</option><option value="records">Make a record</option><option value="denied">Ask for a file</option><option value="loop">Never stop</option><option value="mistake">Make a mistake</option></select>
+<button type="button" id="pg-run" class="btn btn-lily">Run <span aria-hidden="true">▸</span></button>
+</div>
+<div class="lab-panes">
+<div class="lab-input"><label class="sr-only" for="pg-source">Guion source</label><textarea id="pg-source" spellcheck="false" autocomplete="off" autocapitalize="off" rows="14">fn main() -&gt; Int:
+    let greeting = &quot;Hello, Guion!&quot;
+    print(greeting)
+    return 0
+</textarea></div>
+<div class="lab-result">
+<p class="smallcaps lab-label">Output</p>
+<pre id="pg-output" aria-live="polite" aria-label="Program output"></pre>
+<p id="pg-status" role="status"></p>
+<p id="pg-meta" class="mono v-dev"></p>
+</div>
+</div>
+<p class="pg-notice">This runs in your browser using WebAssembly. Without JavaScript or WebAssembly nothing runs here, and the first example prints: <code>Hello, Guion!</code></p>
+<noscript><p class="pg-notice pg-noscript">JavaScript is off, so the playground cannot run. The example above is a real program, and it prints <code>Hello, Guion!</code></p></noscript>
+<ol class="lab-explain v-plain">
+<li><strong>Your text is compiled</strong> into a small file, right in your browser.</li>
+<li><strong>A virtual machine runs it</strong>, with no permissions at all.</li>
+<li><strong>Anything it asks the outside world for is refused</strong> on purpose. Try the example called <em>Ask for a file</em>.</li>
+</ol>
+<div class="v-dev lab-limits">
+<table class="spec-table">
+<caption>Limits in this playground</caption>
+<tbody>
+<tr><th scope="row">Source</th><td>at most 65,536 bytes, one file, no project imports (<code>E_IMPORT_PROJECT_REQUIRED</code>)</td></tr>
+<tr><th scope="row">Steps</th><td>at most 10,000 per run; then <code>R_STEP_LIMIT</code></td></tr>
+<tr><th scope="row">Output</th><td>at most 65,536 bytes captured</td></tr>
+<tr><th scope="row">Artifact</th><td>at most 1 MiB</td></tr>
+<tr><th scope="row">Host</th><td>no capabilities granted; file, network, database, clock and process operations return <code>R_HOST_UNSUPPORTED</code></td></tr>
+<tr><th scope="row">Call</th><td><code>execute_artifact_v1</code> with <code>entry: "main"</code>, <code>capabilities: []</code>; the response JSON is the source of truth</td></tr>
+<tr><th scope="row">Weight</th><td>1.3 MB of Wasm, fetched on first Run</td></tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+</section>
+
+<section class="section shell" id="why">
+<div class="sectionhead">
+<div><p class="overline">02 / An ambitious question</p><h2>Another language?<br><span class="serif">Only if it earns its place.</span></h2></div>
+<p class="v-plain">New syntax alone isn't enough. The question Guion is built around is practical: when should someone confidently choose it to do real work?</p>
+<p class="v-dev">North-star question: when should a builder, or an assistant advising one, pick this over Python for real work? The first release has to say honestly where Python is still better.</p>
+</div>
+<div class="why-quote"><div class="ahi"><section id="slot-why-pull-quote" class="instrument family-typography-reading renderer-pull-quote interaction-none" data-ahi="ahi.typography-reading.pull-quote" data-ahi-renderer="pull-quote" data-ahi-element="figure" data-ahi-version="1"><figure data-ahi-semantic="figure" class="pull-quote"><blockquote><p>Not simply different.<br>Worth choosing.</p></blockquote><figcaption>An editorial paraphrase of the project&#39;s own north-star question, not a quotation.</figcaption></figure></section></div></div>
+<ol class="reasons">
+<li data-ahi="ahi.typography-reading.marginalia">
+<div class="reason-main">
+<h3>Readable without guessing.</h3>
+<p class="v-plain">You say what kind of thing a <dfn data-ahi="ahi.annotation-evidence.context-definition" title="A type says what kind of value something is: a number, a piece of text, a record.">type</dfn> each function takes and gives back. Everything inside it is worked out for you. You can read a Guion program and know what goes in and what comes out.</p>
+<p class="v-dev">Typed function boundaries, inferred locals. <code>Option[T]</code> for absence, <code>Result[T, E]</code> for recoverable failure, <code>?</code> to propagate. Records, lists, maps, modules, bounded JSON, files, SQLite, TOML, HTTP.</p>
+</div>
+<aside class="marginalia v-dev"><span class="smallcaps">Margin note</span><p>“Plain English” is the goal for learning and diagnostics. Free-form natural-language code is not the claim. Authority: <code>language/spec.md</code>.</p></aside>
+</li>
+<li>
+<div class="reason-main">
+<h3>More than a language.</h3>
+<p class="v-plain">One command makes a project, checks it, tidies it, tests it, runs it, packs it up, and tells you what it can do. A person, or an assistant, can ask for a report instead of text.</p>
+<p class="v-dev">16 subcommands in one binary. <code>--json</code> on check, lint, test, run, build, package, verify-package, inspect, doc, doctor and sync returns a versioned report with stable fields and codes.</p>
+</div>
+<aside class="marginalia v-dev"><span class="smallcaps">Margin note</span><p>Report kinds and schemas are indexed in <code>docs/agents/index.json</code>; the table in section 03 lists each one.</p></aside>
+</li>
+<li>
+<div class="reason-main">
+<h3>A claim should survive contact.</h3>
+<p class="v-plain">Every number on this page says which program it measured, on which machine, and what it does not tell you. Then it points at the file it came from, so you can check.</p>
+<p class="v-dev">13 receipts, each with workload, host, interval, scope limit, and linked report and raw-sample files. A build step fails if a figure on this page is not in the file it cites.</p>
+</div>
+<aside class="marginalia v-dev"><span class="smallcaps">Margin note</span><p>Files are copied byte for byte to the <a href="../evidence/">evidence page</a> with their SHA-256.</p></aside>
+</li>
+</ol>
+</section>
+
+<section class="section lifecycle" id="lifecycle">
+<div class="shell">
+<div class="sectionhead">
+<div><p class="overline">03 / The apparatus</p><h2>One command.<br><span class="serif">The whole job.</span></h2></div>
+<p class="v-plain">Most languages leave you to put the tools together yourself. Guion ships one program that walks the whole path, from an empty folder to something you can hand to someone else.</p>
+<p class="v-dev">16 subcommands behind one binary. Core commands never discover or launch Python or uv.</p>
+</div>
+<div class="v-plain" data-ahi="ahi.relationships-diagrams.flow-map">
+<ol class="route">
+<li><code>guion new</code><strong>Start.</strong><span>Makes a small project: a program, a test, and a manifest.</span></li>
+<li><code>guion check</code><strong>Check.</strong><span>Reads your code and says what is wrong, with the line and a code that stays the same.</span></li>
+<li><code>guion test</code><strong>Test.</strong><span>Runs every test, each one from a fresh start.</span></li>
+<li><code>guion run</code><strong>Run.</strong><span>Runs it. Add <code>--json</code> and an assistant gets a report instead of text.</span></li>
+<li><code>guion build</code><strong>Build.</strong><span>Turns it into one portable file with a recorded fingerprint.</span></li>
+<li><code>guion package</code><strong>Hand over.</strong><span>Packs the program and the runtime it needs into a folder.</span></li>
+</ol>
+<p class="route-also">Also: <code>fmt</code> tidies spacing · <code>lint</code> flags unused code · <code>inspect</code> shows what a program can do · <code>doc</code> lists what it offers · <code>doctor</code> checks the machine · <code>verify-package</code>, <code>install</code>, <code>add</code>, <code>sync</code> and <code>update</code> handle delivery and dependencies.</p>
+</div>
+<div class="v-dev">
+<div class="table-wrap" tabindex="0" role="region" aria-label="All guion subcommands">
+<table class="cmdtable">
+<thead><tr><th scope="col">Command</th><th scope="col">Usage</th><th scope="col">What it does</th><th scope="col">JSON report</th></tr></thead>
+<tbody>
+<tr><th scope="row"><code>guion new</code></th><td><code>DIRECTORY</code></td><td>Creates guion.toml, README.md and src/main.gu; refuses a path that already exists.</td><td>—</td></tr>
+<tr><th scope="row"><code>guion check</code></th><td><code>FILE.gu [--json]</code></td><td>Compiles and reports the function count. --json gives a versioned report, or a diagnostic with a stable code and line/column.</td><td><code>guion_check_report v1</code></td></tr>
+<tr><th scope="row"><code>guion fmt</code></th><td><code>FILE.gu [--check]</code></td><td>Tokenizes outside comments and strings and normalizes spacing; --check reports unformatted files without writing.</td><td>—</td></tr>
+<tr><th scope="row"><code>guion lint</code></th><td><code>FILE.gu [--json]</code></td><td>Compiles first, then warns with W_UNUSED_IMPORT, W_UNUSED_LOCAL and W_UNREACHABLE_STATEMENT.</td><td><code>guion_lint_report v1</code></td></tr>
+<tr><th scope="row"><code>guion test</code></th><td><code>FILE.gu [--json]</code></td><td>Runs each zero-argument Unit function named test_* in its own fresh runtime instance.</td><td><code>guion_test_report v1</code></td></tr>
+<tr><th scope="row"><code>guion run</code></th><td><code>[--json] [--file-root DIR] TARGET [ARGS…]</code></td><td>Compiles and executes source, runs a .gub without source, or resolves the entry from a project directory. Grants come from flags and guion.toml.</td><td><code>guion_run_report v1</code></td></tr>
+<tr><th scope="row"><code>guion build</code></th><td><code>FILE.gu [-o FILE.gub] [--json]</code></td><td>Writes a versioned bytecode artifact; metadata records compiler version, build host and the exact source graph digest.</td><td><code>guion_build_report v1</code></td></tr>
+<tr><th scope="row"><code>guion package</code></th><td><code>PROJECT [--output DIR] [--json]</code></td><td>Creates a current-host, source-free application directory: compiled artifact, matching runtime, project policy, launcher and declared resources.</td><td><code>guion_package_report v1</code></td></tr>
+<tr><th scope="row"><code>guion verify-package</code></th><td><code>PACKAGE_DIRECTORY [--json]</code></td><td>Checks the package target and the recorded SHA-256 digests of the artifact, runtime and resources.</td><td><code>guion_package_verification_report v1</code></td></tr>
+<tr><th scope="row"><code>guion add</code></th><td><code>NAME --path DIR | --url HTTPS_URL --version V --sha256 H</code></td><td>Adds a local native package or a content-verified archive to the project.</td><td>—</td></tr>
+<tr><th scope="row"><code>guion sync</code></th><td><code>PROJECT [--locked --offline] [--json]</code></td><td>In a core build, --locked --offline validates native packages against the lock.</td><td><code>guion_sync_report v1</code></td></tr>
+<tr><th scope="row"><code>guion update</code></th><td><code>—</code></td><td>Explicitly resolves native package sources and transactionally updates the lock.</td><td>—</td></tr>
+<tr><th scope="row"><code>guion inspect</code></th><td><code>FILE.gu|FILE.gub [--json]</code></td><td>Prints artifact and function metadata plus statically reachable runtime effects.</td><td><code>guion_inspection_report v1</code></td></tr>
+<tr><th scope="row"><code>guion doc</code></th><td><code>FILE.gu [--json]</code></td><td>Prints signatures; --json emits guion_api_report with parameter names, checked types and reachable effects.</td><td><code>guion_api_report v2</code></td></tr>
+<tr><th scope="row"><code>guion doctor</code></th><td><code>[--json]</code></td><td>Reports the current host and enabled profile; a core build reports Python interoperability disabled.</td><td><code>guion_doctor_report v1</code></td></tr>
+<tr><th scope="row"><code>guion install</code></th><td><code>PACKAGE_DIRECTORY [--prefix DIR]</code></td><td>Verifies the package, installs into share/guion/apps/NAME/VERSION and creates its launcher.</td><td>—</td></tr>
+</tbody>
+</table>
+</div>
+<p class="fineprint">Source: <code>docs/reference.md</code> and <code>docs/agents/index.json</code>. The list of subcommands is checked against the built binary by a test.</p>
+</div>
+</div>
+</section>
+
+<section class="section darkzone" id="read">
+<div class="shell">
+<div class="sectionhead">
+<div><p class="overline">04 / Code you can inspect</p><h2>Read it.<br><span class="serif">Then change it.</span></h2></div>
+<p class="v-plain">Real programs from the project's own examples, with what each one prints. Press the button under any of them to load it into the playground and change it.</p>
+<p class="v-dev">Sources are the files in <code>language/examples</code>. Output, artifact size and step count were produced by compiling and running each one when this page was built.</p>
+</div>
+<div class="tabs" data-ahi="ahi.reveals-discoveries.tabbed-scene">
+<input type="radio" name="read-tab" id="tab-hello" class="sr-only" checked>
+<input type="radio" name="read-tab" id="tab-option" class="sr-only">
+<input type="radio" name="read-tab" id="tab-records" class="sr-only">
+<div class="tablist" role="group" aria-label="Choose a program">
+<label for="tab-hello"><span class="tab-n">01</span> Start here</label>
+<label for="tab-option"><span class="tab-n">02</span> Handle absence</label>
+<label for="tab-records"><span class="tab-n">03</span> Make a record</label>
+</div>
+<article class="panel" id="panel-hello">
+<div class="panel-code"><p class="smallcaps">hello.gu</p><pre class="code"><code><span class="k">fn</span> main() -&gt; <span class="t">Int</span>:
+    <span class="k">let</span> greeting = <span class="s">"Hello, Guion!"</span>
+    print(greeting)
+    <span class="k">return</span> <span class="n">0</span>
+</code></pre><p class="prints"><span class="smallcaps">Prints</span> <code>Hello, Guion!
+</code></p></div>
+<div class="panel-note">
+<p class="v-plain">Every program starts at <code>main</code>. This one names a greeting, prints it, and returns 0 to say it went fine.</p>
+<p class="v-dev"><code>fn main() -&gt; Int</code> is the entry point and its return value is the exit status. <code>let</code> binds immutably; <code>print</code> writes one line. <span class="facts">342 artifact bytes · 6 steps</span></p>
+<button type="button" class="btn btn-lily" data-pg-load="hello">Open in the playground <span aria-hidden="true">↑</span></button>
+</div>
+</article>
+<article class="panel" id="panel-option">
+<div class="panel-code"><p class="smallcaps">option.gu</p><pre class="code"><code><span class="k">fn</span> maybe_positive(value: <span class="t">Int</span>) -&gt; <span class="t">Option</span>[<span class="t">Int</span>]:
+    <span class="k">if</span> value &gt; <span class="n">0</span>:
+        <span class="k">return</span> <span class="t">Some</span>(value)
+    <span class="k">return</span> <span class="t">None</span>
+
+<span class="k">fn</span> main() -&gt; <span class="t">Int</span>:
+    <span class="k">let</span> absent = maybe_positive(-<span class="n">5</span>)
+    <span class="k">let</span> present = maybe_positive(<span class="n">24</span>)
+    <span class="k">if</span> is_some(absent):
+        print(unwrap(absent))
+    <span class="k">if</span> is_some(present):
+        print(unwrap(present))
+    <span class="k">return</span> <span class="n">0</span>
+</code></pre><p class="prints"><span class="smallcaps">Prints</span> <code>24
+</code></p></div>
+<div class="panel-note">
+<p class="v-plain">A function that might have no answer says so in its type, and returns <code>None</code> when it has none. The program checks before it uses the answer, so the empty case is out in the open.</p>
+<p class="v-dev"><code>Option[Int]</code> is built with <code>Some(value)</code> or <code>None</code>; <code>is_some</code> tests for presence and <code>unwrap</code> is for after that test. Only the present value prints. <span class="facts">1439 artifact bytes · 32 steps</span></p>
+<div class="ahi"><section id="slot-read-annotated-example" class="instrument family-teaching-guidance renderer-annotated-example interaction-none" data-ahi="ahi.teaching-guidance.annotated-example" data-ahi-renderer="annotated-example" data-ahi-element="aside" data-ahi-version="1"><aside data-ahi-semantic="aside" class="annotated-example" role="note"><h2>Absence is a value</h2><figure><blockquote><p>maybe_positive(-5) comes back as None, and the program tests is_some before it prints.</p></blockquote><figcaption>option.gu</figcaption></figure><p class="guide-explanation">A function that can come back empty says so in its type, so the reader knows to check.</p></aside></section></div>
+<button type="button" class="btn btn-lily" data-pg-load="option">Open in the playground <span aria-hidden="true">↑</span></button>
+</div>
+</article>
+<article class="panel" id="panel-records">
+<div class="panel-code"><p class="smallcaps">records.gu</p><pre class="code"><code><span class="k">record</span> <span class="t">Point</span>:
+    x: <span class="t">Int</span>
+    y: <span class="t">Int</span>
+
+<span class="k">fn</span> translate(point: <span class="t">Point</span>, dx: <span class="t">Int</span>, dy: <span class="t">Int</span>) -&gt; <span class="t">Point</span>:
+    <span class="k">return</span> <span class="t">Point</span>(point.x + dx, point.y + dy)
+
+<span class="k">fn</span> main() -&gt; <span class="t">Int</span>:
+    <span class="k">let</span> start = <span class="t">Point</span>(<span class="n">3</span>, <span class="n">4</span>)
+    <span class="k">let</span> finish = translate(start, <span class="n">2</span>, -<span class="n">1</span>)
+    assert(finish == <span class="t">Point</span>(<span class="n">5</span>, <span class="n">3</span>))
+    print(finish.x)
+    print(finish.y)
+    <span class="k">return</span> <span class="n">0</span>
+</code></pre><p class="prints"><span class="smallcaps">Prints</span> <code>5
+3
+</code></p></div>
+<div class="panel-note">
+<p class="v-plain">A record is a named bundle of typed fields. This one moves a point two across and one down, then checks the result against what it should be.</p>
+<p class="v-dev"><code>record Point</code> has two <code>Int</code> fields; <code>translate</code> returns a new <code>Point</code>; <code>assert(finish == Point(5, 3))</code> compares the result to the expected record. <span class="facts">1601 artifact bytes · 35 steps</span></p>
+<button type="button" class="btn btn-lily" data-pg-load="records">Open in the playground <span aria-hidden="true">↑</span></button>
+</div>
+</article>
+</div>
+</div>
+</section>
+
+<section class="section shell" id="permissions">
+<div class="sectionhead">
+<div><p class="overline">05 / Permissions, not a sandbox</p><h2>A program says what it wants.<br><span class="serif">You decide.</span></h2></div>
+<p class="v-plain">Before a Guion program runs, you can ask what it is able to do: read files, reach a website, check the clock. When it runs, it gets only what you grant. Everything else is refused.</p>
+<p class="v-dev">Static reachability of host effects, read from bytecode. Grants are explicit and enforced by the runtime. This is not an OS-level sandbox.</p>
+</div>
+<div class="perm-grid">
+<div class="ladder" data-ahi="ahi.reveals-discoveries.layered-peek">
+<input type="radio" name="perm-tab" id="perm-none" class="sr-only" checked>
+<input type="radio" name="perm-tab" id="perm-folder" class="sr-only">
+<input type="radio" name="perm-tab" id="perm-site" class="sr-only">
+<input type="radio" name="perm-tab" id="perm-clock" class="sr-only">
+<div class="ladder-rungs" role="group" aria-label="Choose what to grant">
+<label for="perm-none"><span class="tab-n">0</span> Nothing</label>
+<label for="perm-folder"><span class="tab-n">1</span> A folder</label>
+<label for="perm-site"><span class="tab-n">2</span> One website</label>
+<label for="perm-clock"><span class="tab-n">3</span> The clock</label>
+</div>
+<div class="ladder-panel" id="perm-panel-none">
+<p class="v-plain">By default a program can print, and read files inside its own project. The network and the clock are refused.</p>
+<p class="v-dev"><code>guion run main.gu</code> · no <code>[network].hosts</code>, so <code>network.http</code> is denied; <code>[clock].enabled</code> is false, so <code>clock.read</code> is denied.</p>
+</div>
+<div class="ladder-panel" id="perm-panel-folder">
+<p class="v-plain">You hand it one more folder. It can read from there, and anything it writes goes there.</p>
+<p class="v-dev"><code>guion run --file-root ./data main.gu</code> · reads search the project or artifact root first, then added roots; writes use the last added root.</p>
+</div>
+<div class="ladder-panel" id="perm-panel-site">
+<p class="v-plain">You name one website, exactly. The program can make web requests to that host and no other.</p>
+<p class="v-dev"><code>[network]</code> <code>hosts = ["api.example.test"]</code> in <code>guion.toml</code>, or <code>guion run --allow-http-host api.example.test</code> for one run. The runtime checks the URL host and each redirect against the grants.</p>
+</div>
+<div class="ladder-panel" id="perm-panel-clock">
+<p class="v-plain">You switch the clock on. Then the program can ask what day it is.</p>
+<p class="v-dev"><code>[clock]</code> <code>enabled = true</code> in <code>guion.toml</code>, or <code>guion run --allow-clock</code>. Local dates use the host process time zone.</p>
+</div>
+</div>
+<aside class="perm-proof v-plain">
+<p class="smallcaps">Watch a refusal</p>
+<p>The playground grants nothing. Ask it for a file and you will see exactly what a refusal looks like.</p>
+<button type="button" class="btn btn-primary" data-pg-load="denied">Ask for a file <span aria-hidden="true">↑</span></button>
+</aside>
+</div>
+<div class="inspect v-dev">
+<p class="smallcaps">What <code>guion inspect --json main.gu</code> prints, before anything runs</p>
+<div class="inspect-grid">
+<div><p class="mono muted">main.gu</p><pre class="code light"><code><span class="k">fn</span> main() -&gt; <span class="t">Int</span>:
+    <span class="k">let</span> args_list = args()
+    <span class="k">let</span> headers: <span class="t">Map</span>[<span class="t">Text</span>, <span class="t">Text</span>] = {}
+    <span class="k">match</span> read_text(<span class="s">"notes.txt"</span>):
+        <span class="t">Ok</span>(text):
+            print(text)
+        <span class="t">Err</span>(problem):
+            print(file_error_code(problem))
+    <span class="k">match</span> http_request_bytes(<span class="s">"GET"</span>, args_list[<span class="n">0</span>], headers, bytes_from_text(<span class="s">""</span>), <span class="n">1000</span>):
+        <span class="t">Ok</span>(response):
+            print(<span class="s">"fetched"</span>)
+        <span class="t">Err</span>(problem):
+            print(http_error_code(problem))
+    <span class="k">return</span> <span class="n">0</span>
+</code></pre><p class="mono muted">guion.toml</p><pre class="code light"><code>[project]
+name = &quot;notes&quot;
+version = &quot;0.1.0&quot;
+entry = &quot;main.gu&quot;
+
+[network]
+hosts = [&quot;api.example.test&quot;]
+</code></pre></div>
+<div><p class="mono muted">report (schema_version 1, captured with guion 0.1.0 (artifact format 44, timezone data 2026c))</p><pre class="code light"><code>{
+  <span class="k">&quot;analysis_scope&quot;</span>: &quot;reachable direct calls and parallel_map worker functions; host effects are categorized from bytecode operations&quot;,
+  <span class="k">&quot;artifact_format&quot;</span>: 44,
+  <span class="k">&quot;capability_claim&quot;</span>: &quot;static_bytecode_reachability_not_sandbox&quot;,
+  <span class="k">&quot;clock_grant&quot;</span>: {
+    <span class="k">&quot;grant_model&quot;</span>: &quot;wall-clock reads are denied unless explicitly enabled&quot;,
+    <span class="k">&quot;local_date_uses_host_process_time_zone&quot;</span>: true,
+    <span class="k">&quot;manifest_key&quot;</span>: &quot;[clock].enabled&quot;,
+    <span class="k">&quot;required_for_entry&quot;</span>: false,
+    <span class="k">&quot;run_option&quot;</span>: &quot;guion run --allow-clock&quot;
+  },
+  <span class="k">&quot;entry&quot;</span>: &quot;main&quot;,
+  <span class="k">&quot;functions&quot;</span>: {
+    <span class="k">&quot;main&quot;</span>: {
+      <span class="k">&quot;calls&quot;</span>: [],
+      <span class="k">&quot;direct_effects&quot;</span>: [
+        &quot;filesystem.read&quot;,
+        &quot;network.http&quot;,
+        &quot;output.write&quot;,
+        &quot;process.arguments&quot;
+      ],
+      <span class="k">&quot;effects&quot;</span>: [
+        &quot;filesystem.read&quot;,
+        &quot;network.http&quot;,
+        &quot;output.write&quot;,
+        &quot;process.arguments&quot;
+      ],
+      <span class="k">&quot;entry_reachable&quot;</span>: true
+    }
+  },
+  <span class="k">&quot;grant_assessment&quot;</span>: {
+    <span class="k">&quot;caller_cli_grants&quot;</span>: &quot;not_supplied_to_inspect&quot;,
+    <span class="k">&quot;clock_read&quot;</span>: &quot;not_required&quot;,
+    <span class="k">&quot;filesystem_read&quot;</span>: &quot;unknown_external_runner&quot;,
+    <span class="k">&quot;filesystem_write&quot;</span>: &quot;not_required&quot;,
+    <span class="k">&quot;network_http&quot;</span>: &quot;present_but_target_dynamic&quot;
+  },
+  <span class="k">&quot;kind&quot;</span>: &quot;guion_inspection_report&quot;,
+  <span class="k">&quot;manifest_grants&quot;</span>: {
+    <span class="k">&quot;clock_enabled&quot;</span>: false,
+    <span class="k">&quot;network_hosts&quot;</span>: [
+      &quot;api.example.test&quot;
+    ],
+    <span class="k">&quot;provenance&quot;</span>: &quot;guion.toml&quot;
+  },
+  <span class="k">&quot;network_grant&quot;</span>: {
+    <span class="k">&quot;grant_model&quot;</span>: &quot;exact hostname; network access is denied when no grant is present&quot;,
+    <span class="k">&quot;manifest_key&quot;</span>: &quot;[network].hosts&quot;,
+    <span class="k">&quot;required_for_entry&quot;</span>: true,
+    <span class="k">&quot;run_option&quot;</span>: &quot;guion run --allow-http-host HOST&quot;,
+    <span class="k">&quot;runtime_supplied_urls_require_an_explicit_hostname_grant&quot;</span>: true
+  },
+  <span class="k">&quot;python_calls&quot;</span>: [],
+  <span class="k">&quot;required_effects&quot;</span>: [
+    &quot;filesystem.read&quot;,
+    &quot;network.http&quot;,
+    &quot;output.write&quot;,
+    &quot;process.arguments&quot;
+  ],
+  <span class="k">&quot;schema_version&quot;</span>: 1,
+  <span class="k">&quot;source&quot;</span>: &quot;main.gu&quot;
+}</code></pre></div>
+</div>
+<p class="fineprint"><code>network_http</code> is <code>present_but_target_dynamic</code> because the URL comes from <code>args()</code>: the compiler can see that an HTTP call is reachable, not which host it will name. <code>filesystem_read</code> is <code>unknown_external_runner</code> because file roots are supplied to <code>run</code>, not to <code>inspect</code>.</p>
+</div>
+<details class="chamber" data-ahi="ahi.reveals-discoveries.hidden-chamber">
+<summary>Why this is not a sandbox</summary>
+<p>Permissions decide what the Guion runtime will do for a program. They do not stand in for an operating system's own limits. A host that needs to contain a program still has to do that itself, for example by limiting its network access. The report says so in its own fields: <code>capability_claim</code> is <code>static_bytecode_reachability_not_sandbox</code>.</p>
+</details>
+</section>
+
+<section class="section receipts" id="receipts">
+<div class="shell">
+<div class="sectionhead">
+<div><p class="overline">06 / Evidence, not mythology</p><h2>Show the work.<br><span class="serif">Keep the caveats.</span></h2></div>
+<p class="v-plain">Each card below is one claim, the conditions it holds under, what it does not tell you, and where to check it. The first chart shows every one of the headline results, including the ones where Guion is slower.</p>
+<p class="v-dev">Ratios are Guion median ÷ comparison median, with the 95% interval from each report. Left of the line Guion took less time. Source files are on the <a href="../evidence/">evidence page</a> with SHA-256.</p>
+</div>
+<div class="receipts-top">
+<figure class="ratio-figure" data-ahi="ahi.relationships-diagrams.comparison-bridge">
+<svg class="ratio-chart" viewBox="0 0 960 602" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="ratio-title ratio-desc">
+<title id="ratio-title">Guion's time as a fraction of the comparison's time, on a log scale</title>
+<desc id="ratio-desc">Each dot is the ratio of Guion's median time to the comparison's, with its 95% interval as a line. A dot left of the dashed line means Guion took less time; right of it means Guion took more.</desc>
+<rect class="band-fast" x="360" y="46" width="465.07" height="498"/>
+<rect class="band-slow" x="825.07" y="46" width="94.93" height="498"/>
+<text class="band-label" x="815.07" y="34" text-anchor="end">← Guion faster</text>
+<text class="band-label" x="835.07" y="34">Guion slower →</text>
+<line class="grid" x1="360" x2="360" y1="46" y2="562"/>
+<text class="tick" x="360" y="582" text-anchor="middle">0.1×</text>
+<line class="grid" x1="500" x2="500" y1="46" y2="562"/>
+<text class="tick" x="500" y="582" text-anchor="middle">0.2×</text>
+<line class="grid" x1="685.07" x2="685.07" y1="46" y2="562"/>
+<text class="tick" x="685.07" y="582" text-anchor="middle">0.5×</text>
+<line class="grid" x1="825.07" x2="825.07" y1="46" y2="562"/>
+<text class="tick" x="825.07" y="582" text-anchor="middle">1×</text>
+<line class="grid" x1="906.96" x2="906.96" y1="46" y2="562"/>
+<text class="tick" x="906.96" y="582" text-anchor="middle">1.5×</text>
+<line data-reference="1" class="reference" x1="825.07" x2="825.07" y1="42" y2="562"/>
+<text class="reference-label" x="825.07" y="598" text-anchor="middle">same time as Python</text>
+<text class="group" x="20" y="82">Guion faster</text>
+<g class="row row-fast">
+<text class="row-label" x="326" y="117" text-anchor="end">Parallel CPU, 200,000 items</text>
+<line class="whisker" x1="417.6" x2="457.44" y1="113" y2="113"/>
+<circle data-id="parallel" class="dot dot-fast" cx="429.4" cy="113" r="6.5"/>
+<text class="value" x="469.44" y="117">0.141×</text>
+</g>
+<g class="row row-fast">
+<text class="row-label" x="326" y="151" text-anchor="end">N-body, uncached source</text>
+<line class="whisker" x1="427.96" x2="435.05" y1="147" y2="147"/>
+<circle data-id="nbody" class="dot dot-fast" cx="433.65" cy="147" r="6.5"/>
+<text class="value" x="447.05" y="151">0.144×</text>
+</g>
+<g class="row row-fast">
+<text class="row-label" x="326" y="185" text-anchor="end">JSON Lines, 200,000 rows</text>
+<line class="whisker" x1="510.81" x2="515.54" y1="181" y2="181"/>
+<circle data-id="jsonl" class="dot dot-fast" cx="512.72" cy="181" r="6.5"/>
+<text class="value" x="527.54" y="185">0.213×</text>
+</g>
+<g class="row row-fast">
+<text class="row-label" x="326" y="219" text-anchor="end">Mandelbrot, uncached source</text>
+<line class="whisker" x1="544.26" x2="562.1" y1="215" y2="215"/>
+<circle data-id="mandelbrot" class="dot dot-fast" cx="556.08" cy="215" r="6.5"/>
+<text class="value" x="574.1" y="219">0.264×</text>
+</g>
+<g class="row row-fast">
+<text class="row-label" x="326" y="253" text-anchor="end">Richards, uncached source</text>
+<line class="whisker" x1="624.25" x2="629.11" y1="249" y2="249"/>
+<circle data-id="richards" class="dot dot-fast" cx="626.96" cy="249" r="6.5"/>
+<text class="value" x="641.11" y="253">0.375×</text>
+</g>
+<g class="row row-fast">
+<text class="row-label" x="326" y="287" text-anchor="end">Calendar conflicts app</text>
+<line class="whisker" x1="741.15" x2="746.58" y1="283" y2="283"/>
+<circle data-id="calendar" class="dot dot-fast" cx="745.98" cy="283" r="6.5"/>
+<text class="value" x="758.58" y="287">0.676×</text>
+</g>
+<g class="row row-fast">
+<text class="row-label" x="326" y="321" text-anchor="end">Service health app</text>
+<line class="whisker" x1="789.13" x2="793.19" y1="317" y2="317"/>
+<circle data-id="health" class="dot dot-fast" cx="791.05" cy="317" r="6.5"/>
+<text class="value" x="805.19" y="321">0.845×</text>
+</g>
+<g class="row row-fast">
+<text class="row-label" x="326" y="355" text-anchor="end">Lockfile auditor, 16,384 packages</text>
+<line class="whisker" x1="813" x2="819.96" y1="351" y2="351"/>
+<circle data-id="lockfile" class="dot dot-fast" cx="814.28" cy="351" r="6.5"/>
+<text class="value" x="831.96" y="355">0.948×</text>
+</g>
+<text class="group" x="20" y="390">Guion slower</text>
+<g class="row row-slow">
+<text class="row-label" x="326" y="425" text-anchor="end">NumPy call, raw bytes, vs the same Python function</text>
+<line class="whisker" x1="825.27" x2="830.45" y1="421" y2="421"/>
+<circle data-id="bridge-bytes-pkg" class="dot dot-slow" cx="830.06" cy="421" r="6.5"/>
+<text class="value" x="842.45" y="425">1.025×</text>
+</g>
+<g class="row row-slow">
+<text class="row-label" x="326" y="459" text-anchor="end">NumPy call, fewer copies, vs the same Python function</text>
+<line class="whisker" x1="845.42" x2="853.12" y1="455" y2="455"/>
+<circle data-id="bridge-ser-pkg" class="dot dot-slow" cx="849.58" cy="455" r="6.5"/>
+<text class="value" x="865.12" y="459">1.129×</text>
+</g>
+<g class="row row-slow">
+<text class="row-label" x="326" y="493" text-anchor="end">NumPy call, raw bytes, vs standard-library Python</text>
+<line class="whisker" x1="863.74" x2="867.54" y1="489" y2="489"/>
+<circle data-id="bridge-bytes-std" class="dot dot-slow" cx="865.23" cy="489" r="6.5"/>
+<text class="value" x="879.54" y="493">1.220×</text>
+</g>
+<g class="row row-slow">
+<text class="row-label" x="326" y="527" text-anchor="end">NumPy call, fewer copies, vs standard-library Python</text>
+<line class="whisker" x1="889.1" x2="899" y1="523" y2="523"/>
+<circle data-id="bridge-ser-std" class="dot dot-slow" cx="893.89" cy="523" r="6.5"/>
+<text class="value" x="911" y="527">1.406×</text>
+</g>
+</svg>
+<figcaption class="caption"><span class="v-plain">Each dot is how long Guion took divided by how long the comparison took. Left of the dashed line is faster. The line through each dot is its 95% interval. Different machines, programs and Python versions would move every dot.</span><span class="v-dev">Log scale, 0.1× to 1.6×. Comparison and sample counts are on each receipt. Host: one Apple Silicon Mac, macOS 27; CPython 3.14.7 unless a receipt says otherwise.</span></figcaption>
+</figure>
+<div class="dossier"><div class="ahi"><section id="slot-receipts-richards-dossier" class="instrument family-publications-objects renderer-case-dossier interaction-details" data-ahi="ahi.publications-objects.case-dossier" data-ahi-renderer="case-dossier" data-ahi-element="article" data-ahi-version="1"><article data-ahi-semantic="article" class="case-dossier"><header><p class="dossier-id">Case file 01</p><h2>Richards, uncached source</h2></header><details open><summary>Evidence</summary><p>27.46 ms for Guion against 72.92 ms for CPython 3.14.7, from a fresh source run.</p></details><details><summary>Working note</summary><p>One benchmark on one Mac. Guion also used more memory here: 24.2 MiB against 18.3 MiB.</p></details></article></section></div></div>
+</div>
+<div class="filters" role="group" aria-label="Show receipts about">
+<input type="radio" name="receipt-filter" id="f-all" class="sr-only" checked>
+<input type="radio" name="receipt-filter" id="f-speed" class="sr-only">
+<input type="radio" name="receipt-filter" id="f-behaviour" class="sr-only">
+<input type="radio" name="receipt-filter" id="f-reach" class="sr-only">
+<span class="smallcaps">Show</span>
+<label for="f-all">All</label><label for="f-speed">Speed and memory</label><label for="f-behaviour">Behaviour</label><label for="f-reach">Where it runs</label>
+</div>
+<div class="receipt-list">
+<article class="claim" id="claim-richards" data-claim="richards" data-group="speed">
+<h3>Richards, a classic benchmark program</h3>
+<dl class="receipt">
+<div><dt>Claim</dt><dd>Starting from source with no compile cache, Guion finished the Richards benchmark in 27.46 ms. CPython took 72.92 ms.</dd></div>
+<div><dt>Holds when</dt><dd>A fresh-source run of 15 randomized trials on one Apple Silicon Mac running macOS 27, with CPython 3.14.7 and artifact format 44.</dd></div>
+<div><dt>Doesn't tell you</dt><dd>Anything about other programs, other machines or other Python versions. On this same run Guion used more memory than Python for Richards: 24.2 MiB against 18.3 MiB. Free-threaded Python was not available to compare.</dd></div>
+<div><dt>Check it</dt><dd><a href="../evidence/2026-10-27-current-main-outcome-checkpoint.md">2026-10-27-current-main-outcome-checkpoint.md</a> · <a href="../evidence/20261027T233155909692Z.json">20261027T233155909692Z.json</a></dd></div>
+<div><dt>Say it's wrong</dt><dd><a href="mailto:rmichael@rmichaelthomas.com?subject=Guion%20claim%3A%20Richards%2C%20a%20classic%20benchmark%20program">rmichael@rmichaelthomas.com</a></dd></div>
+</dl>
+<div class="v-dev"><table class="claim-table"><tbody><tr><th scope="row">Guion median</th><td>27.46 ms</td></tr><tr><th scope="row">CPython median</th><td>72.92 ms</td></tr><tr><th scope="row">Ratio (95% interval)</th><td>0.375 (0.370–0.379)</td></tr><tr><th scope="row">Sprint target</th><td>0.60 (passed)</td></tr><tr><th scope="row">Peak RSS, Guion / Python</th><td>24.2 MiB / 18.3 MiB</td></tr><tr><th scope="row">Trials</th><td>15 randomized</td></tr><tr><th scope="row">Host</th><td>macOS 27, Apple Silicon</td></tr><tr><th scope="row">Python</th><td>CPython 3.14.7</td></tr><tr><th scope="row">Artifact format</th><td>44</td></tr><tr><th scope="row">Commit</th><td>6b5e5aba</td></tr></tbody></table></div>
+</article>
+<article class="claim" id="claim-short-source" data-claim="short-source" data-group="speed">
+<h3>Five short programs, start to finish</h3>
+<dl class="receipt">
+<div><dt>Claim</dt><dd>Five small programs were each run from source in 21 randomized pairs against Python. Guion took 0.182 to 0.236 of Python's time on every one.</dd></div>
+<div><dt>Holds when</dt><dd>The same Mac and CPython 3.14.7 as the Richards run, in fresh processes, with outputs checked.</dd></div>
+<div><dt>Doesn't tell you</dt><dd>How Guion compares on long-running or heavily optimized programs. A ratio below 1 means Guion took less time. The operating system's file cache was not controlled.</dd></div>
+<div><dt>Check it</dt><dd><a href="../evidence/2026-10-27-current-main-outcome-checkpoint.md">2026-10-27-current-main-outcome-checkpoint.md</a> · <a href="../evidence/2026-10-27-current-main-short-source.json">2026-10-27-current-main-short-source.json</a></dd></div>
+<div><dt>Say it's wrong</dt><dd><a href="mailto:rmichael@rmichaelthomas.com?subject=Guion%20claim%3A%20Five%20short%20programs%2C%20start%20to%20finish">rmichael@rmichaelthomas.com</a></dd></div>
+</dl>
+<div class="v-dev"><table class="claim-table"><tbody><tr><th scope="row">Tiny launch</th><td>0.204 (0.200–0.211)</td></tr><tr><th scope="row">Arithmetic</th><td>0.236 (0.231–0.253)</td></tr><tr><th scope="row">JSON file</th><td>0.182 (0.177–0.192)</td></tr><tr><th scope="row">Imported helper</th><td>0.234 (0.227–0.239)</td></tr><tr><th scope="row">SQLite and TOML</th><td>0.221 (0.213–0.245)</td></tr><tr><th scope="row">Pairs per task</th><td>21 randomized</td></tr></tbody></table></div>
+</article>
+<article class="claim" id="claim-nine-apps" data-claim="nine-apps" data-group="speed">
+<h3>Nine everyday applications</h3>
+<dl class="receipt">
+<div><dt>Claim</dt><dd>On nine ordinary applications, timed in seven randomized pairs each, Guion's median was lower than Python's every time. The ratios run from 0.137 to 0.845.</dd></div>
+<div><dt>Holds when</dt><dd>The frozen application suite on one Mac with CPython 3.14.7, fresh processes, outputs checked against the expected results.</dd></div>
+<div><dt>Doesn't tell you</dt><dd>That Guion is faster at every kind of application. The smallest gain was service health, at 0.845 of Python's time. Broader task classes and carefully matched Python implementations are still needed.</dd></div>
+<div><dt>Check it</dt><dd><a href="../evidence/2026-10-27-current-main-outcome-checkpoint.md">2026-10-27-current-main-outcome-checkpoint.md</a> · <a href="../evidence/2026-10-27-current-main-nine-app-comparison.json">2026-10-27-current-main-nine-app-comparison.json</a></dd></div>
+<div><dt>Say it's wrong</dt><dd><a href="mailto:rmichael@rmichaelthomas.com?subject=Guion%20claim%3A%20Nine%20everyday%20applications">rmichael@rmichaelthomas.com</a></dd></div>
+</dl>
+<div class="v-dev"><table class="claim-table"><tbody><tr><th scope="row">SLA report</th><td>15.5 ms vs 102.8 ms · 0.150 (0.142–0.153)</td></tr><tr><th scope="row">JSONL summary</th><td>15.2 ms vs 102.2 ms · 0.152 (0.144–0.157)</td></tr><tr><th scope="row">Release notes</th><td>21.6 ms vs 105.1 ms · 0.211 (0.197–0.216)</td></tr><tr><th scope="row">Calendar conflicts</th><td>252.7 ms vs 372.7 ms · 0.676 (0.660–0.678)</td></tr><tr><th scope="row">Webhook replay</th><td>143.1 ms vs 825.7 ms · 0.173 (0.169–0.180)</td></tr><tr><th scope="row">Service health</th><td>529.8 ms vs 630.6 ms · 0.845 (0.837–0.854)</td></tr><tr><th scope="row">Config migrator</th><td>13.6 ms vs 97.3 ms · 0.137 (0.130–0.151)</td></tr><tr><th scope="row">Document index</th><td>54.0 ms vs 295.8 ms · 0.183 (0.182–0.193)</td></tr><tr><th scope="row">Lockfile auditor</th><td>18.4 ms vs 95.6 ms · 0.192 (0.162–0.202)</td></tr></tbody></table></div>
+</article>
+<article class="claim" id="claim-jsonl-200k" data-claim="jsonl-200k" data-group="speed">
+<h3>200,000 rows of JSON Lines</h3>
+<dl class="receipt">
+<div><dt>Claim</dt><dd>Summarising a 200,000-row JSON Lines file from source took Guion 3.81 s and 11.1 MiB of memory. The Python data reference took 17.93 s and 74.4 MiB.</dd></div>
+<div><dt>Holds when</dt><dd>Uncached source runs, 16 output-checked trials per size, one Mac, CPython 3.14.7.</dd></div>
+<div><dt>Doesn't tell you</dt><dd>Other data shapes or machines. Memory varies by task: Richards used more memory in Guion than in Python (see that card). Python with SQLite used 89.2 MiB on the same data.</dd></div>
+<div><dt>Check it</dt><dd><a href="../evidence/2026-10-27-current-main-outcome-checkpoint.md">2026-10-27-current-main-outcome-checkpoint.md</a> · <a href="../evidence/20261027T233155909692Z.json">20261027T233155909692Z.json</a></dd></div>
+<div><dt>Say it's wrong</dt><dd><a href="mailto:rmichael@rmichaelthomas.com?subject=Guion%20claim%3A%20200%2C000%20rows%20of%20JSON%20Lines">rmichael@rmichaelthomas.com</a></dd></div>
+</dl>
+<div class="v-dev"><table class="claim-table"><tbody><tr><th scope="row">200,000 rows, Guion / Python</th><td>3.81 s / 17.93 s</td></tr><tr><th scope="row">Ratio (95% interval)</th><td>0.213 (0.211–0.216)</td></tr><tr><th scope="row">Peak RSS, Guion</th><td>11.1 MiB</td></tr><tr><th scope="row">Peak RSS, Python</th><td>74.4 MiB</td></tr><tr><th scope="row">Peak RSS, Python with SQLite</th><td>89.2 MiB</td></tr><tr><th scope="row">20,000 rows, Guion / Python</th><td>394.3 ms / 1.84 s</td></tr><tr><th scope="row">20,000 rows ratio</th><td>0.211 (0.207–0.215)</td></tr></tbody></table></div>
+</article>
+<article class="claim" id="claim-lockfile" data-claim="lockfile" data-group="speed">
+<h3>A lockfile auditor, up to 16,384 packages</h3>
+<dl class="receipt">
+<div><dt>Claim</dt><dd>Auditing 16,384 packages took Guion 171.82 ms and 40.92 MiB. Python took 179.87 ms and 47.13 MiB. Output was exact through 32,768 diagnostics.</dd></div>
+<div><dt>Holds when</dt><dd>Seven randomized fresh-process timing pairs per size, exact-output checks, Guion's source cache bypassed, one Apple Silicon host, Python 3.14.7.</dd></div>
+<div><dt>Doesn't tell you</dt><dd>That Guion is generally faster than Python. An earlier run of this same workload was slower than Python (1.416×); a native report serializer changed that to 0.948×. Other programs, hosts and cold-cache runs need their own measurements.</dd></div>
+<div><dt>Check it</dt><dd><a href="../evidence/2026-10-27-lockfile-scale-ram-package-limit.md">2026-10-27-lockfile-scale-ram-package-limit.md</a> · <a href="../evidence/2026-10-27-lockfile-native-pair-serialization.json">2026-10-27-lockfile-native-pair-serialization.json</a> · <a href="../evidence/2026-10-27-lockfile-native-pair-acceptance.json">2026-10-27-lockfile-native-pair-acceptance.json</a> · <a href="../evidence/2026-10-27-current-main-outcome-checkpoint.md">2026-10-27-current-main-outcome-checkpoint.md</a></dd></div>
+<div><dt>Say it's wrong</dt><dd><a href="mailto:rmichael@rmichaelthomas.com?subject=Guion%20claim%3A%20A%20lockfile%20auditor%2C%20up%20to%2016%2C384%20packages">rmichael@rmichaelthomas.com</a></dd></div>
+</dl>
+<div class="v-dev"><table class="claim-table"><tbody><tr><th scope="row">16,384 packages, Guion / Python</th><td>171.82 ms / 179.87 ms</td></tr><tr><th scope="row">Ratio (95% interval)</th><td>0.948× (0.942–0.975)</td></tr><tr><th scope="row">Peak RSS, Guion / Python</th><td>40.92 / 47.13 MiB</td></tr><tr><th scope="row">8,192 packages</th><td>95.29 ms vs 137.88 ms · 0.692× (0.676–0.700)</td></tr><tr><th scope="row">4,096 packages</th><td>56.35 ms vs 117.45 ms · 0.479× (0.469–0.490)</td></tr><tr><th scope="row">Frozen acceptance cases</th><td>17/17 in Guion and 17/17 in Python</td></tr></tbody></table></div>
+</article>
+<article class="claim" id="claim-conformance" data-claim="conformance" data-group="behaviour">
+<h3>Does it behave the same as Python?</h3>
+<dl class="receipt">
+<div><dt>Claim</dt><dd>On the frozen application suite, Guion passed 127 of 127 cases and the independent Python version passed 127 of 127.</dd></div>
+<div><dt>Holds when</dt><dd>Current main at commit 6b5e5aba, artifact format 44, on macOS ARM64. Every measured program output matched its expected output.</dd></div>
+<div><dt>Doesn't tell you</dt><dd>Anything about other operating systems or CPU architectures. This checkpoint is macOS ARM64 only, and the earlier three-target cohort used an older artifact format.</dd></div>
+<div><dt>Check it</dt><dd><a href="../evidence/2026-10-27-current-main-outcome-checkpoint.md">2026-10-27-current-main-outcome-checkpoint.md</a> · <a href="../evidence/2026-10-27-current-main-application-acceptance.json">2026-10-27-current-main-application-acceptance.json</a></dd></div>
+<div><dt>Say it's wrong</dt><dd><a href="mailto:rmichael@rmichaelthomas.com?subject=Guion%20claim%3A%20Does%20it%20behave%20the%20same%20as%20Python%3F">rmichael@rmichaelthomas.com</a></dd></div>
+</dl>
+<div class="v-dev"><table class="claim-table"><tbody><tr><th scope="row">Cases, Guion</th><td>127/127</td></tr><tr><th scope="row">Cases, Python</th><td>127/127</td></tr><tr><th scope="row">Commit</th><td>6b5e5aba</td></tr><tr><th scope="row">Artifact format</th><td>44</td></tr><tr><th scope="row">Host</th><td>macOS ARM64</td></tr></tbody></table></div>
+</article>
+<article class="claim" id="claim-concurrency-cancel" data-claim="concurrency-cancel" data-group="behaviour">
+<h3>A failing worker cancels its siblings</h3>
+<dl class="receipt">
+<div><dt>Claim</dt><dd>When one parallel worker fails, a sibling still waiting on an HTTP response is interrupted and its connection is closed. The original failure is the one reported.</dd></div>
+<div><dt>Holds when</dt><dd>A local loopback test with two workers, on current main, artifact format 44, macOS ARM64. The focused test passed 1/1.</dd></div>
+<div><dt>Doesn't tell you</dt><dd>That Guion has a general async runtime, that effects already received by a remote service are rolled back, or that this holds on Linux or other targets.</dd></div>
+<div><dt>Check it</dt><dd><a href="../evidence/2026-10-27-parallel-http-cancellation.md">2026-10-27-parallel-http-cancellation.md</a></dd></div>
+<div><dt>Say it's wrong</dt><dd><a href="mailto:rmichael@rmichaelthomas.com?subject=Guion%20claim%3A%20A%20failing%20worker%20cancels%20its%20siblings">rmichael@rmichaelthomas.com</a></dd></div>
+</dl>
+<div class="v-dev"><table class="claim-table"><tbody><tr><th scope="row">Focused test</th><td>passed 1/1</td></tr><tr><th scope="row">Failing input index</th><td>1</td></tr><tr><th scope="row">Error code</th><td>R_ASSERTION</td></tr><tr><th scope="row">Network contacted</th><td>none (loopback fixture)</td></tr><tr><th scope="row">Calendar case</th><td>6/6 checks, at most two requests in flight</td></tr><tr><th scope="row">Service-health cases</th><td>5/5 and 5/5</td></tr><tr><th scope="row">Agent examples</th><td>26/26</td></tr></tbody></table><pre class="claim-command"><code>cargo test --locked --offline --jobs 2 -p guion-runtime --test http parallel_worker_failure_cancels_in_flight_http_sibling_and_closes_socket -- --exact</code></pre></div>
+</article>
+<article class="claim" id="claim-targets" data-claim="targets" data-group="reach">
+<h3>Where it has been tested</h3>
+<dl class="receipt">
+<div><dt>Claim</dt><dd>An earlier cohort passed on macOS ARM64 and Debian 12 GNU/Linux on ARM64 and x86_64, all with glibc: 54 of 54 application reports. The current speed checkpoint ran on macOS ARM64 only.</dd></div>
+<div><dt>Holds when</dt><dd>For the earlier cohort: nine retained applications, initial and follow-up variants, on each of the three targets.</dd></div>
+<div><dt>Doesn't tell you</dt><dd>Support for Windows, other Linux distributions, other CPU architectures or other C libraries. A target that did not run is reported as incomplete.</dd></div>
+<div><dt>Check it</dt><dd><a href="../evidence/status.md">status.md</a> · <a href="../evidence/2026-10-27-current-main-outcome-checkpoint.md">2026-10-27-current-main-outcome-checkpoint.md</a></dd></div>
+<div><dt>Say it's wrong</dt><dd><a href="mailto:rmichael@rmichaelthomas.com?subject=Guion%20claim%3A%20Where%20it%20has%20been%20tested">rmichael@rmichaelthomas.com</a></dd></div>
+</dl>
+<div class="v-dev"><table class="claim-table"><tbody><tr><th scope="row">Earlier cohort</th><td>54 of 54 application reports passed</td></tr><tr><th scope="row">Targets</th><td>macOS ARM64 · Debian 12 ARM64 · Debian 12 x86_64 (glibc)</td></tr><tr><th scope="row">Current speed checkpoint</th><td>macOS ARM64 only</td></tr></tbody></table></div>
+</article>
+</div>
+</div>
+</section>
+
+<section class="section shell" id="python">
+<div class="sectionhead">
+<div><p class="overline">07 / The other side</p><h2>Where Python<br><span class="serif">still wins.</span></h2></div>
+<p class="v-plain">A language that only talks about its wins is selling something. Here is where the evidence stops, and where Python is the safer choice today.</p>
+<p class="v-dev">Counter-evidence and open outcomes, with the same receipts. The north-star requires saying which tasks Python is still better for.</p>
+</div>
+<div class="python-grid">
+<div class="python-says">
+<div class="ahi"><section id="slot-python-accordion-ecosystem" class="instrument family-reveals-discoveries renderer-accordion interaction-details" data-ahi="ahi.reveals-discoveries.accordion" data-ahi-renderer="accordion" data-ahi-element="details" data-ahi-version="1"><details data-ahi-semantic="details" class="accordion native-accordion"><summary>Packages and ecosystem</summary><section class="accordion-content"><div><p>Guion can call Python libraries such as NumPy through a typed bridge, and the packages tested so far work. Broad package compatibility is still open, so for a project that leans on many libraries, Python is the safer choice today.</p></div><p>The bridge is an explicit typed call. It is not transparent Python compatibility.</p></section></details></section></div>
+<div class="ahi"><section id="slot-python-accordion-bridge" class="instrument family-reveals-discoveries renderer-accordion interaction-details" data-ahi="ahi.reveals-discoveries.accordion" data-ahi-renderer="accordion" data-ahi-element="details" data-ahi-version="1"><details data-ahi-semantic="details" class="accordion native-accordion"><summary>Calling NumPy from Guion</summary><section class="accordion-content"><div><p>On the one 100,000-row task measured, Guion took 1.025 times as long as the same function called from Python.</p></div><p>Sending raw bytes instead of text closed most of the gap. Not all of it.</p></section></details></section></div>
+<div class="ahi"><section id="slot-python-accordion-release" class="instrument family-reveals-discoveries renderer-accordion interaction-details" data-ahi="ahi.reveals-discoveries.accordion" data-ahi-renderer="accordion" data-ahi-element="details" data-ahi-version="1"><details data-ahi-semantic="details" class="accordion native-accordion"><summary>A release you can use</summary><section class="accordion-content"><div><p>No public Guion release has been published. Python is a released language with a long track record.</p></div><p>Guion is in active development. It has been validated on macOS ARM64 and on Debian 12 for ARM64 and x86_64. No other target is claimed.</p></section></details></section></div>
+<div class="ahi"><section id="slot-python-accordion-learn" class="instrument family-reveals-discoveries renderer-accordion interaction-details" data-ahi="ahi.reveals-discoveries.accordion" data-ahi-renderer="accordion" data-ahi-element="details" data-ahi-version="1"><details data-ahi-semantic="details" class="accordion native-accordion"><summary>Learning it</summary><section class="accordion-content"><div><p>Whether a new builder can learn Guion, find its APIs and make a realistic change from the guides is still being tested.</p></div><p>Learnability is listed as an open outcome on the project status page.</p></section></details></section></div>
+<div class="ahi"><section id="slot-python-accordion-compare" class="instrument family-reveals-discoveries renderer-accordion interaction-details" data-ahi="ahi.reveals-discoveries.accordion" data-ahi-renderer="accordion" data-ahi-element="details" data-ahi-version="1"><details data-ahi-semantic="details" class="accordion native-accordion"><summary>Beyond the tasks measured</summary><section class="accordion-content"><div><p>Every number on this page is for a named program on one machine against one Python version. Free-threaded Python was not available to compare.</p></div><p>Overall competitiveness remains open, in the project&#39;s own words.</p></section></details></section></div>
+</div>
+<div class="receipt-list python-receipts">
+<article class="claim" id="claim-bridge-bytes" data-claim="bridge-bytes" data-group="python">
+<h3>Calling NumPy from Guion: raw bytes</h3>
+<dl class="receipt">
+<div><dt>Claim</dt><dd>Sending the input as raw bytes instead of text cut the cost of a 100,000-row NumPy and orjson task by 13.7%, from 161.60 ms to 140.59 ms. Guion is still a little slower than the same Python function, which took 137.93 ms.</dd></div>
+<div><dt>Holds when</dt><dd>One typed Python call, 100,000 rows, 15 randomized fresh-process pairs, macOS ARM64, CPython 3.14.7, NumPy 2.5.1 and orjson 3.11.9. Outputs matched byte for byte.</dd></div>
+<div><dt>Doesn't tell you</dt><dd>That Guion beats Python on this task: it took 1.025× as long as the same package function and 1.220× as long as plain standard-library Python. CPU attribution and peak memory were not measured.</dd></div>
+<div><dt>Check it</dt><dd><a href="../evidence/2026-10-27-python-bridge-bytes.md">2026-10-27-python-bridge-bytes.md</a> · <a href="../evidence/2026-10-27-python-bridge-bytes.json">2026-10-27-python-bridge-bytes.json</a></dd></div>
+<div><dt>Say it's wrong</dt><dd><a href="mailto:rmichael@rmichaelthomas.com?subject=Guion%20claim%3A%20Calling%20NumPy%20from%20Guion%3A%20raw%20bytes">rmichael@rmichaelthomas.com</a></dd></div>
+</dl>
+<div class="v-dev"><table class="claim-table"><tbody><tr><th scope="row">Guion Bytes lane</th><td>140.59 ms</td></tr><tr><th scope="row">Guion Text lane</th><td>161.60 ms</td></tr><tr><th scope="row">Bytes / Text</th><td>0.863× (0.859–0.879)</td></tr><tr><th scope="row">Python package bytes</th><td>137.93 ms</td></tr><tr><th scope="row">Guion Bytes / Python package</th><td>1.025× (1.001–1.027)</td></tr><tr><th scope="row">Python standard library</th><td>114.38 ms</td></tr><tr><th scope="row">Guion Bytes / stdlib</th><td>1.220× (1.211–1.234)</td></tr><tr><th scope="row">Input</th><td>5,100,867 bytes, 13 groups</td></tr></tbody></table><pre class="claim-command"><code>GUION_PYTHON=/path/to/python3.14 python3 -B evaluation/completion/performance/benchmark_python_bridge_payloads.py --binary target/release/guion --python /path/to/python3.14 --trials 15</code></pre></div>
+</article>
+<article class="claim" id="claim-bridge-serialization" data-claim="bridge-serialization" data-group="python">
+<h3>Calling NumPy from Guion: fewer copies</h3>
+<dl class="receipt">
+<div><dt>Claim</dt><dd>A change that removes payload-sized copies did not measurably change the speed. The ratio against the previous build was 1.012, and its interval includes 1.</dd></div>
+<div><dt>Holds when</dt><dd>15 randomized pairs on the same 100,000-row task and host as the raw-bytes card.</dd></div>
+<div><dt>Doesn't tell you</dt><dd>A speedup. The candidate was slower in 10 of 15 pairs, and peak memory was not measured. Against Python it stayed at 1.129× the same NumPy function and 1.406× the standard-library reference, slower in all 15 pairs.</dd></div>
+<div><dt>Check it</dt><dd><a href="../evidence/2026-10-27-python-bridge-serialization.md">2026-10-27-python-bridge-serialization.md</a> · <a href="../evidence/2026-10-27-python-bridge-serialization.json">2026-10-27-python-bridge-serialization.json</a></dd></div>
+<div><dt>Say it's wrong</dt><dd><a href="mailto:rmichael@rmichaelthomas.com?subject=Guion%20claim%3A%20Calling%20NumPy%20from%20Guion%3A%20fewer%20copies">rmichael@rmichaelthomas.com</a></dd></div>
+</dl>
+<div class="v-dev"><table class="claim-table"><tbody><tr><th scope="row">Candidate / pre-change</th><td>1.012× (0.985–1.025)</td></tr><tr><th scope="row">Pre-change Guion bridge</th><td>166.7 ms</td></tr><tr><th scope="row">Candidate Guion bridge</th><td>167.9 ms</td></tr><tr><th scope="row">Candidate / NumPy function</th><td>1.129× (1.106–1.149)</td></tr><tr><th scope="row">Candidate / stdlib Python</th><td>1.406× (1.373–1.442)</td></tr><tr><th scope="row">Pairs</th><td>15 randomized</td></tr></tbody></table></div>
+</article>
+<article class="claim" id="claim-managed-packages" data-claim="managed-packages" data-group="python">
+<h3>Packaging a Python-backed app into one folder</h3>
+<dl class="receipt">
+<div><dt>Claim</dt><dd>A Guion program that uses NumPy and orjson was packaged into a self-contained folder. It ran after being moved to a path with spaces and Unicode, with no external Python or uv settings.</dd></div>
+<div><dt>Holds when</dt><dd>The 100,000-row analysis app on artifact format 44, passing on macOS ARM64 and, in separate runs, on Debian 12 for ARM64 and x86_64. Output matched the independent Python report exactly.</dd></div>
+<div><dt>Doesn't tell you</dt><dd>Download size: the folder sizes are uncompressed. It is a packaging result, not a speed claim and not broad Python package compatibility.</dd></div>
+<div><dt>Check it</dt><dd><a href="../evidence/2026-10-27-current-format-managed-package-analysis.md">2026-10-27-current-format-managed-package-analysis.md</a> · <a href="../evidence/2026-10-27-current-format-managed-package-analysis-debian-aarch64.md">2026-10-27-current-format-managed-package-analysis-debian-aarch64.md</a> · <a href="../evidence/2026-10-27-current-format-managed-package-analysis-debian-x86_64.md">2026-10-27-current-format-managed-package-analysis-debian-x86_64.md</a></dd></div>
+<div><dt>Say it's wrong</dt><dd><a href="mailto:rmichael@rmichaelthomas.com?subject=Guion%20claim%3A%20Packaging%20a%20Python-backed%20app%20into%20one%20folder">rmichael@rmichaelthomas.com</a></dd></div>
+</dl>
+<div class="v-dev"><table class="claim-table"><tbody><tr><th scope="row">macOS ARM64</th><td>157,585,367 bytes</td></tr><tr><th scope="row">Debian 12 ARM64</th><td>244,199,858 bytes</td></tr><tr><th scope="row">Debian 12 x86_64</th><td>274,853,607 bytes</td></tr><tr><th scope="row">Launches per target</th><td>two, moved to a path with spaces and Unicode</td></tr><tr><th scope="row">Output</th><td>identical to the Python reference</td></tr></tbody></table></div>
+</article>
+<article class="claim" id="claim-feed-digest" data-claim="feed-digest" data-group="python">
+<h3>A feed digest app with feedparser</h3>
+<dl class="receipt">
+<div><dt>Claim</dt><dd>A Guion Feed Digest app that uses the pure-Python feedparser library passed the same six acceptance cases as an independent Python version. Every digest matched byte for byte.</dd></div>
+<div><dt>Holds when</dt><dd>macOS ARM64, artifact format 44, managed CPython 3.14.8 and feedparser 6.0.14, run offline against a local loopback server.</dd></div>
+<div><dt>Doesn't tell you</dt><dd>Broad package compatibility, native-wheel coverage, package-size advantages or any speed result. It is one more library and one more application shape.</dd></div>
+<div><dt>Check it</dt><dd><a href="../evidence/2026-10-27-feed-digest-managed-package.md">2026-10-27-feed-digest-managed-package.md</a> · <a href="../evidence/2026-10-27-feed-digest-managed-package.json">2026-10-27-feed-digest-managed-package.json</a></dd></div>
+<div><dt>Say it's wrong</dt><dd><a href="mailto:rmichael@rmichaelthomas.com?subject=Guion%20claim%3A%20A%20feed%20digest%20app%20with%20feedparser">rmichael@rmichaelthomas.com</a></dd></div>
+</dl>
+<div class="v-dev"><table class="claim-table"><tbody><tr><th scope="row">Package directory</th><td>172,422,430 bytes (164.4 MiB, 2,946 files)</td></tr><tr><th scope="row">Dependencies</th><td>feedparser 6.0.14, feedparser-sgmllib 2.1.0</td></tr><tr><th scope="row">Native extensions from them</th><td>0</td></tr><tr><th scope="row">Acceptance cases</th><td>6, relocated and original</td></tr></tbody></table></div>
+</article>
+<article class="claim" id="claim-python-choice" data-claim="python-choice" data-group="python">
+<h3>When an assistant was asked to choose</h3>
+<dl class="receipt">
+<div><dt>Claim</dt><dd>In a frozen, independent exercise where assistants chose a language, they picked Python in all 18 choices for an older candidate. A later three-pair builder study recommended either language for two kinds of work and Guion's predecessor, Veritas, for one.</dd></div>
+<div><dt>Holds when</dt><dd>These are historical studies from before the current builds, and they asked a different question from the performance results above.</dd></div>
+<div><dt>Doesn't tell you</dt><dd>Today's recommendation. Neither study is an estimate of general adoption.</dd></div>
+<div><dt>Check it</dt><dd><a href="../evidence/status.md">status.md</a></dd></div>
+<div><dt>Say it's wrong</dt><dd><a href="mailto:rmichael@rmichaelthomas.com?subject=Guion%20claim%3A%20When%20an%20assistant%20was%20asked%20to%20choose">rmichael@rmichaelthomas.com</a></dd></div>
+</dl>
+<div class="v-dev"><table class="claim-table"><tbody><tr><th scope="row">Frozen campaign</th><td>Python chosen in 18 of 18 choices (older candidate)</td></tr><tr><th scope="row">Builder study</th><td>three pairs: either language for two work classes, Veritas for one</td></tr></tbody></table></div>
+</article>
+</div>
+</div>
+</section>
+
+<section class="section darkzone" id="agents">
+<div class="shell">
+<div class="sectionhead">
+<div><p class="overline">08 / Made for agents too</p><h2>Your assistant<br><span class="serif">can read this.</span></h2></div>
+<p class="v-plain">More and more people ask an assistant which language to use. So this site is written to be read by one: every claim, with the conditions it holds under and what it does not tell you, in two plain files.</p>
+<p class="v-dev"><code>llms.txt</code> and <code>agents.json</code> carry the same receipts as this page. The project's own agent index is <code>docs/agents/index.json</code>; every <code>--json</code> command below returns a versioned envelope.</p>
+</div>
+<div class="agents-grid" data-ahi="ahi.teaching-guidance.source-explanation">
+<div class="agents-prompt">
+<p class="smallcaps">Ask it this</p>
+<label class="sr-only" for="agent-prompt">A prompt to give your assistant</label>
+<textarea id="agent-prompt" readonly rows="6">I'm deciding whether to use the Guion programming language for a project. Read https://rmichaelthomas.github.io/guion/llms.txt and agents.json. Then tell me which of its claims apply to my project, what each one does not tell me, and whether Python is the better choice for my case.</textarea>
+<p class="fineprint">Click in the box and copy it. Nothing here sends anything anywhere.</p>
+<div class="cta-row"><a class="btn btn-lily" href="../llms.txt">Read llms.txt</a><a class="btn btn-light-on-dark" href="../agents.json">Read agents.json</a></div>
+</div>
+<div class="agents-shape v-dev">
+<p class="smallcaps">agents.json</p>
+<pre class="code"><code>{
+  <span class="k">"product"</span>: "Guion",
+  <span class="k">"status"</span>: "Pre-release. No public Guion release has been published.",
+  <span class="k">"claims"</span>: [
+    { <span class="k">"id"</span>, <span class="k">"title"</span>, <span class="k">"say"</span>,
+      <span class="k">"holdsWhen"</span>, <span class="k">"doesntTell"</span>,
+      <span class="k">"evidence"</span>: ["evidence/…"] }
+  ]
+}</code></pre>
+<p class="smallcaps">Versioned reports from the CLI</p>
+<ul class="kinds">
+<li><code>guion_check_report v1</code> <span>guion check --json</span></li>
+<li><code>guion_lint_report v1</code> <span>guion lint --json</span></li>
+<li><code>guion_test_report v1</code> <span>guion test --json</span></li>
+<li><code>guion_run_report v1</code> <span>guion run --json</span></li>
+<li><code>guion_build_report v1</code> <span>guion build --json</span></li>
+<li><code>guion_package_report v1</code> <span>guion package --json</span></li>
+<li><code>guion_package_verification_report v1</code> <span>guion verify-package --json</span></li>
+<li><code>guion_sync_report v1</code> <span>guion sync --json</span></li>
+<li><code>guion_inspection_report v1</code> <span>guion inspect --json</span></li>
+<li><code>guion_api_report v2</code> <span>guion doc --json</span></li>
+<li><code>guion_doctor_report v1</code> <span>guion doctor --json</span></li>
+</ul>
+</div>
+</div>
+</div>
+</section>
+
+<section class="section story" id="story">
+<div class="shell">
+<div class="sectionhead">
+<div><p class="overline">09 / The origin</p><h2>The reason<br><span class="serif">before the name.</span></h2></div>
+<p>Guion began with a north-star question: could a new general-purpose language earn a recommendation over Python for real work, through the whole experience of writing, checking, running, delivering and maintaining a program?</p>
+</div>
+<ol class="time-ribbon" data-ahi="ahi.motion-time.time-ribbon">
+<li><time datetime="2026-10-22">22 Oct 2026</time><h3>The question was written down.</h3><p class="v-plain">Under the working name Veritas, the first design put usability, one coherent toolchain, honest comparison and executable evidence at the center.</p><p class="v-dev"><code>docs/north-star-design.md</code> v0.2, “approved build direction.” Veritas, then.</p></li>
+<li><time datetime="2026-10-25">25 Oct 2026</time><h3>It became Guion.</h3><p class="v-plain">The implementation and its tools were renamed. The earlier results stay on file under their original name.</p><p class="v-dev">Commit <code>6a4fab1</code>, “rename Veritas product surfaces to Guion.” Veritas-era checkpoints and results are preserved as history; selected legacy manifests and files remain readable.</p></li>
+<li><time datetime="2026-10-27">27 Oct 2026</time><h3>The latest checkpoint.</h3><p class="v-plain">The results on this page come from it, including the ones where Guion is still behind. It is a checkpoint, not a finish line.</p><p class="v-dev">Build at commit <code>6b5e5aba</code>, artifact format 44, macOS ARM64. Summary in <code>docs/status.md</code>.</p></li>
+</ol>
+</div>
+</section>
+
+</main>
+<footer class="section footer darkzone" id="footer">
+<div class="shell footer-grid">
+<div class="footer-brand">
+<a class="wordmark" href="#top"><span class="brandmark" aria-hidden="true">g</span>guion</a>
+<p>Pre-release. No public Guion release has been published.</p>
+<p class="made">Made with AllHereHTML</p>
+</div>
+<nav class="footer-links" aria-label="Files and views">
+<p class="smallcaps">On this site</p>
+<a href="../evidence/">The evidence files</a>
+<a href="../llms.txt">llms.txt</a>
+<a href="../agents.json">agents.json</a>
+<a href="../developer/">Open directly in Developer view</a>
+<a href="../">Open directly in Plain English</a>
+</nav>
+<div class="footer-about">
+<p class="smallcaps">Good to know</p>
+<p>Guion is MIT licensed. Third-party notices are kept in the project repository. To say a claim is wrong, write to <a href="mailto:rmichael@rmichaelthomas.com">rmichael@rmichaelthomas.com</a>.</p>
+<p class="v-plain">This page is about 80 KB of HTML and 50 KB of styles, with 9.9 KB of JavaScript and 0 requests to anyone else. The 1.3 MB playground loads only when you press Run.</p>
+<table class="v-dev spec-table"><caption>Page weight</caption><tbody>
+<tr><th scope="row">HTML</th><td>80 KB</td></tr>
+<tr><th scope="row">CSS</th><td>50 KB</td></tr>
+<tr><th scope="row">JavaScript</th><td>9.9 KB (the playground loader; inert until Run)</td></tr>
+<tr><th scope="row">Wasm</th><td>1.3 MB, fetched on first Run</td></tr>
+<tr><th scope="row">Remote requests</th><td>0</td></tr>
+</tbody></table>
+</div>
+</div>
+</footer>
+
+<script type="module" src="../playground/loader.mjs"></script>
+</body>
+</html>
