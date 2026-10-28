@@ -4,6 +4,8 @@ set -euo pipefail
 if [[ "${GUION_FEED_DIGEST_CONTAINER:-}" != "1" ]]; then
   REPO_ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
   SCRATCH_ROOT="$REPO_ROOT/target/perf-session/guion-feed-digest-debian-x86_64"
+  BUILDER_IMAGE=guion-feed-digest-debian-x86_64:rust-1.97-cmake
+  IMAGE_CONTEXT="$SCRATCH_ROOT/image-context"
   CARGO_CACHE_ROOT="${CARGO_HOME:-${HOME}/.cargo}"
   CARGO_REGISTRY="$CARGO_CACHE_ROOT/registry"
   if [[ ! -d "$CARGO_REGISTRY" ]]; then
@@ -33,11 +35,20 @@ if [[ "${GUION_FEED_DIGEST_CONTAINER:-}" != "1" ]]; then
 
   mkdir -p "$SCRATCH_ROOT/managed/cache" "$SCRATCH_ROOT/managed/python"
   LOG_PATH="$SCRATCH_ROOT/run.log"
+  mkdir -p "$IMAGE_CONTEXT"
+  cp "$REPO_ROOT/evaluation/completion/performance/Dockerfile.feed-digest-debian-x86_64" \
+    "$IMAGE_CONTEXT/Dockerfile"
+  docker build \
+    --platform linux/amd64 \
+    --tag "$BUILDER_IMAGE" \
+    --file "$IMAGE_CONTEXT/Dockerfile" \
+    "$IMAGE_CONTEXT" \
+    2>&1 | tee "$LOG_PATH"
   docker run --rm \
     --platform linux/amd64 \
     --cpus 1 \
     --memory 1g \
-    rust:1.97-bookworm \
+    "$BUILDER_IMAGE" \
     bash -c '
       set -e
       test "$(uname -m)" = "x86_64"
@@ -57,15 +68,18 @@ if [[ "${GUION_FEED_DIGEST_CONTAINER:-}" != "1" ]]; then
     --mount "type=bind,source=$REPO_ROOT,target=/workspace" \
     --mount "type=bind,source=$CARGO_REGISTRY,target=/cargo-registry,readonly" \
     --env GUION_FEED_DIGEST_CONTAINER=1 \
+    --env "GUION_FEED_DIGEST_BUILDER_IMAGE=$BUILDER_IMAGE" \
     --workdir /workspace \
-    rust:1.97-bookworm \
+    "$BUILDER_IMAGE" \
     bash /workspace/evaluation/completion/performance/run_feed_digest_debian_x86_64.sh \
     2>&1 | tee -a "$LOG_PATH"
+  rm -rf "$IMAGE_CONTEXT"
   exit
 fi
 
 REPO_ROOT=/workspace
 SCRATCH_ROOT="$REPO_ROOT/target/perf-session/guion-feed-digest-debian-x86_64"
+BUILDER_IMAGE="${GUION_FEED_DIGEST_BUILDER_IMAGE:-guion-feed-digest-debian-x86_64:rust-1.97-cmake}"
 WARMED="$SCRATCH_ROOT/managed"
 CARGO_HOME_DIR="$SCRATCH_ROOT/cargo-home"
 CARGO_TARGET_DIR="$SCRATCH_ROOT/cargo-target"
@@ -179,7 +193,7 @@ PYTHON="$($UV python find 3.14.8 --managed-python)"
   --expected-distribution-version 12 \
   --colima-vm-used \
   --rosetta-used \
-  --builder-image rust:1.97-bookworm \
+  --builder-image "$BUILDER_IMAGE" \
   --builder-rust-version "$RUST_VERSION" \
   --builder-cmake-version "$CMAKE_VERSION"
 
