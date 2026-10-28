@@ -212,7 +212,7 @@ def main() -> int:
                 "payload_bytes": len(payload),
                 "iteration_counts": list(CALL_COUNTS),
                 "bridge_calls_per_process": 1,
-                "operation": "Pass one 64-byte input and a repeat count in one bridge request; sum its length count times in Python.",
+                "operation": "Call the same payload_length helper once per iteration and sum its results; Guion sends the payload and count in one bridge request, while direct Python loops locally.",
                 "python_package_imports": ["numpy", "orjson"],
             },
             "correctness": {
@@ -233,7 +233,7 @@ def main() -> int:
                     "direct_python": statistics.median(python_increment),
                 },
                 "all_timed_outputs_checked": True,
-                "method": "Fresh process per sample; randomized order across eight lanes; each stdout and stderr checked against expected output; both lanes call the same operation once; package imports identical; OS file-cache state uncontrolled.",
+                "method": "Fresh process per sample; randomized order across eight lanes; each stdout and stderr checked against expected output; both lanes call the same Python helper once per iteration, while the Guion lane sends one bridge request per process; package imports identical; OS file-cache state uncontrolled.",
             },
         }
         args.output.parent.mkdir(parents=True, exist_ok=True)

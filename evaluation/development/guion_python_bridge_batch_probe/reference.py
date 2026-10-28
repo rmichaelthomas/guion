@@ -4,6 +4,7 @@ import sys
 
 import numpy
 import orjson
+from bridge_batch import payload_length
 
 _PACKAGE_IMPORTS = (numpy, orjson)
 
@@ -17,7 +18,7 @@ def main() -> int:
     count = int(sys.argv[2])
     total = 0
     for _ in range(count):
-        total += len(source)
+        total += payload_length(source)
     print(total)
     return 0
 
