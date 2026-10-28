@@ -254,6 +254,9 @@ def main() -> int:
     parser.add_argument(
         "--builder-rust-version", help="record the Rust compiler version used for the build"
     )
+    parser.add_argument(
+        "--builder-cmake-version", help="record the CMake version used for the native build"
+    )
     args = parser.parse_args()
 
     binary = args.binary.resolve(strict=True)
@@ -499,6 +502,7 @@ def main() -> int:
             "builder": {
                 "image": args.builder_image,
                 "rust_version": args.builder_rust_version,
+                "cmake_version": args.builder_cmake_version,
             },
             "host": {
                 "os": platform.system().lower(),
@@ -598,8 +602,13 @@ def main() -> int:
         "## Verified package\n\n"
         f"- Artifact format: {artifact_format}.\n"
         + (
-            f"- Builder image: {args.builder_image}; Rust {args.builder_rust_version}.\n"
-            if args.builder_image or args.builder_rust_version
+            f"- Builder image: {args.builder_image}; Rust {args.builder_rust_version}; "
+            f"CMake {args.builder_cmake_version}.\n"
+            if (
+                args.builder_image
+                or args.builder_rust_version
+                or args.builder_cmake_version
+            )
             else ""
         )
         + f"- Managed CPython: {python_metadata.get('version')}.\n"

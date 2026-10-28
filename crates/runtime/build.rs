@@ -87,7 +87,8 @@ fn run(command: &mut Command, action: &str) {
         .unwrap_or_else(|error| panic!("could not {action}: {error}"));
     if !output.status.success() {
         panic!(
-            "failed to {action}:\n{}\n{}",
+            "failed to {action} ({}):\n{}\n{}",
+            output.status,
             String::from_utf8_lossy(&output.stdout),
             String::from_utf8_lossy(&output.stderr)
         );

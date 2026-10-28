@@ -38,7 +38,16 @@ if [[ "${GUION_FEED_DIGEST_CONTAINER:-}" != "1" ]]; then
     --cpus 1 \
     --memory 1g \
     rust:1.97-bookworm \
-    bash -c 'test "$(uname -m)" = "x86_64"; . /etc/os-release; test "$ID" = debian; test "$VERSION_ID" = 12; case "$(rustc --version)" in "rustc 1.97."*) ;; *) exit 2 ;; esac; echo "amd64 preflight: Debian $VERSION_ID x86_64; $(rustc --version)"' \
+    bash -c '
+      set -e
+      test "$(uname -m)" = "x86_64"
+      . /etc/os-release
+      test "$ID" = debian
+      test "$VERSION_ID" = 12
+      case "$(rustc --version)" in "rustc 1.97."*) ;; *) exit 2 ;; esac
+      cmake --version
+      echo "amd64 preflight: Debian $VERSION_ID x86_64; $(rustc --version)"
+    ' \
     2>&1 | tee "$LOG_PATH"
   docker run --rm \
     --platform linux/amd64 \
@@ -95,6 +104,7 @@ if [[ "$RUST_VERSION" != 1.97.* ]]; then
   echo "Expected Rust 1.97.x, found $RUST_VERSION" >&2
   exit 2
 fi
+CMAKE_VERSION="$(cmake --version | awk 'NR == 1 {print $3}')"
 
 mkdir -p \
   "$WARMED/toolchain" "$WARMED/cache" "$WARMED/python" \
@@ -170,6 +180,7 @@ PYTHON="$($UV python find 3.14.8 --managed-python)"
   --colima-vm-used \
   --rosetta-used \
   --builder-image rust:1.97-bookworm \
-  --builder-rust-version "$RUST_VERSION"
+  --builder-rust-version "$RUST_VERSION" \
+  --builder-cmake-version "$CMAKE_VERSION"
 
 echo "Kept the pinned x86_64 managed Python cache at $WARMED for the next Linux package check."
