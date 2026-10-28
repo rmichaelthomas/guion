@@ -18,8 +18,10 @@ fn version_reports_artifact_and_pinned_timezone_data_versions() {
     assert_eq!(
         String::from_utf8(output.stdout).unwrap(),
         format!(
-            "guion {} (artifact format 42, timezone data 2026c)\n",
-            env!("CARGO_PKG_VERSION")
+            "guion {} (artifact format {}, timezone data {})\n",
+            env!("CARGO_PKG_VERSION"),
+            guion_model::Artifact::CURRENT_VERSION,
+            guion_runtime::stdlib_services::IANA_TZDB_VERSION
         )
     );
 }
@@ -1180,9 +1182,25 @@ fn package_runs_compiled_python_wheels_after_relocation_without_python_setup() {
     assert!(!package.join("main.gu").exists());
     assert!(package.join("toolchains/uv").is_file());
     assert!(package.join(".guion/python-bridge/uv.lock").is_file());
+    let artifact = guion_model::Artifact::from_bytes(&fs::read(package.join("app.gub")).unwrap())
+        .expect("packaged artifact should be valid");
+    assert_eq!(
+        artifact.format_version,
+        guion_model::Artifact::CURRENT_VERSION,
+        "native-wheel packaging must use the current artifact format"
+    );
     let metadata: serde_json::Value =
         serde_json::from_slice(&fs::read(package.join("PACKAGE.json")).unwrap()).unwrap();
     assert_eq!(metadata["python_runtime"]["version"], "3.14.8");
+    assert_eq!(metadata["python_runtime"]["uv_version"], "0.13.4");
+    println!(
+        "validated artifact format {}; managed CPython {}; uv {}; embedded runtime {} bytes; offline Python cache {} bytes",
+        artifact.format_version,
+        metadata["python_runtime"]["version"].as_str().unwrap(),
+        metadata["python_runtime"]["uv_version"].as_str().unwrap(),
+        metadata["python_runtime"]["python_runtime_size_bytes"].as_u64().unwrap(),
+        metadata["python_runtime"]["python_cache_size_bytes"].as_u64().unwrap(),
+    );
     assert!(metadata["python_runtime"]["python_runtime_size_bytes"]
         .as_u64()
         .is_some_and(|size| size > 0));

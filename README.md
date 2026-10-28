@@ -48,7 +48,7 @@ A separate current-format bridge check processed 100,000 rows through NumPy and 
 
 These results come from named workloads on one Mac; operating-system file-cache state was uncontrolled. The current format-44 checkpoint does not validate other targets. It supports a real performance claim for the workloads shown, while overall competitiveness remains open.
 
-The remaining product outcomes are broader Python interoperability and complete managed-package delivery, language learnability, relocatable native dependencies, and current-format cross-target validation. See [current status](docs/status.md), the [north-star design](docs/north-star-design.md), and the [validation record](docs/pre-release-readiness.md) for the wider scope.
+A current-format macOS package test now proves managed CPython, NumPy/orjson native wheels, and source-free relocation for one mixed-dependency app; see the [package delivery report](evaluation/completion/results/real-task-sprint/2026-10-27-current-format-managed-python-package.md). Remaining outcomes are broader Python package usefulness and bridge overhead, language learnability, managed package validation on the other targets, and current-format cross-target validation. See [current status](docs/status.md), the [north-star design](docs/north-star-design.md), and the [validation record](docs/pre-release-readiness.md) for the wider scope.
 
 ## Project guide
 
