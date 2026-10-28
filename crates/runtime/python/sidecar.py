@@ -8,6 +8,7 @@ import struct
 import sys
 import traceback
 
+_IMPORT_MODULE = importlib.import_module
 _image_count = None
 try:
     if sys.platform == "darwin":
@@ -66,6 +67,7 @@ if PROFILE_ENABLED:
             "request_frame_read": 0,
             "request_parse": 0,
             "request_value_decode": 0,
+            "module_import_fallback": 0,
             "module_dispatch": 0,
             "function_call": 0,
             "result_encode": 0,
@@ -81,6 +83,7 @@ if PROFILE_ENABLED:
             "request_frame_read": 0,
             "request_parse": 0,
             "request_value_decode": 0,
+            "module_import_fallback": 0,
             "module_dispatch": 0,
             "function_call": 0,
             "result_encode": 0,
@@ -330,7 +333,17 @@ while True:
         sys.stdout, sys.stderr = stdout_capture, stderr_capture
         try:
             started = perf_counter_ns() if PROFILE_ENABLED else 0
-            module = importlib.import_module(request["module"])
+            module_name = request["module"]
+            import_module = importlib.import_module
+            module_cache_hit = import_module is _IMPORT_MODULE
+            module = sys.modules.get(module_name) if module_cache_hit else None
+            module_cache_hit = module is not None and module_cache_hit
+            if module is None:
+                module = import_module(module_name)
+            if PROFILE_ENABLED and not module_cache_hit:
+                PROFILE_PHASES_NS[PROFILE_ACTIVE_BUCKET]["module_import_fallback"] += (
+                    perf_counter_ns() - started
+                )
             function = getattr(module, request["function"])
             if RESPONSE_ORJSON_DUMPS is None:
                 fast_json = sys.modules.get("orjson")

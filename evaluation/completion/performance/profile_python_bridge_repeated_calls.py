@@ -31,6 +31,7 @@ PHASES = (
     "request_frame_read",
     "request_parse",
     "request_value_decode",
+    "module_import_fallback",
     "module_dispatch",
     "function_call",
     "result_encode",

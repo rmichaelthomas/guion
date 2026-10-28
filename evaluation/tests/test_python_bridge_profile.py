@@ -82,7 +82,13 @@ class PythonBridgeProfileTests(unittest.TestCase):
             )
             self.assertGreater(profile["rust_repeated_calls_ns"]["channel_delivery"], 0)
             self.assertGreater(profile["python"]["first_call_ns"]["module_dispatch"], 0)
+            self.assertGreater(
+                profile["python"]["first_call_ns"]["module_import_fallback"], 0
+            )
             self.assertGreater(profile["python"]["repeated_calls_ns"]["function_call"], 0)
+            self.assertEqual(
+                profile["python"]["repeated_calls_ns"]["module_import_fallback"], 0
+            )
             self.assertGreater(profile["python"]["repeated_calls_ns"]["request_frame_read"], 0)
             self.assertGreater(profile["python"]["repeated_calls_ns"]["response_json_encode"], 0)
             self.assertGreater(profile["python"]["repeated_calls_ns"]["response_write"], 0)
