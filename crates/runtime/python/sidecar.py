@@ -1,4 +1,3 @@
-import contextlib
 import base64
 import importlib
 import io
@@ -327,7 +326,9 @@ while True:
         request_id = request["id"]
         if request.get("protocol") != 2 or request.get("kind") != "call":
             raise ValueError("unsupported bridge protocol request")
-        with contextlib.redirect_stdout(stdout_capture), contextlib.redirect_stderr(stderr_capture):
+        previous_stdout, previous_stderr = sys.stdout, sys.stderr
+        sys.stdout, sys.stderr = stdout_capture, stderr_capture
+        try:
             started = perf_counter_ns() if PROFILE_ENABLED else 0
             module = importlib.import_module(request["module"])
             function = getattr(module, request["function"])
@@ -361,6 +362,8 @@ while True:
                 PROFILE_PHASES_NS[PROFILE_ACTIVE_BUCKET]["function_call"] += (
                     perf_counter_ns() - started
                 )
+        finally:
+            sys.stdout, sys.stderr = previous_stdout, previous_stderr
         started = perf_counter_ns() if PROFILE_ENABLED else 0
         if request.get("numpy_list_result") is True:
             result = normalize_numpy_list(result)

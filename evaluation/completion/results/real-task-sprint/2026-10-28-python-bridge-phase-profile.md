@@ -76,9 +76,17 @@ The Python timer sums all work up to the first response write, while the existin
 
 Because a normal request has no binary attachments, a candidate serialized its four-byte length prefix and JSON body into one frame buffer and wrote that buffer once. A focused writer test confirmed the old path made two writes and the candidate made one; the 26 Python bridge integration tests passed. The performance result did not justify keeping it: the 30-pair ratio was **1.406×** (95% interval **1.362–1.427**), essentially the same as the preceding 1.405× fast-JSON baseline. An independent-cohort bootstrap estimated **0.15 μs more** excess cost per added call, with a 95% interval from **5.63 μs less to 6.17 μs more**. The candidate's request-write phase also stayed at **5.25 μs**, so it was reverted.
 
-The largest currently instrumented repeated Python phase is module dispatch at **1.17 μs** per call. It includes `importlib.import_module`, function lookup, and the cached `orjson` lookup; direct module-cache access is the next narrow experiment.
+The largest currently instrumented repeated Python phase is module dispatch at **1.17 μs** per call. It includes `importlib.import_module`, function lookup, and the cached `orjson` lookup. A local microbenchmark found a larger potential saving in the two per-call stdout/stderr redirect contexts, so that path was tested first.
 
 Raw samples: [five-run first-byte boundary profile](2026-10-28-python-bridge-first-byte-boundary-profile.json), [single-write candidate phase profile](2026-10-28-python-bridge-single-write-phase-profile.json), and [30-pair single-write benchmark](2026-10-28-python-bridge-repeated-calls-after-single-write-30-pair.json).
+
+## Manual stdout/stderr capture scopes — retained
+
+Each Python call previously constructed two `contextlib.redirect_*` managers. The sidecar now saves the current streams, assigns the per-call `StringIO` buffers directly, and restores both streams in `finally`, including when the Python function raises. This keeps output capture and exception behavior while removing the two context-manager objects from every call.
+
+The five-run profile measured **11.30 μs** from full request receipt to the first response write, versus **12.51 μs** in the preceding five-run profile. In three separate 30-pair cohorts, the 1,000-call ratio was **1.387×**, **1.387×**, and **1.379×**. Pooled across those 90 candidate pairs, the median ratio was **1.385×**, compared with **1.415×** in the immediately preceding 30-pair baseline. An independent-cohort bootstrap estimated the ratio fell by **0.0296** (95% interval **0.0017–0.0513**). The paired excess-time estimate fell from **30.88 μs** to **28.96 μs per added call**, but its 95% interval for the reduction (**−0.61 to 3.89 μs**) still includes no change. This is a small, repeatable ratio improvement on the tested workload; the per-call estimate remains uncertain, and Guion is still slower than Python at 1,000 calls.
+
+Raw samples: [baseline 30-pair cohort](2026-10-28-python-bridge-repeated-calls-before-manual-capture-30-pair.json), [candidate profile](2026-10-28-python-bridge-manual-capture-phase-profile.json), [first candidate cohort](2026-10-28-python-bridge-repeated-calls-after-manual-capture-30-pair.json), [second candidate cohort](2026-10-28-python-bridge-repeated-calls-after-manual-capture-second-30-pair.json), and [third candidate cohort](2026-10-28-python-bridge-repeated-calls-after-manual-capture-third-30-pair.json).
 
 The profiling hook is off by default. Set `GUION_PYTHON_BRIDGE_PROFILE_OUT` to a JSON path to write diagnostic totals; normal runs do not collect phase timers or attach profile data to bridge responses.
 
