@@ -1,0 +1,13 @@
+extern python "bridge_probe:payload_length" fn payload_length(source: Bytes) -> Int
+
+fn main() -> Int:
+    let arguments = args()
+    if len(arguments) != 1:
+        print("Usage: guion run main.gu INPUT.json")
+        return 2
+    let input = read_bytes(arguments[0])
+    if not is_ok(input):
+        print("Cannot read input: " + file_error_code(error(input)))
+        return 1
+    print(payload_length(unwrap(input)))
+    return 0
