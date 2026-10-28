@@ -65,7 +65,7 @@ if [[ "${GUION_FEED_DIGEST_CONTAINER:-}" != "1" ]]; then
     2>&1 | tee "$LOG_PATH"
   docker run --rm \
     --platform linux/amd64 \
-    --cpus 2 \
+    --cpus 4 \
     --memory 6g \
     --user "$(id -u):$(id -g)" \
     --mount "type=bind,source=$REPO_ROOT,target=/workspace" \
