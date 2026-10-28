@@ -67,10 +67,10 @@ def main() -> int:
         "--output",
         type=Path,
         default=ROOT
-        / "evaluation/completion/results/real-task-sprint/2026-10-28-python-bridge-startup.json",
+        / "evaluation/completion/results/real-task-sprint/2026-10-28-python-bridge-startup-sizes.json",
     )
     parser.add_argument("--trials", type=int, default=15)
-    parser.add_argument("--seed", type=int, default=20261032)
+    parser.add_argument("--seed", type=int, default=20261033)
     args = parser.parse_args()
     if args.trials < 3:
         parser.error("at least three randomized pairs are required")
@@ -96,7 +96,17 @@ def main() -> int:
             encoding="utf-8",
         )
         dataset_bytes = dataset.read_bytes()
-        expected_stdout = f"{len(dataset_bytes)}\n".encode()
+        empty_input = project / "empty.bin"
+        empty_input.write_bytes(b"")
+        payloads = {
+            "empty": (empty_input.name, b""),
+            "5mb": (dataset.name, dataset_bytes),
+        }
+        expected_outputs = {
+            f"{size}_{language}_noop": f"{len(payload)}\n".encode()
+            for size, (_filename, payload) in payloads.items()
+            for language in ("guion", "python")
+        }
 
         environment = os.environ.copy()
         environment.update(
@@ -142,21 +152,26 @@ def main() -> int:
                 f"found {python_version}, {numpy_version}, and {orjson_version}"
             )
 
-        commands = {
-            "guion_noop": [
+        commands: dict[str, list[str]] = {}
+        for size, (filename, _payload) in payloads.items():
+            commands[f"{size}_guion_noop"] = [
                 str(binary),
                 "run",
                 "--no-cache",
                 "--file-root",
                 str(project),
                 "main.gu",
-                "dataset.json",
-            ],
-            "python_noop": [str(python), "-B", "reference.py", "dataset.json"],
-        }
+                filename,
+            ]
+            commands[f"{size}_python_noop"] = [
+                str(python),
+                "-B",
+                "reference.py",
+                filename,
+            ]
         for lane, command in commands.items():
             _, result = run_checked(command, project, environment)
-            assert_expected(lane, result, expected_stdout)
+            assert_expected(lane, result, expected_outputs[lane])
 
         rng = random.Random(args.seed)
         samples: dict[str, list[float]] = {lane: [] for lane in commands}
@@ -167,14 +182,34 @@ def main() -> int:
             orders.append(order)
             for lane in order:
                 elapsed, result = run_checked(commands[lane], project, environment)
-                assert_expected(lane, result, expected_stdout)
+                assert_expected(lane, result, expected_outputs[lane])
                 samples[lane].append(elapsed)
 
-        ratios = [
-            guion / python
-            for guion, python in zip(samples["guion_noop"], samples["python_noop"], strict=True)
-        ]
-        paired = paired_median_ci(ratios)
+        paired_comparisons = {
+            f"{size}_bytes_guion_over_python": paired_median_ci(
+                [
+                    guion / python
+                    for guion, python in zip(
+                        samples[f"{size}_guion_noop"],
+                        samples[f"{size}_python_noop"],
+                        strict=True,
+                    )
+                ]
+            )
+            for size in payloads
+        }
+        paired_comparisons["payload_penalty_guion_over_python"] = paired_median_ci(
+            [
+                (guion_5mb / guion_empty) / (python_5mb / python_empty)
+                for guion_empty, python_empty, guion_5mb, python_5mb in zip(
+                    samples["empty_guion_noop"],
+                    samples["empty_python_noop"],
+                    samples["5mb_guion_noop"],
+                    samples["5mb_python_noop"],
+                    strict=True,
+                )
+            ]
+        )
         source_paths = (
             "crates/runtime/src/python_bridge.rs",
             "crates/runtime/python/sidecar.py",
@@ -208,10 +243,14 @@ def main() -> int:
                 "orjson": orjson_version,
             },
             "workload": {
-                "rows_in_input": len(rows),
-                "input_bytes": len(dataset_bytes),
-                "input_sha256": sha256(dataset_bytes),
-                "operation": "Read the same 5.1 MB input as bytes, call Python len once, print the result.",
+                "rows_in_large_input": len(rows),
+                "input_bytes_by_size": {
+                    size: len(payload) for size, (_filename, payload) in payloads.items()
+                },
+                "input_sha256_by_size": {
+                    size: sha256(payload) for size, (_filename, payload) in payloads.items()
+                },
+                "operation": "Read an empty or 5.1 MB file as bytes, call Python len once, print the result.",
                 "python_package_imports": ["numpy", "orjson"],
             },
             "measurement": {
@@ -222,14 +261,19 @@ def main() -> int:
                     lane: statistics.median(values) for lane, values in samples.items()
                 },
                 "samples_seconds": samples,
-                "guion_over_python_noop": paired,
+                "paired_comparisons": paired_comparisons,
                 "all_timed_outputs_checked": True,
-                "method": "Fresh process per sample; randomized lane order; each stdout and stderr checked against the expected byte count; OS file cache uncontrolled.",
+                "method": "Fresh process per sample; randomized order across four lanes; each stdout and stderr checked against the expected byte count; OS file cache uncontrolled.",
             },
             "correctness": {
                 "all_outputs_match_expected": True,
-                "expected_stdout_sha256": sha256(expected_stdout),
-                "expected_byte_count": len(dataset_bytes),
+                "expected_output_by_size": {
+                    size: {
+                        "byte_count": len(payload),
+                        "stdout_sha256": sha256(expected_outputs[f"{size}_guion_noop"]),
+                    }
+                    for size, (_filename, payload) in payloads.items()
+                },
             },
         }
 
@@ -241,8 +285,8 @@ def main() -> int:
             {
                 "status": report["status"],
                 "medians_seconds": report["measurement"]["medians_seconds"],
-                "guion_over_python_noop": report["measurement"]["guion_over_python_noop"],
-                "input_bytes": report["workload"]["input_bytes"],
+                "paired_comparisons": report["measurement"]["paired_comparisons"],
+                "input_bytes_by_size": report["workload"]["input_bytes_by_size"],
                 "report": str(output),
             },
             sort_keys=True,
