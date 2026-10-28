@@ -66,6 +66,10 @@ A four-lane no-op `Bytes` control imports NumPy and orjson and returns only the 
 
 Changing the sidecar reader to preallocate the known frame size and use `readinto` reduced the isolated peak for a 5,100,867-byte frame from **10,201,824 bytes** to **5,101,732 bytes**. The change preserves short-read, clean EOF, and truncated-frame behavior. The full application measured a **1.019** Guion/Python ratio (95% interval **0.995–1.046**) and the no-op payload penalty measured **1.031** (**1.019–1.038**). Independent-cohort bootstrap comparisons show no measurable runtime change. See the [frame-reader report](../evaluation/completion/results/real-task-sprint/2026-10-28-python-bridge-readinto.md) and its [application](../evaluation/completion/results/real-task-sprint/2026-10-28-python-bridge-readinto-application.json) and [no-op](../evaluation/completion/results/real-task-sprint/2026-10-28-python-bridge-readinto-startup.json) samples.
 
+## Python bridge direct-read experiment (2026-10-28)
+
+A direct `read()` fast path for complete frames did not show a measurable speed change from the `readinto` version. The full application candidate/readinto ratio was **1.018** (95% interval **0.967–1.043**); the no-op payload-penalty ratio was **1.003** (**0.975–1.072**). Peak allocation differed by only 520 bytes, so the extra branch was reverted. The next measured target is streaming attachment extraction; see the [experiment report](../evaluation/completion/results/real-task-sprint/2026-10-28-python-bridge-direct-read.md).
+
 ## Source-run and launch speed sprint (2026-10-25)
 
 The source-run cache and repeated-run results are in the [final source-loop comparison](../evaluation/completion/results/source-loop/final-comparison-20261026.json) and its [full dated run](../evaluation/completion/results/source-loop/20261026T052344191561Z.json). This is a separate, newer source-loop cohort; it does not rewrite the frozen installed-artifact report above.
