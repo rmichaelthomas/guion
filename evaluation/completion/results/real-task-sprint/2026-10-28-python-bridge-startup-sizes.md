@@ -17,6 +17,10 @@ This isolates the payload-dependent portion of the no-op path, but it does not s
 
 The same control was rerun against the current PR binary (`296c750`) in 15 randomized pairs, preserving the earlier cohort and report. The empty-payload ratio was **1.017** (95% interval **0.993–1.065**), which does not distinguish Guion from Python. At 5,100,867 bytes, the ratio was **1.108** (**1.045–1.155**); the relative payload penalty was **1.055** (**1.007–1.210**). All outputs matched. This is weaker evidence than the 30-pair batch comparison and has a broad interval; it keeps large-payload transfer on the open list but does not localize its CPU cost. Raw samples and binary identity are in [`2026-10-28-python-bridge-startup-sizes-current-binary.json`](2026-10-28-python-bridge-startup-sizes-current-binary.json).
 
+## Phase-only payload diagnostic
+
+One opt-in profile was captured for each payload size. For the empty call, Rust's request write took **0.004 ms** and its first-response wait **72.68 ms**. For the 5.1 MB call, Rust's request-write phase spanned **41.85 ms**, while Python's frame-read phase measured **1.56 ms** and its request-parse phase **0.60 ms**; Rust's first-response wait after request writing was **31.72 ms**. Request writing and frame reading overlap. The long Rust write phase includes blocking while the child becomes ready to consume the pipe, so it is not a measure of CPU time or pure byte-copy time. The profile does not support targeting the Python attachment copy alone; the next investigation is the sidecar's readiness/startup interaction with pipe backpressure. See the [phase-profile raw data](2026-10-28-python-bridge-payload-transfer-profile.json) and [capture harness](../../performance/profile_python_bridge_payload_transfer.py).
+
 ## Method and limits
 
 - Host: macOS ARM64; Guion artifact format 44; CPython 3.14.7, NumPy 2.5.1, and orjson 3.11.9.
