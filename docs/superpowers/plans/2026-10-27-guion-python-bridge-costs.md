@@ -55,7 +55,7 @@
 - Create: `evaluation/completion/performance/benchmark_python_bridge_payloads.py`
 - Test: `evaluation/tests/test_guion_package_analysis.py`.
 
-**Interfaces:** The current Guion project is separate from the retained pre-rename fixture. Its text entry point calls `analysis:analyze_document(source: Text, group_by: Text) -> Json`; its Bytes entry point calls `analysis:analyze_document_bytes(source: Bytes, group_by: Text) -> Json`. Both adapters share the same analysis function. The benchmark reports `guion_text`, `guion_bytes`, `python_packages`, and `python_stdlib` lanes.
+**Interfaces:** The current Guion project is separate from the retained pre-rename fixture. Its text entry point calls `analysis:analyze_document(source: Text, group_by: Text) -> Json`; its Bytes entry point calls `analysis:analyze_document_bytes(source: Bytes, group_by: Text) -> Json`. Both adapters share the same analysis function. The benchmark reports `guion_text`, `guion_bytes`, direct Python `str` and `bytes` package lanes, and `python_stdlib`.
 
 - [x] Add an acceptance case that runs both Guion entry points on the same fixed input and compares their files and stdout byte-for-byte with the independent reference.
 - [x] Run that case before implementation and confirm it fails because the current-format project is missing.
@@ -90,8 +90,8 @@
 
 **Interfaces:** Use randomized paired fresh-process trials; check every output before recording a timing. Compare the unchanged Python function with both Guion transfer modes, retaining raw samples, source/binary hashes, and exact versions.
 
-- [ ] Run 15 randomized output-checked pairs per lane on the fixed 100,000-row workload.
-- [ ] Report medians and paired 95% intervals for each Guion lane against direct Python and against the prior text lane.
-- [ ] Claim a bridge speed win only if the comparison's 95% interval excludes 1.0 in Guion's favor; otherwise record the measured reduction or lack of signal and keep the outcome open.
-- [ ] Update current documentation and the sprint log with the result and its limits.
-- [ ] Run final focused validation, `git diff --check`, and remove all scratch processes and raw profile files.
+- [x] Run 15 randomized output-checked pairs per lane on the fixed 100,000-row workload.
+- [x] Report medians and paired 95% intervals for each Guion lane against direct Python and against the Guion Text lane.
+- [x] The Bytes lane is faster than the Text lane with a paired interval below 1.0. The Bytes lane is still 2.5% slower than direct package-backed Python; keep the broader bridge-performance outcome open.
+- [x] Update current documentation and the sprint log with the result and its limits.
+- [x] Run final focused validation, `git diff --check`, and remove this pass's scratch directory. The generated benchmark temp directory auto-removed; the default Python-free `target/release/guion` was restored and verified. The warmed 125 MiB managed Python package cache remains for the next package target.
