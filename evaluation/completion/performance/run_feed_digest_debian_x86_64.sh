@@ -6,6 +6,7 @@ if [[ "${GUION_FEED_DIGEST_CONTAINER:-}" != "1" ]]; then
   SCRATCH_ROOT="$REPO_ROOT/target/perf-session/guion-feed-digest-debian-x86_64"
   BUILDER_IMAGE=guion-feed-digest-debian-x86_64:rust-1.97-cmake
   IMAGE_CONTEXT="$SCRATCH_ROOT/image-context"
+  BUILDX_CONFIG="$SCRATCH_ROOT/buildx-config"
   CARGO_CACHE_ROOT="${CARGO_HOME:-${HOME}/.cargo}"
   CARGO_REGISTRY="$CARGO_CACHE_ROOT/registry"
   if [[ ! -d "$CARGO_REGISTRY" ]]; then
@@ -34,6 +35,8 @@ if [[ "${GUION_FEED_DIGEST_CONTAINER:-}" != "1" ]]; then
   fi
 
   mkdir -p "$SCRATCH_ROOT/managed/cache" "$SCRATCH_ROOT/managed/python"
+  mkdir -p "$BUILDX_CONFIG"
+  export BUILDX_CONFIG
   LOG_PATH="$SCRATCH_ROOT/run.log"
   mkdir -p "$IMAGE_CONTEXT"
   cp "$REPO_ROOT/evaluation/completion/performance/Dockerfile.feed-digest-debian-x86_64" \
@@ -73,7 +76,7 @@ if [[ "${GUION_FEED_DIGEST_CONTAINER:-}" != "1" ]]; then
     "$BUILDER_IMAGE" \
     bash /workspace/evaluation/completion/performance/run_feed_digest_debian_x86_64.sh \
     2>&1 | tee -a "$LOG_PATH"
-  rm -rf "$IMAGE_CONTEXT"
+  rm -rf "$IMAGE_CONTEXT" "$BUILDX_CONFIG"
   exit
 fi
 
