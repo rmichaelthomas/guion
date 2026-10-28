@@ -9,6 +9,7 @@ node site/tools/build.mjs               # assemble site/public/ from site/src/
 node site/tools/check-site.mjs site/public
 node site/tools/agent-docs.mjs          # regenerate the generated agent documents
 node site/tools/serve.mjs               # preview at http://127.0.0.1:8080/guion/
+node site/tools/publish-branch.mjs      # publish origin/main:site/public to the gh-pages branch (--dry-run to preview)
 sh site/tools/build-wasm.sh             # rebuild the playground .wasm files (Rust 1.97.1 + wasm32 target)
 ```
 
@@ -21,4 +22,4 @@ What it is: one landing page with a Plain English view and a Developer view (a n
 - `agents/` documents for agents: start at [agents/README.md](agents/README.md)
 - `qa/` browser results and screenshots: [qa/RESULTS.md](qa/RESULTS.md)
 
-Design: [`docs/superpowers/specs/2026-10-27-guion-site-design.md`](../docs/superpowers/specs/2026-10-27-guion-site-design.md). Plan: [`docs/superpowers/plans/2026-10-27-guion-site.md`](../docs/superpowers/plans/2026-10-27-guion-site.md). Deployment is `.github/workflows/pages.yml`, which needs the repository's Pages Source set to **GitHub Actions**.
+Design: [`docs/superpowers/specs/2026-10-27-guion-site-design.md`](../docs/superpowers/specs/2026-10-27-guion-site-design.md). Plan: [`docs/superpowers/plans/2026-10-27-guion-site.md`](../docs/superpowers/plans/2026-10-27-guion-site.md). Pages is set to deploy from the `gh-pages` branch (root). `site/tools/publish-branch.mjs` puts the contents of `site/public/` on that branch; see [agents/build-and-verify.md](agents/build-and-verify.md#deploy).

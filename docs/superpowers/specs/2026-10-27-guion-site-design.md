@@ -54,11 +54,12 @@ site/
     evidence/            index.html (a plain, generated list) plus the report and raw-sample files that claims cite, each with SHA-256
     llms.txt, agents.json
     .nojekyll
-.github/workflows/pages.yml   uploads site/public only
+.github/workflows/pages.yml   (original design; removed 2026-10-28, see section 4)
 ```
 
 - **A file is public only if it is under `site/public/`.** A test asserts every file there is linked from `index.html` or is a declared asset (the Planes invariant).
 - All paths in `public/` are relative: the site lives under `/guion/`.
+- **Superseded 2026-10-28:** Actions billing blocked the Actions-based Pages deploy, so Pages now deploys from the `gh-pages` branch, published by `site/tools/publish-branch.mjs`; `pages.yml` was removed. The paragraph below is the original design.
 - `pages.yml` runs on pushes to `main` that touch `site/**`, uploads `site/public` with the standard Pages artifact actions, and deploys. It needs Pages "Source" set to **GitHub Actions**. That is a repository settings change. I will not make it without your go-ahead; until it is made, legacy Pages keeps serving the whole repository tree publicly. The workflow only needs Actions to run at publish time. The existing Rust CI is unaffected.
 - `site/public/` is generated: `site/tools/build.mjs` fills `site/src` into it, and the output is committed so deploys do not need Node. CI (when available) rebuilds and diffs.
 - The frozen application `evaluation/completion/applications/allherehtml/` and its CI check are not touched.

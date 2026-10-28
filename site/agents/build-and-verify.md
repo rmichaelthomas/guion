@@ -36,7 +36,16 @@ R1 every file in `site/public/` is linked from a page (the `playground/` tree is
 
 ## Deploy
 
-`.github/workflows/pages.yml` uploads only `site/public/` and deploys it. It needs the repository's Pages **Source** set to **GitHub Actions**; until that is set Pages serves the whole repository tree from `main`. The page lives under `/guion/`, so every path in `site/public/` is relative.
+Pages deploys from the `gh-pages` branch at its root (Settings > Pages > Deploy from a branch). That branch holds only the contents of `site/public/`, so nothing else in the repository is served. Source branches never reach it by themselves: after a change to `site/` is merged to `main`, run
+
+```sh
+node site/tools/publish-branch.mjs --dry-run   # shows the commit it would make
+node site/tools/publish-branch.mjs             # fetches, commits origin/main:site/public on top of gh-pages, pushes (never forced)
+```
+
+It works on git objects only, so it is safe from any checkout and never touches your working tree. It publishes what is on `origin/main`, refuses a `site/public` without `index.html` or `.nojekyll`, and does nothing if the tree is already published. Pages then rebuilds on its own; confirm with `curl -sI https://rmichaelthomas.github.io/guion/` and check that a private path such as `.../guion/Cargo.toml` is 404.
+
+The earlier Actions-based deploy was removed because the Actions-based Pages deploy cannot run while Actions billing is blocked; it is in git history (PR #22) if you want to restore it, in which case Pages Source must be switched back to GitHub Actions. The page lives under `/guion/`, so every path in `site/public/` is relative.
 
 ## Reporting
 
