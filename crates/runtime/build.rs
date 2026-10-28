@@ -20,15 +20,13 @@ fn main() {
     let source = out.join("libical-src");
     fs::create_dir_all(&source).expect("create libical build source directory");
     let mut extract = Command::new("tar");
-    extract.arg("-xzf").arg(&archive);
     if env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("linux") {
-        // Avoid restoring the archive's root ownership and permission bits in
-        // the shared Linux build tree; Cargo and CMake must be able to update it.
-        extract
-            .arg("--no-same-owner")
-            .arg("--no-same-permissions");
+        // The build disables LIBICAL_BUILD_DOCS below; omit the archive's
+        // root-level documentation symlinks that cannot be created in the
+        // shared Linux build tree.
+        extract.arg("--exclude=libical-4.0.5/docs/*.md");
     }
-    extract.arg("-C").arg(&source);
+    extract.arg("-xzf").arg(&archive).arg("-C").arg(&source);
     run(&mut extract, "extract libical source");
     let source = source.join("libical-4.0.5");
     let build = out.join("libical-build");
