@@ -92,6 +92,12 @@ def main() -> int:
         help="record that this acceptance run used a VM-hosted environment",
     )
     parser.add_argument(
+        "--scratch-dir",
+        type=Path,
+        default=ROOT / "target/perf-session/managed-package-analysis",
+        help="parent directory for temporary project, dataset, and package files",
+    )
+    parser.add_argument(
         "--output",
         type=Path,
         default=ROOT
@@ -122,7 +128,9 @@ def main() -> int:
         if not required.is_dir():
             raise RuntimeError(f"warmed managed Python cache is missing: {required}")
 
-    scratch_parent = ROOT / "target/perf-session/managed-package-analysis"
+    scratch_parent = args.scratch_dir
+    if not scratch_parent.is_absolute():
+        scratch_parent = ROOT / scratch_parent
     scratch_parent.mkdir(parents=True, exist_ok=True)
     uv_environment = os.environ.copy()
     uv_environment.update(
