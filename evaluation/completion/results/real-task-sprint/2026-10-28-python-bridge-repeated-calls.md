@@ -44,6 +44,8 @@ Replacing the per-call stdout/stderr redirect managers with direct stream save/r
 
 A typed Rust response parser that preserved the existing sidecar wire format reduced the diagnostic JSON-parse phase from 5.472 μs to 5.254 μs, but did not improve the complete workload: the 30-pair 1,000-call ratio was 1.395× versus 1.389× immediately before the change. Its estimated excess-cost reduction was 0.176 μs per added call, with a 95% interval from 2.326 μs more to 3.301 μs less. The interval includes no change, so the code candidate was reverted. See the [typed-parser profile](2026-10-28-python-bridge-typed-parser-current-phase-profile.json) and [30-pair samples](2026-10-28-python-bridge-repeated-calls-after-typed-parser-30-pair.json).
 
+A borrowed-string/`RawValue` parser candidate did not pass the phase gate: five diagnostic runs measured response parsing at 5.557 μs versus the 5.472 μs baseline, with result decoding at 0.104 μs versus 0.096 μs. It was reverted without an end-to-end timing cohort. See the [borrowed-parser profile](2026-10-28-python-bridge-borrowed-rawvalue-phase-profile.json).
+
 ## Method and limits
 
 - Host: macOS ARM64; Guion artifact format 44; CPython 3.14.7, NumPy 2.5.1, and orjson 3.11.9.

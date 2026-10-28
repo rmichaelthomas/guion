@@ -110,6 +110,12 @@ Raw candidate samples: [typed-parser phase profile](2026-10-28-python-bridge-typ
 
 The typed parser result leaves repeated Rust response JSON parsing as the largest named phase, but a modest phase reduction alone has not translated into whole-workload improvement. The next experiment should test a materially different source of response-path cost or move to another measured bridge component.
 
+## Borrowed response strings and raw result JSON — rejected at phase gate
+
+A second parser candidate borrowed response text where possible and deferred parsing the result field through `serde_json::RawValue`, while preserving the same response JSON. The focused response-parser unit check and all 26 Rust bridge integration tests passed; the Python bridge checks also passed, with the opt-in profile test skipped because `GUION_PYTHON` was not set for that test runner. In the five-run profile, Rust response parsing measured **5.557 μs**, versus **5.472 μs** in the pre-candidate profile, and result decoding measured **0.104 μs**, versus **0.096 μs**. The output-checked phase result did not improve, so the candidate was reverted before a full repeated-call cohort was run.
+
+Raw candidate sample: [borrowed-parser phase profile](2026-10-28-python-bridge-borrowed-rawvalue-phase-profile.json).
+
 The profiling hook is off by default. Set `GUION_PYTHON_BRIDGE_PROFILE_OUT` to a JSON path to write diagnostic totals; normal runs do not collect phase timers or attach profile data to bridge responses.
 
 ## Method and limits
