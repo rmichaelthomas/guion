@@ -1,0 +1,17 @@
+[project]
+name = "guion-feed-digest"
+version = "0.1.0"
+entry = "main.gu"
+
+[python]
+version = "3.14.8"
+dependencies = ["feedparser==6.0.14"]
+
+[network]
+hosts = ["127.0.0.1"]
+timeout_ms = 15000
+max_response_bytes = 16777216
+max_redirects = 5
+
+[package]
+resources = ["guion_feed.py"]

@@ -1,7 +1,8 @@
 """Acceptance and parity checks for the feed-digest development workload.
 
-Build the Veritas CLI first. Set VERITAS_UV to the pinned uv binary if it is
-not on PATH. The harness serves all feed data from a loopback-only HTTP server.
+Build the Guion CLI first. Set GUION_UV to the pinned uv executable. The
+harness serves all feed data from a loopback-only HTTP server. Set
+GUION_FEED_PACKAGE_RUNNER to exercise a relocated package instead of source.
 """
 
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -16,12 +17,12 @@ import unittest
 
 
 ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_PROJECT = ROOT / "evaluation/development/feed_digest"
-if not DEFAULT_PROJECT.is_dir():
-    DEFAULT_PROJECT = ROOT / "examples/feed_digest"
-PROJECT = Path(os.environ.get("VERITAS_FEED_PROJECT", DEFAULT_PROJECT))
+DEFAULT_PROJECT = ROOT / "evaluation/development/guion_feed_digest"
+PROJECT = Path(os.environ.get("GUION_FEED_PROJECT", DEFAULT_PROJECT))
 BASELINE = PROJECT / "python_baseline.py"
-VERITAS = Path(os.environ.get("VERITAS_BINARY", ROOT / "target/debug/veritas"))
+GUION = Path(os.environ.get("GUION_BINARY", ROOT / "target/debug/guion"))
+PACKAGE_RUNNER = os.environ.get("GUION_FEED_PACKAGE_RUNNER")
+SCRATCH = Path(os.environ.get("GUION_FEED_SCRATCH", ROOT / "target/perf-session"))
 
 
 FEED_A = """<?xml version="1.0" encoding="utf-8"?>
@@ -93,8 +94,16 @@ class Handler(BaseHTTPRequestHandler):
 class FeedDigestAcceptance(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        if not VERITAS.is_file():
-            raise RuntimeError(f"Veritas binary missing at {VERITAS}; build the CLI first")
+        if PACKAGE_RUNNER:
+            if not Path(PACKAGE_RUNNER).is_file():
+                raise RuntimeError(f"Guion package runner missing at {PACKAGE_RUNNER}")
+        elif not GUION.is_file():
+            raise RuntimeError(f"Guion binary missing at {GUION}; build the CLI first")
+        SCRATCH.mkdir(parents=True, exist_ok=True)
+        cls.work_dir = tempfile.TemporaryDirectory(prefix="guion-feed-acceptance-", dir=SCRATCH)
+        cls.work = Path(cls.work_dir.name)
+        cls.project = cls.work / "feed_digest"
+        copytree(PROJECT, cls.project, ignore=ignore_patterns(".venv", "__pycache__", "digest.md"))
         cls.server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
         cls.thread = threading.Thread(target=cls.server.serve_forever, daemon=True)
         cls.thread.start()
@@ -105,33 +114,51 @@ class FeedDigestAcceptance(unittest.TestCase):
         cls.server.shutdown()
         cls.server.server_close()
         cls.thread.join(timeout=2)
+        cls.work_dir.cleanup()
 
-    def run_veritas(self, urls, cwd, project):
-        command = [str(VERITAS), "run", str(project), *urls]
-        return subprocess.run(command, cwd=cwd, text=True, capture_output=True, timeout=30)
+    def run_guion(self, urls, cwd, project):
+        if PACKAGE_RUNNER:
+            command = [PACKAGE_RUNNER, *urls]
+            working_dir = project
+            environment = os.environ.copy()
+            for name in (
+                "GUION_UV",
+                "GUION_PYTHON",
+                "GUION_PYTHON_INSTALL_DIR",
+                "GUION_PYTHON_CACHE_DIR",
+                "UV_PYTHON_INSTALL_DIR",
+                "UV_CACHE_DIR",
+                "UV_OFFLINE",
+            ):
+                environment.pop(name, None)
+        else:
+            command = [str(GUION), "run", str(project), *urls]
+            working_dir = cwd
+            environment = os.environ.copy()
+        return subprocess.run(
+            command, cwd=working_dir, text=True, capture_output=True, timeout=30, env=environment
+        )
 
     def run_python(self, urls, cwd, project):
-        bridge = project / ".veritas/python-bridge"
+        bridge = project / ".guion/python-bridge"
+        if not bridge.is_dir():
+            bridge = project / ".veritas/python-bridge"
         command = ["uv", "run", "--project", str(bridge), "--locked", "--offline", "python", str(project / "python_baseline.py"), str(project / "digest.md"), *urls]
         env = os.environ.copy()
-        pinned_uv = env.get("VERITAS_UV")
+        pinned_uv = env.get("GUION_UV")
         if pinned_uv:
             command[0] = pinned_uv
         return subprocess.run(command, cwd=cwd, text=True, capture_output=True, timeout=30, env=env)
 
     def compare(self, urls):
-        with tempfile.TemporaryDirectory(prefix="veritas-feed-acceptance-") as temp:
-            work = Path(temp)
-            project = work / "feed_digest"
-            copytree(PROJECT, project, ignore=ignore_patterns(".venv", "__pycache__", "digest.md"))
-            veritas = self.run_veritas(urls, work, project)
-            self.assertEqual(veritas.returncode, 0, veritas.stderr)
-            veritas_digest = (project / "digest.md").read_text(encoding="utf-8")
-            python = self.run_python(urls, work, project)
-            self.assertEqual(python.returncode, 0, python.stderr)
-            python_digest = (project / "digest.md").read_text(encoding="utf-8")
-            self.assertEqual(veritas_digest, python_digest)
-            return veritas_digest
+        guion = self.run_guion(urls, self.work, self.project)
+        self.assertEqual(guion.returncode, 0, guion.stderr)
+        guion_digest = (self.project / "digest.md").read_text(encoding="utf-8")
+        python = self.run_python(urls, self.work, self.project)
+        self.assertEqual(python.returncode, 0, python.stderr)
+        python_digest = (self.project / "digest.md").read_text(encoding="utf-8")
+        self.assertEqual(guion_digest, python_digest)
+        return guion_digest
 
     def test_dedup_unicode_sort_failure_and_python_parity(self):
         Handler.changed = False
@@ -163,23 +190,19 @@ class FeedDigestAcceptance(unittest.TestCase):
         digest = self.compare(["http://localhost:1/not-contacted", f"{self.base}/a.xml"])
         self.assertIn("R_NETWORK_DENIED: network access to this host is not granted", digest)
 
-    def test_veritas_and_python_fetch_independent_feeds_concurrently(self):
+    def test_guion_and_python_fetch_independent_feeds_concurrently(self):
         urls = [f"{self.base}/slow-a.xml", f"{self.base}/slow-b.xml"]
-        with tempfile.TemporaryDirectory(prefix="veritas-feed-concurrency-") as temp:
-            work = Path(temp)
-            project = work / "feed_digest"
-            copytree(PROJECT, project, ignore=ignore_patterns(".venv", "__pycache__", "digest.md"))
-            Handler.peak = 0
-            veritas = self.run_veritas(urls, work, project)
-            self.assertEqual(veritas.returncode, 0, veritas.stderr)
-            self.assertGreaterEqual(Handler.peak, 2, "Veritas serialized the feed requests")
-            veritas_digest = (project / "digest.md").read_text(encoding="utf-8")
+        Handler.peak = 0
+        guion = self.run_guion(urls, self.work, self.project)
+        self.assertEqual(guion.returncode, 0, guion.stderr)
+        self.assertGreaterEqual(Handler.peak, 2, "Guion serialized the feed requests")
+        guion_digest = (self.project / "digest.md").read_text(encoding="utf-8")
 
-            Handler.peak = 0
-            python = self.run_python(urls, work, project)
-            self.assertEqual(python.returncode, 0, python.stderr)
-            self.assertGreaterEqual(Handler.peak, 2, "Python baseline serialized the feed requests")
-            self.assertEqual((project / "digest.md").read_text(encoding="utf-8"), veritas_digest)
+        Handler.peak = 0
+        python = self.run_python(urls, self.work, self.project)
+        self.assertEqual(python.returncode, 0, python.stderr)
+        self.assertGreaterEqual(Handler.peak, 2, "Python serialized the feed requests")
+        self.assertEqual((self.project / "digest.md").read_text(encoding="utf-8"), guion_digest)
 
 
 if __name__ == "__main__":

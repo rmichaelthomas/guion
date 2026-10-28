@@ -1,0 +1,57 @@
+extern python "guion_feed:parse_entries" fn parse_entries(source: Text) -> List[Map[Text, Text]]
+
+fn fetch_feed(url: Text) -> Result[Text, HttpError]:
+    return http_get(url)
+
+fn main() -> Int:
+    let urls = args()
+    if len(urls) < 2:
+        print("usage: guion run PROJECT_DIRECTORY FEED_URL FEED_URL [FEED_URL ...]")
+        return 2
+
+    let fetched = parallel_map(urls, fetch_feed, 4)
+    if not is_ok(fetched):
+        let problem = error(fetched)
+        print("fetch worker failed at input")
+        print(task_index(problem))
+        return 1
+
+    var entries_by_link = {"": {"title": "", "published": ""}}
+    var failures = ""
+    let responses = unwrap(fetched)
+    var index = 0
+    for response in responses:
+        if is_ok(response):
+            let entries = parse_entries(unwrap(response))
+            for entry in entries:
+                let link = entry["link"]
+                if link != "":
+                    if not map_has(entries_by_link, link):
+                        set entries_by_link = map_set(entries_by_link, link, entry)
+                    else:
+                        let current = entries_by_link[link]
+                        if entry["published"] != "" and current["published"] == "":
+                            set entries_by_link = map_set(entries_by_link, link, entry)
+                        else:
+                            if (entry["published"] == "") == (current["published"] == "") and entry["title"] < current["title"]:
+                                set entries_by_link = map_set(entries_by_link, link, entry)
+        else:
+            let problem = error(response)
+            set failures = failures + "- " + urls[index] + " (" + http_error_code(problem) + ": " + http_error_message(problem) + ")\n"
+        set index = index + 1
+
+    var digest = "# Feed digest\n\n"
+    if failures != "":
+        set digest = digest + "## Feed errors\n\n" + failures + "\n"
+    set digest = digest + "## Entries\n\n"
+    for link in entries_by_link:
+        if link != "":
+            let entry = entries_by_link[link]
+            set digest = digest + "- [" + entry["title"] + "](" + link + ")"
+            if entry["published"] != "":
+                set digest = digest + " — " + entry["published"]
+            set digest = digest + "\n"
+
+    unwrap(write_text("digest.md", digest))
+    print("wrote digest.md")
+    return 0
