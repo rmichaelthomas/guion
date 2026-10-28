@@ -98,6 +98,16 @@ class PythonBridgeProfileTests(unittest.TestCase):
                 ],
                 0,
             )
+            for phase in (
+                "request_setup",
+                "request_validation_setup",
+                "stream_restore",
+                "response_object_setup",
+                "response_native_prepare",
+                "profile_payload_build",
+            ):
+                with self.subTest(phase=phase):
+                    self.assertGreater(profile["python"]["repeated_calls_ns"][phase], 0)
             if sys.platform == "darwin":
                 self.assertGreater(
                     profile["python"]["repeated_calls_ns"]["native_image_check"], 0

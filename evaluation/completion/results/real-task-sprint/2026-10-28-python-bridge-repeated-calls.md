@@ -46,6 +46,8 @@ A typed Rust response parser that preserved the existing sidecar wire format red
 
 A borrowed-string/`RawValue` parser candidate did not pass the phase gate: five diagnostic runs measured response parsing at 5.557 μs versus the 5.472 μs baseline, with result decoding at 0.104 μs versus 0.096 μs. It was reverted without an end-to-end timing cohort. See the [borrowed-parser profile](2026-10-28-python-bridge-borrowed-rawvalue-phase-profile.json).
 
+Additional sidecar timings assigned about 2.1 μs per call to request setup, protocol/stream setup, stream restoration, response-object creation, and native-image response preparation. The five-run phase profile left about 2.24 μs unassigned after excluding profile-only serialization. These diagnostic values include timer overhead and do not change the end-to-end benchmark; Rust's first-byte wait remains the larger target at 18.61 μs. See the [control-gap profile](2026-10-28-python-bridge-control-gap-profile.json).
+
 ## Method and limits
 
 - Host: macOS ARM64; Guion artifact format 44; CPython 3.14.7, NumPy 2.5.1, and orjson 3.11.9.

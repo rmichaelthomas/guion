@@ -116,6 +116,14 @@ A second parser candidate borrowed response text where possible and deferred par
 
 Raw candidate sample: [borrowed-parser phase profile](2026-10-28-python-bridge-borrowed-rawvalue-phase-profile.json).
 
+## Sidecar control-flow gaps
+
+The previous profile left about **3.7 μs** between named Python phases and the full request-to-first-write interval. The opt-in profile now measures request setup, protocol validation and stream setup, stream restoration, response-object creation, native-image response preparation, and construction of the diagnostic profile payload. In five output-checked runs of 1,000 calls, these normal-path control spans measured **0.77 μs**, **0.53 μs**, **0.23 μs**, **0.35 μs**, and **0.19 μs** per call. Named normal-path phases summed to **9.57 μs**; the total request-to-first-write interval was **12.55 μs**, leaving about **2.24 μs** unassigned after excluding the **0.74 μs** spent building profile-only data. Diagnostic instrumentation adds timing work, so this is a phase map rather than a new speed comparison.
+
+Rust measured **18.61 μs** from completed request write to the first response byte, **0.89 μs** to finish reading the frame, **2.99 μs** for reader-thread delivery, and **22.57 μs** for the full response wait. The gap between the Python-side pre-write timer and Rust's first-byte wait includes request delivery, process wakeup, and response-write delivery; it does not identify CPU time by itself. With JSON parsing and channel changes failing to improve end-to-end timing, the next target is the request/response transport and wakeup path.
+
+The focused Rust bridge suite passed **26/26**, and the Python bridge suite passed **10/10**, including the opt-in profile assertions. See the [control-gap profile](2026-10-28-python-bridge-control-gap-profile.json).
+
 The profiling hook is off by default. Set `GUION_PYTHON_BRIDGE_PROFILE_OUT` to a JSON path to write diagnostic totals; normal runs do not collect phase timers or attach profile data to bridge responses.
 
 ## Method and limits

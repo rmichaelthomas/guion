@@ -65,32 +65,44 @@ if PROFILE_ENABLED:
     PROFILE_PHASES_NS = {
         "first_call": {
             "request_frame_read": 0,
+            "request_setup": 0,
             "request_parse": 0,
+            "request_validation_setup": 0,
             "request_value_decode": 0,
             "module_import_fallback": 0,
             "module_dispatch": 0,
             "function_call": 0,
+            "stream_restore": 0,
             "result_encode": 0,
+            "response_object_setup": 0,
             "output_capture": 0,
+            "response_native_prepare": 0,
             "native_image_check": 0,
             "native_image_snapshot": 0,
             "response_envelope": 0,
+            "profile_payload_build": 0,
             "response_json_encode": 0,
             "request_to_response_first_write": 0,
             "response_write": 0,
         },
         "repeated_calls": {
             "request_frame_read": 0,
+            "request_setup": 0,
             "request_parse": 0,
+            "request_validation_setup": 0,
             "request_value_decode": 0,
             "module_import_fallback": 0,
             "module_dispatch": 0,
             "function_call": 0,
+            "stream_restore": 0,
             "result_encode": 0,
+            "response_object_setup": 0,
             "output_capture": 0,
+            "response_native_prepare": 0,
             "native_image_check": 0,
             "native_image_snapshot": 0,
             "response_envelope": 0,
+            "profile_payload_build": 0,
             "response_json_encode": 0,
             "request_to_response_first_write": 0,
             "response_write": 0,
@@ -316,9 +328,14 @@ while True:
         )
     if PROFILE_ENABLED:
         PROFILE_CALLS += 1
+    request_setup_started = perf_counter_ns() if PROFILE_ENABLED else 0
     request_id = None
     stdout_capture = io.StringIO()
     stderr_capture = io.StringIO()
+    if PROFILE_ENABLED:
+        PROFILE_PHASES_NS[PROFILE_ACTIVE_BUCKET]["request_setup"] += (
+            perf_counter_ns() - request_setup_started
+        )
     try:
         started = perf_counter_ns() if PROFILE_ENABLED else 0
         request, attachments = parse_request_frame(frame)
@@ -326,11 +343,16 @@ while True:
             PROFILE_PHASES_NS[PROFILE_ACTIVE_BUCKET]["request_parse"] += (
                 perf_counter_ns() - started
             )
+        validation_setup_started = perf_counter_ns() if PROFILE_ENABLED else 0
         request_id = request["id"]
         if request.get("protocol") != 2 or request.get("kind") != "call":
             raise ValueError("unsupported bridge protocol request")
         previous_stdout, previous_stderr = sys.stdout, sys.stderr
         sys.stdout, sys.stderr = stdout_capture, stderr_capture
+        if PROFILE_ENABLED:
+            PROFILE_PHASES_NS[PROFILE_ACTIVE_BUCKET]["request_validation_setup"] += (
+                perf_counter_ns() - validation_setup_started
+            )
         try:
             started = perf_counter_ns() if PROFILE_ENABLED else 0
             module_name = request["module"]
@@ -376,7 +398,12 @@ while True:
                     perf_counter_ns() - started
                 )
         finally:
+            restore_started = perf_counter_ns() if PROFILE_ENABLED else 0
             sys.stdout, sys.stderr = previous_stdout, previous_stderr
+            if PROFILE_ENABLED:
+                PROFILE_PHASES_NS[PROFILE_ACTIVE_BUCKET]["stream_restore"] += (
+                    perf_counter_ns() - restore_started
+                )
         started = perf_counter_ns() if PROFILE_ENABLED else 0
         if request.get("numpy_list_result") is True:
             result = normalize_numpy_list(result)
@@ -388,8 +415,14 @@ while True:
             PROFILE_PHASES_NS[PROFILE_ACTIVE_BUCKET]["result_encode"] += (
                 perf_counter_ns() - started
             )
+        response_setup_started = perf_counter_ns() if PROFILE_ENABLED else 0
         response = {"protocol": 2, "id": request_id, "ok": True, "value": encoded_result}
+        if PROFILE_ENABLED:
+            PROFILE_PHASES_NS[PROFILE_ACTIVE_BUCKET]["response_object_setup"] += (
+                perf_counter_ns() - response_setup_started
+            )
     except BaseException as error:
+        response_setup_started = perf_counter_ns() if PROFILE_ENABLED else 0
         response = {
             "protocol": 2,
             "id": request_id,
@@ -400,6 +433,10 @@ while True:
                 "traceback": traceback.format_exc()[-32768:],
             },
         }
+        if PROFILE_ENABLED:
+            PROFILE_PHASES_NS[PROFILE_ACTIVE_BUCKET]["response_object_setup"] += (
+                perf_counter_ns() - response_setup_started
+            )
     started = perf_counter_ns() if PROFILE_ENABLED else 0
     response["stdout"] = stdout_capture.getvalue()[:65536]
     response["stderr"] = stderr_capture.getvalue()[:65536]
@@ -407,8 +444,13 @@ while True:
         PROFILE_PHASES_NS[PROFILE_ACTIVE_BUCKET]["output_capture"] += (
             perf_counter_ns() - started
         )
+    native_prepare_started = perf_counter_ns() if PROFILE_ENABLED else 0
     response["native_images"] = []
     native_image_count_changed = False
+    if PROFILE_ENABLED:
+        PROFILE_PHASES_NS[PROFILE_ACTIVE_BUCKET]["response_native_prepare"] += (
+            perf_counter_ns() - native_prepare_started
+        )
     if _image_count is not None:
         started = perf_counter_ns() if PROFILE_ENABLED else 0
         try:
@@ -445,8 +487,8 @@ while True:
         PROFILE_PHASES_NS[PROFILE_ACTIVE_BUCKET]["response_envelope"] += (
             perf_counter_ns() - started
         )
-    if PROFILE_ENABLED:
-        response["_bridge_profile"] = {
+        profile_payload_started = perf_counter_ns()
+        bridge_profile = {
             "calls": PROFILE_CALLS,
             "request_json_parser": LAST_REQUEST_JSON_PARSER,
             "response_json_encoder": (
@@ -455,6 +497,10 @@ while True:
             "first_call_ns": dict(PROFILE_PHASES_NS["first_call"]),
             "repeated_calls_ns": dict(PROFILE_PHASES_NS["repeated_calls"]),
         }
+        PROFILE_PHASES_NS[PROFILE_ACTIVE_BUCKET]["profile_payload_build"] += (
+            perf_counter_ns() - profile_payload_started
+        )
+        response["_bridge_profile"] = bridge_profile
     try:
         write_frame(response, request_ready_at=request_ready_at)
     except BaseException:
