@@ -68,7 +68,11 @@ Changing the sidecar reader to preallocate the known frame size and use `readint
 
 ## Python bridge direct-read experiment (2026-10-28)
 
-A direct `read()` fast path for complete frames did not show a measurable speed change from the `readinto` version. The full application candidate/readinto ratio was **1.018** (95% interval **0.967–1.043**); the no-op payload-penalty ratio was **1.003** (**0.975–1.072**). Peak allocation differed by only 520 bytes, so the extra branch was reverted. A streaming-reader prototype for one large attachment also failed the one-copy allocation bound when fragmented reads required an immutable-bytes copy. The next measurement compares repeated bridge calls after startup; see the [experiment report](../evaluation/completion/results/real-task-sprint/2026-10-28-python-bridge-direct-read.md).
+A direct `read()` fast path for complete frames did not show a measurable speed change from the `readinto` version. The full application candidate/readinto ratio was **1.018** (95% interval **0.967–1.043**); the no-op payload-penalty ratio was **1.003** (**0.975–1.072**). Peak allocation differed by only 520 bytes, so the extra branch was reverted. A streaming-reader prototype for one large attachment also failed the one-copy allocation bound when fragmented reads required an immutable-bytes copy. The next measurement times phases of the per-call request/response path; see the [experiment report](../evaluation/completion/results/real-task-sprint/2026-10-28-python-bridge-direct-read.md).
+
+## Python bridge repeated-call cost (2026-10-28)
+
+The repeated-call benchmark found near parity for one call, then a growing Guion cost: ratios were **1.066** at 10 calls, **1.339** at 100, and **4.131** at 1,000 calls. The paired estimate shows **0.241 ms** extra per added Guion call (95% interval **0.236–0.254 ms**) compared with the direct Python loop. Every output matched. This estimate includes loop execution and the full request/response path; the next pass will time those phases to identify the component to optimize. See the [plain-English report](../evaluation/completion/results/real-task-sprint/2026-10-28-python-bridge-repeated-calls.md) and [raw samples](../evaluation/completion/results/real-task-sprint/2026-10-28-python-bridge-repeated-calls-1-1000.json).
 
 ## Source-run and launch speed sprint (2026-10-25)
 

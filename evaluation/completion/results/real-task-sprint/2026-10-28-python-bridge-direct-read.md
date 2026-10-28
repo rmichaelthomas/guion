@@ -10,7 +10,7 @@ The direct-read path measured **5,101,212 bytes** peak for a 5,100,867-byte comp
 
 I also screened a streaming-reader prototype for a single 5.1 MB attachment. The buffered pipe supplied the attachment in fragments, so the sidecar had to assemble a mutable buffer and copy it into the required immutable `bytes`; measured peak allocation was **10,203,084 bytes**, above the **7,651,300-byte** one-copy bound. The prototype was dropped before being retained in the branch. For this single-large-attachment case, the existing frame reader already avoids the extra conversion copy that the streaming prototype reintroduced.
 
-The next measurement will compare repeated small Python calls within one Guion process. The current one-call probe combines interpreter startup and one bridge call, so it does not reveal whether the persistent sidecar has excessive per-call overhead after startup is amortized.
+The follow-up now measures repeated calls: the 1,000-call Guion run was 4.131× the direct Python time, with an estimated 0.241 ms excess per added call (95% interval 0.236–0.254 ms). The next step is to measure phases of the per-call request/response path before choosing an implementation change. See the [repeated-call report](2026-10-28-python-bridge-repeated-calls.md) and [raw samples](2026-10-28-python-bridge-repeated-calls-1-1000.json).
 
 ## Method and limits
 
