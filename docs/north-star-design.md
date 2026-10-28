@@ -62,6 +62,8 @@ Use uv's resolver and native lock format as an implementation component. Veritas
 
 Test both pure-Python and native-wheel dependencies. Include an array/object-heavy package as a compatibility challenge and count adapter work and transfer cost. If important packages are impractical to use, document that as a reason to recommend Python. Passing a JSON-friendly parser is insufficient evidence of broad ecosystem access.
 
+Current bridge evidence: on one 100,000-row NumPy/orjson workload, private raw-byte request attachments reduced Guion's median by 13.7% compared with transferring the same input as `Text`. Guion remains 2.5% slower than the same direct Python package function on that test; this is a targeted optimization result, not broad language-speed evidence. See the [bridge-cost report](../evaluation/completion/results/real-task-sprint/2026-10-27-python-bridge-bytes.md).
+
 ## Distribution and maintenance
 
 First distribution target: current macOS arm64, with exact OS/runtime constraints recorded in the build report. Architecture permits later Linux, Windows and browser hosts without claiming they are supported now. No browser port or phone deployment is required for this release.

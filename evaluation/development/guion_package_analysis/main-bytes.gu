@@ -1,0 +1,24 @@
+extern python "analysis:analyze_document_bytes" fn analyze_document_bytes(source: Bytes, group_by: Text) -> Json
+
+fn main() -> Int:
+    let arguments = args()
+    if len(arguments) != 2 and len(arguments) != 3:
+        print("Usage: guion run main-bytes.gu INPUT.json REPORT.json [GROUP_BY]")
+        return 2
+    var group_by = "tag"
+    if len(arguments) == 3:
+        set group_by = arguments[2]
+    let input = read_bytes(arguments[0])
+    if not is_ok(input):
+        print("Cannot read input: " + file_error_code(error(input)))
+        return 1
+    let report = analyze_document_bytes(unwrap(input), group_by)
+    let output = write_text_atomic(arguments[1], json_stringify(report))
+    if not is_ok(output):
+        print("Cannot write output: " + file_error_code(error(output)))
+        return 1
+    print("Rows:")
+    print(json_as_int(json_get(report, "count")))
+    print("Total:")
+    print(json_as_int(json_get(report, "total")))
+    return 0

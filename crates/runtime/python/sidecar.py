@@ -41,6 +41,7 @@ except BaseException:
 
 MAX_FRAME = 24 * 1024 * 1024
 MAX_NUMPY_ELEMENTS = MAX_FRAME // 256
+BINARY_FRAME_MAGIC = b"GBIN"
 PROTOCOL_OUT = os.fdopen(os.dup(sys.stdout.fileno()), "wb", buffering=0)
 # Keep native extension writes on fd 1/2 from corrupting the framed channel.
 # Python-level writes are captured with redirect_stdout/redirect_stderr below.
@@ -62,7 +63,35 @@ def read_exact(count):
     return chunks
 
 
-def decode(value, depth=0):
+def parse_request_frame(frame):
+    if not frame.startswith(BINARY_FRAME_MAGIC):
+        return json.loads(frame), []
+    if len(frame) < 12:
+        raise ValueError("truncated binary request frame header")
+    metadata_length = struct.unpack(">I", frame[4:8])[0]
+    metadata_end = 8 + metadata_length
+    if metadata_end + 4 > len(frame):
+        raise ValueError("truncated binary request metadata")
+    request = json.loads(frame[8:metadata_end])
+    attachment_count = struct.unpack(">I", frame[metadata_end:metadata_end + 4])[0]
+    offset = metadata_end + 4
+    attachments = []
+    for _ in range(attachment_count):
+        if offset + 4 > len(frame):
+            raise ValueError("truncated binary request attachment length")
+        attachment_length = struct.unpack(">I", frame[offset:offset + 4])[0]
+        offset += 4
+        attachment_end = offset + attachment_length
+        if attachment_end > len(frame):
+            raise ValueError("truncated binary request attachment")
+        attachments.append(bytes(frame[offset:attachment_end]))
+        offset = attachment_end
+    if offset != len(frame):
+        raise ValueError("binary request frame has trailing bytes")
+    return request, attachments
+
+
+def decode(value, attachments, depth=0):
     if depth > 64:
         raise ValueError("value nesting exceeds 64 levels")
     tag = value.get("t")
@@ -79,12 +108,12 @@ def decode(value, depth=0):
             return result
     if tag == "text" and isinstance(item, str):
         return item
-    if tag == "bytes" and isinstance(item, str):
-        return base64.b64decode(item, validate=True)
+    if tag == "bytes" and type(item) is int and 0 <= item < len(attachments):
+        return attachments[item]
     if tag == "list" and isinstance(item, list):
-        return [decode(child, depth + 1) for child in item]
+        return [decode(child, attachments, depth + 1) for child in item]
     if tag == "map" and isinstance(item, dict) and all(isinstance(key, str) for key in item):
-        return {key: decode(child, depth + 1) for key, child in item.items()}
+        return {key: decode(child, attachments, depth + 1) for key, child in item.items()}
     if tag == "json":
         return encode_json(item)
     raise ValueError("unsupported or malformed Guion value tag")
@@ -181,15 +210,18 @@ while True:
     stdout_capture = io.StringIO()
     stderr_capture = io.StringIO()
     try:
-        request = json.loads(frame)
+        request, attachments = parse_request_frame(frame)
         request_id = request["id"]
-        if request.get("protocol") != 1 or request.get("kind") != "call":
+        if request.get("protocol") != 2 or request.get("kind") != "call":
             raise ValueError("unsupported bridge protocol request")
         with contextlib.redirect_stdout(stdout_capture), contextlib.redirect_stderr(stderr_capture):
             module = importlib.import_module(request["module"])
             function = getattr(module, request["function"])
-            args = [decode(item) for item in request.get("args", [])]
-            kwargs = {name: decode(item) for name, item in request.get("kwargs", {}).items()}
+            args = [decode(item, attachments) for item in request.get("args", [])]
+            kwargs = {
+                name: decode(item, attachments)
+                for name, item in request.get("kwargs", {}).items()
+            }
             result = function(*args, **kwargs)
         if request.get("numpy_list_result") is True:
             result = normalize_numpy_list(result)
@@ -197,10 +229,10 @@ while True:
             encoded_result = {"t": "json", "v": encode_json(result)}
         else:
             encoded_result = encode(result)
-        response = {"protocol": 1, "id": request_id, "ok": True, "value": encoded_result}
+        response = {"protocol": 2, "id": request_id, "ok": True, "value": encoded_result}
     except BaseException as error:
         response = {
-            "protocol": 1,
+            "protocol": 2,
             "id": request_id,
             "ok": False,
             "error": {

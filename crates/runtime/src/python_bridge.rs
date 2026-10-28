@@ -7,6 +7,7 @@ use serde::{
 };
 use serde_json::Value as JsonValue;
 use std::{
+    cell::RefCell,
     io::{self, Read, Write},
     path::Path,
     process::{Child, ChildStdin, Command, Stdio},
@@ -19,6 +20,8 @@ use std::{
 };
 
 const MAX_FRAME: usize = 24 * 1024 * 1024;
+const PROTOCOL_VERSION: u64 = 2;
+const BINARY_FRAME_MAGIC: &[u8; 4] = b"GBIN";
 const SIDECAR: &str = include_str!("../python/sidecar.py");
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -50,44 +53,60 @@ pub struct PythonBridge {
     native_images: Vec<String>,
 }
 
-struct BridgeRequest<'a> {
+struct BridgeRequest<'data, 'attachments> {
     id: u64,
-    module: &'a str,
-    function: &'a str,
-    args: &'a [Value],
-    kwargs: &'a [(String, Value)],
+    module: &'data str,
+    function: &'data str,
+    args: &'data [Value],
+    kwargs: &'data [(String, Value)],
     json_result: bool,
     numpy_list_result: bool,
+    attachments: &'attachments RefCell<Vec<&'data [u8]>>,
 }
 
-impl Serialize for BridgeRequest<'_> {
+impl Serialize for BridgeRequest<'_, '_> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
         let mut request = serializer.serialize_map(Some(9))?;
-        request.serialize_entry("protocol", &1)?;
+        request.serialize_entry("protocol", &PROTOCOL_VERSION)?;
         request.serialize_entry("id", &self.id)?;
         request.serialize_entry("kind", "call")?;
         request.serialize_entry("module", self.module)?;
         request.serialize_entry("function", self.function)?;
-        request.serialize_entry("args", &WireValues(self.args))?;
-        request.serialize_entry("kwargs", &WireKeywords(self.kwargs))?;
+        request.serialize_entry(
+            "args",
+            &WireValues {
+                values: self.args,
+                attachments: self.attachments,
+            },
+        )?;
+        request.serialize_entry(
+            "kwargs",
+            &WireKeywords {
+                values: self.kwargs,
+                attachments: self.attachments,
+            },
+        )?;
         request.serialize_entry("json_result", &self.json_result)?;
         request.serialize_entry("numpy_list_result", &self.numpy_list_result)?;
         request.end()
     }
 }
 
-struct WireValue<'a>(&'a Value);
+struct WireValue<'data, 'attachments> {
+    value: &'data Value,
+    attachments: &'attachments RefCell<Vec<&'data [u8]>>,
+}
 
-impl Serialize for WireValue<'_> {
+impl Serialize for WireValue<'_, '_> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
         let mut value = serializer.serialize_map(Some(2))?;
-        match self.0 {
+        match self.value {
             Value::Unit => value.serialize_entry("t", "unit")?,
             Value::Bool(item) => {
                 value.serialize_entry("t", "bool")?;
@@ -106,12 +125,24 @@ impl Serialize for WireValue<'_> {
                 value.serialize_entry("v", item.as_ref())?;
             }
             Value::Bytes(item) => {
+                let index = {
+                    let mut attachments = self.attachments.borrow_mut();
+                    let index = attachments.len();
+                    attachments.push(item.as_slice());
+                    index
+                };
                 value.serialize_entry("t", "bytes")?;
-                value.serialize_entry("v", &STANDARD.encode(item.as_slice()))?;
+                value.serialize_entry("v", &index)?;
             }
             Value::List(items) => {
                 value.serialize_entry("t", "list")?;
-                value.serialize_entry("v", &WireValues(items))?;
+                value.serialize_entry(
+                    "v",
+                    &WireValues {
+                        values: items,
+                        attachments: self.attachments,
+                    },
+                )?;
             }
             Value::Float64List(items) => {
                 value.serialize_entry("t", "list")?;
@@ -119,7 +150,13 @@ impl Serialize for WireValue<'_> {
             }
             Value::Map(items) => {
                 value.serialize_entry("t", "map")?;
-                value.serialize_entry("v", &WireMap(items))?;
+                value.serialize_entry(
+                    "v",
+                    &WireMap {
+                        values: items,
+                        attachments: self.attachments,
+                    },
+                )?;
             }
             Value::Json(item) => {
                 value.serialize_entry("t", "json")?;
@@ -144,16 +181,22 @@ impl Serialize for WireValue<'_> {
     }
 }
 
-struct WireValues<'a>(&'a [Value]);
+struct WireValues<'data, 'attachments> {
+    values: &'data [Value],
+    attachments: &'attachments RefCell<Vec<&'data [u8]>>,
+}
 
-impl Serialize for WireValues<'_> {
+impl Serialize for WireValues<'_, '_> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
-        let mut sequence = serializer.serialize_seq(Some(self.0.len()))?;
-        for value in self.0 {
-            sequence.serialize_element(&WireValue(value))?;
+        let mut sequence = serializer.serialize_seq(Some(self.values.len()))?;
+        for value in self.values {
+            sequence.serialize_element(&WireValue {
+                value,
+                attachments: self.attachments,
+            })?;
         }
         sequence.end()
     }
@@ -168,40 +211,71 @@ impl Serialize for WireFloat64Values<'_> {
     {
         let mut sequence = serializer.serialize_seq(Some(self.0.len()))?;
         for value in self.0 {
-            let value = Value::Float64(*value);
-            sequence.serialize_element(&WireValue(&value))?;
+            sequence.serialize_element(&WireFloat64Value(*value))?;
         }
         sequence.end()
     }
 }
 
-struct WireMap<'a>(&'a std::collections::BTreeMap<String, Value>);
+struct WireFloat64Value(Float64);
 
-impl Serialize for WireMap<'_> {
+impl Serialize for WireFloat64Value {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
-        let mut map = serializer.serialize_map(Some(self.0.len()))?;
-        for (key, value) in self.0.iter() {
-            map.serialize_entry(key, &WireValue(value))?;
+        let mut value = serializer.serialize_map(Some(2))?;
+        value.serialize_entry("t", "f64")?;
+        value.serialize_entry("v", &self.0.get().to_string())?;
+        value.end()
+    }
+}
+
+struct WireMap<'data, 'attachments> {
+    values: &'data std::collections::BTreeMap<String, Value>,
+    attachments: &'attachments RefCell<Vec<&'data [u8]>>,
+}
+
+impl Serialize for WireMap<'_, '_> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut map = serializer.serialize_map(Some(self.values.len()))?;
+        for (key, value) in self.values.iter() {
+            map.serialize_entry(
+                key,
+                &WireValue {
+                    value,
+                    attachments: self.attachments,
+                },
+            )?;
         }
         map.end()
     }
 }
 
-struct WireKeywords<'a>(&'a [(String, Value)]);
+struct WireKeywords<'data, 'attachments> {
+    values: &'data [(String, Value)],
+    attachments: &'attachments RefCell<Vec<&'data [u8]>>,
+}
 
-impl Serialize for WireKeywords<'_> {
+impl Serialize for WireKeywords<'_, '_> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
-        let mut map = serializer.serialize_map(Some(self.0.len()))?;
-        let mut entries = self.0.iter().collect::<Vec<_>>();
+        let mut map = serializer.serialize_map(Some(self.values.len()))?;
+        let mut entries = self.values.iter().collect::<Vec<_>>();
         entries.sort_unstable_by(|(left, _), (right, _)| left.cmp(right));
         for (key, value) in entries {
-            map.serialize_entry(key, &WireValue(value))?;
+            map.serialize_entry(
+                key,
+                &WireValue {
+                    value,
+                    attachments: self.attachments,
+                },
+            )?;
         }
         map.end()
     }
@@ -332,16 +406,16 @@ impl PythonBridge {
                 ));
             }
         }
-        let request = BridgeRequest {
+        write_request_frame(
+            &mut self.input,
             id,
             module,
             function,
             args,
             kwargs,
-            json_result: matches!(result_type, Type::Json),
-            numpy_list_result: matches!(result_type, Type::List(_)),
-        };
-        write_frame(&mut self.input, &request)?;
+            matches!(result_type, Type::Json),
+            matches!(result_type, Type::List(_)),
+        )?;
         let deadline = Instant::now() + self.timeout;
         let bytes = loop {
             if cancellation.is_cancelled() {
@@ -385,7 +459,7 @@ impl PythonBridge {
                 format!("invalid sidecar response JSON: {error}"),
             )
         })?;
-        if response.get("protocol").and_then(JsonValue::as_u64) != Some(1)
+        if response.get("protocol").and_then(JsonValue::as_u64) != Some(PROTOCOL_VERSION)
             || response.get("id").and_then(JsonValue::as_u64) != Some(id)
         {
             self.terminate();
@@ -637,19 +711,89 @@ fn validate_json_depth(value: &JsonValue, depth: usize) -> Result<(), PythonBrid
     Ok(())
 }
 
-fn write_frame(writer: &mut impl Write, value: &impl Serialize) -> Result<(), PythonBridgeError> {
-    let bytes = serde_json::to_vec(value)
-        .map_err(|error| bridge_error("R_PYTHON_PROTOCOL", error.to_string()))?;
-    if bytes.len() > MAX_FRAME {
+fn request_frame_size(
+    metadata_size: usize,
+    attachments: &[&[u8]],
+) -> Result<usize, PythonBridgeError> {
+    let initial_size = if attachments.is_empty() {
+        Some(metadata_size)
+    } else {
+        12usize.checked_add(metadata_size)
+    };
+    let mut size = initial_size
+        .ok_or_else(|| bridge_error("R_PYTHON_FRAME", "Python request frame size overflow"))?;
+    for attachment in attachments {
+        size = size
+            .checked_add(4)
+            .and_then(|size| size.checked_add(attachment.len()))
+            .ok_or_else(|| bridge_error("R_PYTHON_FRAME", "Python request frame size overflow"))?;
+    }
+    if size > MAX_FRAME {
         return Err(bridge_error(
             "R_PYTHON_FRAME",
             "Python request exceeds the maximum frame size",
         ));
     }
+    Ok(size)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn write_request_frame<'data>(
+    writer: &mut impl Write,
+    id: u64,
+    module: &'data str,
+    function: &'data str,
+    args: &'data [Value],
+    kwargs: &'data [(String, Value)],
+    json_result: bool,
+    numpy_list_result: bool,
+) -> Result<(), PythonBridgeError> {
+    let attachments = RefCell::new(Vec::new());
+    let request = BridgeRequest {
+        id,
+        module,
+        function,
+        args,
+        kwargs,
+        json_result,
+        numpy_list_result,
+        attachments: &attachments,
+    };
+    let metadata = serde_json::to_vec(&request)
+        .map_err(|error| bridge_error("R_PYTHON_PROTOCOL", error.to_string()))?;
+    let attachments = attachments.into_inner();
+    let frame_size = request_frame_size(metadata.len(), &attachments)?;
+    let metadata_size = u32::try_from(metadata.len())
+        .map_err(|_| bridge_error("R_PYTHON_FRAME", "Python request metadata is too large"))?;
+    let attachment_count = u32::try_from(attachments.len())
+        .map_err(|_| bridge_error("R_PYTHON_FRAME", "too many Python request attachments"))?;
+
     writer
-        .write_all(&(bytes.len() as u32).to_be_bytes())
-        .and_then(|_| writer.write_all(&bytes))
-        .and_then(|_| writer.flush())
+        .write_all(&(frame_size as u32).to_be_bytes())
+        .map_err(|error| bridge_error("R_PYTHON_PROTOCOL", error.to_string()))?;
+    if attachments.is_empty() {
+        writer
+            .write_all(&metadata)
+            .map_err(|error| bridge_error("R_PYTHON_PROTOCOL", error.to_string()))?;
+    } else {
+        writer
+            .write_all(BINARY_FRAME_MAGIC)
+            .and_then(|_| writer.write_all(&metadata_size.to_be_bytes()))
+            .and_then(|_| writer.write_all(&metadata))
+            .and_then(|_| writer.write_all(&attachment_count.to_be_bytes()))
+            .map_err(|error| bridge_error("R_PYTHON_PROTOCOL", error.to_string()))?;
+        for attachment in attachments {
+            let attachment_size = u32::try_from(attachment.len()).map_err(|_| {
+                bridge_error("R_PYTHON_FRAME", "Python request attachment is too large")
+            })?;
+            writer
+                .write_all(&attachment_size.to_be_bytes())
+                .and_then(|_| writer.write_all(attachment))
+                .map_err(|error| bridge_error("R_PYTHON_PROTOCOL", error.to_string()))?;
+        }
+    }
+    writer
+        .flush()
         .map_err(|error| bridge_error("R_PYTHON_PROTOCOL", error.to_string()))
 }
 
@@ -674,4 +818,89 @@ fn read_frame(reader: &mut impl Read) -> Result<Option<Vec<u8>>, String> {
         .read_exact(&mut frame)
         .map_err(|error| format!("truncated Python response frame: {error}"))?;
     Ok(Some(frame))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::BTreeMap;
+
+    #[test]
+    fn request_frame_uses_ordered_raw_attachments_for_nested_bytes() {
+        let top_level = Value::Bytes(Arc::new(vec![0, 0xff]));
+        let list_and_map = Value::List(Arc::new(vec![
+            Value::Bytes(Arc::new(vec![b'c', 0, 0xff])),
+            Value::Map(Arc::new(BTreeMap::from([
+                ("zeta".into(), Value::Bytes(Arc::new(vec![0]))),
+                ("alpha".into(), Value::Bytes(Arc::new(vec![0x80]))),
+            ]))),
+        ]));
+        let args = [top_level, list_and_map];
+        let kwargs = [
+            ("z_payload".into(), Value::Bytes(Arc::new(vec![b'z']))),
+            ("a_payload".into(), Value::Bytes(Arc::new(vec![b'a']))),
+        ];
+        let mut frame = Vec::new();
+        write_request_frame(
+            &mut frame, 7, "payloads", "echo", &args, &kwargs, false, false,
+        )
+        .unwrap();
+
+        let body_len = u32::from_be_bytes(frame[..4].try_into().unwrap()) as usize;
+        assert_eq!(body_len, frame.len() - 4);
+        let body = &frame[4..];
+        assert_eq!(&body[..4], b"GBIN");
+        let metadata_len = u32::from_be_bytes(body[4..8].try_into().unwrap()) as usize;
+        let metadata_start = 8;
+        let metadata_end = metadata_start + metadata_len;
+        let metadata: JsonValue =
+            serde_json::from_slice(&body[metadata_start..metadata_end]).unwrap();
+        assert_eq!(metadata["protocol"], 2);
+        assert_eq!(metadata["args"][0]["v"], 0);
+        assert_eq!(metadata["args"][1]["v"][0]["v"], 1);
+        assert_eq!(metadata["args"][1]["v"][1]["v"]["alpha"]["v"], 2);
+        assert_eq!(metadata["args"][1]["v"][1]["v"]["zeta"]["v"], 3);
+        assert_eq!(metadata["kwargs"]["a_payload"]["v"], 4);
+        assert_eq!(metadata["kwargs"]["z_payload"]["v"], 5);
+
+        let mut offset = metadata_end;
+        let count = u32::from_be_bytes(body[offset..offset + 4].try_into().unwrap()) as usize;
+        offset += 4;
+        assert_eq!(count, 6);
+        let mut attachments = Vec::new();
+        for _ in 0..count {
+            let length = u32::from_be_bytes(body[offset..offset + 4].try_into().unwrap()) as usize;
+            offset += 4;
+            attachments.push(body[offset..offset + length].to_vec());
+            offset += length;
+        }
+        assert_eq!(
+            offset,
+            body.len(),
+            "request frame must not have trailing bytes"
+        );
+        assert_eq!(
+            attachments,
+            vec![
+                vec![0, 0xff],
+                vec![b'c', 0, 0xff],
+                vec![0x80],
+                vec![0],
+                vec![b'a'],
+                vec![b'z']
+            ]
+        );
+    }
+
+    #[test]
+    fn request_frame_size_counts_attachment_headers_and_bytes() {
+        let two_bytes = [1, 2];
+        assert_eq!(request_frame_size(10, &[&two_bytes]).unwrap(), 28);
+        assert_eq!(
+            request_frame_size(MAX_FRAME - 16, &[&[]]).unwrap(),
+            MAX_FRAME
+        );
+        assert!(request_frame_size(MAX_FRAME + 1, &[]).is_err());
+        assert!(request_frame_size(MAX_FRAME - 15, &[&[]]).is_err());
+    }
 }
