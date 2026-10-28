@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "kind": "guion-python-bridge-host-profile-availability",
+  "profile_status": "unavailable",
+  "captured_date": "2026-10-27",
+  "host": "macOS 27.0.1 ARM64",
+  "xctrace": {
+    "time_profiler_template_available": false,
+    "time_profiler_exit_code": 33,
+    "time_profiler_error": "Cannot find template matching name: Time Profiler",
+    "cpu_counters_preflight_error": "macOS kernel-policy error 0x1 followed by Instruments XRAugmentationManager assertion",
+    "trace_captured": false
+  },
+  "fallback_measurement": {
+    "source_report": "2026-10-27-python-bridge-serialization.json",
+    "trials_per_size": 7,
+    "outputs_checked": true,
+    "samples": [
+      {
+        "payload_bytes": 0,
+        "guion_median_seconds": 0.08110637502977625,
+        "direct_python_median_seconds": 0.08202320901909843,
+        "guion_over_python_median_ratio": 0.989938118351574,
+        "ci95_percentile": [0.9533852280333199, 1.0000621570079835]
+      },
+      {
+        "payload_bytes": 534772,
+        "guion_median_seconds": 0.08584166702348739,
+        "direct_python_median_seconds": 0.0825609159655869,
+        "guion_over_python_median_ratio": 1.0308881186090888,
+        "ci95_percentile": [1.0174800969281008, 1.1005858263854027]
+      },
+      {
+        "payload_bytes": 5100867,
+        "guion_median_seconds": 0.10589000000618398,
+        "direct_python_median_seconds": 0.08575762499822304,
+        "guion_over_python_median_ratio": 1.2522263650378074,
+        "ci95_percentile": [1.2202573094325135, 1.3009939231256447]
+      }
+    ],
+    "interpretation": "Wall-time growth implicates work that scales with payload size but does not attribute CPU stacks or distinguish Rust serialization from Python sidecar parsing."
+  }
+}

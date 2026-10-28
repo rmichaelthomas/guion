@@ -7,7 +7,7 @@ use std::{
 use guion_model::{Artifact, BigInt, SharedJson, Value};
 use guion_runtime::stdlib_services::{
     calendar_parse, crypto_hmac_sha256, crypto_verify_hmac_sha256, text_casefold,
-    text_collapse_whitespace, text_collapse_whitespace_if_changed, text_normalize, CalendarEvent,
+    text_collapse_whitespace, text_collapse_whitespace_if_changed, text_normalize,
     DatabaseRegistry, SqlValue, TomlDocument, TomlRegistry,
 };
 use guion_runtime::{HostPolicy, Runtime};

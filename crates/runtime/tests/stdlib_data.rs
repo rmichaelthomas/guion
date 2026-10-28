@@ -740,8 +740,10 @@ fn main() -> Int:
     return 0
 "#;
     let artifact = compile("sort-by-large.gu", source).expect("sort program compiles");
-    let mut policy = HostPolicy::default();
-    policy.instruction_limit = 1_000_000;
+    let policy = HostPolicy {
+        instruction_limit: 1_000_000,
+        ..HostPolicy::default()
+    };
     let mut runtime = Runtime::vm_only().load(artifact, policy).unwrap();
     runtime
         .invoke("main", vec![])
@@ -830,8 +832,10 @@ fn main() -> Int:
     return 0
 "#;
     let artifact = compile("sort-by-int-key-large.gu", source).expect("sort program compiles");
-    let mut policy = HostPolicy::default();
-    policy.instruction_limit = 1_000_000;
+    let policy = HostPolicy {
+        instruction_limit: 1_000_000,
+        ..HostPolicy::default()
+    };
     let mut runtime = Runtime::vm_only().load(artifact, policy).unwrap();
     runtime
         .invoke("main", vec![])

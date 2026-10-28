@@ -2531,7 +2531,7 @@ pub fn shared_json_set_local_allocation(value: &Arc<SharedJson>, key: &str) -> u
     };
     if outer_shared || Arc::strong_count(fields) > 1 {
         allocation = allocation.saturating_add(size_of::<BTreeMap<String, Arc<SharedJson>>>());
-        for (existing_key, _) in fields.iter() {
+        for existing_key in fields.keys() {
             allocation = allocation
                 .saturating_add(size_of::<String>() + existing_key.len())
                 .saturating_add(size_of::<Arc<SharedJson>>() * 3);

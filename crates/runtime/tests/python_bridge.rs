@@ -204,7 +204,13 @@ fn bridge_round_trips_unicode_text_with_shared_storage() {
     )
     .unwrap();
     let output = bridge
-        .call("builtins", "str", &[input.clone()], &[], &Type::Text)
+        .call(
+            "builtins",
+            "str",
+            std::slice::from_ref(&input),
+            &[],
+            &Type::Text,
+        )
         .expect("Text should cross the Python bridge in both directions");
 
     assert_eq!(output.value, input);
@@ -577,9 +583,9 @@ fn binary_bytes_round_trip_through_file_host_calls_and_python_bridge() {
     let root = std::env::temp_dir().join(format!("guion-bytes-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&root);
     std::fs::create_dir_all(&root).unwrap();
-    let input = [0, 0xff, 0x80, b'a', b'\n', 0, 0xc3];
+    let input = [0, 0xff, 0x80, b'a', b'\n', 0, 0xc3, 0xa9];
     std::fs::write(root.join("input.bin"), input).unwrap();
-    let source = "extern python \"builtins:bytes\" fn echo(data: Bytes) -> Bytes\n\nfn main() -> Int:\n    let raw = unwrap(read_bytes(\"input.bin\"))\n    assert(len(raw) == 7)\n    let copied = echo(raw)\n    unwrap(write_bytes(\"output.bin\", copied))\n    return 0\n";
+    let source = "extern python \"builtins:bytes\" fn echo(data: Bytes) -> Bytes\n\nfn main() -> Int:\n    let raw = unwrap(read_bytes(\"input.bin\"))\n    assert(len(raw) == 8)\n    let copied = echo(raw)\n    unwrap(write_bytes(\"output.bin\", copied))\n    return 0\n";
     let artifact = compile("bytes.gu", source).expect("Bytes program should typecheck");
     let artifact = guion_model::Artifact::from_bytes(&artifact.to_bytes().unwrap()).unwrap();
     let policy = HostPolicy::default()
