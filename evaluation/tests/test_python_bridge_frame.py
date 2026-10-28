@@ -3,10 +3,12 @@
 
 from __future__ import annotations
 
+import ast
 import json
 import struct
 import subprocess
 import sys
+import tracemalloc
 import unittest
 from pathlib import Path
 
@@ -87,6 +89,28 @@ class PythonBridgeFrameRejectionTests(unittest.TestCase):
         result = run_frame(b"", MAX_FRAME + 1)
         self.assertEqual(result.returncode, 0)
         self.assertEqual(result.stdout, b"")
+
+    def test_attachment_extraction_uses_at_most_one_payload_copy(self) -> None:
+        module = ast.parse(SIDECAR.read_text(encoding="utf-8"))
+        parser = next(
+            node
+            for node in module.body
+            if isinstance(node, ast.FunctionDef) and node.name == "parse_request_frame"
+        )
+        namespace = {"BINARY_FRAME_MAGIC": MAGIC, "json": json, "struct": struct}
+        extracted = ast.Module(body=[parser], type_ignores=[])
+        exec(compile(extracted, str(SIDECAR), "exec"), namespace)
+
+        attachment = b"x" * 5_100_867
+        frame = bytearray(binary_frame(request([{"t": "bytes", "v": 0}]), (attachment,)))
+        tracemalloc.start()
+        parsed = namespace["parse_request_frame"](frame)
+        _current, peak = tracemalloc.get_traced_memory()
+        tracemalloc.stop()
+
+        self.assertEqual(parsed[1], [attachment])
+        self.assertIs(type(parsed[1][0]), bytes)
+        self.assertLess(peak, len(attachment) * 1.5)
 
 
 if __name__ == "__main__":

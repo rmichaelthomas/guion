@@ -76,6 +76,7 @@ def parse_request_frame(frame):
     attachment_count = struct.unpack(">I", frame[metadata_end:metadata_end + 4])[0]
     offset = metadata_end + 4
     attachments = []
+    frame_view = memoryview(frame)
     for _ in range(attachment_count):
         if offset + 4 > len(frame):
             raise ValueError("truncated binary request attachment length")
@@ -84,7 +85,7 @@ def parse_request_frame(frame):
         attachment_end = offset + attachment_length
         if attachment_end > len(frame):
             raise ValueError("truncated binary request attachment")
-        attachments.append(bytes(frame[offset:attachment_end]))
+        attachments.append(bytes(frame_view[offset:attachment_end]))
         offset = attachment_end
     if offset != len(frame):
         raise ValueError("binary request frame has trailing bytes")
