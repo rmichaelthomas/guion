@@ -84,7 +84,13 @@ def make_dataset(path: Path) -> bytes:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--binary", type=Path, default=ROOT / "target/release/guion")
-    parser.add_argument("--uv", type=Path, default=WARMED / "toolchain/uv")
+    parser.add_argument("--warmed-dir", type=Path, default=WARMED)
+    parser.add_argument("--uv", type=Path)
+    parser.add_argument(
+        "--vm-started",
+        action="store_true",
+        help="record that this acceptance run used a VM-hosted environment",
+    )
     parser.add_argument(
         "--output",
         type=Path,
@@ -94,7 +100,8 @@ def main() -> int:
     args = parser.parse_args()
 
     binary = args.binary.resolve(strict=True)
-    uv = args.uv.resolve(strict=True)
+    warmed = args.warmed_dir.resolve()
+    uv = (args.uv or warmed / "toolchain/uv").resolve(strict=True)
     fixture_manifest = (APP / "veritas.toml").read_text(encoding="utf-8")
     manifest = fixture_manifest.replace('entry = "main.vr"', 'entry = "main.gu"')
     manifest = manifest.replace(
@@ -109,8 +116,8 @@ def main() -> int:
     expected_uv_version = tomllib.loads(
         (ROOT / "distribution/toolchains/manifest.toml").read_text(encoding="utf-8")
     )["uv_version"]
-    cache = WARMED / "cache"
-    python_install = WARMED / "python"
+    cache = warmed / "cache"
+    python_install = warmed / "python"
     for required in (cache, python_install):
         if not required.is_dir():
             raise RuntimeError(f"warmed managed Python cache is missing: {required}")
@@ -372,8 +379,8 @@ def main() -> int:
             },
             "cleanup": {
                 "run_scratch_removed_on_exit": True,
-                "warmed_toolchain_cache_preserved": str(WARMED.relative_to(ROOT)),
-                "vm_started": False,
+                "warmed_toolchain_cache_preserved": str(warmed.relative_to(ROOT)),
+                "vm_started": args.vm_started,
             },
         }
 
