@@ -23,7 +23,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from benchmark_python_bridge_startup import assert_expected, run_checked, sha256  # noqa: E402
 from runner import paired_median_ci  # noqa: E402
 
-CALL_COUNTS = (1, 10, 100)
+CALL_COUNTS = (1, 10, 100, 1_000)
 
 
 def main() -> int:
@@ -244,9 +244,9 @@ def main() -> int:
                 "medians_seconds": medians,
                 "samples_seconds": samples,
                 "paired_comparisons": comparisons,
-                "incremental_calls_1_to_100": incremental_comparison,
+                "incremental_calls_1_to_1000": incremental_comparison,
                 "all_timed_outputs_checked": True,
-                "method": "Fresh process per sample; randomized order across six lanes; each stdout and stderr checked against expected output; package imports identical; OS file-cache state uncontrolled.",
+                "method": "Fresh process per sample; randomized order across eight lanes; each stdout and stderr checked against expected output; package imports identical; OS file-cache state uncontrolled.",
             },
         }
         args.output.parent.mkdir(parents=True, exist_ok=True)
@@ -258,7 +258,7 @@ def main() -> int:
                     "trials": args.trials,
                     "medians_seconds": medians,
                     "paired_comparisons": comparisons,
-                    "incremental_calls_1_to_100": incremental_comparison,
+                    "incremental_calls_1_to_1000": incremental_comparison,
                     "report": str(args.output.resolve()),
                 },
                 sort_keys=True,
