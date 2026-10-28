@@ -353,7 +353,7 @@ fn encode_value_at(value: &Value, depth: usize) -> Result<JsonValue, PythonBridg
         Value::Bool(value) => json!({"t":"bool","v":value}),
         Value::Int(value) => json!({"t":"int","v":value.to_string()}),
         Value::Float64(value) => json!({"t":"f64","v":value.get().to_string()}),
-        Value::Text(value) => json!({"t":"text","v":value}),
+        Value::Text(value) => json!({"t":"text","v":value.as_ref()}),
         Value::Bytes(value) => json!({"t":"bytes","v":STANDARD.encode(value.as_slice())}),
         Value::List(values) => {
             json!({"t":"list","v":values.iter().map(|item| encode_value_at(item, depth + 1)).collect::<Result<Vec<_>,_>>()?})
@@ -422,7 +422,7 @@ fn decode_value(value: &JsonValue, expected: &Type) -> Result<Value, PythonBridg
             .ok_or_else(invalid),
         ("text", Type::Text) => payload
             .as_str()
-            .map(|text| Value::Text(text.to_owned()))
+            .map(|text| Value::Text(text.to_owned().into()))
             .ok_or_else(invalid),
         ("bytes", Type::Bytes) => payload
             .as_str()

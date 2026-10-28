@@ -5,10 +5,10 @@ use guion_model::{
 pub use guion_vm_core::CancellationToken;
 use guion_vm_core::{
     charge_allocation, check_call_depth, cloned_value_allocation, encoded_json_string_len,
-    finish_json_value,
-    finish_shared_json, json_exact_integer, new_vm_frame, shared_json_push_local_allocation,
-    shared_json_set_local_allocation, value_matches, verify, Budget, FrameStart, HostOpContext,
-    OutputStream, RuntimeProfileCounters, VmFrame, VmHost, VmLimits,
+    finish_json_value, finish_shared_json, json_exact_integer, new_vm_frame,
+    shared_json_push_local_allocation, shared_json_set_local_allocation, value_matches, verify,
+    Budget, FrameStart, HostOpContext, OutputStream, RuntimeProfileCounters, VmFrame, VmHost,
+    VmLimits,
 };
 use std::{
     borrow::Cow,
@@ -6284,7 +6284,10 @@ fn temporal_resolution_result_value(
         Ok(resolution) => Value::ResultOk(Box::new(temporal_resolution_value(resolution))),
         Err(error) => Value::ResultErr(Box::new(Value::Record(
             "TimeError".into(),
-            Arc::new(vec![Value::Text(error.code.into()), Value::Text(error.message.into())]),
+            Arc::new(vec![
+                Value::Text(error.code.into()),
+                Value::Text(error.message.into()),
+            ]),
         ))),
     }
 }
