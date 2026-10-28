@@ -65,6 +65,14 @@ def directory_bytes(root: Path) -> int:
     return total
 
 
+def warmed_cache_report_value(warmed: Path, root: Path = ROOT) -> str:
+    """Describe a preserved cache without requiring it to live inside the repo."""
+    try:
+        return warmed.relative_to(root).as_posix()
+    except ValueError:
+        return "outside repository"
+
+
 def make_dataset(path: Path) -> bytes:
     rows = [
         {
@@ -84,7 +92,24 @@ def make_dataset(path: Path) -> bytes:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--binary", type=Path, default=ROOT / "target/release/guion")
-    parser.add_argument("--uv", type=Path, default=WARMED / "toolchain/uv")
+    parser.add_argument("--warmed-dir", type=Path, default=WARMED)
+    parser.add_argument("--uv", type=Path)
+    parser.add_argument(
+        "--python-install-dir",
+        type=Path,
+        help="preloaded CPython install directory when it is mounted separately from the uv cache",
+    )
+    parser.add_argument(
+        "--vm-started",
+        action="store_true",
+        help="record that this acceptance run used a VM-hosted environment",
+    )
+    parser.add_argument(
+        "--scratch-dir",
+        type=Path,
+        default=ROOT / "target/perf-session/managed-package-analysis",
+        help="parent directory for temporary project, dataset, and package files",
+    )
     parser.add_argument(
         "--output",
         type=Path,
@@ -94,7 +119,8 @@ def main() -> int:
     args = parser.parse_args()
 
     binary = args.binary.resolve(strict=True)
-    uv = args.uv.resolve(strict=True)
+    warmed = args.warmed_dir.resolve()
+    uv = (args.uv or warmed / "toolchain/uv").resolve(strict=True)
     fixture_manifest = (APP / "veritas.toml").read_text(encoding="utf-8")
     manifest = fixture_manifest.replace('entry = "main.vr"', 'entry = "main.gu"')
     manifest = manifest.replace(
@@ -109,13 +135,18 @@ def main() -> int:
     expected_uv_version = tomllib.loads(
         (ROOT / "distribution/toolchains/manifest.toml").read_text(encoding="utf-8")
     )["uv_version"]
-    cache = WARMED / "cache"
-    python_install = WARMED / "python"
+    cache = warmed / "cache"
+    python_install = args.python_install_dir or warmed / "python"
+    if not python_install.is_absolute():
+        python_install = ROOT / python_install
+    python_install = python_install.resolve()
     for required in (cache, python_install):
         if not required.is_dir():
             raise RuntimeError(f"warmed managed Python cache is missing: {required}")
 
-    scratch_parent = ROOT / "target/perf-session/managed-package-analysis"
+    scratch_parent = args.scratch_dir
+    if not scratch_parent.is_absolute():
+        scratch_parent = ROOT / scratch_parent
     scratch_parent.mkdir(parents=True, exist_ok=True)
     uv_environment = os.environ.copy()
     uv_environment.update(
@@ -372,8 +403,8 @@ def main() -> int:
             },
             "cleanup": {
                 "run_scratch_removed_on_exit": True,
-                "warmed_toolchain_cache_preserved": str(WARMED.relative_to(ROOT)),
-                "vm_started": False,
+                "warmed_toolchain_cache_preserved": warmed_cache_report_value(warmed),
+                "vm_started": args.vm_started,
             },
         }
 
