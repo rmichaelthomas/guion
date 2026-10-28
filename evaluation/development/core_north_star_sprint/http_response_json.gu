@@ -1,4 +1,5 @@
 import "std:http"
+import "std:types"
 
 fn main() -> Int:
     let response = unwrap(http_request_bytes("GET", "__URL__", {}, bytes_from_text(""), 1000))
