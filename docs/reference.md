@@ -2,7 +2,7 @@
 
 For supported artifact, package, Python and host versions plus upgrade guidance, see [`compatibility-and-migrations.md`](compatibility-and-migrations.md).
 
-The current format is 41. The runtime also reads supported earlier artifact formats; see the compatibility guide for the exact range.
+The current format is 44. The runtime also reads supported earlier artifact formats; see the compatibility guide for the exact range.
 
 ## Minimal program
 
@@ -56,6 +56,8 @@ Linux packages include `linux-dependencies.json`, which records ELF dependencies
 - `guion package --library SOURCE_DIRECTORY --output DIRECTORY` creates a reusable native library package. `guion install PACKAGE_DIRECTORY [--prefix DIRECTORY]` verifies and installs an app package into `share/guion/apps/NAME/VERSION` and creates its generated command under `bin/NAME`. The default prefix is `~/.local`; unrelated existing executables are preserved.
 
 For optional managed Python calls, build Guion with `--features python-interop`, then declare an exact `[python].version` and a `dependencies` array in `guion.toml`. The core build never discovers or launches Python or uv.
+
+For offline app packaging, `GUION_PYTHON_INSTALL_DIR` can point to an already installed matching CPython tree, and `GUION_PYTHON_CACHE_DIR` can point to a preloaded uv cache. Package assembly copies the specified cache into the app's portable `.uv-cache` before syncing its locked dependencies. Set `UV_OFFLINE=1` to require cache-only packaging; the command fails if a required artifact is missing. This copies the full selected cache, so use a project-scoped cache when package size matters. Without these settings, the optional Python package path may acquire the pinned interpreter and wheels during packaging.
 
 Pure-Guion packages can include runtime data files explicitly:
 

@@ -1,5 +1,9 @@
 # Real-task and runtime sprint — macOS ARM64
 
+## Current-format managed package for the 100,000-row analysis — 2026-10-27
+
+The real NumPy/orjson analysis passed as a format-44, source-free managed package on macOS ARM64. Its 100,000-row output matched the independent Python reference byte-for-byte after relocation to a path with spaces and Unicode; two launches worked with external Python and uv settings removed. Guion package assembly can now seed the portable offline wheel cache from an explicitly selected preloaded cache. The expanded bundle measured 157,585,367 bytes (150.3 MiB), including a 68,119,333-byte CPython runtime and 27,172,671-byte uv cache. This is a packaging result, not a speed win; Linux format-44 package validation, broader wheel coverage, and the measured bridge overhead remain open. See the [plain-English report](2026-10-27-current-format-managed-package-analysis.md), [raw result](2026-10-27-current-format-managed-package-analysis.json), and [reproducible runner](../../performance/verify_managed_package_analysis.py).
+
 The source baseline is the shared VM-core merge `9d57434`. Results below compare the named implementations on one Apple Silicon Mac using CPython 3.14.7. A fresh Guion run bypasses Guion's source cache; the operating-system file cache was not controlled.
 
 ## Correctness and real tasks

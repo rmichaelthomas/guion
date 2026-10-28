@@ -74,6 +74,8 @@ When using an installed `guion` command from inside the project directory, use t
 
 The default core profile does not discover or run Python. An optional CLI build can enable `python-interop` for declared external calls. Use it only when a project has a specific Python dependency or API it needs to keep; the bridge adds a managed interpreter and packaging requirements. See [compatibility and migration](../compatibility-and-migrations.md).
 
+For offline app packaging, provide an installed matching interpreter with `GUION_PYTHON_INSTALL_DIR`, a preloaded uv cache with `GUION_PYTHON_CACHE_DIR`, and set `UV_OFFLINE=1` to forbid downloads. The cache is copied into the app as a whole; a project-scoped cache keeps unrelated wheels out of the bundle. See the [command reference](../reference.md) and the [managed package-analysis report](../../evaluation/completion/results/real-task-sprint/2026-10-27-current-format-managed-package-analysis.md).
+
 ## Runnable agent recipes
 
 [`recipes.md`](recipes.md) links to five runnable programs: file/data processing, HTTP with a host grant, SQLite plus TOML, bounded concurrent work, and four deliberate failure paths. Their paths and expected outputs also appear in [`index.json`](index.json).
