@@ -52,6 +52,12 @@ The repeated-call benchmark moved from **1.513×** to **1.405×** Guion/Python a
 
 Raw samples: [fast JSON phase profile](2026-10-28-python-bridge-fast-json-phase-profile.json), [pre-change benchmark baseline](2026-10-28-python-bridge-repeated-calls-before-fast-json.json), and [post-change benchmark](2026-10-28-python-bridge-repeated-calls-after-fast-json.json).
 
+## Vectored-write experiment — reverted
+
+The sidecar was changed temporarily to combine the response header and body with `os.writev`, including partial-write handling and a stream fallback for platforms without vectored writes. Its focused tests passed, but the performance evidence did not support keeping it. The three-run profile measured repeated response-write time at **2.43 μs**, compared with **2.33 μs** in the preceding fast-JSON profile. The 15-pair 1,000-call ratio was **1.406×**, effectively unchanged from **1.405×**. A same-index cross-cohort bootstrap estimated **0.92 μs less per call**, but its 95% interval ranged from **3.36 μs less to 4.14 μs more**, with 9 of 15 same-index differences improving. The vectored-write implementation was reverted.
+
+Raw samples from the rejected candidate: [vectored-write phase profile](2026-10-28-python-bridge-vectored-write-phase-profile.json) and [15-pair benchmark](2026-10-28-python-bridge-repeated-calls-after-vectored-write.json).
+
 The profiling hook is off by default. Set `GUION_PYTHON_BRIDGE_PROFILE_OUT` to a JSON path to write diagnostic totals; normal runs do not collect phase timers or attach profile data to bridge responses.
 
 ## Method and limits

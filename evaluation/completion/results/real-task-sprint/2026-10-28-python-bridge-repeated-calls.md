@@ -34,6 +34,8 @@ At 1,000 calls, Guion's median fell from **116.67 ms** to **110.21 ms**. The exc
 
 The bridge remains slower than direct Python at 1,000 calls: the current ratio is **1.405×**. One-call and 100-call results remain near parity. The optional fast path benefits programs that already use `orjson`; programs that do not import it retain the standard-library encoder and parser. The intermediate encoder-only cohort had a 1.90 μs median same-index reduction, but its 95% bootstrap interval crossed zero (**11.93 μs lower to 6.83 μs higher**); adding request parsing produced the clearer combined result above. See the [before samples](2026-10-28-python-bridge-repeated-calls-before-fast-json.json), the [encoder-only experiment](2026-10-28-python-bridge-repeated-calls-after-orjson.json), the [combined fast-path samples](2026-10-28-python-bridge-repeated-calls-after-fast-json.json), and the [latest phase profile](2026-10-28-python-bridge-fast-json-phase-profile.json).
 
+A follow-up vectored-write experiment was reverted: the 1,000-call ratio stayed at 1.406×, and the same-index interval for its estimated per-call change crossed zero. The current code remains at the combined fast-JSON result above; see the [vectored-write samples](2026-10-28-python-bridge-repeated-calls-after-vectored-write.json) and [phase profile](2026-10-28-python-bridge-vectored-write-phase-profile.json).
+
 ## Method and limits
 
 - Host: macOS ARM64; Guion artifact format 44; CPython 3.14.7, NumPy 2.5.1, and orjson 3.11.9.
