@@ -38,7 +38,7 @@ if [[ "${GUION_FEED_DIGEST_CONTAINER:-}" != "1" ]]; then
     --cpus 1 \
     --memory 1g \
     rust:1.97-bookworm \
-    bash -lc 'test "$(uname -m)" = "x86_64"; . /etc/os-release; test "$ID" = debian; test "$VERSION_ID" = 12; case "$(rustc --version)" in "rustc 1.97."*) ;; *) exit 2 ;; esac; echo "amd64 preflight: Debian $VERSION_ID x86_64; $(rustc --version)"' \
+    bash -c 'test "$(uname -m)" = "x86_64"; . /etc/os-release; test "$ID" = debian; test "$VERSION_ID" = 12; case "$(rustc --version)" in "rustc 1.97."*) ;; *) exit 2 ;; esac; echo "amd64 preflight: Debian $VERSION_ID x86_64; $(rustc --version)"' \
     2>&1 | tee "$LOG_PATH"
   docker run --rm \
     --platform linux/amd64 \
