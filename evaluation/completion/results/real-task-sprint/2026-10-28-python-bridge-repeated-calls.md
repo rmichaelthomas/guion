@@ -60,6 +60,18 @@ At 1,000 iterations, the 30-pair batch cohort measured **72.22 ms** for Guion an
 
 The batch ratio stayed close across counts: **1.078×** at one iteration, **1.080×** at ten, **1.076×** at 100, and **1.072×** at 1,000. This points to a mostly fixed Guion/source-run and bridge-startup cost once the per-item work stays inside Python. See the [batch raw samples](2026-10-28-python-bridge-batched-calls.json), [benchmark harness](../../performance/benchmark_python_bridge_batched_calls.py), and [batch workload](../../../development/guion_python_bridge_batch_probe/main.template.gu).
 
+## Source compilation versus prebuilt artifact
+
+A 30-triplet randomized fresh-process cohort compared the same 1,000-operation batch as uncached Guion source, a prebuilt `.gub`, and direct Python. Every timed output matched. The artifact was built once before timing; its one-time build took **8.85 ms**.
+
+| Lane | Median | Ratio to direct Python (95% interval) |
+| --- | ---: | ---: |
+| Uncached Guion source | 73.11 ms | 1.080 (1.073–1.095) |
+| Prebuilt Guion artifact | 72.20 ms | 1.071 (1.062–1.078) |
+| Direct Python | 67.85 ms | 1.000 |
+
+In paired source/artifact samples, uncached source took a median **0.50 ms** longer (95% bootstrap interval **0.16–1.14 ms**). Prebuilding removes a small part of the roughly **5.26 ms** source-versus-Python gap, leaving about **4.36 ms**. Compilation is therefore a minor contributor for this workload; the next target is the fresh Guion runtime and bridge startup path. This conclusion is limited to this single batched bridge workload and host. See the [raw samples](2026-10-28-python-bridge-batch-artifact.json) and [source/artifact harness](../../performance/benchmark_python_bridge_batch_artifact.py).
+
 ## Method and limits
 
 - Host: macOS ARM64; Guion artifact format 44; CPython 3.14.7, NumPy 2.5.1, and orjson 3.11.9.
