@@ -96,6 +96,14 @@ The focused phase improved, but the 30-pair end-to-end cohort did not show a who
 
 The response-channel handoff now measures **2.89 μs** per call, making bounded single-response delivery the next experiment.
 
+## One-slot response channel — reverted
+
+The reader thread was temporarily changed from `std::sync::mpsc::channel` to `sync_channel(1)`, with nonblocking delivery so cancellation or a full queue could not strand the reader thread. The 31-round microbenchmark used 100,000 request/response handoffs per round. It estimated **52 ns** less per handoff for the bounded channel (95% bootstrap interval **1–166 ns less**, 21 of 31 paired rounds faster). In the five-run bridge profile, however, channel delivery changed only from **2.89 μs** to **2.86 μs**. The 30-pair end-to-end ratio moved from **1.389×** to **1.398×**; the independent-cohort interval for the ratio difference crossed zero. The extra queue handling did not demonstrate a real bridge gain, so the change was reverted.
+
+Raw evidence: [channel microbenchmark results](2026-10-28-python-bridge-channel-handoff-microbenchmark.json), [reproducible microbenchmark](../../performance/benchmark_python_bridge_channel_handoff.rs), [bounded-channel phase profile](2026-10-28-python-bridge-bounded-channel-phase-profile.json), and [30-pair bridge benchmark](2026-10-28-python-bridge-repeated-calls-after-bounded-channel-30-pair.json).
+
+After this experiment, repeated Rust response JSON parsing at **5.47 μs** is the largest remaining named phase. The earlier typed-envelope candidate lowered its diagnostic parse time but did not establish an end-to-end gain, so any follow-up needs a different measured approach.
+
 The profiling hook is off by default. Set `GUION_PYTHON_BRIDGE_PROFILE_OUT` to a JSON path to write diagnostic totals; normal runs do not collect phase timers or attach profile data to bridge responses.
 
 ## Method and limits
