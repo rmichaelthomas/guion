@@ -3,10 +3,14 @@
 
 from __future__ import annotations
 
+import ast
+import io
 import json
 import struct
 import subprocess
 import sys
+import tracemalloc
+from types import SimpleNamespace
 import unittest
 from pathlib import Path
 
@@ -63,6 +67,19 @@ def response_for(result: subprocess.CompletedProcess[bytes]) -> dict[str, object
     return json.loads(result.stdout[4:])
 
 
+def read_exact_function(reader: io.BytesIO):
+    module = ast.parse(SIDECAR.read_text(encoding="utf-8"))
+    function = next(
+        node
+        for node in module.body
+        if isinstance(node, ast.FunctionDef) and node.name == "read_exact"
+    )
+    namespace = {"sys": SimpleNamespace(stdin=SimpleNamespace(buffer=reader))}
+    extracted = ast.Module(body=[function], type_ignores=[])
+    exec(compile(extracted, str(SIDECAR), "exec"), namespace)
+    return namespace["read_exact"]
+
+
 class PythonBridgeFrameRejectionTests(unittest.TestCase):
     def assert_error_response(self, payload: bytes) -> None:
         response = response_for(run_frame(payload))
@@ -87,6 +104,67 @@ class PythonBridgeFrameRejectionTests(unittest.TestCase):
         result = run_frame(b"", MAX_FRAME + 1)
         self.assertEqual(result.returncode, 0)
         self.assertEqual(result.stdout, b"")
+
+    def test_attachment_extraction_uses_at_most_one_payload_copy(self) -> None:
+        module = ast.parse(SIDECAR.read_text(encoding="utf-8"))
+        parser = next(
+            node
+            for node in module.body
+            if isinstance(node, ast.FunctionDef) and node.name == "parse_request_frame"
+        )
+        namespace = {
+            "BINARY_FRAME_MAGIC": MAGIC,
+            "LAST_REQUEST_JSON_PARSER": "stdlib",
+            "REQUEST_ORJSON_LOADS": None,
+            "json": json,
+            "struct": struct,
+        }
+        extracted = ast.Module(body=[parser], type_ignores=[])
+        exec(compile(extracted, str(SIDECAR), "exec"), namespace)
+
+        attachment = b"x" * 5_100_867
+        frame = bytearray(binary_frame(request([{"t": "bytes", "v": 0}]), (attachment,)))
+        tracemalloc.start()
+        parsed = namespace["parse_request_frame"](frame)
+        _current, peak = tracemalloc.get_traced_memory()
+        tracemalloc.stop()
+
+        self.assertEqual(parsed[1], [attachment])
+        self.assertIs(type(parsed[1][0]), bytes)
+        self.assertLess(peak, len(attachment) * 1.5)
+
+    def test_frame_read_uses_at_most_one_payload_allocation(self) -> None:
+        payload = b"x" * 5_100_867
+        read_exact = read_exact_function(io.BufferedReader(io.BytesIO(payload)))
+
+        tracemalloc.start()
+        try:
+            frame = read_exact(len(payload))
+            _current, peak = tracemalloc.get_traced_memory()
+        finally:
+            tracemalloc.stop()
+
+        self.assertEqual(frame, payload)
+        self.assertIs(type(frame), bytearray)
+        self.assertLess(peak, len(payload) * 1.5)
+
+    def test_frame_read_preserves_short_read_and_eof_behavior(self) -> None:
+        class ShortReadBytesIO(io.BytesIO):
+            def read(self, size: int = -1) -> bytes:
+                return super().read(min(size, 2) if size >= 0 else 2)
+
+            def readinto(self, buffer: bytearray | memoryview) -> int:
+                return super().readinto(memoryview(buffer)[:2])
+
+        reader = ShortReadBytesIO(b"hello")
+        read_exact = read_exact_function(reader)
+        self.assertEqual(read_exact(5), bytearray(b"hello"))
+        self.assertEqual(read_exact(0), bytearray())
+        self.assertIsNone(read_exact(1))
+
+        partial = read_exact_function(ShortReadBytesIO(b"ab"))
+        with self.assertRaisesRegex(EOFError, "truncated frame"):
+            partial(3)
 
 
 if __name__ == "__main__":

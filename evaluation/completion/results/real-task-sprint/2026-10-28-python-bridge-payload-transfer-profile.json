@@ -1,0 +1,181 @@
+{
+  "commit": "092319fa6a5ce5d3450691e846854933a7a4500d",
+  "correctness": {
+    "all_outputs_match_expected": true,
+    "expected_stdout_by_size": {
+      "0": "0\n",
+      "5100867": "5100867\n"
+    }
+  },
+  "guion_binary_sha256": "a22198a431a66ee31936e404bea2cc7204552130215bafe544bd5a99e94213b6",
+  "guion_version": {
+    "artifact_format": 44,
+    "version": "0.1.0"
+  },
+  "host": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+  "kind": "guion-python-bridge-payload-transfer-profile",
+  "measurement": {
+    "bridge_phase_profiles_by_size": {
+      "0": {
+        "calls": 1,
+        "kind": "guion-python-bridge-phase-profile",
+        "python": {
+          "calls": 1,
+          "first_call_ns": {
+            "function_call": 792,
+            "module_dispatch": 30897417,
+            "module_import_fallback": 30894458,
+            "native_image_check": 10084,
+            "native_image_snapshot": 315875,
+            "output_capture": 2083,
+            "profile_payload_build": 0,
+            "request_frame_read": 14167,
+            "request_parse": 22833,
+            "request_setup": 2167,
+            "request_to_response_first_write": 0,
+            "request_validation_setup": 1459,
+            "request_value_decode": 3041,
+            "response_envelope": 417,
+            "response_json_encode": 0,
+            "response_native_prepare": 375,
+            "response_object_setup": 666,
+            "response_write": 0,
+            "result_encode": 1875,
+            "stream_restore": 625
+          },
+          "repeated_calls_ns": {
+            "function_call": 0,
+            "module_dispatch": 0,
+            "module_import_fallback": 0,
+            "native_image_check": 0,
+            "native_image_snapshot": 0,
+            "output_capture": 0,
+            "profile_payload_build": 0,
+            "request_frame_read": 0,
+            "request_parse": 0,
+            "request_setup": 0,
+            "request_to_response_first_write": 0,
+            "request_validation_setup": 0,
+            "request_value_decode": 0,
+            "response_envelope": 0,
+            "response_json_encode": 0,
+            "response_native_prepare": 0,
+            "response_object_setup": 0,
+            "response_write": 0,
+            "result_encode": 0,
+            "stream_restore": 0
+          },
+          "request_json_parser": "stdlib",
+          "response_json_encoder": "orjson"
+        },
+        "rust_first_call_ns": {
+          "channel_delivery": 12584,
+          "reader_frame_after_first_byte": 3209,
+          "request_serialize": 1625,
+          "request_write": 4333,
+          "response_first_byte_wait": 72678500,
+          "response_json_parse": 21375,
+          "response_wait": 72694709,
+          "result_decode": 917
+        },
+        "rust_repeated_calls_ns": {},
+        "schema_version": 1
+      },
+      "5100867": {
+        "calls": 1,
+        "kind": "guion-python-bridge-phase-profile",
+        "python": {
+          "calls": 1,
+          "first_call_ns": {
+            "function_call": 750,
+            "module_dispatch": 30707167,
+            "module_import_fallback": 30704209,
+            "native_image_check": 4709,
+            "native_image_snapshot": 311750,
+            "output_capture": 2083,
+            "profile_payload_build": 0,
+            "request_frame_read": 1562375,
+            "request_parse": 600458,
+            "request_setup": 10167,
+            "request_to_response_first_write": 0,
+            "request_validation_setup": 2750,
+            "request_value_decode": 3291,
+            "response_envelope": 458,
+            "response_json_encode": 0,
+            "response_native_prepare": 333,
+            "response_object_setup": 500,
+            "response_write": 0,
+            "result_encode": 1834,
+            "stream_restore": 875
+          },
+          "repeated_calls_ns": {
+            "function_call": 0,
+            "module_dispatch": 0,
+            "module_import_fallback": 0,
+            "native_image_check": 0,
+            "native_image_snapshot": 0,
+            "output_capture": 0,
+            "profile_payload_build": 0,
+            "request_frame_read": 0,
+            "request_parse": 0,
+            "request_setup": 0,
+            "request_to_response_first_write": 0,
+            "request_validation_setup": 0,
+            "request_value_decode": 0,
+            "response_envelope": 0,
+            "response_json_encode": 0,
+            "response_native_prepare": 0,
+            "response_object_setup": 0,
+            "response_write": 0,
+            "result_encode": 0,
+            "stream_restore": 0
+          },
+          "request_json_parser": "stdlib",
+          "response_json_encoder": "orjson"
+        },
+        "rust_first_call_ns": {
+          "channel_delivery": 10458,
+          "reader_frame_after_first_byte": 3333,
+          "request_serialize": 2334,
+          "request_write": 41852333,
+          "response_first_byte_wait": 31715417,
+          "response_json_parse": 23292,
+          "response_wait": 31729542,
+          "result_decode": 708
+        },
+        "rust_repeated_calls_ns": {},
+        "schema_version": 1
+      }
+    },
+    "diagnostic_processes": 2,
+    "method": "One opt-in profile capture per payload size; no repeated timing cohort. Python frame-read and Rust request-write phases overlap while the pipe transfers data and must not be summed. The instrumentation adds work; use it to locate phases, not to compare wall speed.",
+    "wall_seconds_by_size": {
+      "0": 0.08808662497904152,
+      "5100867": 0.0822043750085868
+    }
+  },
+  "python": {
+    "executable": "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
+    "numpy": "2.5.1",
+    "orjson": "3.11.9",
+    "version": "3.14.7"
+  },
+  "schema_version": 1,
+  "source_sha256": {
+    "crates/runtime/python/sidecar.py": "d3638dceef6597120820a6257a99925774b479d785371c3d5fe036f7539ffde8",
+    "crates/runtime/src/python_bridge.rs": "72b975096ff65d73932ab82226ba9f19965aa432e45a8e681035867613e16da2",
+    "evaluation/completion/performance/profile_python_bridge_payload_transfer.py": "e2ac011a3b653a1cdbd7a1088a885e61152d0c07e691826ca10378488cb0738f",
+    "evaluation/development/guion_python_bridge_probe/bridge_probe.py": "62489dd329fc839a0f15a05a950bd3f77b908dcfc6708ece1da5e3f5171934b8",
+    "evaluation/development/guion_python_bridge_probe/main.gu": "4aaa05adefb7cb3c4cb309f99a4ef3e08ed34c8294c6c193b12d1e701baf9609"
+  },
+  "status": "passed",
+  "workload": {
+    "calls_per_process": 1,
+    "operation": "Read a Bytes file, send it to Python once, and return its length.",
+    "payload_sizes_bytes": [
+      0,
+      5100867
+    ]
+  },
+  "worktree_dirty_at_measurement": true
+}

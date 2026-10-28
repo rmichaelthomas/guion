@@ -1,0 +1,337 @@
+{
+  "commit": "641bb7874836ec83b722f796b8b19f0ff45f9efc",
+  "correctness": {
+    "all_outputs_match_standard_library_reference": true,
+    "group_count": 13,
+    "result_count": 100000,
+    "result_total": 2500116287
+  },
+  "guion_binary_sha256": "d8ea7af6acd0363d74df34baeadf89d553b372e717493bf3c195dc611753a67e",
+  "guion_version": {
+    "artifact_format": 44,
+    "version": "0.1.0"
+  },
+  "host": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+  "kind": "guion-python-bridge-payload-comparison",
+  "measurement": {
+    "all_timed_outputs_checked": true,
+    "host_cpu_profile": "unavailable; see 2026-10-27-python-bridge-host-profile.md",
+    "medians_seconds": {
+      "guion_bytes": 0.13939545798348263,
+      "guion_text": 0.16133504098979756,
+      "python_bytes": 0.13430183398304507,
+      "python_stdlib": 0.11458862503059208,
+      "python_text": 0.140566999965813
+    },
+    "method": "Fresh process per sample; randomized lane order; each timed output matched stdout and report bytes from both Python references; OS file cache uncontrolled.",
+    "paired_order": [
+      [
+        "python_stdlib",
+        "python_bytes",
+        "guion_text",
+        "guion_bytes",
+        "python_text"
+      ],
+      [
+        "python_bytes",
+        "python_stdlib",
+        "guion_text",
+        "python_text",
+        "guion_bytes"
+      ],
+      [
+        "python_stdlib",
+        "guion_text",
+        "guion_bytes",
+        "python_text",
+        "python_bytes"
+      ],
+      [
+        "python_text",
+        "guion_bytes",
+        "python_stdlib",
+        "python_bytes",
+        "guion_text"
+      ],
+      [
+        "python_text",
+        "guion_text",
+        "python_stdlib",
+        "python_bytes",
+        "guion_bytes"
+      ],
+      [
+        "guion_text",
+        "python_bytes",
+        "guion_bytes",
+        "python_text",
+        "python_stdlib"
+      ],
+      [
+        "guion_text",
+        "guion_bytes",
+        "python_bytes",
+        "python_text",
+        "python_stdlib"
+      ],
+      [
+        "python_bytes",
+        "python_stdlib",
+        "guion_text",
+        "python_text",
+        "guion_bytes"
+      ],
+      [
+        "guion_bytes",
+        "guion_text",
+        "python_bytes",
+        "python_stdlib",
+        "python_text"
+      ],
+      [
+        "python_stdlib",
+        "python_bytes",
+        "guion_text",
+        "guion_bytes",
+        "python_text"
+      ],
+      [
+        "python_bytes",
+        "python_text",
+        "guion_bytes",
+        "python_stdlib",
+        "guion_text"
+      ],
+      [
+        "python_stdlib",
+        "python_text",
+        "guion_bytes",
+        "guion_text",
+        "python_bytes"
+      ],
+      [
+        "guion_text",
+        "python_text",
+        "python_bytes",
+        "guion_bytes",
+        "python_stdlib"
+      ],
+      [
+        "guion_text",
+        "python_stdlib",
+        "python_text",
+        "guion_bytes",
+        "python_bytes"
+      ],
+      [
+        "python_stdlib",
+        "python_bytes",
+        "guion_bytes",
+        "guion_text",
+        "python_text"
+      ]
+    ],
+    "paired_ratios": {
+      "guion_bytes_over_guion_text": {
+        "ci95_percentile": [
+          0.8439129172809439,
+          0.888370828984473
+        ],
+        "median_ratio": 0.8643436790205609,
+        "ties_or_regressions": 0,
+        "win": true
+      },
+      "guion_bytes_over_python_bytes": {
+        "ci95_percentile": [
+          0.9872875317374323,
+          1.0587148086880829
+        ],
+        "median_ratio": 1.0380310287307146,
+        "ties_or_regressions": 11,
+        "win": false
+      },
+      "guion_bytes_over_python_stdlib": {
+        "ci95_percentile": [
+          1.1711297049818057,
+          1.2552538366848562
+        ],
+        "median_ratio": 1.22189440918733,
+        "ties_or_regressions": 15,
+        "win": false
+      },
+      "guion_text_over_python_stdlib": {
+        "ci95_percentile": [
+          1.3895535866516586,
+          1.415718633642798
+        ],
+        "median_ratio": 1.40181347071827,
+        "ties_or_regressions": 15,
+        "win": false
+      },
+      "guion_text_over_python_text": {
+        "ci95_percentile": [
+          1.1348903401938943,
+          1.1572089446394447
+        ],
+        "median_ratio": 1.1507437480874962,
+        "ties_or_regressions": 15,
+        "win": false
+      }
+    },
+    "samples_seconds": {
+      "guion_bytes": [
+        0.14367712498642504,
+        0.14112787501653656,
+        0.1333278330275789,
+        0.13939545798348263,
+        0.14743066602386534,
+        0.1454725000075996,
+        0.13288291601929814,
+        0.1378635829896666,
+        0.13380624999990687,
+        0.14461850002408028,
+        0.1421954589895904,
+        0.13990737503627315,
+        0.1365499590174295,
+        0.1370110419811681,
+        0.13409258401952684
+      ],
+      "guion_text": [
+        0.1609920000191778,
+        0.16327749995980412,
+        0.16445708402898163,
+        0.1562360420357436,
+        0.1591542920214124,
+        0.1637520000222139,
+        0.15774945804150775,
+        0.16336233296897262,
+        0.15404879103880376,
+        0.16572958300821483,
+        0.16133504098979756,
+        0.1635550840292126,
+        0.1582103330292739,
+        0.1607923749834299,
+        0.16145720798522234
+      ],
+      "python_bytes": [
+        0.13366004201816395,
+        0.1333011249662377,
+        0.13504458300303668,
+        0.13263129198458046,
+        0.1336038340232335,
+        0.14357270795153454,
+        0.13268912496278062,
+        0.13631304202135652,
+        0.18557020800653845,
+        0.13430183398304507,
+        0.1369857499958016,
+        0.13344570802291855,
+        0.13850966602331027,
+        0.13097829202888533,
+        0.13637899997411296
+      ],
+      "python_stdlib": [
+        0.11585879203630611,
+        0.11242974997730926,
+        0.11663449998013675,
+        0.11236662499140948,
+        0.11382700002286583,
+        0.11516849999316037,
+        0.1125324169988744,
+        0.1177184580010362,
+        0.11161770799662918,
+        0.11348279198864475,
+        0.11458862503059208,
+        0.11887808301253244,
+        0.1117526669986546,
+        0.11800875002518296,
+        0.11473408300662413
+      ],
+      "python_text": [
+        0.14555054204538465,
+        0.14037070801714435,
+        0.13670070801163092,
+        0.1440397499827668,
+        0.1380900830263272,
+        0.14183400000911206,
+        0.1372617919696495,
+        0.14293562498642132,
+        0.13688545796321705,
+        0.14321491704322398,
+        0.14020066696684808,
+        0.140566999965813,
+        0.14450195903191343,
+        0.13844066701130942,
+        0.14226679201237857
+      ]
+    },
+    "seed": 20261038,
+    "trials": 15,
+    "untimed_guion_phase_profile": {
+      "bytes": {
+        "artifact_runtime_load_ns": 99708,
+        "cli_to_report_excluding_process_startup_ns": 135705917,
+        "compiler_pipeline": {
+          "compiler_backend": "rust",
+          "rust_compiler_compile_ns": 357250
+        },
+        "input_artifact_decode_ns": null,
+        "native_compilation": {
+          "finalize_nanoseconds": 0,
+          "functions": []
+        },
+        "program_execute_ns": 133306000,
+        "source_compile_or_cache_ns": 396500
+      },
+      "text": {
+        "artifact_runtime_load_ns": 104583,
+        "cli_to_report_excluding_process_startup_ns": 151502334,
+        "compiler_pipeline": {
+          "compiler_backend": "rust",
+          "rust_compiler_compile_ns": 374375
+        },
+        "input_artifact_decode_ns": null,
+        "native_compilation": {
+          "finalize_nanoseconds": 0,
+          "functions": []
+        },
+        "program_execute_ns": 149192292,
+        "source_compile_or_cache_ns": 413416
+      }
+    }
+  },
+  "python": {
+    "executable": "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
+    "numpy": "2.5.1",
+    "orjson": "3.11.9",
+    "version": "3.14.7"
+  },
+  "schema_version": 1,
+  "source_sha256": {
+    "crates/runtime/python/sidecar.py": "9bbe7c14347fe7017a7fe6a7647fad2c1dbc25defbc219539639412ad6fd1705",
+    "crates/runtime/src/python_bridge.rs": "8c9762c86fefb30e459a9427c73500683530f56b3bc6d44bb4f99289ea26de5b",
+    "crates/runtime/tests/python_bridge.rs": "7286fc6c460259803b96daba68da3dd510a9c29a6c0212c45bfb94dd4467ea29",
+    "evaluation/completion/performance/benchmark_python_bridge_payloads.py": "a8baadaf8de7544859f8ce40a272d4eb18d2dc49b953e6d2d4cc8fe399fa718a",
+    "evaluation/development/guion_package_analysis/analysis.py": "507e995c7af0f52b87a5ad9a8cb714e92542ea9bca656d0ff158032ba9a65095",
+    "evaluation/development/guion_package_analysis/main-bytes.gu": "3d88227bdd250ac425e123357317d452350a9bea9c03b426853b0aae6110829d",
+    "evaluation/development/guion_package_analysis/main-text.gu": "945c32de91a4cff627ce5f749a574c101223f2428ee666a9c53654e748e68d1e",
+    "evaluation/development/guion_package_analysis/reference.py": "b18dff6bfc2cc3ebb2d75ee0538c3f6d892b1d33d12e2112215af8dfffef93fb",
+    "evaluation/development/guion_package_analysis/reference_packages.py": "801affaf6fb54b1c05301aa5db07dbff4d425a06e12cde89aced397ecf77f700",
+    "evaluation/tests/test_python_bridge_frame.py": "4bd4dd64ab2b76cb47f7f8ab7270c80994f384342404952d611863a228ad07aa"
+  },
+  "status": "passed",
+  "workload": {
+    "groups": 13,
+    "input_bytes": 5100867,
+    "input_sha256": "7c34a5aeb714026e2624d64980999cc40612b6f230843516d5b6b9f59279a40b",
+    "payload_modes": {
+      "bytes": "raw file read followed by private-frame raw-byte attachments",
+      "text": "UTF-8 file read followed by JSON-string request serialization"
+    },
+    "python_calls_per_guion_run": 1,
+    "report_bytes": 1256,
+    "report_sha256": "86d880db3ae3bf9f1a7fa3f3e3b4f24b250bef4dc6f08e822b41ac977ab5d117",
+    "rows": 100000
+  },
+  "worktree_dirty_at_measurement": false
+}

@@ -1,0 +1,444 @@
+{
+  "commit": "a411f3c43c61e4fcabc9c6477f183f79e7f97d1d",
+  "correctness": {
+    "all_outputs_match_expected": true,
+    "expected_output": "64000\n"
+  },
+  "guion_binary_sha256": "2ae9634f2e1d12bf8f33175dcb49b9884ff1e5f332ac2114b471454ac6895b2d",
+  "host": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+  "kind": "guion-python-bridge-phase-profile",
+  "measurement": {
+    "all_profiled_outputs_checked": true,
+    "method": "5 opt-in diagnostic process runs of 1000 calls each. First-call phases are separated from calls 2..N. Rust response_wait runs from completed request write through main-thread receipt. response_first_byte_wait, reader_frame_after_first_byte, and channel_delivery partition that interval. Python request_frame_read includes waiting for the next Guion request after a response, so it does not align to the same Rust response interval. Python response_json_encode and response_write include the diagnostic profile payload and are not representative of normal unprofiled responses.",
+    "phase_medians": {
+      "python": {
+        "first_call_median_ns": {
+          "channel_delivery": 0,
+          "function_call": 791,
+          "module_dispatch": 32044375,
+          "native_image_check": 6667,
+          "native_image_snapshot": 307917,
+          "output_capture": 2167,
+          "reader_frame_after_first_byte": 0,
+          "request_frame_read": 12917,
+          "request_parse": 21708,
+          "request_serialize": 0,
+          "request_to_response_first_write": 32420291,
+          "request_value_decode": 3167,
+          "request_write": 0,
+          "response_envelope": 375,
+          "response_first_byte_wait": 0,
+          "response_json_encode": 7042,
+          "response_json_parse": 0,
+          "response_wait": 0,
+          "response_write": 11334,
+          "result_decode": 0,
+          "result_encode": 1791
+        },
+        "repeated_call_median_ns": {
+          "channel_delivery": 0.0,
+          "function_call": 295.1501501501501,
+          "module_dispatch": 1211.2562562562562,
+          "native_image_check": 889.8098098098098,
+          "native_image_snapshot": 0.0,
+          "output_capture": 379.6816816816817,
+          "reader_frame_after_first_byte": 0.0,
+          "request_frame_read": 87420.51051051052,
+          "request_parse": 2759.1461461461463,
+          "request_serialize": 0.0,
+          "request_to_response_first_write": 13455.696696696697,
+          "request_value_decode": 858.2392392392393,
+          "request_write": 0.0,
+          "response_envelope": 180.41141141141142,
+          "response_first_byte_wait": 0.0,
+          "response_json_encode": 1073.9599599599599,
+          "response_json_parse": 0.0,
+          "response_wait": 0.0,
+          "response_write": 2480.7517517517517,
+          "result_decode": 0.0,
+          "result_encode": 530.7627627627628
+        }
+      },
+      "rust": {
+        "first_call_median_ns": {
+          "channel_delivery": 25250,
+          "function_call": 0,
+          "module_dispatch": 0,
+          "native_image_check": 0,
+          "native_image_snapshot": 0,
+          "output_capture": 0,
+          "reader_frame_after_first_byte": 15333,
+          "request_frame_read": 0,
+          "request_parse": 0,
+          "request_serialize": 2250,
+          "request_to_response_first_write": 0,
+          "request_value_decode": 0,
+          "request_write": 3958,
+          "response_envelope": 0,
+          "response_first_byte_wait": 75098958,
+          "response_json_encode": 0,
+          "response_json_parse": 19709,
+          "response_wait": 75143000,
+          "response_write": 0,
+          "result_decode": 583,
+          "result_encode": 0
+        },
+        "repeated_call_median_ns": {
+          "channel_delivery": 3266.4474474474473,
+          "function_call": 0.0,
+          "module_dispatch": 0.0,
+          "native_image_check": 0.0,
+          "native_image_snapshot": 0.0,
+          "output_capture": 0.0,
+          "reader_frame_after_first_byte": 890.6336336336336,
+          "request_frame_read": 0.0,
+          "request_parse": 0.0,
+          "request_serialize": 610.3663663663664,
+          "request_to_response_first_write": 0.0,
+          "request_value_decode": 0.0,
+          "request_write": 5250.001001001001,
+          "response_envelope": 0.0,
+          "response_first_byte_wait": 20407.912912912914,
+          "response_json_encode": 0.0,
+          "response_json_parse": 5606.408408408409,
+          "response_wait": 24678.08108108108,
+          "response_write": 0.0,
+          "result_decode": 91.91591591591592,
+          "result_encode": 0.0
+        }
+      }
+    },
+    "profiles": [
+      {
+        "calls": 1000,
+        "kind": "guion-python-bridge-phase-profile",
+        "python": {
+          "calls": 1000,
+          "first_call_ns": {
+            "function_call": 917,
+            "module_dispatch": 33565959,
+            "native_image_check": 4917,
+            "native_image_snapshot": 323167,
+            "output_capture": 2375,
+            "request_frame_read": 8917,
+            "request_parse": 19417,
+            "request_to_response_first_write": 33948125,
+            "request_value_decode": 3167,
+            "response_envelope": 333,
+            "response_json_encode": 7625,
+            "response_write": 12500,
+            "result_encode": 1958
+          },
+          "repeated_calls_ns": {
+            "function_call": 294855,
+            "module_dispatch": 1203830,
+            "native_image_check": 888920,
+            "native_image_snapshot": 0,
+            "output_capture": 382572,
+            "request_frame_read": 87333090,
+            "request_parse": 2756387,
+            "request_to_response_first_write": 13442241,
+            "request_value_decode": 857381,
+            "response_envelope": 164184,
+            "response_json_encode": 1058156,
+            "response_write": 2478271,
+            "result_encode": 530232
+          },
+          "request_json_parser": "orjson",
+          "response_json_encoder": "orjson"
+        },
+        "rust_first_call_ns": {
+          "channel_delivery": 20459,
+          "reader_frame_after_first_byte": 15875,
+          "request_serialize": 2250,
+          "request_write": 3959,
+          "response_first_byte_wait": 77214875,
+          "response_json_parse": 17042,
+          "response_wait": 77252500,
+          "result_decode": 625
+        },
+        "rust_repeated_calls_ns": {
+          "channel_delivery": 3263181,
+          "reader_frame_after_first_byte": 889743,
+          "request_serialize": 592643,
+          "request_write": 5285362,
+          "response_first_byte_wait": 20387505,
+          "response_json_parse": 5502835,
+          "response_wait": 24653403,
+          "result_decode": 89615
+        },
+        "schema_version": 1
+      },
+      {
+        "calls": 1000,
+        "kind": "guion-python-bridge-phase-profile",
+        "python": {
+          "calls": 1000,
+          "first_call_ns": {
+            "function_call": 834,
+            "module_dispatch": 31760083,
+            "native_image_check": 10417,
+            "native_image_snapshot": 316333,
+            "output_capture": 2083,
+            "request_frame_read": 12917,
+            "request_parse": 21708,
+            "request_to_response_first_write": 32141167,
+            "request_value_decode": 3208,
+            "response_envelope": 416,
+            "response_json_encode": 6834,
+            "response_write": 10041,
+            "result_encode": 1791
+          },
+          "repeated_calls_ns": {
+            "function_call": 302840,
+            "module_dispatch": 1340671,
+            "native_image_check": 957739,
+            "native_image_snapshot": 0,
+            "output_capture": 379302,
+            "request_frame_read": 104386800,
+            "request_parse": 2946805,
+            "request_to_response_first_write": 14431411,
+            "request_value_decode": 938863,
+            "response_envelope": 182658,
+            "response_json_encode": 1105836,
+            "response_write": 2539362,
+            "result_encode": 564621
+          },
+          "request_json_parser": "orjson",
+          "response_json_encoder": "orjson"
+        },
+        "rust_first_call_ns": {
+          "channel_delivery": 28541,
+          "reader_frame_after_first_byte": 15333,
+          "request_serialize": 1958,
+          "request_write": 3416,
+          "response_first_byte_wait": 74895250,
+          "response_json_parse": 19709,
+          "response_wait": 74940625,
+          "result_decode": 583
+        },
+        "rust_repeated_calls_ns": {
+          "channel_delivery": 3402501,
+          "reader_frame_after_first_byte": 898348,
+          "request_serialize": 653727,
+          "request_write": 5100274,
+          "response_first_byte_wait": 21999037,
+          "response_json_parse": 5656054,
+          "response_wait": 26418169,
+          "result_decode": 91824
+        },
+        "schema_version": 1
+      },
+      {
+        "calls": 1000,
+        "kind": "guion-python-bridge-phase-profile",
+        "python": {
+          "calls": 1000,
+          "first_call_ns": {
+            "function_call": 667,
+            "module_dispatch": 32994833,
+            "native_image_check": 6667,
+            "native_image_snapshot": 303125,
+            "output_capture": 2167,
+            "request_frame_read": 15041,
+            "request_parse": 25042,
+            "request_to_response_first_write": 33363417,
+            "request_value_decode": 3208,
+            "response_envelope": 334,
+            "response_json_encode": 7042,
+            "response_write": 17125,
+            "result_encode": 1375
+          },
+          "repeated_calls_ns": {
+            "function_call": 289010,
+            "module_dispatch": 1210045,
+            "native_image_check": 871926,
+            "native_image_snapshot": 0,
+            "output_capture": 374634,
+            "request_frame_read": 80433623,
+            "request_parse": 2745095,
+            "request_to_response_first_write": 13257742,
+            "request_value_decode": 843321,
+            "response_envelope": 182824,
+            "response_json_encode": 1072886,
+            "response_write": 2403251,
+            "result_encode": 530217
+          },
+          "request_json_parser": "orjson",
+          "response_json_encoder": "orjson"
+        },
+        "rust_first_call_ns": {
+          "channel_delivery": 25250,
+          "reader_frame_after_first_byte": 20208,
+          "request_serialize": 2500,
+          "request_write": 7875,
+          "response_first_byte_wait": 83754584,
+          "response_json_parse": 27250,
+          "response_wait": 83801625,
+          "result_decode": 542
+        },
+        "rust_repeated_calls_ns": {
+          "channel_delivery": 3250414,
+          "reader_frame_after_first_byte": 884933,
+          "request_serialize": 580972,
+          "request_write": 4955194,
+          "response_first_byte_wait": 20364699,
+          "response_json_parse": 5600802,
+          "response_wait": 24615000,
+          "result_decode": 92516
+        },
+        "schema_version": 1
+      },
+      {
+        "calls": 1000,
+        "kind": "guion-python-bridge-phase-profile",
+        "python": {
+          "calls": 1000,
+          "first_call_ns": {
+            "function_call": 625,
+            "module_dispatch": 31408541,
+            "native_image_check": 5500,
+            "native_image_snapshot": 300333,
+            "output_capture": 2000,
+            "request_frame_read": 9125,
+            "request_parse": 19833,
+            "request_to_response_first_write": 31769667,
+            "request_value_decode": 2792,
+            "response_envelope": 375,
+            "response_json_encode": 6541,
+            "response_write": 10125,
+            "result_encode": 2542
+          },
+          "repeated_calls_ns": {
+            "function_call": 326568,
+            "module_dispatch": 1623804,
+            "native_image_check": 1057412,
+            "native_image_snapshot": 0,
+            "output_capture": 417104,
+            "request_frame_read": 95618222,
+            "request_parse": 3303914,
+            "request_to_response_first_write": 16038998,
+            "request_value_decode": 1086062,
+            "response_envelope": 180231,
+            "response_json_encode": 1210501,
+            "response_write": 2856366,
+            "result_encode": 671543
+          },
+          "request_json_parser": "orjson",
+          "response_json_encoder": "orjson"
+        },
+        "rust_first_call_ns": {
+          "channel_delivery": 11208,
+          "reader_frame_after_first_byte": 9042,
+          "request_serialize": 3959,
+          "request_write": 3958,
+          "response_first_byte_wait": 73975333,
+          "response_json_parse": 18250,
+          "response_wait": 73995875,
+          "result_decode": 458
+        },
+        "rust_repeated_calls_ns": {
+          "channel_delivery": 3964431,
+          "reader_frame_after_first_byte": 970141,
+          "request_serialize": 696321,
+          "request_write": 5549495,
+          "response_first_byte_wait": 25109696,
+          "response_json_parse": 5780372,
+          "response_wait": 30159335,
+          "result_decode": 98687
+        },
+        "schema_version": 1
+      },
+      {
+        "calls": 1000,
+        "kind": "guion-python-bridge-phase-profile",
+        "python": {
+          "calls": 1000,
+          "first_call_ns": {
+            "function_call": 791,
+            "module_dispatch": 32044375,
+            "native_image_check": 10125,
+            "native_image_snapshot": 307917,
+            "output_capture": 2542,
+            "request_frame_read": 17833,
+            "request_parse": 23917,
+            "request_to_response_first_write": 32420291,
+            "request_value_decode": 3000,
+            "response_envelope": 375,
+            "response_json_encode": 7125,
+            "response_write": 11334,
+            "result_encode": 1625
+          },
+          "repeated_calls_ns": {
+            "function_call": 284329,
+            "module_dispatch": 1203257,
+            "native_image_check": 865269,
+            "native_image_snapshot": 0,
+            "output_capture": 364696,
+            "request_frame_read": 85198647,
+            "request_parse": 2673469,
+            "request_to_response_first_write": 12975593,
+            "request_value_decode": 819220,
+            "response_envelope": 160696,
+            "response_json_encode": 1058229,
+            "response_write": 2468908,
+            "result_encode": 496929
+          },
+          "request_json_parser": "orjson",
+          "response_json_encoder": "orjson"
+        },
+        "rust_first_call_ns": {
+          "channel_delivery": 29417,
+          "reader_frame_after_first_byte": 14209,
+          "request_serialize": 2042,
+          "request_write": 3625,
+          "response_first_byte_wait": 75098958,
+          "response_json_parse": 40000,
+          "response_wait": 75143000,
+          "result_decode": 709
+        },
+        "rust_repeated_calls_ns": {
+          "channel_delivery": 3255240,
+          "reader_frame_after_first_byte": 882532,
+          "request_serialize": 609756,
+          "request_write": 5244751,
+          "response_first_byte_wait": 19744857,
+          "response_json_parse": 5358839,
+          "response_wait": 23986025,
+          "result_decode": 86738
+        },
+        "schema_version": 1
+      }
+    ],
+    "wall_times_seconds": [
+      0.18881175003480166,
+      0.20584679197054356,
+      0.18855525000253692,
+      0.19696862500859424,
+      0.18395574996247888
+    ]
+  },
+  "python": {
+    "executable": "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
+    "numpy": "2.5.1",
+    "orjson": "3.11.9",
+    "version": "3.14.7"
+  },
+  "schema_version": 1,
+  "source_sha256": {
+    "crates/runtime/python/sidecar.py": "302236f1c595dfe932a92abcff1ae2b6e1aa2d9d5383fe8ffef45858dd16fb29",
+    "crates/runtime/src/python_bridge.rs": "47eca8ada70eacd4ba73e18c9eab13c9be03175dff8670df69c0e920d22d5f1a",
+    "evaluation/completion/performance/profile_python_bridge_repeated_calls.py": "70e402d782e7e87e47228d5a88ec68a3d429eb817b3c8b198e32a18655e0022d",
+    "evaluation/development/guion_python_bridge_repeat_probe/bridge_probe.py": "4203e0aabf4862956992889636ce916794eec5c69dbca02654edaaa0693b8ae6",
+    "evaluation/development/guion_python_bridge_repeat_probe/main.template.gu": "d4b834c95a9302a071030ffe1bd816a4c67ec399de1c4c539d139b01527c0022",
+    "evaluation/tests/test_python_bridge_profile.py": "89d75e564a780aa66dcd660f37eac3363357dec8e4c1bccd8c9ff91b6e7fc45e"
+  },
+  "status": "passed",
+  "workload": {
+    "calls_per_run": 1000,
+    "operation": "Read a 64-byte file once, call payload_length repeatedly in one process, and print the sum.",
+    "payload_bytes": 64,
+    "runs": 5
+  },
+  "worktree_dirty_at_measurement": true
+}

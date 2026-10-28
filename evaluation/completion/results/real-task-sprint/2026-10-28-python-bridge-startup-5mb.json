@@ -1,0 +1,159 @@
+{
+  "commit": "e59fce065f6a48d42bea65478d4a420dca848356",
+  "correctness": {
+    "all_outputs_match_expected": true,
+    "expected_byte_count": 5100867,
+    "expected_stdout_sha256": "a46d0c729c590b595b940ab21d465885017cd464a6fdb05de42a7811adce9db4"
+  },
+  "guion_binary_sha256": "34c05b7280d803ef269ccfeb35aacdf27833ef7bd90438b66e7dfe6991d7a786",
+  "guion_version": {
+    "artifact_format": 44,
+    "version": "0.1.0"
+  },
+  "host": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+  "kind": "guion-python-bridge-startup-probe",
+  "measurement": {
+    "all_timed_outputs_checked": true,
+    "guion_over_python_noop": {
+      "ci95_percentile": [
+        1.0452104975110206,
+        1.1207996580903545
+      ],
+      "median_ratio": 1.0776673140232191,
+      "ties_or_regressions": 14,
+      "win": false
+    },
+    "medians_seconds": {
+      "guion_noop": 0.0892159590148367,
+      "python_noop": 0.08199258300010115
+    },
+    "method": "Fresh process per sample; randomized lane order; each stdout and stderr checked against the expected byte count; OS file cache uncontrolled.",
+    "paired_order": [
+      [
+        "python_noop",
+        "guion_noop"
+      ],
+      [
+        "python_noop",
+        "guion_noop"
+      ],
+      [
+        "python_noop",
+        "guion_noop"
+      ],
+      [
+        "python_noop",
+        "guion_noop"
+      ],
+      [
+        "guion_noop",
+        "python_noop"
+      ],
+      [
+        "python_noop",
+        "guion_noop"
+      ],
+      [
+        "guion_noop",
+        "python_noop"
+      ],
+      [
+        "guion_noop",
+        "python_noop"
+      ],
+      [
+        "python_noop",
+        "guion_noop"
+      ],
+      [
+        "python_noop",
+        "guion_noop"
+      ],
+      [
+        "guion_noop",
+        "python_noop"
+      ],
+      [
+        "guion_noop",
+        "python_noop"
+      ],
+      [
+        "guion_noop",
+        "python_noop"
+      ],
+      [
+        "guion_noop",
+        "python_noop"
+      ],
+      [
+        "guion_noop",
+        "python_noop"
+      ]
+    ],
+    "samples_seconds": {
+      "guion_noop": [
+        0.09394695900846273,
+        0.09664524998515844,
+        0.08334916696185246,
+        0.09277079103048891,
+        0.08484670903999358,
+        0.09020641603274271,
+        0.08468583301873878,
+        0.08549924998078495,
+        0.09817062498768792,
+        0.09895979199791327,
+        0.09746329102199525,
+        0.08516275003785267,
+        0.0892159590148367,
+        0.08640162495430559,
+        0.08535637496970594
+      ],
+      "python_noop": [
+        0.08160074998158962,
+        0.08968004200141877,
+        0.08038866601418704,
+        0.08317604102194309,
+        0.08840558299561962,
+        0.08509295899420977,
+        0.0815890830126591,
+        0.08061325002927333,
+        0.08322700002463534,
+        0.0882939170114696,
+        0.08515379199525341,
+        0.0814790420117788,
+        0.08199258300010115,
+        0.07968966697808355,
+        0.08104391698725522
+      ]
+    },
+    "seed": 20261032,
+    "trials": 15
+  },
+  "python": {
+    "executable": "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
+    "numpy": "2.5.1",
+    "orjson": "3.11.9",
+    "version": "3.14.7"
+  },
+  "schema_version": 1,
+  "source_sha256": {
+    "crates/runtime/python/sidecar.py": "aec8e9aba06546c454f20a8747d3d98ecffd1ab5b2a98827e3e0a04c04b8cc21",
+    "crates/runtime/src/python_bridge.rs": "8c9762c86fefb30e459a9427c73500683530f56b3bc6d44bb4f99289ea26de5b",
+    "evaluation/completion/performance/benchmark_python_bridge_startup.py": "16b9f9508b62d96c64c7ec8b73635e78ee249c2ad3ceff2d380ee1e2913a6d0e",
+    "evaluation/development/guion_python_bridge_probe/bridge_probe.py": "62489dd329fc839a0f15a05a950bd3f77b908dcfc6708ece1da5e3f5171934b8",
+    "evaluation/development/guion_python_bridge_probe/main.gu": "4aaa05adefb7cb3c4cb309f99a4ef3e08ed34c8294c6c193b12d1e701baf9609",
+    "evaluation/development/guion_python_bridge_probe/reference.py": "f1bef574ead23bdd66cea7230eda38f76df530b2ca2545fbf144ae306a86aa13"
+  },
+  "status": "passed",
+  "workload": {
+    "input_bytes": 5100867,
+    "input_sha256": "7c34a5aeb714026e2624d64980999cc40612b6f230843516d5b6b9f59279a40b",
+    "operation": "Read the same 5.1 MB input as bytes, call Python len once, print the result.",
+    "python_package_imports": [
+      "numpy",
+      "orjson"
+    ],
+    "rows_in_input": 100000
+  },
+  "worktree_dirty_at_measurement": true
+}

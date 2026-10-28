@@ -1,0 +1,259 @@
+{
+  "commit": "4f464fdea5d8ef84a4b3b8479396def2fd35afc3",
+  "correctness": {
+    "all_outputs_match_expected": true,
+    "expected_output_by_size": {
+      "5mb": {
+        "byte_count": 5100867,
+        "stdout_sha256": "a46d0c729c590b595b940ab21d465885017cd464a6fdb05de42a7811adce9db4"
+      },
+      "empty": {
+        "byte_count": 0,
+        "stdout_sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      }
+    }
+  },
+  "guion_binary_sha256": "34c05b7280d803ef269ccfeb35aacdf27833ef7bd90438b66e7dfe6991d7a786",
+  "guion_version": {
+    "artifact_format": 44,
+    "version": "0.1.0"
+  },
+  "host": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+  "kind": "guion-python-bridge-startup-probe",
+  "measurement": {
+    "all_timed_outputs_checked": true,
+    "medians_seconds": {
+      "5mb_guion_noop": 0.08315408299677074,
+      "5mb_python_noop": 0.08067699999082834,
+      "empty_guion_noop": 0.07988954201573506,
+      "empty_python_noop": 0.07998237502761185
+    },
+    "method": "Fresh process per sample; randomized order across four lanes; each stdout and stderr checked against the expected byte count; OS file cache uncontrolled.",
+    "paired_comparisons": {
+      "5mb_bytes_guion_over_python": {
+        "ci95_percentile": [
+          1.0042486583465338,
+          1.049727034987197
+        ],
+        "median_ratio": 1.0428234225738513,
+        "ties_or_regressions": 14,
+        "win": false
+      },
+      "empty_bytes_guion_over_python": {
+        "ci95_percentile": [
+          0.9789025260284233,
+          1.0194891064229334
+        ],
+        "median_ratio": 0.9929748634532193,
+        "ties_or_regressions": 5,
+        "win": false
+      },
+      "payload_penalty_guion_over_python": {
+        "ci95_percentile": [
+          1.0013600920354135,
+          1.087925599498817
+        ],
+        "median_ratio": 1.0450357187377477,
+        "ties_or_regressions": 12,
+        "win": false
+      }
+    },
+    "paired_order": [
+      [
+        "empty_guion_noop",
+        "empty_python_noop",
+        "5mb_python_noop",
+        "5mb_guion_noop"
+      ],
+      [
+        "5mb_guion_noop",
+        "empty_guion_noop",
+        "5mb_python_noop",
+        "empty_python_noop"
+      ],
+      [
+        "5mb_python_noop",
+        "empty_guion_noop",
+        "empty_python_noop",
+        "5mb_guion_noop"
+      ],
+      [
+        "5mb_python_noop",
+        "empty_python_noop",
+        "empty_guion_noop",
+        "5mb_guion_noop"
+      ],
+      [
+        "5mb_python_noop",
+        "empty_guion_noop",
+        "empty_python_noop",
+        "5mb_guion_noop"
+      ],
+      [
+        "5mb_guion_noop",
+        "empty_python_noop",
+        "empty_guion_noop",
+        "5mb_python_noop"
+      ],
+      [
+        "empty_python_noop",
+        "empty_guion_noop",
+        "5mb_python_noop",
+        "5mb_guion_noop"
+      ],
+      [
+        "empty_python_noop",
+        "5mb_guion_noop",
+        "empty_guion_noop",
+        "5mb_python_noop"
+      ],
+      [
+        "empty_python_noop",
+        "empty_guion_noop",
+        "5mb_guion_noop",
+        "5mb_python_noop"
+      ],
+      [
+        "5mb_python_noop",
+        "empty_python_noop",
+        "5mb_guion_noop",
+        "empty_guion_noop"
+      ],
+      [
+        "empty_guion_noop",
+        "empty_python_noop",
+        "5mb_python_noop",
+        "5mb_guion_noop"
+      ],
+      [
+        "5mb_guion_noop",
+        "5mb_python_noop",
+        "empty_python_noop",
+        "empty_guion_noop"
+      ],
+      [
+        "empty_python_noop",
+        "empty_guion_noop",
+        "5mb_python_noop",
+        "5mb_guion_noop"
+      ],
+      [
+        "5mb_python_noop",
+        "empty_python_noop",
+        "empty_guion_noop",
+        "5mb_guion_noop"
+      ],
+      [
+        "empty_python_noop",
+        "5mb_guion_noop",
+        "empty_guion_noop",
+        "5mb_python_noop"
+      ]
+    ],
+    "samples_seconds": {
+      "5mb_guion_noop": [
+        0.08489850000478327,
+        0.08224891702411696,
+        0.08358216698979959,
+        0.08484512497670949,
+        0.08190279098926112,
+        0.08091670798603445,
+        0.08629362500505522,
+        0.08200516703072935,
+        0.082112165982835,
+        0.08239049999974668,
+        0.08315408299677074,
+        0.08321062498725951,
+        0.09139595797751099,
+        0.08484395901905373,
+        0.082798458985053
+      ],
+      "5mb_python_noop": [
+        0.08133420895319432,
+        0.08316333399852738,
+        0.08014987502247095,
+        0.08090308296959847,
+        0.0818439589929767,
+        0.08057437499519438,
+        0.08256975002586842,
+        0.07930616597877815,
+        0.08182941697305068,
+        0.07816337503027171,
+        0.07921495800837874,
+        0.0802907079923898,
+        0.08106170903192833,
+        0.07916658301837742,
+        0.08067699999082834
+      ],
+      "empty_guion_noop": [
+        0.07988954201573506,
+        0.07635049999225885,
+        0.08161683299113065,
+        0.0854605829808861,
+        0.07980599999427795,
+        0.07816762500442564,
+        0.07961891702143475,
+        0.08088354201754555,
+        0.08005929196951911,
+        0.07937229197705165,
+        0.08148095803335309,
+        0.07946795900352299,
+        0.07909600000130013,
+        0.08101916703162715,
+        0.08067812502849847
+      ],
+      "empty_python_noop": [
+        0.07998237502761185,
+        0.07927224994637072,
+        0.08175800001481548,
+        0.07930079201469198,
+        0.07650812499923632,
+        0.07951491698622704,
+        0.08018220798112452,
+        0.08509912498993799,
+        0.0798921249806881,
+        0.08033033297397196,
+        0.0850496250204742,
+        0.08118066599126905,
+        0.07758395798737183,
+        0.08238891698420048,
+        0.07772524998290464
+      ]
+    },
+    "seed": 20261033,
+    "trials": 15
+  },
+  "python": {
+    "executable": "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
+    "numpy": "2.5.1",
+    "orjson": "3.11.9",
+    "version": "3.14.7"
+  },
+  "schema_version": 1,
+  "source_sha256": {
+    "crates/runtime/python/sidecar.py": "aec8e9aba06546c454f20a8747d3d98ecffd1ab5b2a98827e3e0a04c04b8cc21",
+    "crates/runtime/src/python_bridge.rs": "8c9762c86fefb30e459a9427c73500683530f56b3bc6d44bb4f99289ea26de5b",
+    "evaluation/completion/performance/benchmark_python_bridge_startup.py": "98d15c612f81632bbe845148b38ec8a9ff980445ba74a3f778003aae90ae8b76",
+    "evaluation/development/guion_python_bridge_probe/bridge_probe.py": "62489dd329fc839a0f15a05a950bd3f77b908dcfc6708ece1da5e3f5171934b8",
+    "evaluation/development/guion_python_bridge_probe/main.gu": "4aaa05adefb7cb3c4cb309f99a4ef3e08ed34c8294c6c193b12d1e701baf9609",
+    "evaluation/development/guion_python_bridge_probe/reference.py": "f1bef574ead23bdd66cea7230eda38f76df530b2ca2545fbf144ae306a86aa13"
+  },
+  "status": "passed",
+  "workload": {
+    "input_bytes_by_size": {
+      "5mb": 5100867,
+      "empty": 0
+    },
+    "input_sha256_by_size": {
+      "5mb": "7c34a5aeb714026e2624d64980999cc40612b6f230843516d5b6b9f59279a40b",
+      "empty": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "operation": "Read an empty or 5.1 MB file as bytes, call Python len once, print the result.",
+    "python_package_imports": [
+      "numpy",
+      "orjson"
+    ],
+    "rows_in_large_input": 100000
+  },
+  "worktree_dirty_at_measurement": true
+}

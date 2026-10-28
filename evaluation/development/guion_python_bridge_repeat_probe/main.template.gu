@@ -1,0 +1,19 @@
+extern python "bridge_probe:payload_length" fn payload_length(source: Bytes) -> Int
+
+fn main() -> Int:
+    let arguments = args()
+    if len(arguments) != 1:
+        print("Usage: guion run main.gu INPUT.bin")
+        return 2
+    let input = read_bytes(arguments[0])
+    if not is_ok(input):
+        print("Cannot read input: " + file_error_code(error(input)))
+        return 1
+    let source = unwrap(input)
+    var total = 0
+    var index = 0
+    while index < __CALL_COUNT__:
+        set total = total + payload_length(source)
+        set index = index + 1
+    print(total)
+    return 0

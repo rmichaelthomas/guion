@@ -8,8 +8,9 @@ use serde::{
 use serde_json::Value as JsonValue;
 use std::{
     cell::RefCell,
+    collections::BTreeMap,
     io::{self, Read, Write},
-    path::Path,
+    path::{Path, PathBuf},
     process::{Child, ChildStdin, Command, Stdio},
     sync::{
         mpsc::{self, Receiver},
@@ -45,12 +46,57 @@ pub struct PythonCallOutput {
 pub struct PythonBridge {
     child: Child,
     input: ChildStdin,
-    responses: Receiver<Result<Vec<u8>, String>>,
+    responses: Receiver<Result<ReaderFrame, String>>,
     request_id: u64,
     timeout: Duration,
     closed: bool,
     native_image_observation: String,
     native_images: Vec<String>,
+    profile_path: Option<PathBuf>,
+    profile: Option<BridgeProfile>,
+}
+
+#[derive(Debug)]
+struct ReaderFrame {
+    bytes: Vec<u8>,
+    profile: Option<ReaderFrameProfile>,
+}
+
+#[derive(Debug)]
+struct ReaderFrameProfile {
+    first_byte_at: Instant,
+    after_first_byte: Duration,
+    queued_at: Instant,
+}
+
+#[derive(Debug, Default)]
+struct BridgeProfile {
+    calls: u64,
+    first_call_ns: BTreeMap<String, u64>,
+    repeated_calls_ns: BTreeMap<String, u64>,
+    python_calls: u64,
+    python_request_json_parser: Option<String>,
+    python_response_json_encoder: Option<String>,
+    python_first_call_ns: BTreeMap<String, u64>,
+    python_repeated_calls_ns: BTreeMap<String, u64>,
+    active_first_call: bool,
+}
+
+impl BridgeProfile {
+    fn add(&mut self, phase: &str, elapsed: Duration) {
+        let nanos = u64::try_from(elapsed.as_nanos()).unwrap_or(u64::MAX);
+        let phases = if self.active_first_call {
+            &mut self.first_call_ns
+        } else {
+            &mut self.repeated_calls_ns
+        };
+        let total = phases.entry(phase.to_owned()).or_default();
+        *total = total.saturating_add(nanos);
+    }
+
+    fn finish_call(&mut self) {
+        self.calls = self.calls.saturating_add(1);
+    }
 }
 
 struct BridgeRequest<'data, 'attachments> {
@@ -298,7 +344,22 @@ impl PythonBridge {
         working_directory: &Path,
         timeout: Duration,
     ) -> Result<Self, PythonBridgeError> {
-        let mut child = Command::new(interpreter)
+        let profile_path = std::env::var_os("GUION_PYTHON_BRIDGE_PROFILE_OUT").map(|value| {
+            let path = PathBuf::from(value);
+            if path.is_absolute() {
+                path
+            } else {
+                std::env::current_dir()
+                    .map(|directory| directory.join(&path))
+                    .unwrap_or(path)
+            }
+        });
+        if let Some(parent) = profile_path.as_ref().and_then(|path| path.parent()) {
+            let _ = std::fs::create_dir_all(parent);
+        }
+
+        let mut command = Command::new(interpreter);
+        command
             .arg("-I")
             .arg("-B")
             .arg("-u")
@@ -310,7 +371,13 @@ impl PythonBridge {
             .env("PYTHONIOENCODING", "utf-8")
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
+            .stderr(Stdio::piped());
+        if profile_path.is_some() {
+            command.env("GUION_PYTHON_BRIDGE_PROFILE", "1");
+        } else {
+            command.env_remove("GUION_PYTHON_BRIDGE_PROFILE");
+        }
+        let mut child = command
             .spawn()
             .map_err(|error| bridge_error("R_PYTHON_START", error.to_string()))?;
         let input = child
@@ -327,8 +394,9 @@ impl PythonBridge {
             });
         }
         let (sender, responses) = mpsc::channel();
+        let profile_enabled = profile_path.is_some();
         thread::spawn(move || loop {
-            match read_frame(&mut output) {
+            match read_frame(&mut output, profile_enabled) {
                 Ok(Some(frame)) => {
                     if sender.send(Ok(frame)).is_err() {
                         break;
@@ -353,6 +421,8 @@ impl PythonBridge {
             closed: false,
             native_image_observation: "not_used".into(),
             native_images: Vec::new(),
+            profile: profile_path.as_ref().map(|_| BridgeProfile::default()),
+            profile_path,
         })
     }
 
@@ -406,6 +476,9 @@ impl PythonBridge {
                 ));
             }
         }
+        if let Some(profile) = self.profile.as_mut() {
+            profile.active_first_call = profile.calls == 0;
+        }
         write_request_frame(
             &mut self.input,
             id,
@@ -415,9 +488,11 @@ impl PythonBridge {
             kwargs,
             matches!(result_type, Type::Json),
             matches!(result_type, Type::List(_)),
+            self.profile.as_mut(),
         )?;
         let deadline = Instant::now() + self.timeout;
-        let bytes = loop {
+        let response_wait_started = self.profile.as_ref().map(|_| Instant::now());
+        let response = loop {
             if cancellation.is_cancelled() {
                 self.terminate();
                 return Err(bridge_error("R_CANCELLED", "invocation was cancelled"));
@@ -437,7 +512,7 @@ impl PythonBridge {
                 .responses
                 .recv_timeout(remaining.min(Duration::from_millis(20)))
             {
-                Ok(Ok(bytes)) => break bytes,
+                Ok(Ok(response)) => break response,
                 Ok(Err(message)) => {
                     self.terminate();
                     return Err(bridge_error("R_PYTHON_PROTOCOL", message));
@@ -452,13 +527,75 @@ impl PythonBridge {
                 }
             }
         };
-        let response: JsonValue = serde_json::from_slice(&bytes).map_err(|error| {
+        if let (Some(profile), Some(reader_profile)) =
+            (self.profile.as_mut(), response.profile.as_ref())
+        {
+            if let Some(started) = response_wait_started {
+                profile.add(
+                    "response_first_byte_wait",
+                    reader_profile
+                        .first_byte_at
+                        .saturating_duration_since(started),
+                );
+            }
+            profile.add(
+                "reader_frame_after_first_byte",
+                reader_profile.after_first_byte,
+            );
+            profile.add("channel_delivery", reader_profile.queued_at.elapsed());
+        }
+        if let (Some(profile), Some(started)) = (self.profile.as_mut(), response_wait_started) {
+            profile.add("response_wait", started.elapsed());
+        }
+        let response_parse_started = self.profile.as_ref().map(|_| Instant::now());
+        let response: JsonValue = serde_json::from_slice(&response.bytes).map_err(|error| {
             self.terminate();
             bridge_error(
                 "R_PYTHON_PROTOCOL",
                 format!("invalid sidecar response JSON: {error}"),
             )
         })?;
+        if let (Some(profile), Some(started)) = (self.profile.as_mut(), response_parse_started) {
+            profile.add("response_json_parse", started.elapsed());
+        }
+        if let Some(profile) = self.profile.as_mut() {
+            if let Some(sidecar_profile) = response.get("_bridge_profile") {
+                profile.python_calls = sidecar_profile
+                    .get("calls")
+                    .and_then(JsonValue::as_u64)
+                    .unwrap_or(profile.python_calls);
+                profile.python_response_json_encoder = sidecar_profile
+                    .get("response_json_encoder")
+                    .and_then(JsonValue::as_str)
+                    .map(str::to_owned);
+                profile.python_request_json_parser = sidecar_profile
+                    .get("request_json_parser")
+                    .and_then(JsonValue::as_str)
+                    .map(str::to_owned);
+                if let Some(phases) = sidecar_profile
+                    .get("first_call_ns")
+                    .and_then(JsonValue::as_object)
+                {
+                    profile.python_first_call_ns = phases
+                        .iter()
+                        .filter_map(|(name, duration)| {
+                            duration.as_u64().map(|duration| (name.clone(), duration))
+                        })
+                        .collect();
+                }
+                if let Some(phases) = sidecar_profile
+                    .get("repeated_calls_ns")
+                    .and_then(JsonValue::as_object)
+                {
+                    profile.python_repeated_calls_ns = phases
+                        .iter()
+                        .filter_map(|(name, duration)| {
+                            duration.as_u64().map(|duration| (name.clone(), duration))
+                        })
+                        .collect();
+                }
+            }
+        }
         if response.get("protocol").and_then(JsonValue::as_u64) != Some(PROTOCOL_VERSION)
             || response.get("id").and_then(JsonValue::as_u64) != Some(id)
         {
@@ -498,6 +635,10 @@ impl PythonBridge {
             }
         }
         if response.get("ok").and_then(JsonValue::as_bool) != Some(true) {
+            if let Some(profile) = self.profile.as_mut() {
+                profile.finish_call();
+            }
+            self.write_profile();
             let error = response.get("error").unwrap_or(&JsonValue::Null);
             return Err(PythonBridgeError {
                 code: "R_PYTHON_CALL".into(),
@@ -521,7 +662,15 @@ impl PythonBridge {
         let value = response
             .get("value")
             .ok_or_else(|| bridge_error("R_PYTHON_PROTOCOL", "successful response has no value"))?;
+        let result_decode_started = self.profile.as_ref().map(|_| Instant::now());
         let value = decode_value(value, result_type)?;
+        if let (Some(profile), Some(started)) = (self.profile.as_mut(), result_decode_started) {
+            profile.add("result_decode", started.elapsed());
+        }
+        if let Some(profile) = self.profile.as_mut() {
+            profile.finish_call();
+        }
+        self.write_profile();
         Ok(PythonCallOutput {
             value,
             stdout,
@@ -546,6 +695,32 @@ impl PythonBridge {
             let _ = self.child.kill();
             let _ = self.child.wait();
             self.closed = true;
+        }
+    }
+
+    fn write_profile(&self) {
+        let Some(path) = &self.profile_path else {
+            return;
+        };
+        let Some(profile) = &self.profile else {
+            return;
+        };
+        let report = serde_json::json!({
+            "schema_version": 1,
+            "kind": "guion-python-bridge-phase-profile",
+            "calls": profile.calls,
+            "rust_first_call_ns": profile.first_call_ns,
+            "rust_repeated_calls_ns": profile.repeated_calls_ns,
+            "python": {
+                "calls": profile.python_calls,
+                "request_json_parser": profile.python_request_json_parser,
+                "response_json_encoder": profile.python_response_json_encoder,
+                "first_call_ns": profile.python_first_call_ns,
+                "repeated_calls_ns": profile.python_repeated_calls_ns,
+            },
+        });
+        if let Ok(encoded) = serde_json::to_vec_pretty(&report) {
+            let _ = std::fs::write(path, encoded);
         }
     }
 }
@@ -747,6 +922,7 @@ fn write_request_frame<'data>(
     kwargs: &'data [(String, Value)],
     json_result: bool,
     numpy_list_result: bool,
+    mut profile: Option<&mut BridgeProfile>,
 ) -> Result<(), PythonBridgeError> {
     let attachments = RefCell::new(Vec::new());
     let request = BridgeRequest {
@@ -759,8 +935,12 @@ fn write_request_frame<'data>(
         numpy_list_result,
         attachments: &attachments,
     };
+    let serialization_started = profile.as_ref().map(|_| Instant::now());
     let metadata = serde_json::to_vec(&request)
         .map_err(|error| bridge_error("R_PYTHON_PROTOCOL", error.to_string()))?;
+    if let (Some(profile), Some(started)) = (profile.as_deref_mut(), serialization_started) {
+        profile.add("request_serialize", started.elapsed());
+    }
     let attachments = attachments.into_inner();
     let frame_size = request_frame_size(metadata.len(), &attachments)?;
     let metadata_size = u32::try_from(metadata.len())
@@ -768,6 +948,7 @@ fn write_request_frame<'data>(
     let attachment_count = u32::try_from(attachments.len())
         .map_err(|_| bridge_error("R_PYTHON_FRAME", "too many Python request attachments"))?;
 
+    let write_started = profile.as_ref().map(|_| Instant::now());
     writer
         .write_all(&(frame_size as u32).to_be_bytes())
         .map_err(|error| bridge_error("R_PYTHON_PROTOCOL", error.to_string()))?;
@@ -794,16 +975,24 @@ fn write_request_frame<'data>(
     }
     writer
         .flush()
-        .map_err(|error| bridge_error("R_PYTHON_PROTOCOL", error.to_string()))
+        .map_err(|error| bridge_error("R_PYTHON_PROTOCOL", error.to_string()))?;
+    if let (Some(profile), Some(started)) = (profile.as_deref_mut(), write_started) {
+        profile.add("request_write", started.elapsed());
+    }
+    Ok(())
 }
 
-fn read_frame(reader: &mut impl Read) -> Result<Option<Vec<u8>>, String> {
+fn read_frame(
+    reader: &mut impl Read,
+    profile_enabled: bool,
+) -> Result<Option<ReaderFrame>, String> {
     let mut header = [0; 4];
     match reader.read(&mut header[..1]) {
         Ok(0) => return Ok(None),
         Ok(_) => {}
         Err(error) => return Err(error.to_string()),
     }
+    let first_byte_at = profile_enabled.then(Instant::now);
     reader
         .read_exact(&mut header[1..])
         .map_err(|error| format!("truncated Python response header: {error}"))?;
@@ -817,7 +1006,15 @@ fn read_frame(reader: &mut impl Read) -> Result<Option<Vec<u8>>, String> {
     reader
         .read_exact(&mut frame)
         .map_err(|error| format!("truncated Python response frame: {error}"))?;
-    Ok(Some(frame))
+    let profile = first_byte_at.map(|first_byte_at| ReaderFrameProfile {
+        first_byte_at,
+        after_first_byte: first_byte_at.elapsed(),
+        queued_at: Instant::now(),
+    });
+    Ok(Some(ReaderFrame {
+        bytes: frame,
+        profile,
+    }))
 }
 
 #[cfg(test)]
@@ -842,7 +1039,7 @@ mod tests {
         ];
         let mut frame = Vec::new();
         write_request_frame(
-            &mut frame, 7, "payloads", "echo", &args, &kwargs, false, false,
+            &mut frame, 7, "payloads", "echo", &args, &kwargs, false, false, None,
         )
         .unwrap();
 

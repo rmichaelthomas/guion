@@ -1,0 +1,343 @@
+{
+  "artifact_sha256": "dc60055ad9fec96c906eaa29382b30981d85df3ce6094ff5cc64e5214e988a6f",
+  "commit": "2a6c864f6a5594cb7d62b8e24b840bc6c5f57db3",
+  "correctness": {
+    "all_outputs_match_expected": true,
+    "all_timed_outputs_checked": true,
+    "expected_output": 64000
+  },
+  "guion_binary_sha256": "a22198a431a66ee31936e404bea2cc7204552130215bafe544bd5a99e94213b6",
+  "guion_version": {
+    "artifact_format": 44,
+    "version": "0.1.0"
+  },
+  "host": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+  "kind": "guion-python-bridge-batched-source-artifact",
+  "measurement": {
+    "artifact_build_seconds_once_outside_timing": 0.008854084007907659,
+    "medians_seconds": {
+      "direct_python": 0.06784566649002954,
+      "prebuilt_artifact": 0.0722013745107688,
+      "source_uncached": 0.07310914547997527
+    },
+    "method": "Fresh process per sample; 30 randomized triplets; uncached Guion source, prebuilt Guion artifact, and direct Python run the same operation and import the same packages. Artifact compilation occurs once outside the timed samples. Every stdout and stderr is checked. OS file-cache state is uncontrolled.",
+    "paired_comparisons": {
+      "prebuilt_artifact_over_direct_python": {
+        "ci95_percentile": [
+          1.0617429377800516,
+          1.0775013251901782
+        ],
+        "median_ratio": 1.0708955793440542,
+        "ties_or_regressions": 28,
+        "win": false
+      },
+      "source_uncached_over_direct_python": {
+        "ci95_percentile": [
+          1.0727513789657368,
+          1.0952189710926248
+        ],
+        "median_ratio": 1.0795296209136538,
+        "ties_or_regressions": 29,
+        "win": false
+      }
+    },
+    "paired_order": [
+      [
+        "prebuilt_artifact",
+        "direct_python",
+        "source_uncached"
+      ],
+      [
+        "prebuilt_artifact",
+        "direct_python",
+        "source_uncached"
+      ],
+      [
+        "direct_python",
+        "source_uncached",
+        "prebuilt_artifact"
+      ],
+      [
+        "prebuilt_artifact",
+        "direct_python",
+        "source_uncached"
+      ],
+      [
+        "source_uncached",
+        "prebuilt_artifact",
+        "direct_python"
+      ],
+      [
+        "source_uncached",
+        "direct_python",
+        "prebuilt_artifact"
+      ],
+      [
+        "source_uncached",
+        "prebuilt_artifact",
+        "direct_python"
+      ],
+      [
+        "source_uncached",
+        "prebuilt_artifact",
+        "direct_python"
+      ],
+      [
+        "source_uncached",
+        "prebuilt_artifact",
+        "direct_python"
+      ],
+      [
+        "source_uncached",
+        "prebuilt_artifact",
+        "direct_python"
+      ],
+      [
+        "prebuilt_artifact",
+        "direct_python",
+        "source_uncached"
+      ],
+      [
+        "source_uncached",
+        "direct_python",
+        "prebuilt_artifact"
+      ],
+      [
+        "source_uncached",
+        "direct_python",
+        "prebuilt_artifact"
+      ],
+      [
+        "prebuilt_artifact",
+        "direct_python",
+        "source_uncached"
+      ],
+      [
+        "direct_python",
+        "prebuilt_artifact",
+        "source_uncached"
+      ],
+      [
+        "source_uncached",
+        "prebuilt_artifact",
+        "direct_python"
+      ],
+      [
+        "source_uncached",
+        "prebuilt_artifact",
+        "direct_python"
+      ],
+      [
+        "prebuilt_artifact",
+        "direct_python",
+        "source_uncached"
+      ],
+      [
+        "source_uncached",
+        "prebuilt_artifact",
+        "direct_python"
+      ],
+      [
+        "prebuilt_artifact",
+        "direct_python",
+        "source_uncached"
+      ],
+      [
+        "source_uncached",
+        "direct_python",
+        "prebuilt_artifact"
+      ],
+      [
+        "prebuilt_artifact",
+        "direct_python",
+        "source_uncached"
+      ],
+      [
+        "prebuilt_artifact",
+        "source_uncached",
+        "direct_python"
+      ],
+      [
+        "direct_python",
+        "source_uncached",
+        "prebuilt_artifact"
+      ],
+      [
+        "prebuilt_artifact",
+        "source_uncached",
+        "direct_python"
+      ],
+      [
+        "prebuilt_artifact",
+        "direct_python",
+        "source_uncached"
+      ],
+      [
+        "prebuilt_artifact",
+        "source_uncached",
+        "direct_python"
+      ],
+      [
+        "direct_python",
+        "source_uncached",
+        "prebuilt_artifact"
+      ],
+      [
+        "source_uncached",
+        "prebuilt_artifact",
+        "direct_python"
+      ],
+      [
+        "source_uncached",
+        "direct_python",
+        "prebuilt_artifact"
+      ]
+    ],
+    "samples_seconds": {
+      "direct_python": [
+        0.06653479201486334,
+        0.06594887498067692,
+        0.06607258401345462,
+        0.06641354196472093,
+        0.06850391597254202,
+        0.0665068329544738,
+        0.07120483403559774,
+        0.06598933396162465,
+        0.06633175001479685,
+        0.06628670898498967,
+        0.06519083399325609,
+        0.06632116704713553,
+        0.0698704999522306,
+        0.07848237501457334,
+        0.06837474997155368,
+        0.06636279198573902,
+        0.06613754096906632,
+        0.06649870896944776,
+        0.07493045798037201,
+        0.0673165830085054,
+        0.06870658398838714,
+        0.06650154199451208,
+        0.06885879096807912,
+        0.06889308401150629,
+        0.07203045795904472,
+        0.06982829194748774,
+        0.07206400000723079,
+        0.07355137501144782,
+        0.07401858299272135,
+        0.07268170901807025
+      ],
+      "prebuilt_artifact": [
+        0.07155137503286824,
+        0.07391529198503122,
+        0.07108645897824317,
+        0.07414508302463219,
+        0.07199479098198935,
+        0.07001683302223682,
+        0.0709465830004774,
+        0.07025108399102464,
+        0.07080937502905726,
+        0.07061575003899634,
+        0.07032933400478214,
+        0.07109637500252575,
+        0.07519324996974319,
+        0.07814579200930893,
+        0.07240795803954825,
+        0.07198166596936062,
+        0.07116245897486806,
+        0.07046820799587294,
+        0.077441125002224,
+        0.07457770803011954,
+        0.07196091598598287,
+        0.07074387499596924,
+        0.0749384590308182,
+        0.07370112498756498,
+        0.07320520799839869,
+        0.08014287502737716,
+        0.07871916698059067,
+        0.08463454199954867,
+        0.08169458399061114,
+        0.0763711670297198
+      ],
+      "source_uncached": [
+        0.07129466702463105,
+        0.07222845900105312,
+        0.07375379197765142,
+        0.07443874998716637,
+        0.07216704200254753,
+        0.07760900002904236,
+        0.0707469170447439,
+        0.07189012499293312,
+        0.07121041597565636,
+        0.07279533299151808,
+        0.07095695799216628,
+        0.07308820798061788,
+        0.07236495800316334,
+        0.08937079203315079,
+        0.07313008297933266,
+        0.07264445902546868,
+        0.07138183299684897,
+        0.07470749999629334,
+        0.0789345420198515,
+        0.07268612500047311,
+        0.07256674999371171,
+        0.07152925000991672,
+        0.07709633297054097,
+        0.07385016698390245,
+        0.07343399996170774,
+        0.07673025003168732,
+        0.07682533300248906,
+        0.07919100002618507,
+        0.08099554100772366,
+        0.07833837502403185
+      ]
+    },
+    "seed": 20261050,
+    "source_vs_artifact": {
+      "source_minus_artifact_ms": {
+        "ci95_percentile_ms": [
+          0.1606465084478259,
+          1.1393960157874972
+        ],
+        "median_ms": 0.5034374771639705,
+        "positive_in_all_pairs": false
+      },
+      "source_over_artifact": {
+        "ci95_percentile": [
+          1.002207398486875,
+          1.015193107523018
+        ],
+        "median_ratio": 1.007041300743843,
+        "ties_or_regressions": 21,
+        "win": false
+      }
+    },
+    "trials": 30
+  },
+  "python": {
+    "executable": "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
+    "numpy": "2.5.1",
+    "orjson": "3.11.9",
+    "version": "3.14.7"
+  },
+  "schema_version": 1,
+  "source_sha256": {
+    "crates/runtime/python/sidecar.py": "d3638dceef6597120820a6257a99925774b479d785371c3d5fe036f7539ffde8",
+    "crates/runtime/src/python_bridge.rs": "72b975096ff65d73932ab82226ba9f19965aa432e45a8e681035867613e16da2",
+    "evaluation/completion/performance/benchmark_python_bridge_batch_artifact.py": "d754c5387437baa1f4d5574f1d82ec8c9e292bf18f8184bcfaa5ba5aa9755f01",
+    "evaluation/development/guion_python_bridge_batch_probe/bridge_batch.py": "b653b0502252620706441c18b95ee7489b7313467d05de5ab97541fa0be8385c",
+    "evaluation/development/guion_python_bridge_batch_probe/main.template.gu": "099aeaffd75525131a1a0ceba75ecb01048ce75c8005c910b432921b2f02c328",
+    "evaluation/development/guion_python_bridge_batch_probe/reference.py": "232a991dd2fabd182d3dcbfe2eaa9fc1cfaa15e7f406758f7296a527858a1dcd"
+  },
+  "status": "passed",
+  "workload": {
+    "bridge_calls_per_process": 1,
+    "iteration_count": 1000,
+    "operation": "Read a 64-byte file, call the same Python payload_length helper 1,000 times, sum its results, and print the total.",
+    "payload_bytes": 64,
+    "python_package_imports": [
+      "numpy",
+      "orjson"
+    ]
+  },
+  "worktree_dirty_at_measurement": true
+}
