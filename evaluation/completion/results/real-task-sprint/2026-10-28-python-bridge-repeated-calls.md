@@ -52,6 +52,14 @@ A Unix socket-pair transport candidate passed the 26 Rust bridge integration tes
 
 Removing Python's `-u` flag let each explicitly flushed response use normal pipe buffering. The 30-pair ratio was 1.409× versus 1.422× immediately before, but the same-index estimate was only 0.46 μs saved per added call (95% interval: 7.41 μs more to 4.75 μs less). The interval includes no change, so explicit unbuffered mode remains. See the [pipe baseline](2026-10-28-python-bridge-repeated-calls-before-buffered-stdout-30-pair.json), [buffered-stdout samples](2026-10-28-python-bridge-repeated-calls-after-buffered-stdout-30-pair.json), and [phase profile](2026-10-28-python-bridge-buffered-stdout-phase-profile.json).
 
+## One bridge call for a batch of operations
+
+The batch follow-up keeps the same `payload_length` helper and calls it once per iteration in both languages. The Guion program sends the input and iteration count through one Python bridge request; the Python function then performs the repeated work. Every output matched the direct-Python result.
+
+At 1,000 iterations, the 30-pair batch cohort measured **72.22 ms** for Guion and **68.08 ms** for direct Python, a ratio of **1.072×** (95% interval **1.061–1.081**). The earlier repeated-call cohort, which crossed the bridge once per iteration, measured **1.422×** at 1,000 calls. These are separate cohorts with different call shapes, so the change is evidence that batching can avoid most of this workload's per-call bridge cost; it is not an estimate of a general language speedup. Guion remains **7.2% slower** in the batch case.
+
+The batch ratio stayed close across counts: **1.078×** at one iteration, **1.080×** at ten, **1.076×** at 100, and **1.072×** at 1,000. This points to a mostly fixed Guion/source-run and bridge-startup cost once the per-item work stays inside Python. See the [batch raw samples](2026-10-28-python-bridge-batched-calls.json), [benchmark harness](../../performance/benchmark_python_bridge_batched_calls.py), and [batch workload](../../../development/guion_python_bridge_batch_probe/main.template.gu).
+
 ## Method and limits
 
 - Host: macOS ARM64; Guion artifact format 44; CPython 3.14.7, NumPy 2.5.1, and orjson 3.11.9.
