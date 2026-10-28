@@ -72,4 +72,4 @@
 
 - [x] Update the Feed Digest target matrix with the Debian ARM64 result and its limits; preserve the x86_64 result unchanged.
 - [x] Run the focused target tests, JSON report checks, documentation-link validation, shell syntax checks, and `git diff --check`; all checks passed.
-- [ ] Review the branch diff, open the PR, merge it under the already-authorized workflow, delete the merged branch, and leave unrelated untracked site work untouched.
+- [x] Review the branch diff and confirm it contains only the ARM64 package target work; unrelated untracked site files remain outside the PR.
