@@ -43,11 +43,11 @@
 - The existing verifier consumes `--expected-arch aarch64 --colima-vm-used` and no `--rosetta-used` for the ARM64 run.
 - ARM64 cache is architecture-specific except `managed/cache`, which points to the existing x86_64 pure-Python wheel cache.
 
-- [ ] Add `test_target_validation_accepts_debian_aarch64_without_rosetta` to assert Linux/aarch64/Debian 12 passes with `colima_vm_used=True`, `colima_vm_started=False`, and `rosetta_used=False`.
-- [ ] Run `python3 -m unittest discover -s evaluation/tests -p 'test_managed_feed_digest_target.py' -v`; expected: all target-validation tests pass.
-- [ ] Move the existing runner body into the shared runner; select `linux/arm64`/`aarch64` or `linux/amd64`/`x86_64`, target-specific scratch/image names, and target-specific Rosetta evidence from `GUION_FEED_DIGEST_ARCH`.
-- [ ] Keep the existing x86_64 command as a wrapper, add the ARM64 wrapper, and use the architecture-neutral Dockerfile for both.
-- [ ] Run `bash -n` on all three scripts and `git diff --check`; commit runner, Dockerfile, and test changes before the VM acceptance run.
+- [x] Add `test_target_validation_accepts_debian_aarch64_without_rosetta` to assert Linux/aarch64/Debian 12 passes with `colima_vm_used=True`, `colima_vm_started=False`, and `rosetta_used=False`.
+- [x] Run `python3 -m unittest discover -s evaluation/tests -p 'test_managed_feed_digest_target.py' -v`; all six target-validation tests pass.
+- [x] Move the existing runner body into the shared runner; select `linux/arm64`/`aarch64` or `linux/amd64`/`x86_64`, target-specific scratch/image names, and target-specific Rosetta evidence from `GUION_FEED_DIGEST_ARCH`.
+- [x] Keep the existing x86_64 command as a wrapper, add the ARM64 wrapper, and use the architecture-neutral Dockerfile for both.
+- [x] Run `bash -n` on all three scripts, validate the shared-cache link, and run `git diff --check`; commit runner, Dockerfile, and test changes before the VM acceptance run.
 
 ### Task 2: Build and verify the Debian ARM64 package
 

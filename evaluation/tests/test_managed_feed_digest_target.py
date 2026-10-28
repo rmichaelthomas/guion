@@ -53,6 +53,24 @@ class ManagedFeedDigestTargetTests(unittest.TestCase):
             {"id": "debian", "version": "12", "name": "Debian 12"},
         )
 
+    def test_target_validation_accepts_debian_aarch64_without_rosetta(self) -> None:
+        args = Namespace(
+            expected_os="linux",
+            expected_arch="aarch64",
+            expected_distribution="debian",
+            expected_distribution_version="12",
+            colima_vm_used=True,
+            colima_vm_started=False,
+            rosetta_used=False,
+        )
+
+        VERIFIER.validate_target(
+            args,
+            "Linux",
+            "aarch64",
+            {"id": "debian", "version": "12", "name": "Debian 12"},
+        )
+
     def test_target_validation_rejects_wrong_architecture(self) -> None:
         args = Namespace(
             expected_os="linux",
