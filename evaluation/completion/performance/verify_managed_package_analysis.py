@@ -87,6 +87,11 @@ def main() -> int:
     parser.add_argument("--warmed-dir", type=Path, default=WARMED)
     parser.add_argument("--uv", type=Path)
     parser.add_argument(
+        "--python-install-dir",
+        type=Path,
+        help="preloaded CPython install directory when it is mounted separately from the uv cache",
+    )
+    parser.add_argument(
         "--vm-started",
         action="store_true",
         help="record that this acceptance run used a VM-hosted environment",
@@ -123,7 +128,10 @@ def main() -> int:
         (ROOT / "distribution/toolchains/manifest.toml").read_text(encoding="utf-8")
     )["uv_version"]
     cache = warmed / "cache"
-    python_install = warmed / "python"
+    python_install = args.python_install_dir or warmed / "python"
+    if not python_install.is_absolute():
+        python_install = ROOT / python_install
+    python_install = python_install.resolve()
     for required in (cache, python_install):
         if not required.is_dir():
             raise RuntimeError(f"warmed managed Python cache is missing: {required}")
