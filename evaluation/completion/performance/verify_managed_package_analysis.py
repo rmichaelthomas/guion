@@ -65,6 +65,14 @@ def directory_bytes(root: Path) -> int:
     return total
 
 
+def warmed_cache_report_value(warmed: Path, root: Path = ROOT) -> str:
+    """Describe a preserved cache without requiring it to live inside the repo."""
+    try:
+        return warmed.relative_to(root).as_posix()
+    except ValueError:
+        return "outside repository"
+
+
 def make_dataset(path: Path) -> bytes:
     rows = [
         {
@@ -395,7 +403,7 @@ def main() -> int:
             },
             "cleanup": {
                 "run_scratch_removed_on_exit": True,
-                "warmed_toolchain_cache_preserved": str(warmed.relative_to(ROOT)),
+                "warmed_toolchain_cache_preserved": warmed_cache_report_value(warmed),
                 "vm_started": args.vm_started,
             },
         }

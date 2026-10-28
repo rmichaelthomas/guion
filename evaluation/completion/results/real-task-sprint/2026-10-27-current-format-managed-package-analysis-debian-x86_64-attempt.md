@@ -15,4 +15,4 @@ Because packaging stopped at dependency inspection, this attempt produced no acc
 
 The subsequent retry reused the corrected x86_64 uv resolver-and-wheel cache and the completed release build retained after this failure, avoiding another 34-minute QEMU compile.
 
-Before retrying the full gate, the same VM was restarted with Rosetta enabled. A focused `ldd` check on the preloaded x86_64 CPython executable resolved all six system libraries and exited successfully. This checks the previously failing translation operation only; the full managed-package acceptance is still pending.
+Before retrying the full gate, the same VM was restarted with Rosetta enabled. A focused `ldd` check on the preloaded x86_64 CPython executable resolved all six system libraries and exited successfully. The full managed-package acceptance then passed under Rosetta; see the completed report.
