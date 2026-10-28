@@ -26,6 +26,23 @@ from runner import paired_median_ci  # noqa: E402
 CALL_COUNTS = (1, 10, 100, 1_000)
 
 
+def paired_median_difference_ci(values: list[float], seed: int) -> dict[str, Any]:
+    rng = random.Random(seed)
+    medians = [
+        statistics.median(values[rng.randrange(len(values))] for _ in values)
+        for _ in range(20_000)
+    ]
+    medians.sort()
+    return {
+        "median_ms_per_added_call": statistics.median(values) * 1000,
+        "ci95_ms_per_added_call": [
+            medians[int(0.025 * (len(medians) - 1))] * 1000,
+            medians[int(0.975 * (len(medians) - 1))] * 1000,
+        ],
+        "positive_in_all_pairs": all(value > 0 for value in values),
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--binary", type=Path, default=ROOT / "target/release/guion")
@@ -179,21 +196,19 @@ def main() -> int:
                 strict=True,
             )
         ]
-        incremental_ratios = [
-            guion / reference
-            for guion, reference in zip(guion_increment, python_increment, strict=True)
-            if guion > 0 and reference > 0
-        ]
-        if len(incremental_ratios) != args.trials:
-            incremental_comparison: dict[str, Any] = {
-                "status": "unavailable because at least one paired incremental time was nonpositive"
-            }
-        else:
-            incremental_comparison = {
-                "ratio": paired_median_ci(incremental_ratios),
-                "guion_median_ms_per_call": statistics.median(guion_increment) * 1000,
-                "python_median_ms_per_call": statistics.median(python_increment) * 1000,
-            }
+        incremental_comparison = {
+            "guion_added_ms_per_call": statistics.median(guion_increment) * 1000,
+            "python_added_ms_per_call": statistics.median(python_increment) * 1000,
+            "guion_minus_python_added_ms_per_call": paired_median_difference_ci(
+                [
+                    guion - reference
+                    for guion, reference in zip(
+                        guion_increment, python_increment, strict=True
+                    )
+                ],
+                args.seed + 1,
+            ),
+        }
 
         source_paths = (
             "crates/runtime/src/python_bridge.rs",
