@@ -42,11 +42,13 @@ See the [getting-started guide](docs/getting-started.md), [language and command 
 
 N-body, Mandelbrot, both parallel CPU sizes, 20,000-row JSONL, and all application outputs also passed their checks. The full [current-main checkpoint](evaluation/completion/results/real-task-sprint/2026-10-27-current-main-outcome-checkpoint.md) links the raw samples and describes the methods and limits.
 
+The same current-format run exercised bounded HTTP concurrency in the calendar and health-check applications, including mixed service responses. A runtime regression confirms that when one concurrent HTTP worker fails, an in-flight sibling request is interrupted and its socket closes. This supports those named cancellation cases on macOS; it is not a general async-runtime or cross-target claim. See the [concurrency report](evaluation/completion/results/real-task-sprint/2026-10-27-parallel-http-cancellation.md).
+
 A separate current-format bridge check processed 100,000 rows through NumPy and orjson with exact output parity. The fresh Guion run measured **173.5 ms**, compared with **149.3 ms** for the same package function run directly in Python and **119.0 ms** for a standard-library Python reference. This proves useful package access for one real workload; the bridge adds measurable overhead and has not yet beaten Python on this task. See the [bridge report](evaluation/completion/results/real-task-sprint/2026-10-27-python-bridge-package-analysis.md).
 
 These results come from named workloads on one Mac; operating-system file-cache state was uncontrolled. The current format-44 checkpoint does not validate other targets. It supports a real performance claim for the workloads shown, while overall competitiveness remains open.
 
-The remaining product outcomes are broader Python interoperability and complete managed-package delivery, concurrency usability across realistic failure and cancellation cases, language learnability, and relocatable native dependencies across supported targets. See [current status](docs/status.md), the [north-star design](docs/north-star-design.md), and the [validation record](docs/pre-release-readiness.md) for the wider scope.
+The remaining product outcomes are broader Python interoperability and complete managed-package delivery, language learnability, relocatable native dependencies, and current-format cross-target validation. See [current status](docs/status.md), the [north-star design](docs/north-star-design.md), and the [validation record](docs/pre-release-readiness.md) for the wider scope.
 
 ## Project guide
 
