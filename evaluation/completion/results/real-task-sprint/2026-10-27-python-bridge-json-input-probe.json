@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "kind": "guion-python-bridge-json-input-probe",
+  "status": "outputs_passed_performance_rejected",
+  "commit": "074b1449eecb4cc3970c1aaa6e59309ef869153e",
+  "guion_binary_sha256": "7d6ede2de84ff6fb3f4a628034b4d0d1e95ef8145ed54c17456cb81c41b9ef6e",
+  "host": "macOS 27.0.1 ARM64",
+  "python": {
+    "version": "3.14.7",
+    "numpy": "2.5.1",
+    "orjson": "3.11.9"
+  },
+  "workload": {
+    "rows": 100000,
+    "input_bytes": 5100867,
+    "input_sha256": "7c34a5aeb714026e2624d64980999cc40612b6f230843516d5b6b9f59279a40b",
+    "report_bytes": 1256,
+    "report_sha256": "86d880db3ae3bf9f1a7fa3f3e3b4f24b250bef4dc6f08e822b41ac977ab5d117",
+    "all_outputs_match": true
+  },
+  "experiment": {
+    "candidate": "Guion parses the input with json_parse and sends typed Json to a Python function accepting a dict; the function uses NumPy and skips orjson.loads.",
+    "control": "The same deterministic input processed by the standard-library Python reference.",
+    "comparison": "Seven randomized fresh-process pairs; each output checked against the same expected report bytes and console output; Guion source cache bypassed; OS cache uncontrolled.",
+    "paired_order": [
+      ["guion_json", "python", "guion_text"],
+      ["guion_json", "python", "guion_text"],
+      ["guion_json", "guion_text", "python"],
+      ["python", "guion_text", "guion_json"],
+      ["guion_json", "python", "guion_text"],
+      ["python", "guion_json", "guion_text"],
+      ["guion_text", "python", "guion_json"]
+    ],
+    "candidate_samples_seconds": [
+      0.4603756249998696,
+      0.4399353329790756,
+      0.4469242920167744,
+      0.4332112909760326,
+      0.43361212499439716,
+      0.4446541659999639,
+      0.5022793330135755
+    ],
+    "python_reference_samples_seconds": [
+      0.11161216697655618,
+      0.1124530000379309,
+      0.11347837495850399,
+      0.11213104095077142,
+      0.10879079101141542,
+      0.1211663750000298,
+      0.11931450001429766
+    ],
+    "candidate_median_seconds": 0.4446541659999639,
+    "python_reference_median_seconds": 0.1124530000379309,
+    "candidate_over_python_median_ratio": 3.93840934169354,
+    "candidate_over_python_95_percentile_interval": [
+      3.8634377002370304,
+      4.12477991845253
+    ],
+    "all_pairs_slower": true,
+    "decision": "Do not adopt this transfer path. It adds Guion-side parsing and recursive Json conversion, and is much slower on this workload than passing the source as Text."
+  }
+}

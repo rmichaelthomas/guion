@@ -648,7 +648,8 @@ fn json_stringify_pairs_writes_sorted_escaped_rows_and_empty_arrays() {
     print(json_stringify_pairs_native(empty, "na\nme", "ru\"le"))
     return 0
 "#;
-    let artifact = compile("json-stringify-pairs.gu", source).expect("JSON pair serializer compiles");
+    let artifact =
+        compile("json-stringify-pairs.gu", source).expect("JSON pair serializer compiles");
     assert_eq!(artifact.format_version, Artifact::CURRENT_VERSION);
     assert!(artifact.functions.iter().any(|function| {
         function

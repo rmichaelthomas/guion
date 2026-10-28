@@ -1,0 +1,172 @@
+{
+  "commit": "074b1449eecb4cc3970c1aaa6e59309ef869153e",
+  "correctness": {
+    "all_preflight_report_bytes_match": true,
+    "all_timed_outputs_match": true,
+    "expected_stdout": "Rows:\n100000\nTotal:\n2500116287\n",
+    "group_count": 13,
+    "preflight_stdout_match": true,
+    "result_count": 100000,
+    "result_total": 2500116287
+  },
+  "guion_binary_sha256": "7d6ede2de84ff6fb3f4a628034b4d0d1e95ef8145ed54c17456cb81c41b9ef6e",
+  "guion_version": {
+    "artifact_format": 44,
+    "version": "0.1.0"
+  },
+  "host": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+  "kind": "guion-python-bridge-package-analysis",
+  "measurement": {
+    "medians_seconds": {
+      "guion": 0.17351270804647356,
+      "python_packages": 0.1493127919966355,
+      "python_stdlib": 0.11898616602411494
+    },
+    "method": "Fresh process per sample; Guion source cache bypassed; one untimed output-checked preflight per lane; each timed output checked byte-for-byte; OS file cache uncontrolled.",
+    "paired_order": [
+      [
+        "python_packages",
+        "python_stdlib",
+        "guion"
+      ],
+      [
+        "python_packages",
+        "python_stdlib",
+        "guion"
+      ],
+      [
+        "python_packages",
+        "guion",
+        "python_stdlib"
+      ],
+      [
+        "python_stdlib",
+        "guion",
+        "python_packages"
+      ],
+      [
+        "python_packages",
+        "python_stdlib",
+        "guion"
+      ],
+      [
+        "python_stdlib",
+        "python_packages",
+        "guion"
+      ],
+      [
+        "guion",
+        "python_stdlib",
+        "python_packages"
+      ]
+    ],
+    "paired_ratios": {
+      "guion_over_python_packages": {
+        "ci95_percentile": [
+          1.1620753033027698,
+          1.2618255703866512
+        ],
+        "median_ratio": 1.1874010029663244,
+        "ties_or_regressions": 7,
+        "win": false
+      },
+      "guion_over_python_stdlib": {
+        "ci95_percentile": [
+          1.4582595090197943,
+          1.5028884210245748
+        ],
+        "median_ratio": 1.4817952174188007,
+        "ties_or_regressions": 7,
+        "win": false
+      },
+      "python_packages_over_python_stdlib": {
+        "ci95_percentile": [
+          1.194736752393928,
+          1.2840892879654806
+        ],
+        "median_ratio": 1.2548752261365768,
+        "ties_or_regressions": 7,
+        "win": false
+      }
+    },
+    "samples_seconds": {
+      "guion": [
+        0.1688257500063628,
+        0.17954137496417388,
+        0.45403154101222754,
+        0.17991499998606741,
+        0.17351270804647356,
+        0.1716454160050489,
+        0.17013033299008384
+      ],
+      "python_packages": [
+        0.14959287497913465,
+        0.14228700002422556,
+        0.16153233300428838,
+        0.15152000001398847,
+        0.1493127919966355,
+        0.14553762500872836,
+        0.14257312496192753
+      ],
+      "python_stdlib": [
+        0.11331070796586573,
+        0.11946420802269131,
+        0.12579525000182912,
+        0.12682291702367365,
+        0.11898616602411494,
+        0.11583612498361617,
+        0.116176292009186
+      ]
+    },
+    "seed": 20261027,
+    "trials": 7,
+    "untimed_guion_phase_profile": {
+      "artifact_runtime_load_ns": 97417,
+      "cli_to_report_excluding_process_startup_ns": 159030917,
+      "compiler_pipeline": {
+        "compiler_backend": "rust",
+        "rust_compiler_compile_ns": 399625
+      },
+      "input_artifact_decode_ns": null,
+      "native_compilation": {
+        "finalize_nanoseconds": 0,
+        "functions": []
+      },
+      "program_execute_ns": 156645500,
+      "source_compile_or_cache_ns": 443292
+    },
+    "untimed_phase_profile_output_checked": true
+  },
+  "native_packages": {
+    "numpy": "2.5.1",
+    "orjson": "3.11.9"
+  },
+  "python_executable": "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
+  "python_version": "3.14.7",
+  "schema_version": 1,
+  "source_sha256": {
+    "crates/runtime/src/python_bridge.rs": "e0d816f3c579322893b910aa13deeddd7a3ed72cc031ae7a83fa903ba66c2c13",
+    "crates/runtime/tests/python_bridge.rs": "c91fe3b8186cf3507e2cd679569217188729c7220b1586b47bc9c6644774903c",
+    "evaluation/development/package_analysis/analysis.py": "0021ebd0db25619b3df1878076d94d9cd0a9ccf45208444c84447f32f80a5753",
+    "evaluation/development/package_analysis/main.vr": "dcdbe619f777731e06856672eeae4ea5ccb1561468824aa2cbca2a4cb822ba93",
+    "evaluation/development/package_analysis/reference.py": "38b3b4c56a07407213d3992182d3ca2ca322d4b176e35220d4f8792aff658a44",
+    "evaluation/development/package_analysis/reference_packages.py": "22067dbfee4cbcd4e614b51880dfb92823c131f5cd1e866f8e9f1e9ce3940a80"
+  },
+  "status": "passed",
+  "workload": {
+    "groups": 13,
+    "input_bytes": 5100867,
+    "input_sha256": "7c34a5aeb714026e2624d64980999cc40612b6f230843516d5b6b9f59279a40b",
+    "python_calls_per_guion_run": 1,
+    "report_bytes": 1256,
+    "report_sha256": "86d880db3ae3bf9f1a7fa3f3e3b4f24b250bef4dc6f08e822b41ac977ab5d117",
+    "rows": 100000,
+    "semantic_transfer_bytes_per_call": {
+      "group_by_text": 3,
+      "input_text": 5100867,
+      "note": "Payload sizes are measured; protocol framing and serialization bytes are not currently exposed by the runtime.",
+      "returned_json": 1256
+    }
+  },
+  "worktree_dirty_at_measurement": true
+}

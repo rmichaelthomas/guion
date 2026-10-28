@@ -64,7 +64,7 @@ Test both pure-Python and native-wheel dependencies. Include an array/object-hea
 
 ## Distribution and maintenance
 
-First distribution target: current macOS arm64, with exact OS/runtime constraints recorded in the build report. Architecture permits later Linux, Windows and browser hosts without claiming they are supported now. No browser port or phone deployment is required for this release. This is a local release candidate; unsigned relocation tests do not establish public download trust, signing/notarization, or frictionless public installation. No user signing credentials are required for the language validation.
+First distribution target: current macOS arm64, with exact OS/runtime constraints recorded in the build report. Architecture permits later Linux, Windows and browser hosts without claiming they are supported now. No browser port or phone deployment is required for this release.
 
 Pure Veritas packages include their runtime and resources. Python-assisted packages additionally assemble a relocatable managed interpreter and locked wheel dependencies for the supported target, including required native libraries and license records. Do not copy a developer virtual environment and label it portable. Unsupported dependency/platform combinations must fail packaging with an explanation.
 
@@ -82,4 +82,6 @@ Future-oriented commitments now: versioned external contracts, source-level diag
 
 ## Remaining material risks
 
-Bytecode speed, Python bridge usefulness, relocatable native dependencies, concurrency usability, and language learnability are unresolved engineering risks. None has been proven by the current prototype. The corrected build exposes these risks early within one integrated milestone. If evidence says the runtime or interop design cannot deliver a competitive experience, change that architecture rather than lowering the acceptance bar or declaring the task unsupported after choosing it.
+Named current-main speed outcomes now have measured evidence: the Richards uncached-source ratio is 0.375 versus CPython 3.14.7 (95% interval 0.370–0.379), the 0.60 Richards target passes, the five short-source gates pass, and the current lockfile auditor passes its scale and RAM gate. The nine selected everyday applications and the recorded numeric, parallel CPU, and JSONL workloads also pass their output checks on macOS ARM64. The [current-main checkpoint](../evaluation/completion/results/real-task-sprint/2026-10-27-current-main-outcome-checkpoint.md) records the full scope and raw reports. This demonstrates performance on those named workloads; broad bytecode competitiveness remains open.
+
+The remaining material product risks are Python bridge usefulness across important real packages, relocatable native dependencies for current artifact format 44 across supported targets, concurrency usability beyond the measured CPU cases, and language learnability. If future evidence says the runtime or interop design cannot deliver a competitive experience, change that architecture rather than lowering the acceptance bar or declaring a chosen task unsupported.

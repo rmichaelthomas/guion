@@ -121,6 +121,22 @@ fn bridge_round_trips_typed_maps_as_python_dictionaries() {
 }
 
 #[test]
+fn bridge_round_trips_unicode_text_with_shared_storage() {
+    let input = Value::Text("Guion: 東京 — café".into());
+    let mut bridge = PythonBridge::launch(
+        &interpreter(),
+        &std::env::temp_dir(),
+        Duration::from_secs(5),
+    )
+    .unwrap();
+    let output = bridge
+        .call("builtins", "str", &[input.clone()], &[], &Type::Text)
+        .expect("Text should cross the Python bridge in both directions");
+
+    assert_eq!(output.value, input);
+}
+
+#[test]
 fn isolated_bridge_can_import_python_modules_from_the_project_root() {
     let root = std::env::temp_dir().join(format!(
         "guion-python-project-{}-{}",

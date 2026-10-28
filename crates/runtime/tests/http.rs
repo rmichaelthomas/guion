@@ -458,6 +458,133 @@ fn byte_http_cancellation_interrupts_during_response_body_read() {
 }
 
 #[test]
+fn parallel_worker_failure_cancels_in_flight_http_sibling_and_closes_socket() {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    listener.set_nonblocking(true).unwrap();
+    let server = thread::spawn(move || {
+        let accept_deadline = Instant::now() + Duration::from_secs(3);
+        let mut connections = Vec::new();
+        while connections.len() < 2 {
+            match listener.accept() {
+                Ok((mut stream, _)) => {
+                    stream.set_nonblocking(false).unwrap();
+                    stream
+                        .set_read_timeout(Some(Duration::from_secs(2)))
+                        .unwrap();
+                    let mut request = Vec::new();
+                    let mut buffer = [0; 512];
+                    while !request.windows(4).any(|window| window == b"\r\n\r\n") {
+                        let count = stream.read(&mut buffer).unwrap();
+                        assert_ne!(count, 0, "HTTP request ended before its headers");
+                        request.extend_from_slice(&buffer[..count]);
+                    }
+                    let request_line = String::from_utf8_lossy(&request);
+                    let path = request_line
+                        .lines()
+                        .next()
+                        .and_then(|line| line.split_whitespace().nth(1))
+                        .expect("HTTP request has a path")
+                        .to_string();
+                    connections.push((path, stream));
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                    assert!(
+                        Instant::now() < accept_deadline,
+                        "both HTTP workers must start"
+                    );
+                    thread::sleep(Duration::from_millis(1));
+                }
+                Err(error) => panic!("accepting HTTP worker request: {error}"),
+            }
+        }
+
+        let (slow_started_tx, slow_started_rx) = mpsc::channel();
+        let mut slow_started_rx = Some(slow_started_rx);
+        let mut handlers = Vec::new();
+        for (path, mut stream) in connections {
+            if path == "/slow" {
+                let slow_started_tx = slow_started_tx.clone();
+                handlers.push(thread::spawn(move || {
+                    stream
+                        .write_all(
+                            b"HTTP/1.1 200 OK\r\nContent-Length: 10\r\nConnection: keep-alive\r\n\r\nxy",
+                        )
+                        .unwrap();
+                    stream.flush().unwrap();
+                    slow_started_tx.send(()).unwrap();
+                    let mut byte = [0; 1];
+                    let outcome = match stream.read(&mut byte) {
+                        Ok(0) => "eof".to_string(),
+                        Ok(count) => format!("still open: read {count} bytes"),
+                        Err(error) => format!("read error: {:?}", error.kind()),
+                    };
+                    (path, outcome)
+                }));
+            } else if path == "/fail" {
+                let slow_started_rx = slow_started_rx.take().unwrap();
+                handlers.push(thread::spawn(move || {
+                    let slow_is_in_flight =
+                        slow_started_rx.recv_timeout(Duration::from_secs(2)).is_ok();
+                    let response_sent = slow_is_in_flight
+                        && stream
+                            .write_all(
+                                b"HTTP/1.1 500 Internal Server Error\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+                            )
+                            .is_ok();
+                    let _ = stream.flush();
+                    (path, format!("failure response sent: {response_sent}"))
+                }));
+            } else {
+                handlers.push(thread::spawn(move || {
+                    let _ = stream.write_all(
+                        b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+                    );
+                    (path, "unexpected path".to_string())
+                }));
+            }
+        }
+        handlers
+            .into_iter()
+            .map(|handler| handler.join().unwrap())
+            .collect::<Vec<_>>()
+    });
+
+    let slow_url = format!("http://{address}/slow");
+    let failing_url = format!("http://{address}/fail");
+    let source = format!(
+        "fn fetch(url: Text) -> Int:\n    let headers: Map[Text, Text] = {{}}\n    let response = http_request_with_timeout(\"GET\", url, headers, \"\", 3000)\n    if not is_ok(response):\n        return 0\n    let envelope = unwrap(response)\n    assert(json_as_int(json_get(envelope, \"status\")) == 200)\n    return 1\n\nfn fetch_all() -> Result[List[Int], TaskError]:\n    return parallel_map([{slow_url:?}, {failing_url:?}], fetch, 2)\n\nfn main() -> Int:\n    return 0\n"
+    );
+    let artifact = compile("parallel-http-failure.gu", &source).unwrap();
+    let policy =
+        HostPolicy::default().with_network_hosts(["127.0.0.1"], Duration::from_secs(3), 1024);
+    let mut instance = Runtime::new().load(artifact, policy).unwrap();
+
+    let Value::ResultErr(error) = instance.invoke("fetch_all", vec![]).unwrap() else {
+        panic!("the failing HTTP worker must return a TaskError");
+    };
+    let Value::TaskError(error) = *error else {
+        panic!("parallel_map Err contains a TaskError");
+    };
+    assert_eq!(error.index, BigInt::from_usize(1));
+    assert_eq!(error.code, "R_ASSERTION");
+    assert!(instance.parallel_threads_used() > 1);
+
+    let outcomes = server.join().unwrap();
+    assert!(
+        outcomes.contains(&("/slow".to_string(), "eof".to_string())),
+        "server outcomes: {outcomes:?}"
+    );
+    assert!(
+        outcomes.contains(&(
+            "/fail".to_string(),
+            "failure response sent: true".to_string()
+        )),
+        "server outcomes: {outcomes:?}"
+    );
+}
+
+#[test]
 fn byte_http_total_deadline_applies_across_trickled_body_chunks() {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let address = listener.local_addr().unwrap();

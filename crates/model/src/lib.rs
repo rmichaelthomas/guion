@@ -2278,9 +2278,7 @@ impl Artifact {
                         w.u8(159);
                         w.count(*target)?;
                     }
-                    Op::TimeResolveLocal => {
-                        w.u8(if self.format_version == 40 { 158 } else { 161 })
-                    }
+                    Op::TimeResolveLocal => w.u8(if self.format_version == 40 { 158 } else { 161 }),
                     Op::TimeZoneDataVersion => {
                         w.u8(if self.format_version == 40 { 159 } else { 162 })
                     }

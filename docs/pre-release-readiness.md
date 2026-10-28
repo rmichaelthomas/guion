@@ -1,6 +1,6 @@
-# Guion pre-release readiness
+# Guion validation and readiness
 
-**Status: private pre-release candidate; not a public release.** This handoff records the Guion-identity validation completed for version 0.1.0 / artifact format 39. The GitHub repository remains private, and the retained host packages are validation evidence rather than public downloads.
+**Validation record:** The three-target cohort documented below used Guion 0.1.0 / artifact format 39. Current merged main uses artifact format 44; the latest lockfile scale, speed, and RAM result is recorded in the [October 27 lockfile report](../evaluation/completion/results/real-task-sprint/2026-10-27-lockfile-scale-ram-package-limit.md). The older three-target matrix does not by itself validate format 44.
 
 ## What passed
 
@@ -17,7 +17,7 @@ That cohort's runtime, application, lifecycle, and release aggregates list all t
 
 ## Performance result and boundary
 
-The later post-VM-core [real-task and runtime sprint](../evaluation/completion/results/real-task-sprint/summary.md) supersedes the earlier Richards source measurement on macOS: 45.67 ms for Guion versus 70.16 ms for CPython 3.14.7 in the named fresh-source cohort. It also records 127 passing cases in each language across nine applications, a validated AllHereHTML regression, text-allocation improvements, and the current macOS installation check. The three-target records below describe the earlier validation cohort; they do not by themselves establish that a later build passed on all three targets.
+The [real-task and runtime sprint](../evaluation/completion/results/real-task-sprint/summary.md) contains several historical cohorts. Its earlier post-VM-core Richards result was 45.67 ms for Guion versus 70.16 ms for CPython 3.14.7; the current-main measurement below supersedes that result. The older three-target records do not by themselves establish that a later build passed on all three targets.
 
 The performance report compares the installed Guion artifact with pinned, GIL-enabled CPython 3.14.7 on macOS ARM64. Each reported ratio is the median of paired per-trial ratios (Guion time divided by Python time); below 1.0 means the Guion artifact was faster for that named comparison.
 
@@ -36,6 +36,10 @@ These results cover the named workloads, host, and pinned Python version only. A
 
 The retained three-pair builder study is from the historical Veritas identity, not a Guion-identity study. The old scored outcomes remain preserved as history; they should not be represented as Guion recommendations. Exact byte-for-byte replay of the deleted raw Veritas v2 session archive is unavailable, as recorded in the [migration retention manifest](history/migration-retention-manifest.json).
 
+## Current-main performance and application checkpoint (2026-10-27)
+
+The current merged main at commit `6b5e5aba` was rebuilt with artifact format 44 and compared on macOS ARM64 with CPython 3.14.7. Richards uncached source measured **27.46 ms vs. 72.92 ms**, ratio **0.375** (95% interval **0.370–0.379**), passing the Richards 0.60 target. All five 21-pair short-source gates passed. The output-checked 20k/200k JSONL and CPU cases passed, as did **127/127** frozen application cases in both languages. Seven-pair comparisons favored Guion across all nine selected everyday applications. The detailed [checkpoint report](../evaluation/completion/results/real-task-sprint/2026-10-27-current-main-outcome-checkpoint.md) links raw samples and records memory and measurement limits. This is current-main macOS evidence; it does not update the earlier three-target format-39 cohort.
+
 ## Source-run and launch speed sprint (2026-10-25)
 
 The source-run cache and repeated-run results are in the [final source-loop comparison](../evaluation/completion/results/source-loop/final-comparison-20261026.json) and its [full dated run](../evaluation/completion/results/source-loop/20261026T052344191561Z.json). This is a separate, newer source-loop cohort; it does not rewrite the frozen installed-artifact report above.
@@ -44,7 +48,7 @@ On macOS ARM64 with CPython 3.14.7, seven repeated source runs all hit the proje
 
 The one uncached sample per workload was 966.8 ms for Richards and 352.1 ms for N-body. These are single observations, not medians, and do not meet the required 50% first-run reduction; the self-hosted compiler remains the dominant cost. Tiny CLI launch measured 10.25 ms median and 11.35 ms p95. Two application cases recorded peak memory and cache size in the detailed report. The Debian 12-compatible ARM64 check built the CLI and ran a source example; this sprint did not rerun the full Debian runtime, release, and 18-application matrix. Prior full Guion target evidence remains linked above.
 
-The full Rust, 195-case language, formatting, strict Clippy, 16 Python harness tests, macOS app acceptance, and Debian smoke checks passed. No release was published.
+The full Rust, 195-case language, formatting, strict Clippy, 16 Python harness tests, macOS application acceptance, and Debian smoke checks passed for that earlier cohort.
 
 ## Runtime efficiency pass (2026-10-26)
 
@@ -66,7 +70,7 @@ Other operating systems, CPU architectures, Linux libc variants, free-threaded P
 
 ## Installing, updating, and removing a local package
 
-The project has no public download yet. For source checkout development, follow [Getting started](getting-started.md). For a locally available host archive, extract it and run `sh install.sh`; by default this installs under `~/.local`. Pass a prefix, such as `sh install.sh /chosen/prefix`, to select another location. Add that prefix's `bin` directory to `PATH` if you want to run `guion` from any directory. The installer does not change shell startup files.
+For source checkout development, follow [Getting started](getting-started.md). For a locally available host archive, extract it and run `sh install.sh`; by default this installs under `~/.local`. Pass a prefix, such as `sh install.sh /chosen/prefix`, to select another location. Add that prefix's `bin` directory to `PATH` if you want to run `guion` from any directory. The installer does not change shell startup files.
 
 To update, install a newer version from its extracted archive using the same prefix. Each version gets its own directory under `share/guion/`; the managed launcher points to the newest installation, and previous versions remain available. The installer refuses to overwrite the same version directory. To remove Guion, use the prefix chosen at install time, remove only the Guion-managed `bin/guion` launcher and the specific version directory under `share/guion/`, and leave unrelated files in that prefix alone. If another program replaced the launcher, do not remove it as Guion's launcher.
 
@@ -74,7 +78,7 @@ This installer supports the packaged host only. The archives and their exact SHA
 
 ## Identity and retained records
 
-The final release reports record the compiler seed, runtime, standard-library, and artifact-schema hashes. The self-hosted seed is format 39 with host ABI 1. The Rust workspace and embedded compiler/runtime are source; Rust is not required by an installed core distribution, and Python interoperability is optional.
+The earlier three-target reports record the compiler seed, runtime, standard-library, and artifact-schema hashes for artifact format 39 with host ABI 1. Current merged main uses artifact format 44. The Rust workspace and embedded compiler/runtime are source; Rust is not required by an installed core distribution, and Python interoperability is optional.
 
 Historical Veritas checkpoints, plans, evaluation outcomes, and original reports keep their original identity. The Guion results are a separate cohort. The migration record explains what was retained, what was regenerated, and which bulky raw sessions were removed.
 
@@ -91,9 +95,9 @@ Start with the repository alone; do not rely on this chat. Read these files in o
 Use this prompt when resuming implementation:
 
 ```text
-You are working in the private Guion programming-language repository. First read docs/agents/start-here.md, docs/agents/index.json, language/spec.md, docs/status.md, and docs/pre-release-readiness.md. Treat the language specification and checked-in schemas as authoritative. Keep claims tied to retained reports, preserve historical Veritas evidence without relabeling it, and run the repository's documented checks for any behavior change. Do not publish a release or make the repository public without explicit authorization.
+You are working in the Guion programming-language repository. First read docs/agents/start-here.md, docs/agents/index.json, language/spec.md, docs/status.md, and docs/pre-release-readiness.md. Treat the language specification and checked-in schemas as authoritative. Keep claims tied to retained reports, preserve historical Veritas evidence without relabeling it, and run the repository's documented checks for any behavior change. Follow the project owner's direction on release and repository visibility.
 ```
 
-## Pre-release decision boundary
+## Validation handoff
 
-This repository is organized and validated for a separate pre-release decision. Publishing a release, making the repository public, and changing project-level `AGENTS.md` remain outside this handoff. The original Veritas checkout was retired after its unique small records were preserved.
+This document records validated behavior and its evidence limits. The current product-outcome status is in [`docs/status.md`](status.md), and the original Veritas checkout was retired after its unique small records were preserved.
