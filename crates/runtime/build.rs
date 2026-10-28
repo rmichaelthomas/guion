@@ -19,14 +19,15 @@ fn main() {
     let out = PathBuf::from(env::var_os("OUT_DIR").expect("Cargo provides OUT_DIR"));
     let source = out.join("libical-src");
     fs::create_dir_all(&source).expect("create libical build source directory");
-    run(
-        Command::new("tar")
-            .arg("-xzf")
-            .arg(&archive)
-            .arg("-C")
-            .arg(&source),
-        "extract libical source",
-    );
+    let mut extract = Command::new("tar");
+    extract.arg("-xzf");
+    if env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("linux") {
+        // The pinned archive records root ownership. Keep non-root Linux builds
+        // able to write the extracted tree while configuring the native library.
+        extract.arg("-o");
+    }
+    extract.arg(&archive).arg("-C").arg(&source);
+    run(&mut extract, "extract libical source");
     let source = source.join("libical-4.0.5");
     let build = out.join("libical-build");
     let install = out.join("libical-install");
