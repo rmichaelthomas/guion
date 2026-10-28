@@ -75,6 +75,8 @@ struct BridgeProfile {
     first_call_ns: BTreeMap<String, u64>,
     repeated_calls_ns: BTreeMap<String, u64>,
     python_calls: u64,
+    python_request_json_parser: Option<String>,
+    python_response_json_encoder: Option<String>,
     python_first_call_ns: BTreeMap<String, u64>,
     python_repeated_calls_ns: BTreeMap<String, u64>,
     active_first_call: bool,
@@ -562,6 +564,14 @@ impl PythonBridge {
                     .get("calls")
                     .and_then(JsonValue::as_u64)
                     .unwrap_or(profile.python_calls);
+                profile.python_response_json_encoder = sidecar_profile
+                    .get("response_json_encoder")
+                    .and_then(JsonValue::as_str)
+                    .map(str::to_owned);
+                profile.python_request_json_parser = sidecar_profile
+                    .get("request_json_parser")
+                    .and_then(JsonValue::as_str)
+                    .map(str::to_owned);
                 if let Some(phases) = sidecar_profile
                     .get("first_call_ns")
                     .and_then(JsonValue::as_object)
@@ -703,6 +713,8 @@ impl PythonBridge {
             "rust_repeated_calls_ns": profile.repeated_calls_ns,
             "python": {
                 "calls": profile.python_calls,
+                "request_json_parser": profile.python_request_json_parser,
+                "response_json_encoder": profile.python_response_json_encoder,
                 "first_call_ns": profile.python_first_call_ns,
                 "repeated_calls_ns": profile.python_repeated_calls_ns,
             },

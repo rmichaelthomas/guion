@@ -70,6 +70,8 @@ class PythonBridgeProfileTests(unittest.TestCase):
             self.assertEqual(profile["kind"], "guion-python-bridge-phase-profile")
             self.assertEqual(profile["calls"], 3)
             self.assertEqual(profile["python"]["calls"], 3)
+            self.assertEqual(profile["python"].get("request_json_parser"), "orjson")
+            self.assertEqual(profile["python"].get("response_json_encoder"), "orjson")
             self.assertGreater(profile["rust_first_call_ns"]["request_serialize"], 0)
             self.assertGreater(profile["rust_repeated_calls_ns"]["response_wait"], 0)
             self.assertGreater(

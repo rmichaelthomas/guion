@@ -97,6 +97,9 @@ else:
     PROFILE_PHASES_NS = None
     PROFILE_ACTIVE_BUCKET = None
 PROFILE_CALLS = 0
+REQUEST_ORJSON_LOADS = None
+LAST_REQUEST_JSON_PARSER = "stdlib"
+RESPONSE_ORJSON_DUMPS = None
 PROTOCOL_OUT = os.fdopen(os.dup(sys.stdout.fileno()), "wb", buffering=0)
 # Keep native extension writes on fd 1/2 from corrupting the framed channel.
 # Python-level writes are captured with redirect_stdout/redirect_stderr below.
@@ -123,15 +126,22 @@ def read_exact(count):
 
 
 def parse_request_frame(frame):
+    global LAST_REQUEST_JSON_PARSER
+    if REQUEST_ORJSON_LOADS is None:
+        parse_json = json.loads
+        LAST_REQUEST_JSON_PARSER = "stdlib"
+    else:
+        parse_json = REQUEST_ORJSON_LOADS
+        LAST_REQUEST_JSON_PARSER = "orjson"
     if not frame.startswith(BINARY_FRAME_MAGIC):
-        return json.loads(frame), []
+        return parse_json(frame), []
     if len(frame) < 12:
         raise ValueError("truncated binary request frame header")
     metadata_length = struct.unpack(">I", frame[4:8])[0]
     metadata_end = 8 + metadata_length
     if metadata_end + 4 > len(frame):
         raise ValueError("truncated binary request metadata")
-    request = json.loads(frame[8:metadata_end])
+    request = parse_json(frame[8:metadata_end])
     attachment_count = struct.unpack(">I", frame[metadata_end:metadata_end + 4])[0]
     offset = metadata_end + 4
     attachments = []
@@ -249,7 +259,19 @@ def normalize_numpy_list(value):
 
 def write_frame(value):
     started = perf_counter_ns() if PROFILE_ENABLED else 0
-    encoded = json.dumps(value, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    if RESPONSE_ORJSON_DUMPS is None:
+        encoded = json.dumps(value, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    else:
+        try:
+            encoded = RESPONSE_ORJSON_DUMPS(value)
+        except (OverflowError, TypeError):
+            if PROFILE_ENABLED and isinstance(value, dict):
+                profile = value.get("_bridge_profile")
+                if isinstance(profile, dict):
+                    profile["response_json_encoder"] = "stdlib_fallback"
+            encoded = json.dumps(value, ensure_ascii=False, separators=(",", ":")).encode(
+                "utf-8"
+            )
     if PROFILE_ENABLED:
         PROFILE_PHASES_NS[PROFILE_ACTIVE_BUCKET]["response_json_encode"] += (
             perf_counter_ns() - started
@@ -302,6 +324,16 @@ while True:
             started = perf_counter_ns() if PROFILE_ENABLED else 0
             module = importlib.import_module(request["module"])
             function = getattr(module, request["function"])
+            if RESPONSE_ORJSON_DUMPS is None:
+                fast_json = sys.modules.get("orjson")
+                candidate = getattr(fast_json, "dumps", None)
+                if callable(candidate):
+                    RESPONSE_ORJSON_DUMPS = candidate
+            if REQUEST_ORJSON_LOADS is None:
+                fast_json = sys.modules.get("orjson")
+                candidate = getattr(fast_json, "loads", None)
+                if callable(candidate):
+                    REQUEST_ORJSON_LOADS = candidate
             if PROFILE_ENABLED:
                 PROFILE_PHASES_NS[PROFILE_ACTIVE_BUCKET]["module_dispatch"] += (
                     perf_counter_ns() - started
@@ -393,6 +425,10 @@ while True:
     if PROFILE_ENABLED:
         response["_bridge_profile"] = {
             "calls": PROFILE_CALLS,
+            "request_json_parser": LAST_REQUEST_JSON_PARSER,
+            "response_json_encoder": (
+                "orjson" if RESPONSE_ORJSON_DUMPS is not None else "stdlib"
+            ),
             "first_call_ns": dict(PROFILE_PHASES_NS["first_call"]),
             "repeated_calls_ns": dict(PROFILE_PHASES_NS["repeated_calls"]),
         }

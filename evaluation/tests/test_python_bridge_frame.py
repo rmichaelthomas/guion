@@ -112,7 +112,13 @@ class PythonBridgeFrameRejectionTests(unittest.TestCase):
             for node in module.body
             if isinstance(node, ast.FunctionDef) and node.name == "parse_request_frame"
         )
-        namespace = {"BINARY_FRAME_MAGIC": MAGIC, "json": json, "struct": struct}
+        namespace = {
+            "BINARY_FRAME_MAGIC": MAGIC,
+            "LAST_REQUEST_JSON_PARSER": "stdlib",
+            "REQUEST_ORJSON_LOADS": None,
+            "json": json,
+            "struct": struct,
+        }
         extracted = ast.Module(body=[parser], type_ignores=[])
         exec(compile(extracted, str(SIDECAR), "exec"), namespace)
 

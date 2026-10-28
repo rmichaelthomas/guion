@@ -17,6 +17,23 @@ Subtracting the one-call time from each paired 1,000-call run estimates the adde
 
 Follow-up profiling found that full macOS native-image snapshots consumed 0.220 ms per repeated call. Gating snapshots on observed imports, `ctypes.dlopen`, or changed dyld image count reduced the 1,000-call ratio to 1.481 (1.439–1.559) and excess time per added call to 0.0381 ms (0.0324–0.0442). Guion remains slower than direct Python at 1,000 calls; response transport and reader wakeup are the next measured targets. See the [phase-profile report](2026-10-28-python-bridge-phase-profile.md) and [optimized repeated-call samples](2026-10-28-python-bridge-repeated-calls-after-native-image-gate.json).
 
+## Latest response-path optimization
+
+The bridge now uses `orjson` for repeated request parsing and response encoding only after the Python program has already imported it. Guion adds no package requirement and does not import `orjson` just to accelerate the bridge; it keeps the standard-library path otherwise, and falls back to that path when `orjson` cannot encode a value such as an integer outside its supported range. The benchmark fixture imports `orjson`, so it exercises this fast path after the first request.
+
+Against a 15-pair baseline captured immediately before this change, the latest cohort measured:
+
+| Calls in one process | Baseline ratio | Latest ratio (95% interval) |
+| ---: | ---: | ---: |
+| 1 | 1.008 | 1.015 (1.002–1.051) |
+| 10 | 1.032 | 1.051 (1.018–1.063) |
+| 100 | 1.055 | 1.048 (1.034–1.078) |
+| 1,000 | 1.513 | 1.405 (1.375–1.454) |
+
+At 1,000 calls, Guion's median fell from **116.67 ms** to **110.21 ms**. The excess-time estimate fell from **38.88 μs** to **30.93 μs per added call**. A same-index cross-cohort bootstrap over 20,000 resamples estimated a **9.84 μs reduction per call** (95% interval **2.50–13.17 μs lower**); 13 of 15 same-index trial differences improved. These are separate timing cohorts on one host, not simultaneous paired runs, so this comparison is evidence for this measured workload rather than a universal language-speed claim.
+
+The bridge remains slower than direct Python at 1,000 calls: the current ratio is **1.405×**. One-call and 100-call results remain near parity. The optional fast path benefits programs that already use `orjson`; programs that do not import it retain the standard-library encoder and parser. The intermediate encoder-only cohort had a 1.90 μs median same-index reduction, but its 95% bootstrap interval crossed zero (**11.93 μs lower to 6.83 μs higher**); adding request parsing produced the clearer combined result above. See the [before samples](2026-10-28-python-bridge-repeated-calls-before-fast-json.json), the [encoder-only experiment](2026-10-28-python-bridge-repeated-calls-after-orjson.json), the [combined fast-path samples](2026-10-28-python-bridge-repeated-calls-after-fast-json.json), and the [latest phase profile](2026-10-28-python-bridge-fast-json-phase-profile.json).
+
 ## Method and limits
 
 - Host: macOS ARM64; Guion artifact format 44; CPython 3.14.7, NumPy 2.5.1, and orjson 3.11.9.
@@ -29,5 +46,7 @@ Follow-up profiling found that full macOS native-image snapshots consumed 0.220 
 ## Evidence
 
 - [Full 1/10/100/1,000-call raw samples](2026-10-28-python-bridge-repeated-calls-1-1000.json)
+- [Baseline immediately before the response-path optimization](2026-10-28-python-bridge-repeated-calls-before-fast-json.json)
+- [Combined request-parser and response-encoder results](2026-10-28-python-bridge-repeated-calls-after-fast-json.json)
 - [Earlier 1/10/100-call raw samples](2026-10-28-python-bridge-repeated-calls-1-100.json)
 - [Repeat-call benchmark and fixture](../../performance/benchmark_python_bridge_repeated_calls.py)

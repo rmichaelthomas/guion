@@ -16,7 +16,7 @@ The sidecar now takes a full snapshot when Python reports an import or `ctypes.d
 
 The 1,000-call Guion median fell from **318.47 ms** to **116.31 ms**; Python measured **76.94 ms** and **78.37 ms** in the respective cohorts. The excess per-call estimate is descriptively **84.2% lower** after the change. The old and new measurements are separate 15-pair cohorts, so that percentage is not a paired before/after estimate.
 
-The single-call ratio remains within its interval around parity: **1.046** before and **1.016** after (0.967–1.026). At 10 calls the latest ratio was **1.018** (0.978–1.080), and at 100 it was **1.045** (1.018–1.107). At 1,000 calls Guion is still slower than direct Python, so the repeated-call gap is reduced but not closed.
+In the post-image-gate 15-pair cohort, the single-call ratio was within its interval around parity: **1.046** before and **1.016** after (0.967–1.026). At 10 calls the ratio was **1.018** (0.978–1.080), and at 100 it was **1.045** (1.018–1.107). At 1,000 calls Guion was still slower than direct Python. The later fast JSON cohort is recorded below and in the repeated-call report.
 
 ## Phase detail
 
@@ -41,6 +41,16 @@ About **87%** of the measured response wait elapsed before the first response by
 The Python-side `request_frame_read` timer includes waiting for Guion's next request after Python has already sent its response, so it does not line up with the Rust response interval. The Python `response_json_encode` and `response_write` timers include the diagnostic profile payload and should not be treated as normal, unprofiled costs. These values are diagnostic medians from three runs, not a new speed-comparison cohort.
 
 Raw samples: [response-channel phase profile](2026-10-28-python-bridge-response-channel-profile.json).
+
+## Optional fast JSON path
+
+The response-path experiment uses `orjson` only when the user's Python program has already imported it. It does not add a dependency or import the package on its own. A 50,000-iteration local serializer check measured **2.38 μs** for the standard-library response encoding and **0.21 μs** for `orjson`; a matching request-decoding check measured **2.14 μs** and **0.55 μs**. The checks used the same small bridge response and request shapes, and verified matching decoded values, byte-buffer support, duplicate-key handling, and large-integer parsing. A regression test confirms that an out-of-range JSON integer rejected by the fast encoder falls back to the standard encoder without losing value.
+
+In the three-run, 1,000-call phase profile, repeated Python request parsing measured **2.68 μs** and response encoding **1.04 μs**. Rust's end-to-end response wait measured **24.11 μs**, of which **19.94 μs** elapsed before the first response byte; frame completion took **0.89 μs**, and channel delivery **3.18 μs**. Rust response JSON parsing remains **5.18 μs**. The profile confirms that the optional JSON path lowered the measured sidecar parse/encode costs, while the remaining wait is still mostly before the first response byte.
+
+The repeated-call benchmark moved from **1.513×** to **1.405×** Guion/Python at 1,000 calls. The same-index paired excess-cost bootstrap estimated **9.84 μs less per call** (95% interval **2.50–13.17 μs less**). The fast-path profile's Python encode/write timers include the diagnostic profile envelope and are not normal unprofiled timings; the response-wait measurements and separate 15-pair benchmark are the primary end-to-end evidence.
+
+Raw samples: [fast JSON phase profile](2026-10-28-python-bridge-fast-json-phase-profile.json), [pre-change benchmark baseline](2026-10-28-python-bridge-repeated-calls-before-fast-json.json), and [post-change benchmark](2026-10-28-python-bridge-repeated-calls-after-fast-json.json).
 
 The profiling hook is off by default. Set `GUION_PYTHON_BRIDGE_PROFILE_OUT` to a JSON path to write diagnostic totals; normal runs do not collect phase timers or attach profile data to bridge responses.
 

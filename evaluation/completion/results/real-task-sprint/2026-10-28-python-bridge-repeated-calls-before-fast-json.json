@@ -1,0 +1,406 @@
+{
+  "commit": "418d5b06366c14914595d6882a776841f0d6b0f4",
+  "correctness": {
+    "all_outputs_match_expected": true,
+    "expected_output_by_call_count": {
+      "1": 64,
+      "10": 640,
+      "100": 6400,
+      "1000": 64000
+    }
+  },
+  "guion_binary_sha256": "fa592f8ba6c68819f9f196f4c075d7883ea6ba45cd9da175e01bbba8f9e75688",
+  "guion_version": {
+    "artifact_format": 44,
+    "version": "0.1.0"
+  },
+  "host": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+  "kind": "guion-python-bridge-repeated-calls",
+  "measurement": {
+    "all_timed_outputs_checked": true,
+    "incremental_calls_1_to_1000": {
+      "guion_added_ms_per_call": 0.03874416012564922,
+      "guion_minus_python_added_ms_per_call": {
+        "ci95_ms_per_added_call": [
+          0.035069861893986795,
+          0.04175759153207531
+        ],
+        "median_ms_per_added_call": 0.03887929623150402,
+        "positive_in_all_pairs": true
+      },
+      "python_added_ms_per_call": 5.593091982218238e-05
+    },
+    "medians_seconds": {
+      "calls_1000_guion": 0.11666929203784093,
+      "calls_1000_python": 0.07733970804838464,
+      "calls_100_guion": 0.0816390830441378,
+      "calls_100_python": 0.0776697089895606,
+      "calls_10_guion": 0.08036349999019876,
+      "calls_10_python": 0.0781388750183396,
+      "calls_1_guion": 0.07835908298147842,
+      "calls_1_python": 0.07672175002517179
+    },
+    "method": "Fresh process per sample; randomized order across eight lanes; each stdout and stderr checked against expected output; package imports identical; OS file-cache state uncontrolled.",
+    "paired_comparisons": {
+      "calls_1000_guion_over_python": {
+        "ci95_percentile": [
+          1.4269146957194667,
+          1.5712319574845999
+        ],
+        "median_ratio": 1.513121339096078,
+        "ties_or_regressions": 15,
+        "win": false
+      },
+      "calls_100_guion_over_python": {
+        "ci95_percentile": [
+          0.9927933410985466,
+          1.076460804122694
+        ],
+        "median_ratio": 1.0552925351162694,
+        "ties_or_regressions": 11,
+        "win": false
+      },
+      "calls_10_guion_over_python": {
+        "ci95_percentile": [
+          1.0245872101089837,
+          1.0593915892895083
+        ],
+        "median_ratio": 1.0317904918667526,
+        "ties_or_regressions": 13,
+        "win": false
+      },
+      "calls_1_guion_over_python": {
+        "ci95_percentile": [
+          0.9916206774385936,
+          1.0496849457412087
+        ],
+        "median_ratio": 1.007651464876517,
+        "ties_or_regressions": 9,
+        "win": false
+      }
+    },
+    "paired_order": [
+      [
+        "calls_10_guion",
+        "calls_10_python",
+        "calls_1000_guion",
+        "calls_1000_python",
+        "calls_1_python",
+        "calls_100_python",
+        "calls_100_guion",
+        "calls_1_guion"
+      ],
+      [
+        "calls_100_python",
+        "calls_1000_guion",
+        "calls_10_guion",
+        "calls_1000_python",
+        "calls_1_python",
+        "calls_10_python",
+        "calls_1_guion",
+        "calls_100_guion"
+      ],
+      [
+        "calls_1000_guion",
+        "calls_1000_python",
+        "calls_100_guion",
+        "calls_10_guion",
+        "calls_100_python",
+        "calls_10_python",
+        "calls_1_python",
+        "calls_1_guion"
+      ],
+      [
+        "calls_1000_guion",
+        "calls_10_guion",
+        "calls_100_python",
+        "calls_1_python",
+        "calls_100_guion",
+        "calls_1_guion",
+        "calls_1000_python",
+        "calls_10_python"
+      ],
+      [
+        "calls_1_python",
+        "calls_1000_guion",
+        "calls_100_python",
+        "calls_10_guion",
+        "calls_100_guion",
+        "calls_1_guion",
+        "calls_1000_python",
+        "calls_10_python"
+      ],
+      [
+        "calls_1000_python",
+        "calls_100_guion",
+        "calls_1_guion",
+        "calls_1_python",
+        "calls_10_python",
+        "calls_100_python",
+        "calls_1000_guion",
+        "calls_10_guion"
+      ],
+      [
+        "calls_1_guion",
+        "calls_100_python",
+        "calls_1000_guion",
+        "calls_100_guion",
+        "calls_10_python",
+        "calls_1000_python",
+        "calls_1_python",
+        "calls_10_guion"
+      ],
+      [
+        "calls_100_guion",
+        "calls_10_python",
+        "calls_1000_guion",
+        "calls_100_python",
+        "calls_1_guion",
+        "calls_1000_python",
+        "calls_1_python",
+        "calls_10_guion"
+      ],
+      [
+        "calls_1000_python",
+        "calls_1000_guion",
+        "calls_100_python",
+        "calls_10_guion",
+        "calls_100_guion",
+        "calls_10_python",
+        "calls_1_guion",
+        "calls_1_python"
+      ],
+      [
+        "calls_1000_guion",
+        "calls_10_python",
+        "calls_100_guion",
+        "calls_1_python",
+        "calls_10_guion",
+        "calls_1000_python",
+        "calls_100_python",
+        "calls_1_guion"
+      ],
+      [
+        "calls_100_guion",
+        "calls_10_python",
+        "calls_1_python",
+        "calls_1000_guion",
+        "calls_100_python",
+        "calls_1_guion",
+        "calls_1000_python",
+        "calls_10_guion"
+      ],
+      [
+        "calls_1_guion",
+        "calls_1_python",
+        "calls_10_guion",
+        "calls_10_python",
+        "calls_100_guion",
+        "calls_1000_python",
+        "calls_1000_guion",
+        "calls_100_python"
+      ],
+      [
+        "calls_1000_guion",
+        "calls_1000_python",
+        "calls_100_python",
+        "calls_1_guion",
+        "calls_1_python",
+        "calls_100_guion",
+        "calls_10_guion",
+        "calls_10_python"
+      ],
+      [
+        "calls_1_python",
+        "calls_100_guion",
+        "calls_1000_python",
+        "calls_10_guion",
+        "calls_1_guion",
+        "calls_10_python",
+        "calls_100_python",
+        "calls_1000_guion"
+      ],
+      [
+        "calls_10_guion",
+        "calls_1_python",
+        "calls_10_python",
+        "calls_1000_guion",
+        "calls_100_guion",
+        "calls_1000_python",
+        "calls_100_python",
+        "calls_1_guion"
+      ]
+    ],
+    "samples_seconds": {
+      "calls_1000_guion": [
+        0.12013404100434855,
+        0.11172770900884643,
+        0.11241420800797641,
+        0.11106754100183025,
+        0.12087074998999014,
+        0.11847370798932388,
+        0.1198484170017764,
+        0.11754904198460281,
+        0.11581725004361942,
+        0.13936845801072195,
+        0.11035716597689316,
+        0.11626187496585771,
+        0.11666929203784093,
+        0.11545995797496289,
+        0.11864891595905647
+      ],
+      "calls_1000_python": [
+        0.0779119580402039,
+        0.0758833340369165,
+        0.08023729198612273,
+        0.08130904199788347,
+        0.07692737499019131,
+        0.07461624999996275,
+        0.0802670830162242,
+        0.07394495798507705,
+        0.07773691701004282,
+        0.07422983302967623,
+        0.07733970804838464,
+        0.0768357909983024,
+        0.08358299999963492,
+        0.0725840840023011,
+        0.07817091600736603
+      ],
+      "calls_100_guion": [
+        0.0876283340039663,
+        0.08003783301683143,
+        0.08338341600028798,
+        0.08026449999306351,
+        0.08185575000243261,
+        0.08062483300454915,
+        0.08533245796570554,
+        0.08363437501247972,
+        0.08137875003740191,
+        0.08898829197278246,
+        0.07949941599508747,
+        0.07908687501912937,
+        0.0852378339623101,
+        0.0816390830441378,
+        0.08158758300123736
+      ],
+      "calls_100_python": [
+        0.08974479098105803,
+        0.08139333402505144,
+        0.0774607079802081,
+        0.0735172500135377,
+        0.07755516702309251,
+        0.07640045799780637,
+        0.08140391699271277,
+        0.07682587503222749,
+        0.07852891698712483,
+        0.07484579202719033,
+        0.08007650001673028,
+        0.08050566603196785,
+        0.07972483296180144,
+        0.0776697089895606,
+        0.07523954100906849
+      ],
+      "calls_10_guion": [
+        0.08072354103205726,
+        0.08078012499026954,
+        0.08041170804062858,
+        0.076659791986458,
+        0.07995899999514222,
+        0.0822588749579154,
+        0.08277966699097306,
+        0.08036349999019876,
+        0.0778221670188941,
+        0.08013450005091727,
+        0.07797483302420005,
+        0.07592208398273215,
+        0.08261291700182483,
+        0.07676245801849291,
+        0.08500862499931827
+      ],
+      "calls_10_python": [
+        0.07890637498348951,
+        0.07829120894894004,
+        0.074232250044588,
+        0.14271266700234264,
+        0.07602587499422953,
+        0.07573516602860764,
+        0.0781388750183396,
+        0.08002049999777228,
+        0.07551391702145338,
+        0.09312575001968071,
+        0.0739437909796834,
+        0.07362312497571111,
+        0.07927279197610915,
+        0.07492037501651794,
+        0.07939725002506748
+      ],
+      "calls_1_guion": [
+        0.07922191702527925,
+        0.07858249999117106,
+        0.07454154099104926,
+        0.07715174998156726,
+        0.07922945800237358,
+        0.08053366601234302,
+        0.08334608300356194,
+        0.07835908298147842,
+        0.07660629198653623,
+        0.0796931249788031,
+        0.07727012498071417,
+        0.07712879200698808,
+        0.08157862501684576,
+        0.07675454200943932,
+        0.0783468330046162
+      ],
+      "calls_1_python": [
+        0.07892249996075407,
+        0.07647495798300952,
+        0.07614649995230138,
+        0.07228083297377452,
+        0.07954758300911635,
+        0.07672175002517179,
+        0.08081150002544746,
+        0.07361545797903091,
+        0.07725362502969801,
+        0.07365516701247543,
+        0.07323999999789521,
+        0.07654312497470528,
+        0.08352712501073256,
+        0.07769654196454212,
+        0.079584666993469
+      ]
+    },
+    "seed": 20261028,
+    "trials": 15
+  },
+  "python": {
+    "executable": "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
+    "numpy": "2.5.1",
+    "orjson": "3.11.9",
+    "version": "3.14.7"
+  },
+  "schema_version": 1,
+  "source_sha256": {
+    "crates/runtime/python/sidecar.py": "c8ee7ca48d259285002266d6bb12373f3708cd3c4156c3b2f606ab54027529b6",
+    "crates/runtime/src/python_bridge.rs": "92572f8965daaf8d4fb27401cd91b313876686096a136e61009053547f1b4668",
+    "evaluation/completion/performance/benchmark_python_bridge_repeated_calls.py": "25e7bb95fd2f984184c561da9aef6a95acdbf39d7b63aef4a583cc20086fef2a",
+    "evaluation/development/guion_python_bridge_repeat_probe/bridge_probe.py": "4203e0aabf4862956992889636ce916794eec5c69dbca02654edaaa0693b8ae6",
+    "evaluation/development/guion_python_bridge_repeat_probe/main.template.gu": "d4b834c95a9302a071030ffe1bd816a4c67ec399de1c4c539d139b01527c0022",
+    "evaluation/development/guion_python_bridge_repeat_probe/reference.py": "582bab771185b8a120011e0fab7d84c2795024f1e22c90157052fa23666c8c57"
+  },
+  "status": "passed",
+  "workload": {
+    "call_counts": [
+      1,
+      10,
+      100,
+      1000
+    ],
+    "operation": "Read a 64-byte file once, call Python len N times in one process, and print the sum.",
+    "payload_bytes": 64,
+    "python_package_imports": [
+      "numpy",
+      "orjson"
+    ]
+  },
+  "worktree_dirty_at_measurement": false
+}
