@@ -46,3 +46,5 @@ This status page is a current summary, not the test record. The [historical inde
 ## 2026-10-25 closeout clarification
 
 The 2026-10-25 closeout recorded 18 passing application reports per target across two targets (36 total). The current three-target cohort supersedes that matrix with 54 of 54 passing reports. Free-threaded Python was not installed for the comparison, so that comparison was not run and has no result. The original Veritas checkout was retired after its unique small working records were retained in `docs/history/veritas-working-sessions-2026-10-25/`. The idle Colima VM was stopped gracefully, closing its deleted build-cache handles.
+
+- The 2026-10-29 runtime follow-up closed the typed HTTP 64 KiB cold-source and artifact non-inferiority gate with a 15-pair run: 0.929× source and 0.886× artifact versus same-build legacy; 1 MiB measured 0.761× and 0.716×. The JSONL 200,000-row execution gap remains about 3.8× pinned Python and is still open. See the [runtime gap plan](superpowers/plans/2026-10-29-guion-runtime-gap-follow-up.md) and [HTTP measurement](../evaluation/development/core_cost_closure/results/http-shared-types-paired-15.json).

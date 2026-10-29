@@ -733,5 +733,57 @@ class PerformanceRunnerPathTests(unittest.TestCase):
             self.assertTrue(output.is_file())
 
 
+class PerformanceGateStatusTests(unittest.TestCase):
+    @staticmethod
+    def passing_workloads() -> dict[str, object]:
+        return {
+            "richards-scheduler": {"comparison": {"guion_artifact": {"win": True}}},
+            "nbody-numeric": {"comparison": {"guion_artifact": {"win": True}}},
+            "mandelbrot-image": {"comparison": {"guion_artifact": {"win": True}}},
+            "parallel-cpu-200000": {"comparison": {
+                "guion_artifact_over_python_serial": {"win": True},
+                "guion_artifact_over_python_threads": {"win": True},
+                "guion_artifact_over_python_processes": {"win": True},
+            }},
+            "jsonl-summary-data": {"comparison": {"guion_artifact_over_python": {"win": True}}},
+            "jsonl-summary-data-200000": {"comparison": {"guion_artifact_over_python": {"win": True}}},
+        }
+
+    def test_both_jsonl_sizes_are_required_performance_gates(self) -> None:
+        report = {"workloads": self.passing_workloads()}
+        report["workloads"]["jsonl-summary-data-200000"]["comparison"]["guion_artifact_over_python"]["win"] = False
+
+        result = runner.required_speed_wins(report)
+
+        self.assertFalse(result["all_required_wins_observed"])
+        self.assertEqual(result["comparisons"]["jsonl-summary-data-200000"], {"python_data": False})
+
+    def test_output_correctness_can_pass_while_speed_gate_fails(self) -> None:
+        statuses = runner.finalize_run_status(
+            {"python": {"matches_pinned": True}},
+            {"all_required_wins_observed": False},
+            completed=True,
+        )
+
+        self.assertEqual(statuses, {
+            "correctness_status": "passed",
+            "performance_status": "failed",
+            "status": "failed",
+        })
+
+    def test_interrupted_benchmark_does_not_claim_correctness_or_speed(self) -> None:
+        statuses = runner.finalize_run_status(
+            {"python": {"matches_pinned": True}},
+            None,
+            completed=False,
+        )
+
+        self.assertEqual(statuses, {
+            "correctness_status": "not_completed",
+            "performance_status": "not_evaluated",
+            "status": "failed",
+        })
+
+
 if __name__ == "__main__":
     unittest.main()

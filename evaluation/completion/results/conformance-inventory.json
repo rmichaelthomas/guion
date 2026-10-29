@@ -1,12 +1,12 @@
 {
   "artifact_identities": {
-    "artifact_schema": "sha256:0adc31745d069876e03c6414c80525dd8d560446bf5f512f49f3257542d2b707",
-    "compiler_seed": "sha256:319d2e4e5664b528829162d28019cb44ff5e584e4f0fc918fca942a755cc4cf5",
-    "compiler_seed_manifest": "sha256:920bfbacb9cf3cf2b498fe827e3b308dcfc0516aeeaafc980109943fb493d5e3",
-    "runtime": "sha256:7fd735572f4bf1cde4cffdf48feac4316164b1061bceefea7a29f9a7dc0325fd",
-    "stdlib": "sha256:cf096a8d266173b8f83a05c6f422fab8d7c8905ce380b22bd019349464c908bc"
+    "artifact_schema": "sha256:e9b6fbc6f4fc8f3367a2e8cb20a06e2e6ec2a825d36c7d485734debc7ab8af8e",
+    "compiler_seed": "sha256:a954975de8e6bd4e76039d63e3ee22c012e9354af351c5b38a7ebb4078c187ce",
+    "compiler_seed_manifest": "sha256:9b6f1b4bdc132b6378632ef167552c06ef239071b6b772aafbed184e027e7416",
+    "runtime": "sha256:22bf6e819aed8086e61fc1c02ca5a0b73a606c466f3a64119dae324de3f82cbf",
+    "stdlib": "sha256:a007472dfe14b5ace97ddd9f7c3ed77fa31f3f4c2a4ca87fe8a9f2f49d3c4094"
   },
-  "changed_path_count": 41,
+  "changed_path_count": 94,
   "checks": [
     {
       "command": [
@@ -16,7 +16,7 @@
       ],
       "exit_status": 0,
       "id": "artifact-format-test-audit",
-      "output": "artifact-format equality assertions use guion_model::Artifact::CURRENT_VERSION (45)",
+      "output": "artifact-format equality assertions use guion_model::Artifact::CURRENT_VERSION (47)",
       "status": "passed"
     },
     {
@@ -46,7 +46,7 @@
   ],
   "command": "conformance",
   "completed_targets": [
-    "macos-aarch64"
+    "debian-aarch64"
   ],
   "exact_command": "cargo xtask conformance --inventory-only",
   "exit_status": 0,
@@ -55,16 +55,16 @@
   "missing_evidence": [],
   "report": "conformance-inventory",
   "required_targets": [
-    "macos-aarch64"
+    "debian-aarch64"
   ],
-  "runtime_hash": "sha256:7fd735572f4bf1cde4cffdf48feac4316164b1061bceefea7a29f9a7dc0325fd",
+  "runtime_hash": "sha256:22bf6e819aed8086e61fc1c02ca5a0b73a606c466f3a64119dae324de3f82cbf",
   "schema_version": 1,
-  "seed_hash": "sha256:319d2e4e5664b528829162d28019cb44ff5e584e4f0fc918fca942a755cc4cf5",
+  "seed_hash": "sha256:a954975de8e6bd4e76039d63e3ee22c012e9354af351c5b38a7ebb4078c187ce",
   "skipped_targets": [],
-  "source_revision": "05a6e9c524b62c014d16cc15b23094cc43e16557",
+  "source_revision": "41d3b48551ea735135ee8dc759bff513213a4d72",
   "status": "passed",
-  "stdlib_hash": "sha256:cf096a8d266173b8f83a05c6f422fab8d7c8905ce380b22bd019349464c908bc",
-  "target": "macos-aarch64",
+  "stdlib_hash": "sha256:a007472dfe14b5ace97ddd9f7c3ed77fa31f3f4c2a4ca87fe8a9f2f49d3c4094",
+  "target": "debian-aarch64",
   "unsatisfied_goal_ids": [],
-  "working_tree_digest": "sha256:d46017713774918c1549742ef59bca4e423c655d69e63d4fd8c442ecc2899398"
+  "working_tree_digest": "sha256:2d08ee15912912056a57a3a5ca491fe869036789c24bfc4eeb193d7ac081b57c"
 }

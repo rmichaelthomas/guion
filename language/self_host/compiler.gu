@@ -315,7 +315,7 @@ fn compile_failure(code: Text, message: Text, source_name: Text, start: Int, end
 fn internal_symbol(source_module: Text, name: Text, entry_module: Text) -> Text:
     return name
 
-fn load_program(source_name: Text, source_path: Text, module_root: Text, root_label: Text, source: Text, visiting: Json, resolved: Json, total_source_bytes: Int, entry_module: Text, stdlib_root: Text, package_roots: Json) -> Json:
+fn load_program(source_name: Text, source_path: Text, module_root: Text, root_label: Text, source: Text, visiting: Json, resolved: Json, resolved_public_imports: Json, total_source_bytes: Int, entry_module: Text, stdlib_root: Text, package_roots: Json) -> Json:
     if contains_text(visiting, source_path):
         var failed = json_set(json_object(), "compile_error", compile_failure("E_MODULE_CYCLE", "module import graph contains a cycle", source_name, 0, 0, 1, 1))
         return failed
@@ -324,6 +324,11 @@ fn load_program(source_name: Text, source_path: Text, module_root: Text, root_la
         set skipped = json_set(skipped, "externals", json_array())
         set skipped = json_set(skipped, "sources", json_array())
         set skipped = json_set(skipped, "source_bytes", json_int(total_source_bytes))
+        var cached_public_imports = json_array()
+        if json_has(resolved_public_imports, source_path):
+            set cached_public_imports = json_get(resolved_public_imports, source_path)
+        set skipped = json_set(skipped, "public_imports", cached_public_imports)
+        set skipped = json_set(skipped, "resolved_public_imports", resolved_public_imports)
         return json_set(skipped, "resolved", resolved)
     if json_len(visiting) > 128:
         return json_set(json_object(), "compile_error", compile_failure("E_MODULE_DEPTH", "module import depth exceeds 128", source_name, 0, 0, 1, 1))
@@ -365,14 +370,18 @@ fn load_program(source_name: Text, source_path: Text, module_root: Text, root_la
     var externals = json_array()
     var sources = json_array()
     var module_imports = json_array()
+    var module_public_imports = json_array()
     var source_entry = json_set(json_object(), "name", json_text(source_name))
     set source_entry = json_set(source_entry, "source", json_text(source))
     set sources = json_push(sources, source_entry)
     var current_resolved = resolved
+    var current_public_imports = resolved_public_imports
     let imports = json_get(parsed.value, "imports")
     var cursor = 0
     while cursor < json_len(imports):
-        let requested = json_as_text(json_index(imports, cursor))
+        let import_spec = json_index(imports, cursor)
+        let requested = json_as_text(json_get(import_spec, "path"))
+        let reexport = json_as_bool(json_get(import_spec, "public"))
         var path = ""
         var child_root = module_root
         var child_label = root_label
@@ -413,11 +422,17 @@ fn load_program(source_name: Text, source_path: Text, module_root: Text, root_la
         if not is_ok(imported_read):
             return json_set(json_object(), "compile_error", compile_failure("E_IMPORT_READ", file_error_message(error(imported_read)), source_name, 0, 0, 1, 1))
         let imported_source = unwrap(imported_read)
-        let imported = load_program(child_name, path, child_root, child_label, imported_source, next_visiting, current_resolved, current_source_bytes, entry_module, stdlib_root, package_roots)
+        let imported = load_program(child_name, path, child_root, child_label, imported_source, next_visiting, current_resolved, current_public_imports, current_source_bytes, entry_module, stdlib_root, package_roots)
         if json_has(imported, "compile_error"):
             return imported
         set current_resolved = json_get(imported, "resolved")
+        set current_public_imports = json_get(imported, "resolved_public_imports")
         set current_source_bytes = json_as_int(json_get(imported, "source_bytes"))
+        let child_public_imports = json_get(imported, "public_imports")
+        set module_imports = append_array(module_imports, child_public_imports)
+        if reexport:
+            set module_public_imports = json_push(module_public_imports, json_text(child_name))
+            set module_public_imports = append_array(module_public_imports, child_public_imports)
         set sources = append_array(sources, json_get(imported, "sources"))
         let imported_functions = json_get(imported, "functions")
         var function_cursor = 0
@@ -460,6 +475,9 @@ fn load_program(source_name: Text, source_path: Text, module_root: Text, root_la
     set loaded = json_set(loaded, "externals", externals)
     set loaded = json_set(loaded, "sources", sources)
     set loaded = json_set(loaded, "source_bytes", json_int(current_source_bytes))
+    set loaded = json_set(loaded, "public_imports", module_public_imports)
+    set current_public_imports = json_set(current_public_imports, source_path, module_public_imports)
+    set loaded = json_set(loaded, "resolved_public_imports", current_public_imports)
     set current_resolved = json_push(current_resolved, json_text(source_path))
     return json_set(loaded, "resolved", current_resolved)
 
@@ -2222,7 +2240,7 @@ fn function_name_count(functions: Json, name: Text) -> Int:
     return count
 
 pub fn compile_source_with_roots(source_name: Text, source: Text, stdlib_root: Text, package_roots: Json) -> Json:
-    let program = load_program(source_name, source_name, "", "", source, json_array(), json_array(), 0, source_name, stdlib_root, package_roots)
+    let program = load_program(source_name, source_name, "", "", source, json_array(), json_array(), json_object(), 0, source_name, stdlib_root, package_roots)
     if json_has(program, "compile_error"):
         return json_get(program, "compile_error")
     let loaded_functions = json_get(program, "functions")

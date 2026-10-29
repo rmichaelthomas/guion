@@ -1,0 +1,792 @@
+{
+  "binary": {
+    "baseline_manifest": {
+      "binary_path": "/tmp/guion-core-cost-closure/baseline-41d3b48/guion",
+      "binary_sha256": "ef28ca38501749fe171ca9be2ee6e7a2d05fc2c604fcff99d7d831fea626fb59",
+      "build_settings": {
+        "additional_features": [],
+        "command": "cargo build --locked --offline --release --package guion-cli",
+        "default_features": true,
+        "network_during_build": false,
+        "profile": "release",
+        "rustflags": "",
+        "target": "aarch64-unknown-linux-gnu"
+      },
+      "input_sha256": {
+        "benchmark_script": "175416b0467ba93ad0d4ad471511b69315d9e587ab17dab6bcec2201a42b82cc",
+        "http_legacy_template": "24efa98bf6925bf44991eb87d9825dfdd468ea5c34582a4f01f6c6909574c987",
+        "http_python_reference": "f4b92aae52380e8842e45d19d7971780c1a074092b1b5647b54760b1585e6568",
+        "http_response_body_0": "21cb9c84d2d355b554e275c905a252110037f03092d84c55815a4e83390322cd",
+        "http_response_body_1024": "acf96fb8c200f11257d7a6d030f0cb3af4c894c9b42e0cc5e859522022ecbf07",
+        "http_response_body_1048576": "72576766dba916679a93c9a6ae6ce4ce586094400b5408a65a20d3af00cba2e9",
+        "http_response_body_65536": "46e2a169feef79fd603ef170f728913cbcc82b6aa424e6594624cb2f5d912857",
+        "http_typed_template": "0e20314d9182f1149c19e8ebc7e3b4d211c8222d005fe2b57e2a04f2dc9a2521",
+        "manifest_tool": "f8adfbc258e0e46fd246d5eac27fb0046bce085b2228fac213860e524fc25da7",
+        "performance_runner": "8f87ed2c57836ce010e17ef18ae11cac62921deb467f095fe2fc6c060de0cce7",
+        "tiny_guion_source": "8684d40ee8f1b7d60b080617691b7a87f4359e97301c5273a2cc91c8b6a27511",
+        "tiny_python_source": "e3bf55b0f9ba503507ab1092711fbb0af1e8916d8a1dabf49836f77f07d1c7f2"
+      },
+      "schema_version": 1,
+      "source_patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "source_revision": "41d3b48551ea735135ee8dc759bff513213a4d72",
+      "toolchain": {
+        "cargo": "cargo 1.97.1 (c980f4866 2026-06-30)",
+        "python_reference": "Python 3.14.7",
+        "rust_target": "aarch64-unknown-linux-gnu",
+        "rustc": "rustc 1.97.1 (8bab26f4f 2026-07-14)"
+      }
+    },
+    "baseline_sha256": "ef28ca38501749fe171ca9be2ee6e7a2d05fc2c604fcff99d7d831fea626fb59",
+    "candidate_manifest": null,
+    "candidate_sha256": null
+  },
+  "created_at_utc": "2026-10-28T23:48:23.172076+00:00",
+  "kind": "guion-core-sprint-short-and-http-benchmarks",
+  "measurement": {
+    "bootstrap_resamples": 20000,
+    "bootstrap_seed": 20261026,
+    "cache": "Guion source cache bypassed with --no-cache; OS cache uncontrolled",
+    "order": "randomized per paired trial by the existing performance runner",
+    "timing": "child-process wall time from startup through exit; fixture startup and post-run output-oracle validation excluded",
+    "trial_seed": 20261025,
+    "trials_per_arm": 3,
+    "warmups_per_arm": 2
+  },
+  "platform": {
+    "architecture": "aarch64",
+    "platform": "Linux-6.8.0-117-generic-aarch64-with-glibc2.36"
+  },
+  "python": {
+    "executable": "/opt/cpython-3.14.7/bin/python3.14",
+    "version": "Python 3.14.7"
+  },
+  "schema_version": 1,
+  "source_revision": "41d3b48551ea735135ee8dc759bff513213a4d72",
+  "status": "passed",
+  "workloads": {
+    "http-payload-matrix": {
+      "0": {
+        "commands": {
+          "guion_legacy_baseline": [
+            "/tmp/guion-core-cost-closure/baseline-41d3b48/guion",
+            "run",
+            "--json",
+            "--no-cache",
+            "--allow-http-host",
+            "127.0.0.1",
+            "/tmp/guion-core-cost-closure/baseline-smoke/core-workloads/http/0/http_legacy.gu"
+          ],
+          "guion_typed_baseline": [
+            "/tmp/guion-core-cost-closure/baseline-41d3b48/guion",
+            "run",
+            "--json",
+            "--no-cache",
+            "--allow-http-host",
+            "127.0.0.1",
+            "/tmp/guion-core-cost-closure/baseline-smoke/core-workloads/http/0/http_typed.gu"
+          ],
+          "python_reference": [
+            "/opt/cpython-3.14.7/bin/python3.14",
+            "/Users/rmichaelthomas/guion/.worktrees/guion-core-sprint-spec/evaluation/development/core_north_star_sprint/http_reference.py",
+            "http://127.0.0.1:38015/json",
+            "0"
+          ]
+        },
+        "comparisons": {
+          "guion_legacy_baseline_over_python": {
+            "ci95_percentile": [
+              0.031510590461872594,
+              0.05375115577549002
+            ],
+            "median_ratio": 0.04653919198207268,
+            "ties_or_regressions": 0,
+            "win": true
+          },
+          "guion_typed_baseline_over_python": {
+            "ci95_percentile": [
+              0.06138475051655511,
+              0.06305368743498606
+            ],
+            "median_ratio": 0.06288605825576994,
+            "ties_or_regressions": 0,
+            "win": true
+          }
+        },
+        "expected_fixture_request_count": 15,
+        "expected_output": [
+          "hello",
+          "42",
+          "0"
+        ],
+        "fixture_request_count": 15,
+        "fixture_response_body_bytes": 43,
+        "fixture_response_body_sha256": "21cb9c84d2d355b554e275c905a252110037f03092d84c55815a4e83390322cd",
+        "fixture_response_payload_bytes": 0,
+        "fixture_response_status": 200,
+        "fixture_url_path": "/json",
+        "native_backend_reports": {
+          "guion_legacy_baseline": {
+            "bytecode_blocks": 0,
+            "bytecode_instructions": 0,
+            "calls": 0,
+            "compilations": 0,
+            "compile_profile": {
+              "finalize_nanoseconds": 0,
+              "functions": []
+            },
+            "compiled_functions": [],
+            "cranelift_ir_blocks": 0,
+            "cranelift_ir_instructions": 0,
+            "deoptimizations": 0
+          },
+          "guion_typed_baseline": {
+            "bytecode_blocks": 0,
+            "bytecode_instructions": 0,
+            "calls": 0,
+            "compilations": 0,
+            "compile_profile": {
+              "finalize_nanoseconds": 0,
+              "functions": []
+            },
+            "compiled_functions": [],
+            "cranelift_ir_blocks": 0,
+            "cranelift_ir_instructions": 0,
+            "deoptimizations": 0
+          }
+        },
+        "paired_trial_order": [
+          [
+            "guion_legacy_baseline",
+            "guion_typed_baseline",
+            "python_reference"
+          ],
+          [
+            "python_reference",
+            "guion_typed_baseline",
+            "guion_legacy_baseline"
+          ],
+          [
+            "python_reference",
+            "guion_legacy_baseline",
+            "guion_typed_baseline"
+          ]
+        ],
+        "samples": {
+          "guion_legacy_baseline": {
+            "median_seconds": 0.002923191997979302,
+            "p95_seconds_nearest_rank": 0.003232269002182875,
+            "samples_seconds": [
+              0.002923191997979302,
+              0.002069417001621332,
+              0.003232269002182875
+            ]
+          },
+          "guion_typed_baseline": {
+            "median_seconds": 0.004129959997953847,
+            "p95_seconds_nearest_rank": 0.004263331997208297,
+            "samples_seconds": [
+              0.003429099000641145,
+              0.004129959997953847,
+              0.004263331997208297
+            ]
+          },
+          "python_reference": {
+            "median_seconds": 0.06567369799449807,
+            "p95_seconds_nearest_rank": 0.06945262400404317,
+            "samples_seconds": [
+              0.05438379800034454,
+              0.06567369799449807,
+              0.06945262400404317
+            ]
+          }
+        },
+        "source_cache_states": {
+          "guion_legacy_baseline": [
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed"
+          ],
+          "guion_typed_baseline": [
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed"
+          ]
+        },
+        "source_sha256": {
+          "legacy": "ead75c50162820828a9366ca214aa3f692a8b45cc3221d0f83b694781dc7ab75",
+          "python_reference": "f4b92aae52380e8842e45d19d7971780c1a074092b1b5647b54760b1585e6568",
+          "typed": "5b8a4b0d6687bad2fe91c0c1d23f7a0454c76a8eb7f0cc6c11aa46d31d3daccc"
+        },
+        "url_host_grant": "127.0.0.1"
+      },
+      "1024": {
+        "commands": {
+          "guion_legacy_baseline": [
+            "/tmp/guion-core-cost-closure/baseline-41d3b48/guion",
+            "run",
+            "--json",
+            "--no-cache",
+            "--allow-http-host",
+            "127.0.0.1",
+            "/tmp/guion-core-cost-closure/baseline-smoke/core-workloads/http/1024/http_legacy.gu"
+          ],
+          "guion_typed_baseline": [
+            "/tmp/guion-core-cost-closure/baseline-41d3b48/guion",
+            "run",
+            "--json",
+            "--no-cache",
+            "--allow-http-host",
+            "127.0.0.1",
+            "/tmp/guion-core-cost-closure/baseline-smoke/core-workloads/http/1024/http_typed.gu"
+          ],
+          "python_reference": [
+            "/opt/cpython-3.14.7/bin/python3.14",
+            "/Users/rmichaelthomas/guion/.worktrees/guion-core-sprint-spec/evaluation/development/core_north_star_sprint/http_reference.py",
+            "http://127.0.0.1:44635/json",
+            "1024"
+          ]
+        },
+        "comparisons": {
+          "guion_legacy_baseline_over_python": {
+            "ci95_percentile": [
+              0.04369441559883019,
+              0.048135404817169984
+            ],
+            "median_ratio": 0.046375957902883125,
+            "ties_or_regressions": 0,
+            "win": true
+          },
+          "guion_typed_baseline_over_python": {
+            "ci95_percentile": [
+              0.06968128628988336,
+              0.09904908301018024
+            ],
+            "median_ratio": 0.07341025404891113,
+            "ties_or_regressions": 0,
+            "win": true
+          }
+        },
+        "expected_fixture_request_count": 15,
+        "expected_output": [
+          "hello",
+          "42",
+          "1024"
+        ],
+        "fixture_request_count": 15,
+        "fixture_response_body_bytes": 1067,
+        "fixture_response_body_sha256": "acf96fb8c200f11257d7a6d030f0cb3af4c894c9b42e0cc5e859522022ecbf07",
+        "fixture_response_payload_bytes": 1024,
+        "fixture_response_status": 200,
+        "fixture_url_path": "/json",
+        "native_backend_reports": {
+          "guion_legacy_baseline": {
+            "bytecode_blocks": 0,
+            "bytecode_instructions": 0,
+            "calls": 0,
+            "compilations": 0,
+            "compile_profile": {
+              "finalize_nanoseconds": 0,
+              "functions": []
+            },
+            "compiled_functions": [],
+            "cranelift_ir_blocks": 0,
+            "cranelift_ir_instructions": 0,
+            "deoptimizations": 0
+          },
+          "guion_typed_baseline": {
+            "bytecode_blocks": 0,
+            "bytecode_instructions": 0,
+            "calls": 0,
+            "compilations": 0,
+            "compile_profile": {
+              "finalize_nanoseconds": 0,
+              "functions": []
+            },
+            "compiled_functions": [],
+            "cranelift_ir_blocks": 0,
+            "cranelift_ir_instructions": 0,
+            "deoptimizations": 0
+          }
+        },
+        "paired_trial_order": [
+          [
+            "guion_legacy_baseline",
+            "guion_typed_baseline",
+            "python_reference"
+          ],
+          [
+            "python_reference",
+            "guion_typed_baseline",
+            "guion_legacy_baseline"
+          ],
+          [
+            "python_reference",
+            "guion_legacy_baseline",
+            "guion_typed_baseline"
+          ]
+        ],
+        "samples": {
+          "guion_legacy_baseline": {
+            "median_seconds": 0.00267965500097489,
+            "p95_seconds_nearest_rank": 0.0029389830015134066,
+            "samples_seconds": [
+              0.0026430719954078086,
+              0.0029389830015134066,
+              0.00267965500097489
+            ]
+          },
+          "guion_typed_baseline": {
+            "median_seconds": 0.004937735997373238,
+            "p95_seconds_nearest_rank": 0.0055139739997684956,
+            "samples_seconds": [
+              0.003971296006056946,
+              0.004937735997373238,
+              0.0055139739997684956
+            ]
+          },
+          "python_reference": {
+            "median_seconds": 0.05699228899902664,
+            "p95_seconds_nearest_rank": 0.06726221099961549,
+            "samples_seconds": [
+              0.05699228899902664,
+              0.06726221099961549,
+              0.05566910699417349
+            ]
+          }
+        },
+        "source_cache_states": {
+          "guion_legacy_baseline": [
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed"
+          ],
+          "guion_typed_baseline": [
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed"
+          ]
+        },
+        "source_sha256": {
+          "legacy": "fbdb403aa72ad5bdc4c730f7e1b07a64944e789e9f0231fc06c3fb3a0e3318f9",
+          "python_reference": "f4b92aae52380e8842e45d19d7971780c1a074092b1b5647b54760b1585e6568",
+          "typed": "c802974c398fa404f2319615595e5b294b5f95b476e89b7909847c76ca2ec4d1"
+        },
+        "url_host_grant": "127.0.0.1"
+      },
+      "1048576": {
+        "commands": {
+          "guion_legacy_baseline": [
+            "/tmp/guion-core-cost-closure/baseline-41d3b48/guion",
+            "run",
+            "--json",
+            "--no-cache",
+            "--allow-http-host",
+            "127.0.0.1",
+            "/tmp/guion-core-cost-closure/baseline-smoke/core-workloads/http/1048576/http_legacy.gu"
+          ],
+          "guion_typed_baseline": [
+            "/tmp/guion-core-cost-closure/baseline-41d3b48/guion",
+            "run",
+            "--json",
+            "--no-cache",
+            "--allow-http-host",
+            "127.0.0.1",
+            "/tmp/guion-core-cost-closure/baseline-smoke/core-workloads/http/1048576/http_typed.gu"
+          ],
+          "python_reference": [
+            "/opt/cpython-3.14.7/bin/python3.14",
+            "/Users/rmichaelthomas/guion/.worktrees/guion-core-sprint-spec/evaluation/development/core_north_star_sprint/http_reference.py",
+            "http://127.0.0.1:40979/json",
+            "1048576"
+          ]
+        },
+        "comparisons": {
+          "guion_legacy_baseline_over_python": {
+            "ci95_percentile": [
+              0.17605482443364825,
+              0.20529016754384774
+            ],
+            "median_ratio": 0.18940280880266747,
+            "ties_or_regressions": 0,
+            "win": true
+          },
+          "guion_typed_baseline_over_python": {
+            "ci95_percentile": [
+              0.16089594011569466,
+              0.20747827091517793
+            ],
+            "median_ratio": 0.16148055520013488,
+            "ties_or_regressions": 0,
+            "win": true
+          }
+        },
+        "expected_fixture_request_count": 15,
+        "expected_output": [
+          "hello",
+          "42",
+          "1048576"
+        ],
+        "fixture_request_count": 15,
+        "fixture_response_body_bytes": 1048619,
+        "fixture_response_body_sha256": "72576766dba916679a93c9a6ae6ce4ce586094400b5408a65a20d3af00cba2e9",
+        "fixture_response_payload_bytes": 1048576,
+        "fixture_response_status": 200,
+        "fixture_url_path": "/json",
+        "native_backend_reports": {
+          "guion_legacy_baseline": {
+            "bytecode_blocks": 0,
+            "bytecode_instructions": 0,
+            "calls": 0,
+            "compilations": 0,
+            "compile_profile": {
+              "finalize_nanoseconds": 0,
+              "functions": []
+            },
+            "compiled_functions": [],
+            "cranelift_ir_blocks": 0,
+            "cranelift_ir_instructions": 0,
+            "deoptimizations": 0
+          },
+          "guion_typed_baseline": {
+            "bytecode_blocks": 0,
+            "bytecode_instructions": 0,
+            "calls": 0,
+            "compilations": 0,
+            "compile_profile": {
+              "finalize_nanoseconds": 0,
+              "functions": []
+            },
+            "compiled_functions": [],
+            "cranelift_ir_blocks": 0,
+            "cranelift_ir_instructions": 0,
+            "deoptimizations": 0
+          }
+        },
+        "paired_trial_order": [
+          [
+            "guion_legacy_baseline",
+            "guion_typed_baseline",
+            "python_reference"
+          ],
+          [
+            "python_reference",
+            "guion_typed_baseline",
+            "guion_legacy_baseline"
+          ],
+          [
+            "python_reference",
+            "guion_legacy_baseline",
+            "guion_typed_baseline"
+          ]
+        ],
+        "samples": {
+          "guion_legacy_baseline": {
+            "median_seconds": 0.010459042998263612,
+            "p95_seconds_nearest_rank": 0.011756350999348797,
+            "samples_seconds": [
+              0.011756350999348797,
+              0.010459042998263612,
+              0.010104592001880519
+            ]
+          },
+          "guion_typed_baseline": {
+            "median_seconds": 0.009268107998650521,
+            "p95_seconds_nearest_rank": 0.011457191001682077,
+            "samples_seconds": [
+              0.009214026998961344,
+              0.011457191001682077,
+              0.009268107998650521
+            ]
+          },
+          "python_reference": {
+            "median_seconds": 0.057266995005193166,
+            "p95_seconds_nearest_rank": 0.05739457600429887,
+            "samples_seconds": [
+              0.057266995005193166,
+              0.05522116099746199,
+              0.05739457600429887
+            ]
+          }
+        },
+        "source_cache_states": {
+          "guion_legacy_baseline": [
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed"
+          ],
+          "guion_typed_baseline": [
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed"
+          ]
+        },
+        "source_sha256": {
+          "legacy": "3dabe926d3e4c7be5a30ca0200d2324f5a951b9d458b09e1124ee53bebcdf2a4",
+          "python_reference": "f4b92aae52380e8842e45d19d7971780c1a074092b1b5647b54760b1585e6568",
+          "typed": "eb835275bb3ef8a02ee86f61a527831da044dd0e0e1433bd71cdcd9b1be4057a"
+        },
+        "url_host_grant": "127.0.0.1"
+      },
+      "65536": {
+        "commands": {
+          "guion_legacy_baseline": [
+            "/tmp/guion-core-cost-closure/baseline-41d3b48/guion",
+            "run",
+            "--json",
+            "--no-cache",
+            "--allow-http-host",
+            "127.0.0.1",
+            "/tmp/guion-core-cost-closure/baseline-smoke/core-workloads/http/65536/http_legacy.gu"
+          ],
+          "guion_typed_baseline": [
+            "/tmp/guion-core-cost-closure/baseline-41d3b48/guion",
+            "run",
+            "--json",
+            "--no-cache",
+            "--allow-http-host",
+            "127.0.0.1",
+            "/tmp/guion-core-cost-closure/baseline-smoke/core-workloads/http/65536/http_typed.gu"
+          ],
+          "python_reference": [
+            "/opt/cpython-3.14.7/bin/python3.14",
+            "/Users/rmichaelthomas/guion/.worktrees/guion-core-sprint-spec/evaluation/development/core_north_star_sprint/http_reference.py",
+            "http://127.0.0.1:46817/json",
+            "65536"
+          ]
+        },
+        "comparisons": {
+          "guion_legacy_baseline_over_python": {
+            "ci95_percentile": [
+              0.05144049809247229,
+              0.06293664957180539
+            ],
+            "median_ratio": 0.05333152520381456,
+            "ties_or_regressions": 0,
+            "win": true
+          },
+          "guion_typed_baseline_over_python": {
+            "ci95_percentile": [
+              0.07461240281975735,
+              0.08701678370860987
+            ],
+            "median_ratio": 0.0817224610666419,
+            "ties_or_regressions": 0,
+            "win": true
+          }
+        },
+        "expected_fixture_request_count": 15,
+        "expected_output": [
+          "hello",
+          "42",
+          "65536"
+        ],
+        "fixture_request_count": 15,
+        "fixture_response_body_bytes": 65579,
+        "fixture_response_body_sha256": "46e2a169feef79fd603ef170f728913cbcc82b6aa424e6594624cb2f5d912857",
+        "fixture_response_payload_bytes": 65536,
+        "fixture_response_status": 200,
+        "fixture_url_path": "/json",
+        "native_backend_reports": {
+          "guion_legacy_baseline": {
+            "bytecode_blocks": 0,
+            "bytecode_instructions": 0,
+            "calls": 0,
+            "compilations": 0,
+            "compile_profile": {
+              "finalize_nanoseconds": 0,
+              "functions": []
+            },
+            "compiled_functions": [],
+            "cranelift_ir_blocks": 0,
+            "cranelift_ir_instructions": 0,
+            "deoptimizations": 0
+          },
+          "guion_typed_baseline": {
+            "bytecode_blocks": 0,
+            "bytecode_instructions": 0,
+            "calls": 0,
+            "compilations": 0,
+            "compile_profile": {
+              "finalize_nanoseconds": 0,
+              "functions": []
+            },
+            "compiled_functions": [],
+            "cranelift_ir_blocks": 0,
+            "cranelift_ir_instructions": 0,
+            "deoptimizations": 0
+          }
+        },
+        "paired_trial_order": [
+          [
+            "guion_legacy_baseline",
+            "guion_typed_baseline",
+            "python_reference"
+          ],
+          [
+            "python_reference",
+            "guion_typed_baseline",
+            "guion_legacy_baseline"
+          ],
+          [
+            "python_reference",
+            "guion_legacy_baseline",
+            "guion_typed_baseline"
+          ]
+        ],
+        "samples": {
+          "guion_legacy_baseline": {
+            "median_seconds": 0.0030166070064296946,
+            "p95_seconds_nearest_rank": 0.003374307998456061,
+            "samples_seconds": [
+              0.0030166070064296946,
+              0.00281069400080014,
+              0.003374307998456061
+            ]
+          },
+          "guion_typed_baseline": {
+            "median_seconds": 0.004622492000635248,
+            "p95_seconds_nearest_rank": 0.00475457200082019,
+            "samples_seconds": [
+              0.004622492000635248,
+              0.00475457200082019,
+              0.0040002960013225675
+            ]
+          },
+          "python_reference": {
+            "median_seconds": 0.0546397119978792,
+            "p95_seconds_nearest_rank": 0.056563299003755674,
+            "samples_seconds": [
+              0.056563299003755674,
+              0.0546397119978792,
+              0.053614356998878065
+            ]
+          }
+        },
+        "source_cache_states": {
+          "guion_legacy_baseline": [
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed"
+          ],
+          "guion_typed_baseline": [
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed"
+          ]
+        },
+        "source_sha256": {
+          "legacy": "e304637bc04f9dbd88039d7d88184a29742aebb800afc47962c181bef4abf4c6",
+          "python_reference": "f4b92aae52380e8842e45d19d7971780c1a074092b1b5647b54760b1585e6568",
+          "typed": "a6703a15ea18b7fec813978a7f4308e4587e2e83080194486933e10b5093c636"
+        },
+        "url_host_grant": "127.0.0.1"
+      }
+    },
+    "tiny-source": {
+      "commands": {
+        "guion_baseline": [
+          "/tmp/guion-core-cost-closure/baseline-41d3b48/guion",
+          "run",
+          "--json",
+          "--no-cache",
+          "--allow-http-host",
+          "127.0.0.1",
+          "/tmp/guion-core-cost-closure/baseline-smoke/core-workloads/short-source/tiny.gu"
+        ],
+        "python_reference": [
+          "/opt/cpython-3.14.7/bin/python3.14",
+          "/tmp/guion-core-cost-closure/baseline-smoke/core-workloads/short-source/tiny.py"
+        ]
+      },
+      "comparisons": {
+        "baseline_over_python": {
+          "ci95_percentile": [
+            0.13262900587719537,
+            0.16621096154714937
+          ],
+          "median_ratio": 0.14940433941847525,
+          "ties_or_regressions": 0,
+          "win": true
+        }
+      },
+      "expected_output": [
+        "ready"
+      ],
+      "native_backend_reports": {
+        "guion_baseline": {
+          "bytecode_blocks": 0,
+          "bytecode_instructions": 0,
+          "calls": 0,
+          "compilations": 0,
+          "compile_profile": {
+            "finalize_nanoseconds": 0,
+            "functions": []
+          },
+          "compiled_functions": [],
+          "cranelift_ir_blocks": 0,
+          "cranelift_ir_instructions": 0,
+          "deoptimizations": 0
+        }
+      },
+      "paired_trial_order": [
+        [
+          "python_reference",
+          "guion_baseline"
+        ],
+        [
+          "python_reference",
+          "guion_baseline"
+        ],
+        [
+          "guion_baseline",
+          "python_reference"
+        ]
+      ],
+      "samples": {
+        "guion_baseline": {
+          "median_seconds": 0.0012864750024164096,
+          "p95_seconds_nearest_rank": 0.0016402589972130954,
+          "samples_seconds": [
+            0.0016402589972130954,
+            0.0012864750024164096,
+            0.0009722730028443038
+          ]
+        },
+        "python_reference": {
+          "median_seconds": 0.007740012995782308,
+          "p95_seconds_nearest_rank": 0.010978657002851833,
+          "samples_seconds": [
+            0.010978657002851833,
+            0.007740012995782308,
+            0.007330772001296282
+          ]
+        }
+      },
+      "source_cache_states": {
+        "guion_baseline": [
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed"
+        ]
+      }
+    }
+  }
+}

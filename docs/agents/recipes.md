@@ -36,7 +36,7 @@ Source: [`http_request.gu`](examples/http_request.gu).
 cargo run --locked -p guion-cli -- run --allow-http-host api.example.org docs/agents/examples/http_request.gu https://api.example.org/health
 ```
 
-Replace the example hostname and URL with the service you intend to call. The hostname grant must exactly match the URL host. `http_request_bytes` returns a typed `HttpResponse` with status, headers, and the exact response bytes. The example uses `http_response_text` to decode checked UTF-8 and `std:http.http_response_json` when the response should be parsed as JSON. Non-2xx statuses remain response values; invalid UTF-8 and malformed JSON are recoverable typed errors. Errors go to stderr, and network access remains denied if the grant is omitted.
+Replace the example hostname and URL with the service you intend to call. The hostname grant must exactly match the URL host. `http_request_bytes` returns a typed `HttpResponse` with status, headers, and the exact response bytes. Use `http_response_text` to decode checked UTF-8 or `std:http.http_response_json` to parse JSON directly from those bytes. Non-2xx statuses remain response values; invalid UTF-8 and malformed JSON are recoverable typed errors. Errors go to stderr, and network access remains denied if the grant is omitted.
 
 ## Read TOML and write a SQLite record
 

@@ -184,6 +184,7 @@ def profile_guion_run(
         "elapsed_seconds_including_process_startup": elapsed,
         "cache_status": envelope.get("source_cache"),
         "reported_phase_timings_ns": envelope.get("phase_timings_ns"),
+        "runtime_profile_enabled": runtime_profile_enabled,
     }
     if "runtime_profile" in envelope:
         profile["runtime_profile"] = envelope["runtime_profile"]
@@ -922,7 +923,14 @@ def measure_jsonl_scale(binary: Path, project: Path, rows: int) -> tuple[dict[st
         "guion_artifact_over_sqlite_native": ci_for(results, "python_sqlite_native", ["guion_artifact"])["guion_artifact_over_python_sqlite_native"],
     }
     profiles = {
-        profile_name: profile_guion_run(command, project, workload_id, expected, output_file=result_path)
+        profile_name: profile_guion_run(
+            command,
+            project,
+            workload_id,
+            expected,
+            output_file=result_path,
+            runtime_profile_enabled=True,
+        )
         for profile_name, command in (
             ("uncached_source", commands["guion_source_uncached"]),
             ("prebuilt_artifact", commands["guion_artifact"]),
@@ -1258,11 +1266,36 @@ def required_speed_wins(report: dict[str, Any]) -> dict[str, Any]:
     comparisons["jsonl-summary-data"] = {
         "python_data": data["guion_artifact_over_python"]["win"]
     }
+    data_200k = workloads["jsonl-summary-data-200000"]["comparison"]
+    comparisons["jsonl-summary-data-200000"] = {
+        "python_data": data_200k["guion_artifact_over_python"]["win"]
+    }
     wins = [won for workload in comparisons.values() for won in workload.values()]
     return {
         "all_required_wins_observed": all(wins),
         "required_workloads": list(comparisons),
         "comparisons": comparisons,
+    }
+
+
+def finalize_run_status(
+    report: dict[str, Any], speed: dict[str, Any] | None, *, completed: bool
+) -> dict[str, str]:
+    """Keep output-oracle completion distinct from the performance acceptance gate."""
+    if not completed:
+        return {
+            "correctness_status": "not_completed",
+            "performance_status": "not_evaluated",
+            "status": "failed",
+        }
+    performance_status = (
+        "passed" if speed and speed.get("all_required_wins_observed") else "failed"
+    )
+    status = "passed" if report["python"]["matches_pinned"] and performance_status == "passed" else "failed"
+    return {
+        "correctness_status": "passed",
+        "performance_status": performance_status,
+        "status": status,
     }
 
 
@@ -1287,11 +1320,12 @@ def main(argv: list[str] | None = None) -> int:
                 report = json.loads(partial_path.read_text(encoding="utf-8"))
             else:
                 report = {"python": {"version": sys.version}, "platform": platform.platform()}
-            report.update({"status": "failed", "error": str(error)})
+            report.update(finalize_run_status(report, None, completed=False))
+            report["error"] = str(error)
         else:
             speed = required_speed_wins(report)
-            report["status"] = "passed" if report["python"]["matches_pinned"] and speed["all_required_wins_observed"] else "failed"
             report["required_speed_wins"] = speed
+            report.update(finalize_run_status(report, speed, completed=True))
         report["schema_version"] = 1
         report["kind"] = "guion-installed-performance-report"
         path = args.output or ROOT / "evaluation/completion/results/performance-guion.json"

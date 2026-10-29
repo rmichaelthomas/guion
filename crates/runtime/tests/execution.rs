@@ -1,4 +1,4 @@
-use guion_compiler::compile;
+use guion_compiler::{compile, compile_project_with_roots};
 use guion_model::{Artifact, BigInt, Float64, Op, SharedJson, Value};
 use guion_runtime::{
     CancellationToken, EffectKind, EffectOutcome, EffectRecord, HostPolicy, Runtime,
@@ -17,6 +17,34 @@ fn text_length_and_index_use_unicode_scalar_positions() {
     instance.invoke("main", vec![]).expect("program runs");
 
     assert_eq!(instance.take_output(), "3\n🙂\n");
+}
+
+#[test]
+fn text_slice_uses_unicode_scalar_half_open_bounds() {
+    let source = "fn main() -> Int:\n    print(text_slice(\"a🙂é\", 1, 3))\n    print(text_slice(\"a🙂é\", 2, 2))\n    return 0\n";
+    let artifact = compile("text-slice.gu", source).expect("text_slice source compiles");
+    let mut instance = Runtime::vm_only()
+        .load(artifact, HostPolicy::default())
+        .expect("runtime loads the artifact");
+
+    instance.invoke("main", vec![]).expect("program runs");
+
+    assert_eq!(instance.take_output(), "🙂é\n\n");
+}
+
+#[test]
+fn text_slice_rejects_invalid_scalar_ranges() {
+    let source = "fn main() -> Int:\n    print(text_slice(\"abc\", 2, 1))\n    return 0\n";
+    let artifact = compile("text-slice-range.gu", source).expect("text_slice source compiles");
+    let mut instance = Runtime::vm_only()
+        .load(artifact, HostPolicy::default())
+        .expect("runtime loads the artifact");
+
+    let error = instance
+        .invoke("main", vec![])
+        .expect_err("a reversed scalar range is rejected");
+
+    assert_eq!(error.code, "R_INDEX_BOUNDS");
 }
 
 #[test]
@@ -86,6 +114,381 @@ fn runtime_profile_is_absent_by_default_and_covers_native_and_vm_execution() {
                 >= 3
         );
     }
+}
+
+#[test]
+fn vm_profile_reports_dynamic_adjacent_opcode_transitions_by_function() {
+    let source = "fn main() -> Int:\n    let total = 1 + 2\n    return total\n";
+    let artifact = compile("opcode-transition-profile.gu", source)
+        .expect("opcode transition fixture compiles");
+    let mut instance = Runtime::vm_only()
+        .with_runtime_profile()
+        .load(artifact, HostPolicy::default())
+        .expect("runtime loads the artifact");
+
+    instance.invoke("main", vec![]).expect("program runs");
+
+    let profile = instance.runtime_profile().expect("profile is enabled");
+    let transitions = &profile["opcode_transition_counts"];
+    assert_eq!(transitions["main::Const->Const"].as_u64(), Some(1));
+    assert_eq!(transitions["main::Const->Add"].as_u64(), Some(1));
+    assert_eq!(transitions["main::Add->Store"].as_u64(), Some(1));
+    assert_eq!(transitions["main::Store->Load"].as_u64(), Some(1));
+    assert_eq!(transitions["main::Load->Return"].as_u64(), Some(1));
+}
+
+
+
+#[test]
+fn vm_profile_reports_exact_opcode_counts_for_a_literal_return() {
+    let artifact = compile("opcode-profile.gu", "fn main() -> Int:\n    return 7\n")
+        .expect("opcode profile fixture compiles");
+    let mut instance = Runtime::vm_only()
+        .with_runtime_profile()
+        .load(artifact, HostPolicy::default())
+        .expect("runtime loads the artifact");
+
+    instance.invoke("main", vec![]).expect("program runs");
+
+    let profile = instance.runtime_profile().expect("profile is enabled");
+    assert_eq!(profile["opcode_executions"]["Const"].as_u64(), Some(1));
+    assert_eq!(profile["opcode_executions"]["Return"].as_u64(), Some(1));
+    assert_eq!(profile["vm_interpreter"]["instructions"].as_u64(), Some(2));
+    assert_eq!(profile["vm_interpreter"]["frames"].as_u64(), Some(1));
+    assert_eq!(
+        profile["vm_interpreter"]["sampled_frames"].as_u64(),
+        Some(1)
+    );
+    assert_eq!(
+        profile["vm_interpreter"]["sampled_instructions"].as_u64(),
+        Some(2)
+    );
+}
+
+#[test]
+fn vm_control_flow_preserves_opcode_profile_and_exact_fuel() {
+    let source = "fn identity(value: Int) -> Int:\n    return value\n\nfn main() -> Int:\n    if true:\n        return identity(7)\n    return 0\n";
+    let artifact = compile("vm-control-flow-fastpath.gu", source)
+        .expect("control-flow fastpath fixture compiles");
+    let mut profiled = Runtime::vm_only()
+        .with_runtime_profile()
+        .load(artifact.clone(), HostPolicy::default())
+        .expect("runtime loads the artifact");
+
+    assert_eq!(
+        profiled.invoke("main", vec![]).expect("program runs"),
+        Value::Int(BigInt::from_i64(7))
+    );
+    let profile = profiled.runtime_profile().expect("profile is enabled");
+    assert_eq!(profile["opcode_executions"]["Call"].as_u64(), Some(1));
+    assert_eq!(profile["opcode_executions"]["Return"].as_u64(), Some(2));
+    assert_eq!(
+        profile["opcode_executions"]["JumpIfFalse"].as_u64(),
+        Some(1)
+    );
+    assert_eq!(
+        profile["dynamic_guest_conditional_branch_executions"].as_u64(),
+        Some(1)
+    );
+    let exact_instruction_limit = profile["vm_interpreter"]["instructions"]
+        .as_u64()
+        .expect("profile reports executed instructions");
+
+    let mut exact = Runtime::vm_only()
+        .load(
+            artifact.clone(),
+            HostPolicy {
+                instruction_limit: exact_instruction_limit,
+                ..HostPolicy::default()
+            },
+        )
+        .expect("runtime loads with exact fuel");
+    assert_eq!(
+        exact.invoke("main", vec![]).expect("exact fuel is sufficient"),
+        Value::Int(BigInt::from_i64(7))
+    );
+
+    let mut one_short = Runtime::vm_only()
+        .load(
+            artifact,
+            HostPolicy {
+                instruction_limit: exact_instruction_limit - 1,
+                ..HostPolicy::default()
+            },
+        )
+        .expect("runtime loads with one less fuel unit");
+    assert_eq!(
+        one_short
+            .invoke("main", vec![])
+            .expect_err("one less fuel unit fails")
+            .code,
+        "R_STEP_LIMIT"
+    );
+}
+
+#[test]
+fn vm_profile_attributes_calls_to_the_called_function() {
+    let source = "fn twice(value: Int) -> Int:\n    return value + value\n\nfn main() -> Int:\n    return twice(4)\n";
+    let artifact = compile("function-call-profile.gu", source).expect("call profile compiles");
+    let mut instance = Runtime::vm_only()
+        .with_runtime_profile()
+        .load(artifact, HostPolicy::default())
+        .expect("runtime loads the artifact");
+
+    assert_eq!(
+        instance.invoke("main", vec![]).expect("program runs"),
+        Value::Int(BigInt::from_i64(8))
+    );
+    let profile = instance.runtime_profile().expect("profile is enabled");
+    assert_eq!(profile["function_call_counts"]["twice"].as_u64(), Some(1));
+}
+
+#[test]
+fn tiny_json_forwarders_keep_call_and_opcode_profile_counts() {
+    let source = "fn safe_text(value: Json) -> Result[Text, JsonError]:\n    return json_try_text(value)\n\nfn main() -> Int:\n    let value = unwrap(json_parse(\"\\\"hello\\\"\"))\n    let result = safe_text(value)\n    assert(is_ok(result))\n    return 0\n";
+    let artifact = compile("fast-json-forwarder.gu", source).expect("forwarder compiles");
+    let mut instance = Runtime::vm_only()
+        .with_runtime_profile()
+        .load(artifact, HostPolicy::default())
+        .expect("runtime loads the artifact");
+
+    assert_eq!(
+        instance.invoke("main", vec![]).expect("program runs"),
+        Value::Int(BigInt::from_i64(0))
+    );
+    let profile = instance.runtime_profile().expect("profile is enabled");
+    assert_eq!(profile["function_call_counts"]["safe_text"].as_u64(), Some(1));
+    assert_eq!(profile["opcode_executions"]["JsonTryText"].as_u64(), Some(1));
+    assert_eq!(profile["opcode_executions"]["Load"].as_u64(), Some(3));
+    assert_eq!(profile["vm_interpreter"]["frames"].as_u64(), Some(2));
+}
+
+#[test]
+fn tiny_json_forwarder_preserves_call_depth_limit() {
+    let source = "fn safe_text(value: Json) -> Result[Text, JsonError]:\n    return json_try_text(value)\n\nfn main() -> Int:\n    let value = unwrap(json_parse(\"\\\"hello\\\"\"))\n    let result = safe_text(value)\n    return 0\n";
+    let artifact = compile("fast-json-forwarder-depth.gu", source).expect("forwarder compiles");
+    let mut policy = HostPolicy::default();
+    policy.call_depth_limit = 1;
+    let mut instance = Runtime::vm_only()
+        .load(artifact, policy)
+        .expect("runtime loads the artifact");
+
+    let error = instance
+        .invoke("main", vec![])
+        .expect_err("the helper call exceeds the depth limit");
+    assert_eq!(error.code, "R_CALL_DEPTH");
+}
+
+#[test]
+fn tiny_time_host_forwarders_keep_call_and_opcode_profile_counts() {
+    let source = "import \"std:time\"\nimport \"std:types\"\n\nfn parse_alias(value: Text) -> Result[Instant, FileError]:\n    return parse_timestamp(value)\n\nfn format_alias(value: Instant) -> Text:\n    return format_utc(value)\n\nfn main() -> Int:\n    let instant = unwrap(parse_alias(\"2026-10-28T12:34:56Z\"))\n    print(format_alias(instant))\n    return 0\n";
+    let project_root = std::env::temp_dir().join(format!(
+        "guion-time-forwarder-{}",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(&project_root);
+    std::fs::create_dir_all(&project_root).expect("temporary project directory is created");
+    let entry = project_root.join("main.gu");
+    std::fs::write(&entry, source).expect("temporary project source is written");
+    let stdlib_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../language/stdlib");
+    let artifact = compile_project_with_roots(
+        &entry,
+        &project_root,
+        Some(&stdlib_root),
+        &std::collections::HashMap::new(),
+    )
+    .expect("time forwarders compile");
+    let mut instance = Runtime::vm_only()
+        .with_runtime_profile()
+        .load(artifact, HostPolicy::default())
+        .expect("runtime loads the artifact");
+
+    assert_eq!(
+        instance.invoke("main", vec![]).expect("program runs"),
+        Value::Int(BigInt::from_i64(0))
+    );
+    assert_eq!(instance.take_output(), "2026-10-28T12:34:56Z\n");
+    let profile = instance.runtime_profile().expect("profile is enabled");
+    assert_eq!(profile["function_call_counts"]["parse_timestamp"].as_u64(), Some(1));
+    assert_eq!(profile["function_call_counts"]["format_utc"].as_u64(), Some(1));
+    assert_eq!(profile["opcode_executions"]["TimeParseTimestamp"].as_u64(), Some(1));
+    assert_eq!(profile["opcode_executions"]["TimeFormatUtc"].as_u64(), Some(1));
+    assert_eq!(profile["vm_interpreter"]["frames"].as_u64(), Some(7));
+    std::fs::remove_dir_all(&project_root).expect("temporary project is removed");
+}
+
+#[test]
+fn tiny_option_forwarders_preserve_constructors_and_allocation_charges() {
+    let source = "fn some_value(value: Int) -> Option[Int]:\n    return Some(value)\n\nfn no_value() -> Option[Int]:\n    return None\n\nfn main() -> Int:\n    let present = some_value(7)\n    let absent = no_value()\n    assert(is_some(present))\n    assert(not is_some(absent))\n    return 0\n";
+    let artifact = compile("fast-option-forwarder.gu", source).expect("option forwarders compile");
+    let mut instance = Runtime::vm_only()
+        .with_runtime_profile()
+        .load(artifact, HostPolicy::default())
+        .expect("runtime loads the artifact");
+
+    assert_eq!(
+        instance.invoke("main", vec![]).expect("program runs"),
+        Value::Int(BigInt::from_i64(0))
+    );
+    let profile = instance.runtime_profile().expect("profile is enabled");
+    assert_eq!(profile["function_call_counts"]["some_value"].as_u64(), Some(1));
+    assert_eq!(profile["function_call_counts"]["no_value"].as_u64(), Some(1));
+    assert_eq!(profile["opcode_executions"]["MakeSome"].as_u64(), Some(1));
+    assert_eq!(profile["opcode_executions"]["MakeNone"].as_u64(), Some(1));
+    assert!(
+        profile["estimated_guest_allocation_budget_charges"]["estimated_gross_bytes"]
+            .as_u64()
+            .unwrap()
+            >= std::mem::size_of::<Value>() as u64
+    );
+}
+
+#[test]
+fn runtime_profile_separates_json_parse_metrics_and_host_time() {
+    let source = "fn main() -> Int:\n    let parsed = unwrap(json_parse(\"{\\\"value\\\":7}\"))\n    return json_as_int(json_get(parsed, \"value\"))\n";
+    let artifact = compile("json-phase-profile.gu", source).expect("JSON profile fixture compiles");
+    let mut instance = Runtime::vm_only()
+        .with_runtime_profile()
+        .load(artifact, HostPolicy::default())
+        .expect("runtime loads the artifact");
+
+    instance.invoke("main", vec![]).expect("program runs");
+
+    let profile = instance.runtime_profile().expect("profile is enabled");
+    assert_eq!(profile["opcode_executions"]["JsonParse"].as_u64(), Some(1));
+    assert_eq!(
+        profile["host_operations"]["counts"]["JsonParse"].as_u64(),
+        Some(1)
+    );
+    assert!(
+        profile["host_operations"]["inclusive_nanoseconds"]["JsonParse"]
+            .as_u64()
+            .unwrap()
+            > 0
+    );
+    assert!(
+        profile["json_phase_nanoseconds"]["parse_and_reserved_key_handling"]
+            .as_u64()
+            .unwrap()
+            > 0
+    );
+    assert!(
+        profile["json_phase_nanoseconds"]["post_parse_metrics_traversal"]
+            .as_u64()
+            .unwrap()
+            > 0
+    );
+}
+
+#[test]
+fn enabling_runtime_profile_preserves_instruction_limit_failures() {
+    let artifact = compile("profile-limits.gu", "fn main() -> Int:\n    return 7\n")
+        .expect("limit profile fixture compiles");
+    let mut policy = HostPolicy::default();
+    policy.instruction_limit = 1;
+
+    let mut ordinary = Runtime::vm_only()
+        .load(artifact.clone(), policy.clone())
+        .expect("ordinary runtime loads");
+    let ordinary_error = ordinary
+        .invoke("main", vec![])
+        .expect_err("one step is insufficient");
+    let mut profiled = Runtime::vm_only()
+        .with_runtime_profile()
+        .load(artifact, policy)
+        .expect("profiled runtime loads");
+    let profiled_error = profiled
+        .invoke("main", vec![])
+        .expect_err("one step is insufficient");
+
+    assert_eq!(ordinary_error.code, profiled_error.code);
+    assert_eq!(ordinary_error.message, profiled_error.message);
+    assert!(profiled.runtime_profile().is_some());
+}
+
+#[test]
+fn nested_map_update_reuses_unique_parent_and_child_ownership() {
+    let source = "fn main() -> Int:\n    var groups: Map[Text, Map[Text, Int]] = {\"s\": {}}\n    set groups = map_set(groups, \"s\", map_set(groups[\"s\"], \"d\", 2))\n    print(groups[\"s\"][\"d\"])\n    return 0\n";
+    let artifact = compile("nested-map-update.gu", source).expect("nested update compiles");
+    let mut instance = Runtime::vm_only()
+        .with_runtime_profile()
+        .load(artifact, HostPolicy::default())
+        .expect("runtime loads the artifact");
+
+    instance.invoke("main", vec![]).expect("program runs");
+
+    assert_eq!(instance.take_output(), "2\n");
+    let profile = instance.runtime_profile().expect("profile is enabled");
+    assert_eq!(profile["map_set"]["copy_on_write_copies"].as_u64(), Some(0));
+    assert!(profile["map_set"]["in_place_updates"].as_u64().unwrap() >= 1);
+}
+
+#[test]
+fn nested_map_update_keeps_existing_parent_alias_unchanged() {
+    let source = "fn main() -> Int:\n    var groups: Map[Text, Map[Text, Int]] = {\"s\": {\"d\": 1}}\n    let original = groups\n    set groups = map_set(groups, \"s\", map_set(groups[\"s\"], \"d\", 2))\n    print(original[\"s\"][\"d\"])\n    print(groups[\"s\"][\"d\"])\n    return 0\n";
+    let artifact = compile("nested-map-alias.gu", source).expect("alias fixture compiles");
+    let mut instance = Runtime::vm_only()
+        .with_runtime_profile()
+        .load(artifact, HostPolicy::default())
+        .expect("runtime loads the artifact");
+
+    instance.invoke("main", vec![]).expect("program runs");
+
+    assert_eq!(instance.take_output(), "1\n2\n");
+    let profile = instance.runtime_profile().expect("profile is enabled");
+    assert!(profile["map_set"]["copy_on_write_copies"].as_u64().unwrap() > 0);
+}
+
+#[test]
+fn child_map_assignment_then_parent_writeback_avoids_the_intermediate_copy() {
+    let source = "fn main() -> Int:\n    var groups: Map[Text, Map[Text, Int]] = {\"s\": {\"d\": 1}}\n    var by_date: Map[Text, Int] = groups[\"s\"]\n    if map_has(by_date, \"d\"):\n        set by_date = map_set(by_date, \"d\", 2)\n    else:\n        set by_date = map_set(by_date, \"d\", 3)\n    set groups = map_set(groups, \"s\", by_date)\n    print(groups[\"s\"][\"d\"])\n    return 0\n";
+    let artifact = compile("nested-map-writeback.gu", source).expect("nested writeback compiles");
+    let mut instance = Runtime::vm_only()
+        .with_runtime_profile()
+        .load(artifact, HostPolicy::default())
+        .expect("runtime loads the artifact");
+
+    instance.invoke("main", vec![]).expect("program runs");
+
+    assert_eq!(instance.take_output(), "2\n");
+    let profile = instance.runtime_profile().expect("profile is enabled");
+    assert_eq!(profile["map_set"]["operations"].as_u64(), Some(2));
+    assert_eq!(profile["map_set"]["copy_on_write_copies"].as_u64(), Some(0));
+}
+
+#[test]
+fn child_map_assignment_keeps_intermediate_parent_observations_immutable() {
+    let source = "fn main() -> Int:\n    var groups: Map[Text, Map[Text, Int]] = {\"s\": {\"d\": 1}}\n    var by_date: Map[Text, Int] = groups[\"s\"]\n    set by_date = map_set(by_date, \"d\", 2)\n    print(groups[\"s\"][\"d\"])\n    set groups = map_set(groups, \"s\", by_date)\n    print(groups[\"s\"][\"d\"])\n    return 0\n";
+    let artifact = compile("nested-map-writeback-observed.gu", source)
+        .expect("observed nested writeback compiles");
+    let mut instance = Runtime::vm_only()
+        .with_runtime_profile()
+        .load(artifact, HostPolicy::default())
+        .expect("runtime loads the artifact");
+
+    instance.invoke("main", vec![]).expect("program runs");
+
+    assert_eq!(instance.take_output(), "1\n2\n");
+    let profile = instance.runtime_profile().expect("profile is enabled");
+    assert!(profile["map_set"]["copy_on_write_copies"].as_u64().unwrap() > 0);
+}
+
+#[test]
+fn child_map_assignment_keeps_shared_parent_aliases_immutable() {
+    let source = "fn main() -> Int:\n    var groups: Map[Text, Map[Text, Int]] = {\"s\": {\"d\": 1}}\n    let original = groups\n    var by_date: Map[Text, Int] = groups[\"s\"]\n    set by_date = map_set(by_date, \"d\", 2)\n    set groups = map_set(groups, \"s\", by_date)\n    print(original[\"s\"][\"d\"])\n    print(groups[\"s\"][\"d\"])\n    return 0\n";
+    let artifact = compile("nested-map-writeback-alias.gu", source)
+        .expect("aliased nested writeback compiles");
+    let mut instance = Runtime::vm_only()
+        .with_runtime_profile()
+        .load(artifact, HostPolicy::default())
+        .expect("runtime loads the artifact");
+
+    instance.invoke("main", vec![]).expect("program runs");
+
+    assert_eq!(instance.take_output(), "1\n2\n");
+    let profile = instance.runtime_profile().expect("profile is enabled");
+    assert!(profile["map_set"]["copy_on_write_copies"].as_u64().unwrap() > 0);
 }
 
 #[cfg(not(feature = "python-interop"))]
@@ -210,10 +613,12 @@ fn host_cancellation_interrupts_native_execution() {
     cancel_thread.join().unwrap();
 
     assert_eq!(error.code, "R_CANCELLED");
-    assert!(instance
-        .native_function_names()
-        .iter()
-        .any(|name| name == "spin"));
+    assert!(
+        instance
+            .native_function_names()
+            .iter()
+            .any(|name| name == "spin")
+    );
     assert!(
         instance.native_calls() > 0,
         "cancellation reached the JIT function"
@@ -470,10 +875,12 @@ fn native_list_set_uses_element_typed_helpers_without_changing_copy_semantics() 
 fn same_local_list_updates_do_not_accumulate_full_list_copies() {
     let source = "fn main() -> Int:\n    var values = [0.0]\n    var i = 0\n    while i < 5000:\n        set values = list_set(values, 0, values[0] + 1.0)\n        set i = i + 1\n    print(values[0])\n    return i\n";
     let artifact = compile("list-update-budget.gu", source).unwrap();
-    assert!(artifact.functions[0]
-        .code
-        .iter()
-        .any(|instruction| matches!(instruction.op, Op::ListSetLocal(_))));
+    assert!(
+        artifact.functions[0]
+            .code
+            .iter()
+            .any(|instruction| matches!(instruction.op, Op::ListSetLocal(_)))
+    );
     let legacy = {
         let mut artifact = artifact.clone();
         artifact.format_version = 25;
@@ -578,10 +985,12 @@ fn same_local_list_pushes_fit_a_linear_allocation_budget() {
     let source = "fn main() -> Int:\n    var values: List[Int] = []\n    var i = 0\n    while i < 6000:\n        set values = list_push(values, i)\n        set i = i + 1\n    return len(values)\n";
     let artifact = compile("list-push-budget.gu", source).unwrap();
     assert_eq!(artifact.format_version, Artifact::CURRENT_VERSION);
-    assert!(artifact.functions[0]
-        .code
-        .iter()
-        .any(|instruction| matches!(instruction.op, Op::ListPushLocal(_))));
+    assert!(
+        artifact.functions[0]
+            .code
+            .iter()
+            .any(|instruction| matches!(instruction.op, Op::ListPushLocal(_)))
+    );
     let mut legacy = artifact.clone();
     legacy.format_version = 31;
     assert_eq!(legacy.to_bytes().unwrap_err().code, "E_ARTIFACT_VERSION");
@@ -602,10 +1011,12 @@ fn same_local_list_pushes_fit_a_linear_allocation_budget() {
 fn optimized_list_push_preserves_older_shared_aliases() {
     let source = "fn main() -> Int:\n    var values = [1]\n    let previous = values\n    set values = list_push(values, 2)\n    assert(len(previous) == 1)\n    assert(previous[0] == 1)\n    assert(len(values) == 2)\n    assert(values[1] == 2)\n    var floats: List[Float64] = []\n    set floats = list_push(floats, 1.5)\n    assert(floats[0] == 1.5)\n    return 0\n";
     let artifact = compile("list-push-alias.gu", source).unwrap();
-    assert!(artifact.functions[0]
-        .code
-        .iter()
-        .any(|instruction| matches!(instruction.op, Op::ListPushLocal(_))));
+    assert!(
+        artifact.functions[0]
+            .code
+            .iter()
+            .any(|instruction| matches!(instruction.op, Op::ListPushLocal(_)))
+    );
     let mut instance = Runtime::new()
         .load(artifact, HostPolicy::default())
         .unwrap();
@@ -617,10 +1028,12 @@ fn optimized_list_push_preserves_older_shared_aliases() {
 fn mutable_json_object_set_is_local_and_preserves_aliases() {
     let source = "fn main() -> Int:\n    var value = json_object()\n    set value = json_set(value, \"left\", json_text(\"old\"))\n    let previous = value\n    set value = json_set(value, \"right\", json_text(\"new\"))\n    assert(json_has(previous, \"right\") == false)\n    assert(json_stringify(value) == \"{\\\"left\\\":\\\"old\\\",\\\"right\\\":\\\"new\\\"}\")\n    return 0\n";
     let artifact = compile("json-set-local.gu", source).unwrap();
-    assert!(artifact.functions[0]
-        .code
-        .iter()
-        .any(|instruction| matches!(instruction.op, Op::JsonSetLocal(_))));
+    assert!(
+        artifact.functions[0]
+            .code
+            .iter()
+            .any(|instruction| matches!(instruction.op, Op::JsonSetLocal(_)))
+    );
     assert_eq!(artifact.format_version, Artifact::CURRENT_VERSION);
     let artifact = Artifact::from_bytes(&artifact.to_bytes().unwrap()).unwrap();
     let mut legacy = artifact.clone();
@@ -680,10 +1093,12 @@ fn mutable_json_array_push_is_linear_and_preserves_aliases() {
     let source = "fn main() -> Int:\n    var values = json_array()\n    var cursor = 0\n    while cursor < 2500:\n        set values = json_push(values, json_int(cursor))\n        set cursor = cursor + 1\n    let previous = values\n    set values = json_push(values, json_int(2500))\n    assert(json_len(previous) == 2500)\n    assert(json_len(values) == 2501)\n    assert(json_as_int(json_index(previous, 2499)) == 2499)\n    assert(json_as_int(json_index(values, 2500)) == 2500)\n    return json_len(values)\n";
     let artifact = compile("json-push-local.gu", source).unwrap();
     assert_eq!(artifact.format_version, Artifact::CURRENT_VERSION);
-    assert!(artifact.functions[0]
-        .code
-        .iter()
-        .any(|instruction| matches!(instruction.op, Op::JsonPushLocal(_))));
+    assert!(
+        artifact.functions[0]
+            .code
+            .iter()
+            .any(|instruction| matches!(instruction.op, Op::JsonPushLocal(_)))
+    );
     let mut legacy = artifact.clone();
     legacy.format_version = 32;
     assert_eq!(legacy.to_bytes().unwrap_err().code, "E_ARTIFACT_VERSION");
@@ -707,9 +1122,11 @@ fn float64_square_root_runs_in_native_code_and_checks_domain() {
         .load(artifact, HostPolicy::default())
         .unwrap();
     instance.invoke("main", vec![]).unwrap();
-    assert!(instance
-        .native_function_names()
-        .contains(&"hypotenuse".to_owned()));
+    assert!(
+        instance
+            .native_function_names()
+            .contains(&"hypotenuse".to_owned())
+    );
     assert_eq!(
         instance
             .invoke(
@@ -1453,7 +1870,10 @@ fn json_column_builtins_reject_wrong_shapes_and_non_integer_values() {
         let mut instance = Runtime::new()
             .load(artifact, HostPolicy::default())
             .unwrap();
-        assert_eq!(instance.invoke("main", vec![]).unwrap_err().code, expected_code);
+        assert_eq!(
+            instance.invoke("main", vec![]).unwrap_err().code,
+            expected_code
+        );
     }
 }
 
@@ -1627,10 +2047,12 @@ fn native_backend_reads_float64_lists_with_vm_parity() {
 
     assert_eq!(native_value, vm_value);
     assert_eq!(native_value, Value::Int(BigInt::zero()));
-    assert!(native
-        .native_function_names()
-        .iter()
-        .any(|name| name == "sum"));
+    assert!(
+        native
+            .native_function_names()
+            .iter()
+            .any(|name| name == "sum")
+    );
     assert!(native.native_calls() > 0);
 }
 
@@ -1649,10 +2071,12 @@ fn native_backend_reads_integer_lists_and_preserves_big_integer_fallback() {
         native.invoke("main", vec![]).unwrap(),
         vm.invoke("main", vec![]).unwrap()
     );
-    assert!(native
-        .native_function_names()
-        .iter()
-        .any(|name| name == "sum"));
+    assert!(
+        native
+            .native_function_names()
+            .iter()
+            .any(|name| name == "sum")
+    );
     assert!(native.native_calls() > 0);
 }
 
@@ -1671,10 +2095,12 @@ fn native_backend_keeps_integer_record_list_updates_in_a_repeated_loop() {
         native.invoke("main", vec![]).unwrap(),
         vm.invoke("main", vec![]).unwrap()
     );
-    assert!(native
-        .native_function_names()
-        .iter()
-        .any(|name| name == "run_steps"));
+    assert!(
+        native
+            .native_function_names()
+            .iter()
+            .any(|name| name == "run_steps")
+    );
 }
 
 #[test]
@@ -1688,10 +2114,12 @@ fn native_index_bounds_use_one_unsigned_check_and_preserve_faults() {
         .invoke("at", vec![Value::Int(BigInt::from_usize(1))])
         .expect("valid index runs natively");
     assert_eq!(value, Value::Int(BigInt::from_usize(8)));
-    assert!(native
-        .native_function_names()
-        .iter()
-        .any(|name| name == "at"));
+    assert!(
+        native
+            .native_function_names()
+            .iter()
+            .any(|name| name == "at")
+    );
     let ir_blocks = native.native_cranelift_ir_blocks();
     assert!(
         ir_blocks < 25,
@@ -1729,10 +2157,12 @@ fn native_integer_list_bounds_fault_deopts_to_the_vm() {
 
     assert_eq!(native_error.code, vm_error.code);
     assert_eq!(native_error.code, "R_LIST_INDEX");
-    assert!(native
-        .native_function_names()
-        .iter()
-        .any(|name| name == "update"));
+    assert!(
+        native
+            .native_function_names()
+            .iter()
+            .any(|name| name == "update")
+    );
     assert!(native.native_deoptimizations() > 0);
 }
 
@@ -1751,10 +2181,12 @@ fn native_backend_updates_boolean_lists_in_record_results() {
         native.invoke("main", vec![]).unwrap(),
         vm.invoke("main", vec![]).unwrap()
     );
-    assert!(native
-        .native_function_names()
-        .iter()
-        .any(|name| name == "update"));
+    assert!(
+        native
+            .native_function_names()
+            .iter()
+            .any(|name| name == "update")
+    );
 }
 
 #[test]
@@ -1771,10 +2203,12 @@ fn native_backend_constructs_typed_lists_and_updates_them_in_a_loop() {
     let native_value = native.invoke("main", vec![]).unwrap();
     assert_eq!(native_value, vm.invoke("main", vec![]).unwrap());
     assert_eq!(native_value, Value::Int(BigInt::parse("306").unwrap()));
-    assert!(native
-        .native_function_names()
-        .iter()
-        .any(|name| name == "main"));
+    assert!(
+        native
+            .native_function_names()
+            .iter()
+            .any(|name| name == "main")
+    );
 }
 
 #[test]
@@ -1792,10 +2226,155 @@ fn native_backend_preserves_aliases_for_functional_list_updates() {
         native.invoke("main", vec![]).unwrap(),
         vm.invoke("main", vec![]).unwrap()
     );
+    assert!(
+        native
+            .native_function_names()
+            .iter()
+            .any(|name| name == "replace")
+    );
+}
+#[cfg(not(feature = "native-value-bridge"))]
+#[test]
+fn native_value_bridge_is_disabled_by_default() {
+    let source = "fn accepts_text(value: Json) -> Bool:\n    return is_ok(json_try_text(value))\n\nfn main() -> Int:\n    let parsed = json_parse(\"\\\"guion\\\"\")\n    if is_ok(parsed):\n        if accepts_text(unwrap(parsed)):\n            return 0\n    return 1\n";
+    let artifact = compile("native-json-host-bridge-opt-in.gu", source)
+        .expect("mixed-value bridge fixture compiles");
+    let text_json = Value::Json(SharedJson::from_serde(serde_json::json!("guion")));
+    let mut runtime = Runtime::new()
+        .load(artifact, HostPolicy::default())
+        .expect("runtime loads");
+
+    assert_eq!(
+        runtime.invoke("accepts_text", vec![text_json]).unwrap(),
+        Value::Bool(true)
+    );
+    assert!(
+        !runtime
+            .native_function_names()
+            .iter()
+            .any(|name| name == "accepts_text"),
+        "mixed-value bridge must stay opt-in until it clears the speed gate"
+    );
+    assert!(runtime.native_function_names().is_empty());
+    let profile = runtime.native_compile_profile();
+    let rejected = profile["rejected_functions"]
+        .as_array()
+        .expect("native profile reports functions rejected from compilation");
+    let accepts_text = rejected
+        .iter()
+        .find(|function| function["name"].as_str() == Some("accepts_text"))
+        .expect("mixed-value rejection is attributed to accepts_text");
+    assert_eq!(
+        accepts_text["reason_code"].as_str(),
+        Some("mixed_value_bridge_disabled")
+    );
+    assert_eq!(
+        accepts_text["blocking_instruction"].as_str(),
+        Some("JsonTryText")
+    );
+}
+
+#[cfg(feature = "native-value-bridge")]
+#[test]
+fn native_backend_bridges_json_values_through_a_checked_host_call() {
+    let source = "fn accepts_text(value: Json) -> Bool:\n    return is_ok(json_try_text(value))\n\nfn main() -> Int:\n    return 0\n";
+    let artifact = compile("native-json-host-bridge.gu", source)
+        .expect("mixed-value bridge fixture compiles");
+    let text_json = Value::Json(SharedJson::from_serde(serde_json::json!("guion")));
+    let number_json = Value::Json(SharedJson::from_serde(serde_json::json!(42)));
+
+    let mut native = Runtime::new()
+        .load(artifact.clone(), HostPolicy::default())
+        .expect("native runtime loads");
+    assert_eq!(
+        native
+            .invoke("accepts_text", vec![text_json.clone()])
+            .expect("native host call runs"),
+        Value::Bool(true)
+    );
+    assert_eq!(
+        native
+            .invoke("accepts_text", vec![number_json.clone()])
+            .expect("recoverable JSON type error runs"),
+        Value::Bool(false)
+    );
+    assert!(
+        native
+            .native_function_names()
+            .iter()
+            .any(|name| name == "accepts_text"),
+        "mixed-value helper should be compiled natively: {:?}",
+        native.native_function_names()
+    );
+    assert!(native.native_calls() >= 2);
+
+    let mut vm = Runtime::vm_only()
+        .load(artifact, HostPolicy::default())
+        .expect("VM runtime loads");
+    assert_eq!(
+        vm.invoke("accepts_text", vec![text_json])
+            .expect("VM host call runs"),
+        Value::Bool(true)
+    );
+    assert_eq!(
+        vm.invoke("accepts_text", vec![number_json])
+            .expect("VM recoverable JSON type error runs"),
+        Value::Bool(false)
+    );
+}
+
+#[cfg(feature = "native-value-bridge")]
+#[test]
+fn native_backend_executes_jsonl_next_with_vm_equivalent_results() {
+    let root = std::env::temp_dir().join(format!(
+        "guion-native-jsonl-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    std::fs::create_dir_all(&root).unwrap();
+    let events = root.join("events.jsonl");
+    std::fs::write(&events, "{\"kind\":\"ok\"}\nnot json\n").unwrap();
+    let source = "import \"std:jsonl\"\n\nfn main() -> Int:\n    let arguments = args()\n    if len(arguments) != 1:\n        return 8\n    let opened = jsonl_open(arguments[0])\n    if not is_ok(opened):\n        return 1\n    let reader = unwrap(opened)\n    let next = jsonl_next(reader)\n    if not is_ok(next):\n        return 2\n    let maybe_line = unwrap(next)\n    if not is_some(maybe_line):\n        return 3\n    let line = unwrap(maybe_line)\n    if line.raw != \"{\\\"kind\\\":\\\"ok\\\"}\":\n        return 4\n    if not is_some(line.value):\n        return 5\n    let parsed = unwrap(line.value)\n    let kind = json_try_get(parsed, \"kind\")\n    if not is_ok(kind):\n        return 6\n    if not is_ok(json_try_text(unwrap(kind))):\n        return 7\n    return 0\n";
+    let entry = root.join("main.gu");
+    std::fs::write(&entry, source).unwrap();
+    let stdlib_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../language/stdlib");
+    let artifact = compile_project_with_roots(
+        &entry,
+        &root,
+        Some(&stdlib_root),
+        &std::collections::HashMap::new(),
+    )
+    .expect("JSONL bridge fixture compiles");
+    let policy = HostPolicy::default()
+        .with_file_access(root.clone(), true, false)
+        .with_arguments(vec!["events.jsonl".into()]);
+    let mut native = Runtime::new()
+        .load(artifact.clone(), policy.clone())
+        .expect("native runtime loads");
+    assert_eq!(
+        native.invoke("main", vec![]).unwrap(),
+        Value::Int(BigInt::from_i64(0))
+    );
     assert!(native
         .native_function_names()
         .iter()
-        .any(|name| name == "replace"));
+        .any(|name| name == "jsonl_next"));
+    assert!(native
+        .native_function_names()
+        .iter()
+        .any(|name| name == "fs_next_line"));
+
+    let mut vm = Runtime::vm_only()
+        .load(artifact, policy)
+        .expect("VM runtime loads");
+    assert_eq!(
+        vm.invoke("main", vec![]).unwrap(),
+        Value::Int(BigInt::from_i64(0))
+    );
+    let _ = std::fs::remove_dir_all(root);
 }
 
 #[test]
@@ -1813,10 +2392,12 @@ fn native_backend_composes_record_valued_calls_with_list_fields() {
     assert_eq!(native_result, vm.invoke("main", vec![]).unwrap());
     assert_eq!(native_result, Value::Int(BigInt::parse("104").unwrap()));
     for name in ["replace", "inspect", "main"] {
-        assert!(native
-            .native_function_names()
-            .iter()
-            .any(|native| native == name));
+        assert!(
+            native
+                .native_function_names()
+                .iter()
+                .any(|native| native == name)
+        );
     }
 }
 
@@ -1834,10 +2415,12 @@ fn native_list_local_update_keeps_later_record_reads_aliased_correctly() {
     let native_result = native.invoke("main", vec![]).unwrap();
     assert_eq!(native_result, vm.invoke("main", vec![]).unwrap());
     assert_eq!(native_result, Value::Int(BigInt::parse("101").unwrap()));
-    assert!(native
-        .native_function_names()
-        .iter()
-        .any(|name| name == "update"));
+    assert!(
+        native
+            .native_function_names()
+            .iter()
+            .any(|name| name == "update")
+    );
 }
 
 #[test]
@@ -1857,10 +2440,12 @@ fn native_print_preserves_output_effects_and_falls_back_without_partial_output()
     );
     assert_eq!(native.take_output(), vm.take_output());
     assert_eq!(native.effect_report(), vm.effect_report());
-    assert!(native
-        .native_function_names()
-        .iter()
-        .any(|name| name == "main"));
+    assert!(
+        native
+            .native_function_names()
+            .iter()
+            .any(|name| name == "main")
+    );
 
     let limited = HostPolicy {
         output_limit_bytes: 2,
@@ -1901,10 +2486,12 @@ fn native_functional_list_updates_match_vm_allocation_limit_outcomes() {
             ),
         }
         if allocation_limit_bytes == 4096 {
-            assert!(native
-                .native_function_names()
-                .iter()
-                .any(|name| name == "replace"));
+            assert!(
+                native
+                    .native_function_names()
+                    .iter()
+                    .any(|name| name == "replace")
+            );
         }
     }
 }
@@ -1924,10 +2511,12 @@ fn native_backend_reads_float64_lists_from_record_fields() {
         native.invoke("main", vec![]).unwrap(),
         vm.invoke("main", vec![]).unwrap()
     );
-    assert!(native
-        .native_function_names()
-        .iter()
-        .any(|name| name == "sum"));
+    assert!(
+        native
+            .native_function_names()
+            .iter()
+            .any(|name| name == "sum")
+    );
 }
 
 #[test]
@@ -1945,10 +2534,12 @@ fn native_backend_updates_copied_record_lists_and_returns_records() {
         native.invoke("main", vec![]).unwrap(),
         vm.invoke("main", vec![]).unwrap()
     );
-    assert!(native
-        .native_function_names()
-        .iter()
-        .any(|name| name == "update"));
+    assert!(
+        native
+            .native_function_names()
+            .iter()
+            .any(|name| name == "update")
+    );
     assert!(native.native_calls() > 0);
 }
 
@@ -1996,10 +2587,12 @@ fn native_record_list_updates_match_vm_allocation_limit_outcomes() {
             ),
         }
         if allocation_limit_bytes == 4096 {
-            assert!(native
-                .native_function_names()
-                .iter()
-                .any(|name| name == "update"));
+            assert!(
+                native
+                    .native_function_names()
+                    .iter()
+                    .any(|name| name == "update")
+            );
         }
     }
 }
@@ -2015,10 +2608,12 @@ fn native_record_list_update_bounds_fault_deopts_to_the_vm() {
     let error = instance.invoke("main", vec![]).unwrap_err();
 
     assert_eq!(error.code, "R_LIST_INDEX");
-    assert!(instance
-        .native_function_names()
-        .iter()
-        .any(|name| name == "update"));
+    assert!(
+        instance
+            .native_function_names()
+            .iter()
+            .any(|name| name == "update")
+    );
     assert!(instance.native_deoptimizations() > 0);
 }
 
@@ -2048,10 +2643,12 @@ fn native_float_list_bounds_faults_deopt_to_the_vm_trace() {
     let error = instance.invoke("main", vec![]).unwrap_err();
 
     assert_eq!(error.code, "R_INDEX_BOUNDS");
-    assert!(instance
-        .native_function_names()
-        .iter()
-        .any(|name| name == "at"));
+    assert!(
+        instance
+            .native_function_names()
+            .iter()
+            .any(|name| name == "at")
+    );
     assert!(instance.native_deoptimizations() > 0);
 }
 
@@ -2227,10 +2824,12 @@ fn clock_access_requires_an_explicit_grant_and_can_be_pinned() {
         fields[2],
         Value::Int(BigInt::from_i64(i64::from(expected_local.tm_mday)))
     );
-    assert!(granted
-        .effect_report()
-        .iter()
-        .any(|effect| effect.kind == EffectKind::ClockRead));
+    assert!(
+        granted
+            .effect_report()
+            .iter()
+            .any(|effect| effect.kind == EffectKind::ClockRead)
+    );
 }
 
 #[test]
@@ -2249,15 +2848,21 @@ fn native_nested_failure_keeps_every_call_site_in_the_runtime_trace() {
         .invoke("main", vec![])
         .expect_err("nested call exceeds the depth limit");
 
-    assert!(instance
-        .native_function_names()
-        .contains(&"leaf".to_owned()));
-    assert!(instance
-        .native_function_names()
-        .contains(&"middle".to_owned()));
-    assert!(instance
-        .native_function_names()
-        .contains(&"main".to_owned()));
+    assert!(
+        instance
+            .native_function_names()
+            .contains(&"leaf".to_owned())
+    );
+    assert!(
+        instance
+            .native_function_names()
+            .contains(&"middle".to_owned())
+    );
+    assert!(
+        instance
+            .native_function_names()
+            .contains(&"main".to_owned())
+    );
     assert_eq!(error.code, "R_CALL_DEPTH");
     assert_eq!(
         error.trace.iter().map(|span| span.line).collect::<Vec<_>>(),
@@ -2273,15 +2878,21 @@ fn native_backend_calls_native_functions_and_obeys_call_depth_limit() {
         .load(artifact.clone(), HostPolicy::default())
         .expect("artifact loads");
     instance.invoke("main", vec![]).unwrap();
-    assert!(instance
-        .native_function_names()
-        .contains(&"sum_calls".to_owned()));
-    assert!(instance
-        .native_function_names()
-        .contains(&"increment".to_owned()));
-    assert!(instance
-        .native_function_names()
-        .contains(&"outer".to_owned()));
+    assert!(
+        instance
+            .native_function_names()
+            .contains(&"sum_calls".to_owned())
+    );
+    assert!(
+        instance
+            .native_function_names()
+            .contains(&"increment".to_owned())
+    );
+    assert!(
+        instance
+            .native_function_names()
+            .contains(&"outer".to_owned())
+    );
     assert_eq!(
         instance
             .invoke("sum_calls", vec![Value::Int(BigInt::parse("5").unwrap())])
@@ -2342,10 +2953,12 @@ fn vm_guest_recursion_uses_heap_frames_and_enforces_one_beyond_depth() {
             .expect("native-enabled recursion falls back to heap frames"),
         result
     );
-    assert!(!automatic
-        .native_function_names()
-        .iter()
-        .any(|name| name == "descend"));
+    assert!(
+        !automatic
+            .native_function_names()
+            .iter()
+            .any(|name| name == "descend")
+    );
 
     let error = vm
         .invoke("descend", vec![Value::Int(BigInt::parse("512").unwrap())])
@@ -2417,14 +3030,18 @@ fn nested_calls_keep_exact_instruction_budget_parity_across_vm_jit_and_fallback(
         )
         .unwrap();
     let jit_success = jit_exact.invoke("combined", vec![Value::Int(BigInt::from_usize(3))]);
-    assert!(jit_exact
-        .native_function_names()
-        .iter()
-        .any(|name| name == "twice"));
-    assert!(!jit_exact
-        .native_function_names()
-        .iter()
-        .any(|name| name == "descend"));
+    assert!(
+        jit_exact
+            .native_function_names()
+            .iter()
+            .any(|name| name == "twice")
+    );
+    assert!(
+        !jit_exact
+            .native_function_names()
+            .iter()
+            .any(|name| name == "descend")
+    );
     assert_eq!(jit_success, vm_success);
     assert!(
         jit_exact.native_calls() > 0,
@@ -2760,14 +3377,23 @@ fn float64_rejects_implicit_integer_mixing_nonfinite_results_and_zero_division()
     assert_eq!(oversized.code, "E_FLOAT_LITERAL");
 
     for (source, expected_code) in [
-        ("fn compute() -> Float64:\n    return 1.0 / 0.0\n\nfn main() -> Int:\n    let ignored = compute()\n    return 0\n", "R_DIV_ZERO"),
-        ("fn compute() -> Float64:\n    return 1e308 * 1e308\n\nfn main() -> Int:\n    let ignored = compute()\n    return 0\n", "R_FLOAT_NONFINITE"),
+        (
+            "fn compute() -> Float64:\n    return 1.0 / 0.0\n\nfn main() -> Int:\n    let ignored = compute()\n    return 0\n",
+            "R_DIV_ZERO",
+        ),
+        (
+            "fn compute() -> Float64:\n    return 1e308 * 1e308\n\nfn main() -> Int:\n    let ignored = compute()\n    return 0\n",
+            "R_FLOAT_NONFINITE",
+        ),
     ] {
         let artifact = compile("float-runtime-error.gu", source).unwrap();
         let mut instance = Runtime::new()
             .load(artifact, HostPolicy::default())
             .unwrap();
-        assert_eq!(instance.invoke("main", vec![]).unwrap_err().code, expected_code);
+        assert_eq!(
+            instance.invoke("main", vec![]).unwrap_err().code,
+            expected_code
+        );
     }
 }
 

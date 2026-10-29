@@ -1,13 +1,4 @@
-import "std:json"
-import "std:types"
+pub import "std:http_types"
 
 pub fn http_response_json(response: HttpResponse) -> Result[Json, StdError]:
-    let text_result = http_response_text(response)
-    if not is_ok(text_result):
-        let http_error = error(text_result)
-        return Err(std_error(http_error_code(http_error), http_error_message(http_error)))
-    let parse_result = json_parse(unwrap(text_result))
-    if not is_ok(parse_result):
-        let json_error = error(parse_result)
-        return Err(std_error(json_error_code(json_error), json_error_message(json_error)))
-    return Ok(unwrap(parse_result))
+    return http_response_json_bytes(response)

@@ -1,9 +1,9 @@
 use super::CancellationToken;
-use base64::{engine::general_purpose::STANDARD, Engine as _};
+use base64::{Engine as _, engine::general_purpose::STANDARD};
 use guion_model::{BigInt, Float64, SharedJson, Type, Value};
 use serde::{
-    ser::{SerializeMap, SerializeSeq},
     Serialize, Serializer,
+    ser::{SerializeMap, SerializeSeq},
 };
 use serde_json::Value as JsonValue;
 use std::{
@@ -13,8 +13,8 @@ use std::{
     path::{Path, PathBuf},
     process::{Child, ChildStdin, Command, Stdio},
     sync::{
-        mpsc::{self, Receiver},
         Arc,
+        mpsc::{self, Receiver},
     },
     thread,
     time::{Duration, Instant},
@@ -395,20 +395,23 @@ impl PythonBridge {
         }
         let (sender, responses) = mpsc::channel();
         let profile_enabled = profile_path.is_some();
-        thread::spawn(move || loop {
-            match read_frame(&mut output, profile_enabled) {
-                Ok(Some(frame)) => {
-                    if sender.send(Ok(frame)).is_err() {
+        thread::spawn(move || {
+            loop {
+                match read_frame(&mut output, profile_enabled) {
+                    Ok(Some(frame)) => {
+                        if sender.send(Ok(frame)).is_err() {
+                            break;
+                        }
+                    }
+                    Ok(None) => {
+                        let _ =
+                            sender.send(Err("Python sidecar closed its protocol stream".into()));
                         break;
                     }
-                }
-                Ok(None) => {
-                    let _ = sender.send(Err("Python sidecar closed its protocol stream".into()));
-                    break;
-                }
-                Err(error) => {
-                    let _ = sender.send(Err(error));
-                    break;
+                    Err(error) => {
+                        let _ = sender.send(Err(error));
+                        break;
+                    }
                 }
             }
         });
@@ -750,7 +753,12 @@ fn validate_value(value: &Value, depth: usize) -> Result<(), PythonBridgeError> 
         ));
     }
     match value {
-        Value::Unit | Value::Bool(_) | Value::Int(_) | Value::Float64(_) | Value::Text(_) | Value::Bytes(_) => Ok(()),
+        Value::Unit
+        | Value::Bool(_)
+        | Value::Int(_)
+        | Value::Float64(_)
+        | Value::Text(_)
+        | Value::Bytes(_) => Ok(()),
         Value::List(values) => values
             .iter()
             .try_for_each(|item| validate_value(item, depth + 1)),
@@ -777,12 +785,10 @@ fn validate_value(value: &Value, depth: usize) -> Result<(), PythonBridgeError> 
         | Value::FileError(_)
         | Value::HttpError(_)
         | Value::NativeResource(_)
-        | Value::Record(_, _) => {
-            Err(bridge_error(
-                "R_PYTHON_CONVERSION",
-                "Option, Result, structured errors, and native resources cannot cross the current Python bridge",
-            ))
-        }
+        | Value::Record(_, _) => Err(bridge_error(
+            "R_PYTHON_CONVERSION",
+            "Option, Result, structured errors, and native resources cannot cross the current Python bridge",
+        )),
     }
 }
 

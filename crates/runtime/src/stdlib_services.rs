@@ -9,11 +9,10 @@ use std::{
 use hmac::{Hmac, Mac};
 use icu_casemap::CaseMapper;
 use icu_normalizer::{ComposingNormalizerBorrowed, DecomposingNormalizerBorrowed};
-use icu_properties::{props::WhiteSpace, CodePointSetData};
+use icu_properties::{CodePointSetData, props::WhiteSpace};
 use rusqlite::{
-    params_from_iter,
+    Connection, OpenFlags, params_from_iter,
     types::{Value as SqliteValue, ValueRef},
-    Connection, OpenFlags,
 };
 use sha2::Sha256;
 use toml_edit::{Document, DocumentMut, Item, Table, Value};
@@ -255,9 +254,36 @@ pub fn text_collapse_whitespace(text: &str) -> String {
 /// `None` lets the VM keep its owned text value without allocating and copying
 /// an identical string.
 pub fn text_collapse_whitespace_if_changed(text: &str) -> Option<String> {
-    let whitespace = CodePointSetData::new::<WhiteSpace>();
+    // JSON and other machine-readable text are commonly ASCII. Check that
+    // case with a byte loop so it does not perform a Unicode-set lookup for
+    // every scalar. If any non-ASCII byte appears, use the complete Unicode
+    // path below.
     let mut first = true;
     let mut previous_was_whitespace = false;
+    let mut all_ascii = true;
+    for byte in text.bytes() {
+        if !byte.is_ascii() {
+            all_ascii = false;
+            break;
+        }
+        let whitespace = matches!(byte, b' ' | b'\t' | b'\n' | b'\r' | 0x0b | 0x0c);
+        if whitespace {
+            if first || previous_was_whitespace || byte != b' ' {
+                return Some(text_collapse_whitespace(text));
+            }
+            previous_was_whitespace = true;
+        } else {
+            previous_was_whitespace = false;
+        }
+        first = false;
+    }
+    if all_ascii {
+        return previous_was_whitespace.then(|| text_collapse_whitespace(text));
+    }
+
+    let whitespace = CodePointSetData::new::<WhiteSpace>();
+    first = true;
+    previous_was_whitespace = false;
 
     for scalar in text.chars() {
         if whitespace.contains(scalar) {
@@ -288,7 +314,7 @@ pub fn text_normalize(text: &str, form: &str) -> Result<String, ServiceError> {
             return Err(ServiceError::new(
                 "E_NORMALIZATION_FORM",
                 "normalization form must be NFC, NFD, NFKC, or NFKD",
-            ))
+            ));
         }
     };
     Ok(normalized.into_owned())
@@ -502,7 +528,7 @@ impl DatabaseRegistry {
                 return Err(ServiceError::new(
                     "E_RESOURCE_STALE",
                     "database handle is stale",
-                ))
+                ));
             }
         };
         resource
@@ -627,7 +653,7 @@ impl DatabaseRegistry {
                             return Err(ServiceError::new(
                                 "E_SQLITE_VALUE",
                                 "SQLite returned a non-finite real number",
-                            ))
+                            ));
                         }
                         ValueRef::Text(bytes) => SqlValue::Text(
                             std::str::from_utf8(bytes)
@@ -1529,7 +1555,7 @@ fn ical_calendar_resolution(time: IcalCalendarTime) -> Result<TemporalResolution
             return Err(ServiceError::new(
                 "E_ICAL_TIMEZONE",
                 "native calendar parser returned an invalid candidate count",
-            ))
+            ));
         }
     };
     if time.timezone.is_null() {

@@ -7,17 +7,19 @@
 //! implements it for environments such as WebAssembly by rejecting those operations.
 
 use guion_model::{
-    Artifact, BigInt, FileErrorValue, Float64, HttpErrorValue, JsonErrorValue, NativeResourceValue,
-    Op, RuntimeError, SharedJson, Span, TaskErrorValue, Type, Value,
+    Artifact, BigInt, FileErrorValue, Float64, HttpErrorValue, JsonErrorValue,
+    NativeResourceValue, Op, RuntimeError, SharedJson, Span, TaskErrorValue, Type, Value,
 };
 use std::{
+    cell::Cell,
     collections::{BTreeMap, HashSet, VecDeque},
     fmt::Write as _,
     mem::size_of,
     sync::{
+        Arc, Mutex, OnceLock,
         atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering},
-        Arc, OnceLock,
     },
+    time::Instant,
 };
 
 fn shared_text_scalar(scalar: char) -> Arc<str> {
@@ -115,10 +117,8 @@ pub fn new_vm_frame(
     call_site: Option<Span>,
 ) -> VmFrame {
     let f = &artifact.functions[index];
-    let mut locals = vec![Value::Unit; f.local_count];
-    for (i, arg) in args.into_iter().enumerate() {
-        locals[i] = arg;
-    }
+    let mut locals = args;
+    locals.resize_with(f.local_count, || Value::Unit);
     VmFrame {
         function_index: index,
         depth,
@@ -158,10 +158,16 @@ pub fn run_frames<H: VmHost>(
     budget: Arc<Budget>,
 ) -> Result<Value, RuntimeError> {
     let mut frames = vec![initial];
+    let fast_host_forwarders = host
+        .artifact()
+        .functions
+        .iter()
+        .map(fast_host_forwarder)
+        .collect::<Vec<_>>();
     loop {
         let frame = frames.pop().expect("guest frame stack is non-empty");
         let current_call_site = frame.call_site;
-        match execute_vm_frame(host, frame, budget.clone()) {
+        match execute_vm_frame_with_forwarders(host, frame, budget.clone(), &fast_host_forwarders) {
             Err(mut error) => {
                 append_guest_call_trace(&mut error, current_call_site, &frames);
                 return Err(error);
@@ -210,6 +216,21 @@ pub fn execute_vm_frame<H: VmHost>(
     frame: VmFrame,
     budget: Arc<Budget>,
 ) -> Result<VmStep, RuntimeError> {
+    let fast_host_forwarders = host
+        .artifact()
+        .functions
+        .iter()
+        .map(fast_host_forwarder)
+        .collect::<Vec<_>>();
+    execute_vm_frame_with_forwarders(host, frame, budget, &fast_host_forwarders)
+}
+
+fn execute_vm_frame_with_forwarders<H: VmHost>(
+    host: &mut H,
+    frame: VmFrame,
+    budget: Arc<Budget>,
+    fast_host_forwarders: &[Option<FastHostForwarder>],
+) -> Result<VmStep, RuntimeError> {
     let VmFrame {
         function_index,
         depth,
@@ -221,6 +242,13 @@ pub fn execute_vm_frame<H: VmHost>(
     let artifact = Arc::clone(host.artifact());
     let limits = host.limits();
     let f = &artifact.functions[function_index];
+    let profile_sample = budget
+        .runtime_profile
+        .as_ref()
+        .filter(|profile| profile.should_sample_vm_frame())
+        .map(|profile| VmFrameProfileTimer::new(Arc::clone(profile)));
+    let mut instruction_fuel = InstructionFuel::new(&budget);
+    let mut previous_profiled_instruction: Option<(usize, &'static str)> = None;
     loop {
         if budget.is_cancelled() || host.externally_cancelled() {
             return Err(RuntimeError::new(
@@ -236,14 +264,39 @@ pub fn execute_vm_frame<H: VmHost>(
                 f.code.last().map(|i| i.span).unwrap_or_default(),
             ));
         }
-        if !budget.consume() {
+        if !instruction_fuel.consume() {
             return Err(RuntimeError::new(
                 "R_STEP_LIMIT",
                 "instruction budget exhausted",
                 f.code[ip].span,
             ));
         }
-        let instruction = f.code[ip].clone();
+        if let Some(profile) = &budget.runtime_profile {
+            let current_opcode = opcode_profile_name(&f.code[ip].op);
+            profile.record_opcode_execution(current_opcode);
+            if let Some((previous_ip, previous_opcode)) = previous_profiled_instruction {
+                if previous_ip.checked_add(1) == Some(ip) {
+                    profile.record_opcode_transition(
+                        &f.name,
+                        previous_opcode,
+                        current_opcode,
+                    );
+                }
+            }
+            previous_profiled_instruction = Some((ip, current_opcode));
+            if let Op::Call(target, _) = &f.code[ip].op {
+                if let Some(callee) = artifact.functions.get(*target) {
+                    profile.record_function_call(&callee.name);
+                }
+            }
+            profile
+                .vm_interpreter_instructions
+                .fetch_add(1, Ordering::Relaxed);
+            if let Some(sample) = &profile_sample {
+                sample.record_instruction();
+            }
+        }
+        let instruction_ref = &f.code[ip];
         ip += 1;
         macro_rules! push_stack {
             ($value:expr) => {{
@@ -265,12 +318,37 @@ pub fn execute_vm_frame<H: VmHost>(
                     RuntimeError::new(
                         "R_STACK_INVALID",
                         "verified bytecode stack underflow",
-                        instruction.span,
+                        instruction_ref.span,
                     )
                 })?
             };
         }
-        match instruction.op {
+        match &instruction_ref.op {
+            Op::Load(slot) => {
+                let value = &locals[*slot];
+                charge_allocation(
+                    budget.as_ref(),
+                    cloned_value_allocation(value),
+                    instruction_ref.span,
+                )?;
+                push_stack!(value.clone());
+                continue;
+            }
+            Op::Store(slot) => {
+                let value = stack.pop().ok_or_else(|| {
+                    RuntimeError::new(
+                        "R_STACK_INVALID",
+                        "verified bytecode stack underflow",
+                        instruction_ref.span,
+                    )
+                })?;
+                locals[*slot] = value;
+                continue;
+            }
+            _ => {}
+        }
+        let instruction = instruction_ref;
+        match &instruction.op {
             Op::Const(v) => {
                 if let Some(error) = value_limit_error_at_boundary(&v, &limits, instruction.span) {
                     return Err(error);
@@ -280,17 +358,17 @@ pub fn execute_vm_frame<H: VmHost>(
                     cloned_value_allocation(&v),
                     instruction.span,
                 )?;
-                push_stack!(v)
+                push_stack!(v.clone())
             }
             Op::Load(slot) => {
                 charge_allocation(
                     budget.as_ref(),
-                    cloned_value_allocation(&locals[slot]),
+                    cloned_value_allocation(&locals[*slot]),
                     instruction.span,
                 )?;
-                push_stack!(locals[slot].clone());
+                push_stack!(locals[*slot].clone());
             }
-            Op::Store(slot) => locals[slot] = pop!(),
+            Op::Store(slot) => locals[*slot] = pop!(),
             Op::Pop => {
                 pop!();
             }
@@ -327,7 +405,7 @@ pub fn execute_vm_frame<H: VmHost>(
                             "R_TYPE_INVALID",
                             "invalid operands for addition",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 if let Some(error) = value_limit_error(&v, &limits, instruction.span) {
@@ -355,7 +433,7 @@ pub fn execute_vm_frame<H: VmHost>(
                             "R_TYPE_INVALID",
                             "invalid operands for subtraction",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 if let Some(error) = value_limit_error(&v, &limits, instruction.span) {
@@ -383,7 +461,7 @@ pub fn execute_vm_frame<H: VmHost>(
                             "R_TYPE_INVALID",
                             "invalid operands for multiplication",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 if let Some(error) = value_limit_error(&v, &limits, instruction.span) {
@@ -497,7 +575,7 @@ pub fn execute_vm_frame<H: VmHost>(
                             "R_TYPE_INVALID",
                             "invalid operand for negation",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 charge_allocation(
@@ -519,7 +597,7 @@ pub fn execute_vm_frame<H: VmHost>(
                 }
             }
             Op::MakeList(count) => {
-                if count > limits.max_collection_items {
+                if *count > limits.max_collection_items {
                     return Err(RuntimeError::new(
                         "R_COLLECTION_LIMIT",
                         "list exceeds the configured item limit",
@@ -532,8 +610,8 @@ pub fn execute_vm_frame<H: VmHost>(
                         .saturating_add(count.saturating_mul(size_of::<Value>())),
                     instruction.span,
                 )?;
-                let mut values = Vec::with_capacity(count);
-                for _ in 0..count {
+                let mut values = Vec::with_capacity(*count);
+                for _ in 0..*count {
                     values.push(pop!());
                 }
                 values.reverse();
@@ -548,7 +626,7 @@ pub fn execute_vm_frame<H: VmHost>(
                 push_stack!(Value::List(Arc::new(Vec::new())));
             }
             Op::MakeMap(count) => {
-                if count > limits.max_collection_items {
+                if *count > limits.max_collection_items {
                     return Err(RuntimeError::new(
                         "R_COLLECTION_LIMIT",
                         "map exceeds the configured item limit",
@@ -562,8 +640,8 @@ pub fn execute_vm_frame<H: VmHost>(
                     instruction.span,
                 )?;
                 let mut values = BTreeMap::new();
-                let mut entries = Vec::with_capacity(count);
-                for _ in 0..count {
+                let mut entries = Vec::with_capacity(*count);
+                for _ in 0..*count {
                     let value = pop!();
                     let key = match pop!() {
                         Value::Text(key) => key,
@@ -572,7 +650,7 @@ pub fn execute_vm_frame<H: VmHost>(
                                 "R_TYPE_INVALID",
                                 "map key must be Text",
                                 instruction.span,
-                            ))
+                            ));
                         }
                     };
                     entries.push((key, value));
@@ -607,14 +685,14 @@ pub fn execute_vm_frame<H: VmHost>(
                 push_stack!(Value::Map(Arc::new(BTreeMap::new())));
             }
             Op::MakeRecord(record_index, count) => {
-                let record = host.artifact().records.get(record_index).ok_or_else(|| {
+                let record = host.artifact().records.get(*record_index).ok_or_else(|| {
                     RuntimeError::new(
                         "R_ARTIFACT_INVALID",
                         "record constructor references a missing definition",
                         instruction.span,
                     )
                 })?;
-                if count != record.fields.len() {
+                if *count != record.fields.len() {
                     return Err(RuntimeError::new(
                         "R_ARTIFACT_INVALID",
                         "record constructor has an invalid field count",
@@ -626,22 +704,22 @@ pub fn execute_vm_frame<H: VmHost>(
                     .saturating_add(record.name.len());
                 charge_allocation(budget.as_ref(), record_bytes, instruction.span)?;
                 budget.record_record_charge(record_bytes);
-                let mut fields = Vec::with_capacity(count);
-                for _ in 0..count {
+                let mut fields = Vec::with_capacity(*count);
+                for _ in 0..*count {
                     fields.push(pop!());
                 }
                 fields.reverse();
                 push_stack!(Value::Record(record.name.clone(), Arc::new(fields)));
             }
             Op::GetField(record_index, field_index) => {
-                let record = host.artifact().records.get(record_index).ok_or_else(|| {
+                let record = host.artifact().records.get(*record_index).ok_or_else(|| {
                     RuntimeError::new(
                         "R_ARTIFACT_INVALID",
                         "field access references a missing record definition",
                         instruction.span,
                     )
                 })?;
-                let Some(expected_field) = record.fields.get(field_index) else {
+                let Some(expected_field) = record.fields.get(*field_index) else {
                     return Err(RuntimeError::new(
                         "R_ARTIFACT_INVALID",
                         "field access references a missing record field",
@@ -662,7 +740,7 @@ pub fn execute_vm_frame<H: VmHost>(
                         instruction.span,
                     ));
                 }
-                let value = fields.get(field_index).cloned().ok_or_else(|| {
+                let value = fields.get(*field_index).cloned().ok_or_else(|| {
                     RuntimeError::new(
                         "R_TYPE_INVALID",
                         "record value has the wrong number of fields",
@@ -702,7 +780,7 @@ pub fn execute_vm_frame<H: VmHost>(
                         "R_TYPE_INVALID",
                         "map keys requires a Map",
                         instruction.span,
-                    ))
+                    ));
                 }
             },
             Op::MapSet => {
@@ -714,7 +792,7 @@ pub fn execute_vm_frame<H: VmHost>(
                             "R_TYPE_INVALID",
                             "map_set key must be Text",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 let values = match pop!() {
@@ -724,7 +802,7 @@ pub fn execute_vm_frame<H: VmHost>(
                             "R_TYPE_INVALID",
                             "map_set first argument must be a Map",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 let local_store_slot = match f.code.get(ip).map(|next| &next.op) {
@@ -737,6 +815,166 @@ pub fn execute_vm_frame<H: VmHost>(
                         }
                         _ => None,
                     };
+                if let Some((child_slot, parent_slot, parent_key)) = local_store_slot
+                    .and_then(|child_slot| {
+                        unique_pending_nested_map_writeback_target(
+                            &f.code,
+                            ip,
+                            child_slot,
+                            &locals,
+                            &values,
+                        )
+                        .map(|(parent_slot, parent_key)| {
+                            (child_slot, parent_slot, parent_key)
+                        })
+                    })
+                {
+                    let contains_key = values.contains_key(key.as_ref());
+                    if !contains_key && values.len() >= limits.max_collection_items {
+                        return Err(RuntimeError::new(
+                            "R_COLLECTION_LIMIT",
+                            "map exceeds the configured item limit",
+                            instruction.span,
+                        ));
+                    }
+                    if key.len() > limits.max_text_bytes {
+                        return Err(RuntimeError::new(
+                            "R_TEXT_LIMIT",
+                            "map key exceeds the configured text limit",
+                            instruction.span,
+                        ));
+                    }
+                    let allocation = if contains_key {
+                        0
+                    } else {
+                        size_of::<(String, Value)>().saturating_add(key.len())
+                    };
+                    charge_allocation(budget.as_ref(), allocation, instruction.span)?;
+                    if let Some(error) = value_limit_error(&value, &limits, instruction.span) {
+                        return Err(error);
+                    }
+
+                    // This child update is followed only by the proven parent writeback.
+                    // With unique parent/child ownership, updating the nested map now is
+                    // observationally equivalent to the two persistent map_set calls.
+                    drop(values);
+                    let old_child = std::mem::replace(
+                        locals.get_mut(child_slot).ok_or_else(|| {
+                            RuntimeError::new(
+                                "R_LOCAL_UNINITIALIZED",
+                                "nested map update targets an uninitialized local",
+                                instruction.span,
+                            )
+                        })?,
+                        Value::Unit,
+                    );
+                    drop(old_child);
+                    let updated = {
+                        let parent_local = locals.get_mut(parent_slot).ok_or_else(|| {
+                            RuntimeError::new(
+                                "R_LOCAL_UNINITIALIZED",
+                                "nested map parent is uninitialized",
+                                instruction.span,
+                            )
+                        })?;
+                        let Value::Map(parent_arc) = parent_local else {
+                            return Err(RuntimeError::new(
+                                "R_TYPE_INVALID",
+                                "nested map update parent must be a Map",
+                                instruction.span,
+                            ));
+                        };
+                        let parent_values = Arc::get_mut(parent_arc)
+                            .expect("nested writeback parent uniqueness was checked before mutation");
+                        let Some(Value::Map(inner_arc)) =
+                            parent_values.get_mut(parent_key.as_ref())
+                        else {
+                            unreachable!("nested writeback child was checked before mutation")
+                        };
+                        let inner_values = Arc::get_mut(inner_arc)
+                            .expect("nested writeback child uniqueness was checked before mutation");
+                        replace_map_value(inner_values, key.as_ref(), value);
+                        Value::Map(Arc::clone(inner_arc))
+                    };
+                    locals[child_slot] = updated.clone();
+                    stack.push(updated);
+                    if let Some(profile) = &budget.runtime_profile {
+                        profile.record_map_set(true, 0);
+                    }
+                    continue;
+                }
+                if let Some((parent_slot, parent_key)) =
+                    unique_nested_map_update_target(&f.code, ip, &stack, &locals, &values)
+                {
+                    let contains_key = values.contains_key(key.as_ref());
+                    if !contains_key && values.len() >= limits.max_collection_items {
+                        return Err(RuntimeError::new(
+                            "R_COLLECTION_LIMIT",
+                            "map exceeds the configured item limit",
+                            instruction.span,
+                        ));
+                    }
+                    if key.len() > limits.max_text_bytes {
+                        return Err(RuntimeError::new(
+                            "R_TEXT_LIMIT",
+                            "map key exceeds the configured text limit",
+                            instruction.span,
+                        ));
+                    }
+                    let allocation = if contains_key {
+                        0
+                    } else {
+                        size_of::<(String, Value)>().saturating_add(key.len())
+                    };
+                    charge_allocation(budget.as_ref(), allocation, instruction.span)?;
+                    if let Some(error) = value_limit_error(&value, &limits, instruction.span) {
+                        return Err(error);
+                    }
+
+                    // The parent map is unique apart from its local and stack handles, and
+                    // this child map is unique apart from its parent entry and this value.
+                    // The following MapSet/Store writes the child back to that same parent,
+                    // so the intermediate child update can preserve value semantics without
+                    // cloning the entire nested map.
+                    drop(stack.pop()); // parent key; copied above
+                    drop(stack.pop()); // parent map; its local is now the unique owner
+                    drop(values); // only the parent entry owns the child after this point
+                    let parent_local = locals.get_mut(parent_slot).ok_or_else(|| {
+                        RuntimeError::new(
+                            "R_LOCAL_UNINITIALIZED",
+                            "nested map update targets an uninitialized local",
+                            instruction.span,
+                        )
+                    })?;
+                    let Value::Map(parent_arc) = parent_local else {
+                        return Err(RuntimeError::new(
+                            "R_TYPE_INVALID",
+                            "nested map update parent must be a Map",
+                            instruction.span,
+                        ));
+                    };
+                    let nested_result = {
+                        let parent_values = Arc::get_mut(parent_arc)
+                            .expect("nested update parent uniqueness was checked before mutation");
+                        let Some(Value::Map(inner_arc)) =
+                            parent_values.get_mut(parent_key.as_ref())
+                        else {
+                            unreachable!("nested update target was checked before mutation")
+                        };
+                        let inner_values = Arc::get_mut(inner_arc)
+                            .expect("nested update child uniqueness was checked before mutation");
+                        replace_map_value(inner_values, key.as_ref(), value);
+                        Value::Map(Arc::clone(inner_arc))
+                    };
+                    let parent_result = Value::Map(Arc::clone(parent_arc));
+                    stack.push(parent_result);
+                    stack.push(Value::Text(parent_key));
+                    stack.push(nested_result);
+                    if let Some(profile) = &budget.runtime_profile {
+                        profile.record_map_set(true, 0);
+                    }
+                    continue;
+                }
                 if let Some(slot) = local_store_slot {
                     // The compiler emits Store immediately after this expression when a
                     // mutable local is assigned its own map_set result. Drop the temporary
@@ -784,6 +1022,9 @@ pub fn execute_vm_frame<H: VmHost>(
                         return Err(error);
                     }
                     replace_map_value(Arc::make_mut(items), key.as_ref(), value);
+                    if let Some(profile) = &budget.runtime_profile {
+                        profile.record_map_set(!shared, if shared { allocation } else { 0 });
+                    }
                     push_stack!(Value::Map(Arc::clone(items)));
                     continue;
                 }
@@ -807,6 +1048,9 @@ pub fn execute_vm_frame<H: VmHost>(
                 charge_allocation(budget.as_ref(), map_clone_bytes, instruction.span)?;
                 let mut updated = values.as_ref().clone();
                 replace_map_value(&mut updated, key.as_ref(), value);
+                if let Some(profile) = &budget.runtime_profile {
+                    profile.record_map_set(false, map_clone_bytes);
+                }
                 let map = Value::Map(Arc::new(updated));
                 if let Some(error) = value_limit_error(&map, &limits, instruction.span) {
                     return Err(error);
@@ -821,7 +1065,7 @@ pub fn execute_vm_frame<H: VmHost>(
                             "R_TYPE_INVALID",
                             "map_has key must be Text",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 let values = match pop!() {
@@ -831,7 +1075,7 @@ pub fn execute_vm_frame<H: VmHost>(
                             "R_TYPE_INVALID",
                             "map_has first argument must be a Map",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 push_stack!(Value::Bool(values.contains_key(key.as_ref())));
@@ -848,7 +1092,7 @@ pub fn execute_vm_frame<H: VmHost>(
                             "R_TYPE_INVALID",
                             "len requires a List, Map, Bytes, or Text",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 push_stack!(Value::Int(BigInt::parse(&len.to_string()).unwrap()));
@@ -861,7 +1105,7 @@ pub fn execute_vm_frame<H: VmHost>(
                             "R_TYPE_INVALID",
                             "text_chars requires Text",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 let count = text.chars().count();
@@ -884,6 +1128,103 @@ pub fn execute_vm_frame<H: VmHost>(
                     .collect::<Vec<_>>();
                 push_stack!(Value::from_list_items(values));
             }
+            Op::TextSlice => {
+                let end = match pop!() {
+                    Value::Int(index) => index.to_usize().ok_or_else(|| {
+                        RuntimeError::new(
+                            "R_INDEX_INVALID",
+                            "text slice bounds must be non-negative machine-sized integers",
+                            instruction.span,
+                        )
+                    })?,
+                    _ => {
+                        return Err(RuntimeError::new(
+                            "R_TYPE_INVALID",
+                            "text_slice end bound must be Int",
+                            instruction.span,
+                        ));
+                    }
+                };
+                let start = match pop!() {
+                    Value::Int(index) => index.to_usize().ok_or_else(|| {
+                        RuntimeError::new(
+                            "R_INDEX_INVALID",
+                            "text slice bounds must be non-negative machine-sized integers",
+                            instruction.span,
+                        )
+                    })?,
+                    _ => {
+                        return Err(RuntimeError::new(
+                            "R_TYPE_INVALID",
+                            "text_slice start bound must be Int",
+                            instruction.span,
+                        ));
+                    }
+                };
+                let text = match pop!() {
+                    Value::Text(text) => text,
+                    _ => {
+                        return Err(RuntimeError::new(
+                            "R_TYPE_INVALID",
+                            "text_slice requires Text",
+                            instruction.span,
+                        ));
+                    }
+                };
+                if start > end {
+                    return Err(RuntimeError::new(
+                        "R_INDEX_BOUNDS",
+                        format!(
+                            "text slice start {start} exceeds end {end}"
+                        ),
+                        instruction.span,
+                    ));
+                }
+                let mut scalar_index = 0;
+                let mut byte_start = (start == 0).then_some(0);
+                let mut byte_end = (end == 0).then_some(0);
+                let mut reached_end = false;
+                for (byte_index, _) in text.char_indices() {
+                    if scalar_index == start {
+                        byte_start = Some(byte_index);
+                    }
+                    if scalar_index == end {
+                        byte_end = Some(byte_index);
+                        reached_end = true;
+                        break;
+                    }
+                    scalar_index += 1;
+                }
+                if byte_start.is_none() && start == scalar_index {
+                    byte_start = Some(text.len());
+                }
+                if byte_end.is_none() && end == scalar_index {
+                    byte_end = Some(text.len());
+                }
+                if end > scalar_index {
+                    return Err(RuntimeError::new(
+                        "R_INDEX_BOUNDS",
+                        format!(
+                            "text slice range {start}..{end} is out of bounds for length {scalar_index}"
+                        ),
+                        instruction.span,
+                    ));
+                }
+                let byte_start = byte_start.expect("validated text slice start");
+                let byte_end = byte_end.expect("validated text slice end");
+                if start == 0 && !reached_end {
+                    push_stack!(Value::Text(text));
+                    continue;
+                }
+                let sliced = &text[byte_start..byte_end];
+                let value = Value::Text(Arc::<str>::from(sliced));
+                charge_allocation(
+                    budget.as_ref(),
+                    new_value_allocation(&value),
+                    instruction.span,
+                )?;
+                push_stack!(value);
+            }
             Op::TextJoin => {
                 let delimiter = match pop!() {
                     Value::Text(text) => text,
@@ -892,7 +1233,7 @@ pub fn execute_vm_frame<H: VmHost>(
                             "R_TYPE_INVALID",
                             "text_join_native requires Text delimiter",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 let values = match pop!() {
@@ -902,7 +1243,7 @@ pub fn execute_vm_frame<H: VmHost>(
                             "R_TYPE_INVALID",
                             "text_join_native requires List[Text]",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 if values.len() > limits.max_collection_items {
@@ -966,7 +1307,7 @@ pub fn execute_vm_frame<H: VmHost>(
                             "R_TYPE_INVALID",
                             "bytes_from_ints requires List[Int]",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 if values.len() > limits.max_collection_items {
@@ -1012,7 +1353,7 @@ pub fn execute_vm_frame<H: VmHost>(
                             "R_TYPE_INVALID",
                             "bytes_from_text requires Text",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 if text.len() > 64 * 1024 * 1024 {
@@ -1033,7 +1374,7 @@ pub fn execute_vm_frame<H: VmHost>(
                             "R_TYPE_INVALID",
                             "bytes_join requires List[Bytes]",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 if values.len() > limits.max_collection_items {
@@ -1085,7 +1426,7 @@ pub fn execute_vm_frame<H: VmHost>(
                         "R_TYPE_INVALID",
                         "float64_bits requires Float64",
                         instruction.span,
-                    ))
+                    ));
                 }
             },
             Op::Index => {
@@ -1197,35 +1538,35 @@ pub fn execute_vm_frame<H: VmHost>(
                             "R_INDEX_INVALID",
                             "list index must be Int",
                             instruction.span,
-                        ))
+                        ));
                     }
                     (Value::Float64List(_), _) => {
                         return Err(RuntimeError::new(
                             "R_INDEX_INVALID",
                             "list index must be Int",
                             instruction.span,
-                        ))
+                        ));
                     }
                     (Value::Map(_), _) => {
                         return Err(RuntimeError::new(
                             "R_INDEX_INVALID",
                             "map index must be Text",
                             instruction.span,
-                        ))
+                        ));
                     }
                     (Value::Text(_), _) => {
                         return Err(RuntimeError::new(
                             "R_INDEX_INVALID",
                             "text index must be Int",
                             instruction.span,
-                        ))
+                        ));
                     }
                     _ => {
                         return Err(RuntimeError::new(
                             "R_TYPE_INVALID",
                             "index requires a List, Map, or Text",
                             instruction.span,
-                        ))
+                        ));
                     }
                 }
             }
@@ -1240,7 +1581,7 @@ pub fn execute_vm_frame<H: VmHost>(
                             "R_TYPE_INVALID",
                             "list_push first argument must be a List",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 if items >= limits.max_collection_items {
@@ -1285,7 +1626,7 @@ pub fn execute_vm_frame<H: VmHost>(
             }
             Op::ListPushLocal(slot) => {
                 let value = pop!();
-                let local = locals.get_mut(slot).ok_or_else(|| {
+                let local = locals.get_mut(*slot).ok_or_else(|| {
                     RuntimeError::new(
                         "R_LOCAL_UNINITIALIZED",
                         "list_push assignment targets an uninitialized local",
@@ -1371,7 +1712,7 @@ pub fn execute_vm_frame<H: VmHost>(
                             "R_LIST_INDEX",
                             "list_set index must be Int",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 let list_value = pop!();
@@ -1383,7 +1724,7 @@ pub fn execute_vm_frame<H: VmHost>(
                             "R_TYPE_INVALID",
                             "list_set first argument must be a List",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 if index >= len {
@@ -1442,10 +1783,10 @@ pub fn execute_vm_frame<H: VmHost>(
                             "R_LIST_INDEX",
                             "list_set index must be Int",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
-                let local = locals.get_mut(slot).ok_or_else(|| {
+                let local = locals.get_mut(*slot).ok_or_else(|| {
                     RuntimeError::new(
                         "R_LOCAL_UNINITIALIZED",
                         "list_set assignment targets an uninitialized local",
@@ -1460,7 +1801,7 @@ pub fn execute_vm_frame<H: VmHost>(
                             "R_TYPE_INVALID",
                             "list_set assignment target must be a List",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 if index >= len {
@@ -1548,12 +1889,12 @@ pub fn execute_vm_frame<H: VmHost>(
                 };
                 push_stack!(Value::Bool(value));
             }
-            Op::Jump(target) => ip = target,
+            Op::Jump(target) => ip = *target,
             Op::JumpIfFalse(target) => {
                 if let Value::Bool(c) = pop!() {
                     budget.record_guest_conditional_branch();
                     if !c {
-                        ip = target;
+                        ip = *target;
                     }
                 } else {
                     return Err(RuntimeError::new(
@@ -1564,8 +1905,49 @@ pub fn execute_vm_frame<H: VmHost>(
                 }
             }
             Op::Call(target, argc) => {
-                let mut call_args = Vec::with_capacity(argc);
-                for _ in 0..argc {
+                if *argc == fast_host_forwarders
+                    .get(*target)
+                    .and_then(|forwarder| *forwarder)
+                    .map(|forwarder| forwarder.argument_count)
+                    .unwrap_or(usize::MAX)
+                    && stack.len() >= *argc
+                {
+                    if let Some(forwarder) = fast_host_forwarders.get(*target).and_then(|value| *value)
+                    {
+                        if let Err(mut error) =
+                            check_call_depth(&artifact, &limits, *target, depth.saturating_add(1))
+                        {
+                            error.trace.push(instruction.span);
+                            return Err(error);
+                        }
+                        match execute_fast_host_forwarder(
+                            host,
+                            &artifact,
+                            *target,
+                            forwarder,
+                            &mut stack,
+                            &mut locals,
+                            &budget,
+                            &mut instruction_fuel,
+                            depth.saturating_add(1),
+                        ) {
+                            Ok(value) => {
+                                push_stack!(value);
+                                continue;
+                            }
+                            Err(mut error) => {
+                                error.trace.push(instruction.span);
+                                return Err(error);
+                            }
+                        }
+                    }
+                }
+                let local_count = artifact
+                    .functions
+                    .get(*target)
+                    .map_or(*argc, |callee| callee.local_count);
+                let mut call_args = Vec::with_capacity(local_count.max(*argc));
+                for _ in 0..*argc {
                     call_args.push(pop!());
                 }
                 call_args.reverse();
@@ -1578,7 +1960,7 @@ pub fn execute_vm_frame<H: VmHost>(
                         stack,
                         ip,
                     },
-                    target,
+                    target: *target,
                     args: call_args,
                     span: instruction.span,
                 });
@@ -1590,14 +1972,14 @@ pub fn execute_vm_frame<H: VmHost>(
                         "R_ASSERTION",
                         "assertion failed",
                         instruction.span,
-                    ))
+                    ));
                 }
                 _ => {
                     return Err(RuntimeError::new(
                         "R_TYPE_INVALID",
                         "assert requires Bool",
                         instruction.span,
-                    ))
+                    ));
                 }
             },
             Op::IsOk => match pop!() {
@@ -1608,7 +1990,7 @@ pub fn execute_vm_frame<H: VmHost>(
                         "R_TYPE_INVALID",
                         "is_ok requires Result",
                         instruction.span,
-                    ))
+                    ));
                 }
             },
             Op::IsSome => match pop!() {
@@ -1619,7 +2001,7 @@ pub fn execute_vm_frame<H: VmHost>(
                         "R_TYPE_INVALID",
                         "is_some requires Option",
                         instruction.span,
-                    ))
+                    ));
                 }
             },
             Op::Unwrap => match pop!() {
@@ -1630,21 +2012,21 @@ pub fn execute_vm_frame<H: VmHost>(
                         "R_RESULT_UNWRAP",
                         "cannot unwrap an Err result",
                         instruction.span,
-                    ))
+                    ));
                 }
                 Value::OptionNone => {
                     return Err(RuntimeError::new(
                         "R_OPTION_UNWRAP",
                         "cannot unwrap None",
                         instruction.span,
-                    ))
+                    ));
                 }
                 _ => {
                     return Err(RuntimeError::new(
                         "R_TYPE_INVALID",
                         "unwrap requires Result or Option",
                         instruction.span,
-                    ))
+                    ));
                 }
             },
             Op::GetError => match pop!() {
@@ -1654,14 +2036,14 @@ pub fn execute_vm_frame<H: VmHost>(
                         "R_RESULT_ERROR",
                         "cannot get the error from an Ok result",
                         instruction.span,
-                    ))
+                    ));
                 }
                 _ => {
                     return Err(RuntimeError::new(
                         "R_TYPE_INVALID",
                         "error requires Result",
                         instruction.span,
-                    ))
+                    ));
                 }
             },
             Op::MakeOk => {
@@ -1688,7 +2070,7 @@ pub fn execute_vm_frame<H: VmHost>(
                         "R_TYPE_INVALID",
                         "`?` requires Result",
                         instruction.span,
-                    ))
+                    ));
                 }
             },
             Op::Print | Op::PrintErr => {
@@ -1726,16 +2108,283 @@ pub fn execute_vm_frame<H: VmHost>(
                 }
                 return Ok(VmStep::Return(result));
             }
-            _ => host.host_op(HostOpContext {
-                instruction,
-                function: f,
-                stack: &mut stack,
-                locals: &mut locals,
-                budget: &budget,
-                depth,
-            })?,
+            _ => {
+                instruction_fuel.flush();
+                host.host_op(HostOpContext {
+                    instruction: instruction.clone(),
+                    function: f,
+                    stack: &mut stack,
+                    locals: &mut locals,
+                    budget: &budget,
+                    depth,
+                })?
+            }
         }
     }
+}
+
+#[derive(Clone, Copy)]
+struct FastHostForwarder {
+    argument_count: usize,
+    host_operation_ip: usize,
+}
+
+fn fast_host_forwarder(function: &guion_model::Function) -> Option<FastHostForwarder> {
+    let argument_count = function.parameters.len();
+    if function.local_count != argument_count || function.code.len() != argument_count + 2 {
+        return None;
+    }
+    for (slot, instruction) in function.code.iter().take(argument_count).enumerate() {
+        if !matches!(instruction.op, Op::Load(loaded) if loaded == slot) {
+            return None;
+        }
+    }
+    let host_operation_ip = argument_count;
+    let host_operation = &function.code[host_operation_ip].op;
+    let expected_arguments = match host_operation {
+        Op::JsonTryGet | Op::JsonTryIndex => 2,
+        Op::JsonTryText
+        | Op::JsonTryInt
+        | Op::JsonTryBool
+        | Op::JsonTryFloat
+        | Op::FileNextLine
+        | Op::TextCollapseWhitespace
+        | Op::TimeParseTimestamp
+        | Op::TimeFormatUtc
+        | Op::TimeFormatUtcDate
+        | Op::HttpResponseJson
+        | Op::MakeSome => 1,
+        Op::MakeNone => 0,
+        _ => return None,
+    };
+    if expected_arguments != argument_count
+        || !matches!(function.code.last().map(|instruction| &instruction.op), Some(Op::Return))
+    {
+        return None;
+    }
+    Some(FastHostForwarder {
+        argument_count,
+        host_operation_ip,
+    })
+}
+
+fn execute_fast_host_forwarder<H: VmHost>(
+    host: &mut H,
+    artifact: &Artifact,
+    target: usize,
+    forwarder: FastHostForwarder,
+    stack: &mut Vec<Value>,
+    locals: &mut Vec<Value>,
+    budget: &Arc<Budget>,
+    instruction_fuel: &mut InstructionFuel<'_>,
+    depth: usize,
+) -> Result<Value, RuntimeError> {
+    let function = artifact.functions.get(target).ok_or_else(|| {
+        RuntimeError::new(
+            "R_CALL_TARGET",
+            "function call target is outside the artifact",
+            Span::default(),
+        )
+    })?;
+    let argument_start = stack.len().checked_sub(forwarder.argument_count).ok_or_else(|| {
+        RuntimeError::new(
+            "R_STACK_UNDERFLOW",
+            "function call has fewer stack values than arguments",
+            function.code.first().map(|instruction| instruction.span).unwrap_or_default(),
+        )
+    })?;
+    let profile_sample = budget
+        .runtime_profile
+        .as_ref()
+        .filter(|profile| profile.should_sample_vm_frame())
+        .map(|profile| VmFrameProfileTimer::new(Arc::clone(profile)));
+    for (ip, instruction) in function.code.iter().enumerate() {
+        if budget.is_cancelled() || host.externally_cancelled() {
+            return Err(RuntimeError::new(
+                "R_CANCELLED",
+                "parallel task was cancelled after a sibling failed",
+                instruction.span,
+            ));
+        }
+        if !instruction_fuel.consume() {
+            return Err(RuntimeError::new(
+                "R_STEP_LIMIT",
+                "instruction budget exhausted",
+                instruction.span,
+            ));
+        }
+        if let Some(profile) = &budget.runtime_profile {
+            profile.record_opcode_execution(opcode_profile_name(&instruction.op));
+            profile
+                .vm_interpreter_instructions
+                .fetch_add(1, Ordering::Relaxed);
+            if let Some(sample) = &profile_sample {
+                sample.record_instruction();
+            }
+        }
+        if ip < forwarder.argument_count {
+            if !matches!(instruction.op, Op::Load(_)) {
+                unreachable!("forwarder descriptor only accepts parameter loads")
+            }
+            // The caller's argument values already occupy the exact stack positions the
+            // forwarding operation needs. Avoid cloning each value and pushing a second
+            // copy; the host operation consumes these arguments, and the caller discards
+            // them when this call returns.
+        } else if ip == forwarder.host_operation_ip {
+            match &instruction.op {
+                Op::MakeNone => stack.push(Value::OptionNone),
+                Op::MakeSome => {
+                    let value = stack.pop().ok_or_else(|| {
+                        RuntimeError::new(
+                            "R_STACK_UNDERFLOW",
+                            "option constructor is missing its value",
+                            instruction.span,
+                        )
+                    })?;
+                    charge_allocation(budget, size_of::<Value>(), instruction.span)?;
+                    stack.push(Value::OptionSome(Box::new(value)));
+                }
+                _ => {
+                    instruction_fuel.flush();
+                    host.host_op(HostOpContext {
+                        instruction: instruction.clone(),
+                        function,
+                        stack,
+                        locals,
+                        budget,
+                        depth,
+                    })?
+                }
+            }
+        } else {
+            let result = stack.pop().ok_or_else(|| {
+                RuntimeError::new(
+                    "R_STACK_UNDERFLOW",
+                    "forwarding function returned without a value",
+                    instruction.span,
+                )
+            })?;
+            if !value_matches(&result, &function.result, &artifact.records) {
+                return Err(RuntimeError::new(
+                    "R_RETURN_INVALID",
+                    "function returned a value with an invalid type",
+                    instruction.span,
+                ));
+            }
+            if let Some(error) = value_limit_error(&result, &host.limits(), instruction.span) {
+                return Err(error);
+            }
+            stack.truncate(argument_start);
+            return Ok(result);
+        }
+    }
+    Err(RuntimeError::new(
+        "R_NO_RETURN",
+        format!("function `{}` reached the end without returning", function.name),
+        function.code.last().map(|instruction| instruction.span).unwrap_or_default(),
+    ))
+}
+
+fn unique_nested_map_update_target(
+    code: &[guion_model::Instruction],
+    next_ip: usize,
+    stack: &[Value],
+    locals: &[Value],
+    inner: &Arc<BTreeMap<String, Value>>,
+) -> Option<(usize, Arc<str>)> {
+    let Some(Op::MapSet) = code.get(next_ip).map(|instruction| &instruction.op) else {
+        return None;
+    };
+    let Some(Op::Store(parent_slot)) = code.get(next_ip + 1).map(|instruction| &instruction.op)
+    else {
+        return None;
+    };
+    let [.., Value::Map(parent), Value::Text(parent_key)] = stack else {
+        return None;
+    };
+    let Some(Value::Map(local_parent)) = locals.get(*parent_slot) else {
+        return None;
+    };
+    if !Arc::ptr_eq(parent, local_parent)
+        || Arc::strong_count(parent) != 2
+        || Arc::strong_count(inner) != 2
+        || !matches!(parent.get(parent_key.as_ref()), Some(Value::Map(child)) if Arc::ptr_eq(child, inner))
+    {
+        return None;
+    }
+    Some((*parent_slot, Arc::clone(parent_key)))
+}
+
+fn unique_pending_nested_map_writeback_target(
+    code: &[guion_model::Instruction],
+    child_store_ip: usize,
+    child_slot: usize,
+    locals: &[Value],
+    inner: &Arc<BTreeMap<String, Value>>,
+) -> Option<(usize, Arc<str>)> {
+    let Some(Op::Store(stored_child)) = code.get(child_store_ip).map(|instruction| &instruction.op)
+    else {
+        return None;
+    };
+    if *stored_child != child_slot {
+        return None;
+    }
+
+    // The only instructions allowed between storing the updated child and the
+    // outer map_set are unconditional branch joins. Reject any expression that
+    // could observe either local before the parent writeback.
+    let mut ip = child_store_ip.checked_add(1)?;
+    let mut writeback = None;
+    for _ in 0..16 {
+        match &code.get(ip)?.op {
+            Op::Jump(target) => ip = *target,
+            Op::Load(parent_slot) if *parent_slot != child_slot => {
+                let parent_key = match &code.get(ip + 1)?.op {
+                    Op::Load(key_slot) => match locals.get(*key_slot)? {
+                        Value::Text(key) => Arc::clone(key),
+                        _ => return None,
+                    },
+                    Op::Const(Value::Text(key)) => Arc::clone(key),
+                    _ => return None,
+                };
+                if !matches!(code.get(ip + 2).map(|instruction| &instruction.op), Some(Op::Load(slot)) if *slot == child_slot)
+                    || !matches!(code.get(ip + 3).map(|instruction| &instruction.op), Some(Op::MapSet))
+                    || !matches!(code.get(ip + 4).map(|instruction| &instruction.op), Some(Op::Store(slot)) if *slot == *parent_slot)
+                {
+                    return None;
+                }
+                writeback = Some((*parent_slot, parent_key));
+                break;
+            }
+            _ => return None,
+        }
+    }
+    let (parent_slot, parent_key) = writeback?;
+
+    let Some(Value::Map(local_child)) = locals.get(child_slot) else {
+        return None;
+    };
+    let Some(Value::Map(parent)) = locals.get(parent_slot) else {
+        return None;
+    };
+    if !Arc::ptr_eq(local_child, inner)
+        || Arc::strong_count(parent) != 1
+        || Arc::strong_count(inner) != 3
+    {
+        return None;
+    }
+    let mut matching_key = None;
+    for (key, value) in parent.iter() {
+        if matches!(value, Value::Map(child) if Arc::ptr_eq(child, inner)) {
+            if matching_key.replace(key.as_str()).is_some() {
+                return None;
+            }
+        }
+    }
+    if matching_key != Some(parent_key.as_ref()) {
+        return None;
+    }
+    Some((parent_slot, parent_key))
 }
 
 #[derive(Debug, Default)]
@@ -1757,9 +2406,131 @@ pub struct RuntimeProfileCounters {
     pub record_charge_events: AtomicUsize,
     pub record_estimated_bytes: AtomicUsize,
     pub dynamic_guest_conditional_branches: AtomicUsize,
+    pub vm_interpreter_instructions: AtomicUsize,
+    pub vm_interpreter_frames: AtomicUsize,
+    pub vm_sampled_frames: AtomicUsize,
+    pub vm_sampled_instructions: AtomicUsize,
+    pub vm_sampled_nanoseconds: AtomicU64,
+    pub json_parse_nanoseconds: AtomicU64,
+    pub json_metrics_nanoseconds: AtomicU64,
+    pub opcode_executions: Mutex<BTreeMap<&'static str, u64>>,
+    pub opcode_transition_counts: Mutex<BTreeMap<String, u64>>,
+    pub function_call_counts: Mutex<BTreeMap<String, u64>>,
+    pub host_operation_counts: Mutex<BTreeMap<&'static str, u64>>,
+    pub host_operation_nanoseconds: Mutex<BTreeMap<&'static str, u64>>,
+    pub map_set_operations: AtomicUsize,
+    pub map_set_in_place_updates: AtomicUsize,
+    pub map_set_copy_on_write_copies: AtomicUsize,
+    pub map_set_estimated_copy_bytes: AtomicUsize,
+    pub json_set_operations: AtomicUsize,
+    pub json_set_copy_on_write_copies: AtomicUsize,
+    pub json_set_estimated_copy_bytes: AtomicUsize,
 }
 
 impl RuntimeProfileCounters {
+    #[inline]
+    pub fn record_opcode_execution(&self, name: &'static str) {
+        *self
+            .opcode_executions
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .entry(name)
+            .or_default() += 1;
+    }
+
+    #[inline]
+    pub fn record_opcode_transition(
+        &self,
+        function_name: &str,
+        previous: &'static str,
+        current: &'static str,
+    ) {
+        let key = format!("{function_name}::{previous}->{current}");
+        *self
+            .opcode_transition_counts
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .entry(key)
+            .or_default() += 1;
+    }
+
+    #[inline]
+    pub fn record_function_call(&self, name: &str) {
+        *self
+            .function_call_counts
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .entry(name.to_owned())
+            .or_default() += 1;
+    }
+
+    #[inline]
+    pub fn should_sample_vm_frame(&self) -> bool {
+        self.vm_interpreter_frames.fetch_add(1, Ordering::Relaxed) % 1024 == 0
+    }
+
+    #[inline]
+    pub fn record_vm_sample(&self, instructions: usize, nanoseconds: u64) {
+        self.vm_sampled_frames.fetch_add(1, Ordering::Relaxed);
+        self.vm_sampled_instructions
+            .fetch_add(instructions, Ordering::Relaxed);
+        self.vm_sampled_nanoseconds
+            .fetch_add(nanoseconds, Ordering::Relaxed);
+    }
+
+    #[inline]
+    pub fn record_host_operation(&self, name: &'static str, nanoseconds: u64) {
+        *self
+            .host_operation_counts
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .entry(name)
+            .or_default() += 1;
+        *self
+            .host_operation_nanoseconds
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .entry(name)
+            .or_default() += nanoseconds;
+    }
+
+    #[inline]
+    pub fn record_json_parse(&self, nanoseconds: u64) {
+        self.json_parse_nanoseconds
+            .fetch_add(nanoseconds, Ordering::Relaxed);
+    }
+
+    #[inline]
+    pub fn record_json_metrics(&self, nanoseconds: u64) {
+        self.json_metrics_nanoseconds
+            .fetch_add(nanoseconds, Ordering::Relaxed);
+    }
+
+    #[inline]
+    pub fn record_map_set(&self, in_place: bool, copied_bytes: usize) {
+        self.map_set_operations.fetch_add(1, Ordering::Relaxed);
+        if in_place {
+            self.map_set_in_place_updates
+                .fetch_add(1, Ordering::Relaxed);
+        } else {
+            self.map_set_copy_on_write_copies
+                .fetch_add(1, Ordering::Relaxed);
+            self.map_set_estimated_copy_bytes
+                .fetch_add(copied_bytes, Ordering::Relaxed);
+        }
+    }
+
+    #[inline]
+    pub fn record_json_set(&self, copied_bytes: usize) {
+        self.json_set_operations.fetch_add(1, Ordering::Relaxed);
+        if copied_bytes > 0 {
+            self.json_set_copy_on_write_copies
+                .fetch_add(1, Ordering::Relaxed);
+            self.json_set_estimated_copy_bytes
+                .fetch_add(copied_bytes, Ordering::Relaxed);
+        }
+    }
+
     #[inline]
     pub fn record_allocation_charge(&self, bytes: usize) {
         self.allocation_charge_events
@@ -1830,6 +2601,41 @@ impl RuntimeProfileCounters {
                 "estimated_copy_bytes": bucket.estimated_copy_bytes.load(Ordering::Relaxed),
             })
         };
+        let opcode_executions = self
+            .opcode_executions
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .iter()
+            .map(|(name, count)| ((*name).to_owned(), serde_json::json!(count)))
+            .collect::<serde_json::Map<_, _>>();
+        let opcode_transition_counts = self
+            .opcode_transition_counts
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .iter()
+            .map(|(name, count)| (name.clone(), serde_json::json!(count)))
+            .collect::<serde_json::Map<_, _>>();
+        let function_call_counts = self
+            .function_call_counts
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .iter()
+            .map(|(name, count)| (name.clone(), serde_json::json!(count)))
+            .collect::<serde_json::Map<_, _>>();
+        let host_operation_counts = self
+            .host_operation_counts
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .iter()
+            .map(|(name, count)| ((*name).to_owned(), serde_json::json!(count)))
+            .collect::<serde_json::Map<_, _>>();
+        let host_operation_nanoseconds = self
+            .host_operation_nanoseconds
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .iter()
+            .map(|(name, nanos)| ((*name).to_owned(), serde_json::json!(nanos)))
+            .collect::<serde_json::Map<_, _>>();
         serde_json::json!({
             "scope": "latest guest invocation",
             "estimated_guest_allocation_budget_charges": {
@@ -1858,11 +2664,248 @@ impl RuntimeProfileCounters {
                 "estimated_bytes": self.record_estimated_bytes.load(Ordering::Relaxed),
             },
             "dynamic_guest_conditional_branch_executions": self.dynamic_guest_conditional_branches.load(Ordering::Relaxed),
+            "opcode_executions": opcode_executions,
+            "opcode_transition_counts": opcode_transition_counts,
+            "function_call_counts": function_call_counts,
+            "vm_interpreter": {
+                "instructions": self.vm_interpreter_instructions.load(Ordering::Relaxed),
+                "frames": self.vm_interpreter_frames.load(Ordering::Relaxed),
+                "sampled_frames": self.vm_sampled_frames.load(Ordering::Relaxed),
+                "sampled_instructions": self.vm_sampled_instructions.load(Ordering::Relaxed),
+                "sampled_nanoseconds": self.vm_sampled_nanoseconds.load(Ordering::Relaxed),
+                "sample_rate_frames": 1024,
+                "sampled_wall_time_is_inclusive_of_host_operations": true,
+            },
+            "host_operations": {
+                "counts": host_operation_counts,
+                "inclusive_nanoseconds": host_operation_nanoseconds,
+            },
+            "json_phase_nanoseconds": {
+                "parse_and_reserved_key_handling": self.json_parse_nanoseconds.load(Ordering::Relaxed),
+                "post_parse_metrics_traversal": self.json_metrics_nanoseconds.load(Ordering::Relaxed),
+            },
+            "map_set": {
+                "operations": self.map_set_operations.load(Ordering::Relaxed),
+                "in_place_updates": self.map_set_in_place_updates.load(Ordering::Relaxed),
+                "copy_on_write_copies": self.map_set_copy_on_write_copies.load(Ordering::Relaxed),
+                "estimated_copy_bytes": self.map_set_estimated_copy_bytes.load(Ordering::Relaxed),
+            },
+            "json_set": {
+                "operations": self.json_set_operations.load(Ordering::Relaxed),
+                "copy_on_write_copies": self.json_set_copy_on_write_copies.load(Ordering::Relaxed),
+                "estimated_copy_bytes": self.json_set_estimated_copy_bytes.load(Ordering::Relaxed),
+            },
             "metric_limits": {
                 "allocation": "estimated guest-data budget charges, not host allocator calls",
                 "branches": "executed guest conditional branches, not hardware branch-misprediction counts",
+                "vm_sampled_time": "sampled interpreter-frame wall time, inclusive of host calls; one in every 1024 frames; attribution only, not final benchmark timing",
+                "host_operation_time": "inclusive time at host-op boundary; nested parse/metrics timers overlap and must not be summed",
             },
         })
+    }
+}
+
+struct VmFrameProfileTimer {
+    profile: Arc<RuntimeProfileCounters>,
+    started: Instant,
+    instructions: Cell<usize>,
+}
+
+impl VmFrameProfileTimer {
+    fn new(profile: Arc<RuntimeProfileCounters>) -> Self {
+        Self {
+            profile,
+            started: Instant::now(),
+            instructions: Cell::new(0),
+        }
+    }
+
+    #[inline]
+    fn record_instruction(&self) {
+        self.instructions.set(self.instructions.get() + 1);
+    }
+}
+
+impl Drop for VmFrameProfileTimer {
+    fn drop(&mut self) {
+        self.profile.record_vm_sample(
+            self.instructions.get(),
+            self.started.elapsed().as_nanos().min(u64::MAX as u128) as u64,
+        );
+    }
+}
+
+pub fn opcode_profile_name(op: &Op) -> &'static str {
+    match op {
+        Op::Const(_) => "Const",
+        Op::Load(_) => "Load",
+        Op::Store(_) => "Store",
+        Op::Pop => "Pop",
+        Op::Add => "Add",
+        Op::Subtract => "Subtract",
+        Op::Multiply => "Multiply",
+        Op::Negate => "Negate",
+        Op::Not => "Not",
+        Op::Equal => "Equal",
+        Op::NotEqual => "NotEqual",
+        Op::Less => "Less",
+        Op::LessEqual => "LessEqual",
+        Op::Greater => "Greater",
+        Op::GreaterEqual => "GreaterEqual",
+        Op::Jump(_) => "Jump",
+        Op::JumpIfFalse(_) => "JumpIfFalse",
+        Op::Call(_, _) => "Call",
+        Op::Print => "Print",
+        Op::PrintErr => "PrintErr",
+        Op::Return => "Return",
+        Op::Length => "Length",
+        Op::Index => "Index",
+        Op::MakeList(_) => "MakeList",
+        Op::MakeMap(_) => "MakeMap",
+        Op::MakeTypedList(_) => "MakeTypedList",
+        Op::MakeTypedMap(_) => "MakeTypedMap",
+        Op::MapKeys => "MapKeys",
+        Op::MapSet => "MapSet",
+        Op::MapHas => "MapHas",
+        Op::ListPush => "ListPush",
+        Op::ListPushLocal(_) => "ListPushLocal",
+        Op::ListSet => "ListSet",
+        Op::ListSetLocal(_) => "ListSetLocal",
+        Op::Divide => "Divide",
+        Op::FloatSqrt => "FloatSqrt",
+        Op::JsonAsFloat => "JsonAsFloat",
+        Op::IntegerDivide => "IntegerDivide",
+        Op::FloorDivide => "FloorDivide",
+        Op::Remainder => "Remainder",
+        Op::MakeRecord(_, _) => "MakeRecord",
+        Op::GetField(_, _) => "GetField",
+        Op::ParallelMap(_) => "ParallelMap",
+        Op::ReadText => "ReadText",
+        Op::WriteText => "WriteText",
+        Op::WriteTextAtomic => "WriteTextAtomic",
+        Op::ReadBytes => "ReadBytes",
+        Op::WriteBytes => "WriteBytes",
+        Op::Args => "Args",
+        Op::ArgsFrom => "ArgsFrom",
+        Op::Assert => "Assert",
+        Op::IsOk => "IsOk",
+        Op::Unwrap => "Unwrap",
+        Op::GetError => "GetError",
+        Op::TaskIndex => "TaskIndex",
+        Op::TaskCode => "TaskCode",
+        Op::TaskMessage => "TaskMessage",
+        Op::PythonCall(_, _) => "PythonCall",
+        Op::PythonCallKw(_, _, _) => "PythonCallKw",
+        Op::HttpGet => "HttpGet",
+        Op::JsonParse => "JsonParse",
+        Op::JsonStringify => "JsonStringify",
+        Op::JsonStringifyPairs => "JsonStringifyPairs",
+        Op::JsonNull => "JsonNull",
+        Op::JsonBool => "JsonBool",
+        Op::JsonInt => "JsonInt",
+        Op::JsonFloat => "JsonFloat",
+        Op::JsonText => "JsonText",
+        Op::JsonArray => "JsonArray",
+        Op::JsonObject => "JsonObject",
+        Op::JsonPush => "JsonPush",
+        Op::JsonSet => "JsonSet",
+        Op::JsonGet => "JsonGet",
+        Op::JsonIndex => "JsonIndex",
+        Op::JsonHas => "JsonHas",
+        Op::JsonLength => "JsonLength",
+        Op::JsonAsText => "JsonAsText",
+        Op::JsonAsInt => "JsonAsInt",
+        Op::JsonAsBool => "JsonAsBool",
+        Op::JsonIsNull => "JsonIsNull",
+        Op::JsonIntColumn => "JsonIntColumn",
+        Op::JsonTextCategories => "JsonTextCategories",
+        Op::JsonAsIntList => "JsonAsIntList",
+        Op::JsonProjectColumns => "JsonProjectColumns",
+        Op::JsonTextCategoriesValues => "JsonTextCategoriesValues",
+        Op::JsonPushLocal(_) => "JsonPushLocal",
+        Op::JsonSetLocal(_) => "JsonSetLocal",
+        Op::JsonErrorMessage => "JsonErrorMessage",
+        Op::JsonErrorLine => "JsonErrorLine",
+        Op::JsonErrorColumn => "JsonErrorColumn",
+        Op::JsonErrorCode => "JsonErrorCode",
+        Op::FileErrorCode => "FileErrorCode",
+        Op::FileErrorMessage => "FileErrorMessage",
+        Op::FileErrorLine => "FileErrorLine",
+        Op::FileErrorColumn => "FileErrorColumn",
+        Op::HttpErrorCode => "HttpErrorCode",
+        Op::HttpErrorMessage => "HttpErrorMessage",
+        Op::MakeNone => "MakeNone",
+        Op::MakeSome => "MakeSome",
+        Op::IsSome => "IsSome",
+        Op::MakeOk => "MakeOk",
+        Op::MakeErr => "MakeErr",
+        Op::TryResult => "TryResult",
+        Op::HttpRequest => "HttpRequest",
+        Op::HttpRequestWithTimeout => "HttpRequestWithTimeout",
+        Op::HttpRequestBytes => "HttpRequestBytes",
+        Op::Environment => "Environment",
+        Op::TextChars => "TextChars",
+        Op::TextSlice => "TextSlice",
+        Op::TextJoin => "TextJoin",
+        Op::BytesFromInts => "BytesFromInts",
+        Op::BytesFromText => "BytesFromText",
+        Op::BytesJoin => "BytesJoin",
+        Op::Float64Bits => "Float64Bits",
+        Op::FileOpenLines => "FileOpenLines",
+        Op::FileNextLine => "FileNextLine",
+        Op::FileClose => "FileClose",
+        Op::CsvOpen => "CsvOpen",
+        Op::CsvNext => "CsvNext",
+        Op::CsvEncode => "CsvEncode",
+        Op::JsonTryGet => "JsonTryGet",
+        Op::JsonTryIndex => "JsonTryIndex",
+        Op::JsonTryText => "JsonTryText",
+        Op::JsonTryInt => "JsonTryInt",
+        Op::JsonTryBool => "JsonTryBool",
+        Op::JsonTryFloat => "JsonTryFloat",
+        Op::TimeParseDate => "TimeParseDate",
+        Op::TimeParseTimestamp => "TimeParseTimestamp",
+        Op::TimeFormatUtc => "TimeFormatUtc",
+        Op::TimeFormatUtcDate => "TimeFormatUtcDate",
+        Op::UnixTimeMs => "UnixTimeMs",
+        Op::TimeTodayLocal => "TimeTodayLocal",
+        Op::TimeResolveLocal => "TimeResolveLocal",
+        Op::TimeZoneDataVersion => "TimeZoneDataVersion",
+        Op::SemVerParse => "SemVerParse",
+        Op::SemVerCompare => "SemVerCompare",
+        Op::CliParse => "CliParse",
+        Op::FsWalk => "FsWalk",
+        Op::ListGetOption => "ListGetOption",
+        Op::MapGetOption => "MapGetOption",
+        Op::TextParseInt => "TextParseInt",
+        Op::TextParseFloat => "TextParseFloat",
+        Op::SortBy(_) => "SortBy",
+        Op::SortByIntKey(_) => "SortByIntKey",
+        Op::MergeSortedByIntKey(_) => "MergeSortedByIntKey",
+        Op::TextCaseFold => "TextCaseFold",
+        Op::TextCollapseWhitespace => "TextCollapseWhitespace",
+        Op::TextNormalize => "TextNormalize",
+        Op::CryptoHmacSha256 => "CryptoHmacSha256",
+        Op::CryptoVerifyHmacSha256 => "CryptoVerifyHmacSha256",
+        Op::SqliteOpen => "SqliteOpen",
+        Op::SqliteBegin => "SqliteBegin",
+        Op::SqliteExecute => "SqliteExecute",
+        Op::SqliteQuery => "SqliteQuery",
+        Op::SqliteCommit => "SqliteCommit",
+        Op::SqliteRollback => "SqliteRollback",
+        Op::SqliteClose => "SqliteClose",
+        Op::TomlParse => "TomlParse",
+        Op::TomlHas => "TomlHas",
+        Op::TomlGetText => "TomlGetText",
+        Op::TomlGetInt => "TomlGetInt",
+        Op::TomlGetBool => "TomlGetBool",
+        Op::TomlPutText => "TomlPutText",
+        Op::TomlPutInt => "TomlPutInt",
+        Op::TomlPutBool => "TomlPutBool",
+        Op::TomlRender => "TomlRender",
+        Op::CalendarParse => "CalendarParse",
+        Op::HttpResponseText => "HttpResponseText",
+        Op::HttpResponseJson => "HttpResponseJson",
     }
 }
 
@@ -1937,6 +2980,55 @@ pub struct Budget {
     pub runtime_profile: Option<Arc<RuntimeProfileCounters>>,
 }
 
+const INSTRUCTION_FUEL_RESERVATION: u64 = 32;
+
+struct InstructionFuel<'a> {
+    budget: &'a Budget,
+    remaining: u64,
+    reserve_locally: bool,
+}
+
+impl<'a> InstructionFuel<'a> {
+    fn new(budget: &'a Budget) -> Self {
+        Self {
+            budget,
+            remaining: 0,
+            // Parallel workers share a bounded child budget. Keep their exact atomic
+            // charging so one worker cannot hide fuel from its siblings.
+            reserve_locally: budget.local_cancellation.is_none(),
+        }
+    }
+
+    #[inline]
+    fn consume(&mut self) -> bool {
+        if !self.reserve_locally {
+            return self.budget.consume();
+        }
+        if self.remaining == 0 {
+            self.remaining = self.budget.reserve(INSTRUCTION_FUEL_RESERVATION);
+            if self.remaining == 0 {
+                return false;
+            }
+        }
+        self.remaining -= 1;
+        true
+    }
+
+    #[inline]
+    fn flush(&mut self) {
+        if self.remaining != 0 {
+            self.budget.refund(self.remaining);
+            self.remaining = 0;
+        }
+    }
+}
+
+impl Drop for InstructionFuel<'_> {
+    fn drop(&mut self) {
+        self.flush();
+    }
+}
+
 pub struct LimitedString {
     pub value: String,
     pub max_bytes: usize,
@@ -1992,11 +3084,7 @@ impl Budget {
     pub fn consume(&self) -> bool {
         self.remaining
             .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |left| {
-                if left > 0 {
-                    Some(left - 1)
-                } else {
-                    None
-                }
+                if left > 0 { Some(left - 1) } else { None }
             })
             .is_ok()
     }
@@ -2110,9 +3198,12 @@ pub fn charge_allocation(budget: &Budget, bytes: usize, span: Span) -> Result<()
     if budget.allocate(bytes) {
         Ok(())
     } else {
+        let remaining = budget.allocation_remaining.load(Ordering::Relaxed);
         Err(RuntimeError::new(
             "R_ALLOCATION_LIMIT",
-            "cumulative allocation budget exhausted during this invocation",
+            format!(
+                "cumulative allocation budget exhausted during this invocation (requested {bytes} bytes; {remaining} remain)"
+            ),
             span,
         ))
     }
@@ -2447,7 +3538,11 @@ pub fn finish_shared_json(
     budget: &Budget,
     span: Span,
 ) -> Result<Value, RuntimeError> {
+    let metrics_started = budget.runtime_profile.as_ref().map(|_| Instant::now());
     let metrics = shared_json_metrics(&value, limits.max_integer_digits);
+    if let (Some(profile), Some(started)) = (&budget.runtime_profile, metrics_started) {
+        profile.record_json_metrics(started.elapsed().as_nanos().min(u64::MAX as u128) as u64);
+    }
     validate_json_metrics(&metrics, limits, span)?;
     charge_allocation(budget, metrics.allocation_bytes, span)?;
     Ok(Value::Json(Arc::new(value)))
@@ -2857,13 +3952,13 @@ pub fn verify(artifact: &Artifact) -> Result<(), RuntimeError> {
                     return Err(fail(format!(
                         "function `{}` references missing local {s}",
                         f.name
-                    )))
+                    )));
                 }
                 Op::Jump(t) | Op::JumpIfFalse(t) if t > f.code.len() => {
                     return Err(fail(format!(
                         "function `{}` jumps outside its code",
                         f.name
-                    )))
+                    )));
                 }
                 Op::Call(target, argc)
                     if target >= artifact.functions.len()
@@ -2872,7 +3967,7 @@ pub fn verify(artifact: &Artifact) -> Result<(), RuntimeError> {
                     return Err(fail(format!(
                         "function `{}` contains an invalid call",
                         f.name
-                    )))
+                    )));
                 }
                 Op::ParallelMap(target)
                     if target >= artifact.functions.len()
@@ -2881,7 +3976,7 @@ pub fn verify(artifact: &Artifact) -> Result<(), RuntimeError> {
                     return Err(fail(format!(
                         "function `{}` contains an invalid parallel worker",
                         f.name
-                    )))
+                    )));
                 }
                 Op::SortBy(target)
                     if target >= artifact.functions.len()
@@ -2893,7 +3988,7 @@ pub fn verify(artifact: &Artifact) -> Result<(), RuntimeError> {
                     return Err(fail(format!(
                         "function `{}` contains an invalid sort comparator",
                         f.name
-                    )))
+                    )));
                 }
                 Op::SortByIntKey(target)
                     if target >= artifact.functions.len()
@@ -2903,7 +3998,7 @@ pub fn verify(artifact: &Artifact) -> Result<(), RuntimeError> {
                     return Err(fail(format!(
                         "function `{}` contains an invalid integer sort key function",
                         f.name
-                    )))
+                    )));
                 }
                 Op::MergeSortedByIntKey(target)
                     if target >= artifact.functions.len()
@@ -2913,7 +4008,7 @@ pub fn verify(artifact: &Artifact) -> Result<(), RuntimeError> {
                     return Err(fail(format!(
                         "function `{}` contains an invalid sorted-feed key function",
                         f.name
-                    )))
+                    )));
                 }
                 Op::PythonCall(target, argc)
                     if target >= artifact.externals.len()
@@ -2922,7 +4017,7 @@ pub fn verify(artifact: &Artifact) -> Result<(), RuntimeError> {
                     return Err(fail(format!(
                         "function `{}` contains an invalid Python call",
                         f.name
-                    )))
+                    )));
                 }
                 Op::PythonCallKw(target, positional_count, ref names)
                     if target >= artifact.externals.len()
@@ -2933,7 +4028,7 @@ pub fn verify(artifact: &Artifact) -> Result<(), RuntimeError> {
                     return Err(fail(format!(
                         "function `{}` contains an invalid Python keyword call",
                         f.name
-                    )))
+                    )));
                 }
                 Op::ReadText
                 | Op::WriteText
@@ -3179,7 +4274,7 @@ fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result
                 _ => {
                     return Err(format!(
                         "unwrap requires Result or Option at instruction {pc}"
-                    ))
+                    ));
                 }
             },
             Op::MakeOk | Op::MakeErr => {
@@ -3512,7 +4607,7 @@ fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result
                     _ => {
                         return Err(format!(
                             "list_push requires a matching List item at instruction {pc}"
-                        ))
+                        ));
                     }
                 }
             }
@@ -3526,7 +4621,7 @@ fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result
                     _ => {
                         return Err(format!(
                             "list_set requires a matching List item at instruction {pc}"
-                        ))
+                        ));
                     }
                 }
             }
@@ -3586,6 +4681,17 @@ fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result
                 }
                 state.stack.push(Type::List(Box::new(Type::Text)));
             }
+            Op::TextSlice => {
+                if pop_type(&mut state.stack, pc)? != Type::Int
+                    || pop_type(&mut state.stack, pc)? != Type::Int
+                    || pop_type(&mut state.stack, pc)? != Type::Text
+                {
+                    return Err(format!(
+                        "text_slice requires Text and Int start/end bounds at instruction {pc}"
+                    ));
+                }
+                state.stack.push(Type::Text);
+            }
             Op::TextJoin => {
                 let delimiter = pop_type(&mut state.stack, pc)?;
                 let values = pop_type(&mut state.stack, pc)?;
@@ -3632,8 +4738,8 @@ fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result
                     Type::Text if index == Type::Int => state.stack.push(Type::Text),
                     _ => {
                         return Err(format!(
-                        "index requires List[Int], Map[Text, T], or Text[Int] at instruction {pc}"
-                    ))
+                            "index requires List[Int], Map[Text, T], or Text[Int] at instruction {pc}"
+                        ));
                     }
                 }
             }
@@ -3832,7 +4938,9 @@ fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result
                 if type_contains_native_resource(&callee.parameters[0])
                     || type_contains_native_resource(&callee.result)
                 {
-                    return Err(format!("parallel workers cannot accept or return native resources at instruction {pc}"));
+                    return Err(format!(
+                        "parallel workers cannot accept or return native resources at instruction {pc}"
+                    ));
                 }
                 if pop_type(&mut state.stack, pc)? != Type::Int {
                     return Err(format!(
@@ -3994,7 +5102,9 @@ fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result
                     || pop_type(&mut state.stack, pc)? != Type::Text
                     || pop_type(&mut state.stack, pc)? != Type::NativeResource("Transaction".into())
                 {
-                    return Err(format!("SQLite execution requires Transaction, Text SQL, and List[SqlValue] at instruction {pc}"));
+                    return Err(format!(
+                        "SQLite execution requires Transaction, Text SQL, and List[SqlValue] at instruction {pc}"
+                    ));
                 }
                 let result = if instruction.op == Op::SqliteExecute {
                     Type::Int
@@ -4071,7 +5181,9 @@ fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result
                     || pop_type(&mut state.stack, pc)?
                         != Type::NativeResource("TomlDocument".into())
                 {
-                    return Err(format!("TOML edit requires matching document, path, and value types at instruction {pc}"));
+                    return Err(format!(
+                        "TOML edit requires matching document, path, and value types at instruction {pc}"
+                    ));
                 }
                 state.stack.push(Type::Result(
                     Box::new(Type::Unit),
@@ -4119,7 +5231,9 @@ fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result
                     || pop_type(&mut state.stack, pc)? != Type::Text
                     || pop_type(&mut state.stack, pc)? != Type::Text
                 {
-                    return Err(format!("http_request requires Text method and URL, Map[Text] headers, and Text body at instruction {pc}"));
+                    return Err(format!(
+                        "http_request requires Text method and URL, Map[Text] headers, and Text body at instruction {pc}"
+                    ));
                 }
                 state.stack.push(Type::Result(
                     Box::new(Type::Json),
@@ -4133,7 +5247,9 @@ fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result
                     || pop_type(&mut state.stack, pc)? != Type::Text
                     || pop_type(&mut state.stack, pc)? != Type::Text
                 {
-                    return Err(format!("http_request_with_timeout requires Text method and URL, Map[Text] headers, Text body, and Int timeout_ms at instruction {pc}"));
+                    return Err(format!(
+                        "http_request_with_timeout requires Text method and URL, Map[Text] headers, Text body, and Int timeout_ms at instruction {pc}"
+                    ));
                 }
                 state.stack.push(Type::Result(
                     Box::new(Type::Json),
@@ -4147,7 +5263,9 @@ fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result
                     || pop_type(&mut state.stack, pc)? != Type::Text
                     || pop_type(&mut state.stack, pc)? != Type::Text
                 {
-                    return Err(format!("http_request_bytes requires Text method and URL, Map[Text] headers, Bytes body, and Int timeout_ms at instruction {pc}"));
+                    return Err(format!(
+                        "http_request_bytes requires Text method and URL, Map[Text] headers, Bytes body, and Int timeout_ms at instruction {pc}"
+                    ));
                 }
                 state.stack.push(Type::Result(
                     Box::new(Type::Record("HttpResponse".into())),
@@ -4163,6 +5281,17 @@ fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result
                 state.stack.push(Type::Result(
                     Box::new(Type::Text),
                     Box::new(Type::HttpError),
+                ));
+            }
+            Op::HttpResponseJson => {
+                if pop_type(&mut state.stack, pc)? != Type::Record("HttpResponse".into()) {
+                    return Err(format!(
+                        "http_response_json_bytes requires HttpResponse at instruction {pc}"
+                    ));
+                }
+                state.stack.push(Type::Result(
+                    Box::new(Type::Json),
+                    Box::new(Type::Record("StdError".into())),
                 ));
             }
             Op::WriteText => {
@@ -4257,6 +5386,14 @@ fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result
                 if pop_type(&mut state.stack, pc)? != Type::Record("Instant".into()) {
                     return Err(format!(
                         "time_format_utc requires Instant at instruction {pc}"
+                    ));
+                }
+                state.stack.push(Type::Text);
+            }
+            Op::TimeFormatUtcDate => {
+                if pop_type(&mut state.stack, pc)? != Type::Record("Instant".into()) {
+                    return Err(format!(
+                        "time_format_utc_date requires Instant at instruction {pc}"
                     ));
                 }
                 state.stack.push(Type::Text);
@@ -4384,9 +5521,7 @@ fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result
                 if result != function.result || !state.stack.is_empty() {
                     return Err(format!(
                         "return type or stack height is invalid at instruction {pc}: expected {:?}, got {:?}, stack {:?}",
-                        function.result,
-                        result,
-                        state.stack
+                        function.result, result, state.stack
                     ));
                 }
                 has_return = true;
@@ -4602,6 +5737,274 @@ impl VmHost for PortableHost {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use guion_model::{Function, Instruction};
+
+    #[test]
+    fn instruction_fuel_refunds_unused_reservation_and_keeps_exact_exhaustion() {
+        let budget = Budget::new(5, usize::MAX, CancellationToken::new(), None);
+        let mut fuel = InstructionFuel::new(&budget);
+
+        assert!(fuel.consume());
+        assert!(fuel.consume());
+        assert_eq!(budget.remaining.load(Ordering::Relaxed), 0);
+        fuel.flush();
+        assert_eq!(budget.remaining.load(Ordering::Relaxed), 3);
+
+        assert!(fuel.consume());
+        assert!(fuel.consume());
+        assert!(fuel.consume());
+        assert!(!fuel.consume());
+        drop(fuel);
+        assert_eq!(budget.remaining.load(Ordering::Relaxed), 0);
+    }
+
+    #[test]
+    fn parallel_worker_instruction_fuel_remains_directly_atomic() {
+        let parent = Budget::new(10, usize::MAX, CancellationToken::new(), None);
+        let worker = Budget {
+            remaining: AtomicU64::new(3),
+            allocation_remaining: parent.allocation_remaining.clone(),
+            allocation_floor: 0,
+            cancellation: parent.cancellation.clone(),
+            local_cancellation: Some(Arc::new(AtomicBool::new(false))),
+            runtime_profile: None,
+        };
+        let mut fuel = InstructionFuel::new(&worker);
+
+        assert!(fuel.consume());
+        assert_eq!(worker.remaining.load(Ordering::Relaxed), 2);
+    }
+
+    #[test]
+    fn vm_dispatch_profiles_exact_const_and_return_instructions() {
+        let artifact = Arc::new(Artifact {
+            format_version: Artifact::CURRENT_VERSION,
+            build_metadata: None,
+            compiled_source_sha256: None,
+            source_name: "dispatch-clone-test.gu".into(),
+            sources: vec![],
+            entry: "main".into(),
+            functions: vec![Function {
+                name: "main".into(),
+                parameters: vec![],
+                result: Type::Int,
+                local_count: 0,
+                code: vec![
+                    Instruction {
+                        op: Op::Const(Value::Int(BigInt::one())),
+                        span: Span::default(),
+                    },
+                    Instruction {
+                        op: Op::Return,
+                        span: Span::default(),
+                    },
+                ],
+            }],
+            externals: vec![],
+            records: vec![],
+        });
+        let profile = Arc::new(RuntimeProfileCounters::default());
+        let mut host = PortableHost::new(Arc::clone(&artifact), VmLimits::default());
+        let budget = Arc::new(Budget::new(
+            10,
+            VmLimits::default().allocation_limit_bytes,
+            CancellationToken::new(),
+            Some(Arc::clone(&profile)),
+        ));
+
+        let value = run_frames(
+            &mut host,
+            new_vm_frame(&artifact, 0, vec![], 0, None),
+            budget,
+        )
+        .expect("tiny verified program returns normally");
+
+        assert_eq!(value, Value::Int(BigInt::one()));
+        assert_eq!(
+            profile.vm_interpreter_instructions.load(Ordering::Relaxed),
+            2
+        );
+        let opcodes = profile
+            .opcode_executions
+            .lock()
+            .expect("profile opcode lock is not poisoned");
+        assert_eq!(opcodes.get("Const"), Some(&1));
+        assert_eq!(opcodes.get("Return"), Some(&1));
+    }
+
+    #[test]
+    fn vm_frame_reuses_the_call_argument_buffer_for_locals() {
+        let artifact = Artifact {
+            format_version: Artifact::CURRENT_VERSION,
+            build_metadata: None,
+            compiled_source_sha256: None,
+            source_name: "frame-buffer-test.gu".into(),
+            sources: vec![],
+            entry: "callee".into(),
+            functions: vec![Function {
+                name: "callee".into(),
+                parameters: vec![Type::Int, Type::Text],
+                result: Type::Unit,
+                local_count: 2,
+                code: vec![],
+            }],
+            externals: vec![],
+            records: vec![],
+        };
+        let mut args = Vec::with_capacity(8);
+        args.push(Value::Int(BigInt::one()));
+        args.push(Value::Text(Arc::<str>::from("kept")));
+
+        let frame = new_vm_frame(&artifact, 0, args, 1, None);
+
+        assert_eq!(frame.locals[0], Value::Int(BigInt::one()));
+        assert_eq!(frame.locals[1], Value::Text(Arc::<str>::from("kept")));
+        assert!(frame.locals.capacity() >= 8);
+    }
+
+    #[test]
+    fn text_collapse_single_operation_wrapper_is_forwardable() {
+        let function = Function {
+            name: "unicode_collapse_whitespace".into(),
+            parameters: vec![Type::Text],
+            result: Type::Text,
+            local_count: 1,
+            code: vec![
+                Instruction {
+                    op: Op::Load(0),
+                    span: Span::default(),
+                },
+                Instruction {
+                    op: Op::TextCollapseWhitespace,
+                    span: Span::default(),
+                },
+                Instruction {
+                    op: Op::Return,
+                    span: Span::default(),
+                },
+            ],
+        };
+
+        assert!(fast_host_forwarder(&function).is_some());
+    }
+
+    #[test]
+    fn fast_host_forwarder_uses_caller_arguments_without_duplicate_stack_values() {
+        let function = Function {
+            name: "collapse".into(),
+            parameters: vec![Type::Text],
+            result: Type::Text,
+            local_count: 1,
+            code: vec![
+                Instruction {
+                    op: Op::Load(0),
+                    span: Span::default(),
+                },
+                Instruction {
+                    op: Op::TextCollapseWhitespace,
+                    span: Span::default(),
+                },
+                Instruction {
+                    op: Op::Return,
+                    span: Span::default(),
+                },
+            ],
+        };
+        let artifact = Arc::new(Artifact {
+            format_version: Artifact::CURRENT_VERSION,
+            build_metadata: None,
+            compiled_source_sha256: None,
+            source_name: "forwarder-test.gu".into(),
+            sources: vec![],
+            entry: "collapse".into(),
+            functions: vec![function],
+            externals: vec![],
+            records: vec![],
+        });
+        let function = &artifact.functions[0];
+        let forwarder = fast_host_forwarder(function).expect("one-op wrapper is forwardable");
+        let mut host = ForwarderTestHost {
+            artifact: Arc::clone(&artifact),
+            observed_stack_len: None,
+        };
+        let mut stack = vec![
+            Value::Bool(true),
+            Value::Text(Arc::<str>::from("example")),
+        ];
+        let mut locals = Vec::new();
+        let budget = Arc::new(Budget::new(
+            3,
+            1024,
+            CancellationToken::new(),
+            None,
+        ));
+        let mut instruction_fuel = InstructionFuel::new(&budget);
+
+        let result = execute_fast_host_forwarder(
+            &mut host,
+            &artifact,
+            0,
+            forwarder,
+            &mut stack,
+            &mut locals,
+            &budget,
+            &mut instruction_fuel,
+            1,
+        )
+        .expect("forwarder returns its host operation result");
+
+        assert_eq!(host.observed_stack_len, Some(2));
+        assert_eq!(stack, vec![Value::Bool(true)]);
+        assert_eq!(result, Value::Text(Arc::<str>::from("example")));
+        drop(instruction_fuel);
+        assert_eq!(budget.remaining.load(Ordering::Relaxed), 0);
+    }
+
+    struct ForwarderTestHost {
+        artifact: Arc<Artifact>,
+        observed_stack_len: Option<usize>,
+    }
+
+    impl VmHost for ForwarderTestHost {
+        fn artifact(&self) -> &Arc<Artifact> {
+            &self.artifact
+        }
+
+        fn limits(&self) -> VmLimits {
+            VmLimits::default()
+        }
+
+        fn program_output_bytes(&self) -> usize {
+            0
+        }
+
+        fn write_program_output(
+            &mut self,
+            _stream: OutputStream,
+            _text: &str,
+            _span: Span,
+        ) -> Result<(), RuntimeError> {
+            Ok(())
+        }
+
+        fn start_frame(
+            &mut self,
+            _index: usize,
+            _args: Vec<Value>,
+            _depth: usize,
+            _budget: &Arc<Budget>,
+            _call_site: Option<Span>,
+        ) -> Result<FrameStart, RuntimeError> {
+            unreachable!("the forwarder test does not call another function")
+        }
+
+        fn host_op(&mut self, context: HostOpContext<'_>) -> Result<(), RuntimeError> {
+            self.observed_stack_len = Some(context.stack.len());
+            let value = context.stack.pop().expect("wrapper input is on the stack");
+            context.stack.push(value);
+            Ok(())
+        }
+    }
 
     #[test]
     fn map_update_existing_key_preserves_owned_key_storage() {

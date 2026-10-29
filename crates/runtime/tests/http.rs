@@ -735,7 +735,8 @@ fn http_response_text_observes_configured_text_limit() {
 fn http_response_json_parses_valid_json_body() {
     let source = "import \"std:types\"\nimport \"std:http\"\n\nfn parse_response(response: HttpResponse) -> Result[Json, StdError]:\n    return http_response_json(response)\n\nfn main() -> Int:\n    return 0\n";
     let artifact = compile_http_project("http-response-json", source);
-    let mut instance = Runtime::new()
+    let mut instance = Runtime::vm_only()
+        .with_runtime_profile()
         .load(artifact, HostPolicy::default())
         .unwrap();
     let result = instance
@@ -749,6 +750,17 @@ fn http_response_json_parses_valid_json_body() {
         Value::ResultOk(Box::new(Value::Json(SharedJson::from_serde(
             serde_json::json!({"ok": true, "count": 42}),
         ))))
+    );
+    let profile = instance.runtime_profile().expect("profile is enabled");
+    assert_eq!(
+        profile["host_operations"]["counts"]["HttpResponseJson"].as_u64(),
+        Some(1),
+        "typed JSON response should parse directly from the response bytes"
+    );
+    assert_eq!(
+        profile["host_operations"]["counts"]["HttpResponseText"].as_u64(),
+        None,
+        "the typed JSON path must not construct an intermediate Text value"
     );
 }
 
@@ -802,4 +814,59 @@ fn http_response_json_returns_recoverable_error_for_malformed_json() {
         instance.invoke("expected_parse_message", vec![]).unwrap()
     );
     assert_eq!(fields[0], Value::Text("R_JSON_PARSE".into()));
+}
+
+#[test]
+fn http_response_json_preserves_duplicate_key_errors() {
+    let source = "import \"std:types\"\nimport \"std:http\"\n\nfn parse_response(response: HttpResponse) -> Result[Json, StdError]:\n    return http_response_json(response)\n\nfn main() -> Int:\n    return 0\n";
+    let artifact = compile_http_project("http-response-duplicate-json-key", source);
+    let mut instance = Runtime::new()
+        .load(artifact, HostPolicy::default())
+        .unwrap();
+    let result = instance
+        .invoke(
+            "parse_response",
+            vec![http_response_value(200, br#"{"ok":1,"ok":2}"#)],
+        )
+        .unwrap();
+    let Value::ResultErr(error) = result else {
+        panic!("duplicate JSON object keys must remain errors: {result:?}");
+    };
+    let Value::Record(name, fields) = *error else {
+        panic!("JSON response errors are normalized to StdError");
+    };
+    assert_eq!(name, "StdError");
+    assert_eq!(fields[0], Value::Text("R_JSON_DUPLICATE_KEY".into()));
+    assert_eq!(
+        fields[1],
+        Value::Text("JSON object contains duplicate key `ok`".into())
+    );
+}
+
+#[test]
+fn http_response_json_observes_configured_text_limit() {
+    let source = "import \"std:types\"\nimport \"std:http\"\n\nfn parse_response(response: HttpResponse) -> Result[Json, StdError]:\n    return http_response_json(response)\n\nfn main() -> Int:\n    return 0\n";
+    let artifact = compile_http_project("http-response-json-text-limit", source);
+    let mut policy = HostPolicy::default();
+    policy.max_text_bytes = 80;
+    let mut instance = Runtime::new().load(artifact, policy).unwrap();
+    let oversized_body = vec![b'a'; 100];
+    let result = instance
+        .invoke(
+            "parse_response",
+            vec![http_response_value(200, &oversized_body)],
+        )
+        .unwrap();
+    let Value::ResultErr(error) = result else {
+        panic!("HTTP JSON body over the text ceiling must return a typed error");
+    };
+    let Value::Record(name, fields) = *error else {
+        panic!("HTTP JSON response errors are normalized to StdError");
+    };
+    assert_eq!(name, "StdError");
+    assert_eq!(fields[0], Value::Text("R_HTTP_LIMIT".into()));
+    assert_eq!(
+        fields[1],
+        Value::Text("HTTP response exceeds the configured text byte limit".into())
+    );
 }

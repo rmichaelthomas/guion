@@ -90,6 +90,27 @@ fn native_timezone_candidate_enumeration_covers_fractional_and_non_hour_transiti
 }
 
 #[test]
+fn format_utc_date_uses_the_utc_calendar_day_including_pre_epoch_instants() {
+    let source = r#"record Instant:
+    unix_microseconds: Int
+fn main() -> Int:
+    let crosses_back = unwrap(time_parse_timestamp("2024-01-01T00:30:00+01:00"))
+    assert(time_format_utc_date(crosses_back) == "2023-12-31")
+    let crosses_forward = unwrap(time_parse_timestamp("2023-12-31T23:30:00-01:00"))
+    assert(time_format_utc_date(crosses_forward) == "2024-01-01")
+    let before_epoch = unwrap(time_parse_timestamp("1969-12-31T23:59:59.999999Z"))
+    assert(time_format_utc_date(before_epoch) == "1969-12-31")
+    return 0
+"#;
+    let artifact = compile("format-utc-date.gu", source).expect("UTC date formatter compiles");
+    assert_eq!(artifact.format_version, Artifact::CURRENT_VERSION);
+    for runtime in [Runtime::vm_only(), Runtime::new()] {
+        let mut runtime = runtime.load(artifact.clone(), HostPolicy::default()).unwrap();
+        runtime.invoke("main", vec![]).unwrap();
+    }
+}
+
+#[test]
 fn line_reader_is_incremental_strict_utf8_and_tracks_physical_lines() {
     let large = format!("{}\r\nlast\n", "x".repeat(2 * 1024 * 1024));
     let path = temp_file(large.as_bytes());
@@ -545,6 +566,7 @@ fn main() -> Int:
     assert(text_compare_bytes("é", "😀") < 0)
     let instant = unwrap(parse_timestamp("2024-01-01T00:00:00Z"))
     assert(format_utc(instant) == "2024-01-01T00:00:00Z")
+    assert(format_utc_date(instant) == "2024-01-01")
     assert(compare_versions(unwrap(parse_version("1.0.0-alpha")), unwrap(parse_version("1.0.0"))) < 0)
     return 0
 "#;

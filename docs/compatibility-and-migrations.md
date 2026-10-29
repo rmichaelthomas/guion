@@ -28,7 +28,7 @@ This compatibility is a migration aid, not a guarantee that old names will remai
 
 ## Supported artifact and package boundaries
 
-The current compiler writes artifact format 45 and the runtime reads artifact formats 14 through 45. Format 45 adds checked UTF-8 decoding for byte HTTP responses; a format-44 artifact cannot contain that instruction, and existing format-44 artifacts remain readable. Current packages use schema 2; the verifier accepts schemas 1 and 2. Artifact format compatibility does not promise that the source compiler version is checked at runtime. Hashes detect accidental changes but do not authenticate the publisher.
+The current compiler writes artifact format 48 and the runtime reads artifact formats 14 through 48. Format 48 adds direct UTC date formatting from an `Instant`; formats 47, 46, and 45 added JSON decoding from HTTP bytes, Unicode text slicing, and checked UTF-8 decoding for byte HTTP responses. An artifact cannot contain an operation introduced after its format version, and existing compatible artifacts remain readable. Current packages use schema 2; the verifier accepts schemas 1 and 2. Artifact format compatibility does not promise that the source compiler version is checked at runtime. Hashes detect accidental changes but do not authenticate the publisher.
 
 The Guion-identity pre-release matrix passed on macOS ARM64 and Debian 12 GNU/Linux on ARM64 and x86_64 with glibc, including same-target relocation. Other operating systems, CPU architectures, Linux distributions beyond Debian 12, and libc implementations beyond glibc remain unverified. Consult [status](status.md) and the [pre-release readiness report](pre-release-readiness.md) before relying on a target.
 

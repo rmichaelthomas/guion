@@ -73,3 +73,6 @@ Current-format managed packaging covers the mixed-dependency app on macOS ARM64 
 - [Contributing](CONTRIBUTING.md)
 - [Security](SECURITY.md)
 - [License](LICENSE) and [third-party notices](THIRD-PARTY-NOTICES.md)
+
+
+The 2026-10-29 runtime follow-up removed the 64 KiB typed-HTTP cold-source penalty by splitting the shared response/error records into `std:http_types` and re-exporting them from `std:http` and `std:types`. In a fresh 15-pair ARM64 run, typed HTTP measured 0.929× legacy in cold source and 0.886× in artifacts at 64 KiB, and 0.761×/0.716× at 1 MiB. The separate JSONL execution gap remains open at roughly 3.8× pinned Python for 200,000 rows; see the [runtime gap follow-up plan](docs/superpowers/plans/2026-10-29-guion-runtime-gap-follow-up.md) and [raw HTTP result](evaluation/development/core_cost_closure/results/http-shared-types-paired-15.json).

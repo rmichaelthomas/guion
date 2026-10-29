@@ -57,6 +57,156 @@ mod tests {
     }
 
     #[test]
+    fn text_slice_requires_format_46_and_round_trips() {
+        let artifact = Artifact {
+            format_version: 46,
+            build_metadata: None,
+            compiled_source_sha256: None,
+            source_name: "text-slice.gu".into(),
+            sources: vec![],
+            entry: "main".into(),
+            functions: vec![Function {
+                name: "main".into(),
+                parameters: vec![],
+                result: Type::Int,
+                local_count: 0,
+                code: vec![Instruction {
+                    op: Op::TextSlice,
+                    span: Span::default(),
+                }],
+            }],
+            externals: vec![],
+            records: vec![],
+        };
+        let encoded = artifact.to_bytes().expect("format 46 artifacts round-trip");
+        assert_eq!(Artifact::from_bytes(&encoded).unwrap(), artifact);
+
+        let mut format_45 = artifact.clone();
+        format_45.format_version = 45;
+        format_45.functions[0].code.clear();
+        assert_eq!(
+            Artifact::from_bytes(&format_45.to_bytes().unwrap()).unwrap(),
+            format_45
+        );
+
+        let mut format_45_with_new_op = artifact.clone();
+        format_45_with_new_op.format_version = 45;
+        assert_eq!(
+            format_45_with_new_op.to_bytes().unwrap_err().code,
+            "E_ARTIFACT_VERSION"
+        );
+
+        let mut legacy_header_with_new_instruction = encoded;
+        legacy_header_with_new_instruction[4..8].copy_from_slice(&45u32.to_le_bytes());
+        assert_eq!(
+            Artifact::from_bytes(&legacy_header_with_new_instruction)
+                .unwrap_err()
+                .code,
+            "E_ARTIFACT_VERSION"
+        );
+    }
+
+    #[test]
+    fn http_response_json_requires_format_47_and_round_trips() {
+        let artifact = Artifact {
+            format_version: 47,
+            build_metadata: None,
+            compiled_source_sha256: None,
+            source_name: "http-response-json.gu".into(),
+            sources: vec![],
+            entry: "main".into(),
+            functions: vec![Function {
+                name: "main".into(),
+                parameters: vec![],
+                result: Type::Int,
+                local_count: 0,
+                code: vec![Instruction {
+                    op: Op::HttpResponseJson,
+                    span: Span::default(),
+                }],
+            }],
+            externals: vec![],
+            records: vec![],
+        };
+        let encoded = artifact.to_bytes().expect("format 47 artifact encodes");
+        assert_eq!(Artifact::from_bytes(&encoded).unwrap(), artifact);
+
+        let mut format_46 = artifact.clone();
+        format_46.format_version = 46;
+        format_46.functions[0].code.clear();
+        assert_eq!(
+            Artifact::from_bytes(&format_46.to_bytes().unwrap()).unwrap(),
+            format_46
+        );
+
+        let mut format_46_with_new_op = artifact.clone();
+        format_46_with_new_op.format_version = 46;
+        assert_eq!(
+            format_46_with_new_op.to_bytes().unwrap_err().code,
+            "E_ARTIFACT_VERSION"
+        );
+
+        let mut legacy_header_with_new_instruction = encoded;
+        legacy_header_with_new_instruction[4..8].copy_from_slice(&46u32.to_le_bytes());
+        assert_eq!(
+            Artifact::from_bytes(&legacy_header_with_new_instruction)
+                .unwrap_err()
+                .code,
+            "E_ARTIFACT_VERSION"
+        );
+    }
+
+    #[test]
+    fn utc_date_formatting_requires_format_48_and_round_trips() {
+        let artifact = Artifact {
+            format_version: 48,
+            build_metadata: None,
+            compiled_source_sha256: None,
+            source_name: "utc-date.gu".into(),
+            sources: vec![],
+            entry: "main".into(),
+            functions: vec![Function {
+                name: "main".into(),
+                parameters: vec![],
+                result: Type::Int,
+                local_count: 0,
+                code: vec![Instruction {
+                    op: Op::TimeFormatUtcDate,
+                    span: Span::default(),
+                }],
+            }],
+            externals: vec![],
+            records: vec![],
+        };
+        let encoded = artifact.to_bytes().expect("format 48 artifact encodes");
+        assert_eq!(Artifact::from_bytes(&encoded).unwrap(), artifact);
+
+        let mut format_47 = artifact.clone();
+        format_47.format_version = 47;
+        format_47.functions[0].code.clear();
+        assert_eq!(
+            Artifact::from_bytes(&format_47.to_bytes().unwrap()).unwrap(),
+            format_47
+        );
+
+        let mut format_47_with_new_op = artifact.clone();
+        format_47_with_new_op.format_version = 47;
+        assert_eq!(
+            format_47_with_new_op.to_bytes().unwrap_err().code,
+            "E_ARTIFACT_VERSION"
+        );
+
+        let mut legacy_header_with_new_instruction = encoded;
+        legacy_header_with_new_instruction[4..8].copy_from_slice(&47u32.to_le_bytes());
+        assert_eq!(
+            Artifact::from_bytes(&legacy_header_with_new_instruction)
+                .unwrap_err()
+                .code,
+            "E_ARTIFACT_VERSION"
+        );
+    }
+
+    #[test]
     fn cloned_text_values_share_immutable_storage() {
         let value = Value::Text("a sufficiently long immutable string value".into());
         let cloned = value.clone();
@@ -65,6 +215,40 @@ mod tests {
         };
 
         assert_eq!(original.as_ptr(), copy.as_ptr());
+    }
+
+    #[test]
+    fn cloned_bigints_share_immutable_digit_storage() {
+        let value = BigInt::parse("12345678901234567890").unwrap();
+        let cloned = value.clone();
+
+        let (Some(original), Some(copy)) = (&value.digits, &cloned.digits) else {
+            panic!("an out-of-range integer uses shared large storage")
+        };
+        assert!(Arc::ptr_eq(original, copy));
+    }
+
+    #[test]
+    fn machine_sized_bigints_use_inline_storage_and_overflow_promotes() {
+        assert_eq!(BigInt::from_i64(42).small_or_sign, 42);
+        assert_eq!(BigInt::from_i64(i64::MAX).small_or_sign, i64::MAX);
+        assert!(BigInt::from_i64(42).digits.is_none());
+        assert!((&BigInt::from_i64(i64::MAX) + &BigInt::one())
+            .digits
+            .is_some());
+        #[allow(dead_code)]
+        struct PreviousBigIntLayout {
+            sign: i8,
+            digits: Arc<Vec<u8>>,
+        }
+        assert_eq!(
+            std::mem::size_of::<BigInt>(),
+            std::mem::size_of::<PreviousBigIntLayout>()
+        );
+        assert_eq!(
+            (&BigInt::from_i64(i64::MAX) + &BigInt::one()).to_string(),
+            "9223372036854775808"
+        );
     }
 
     #[test]
@@ -89,6 +273,50 @@ mod tests {
         assert_eq!((&b - &a).to_string(), "-999999999999999999999999999998");
         assert_eq!(BigInt::parse("-00042").unwrap().to_string(), "-42");
         assert_eq!(BigInt::parse("-0").unwrap().to_string(), "0");
+    }
+
+    #[test]
+    fn inline_integer_arithmetic_matches_wide_signed_arithmetic() {
+        let mut values = (-100i64..=100).collect::<Vec<_>>();
+        values.extend([i64::MIN, i64::MIN + 1, -1, 0, 1, i64::MAX - 1, i64::MAX]);
+
+        for left in &values {
+            let left_big = BigInt::from_i64(*left);
+            for right in &values {
+                let right_big = BigInt::from_i64(*right);
+                let (left_wide, right_wide) = (i128::from(*left), i128::from(*right));
+                assert_eq!(
+                    (&left_big + &right_big).to_string(),
+                    (left_wide + right_wide).to_string()
+                );
+                assert_eq!(
+                    (&left_big - &right_big).to_string(),
+                    (left_wide - right_wide).to_string()
+                );
+                assert_eq!(
+                    (&left_big * &right_big).to_string(),
+                    (left_wide * right_wide).to_string()
+                );
+                assert_eq!(left_big.cmp(&right_big), left_wide.cmp(&right_wide));
+
+                if *right != 0 {
+                    let (quotient, remainder) = left_big.trunc_div_rem(&right_big).unwrap();
+                    assert_eq!(quotient.to_string(), (left_wide / right_wide).to_string());
+                    assert_eq!(remainder.to_string(), (left_wide % right_wide).to_string());
+
+                    let (quotient, remainder) = left_big.floor_div_rem(&right_big).unwrap();
+                    let mut expected_quotient = left_wide / right_wide;
+                    if left_wide % right_wide != 0 && (left_wide < 0) != (right_wide < 0) {
+                        expected_quotient -= 1;
+                    }
+                    assert_eq!(quotient.to_string(), expected_quotient.to_string());
+                    assert_eq!(
+                        remainder.to_string(),
+                        (left_wide - expected_quotient * right_wide).to_string()
+                    );
+                }
+            }
+        }
     }
 
     #[test]
@@ -871,9 +1099,11 @@ impl Diagnostic {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BigInt {
-    sign: i8,
-    // Base 10, least significant digit first.
-    digits: Vec<u8>,
+    // `digits` uses Option's null pointer niche, so this tagged form remains
+    // two machine words while storing every i64 inline.
+    small_or_sign: i64,
+    // Base 10, least significant digit first; present only outside i64.
+    digits: Option<Arc<Vec<u8>>>,
 }
 
 impl BigInt {
@@ -888,116 +1118,118 @@ impl BigInt {
         if digits.is_empty() || !digits.bytes().all(|b| b.is_ascii_digit()) {
             return Err("invalid integer");
         }
-        let mut value = Self {
+        if let Ok(value) = input.parse::<i64>() {
+            return Ok(Self::from_i64(value));
+        }
+        Ok(Self::from_parts(
             sign,
-            digits: digits.bytes().rev().map(|b| b - b'0').collect(),
-        };
-        value.normalize();
-        Ok(value)
+            digits.bytes().rev().map(|b| b - b'0').collect(),
+        ))
     }
 
     pub fn zero() -> Self {
-        Self {
-            sign: 0,
-            digits: vec![0],
-        }
+        Self::from_i64(0)
     }
+
     pub fn one() -> Self {
-        Self {
-            sign: 1,
-            digits: vec![1],
+        Self::from_i64(1)
+    }
+
+    pub fn from_usize(value: usize) -> Self {
+        match u64::try_from(value) {
+            Ok(value) => Self::from_u64(value),
+            Err(_) => Self::parse(&value.to_string()).expect("usize is a decimal integer"),
         }
     }
-    pub fn from_usize(value: usize) -> Self {
-        Self::parse(&value.to_string()).expect("usize is a decimal integer")
-    }
+
     pub fn from_u64(mut value: u64) -> Self {
-        if value == 0 {
-            return Self::zero();
+        if let Ok(value) = i64::try_from(value) {
+            return Self::from_i64(value);
         }
         let mut digits = Vec::new();
         while value != 0 {
             digits.push((value % 10) as u8);
             value /= 10;
         }
-        Self { sign: 1, digits }
+        Self::from_parts(1, digits)
     }
+
     pub fn from_i64(value: i64) -> Self {
-        if value < 0 {
-            let mut integer = Self::from_u64(value.unsigned_abs());
-            integer.sign = -1;
-            integer
-        } else {
-            Self::from_u64(value as u64)
+        Self {
+            small_or_sign: value,
+            digits: None,
         }
     }
+
     pub fn to_usize(&self) -> Option<usize> {
-        if self.sign < 0 {
-            return None;
-        }
-        self.digits.iter().rev().try_fold(0usize, |value, digit| {
-            value.checked_mul(10)?.checked_add(usize::from(*digit))
-        })
-    }
-    pub fn to_i64(&self) -> Option<i64> {
-        if self.sign == 0 {
-            return Some(0);
-        }
-        let magnitude = self.digits.iter().rev().try_fold(0u64, |value, digit| {
-            value.checked_mul(10)?.checked_add(u64::from(*digit))
-        })?;
-        if self.sign < 0 {
-            let minimum_magnitude = (i64::MAX as u64) + 1;
-            if magnitude == minimum_magnitude {
-                Some(i64::MIN)
-            } else {
-                i64::try_from(magnitude).ok()?.checked_neg()
+        match &self.digits {
+            None => usize::try_from(self.small_or_sign).ok(),
+            Some(digits) => {
+                if self.small_or_sign < 0 {
+                    return None;
+                }
+                digits.iter().rev().try_fold(0usize, |value, digit| {
+                    value.checked_mul(10)?.checked_add(usize::from(*digit))
+                })
             }
-        } else {
-            i64::try_from(magnitude).ok()
         }
     }
+
+    pub fn to_i64(&self) -> Option<i64> {
+        match &self.digits {
+            None => Some(self.small_or_sign),
+            Some(digits) => digits_to_i64(self.small_or_sign.signum() as i8, digits),
+        }
+    }
+
     pub fn is_zero(&self) -> bool {
-        self.sign == 0
+        self.digits.is_none() && self.small_or_sign == 0
     }
+
     pub fn is_negative(&self) -> bool {
-        self.sign < 0
+        self.sign() < 0
     }
+
     pub fn digit_count(&self) -> usize {
-        self.digits.len()
+        match &self.digits {
+            Some(digits) => digits.len(),
+            None if self.small_or_sign == 0 => 1,
+            None => self.small_or_sign.unsigned_abs().ilog10() as usize + 1,
+        }
     }
 
     pub fn trunc_div_rem(&self, rhs: &Self) -> Option<(Self, Self)> {
         if rhs.is_zero() {
             return None;
         }
+        if let (Some(left), Some(right)) = (self.to_i64(), rhs.to_i64()) {
+            if let (Some(quotient), Some(remainder)) =
+                (left.checked_div(right), left.checked_rem(right))
+            {
+                return Some((Self::from_i64(quotient), Self::from_i64(remainder)));
+            }
+        }
         if self.is_zero() {
             return Some((Self::zero(), Self::zero()));
         }
-        let divisor = Self {
-            sign: 1,
-            digits: rhs.digits.clone(),
-        };
+        let dividend_digits = self.decimal_digits();
+        let divisor_digits = rhs.decimal_digits();
         let multiples = (1..=9)
-            .map(|factor| divisor.mul_small(factor))
+            .map(|factor| multiply_decimal_digits(&divisor_digits, factor))
             .collect::<Vec<_>>();
-        let mut remainder = Self::zero();
-        let mut quotient_msd = Vec::with_capacity(self.digits.len());
-        for digit in self.digits.iter().rev() {
-            if remainder.is_zero() {
-                remainder.digits[0] = *digit;
-                remainder.normalize();
-                if *digit != 0 {
-                    remainder.sign = 1;
-                }
+        let mut remainder = vec![0];
+        let mut quotient_msd = Vec::with_capacity(dividend_digits.len());
+        for digit in dividend_digits.iter().rev() {
+            if remainder.as_slice() == [0] {
+                remainder[0] = *digit;
             } else {
-                remainder.digits.insert(0, *digit);
-                remainder.normalize();
+                remainder.insert(0, *digit);
             }
+            normalize_decimal_digits(&mut remainder);
             let (mut low, mut high) = (0usize, multiples.len());
             while low < high {
                 let middle = low + (high - low).div_ceil(2);
-                if multiples[middle - 1].cmp_abs(&remainder) != Ordering::Greater {
+                if compare_decimal_digits(&multiples[middle - 1], &remainder) != Ordering::Greater {
                     low = middle;
                 } else {
                     high = middle - 1;
@@ -1005,75 +1237,74 @@ impl BigInt {
             }
             let qdigit = low;
             if qdigit != 0 {
-                remainder = &remainder - &multiples[qdigit - 1];
+                remainder = subtract_decimal_digits(&remainder, &multiples[qdigit - 1]);
             }
             quotient_msd.push(qdigit as u8);
         }
-        let mut quotient = Self {
-            sign: self.sign * rhs.sign,
-            digits: quotient_msd.into_iter().rev().collect(),
-        };
-        quotient.normalize();
-        if !remainder.is_zero() {
-            remainder.sign = self.sign;
-        }
-        Some((quotient, remainder))
+        Some((
+            Self::from_parts(
+                self.sign() * rhs.sign(),
+                quotient_msd.into_iter().rev().collect(),
+            ),
+            Self::from_parts(self.sign(), remainder),
+        ))
     }
 
     pub fn floor_div_rem(&self, rhs: &Self) -> Option<(Self, Self)> {
         let (mut quotient, mut remainder) = self.trunc_div_rem(rhs)?;
-        if !remainder.is_zero() && self.sign != rhs.sign {
+        if !remainder.is_zero() && self.sign() != rhs.sign() {
             quotient = &quotient - &Self::one();
             remainder = &remainder + rhs;
         }
         Some((quotient, remainder))
     }
 
-    fn mul_small(&self, factor: u8) -> Self {
-        if factor == 0 || self.is_zero() {
-            return Self::zero();
-        }
-        let mut digits = Vec::with_capacity(self.digits.len() + 1);
-        let mut carry = 0u16;
-        for digit in &self.digits {
-            let product = u16::from(*digit) * u16::from(factor) + carry;
-            digits.push((product % 10) as u8);
-            carry = product / 10;
-        }
-        while carry != 0 {
-            digits.push((carry % 10) as u8);
-            carry /= 10;
+    fn from_parts(sign: i8, mut digits: Vec<u8>) -> Self {
+        normalize_decimal_digits(&mut digits);
+        if let Some(value) = digits_to_i64(sign, &digits) {
+            return Self::from_i64(value);
         }
         Self {
-            sign: self.sign,
-            digits,
+            small_or_sign: if sign < 0 { -1 } else { 1 },
+            digits: Some(Arc::new(digits)),
         }
     }
 
-    fn normalize(&mut self) {
-        while self.digits.len() > 1 && self.digits.last() == Some(&0) {
-            self.digits.pop();
-        }
-        if self.digits.iter().all(|d| *d == 0) {
-            self.digits = vec![0];
-            self.sign = 0;
+    fn sign(&self) -> i8 {
+        self.small_or_sign.signum() as i8
+    }
+
+    fn decimal_digits(&self) -> std::borrow::Cow<'_, [u8]> {
+        match &self.digits {
+            Some(digits) => std::borrow::Cow::Borrowed(digits),
+            None => {
+                let mut magnitude = self.small_or_sign.unsigned_abs();
+                if magnitude == 0 {
+                    return std::borrow::Cow::Owned(vec![0]);
+                }
+                let mut digits = Vec::with_capacity(magnitude.ilog10() as usize + 1);
+                while magnitude != 0 {
+                    digits.push((magnitude % 10) as u8);
+                    magnitude /= 10;
+                }
+                std::borrow::Cow::Owned(digits)
+            }
         }
     }
 
     fn cmp_abs(&self, other: &Self) -> Ordering {
-        self.digits
-            .len()
-            .cmp(&other.digits.len())
-            .then_with(|| self.digits.iter().rev().cmp(other.digits.iter().rev()))
+        compare_decimal_digits(&self.decimal_digits(), &other.decimal_digits())
     }
 
     fn add_abs(a: &Self, b: &Self) -> Vec<u8> {
-        let n = a.digits.len().max(b.digits.len());
+        let a_digits = a.decimal_digits();
+        let b_digits = b.decimal_digits();
+        let n = a_digits.len().max(b_digits.len());
         let mut out = Vec::with_capacity(n + 1);
         let mut carry = 0u16;
         for i in 0..n {
-            let sum = u16::from(*a.digits.get(i).unwrap_or(&0))
-                + u16::from(*b.digits.get(i).unwrap_or(&0))
+            let sum = u16::from(*a_digits.get(i).unwrap_or(&0))
+                + u16::from(*b_digits.get(i).unwrap_or(&0))
                 + carry;
             out.push((sum % 10) as u8);
             carry = sum / 10;
@@ -1086,11 +1317,13 @@ impl BigInt {
 
     // Requires |a| >= |b|.
     fn sub_abs(a: &Self, b: &Self) -> Vec<u8> {
-        let mut out = Vec::with_capacity(a.digits.len());
+        let a_digits = a.decimal_digits();
+        let b_digits = b.decimal_digits();
+        let mut out = Vec::with_capacity(a_digits.len());
         let mut borrow = 0i16;
-        for i in 0..a.digits.len() {
+        for i in 0..a_digits.len() {
             let mut value =
-                i16::from(a.digits[i]) - i16::from(*b.digits.get(i).unwrap_or(&0)) - borrow;
+                i16::from(a_digits[i]) - i16::from(*b_digits.get(i).unwrap_or(&0)) - borrow;
             if value < 0 {
                 value += 10;
                 borrow = 1;
@@ -1103,38 +1336,115 @@ impl BigInt {
     }
 }
 
+fn normalize_decimal_digits(digits: &mut Vec<u8>) {
+    while digits.len() > 1 && digits.last() == Some(&0) {
+        digits.pop();
+    }
+    if digits.is_empty() {
+        digits.push(0);
+    }
+}
+
+fn compare_decimal_digits(left: &[u8], right: &[u8]) -> Ordering {
+    left.len()
+        .cmp(&right.len())
+        .then_with(|| left.iter().rev().cmp(right.iter().rev()))
+}
+
+fn subtract_decimal_digits(left: &[u8], right: &[u8]) -> Vec<u8> {
+    let mut out = Vec::with_capacity(left.len());
+    let mut borrow = 0i16;
+    for (index, left_digit) in left.iter().enumerate() {
+        let mut value =
+            i16::from(*left_digit) - i16::from(*right.get(index).unwrap_or(&0)) - borrow;
+        if value < 0 {
+            value += 10;
+            borrow = 1;
+        } else {
+            borrow = 0;
+        }
+        out.push(value as u8);
+    }
+    normalize_decimal_digits(&mut out);
+    out
+}
+
+fn multiply_decimal_digits(source: &[u8], factor: u8) -> Vec<u8> {
+    let mut digits = Vec::with_capacity(source.len() + 1);
+    let mut carry = 0u16;
+    for digit in source {
+        let product = u16::from(*digit) * u16::from(factor) + carry;
+        digits.push((product % 10) as u8);
+        carry = product / 10;
+    }
+    while carry != 0 {
+        digits.push((carry % 10) as u8);
+        carry /= 10;
+    }
+    normalize_decimal_digits(&mut digits);
+    digits
+}
+
+fn digits_to_i64(sign: i8, digits: &[u8]) -> Option<i64> {
+    if digits.len() > 19 {
+        return None;
+    }
+    let magnitude = digits.iter().rev().try_fold(0u64, |value, digit| {
+        value.checked_mul(10)?.checked_add(u64::from(*digit))
+    })?;
+    if sign < 0 {
+        let minimum_magnitude = (i64::MAX as u64) + 1;
+        if magnitude == minimum_magnitude {
+            Some(i64::MIN)
+        } else {
+            i64::try_from(magnitude).ok()?.checked_neg()
+        }
+    } else {
+        i64::try_from(magnitude).ok()
+    }
+}
+
 impl Add<&BigInt> for &BigInt {
     type Output = BigInt;
     fn add(self, rhs: &BigInt) -> BigInt {
-        let mut out = match (self.sign, rhs.sign) {
+        if let (Some(left), Some(right)) = (self.to_i64(), rhs.to_i64()) {
+            if let Some(value) = left.checked_add(right) {
+                return BigInt::from_i64(value);
+            }
+        }
+        match (self.sign(), rhs.sign()) {
             (0, _) => rhs.clone(),
             (_, 0) => self.clone(),
-            (a, b) if a == b => BigInt {
-                sign: a,
-                digits: BigInt::add_abs(self, rhs),
-            },
+            (left_sign, right_sign) if left_sign == right_sign => {
+                BigInt::from_parts(left_sign, BigInt::add_abs(self, rhs))
+            }
             _ => match self.cmp_abs(rhs) {
                 Ordering::Equal => BigInt::zero(),
-                Ordering::Greater => BigInt {
-                    sign: self.sign,
-                    digits: BigInt::sub_abs(self, rhs),
-                },
-                Ordering::Less => BigInt {
-                    sign: rhs.sign,
-                    digits: BigInt::sub_abs(rhs, self),
-                },
+                Ordering::Greater => BigInt::from_parts(self.sign(), BigInt::sub_abs(self, rhs)),
+                Ordering::Less => BigInt::from_parts(rhs.sign(), BigInt::sub_abs(rhs, self)),
             },
-        };
-        out.normalize();
-        out
+        }
     }
 }
 
 impl Sub<&BigInt> for &BigInt {
     type Output = BigInt;
     fn sub(self, rhs: &BigInt) -> BigInt {
-        let mut neg = rhs.clone();
-        neg.sign = -neg.sign;
+        if let (Some(left), Some(right)) = (self.to_i64(), rhs.to_i64()) {
+            if let Some(value) = left.checked_sub(right) {
+                return BigInt::from_i64(value);
+            }
+        }
+        let neg = match (&rhs.digits, rhs.small_or_sign) {
+            (None, value) => value.checked_neg().map_or_else(
+                || BigInt::from_parts(1, rhs.decimal_digits().into_owned()),
+                BigInt::from_i64,
+            ),
+            (Some(digits), sign) => BigInt {
+                small_or_sign: -sign,
+                digits: Some(Arc::clone(digits)),
+            },
+        };
         self + &neg
     }
 }
@@ -1142,12 +1452,19 @@ impl Sub<&BigInt> for &BigInt {
 impl Mul<&BigInt> for &BigInt {
     type Output = BigInt;
     fn mul(self, rhs: &BigInt) -> BigInt {
+        if let (Some(left), Some(right)) = (self.to_i64(), rhs.to_i64()) {
+            if let Some(value) = left.checked_mul(right) {
+                return BigInt::from_i64(value);
+            }
+        }
         if self.is_zero() || rhs.is_zero() {
             return BigInt::zero();
         }
-        let mut out = vec![0u64; self.digits.len() + rhs.digits.len()];
-        for (i, a) in self.digits.iter().enumerate() {
-            for (j, b) in rhs.digits.iter().enumerate() {
+        let left_digits = self.decimal_digits();
+        let right_digits = rhs.decimal_digits();
+        let mut out = vec![0u64; left_digits.len() + right_digits.len()];
+        for (i, a) in left_digits.iter().enumerate() {
+            for (j, b) in right_digits.iter().enumerate() {
                 out[i + j] += u64::from(*a) * u64::from(*b);
             }
         }
@@ -1156,12 +1473,10 @@ impl Mul<&BigInt> for &BigInt {
             out[i] %= 10;
             out[i + 1] += carry;
         }
-        let mut result = BigInt {
-            sign: self.sign * rhs.sign,
-            digits: out.into_iter().map(|d| d as u8).collect(),
-        };
-        result.normalize();
-        result
+        BigInt::from_parts(
+            self.sign() * rhs.sign(),
+            out.into_iter().map(|digit| digit as u8).collect(),
+        )
     }
 }
 
@@ -1170,24 +1485,34 @@ impl PartialOrd for BigInt {
         Some(self.cmp(rhs))
     }
 }
+
 impl Ord for BigInt {
     fn cmp(&self, rhs: &Self) -> Ordering {
-        match self.sign.cmp(&rhs.sign) {
-            Ordering::Equal if self.sign < 0 => rhs.cmp_abs(self),
+        if let (Some(left), Some(right)) = (self.to_i64(), rhs.to_i64()) {
+            return left.cmp(&right);
+        }
+        match self.sign().cmp(&rhs.sign()) {
+            Ordering::Equal if self.is_negative() => rhs.cmp_abs(self),
             Ordering::Equal => self.cmp_abs(rhs),
             other => other,
         }
     }
 }
+
 impl fmt::Display for BigInt {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if self.sign < 0 {
-            f.write_str("-")?;
+        match &self.digits {
+            None => write!(f, "{}", self.small_or_sign),
+            Some(digits) => {
+                if self.small_or_sign < 0 {
+                    f.write_str("-")?;
+                }
+                for digit in digits.iter().rev() {
+                    write!(f, "{digit}")?;
+                }
+                Ok(())
+            }
         }
-        for digit in self.digits.iter().rev() {
-            write!(f, "{digit}")?;
-        }
-        Ok(())
     }
 }
 
@@ -1717,6 +2042,7 @@ pub enum Op {
     HttpRequestBytes,
     Environment,
     TextChars,
+    TextSlice,
     TextJoin,
     BytesFromInts,
     BytesFromText,
@@ -1775,6 +2101,8 @@ pub enum Op {
     TomlRender,
     CalendarParse,
     HttpResponseText,
+    HttpResponseJson,
+    TimeFormatUtcDate,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -1852,7 +2180,7 @@ pub struct Artifact {
 }
 
 impl Artifact {
-    pub const CURRENT_VERSION: u32 = 45;
+    pub const CURRENT_VERSION: u32 = 48;
     pub fn entry(&self) -> &str {
         &self.entry
     }
@@ -2044,6 +2372,24 @@ impl Artifact {
             return Err(ArtifactError::new(
                 "E_ARTIFACT_VERSION",
                 "HTTP response text decoding requires artifact format 45",
+            ));
+        }
+        if self.format_version < 46 && artifact_uses_text_slice(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "Unicode scalar text slicing requires artifact format 46",
+            ));
+        }
+        if self.format_version < 47 && artifact_uses_http_response_json(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "direct JSON decoding from HTTP response bytes requires artifact format 47",
+            ));
+        }
+        if self.format_version < 48 && artifact_uses_time_format_utc_date(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "UTC date formatting requires artifact format 48",
             ));
         }
         validate_sort_comparator_effects(self)
@@ -2260,6 +2606,9 @@ impl Artifact {
                     Op::TextJoin => w.u8(163),
                     Op::JsonStringifyPairs => w.u8(164),
                     Op::HttpResponseText => w.u8(165),
+                    Op::TextSlice => w.u8(166),
+                    Op::HttpResponseJson => w.u8(167),
+                    Op::TimeFormatUtcDate => w.u8(168),
                     Op::ListPushLocal(slot) => {
                         w.u8(103);
                         w.count(*slot)?;
@@ -2602,7 +2951,28 @@ impl Artifact {
                         return Err(ArtifactError::new(
                             "E_ARTIFACT_VERSION",
                             "HTTP response text decoding requires artifact format 45",
-                        ))
+                        ));
+                    }
+                    166 if format_version >= 46 => Op::TextSlice,
+                    166 => {
+                        return Err(ArtifactError::new(
+                            "E_ARTIFACT_VERSION",
+                            "Unicode scalar text slicing requires artifact format 46",
+                        ));
+                    }
+                    167 if format_version >= 47 => Op::HttpResponseJson,
+                    167 => {
+                        return Err(ArtifactError::new(
+                            "E_ARTIFACT_VERSION",
+                            "direct JSON decoding from HTTP response bytes requires artifact format 47",
+                        ));
+                    }
+                    168 if format_version >= 48 => Op::TimeFormatUtcDate,
+                    168 => {
+                        return Err(ArtifactError::new(
+                            "E_ARTIFACT_VERSION",
+                            "UTC date formatting requires artifact format 48",
+                        ));
                     }
                     103 => Op::ListPushLocal(r.count()?),
                     104 => Op::JsonPushLocal(r.count()?),
@@ -2667,7 +3037,7 @@ impl Artifact {
                         return Err(ArtifactError::new(
                             "E_ARTIFACT_VERSION",
                             "artifact uses an instruction newer than its declared format",
-                        ))
+                        ));
                     }
                     160 => Op::JsonSetLocal(r.count()?),
                     161 if format_version >= 42 => Op::TimeResolveLocal,
@@ -2676,7 +3046,7 @@ impl Artifact {
                         return Err(ArtifactError::new(
                             "E_ARTIFACT_OPCODE",
                             format!("unknown instruction tag {tag}"),
-                        ))
+                        ));
                     }
                 };
                 code.push(Instruction { op, span });
@@ -2741,7 +3111,7 @@ impl Artifact {
                     return Err(ArtifactError::new(
                         "E_ARTIFACT_METADATA",
                         format!("unknown build metadata tag {tag}"),
-                    ))
+                    ));
                 }
             }
         } else {
@@ -2948,6 +3318,24 @@ impl Artifact {
                 "HTTP response text decoding requires artifact format 45",
             ));
         }
+        if format_version < 46 && artifact_uses_text_slice(&artifact) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "Unicode scalar text slicing requires artifact format 46",
+            ));
+        }
+        if format_version < 47 && artifact_uses_http_response_json(&artifact) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "direct JSON decoding from HTTP response bytes requires artifact format 47",
+            ));
+        }
+        if format_version < 48 && artifact_uses_time_format_utc_date(&artifact) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "UTC date formatting requires artifact format 48",
+            ));
+        }
         validate_sort_comparator_effects(&artifact)
             .map_err(|message| ArtifactError::new("E_SORT_EFFECT", message))?;
         Ok(artifact)
@@ -3016,6 +3404,7 @@ fn artifact_uses_http(artifact: &Artifact) -> bool {
                         | Op::HttpErrorMessage
                         | Op::HttpRequestBytes
                         | Op::HttpResponseText
+                        | Op::HttpResponseJson
                 ) || matches!(&instruction.op, Op::Const(Value::HttpError(_)))
             })
     })
@@ -3056,6 +3445,33 @@ fn artifact_uses_http_response_text(artifact: &Artifact) -> bool {
             .code
             .iter()
             .any(|instruction| matches!(instruction.op, Op::HttpResponseText))
+    })
+}
+
+fn artifact_uses_http_response_json(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function
+            .code
+            .iter()
+            .any(|instruction| matches!(instruction.op, Op::HttpResponseJson))
+    })
+}
+
+fn artifact_uses_time_format_utc_date(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function
+            .code
+            .iter()
+            .any(|instruction| matches!(instruction.op, Op::TimeFormatUtcDate))
+    })
+}
+
+fn artifact_uses_text_slice(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function
+            .code
+            .iter()
+            .any(|instruction| matches!(instruction.op, Op::TextSlice))
     })
 }
 
@@ -3679,7 +4095,7 @@ impl Writer {
                 return Err(ArtifactError::new(
                     "E_ARTIFACT_RESOURCE",
                     "native resource handles cannot be serialized as constants",
-                ))
+                ));
             }
         }
         Ok(())

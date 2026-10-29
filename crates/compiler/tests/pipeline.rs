@@ -1,4 +1,7 @@
-use guion_compiler::{compile, compile_project, compile_project_with_roots, Diagnostic};
+use guion_compiler::{
+    compile, compile_project, compile_project_with_roots, compile_project_with_roots_profiled,
+    Diagnostic,
+};
 
 #[test]
 fn compiles_a_general_function_and_rejects_unknown_names_with_a_span() {
@@ -50,6 +53,159 @@ fn local_resolver_has_the_public_typed_signature_and_rejects_wrong_arguments() {
     let error = compile_project_with_roots(&bad_entry, &root, Some(&stdlib), &HashMap::new())
         .expect_err("an integer is not a LocalDateTime");
     assert_eq!(error.code, "E_TYPE_ARGUMENT");
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn public_import_reexports_public_functions_and_records() {
+    use std::fs;
+
+    let root = std::env::temp_dir().join(format!(
+        "guion-public-import-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    fs::create_dir_all(&root).unwrap();
+    fs::write(
+        root.join("main.gu"),
+        "import \"facade.gu\"\nfn main() -> Int:\n    let token = Token(41)\n    let incremented = increment(token)\n    assert(incremented.value == 42)\n    return 0\n",
+    )
+    .unwrap();
+    fs::write(root.join("facade.gu"), "pub import \"inner.gu\"\npub fn facade_value() -> Int:\n    return 0\n").unwrap();
+    fs::write(
+        root.join("inner.gu"),
+        "pub record Token:\n    value: Int\n\npub fn increment(token: Token) -> Token:\n    return Token(token.value + 1)\n",
+    )
+    .unwrap();
+
+    compile_project(&root.join("main.gu"), &root)
+        .expect("public imports re-export declarations to downstream modules");
+
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn http_response_helper_exports_its_minimal_types_without_loading_time_modules() {
+    use std::{collections::HashMap, fs, path::PathBuf};
+
+    let root = std::env::temp_dir().join(format!(
+        "guion-http-types-profile-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    fs::create_dir_all(&root).unwrap();
+    let entry = root.join("main.gu");
+    fs::write(
+        &entry,
+        "import \"std:http\"\nfn decode(response: HttpResponse) -> Result[Json, StdError]:\n    return http_response_json(response)\n\nfn main() -> Int:\n    return 0\n",
+    )
+    .unwrap();
+    let stdlib = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../language/stdlib");
+
+    let (artifact, profile) = compile_project_with_roots_profiled(
+        &entry,
+        &root,
+        Some(&stdlib),
+        &HashMap::new(),
+    )
+    .expect("std:http exports the types in its public typed HTTP signature");
+
+    assert_eq!(artifact.sources.len(), 3);
+    assert_eq!(
+        profile
+            .modules
+            .iter()
+            .map(|module| module.source_name.as_str())
+            .collect::<std::collections::HashSet<_>>(),
+        std::collections::HashSet::from(["main.gu", "std:http", "std:http_types"]),
+        "the typed HTTP helper should share its small record module without pulling in std:types or std:time"
+    );
+
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn typed_http_helper_remains_compatible_when_std_types_is_also_imported() {
+    use std::{collections::HashMap, fs, path::PathBuf};
+
+    let root = std::env::temp_dir().join(format!(
+        "guion-http-types-compat-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    fs::create_dir_all(&root).unwrap();
+    let entry = root.join("main.gu");
+    fs::write(
+        &entry,
+        "import \"std:http\"\nimport \"std:types\"\nfn decode(response: HttpResponse) -> Result[Json, StdError]:\n    return http_response_json(response)\n\nfn main() -> Int:\n    let response = HttpResponse(200, {}, bytes_from_text(\"{}\"))\n    let parsed = unwrap(http_response_json(response))\n    assert(json_as_int(json_get(parsed, \"answer\")) == 42)\n    return 0\n",
+    )
+    .unwrap();
+    let stdlib = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../language/stdlib");
+
+    compile_project_with_roots(&entry, &root, Some(&stdlib), &HashMap::new())
+        .expect("the existing combined std:http and std:types import pattern remains valid");
+
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn profiled_compile_attributes_each_standard_library_module_once() {
+    use std::{collections::HashMap, fs, path::PathBuf};
+
+    let root = std::env::temp_dir().join(format!(
+        "guion-compiler-profile-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    fs::create_dir_all(&root).unwrap();
+    let entry = root.join("main.gu");
+    fs::write(
+        &entry,
+        "import \"std:http\"\nimport \"std:types\"\nfn main() -> Int:\n    return 0\n",
+    )
+    .unwrap();
+    let stdlib = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../language/stdlib");
+
+    let (artifact, profile) = compile_project_with_roots_profiled(
+        &entry,
+        &root,
+        Some(&stdlib),
+        &HashMap::new(),
+    )
+    .expect("typed HTTP import graph compiles");
+
+    assert_eq!(artifact.sources.len(), profile.modules.len());
+    for expected in ["main.gu", "std:http", "std:types", "std:time", "std:http_types"] {
+        assert_eq!(
+            profile
+                .modules
+                .iter()
+                .filter(|module| module.source_name == expected)
+                .count(),
+            1,
+            "profile includes exactly one timing record for {expected}"
+        );
+    }
+    assert!(profile.compile_program_ns > 0);
+    assert!(profile.modules.iter().all(|module| {
+        module.source_bytes > 0
+            && module.path_validation_ns > 0
+            && module.source_read_ns > 0
+            && module.parse_ns > 0
+    }));
+
     let _ = fs::remove_dir_all(root);
 }
 
@@ -147,5 +303,16 @@ fn http_response_text_is_typechecked_for_http_response_only() {
     let invalid = "fn decode(response: Text) -> Result[Text, HttpError]:\n    return http_response_text(response)\n\nfn main() -> Int:\n    return 0\n";
     let error = compile("http-response-text-wrong-type.gu", invalid)
         .expect_err("http_response_text rejects non-HttpResponse values");
+    assert_eq!(error.code, "E_TYPE_ARGUMENT");
+}
+
+#[test]
+fn text_slice_is_typechecked_for_text_and_int_bounds() {
+    let valid = "fn main() -> Int:\n    let selected = text_slice(\"a🙂é\", 1, 3)\n    assert(selected == \"🙂é\")\n    return 0\n";
+    compile("text-slice.gu", valid).expect("text_slice accepts Text and Int bounds");
+
+    let invalid = "fn main() -> Int:\n    let selected = text_slice(\"abc\", 0, \"2\")\n    return 0\n";
+    let error = compile("text-slice-wrong-type.gu", invalid)
+        .expect_err("text_slice rejects a non-Int bound");
     assert_eq!(error.code, "E_TYPE_ARGUMENT");
 }

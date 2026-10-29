@@ -31,8 +31,8 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
     if args.first().is_some_and(|command| command == "cache") {
         return execute_cache_command(&args);
     }
-    let cli_started = Instant::now();
     let phase_timings_enabled = env::var_os("GUION_PHASE_TIMINGS").is_some();
+    let cli_started = phase_timings_enabled.then(Instant::now);
     let runtime_profile_enabled = env::var_os("GUION_RUNTIME_PROFILE").is_some();
     let Some(command) = args.first().map(String::as_str) else {
         return Err(
@@ -569,9 +569,10 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
     let artifact = if command == "run" || command == "inspect" {
         let bytes = fs::read(&path).map_err(|e| format!("cannot read {path}: {e}"))?;
         if path.ends_with(".gub") || bytes.starts_with(b"VRTA") {
-            let decode_started = Instant::now();
+            let decode_started = phase_timings_enabled.then(Instant::now);
             let decoded = Artifact::from_bytes(&bytes);
-            input_artifact_decode_ns = Some(decode_started.elapsed().as_nanos());
+            input_artifact_decode_ns =
+                decode_started.map(|started| started.elapsed().as_nanos());
             match decoded {
                 Ok(artifact) => artifact,
                 Err(error) if json_run || json_inspect => {
@@ -597,7 +598,7 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
             String::from_utf8(bytes)
                 .map_err(|e| format!("{path}: source is not valid UTF-8: {e}"))?;
             let compilation = if command == "run" {
-                let compile_started = Instant::now();
+                let compile_started = phase_timings_enabled.then(Instant::now);
                 let result = compile_project_for_run(
                     &source_path,
                     &project_root,
@@ -605,8 +606,10 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
                     &runtime_file_roots,
                     &http_host_overrides,
                     clock_override,
+                    phase_timings_enabled,
                 );
-                source_compile_or_cache_ns = Some(compile_started.elapsed().as_nanos());
+                source_compile_or_cache_ns =
+                    compile_started.map(|started| started.elapsed().as_nanos());
                 result.map(|(artifact, cache_status, timings)| {
                     source_cache_status = cache_status;
                     compiler_phase_timings = timings;
@@ -826,7 +829,7 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
             } else if let Some(interpreter) = env::var_os("GUION_PYTHON") {
                 policy = policy.with_python(interpreter, std::time::Duration::from_secs(15));
             }
-            let runtime_load_started = Instant::now();
+            let runtime_load_started = phase_timings_enabled.then(Instant::now);
             let mut instance = match runtime.load(artifact.clone(), policy) {
                 Ok(instance) => instance,
                 Err(error) if json_run => {
@@ -848,10 +851,11 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
                 }
                 Err(error) => return Err(render_runtime(&path, &artifact, &error)),
             };
-            let runtime_load_ns = runtime_load_started.elapsed().as_nanos();
-            let program_started = Instant::now();
+            let runtime_load_ns =
+                runtime_load_started.map(|started| started.elapsed().as_nanos());
+            let program_started = phase_timings_enabled.then(Instant::now);
             let result = instance.invoke("main", vec![]);
-            let program_execute_ns = program_started.elapsed().as_nanos();
+            let program_execute_ns = program_started.map(|started| started.elapsed().as_nanos());
             let program_stdout = instance.take_output();
             let program_stderr = instance.take_program_stderr();
             let host_stderr = instance.take_host_stderr();
@@ -950,7 +954,10 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
                 add_runtime_profile(&mut report, runtime_profile);
                 if phase_timings_enabled {
                     report["phase_timings_ns"] = serde_json::json!({
-                        "cli_to_report_excluding_process_startup_ns": cli_started.elapsed().as_nanos(),
+                        "cli_to_report_excluding_process_startup_ns": cli_started
+                            .expect("phase timing clock started")
+                            .elapsed()
+                            .as_nanos(),
                         "input_artifact_decode_ns": input_artifact_decode_ns,
                         "source_compile_or_cache_ns": source_compile_or_cache_ns,
                         "compiler_pipeline": compiler_phase_timings.as_ref().map(compiler_phase_report),
@@ -1355,6 +1362,7 @@ fn compile_project_for_run(
     file_roots: &[std::path::PathBuf],
     http_hosts: &[String],
     clock_override: bool,
+    profile_compilation: bool,
 ) -> Result<
     (
         Artifact,
@@ -1409,16 +1417,25 @@ fn compile_project_for_run(
             no_cache,
         },
         || {
-            compiler_driver::compile_project_with_roots_profiled(
-                entry,
-                project_root,
-                stdlib_root.as_deref(),
-                &package_roots,
-            )
-            .map(|(artifact, timings)| {
-                compiler_timings = Some(timings);
-                artifact
-            })
+            if profile_compilation {
+                compiler_driver::compile_project_with_roots_profiled(
+                    entry,
+                    project_root,
+                    stdlib_root.as_deref(),
+                    &package_roots,
+                )
+                .map(|(artifact, timings)| {
+                    compiler_timings = Some(timings);
+                    artifact
+                })
+            } else {
+                compiler_driver::compile_project_with_roots(
+                    entry,
+                    project_root,
+                    stdlib_root.as_deref(),
+                    &package_roots,
+                )
+            }
         },
     )?;
     Ok((artifact, cache_status, compiler_timings))
@@ -1428,6 +1445,16 @@ fn compiler_phase_report(timings: &compiler_driver::CompilerPhaseTimings) -> ser
     serde_json::json!({
         "compiler_backend": "rust",
         "rust_compiler_compile_ns": timings.rust_compiler_compile_ns,
+        "compile_program_ns": timings.compile_program_ns,
+        "modules": timings.modules.iter().map(|module| serde_json::json!({
+            "source_name": module.source_name,
+            "source_bytes": module.source_bytes,
+            "import_count": module.import_count,
+            "path_validation_ns": module.path_validation_ns,
+            "source_read_ns": module.source_read_ns,
+            "parse_ns": module.parse_ns,
+            "import_resolution_ns": module.import_resolution_ns,
+        })).collect::<Vec<_>>(),
     })
 }
 

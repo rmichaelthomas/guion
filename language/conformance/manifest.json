@@ -1114,6 +1114,34 @@
       }
     },
     {
+      "id": "syntax-text-slice-unicode-scalar-ranges",
+      "kind": "syntax",
+      "name": "Unicode scalar text slicing",
+      "owner_task": 2,
+      "source": "language/spec.md#statements-and-expressions",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "implemented_current_subset"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "syntax.text-slice-unicode-scalar-ranges.positive",
+          "state": "implemented",
+          "owner_task": 2
+        },
+        "negative": {
+          "case_id": "syntax.text-slice-unicode-scalar-ranges.negative",
+          "state": "implemented",
+          "owner_task": 2
+        },
+        "interaction": {
+          "case_id": "syntax.text-slice-unicode-scalar-ranges.interaction",
+          "state": "implemented",
+          "owner_task": 2
+        }
+      }
+    },
+    {
       "id": "syntax-local-inference-and-explicit-annotations",
       "kind": "syntax",
       "name": "Local inference and explicit annotations",
@@ -1312,7 +1340,7 @@
     {
       "id": "syntax-relative-module-imports-and-project-root-confinement",
       "kind": "syntax",
-      "name": "Relative module imports and project-root confinement",
+      "name": "Relative module imports, public re-exports, and project-root confinement",
       "owner_task": 2,
       "source": "language/spec.md#source-and-declarations",
       "compiler_status": {
@@ -8403,6 +8431,62 @@
       }
     },
     {
+      "id": "opcode-http-response-json",
+      "kind": "opcode",
+      "name": "HttpResponseJson",
+      "owner_task": 4,
+      "source": "crates/model/src/lib.rs::Op",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "implemented_current_subset"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "http_response_json.parses_valid_json_body",
+          "state": "implemented",
+          "owner_task": 4
+        },
+        "negative": {
+          "case_id": "http_response_json.preserves_duplicate_key_errors",
+          "state": "implemented",
+          "owner_task": 4
+        },
+        "interaction": {
+          "case_id": "http_response_json.observes_text_limit_and_utf8_errors",
+          "state": "implemented",
+          "owner_task": 4
+        }
+      }
+    },
+    {
+      "id": "opcode-text-slice",
+      "kind": "opcode",
+      "name": "TextSlice",
+      "owner_task": 4,
+      "source": "crates/model/src/lib.rs::Op",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "implemented_current_subset"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "syntax.text-slice-unicode-scalar-ranges.positive",
+          "state": "implemented",
+          "owner_task": 4
+        },
+        "negative": {
+          "case_id": "syntax.text-slice-unicode-scalar-ranges.negative",
+          "state": "implemented",
+          "owner_task": 4
+        },
+        "interaction": {
+          "case_id": "syntax.text-slice-unicode-scalar-ranges.interaction",
+          "state": "implemented",
+          "owner_task": 4
+        }
+      }
+    },
+    {
       "id": "host_operation-http-response-text",
       "kind": "host_operation",
       "name": "HTTP response text",
@@ -8460,7 +8544,7 @@
         }
       },
       "source_signature": "`std:http.http_response_json(response: HttpResponse) -> Result[Json, StdError]`",
-      "declared_status": "Implemented in std:http; parses checked response text and maps recoverable decode and JSON errors to StdError"
+      "declared_status": "Implemented in std:http using artifact-format-47 direct byte parsing; preserves allocation charging and maps recoverable decode and JSON errors to StdError"
     },
     {
       "id": "cli-command-add",

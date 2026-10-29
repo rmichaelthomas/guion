@@ -1,0 +1,36 @@
+{
+  "binary_path": "/tmp/guion-core-cost-closure/baseline-41d3b48/guion",
+  "binary_sha256": "ef28ca38501749fe171ca9be2ee6e7a2d05fc2c604fcff99d7d831fea626fb59",
+  "build_settings": {
+    "additional_features": [],
+    "command": "cargo build --locked --offline --release --package guion-cli",
+    "default_features": true,
+    "network_during_build": false,
+    "profile": "release",
+    "rustflags": "",
+    "target": "aarch64-unknown-linux-gnu"
+  },
+  "input_sha256": {
+    "benchmark_script": "175416b0467ba93ad0d4ad471511b69315d9e587ab17dab6bcec2201a42b82cc",
+    "http_legacy_template": "24efa98bf6925bf44991eb87d9825dfdd468ea5c34582a4f01f6c6909574c987",
+    "http_python_reference": "f4b92aae52380e8842e45d19d7971780c1a074092b1b5647b54760b1585e6568",
+    "http_response_body_0": "21cb9c84d2d355b554e275c905a252110037f03092d84c55815a4e83390322cd",
+    "http_response_body_1024": "acf96fb8c200f11257d7a6d030f0cb3af4c894c9b42e0cc5e859522022ecbf07",
+    "http_response_body_1048576": "72576766dba916679a93c9a6ae6ce4ce586094400b5408a65a20d3af00cba2e9",
+    "http_response_body_65536": "46e2a169feef79fd603ef170f728913cbcc82b6aa424e6594624cb2f5d912857",
+    "http_typed_template": "0e20314d9182f1149c19e8ebc7e3b4d211c8222d005fe2b57e2a04f2dc9a2521",
+    "manifest_tool": "f8adfbc258e0e46fd246d5eac27fb0046bce085b2228fac213860e524fc25da7",
+    "performance_runner": "e5b7187facd8f3f35f7f2e04ed68b8d9ca4570835f3e971ca978dc7dd90fd80a",
+    "tiny_guion_source": "8684d40ee8f1b7d60b080617691b7a87f4359e97301c5273a2cc91c8b6a27511",
+    "tiny_python_source": "e3bf55b0f9ba503507ab1092711fbb0af1e8916d8a1dabf49836f77f07d1c7f2"
+  },
+  "schema_version": 1,
+  "source_patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "source_revision": "41d3b48551ea735135ee8dc759bff513213a4d72",
+  "toolchain": {
+    "cargo": "cargo 1.97.1 (c980f4866 2026-06-30)",
+    "python_reference": "Python 3.14.7",
+    "rust_target": "aarch64-unknown-linux-gnu",
+    "rustc": "rustc 1.97.1 (8bab26f4f 2026-07-14)"
+  }
+}

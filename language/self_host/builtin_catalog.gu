@@ -73,6 +73,8 @@ pub fn builtin_catalog_signature(name: Text) -> Text:
             return "5:HttpRequestBytes:Result[Record[HttpResponse], HttpError]:Text;Text;Map[Text, Text];Bytes;Int"
         if name == "http_response_text":
             return "1:HttpResponseText:Result[Text, HttpError]:Record[HttpResponse]"
+        if name == "http_response_json_bytes":
+            return "1:HttpResponseJson:Result[Json, Record[StdError]]:Record[HttpResponse]"
         if name == "http_request_with_timeout":
             return "5:HttpRequestWithTimeout:Result[Json, HttpError]:Text;Text;Map[Text, Text];Text;Int"
     if name[0] == "i":
@@ -246,6 +248,8 @@ pub fn builtin_catalog_signature(name: Text) -> Text:
             return "1:TaskMessage:Text:TaskError"
         if name == "text_chars":
             return "1:TextChars:List[Text]:Text"
+        if name == "text_slice":
+            return "3:TextSlice:Text:Text;Int;Int"
         if name == "text_join_native":
             return "2:TextJoin:Text:List[Text];Text"
         if name == "text_parse_float":
@@ -254,6 +258,8 @@ pub fn builtin_catalog_signature(name: Text) -> Text:
             return "1:TextParseInt:Result[Int, FileError]:Text"
         if name == "time_format_utc":
             return "1:TimeFormatUtc:Text:Record[Instant]"
+        if name == "time_format_utc_date":
+            return "1:TimeFormatUtcDate:Text:Record[Instant]"
         if name == "time_parse_date":
             return "1:TimeParseDate:Result[Record[Date], FileError]:Text"
         if name == "time_parse_timestamp":

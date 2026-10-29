@@ -1437,6 +1437,7 @@ fn package_runs_compiled_python_wheels_after_relocation_without_python_setup() {
 #[test]
 fn package_launcher_uses_and_cleans_a_temporary_uv_cache_when_bundle_is_read_only() {
     use std::os::unix::fs::PermissionsExt;
+    use std::os::unix::process::CommandExt;
 
     let base = std::env::temp_dir().join(format!(
         "guion readonly package cache-{}",
@@ -1486,10 +1487,15 @@ fn package_launcher_uses_and_cleans_a_temporary_uv_cache_when_bundle_is_read_onl
     fs::set_permissions(package.join(".uv-cache"), fs::Permissions::from_mode(0o555)).unwrap();
     fs::set_permissions(&package, fs::Permissions::from_mode(0o555)).unwrap();
 
-    let launched = Command::new(package.join("run"))
-        .env("TMPDIR", &tmp)
-        .output()
-        .unwrap();
+    let mut launcher = Command::new(package.join("run"));
+    launcher.env("TMPDIR", &tmp);
+    if unsafe { libc::geteuid() } == 0 {
+        // Root can still write through mode 0555, so execute the read-only
+        // bundle check as an unprivileged UID in root-run containers.
+        fs::set_permissions(&tmp, fs::Permissions::from_mode(0o1777)).unwrap();
+        launcher.uid(65534).gid(65534);
+    }
+    let launched = launcher.output().unwrap();
 
     fs::set_permissions(&package, fs::Permissions::from_mode(0o755)).unwrap();
     fs::set_permissions(package.join(".uv-cache"), fs::Permissions::from_mode(0o755)).unwrap();
@@ -2081,6 +2087,13 @@ fn run_json_exposes_opt_in_compile_and_runtime_phase_timings() {
     assert!(compiler_pipeline["rust_compiler_compile_ns"]
         .as_u64()
         .is_some());
+    assert!(compiler_pipeline["compile_program_ns"].as_u64().is_some());
+    let modules = compiler_pipeline["modules"]
+        .as_array()
+        .expect("profiled compilation reports its resolved source modules");
+    assert_eq!(modules.len(), 1);
+    assert_eq!(modules[0]["source_name"], "main.gu");
+    assert!(modules[0]["parse_ns"].as_u64().is_some());
 
     let ordinary = run_source_cache(&project, &[]);
     assert!(ordinary.status.success());

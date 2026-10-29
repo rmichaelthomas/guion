@@ -4,7 +4,7 @@ use std::process::Command;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use guion_compiler::{compile, compile_project, Diagnostic};
+use guion_compiler::{compile, compile_project, compile_project_with_roots, Diagnostic};
 use serde_json::Value;
 
 struct TempProject(PathBuf);
@@ -25,6 +25,52 @@ fn concurrent_temporary_projects_remain_distinct_with_the_same_clock_tick() {
     for project in &projects {
         assert!(fs::metadata(project.0.join("compiler.gub")).unwrap().len() > 0);
     }
+}
+
+#[test]
+fn http_stdlib_exports_its_small_types_without_loading_time_or_json_modules() {
+    let project = TempProject::new();
+    project.write(
+        "main.gu",
+        "import \"std:http\"\n\nfn decode(response: HttpResponse) -> Result[Json, StdError]:\n    return http_response_json(response)\n\nfn main() -> Int:\n    return 0\n",
+    );
+    let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let stdlib = repository.join("language/stdlib");
+    let artifact = compile_project_with_roots(
+        &project.0.join("main.gu"),
+        &project.0,
+        Some(&stdlib),
+        &std::collections::HashMap::new(),
+    )
+    .expect("the typed HTTP module compiles from its own import");
+
+    assert!(artifact.sources.iter().any(|source| source == "std:http"));
+    assert!(artifact.sources.iter().any(|source| source == "std:http_types"));
+    assert!(!artifact.sources.iter().any(|source| source == "std:types"));
+    assert!(!artifact.sources.iter().any(|source| source == "std:time"));
+    assert!(!artifact.sources.iter().any(|source| source == "std:json"));
+
+    let project_stdlib = project.0.join("stdlib");
+    fs::create_dir_all(&project_stdlib).expect("create minimal test standard library");
+    for module in ["http.gu", "http_types.gu"] {
+        fs::copy(stdlib.join(module), project_stdlib.join(module))
+            .expect("copy HTTP-only standard-library modules");
+    }
+    let output = run_self_host_args(&project, &["main.gu", "--stdlib-root", "stdlib"]);
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let self_host_output = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        self_host_output.contains("std:http_types"),
+        "self-hosted compiler should load the re-exported HTTP type module: {self_host_output}"
+    );
+    assert!(
+        !self_host_output.contains("E_TYPE_UNKNOWN"),
+        "self-hosted compiler should expose HttpResponse and StdError: {self_host_output}"
+    );
 }
 
 impl TempProject {
@@ -1347,6 +1393,64 @@ fn self_host_compiler_returns_type_and_field_diagnostics() {
         "fn main() -> Int:\n    return 1?\n",
         "E_RESULT_TRY_TYPE",
     );
+}
+
+#[test]
+fn self_host_compiler_reexports_public_imported_records_and_functions() {
+    let project = TempProject::new();
+    project.write(
+        "main.gu",
+        "import \"first.gu\"\nimport \"facade.gu\"\nfn main() -> Int:\n    let token = Token(41)\n    let incremented = increment(token)\n    assert(incremented.value == 42)\n    return 0\n",
+    );
+    project.write(
+        "first.gu",
+        "import \"shared.gu\"\npub fn first_value() -> Int:\n    return 0\n",
+    );
+    project.write(
+        "facade.gu",
+        "pub import \"shared.gu\"\npub fn facade_value() -> Int:\n    return 0\n",
+    );
+    project.write(
+        "shared.gu",
+        "pub import \"leaf.gu\"\npub fn shared_value() -> Int:\n    return 0\n",
+    );
+    project.write(
+        "leaf.gu",
+        "pub record Token:\n    value: Int\n\npub fn increment(token: Token) -> Token:\n    return Token(token.value + 1)\n",
+    );
+
+    project
+        .compile()
+        .expect("Rust compiler accepts the public re-export project");
+    let output = run_self_host(&project, "main.gu");
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let artifact = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        artifact.contains("increment"),
+        "the self-host compiler should include the re-exported function: {artifact}"
+    );
+    assert!(
+        artifact.contains("MakeRecord"),
+        "the self-host compiler should make the re-exported record constructible: {artifact}"
+    );
+
+    let execution = Command::new(env!("CARGO_BIN_EXE_guion"))
+        .args(["run", "--json", "main.gu"])
+        .current_dir(&project.0)
+        .output()
+        .expect("run the public-import program through the product CLI");
+    assert!(
+        execution.status.success(),
+        "{}",
+        String::from_utf8_lossy(&execution.stderr)
+    );
+    let report: Value = serde_json::from_slice(&execution.stdout)
+        .expect("parse public-import execution report");
+    assert_eq!(report["exit_code"], 0, "{report}");
 }
 
 #[test]

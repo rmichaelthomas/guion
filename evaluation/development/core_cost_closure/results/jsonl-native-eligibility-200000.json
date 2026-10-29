@@ -1,0 +1,1091 @@
+{
+  "binary_path": "/var/cache/guion-core-north-star/target/release/guion",
+  "binary_sha256": "0d61a7dd97ce7b41d1a77e628e50208d6df98c9444a241478e9449c2475bd242",
+  "created_at_utc": "2026-10-29",
+  "host": {
+    "machine": "aarch64",
+    "platform": "Linux-6.8.0-117-generic-aarch64-with-glibc2.36"
+  },
+  "input_sha256": {
+    "expected.json": "b1b0afe4074a5a945c2ae6a097cb269174999dd6545ef380f5008ba8c36dd7fd",
+    "guion.toml": "9f98043888a9a710533bda8decf9dad0311138a097769365515b29025491b7e9",
+    "main.gu": "4cb05ac5abaa1b893a879b2efd838936e56ff857e037802178909e245dbcff9a",
+    "main.gub": "5e2bdf713f2200a0b57930739d5c43f74d3938b737feff834338c6fd00bbb35a",
+    "performance-inputs/events.jsonl": "c87117d62d5559a5a907465c4ed035251aad4d112f9431a4bacd53faf550ce6c",
+    "performance-inputs/services.txt": "fc205cad4ae2a35f7d0df8d70a2b5284560a6c626af96a8f40bc9654d756eac8",
+    "performance-inputs/summary.json": "b1b0afe4074a5a945c2ae6a097cb269174999dd6545ef380f5008ba8c36dd7fd"
+  },
+  "instrumented_phase_timings_ns": {
+    "artifact_runtime_load_ns": 4843710,
+    "cli_to_report_excluding_process_startup_ns": 12240464537,
+    "compiler_pipeline": null,
+    "input_artifact_decode_ns": null,
+    "native_compilation": {
+      "finalize_nanoseconds": 0,
+      "functions": [],
+      "rejected_functions": [
+        {
+          "blocking_callee": null,
+          "blocking_instruction": "IsOk",
+          "name": "main",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": "IsOk",
+          "name": "fs_read_text",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": null,
+          "name": "fs_open_lines",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": "FileNextLine",
+          "name": "fs_next_line",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": null,
+          "name": "fs_close_reader",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": "MakeRecord(2, 5)",
+          "name": "std_error",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": "MakeRecord(3, 5)",
+          "name": "sql_null",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": "MakeRecord(3, 5)",
+          "name": "sql_integer",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": "MakeRecord(3, 5)",
+          "name": "sql_real",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": "MakeRecord(3, 5)",
+          "name": "sql_text",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": "MakeRecord(3, 5)",
+          "name": "sql_blob",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": null,
+          "name": "today_local",
+          "reason": "native type inference could not prove the function's stack and control-flow types",
+          "reason_code": "unsupported_types_or_control_flow"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": null,
+          "name": "parse_date",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": null,
+          "name": "parse_timestamp",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": null,
+          "name": "format_utc",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": null,
+          "name": "format_utc_date",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": null,
+          "name": "resolve_local",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": null,
+          "name": "time_zone_data_version",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": "JsonTryGet",
+          "name": "json_get_safe",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": null,
+          "name": "json_index_safe",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": "JsonTryText",
+          "name": "json_text_safe",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": null,
+          "name": "json_stringify_pairs",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": "JsonTryInt",
+          "name": "json_int_safe",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": null,
+          "name": "json_bool_safe",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": null,
+          "name": "json_float_safe",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": null,
+          "name": "jsonl_open",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": "MakeNone",
+          "name": "jsonl_no_line",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": "MakeNone",
+          "name": "jsonl_no_value",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": "MakeNone",
+          "name": "jsonl_no_error",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": "MakeSome",
+          "name": "jsonl_some_line",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": "MakeSome",
+          "name": "jsonl_some_value",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": "MakeSome",
+          "name": "jsonl_some_error",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": "IsOk",
+          "name": "jsonl_next",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": null,
+          "name": "jsonl_close",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": null,
+          "name": "text_has_space",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": null,
+          "name": "text_matches_at",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": null,
+          "name": "text_compare_scalar",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": null,
+          "name": "text_compare_bytes",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": null,
+          "name": "text_trim",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": null,
+          "name": "text_join_range",
+          "reason": "recursive functions are not compiled by the native backend",
+          "reason_code": "recursive_function"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": null,
+          "name": "text_split",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": null,
+          "name": "text_join",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": null,
+          "name": "text_replace",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": null,
+          "name": "text_parse_integer",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": null,
+          "name": "text_parse_decimal",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": null,
+          "name": "text_casefold",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": null,
+          "name": "text_collapse_whitespace",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": null,
+          "name": "text_normalize",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": null,
+          "name": "unicode_casefold",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": null,
+          "name": "unicode_collapse_whitespace",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": null,
+          "name": "unicode_normalize",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        }
+      ]
+    },
+    "program_execute_ns": 12225705322,
+    "source_compile_or_cache_ns": 8860578
+  },
+  "kind": "guion-native-eligibility-profile",
+  "native_backend": {
+    "compile_profile": {
+      "finalize_nanoseconds": 0,
+      "functions": [],
+      "rejected_functions": [
+        {
+          "blocking_callee": null,
+          "blocking_instruction": "IsOk",
+          "name": "main",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": "IsOk",
+          "name": "fs_read_text",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": null,
+          "name": "fs_open_lines",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": "FileNextLine",
+          "name": "fs_next_line",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": null,
+          "name": "fs_close_reader",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": "MakeRecord(2, 5)",
+          "name": "std_error",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": "MakeRecord(3, 5)",
+          "name": "sql_null",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": "MakeRecord(3, 5)",
+          "name": "sql_integer",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": "MakeRecord(3, 5)",
+          "name": "sql_real",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": "MakeRecord(3, 5)",
+          "name": "sql_text",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": "MakeRecord(3, 5)",
+          "name": "sql_blob",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": null,
+          "name": "today_local",
+          "reason": "native type inference could not prove the function's stack and control-flow types",
+          "reason_code": "unsupported_types_or_control_flow"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": null,
+          "name": "parse_date",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": null,
+          "name": "parse_timestamp",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": null,
+          "name": "format_utc",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": null,
+          "name": "format_utc_date",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": null,
+          "name": "resolve_local",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": null,
+          "name": "time_zone_data_version",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": "JsonTryGet",
+          "name": "json_get_safe",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": null,
+          "name": "json_index_safe",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": "JsonTryText",
+          "name": "json_text_safe",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": null,
+          "name": "json_stringify_pairs",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": "JsonTryInt",
+          "name": "json_int_safe",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": null,
+          "name": "json_bool_safe",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": null,
+          "name": "json_float_safe",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": null,
+          "name": "jsonl_open",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": "MakeNone",
+          "name": "jsonl_no_line",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": "MakeNone",
+          "name": "jsonl_no_value",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": "MakeNone",
+          "name": "jsonl_no_error",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": "MakeSome",
+          "name": "jsonl_some_line",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": "MakeSome",
+          "name": "jsonl_some_value",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": "MakeSome",
+          "name": "jsonl_some_error",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": "IsOk",
+          "name": "jsonl_next",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": null,
+          "name": "jsonl_close",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": null,
+          "name": "text_has_space",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": null,
+          "name": "text_matches_at",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": null,
+          "name": "text_compare_scalar",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": null,
+          "name": "text_compare_bytes",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": null,
+          "name": "text_trim",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": null,
+          "name": "text_join_range",
+          "reason": "recursive functions are not compiled by the native backend",
+          "reason_code": "recursive_function"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": null,
+          "name": "text_split",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": null,
+          "name": "text_join",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": null,
+          "name": "text_replace",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": null,
+          "name": "text_parse_integer",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": null,
+          "name": "text_parse_decimal",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": null,
+          "name": "text_casefold",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": null,
+          "name": "text_collapse_whitespace",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": null,
+          "name": "text_normalize",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": null,
+          "name": "unicode_casefold",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": null,
+          "name": "unicode_collapse_whitespace",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        },
+        {
+          "blocking_callee": null,
+          "blocking_instruction": null,
+          "name": "unicode_normalize",
+          "reason": "function signature or bytecode requires the opt-in mixed-value native bridge",
+          "reason_code": "mixed_value_bridge_disabled"
+        }
+      ]
+    },
+    "compiled_functions": []
+  },
+  "oracle_output_equal": true,
+  "program_exit_code": 1,
+  "run_status": "passed",
+  "runtime_profile": {
+    "dynamic_guest_conditional_branch_executions": 4173294,
+    "estimated_guest_allocation_budget_charges": {
+      "estimated_gross_bytes": 1847095512,
+      "estimated_net_bytes": 1847095512,
+      "estimated_refunded_bytes": 0,
+      "successful_events": 27735781
+    },
+    "function_call_counts": {
+      "format_utc": 196381,
+      "fs_close_reader": 2,
+      "fs_next_line": 200954,
+      "fs_open_lines": 2,
+      "json_get_safe": 985575,
+      "json_int_safe": 588723,
+      "json_text_safe": 396852,
+      "jsonl_close": 1,
+      "jsonl_next": 200948,
+      "jsonl_no_error": 198426,
+      "jsonl_no_line": 1,
+      "jsonl_no_value": 2521,
+      "jsonl_open": 1,
+      "jsonl_some_error": 2521,
+      "jsonl_some_line": 200947,
+      "jsonl_some_value": 198426,
+      "parse_timestamp": 196381,
+      "unicode_collapse_whitespace": 200947
+    },
+    "host_operations": {
+      "counts": {
+        "Args": 1,
+        "FileClose": 2,
+        "FileNextLine": 200954,
+        "FileOpenLines": 2,
+        "JsonArray": 1,
+        "JsonGet": 1,
+        "JsonIndex": 1,
+        "JsonInt": 202150,
+        "JsonObject": 3759,
+        "JsonParse": 200947,
+        "JsonPushLocal": 3619,
+        "JsonSetLocal": 204580,
+        "JsonStringify": 1,
+        "JsonText": 2430,
+        "JsonTryGet": 985575,
+        "JsonTryInt": 588723,
+        "JsonTryText": 396852,
+        "TextCollapseWhitespace": 200947,
+        "TimeFormatUtc": 196381,
+        "TimeParseTimestamp": 196381
+      },
+      "inclusive_nanoseconds": {
+        "Args": 32417,
+        "FileClose": 39333,
+        "FileNextLine": 101498662,
+        "FileOpenLines": 213127,
+        "JsonArray": 1083,
+        "JsonGet": 667,
+        "JsonIndex": 667,
+        "JsonInt": 62276257,
+        "JsonObject": 735488,
+        "JsonParse": 141702516,
+        "JsonPushLocal": 705170,
+        "JsonSetLocal": 61748601,
+        "JsonStringify": 5500,
+        "JsonText": 454299,
+        "JsonTryGet": 117937725,
+        "JsonTryInt": 78010306,
+        "JsonTryText": 46763635,
+        "TextCollapseWhitespace": 22005877,
+        "TimeFormatUtc": 65973297,
+        "TimeParseTimestamp": 32624215
+      }
+    },
+    "json_phase_nanoseconds": {
+      "parse_and_reserved_key_handling": 88810924,
+      "post_parse_metrics_traversal": 19172059
+    },
+    "json_set": {
+      "copy_on_write_copies": 196241,
+      "estimated_copy_bytes": 94786273,
+      "operations": 204580
+    },
+    "list_set": {
+      "copy_on_write_copies": 0,
+      "copy_size_histogram": {
+        "buckets": {
+          "0-8": {
+            "copies": 0,
+            "estimated_copy_bytes": 0
+          },
+          "129+": {
+            "copies": 0,
+            "estimated_copy_bytes": 0
+          },
+          "33-128": {
+            "copies": 0,
+            "estimated_copy_bytes": 0
+          },
+          "9-32": {
+            "copies": 0,
+            "estimated_copy_bytes": 0
+          }
+        },
+        "unit": "elements"
+      },
+      "estimated_copy_bytes": 0,
+      "in_place_updates": 0,
+      "operations": 0
+    },
+    "map_set": {
+      "copy_on_write_copies": 0,
+      "estimated_copy_bytes": 0,
+      "in_place_updates": 392767,
+      "operations": 392767
+    },
+    "metric_limits": {
+      "allocation": "estimated guest-data budget charges, not host allocator calls",
+      "branches": "executed guest conditional branches, not hardware branch-misprediction counts",
+      "host_operation_time": "inclusive time at host-op boundary; nested parse/metrics timers overlap and must not be summed",
+      "vm_sampled_time": "sampled interpreter-frame wall time, inclusive of host calls; one in every 1024 frames; attribution only, not final benchmark timing"
+    },
+    "opcode_executions": {
+      "Add": 1967358,
+      "Args": 1,
+      "Call": 3569609,
+      "Const": 4555531,
+      "Equal": 196427,
+      "FileClose": 2,
+      "FileNextLine": 200954,
+      "FileOpenLines": 2,
+      "GetError": 2521,
+      "GetField": 1600470,
+      "Greater": 196242,
+      "Index": 2356474,
+      "IsOk": 1590891,
+      "IsSome": 601902,
+      "JsonArray": 1,
+      "JsonGet": 1,
+      "JsonIndex": 1,
+      "JsonInt": 202150,
+      "JsonObject": 3759,
+      "JsonParse": 200947,
+      "JsonPushLocal": 3619,
+      "JsonSetLocal": 204580,
+      "JsonStringify": 1,
+      "JsonText": 2430,
+      "JsonTryGet": 985575,
+      "JsonTryInt": 588723,
+      "JsonTryText": 396852,
+      "Jump": 1003228,
+      "JumpIfFalse": 4173294,
+      "Length": 71,
+      "Less": 196283,
+      "Load": 18211819,
+      "MakeNone": 200948,
+      "MakeOk": 200948,
+      "MakeRecord": 400947,
+      "MakeSome": 401894,
+      "MakeTypedMap": 196383,
+      "MapHas": 589143,
+      "MapSet": 392767,
+      "Not": 2589212,
+      "NotEqual": 397329,
+      "PrintErr": 1,
+      "Return": 3569610,
+      "Store": 5954894,
+      "Subtract": 29,
+      "TextChars": 196386,
+      "TextCollapseWhitespace": 200947,
+      "TimeFormatUtc": 196381,
+      "TimeParseTimestamp": 196381,
+      "Unwrap": 3560477
+    },
+    "opcode_transition_counts": {
+      "fs_close_reader::FileClose->Return": 2,
+      "fs_close_reader::Load->FileClose": 2,
+      "fs_open_lines::FileOpenLines->Return": 2,
+      "fs_open_lines::Load->FileOpenLines": 2,
+      "jsonl_close::Load->Call": 1,
+      "jsonl_next::Call->Call": 198426,
+      "jsonl_next::Call->Load": 2521,
+      "jsonl_next::Call->MakeOk": 200948,
+      "jsonl_next::Call->MakeRecord": 200947,
+      "jsonl_next::Call->Store": 200948,
+      "jsonl_next::GetError->Call": 2521,
+      "jsonl_next::GetField->Call": 2521,
+      "jsonl_next::GetField->JsonParse": 200947,
+      "jsonl_next::GetField->Load": 399373,
+      "jsonl_next::IsOk->JumpIfFalse": 200947,
+      "jsonl_next::IsOk->Not": 200948,
+      "jsonl_next::IsSome->Not": 200948,
+      "jsonl_next::JsonParse->Store": 200947,
+      "jsonl_next::JumpIfFalse->Call": 1,
+      "jsonl_next::JumpIfFalse->Load": 198426,
+      "jsonl_next::Load->Call": 200948,
+      "jsonl_next::Load->GetError": 2521,
+      "jsonl_next::Load->GetField": 602841,
+      "jsonl_next::Load->IsOk": 401895,
+      "jsonl_next::Load->IsSome": 200948,
+      "jsonl_next::Load->Unwrap": 600321,
+      "jsonl_next::MakeOk->Return": 200948,
+      "jsonl_next::MakeRecord->Call": 200947,
+      "jsonl_next::Not->JumpIfFalse": 401896,
+      "jsonl_next::Store->Load": 803790,
+      "jsonl_next::Unwrap->Call": 198426,
+      "jsonl_next::Unwrap->Store": 401895,
+      "jsonl_open::Load->Call": 1,
+      "main::Add->Index": 3,
+      "main::Add->JsonInt": 196241,
+      "main::Add->Load": 1571051,
+      "main::Add->PrintErr": 1,
+      "main::Add->Store": 200062,
+      "main::Args->Store": 1,
+      "main::Call->Const": 200947,
+      "main::Call->Store": 1775195,
+      "main::Call->Unwrap": 588723,
+      "main::Const->Add": 199899,
+      "main::Const->Call": 985575,
+      "main::Const->Const": 140,
+      "main::Const->Equal": 196398,
+      "main::Const->Greater": 1,
+      "main::Const->Index": 1963810,
+      "main::Const->JsonGet": 1,
+      "main::Const->JsonIndex": 1,
+      "main::Const->JsonInt": 140,
+      "main::Const->Jump": 4090,
+      "main::Const->JumpIfFalse": 6,
+      "main::Const->Load": 204441,
+      "main::Const->MakeRecord": 200000,
+      "main::Const->MapSet": 5,
+      "main::Const->Not": 24,
+      "main::Const->NotEqual": 397329,
+      "main::Const->Return": 1,
+      "main::Const->Store": 403641,
+      "main::Const->Subtract": 29,
+      "main::Equal->Jump": 5,
+      "main::Equal->JumpIfFalse": 196422,
+      "main::GetField->Call": 200947,
+      "main::GetField->IsSome": 200000,
+      "main::GetField->JsonInt": 5769,
+      "main::GetField->Load": 392482,
+      "main::GetField->Store": 5,
+      "main::GetField->Unwrap": 198426,
+      "main::Greater->Jump": 1,
+      "main::Greater->JumpIfFalse": 196241,
+      "main::Index->Add": 1767458,
+      "main::Index->Const": 15,
+      "main::Index->Load": 196381,
+      "main::Index->Store": 392620,
+      "main::IsOk->Not": 1188996,
+      "main::IsSome->Not": 400954,
+      "main::JsonArray->Store": 1,
+      "main::JsonGet->JsonStringify": 1,
+      "main::JsonIndex->Const": 1,
+      "main::JsonInt->JsonSetLocal": 202150,
+      "main::JsonObject->Store": 3759,
+      "main::JsonPushLocal->Load": 3619,
+      "main::JsonSetLocal->Const": 2710,
+      "main::JsonSetLocal->Jump": 1870,
+      "main::JsonSetLocal->Load": 200000,
+      "main::JsonStringify->Add": 1,
+      "main::JsonText->JsonSetLocal": 2430,
+      "main::Jump->Jump": 200000,
+      "main::Jump->Load": 198276,
+      "main::JumpIfFalse->Const": 209583,
+      "main::JumpIfFalse->JsonObject": 3619,
+      "main::JumpIfFalse->Load": 790027,
+      "main::Length->Const": 29,
+      "main::Length->Less": 42,
+      "main::Less->Jump": 3,
+      "main::Less->JumpIfFalse": 196280,
+      "main::Load->Call": 397339,
+      "main::Load->Const": 3149434,
+      "main::Load->GetField": 997624,
+      "main::Load->Index": 392661,
+      "main::Load->IsOk": 1188996,
+      "main::Load->IsSome": 200954,
+      "main::Load->JsonPushLocal": 3619,
+      "main::Load->JsonText": 2430,
+      "main::Load->JumpIfFalse": 1,
+      "main::Load->Length": 71,
+      "main::Load->Load": 1767433,
+      "main::Load->MapHas": 589143,
+      "main::Load->MapSet": 392762,
+      "main::Load->Not": 400956,
+      "main::Load->Store": 196241,
+      "main::Load->TextChars": 196386,
+      "main::Load->Unwrap": 2173007,
+      "main::MakeRecord->Store": 200000,
+      "main::MakeTypedMap->Store": 196383,
+      "main::MapHas->JumpIfFalse": 392762,
+      "main::MapHas->Not": 196381,
+      "main::MapSet->Store": 392767,
+      "main::Not->Jump": 196381,
+      "main::Not->JumpIfFalse": 1990935,
+      "main::NotEqual->JumpIfFalse": 397329,
+      "main::PrintErr->Const": 1,
+      "main::Store->Const": 600019,
+      "main::Store->JsonArray": 1,
+      "main::Store->Jump": 596306,
+      "main::Store->Load": 3758396,
+      "main::Store->MakeTypedMap": 196382,
+      "main::Subtract->Equal": 29,
+      "main::TextChars->Store": 196386,
+      "main::Unwrap->Call": 1181956,
+      "main::Unwrap->Const": 392622,
+      "main::Unwrap->GetField": 5,
+      "main::Unwrap->Greater": 196241,
+      "main::Unwrap->Less": 196241,
+      "main::Unwrap->Store": 993091
+    },
+    "record_charges": {
+      "estimated_bytes": 101164595,
+      "events": 400947
+    },
+    "scope": "latest guest invocation",
+    "vm_interpreter": {
+      "frames": 3770564,
+      "instructions": 62256395,
+      "sample_rate_frames": 1024,
+      "sampled_frames": 3683,
+      "sampled_instructions": 62225,
+      "sampled_nanoseconds": 14427774,
+      "sampled_wall_time_is_inclusive_of_host_operations": true
+    }
+  },
+  "runtime_profile_enabled": true,
+  "schema_version": 1,
+  "source_patch_sha256": "aea29ad26c76b39dd76cdff025c1bc08852da11e45e778bf75f4926fbaf579b1",
+  "source_revision": "41d3b48551ea735135ee8dc759bff513213a4d72",
+  "timing_use": "instrumented attribution only; exclude from uninstrumented performance claims"
+}

@@ -19,6 +19,8 @@ pub fn compile_project_with_roots(
 #[derive(Clone, Debug, Default)]
 pub(crate) struct CompilerPhaseTimings {
     pub(crate) rust_compiler_compile_ns: u128,
+    pub(crate) compile_program_ns: u128,
+    pub(crate) modules: Vec<guion_compiler::ModuleLoadProfile>,
 }
 
 pub(crate) fn compile_project_with_roots_profiled(
@@ -28,9 +30,16 @@ pub(crate) fn compile_project_with_roots_profiled(
     package_roots: &HashMap<String, PathBuf>,
 ) -> Result<(Artifact, CompilerPhaseTimings), Diagnostic> {
     let started = Instant::now();
-    let artifact = compile_project_with_roots(entry, project_root, stdlib_root, package_roots)?;
+    let (artifact, profile) = guion_compiler::compile_project_with_roots_profiled(
+        entry,
+        project_root,
+        stdlib_root,
+        package_roots,
+    )?;
     let timings = CompilerPhaseTimings {
         rust_compiler_compile_ns: started.elapsed().as_nanos(),
+        compile_program_ns: profile.compile_program_ns,
+        modules: profile.modules,
     };
     Ok((artifact, timings))
 }

@@ -1,0 +1,41 @@
+{
+  "binary_path": "/tmp/guion-core-cost-closure/zero-byte-fastpath-candidate/guion",
+  "binary_sha256": "0fcb31e50aeac1c7a98221b45dba9b5b320d62d777d378ba8f7f19b988656455",
+  "build_settings": {
+    "command": "cargo build --locked --offline --release --bin guion",
+    "locked": true,
+    "offline": true,
+    "profile": "release",
+    "rustflags": "",
+    "target": "aarch64-unknown-linux-gnu"
+  },
+  "input_sha256": {
+    "baseline_stdlib_tree": "829a94f072b076eeb3bd69deca2ea5883897444960e0b22dd72c67dbfbef7b59",
+    "benchmark_script": "9cd8988713fc5098185f26f0bbfb5dfd93a455071c250adb7877813dd53722e3",
+    "http_baseline_stdlib_module": "3341316e21c487f1aa380f537e0b270c89ce1a9aa1832517ea42c7150c22b982",
+    "http_legacy_template": "24efa98bf6925bf44991eb87d9825dfdd468ea5c34582a4f01f6c6909574c987",
+    "http_python_reference": "f4b92aae52380e8842e45d19d7971780c1a074092b1b5647b54760b1585e6568",
+    "http_response_body_0": "21cb9c84d2d355b554e275c905a252110037f03092d84c55815a4e83390322cd",
+    "http_response_body_1024": "acf96fb8c200f11257d7a6d030f0cb3af4c894c9b42e0cc5e859522022ecbf07",
+    "http_response_body_1048576": "72576766dba916679a93c9a6ae6ce4ce586094400b5408a65a20d3af00cba2e9",
+    "http_response_body_65536": "46e2a169feef79fd603ef170f728913cbcc82b6aa424e6594624cb2f5d912857",
+    "http_typed_template": "0e20314d9182f1149c19e8ebc7e3b4d211c8222d005fe2b57e2a04f2dc9a2521",
+    "jsonl_application_manifest": "1be5a975847b85d80641144921ba5729f7c3b5537aa7e5b299c1b6128aed5e00",
+    "jsonl_application_source": "4cb05ac5abaa1b893a879b2efd838936e56ff857e037802178909e245dbcff9a",
+    "jsonl_generator": "c3620ead9557a3ce543697144dfbfd79d01df045707bff25af5b6585d92ea76b",
+    "jsonl_python_reference": "be8ee4c3ffc9b3e3a0b98f22bcc0d3e9be43b778320a360203ccc70076ebb847",
+    "manifest_tool": "f8adfbc258e0e46fd246d5eac27fb0046bce085b2228fac213860e524fc25da7",
+    "performance_runner": "e5b7187facd8f3f35f7f2e04ed68b8d9ca4570835f3e971ca978dc7dd90fd80a",
+    "tiny_guion_source": "8684d40ee8f1b7d60b080617691b7a87f4359e97301c5273a2cc91c8b6a27511",
+    "tiny_python_source": "e3bf55b0f9ba503507ab1092711fbb0af1e8916d8a1dabf49836f77f07d1c7f2"
+  },
+  "schema_version": 1,
+  "source_patch_sha256": "ccd1535aea0a6abe491a925128e463d7e0e63f015de42058c06253d402195088",
+  "source_revision": "41d3b48551ea735135ee8dc759bff513213a4d72",
+  "toolchain": {
+    "cargo": "cargo 1.97.1 (c980f4866 2026-06-30)",
+    "platform": "Linux-6.8.0-117-generic-aarch64-with-glibc2.36",
+    "python": "3.11.2",
+    "rustc": "rustc 1.97.1 (8bab26f4f 2026-07-14)"
+  }
+}

@@ -10,20 +10,100 @@ use std::time::Instant;
 
 use super::NativeListArena;
 use cranelift_codegen::{
-    ir::{
-        condcodes::{FloatCC, IntCC},
-        types, AbiParam, BlockArg, FuncRef, InstBuilder, MemFlagsData, Signature, StackSlotData,
-        StackSlotKind, UserFuncName,
-    },
     Context,
+    ir::{
+        AbiParam, BlockArg, FuncRef, InstBuilder, MemFlagsData, Signature, StackSlotData,
+        StackSlotKind, UserFuncName,
+        condcodes::{FloatCC, IntCC},
+        types,
+    },
 };
 use cranelift_frontend::{FunctionBuilder, FunctionBuilderContext, Variable};
 use cranelift_jit::{JITBuilder, JITModule};
-use cranelift_module::{default_libcall_names, FuncId, Linkage, Module};
+use cranelift_module::{FuncId, Linkage, Module, default_libcall_names};
 use guion_model::{Artifact, Function, Op, Type, Value};
 use std::fmt;
 
 pub(crate) const NATIVE_INLINE_LIST_ITEMS: usize = 8;
+pub(crate) const NATIVE_BRIDGE_JSON_TRY_TEXT: i64 = 1;
+pub(crate) const NATIVE_BRIDGE_IS_OK: i64 = 2;
+pub(crate) const NATIVE_BRIDGE_JSON_TRY_GET: i64 = 3;
+pub(crate) const NATIVE_BRIDGE_JSON_TRY_INT: i64 = 4;
+pub(crate) const NATIVE_BRIDGE_JSON_PARSE: i64 = 5;
+pub(crate) const NATIVE_BRIDGE_FILE_NEXT_LINE: i64 = 6;
+pub(crate) const NATIVE_BRIDGE_IS_SOME: i64 = 7;
+pub(crate) const NATIVE_BRIDGE_UNWRAP: i64 = 8;
+pub(crate) const NATIVE_BRIDGE_GET_ERROR: i64 = 9;
+pub(crate) const NATIVE_BRIDGE_MAKE_OK: i64 = 10;
+pub(crate) const NATIVE_BRIDGE_MAKE_ERR: i64 = 11;
+pub(crate) const NATIVE_BRIDGE_MAKE_SOME: i64 = 12;
+pub(crate) const NATIVE_BRIDGE_MAKE_NONE: i64 = 13;
+pub(crate) const NATIVE_BRIDGE_MAKE_RECORD: i64 = 14;
+pub(crate) const NATIVE_BRIDGE_GET_FIELD: i64 = 15;
+
+const NATIVE_BRIDGE_TAG_INT: i64 = 1;
+const NATIVE_BRIDGE_TAG_FLOAT: i64 = 2;
+const NATIVE_BRIDGE_TAG_BOOL: i64 = 3;
+const NATIVE_BRIDGE_TAG_HANDLE: i64 = 4;
+
+pub(crate) fn native_bridge_operation(op: &Op) -> Option<i64> {
+    match op {
+        Op::JsonTryText => Some(NATIVE_BRIDGE_JSON_TRY_TEXT),
+        Op::IsOk => Some(NATIVE_BRIDGE_IS_OK),
+        Op::JsonTryGet => Some(NATIVE_BRIDGE_JSON_TRY_GET),
+        Op::JsonTryInt => Some(NATIVE_BRIDGE_JSON_TRY_INT),
+        Op::JsonParse => Some(NATIVE_BRIDGE_JSON_PARSE),
+        Op::FileNextLine => Some(NATIVE_BRIDGE_FILE_NEXT_LINE),
+        Op::IsSome => Some(NATIVE_BRIDGE_IS_SOME),
+        Op::Unwrap => Some(NATIVE_BRIDGE_UNWRAP),
+        Op::GetError => Some(NATIVE_BRIDGE_GET_ERROR),
+        Op::MakeOk => Some(NATIVE_BRIDGE_MAKE_OK),
+        Op::MakeErr => Some(NATIVE_BRIDGE_MAKE_ERR),
+        Op::MakeSome => Some(NATIVE_BRIDGE_MAKE_SOME),
+        Op::MakeNone => Some(NATIVE_BRIDGE_MAKE_NONE),
+        Op::MakeRecord(_, _) => Some(NATIVE_BRIDGE_MAKE_RECORD),
+        Op::GetField(_, _) => Some(NATIVE_BRIDGE_GET_FIELD),
+        _ => None,
+    }
+}
+
+fn native_bridge_argument_count(op: &Op) -> Option<usize> {
+    match op {
+        Op::JsonTryGet => Some(2),
+        Op::GetField(_, _) => Some(1),
+        Op::MakeRecord(_, count) => Some(*count),
+        Op::MakeNone => Some(0),
+        Op::JsonTryText
+        | Op::IsOk
+        | Op::JsonTryInt
+        | Op::JsonParse
+        | Op::FileNextLine
+        | Op::IsSome
+        | Op::Unwrap
+        | Op::GetError
+        | Op::MakeOk
+        | Op::MakeErr
+        | Op::MakeSome => Some(1),
+        _ => None,
+    }
+}
+
+fn native_bridge_tag(ty: &Type) -> i64 {
+    match ty {
+        Type::Int => NATIVE_BRIDGE_TAG_INT,
+        Type::Float64 => NATIVE_BRIDGE_TAG_FLOAT,
+        Type::Bool => NATIVE_BRIDGE_TAG_BOOL,
+        _ => NATIVE_BRIDGE_TAG_HANDLE,
+    }
+}
+
+pub(crate) fn native_record_has_native_layout(record: &guion_model::RecordDefinition) -> bool {
+    let native_item = |ty: &Type| matches!(ty, Type::Int | Type::Float64 | Type::Bool);
+    record.fields.iter().all(|field| {
+        native_item(&field.ty)
+            || matches!(&field.ty, Type::List(item) if native_item(item))
+    })
+}
 
 type NativeFunction = unsafe extern "C" fn(
     *const i64,
@@ -48,6 +128,7 @@ pub(crate) struct NativeSymbols {
     pub(crate) list_set_bool_local: *const u8,
     pub(crate) charge_record: *const u8,
     pub(crate) print: *const u8,
+    pub(crate) bridge_value_operation: *const u8,
     pub(crate) count_guest_branch: *const u8,
 }
 
@@ -91,6 +172,7 @@ pub(crate) struct NativeBackend {
     list_set_bool_local: FuncId,
     charge_record: FuncId,
     print: FuncId,
+    bridge_value_operation: FuncId,
     count_guest_branch: Option<FuncId>,
     functions: Vec<Option<*const u8>>,
     result_words: Vec<usize>,
@@ -100,6 +182,7 @@ pub(crate) struct NativeBackend {
     cranelift_ir_blocks: usize,
     cranelift_ir_instructions: usize,
     function_compile_profiles: Vec<NativeFunctionCompileProfile>,
+    function_rejection_profiles: Vec<NativeFunctionRejectionProfile>,
     finalize_nanoseconds: u64,
 }
 
@@ -113,6 +196,15 @@ struct NativeFunctionCompileProfile {
     lowering_nanoseconds: u64,
     verification_nanoseconds: u64,
     define_nanoseconds: u64,
+}
+
+#[derive(Debug, Clone)]
+struct NativeFunctionRejectionProfile {
+    name: String,
+    reason_code: String,
+    reason: String,
+    blocking_instruction: Option<String>,
+    blocking_callee: Option<String>,
 }
 
 /// Immutable native entry points shared by parallel workers. The owning
@@ -169,6 +261,10 @@ impl NativeBackend {
         builder.symbol("guion_list_set_bool_local", symbols.list_set_bool_local);
         builder.symbol("guion_charge_record", symbols.charge_record);
         builder.symbol("guion_print", symbols.print);
+        builder.symbol(
+            "guion_bridge_value_operation",
+            symbols.bridge_value_operation,
+        );
         if profile_guest_branches {
             builder.symbol("guion_count_guest_branch", symbols.count_guest_branch);
         }
@@ -285,6 +381,24 @@ impl NativeBackend {
         let print_id = module
             .declare_function("guion_print", Linkage::Import, &print_signature)
             .ok()?;
+        let mut bridge_signature = Signature::new(module.target_config().default_call_conv);
+        bridge_signature.params.push(AbiParam::new(pointer_type));
+        bridge_signature.params.push(AbiParam::new(types::I64));
+        bridge_signature.params.push(AbiParam::new(types::I64));
+        bridge_signature.params.push(AbiParam::new(types::I64));
+        bridge_signature.params.push(AbiParam::new(types::I64));
+        bridge_signature.params.push(AbiParam::new(pointer_type));
+        bridge_signature.params.push(AbiParam::new(pointer_type));
+        bridge_signature.params.push(AbiParam::new(types::I64));
+        bridge_signature.params.push(AbiParam::new(types::I64));
+        bridge_signature.returns.push(AbiParam::new(types::I64));
+        let bridge_value_operation_id = module
+            .declare_function(
+                "guion_bridge_value_operation",
+                Linkage::Import,
+                &bridge_signature,
+            )
+            .ok()?;
         let count_guest_branch_id = if profile_guest_branches {
             let mut signature = Signature::new(module.target_config().default_call_conv);
             signature.params.push(AbiParam::new(pointer_type));
@@ -310,6 +424,7 @@ impl NativeBackend {
             list_set_bool_local: list_set_bool_local_id,
             charge_record: charge_record_id,
             print: print_id,
+            bridge_value_operation: bridge_value_operation_id,
             count_guest_branch: count_guest_branch_id,
             functions: vec![None; artifact.functions.len()],
             result_words: artifact
@@ -333,47 +448,13 @@ impl NativeBackend {
             cranelift_ir_blocks: 0,
             cranelift_ir_instructions: 0,
             function_compile_profiles: Vec::new(),
+            function_rejection_profiles: Vec::new(),
             finalize_nanoseconds: 0,
         };
-        let recursive = recursive_functions(&artifact.functions);
-        let native_list_mutator: Vec<_> = artifact
-            .functions
-            .iter()
-            .map(|function| {
-                function.code.iter().any(|instruction| {
-                    matches!(
-                        instruction.op,
-                        Op::ListSetLocal(_) | Op::ListPushLocal(_) | Op::JsonPushLocal(_)
-                    )
-                })
-            })
-            .collect();
-        let mut eligible: Vec<_> = artifact
-            .functions
-            .iter()
-            .enumerate()
-            .map(|(index, function)| {
-                !recursive[index]
-                    && infer_native_types(function, &artifact.functions, &artifact.records)
-                        .is_some()
-            })
-            .collect();
-        loop {
-            let mut changed = false;
-            for (index, function) in artifact.functions.iter().enumerate() {
-                if eligible[index]
-                    && function.code.iter().any(|instruction| {
-                        matches!(&instruction.op, Op::Call(target, _) if !eligible.get(*target).copied().unwrap_or(false) || native_list_mutator.get(*target).copied().unwrap_or(false))
-                    })
-                {
-                    eligible[index] = false;
-                    changed = true;
-                }
-            }
-            if !changed {
-                break;
-            }
-        }
+        let (eligible, mut rejection_profiles) = native_eligibility_report(
+            artifact,
+            cfg!(feature = "native-value-bridge"),
+        );
         let pointer_type = backend.module.target_config().pointer_type();
         let mut native_signature = Signature::new(backend.module.target_config().default_call_conv);
         native_signature.params.push(AbiParam::new(pointer_type));
@@ -397,6 +478,15 @@ impl NativeBackend {
                     &native_signature,
                 )
                 .ok();
+            if function_ids[index].is_none() {
+                rejection_profiles[index] = Some(NativeFunctionRejectionProfile {
+                    name: artifact.functions[index].name.clone(),
+                    reason_code: "native_declaration_failed".into(),
+                    reason: "Cranelift could not declare the native function".into(),
+                    blocking_instruction: None,
+                    blocking_callee: None,
+                });
+            }
         }
         for (index, function) in artifact.functions.iter().enumerate() {
             if function_ids[index].is_some() {
@@ -415,7 +505,16 @@ impl NativeBackend {
                         backend.cranelift_ir_instructions += profile.cranelift_ir_instructions;
                         backend.function_compile_profiles.push(profile);
                     }
-                    Err(_) => function_ids[index] = None,
+                    Err(error) => {
+                        function_ids[index] = None;
+                        rejection_profiles[index] = Some(NativeFunctionRejectionProfile {
+                            name: function.name.clone(),
+                            reason_code: "native_lowering_failed".into(),
+                            reason: error,
+                            blocking_instruction: None,
+                            blocking_callee: None,
+                        });
+                    }
                 }
             }
         }
@@ -429,6 +528,7 @@ impl NativeBackend {
             }
         }
         if backend.functions.iter().any(Option::is_some) {
+            backend.function_rejection_profiles = rejection_profiles.into_iter().flatten().collect();
             Some(backend)
         } else {
             None
@@ -477,7 +577,36 @@ impl NativeBackend {
             .collect();
         serde_json::json!({
             "functions": functions,
+            "rejected_functions": self.function_rejection_profiles.iter().map(|profile| {
+                serde_json::json!({
+                    "name": profile.name,
+                    "reason_code": profile.reason_code,
+                    "reason": profile.reason,
+                    "blocking_instruction": profile.blocking_instruction,
+                    "blocking_callee": profile.blocking_callee
+                })
+            }).collect::<Vec<_>>(),
             "finalize_nanoseconds": self.finalize_nanoseconds
+        })
+    }
+
+    pub(crate) fn eligibility_profile_json(artifact: &Artifact) -> serde_json::Value {
+        let (_, rejected) = native_eligibility_report(
+            artifact,
+            cfg!(feature = "native-value-bridge"),
+        );
+        serde_json::json!({
+            "functions": [],
+            "rejected_functions": rejected.into_iter().flatten().map(|profile| {
+                serde_json::json!({
+                    "name": profile.name,
+                    "reason_code": profile.reason_code,
+                    "reason": profile.reason,
+                    "blocking_instruction": profile.blocking_instruction,
+                    "blocking_callee": profile.blocking_callee
+                })
+            }).collect::<Vec<_>>(),
+            "finalize_nanoseconds": 0
         })
     }
 
@@ -640,6 +769,10 @@ impl NativeBackend {
         let print = self
             .module
             .declare_func_in_func(self.print, &mut context.func);
+        let bridge_value_operation = self.module.declare_func_in_func(
+            self.bridge_value_operation,
+            &mut context.func,
+        );
         let count_guest_branch = count_guest_branch.map(|function_id| {
             self.module
                 .declare_func_in_func(function_id, &mut context.func)
@@ -991,49 +1124,84 @@ impl NativeBackend {
                         stack.push(value);
                     }
                     Op::GetField(record_index, field_index) => {
-                        let record = stack.pop().ok_or_else(|| "stack underflow".to_owned())?;
-                        let descriptor = record;
-                        let fields = builder.ins().load(
-                            ptr,
-                            MemFlagsData::new(),
-                            descriptor,
-                            std::mem::offset_of!(NativeRecord, fields) as i32,
-                        );
-                        let field_address = builder
-                            .ins()
-                            .iadd_imm_s(fields, (*field_index).saturating_mul(8) as i64);
-                        let value =
-                            builder
-                                .ins()
-                                .load(types::I64, MemFlagsData::new(), field_address, 0);
-                        let field_type = records
+                        let definition = records
                             .get(*record_index)
-                            .and_then(|record| record.fields.get(*field_index))
-                            .map(|field| &field.ty);
-                        let clone_bytes = field_type.map(native_cloned_value_bytes).unwrap_or(0);
-                        if clone_bytes > 0 {
-                            let exit_args = step_exit_args(
-                                &mut builder,
-                                steps_var,
-                                ip,
-                                block_instruction_offsets[ip] + 1,
+                            .ok_or_else(|| "record definition is missing".to_owned())?;
+                        if native_record_has_native_layout(definition) {
+                            let record = stack.pop().ok_or_else(|| "stack underflow".to_owned())?;
+                            let fields = builder.ins().load(
+                                ptr,
+                                MemFlagsData::new(),
+                                record,
+                                std::mem::offset_of!(NativeRecord, fields) as i32,
                             );
-                            let bytes = builder
+                            let field_address = builder
                                 .ins()
-                                .iconst(types::I64, i64::try_from(clone_bytes).unwrap_or(i64::MAX));
-                            let charged =
-                                builder.ins().call(charge_record, &[arena_pointer, bytes]);
-                            let charged = builder.inst_results(charged)[0];
-                            let zero = builder.ins().iconst(types::I32, 0);
-                            let succeeded = builder.ins().icmp(IntCC::NotEqual, charged, zero);
-                            let success = builder.create_block();
-                            builder
-                                .ins()
-                                .brif(succeeded, success, &[], fallback, &exit_args);
-                            builder.switch_to_block(success);
-                            builder.seal_block(success);
+                                .iadd_imm_s(fields, (*field_index).saturating_mul(8) as i64);
+                            let value = builder.ins().load(
+                                types::I64,
+                                MemFlagsData::new(),
+                                field_address,
+                                0,
+                            );
+                            let field_type = definition.fields.get(*field_index).map(|field| &field.ty);
+                            let clone_bytes = field_type.map(native_cloned_value_bytes).unwrap_or(0);
+                            if clone_bytes > 0 {
+                                let exit_args = step_exit_args(
+                                    &mut builder,
+                                    steps_var,
+                                    ip,
+                                    block_instruction_offsets[ip] + 1,
+                                );
+                                let bytes = builder.ins().iconst(
+                                    types::I64,
+                                    i64::try_from(clone_bytes).unwrap_or(i64::MAX),
+                                );
+                                let charged =
+                                    builder.ins().call(charge_record, &[arena_pointer, bytes]);
+                                let charged = builder.inst_results(charged)[0];
+                                let zero = builder.ins().iconst(types::I32, 0);
+                                let succeeded = builder.ins().icmp(IntCC::NotEqual, charged, zero);
+                                let success = builder.create_block();
+                                builder
+                                    .ins()
+                                    .brif(succeeded, success, &[], fallback, &exit_args);
+                                builder.switch_to_block(success);
+                                builder.seal_block(success);
+                            }
+                            stack.push(value);
+                        } else {
+                            let input_types = stack_types[ip]
+                                .as_ref()
+                                .ok_or_else(|| "missing native bridge input types".to_owned())?;
+                            let argument_start = input_types
+                                .len()
+                                .checked_sub(1)
+                                .ok_or_else(|| "native bridge stack underflow".to_owned())?;
+                            let arguments = stack.split_off(argument_start);
+                            let result_type = stack_types
+                                .get(ip + 1)
+                                .and_then(Option::as_ref)
+                                .and_then(|types| types.last())
+                                .ok_or_else(|| "missing native bridge result type".to_owned())?;
+                            let value = emit_native_bridge_call(
+                                &mut builder,
+                                ptr,
+                                bridge_value_operation,
+                                arena_pointer,
+                                depth_value,
+                                index,
+                                ip,
+                                NATIVE_BRIDGE_GET_FIELD,
+                                &arguments,
+                                &input_types[argument_start..],
+                                result_type,
+                                steps_var,
+                                block_instruction_offsets[ip] + 1,
+                                fallback,
+                            )?;
+                            stack.push(value);
                         }
-                        stack.push(value);
                     }
                     Op::MakeRecord(record_index, field_count) => {
                         let definition = records
@@ -1042,6 +1210,38 @@ impl NativeBackend {
                         if definition.fields.len() != *field_count {
                             return Err("record field count mismatch".into());
                         }
+                        if !native_record_has_native_layout(definition) {
+                            let input_types = stack_types[ip]
+                                .as_ref()
+                                .ok_or_else(|| "missing native bridge input types".to_owned())?;
+                            let argument_start = input_types
+                                .len()
+                                .checked_sub(*field_count)
+                                .ok_or_else(|| "native bridge stack underflow".to_owned())?;
+                            let arguments = stack.split_off(argument_start);
+                            let result_type = stack_types
+                                .get(ip + 1)
+                                .and_then(Option::as_ref)
+                                .and_then(|types| types.last())
+                                .ok_or_else(|| "missing native bridge result type".to_owned())?;
+                            let value = emit_native_bridge_call(
+                                &mut builder,
+                                ptr,
+                                bridge_value_operation,
+                                arena_pointer,
+                                depth_value,
+                                index,
+                                ip,
+                                NATIVE_BRIDGE_MAKE_RECORD,
+                                &arguments,
+                                &input_types[argument_start..],
+                                result_type,
+                                steps_var,
+                                block_instruction_offsets[ip] + 1,
+                                fallback,
+                            )?;
+                            stack.push(value);
+                        } else {
                         let charge_bytes = std::mem::size_of::<Vec<Value>>()
                             .saturating_add(
                                 field_count.saturating_mul(std::mem::size_of::<Value>()),
@@ -1103,6 +1303,7 @@ impl NativeBackend {
                             std::mem::offset_of!(NativeRecord, len) as i32,
                         );
                         stack.push(descriptor);
+                        }
                     }
                     Op::Length => {
                         let handle = stack.pop().ok_or_else(|| "stack underflow".to_owned())?;
@@ -1910,6 +2111,54 @@ impl NativeBackend {
                         builder.switch_to_block(success);
                         builder.seal_block(success);
                     }
+                    Op::JsonTryText
+                    | Op::IsOk
+                    | Op::JsonTryGet
+                    | Op::JsonTryInt
+                    | Op::JsonParse
+                    | Op::FileNextLine
+                    | Op::IsSome
+                    | Op::Unwrap
+                    | Op::GetError
+                    | Op::MakeOk
+                    | Op::MakeErr
+                    | Op::MakeSome
+                    | Op::MakeNone =>
+                    {
+                        let argument_count = native_bridge_argument_count(&instruction.op)
+                            .ok_or_else(|| "missing native bridge argument count".to_owned())?;
+                        let input_types = stack_types[ip]
+                            .as_ref()
+                            .ok_or_else(|| "missing native bridge input types".to_owned())?;
+                        let argument_start = input_types
+                            .len()
+                            .checked_sub(argument_count)
+                            .ok_or_else(|| "native bridge stack underflow".to_owned())?;
+                        let arguments = stack.split_off(argument_start);
+                        let result_type = stack_types
+                            .get(ip + 1)
+                            .and_then(Option::as_ref)
+                            .and_then(|types| types.last())
+                            .ok_or_else(|| "missing native bridge result type".to_owned())?;
+                        let result = emit_native_bridge_call(
+                            &mut builder,
+                            ptr,
+                            bridge_value_operation,
+                            arena_pointer,
+                            depth_value,
+                            index,
+                            ip,
+                            native_bridge_operation(&instruction.op)
+                                .ok_or_else(|| "unsupported native bridge operation".to_owned())?,
+                            &arguments,
+                            &input_types[argument_start..],
+                            result_type,
+                            steps_var,
+                            block_instruction_offsets[ip] + 1,
+                            fallback,
+                        )?;
+                        stack.push(result);
+                    }
                     Op::Return => {
                         let completed_instructions = block_instruction_counts[block_for_ip[ip]];
                         let steps =
@@ -1918,11 +2167,14 @@ impl NativeBackend {
                             fuel_count_after(&mut builder, fuel_var, completed_instructions);
                         builder.def_var(fuel_var, remaining_fuel);
                         let value = stack.pop().ok_or_else(|| "stack underflow".to_owned())?;
-                        if let Type::Record(name) = &function.result {
-                            let definition = records
+                        let native_record_result = match &function.result {
+                            Type::Record(name) => records
                                 .iter()
                                 .find(|record| record.name == *name)
-                                .ok_or_else(|| "record result definition is missing".to_owned())?;
+                                .filter(|record| native_record_has_native_layout(record)),
+                            _ => None,
+                        };
+                        if let Some(definition) = native_record_result {
                             let fields = builder.ins().load(
                                 ptr,
                                 MemFlagsData::new(),
@@ -2047,6 +2299,94 @@ impl NativeBackend {
             define_nanoseconds,
         })
     }
+}
+
+fn emit_native_bridge_call(
+    builder: &mut FunctionBuilder<'_>,
+    pointer_type: cranelift_codegen::ir::Type,
+    bridge: FuncRef,
+    arena_pointer: cranelift_codegen::ir::Value,
+    depth_value: cranelift_codegen::ir::Value,
+    function_index: usize,
+    ip: usize,
+    operation: i64,
+    arguments: &[cranelift_codegen::ir::Value],
+    argument_types: &[Type],
+    result_type: &Type,
+    steps_var: Variable,
+    completed_instructions: usize,
+    fallback: cranelift_codegen::ir::Block,
+) -> Result<cranelift_codegen::ir::Value, String> {
+    if arguments.len() != argument_types.len() {
+        return Err("native bridge argument types do not match stack values".into());
+    }
+    let operation = builder.ins().iconst(types::I64, operation);
+    let array_bytes = u32::try_from(arguments.len().max(1).saturating_mul(8))
+        .map_err(|_| "native bridge argument frame is too large".to_owned())?;
+    let values_slot = builder.create_sized_stack_slot(StackSlotData::new(
+        StackSlotKind::ExplicitSlot,
+        array_bytes,
+        3,
+    ));
+    let tags_slot = builder.create_sized_stack_slot(StackSlotData::new(
+        StackSlotKind::ExplicitSlot,
+        array_bytes,
+        3,
+    ));
+    for (index, (value, ty)) in arguments.iter().zip(argument_types).enumerate() {
+        let offset = i32::try_from(index.saturating_mul(8))
+            .map_err(|_| "native bridge argument offset is too large".to_owned())?;
+        let value_address = builder.ins().stack_addr(pointer_type, values_slot, offset);
+        builder
+            .ins()
+            .store(MemFlagsData::new(), *value, value_address, 0);
+        let tag_address = builder.ins().stack_addr(pointer_type, tags_slot, offset);
+        let tag = builder.ins().iconst(types::I64, native_bridge_tag(ty));
+        builder.ins().store(MemFlagsData::new(), tag, tag_address, 0);
+    }
+    let values_pointer = builder.ins().stack_addr(pointer_type, values_slot, 0);
+    let tags_pointer = builder.ins().stack_addr(pointer_type, tags_slot, 0);
+    let function_index = builder.ins().iconst(
+        types::I64,
+        function_index.min(i64::MAX as usize) as i64,
+    );
+    let instruction_index = builder.ins().iconst(
+        types::I64,
+        ip.min(i64::MAX as usize) as i64,
+    );
+    let argument_count = builder
+        .ins()
+        .iconst(types::I64, arguments.len().min(i64::MAX as usize) as i64);
+    let result_tag = builder
+        .ins()
+        .iconst(types::I64, native_bridge_tag(result_type));
+    let bridge = builder.ins().call(
+        bridge,
+        &[
+            arena_pointer,
+            operation,
+            function_index,
+            instruction_index,
+            depth_value,
+            values_pointer,
+            tags_pointer,
+            argument_count,
+            result_tag,
+        ],
+    );
+    let result = builder.inst_results(bridge)[0];
+    let zero = builder.ins().iconst(types::I64, 0);
+    let succeeded = builder
+        .ins()
+        .icmp(IntCC::SignedGreaterThanOrEqual, result, zero);
+    let success = builder.create_block();
+    let exit_args = step_exit_args(builder, steps_var, ip, completed_instructions);
+    builder
+        .ins()
+        .brif(succeeded, success, &[], fallback, &exit_args);
+    builder.switch_to_block(success);
+    builder.seal_block(success);
+    Ok(result)
 }
 
 fn step_count_after(
@@ -2255,8 +2595,22 @@ fn infer_native_types(
     let is_native_item = |ty: &Type| is_numeric(ty) || *ty == Type::Bool;
     let is_native_parameter = |ty: &Type| {
         is_native_item(ty)
-            || matches!(ty, Type::List(item) if is_native_item(item))
-            || matches!(ty, Type::Record(name) if records.iter().find(|record| record.name == *name).is_some_and(|record| record.fields.iter().all(|field| is_native_item(&field.ty) || matches!(&field.ty, Type::List(item) if is_native_item(item)))))
+            || matches!(
+                ty,
+                Type::Text
+                    | Type::Bytes
+                    | Type::List(_)
+                    | Type::Map(_)
+                    | Type::Option(_)
+                    | Type::Result(_, _)
+                    | Type::TaskError
+                    | Type::Json
+                    | Type::JsonError
+                    | Type::FileError
+                    | Type::HttpError
+                    | Type::NativeResource(_)
+            )
+            || matches!(ty, Type::Record(name) if records.iter().any(|record| record.name == *name))
     };
     if function.code.is_empty()
         || native_result_types(&function.result, records).is_none()
@@ -2371,6 +2725,104 @@ fn infer_native_types(
                     return None;
                 }
                 state.stack.push(Type::Bool);
+            }
+            Op::JsonTryText => {
+                if state.stack.pop()? != Type::Json {
+                    return None;
+                }
+                state.stack.push(Type::Result(
+                    Box::new(Type::Text),
+                    Box::new(Type::JsonError),
+                ));
+            }
+            Op::JsonTryGet => {
+                if state.stack.pop()? != Type::Text || state.stack.pop()? != Type::Json {
+                    return None;
+                }
+                state.stack.push(Type::Result(
+                    Box::new(Type::Json),
+                    Box::new(Type::JsonError),
+                ));
+            }
+            Op::JsonTryInt => {
+                if state.stack.pop()? != Type::Json {
+                    return None;
+                }
+                state.stack.push(Type::Result(
+                    Box::new(Type::Int),
+                    Box::new(Type::JsonError),
+                ));
+            }
+            Op::JsonParse => {
+                if state.stack.pop()? != Type::Text {
+                    return None;
+                }
+                state.stack.push(Type::Result(
+                    Box::new(Type::Json),
+                    Box::new(Type::JsonError),
+                ));
+            }
+            Op::FileNextLine => {
+                if !matches!(state.stack.pop()?, Type::NativeResource(_)) {
+                    return None;
+                }
+                state.stack.push(Type::Result(
+                    Box::new(Type::Option(Box::new(Type::Record("SourceLine".into())))),
+                    Box::new(Type::FileError),
+                ));
+            }
+            Op::IsOk => {
+                if !matches!(state.stack.pop()?, Type::Result(_, _)) {
+                    return None;
+                }
+                state.stack.push(Type::Bool);
+            }
+            Op::IsSome => {
+                if !matches!(state.stack.pop()?, Type::Option(_)) {
+                    return None;
+                }
+                state.stack.push(Type::Bool);
+            }
+            Op::Unwrap => {
+                let ty = state.stack.pop()?;
+                match ty {
+                    Type::Result(ok, _) | Type::Option(ok) => state.stack.push(*ok),
+                    _ => return None,
+                }
+            }
+            Op::GetError => {
+                let Type::Result(_, error) = state.stack.pop()? else {
+                    return None;
+                };
+                state.stack.push(*error);
+            }
+            Op::MakeOk => {
+                let Type::Result(ok, _) = &function.result else {
+                    return None;
+                };
+                if state.stack.pop()? != **ok {
+                    return None;
+                }
+                state.stack.push(function.result.clone());
+            }
+            Op::MakeErr => {
+                let Type::Result(_, error) = &function.result else {
+                    return None;
+                };
+                if state.stack.pop()? != **error {
+                    return None;
+                }
+                state.stack.push(function.result.clone());
+            }
+            Op::MakeSome => {
+                let value = state.stack.pop()?;
+                state.stack.push(Type::Option(Box::new(value)));
+            }
+            Op::MakeNone => {
+                if !matches!(function.result, Type::Option(_)) {
+                    return None;
+                }
+                state.stack.push(function.result.clone());
             }
             Op::Length => {
                 if !matches!(state.stack.pop()?, Type::List(item) if is_native_item(&item)) {
@@ -2525,6 +2977,142 @@ fn infer_native_types(
     Some(stack_types)
 }
 
+fn function_requires_native_value_bridge(
+    function: &Function,
+    records: &[guion_model::RecordDefinition],
+) -> bool {
+    let requires_bridge = |ty: &Type| match ty {
+        Type::Int | Type::Float64 | Type::Bool => false,
+        Type::List(item) => !matches!(**item, Type::Int | Type::Float64 | Type::Bool),
+        Type::Record(name) => records
+            .iter()
+            .find(|record| record.name == *name)
+            .is_none_or(|record| !native_record_has_native_layout(record)),
+        _ => true,
+    };
+
+    function.parameters.iter().any(&requires_bridge)
+        || requires_bridge(&function.result)
+        || function.code.iter().any(|instruction| match instruction.op {
+            Op::JsonTryText
+            | Op::JsonTryGet
+            | Op::JsonTryInt
+            | Op::JsonParse
+            | Op::FileNextLine
+            | Op::IsOk
+            | Op::IsSome
+            | Op::Unwrap
+            | Op::GetError
+            | Op::MakeOk
+            | Op::MakeErr
+            | Op::MakeSome
+            | Op::MakeNone => true,
+            Op::MakeRecord(record_index, _) | Op::GetField(record_index, _) => records
+                .get(record_index)
+                .is_some_and(|record| !native_record_has_native_layout(record)),
+            _ => false,
+        })
+}
+
+fn native_eligibility_report(
+    artifact: &Artifact,
+    native_value_bridge_enabled: bool,
+) -> (Vec<bool>, Vec<Option<NativeFunctionRejectionProfile>>) {
+    let recursive = recursive_functions(&artifact.functions);
+    let native_list_mutator: Vec<_> = artifact
+        .functions
+        .iter()
+        .map(|function| {
+            function.code.iter().any(|instruction| {
+                matches!(
+                    instruction.op,
+                    Op::ListSetLocal(_) | Op::ListPushLocal(_) | Op::JsonPushLocal(_)
+                )
+            })
+        })
+        .collect();
+    let mut rejected: Vec<Option<NativeFunctionRejectionProfile>> = artifact
+        .functions
+        .iter()
+        .enumerate()
+        .map(|(index, function)| {
+            if recursive[index] {
+                return Some(NativeFunctionRejectionProfile {
+                    name: function.name.clone(),
+                    reason_code: "recursive_function".into(),
+                    reason: "recursive functions are not compiled by the native backend".into(),
+                    blocking_instruction: None,
+                    blocking_callee: None,
+                });
+            }
+            if !native_value_bridge_enabled
+                && function_requires_native_value_bridge(function, &artifact.records)
+            {
+                let blocker = function.code.iter().find_map(|instruction| {
+                    native_bridge_operation(&instruction.op)
+                        .map(|_| format!("{:?}", instruction.op))
+                });
+                return Some(NativeFunctionRejectionProfile {
+                    name: function.name.clone(),
+                    reason_code: "mixed_value_bridge_disabled".into(),
+                    reason: "function signature or bytecode requires the opt-in mixed-value native bridge".into(),
+                    blocking_instruction: blocker,
+                    blocking_callee: None,
+                });
+            }
+            if infer_native_types(function, &artifact.functions, &artifact.records).is_none() {
+                return Some(NativeFunctionRejectionProfile {
+                    name: function.name.clone(),
+                    reason_code: "unsupported_types_or_control_flow".into(),
+                    reason: "native type inference could not prove the function's stack and control-flow types".into(),
+                    blocking_instruction: None,
+                    blocking_callee: None,
+                });
+            }
+            None
+        })
+        .collect();
+    let mut eligible: Vec<_> = rejected.iter().map(Option::is_none).collect();
+
+    loop {
+        let previous_eligibility = eligible.clone();
+        let mut changed = false;
+        for (index, function) in artifact.functions.iter().enumerate() {
+            if !previous_eligibility[index] {
+                continue;
+            }
+            let blocking_call = function.code.iter().enumerate().find_map(|(ip, instruction)| {
+                let Op::Call(target, _) = &instruction.op else {
+                    return None;
+                };
+                (!previous_eligibility.get(*target).copied().unwrap_or(false)
+                    || native_list_mutator.get(*target).copied().unwrap_or(false))
+                .then_some((ip, *target))
+            });
+            if let Some((ip, target)) = blocking_call {
+                eligible[index] = false;
+                let callee_name = artifact
+                    .functions
+                    .get(target)
+                    .map(|callee| callee.name.clone());
+                rejected[index] = Some(NativeFunctionRejectionProfile {
+                    name: function.name.clone(),
+                    reason_code: "callee_requires_vm".into(),
+                    reason: "function calls a callee that is not available in the native subset".into(),
+                    blocking_instruction: Some(format!("Call at bytecode instruction {ip}")),
+                    blocking_callee: callee_name,
+                });
+                changed = true;
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
+
+    (eligible, rejected)
+}
+
 fn native_result_types(
     result: &Type,
     records: &[guion_model::RecordDefinition],
@@ -2537,18 +3125,29 @@ fn native_result_types(
         Type::Int | Type::Float64 | Type::Bool => Some(vec![result.clone()]),
         Type::Record(name) => {
             let definition = records.iter().find(|record| record.name == *name)?;
-            definition
-                .fields
-                .iter()
-                .all(|field| supported_field(&field.ty))
-                .then(|| {
+            if definition.fields.iter().all(|field| supported_field(&field.ty)) {
+                Some(
                     definition
                         .fields
                         .iter()
                         .map(|field| field.ty.clone())
-                        .collect()
-                })
+                        .collect(),
+                )
+            } else {
+                Some(vec![result.clone()])
+            }
         }
+        Type::Text
+        | Type::Bytes
+        | Type::Map(_)
+        | Type::Option(_)
+        | Type::Result(_, _)
+        | Type::TaskError
+        | Type::Json
+        | Type::JsonError
+        | Type::FileError
+        | Type::HttpError
+        | Type::NativeResource(_) => Some(vec![result.clone()]),
         _ => None,
     }
 }
@@ -2619,7 +3218,24 @@ fn stack_depths(function: &Function) -> Option<Vec<Option<usize>>> {
             Op::Store(_) | Op::Pop | Op::JumpIfFalse(_) | Op::Print | Op::PrintErr | Op::Return => {
                 (1, 0)
             }
-            Op::Negate | Op::Not | Op::FloatSqrt | Op::TextChars => (1, 1),
+            Op::Negate
+            | Op::Not
+            | Op::FloatSqrt
+            | Op::TextChars
+            | Op::JsonTryText
+            | Op::JsonTryInt
+            | Op::JsonParse
+            | Op::FileNextLine
+            | Op::IsOk
+            | Op::IsSome
+            | Op::Unwrap
+            | Op::GetError
+            | Op::MakeOk
+            | Op::MakeErr
+            | Op::MakeSome => (1, 1),
+            Op::JsonTryGet => (2, 1),
+            Op::MakeNone => (0, 1),
+            Op::TextSlice => (3, 1),
             Op::Length | Op::GetField(_, _) => (1, 1),
             Op::Index => (2, 1),
             Op::MakeRecord(_, count) => (*count, 1),

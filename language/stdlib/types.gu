@@ -1,11 +1,5 @@
 import "std:time"
-
-pub record StdError:
-    code: Text
-    message: Text
-    path: Text
-    line: Int
-    column: Int
+pub import "std:http_types"
 
 pub record SqlValue:
     kind: Text
@@ -28,11 +22,6 @@ pub record CalendarEvent:
     status: Text
     all_day: Bool
     recurrence_rule: Option[Text]
-
-pub record HttpResponse:
-    status: Int
-    headers: Map[Text, Text]
-    body: Bytes
 
 pub fn std_error(code: Text, message: Text) -> StdError:
     return StdError(code, message, "", 0, 0)

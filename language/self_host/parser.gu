@@ -624,14 +624,21 @@ pub fn parse_program(tokens: List[Token]) -> ParseStep:
         if tokens[cursor].kind == "Newline":
             set cursor = cursor + 1
             set handled = true
-        if not handled and is_token(tokens, cursor, "Name", "import"):
-            if not is_token(tokens, cursor + 1, "Text", tokens[cursor + 1].text):
-                return rejected("import requires quoted path", cursor + 1)
-            set imports = json_push(imports, json_text(tokens[cursor + 1].text))
-            if not is_token(tokens, cursor + 2, "Newline", ""):
-                return rejected("expected newline after import", cursor + 2)
-            set cursor = cursor + 3
-            set handled = true
+        if not handled:
+            var reexport = false
+            if is_token(tokens, cursor, "Name", "pub") and is_token(tokens, cursor + 1, "Name", "import"):
+                set reexport = true
+                set cursor = cursor + 1
+            if is_token(tokens, cursor, "Name", "import"):
+                if not is_token(tokens, cursor + 1, "Text", tokens[cursor + 1].text):
+                    return rejected("import requires quoted path", cursor + 1)
+                var import_node = attach_text(node("Import", tokens[cursor].character_index), "path", tokens[cursor + 1].text)
+                set import_node = json_set(import_node, "public", json_bool(reexport))
+                set imports = json_push(imports, import_node)
+                if not is_token(tokens, cursor + 2, "Newline", ""):
+                    return rejected("expected newline after import", cursor + 2)
+                set cursor = cursor + 3
+                set handled = true
         if not handled:
             var public = false
             if is_token(tokens, cursor, "Name", "pub"):

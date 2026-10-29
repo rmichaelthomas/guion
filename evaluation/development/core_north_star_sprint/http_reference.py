@@ -13,7 +13,7 @@ def main() -> None:
         if response.status != 200:
             raise RuntimeError(f"unexpected HTTP status {response.status}")
         value = json.loads(response.read().decode("utf-8"))
-    if value["count"] != 42 or len(value["payload"]) != 65536:
+    if value["count"] != 42 or len(value["payload"]) != int(sys.argv[2]):
         raise RuntimeError("HTTP fixture body did not match the frozen oracle")
     print(value["message"])
     print(value["count"])
