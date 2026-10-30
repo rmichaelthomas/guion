@@ -1,10 +1,13 @@
-use guion_compiler::compile;
-use guion_model::{BigInt, Value};
+use guion_compiler::{compile, compile_project_with_roots};
+use guion_model::{BigInt, SharedJson, Value};
 use guion_runtime::{CancellationToken, EffectKind, EffectOutcome, HostPolicy, Runtime};
 use std::{
+    collections::HashMap,
+    fs,
     io::{Read, Write},
     net::TcpListener,
-    sync::mpsc,
+    path::PathBuf,
+    sync::{mpsc, Arc},
     thread,
     time::{Duration, Instant},
 };
@@ -633,4 +636,241 @@ fn byte_http_rejects_oversized_response_before_returning_partial_bytes() {
         .invoke("response", vec![Value::Text(url.into())])
         .unwrap();
     assert!(format!("{result:?}").contains("R_HTTP_LIMIT"));
+}
+
+fn compile_http_project(name: &str, source: &str) -> guion_model::Artifact {
+    let root =
+        std::env::temp_dir().join(format!("guion-http-project-{name}-{}", std::process::id()));
+    fs::create_dir_all(&root).unwrap();
+    let entry = root.join("main.gu");
+    fs::write(&entry, source).unwrap();
+    let stdlib = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../language/stdlib");
+    let artifact = compile_project_with_roots(&entry, &root, Some(&stdlib), &HashMap::new())
+        .unwrap_or_else(|error| panic!("HTTP project compilation failed: {error:?}"));
+    let _ = fs::remove_dir_all(root);
+    artifact
+}
+
+fn http_response_value(status: i64, body: &[u8]) -> Value {
+    Value::Record(
+        "HttpResponse".into(),
+        Arc::new(vec![
+            Value::Int(BigInt::from_i64(status)),
+            Value::Map(Arc::new(std::collections::BTreeMap::new())),
+            Value::Bytes(Arc::new(body.to_vec())),
+        ]),
+    )
+}
+
+#[test]
+fn http_response_text_decodes_utf8_and_preserves_non_2xx_response() {
+    let url = serve_once(
+        "HTTP/1.1 418 I'm a teapot\r\nContent-Length: 5\r\nConnection: close\r\n\r\nhello",
+    );
+    let source = "record HttpResponse:\n    status: Int\n    headers: Map[Text, Text]\n    body: Bytes\n\nfn request(url: Text) -> Result[HttpResponse, HttpError]:\n    return http_request_bytes(\"GET\", url, {}, bytes_from_text(\"\"), 1000)\n\nfn decode(response: HttpResponse) -> Result[Text, HttpError]:\n    return http_response_text(response)\n\nfn main() -> Int:\n    return 0\n";
+    let artifact =
+        compile("http-response-text.gu", source).expect("typed HTTP response text helper compiles");
+    let policy =
+        HostPolicy::default().with_network_hosts(["127.0.0.1"], Duration::from_secs(2), 64);
+    let mut instance = Runtime::new().load(artifact, policy).unwrap();
+    let response = instance
+        .invoke("request", vec![Value::Text(url.into())])
+        .unwrap();
+    let Value::ResultOk(response) = response else {
+        panic!("non-2xx HTTP status remains a response value: {response:?}");
+    };
+    let Value::Record(name, fields) = response.as_ref() else {
+        panic!("expected HttpResponse record");
+    };
+    assert_eq!(name, "HttpResponse");
+    assert_eq!(fields[0], Value::Int(BigInt::from_i64(418)));
+    assert_eq!(
+        instance.invoke("decode", vec![*response]).unwrap(),
+        Value::ResultOk(Box::new(Value::Text("hello".into())))
+    );
+}
+
+#[test]
+fn http_response_text_returns_recoverable_error_for_invalid_utf8() {
+    let source = "record HttpResponse:\n    status: Int\n    headers: Map[Text, Text]\n    body: Bytes\n\nfn decode(response: HttpResponse) -> Result[Text, HttpError]:\n    return http_response_text(response)\n\nfn main() -> Int:\n    return 0\n";
+    let artifact = compile("http-response-invalid-utf8.gu", source)
+        .expect("typed HTTP response text helper compiles");
+    let mut instance = Runtime::new()
+        .load(artifact, HostPolicy::default())
+        .unwrap();
+    let result = instance
+        .invoke("decode", vec![http_response_value(200, &[b'a', 0xff])])
+        .unwrap();
+    let Value::ResultErr(error) = result else {
+        panic!("invalid UTF-8 must return a recoverable error: {result:?}");
+    };
+    let Value::HttpError(error) = *error else {
+        panic!("invalid UTF-8 must return HttpError");
+    };
+    assert_eq!(error.code, "R_HTTP_ENCODING");
+    assert_eq!(error.message, "HTTP response body is not valid UTF-8");
+}
+
+#[test]
+fn http_response_text_observes_configured_text_limit() {
+    let source = "record HttpResponse:\n    status: Int\n    headers: Map[Text, Text]\n    body: Bytes\n\nfn decode(response: HttpResponse) -> Result[Text, HttpError]:\n    return http_response_text(response)\n\nfn main() -> Int:\n    return 0\n";
+    let artifact = compile("http-response-text-limit.gu", source)
+        .expect("typed HTTP response text helper compiles");
+    let policy = HostPolicy {
+        max_text_bytes: 1,
+        ..HostPolicy::default()
+    };
+    let mut instance = Runtime::new().load(artifact, policy).unwrap();
+    let result = instance
+        .invoke("decode", vec![http_response_value(200, b"ok")])
+        .unwrap();
+    let Value::ResultErr(error) = result else {
+        panic!("text-size limit must return a recoverable error: {result:?}");
+    };
+    let Value::HttpError(error) = *error else {
+        panic!("text-size limit must return HttpError");
+    };
+    assert_eq!(error.code, "R_HTTP_LIMIT");
+}
+
+#[test]
+fn http_response_json_parses_valid_json_body() {
+    let source = "import \"std:types\"\nimport \"std:http\"\n\nfn parse_response(response: HttpResponse) -> Result[Json, StdError]:\n    return http_response_json(response)\n\nfn main() -> Int:\n    return 0\n";
+    let artifact = compile_http_project("http-response-json", source);
+    let mut instance = Runtime::vm_only()
+        .with_runtime_profile()
+        .load(artifact, HostPolicy::default())
+        .unwrap();
+    let result = instance
+        .invoke(
+            "parse_response",
+            vec![http_response_value(200, br#"{"ok":true,"count":42}"#)],
+        )
+        .unwrap();
+    assert_eq!(
+        result,
+        Value::ResultOk(Box::new(Value::Json(SharedJson::from_serde(
+            serde_json::json!({"ok": true, "count": 42}),
+        ))))
+    );
+    let profile = instance.runtime_profile().expect("profile is enabled");
+    assert_eq!(
+        profile["host_operations"]["counts"]["HttpResponseJson"].as_u64(),
+        Some(1),
+        "typed JSON response should parse directly from the response bytes"
+    );
+    assert_eq!(
+        profile["host_operations"]["counts"]["HttpResponseText"].as_u64(),
+        None,
+        "the typed JSON path must not construct an intermediate Text value"
+    );
+}
+
+#[test]
+fn http_response_json_maps_http_decode_error_to_std_error() {
+    let source = "import \"std:types\"\nimport \"std:http\"\n\nfn parse_response(response: HttpResponse) -> Result[Json, StdError]:\n    return http_response_json(response)\n\nfn main() -> Int:\n    return 0\n";
+    let artifact = compile_http_project("http-response-invalid-json-encoding", source);
+    let mut instance = Runtime::new()
+        .load(artifact, HostPolicy::default())
+        .unwrap();
+    let result = instance
+        .invoke("parse_response", vec![http_response_value(200, &[0xff])])
+        .unwrap();
+    let Value::ResultErr(error) = result else {
+        panic!("invalid response encoding must be a recoverable error: {result:?}");
+    };
+    let Value::Record(name, fields) = *error else {
+        panic!("JSON response errors are normalized to StdError");
+    };
+    assert_eq!(name, "StdError");
+    assert_eq!(fields[0], Value::Text("R_HTTP_ENCODING".into()));
+    assert_eq!(
+        fields[1],
+        Value::Text("HTTP response body is not valid UTF-8".into())
+    );
+}
+
+#[test]
+fn http_response_json_returns_recoverable_error_for_malformed_json() {
+    let source = "import \"std:json\"\nimport \"std:types\"\nimport \"std:http\"\n\nfn parse_response(response: HttpResponse) -> Result[Json, StdError]:\n    return http_response_json(response)\n\nfn expected_parse_code() -> Text:\n    let result = json_parse(\"{\")\n    return json_error_code(error(result))\n\nfn expected_parse_message() -> Text:\n    let result = json_parse(\"{\")\n    return json_error_message(error(result))\n\nfn main() -> Int:\n    return 0\n";
+    let artifact = compile_http_project("http-response-malformed-json", source);
+    let mut instance = Runtime::new()
+        .load(artifact, HostPolicy::default())
+        .unwrap();
+    let result = instance
+        .invoke("parse_response", vec![http_response_value(200, b"{")])
+        .unwrap();
+    let Value::ResultErr(error) = result else {
+        panic!("malformed JSON must return a recoverable error: {result:?}");
+    };
+    let Value::Record(name, fields) = *error else {
+        panic!("JSON response errors are normalized to StdError");
+    };
+    assert_eq!(name, "StdError");
+    assert_eq!(
+        fields[0],
+        instance.invoke("expected_parse_code", vec![]).unwrap()
+    );
+    assert_eq!(
+        fields[1],
+        instance.invoke("expected_parse_message", vec![]).unwrap()
+    );
+    assert_eq!(fields[0], Value::Text("R_JSON_PARSE".into()));
+}
+
+#[test]
+fn http_response_json_preserves_duplicate_key_errors() {
+    let source = "import \"std:types\"\nimport \"std:http\"\n\nfn parse_response(response: HttpResponse) -> Result[Json, StdError]:\n    return http_response_json(response)\n\nfn main() -> Int:\n    return 0\n";
+    let artifact = compile_http_project("http-response-duplicate-json-key", source);
+    let mut instance = Runtime::new()
+        .load(artifact, HostPolicy::default())
+        .unwrap();
+    let result = instance
+        .invoke(
+            "parse_response",
+            vec![http_response_value(200, br#"{"ok":1,"ok":2}"#)],
+        )
+        .unwrap();
+    let Value::ResultErr(error) = result else {
+        panic!("duplicate JSON object keys must remain errors: {result:?}");
+    };
+    let Value::Record(name, fields) = *error else {
+        panic!("JSON response errors are normalized to StdError");
+    };
+    assert_eq!(name, "StdError");
+    assert_eq!(fields[0], Value::Text("R_JSON_DUPLICATE_KEY".into()));
+    assert_eq!(
+        fields[1],
+        Value::Text("JSON object contains duplicate key `ok`".into())
+    );
+}
+
+#[test]
+fn http_response_json_observes_configured_text_limit() {
+    let source = "import \"std:types\"\nimport \"std:http\"\n\nfn parse_response(response: HttpResponse) -> Result[Json, StdError]:\n    return http_response_json(response)\n\nfn main() -> Int:\n    return 0\n";
+    let artifact = compile_http_project("http-response-json-text-limit", source);
+    let policy = HostPolicy {
+        max_text_bytes: 80,
+        ..HostPolicy::default()
+    };
+    let mut instance = Runtime::new().load(artifact, policy).unwrap();
+    let oversized_body = vec![b'a'; 100];
+    let result = instance
+        .invoke(
+            "parse_response",
+            vec![http_response_value(200, &oversized_body)],
+        )
+        .unwrap();
+    let Value::ResultErr(error) = result else {
+        panic!("HTTP JSON body over the text ceiling must return a typed error");
+    };
+    let Value::Record(name, fields) = *error else {
+        panic!("HTTP JSON response errors are normalized to StdError");
+    };
+    assert_eq!(name, "StdError");
+    assert_eq!(fields[0], Value::Text("R_HTTP_LIMIT".into()));
+    assert_eq!(
+        fields[1],
+        Value::Text("HTTP response exceeds the configured text byte limit".into())
+    );
 }

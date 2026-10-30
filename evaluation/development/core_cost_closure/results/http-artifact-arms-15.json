@@ -1,0 +1,3175 @@
+{
+  "binary": {
+    "baseline_manifest": {
+      "binary_path": "/tmp/guion-core-cost-closure/candidate-bigint-arc-41d3b48/guion",
+      "binary_sha256": "54d633315d687775fcfb3b65f1120569933da4648151db6ef9d1c93b6b2d5e43",
+      "build_settings": {
+        "command": "cargo build --locked --offline --release --bin guion",
+        "locked": true,
+        "offline": true,
+        "profile": "release",
+        "rustflags": "",
+        "target": "aarch64-unknown-linux-gnu"
+      },
+      "input_sha256": {
+        "benchmark_script": "763a90fda55004c6c68c0ce5cde5f74c6ac96a550c65c7ef3e582f396ed4c1a5",
+        "http_legacy_template": "24efa98bf6925bf44991eb87d9825dfdd468ea5c34582a4f01f6c6909574c987",
+        "http_python_reference": "f4b92aae52380e8842e45d19d7971780c1a074092b1b5647b54760b1585e6568",
+        "http_response_body_0": "21cb9c84d2d355b554e275c905a252110037f03092d84c55815a4e83390322cd",
+        "http_response_body_1024": "acf96fb8c200f11257d7a6d030f0cb3af4c894c9b42e0cc5e859522022ecbf07",
+        "http_response_body_1048576": "72576766dba916679a93c9a6ae6ce4ce586094400b5408a65a20d3af00cba2e9",
+        "http_response_body_65536": "46e2a169feef79fd603ef170f728913cbcc82b6aa424e6594624cb2f5d912857",
+        "http_typed_template": "0e20314d9182f1149c19e8ebc7e3b4d211c8222d005fe2b57e2a04f2dc9a2521",
+        "jsonl_application_manifest": "1be5a975847b85d80641144921ba5729f7c3b5537aa7e5b299c1b6128aed5e00",
+        "jsonl_application_source": "4cb05ac5abaa1b893a879b2efd838936e56ff857e037802178909e245dbcff9a",
+        "jsonl_generator": "c3620ead9557a3ce543697144dfbfd79d01df045707bff25af5b6585d92ea76b",
+        "jsonl_python_reference": "be8ee4c3ffc9b3e3a0b98f22bcc0d3e9be43b778320a360203ccc70076ebb847",
+        "manifest_tool": "f8adfbc258e0e46fd246d5eac27fb0046bce085b2228fac213860e524fc25da7",
+        "performance_runner": "e5b7187facd8f3f35f7f2e04ed68b8d9ca4570835f3e971ca978dc7dd90fd80a",
+        "tiny_guion_source": "8684d40ee8f1b7d60b080617691b7a87f4359e97301c5273a2cc91c8b6a27511",
+        "tiny_python_source": "e3bf55b0f9ba503507ab1092711fbb0af1e8916d8a1dabf49836f77f07d1c7f2"
+      },
+      "schema_version": 1,
+      "source_patch_sha256": "bdbd5a157e3e3dcbe4e00b42a83bcde8f44370f077b456be5de2c6c5f69e384f",
+      "source_revision": "41d3b48551ea735135ee8dc759bff513213a4d72",
+      "toolchain": {
+        "cargo": "cargo 1.97.1 (c980f4866 2026-06-30)",
+        "platform": "Linux-6.8.0-117-generic-aarch64-with-glibc2.36",
+        "python": "3.11.2",
+        "rustc": "rustc 1.97.1 (8bab26f4f 2026-07-14)"
+      }
+    },
+    "baseline_sha256": "54d633315d687775fcfb3b65f1120569933da4648151db6ef9d1c93b6b2d5e43",
+    "candidate_manifest": null,
+    "candidate_sha256": null
+  },
+  "created_at_utc": "2026-10-29T00:30:14.247442+00:00",
+  "kind": "guion-core-sprint-short-and-http-benchmarks",
+  "measurement": {
+    "bootstrap_resamples": 20000,
+    "bootstrap_seed": 20261026,
+    "cache": "Guion source cache bypassed with --no-cache; OS cache uncontrolled",
+    "order": "randomized per paired trial by the existing performance runner",
+    "timing": "child-process wall time from startup through exit; fixture startup and post-run output-oracle validation excluded",
+    "trial_seed": 20261025,
+    "trials_per_arm": 15,
+    "warmups_per_arm": 2
+  },
+  "platform": {
+    "architecture": "aarch64",
+    "platform": "Linux-6.8.0-117-generic-aarch64-with-glibc2.36"
+  },
+  "python": {
+    "executable": "/usr/bin/python3.11",
+    "version": "Python 3.11.2"
+  },
+  "schema_version": 1,
+  "source_revision": "41d3b48551ea735135ee8dc759bff513213a4d72",
+  "status": "passed",
+  "workloads": {
+    "http-payload-matrix": {
+      "0": {
+        "artifact_build_seconds": {
+          "baseline_legacy": 0.004086640998139046,
+          "baseline_typed": 0.004113100003451109
+        },
+        "commands": {
+          "guion_legacy_baseline": [
+            "/tmp/guion-core-cost-closure/candidate-bigint-arc-41d3b48/guion",
+            "run",
+            "--json",
+            "--no-cache",
+            "--allow-http-host",
+            "127.0.0.1",
+            "/tmp/guion-core-cost-closure/http-artifact-arms-15/core-workloads/http/0/http_legacy.gu"
+          ],
+          "guion_legacy_baseline_artifact": [
+            "/tmp/guion-core-cost-closure/candidate-bigint-arc-41d3b48/guion",
+            "run",
+            "--json",
+            "--allow-http-host",
+            "127.0.0.1",
+            "/tmp/guion-core-cost-closure/http-artifact-arms-15/core-workloads/http/0/http_legacy.gub"
+          ],
+          "guion_typed_baseline": [
+            "/tmp/guion-core-cost-closure/candidate-bigint-arc-41d3b48/guion",
+            "run",
+            "--json",
+            "--no-cache",
+            "--allow-http-host",
+            "127.0.0.1",
+            "/tmp/guion-core-cost-closure/http-artifact-arms-15/core-workloads/http/0/http_typed.gu"
+          ],
+          "guion_typed_baseline_artifact": [
+            "/tmp/guion-core-cost-closure/candidate-bigint-arc-41d3b48/guion",
+            "run",
+            "--json",
+            "--allow-http-host",
+            "127.0.0.1",
+            "/tmp/guion-core-cost-closure/http-artifact-arms-15/core-workloads/http/0/http_typed.gub"
+          ],
+          "python_reference": [
+            "/usr/bin/python3.11",
+            "/Users/rmichaelthomas/guion/.worktrees/guion-core-sprint-spec/evaluation/development/core_north_star_sprint/http_reference.py",
+            "http://127.0.0.1:40575/json",
+            "0"
+          ]
+        },
+        "comparisons": {
+          "guion_legacy_baseline_artifact_over_python": {
+            "ci95_percentile": [
+              0.05622917689935501,
+              0.07319550363811729
+            ],
+            "median_ratio": 0.061517535091067055,
+            "ties_or_regressions": 0,
+            "win": true
+          },
+          "guion_legacy_baseline_over_python": {
+            "ci95_percentile": [
+              0.0726769844514237,
+              0.08567688823936408
+            ],
+            "median_ratio": 0.07633803517251289,
+            "ties_or_regressions": 0,
+            "win": true
+          },
+          "guion_typed_baseline_artifact_over_python": {
+            "ci95_percentile": [
+              0.06534306342301241,
+              0.07541254285378357
+            ],
+            "median_ratio": 0.0682740758536109,
+            "ties_or_regressions": 0,
+            "win": true
+          },
+          "guion_typed_baseline_over_python": {
+            "ci95_percentile": [
+              0.11297872677014155,
+              0.1355300893623722
+            ],
+            "median_ratio": 0.11949059084078882,
+            "ties_or_regressions": 0,
+            "win": true
+          },
+          "typed_baseline_artifact_over_legacy_baseline_artifact": {
+            "ci95_percentile": [
+              0.8177693304447077,
+              1.3617470778948795
+            ],
+            "median_ratio": 1.1698387353870374,
+            "ties_or_regressions": 9,
+            "win": false
+          },
+          "typed_baseline_source_over_legacy_baseline_source": {
+            "ci95_percentile": [
+              1.381211991116763,
+              1.8445094462164524
+            ],
+            "median_ratio": 1.572356147650385,
+            "ties_or_regressions": 14,
+            "win": false
+          }
+        },
+        "expected_fixture_request_count": 87,
+        "expected_output": [
+          "hello",
+          "42",
+          "0"
+        ],
+        "fixture_request_count": 87,
+        "fixture_response_body_bytes": 43,
+        "fixture_response_body_sha256": "21cb9c84d2d355b554e275c905a252110037f03092d84c55815a4e83390322cd",
+        "fixture_response_payload_bytes": 0,
+        "fixture_response_status": 200,
+        "fixture_url_path": "/json",
+        "native_backend_reports": {
+          "guion_legacy_baseline": {
+            "bytecode_blocks": 0,
+            "bytecode_instructions": 0,
+            "calls": 0,
+            "compilations": 0,
+            "compile_profile": {
+              "finalize_nanoseconds": 0,
+              "functions": []
+            },
+            "compiled_functions": [],
+            "cranelift_ir_blocks": 0,
+            "cranelift_ir_instructions": 0,
+            "deoptimizations": 0
+          },
+          "guion_legacy_baseline_artifact": {
+            "bytecode_blocks": 0,
+            "bytecode_instructions": 0,
+            "calls": 0,
+            "compilations": 0,
+            "compile_profile": {
+              "finalize_nanoseconds": 0,
+              "functions": []
+            },
+            "compiled_functions": [],
+            "cranelift_ir_blocks": 0,
+            "cranelift_ir_instructions": 0,
+            "deoptimizations": 0
+          },
+          "guion_typed_baseline": {
+            "bytecode_blocks": 0,
+            "bytecode_instructions": 0,
+            "calls": 0,
+            "compilations": 0,
+            "compile_profile": {
+              "finalize_nanoseconds": 0,
+              "functions": []
+            },
+            "compiled_functions": [],
+            "cranelift_ir_blocks": 0,
+            "cranelift_ir_instructions": 0,
+            "deoptimizations": 0
+          },
+          "guion_typed_baseline_artifact": {
+            "bytecode_blocks": 0,
+            "bytecode_instructions": 0,
+            "calls": 0,
+            "compilations": 0,
+            "compile_profile": {
+              "finalize_nanoseconds": 0,
+              "functions": []
+            },
+            "compiled_functions": [],
+            "cranelift_ir_blocks": 0,
+            "cranelift_ir_instructions": 0,
+            "deoptimizations": 0
+          }
+        },
+        "paired_trial_order": [
+          [
+            "guion_typed_baseline_artifact",
+            "guion_legacy_baseline",
+            "python_reference",
+            "guion_typed_baseline",
+            "guion_legacy_baseline_artifact"
+          ],
+          [
+            "python_reference",
+            "guion_typed_baseline_artifact",
+            "guion_typed_baseline",
+            "guion_legacy_baseline_artifact",
+            "guion_legacy_baseline"
+          ],
+          [
+            "guion_typed_baseline",
+            "python_reference",
+            "guion_typed_baseline_artifact",
+            "guion_legacy_baseline_artifact",
+            "guion_legacy_baseline"
+          ],
+          [
+            "guion_typed_baseline",
+            "python_reference",
+            "guion_legacy_baseline_artifact",
+            "guion_legacy_baseline",
+            "guion_typed_baseline_artifact"
+          ],
+          [
+            "guion_typed_baseline_artifact",
+            "guion_legacy_baseline_artifact",
+            "guion_typed_baseline",
+            "python_reference",
+            "guion_legacy_baseline"
+          ],
+          [
+            "guion_legacy_baseline_artifact",
+            "guion_legacy_baseline",
+            "python_reference",
+            "guion_typed_baseline",
+            "guion_typed_baseline_artifact"
+          ],
+          [
+            "guion_typed_baseline_artifact",
+            "guion_typed_baseline",
+            "python_reference",
+            "guion_legacy_baseline_artifact",
+            "guion_legacy_baseline"
+          ],
+          [
+            "guion_legacy_baseline",
+            "guion_legacy_baseline_artifact",
+            "guion_typed_baseline",
+            "guion_typed_baseline_artifact",
+            "python_reference"
+          ],
+          [
+            "guion_legacy_baseline",
+            "guion_legacy_baseline_artifact",
+            "guion_typed_baseline_artifact",
+            "python_reference",
+            "guion_typed_baseline"
+          ],
+          [
+            "guion_typed_baseline_artifact",
+            "python_reference",
+            "guion_typed_baseline",
+            "guion_legacy_baseline_artifact",
+            "guion_legacy_baseline"
+          ],
+          [
+            "guion_legacy_baseline_artifact",
+            "guion_typed_baseline_artifact",
+            "guion_typed_baseline",
+            "guion_legacy_baseline",
+            "python_reference"
+          ],
+          [
+            "guion_legacy_baseline",
+            "guion_typed_baseline_artifact",
+            "guion_typed_baseline",
+            "python_reference",
+            "guion_legacy_baseline_artifact"
+          ],
+          [
+            "guion_legacy_baseline",
+            "guion_typed_baseline",
+            "guion_typed_baseline_artifact",
+            "guion_legacy_baseline_artifact",
+            "python_reference"
+          ],
+          [
+            "guion_typed_baseline",
+            "guion_typed_baseline_artifact",
+            "guion_legacy_baseline_artifact",
+            "python_reference",
+            "guion_legacy_baseline"
+          ],
+          [
+            "guion_legacy_baseline_artifact",
+            "python_reference",
+            "guion_typed_baseline_artifact",
+            "guion_typed_baseline",
+            "guion_legacy_baseline"
+          ]
+        ],
+        "phase_profiles": {
+          "guion_legacy_baseline_artifact": {
+            "cache_status": "not_applicable",
+            "elapsed_seconds_including_process_startup": 0.0024102909956127405,
+            "reported_phase_timings_ns": {
+              "artifact_runtime_load_ns": 51335,
+              "cli_to_report_excluding_process_startup_ns": 1318463,
+              "compiler_pipeline": null,
+              "input_artifact_decode_ns": 20292,
+              "native_compilation": {
+                "finalize_nanoseconds": 0,
+                "functions": []
+              },
+              "program_execute_ns": 838154,
+              "source_compile_or_cache_ns": null
+            },
+            "runtime_profile": {
+              "dynamic_guest_conditional_branch_executions": 0,
+              "estimated_guest_allocation_budget_charges": {
+                "estimated_gross_bytes": 2464,
+                "estimated_net_bytes": 2464,
+                "estimated_refunded_bytes": 0,
+                "successful_events": 35
+              },
+              "function_call_counts": {},
+              "host_operations": {
+                "counts": {
+                  "HttpRequestWithTimeout": 1,
+                  "JsonAsInt": 3,
+                  "JsonAsText": 3,
+                  "JsonGet": 6,
+                  "JsonParse": 1
+                },
+                "inclusive_nanoseconds": {
+                  "HttpRequestWithTimeout": 734109,
+                  "JsonAsInt": 833,
+                  "JsonAsText": 833,
+                  "JsonGet": 916,
+                  "JsonParse": 3791
+                }
+              },
+              "json_phase_nanoseconds": {
+                "parse_and_reserved_key_handling": 2667,
+                "post_parse_metrics_traversal": 417
+              },
+              "json_set": {
+                "copy_on_write_copies": 0,
+                "estimated_copy_bytes": 0,
+                "operations": 0
+              },
+              "list_set": {
+                "copy_on_write_copies": 0,
+                "copy_size_histogram": {
+                  "buckets": {
+                    "0-8": {
+                      "copies": 0,
+                      "estimated_copy_bytes": 0
+                    },
+                    "129+": {
+                      "copies": 0,
+                      "estimated_copy_bytes": 0
+                    },
+                    "33-128": {
+                      "copies": 0,
+                      "estimated_copy_bytes": 0
+                    },
+                    "9-32": {
+                      "copies": 0,
+                      "estimated_copy_bytes": 0
+                    }
+                  },
+                  "unit": "elements"
+                },
+                "estimated_copy_bytes": 0,
+                "in_place_updates": 0,
+                "operations": 0
+              },
+              "map_set": {
+                "copy_on_write_copies": 0,
+                "estimated_copy_bytes": 0,
+                "in_place_updates": 0,
+                "operations": 0
+              },
+              "metric_limits": {
+                "allocation": "estimated guest-data budget charges, not host allocator calls",
+                "branches": "executed guest conditional branches, not hardware branch-misprediction counts",
+                "host_operation_time": "inclusive time at host-op boundary; nested parse/metrics timers overlap and must not be summed",
+                "vm_sampled_time": "sampled interpreter-frame wall time, inclusive of host calls; one in every 1024 frames; attribution only, not final benchmark timing"
+              },
+              "opcode_executions": {
+                "Assert": 3,
+                "Const": 14,
+                "Equal": 3,
+                "HttpRequestWithTimeout": 1,
+                "JsonAsInt": 3,
+                "JsonAsText": 3,
+                "JsonGet": 6,
+                "JsonParse": 1,
+                "Length": 2,
+                "Load": 9,
+                "MakeTypedMap": 1,
+                "Pop": 3,
+                "Print": 3,
+                "Return": 1,
+                "Store": 4,
+                "Unwrap": 2
+              },
+              "record_charges": {
+                "estimated_bytes": 0,
+                "events": 0
+              },
+              "scope": "latest guest invocation",
+              "vm_interpreter": {
+                "frames": 1,
+                "instructions": 59,
+                "sample_rate_frames": 1024,
+                "sampled_frames": 1,
+                "sampled_instructions": 59,
+                "sampled_nanoseconds": 775402,
+                "sampled_wall_time_is_inclusive_of_host_operations": true
+              }
+            },
+            "runtime_profile_enabled": true
+          },
+          "guion_typed_baseline_artifact": {
+            "cache_status": "not_applicable",
+            "elapsed_seconds_including_process_startup": 0.0023351220006588846,
+            "reported_phase_timings_ns": {
+              "artifact_runtime_load_ns": 131004,
+              "cli_to_report_excluding_process_startup_ns": 1235751,
+              "compiler_pipeline": null,
+              "input_artifact_decode_ns": 39793,
+              "native_compilation": {
+                "finalize_nanoseconds": 0,
+                "functions": []
+              },
+              "program_execute_ns": 807945,
+              "source_compile_or_cache_ns": null
+            },
+            "runtime_profile": {
+              "dynamic_guest_conditional_branch_executions": 2,
+              "estimated_guest_allocation_budget_charges": {
+                "estimated_gross_bytes": 1518,
+                "estimated_net_bytes": 1518,
+                "estimated_refunded_bytes": 0,
+                "successful_events": 39
+              },
+              "function_call_counts": {
+                "http_response_json": 1
+              },
+              "host_operations": {
+                "counts": {
+                  "HttpRequestBytes": 1,
+                  "HttpResponseText": 1,
+                  "JsonAsInt": 2,
+                  "JsonAsText": 2,
+                  "JsonGet": 4,
+                  "JsonParse": 1
+                },
+                "inclusive_nanoseconds": {
+                  "HttpRequestBytes": 716191,
+                  "HttpResponseText": 1000,
+                  "JsonAsInt": 500,
+                  "JsonAsText": 791,
+                  "JsonGet": 582,
+                  "JsonParse": 4458
+                }
+              },
+              "json_phase_nanoseconds": {
+                "parse_and_reserved_key_handling": 2959,
+                "post_parse_metrics_traversal": 667
+              },
+              "json_set": {
+                "copy_on_write_copies": 0,
+                "estimated_copy_bytes": 0,
+                "operations": 0
+              },
+              "list_set": {
+                "copy_on_write_copies": 0,
+                "copy_size_histogram": {
+                  "buckets": {
+                    "0-8": {
+                      "copies": 0,
+                      "estimated_copy_bytes": 0
+                    },
+                    "129+": {
+                      "copies": 0,
+                      "estimated_copy_bytes": 0
+                    },
+                    "33-128": {
+                      "copies": 0,
+                      "estimated_copy_bytes": 0
+                    },
+                    "9-32": {
+                      "copies": 0,
+                      "estimated_copy_bytes": 0
+                    }
+                  },
+                  "unit": "elements"
+                },
+                "estimated_copy_bytes": 0,
+                "in_place_updates": 0,
+                "operations": 0
+              },
+              "map_set": {
+                "copy_on_write_copies": 0,
+                "estimated_copy_bytes": 0,
+                "in_place_updates": 0,
+                "operations": 0
+              },
+              "metric_limits": {
+                "allocation": "estimated guest-data budget charges, not host allocator calls",
+                "branches": "executed guest conditional branches, not hardware branch-misprediction counts",
+                "host_operation_time": "inclusive time at host-op boundary; nested parse/metrics timers overlap and must not be summed",
+                "vm_sampled_time": "sampled interpreter-frame wall time, inclusive of host calls; one in every 1024 frames; attribution only, not final benchmark timing"
+              },
+              "opcode_executions": {
+                "Assert": 3,
+                "BytesFromText": 1,
+                "Call": 1,
+                "Const": 12,
+                "Equal": 3,
+                "GetField": 1,
+                "HttpRequestBytes": 1,
+                "HttpResponseText": 1,
+                "IsOk": 2,
+                "JsonAsInt": 2,
+                "JsonAsText": 2,
+                "JsonGet": 4,
+                "JsonParse": 1,
+                "JumpIfFalse": 2,
+                "Length": 2,
+                "Load": 13,
+                "MakeOk": 1,
+                "MakeTypedMap": 1,
+                "Not": 2,
+                "Pop": 3,
+                "Print": 3,
+                "Return": 2,
+                "Store": 5,
+                "Unwrap": 4
+              },
+              "record_charges": {
+                "estimated_bytes": 0,
+                "events": 0
+              },
+              "scope": "latest guest invocation",
+              "vm_interpreter": {
+                "frames": 3,
+                "instructions": 72,
+                "sample_rate_frames": 1024,
+                "sampled_frames": 1,
+                "sampled_instructions": 17,
+                "sampled_nanoseconds": 730609,
+                "sampled_wall_time_is_inclusive_of_host_operations": true
+              }
+            },
+            "runtime_profile_enabled": true
+          }
+        },
+        "samples": {
+          "guion_legacy_baseline": {
+            "median_seconds": 0.0027250109997112304,
+            "p95_seconds_nearest_rank": 0.004653910997149069,
+            "samples_seconds": [
+              0.002497210996807553,
+              0.0027250109997112304,
+              0.002873808000003919,
+              0.0020724889982375316,
+              0.003007603001606185,
+              0.002603799002827145,
+              0.004653910997149069,
+              0.0027038849948439747,
+              0.0030866900051478297,
+              0.0026103400014108047,
+              0.002946518005046528,
+              0.0027836799999931827,
+              0.0026984690048266202,
+              0.0029843540032743476,
+              0.0024905859972932376
+            ]
+          },
+          "guion_legacy_baseline_artifact": {
+            "median_seconds": 0.0022777030026190914,
+            "p95_seconds_nearest_rank": 0.006666689005214721,
+            "samples_seconds": [
+              0.0023993750000954606,
+              0.006666689005214721,
+              0.001982360001420602,
+              0.0031081079941941425,
+              0.0022384940020856448,
+              0.002847682000719942,
+              0.0025265459989896044,
+              0.0016825159982545301,
+              0.0022777030026190914,
+              0.002347498004382942,
+              0.0022070760023780167,
+              0.0027645539958029985,
+              0.0017783529983717017,
+              0.0020424460017238744,
+              0.0019191500032320619
+            ]
+          },
+          "guion_typed_baseline": {
+            "median_seconds": 0.004250147001584992,
+            "p95_seconds_nearest_rank": 0.006160503995488398,
+            "samples_seconds": [
+              0.005442895999294706,
+              0.004204436998406891,
+              0.005300766002619639,
+              0.003927010002371389,
+              0.003851007997582201,
+              0.0049336700030835345,
+              0.004250147001584992,
+              0.0036638759993365966,
+              0.004853376005485188,
+              0.004524906995357014,
+              0.004069766000611708,
+              0.00414918499882333,
+              0.006160503995488398,
+              0.004954713003826328,
+              0.003906218000338413
+            ]
+          },
+          "guion_typed_baseline_artifact": {
+            "median_seconds": 0.002564463997259736,
+            "p95_seconds_nearest_rank": 0.0031282749987440184,
+            "samples_seconds": [
+              0.0028128050034865737,
+              0.00278826299472712,
+              0.002981978002935648,
+              0.002564463997259736,
+              0.0027079260034952313,
+              0.0023287470030481927,
+              0.001901815994642675,
+              0.0023124129947973415,
+              0.0029378100007306784,
+              0.0023464139958377928,
+              0.002581922999524977,
+              0.002085822001390625,
+              0.002421666998998262,
+              0.00219657600246137,
+              0.0031282749987440184
+            ]
+          },
+          "python_reference": {
+            "median_seconds": 0.035810321001918055,
+            "p95_seconds_nearest_rank": 0.042671351999160834,
+            "samples_seconds": [
+              0.042671351999160834,
+              0.037214413001493085,
+              0.03954220200103009,
+              0.038224279996939,
+              0.03736524900159566,
+              0.034108802996343,
+              0.03451777600275818,
+              0.03538880599808181,
+              0.035810321001918055,
+              0.03815981899970211,
+              0.03405930100416299,
+              0.03678306300571421,
+              0.03471436600375455,
+              0.03483266099647153,
+              0.0334866979974322
+            ]
+          }
+        },
+        "source_cache_states": {
+          "guion_legacy_baseline": [
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed"
+          ],
+          "guion_legacy_baseline_artifact": [
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable"
+          ],
+          "guion_typed_baseline": [
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed"
+          ],
+          "guion_typed_baseline_artifact": [
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable"
+          ]
+        },
+        "source_sha256": {
+          "legacy": "d99a2f579fbd04b4876c62ff2a5c631bb7a721f929647412f0e73961bdeffe35",
+          "python_reference": "f4b92aae52380e8842e45d19d7971780c1a074092b1b5647b54760b1585e6568",
+          "typed": "580849d5872de83020461a4190cdb79629c6833efdd7b1122c0b8f5c3d4196db"
+        },
+        "url_host_grant": "127.0.0.1"
+      },
+      "1024": {
+        "artifact_build_seconds": {
+          "baseline_legacy": 0.0026396749963168986,
+          "baseline_typed": 0.0027850540063809603
+        },
+        "commands": {
+          "guion_legacy_baseline": [
+            "/tmp/guion-core-cost-closure/candidate-bigint-arc-41d3b48/guion",
+            "run",
+            "--json",
+            "--no-cache",
+            "--allow-http-host",
+            "127.0.0.1",
+            "/tmp/guion-core-cost-closure/http-artifact-arms-15/core-workloads/http/1024/http_legacy.gu"
+          ],
+          "guion_legacy_baseline_artifact": [
+            "/tmp/guion-core-cost-closure/candidate-bigint-arc-41d3b48/guion",
+            "run",
+            "--json",
+            "--allow-http-host",
+            "127.0.0.1",
+            "/tmp/guion-core-cost-closure/http-artifact-arms-15/core-workloads/http/1024/http_legacy.gub"
+          ],
+          "guion_typed_baseline": [
+            "/tmp/guion-core-cost-closure/candidate-bigint-arc-41d3b48/guion",
+            "run",
+            "--json",
+            "--no-cache",
+            "--allow-http-host",
+            "127.0.0.1",
+            "/tmp/guion-core-cost-closure/http-artifact-arms-15/core-workloads/http/1024/http_typed.gu"
+          ],
+          "guion_typed_baseline_artifact": [
+            "/tmp/guion-core-cost-closure/candidate-bigint-arc-41d3b48/guion",
+            "run",
+            "--json",
+            "--allow-http-host",
+            "127.0.0.1",
+            "/tmp/guion-core-cost-closure/http-artifact-arms-15/core-workloads/http/1024/http_typed.gub"
+          ],
+          "python_reference": [
+            "/usr/bin/python3.11",
+            "/Users/rmichaelthomas/guion/.worktrees/guion-core-sprint-spec/evaluation/development/core_north_star_sprint/http_reference.py",
+            "http://127.0.0.1:41037/json",
+            "1024"
+          ]
+        },
+        "comparisons": {
+          "guion_legacy_baseline_artifact_over_python": {
+            "ci95_percentile": [
+              0.05922451884655221,
+              0.07846844369084693
+            ],
+            "median_ratio": 0.0707035373166649,
+            "ties_or_regressions": 0,
+            "win": true
+          },
+          "guion_legacy_baseline_over_python": {
+            "ci95_percentile": [
+              0.06382184205684484,
+              0.09309151817329385
+            ],
+            "median_ratio": 0.08019533409189561,
+            "ties_or_regressions": 0,
+            "win": true
+          },
+          "guion_typed_baseline_artifact_over_python": {
+            "ci95_percentile": [
+              0.06704899031148519,
+              0.08194854277399963
+            ],
+            "median_ratio": 0.07160126268178897,
+            "ties_or_regressions": 0,
+            "win": true
+          },
+          "guion_typed_baseline_over_python": {
+            "ci95_percentile": [
+              0.11462432581135322,
+              0.13260523440584304
+            ],
+            "median_ratio": 0.12452629476579864,
+            "ties_or_regressions": 0,
+            "win": true
+          },
+          "typed_baseline_artifact_over_legacy_baseline_artifact": {
+            "ci95_percentile": [
+              0.9428072751829235,
+              1.209169561742324
+            ],
+            "median_ratio": 0.9835773886231818,
+            "ties_or_regressions": 7,
+            "win": false
+          },
+          "typed_baseline_source_over_legacy_baseline_source": {
+            "ci95_percentile": [
+              1.4689811752790893,
+              1.8825213634599307
+            ],
+            "median_ratio": 1.6698169679955701,
+            "ties_or_regressions": 14,
+            "win": false
+          }
+        },
+        "expected_fixture_request_count": 87,
+        "expected_output": [
+          "hello",
+          "42",
+          "1024"
+        ],
+        "fixture_request_count": 87,
+        "fixture_response_body_bytes": 1067,
+        "fixture_response_body_sha256": "acf96fb8c200f11257d7a6d030f0cb3af4c894c9b42e0cc5e859522022ecbf07",
+        "fixture_response_payload_bytes": 1024,
+        "fixture_response_status": 200,
+        "fixture_url_path": "/json",
+        "native_backend_reports": {
+          "guion_legacy_baseline": {
+            "bytecode_blocks": 0,
+            "bytecode_instructions": 0,
+            "calls": 0,
+            "compilations": 0,
+            "compile_profile": {
+              "finalize_nanoseconds": 0,
+              "functions": []
+            },
+            "compiled_functions": [],
+            "cranelift_ir_blocks": 0,
+            "cranelift_ir_instructions": 0,
+            "deoptimizations": 0
+          },
+          "guion_legacy_baseline_artifact": {
+            "bytecode_blocks": 0,
+            "bytecode_instructions": 0,
+            "calls": 0,
+            "compilations": 0,
+            "compile_profile": {
+              "finalize_nanoseconds": 0,
+              "functions": []
+            },
+            "compiled_functions": [],
+            "cranelift_ir_blocks": 0,
+            "cranelift_ir_instructions": 0,
+            "deoptimizations": 0
+          },
+          "guion_typed_baseline": {
+            "bytecode_blocks": 0,
+            "bytecode_instructions": 0,
+            "calls": 0,
+            "compilations": 0,
+            "compile_profile": {
+              "finalize_nanoseconds": 0,
+              "functions": []
+            },
+            "compiled_functions": [],
+            "cranelift_ir_blocks": 0,
+            "cranelift_ir_instructions": 0,
+            "deoptimizations": 0
+          },
+          "guion_typed_baseline_artifact": {
+            "bytecode_blocks": 0,
+            "bytecode_instructions": 0,
+            "calls": 0,
+            "compilations": 0,
+            "compile_profile": {
+              "finalize_nanoseconds": 0,
+              "functions": []
+            },
+            "compiled_functions": [],
+            "cranelift_ir_blocks": 0,
+            "cranelift_ir_instructions": 0,
+            "deoptimizations": 0
+          }
+        },
+        "paired_trial_order": [
+          [
+            "guion_typed_baseline_artifact",
+            "guion_legacy_baseline",
+            "python_reference",
+            "guion_typed_baseline",
+            "guion_legacy_baseline_artifact"
+          ],
+          [
+            "python_reference",
+            "guion_typed_baseline_artifact",
+            "guion_typed_baseline",
+            "guion_legacy_baseline_artifact",
+            "guion_legacy_baseline"
+          ],
+          [
+            "guion_typed_baseline",
+            "python_reference",
+            "guion_typed_baseline_artifact",
+            "guion_legacy_baseline_artifact",
+            "guion_legacy_baseline"
+          ],
+          [
+            "guion_typed_baseline",
+            "python_reference",
+            "guion_legacy_baseline_artifact",
+            "guion_legacy_baseline",
+            "guion_typed_baseline_artifact"
+          ],
+          [
+            "guion_typed_baseline_artifact",
+            "guion_legacy_baseline_artifact",
+            "guion_typed_baseline",
+            "python_reference",
+            "guion_legacy_baseline"
+          ],
+          [
+            "guion_legacy_baseline_artifact",
+            "guion_legacy_baseline",
+            "python_reference",
+            "guion_typed_baseline",
+            "guion_typed_baseline_artifact"
+          ],
+          [
+            "guion_typed_baseline_artifact",
+            "guion_typed_baseline",
+            "python_reference",
+            "guion_legacy_baseline_artifact",
+            "guion_legacy_baseline"
+          ],
+          [
+            "guion_legacy_baseline",
+            "guion_legacy_baseline_artifact",
+            "guion_typed_baseline",
+            "guion_typed_baseline_artifact",
+            "python_reference"
+          ],
+          [
+            "guion_legacy_baseline",
+            "guion_legacy_baseline_artifact",
+            "guion_typed_baseline_artifact",
+            "python_reference",
+            "guion_typed_baseline"
+          ],
+          [
+            "guion_typed_baseline_artifact",
+            "python_reference",
+            "guion_typed_baseline",
+            "guion_legacy_baseline_artifact",
+            "guion_legacy_baseline"
+          ],
+          [
+            "guion_legacy_baseline_artifact",
+            "guion_typed_baseline_artifact",
+            "guion_typed_baseline",
+            "guion_legacy_baseline",
+            "python_reference"
+          ],
+          [
+            "guion_legacy_baseline",
+            "guion_typed_baseline_artifact",
+            "guion_typed_baseline",
+            "python_reference",
+            "guion_legacy_baseline_artifact"
+          ],
+          [
+            "guion_legacy_baseline",
+            "guion_typed_baseline",
+            "guion_typed_baseline_artifact",
+            "guion_legacy_baseline_artifact",
+            "python_reference"
+          ],
+          [
+            "guion_typed_baseline",
+            "guion_typed_baseline_artifact",
+            "guion_legacy_baseline_artifact",
+            "python_reference",
+            "guion_legacy_baseline"
+          ],
+          [
+            "guion_legacy_baseline_artifact",
+            "python_reference",
+            "guion_typed_baseline_artifact",
+            "guion_typed_baseline",
+            "guion_legacy_baseline"
+          ]
+        ],
+        "phase_profiles": {
+          "guion_legacy_baseline_artifact": {
+            "cache_status": "not_applicable",
+            "elapsed_seconds_including_process_startup": 0.0019935270029236563,
+            "reported_phase_timings_ns": {
+              "artifact_runtime_load_ns": 51335,
+              "cli_to_report_excluding_process_startup_ns": 931033,
+              "compiler_pipeline": null,
+              "input_artifact_decode_ns": 18834,
+              "native_compilation": {
+                "finalize_nanoseconds": 0,
+                "functions": []
+              },
+              "program_execute_ns": 642480,
+              "source_compile_or_cache_ns": null
+            },
+            "runtime_profile": {
+              "dynamic_guest_conditional_branch_executions": 0,
+              "estimated_guest_allocation_budget_charges": {
+                "estimated_gross_bytes": 8613,
+                "estimated_net_bytes": 8613,
+                "estimated_refunded_bytes": 0,
+                "successful_events": 35
+              },
+              "function_call_counts": {},
+              "host_operations": {
+                "counts": {
+                  "HttpRequestWithTimeout": 1,
+                  "JsonAsInt": 3,
+                  "JsonAsText": 3,
+                  "JsonGet": 6,
+                  "JsonParse": 1
+                },
+                "inclusive_nanoseconds": {
+                  "HttpRequestWithTimeout": 555560,
+                  "JsonAsInt": 625,
+                  "JsonAsText": 4168,
+                  "JsonGet": 792,
+                  "JsonParse": 5458
+                }
+              },
+              "json_phase_nanoseconds": {
+                "parse_and_reserved_key_handling": 3500,
+                "post_parse_metrics_traversal": 1291
+              },
+              "json_set": {
+                "copy_on_write_copies": 0,
+                "estimated_copy_bytes": 0,
+                "operations": 0
+              },
+              "list_set": {
+                "copy_on_write_copies": 0,
+                "copy_size_histogram": {
+                  "buckets": {
+                    "0-8": {
+                      "copies": 0,
+                      "estimated_copy_bytes": 0
+                    },
+                    "129+": {
+                      "copies": 0,
+                      "estimated_copy_bytes": 0
+                    },
+                    "33-128": {
+                      "copies": 0,
+                      "estimated_copy_bytes": 0
+                    },
+                    "9-32": {
+                      "copies": 0,
+                      "estimated_copy_bytes": 0
+                    }
+                  },
+                  "unit": "elements"
+                },
+                "estimated_copy_bytes": 0,
+                "in_place_updates": 0,
+                "operations": 0
+              },
+              "map_set": {
+                "copy_on_write_copies": 0,
+                "estimated_copy_bytes": 0,
+                "in_place_updates": 0,
+                "operations": 0
+              },
+              "metric_limits": {
+                "allocation": "estimated guest-data budget charges, not host allocator calls",
+                "branches": "executed guest conditional branches, not hardware branch-misprediction counts",
+                "host_operation_time": "inclusive time at host-op boundary; nested parse/metrics timers overlap and must not be summed",
+                "vm_sampled_time": "sampled interpreter-frame wall time, inclusive of host calls; one in every 1024 frames; attribution only, not final benchmark timing"
+              },
+              "opcode_executions": {
+                "Assert": 3,
+                "Const": 14,
+                "Equal": 3,
+                "HttpRequestWithTimeout": 1,
+                "JsonAsInt": 3,
+                "JsonAsText": 3,
+                "JsonGet": 6,
+                "JsonParse": 1,
+                "Length": 2,
+                "Load": 9,
+                "MakeTypedMap": 1,
+                "Pop": 3,
+                "Print": 3,
+                "Return": 1,
+                "Store": 4,
+                "Unwrap": 2
+              },
+              "record_charges": {
+                "estimated_bytes": 0,
+                "events": 0
+              },
+              "scope": "latest guest invocation",
+              "vm_interpreter": {
+                "frames": 1,
+                "instructions": 59,
+                "sample_rate_frames": 1024,
+                "sampled_frames": 1,
+                "sampled_instructions": 59,
+                "sampled_nanoseconds": 589104,
+                "sampled_wall_time_is_inclusive_of_host_operations": true
+              }
+            },
+            "runtime_profile_enabled": true
+          },
+          "guion_typed_baseline_artifact": {
+            "cache_status": "not_applicable",
+            "elapsed_seconds_including_process_startup": 0.001977485000679735,
+            "reported_phase_timings_ns": {
+              "artifact_runtime_load_ns": 127671,
+              "cli_to_report_excluding_process_startup_ns": 1076953,
+              "compiler_pipeline": null,
+              "input_artifact_decode_ns": 34168,
+              "native_compilation": {
+                "finalize_nanoseconds": 0,
+                "functions": []
+              },
+              "program_execute_ns": 672523,
+              "source_compile_or_cache_ns": null
+            },
+            "runtime_profile": {
+              "dynamic_guest_conditional_branch_executions": 2,
+              "estimated_guest_allocation_budget_charges": {
+                "estimated_gross_bytes": 8691,
+                "estimated_net_bytes": 8691,
+                "estimated_refunded_bytes": 0,
+                "successful_events": 39
+              },
+              "function_call_counts": {
+                "http_response_json": 1
+              },
+              "host_operations": {
+                "counts": {
+                  "HttpRequestBytes": 1,
+                  "HttpResponseText": 1,
+                  "JsonAsInt": 2,
+                  "JsonAsText": 2,
+                  "JsonGet": 4,
+                  "JsonParse": 1
+                },
+                "inclusive_nanoseconds": {
+                  "HttpRequestBytes": 594437,
+                  "HttpResponseText": 1250,
+                  "JsonAsInt": 375,
+                  "JsonAsText": 1041,
+                  "JsonGet": 499,
+                  "JsonParse": 5167
+                }
+              },
+              "json_phase_nanoseconds": {
+                "parse_and_reserved_key_handling": 3208,
+                "post_parse_metrics_traversal": 1583
+              },
+              "json_set": {
+                "copy_on_write_copies": 0,
+                "estimated_copy_bytes": 0,
+                "operations": 0
+              },
+              "list_set": {
+                "copy_on_write_copies": 0,
+                "copy_size_histogram": {
+                  "buckets": {
+                    "0-8": {
+                      "copies": 0,
+                      "estimated_copy_bytes": 0
+                    },
+                    "129+": {
+                      "copies": 0,
+                      "estimated_copy_bytes": 0
+                    },
+                    "33-128": {
+                      "copies": 0,
+                      "estimated_copy_bytes": 0
+                    },
+                    "9-32": {
+                      "copies": 0,
+                      "estimated_copy_bytes": 0
+                    }
+                  },
+                  "unit": "elements"
+                },
+                "estimated_copy_bytes": 0,
+                "in_place_updates": 0,
+                "operations": 0
+              },
+              "map_set": {
+                "copy_on_write_copies": 0,
+                "estimated_copy_bytes": 0,
+                "in_place_updates": 0,
+                "operations": 0
+              },
+              "metric_limits": {
+                "allocation": "estimated guest-data budget charges, not host allocator calls",
+                "branches": "executed guest conditional branches, not hardware branch-misprediction counts",
+                "host_operation_time": "inclusive time at host-op boundary; nested parse/metrics timers overlap and must not be summed",
+                "vm_sampled_time": "sampled interpreter-frame wall time, inclusive of host calls; one in every 1024 frames; attribution only, not final benchmark timing"
+              },
+              "opcode_executions": {
+                "Assert": 3,
+                "BytesFromText": 1,
+                "Call": 1,
+                "Const": 12,
+                "Equal": 3,
+                "GetField": 1,
+                "HttpRequestBytes": 1,
+                "HttpResponseText": 1,
+                "IsOk": 2,
+                "JsonAsInt": 2,
+                "JsonAsText": 2,
+                "JsonGet": 4,
+                "JsonParse": 1,
+                "JumpIfFalse": 2,
+                "Length": 2,
+                "Load": 13,
+                "MakeOk": 1,
+                "MakeTypedMap": 1,
+                "Not": 2,
+                "Pop": 3,
+                "Print": 3,
+                "Return": 2,
+                "Store": 5,
+                "Unwrap": 4
+              },
+              "record_charges": {
+                "estimated_bytes": 0,
+                "events": 0
+              },
+              "scope": "latest guest invocation",
+              "vm_interpreter": {
+                "frames": 3,
+                "instructions": 72,
+                "sample_rate_frames": 1024,
+                "sampled_frames": 1,
+                "sampled_instructions": 17,
+                "sampled_nanoseconds": 604354,
+                "sampled_wall_time_is_inclusive_of_host_operations": true
+              }
+            },
+            "runtime_profile_enabled": true
+          }
+        },
+        "samples": {
+          "guion_legacy_baseline": {
+            "median_seconds": 0.002733178000198677,
+            "p95_seconds_nearest_rank": 0.004365191998658702,
+            "samples_seconds": [
+              0.0023279969973373227,
+              0.002733178000198677,
+              0.0030892729992046952,
+              0.0024700849971850403,
+              0.004365191998658702,
+              0.0024114590050885454,
+              0.0021392410053522326,
+              0.003146733004541602,
+              0.0035342889968887903,
+              0.0024423760041827336,
+              0.001996819002670236,
+              0.0031898599991109222,
+              0.00207169700297527,
+              0.002980769000714645,
+              0.003012187000422273
+            ]
+          },
+          "guion_legacy_baseline_artifact": {
+            "median_seconds": 0.0024072499945759773,
+            "p95_seconds_nearest_rank": 0.0037486709989025258,
+            "samples_seconds": [
+              0.0037486709989025258,
+              0.0024072499945759773,
+              0.0028227639995748177,
+              0.0029483930047717877,
+              0.0022894959984114394,
+              0.0019965690007666126,
+              0.002639466001710389,
+              0.002386207001109142,
+              0.0018795229989336804,
+              0.0027778459989349358,
+              0.002098239005135838,
+              0.0026971350016538054,
+              0.0018623560026753694,
+              0.002263911002955865,
+              0.0024568770022597164
+            ]
+          },
+          "guion_typed_baseline": {
+            "median_seconds": 0.004322357999626547,
+            "p95_seconds_nearest_rank": 0.005841242003953084,
+            "samples_seconds": [
+              0.004302648994780611,
+              0.004563907001283951,
+              0.004547031996480655,
+              0.0037883389959461056,
+              0.004165976999502163,
+              0.004507862999162171,
+              0.003658417997939978,
+              0.00348228700022446,
+              0.005191804004425649,
+              0.004597825005475897,
+              0.00406097400264116,
+              0.0037675040002795868,
+              0.004322357999626547,
+              0.004478736998862587,
+              0.005841242003953084
+            ]
+          },
+          "guion_typed_baseline_artifact": {
+            "median_seconds": 0.0026153819999308325,
+            "p95_seconds_nearest_rank": 0.006872821002616547,
+            "samples_seconds": [
+              0.0026153819999308325,
+              0.0027929299976676702,
+              0.006872821002616547,
+              0.002357415003643837,
+              0.002239619003375992,
+              0.0036584180052159354,
+              0.002399999000772368,
+              0.0022545769970747642,
+              0.0022726620009052567,
+              0.0028101390053052455,
+              0.0019782349991146475,
+              0.002652841001690831,
+              0.002673966999282129,
+              0.0021314479963621125,
+              0.0028859319936600514
+            ]
+          },
+          "python_reference": {
+            "median_seconds": 0.03467302799981553,
+            "p95_seconds_nearest_rank": 0.03732132900040597,
+            "samples_seconds": [
+              0.03732132900040597,
+              0.03408150899485918,
+              0.03609878700081026,
+              0.03327406399330357,
+              0.03535517799900845,
+              0.03570294000383001,
+              0.03351894800289301,
+              0.033267439997871406,
+              0.03389554399473127,
+              0.03467302799981553,
+              0.03542855300474912,
+              0.03437222499633208,
+              0.03471040399745107,
+              0.032019769998441916,
+              0.03493228599836584
+            ]
+          }
+        },
+        "source_cache_states": {
+          "guion_legacy_baseline": [
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed"
+          ],
+          "guion_legacy_baseline_artifact": [
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable"
+          ],
+          "guion_typed_baseline": [
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed"
+          ],
+          "guion_typed_baseline_artifact": [
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable"
+          ]
+        },
+        "source_sha256": {
+          "legacy": "44d23cf8d1e4d0ea515d72c0dd0981919a483187f5b476d31e1a62301f029081",
+          "python_reference": "f4b92aae52380e8842e45d19d7971780c1a074092b1b5647b54760b1585e6568",
+          "typed": "4b604ad6708185e1eef75359e471b1c80df6bcdbd72a50d6066bae5ed2f33889"
+        },
+        "url_host_grant": "127.0.0.1"
+      },
+      "1048576": {
+        "artifact_build_seconds": {
+          "baseline_legacy": 0.0026849670030060224,
+          "baseline_typed": 0.0026711749960668385
+        },
+        "commands": {
+          "guion_legacy_baseline": [
+            "/tmp/guion-core-cost-closure/candidate-bigint-arc-41d3b48/guion",
+            "run",
+            "--json",
+            "--no-cache",
+            "--allow-http-host",
+            "127.0.0.1",
+            "/tmp/guion-core-cost-closure/http-artifact-arms-15/core-workloads/http/1048576/http_legacy.gu"
+          ],
+          "guion_legacy_baseline_artifact": [
+            "/tmp/guion-core-cost-closure/candidate-bigint-arc-41d3b48/guion",
+            "run",
+            "--json",
+            "--allow-http-host",
+            "127.0.0.1",
+            "/tmp/guion-core-cost-closure/http-artifact-arms-15/core-workloads/http/1048576/http_legacy.gub"
+          ],
+          "guion_typed_baseline": [
+            "/tmp/guion-core-cost-closure/candidate-bigint-arc-41d3b48/guion",
+            "run",
+            "--json",
+            "--no-cache",
+            "--allow-http-host",
+            "127.0.0.1",
+            "/tmp/guion-core-cost-closure/http-artifact-arms-15/core-workloads/http/1048576/http_typed.gu"
+          ],
+          "guion_typed_baseline_artifact": [
+            "/tmp/guion-core-cost-closure/candidate-bigint-arc-41d3b48/guion",
+            "run",
+            "--json",
+            "--allow-http-host",
+            "127.0.0.1",
+            "/tmp/guion-core-cost-closure/http-artifact-arms-15/core-workloads/http/1048576/http_typed.gub"
+          ],
+          "python_reference": [
+            "/usr/bin/python3.11",
+            "/Users/rmichaelthomas/guion/.worktrees/guion-core-sprint-spec/evaluation/development/core_north_star_sprint/http_reference.py",
+            "http://127.0.0.1:33189/json",
+            "1048576"
+          ]
+        },
+        "comparisons": {
+          "guion_legacy_baseline_artifact_over_python": {
+            "ci95_percentile": [
+              0.2814282720010425,
+              0.30883546563175257
+            ],
+            "median_ratio": 0.2833165789812792,
+            "ties_or_regressions": 0,
+            "win": true
+          },
+          "guion_legacy_baseline_over_python": {
+            "ci95_percentile": [
+              0.28976699486023416,
+              0.3115523911179495
+            ],
+            "median_ratio": 0.30312914414849634,
+            "ties_or_regressions": 0,
+            "win": true
+          },
+          "guion_typed_baseline_artifact_over_python": {
+            "ci95_percentile": [
+              0.22626258935534346,
+              0.24308023067125448
+            ],
+            "median_ratio": 0.22965614139674248,
+            "ties_or_regressions": 0,
+            "win": true
+          },
+          "guion_typed_baseline_over_python": {
+            "ci95_percentile": [
+              0.2776150187617111,
+              0.3065983056252143
+            ],
+            "median_ratio": 0.2891102763592941,
+            "ties_or_regressions": 0,
+            "win": true
+          },
+          "typed_baseline_artifact_over_legacy_baseline_artifact": {
+            "ci95_percentile": [
+              0.7436197164951855,
+              0.8077452277054139
+            ],
+            "median_ratio": 0.7799712604104667,
+            "ties_or_regressions": 1,
+            "win": true
+          },
+          "typed_baseline_source_over_legacy_baseline_source": {
+            "ci95_percentile": [
+              0.894703233870109,
+              1.0131796550755365
+            ],
+            "median_ratio": 0.98456114264936,
+            "ties_or_regressions": 5,
+            "win": false
+          }
+        },
+        "expected_fixture_request_count": 87,
+        "expected_output": [
+          "hello",
+          "42",
+          "1048576"
+        ],
+        "fixture_request_count": 87,
+        "fixture_response_body_bytes": 1048619,
+        "fixture_response_body_sha256": "72576766dba916679a93c9a6ae6ce4ce586094400b5408a65a20d3af00cba2e9",
+        "fixture_response_payload_bytes": 1048576,
+        "fixture_response_status": 200,
+        "fixture_url_path": "/json",
+        "native_backend_reports": {
+          "guion_legacy_baseline": {
+            "bytecode_blocks": 0,
+            "bytecode_instructions": 0,
+            "calls": 0,
+            "compilations": 0,
+            "compile_profile": {
+              "finalize_nanoseconds": 0,
+              "functions": []
+            },
+            "compiled_functions": [],
+            "cranelift_ir_blocks": 0,
+            "cranelift_ir_instructions": 0,
+            "deoptimizations": 0
+          },
+          "guion_legacy_baseline_artifact": {
+            "bytecode_blocks": 0,
+            "bytecode_instructions": 0,
+            "calls": 0,
+            "compilations": 0,
+            "compile_profile": {
+              "finalize_nanoseconds": 0,
+              "functions": []
+            },
+            "compiled_functions": [],
+            "cranelift_ir_blocks": 0,
+            "cranelift_ir_instructions": 0,
+            "deoptimizations": 0
+          },
+          "guion_typed_baseline": {
+            "bytecode_blocks": 0,
+            "bytecode_instructions": 0,
+            "calls": 0,
+            "compilations": 0,
+            "compile_profile": {
+              "finalize_nanoseconds": 0,
+              "functions": []
+            },
+            "compiled_functions": [],
+            "cranelift_ir_blocks": 0,
+            "cranelift_ir_instructions": 0,
+            "deoptimizations": 0
+          },
+          "guion_typed_baseline_artifact": {
+            "bytecode_blocks": 0,
+            "bytecode_instructions": 0,
+            "calls": 0,
+            "compilations": 0,
+            "compile_profile": {
+              "finalize_nanoseconds": 0,
+              "functions": []
+            },
+            "compiled_functions": [],
+            "cranelift_ir_blocks": 0,
+            "cranelift_ir_instructions": 0,
+            "deoptimizations": 0
+          }
+        },
+        "paired_trial_order": [
+          [
+            "guion_typed_baseline_artifact",
+            "guion_legacy_baseline",
+            "python_reference",
+            "guion_typed_baseline",
+            "guion_legacy_baseline_artifact"
+          ],
+          [
+            "python_reference",
+            "guion_typed_baseline_artifact",
+            "guion_typed_baseline",
+            "guion_legacy_baseline_artifact",
+            "guion_legacy_baseline"
+          ],
+          [
+            "guion_typed_baseline",
+            "python_reference",
+            "guion_typed_baseline_artifact",
+            "guion_legacy_baseline_artifact",
+            "guion_legacy_baseline"
+          ],
+          [
+            "guion_typed_baseline",
+            "python_reference",
+            "guion_legacy_baseline_artifact",
+            "guion_legacy_baseline",
+            "guion_typed_baseline_artifact"
+          ],
+          [
+            "guion_typed_baseline_artifact",
+            "guion_legacy_baseline_artifact",
+            "guion_typed_baseline",
+            "python_reference",
+            "guion_legacy_baseline"
+          ],
+          [
+            "guion_legacy_baseline_artifact",
+            "guion_legacy_baseline",
+            "python_reference",
+            "guion_typed_baseline",
+            "guion_typed_baseline_artifact"
+          ],
+          [
+            "guion_typed_baseline_artifact",
+            "guion_typed_baseline",
+            "python_reference",
+            "guion_legacy_baseline_artifact",
+            "guion_legacy_baseline"
+          ],
+          [
+            "guion_legacy_baseline",
+            "guion_legacy_baseline_artifact",
+            "guion_typed_baseline",
+            "guion_typed_baseline_artifact",
+            "python_reference"
+          ],
+          [
+            "guion_legacy_baseline",
+            "guion_legacy_baseline_artifact",
+            "guion_typed_baseline_artifact",
+            "python_reference",
+            "guion_typed_baseline"
+          ],
+          [
+            "guion_typed_baseline_artifact",
+            "python_reference",
+            "guion_typed_baseline",
+            "guion_legacy_baseline_artifact",
+            "guion_legacy_baseline"
+          ],
+          [
+            "guion_legacy_baseline_artifact",
+            "guion_typed_baseline_artifact",
+            "guion_typed_baseline",
+            "guion_legacy_baseline",
+            "python_reference"
+          ],
+          [
+            "guion_legacy_baseline",
+            "guion_typed_baseline_artifact",
+            "guion_typed_baseline",
+            "python_reference",
+            "guion_legacy_baseline_artifact"
+          ],
+          [
+            "guion_legacy_baseline",
+            "guion_typed_baseline",
+            "guion_typed_baseline_artifact",
+            "guion_legacy_baseline_artifact",
+            "python_reference"
+          ],
+          [
+            "guion_typed_baseline",
+            "guion_typed_baseline_artifact",
+            "guion_legacy_baseline_artifact",
+            "python_reference",
+            "guion_legacy_baseline"
+          ],
+          [
+            "guion_legacy_baseline_artifact",
+            "python_reference",
+            "guion_typed_baseline_artifact",
+            "guion_typed_baseline",
+            "guion_legacy_baseline"
+          ]
+        ],
+        "phase_profiles": {
+          "guion_legacy_baseline_artifact": {
+            "cache_status": "not_applicable",
+            "elapsed_seconds_including_process_startup": 0.010033177000877913,
+            "reported_phase_timings_ns": {
+              "artifact_runtime_load_ns": 52919,
+              "cli_to_report_excluding_process_startup_ns": 8493791,
+              "compiler_pipeline": null,
+              "input_artifact_decode_ns": 39668,
+              "native_compilation": {
+                "finalize_nanoseconds": 0,
+                "functions": []
+              },
+              "program_execute_ns": 8093569,
+              "source_compile_or_cache_ns": null
+            },
+            "runtime_profile": {
+              "dynamic_guest_conditional_branch_executions": 0,
+              "estimated_guest_allocation_budget_charges": {
+                "estimated_gross_bytes": 6293931,
+                "estimated_net_bytes": 6293931,
+                "estimated_refunded_bytes": 0,
+                "successful_events": 35
+              },
+              "function_call_counts": {},
+              "host_operations": {
+                "counts": {
+                  "HttpRequestWithTimeout": 1,
+                  "JsonAsInt": 3,
+                  "JsonAsText": 3,
+                  "JsonGet": 6,
+                  "JsonParse": 1
+                },
+                "inclusive_nanoseconds": {
+                  "HttpRequestWithTimeout": 3938885,
+                  "JsonAsInt": 1458,
+                  "JsonAsText": 1655098,
+                  "JsonGet": 1419,
+                  "JsonParse": 1953942
+                }
+              },
+              "json_phase_nanoseconds": {
+                "parse_and_reserved_key_handling": 1040244,
+                "post_parse_metrics_traversal": 912448
+              },
+              "json_set": {
+                "copy_on_write_copies": 0,
+                "estimated_copy_bytes": 0,
+                "operations": 0
+              },
+              "list_set": {
+                "copy_on_write_copies": 0,
+                "copy_size_histogram": {
+                  "buckets": {
+                    "0-8": {
+                      "copies": 0,
+                      "estimated_copy_bytes": 0
+                    },
+                    "129+": {
+                      "copies": 0,
+                      "estimated_copy_bytes": 0
+                    },
+                    "33-128": {
+                      "copies": 0,
+                      "estimated_copy_bytes": 0
+                    },
+                    "9-32": {
+                      "copies": 0,
+                      "estimated_copy_bytes": 0
+                    }
+                  },
+                  "unit": "elements"
+                },
+                "estimated_copy_bytes": 0,
+                "in_place_updates": 0,
+                "operations": 0
+              },
+              "map_set": {
+                "copy_on_write_copies": 0,
+                "estimated_copy_bytes": 0,
+                "in_place_updates": 0,
+                "operations": 0
+              },
+              "metric_limits": {
+                "allocation": "estimated guest-data budget charges, not host allocator calls",
+                "branches": "executed guest conditional branches, not hardware branch-misprediction counts",
+                "host_operation_time": "inclusive time at host-op boundary; nested parse/metrics timers overlap and must not be summed",
+                "vm_sampled_time": "sampled interpreter-frame wall time, inclusive of host calls; one in every 1024 frames; attribution only, not final benchmark timing"
+              },
+              "opcode_executions": {
+                "Assert": 3,
+                "Const": 14,
+                "Equal": 3,
+                "HttpRequestWithTimeout": 1,
+                "JsonAsInt": 3,
+                "JsonAsText": 3,
+                "JsonGet": 6,
+                "JsonParse": 1,
+                "Length": 2,
+                "Load": 9,
+                "MakeTypedMap": 1,
+                "Pop": 3,
+                "Print": 3,
+                "Return": 1,
+                "Store": 4,
+                "Unwrap": 2
+              },
+              "record_charges": {
+                "estimated_bytes": 0,
+                "events": 0
+              },
+              "scope": "latest guest invocation",
+              "vm_interpreter": {
+                "frames": 1,
+                "instructions": 59,
+                "sample_rate_frames": 1024,
+                "sampled_frames": 1,
+                "sampled_instructions": 59,
+                "sampled_nanoseconds": 8023984,
+                "sampled_wall_time_is_inclusive_of_host_operations": true
+              }
+            },
+            "runtime_profile_enabled": true
+          },
+          "guion_typed_baseline_artifact": {
+            "cache_status": "not_applicable",
+            "elapsed_seconds_including_process_startup": 0.008770467000431381,
+            "reported_phase_timings_ns": {
+              "artifact_runtime_load_ns": 125338,
+              "cli_to_report_excluding_process_startup_ns": 7256957,
+              "compiler_pipeline": null,
+              "input_artifact_decode_ns": 43501,
+              "native_compilation": {
+                "finalize_nanoseconds": 0,
+                "functions": []
+              },
+              "program_execute_ns": 6765190,
+              "source_compile_or_cache_ns": null
+            },
+            "runtime_profile": {
+              "dynamic_guest_conditional_branch_executions": 2,
+              "estimated_guest_allocation_budget_charges": {
+                "estimated_gross_bytes": 7341561,
+                "estimated_net_bytes": 7341561,
+                "estimated_refunded_bytes": 0,
+                "successful_events": 39
+              },
+              "function_call_counts": {
+                "http_response_json": 1
+              },
+              "host_operations": {
+                "counts": {
+                  "HttpRequestBytes": 1,
+                  "HttpResponseText": 1,
+                  "JsonAsInt": 2,
+                  "JsonAsText": 2,
+                  "JsonGet": 4,
+                  "JsonParse": 1
+                },
+                "inclusive_nanoseconds": {
+                  "HttpRequestBytes": 2460292,
+                  "HttpResponseText": 501017,
+                  "JsonAsInt": 1208,
+                  "JsonAsText": 830903,
+                  "JsonGet": 1292,
+                  "JsonParse": 2280203
+                }
+              },
+              "json_phase_nanoseconds": {
+                "parse_and_reserved_key_handling": 1355588,
+                "post_parse_metrics_traversal": 922949
+              },
+              "json_set": {
+                "copy_on_write_copies": 0,
+                "estimated_copy_bytes": 0,
+                "operations": 0
+              },
+              "list_set": {
+                "copy_on_write_copies": 0,
+                "copy_size_histogram": {
+                  "buckets": {
+                    "0-8": {
+                      "copies": 0,
+                      "estimated_copy_bytes": 0
+                    },
+                    "129+": {
+                      "copies": 0,
+                      "estimated_copy_bytes": 0
+                    },
+                    "33-128": {
+                      "copies": 0,
+                      "estimated_copy_bytes": 0
+                    },
+                    "9-32": {
+                      "copies": 0,
+                      "estimated_copy_bytes": 0
+                    }
+                  },
+                  "unit": "elements"
+                },
+                "estimated_copy_bytes": 0,
+                "in_place_updates": 0,
+                "operations": 0
+              },
+              "map_set": {
+                "copy_on_write_copies": 0,
+                "estimated_copy_bytes": 0,
+                "in_place_updates": 0,
+                "operations": 0
+              },
+              "metric_limits": {
+                "allocation": "estimated guest-data budget charges, not host allocator calls",
+                "branches": "executed guest conditional branches, not hardware branch-misprediction counts",
+                "host_operation_time": "inclusive time at host-op boundary; nested parse/metrics timers overlap and must not be summed",
+                "vm_sampled_time": "sampled interpreter-frame wall time, inclusive of host calls; one in every 1024 frames; attribution only, not final benchmark timing"
+              },
+              "opcode_executions": {
+                "Assert": 3,
+                "BytesFromText": 1,
+                "Call": 1,
+                "Const": 12,
+                "Equal": 3,
+                "GetField": 1,
+                "HttpRequestBytes": 1,
+                "HttpResponseText": 1,
+                "IsOk": 2,
+                "JsonAsInt": 2,
+                "JsonAsText": 2,
+                "JsonGet": 4,
+                "JsonParse": 1,
+                "JumpIfFalse": 2,
+                "Length": 2,
+                "Load": 13,
+                "MakeOk": 1,
+                "MakeTypedMap": 1,
+                "Not": 2,
+                "Pop": 3,
+                "Print": 3,
+                "Return": 2,
+                "Store": 5,
+                "Unwrap": 4
+              },
+              "record_charges": {
+                "estimated_bytes": 0,
+                "events": 0
+              },
+              "scope": "latest guest invocation",
+              "vm_interpreter": {
+                "frames": 3,
+                "instructions": 72,
+                "sample_rate_frames": 1024,
+                "sampled_frames": 1,
+                "sampled_instructions": 17,
+                "sampled_nanoseconds": 2478543,
+                "sampled_wall_time_is_inclusive_of_host_operations": true
+              }
+            },
+            "runtime_profile_enabled": true
+          }
+        },
+        "samples": {
+          "guion_legacy_baseline": {
+            "median_seconds": 0.011198467000212986,
+            "p95_seconds_nearest_rank": 0.014219445998605806,
+            "samples_seconds": [
+              0.011198467000212986,
+              0.014219445998605806,
+              0.010824246004631277,
+              0.011259719001827762,
+              0.011142964998725802,
+              0.012269711995031685,
+              0.010637156003213022,
+              0.01107633799983887,
+              0.011276386001554783,
+              0.01190949200099567,
+              0.0112285509967478,
+              0.010931665994576178,
+              0.010675322999304626,
+              0.01189632400200935,
+              0.010009218000050168
+            ]
+          },
+          "guion_legacy_baseline_artifact": {
+            "median_seconds": 0.010977418001857586,
+            "p95_seconds_nearest_rank": 0.013005195003643166,
+            "samples_seconds": [
+              0.012879525005700998,
+              0.012660559004871175,
+              0.011401431998820044,
+              0.010946999995212536,
+              0.011121880997961853,
+              0.01035714700265089,
+              0.010977418001857586,
+              0.010225225996691734,
+              0.01022039200324798,
+              0.010256517998641357,
+              0.012740062004013453,
+              0.013005195003643166,
+              0.010516485002881382,
+              0.012248877996171359,
+              0.010634406004101038
+            ]
+          },
+          "guion_typed_baseline": {
+            "median_seconds": 0.010885622999921907,
+            "p95_seconds_nearest_rank": 0.01563553600135492,
+            "samples_seconds": [
+              0.013017654004215728,
+              0.014382368004589807,
+              0.01563553600135492,
+              0.011213634999876376,
+              0.010848830002942123,
+              0.010977751000609715,
+              0.010481942998012528,
+              0.010905331997491885,
+              0.010029928002040833,
+              0.012066454997693654,
+              0.0100054260037723,
+              0.009299777004343923,
+              0.010102763000759296,
+              0.010885622999921907,
+              0.010447150001709815
+            ]
+          },
+          "guion_typed_baseline_artifact": {
+            "median_seconds": 0.008842387003824115,
+            "p95_seconds_nearest_rank": 0.012809564999770373,
+            "samples_seconds": [
+              0.00944798999989871,
+              0.012809564999770373,
+              0.009981342001992743,
+              0.008842387003824115,
+              0.008270449994597584,
+              0.008078277001914103,
+              0.008305950999783818,
+              0.008882095993612893,
+              0.008990975002234336,
+              0.007988940997165628,
+              0.008185238999431022,
+              0.009276110002247151,
+              0.008379369995964225,
+              0.00903897600073833,
+              0.00840253800561186
+            ]
+          },
+          "python_reference": {
+            "median_seconds": 0.03698768500180449,
+            "p95_seconds_nearest_rank": 0.0469094829968526,
+            "samples_seconds": [
+              0.03748074400209589,
+              0.0469094829968526,
+              0.04258075200050371,
+              0.0387867049939814,
+              0.036012317999848165,
+              0.03758578899578424,
+              0.03670934299589135,
+              0.03633332900062669,
+              0.03698768500180449,
+              0.03620161599974381,
+              0.036040651000803337,
+              0.036062734994629864,
+              0.03720902399800252,
+              0.03810134599916637,
+              0.03683842800091952
+            ]
+          }
+        },
+        "source_cache_states": {
+          "guion_legacy_baseline": [
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed"
+          ],
+          "guion_legacy_baseline_artifact": [
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable"
+          ],
+          "guion_typed_baseline": [
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed"
+          ],
+          "guion_typed_baseline_artifact": [
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable"
+          ]
+        },
+        "source_sha256": {
+          "legacy": "a01b0602f741adaed7b24ccae88cef84e6ebb59387d4d58721ea823fc70d995a",
+          "python_reference": "f4b92aae52380e8842e45d19d7971780c1a074092b1b5647b54760b1585e6568",
+          "typed": "dc3320cf078bc9a989272868c0b5d7fd5c3fa563f1434c487c58cffde61a1721"
+        },
+        "url_host_grant": "127.0.0.1"
+      },
+      "65536": {
+        "artifact_build_seconds": {
+          "baseline_legacy": 0.0025630039963289164,
+          "baseline_typed": 0.0034763279982144013
+        },
+        "commands": {
+          "guion_legacy_baseline": [
+            "/tmp/guion-core-cost-closure/candidate-bigint-arc-41d3b48/guion",
+            "run",
+            "--json",
+            "--no-cache",
+            "--allow-http-host",
+            "127.0.0.1",
+            "/tmp/guion-core-cost-closure/http-artifact-arms-15/core-workloads/http/65536/http_legacy.gu"
+          ],
+          "guion_legacy_baseline_artifact": [
+            "/tmp/guion-core-cost-closure/candidate-bigint-arc-41d3b48/guion",
+            "run",
+            "--json",
+            "--allow-http-host",
+            "127.0.0.1",
+            "/tmp/guion-core-cost-closure/http-artifact-arms-15/core-workloads/http/65536/http_legacy.gub"
+          ],
+          "guion_typed_baseline": [
+            "/tmp/guion-core-cost-closure/candidate-bigint-arc-41d3b48/guion",
+            "run",
+            "--json",
+            "--no-cache",
+            "--allow-http-host",
+            "127.0.0.1",
+            "/tmp/guion-core-cost-closure/http-artifact-arms-15/core-workloads/http/65536/http_typed.gu"
+          ],
+          "guion_typed_baseline_artifact": [
+            "/tmp/guion-core-cost-closure/candidate-bigint-arc-41d3b48/guion",
+            "run",
+            "--json",
+            "--allow-http-host",
+            "127.0.0.1",
+            "/tmp/guion-core-cost-closure/http-artifact-arms-15/core-workloads/http/65536/http_typed.gub"
+          ],
+          "python_reference": [
+            "/usr/bin/python3.11",
+            "/Users/rmichaelthomas/guion/.worktrees/guion-core-sprint-spec/evaluation/development/core_north_star_sprint/http_reference.py",
+            "http://127.0.0.1:43857/json",
+            "65536"
+          ]
+        },
+        "comparisons": {
+          "guion_legacy_baseline_artifact_over_python": {
+            "ci95_percentile": [
+              0.07508373507167469,
+              0.08913541985584042
+            ],
+            "median_ratio": 0.08463654074699199,
+            "ties_or_regressions": 0,
+            "win": true
+          },
+          "guion_legacy_baseline_over_python": {
+            "ci95_percentile": [
+              0.09531498088038842,
+              0.1196343198544079
+            ],
+            "median_ratio": 0.1044209333580751,
+            "ties_or_regressions": 0,
+            "win": true
+          },
+          "guion_typed_baseline_artifact_over_python": {
+            "ci95_percentile": [
+              0.07782812754435237,
+              0.09270768044638858
+            ],
+            "median_ratio": 0.08271995678925873,
+            "ties_or_regressions": 0,
+            "win": true
+          },
+          "guion_typed_baseline_over_python": {
+            "ci95_percentile": [
+              0.13555375025097305,
+              0.14721390692432076
+            ],
+            "median_ratio": 0.14002424741117384,
+            "ties_or_regressions": 0,
+            "win": true
+          },
+          "typed_baseline_artifact_over_legacy_baseline_artifact": {
+            "ci95_percentile": [
+              0.9543288673247301,
+              1.1636055055963106
+            ],
+            "median_ratio": 0.9847382215800158,
+            "ties_or_regressions": 7,
+            "win": false
+          },
+          "typed_baseline_source_over_legacy_baseline_source": {
+            "ci95_percentile": [
+              1.1968074477285011,
+              1.5736604783537964
+            ],
+            "median_ratio": 1.335077209282771,
+            "ties_or_regressions": 13,
+            "win": false
+          }
+        },
+        "expected_fixture_request_count": 87,
+        "expected_output": [
+          "hello",
+          "42",
+          "65536"
+        ],
+        "fixture_request_count": 87,
+        "fixture_response_body_bytes": 65579,
+        "fixture_response_body_sha256": "46e2a169feef79fd603ef170f728913cbcc82b6aa424e6594624cb2f5d912857",
+        "fixture_response_payload_bytes": 65536,
+        "fixture_response_status": 200,
+        "fixture_url_path": "/json",
+        "native_backend_reports": {
+          "guion_legacy_baseline": {
+            "bytecode_blocks": 0,
+            "bytecode_instructions": 0,
+            "calls": 0,
+            "compilations": 0,
+            "compile_profile": {
+              "finalize_nanoseconds": 0,
+              "functions": []
+            },
+            "compiled_functions": [],
+            "cranelift_ir_blocks": 0,
+            "cranelift_ir_instructions": 0,
+            "deoptimizations": 0
+          },
+          "guion_legacy_baseline_artifact": {
+            "bytecode_blocks": 0,
+            "bytecode_instructions": 0,
+            "calls": 0,
+            "compilations": 0,
+            "compile_profile": {
+              "finalize_nanoseconds": 0,
+              "functions": []
+            },
+            "compiled_functions": [],
+            "cranelift_ir_blocks": 0,
+            "cranelift_ir_instructions": 0,
+            "deoptimizations": 0
+          },
+          "guion_typed_baseline": {
+            "bytecode_blocks": 0,
+            "bytecode_instructions": 0,
+            "calls": 0,
+            "compilations": 0,
+            "compile_profile": {
+              "finalize_nanoseconds": 0,
+              "functions": []
+            },
+            "compiled_functions": [],
+            "cranelift_ir_blocks": 0,
+            "cranelift_ir_instructions": 0,
+            "deoptimizations": 0
+          },
+          "guion_typed_baseline_artifact": {
+            "bytecode_blocks": 0,
+            "bytecode_instructions": 0,
+            "calls": 0,
+            "compilations": 0,
+            "compile_profile": {
+              "finalize_nanoseconds": 0,
+              "functions": []
+            },
+            "compiled_functions": [],
+            "cranelift_ir_blocks": 0,
+            "cranelift_ir_instructions": 0,
+            "deoptimizations": 0
+          }
+        },
+        "paired_trial_order": [
+          [
+            "guion_typed_baseline_artifact",
+            "guion_legacy_baseline",
+            "python_reference",
+            "guion_typed_baseline",
+            "guion_legacy_baseline_artifact"
+          ],
+          [
+            "python_reference",
+            "guion_typed_baseline_artifact",
+            "guion_typed_baseline",
+            "guion_legacy_baseline_artifact",
+            "guion_legacy_baseline"
+          ],
+          [
+            "guion_typed_baseline",
+            "python_reference",
+            "guion_typed_baseline_artifact",
+            "guion_legacy_baseline_artifact",
+            "guion_legacy_baseline"
+          ],
+          [
+            "guion_typed_baseline",
+            "python_reference",
+            "guion_legacy_baseline_artifact",
+            "guion_legacy_baseline",
+            "guion_typed_baseline_artifact"
+          ],
+          [
+            "guion_typed_baseline_artifact",
+            "guion_legacy_baseline_artifact",
+            "guion_typed_baseline",
+            "python_reference",
+            "guion_legacy_baseline"
+          ],
+          [
+            "guion_legacy_baseline_artifact",
+            "guion_legacy_baseline",
+            "python_reference",
+            "guion_typed_baseline",
+            "guion_typed_baseline_artifact"
+          ],
+          [
+            "guion_typed_baseline_artifact",
+            "guion_typed_baseline",
+            "python_reference",
+            "guion_legacy_baseline_artifact",
+            "guion_legacy_baseline"
+          ],
+          [
+            "guion_legacy_baseline",
+            "guion_legacy_baseline_artifact",
+            "guion_typed_baseline",
+            "guion_typed_baseline_artifact",
+            "python_reference"
+          ],
+          [
+            "guion_legacy_baseline",
+            "guion_legacy_baseline_artifact",
+            "guion_typed_baseline_artifact",
+            "python_reference",
+            "guion_typed_baseline"
+          ],
+          [
+            "guion_typed_baseline_artifact",
+            "python_reference",
+            "guion_typed_baseline",
+            "guion_legacy_baseline_artifact",
+            "guion_legacy_baseline"
+          ],
+          [
+            "guion_legacy_baseline_artifact",
+            "guion_typed_baseline_artifact",
+            "guion_typed_baseline",
+            "guion_legacy_baseline",
+            "python_reference"
+          ],
+          [
+            "guion_legacy_baseline",
+            "guion_typed_baseline_artifact",
+            "guion_typed_baseline",
+            "python_reference",
+            "guion_legacy_baseline_artifact"
+          ],
+          [
+            "guion_legacy_baseline",
+            "guion_typed_baseline",
+            "guion_typed_baseline_artifact",
+            "guion_legacy_baseline_artifact",
+            "python_reference"
+          ],
+          [
+            "guion_typed_baseline",
+            "guion_typed_baseline_artifact",
+            "guion_legacy_baseline_artifact",
+            "python_reference",
+            "guion_legacy_baseline"
+          ],
+          [
+            "guion_legacy_baseline_artifact",
+            "python_reference",
+            "guion_typed_baseline_artifact",
+            "guion_typed_baseline",
+            "guion_legacy_baseline"
+          ]
+        ],
+        "phase_profiles": {
+          "guion_legacy_baseline_artifact": {
+            "cache_status": "not_applicable",
+            "elapsed_seconds_including_process_startup": 0.0029847279947716743,
+            "reported_phase_timings_ns": {
+              "artifact_runtime_load_ns": 45793,
+              "cli_to_report_excluding_process_startup_ns": 1631890,
+              "compiler_pipeline": null,
+              "input_artifact_decode_ns": 18584,
+              "native_compilation": {
+                "finalize_nanoseconds": 0,
+                "functions": []
+              },
+              "program_execute_ns": 1194249,
+              "source_compile_or_cache_ns": null
+            },
+            "runtime_profile": {
+              "dynamic_guest_conditional_branch_executions": 0,
+              "estimated_guest_allocation_budget_charges": {
+                "estimated_gross_bytes": 395687,
+                "estimated_net_bytes": 395687,
+                "estimated_refunded_bytes": 0,
+                "successful_events": 35
+              },
+              "function_call_counts": {},
+              "host_operations": {
+                "counts": {
+                  "HttpRequestWithTimeout": 1,
+                  "JsonAsInt": 3,
+                  "JsonAsText": 3,
+                  "JsonGet": 6,
+                  "JsonParse": 1
+                },
+                "inclusive_nanoseconds": {
+                  "HttpRequestWithTimeout": 845446,
+                  "JsonAsInt": 792,
+                  "JsonAsText": 106838,
+                  "JsonGet": 834,
+                  "JsonParse": 136005
+                }
+              },
+              "json_phase_nanoseconds": {
+                "parse_and_reserved_key_handling": 74628,
+                "post_parse_metrics_traversal": 60668
+              },
+              "json_set": {
+                "copy_on_write_copies": 0,
+                "estimated_copy_bytes": 0,
+                "operations": 0
+              },
+              "list_set": {
+                "copy_on_write_copies": 0,
+                "copy_size_histogram": {
+                  "buckets": {
+                    "0-8": {
+                      "copies": 0,
+                      "estimated_copy_bytes": 0
+                    },
+                    "129+": {
+                      "copies": 0,
+                      "estimated_copy_bytes": 0
+                    },
+                    "33-128": {
+                      "copies": 0,
+                      "estimated_copy_bytes": 0
+                    },
+                    "9-32": {
+                      "copies": 0,
+                      "estimated_copy_bytes": 0
+                    }
+                  },
+                  "unit": "elements"
+                },
+                "estimated_copy_bytes": 0,
+                "in_place_updates": 0,
+                "operations": 0
+              },
+              "map_set": {
+                "copy_on_write_copies": 0,
+                "estimated_copy_bytes": 0,
+                "in_place_updates": 0,
+                "operations": 0
+              },
+              "metric_limits": {
+                "allocation": "estimated guest-data budget charges, not host allocator calls",
+                "branches": "executed guest conditional branches, not hardware branch-misprediction counts",
+                "host_operation_time": "inclusive time at host-op boundary; nested parse/metrics timers overlap and must not be summed",
+                "vm_sampled_time": "sampled interpreter-frame wall time, inclusive of host calls; one in every 1024 frames; attribution only, not final benchmark timing"
+              },
+              "opcode_executions": {
+                "Assert": 3,
+                "Const": 14,
+                "Equal": 3,
+                "HttpRequestWithTimeout": 1,
+                "JsonAsInt": 3,
+                "JsonAsText": 3,
+                "JsonGet": 6,
+                "JsonParse": 1,
+                "Length": 2,
+                "Load": 9,
+                "MakeTypedMap": 1,
+                "Pop": 3,
+                "Print": 3,
+                "Return": 1,
+                "Store": 4,
+                "Unwrap": 2
+              },
+              "record_charges": {
+                "estimated_bytes": 0,
+                "events": 0
+              },
+              "scope": "latest guest invocation",
+              "vm_interpreter": {
+                "frames": 1,
+                "instructions": 59,
+                "sample_rate_frames": 1024,
+                "sampled_frames": 1,
+                "sampled_instructions": 59,
+                "sampled_nanoseconds": 1139331,
+                "sampled_wall_time_is_inclusive_of_host_operations": true
+              }
+            },
+            "runtime_profile_enabled": true
+          },
+          "guion_typed_baseline_artifact": {
+            "cache_status": "not_applicable",
+            "elapsed_seconds_including_process_startup": 0.003279737000411842,
+            "reported_phase_timings_ns": {
+              "artifact_runtime_load_ns": 138588,
+              "cli_to_report_excluding_process_startup_ns": 1860147,
+              "compiler_pipeline": null,
+              "input_artifact_decode_ns": 38335,
+              "native_compilation": {
+                "finalize_nanoseconds": 0,
+                "functions": []
+              },
+              "program_execute_ns": 1375880,
+              "source_compile_or_cache_ns": null
+            },
+            "runtime_profile": {
+              "dynamic_guest_conditional_branch_executions": 2,
+              "estimated_guest_allocation_budget_charges": {
+                "estimated_gross_bytes": 460277,
+                "estimated_net_bytes": 460277,
+                "estimated_refunded_bytes": 0,
+                "successful_events": 39
+              },
+              "function_call_counts": {
+                "http_response_json": 1
+              },
+              "host_operations": {
+                "counts": {
+                  "HttpRequestBytes": 1,
+                  "HttpResponseText": 1,
+                  "JsonAsInt": 2,
+                  "JsonAsText": 2,
+                  "JsonGet": 4,
+                  "JsonParse": 1
+                },
+                "inclusive_nanoseconds": {
+                  "HttpRequestBytes": 999076,
+                  "HttpResponseText": 18334,
+                  "JsonAsInt": 833,
+                  "JsonAsText": 43335,
+                  "JsonGet": 959,
+                  "JsonParse": 165005
+                }
+              },
+              "json_phase_nanoseconds": {
+                "parse_and_reserved_key_handling": 103003,
+                "post_parse_metrics_traversal": 60585
+              },
+              "json_set": {
+                "copy_on_write_copies": 0,
+                "estimated_copy_bytes": 0,
+                "operations": 0
+              },
+              "list_set": {
+                "copy_on_write_copies": 0,
+                "copy_size_histogram": {
+                  "buckets": {
+                    "0-8": {
+                      "copies": 0,
+                      "estimated_copy_bytes": 0
+                    },
+                    "129+": {
+                      "copies": 0,
+                      "estimated_copy_bytes": 0
+                    },
+                    "33-128": {
+                      "copies": 0,
+                      "estimated_copy_bytes": 0
+                    },
+                    "9-32": {
+                      "copies": 0,
+                      "estimated_copy_bytes": 0
+                    }
+                  },
+                  "unit": "elements"
+                },
+                "estimated_copy_bytes": 0,
+                "in_place_updates": 0,
+                "operations": 0
+              },
+              "map_set": {
+                "copy_on_write_copies": 0,
+                "estimated_copy_bytes": 0,
+                "in_place_updates": 0,
+                "operations": 0
+              },
+              "metric_limits": {
+                "allocation": "estimated guest-data budget charges, not host allocator calls",
+                "branches": "executed guest conditional branches, not hardware branch-misprediction counts",
+                "host_operation_time": "inclusive time at host-op boundary; nested parse/metrics timers overlap and must not be summed",
+                "vm_sampled_time": "sampled interpreter-frame wall time, inclusive of host calls; one in every 1024 frames; attribution only, not final benchmark timing"
+              },
+              "opcode_executions": {
+                "Assert": 3,
+                "BytesFromText": 1,
+                "Call": 1,
+                "Const": 12,
+                "Equal": 3,
+                "GetField": 1,
+                "HttpRequestBytes": 1,
+                "HttpResponseText": 1,
+                "IsOk": 2,
+                "JsonAsInt": 2,
+                "JsonAsText": 2,
+                "JsonGet": 4,
+                "JsonParse": 1,
+                "JumpIfFalse": 2,
+                "Length": 2,
+                "Load": 13,
+                "MakeOk": 1,
+                "MakeTypedMap": 1,
+                "Not": 2,
+                "Pop": 3,
+                "Print": 3,
+                "Return": 2,
+                "Store": 5,
+                "Unwrap": 4
+              },
+              "record_charges": {
+                "estimated_bytes": 0,
+                "events": 0
+              },
+              "scope": "latest guest invocation",
+              "vm_interpreter": {
+                "frames": 3,
+                "instructions": 72,
+                "sample_rate_frames": 1024,
+                "sampled_frames": 1,
+                "sampled_instructions": 17,
+                "sampled_nanoseconds": 1018202,
+                "sampled_wall_time_is_inclusive_of_host_operations": true
+              }
+            },
+            "runtime_profile_enabled": true
+          }
+        },
+        "samples": {
+          "guion_legacy_baseline": {
+            "median_seconds": 0.0035328300000401214,
+            "p95_seconds_nearest_rank": 0.005083216994535178,
+            "samples_seconds": [
+              0.0035151210031472147,
+              0.0032535279970034026,
+              0.005083216994535178,
+              0.0026945089994114824,
+              0.0038332159965648316,
+              0.003089814003033098,
+              0.004888543000561185,
+              0.003260237004724331,
+              0.0041609350009821355,
+              0.005007214000215754,
+              0.003192275995388627,
+              0.0035359969988348894,
+              0.0035328300000401214,
+              0.0037657540015061386,
+              0.0035149119939887896
+            ]
+          },
+          "guion_legacy_baseline_artifact": {
+            "median_seconds": 0.002937893004855141,
+            "p95_seconds_nearest_rank": 0.0034587859991006553,
+            "samples_seconds": [
+              0.0032171939965337515,
+              0.003314488996693399,
+              0.0027481780052767135,
+              0.003136732993880287,
+              0.0029687679998460226,
+              0.002440250995277893,
+              0.0034587859991006553,
+              0.002906224995967932,
+              0.002592631004517898,
+              0.002815929998178035,
+              0.0029853110027033836,
+              0.0033383639965904877,
+              0.0024164589995052665,
+              0.0028732659993693233,
+              0.002937893004855141
+            ]
+          },
+          "guion_typed_baseline": {
+            "median_seconds": 0.004799248003109824,
+            "p95_seconds_nearest_rank": 0.0074878829982480966,
+            "samples_seconds": [
+              0.005531606999284122,
+              0.0055426489998353645,
+              0.005609526997432113,
+              0.0047421209965250455,
+              0.004728204003185965,
+              0.0074878829982480966,
+              0.004799248003109824,
+              0.004364649998024106,
+              0.004979837998689618,
+              0.004984546001651324,
+              0.004544490002444945,
+              0.004720829005236737,
+              0.004692952999903355,
+              0.005135927000083029,
+              0.004323774002841674
+            ]
+          },
+          "guion_typed_baseline_artifact": {
+            "median_seconds": 0.002924182997958269,
+            "p95_seconds_nearest_rank": 0.004645493005227763,
+            "samples_seconds": [
+              0.0033898250039783306,
+              0.0032639040000503883,
+              0.0033932410005945712,
+              0.0025511290004942566,
+              0.0028331810026429594,
+              0.0030953980021877214,
+              0.0026832180010387674,
+              0.0035355389991309494,
+              0.0026022980018751696,
+              0.002761428004305344,
+              0.0029301419999683276,
+              0.002924182997958269,
+              0.0028118049958720803,
+              0.002642131999891717,
+              0.004645493005227763
+            ]
+          },
+          "python_reference": {
+            "median_seconds": 0.034780445996148046,
+            "p95_seconds_nearest_rank": 0.039457273996958975,
+            "samples_seconds": [
+              0.03572252099547768,
+              0.039457273996958975,
+              0.0366015090039582,
+              0.03624532999674557,
+              0.034880658000474796,
+              0.03465690000302857,
+              0.03514970899414038,
+              0.03620532799686771,
+              0.034780445996148046,
+              0.033859206007036846,
+              0.03349185999832116,
+              0.03371436799352523,
+              0.03421975999663118,
+              0.03394829200260574,
+              0.03366099000413669
+            ]
+          }
+        },
+        "source_cache_states": {
+          "guion_legacy_baseline": [
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed"
+          ],
+          "guion_legacy_baseline_artifact": [
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable"
+          ],
+          "guion_typed_baseline": [
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed",
+            "bypassed"
+          ],
+          "guion_typed_baseline_artifact": [
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable",
+            "not_applicable"
+          ]
+        },
+        "source_sha256": {
+          "legacy": "87a8cc2e9bdec7c835b2fdd302be2722ac4e100b7010c7bd27473387c2d2e570",
+          "python_reference": "f4b92aae52380e8842e45d19d7971780c1a074092b1b5647b54760b1585e6568",
+          "typed": "b1cc099556940d91d7f0efbf5d2669d1cfd68af0a524e8e1419a28484ae09c32"
+        },
+        "url_host_grant": "127.0.0.1"
+      }
+    },
+    "tiny-source": {
+      "commands": {
+        "guion_baseline": [
+          "/tmp/guion-core-cost-closure/candidate-bigint-arc-41d3b48/guion",
+          "run",
+          "--json",
+          "--no-cache",
+          "--allow-http-host",
+          "127.0.0.1",
+          "/tmp/guion-core-cost-closure/http-artifact-arms-15/core-workloads/short-source/tiny.gu"
+        ],
+        "python_reference": [
+          "/usr/bin/python3.11",
+          "/tmp/guion-core-cost-closure/http-artifact-arms-15/core-workloads/short-source/tiny.py"
+        ]
+      },
+      "comparisons": {
+        "baseline_over_python": {
+          "ci95_percentile": [
+            0.19385097869342927,
+            0.27064465242909197
+          ],
+          "median_ratio": 0.23578189558131915,
+          "ties_or_regressions": 0,
+          "win": true
+        }
+      },
+      "expected_output": [
+        "ready"
+      ],
+      "native_backend_reports": {
+        "guion_baseline": {
+          "bytecode_blocks": 0,
+          "bytecode_instructions": 0,
+          "calls": 0,
+          "compilations": 0,
+          "compile_profile": {
+            "finalize_nanoseconds": 0,
+            "functions": []
+          },
+          "compiled_functions": [],
+          "cranelift_ir_blocks": 0,
+          "cranelift_ir_instructions": 0,
+          "deoptimizations": 0
+        }
+      },
+      "paired_trial_order": [
+        [
+          "python_reference",
+          "guion_baseline"
+        ],
+        [
+          "python_reference",
+          "guion_baseline"
+        ],
+        [
+          "guion_baseline",
+          "python_reference"
+        ],
+        [
+          "python_reference",
+          "guion_baseline"
+        ],
+        [
+          "guion_baseline",
+          "python_reference"
+        ],
+        [
+          "guion_baseline",
+          "python_reference"
+        ],
+        [
+          "python_reference",
+          "guion_baseline"
+        ],
+        [
+          "python_reference",
+          "guion_baseline"
+        ],
+        [
+          "python_reference",
+          "guion_baseline"
+        ],
+        [
+          "guion_baseline",
+          "python_reference"
+        ],
+        [
+          "guion_baseline",
+          "python_reference"
+        ],
+        [
+          "guion_baseline",
+          "python_reference"
+        ],
+        [
+          "python_reference",
+          "guion_baseline"
+        ],
+        [
+          "guion_baseline",
+          "python_reference"
+        ],
+        [
+          "python_reference",
+          "guion_baseline"
+        ]
+      ],
+      "samples": {
+        "guion_baseline": {
+          "median_seconds": 0.0015633040020475164,
+          "p95_seconds_nearest_rank": 0.0029685200061067007,
+          "samples_seconds": [
+            0.002346205998037476,
+            0.0015747629950055853,
+            0.001137414001277648,
+            0.0016068469994934276,
+            0.0015085519989952445,
+            0.0015633040020475164,
+            0.0014460079983109608,
+            0.0018381890040473081,
+            0.0015027179979369976,
+            0.000963950005825609,
+            0.0014558839975506999,
+            0.0017514360006316565,
+            0.0016495160016347654,
+            0.0010214939975412562,
+            0.0029685200061067007
+          ]
+        },
+        "python_reference": {
+          "median_seconds": 0.006471348999184556,
+          "p95_seconds_nearest_rank": 0.00785222999547841,
+          "samples_seconds": [
+            0.00785222999547841,
+            0.006678896999801509,
+            0.006033542005752679,
+            0.007184832000348251,
+            0.0077820189981139265,
+            0.006234383006813005,
+            0.006720024000969715,
+            0.005961997994745616,
+            0.0065426430010120384,
+            0.006173589004902169,
+            0.005967705998045858,
+            0.006471348999184556,
+            0.006938739999895915,
+            0.006033625999407377,
+            0.0062072139990050346
+          ]
+        }
+      },
+      "source_cache_states": {
+        "guion_baseline": [
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed"
+        ]
+      }
+    }
+  }
+}

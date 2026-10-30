@@ -1,0 +1,53 @@
+{
+  "kind": "guion-core-cost-closure-fixture-freeze",
+  "schema_version": 1,
+  "created_at": "2026-10-29",
+  "embedded_inputs": {
+    "aggregate-update": {
+      "iterations": 120000,
+      "keys": 20,
+      "timestamp": "row index + 1"
+    },
+    "json-field-extract": {
+      "iterations": 120000,
+      "records": [
+        "count integer",
+        "count text",
+        "count absent"
+      ]
+    },
+    "jsonl-streaming-summary": {
+      "generator": "evaluation/completion/performance/inputs/generate_analysis_jsonl.py",
+      "reference": "evaluation/completion/performance/data_reference.py",
+      "rows": [
+        20000,
+        200000
+      ],
+      "seed": 20261025
+    },
+    "result-option-loop": {
+      "iterations": 200000,
+      "values": "inclusive range 1..200000"
+    }
+  },
+  "files_sha256": {
+    "evaluation/completion/performance/data_reference.py": "be8ee4c3ffc9b3e3a0b98f22bcc0d3e9be43b778320a360203ccc70076ebb847",
+    "evaluation/completion/performance/inputs/generate_analysis_jsonl.py": "c3620ead9557a3ce543697144dfbfd79d01df045707bff25af5b6585d92ea76b",
+    "evaluation/development/core_cost_closure/create_nested_jsonl_fixture.py": "d753bb98c32830ac29694e5ef796bb52722315eff0f52522dc6004960818013d",
+    "evaluation/development/core_cost_closure/fixtures/aggregate-update/README.md": "551b3a3b71fc6d3bfdd9980edb0b711e9fb9257b29c972f5d189d292a7dc7cb3",
+    "evaluation/development/core_cost_closure/fixtures/aggregate-update/compact-record.gu": "688ebb88952cbcc891964bb7ddb8fd49768d2d0e75b6203ed2da6d04d18af65f",
+    "evaluation/development/core_cost_closure/fixtures/aggregate-update/json-state.gu": "373819e78813c3028c2906bb3bde734397bdee3e6628bfeb141208c95d8a13ba",
+    "evaluation/development/core_cost_closure/fixtures/aggregate-update/mutable-record.gu": "8decc689a2730a76cbbfdb47510d80b4e35f1f0b7c8f92b998d6baef76949c7a",
+    "evaluation/development/core_cost_closure/fixtures/aggregate-update/reference.py": "383d5b82e26c4bf5c5877781bc20aa000574c6b7a57bb7b6abbb933e1d48858d",
+    "evaluation/development/core_cost_closure/fixtures/json-field-extract/README.md": "aa7b8fc1653e0538e985c8d0d9537f155546277cf27ad42d02ec3f40beb174fa",
+    "evaluation/development/core_cost_closure/fixtures/json-field-extract/main.gu": "cb832405262a574dc9a66bd088fd569aa5bcd14243c493616e4ff14f88d18f2c",
+    "evaluation/development/core_cost_closure/fixtures/json-field-extract/reference.py": "61d8150fc168d5d22f3c9d70d9b10a7fb3b5ba39058f2a3f0a054f904cb303ec",
+    "evaluation/development/core_cost_closure/fixtures/jsonl-streaming-summary/README.md": "2c3fca8fd31539de737beb711356a64771370994172f7c89136e2f5727bd4bb2",
+    "evaluation/development/core_cost_closure/fixtures/jsonl-streaming-summary/main.gu": "6bf418b9313d7f652685b7444476772ed4234af352620ff25d2be61e1a036b08",
+    "evaluation/development/core_cost_closure/fixtures/jsonl-summary-text-slice-compact-record/README.md": "80aa392021c7ab7c653372ade5fbd7e5c72e43dcc9f264571684d3af8108777a",
+    "evaluation/development/core_cost_closure/fixtures/jsonl-summary-text-slice-compact-record/main.gu": "81a23da46e9aa805d3f3b78c646bd6cc9d9754a07ed04de0e9c37d9c523a1546",
+    "evaluation/development/core_cost_closure/fixtures/result-option-loop/README.md": "b97692819f54dd8deaa25bcb9c6155aa0633716839fd696f2b962972f3fbc588",
+    "evaluation/development/core_cost_closure/fixtures/result-option-loop/main.gu": "48d056114948d08b075d8ff8e6a5f898c9ef2715e4bf30fc1b5a6c5c83a8349e",
+    "evaluation/development/core_cost_closure/fixtures/result-option-loop/reference.py": "d722a0a9e6483e37209f618090d775b496dc18a08faccf1b91a79958b12616a8"
+  }
+}

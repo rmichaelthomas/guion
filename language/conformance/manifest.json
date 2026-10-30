@@ -1114,6 +1114,34 @@
       }
     },
     {
+      "id": "syntax-text-slice-unicode-scalar-ranges",
+      "kind": "syntax",
+      "name": "Unicode scalar text slicing",
+      "owner_task": 2,
+      "source": "language/spec.md#statements-and-expressions",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "implemented_current_subset"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "syntax.text-slice-unicode-scalar-ranges.positive",
+          "state": "implemented",
+          "owner_task": 2
+        },
+        "negative": {
+          "case_id": "syntax.text-slice-unicode-scalar-ranges.negative",
+          "state": "implemented",
+          "owner_task": 2
+        },
+        "interaction": {
+          "case_id": "syntax.text-slice-unicode-scalar-ranges.interaction",
+          "state": "implemented",
+          "owner_task": 2
+        }
+      }
+    },
+    {
       "id": "syntax-local-inference-and-explicit-annotations",
       "kind": "syntax",
       "name": "Local inference and explicit annotations",
@@ -1312,7 +1340,7 @@
     {
       "id": "syntax-relative-module-imports-and-project-root-confinement",
       "kind": "syntax",
-      "name": "Relative module imports and project-root confinement",
+      "name": "Relative module imports, public re-exports, and project-root confinement",
       "owner_task": 2,
       "source": "language/spec.md#source-and-declarations",
       "compiler_status": {
@@ -8375,61 +8403,148 @@
       }
     },
     {
-      "id": "planned_api-http-request-bytes-text-text-map-text-text-bytes-int-result-httpresponse-httperror",
-      "kind": "planned_api",
-      "name": "http_request_bytes(Text, Text, Map[Text,Text], Bytes, Int) -> Result[HttpResponse, HttpError]",
-      "owner_task": 6,
-      "source": "docs/superpowers/plans/2026-10-24-guion-complete-product.md#task-6",
+      "id": "opcode-http-response-text",
+      "kind": "opcode",
+      "name": "HttpResponseText",
+      "owner_task": 4,
+      "source": "crates/model/src/lib.rs::Op",
       "compiler_status": {
-        "bootstrap": "planned",
-        "self_hosted": "planned"
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "implemented_current_subset"
       },
       "coverage": {
         "positive": {
-          "case_id": "planned_api.http-request-bytes-text-text-map-text-text-bytes-int-result-httpresponse-httperror.positive",
-          "state": "planned",
-          "owner_task": 6
+          "case_id": "opcode-http-response-text.positive",
+          "state": "implemented",
+          "owner_task": 4
         },
         "negative": {
-          "case_id": "planned_api.http-request-bytes-text-text-map-text-text-bytes-int-result-httpresponse-httperror.negative",
-          "state": "planned",
-          "owner_task": 6
+          "case_id": "opcode-http-response-text.negative",
+          "state": "implemented",
+          "owner_task": 4
         },
         "interaction": {
-          "case_id": "planned_api.http-request-bytes-text-text-map-text-text-bytes-int-result-httpresponse-httperror.interaction",
-          "state": "planned",
-          "owner_task": 6
-        }
-      },
-      "signature": "http_request_bytes(Text, Text, Map[Text,Text], Bytes, Int) -> Result[HttpResponse, HttpError]"
-    },
-    {
-      "id": "planned_type-httpresponse",
-      "kind": "planned_type",
-      "name": "HttpResponse",
-      "owner_task": 6,
-      "source": "docs/superpowers/plans/2026-10-24-guion-complete-product.md#interface-rules",
-      "compiler_status": {
-        "bootstrap": "planned",
-        "self_hosted": "planned"
-      },
-      "coverage": {
-        "positive": {
-          "case_id": "planned_type.httpresponse.positive",
-          "state": "planned",
-          "owner_task": 6
-        },
-        "negative": {
-          "case_id": "planned_type.httpresponse.negative",
-          "state": "planned",
-          "owner_task": 6
-        },
-        "interaction": {
-          "case_id": "planned_type.httpresponse.interaction",
-          "state": "planned",
-          "owner_task": 6
+          "case_id": "opcode-http-response-text.interaction",
+          "state": "implemented",
+          "owner_task": 4
         }
       }
+    },
+    {
+      "id": "opcode-http-response-json",
+      "kind": "opcode",
+      "name": "HttpResponseJson",
+      "owner_task": 4,
+      "source": "crates/model/src/lib.rs::Op",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "implemented_current_subset"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "http_response_json.parses_valid_json_body",
+          "state": "implemented",
+          "owner_task": 4
+        },
+        "negative": {
+          "case_id": "http_response_json.preserves_duplicate_key_errors",
+          "state": "implemented",
+          "owner_task": 4
+        },
+        "interaction": {
+          "case_id": "http_response_json.observes_text_limit_and_utf8_errors",
+          "state": "implemented",
+          "owner_task": 4
+        }
+      }
+    },
+    {
+      "id": "opcode-text-slice",
+      "kind": "opcode",
+      "name": "TextSlice",
+      "owner_task": 4,
+      "source": "crates/model/src/lib.rs::Op",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "implemented_current_subset"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "syntax.text-slice-unicode-scalar-ranges.positive",
+          "state": "implemented",
+          "owner_task": 4
+        },
+        "negative": {
+          "case_id": "syntax.text-slice-unicode-scalar-ranges.negative",
+          "state": "implemented",
+          "owner_task": 4
+        },
+        "interaction": {
+          "case_id": "syntax.text-slice-unicode-scalar-ranges.interaction",
+          "state": "implemented",
+          "owner_task": 4
+        }
+      }
+    },
+    {
+      "id": "host_operation-http-response-text",
+      "kind": "host_operation",
+      "name": "HTTP response text",
+      "owner_task": 4,
+      "source": "language/host-api.md#public-operations",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "implemented_current_subset"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "host_operation.http-response-text.positive",
+          "state": "implemented",
+          "owner_task": 4
+        },
+        "negative": {
+          "case_id": "host_operation.http-response-text.negative",
+          "state": "implemented",
+          "owner_task": 4
+        },
+        "interaction": {
+          "case_id": "host_operation.http-response-text.interaction",
+          "state": "implemented",
+          "owner_task": 4
+        }
+      },
+      "source_signature": "`http_response_text(response: HttpResponse) -> Result[Text, HttpError]`",
+      "declared_status": "Implemented in artifact format 45; checked UTF-8 decoding returns R_HTTP_ENCODING on invalid input and preserves response status"
+    },
+    {
+      "id": "host_operation-http-response-json",
+      "kind": "host_operation",
+      "name": "HTTP response JSON",
+      "owner_task": 4,
+      "source": "language/host-api.md#public-operations",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "implemented_current_subset"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "host_operation.http-response-json.positive",
+          "state": "implemented",
+          "owner_task": 4
+        },
+        "negative": {
+          "case_id": "host_operation.http-response-json.negative",
+          "state": "implemented",
+          "owner_task": 4
+        },
+        "interaction": {
+          "case_id": "host_operation.http-response-json.interaction",
+          "state": "implemented",
+          "owner_task": 4
+        }
+      },
+      "source_signature": "`std:http.http_response_json(response: HttpResponse) -> Result[Json, StdError]`",
+      "declared_status": "Implemented in std:http using artifact-format-47 direct byte parsing; preserves allocation charging and maps recoverable decode and JSON errors to StdError"
     },
     {
       "id": "cli-command-add",

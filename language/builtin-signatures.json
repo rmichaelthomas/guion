@@ -248,6 +248,22 @@
       "operation": "HttpRequestBytes"
     },
     {
+      "name": "http_response_text",
+      "parameters": [
+        "Record[HttpResponse]"
+      ],
+      "result": "Result[Text, HttpError]",
+      "operation": "HttpResponseText"
+    },
+    {
+      "name": "http_response_json_bytes",
+      "parameters": [
+        "Record[HttpResponse]"
+      ],
+      "result": "Result[Json, Record[StdError]]",
+      "operation": "HttpResponseJson"
+    },
+    {
       "name": "http_request_with_timeout",
       "parameters": [
         "Text",
@@ -948,6 +964,16 @@
       "operation": "TextChars"
     },
     {
+      "name": "text_slice",
+      "parameters": [
+        "Text",
+        "Int",
+        "Int"
+      ],
+      "result": "Text",
+      "operation": "TextSlice"
+    },
+    {
       "name": "text_join_native",
       "parameters": [
         "List[Text]",
@@ -979,6 +1005,14 @@
       ],
       "result": "Text",
       "operation": "TimeFormatUtc"
+    },
+    {
+      "name": "time_format_utc_date",
+      "parameters": [
+        "Record[Instant]"
+      ],
+      "result": "Text",
+      "operation": "TimeFormatUtcDate"
     },
     {
       "name": "time_parse_date",

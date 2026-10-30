@@ -228,7 +228,7 @@ pub fn parse_timestamp(text: &str) -> Result<i64, DataError> {
             return Err(DataError::invalid(
                 "E_TIMESTAMP_OFFSET",
                 "timestamp must end in Z or a signed HH:MM offset",
-            ))
+            ));
         }
     };
     let days = days_from_civil(date.year, date.month as u32, date.day as u32);
@@ -257,6 +257,13 @@ pub fn format_utc(instant: Instant) -> String {
     format!("{year:04}-{month:02}-{day:02}T{hour:02}:{minute:02}:{second:02}{fraction}Z")
 }
 
+pub fn format_utc_date(instant: Instant) -> String {
+    let seconds = instant.unix_microseconds.div_euclid(1_000_000);
+    let days = seconds.div_euclid(86_400);
+    let (year, month, day) = civil_from_days(days);
+    format!("{year:04}-{month:02}-{day:02}")
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SemVer {
     pub major: String,
@@ -283,7 +290,7 @@ pub fn parse_semver(text: &str) -> Result<SemVer, DataError> {
             return Err(DataError::invalid(
                 "E_SEMVER_BUILD",
                 "build metadata must contain valid identifiers",
-            ))
+            ));
         }
         None => (text, Vec::new()),
     };
@@ -295,7 +302,7 @@ pub fn parse_semver(text: &str) -> Result<SemVer, DataError> {
             return Err(DataError::invalid(
                 "E_SEMVER_PRERELEASE",
                 "prerelease must contain valid identifiers",
-            ))
+            ));
         }
         None => (core_pre, Vec::new()),
     };

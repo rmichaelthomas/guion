@@ -1,0 +1,4 @@
+pub import "std:http_types"
+
+pub fn http_response_json(response: HttpResponse) -> Result[Json, StdError]:
+    return http_response_json_bytes(response)

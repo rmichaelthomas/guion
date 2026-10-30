@@ -1,0 +1,14 @@
+diff --git a/crates/runtime/src/lib.rs b/crates/runtime/src/lib.rs
+index 89ee0a6..86b4e67 100644
+--- a/crates/runtime/src/lib.rs
++++ b/crates/runtime/src/lib.rs
+@@ -6900,6 +6900,9 @@ fn restore_reserved_shared_json_keys(value: &mut SharedJson, reserved_key: &str)
+ pub(crate) fn escape_reserved_json_keys<'a>(source: &'a str) -> (Cow<'a, str>, Option<String>) {
+     const RESERVED: &str = "$serde_json::private::Number";
+     let bytes = source.as_bytes();
++    if !bytes.contains(&b'\\') && !source.contains(RESERVED) {
++        return (Cow::Borrowed(source), None);
++    }
+     let mut offset = 0;
+     let mut has_reserved_key = false;
+     while offset < bytes.len() {

@@ -1,0 +1,14 @@
+import "std:http"
+import "std:types"
+
+fn main() -> Int:
+    let response = unwrap(http_request_bytes("GET", "__URL__", {}, bytes_from_text(""), 1000))
+    assert(response.status == 200)
+    let parsed = unwrap(http_response_json(response))
+    assert(json_as_int(json_get(parsed, "count")) == 42)
+    let payload = json_as_text(json_get(parsed, "payload"))
+    assert(len(payload) == __PAYLOAD_LENGTH__)
+    print(json_as_text(json_get(parsed, "message")))
+    print(json_as_int(json_get(parsed, "count")))
+    print(len(payload))
+    return 0

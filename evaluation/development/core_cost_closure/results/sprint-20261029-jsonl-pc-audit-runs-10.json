@@ -1,0 +1,127 @@
+{
+  "binary_sha256": "a3175b7bd6e249b717e6e2c4aca1fe07ebefde2feb84552ed0b69234923a669b",
+  "artifact_sha256": "31ee626fff705d65dd4a479cba7c5fbcc7c131a9b7eded9d443b409fe343e962",
+  "output_sha256": "b1b0afe4074a5a945c2ae6a097cb269174999dd6545ef380f5008ba8c36dd7fd",
+  "records": [
+    {
+      "pair": 0,
+      "mode": "on",
+      "execute_ns": 2608536806,
+      "sample_path": "/tmp/guion-pc-debug-pair-00.txt"
+    },
+    {
+      "pair": 0,
+      "mode": "off",
+      "execute_ns": 2608962246,
+      "sample_path": null
+    },
+    {
+      "pair": 1,
+      "mode": "off",
+      "execute_ns": 2545363472,
+      "sample_path": null
+    },
+    {
+      "pair": 1,
+      "mode": "on",
+      "execute_ns": 2520733617,
+      "sample_path": "/tmp/guion-pc-debug-pair-01.txt"
+    },
+    {
+      "pair": 2,
+      "mode": "off",
+      "execute_ns": 2563995928,
+      "sample_path": null
+    },
+    {
+      "pair": 2,
+      "mode": "on",
+      "execute_ns": 2625911530,
+      "sample_path": "/tmp/guion-pc-debug-pair-02.txt"
+    },
+    {
+      "pair": 3,
+      "mode": "on",
+      "execute_ns": 3341191183,
+      "sample_path": "/tmp/guion-pc-debug-pair-03.txt"
+    },
+    {
+      "pair": 3,
+      "mode": "off",
+      "execute_ns": 2712644022,
+      "sample_path": null
+    },
+    {
+      "pair": 4,
+      "mode": "off",
+      "execute_ns": 2633337670,
+      "sample_path": null
+    },
+    {
+      "pair": 4,
+      "mode": "on",
+      "execute_ns": 2613365841,
+      "sample_path": "/tmp/guion-pc-debug-pair-04.txt"
+    },
+    {
+      "pair": 5,
+      "mode": "off",
+      "execute_ns": 2595820860,
+      "sample_path": null
+    },
+    {
+      "pair": 5,
+      "mode": "on",
+      "execute_ns": 2844957711,
+      "sample_path": "/tmp/guion-pc-debug-pair-05.txt"
+    },
+    {
+      "pair": 6,
+      "mode": "on",
+      "execute_ns": 2628684747,
+      "sample_path": "/tmp/guion-pc-debug-pair-06.txt"
+    },
+    {
+      "pair": 6,
+      "mode": "off",
+      "execute_ns": 2971300052,
+      "sample_path": null
+    },
+    {
+      "pair": 7,
+      "mode": "off",
+      "execute_ns": 2520628779,
+      "sample_path": null
+    },
+    {
+      "pair": 7,
+      "mode": "on",
+      "execute_ns": 2565987951,
+      "sample_path": "/tmp/guion-pc-debug-pair-07.txt"
+    },
+    {
+      "pair": 8,
+      "mode": "off",
+      "execute_ns": 2692663962,
+      "sample_path": null
+    },
+    {
+      "pair": 8,
+      "mode": "on",
+      "execute_ns": 2915476692,
+      "sample_path": "/tmp/guion-pc-debug-pair-08.txt"
+    },
+    {
+      "pair": 9,
+      "mode": "off",
+      "execute_ns": 2776419832,
+      "sample_path": null
+    },
+    {
+      "pair": 9,
+      "mode": "on",
+      "execute_ns": 2767481753,
+      "sample_path": "/tmp/guion-pc-debug-pair-09.txt"
+    }
+  ]
+}

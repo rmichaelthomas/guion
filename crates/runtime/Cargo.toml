@@ -8,6 +8,7 @@ build = "build.rs"
 [features]
 default = []
 python-interop = []
+native-value-bridge = []
 
 [dependencies]
 guion-model.workspace = true

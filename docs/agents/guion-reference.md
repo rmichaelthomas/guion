@@ -7,7 +7,7 @@ Generated from the current Guion language contract, builtin signature catalog, s
 ## Source and declarations
 
 - Source is UTF-8. Newlines separate statements. Four spaces define one indentation level; tabs and mixed indentation are errors. `#` begins a line comment.
-- A source file is a module. It contains one or more `fn name(parameter: Type, ...) -> Type:` declarations and may declare records with `record Name:` followed by indented `field: Type` declarations. `import "relative-path.gu"` loads another source file; the imported module's `pub fn` and `pub record` declarations become available by their declared names. Private declarations remain local to their module. Imports are resolved from the importing file and must stay inside the project root. The graph is limited to 512 files, 128 import levels, 8 MiB per source file, and 64 MiB total source text. Duplicate declaration names and cycles are errors. Types in this executable subset are `Int`, `Float64`, `Bool`, `Text`, `Bytes`, `Unit`, `Json`, `JsonError`, `FileError`, `HttpError`, `TaskError`, `List[T]`, `Map[Text, T]`, `Option[T]`, `Result[T, E]`, and declared record names.
+- A source file is a module. It contains one or more `fn name(parameter: Type, ...) -> Type:` declarations and may declare records with `record Name:` followed by indented `field: Type` declarations. `import "relative-path.gu"` loads another source file; `pub import "relative-path.gu"` also re-exports the imported module's public declarations to downstream importers. Public functions and records become available by name; private declarations remain local to their module. Imports are resolved from the importing file and must stay inside the project root. The graph is limited to 512 files, 128 import levels, 8 MiB per source file, and 64 MiB total source text. Duplicate declaration names and cycles are errors. Types in this executable subset are `Int`, `Float64`, `Bool`, `Text`, `Bytes`, `Unit`, `Json`, `JsonError`, `FileError`, `HttpError`, `TaskError`, `List[T]`, `Map[Text, T]`, `Option[T]`, `Result[T, E]`, and declared record names.
 - The entry point is `fn main() -> Int:` or `fn main() -> Unit:` in the project entry module. Calls resolve statically to local declarations, explicitly imported public declarations, or host functions such as `print(value)`. A single source file can be compiled without a project only when it has no imports.
 - Function parameters and results are annotated. Local types are inferred unless an optional local annotation is supplied, as in `let pending: List[Int] = []`. `let` creates an immutable local; `var` creates a mutable local; `set name = expression` changes only a mutable local. An annotation supplies context for empty collection literals and must exactly match the initializer type.
 
@@ -19,15 +19,21 @@ Statements: `let`, `var`, `set`, `return`, `if`/`else`, `while`, `for name in li
 
 ## Runtime rules
 
+### Typed map-record access and updates
+
+`map_record_get(map, key, "field")` reads a statically checked field from a `Map[Text, Record]`; `map_record_set(map, key, "field", value)` returns an updated map after replacing that field. For a nested `Map[Text, Map[Text, Record]]`, pass both keys before the field name: `map_record_get(map, outer_key, inner_key, "field")` and `map_record_set(map, outer_key, inner_key, "field", value)`. The field name must be a text literal, and the compiler checks the map's record type, field existence, and value type. Missing keys fail with `R_MAP_KEY`. These expressions preserve map and record value semantics: assigning an update back to the same mutable local may reuse uniquely owned storage; any shared outer map, nested map, or record fields are copied as needed so aliases keep their previous values.
+
 - `Int` is arbitrary precision subject to the configured digit ceiling. Integer `/` truncates toward zero, `//` rounds down, and `%` follows the divisor sign so `a == (a // b) * b + (a % b)`; all report `R_DIV_ZERO` for a zero divisor. `Float64` stores finite IEEE 754 binary64 values. Operations that overflow to infinity or NaN fail with `R_FLOAT_NONFINITE`; division by either signed zero fails with `R_DIV_ZERO`; `sqrt` of a negative value fails with `R_MATH_DOMAIN`. Python interop transports Float64 through round-trippable decimal strings and rejects non-finite values. Lists are homogeneous, immutable value sequences; indexing is zero-based and out-of-range access is a runtime error. `list_push` and `list_set` return immutable lists, and `list_set` requires an existing index. When `set name = list_push(name, value)` or `set name = list_set(name, index, value)` updates a mutable local, the compiler may reuse uniquely owned storage and copies if any alias exists; this is unobservable and preserves immutable value behavior. Maps are immutable `Map[Text, T]` values with unique literal keys, homogeneous values, deterministic key iteration, immutable `map_set` updates, membership checks via `map_has`, and traced errors for missing keys. Map values may be passed between functions, serialized in versioned artifacts, and crossed through the Python bridge as string-keyed dictionaries when `T` is bridge-supported. Empty lists and maps use their expected type from annotations, function results or parameters, enclosing collections, and typed operations; uncontextualized empty literals produce a diagnostic. `Json` is a bounded JSON tree; object keys are text, duplicate keys are rejected, and object encoding sorts keys. JSON values require explicit accessors and do not silently coerce to source types. Records are immutable ordered named fields, constructed positionally (for example, `Point(3, 4)`) and accessed by field name (`point.x`). Construction requires every field with its exact declared type; record and field names are unique; equality is structural for the same record type. Unknown fields/types and malformed schemas are rejected. Records serialize in compiled artifacts, but are not supported through the Python bridge yet. First-class functions remain for subsequent implementation steps. `Option[T]` supports `Some(value)` and `None` inside functions declared to return `Option[T]`; `is_some(option)` tests presence and `unwrap(option)` returns the value or raises `R_OPTION_UNWRAP`. `Result[T, E]` is available for file operations, JSON parsing, and `parallel_map`; inspect results with `is_ok`, `unwrap`, and `error`. `Ok`, `Err`, postfix `?`, and exhaustive `match` statements are available for `Result[T, E]`.
 - Integers compare by mathematical value. Text is Unicode scalar sequence data; `+` concatenates text. Equality requires equal runtime types.
 - Locals are frame-owned values. `let` cannot be assigned; `var` can. Each invocation owns its locals. Calls have a bounded stack depth, instructions consume a configurable budget, and output is captured per instance. A shared cumulative estimated guest-data allocation budget covers input values, collection and record construction, text/byte/JSON values, host results, and output rendering across nested calls and parallel workers; exhaustion reports `R_ALLOCATION_LIMIT`. The default is 256 MiB. Interpreter/JIT frames, operand stacks, and scalar arithmetic temporaries are excluded so changing execution backend does not change this limit. Integer growth is bounded separately by `max_integer_digits`. This is language-level estimate accounting, not an exact process-memory ceiling; limits for output, file bytes, text size, collection size, integer digits, and source/artifact size are separate.
 - `print(value)` writes its display form plus one newline to the instance output buffer. `args()` returns all CLI arguments as `List[Text]`; `args_from(start)` returns the suffix beginning at a zero-based index and reports `R_ARGUMENT_INDEX` for a negative or past-end index. `env(name) -> Option[Text]` reads one environment variable only when its exact name is granted in `[environment].variables` in `guion.toml` (or by an embedding `HostPolicy`); an ungranted name raises `R_ENV_DENIED`, and an unset granted name returns `None`. `read_text(path) -> Result[Text, FileError]`, `write_text(path, content) -> Result[Unit, FileError]`, `read_bytes(path) -> Result[Bytes, FileError]`, and `write_bytes(path, content) -> Result[Unit, FileError]` are host operations; runtime embedders grant a project root and read/write rights in `HostPolicy`. The CLI grants the source or artifact directory; `guion run --file-root DIRECTORY` adds a further root. Reads search roots in grant order; writes use the last granted root. Relative paths only are accepted, parent traversal is rejected, and canonicalized symlink targets must remain under one granted root. Access/path/filesystem failures return `FileError`; configured size-limit failures remain runtime errors. This is a path policy, not an OS security sandbox. Bytes preserve arbitrary byte sequences and are limited by `max_file_bytes`.
 - `http_get(url) -> Result[Text, HttpError]` performs a bounded GET for HTTP or HTTPS text. Network is denied by default. Embedders explicitly grant exact hostnames through `HostPolicy`; CLI projects list them under `[network].hosts` in `guion.toml`. A redirect is followed only when its destination hostname is also granted. Timeouts, response byte ceilings, and redirect counts are configurable; non-2xx statuses and transport/encoding failures return `HttpError`, inspectable through `http_error_code` and `http_error_message`. Host allowlists do not prevent DNS rebinding or provide OS-level egress confinement.
-- `http_request(method, url, headers, body) -> Result[Json, HttpError]` supports GET, POST, PUT, PATCH, DELETE, HEAD, and OPTIONS with `Map[Text]` headers and a UTF-8 text body. Its JSON envelope contains integer `status`, text `body`, and lowercase response headers. `http_request_bytes(method, url, headers, body, timeout_ms) -> Result[HttpResponse, HttpError]` preserves arbitrary request and response bytes; `HttpResponse` in `std:types` has `status: Int`, `headers: Map[Text, Text]`, and `body: Bytes`. Non-2xx responses remain values. A shared host client enforces one monotonic deadline through connection and body reads, bounds response accumulation, refuses cross-origin redirects, and interrupts in-flight reads on cancellation. Runtime URL hosts require exact grants in `[network].hosts` or `guion run --allow-http-host HOST`; network remains denied by default.
+- `http_request(method, url, headers, body) -> Result[Json, HttpError]` supports GET, POST, PUT, PATCH, DELETE, HEAD, and OPTIONS with `Map[Text]` headers and a UTF-8 text body. Its JSON envelope contains integer `status`, text `body`, and lowercase response headers. `http_request_bytes(method, url, headers, body, timeout_ms) -> Result[HttpResponse, HttpError]` preserves arbitrary request and response bytes; `HttpResponse` is exported by `std:http`; `std:types` re-exports the same record for compatibility. It has `status: Int`, `headers: Map[Text, Text]`, and `body: Bytes`. Non-2xx responses remain values. `http_response_text(response) -> Result[Text, HttpError]` checks the body's UTF-8 encoding and text-size limit; `std:http.http_response_json(response) -> Result[Json, StdError]` checks and parses the response bytes directly, without an intermediate `Text` allocation, while preserving stable error codes and messages. A shared host client enforces one monotonic deadline through connection and body reads, bounds response accumulation, refuses cross-origin redirects, and interrupts in-flight reads on cancellation. Runtime URL hosts require exact grants in `[network].hosts` or `guion run --allow-http-host HOST`; network remains denied by default.
 - `unix_time_ms() -> Int` returns wall-clock milliseconds since the Unix epoch, and `today_local() -> Date` returns the current date in the host process time zone. Clock access is denied unless `[clock].enabled = true` or the caller uses `guion run --allow-clock` / an embedding `HostPolicy` grant. The host supplies local-time and daylight-saving rules; tests and embedders can pin the clock through `HostPolicy::with_clock_unix_time_ms`.
 - `parallel_map(items, worker, limit)` calls a named unary function on immutable list items in worker-local VM instances and returns `Result[List[U], TaskError]`. `is_ok(result)` tests the variant; `unwrap(result)` returns the list from `Ok`; `error(result)` returns the `TaskError` from `Err`. `task_index`, `task_code`, and `task_message` read its failed input index and failure details. Workers preserve result order, use a bounded shared worker instruction allowance, stop scheduling and poll cancellation after failure, join running tasks, and merge completed output by input index. An instruction-limit failure inside a worker is a `TaskError`; host setup errors still fail the invocation.
 - Runtime and compile errors preserve source spans. Format-17 artifacts add Bytes values and byte file operations; format-18 artifacts add source-level Python keyword calls; format-19 artifacts add HTTP GET and `HttpError`; format-38 artifacts add byte HTTP; format-39 artifacts add explicitly granted clock access; format-16 metadata carries source and dependency-lock provenance; format-15 metadata and format-14 artifacts remain readable. Runtime combines recorded ceilings with host policy by taking the stricter value. The bytecode is an implementation detail apart from the versioned artifact boundary.
+
+Typed map-record access is available through `map_record_get(map, key, "field")` and `map_record_set(map, key, "field", value)` for `Map[Text, Record]`. A `Map[Text, Map[Text, Record]]` accepts both keys before the literal field name. The compiler checks record type, field existence, and value type. Missing keys fail with `R_MAP_KEY`. Assigning an update to the same mutable local may reuse uniquely owned storage; shared aliases keep their old values through copy-on-write.
 
 ## Builtin signatures
 
@@ -63,6 +69,7 @@ http_get(Text) -> Result[Text, HttpError]
 http_request(Text, Text, Map[Text, Text], Text) -> Result[Json, HttpError]
 http_request_bytes(Text, Text, Map[Text, Text], Bytes, Int) -> Result[Record[HttpResponse], HttpError]
 http_request_with_timeout(Text, Text, Map[Text, Text], Text, Int) -> Result[Json, HttpError]
+http_response_text(Record[HttpResponse]) -> Result[Text, HttpError]
 is_ok(Result[$T, $E]) -> Bool
 is_some(Option[$T]) -> Bool
 json_array() -> Json
@@ -144,10 +151,12 @@ task_code(TaskError) -> Text
 task_index(TaskError) -> Int
 task_message(TaskError) -> Text
 text_chars(Text) -> List[Text]
+text_slice(Text, Int, Int) -> Text
 text_join_native(List[Text], Text) -> Text
 text_parse_float(Text) -> Result[Float64, FileError]
 text_parse_int(Text) -> Result[Int, FileError]
 time_format_utc(Record[Instant]) -> Text
+time_format_utc_date(Record[Instant]) -> Text
 time_parse_date(Text) -> Result[Record[Date], FileError]
 time_parse_timestamp(Text) -> Result[Record[Instant], FileError]
 time_resolve_local(Record[LocalDateTime], Text) -> Result[Record[TemporalResolution], Record[TimeError]]
@@ -180,6 +189,7 @@ std:fs — pub fn fs_read_text(path: Text) -> Result[Text, StdError]
 std:fs — pub fn fs_open_lines(path: Text) -> Result[FileReader, FileError]
 std:fs — pub fn fs_next_line(reader: FileReader) -> Result[Option[SourceLine], FileError]
 std:fs — pub fn fs_close_reader(reader: FileReader) -> Result[Unit, FileError]
+std:http — pub fn http_response_json(response: HttpResponse) -> Result[Json, StdError]
 std:json — pub fn json_get_safe(value: Json, key: Text) -> Result[Json, JsonError]
 std:json — pub fn json_index_safe(value: Json, index: Int) -> Result[Json, JsonError]
 std:json — pub fn json_text_safe(value: Json) -> Result[Text, JsonError]
@@ -214,6 +224,7 @@ std:time — pub fn today_local() -> Date
 std:time — pub fn parse_date(value: Text) -> Result[Date, FileError]
 std:time — pub fn parse_timestamp(value: Text) -> Result[Instant, FileError]
 std:time — pub fn format_utc(value: Instant) -> Text
+std:time — pub fn format_utc_date(value: Instant) -> Text
 std:time — pub fn resolve_local(local: LocalDateTime, timezone: Text) -> Result[TemporalResolution, TimeError]
 std:time — pub fn time_zone_data_version() -> Text
 std:toml — pub fn toml_parse(source: Text) -> Result[TomlDocument, StdError]
@@ -291,7 +302,7 @@ max_request_bytes = 1048576
 max_redirects = 5
 ```
 
-The default is no hosts, a 15-second total request timeout, a 1 MiB request limit, a 16 MiB response limit, and five redirects. Only HTTP/HTTPS URLs without embedded credentials are accepted. `http_get` follows redirects only to granted hosts and returns non-2xx statuses as typed errors. `http_request` restricts redirects to the initial host, caps request and response bodies while streaming, and returns non-2xx status, headers, and UTF-8 response text in its JSON envelope. Proxies are disabled so ambient proxy settings cannot route a request outside the declared host policy. HTTP requests share one total deadline across connection and response-body reads, and poll both invocation cancellation and `parallel_map` worker cancellation while active. A worker failure interrupts in-flight HTTP requests, stops new work, and joins the remaining workers before returning. Completed external effects are not rolled back. DNS rebinding and network egress confinement require operating-system controls outside the language runtime. Binary bodies and streaming APIs remain planned.
+The default is no hosts, a 15-second total request timeout, a 1 MiB request limit, a 16 MiB response limit, and five redirects. Only HTTP/HTTPS URLs without embedded credentials are accepted. `http_get` follows redirects only to granted hosts and returns non-2xx statuses as typed errors. `http_request` restricts redirects to the initial host, caps request and response bodies while streaming, and returns non-2xx status, headers, and UTF-8 response text in its JSON envelope. `http_request_bytes` returns the status, headers, and exact body bytes as a `HttpResponse`; use `http_response_text` for text or `std:http.http_response_json` for JSON without an intermediate text copy. Proxies are disabled so ambient proxy settings cannot route a request outside the declared host policy. HTTP requests share one total deadline across connection and response-body reads, and poll both invocation cancellation and `parallel_map` worker cancellation while active. A worker failure interrupts in-flight HTTP requests, stops new work, and joins the remaining workers before returning. Completed external effects are not rolled back. DNS rebinding and network egress confinement require operating-system controls outside the language runtime. Streaming response APIs remain planned.
 
 ## Structured concurrency behavior
 
@@ -488,6 +499,7 @@ E_PARALLEL_RESOURCE
 E_PARALLEL_WORKER
 E_PRINT_VALUE
 E_PROFILE
+E_PROFILE_OUT
 E_PROJECT_ENTRY
 E_PROJECT_NOT_FOUND
 E_PROJECT_ROOT
@@ -727,11 +739,32 @@ fn main() -> Int:
 Command: `cargo run --locked -p guion-cli -- run --allow-http-host api.example.org docs/agents/examples/http_request.gu https://api.example.org/health`
 
 ```guion
-import "std:types"
+import "std:http"
 
 fn get_response(url: Text) -> Result[HttpResponse, HttpError]:
     let headers: Map[Text, Text] = {}
     return http_request_bytes("GET", url, headers, bytes_from_text(""), 1000)
+
+fn show_response(response: HttpResponse) -> Int:
+    let body_text = http_response_text(response)
+    if not is_ok(body_text):
+        let problem = error(body_text)
+        eprint(http_error_code(problem))
+        eprint(http_error_message(problem))
+        return 1
+
+    print(response.status)
+    print(unwrap(body_text))
+
+    let body_json = http_response_json(response)
+    if not is_ok(body_json):
+        let problem = error(body_json)
+        eprint(problem.code)
+        eprint(problem.message)
+        return 1
+
+    print(json_stringify(unwrap(body_json)))
+    return 0
 
 fn main() -> Int:
     let arguments = args()
@@ -741,9 +774,7 @@ fn main() -> Int:
 
     match get_response(arguments[0]):
         Ok(response):
-            print(response.status)
-            print(len(response.body))
-            return 0
+            return show_response(response)
         Err(problem):
             eprint(http_error_code(problem))
             eprint(http_error_message(problem))
@@ -907,4 +938,4 @@ fn main() -> Int:
 - [Host API and effects](../../language/host-api.md)
 - [Agent recipes](recipes.md)
 
-<!-- Generated reference content digest: sha256:72245ba207d0e7f820eade26bc56ca1f1dbe173acbaae08c6369764d9a11dece. Validated by `cargo xtask agent-reference --check`. -->
+<!-- Generated reference content digest: sha256:0a5fb7ddef989ccc36ac7ad427d038fdaf49fe8bdae92554b4f6591a13e0a493. Validated by `cargo xtask agent-reference --check`. -->

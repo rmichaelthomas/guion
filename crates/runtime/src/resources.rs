@@ -516,7 +516,7 @@ fn parse_csv_record(
                         start_line,
                         index + 1,
                         "quote inside unquoted CSV field".into(),
-                    ))
+                    ));
                 }
                 ',' => {
                     fields.push(std::mem::take(&mut field));
@@ -545,7 +545,7 @@ fn parse_csv_record(
                         start_line,
                         index + 1,
                         "unexpected character after closing CSV quote".into(),
-                    ))
+                    ));
                 }
             },
             CsvState::AfterQuoteCr => unreachable!(),

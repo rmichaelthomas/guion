@@ -1,0 +1,1145 @@
+{
+  "binary": {
+    "path": "/var/cache/guion-core-north-star/target/release/guion",
+    "sha256": "7eb66ea240507c502dfd06aff5b9405fa4d5a60673454ac3c088b31977b1128f"
+  },
+  "comparison_variant": {
+    "description": "A second implementation sampled in the same randomized cohort for direct paired comparison.",
+    "name": "text-slice-and-compact-record"
+  },
+  "control_binary": null,
+  "created_at_utc": "2026-10-29T07:34:07.080969+00:00",
+  "kind": "guion-jsonl-source-variant-comparison",
+  "schema_version": 1,
+  "source_revision": "41d3b48551ea735135ee8dc759bff513213a4d72",
+  "variant": {
+    "description": "Use the direct UTC date formatter for grouping, skip full timestamp formatting per input row, and format only retained extrema for final JSON.",
+    "equivalence_basis": "The date operation derives the same UTC calendar date directly from each parsed instant; earliest and latest timestamps retain exact microseconds and are formatted canonically for the same output fields.",
+    "name": "utc-date-and-compact-record"
+  },
+  "workloads": {
+    "200000": {
+      "application_source_sha256": {
+        "original": "4cb05ac5abaa1b893a879b2efd838936e56ff857e037802178909e245dbcff9a",
+        "text-slice-and-compact-record": "81a23da46e9aa805d3f3b78c646bd6cc9d9754a07ed04de0e9c37d9c523a1546",
+        "utc-date-and-compact-record": "98d361a6a19fed0789300b8d34a5eba6fec3f93a95adb3974d986082e5de62d9"
+      },
+      "artifact_sha256": {
+        "original": "ed5e45b1f481b35438bf8b159f6152b01dda06022ebcd6e53757ab60c14f810f",
+        "text-slice-and-compact-record": "709f99c64d77d7d8ae90fa6d0d961f096c537fd6f0aec42197dd6ad4602e7a1f",
+        "utc-date-and-compact-record": "d2eecb1e81d39712826008db07c959642bd4609c64eaae14fb57fb7e9d9b409b"
+      },
+      "build_seconds": {
+        "original": 0.01882127800490707,
+        "text-slice-and-compact-record": 0.0059770529915113,
+        "utc-date-and-compact-record": 0.007606711005792022
+      },
+      "comparisons": {
+        "original_artifact_over_python": {
+          "ci95_percentile": [
+            3.763463453691223,
+            4.008407430460955
+          ],
+          "median_ratio": 3.9110542752816677,
+          "ties_or_regressions": 30,
+          "win": false
+        },
+        "original_source_over_python": {
+          "ci95_percentile": [
+            3.6305893234840307,
+            3.8963928344430214
+          ],
+          "median_ratio": 3.8367447792036273,
+          "ties_or_regressions": 30,
+          "win": false
+        },
+        "variant_artifact_over_comparison_artifact": {
+          "ci95_percentile": [
+            0.9638135861228401,
+            0.9858315926661856
+          ],
+          "median_ratio": 0.9738141383226959,
+          "ties_or_regressions": 8,
+          "win": true
+        },
+        "variant_artifact_over_original_artifact": {
+          "ci95_percentile": [
+            0.6561216532491316,
+            0.6760721747046419
+          ],
+          "median_ratio": 0.6651039180990603,
+          "ties_or_regressions": 0,
+          "win": true
+        },
+        "variant_artifact_over_python": {
+          "ci95_percentile": [
+            2.4829007561101615,
+            2.6537322548891384
+          ],
+          "median_ratio": 2.596292843451397,
+          "ties_or_regressions": 30,
+          "win": false
+        },
+        "variant_source_over_comparison_source": {
+          "ci95_percentile": [
+            0.9513047772210952,
+            1.0035736005073208
+          ],
+          "median_ratio": 0.9735136402006132,
+          "ties_or_regressions": 11,
+          "win": false
+        },
+        "variant_source_over_original_source": {
+          "ci95_percentile": [
+            0.6807681105117079,
+            0.7011825655108863
+          ],
+          "median_ratio": 0.6886868352276985,
+          "ties_or_regressions": 0,
+          "win": true
+        },
+        "variant_source_over_python": {
+          "ci95_percentile": [
+            2.5151110140604023,
+            2.705201447425273
+          ],
+          "median_ratio": 2.6071409386388997,
+          "ties_or_regressions": 30,
+          "win": false
+        }
+      },
+      "generator_seed": 20261025,
+      "native_backend_reports": {
+        "guion_comparison_artifact": {
+          "bytecode_blocks": 0,
+          "bytecode_instructions": 0,
+          "calls": 0,
+          "compilations": 0,
+          "compile_profile": {
+            "finalize_nanoseconds": 0,
+            "functions": []
+          },
+          "compiled_functions": [],
+          "cranelift_ir_blocks": 0,
+          "cranelift_ir_instructions": 0,
+          "deoptimizations": 0
+        },
+        "guion_comparison_source": {
+          "bytecode_blocks": 0,
+          "bytecode_instructions": 0,
+          "calls": 0,
+          "compilations": 0,
+          "compile_profile": {
+            "finalize_nanoseconds": 0,
+            "functions": []
+          },
+          "compiled_functions": [],
+          "cranelift_ir_blocks": 0,
+          "cranelift_ir_instructions": 0,
+          "deoptimizations": 0
+        },
+        "guion_original_artifact": {
+          "bytecode_blocks": 0,
+          "bytecode_instructions": 0,
+          "calls": 0,
+          "compilations": 0,
+          "compile_profile": {
+            "finalize_nanoseconds": 0,
+            "functions": []
+          },
+          "compiled_functions": [],
+          "cranelift_ir_blocks": 0,
+          "cranelift_ir_instructions": 0,
+          "deoptimizations": 0
+        },
+        "guion_original_source": {
+          "bytecode_blocks": 0,
+          "bytecode_instructions": 0,
+          "calls": 0,
+          "compilations": 0,
+          "compile_profile": {
+            "finalize_nanoseconds": 0,
+            "functions": []
+          },
+          "compiled_functions": [],
+          "cranelift_ir_blocks": 0,
+          "cranelift_ir_instructions": 0,
+          "deoptimizations": 0
+        },
+        "guion_variant_artifact": {
+          "bytecode_blocks": 0,
+          "bytecode_instructions": 0,
+          "calls": 0,
+          "compilations": 0,
+          "compile_profile": {
+            "finalize_nanoseconds": 0,
+            "functions": []
+          },
+          "compiled_functions": [],
+          "cranelift_ir_blocks": 0,
+          "cranelift_ir_instructions": 0,
+          "deoptimizations": 0
+        },
+        "guion_variant_source": {
+          "bytecode_blocks": 0,
+          "bytecode_instructions": 0,
+          "calls": 0,
+          "compilations": 0,
+          "compile_profile": {
+            "finalize_nanoseconds": 0,
+            "functions": []
+          },
+          "compiled_functions": [],
+          "cranelift_ir_blocks": 0,
+          "cranelift_ir_instructions": 0,
+          "deoptimizations": 0
+        }
+      },
+      "paired_trial_order": [
+        [
+          "guion_variant_source",
+          "guion_comparison_artifact",
+          "guion_comparison_source",
+          "python_data",
+          "guion_variant_artifact",
+          "guion_original_artifact",
+          "guion_original_source"
+        ],
+        [
+          "guion_variant_artifact",
+          "guion_variant_source",
+          "guion_comparison_artifact",
+          "guion_original_source",
+          "guion_comparison_source",
+          "python_data",
+          "guion_original_artifact"
+        ],
+        [
+          "guion_variant_source",
+          "guion_original_artifact",
+          "guion_variant_artifact",
+          "guion_comparison_source",
+          "guion_comparison_artifact",
+          "guion_original_source",
+          "python_data"
+        ],
+        [
+          "guion_comparison_artifact",
+          "guion_original_source",
+          "python_data",
+          "guion_variant_source",
+          "guion_comparison_source",
+          "guion_variant_artifact",
+          "guion_original_artifact"
+        ],
+        [
+          "guion_comparison_artifact",
+          "python_data",
+          "guion_variant_artifact",
+          "guion_variant_source",
+          "guion_original_artifact",
+          "guion_comparison_source",
+          "guion_original_source"
+        ],
+        [
+          "guion_comparison_source",
+          "guion_variant_artifact",
+          "guion_original_source",
+          "guion_variant_source",
+          "guion_comparison_artifact",
+          "python_data",
+          "guion_original_artifact"
+        ],
+        [
+          "guion_comparison_artifact",
+          "python_data",
+          "guion_variant_source",
+          "guion_original_artifact",
+          "guion_original_source",
+          "guion_comparison_source",
+          "guion_variant_artifact"
+        ],
+        [
+          "guion_variant_artifact",
+          "guion_variant_source",
+          "guion_comparison_artifact",
+          "guion_original_artifact",
+          "guion_original_source",
+          "guion_comparison_source",
+          "python_data"
+        ],
+        [
+          "guion_original_source",
+          "guion_comparison_source",
+          "guion_variant_source",
+          "guion_variant_artifact",
+          "guion_original_artifact",
+          "python_data",
+          "guion_comparison_artifact"
+        ],
+        [
+          "guion_variant_source",
+          "guion_comparison_source",
+          "guion_original_artifact",
+          "guion_original_source",
+          "guion_variant_artifact",
+          "python_data",
+          "guion_comparison_artifact"
+        ],
+        [
+          "guion_original_artifact",
+          "python_data",
+          "guion_variant_artifact",
+          "guion_variant_source",
+          "guion_comparison_artifact",
+          "guion_original_source",
+          "guion_comparison_source"
+        ],
+        [
+          "guion_variant_artifact",
+          "guion_original_source",
+          "guion_variant_source",
+          "guion_comparison_source",
+          "guion_original_artifact",
+          "python_data",
+          "guion_comparison_artifact"
+        ],
+        [
+          "guion_comparison_artifact",
+          "guion_original_source",
+          "python_data",
+          "guion_variant_artifact",
+          "guion_original_artifact",
+          "guion_comparison_source",
+          "guion_variant_source"
+        ],
+        [
+          "guion_comparison_source",
+          "guion_variant_artifact",
+          "guion_original_artifact",
+          "guion_comparison_artifact",
+          "python_data",
+          "guion_original_source",
+          "guion_variant_source"
+        ],
+        [
+          "guion_original_source",
+          "guion_variant_source",
+          "guion_comparison_artifact",
+          "python_data",
+          "guion_original_artifact",
+          "guion_variant_artifact",
+          "guion_comparison_source"
+        ],
+        [
+          "guion_variant_artifact",
+          "guion_original_artifact",
+          "guion_comparison_artifact",
+          "python_data",
+          "guion_original_source",
+          "guion_variant_source",
+          "guion_comparison_source"
+        ],
+        [
+          "guion_comparison_source",
+          "guion_original_artifact",
+          "guion_original_source",
+          "guion_comparison_artifact",
+          "guion_variant_artifact",
+          "python_data",
+          "guion_variant_source"
+        ],
+        [
+          "guion_variant_artifact",
+          "python_data",
+          "guion_comparison_artifact",
+          "guion_comparison_source",
+          "guion_original_source",
+          "guion_variant_source",
+          "guion_original_artifact"
+        ],
+        [
+          "guion_comparison_artifact",
+          "guion_original_artifact",
+          "guion_variant_artifact",
+          "python_data",
+          "guion_variant_source",
+          "guion_original_source",
+          "guion_comparison_source"
+        ],
+        [
+          "guion_original_source",
+          "guion_comparison_artifact",
+          "guion_original_artifact",
+          "python_data",
+          "guion_variant_artifact",
+          "guion_variant_source",
+          "guion_comparison_source"
+        ],
+        [
+          "python_data",
+          "guion_original_artifact",
+          "guion_comparison_artifact",
+          "guion_comparison_source",
+          "guion_variant_artifact",
+          "guion_variant_source",
+          "guion_original_source"
+        ],
+        [
+          "guion_variant_artifact",
+          "guion_comparison_artifact",
+          "guion_original_artifact",
+          "guion_variant_source",
+          "guion_comparison_source",
+          "python_data",
+          "guion_original_source"
+        ],
+        [
+          "guion_variant_artifact",
+          "guion_original_source",
+          "guion_variant_source",
+          "guion_original_artifact",
+          "guion_comparison_artifact",
+          "guion_comparison_source",
+          "python_data"
+        ],
+        [
+          "guion_original_source",
+          "guion_variant_artifact",
+          "python_data",
+          "guion_comparison_artifact",
+          "guion_comparison_source",
+          "guion_variant_source",
+          "guion_original_artifact"
+        ],
+        [
+          "python_data",
+          "guion_original_source",
+          "guion_variant_source",
+          "guion_comparison_artifact",
+          "guion_original_artifact",
+          "guion_variant_artifact",
+          "guion_comparison_source"
+        ],
+        [
+          "guion_comparison_source",
+          "guion_variant_source",
+          "guion_comparison_artifact",
+          "python_data",
+          "guion_variant_artifact",
+          "guion_original_source",
+          "guion_original_artifact"
+        ],
+        [
+          "guion_variant_artifact",
+          "guion_comparison_source",
+          "guion_original_artifact",
+          "python_data",
+          "guion_variant_source",
+          "guion_comparison_artifact",
+          "guion_original_source"
+        ],
+        [
+          "guion_variant_source",
+          "guion_variant_artifact",
+          "guion_comparison_artifact",
+          "guion_comparison_source",
+          "guion_original_source",
+          "python_data",
+          "guion_original_artifact"
+        ],
+        [
+          "guion_original_artifact",
+          "guion_comparison_source",
+          "guion_variant_source",
+          "guion_variant_artifact",
+          "python_data",
+          "guion_comparison_artifact",
+          "guion_original_source"
+        ],
+        [
+          "guion_original_artifact",
+          "guion_comparison_artifact",
+          "guion_variant_source",
+          "python_data",
+          "guion_comparison_source",
+          "guion_original_source",
+          "guion_variant_artifact"
+        ]
+      ],
+      "peak_rss_bytes": {
+        "guion_comparison_artifact": 9699328,
+        "guion_comparison_source": 9699328,
+        "guion_original_artifact": 9699328,
+        "guion_original_source": 9699328,
+        "guion_variant_artifact": 9699328,
+        "guion_variant_source": 9699328,
+        "python_data": 69292032
+      },
+      "repetitions_per_process": 1,
+      "rows": 200000,
+      "samples": {
+        "guion_comparison_artifact": {
+          "median_seconds": 1.9023467730003176,
+          "p95_seconds_nearest_rank": 2.5886191059980774,
+          "samples_seconds": [
+            1.8390081760007888,
+            1.9922821059881244,
+            1.934476732989424,
+            1.8422007680055685,
+            1.840446646005148,
+            1.877581521999673,
+            2.5886191059980774,
+            1.8568838259961922,
+            1.914326298996457,
+            1.9164567530096974,
+            1.9182896749989595,
+            1.8726385799964191,
+            1.8951408040011302,
+            2.219638763999683,
+            5.074278903994127,
+            1.9194889170030365,
+            1.8583419369970215,
+            1.9473864400060847,
+            1.977515967009822,
+            1.8780784989940003,
+            2.1848625090060523,
+            2.0783674370031804,
+            1.8532015389937442,
+            1.8441952679859241,
+            1.870641378001892,
+            1.8848759520042222,
+            2.1221055060013896,
+            1.909552741999505,
+            1.8918111459934153,
+            1.8702419939945685
+          ]
+        },
+        "guion_comparison_source": {
+          "median_seconds": 1.9394850735043292,
+          "p95_seconds_nearest_rank": 2.2440019009954995,
+          "samples_seconds": [
+            1.8566730409947922,
+            1.8433100200054469,
+            1.8869456379907206,
+            1.8605574459943455,
+            1.9522772439959226,
+            1.8788068719877629,
+            1.9604628070082981,
+            1.9308030020038132,
+            1.9310697990003973,
+            1.9849030069890432,
+            1.8946060610032873,
+            2.077712120997603,
+            1.9811452080029994,
+            1.9507843180035707,
+            2.1692874670116,
+            2.002310335999937,
+            2.368850287006353,
+            1.95793185698858,
+            1.9390427129983436,
+            1.9959726200031582,
+            2.2440019009954995,
+            1.8785690410004463,
+            1.9069843080069404,
+            1.8859552029898623,
+            1.9064531519979937,
+            1.9160369460005313,
+            2.085711560008349,
+            1.9399274340103148,
+            1.9222223200049484,
+            1.9621856919984566
+          ]
+        },
+        "guion_original_artifact": {
+          "median_seconds": 2.7905090385029325,
+          "p95_seconds_nearest_rank": 3.3525923790002707,
+          "samples_seconds": [
+            2.8229819420084823,
+            2.9475833859905833,
+            2.7515400080010295,
+            2.647542003003764,
+            2.6971673059888417,
+            2.6734837319963844,
+            2.7390087009989657,
+            3.1132374580047326,
+            3.092285118997097,
+            2.8119828600028995,
+            3.2432618510065367,
+            2.728826771999593,
+            2.934472762994119,
+            3.3525923790002707,
+            2.791712913007359,
+            2.74899998800538,
+            3.0237676159886178,
+            2.789305163998506,
+            3.9633669489994645,
+            2.8038585979957134,
+            3.0082053570076823,
+            2.7824425919970963,
+            2.73861289100023,
+            2.691164260992082,
+            2.7866058490035357,
+            2.7571368889912264,
+            2.76616070199816,
+            2.698067400007858,
+            2.958028691005893,
+            2.7951596890052315
+          ]
+        },
+        "guion_original_source": {
+          "median_seconds": 2.740531358998851,
+          "p95_seconds_nearest_rank": 3.284939883000334,
+          "samples_seconds": [
+            2.690775914990809,
+            2.711291230007191,
+            2.712318271995173,
+            2.6633781339915004,
+            3.3906109670060687,
+            2.624572635992081,
+            2.7037805970030604,
+            2.68139100499684,
+            2.8310237909900025,
+            2.684930251998594,
+            2.7441963640012546,
+            2.7004483450000407,
+            2.7700037070026156,
+            2.9876638330024434,
+            2.7202340950025246,
+            3.015798549997271,
+            2.740519041995867,
+            3.0077022180048516,
+            2.7405436760018347,
+            2.857829850006965,
+            2.82731034400058,
+            3.284939883000334,
+            3.247115592006594,
+            2.7445342729915865,
+            2.7765316180011723,
+            2.6691448240017053,
+            2.774529671005439,
+            2.7079591170040658,
+            2.7348357930022758,
+            2.702354370994726
+          ]
+        },
+        "guion_variant_artifact": {
+          "median_seconds": 1.8501572060049511,
+          "p95_seconds_nearest_rank": 2.2018217590084532,
+          "samples_seconds": [
+            1.8770200459985062,
+            1.8035322590003489,
+            2.0870866240002215,
+            1.8189819480030565,
+            1.8528418979985872,
+            1.822613361000549,
+            1.8279426509980112,
+            1.8149567000073148,
+            1.875791839993326,
+            1.8409704160003457,
+            2.2895219900092343,
+            2.168532916010008,
+            1.832630838995101,
+            2.129346588990302,
+            2.0182112640031846,
+            1.8598973549960647,
+            1.881447300009313,
+            1.847472514011315,
+            1.9477883270010352,
+            2.2018217590084532,
+            1.9426376829942456,
+            1.9160929509962443,
+            1.8007904309924925,
+            1.818075247007073,
+            1.844127946998924,
+            1.8354174999985844,
+            1.8403294279996771,
+            1.8190765710023697,
+            1.9668087330064736,
+            1.8213686600065557
+          ]
+        },
+        "guion_variant_source": {
+          "median_seconds": 1.8802877294947393,
+          "p95_seconds_nearest_rank": 2.560900582000613,
+          "samples_seconds": [
+            1.8629407070111483,
+            1.8573168050061213,
+            1.894062159000896,
+            1.8899342740041902,
+            1.8488774319994263,
+            1.8498357130010845,
+            1.8927110910008196,
+            1.8832514069945319,
+            1.8514967170049204,
+            1.8388713599997573,
+            1.9301785540010314,
+            1.838033517007716,
+            1.886330856999848,
+            1.9043150740035344,
+            2.560900582000613,
+            1.8773240519949468,
+            2.064942507990054,
+            2.2616982250037836,
+            2.1309381339960964,
+            1.8610390440007905,
+            1.9199163489975035,
+            1.8527817469876027,
+            3.026509162998991,
+            1.9004978310113074,
+            1.809279470006004,
+            1.8508663489919854,
+            2.340087753997068,
+            1.8438387729984242,
+            1.8677372469974216,
+            1.8080125259875786
+          ]
+        },
+        "python_data": {
+          "median_seconds": 0.7421791454980848,
+          "p95_seconds_nearest_rank": 1.2190637680032523,
+          "samples_seconds": [
+            0.6909909040114144,
+            1.2190637680032523,
+            0.6887060589942848,
+            0.6888964590034448,
+            0.6706729500001529,
+            0.7335034869902302,
+            0.7424071200075559,
+            0.7431706420029514,
+            0.7109467800037237,
+            0.750283645989839,
+            0.7924115469941171,
+            0.7703229420003481,
+            0.7121011519921012,
+            0.8009542340005282,
+            1.224557763998746,
+            0.6920894520008005,
+            0.7572026300040307,
+            0.7499767600093037,
+            0.7452071199950296,
+            0.7419511709886137,
+            0.7829846870008623,
+            0.8078209170053015,
+            0.766641977999825,
+            0.7039609039929928,
+            0.6674627809989033,
+            0.6928843080095248,
+            0.7051208350021625,
+            0.7913344709959347,
+            0.7156046320014866,
+            0.7168640849995427
+          ]
+        }
+      },
+      "source_cache_states": {
+        "guion_comparison_artifact": [
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable"
+        ],
+        "guion_comparison_source": [
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed"
+        ],
+        "guion_original_artifact": [
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable"
+        ],
+        "guion_original_source": [
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed"
+        ],
+        "guion_variant_artifact": [
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable"
+        ],
+        "guion_variant_source": [
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed"
+        ]
+      },
+      "trials_per_lane": 30,
+      "variant_profile": {
+        "cache_status": "not_applicable",
+        "elapsed_seconds_including_process_startup": 3.822026082998491,
+        "reported_phase_timings_ns": {
+          "artifact_runtime_load_ns": 2131670,
+          "cli_to_report_excluding_process_startup_ns": 3817455035,
+          "compiler_pipeline": null,
+          "input_artifact_decode_ns": 181458,
+          "native_compilation": {
+            "finalize_nanoseconds": 0,
+            "functions": []
+          },
+          "program_execute_ns": 3812830361,
+          "source_compile_or_cache_ns": null
+        },
+        "runtime_profile": {
+          "dynamic_guest_conditional_branch_executions": 4173319,
+          "estimated_guest_allocation_budget_charges": {
+            "estimated_gross_bytes": 1101425264,
+            "estimated_net_bytes": 1101425264,
+            "estimated_refunded_bytes": 0,
+            "successful_events": 18882986
+          },
+          "function_call_counts": {
+            "format_utc": 280,
+            "format_utc_date": 196381,
+            "fs_close_reader": 1,
+            "fs_next_line": 200948,
+            "fs_open_lines": 1,
+            "json_get_safe": 396852,
+            "json_text_safe": 396852,
+            "jsonl_close": 1,
+            "jsonl_next": 200948,
+            "jsonl_no_error": 198426,
+            "jsonl_no_line": 1,
+            "jsonl_no_value": 2521,
+            "jsonl_open": 1,
+            "jsonl_some_error": 2521,
+            "jsonl_some_line": 200947,
+            "jsonl_some_value": 198426,
+            "parse_timestamp": 196381,
+            "unicode_collapse_whitespace": 200947
+          },
+          "host_operations": {
+            "counts": {
+              "Args": 1,
+              "FileClose": 1,
+              "FileNextLine": 200948,
+              "FileOpenLines": 1,
+              "JsonArray": 2,
+              "JsonInt": 3760,
+              "JsonObject": 3760,
+              "JsonParse": 200947,
+              "JsonPushLocal": 3759,
+              "JsonSetLocal": 4322,
+              "JsonStringify": 1,
+              "JsonText": 560,
+              "JsonTryGet": 396852,
+              "JsonTryText": 396852,
+              "TextCollapseWhitespace": 200947,
+              "TimeFormatUtc": 280,
+              "TimeFormatUtcDate": 196381,
+              "TimeParseTimestamp": 196381,
+              "WriteTextAtomic": 1
+            },
+            "inclusive_nanoseconds": {
+              "Args": 5000,
+              "FileClose": 22833,
+              "FileNextLine": 90967714,
+              "FileOpenLines": 47792,
+              "JsonArray": 2708,
+              "JsonInt": 2285064,
+              "JsonObject": 1139004,
+              "JsonParse": 153969801,
+              "JsonPushLocal": 624079,
+              "JsonSetLocal": 1521498,
+              "JsonStringify": 379834,
+              "JsonText": 103578,
+              "JsonTryGet": 38093860,
+              "JsonTryText": 48546024,
+              "TextCollapseWhitespace": 23890496,
+              "TimeFormatUtc": 117050,
+              "TimeFormatUtcDate": 46861705,
+              "TimeParseTimestamp": 34545991,
+              "WriteTextAtomic": 4105965
+            }
+          },
+          "json_phase_nanoseconds": {
+            "parse_and_reserved_key_handling": 98999416,
+            "post_parse_metrics_traversal": 19595291
+          },
+          "json_set": {
+            "copy_on_write_copies": 0,
+            "estimated_copy_bytes": 0,
+            "operations": 4322
+          },
+          "list_set": {
+            "copy_on_write_copies": 0,
+            "copy_size_histogram": {
+              "buckets": {
+                "0-8": {
+                  "copies": 0,
+                  "estimated_copy_bytes": 0
+                },
+                "129+": {
+                  "copies": 0,
+                  "estimated_copy_bytes": 0
+                },
+                "33-128": {
+                  "copies": 0,
+                  "estimated_copy_bytes": 0
+                },
+                "9-32": {
+                  "copies": 0,
+                  "estimated_copy_bytes": 0
+                }
+              },
+              "unit": "elements"
+            },
+            "estimated_copy_bytes": 0,
+            "in_place_updates": 0,
+            "operations": 0
+          },
+          "map_set": {
+            "copy_on_write_copies": 0,
+            "estimated_copy_bytes": 0,
+            "in_place_updates": 392762,
+            "operations": 392762
+          },
+          "metric_limits": {
+            "allocation": "estimated guest-data budget charges, not host allocator calls",
+            "branches": "executed guest conditional branches, not hardware branch-misprediction counts",
+            "host_operation_time": "inclusive time at host-op boundary; nested parse/metrics timers overlap and must not be summed",
+            "vm_sampled_time": "sampled interpreter-frame wall time, inclusive of host calls; one in every 1024 frames; attribution only, not final benchmark timing"
+          },
+          "opcode_executions": {
+            "Add": 200012,
+            "Args": 1,
+            "Call": 2392435,
+            "Const": 1999149,
+            "Equal": 196386,
+            "FileClose": 1,
+            "FileNextLine": 200948,
+            "FileOpenLines": 1,
+            "GetError": 2521,
+            "GetField": 2189608,
+            "Greater": 196241,
+            "Index": 392912,
+            "IsOk": 1590885,
+            "IsSome": 601896,
+            "JsonArray": 2,
+            "JsonInt": 3760,
+            "JsonObject": 3760,
+            "JsonParse": 200947,
+            "JsonPushLocal": 3759,
+            "JsonSetLocal": 4322,
+            "JsonStringify": 1,
+            "JsonText": 560,
+            "JsonTryGet": 396852,
+            "JsonTryText": 396852,
+            "Jump": 806915,
+            "JumpIfFalse": 4173319,
+            "Length": 156,
+            "Less": 196397,
+            "Load": 13892085,
+            "MakeNone": 200948,
+            "MakeOk": 200948,
+            "MakeRecord": 597608,
+            "MakeSome": 401894,
+            "MakeTypedMap": 196383,
+            "MapHas": 392762,
+            "MapKeys": 6,
+            "MapSet": 392762,
+            "Not": 2392783,
+            "NotEqual": 397329,
+            "Return": 2392436,
+            "Store": 5368247,
+            "TextCollapseWhitespace": 200947,
+            "TimeFormatUtc": 280,
+            "TimeFormatUtcDate": 196381,
+            "TimeParseTimestamp": 196381,
+            "Unwrap": 2383019,
+            "WriteTextAtomic": 1
+          },
+          "record_charges": {
+            "estimated_bytes": 160112215,
+            "events": 597608
+          },
+          "scope": "latest guest invocation",
+          "vm_interpreter": {
+            "frames": 2593388,
+            "instructions": 45953798,
+            "sample_rate_frames": 1024,
+            "sampled_frames": 2533,
+            "sampled_instructions": 43546,
+            "sampled_nanoseconds": 4990944,
+            "sampled_wall_time_is_inclusive_of_host_operations": true
+          }
+        },
+        "runtime_profile_enabled": true
+      }
+    }
+  }
+}

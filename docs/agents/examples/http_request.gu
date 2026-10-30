@@ -1,8 +1,29 @@
-import "std:types"
+import "std:http"
 
 fn get_response(url: Text) -> Result[HttpResponse, HttpError]:
     let headers: Map[Text, Text] = {}
     return http_request_bytes("GET", url, headers, bytes_from_text(""), 1000)
+
+fn show_response(response: HttpResponse) -> Int:
+    let body_text = http_response_text(response)
+    if not is_ok(body_text):
+        let problem = error(body_text)
+        eprint(http_error_code(problem))
+        eprint(http_error_message(problem))
+        return 1
+
+    print(response.status)
+    print(unwrap(body_text))
+
+    let body_json = http_response_json(response)
+    if not is_ok(body_json):
+        let problem = error(body_json)
+        eprint(problem.code)
+        eprint(problem.message)
+        return 1
+
+    print(json_stringify(unwrap(body_json)))
+    return 0
 
 fn main() -> Int:
     let arguments = args()
@@ -12,9 +33,7 @@ fn main() -> Int:
 
     match get_response(arguments[0]):
         Ok(response):
-            print(response.status)
-            print(len(response.body))
-            return 0
+            return show_response(response)
         Err(problem):
             eprint(http_error_code(problem))
             eprint(http_error_message(problem))

@@ -1,0 +1,12 @@
+import "std:time"
+
+fn main() -> Int:
+    let instant = unwrap(parse_timestamp("2024-01-01T00:30:00+01:00"))
+    assert(format_utc_date(instant) == "2023-12-31")
+    let invalid = json_parse("{")
+    match invalid:
+        Err(error):
+            assert(json_error_column(error) == 1)
+        Ok(value):
+            return 1
+    return 0

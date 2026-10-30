@@ -1,0 +1,205 @@
+{
+  "cache_status": "not_applicable",
+  "elapsed_seconds_including_process_startup": 7.380955132997769,
+  "reported_phase_timings_ns": {
+    "artifact_runtime_load_ns": 25125908,
+    "cli_to_report_excluding_process_startup_ns": 7370231041,
+    "compiler_pipeline": null,
+    "input_artifact_decode_ns": 3526850,
+    "native_compilation": {
+      "finalize_nanoseconds": 0,
+      "functions": []
+    },
+    "program_execute_ns": 7338930925,
+    "source_compile_or_cache_ns": null
+  },
+  "runtime_profile": {
+    "dynamic_guest_conditional_branch_executions": 4173319,
+    "estimated_guest_allocation_budget_charges": {
+      "estimated_gross_bytes": 2011998945,
+      "estimated_net_bytes": 2011998945,
+      "estimated_refunded_bytes": 0,
+      "successful_events": 31495975
+    },
+    "function_call_counts": {
+      "format_utc": 196381,
+      "fs_close_reader": 1,
+      "fs_next_line": 200948,
+      "fs_open_lines": 1,
+      "json_get_safe": 985575,
+      "json_int_safe": 588723,
+      "json_text_safe": 396852,
+      "jsonl_close": 1,
+      "jsonl_next": 200948,
+      "jsonl_no_error": 198426,
+      "jsonl_no_line": 1,
+      "jsonl_no_value": 2521,
+      "jsonl_open": 1,
+      "jsonl_some_error": 2521,
+      "jsonl_some_line": 200947,
+      "jsonl_some_value": 198426,
+      "parse_timestamp": 196381,
+      "unicode_collapse_whitespace": 200947
+    },
+    "host_operations": {
+      "counts": {
+        "Args": 1,
+        "FileClose": 1,
+        "FileNextLine": 200948,
+        "FileOpenLines": 1,
+        "JsonArray": 2,
+        "JsonGet": 420,
+        "JsonInt": 202151,
+        "JsonObject": 3900,
+        "JsonParse": 200947,
+        "JsonPushLocal": 3759,
+        "JsonSetLocal": 205283,
+        "JsonStringify": 1,
+        "JsonText": 2710,
+        "JsonTryGet": 985575,
+        "JsonTryInt": 588723,
+        "JsonTryText": 396852,
+        "TextCollapseWhitespace": 200947,
+        "TimeFormatUtc": 196381,
+        "TimeParseTimestamp": 196381,
+        "WriteTextAtomic": 1
+      },
+      "inclusive_nanoseconds": {
+        "Args": 97541,
+        "FileClose": 14042,
+        "FileNextLine": 104376262,
+        "FileOpenLines": 81583,
+        "JsonArray": 8792,
+        "JsonGet": 168586,
+        "JsonInt": 64259940,
+        "JsonObject": 1168366,
+        "JsonParse": 155549328,
+        "JsonPushLocal": 1182037,
+        "JsonSetLocal": 94221852,
+        "JsonStringify": 3021729,
+        "JsonText": 616018,
+        "JsonTryGet": 142105651,
+        "JsonTryInt": 84969465,
+        "JsonTryText": 52328294,
+        "TextCollapseWhitespace": 118962411,
+        "TimeFormatUtc": 76549059,
+        "TimeParseTimestamp": 34970147,
+        "WriteTextAtomic": 2466149
+      }
+    },
+    "json_phase_nanoseconds": {
+      "parse_and_reserved_key_handling": 100189155,
+      "post_parse_metrics_traversal": 19122632
+    },
+    "json_set": {
+      "copy_on_write_copies": 196241,
+      "estimated_copy_bytes": 94786273,
+      "operations": 205283
+    },
+    "list_set": {
+      "copy_on_write_copies": 0,
+      "copy_size_histogram": {
+        "buckets": {
+          "0-8": {
+            "copies": 0,
+            "estimated_copy_bytes": 0
+          },
+          "129+": {
+            "copies": 0,
+            "estimated_copy_bytes": 0
+          },
+          "33-128": {
+            "copies": 0,
+            "estimated_copy_bytes": 0
+          },
+          "9-32": {
+            "copies": 0,
+            "estimated_copy_bytes": 0
+          }
+        },
+        "unit": "elements"
+      },
+      "estimated_copy_bytes": 0,
+      "in_place_updates": 0,
+      "operations": 0
+    },
+    "map_set": {
+      "copy_on_write_copies": 0,
+      "estimated_copy_bytes": 0,
+      "in_place_updates": 392762,
+      "operations": 392762
+    },
+    "metric_limits": {
+      "allocation": "estimated guest-data budget charges, not host allocator calls",
+      "branches": "executed guest conditional branches, not hardware branch-misprediction counts",
+      "host_operation_time": "inclusive time at host-op boundary; nested parse/metrics timers overlap and must not be summed",
+      "vm_sampled_time": "sampled interpreter-frame wall time, inclusive of host calls; one in every 1024 frames; attribution only, not final benchmark timing"
+    },
+    "opcode_executions": {
+      "Add": 1967441,
+      "Args": 1,
+      "Call": 3569601,
+      "Const": 4753063,
+      "Equal": 196386,
+      "FileClose": 1,
+      "FileNextLine": 200948,
+      "FileOpenLines": 1,
+      "GetError": 2521,
+      "GetField": 1600465,
+      "Greater": 196241,
+      "Index": 2356722,
+      "IsOk": 1590885,
+      "IsSome": 601896,
+      "JsonArray": 2,
+      "JsonGet": 420,
+      "JsonInt": 202151,
+      "JsonObject": 3900,
+      "JsonParse": 200947,
+      "JsonPushLocal": 3759,
+      "JsonSetLocal": 205283,
+      "JsonStringify": 1,
+      "JsonText": 2710,
+      "JsonTryGet": 985575,
+      "JsonTryInt": 588723,
+      "JsonTryText": 396852,
+      "Jump": 806915,
+      "JumpIfFalse": 4173319,
+      "Length": 156,
+      "Less": 196397,
+      "Load": 17820595,
+      "MakeNone": 200948,
+      "MakeOk": 200948,
+      "MakeRecord": 400947,
+      "MakeSome": 401894,
+      "MakeTypedMap": 196383,
+      "MapHas": 392762,
+      "MapKeys": 6,
+      "MapSet": 392762,
+      "Not": 2392783,
+      "NotEqual": 397329,
+      "Return": 3569602,
+      "Store": 5955380,
+      "TextChars": 196381,
+      "TextCollapseWhitespace": 200947,
+      "TimeFormatUtc": 196381,
+      "TimeParseTimestamp": 196381,
+      "Unwrap": 3560465,
+      "WriteTextAtomic": 1
+    },
+    "record_charges": {
+      "estimated_bytes": 117225203,
+      "events": 400947
+    },
+    "scope": "latest guest invocation",
+    "vm_interpreter": {
+      "frames": 7139203,
+      "instructions": 61476177,
+      "sample_rate_frames": 1024,
+      "sampled_frames": 6972,
+      "sampled_instructions": 133143,
+      "sampled_nanoseconds": 13192379,
+      "sampled_wall_time_is_inclusive_of_host_operations": true
+    }
+  },
+  "runtime_profile_enabled": true
+}

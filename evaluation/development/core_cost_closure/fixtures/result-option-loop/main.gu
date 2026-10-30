@@ -1,0 +1,32 @@
+fn checked_result(value: Int) -> Result[Int, Text]:
+    if value % 7 == 0:
+        return Err("rejected")
+    return Ok(value)
+
+fn checked_option(value: Int) -> Option[Int]:
+    if value % 11 == 0:
+        return None
+    return Some(value)
+
+fn main() -> Int:
+    let iterations = 200000
+    var index = 1
+    var checksum = 0
+    var rejected = 0
+    var absent = 0
+    while index <= iterations:
+        let result = checked_result(index)
+        if is_ok(result):
+            set checksum = checksum + unwrap(result)
+        else:
+            set rejected = rejected + 1
+        let option = checked_option(index)
+        if is_some(option):
+            set checksum = checksum + unwrap(option)
+        else:
+            set absent = absent + 1
+        set index = index + 1
+    print(checksum)
+    print(rejected)
+    print(absent)
+    return 0

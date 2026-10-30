@@ -5,7 +5,7 @@ use guion_model::{
 pub use guion_vm_core::CancellationToken;
 use guion_vm_core::{
     charge_allocation, check_call_depth, cloned_value_allocation, encoded_json_string_len,
-    finish_json_value, finish_shared_json, json_exact_integer, new_vm_frame,
+    finish_json_value, finish_shared_json, json_exact_integer, new_vm_frame, opcode_profile_name,
     shared_json_push_local_allocation, shared_json_set_local_allocation, value_matches, verify,
     Budget, FrameStart, HostOpContext, OutputStream, RuntimeProfileCounters, VmFrame, VmHost,
     VmLimits,
@@ -31,8 +31,10 @@ pub mod python_bridge;
 pub mod stdlib_data;
 pub mod stdlib_services;
 use native_backend::{
-    NativeBackend, NativeCode, NativeFloatList, NativeIntList, NativeRecord, NativeSymbols,
-    NATIVE_INLINE_LIST_ITEMS,
+    native_record_has_native_layout, NativeBackend, NativeCode, NativeFloatList, NativeHandleList,
+    NativeIntList, NativeRecord, NativeSymbols, NativeTaggedValue, NATIVE_CONSTANT_HANDLE_BASE,
+    NATIVE_INLINE_LIST_ITEMS, NATIVE_TAGGED_OPTION_NONE, NATIVE_TAGGED_OPTION_SOME,
+    NATIVE_TAGGED_RESULT_ERR, NATIVE_TAGGED_RESULT_OK,
 };
 
 struct JsonTextPairRows<'a> {
@@ -97,7 +99,10 @@ impl serde::Serialize for JsonTextPair<'_> {
 
 #[cfg(test)]
 mod native_inline_arena_tests {
-    use super::{NativeIntList, NativeListArena};
+    use super::{
+        Budget, CancellationToken, NativeIntList, NativeListArena, NativeTaggedValue, Value,
+        NATIVE_TAGGED_RESULT_OK,
+    };
 
     #[test]
     fn inline_list_addresses_and_values_survive_arena_growth() {
@@ -118,9 +123,59 @@ mod native_inline_arena_tests {
             &[10, 99, 30]
         );
     }
+
+    #[test]
+    fn tagged_value_arena_uses_inline_storage_and_stable_overflow_growth() {
+        let mut arena = NativeListArena::new(std::ptr::null(), 10000, 10000, 0, None);
+        let value = || NativeTaggedValue {
+            kind: 1,
+            payload_tag: 1,
+            payload: 7,
+            clone_charge_bytes: 0,
+        };
+
+        let first_handle = arena.store_tagged_descriptor(value()).unwrap();
+        for _ in 1..8 {
+            arena.store_tagged_descriptor(value()).unwrap();
+        }
+        assert!(arena.tagged_values.is_empty());
+        let first_descriptor =
+            arena.tagged_value(first_handle).unwrap() as *const NativeTaggedValue;
+        arena.store_tagged_descriptor(value()).unwrap();
+        assert_eq!(arena.tagged_values.len(), 1);
+        assert_eq!(arena.tagged_values[0].capacity(), 256);
+        assert_eq!(
+            arena.tagged_value(first_handle).unwrap() as *const NativeTaggedValue,
+            first_descriptor
+        );
+    }
+
+    #[test]
+    fn tagged_value_creation_defers_recursive_clone_charge_estimation() {
+        let budget = Budget::new(1000, 10000, CancellationToken::new(), None);
+        let mut arena = NativeListArena::new(&budget, 10000, 10000, 0, None);
+        let payload = Value::Record(
+            "EventLine".to_owned(),
+            std::sync::Arc::new(vec![Value::Text("record payload".into())]),
+        );
+        let payload_handle = arena.store_value(payload.clone()).unwrap();
+        assert!(arena.native_value_handle_exists(payload_handle));
+        let handle = arena
+            .store_native_tagged_value(NATIVE_TAGGED_RESULT_OK, 4, payload_handle)
+            .unwrap();
+
+        let expected = std::mem::size_of::<Value>() + super::cloned_value_allocation(&payload);
+        assert_eq!(arena.tagged_value(handle).unwrap().clone_charge_bytes, 0);
+        assert_eq!(arena.tagged_clone_charge_bytes(handle), Some(expected));
+        assert_eq!(
+            arena.tagged_value(handle).unwrap().clone_charge_bytes,
+            expected as u64
+        );
+    }
 }
 
-// JIT code keeps raw pointers to these descriptors; Box preserves each address when the Vec grows.
+// JIT code keeps raw pointers to list descriptors and tagged values. Boxes and
+// inline slots plus fixed-capacity overflow chunks keep their addresses stable.
 #[allow(clippy::vec_box)]
 struct NativeListArena {
     float_lists: Vec<Box<NativeFloatList>>,
@@ -128,6 +183,16 @@ struct NativeListArena {
     int_lists: Vec<Box<NativeIntList>>,
     inline_int_lists: Vec<Vec<NativeIntList>>,
     int_storage: Vec<Vec<i64>>,
+    handle_lists: Vec<Box<NativeHandleList>>,
+    handle_storage: Vec<Vec<i64>>,
+    values: Vec<Value>,
+    constant_values: Vec<Value>,
+    inline_tagged_values: [NativeTaggedValue; NATIVE_INLINE_TAGGED_VALUES],
+    inline_tagged_value_len: usize,
+    tagged_values: Vec<Vec<NativeTaggedValue>>,
+    native_vm_continuations: Vec<NativeVmContinuationFrame>,
+    runtime_context: Option<NativeRuntimeContext>,
+    host_error: Option<RuntimeError>,
     budget: *const Budget,
     profile: Option<Arc<RuntimeProfileCounters>>,
     max_collection_items: usize,
@@ -136,6 +201,47 @@ struct NativeListArena {
     initial_output_bytes: usize,
     pending_output: String,
     pending_print_bytes: Vec<usize>,
+}
+
+const NATIVE_INLINE_TAGGED_VALUES: usize = 8;
+
+pub(crate) struct NativeVmContinuationFrame {
+    pub(crate) function_index: usize,
+    pub(crate) ip: usize,
+    pub(crate) depth: usize,
+    pub(crate) call_site: Option<Span>,
+    pub(crate) locals: Vec<Value>,
+    pub(crate) stack: Vec<Value>,
+}
+
+#[derive(Clone)]
+struct NativeRuntimeContext {
+    instance: *mut Instance,
+    artifact: Arc<Artifact>,
+    budget: Arc<Budget>,
+    limits: VmLimits,
+}
+
+#[derive(Clone, Copy)]
+struct NativeOperationRequest<'a> {
+    operation: i64,
+    function_index: i64,
+    instruction_index: i64,
+    depth: i64,
+    arguments: &'a [i64],
+    argument_tags: &'a [i64],
+    result_tag: i64,
+}
+
+#[derive(Clone, Copy)]
+struct NativeJsonOperationRequest<'a> {
+    operation: i64,
+    arguments: &'a [i64],
+    argument_tags: &'a [i64],
+    result_tag: i64,
+    span: Span,
+    operation_name: &'static str,
+    runtime: &'a NativeRuntimeContext,
 }
 
 impl NativeListArena {
@@ -152,6 +258,21 @@ impl NativeListArena {
             int_lists: Vec::new(),
             inline_int_lists: Vec::new(),
             int_storage: Vec::new(),
+            handle_lists: Vec::new(),
+            handle_storage: Vec::new(),
+            values: Vec::new(),
+            constant_values: Vec::new(),
+            inline_tagged_values: [NativeTaggedValue {
+                kind: 0,
+                payload_tag: 0,
+                payload: 0,
+                clone_charge_bytes: 0,
+            }; NATIVE_INLINE_TAGGED_VALUES],
+            inline_tagged_value_len: 0,
+            tagged_values: Vec::new(),
+            native_vm_continuations: Vec::new(),
+            runtime_context: None,
+            host_error: None,
             budget,
             profile,
             max_collection_items,
@@ -169,6 +290,749 @@ impl NativeListArena {
         }
         self.charged_bytes = self.charged_bytes.saturating_add(bytes);
         true
+    }
+
+    fn charge_or_error(&mut self, bytes: usize, span: Span) -> bool {
+        if self.charge(bytes) {
+            true
+        } else {
+            self.host_error = Some(RuntimeError::new(
+                "R_ALLOCATION_LIMIT",
+                "cumulative allocation budget exhausted during this invocation",
+                span,
+            ));
+            false
+        }
+    }
+
+    fn store_value(&mut self, value: Value) -> Option<i64> {
+        self.values.try_reserve(1).ok()?;
+        // These are backend handle-table entries. Their producer has already
+        // charged any guest-visible value allocation; charging the handle slot
+        // here would make the quota depend on whether the VM or JIT ran it.
+        self.values.push(value);
+        i64::try_from(self.values.len()).ok()
+    }
+
+    fn value(&self, handle: i64) -> Option<&Value> {
+        let index = usize::try_from(handle.checked_sub(1)?).ok()?;
+        self.values.get(index)
+    }
+
+    fn constant_value(&self, handle: i64) -> Option<&Value> {
+        let index = usize::try_from(handle.checked_sub(NATIVE_CONSTANT_HANDLE_BASE)?).ok()?;
+        self.constant_values.get(index)
+    }
+
+    fn handle_list(&self, handle: i64) -> Option<&NativeHandleList> {
+        let address = usize::try_from(handle).ok()?;
+        self.handle_lists
+            .iter()
+            .find(|list| (&***list as *const NativeHandleList) as usize == address)
+            .map(|list| &**list)
+    }
+
+    fn tagged_value(&self, handle: i64) -> Option<&NativeTaggedValue> {
+        let address = usize::try_from(handle.checked_neg()?).ok()?;
+        self.inline_tagged_values[..self.inline_tagged_value_len]
+            .iter()
+            .find(|value| (*value as *const NativeTaggedValue) as usize == address)
+            .or_else(|| {
+                self.tagged_values
+                    .iter()
+                    .flat_map(|chunk| chunk.iter())
+                    .find(|value| (*value as *const NativeTaggedValue) as usize == address)
+            })
+    }
+
+    fn tagged_clone_charge_bytes(&mut self, handle: i64) -> Option<usize> {
+        let address = usize::try_from(handle.checked_neg()?).ok()?;
+        let descriptor = address as *mut NativeTaggedValue;
+        // Negative handles are issued only for descriptors owned by this arena.
+        // Inline slots and overflow chunks stay at fixed addresses for its lifetime.
+        let descriptor_value = unsafe { descriptor.read() };
+        if descriptor_value.clone_charge_bytes != 0 {
+            return usize::try_from(descriptor_value.clone_charge_bytes).ok();
+        }
+        if descriptor_value.kind == NATIVE_TAGGED_OPTION_NONE {
+            return Some(0);
+        }
+        let payload =
+            self.decode_bridge_value(descriptor_value.payload, descriptor_value.payload_tag)?;
+        let bytes = size_of::<Value>().saturating_add(cloned_value_allocation(&payload));
+        let charge = u64::try_from(bytes).unwrap_or(u64::MAX);
+        // The generated code has no Rust reference to this descriptor while the
+        // callback runs; update only its cached quota field.
+        unsafe { std::ptr::addr_of_mut!((*descriptor).clone_charge_bytes).write(charge) };
+        Some(bytes)
+    }
+
+    fn native_value_handle_exists(&self, handle: i64) -> bool {
+        self.constant_value(handle).is_some()
+            || self.value(handle).is_some()
+            || self.handle_list(handle).is_some()
+            || self.tagged_value(handle).is_some()
+    }
+
+    fn ensure_tagged_capacity(&mut self) -> Option<()> {
+        self.ensure_tagged_capacity_for(1)
+    }
+
+    fn ensure_tagged_capacity_for(&mut self, additional: usize) -> Option<()> {
+        const TAGGED_VALUE_CHUNK_ITEMS: usize = 256;
+        let inline_remaining =
+            NATIVE_INLINE_TAGGED_VALUES.saturating_sub(self.inline_tagged_value_len);
+        let overflow_needed = additional.saturating_sub(inline_remaining);
+        let existing_overflow_capacity = self
+            .tagged_values
+            .last()
+            .map_or(0, |chunk| chunk.capacity().saturating_sub(chunk.len()));
+        let missing = overflow_needed.saturating_sub(existing_overflow_capacity);
+        let chunks_needed = missing.div_ceil(TAGGED_VALUE_CHUNK_ITEMS);
+        if chunks_needed == 0 {
+            return Some(());
+        }
+        self.tagged_values.try_reserve(chunks_needed).ok()?;
+        for _ in 0..chunks_needed {
+            let mut chunk = Vec::new();
+            chunk.try_reserve_exact(TAGGED_VALUE_CHUNK_ITEMS).ok()?;
+            self.tagged_values.push(chunk);
+        }
+        Some(())
+    }
+
+    fn store_tagged_descriptor(&mut self, value: NativeTaggedValue) -> Option<i64> {
+        if self.inline_tagged_value_len < NATIVE_INLINE_TAGGED_VALUES {
+            let index = self.inline_tagged_value_len;
+            self.inline_tagged_values[index] = value;
+            self.inline_tagged_value_len += 1;
+            let address = (&self.inline_tagged_values[index] as *const NativeTaggedValue) as usize;
+            return i64::try_from(address).ok()?.checked_neg();
+        }
+        self.ensure_tagged_capacity()?;
+        let chunk = self.tagged_values.last_mut()?;
+        chunk.push(value);
+        let address = (chunk.last()? as *const NativeTaggedValue) as usize;
+        i64::try_from(address).ok()?.checked_neg()
+    }
+
+    fn encode_native_value(&mut self, value: Value) -> Option<i64> {
+        match value {
+            Value::ResultOk(value) => {
+                self.store_tagged_value(NATIVE_TAGGED_RESULT_OK, Some(*value))
+            }
+            Value::ResultErr(value) => {
+                self.store_tagged_value(NATIVE_TAGGED_RESULT_ERR, Some(*value))
+            }
+            Value::OptionSome(value) => {
+                self.store_tagged_value(NATIVE_TAGGED_OPTION_SOME, Some(*value))
+            }
+            Value::OptionNone => self.store_tagged_value(NATIVE_TAGGED_OPTION_NONE, None),
+            value => self.store_value(value),
+        }
+    }
+
+    fn store_tagged_value(&mut self, kind: i64, payload: Option<Value>) -> Option<i64> {
+        let (payload_tag, payload) = match payload {
+            None => (0, 0),
+            Some(Value::Int(value)) => match value.to_i64() {
+                Some(value) => (1, value),
+                None => (4, self.store_value(Value::Int(value))?),
+            },
+            Some(Value::Float64(value)) => (2, value.get().to_bits() as i64),
+            Some(Value::Bool(value)) => (3, i64::from(value)),
+            Some(value) => (4, self.encode_native_value(value)?),
+        };
+        self.store_tagged_descriptor(NativeTaggedValue {
+            kind,
+            payload_tag,
+            payload,
+            // The exact logical clone charge is needed only if guest code clones it.
+            clone_charge_bytes: 0,
+        })
+    }
+
+    fn store_native_tagged_value(
+        &mut self,
+        kind: i64,
+        payload_tag: i64,
+        payload: i64,
+    ) -> Option<i64> {
+        let has_payload = match kind {
+            NATIVE_TAGGED_RESULT_OK | NATIVE_TAGGED_RESULT_ERR | NATIVE_TAGGED_OPTION_SOME => true,
+            NATIVE_TAGGED_OPTION_NONE if payload_tag == 0 && payload == 0 => false,
+            _ => return None,
+        };
+        if has_payload {
+            let valid_payload = match payload_tag {
+                1 => true,
+                2 => Float64::new(f64::from_bits(payload as u64)).is_some(),
+                3 => true,
+                4 => self.native_value_handle_exists(payload),
+                _ => false,
+            };
+            if !valid_payload {
+                return None;
+            }
+        }
+        if self.inline_tagged_value_len == NATIVE_INLINE_TAGGED_VALUES {
+            self.ensure_tagged_capacity()?;
+        }
+        if has_payload && !self.charge(size_of::<Value>()) {
+            return None;
+        }
+        self.store_tagged_descriptor(NativeTaggedValue {
+            kind,
+            payload_tag,
+            payload,
+            clone_charge_bytes: 0,
+        })
+    }
+
+    fn materialize_native_value(&self, handle: i64) -> Option<Value> {
+        if let Some(value) = self.constant_value(handle) {
+            return Some(value.clone());
+        }
+        if let Some(list) = self.handle_list(handle) {
+            let encoded = unsafe { std::slice::from_raw_parts(list.data, list.len) };
+            let values = encoded
+                .iter()
+                .map(|value| self.materialize_native_value(*value))
+                .collect::<Option<Vec<_>>>()?;
+            return Some(Value::List(Arc::new(values)));
+        }
+        let Some(tagged) = self.tagged_value(handle) else {
+            return self.value(handle).cloned();
+        };
+        let (kind, payload_tag, payload) = (tagged.kind, tagged.payload_tag, tagged.payload);
+        if kind == NATIVE_TAGGED_OPTION_NONE {
+            return Some(Value::OptionNone);
+        }
+        let payload = match payload_tag {
+            1 => Value::Int(BigInt::parse(&payload.to_string()).ok()?),
+            2 => Value::Float64(Float64::new(f64::from_bits(payload as u64))?),
+            3 => Value::Bool(payload != 0),
+            4 => self.materialize_native_value(payload)?,
+            _ => return None,
+        };
+        match kind {
+            NATIVE_TAGGED_RESULT_OK => Some(Value::ResultOk(Box::new(payload))),
+            NATIVE_TAGGED_RESULT_ERR => Some(Value::ResultErr(Box::new(payload))),
+            NATIVE_TAGGED_OPTION_SOME => Some(Value::OptionSome(Box::new(payload))),
+            _ => None,
+        }
+    }
+
+    fn decode_continuation_value(&self, raw: i64, tag: i64) -> Option<Value> {
+        match tag {
+            0 => Some(Value::Unit),
+            1 => Some(Value::Int(BigInt::parse(&raw.to_string()).ok()?)),
+            2 => Some(Value::Float64(Float64::new(f64::from_bits(raw as u64))?)),
+            3 => Some(Value::Bool(raw != 0)),
+            4 => self.materialize_native_value(raw),
+            _ => None,
+        }
+    }
+
+    fn append_native_continuation(
+        &mut self,
+        frame: NativeVmContinuationFrame,
+        caller_ip: Option<usize>,
+    ) -> bool {
+        if let Some(caller_ip) = caller_ip {
+            let Some(child) = self.native_vm_continuations.last_mut() else {
+                return false;
+            };
+            let Some(span) = self
+                .runtime_context
+                .as_ref()
+                .and_then(|context| context.artifact.functions.get(frame.function_index))
+                .and_then(|function| function.code.get(caller_ip))
+                .map(|instruction| instruction.span)
+            else {
+                self.native_vm_continuations.clear();
+                return false;
+            };
+            child.call_site = Some(span);
+        } else if !self.native_vm_continuations.is_empty() {
+            self.native_vm_continuations.clear();
+            return false;
+        }
+        self.native_vm_continuations.push(frame);
+        true
+    }
+
+    fn bridge_handle_argument<'a>(
+        &'a self,
+        arguments: &[i64],
+        argument_tags: &[i64],
+        index: usize,
+    ) -> Option<&'a Value> {
+        if *argument_tags.get(index)? != 4 {
+            return None;
+        }
+        let handle = *arguments.get(index)?;
+        self.constant_value(handle).or_else(|| self.value(handle))
+    }
+
+    fn decode_bridge_arguments(
+        &self,
+        arguments: &[i64],
+        argument_tags: &[i64],
+    ) -> Option<Vec<Value>> {
+        arguments
+            .iter()
+            .zip(argument_tags)
+            .map(|(value, tag)| self.decode_bridge_value(*value, *tag))
+            .collect()
+    }
+
+    fn attach_runtime_context(
+        &mut self,
+        instance: *mut Instance,
+        artifact: Arc<Artifact>,
+        budget: Arc<Budget>,
+        limits: VmLimits,
+    ) {
+        self.constant_values = artifact
+            .functions
+            .iter()
+            .flat_map(|function| function.code.iter())
+            .filter_map(|instruction| match &instruction.op {
+                Op::Const(value @ (Value::Text(_) | Value::Bytes(_))) => Some(value.clone()),
+                _ => None,
+            })
+            .collect();
+        self.runtime_context = Some(NativeRuntimeContext {
+            instance,
+            artifact,
+            budget,
+            limits,
+        });
+    }
+
+    fn execute_native_operation(&mut self, request: NativeOperationRequest<'_>) -> Option<i64> {
+        let NativeOperationRequest {
+            operation,
+            function_index,
+            instruction_index,
+            depth,
+            arguments,
+            argument_tags,
+            result_tag,
+        } = request;
+        if arguments.len() != argument_tags.len() {
+            return None;
+        }
+        let runtime = self.runtime_context.as_ref()?.clone();
+        let function_index = usize::try_from(function_index).ok()?;
+        let instruction_index = usize::try_from(instruction_index).ok()?;
+        let function = runtime.artifact.functions.get(function_index)?;
+        let instruction = function.code.get(instruction_index)?;
+        if native_backend::native_bridge_operation(&instruction.op)? != operation {
+            return None;
+        }
+        let value = match &instruction.op {
+            Op::JsonParse | Op::JsonTryGet | Op::JsonTryText | Op::JsonTryInt => {
+                return self.execute_native_json_operation(NativeJsonOperationRequest {
+                    operation,
+                    arguments,
+                    argument_tags,
+                    result_tag,
+                    span: instruction.span,
+                    operation_name: opcode_profile_name(&instruction.op),
+                    runtime: &runtime,
+                });
+            }
+            Op::FileNextLine => {
+                return self.execute_native_file_next_line(
+                    arguments,
+                    argument_tags,
+                    result_tag,
+                    instruction.span,
+                    opcode_profile_name(&instruction.op),
+                    &runtime,
+                );
+            }
+            Op::GetField(record_index, field_index) => {
+                let Value::Record(name, fields) =
+                    self.bridge_handle_argument(arguments, argument_tags, 0)?
+                else {
+                    return None;
+                };
+                let definition = runtime.artifact.records.get(*record_index)?;
+                if name != &definition.name {
+                    return None;
+                }
+                let field = fields.get(*field_index)?.clone();
+                if !self.charge_or_error(cloned_value_allocation(&field), instruction.span) {
+                    return None;
+                }
+                field
+            }
+            Op::MakeRecord(record_index, count) => {
+                if *count != arguments.len() {
+                    return None;
+                }
+                let values = self.decode_bridge_arguments(arguments, argument_tags)?;
+                let definition = runtime.artifact.records.get(*record_index)?;
+                let charge_bytes = size_of::<Vec<Value>>()
+                    .saturating_add(values.len().saturating_mul(size_of::<Value>()))
+                    .saturating_add(definition.name.len());
+                if !self.charge_or_error(charge_bytes, instruction.span) {
+                    return None;
+                }
+                Value::Record(definition.name.clone(), Arc::new(values))
+            }
+            _ => {
+                let mut stack = self.decode_bridge_arguments(arguments, argument_tags)?;
+                // These bridged host operations do not access guest locals. Avoid
+                // allocating a frame-sized local vector for each native callback.
+                let mut locals = Vec::new();
+                let allocations_before =
+                    runtime.budget.allocation_remaining.load(Ordering::Relaxed);
+                // This native invocation is synchronous. NativeCode is held through a
+                // cloned Arc, so the callback is the only Instance access while JIT
+                // code is running.
+                let result = unsafe {
+                    VmHost::host_op(
+                        &mut *runtime.instance,
+                        HostOpContext {
+                            instruction: instruction.clone(),
+                            function,
+                            stack: &mut stack,
+                            locals: &mut locals,
+                            budget: &runtime.budget,
+                            depth: usize::try_from(depth).ok()?,
+                        },
+                    )
+                };
+                let allocations_after = runtime.budget.allocation_remaining.load(Ordering::Relaxed);
+                self.charged_bytes = self
+                    .charged_bytes
+                    .saturating_add(allocations_before.saturating_sub(allocations_after));
+                if let Err(error) = result {
+                    self.host_error = Some(error);
+                    return None;
+                }
+                if stack.len() != 1 {
+                    return None;
+                }
+                return self.encode_bridge_value(stack.pop()?, result_tag);
+            }
+        };
+        self.encode_bridge_value(value, result_tag)
+    }
+
+    fn execute_native_json_operation(
+        &mut self,
+        request: NativeJsonOperationRequest<'_>,
+    ) -> Option<i64> {
+        let NativeJsonOperationRequest {
+            operation,
+            arguments,
+            argument_tags,
+            result_tag,
+            span,
+            operation_name,
+            runtime,
+        } = request;
+        if result_tag != 4 {
+            return None;
+        }
+        // Reserve backend bookkeeping before parsing or charging guest output.
+        self.values.try_reserve(1).ok()?;
+        if self.inline_tagged_value_len == NATIVE_INLINE_TAGGED_VALUES {
+            self.ensure_tagged_capacity_for(1)?;
+        }
+        let profile = runtime.budget.runtime_profile.clone();
+        let host_started = profile.as_ref().map(|_| Instant::now());
+        let (kind, payload) = match operation {
+            native_backend::NATIVE_BRIDGE_JSON_PARSE => {
+                if arguments.len() != 1 || argument_tags != [4] {
+                    return None;
+                }
+                let Value::Text(source) =
+                    self.bridge_handle_argument(arguments, argument_tags, 0)?
+                else {
+                    return None;
+                };
+                if source.len() > runtime.limits.max_text_bytes {
+                    let constant_span = arguments
+                        .first()
+                        .and_then(|handle| handle.checked_sub(NATIVE_CONSTANT_HANDLE_BASE))
+                        .and_then(|index| usize::try_from(index).ok())
+                        .and_then(|index| {
+                            runtime
+                                .artifact
+                                .functions
+                                .iter()
+                                .flat_map(|function| function.code.iter())
+                                .filter(|instruction| {
+                                    matches!(
+                                        &instruction.op,
+                                        Op::Const(Value::Text(_) | Value::Bytes(_))
+                                    )
+                                })
+                                .nth(index)
+                                .map(|instruction| instruction.span)
+                        });
+                    let constant_error = constant_span.and_then(|constant_span| {
+                        guion_vm_core::value_limit_error_at_boundary(
+                            &Value::Text(source.clone()),
+                            &runtime.limits,
+                            constant_span,
+                        )
+                    });
+                    self.host_error = Some(constant_error.unwrap_or_else(|| {
+                        RuntimeError::new(
+                            "R_TEXT_LIMIT",
+                            "JSON input exceeds the configured byte limit",
+                            span,
+                        )
+                    }));
+                    record_native_host_operation(profile.as_ref(), host_started, operation_name);
+                    return None;
+                }
+                let parse_started = runtime
+                    .budget
+                    .runtime_profile
+                    .as_ref()
+                    .map(|_| Instant::now());
+                let parsed = parse_unique_shared_json(source);
+                if let (Some(profile), Some(started)) =
+                    (&runtime.budget.runtime_profile, parse_started)
+                {
+                    profile.record_json_parse(
+                        started.elapsed().as_nanos().min(u64::MAX as u128) as u64
+                    );
+                }
+                match parsed {
+                    Ok(value) => {
+                        let allocations_before =
+                            runtime.budget.allocation_remaining.load(Ordering::Relaxed);
+                        let parsed = finish_shared_json(
+                            value,
+                            &runtime.limits,
+                            runtime.budget.as_ref(),
+                            span,
+                        );
+                        let allocations_after =
+                            runtime.budget.allocation_remaining.load(Ordering::Relaxed);
+                        self.charged_bytes = self
+                            .charged_bytes
+                            .saturating_add(allocations_before.saturating_sub(allocations_after));
+                        match parsed {
+                            Ok(Value::Json(value)) => {
+                                (native_backend::NATIVE_TAGGED_RESULT_OK, Value::Json(value))
+                            }
+                            Ok(_) => return None,
+                            Err(error) => {
+                                self.host_error = Some(error);
+                                record_native_host_operation(
+                                    profile.as_ref(),
+                                    host_started,
+                                    operation_name,
+                                );
+                                return None;
+                            }
+                        }
+                    }
+                    Err(JsonDecodeError::Parse(error)) => (
+                        native_backend::NATIVE_TAGGED_RESULT_ERR,
+                        Value::JsonError(JsonErrorValue {
+                            code: "R_JSON_PARSE".into(),
+                            message: error.to_string(),
+                            line: error.line(),
+                            column: error.column(),
+                        }),
+                    ),
+                    Err(JsonDecodeError::DuplicateKey { key, line, column }) => (
+                        native_backend::NATIVE_TAGGED_RESULT_ERR,
+                        Value::JsonError(JsonErrorValue {
+                            code: "R_JSON_DUPLICATE_KEY".into(),
+                            message: format!("JSON object contains duplicate key `{key}`"),
+                            line,
+                            column,
+                        }),
+                    ),
+                }
+            }
+            native_backend::NATIVE_BRIDGE_JSON_TRY_GET => {
+                if arguments.len() != 2 || argument_tags != [4, 4] {
+                    return None;
+                }
+                let Value::Json(document) =
+                    self.bridge_handle_argument(arguments, argument_tags, 0)?
+                else {
+                    return None;
+                };
+                let Value::Text(key) = self.bridge_handle_argument(arguments, argument_tags, 1)?
+                else {
+                    return None;
+                };
+                if key.len() > runtime.limits.max_text_bytes {
+                    return None;
+                }
+                match stdlib_data::json_try_get(document, key) {
+                    Ok(value) => (native_backend::NATIVE_TAGGED_RESULT_OK, Value::Json(value)),
+                    Err(error) => (
+                        native_backend::NATIVE_TAGGED_RESULT_ERR,
+                        Value::JsonError(error),
+                    ),
+                }
+            }
+            native_backend::NATIVE_BRIDGE_JSON_TRY_TEXT => {
+                if arguments.len() != 1 || argument_tags != [4] {
+                    return None;
+                }
+                let Value::Json(document) =
+                    self.bridge_handle_argument(arguments, argument_tags, 0)?
+                else {
+                    return None;
+                };
+                match stdlib_data::json_try_text(document.as_ref()) {
+                    Ok(text) => (
+                        native_backend::NATIVE_TAGGED_RESULT_OK,
+                        Value::Text(text.into()),
+                    ),
+                    Err(error) => (
+                        native_backend::NATIVE_TAGGED_RESULT_ERR,
+                        Value::JsonError(error),
+                    ),
+                }
+            }
+            native_backend::NATIVE_BRIDGE_JSON_TRY_INT => {
+                if arguments.len() != 1 || argument_tags != [4] {
+                    return None;
+                }
+                let Value::Json(document) =
+                    self.bridge_handle_argument(arguments, argument_tags, 0)?
+                else {
+                    return None;
+                };
+                match stdlib_data::json_try_int(document.as_ref()) {
+                    Ok(integer) if integer.digit_count() <= runtime.limits.max_integer_digits => {
+                        (native_backend::NATIVE_TAGGED_RESULT_OK, Value::Int(integer))
+                    }
+                    Ok(_) => return None,
+                    Err(error) => (
+                        native_backend::NATIVE_TAGGED_RESULT_ERR,
+                        Value::JsonError(error),
+                    ),
+                }
+            }
+            _ => return None,
+        };
+
+        if let Value::Text(text) = &payload {
+            let bytes = size_of::<String>().saturating_add(text.len());
+            if !self.charge(bytes) {
+                return None;
+            }
+        }
+        let value = self.store_tagged_value(kind, Some(payload))?;
+        record_native_host_operation(profile.as_ref(), host_started, operation_name);
+        Some(value)
+    }
+
+    fn execute_native_file_next_line(
+        &mut self,
+        arguments: &[i64],
+        argument_tags: &[i64],
+        result_tag: i64,
+        span: Span,
+        operation_name: &'static str,
+        runtime: &NativeRuntimeContext,
+    ) -> Option<i64> {
+        if result_tag != 4 || arguments.len() != 1 || argument_tags != [4] {
+            return None;
+        }
+        let profile = runtime.budget.runtime_profile.clone();
+        let host_started = profile.as_ref().map(|_| Instant::now());
+        let value = self.bridge_handle_argument(arguments, argument_tags, 0)?;
+        let handle = match runtime_reader_handle(value, span) {
+            Ok(handle) => handle,
+            Err(error) => {
+                record_native_host_operation(profile.as_ref(), host_started, operation_name);
+                self.host_error = Some(error);
+                return None;
+            }
+        };
+
+        // A file read advances the reader. Reserve all result storage first so
+        // arena pressure cannot force a VM retry after consuming a line.
+        self.values.try_reserve(1).ok()?;
+        self.ensure_tagged_capacity_for(2)?;
+        let line = unsafe { runtime.instance.as_mut()? }
+            .readers
+            .next_line(handle);
+        let result = match line {
+            Ok(Some(line)) => {
+                Value::ResultOk(Box::new(Value::OptionSome(Box::new(Value::Record(
+                    "SourceLine".into(),
+                    Arc::new(vec![
+                        Value::Int(BigInt::from_usize(line.number)),
+                        Value::Text(line.text.into()),
+                    ]),
+                )))))
+            }
+            Ok(None) => Value::ResultOk(Box::new(Value::OptionNone)),
+            Err(error) => file_error_result(reader_runtime_error(
+                error.kind,
+                error.message,
+                error.line,
+                error.column,
+                span,
+            )),
+        };
+        let value = self.encode_bridge_value(result, result_tag)?;
+        record_native_host_operation(profile.as_ref(), host_started, operation_name);
+        Some(value)
+    }
+
+    fn decode_bridge_value(&self, value: i64, tag: i64) -> Option<Value> {
+        match tag {
+            1 => Some(Value::Int(BigInt::parse(&value.to_string()).ok()?)),
+            2 => Some(Value::Float64(Float64::new(f64::from_bits(value as u64))?)),
+            3 => Some(Value::Bool(value != 0)),
+            4 => self.materialize_native_value(value),
+            _ => None,
+        }
+    }
+
+    fn encode_bridge_value(&mut self, value: Value, tag: i64) -> Option<i64> {
+        match (tag, value) {
+            (1, Value::Int(value)) => value.to_i64(),
+            (2, Value::Float64(value)) => Some(value.get().to_bits() as i64),
+            (3, Value::Bool(value)) => Some(i64::from(value)),
+            // Storing a handle is backend bookkeeping. Guest allocation limits
+            // are charged by the operation that produced `value`.
+            (4, value) => self.encode_native_value(value),
+            _ => None,
+        }
+    }
+
+    fn record_bridge_panic(&mut self, function_index: i64, instruction_index: i64) {
+        if self.host_error.is_some() {
+            return;
+        }
+        let span = usize::try_from(function_index)
+            .ok()
+            .and_then(|function_index| {
+                let context = self.runtime_context.as_ref()?;
+                let function = context.artifact.functions.get(function_index)?;
+                function
+                    .code
+                    .get(usize::try_from(instruction_index).ok()?)
+                    .map(|instruction| instruction.span)
+            })
+            .unwrap_or_default();
+        self.host_error = Some(RuntimeError::new(
+            "R_NATIVE_BRIDGE",
+            "native value bridge failed while executing a verified operation",
+            span,
+        ));
     }
 
     fn allocate_inline_int(
@@ -434,6 +1298,7 @@ impl HostPolicy {
 pub struct Runtime {
     native_enabled: bool,
     runtime_profile_enabled: bool,
+    runtime_profile_sampled: bool,
 }
 
 fn current_unix_time_ms() -> Result<i64, String> {
@@ -489,6 +1354,7 @@ impl Runtime {
         Self {
             native_enabled: true,
             runtime_profile_enabled: false,
+            runtime_profile_sampled: false,
         }
     }
 
@@ -498,6 +1364,7 @@ impl Runtime {
         Self {
             native_enabled: false,
             runtime_profile_enabled: false,
+            runtime_profile_sampled: false,
         }
     }
 
@@ -505,6 +1372,14 @@ impl Runtime {
     /// This adds instrumentation and should be used only for untimed profiles.
     pub fn with_runtime_profile(mut self) -> Self {
         self.runtime_profile_enabled = true;
+        self.runtime_profile_sampled = false;
+        self
+    }
+
+    /// Enable sampled attribution with reduced per-instruction instrumentation.
+    pub fn with_sampled_runtime_profile(mut self) -> Self {
+        self.runtime_profile_enabled = true;
+        self.runtime_profile_sampled = true;
         self
     }
     pub fn load(
@@ -542,7 +1417,9 @@ impl Runtime {
             native: None,
             native_code: None,
             native_enabled: self.native_enabled,
+            native_compile_attempted: false,
             runtime_profile_enabled: self.runtime_profile_enabled,
+            runtime_profile_sampled: self.runtime_profile_sampled,
             runtime_profile_metrics: None,
             native_calls: Arc::new(AtomicUsize::new(0)),
             native_deoptimizations: Arc::new(AtomicUsize::new(0)),
@@ -582,7 +1459,9 @@ pub struct Instance {
     native: Option<NativeBackend>,
     native_code: Option<Arc<NativeCode>>,
     native_enabled: bool,
+    native_compile_attempted: bool,
     runtime_profile_enabled: bool,
+    runtime_profile_sampled: bool,
     runtime_profile_metrics: Option<Arc<RuntimeProfileCounters>>,
     native_calls: Arc<AtomicUsize>,
     native_deoptimizations: Arc<AtomicUsize>,
@@ -650,6 +1529,199 @@ fn value_limit_error_at_boundary(
     guion_vm_core::value_limit_error_at_boundary(value, &policy.vm_limits(), span)
 }
 
+#[inline(never)]
+fn http_response_text_value(
+    response: Value,
+    budget: &Budget,
+    max_text_bytes: usize,
+    span: Span,
+) -> Result<Value, RuntimeError> {
+    let fields = match response {
+        Value::Record(name, fields) if name == "HttpResponse" && fields.len() == 3 => fields,
+        _ => {
+            return Err(RuntimeError::new(
+                "R_TYPE_INVALID",
+                "http_response_text argument must be HttpResponse",
+                span,
+            ));
+        }
+    };
+    let Value::Bytes(body) = &fields[2] else {
+        return Err(RuntimeError::new(
+            "R_TYPE_INVALID",
+            "HttpResponse body must be Bytes",
+            span,
+        ));
+    };
+    if body.len() > max_text_bytes {
+        let mut error = http_error(
+            "R_HTTP_LIMIT",
+            "HTTP response exceeds the configured text byte limit",
+        );
+        error.trace.push(span);
+        return Ok(Value::ResultErr(Box::new(Value::HttpError(error))));
+    }
+    match std::str::from_utf8(body.as_ref()) {
+        Ok(text) => {
+            charge_allocation(budget, text.len(), span)?;
+            Ok(Value::ResultOk(Box::new(Value::Text(text.into()))))
+        }
+        Err(_) => {
+            let mut error = http_error("R_HTTP_ENCODING", "HTTP response body is not valid UTF-8");
+            error.trace.push(span);
+            Ok(Value::ResultErr(Box::new(Value::HttpError(error))))
+        }
+    }
+}
+
+fn std_error_record_value(
+    artifact: &Artifact,
+    budget: &Budget,
+    code: &str,
+    message: &str,
+    span: Span,
+) -> Result<Value, RuntimeError> {
+    let record = artifact
+        .records
+        .iter()
+        .find(|record| record.name == "StdError")
+        .ok_or_else(|| {
+            RuntimeError::new(
+                "R_ARTIFACT_INVALID",
+                "HTTP JSON response requires the StdError record definition",
+                span,
+            )
+        })?;
+    if record.fields.len() != 5 {
+        return Err(RuntimeError::new(
+            "R_ARTIFACT_INVALID",
+            "StdError must contain code, message, path, line, and column fields",
+            span,
+        ));
+    }
+    let record_bytes = size_of::<Vec<Value>>()
+        .saturating_add(record.fields.len().saturating_mul(size_of::<Value>()))
+        .saturating_add(record.name.len());
+    charge_allocation(budget, record_bytes, span)?;
+    budget.record_record_charge(record_bytes);
+    Ok(Value::Record(
+        record.name.clone(),
+        Arc::new(vec![
+            Value::Text(Arc::from(code)),
+            Value::Text(Arc::from(message)),
+            Value::Text(Arc::from("")),
+            Value::Int(BigInt::zero()),
+            Value::Int(BigInt::zero()),
+        ]),
+    ))
+}
+
+fn http_response_json_value(
+    response: Value,
+    artifact: &Artifact,
+    budget: &Budget,
+    max_text_bytes: usize,
+    limits: &VmLimits,
+    span: Span,
+) -> Result<Value, RuntimeError> {
+    let fields = match response {
+        Value::Record(name, fields) if name == "HttpResponse" && fields.len() == 3 => fields,
+        _ => {
+            return Err(RuntimeError::new(
+                "R_TYPE_INVALID",
+                "http_response_json_bytes argument must be HttpResponse",
+                span,
+            ));
+        }
+    };
+    let Value::Bytes(body) = &fields[2] else {
+        return Err(RuntimeError::new(
+            "R_TYPE_INVALID",
+            "HttpResponse body must be Bytes",
+            span,
+        ));
+    };
+    if body.len() > max_text_bytes {
+        let value = std_error_record_value(
+            artifact,
+            budget,
+            "R_HTTP_LIMIT",
+            "HTTP response exceeds the configured text byte limit",
+            span,
+        )?;
+        return Ok(Value::ResultErr(Box::new(value)));
+    }
+    let text = match std::str::from_utf8(body.as_ref()) {
+        Ok(text) => text,
+        Err(_) => {
+            let value = std_error_record_value(
+                artifact,
+                budget,
+                "R_HTTP_ENCODING",
+                "HTTP response body is not valid UTF-8",
+                span,
+            )?;
+            return Ok(Value::ResultErr(Box::new(value)));
+        }
+    };
+
+    // Match the old Text conversion's guest allocation charge while parsing the
+    // response's existing bytes in place, without allocating an intermediate Text.
+    charge_allocation(budget, body.len(), span)?;
+    let parse_started = budget.runtime_profile.as_ref().map(|_| Instant::now());
+    let parsed = parse_unique_shared_json(text);
+    if let (Some(profile), Some(started)) = (&budget.runtime_profile, parse_started) {
+        profile.record_json_parse(started.elapsed().as_nanos().min(u64::MAX as u128) as u64);
+    }
+    match parsed {
+        Ok(value) => {
+            let value = finish_shared_json(value, limits, budget, span)?;
+            Ok(Value::ResultOk(Box::new(value)))
+        }
+        Err(JsonDecodeError::Parse(error)) => {
+            let value =
+                std_error_record_value(artifact, budget, "R_JSON_PARSE", &error.to_string(), span)?;
+            Ok(Value::ResultErr(Box::new(value)))
+        }
+        Err(JsonDecodeError::DuplicateKey { key, .. }) => {
+            let message = format!("JSON object contains duplicate key `{key}`");
+            let value =
+                std_error_record_value(artifact, budget, "R_JSON_DUPLICATE_KEY", &message, span)?;
+            Ok(Value::ResultErr(Box::new(value)))
+        }
+    }
+}
+
+struct HostOperationProfileTimer {
+    profile: Arc<RuntimeProfileCounters>,
+    operation: &'static str,
+    started: Instant,
+}
+
+impl Drop for HostOperationProfileTimer {
+    fn drop(&mut self) {
+        self.profile.record_host_operation(
+            self.operation,
+            self.started.elapsed().as_nanos().min(u64::MAX as u128) as u64,
+        );
+    }
+}
+
+fn record_native_host_operation(
+    profile: Option<&Arc<RuntimeProfileCounters>>,
+    started: Option<Instant>,
+    operation: &'static str,
+) {
+    if let (Some(profile), Some(started)) = (profile, started) {
+        if profile.should_sample_host_operation() {
+            profile.record_host_operation(
+                operation,
+                started.elapsed().as_nanos().min(u64::MAX as u128) as u64,
+            );
+        }
+    }
+}
+
 impl VmHost for Instance {
     fn artifact(&self) -> &Arc<Artifact> {
         &self.artifact
@@ -693,7 +1765,11 @@ impl VmHost for Instance {
         budget: &Arc<Budget>,
         call_site: Option<Span>,
     ) -> Result<FrameStart, RuntimeError> {
-        self.start_guest_frame(index, args, depth, budget.clone(), call_site)
+        let allow_native = self
+            .native_code
+            .as_ref()
+            .is_some_and(|native| native.has_function(index) && !native.vm_call_stays_in_vm(index));
+        self.start_guest_frame(index, args, depth, budget.clone(), call_site, allow_native)
     }
 
     fn host_op(&mut self, context: HostOpContext<'_>) -> Result<(), RuntimeError> {
@@ -706,6 +1782,16 @@ impl VmHost for Instance {
             depth,
         } = context;
         let budget = budget.clone();
+        let _profile_timer = budget
+            .runtime_profile
+            .as_ref()
+            .filter(|profile| profile.should_sample_host_operation())
+            .cloned()
+            .map(|profile| HostOperationProfileTimer {
+                profile,
+                operation: opcode_profile_name(&instruction.op),
+                started: Instant::now(),
+            });
         macro_rules! push_stack {
             ($value:expr) => {{
                 let value = $value;
@@ -740,7 +1826,7 @@ impl VmHost for Instance {
                             "R_TYPE_INVALID",
                             "json_push value must be Json",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 let local = locals.get_mut(slot).ok_or_else(|| {
@@ -793,7 +1879,7 @@ impl VmHost for Instance {
                             "R_TYPE_INVALID",
                             "json_set value must be Json",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 let key = match pop!() {
@@ -803,7 +1889,7 @@ impl VmHost for Instance {
                             "R_TYPE_INVALID",
                             "json_set key must be Text",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 if key.len() > self.policy.max_text_bytes {
@@ -843,15 +1929,17 @@ impl VmHost for Instance {
                         instruction.span,
                     ));
                 }
-                charge_allocation(
-                    budget.as_ref(),
-                    shared_json_set_local_allocation(object, &key),
-                    instruction.span,
-                )?;
+                let shared = Arc::strong_count(object) > 1
+                    || matches!(object.as_ref(), SharedJson::Object(values) if Arc::strong_count(values) > 1);
+                let copied_bytes = shared_json_set_local_allocation(object, &key);
+                charge_allocation(budget.as_ref(), copied_bytes, instruction.span)?;
                 Arc::make_mut(object)
                     .as_object_mut()
                     .expect("object type was checked before copy-on-write")
                     .insert(key.to_string(), value);
+                if let Some(profile) = &budget.runtime_profile {
+                    profile.record_json_set(if shared { copied_bytes } else { 0 });
+                }
                 if let Some(error) = value_limit_error(local, &self.policy, instruction.span) {
                     return Err(error);
                 }
@@ -889,7 +1977,7 @@ impl VmHost for Instance {
                             "R_TYPE_INVALID",
                             "parallel_map requires a List",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 let input_copy_bytes = size_of::<Vec<Value>>()
@@ -932,7 +2020,7 @@ impl VmHost for Instance {
                             "R_TYPE_INVALID",
                             "sort_by requires a List",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 let allocation = size_of::<Vec<Value>>()
@@ -961,7 +2049,7 @@ impl VmHost for Instance {
                                         "R_TYPE_INVALID",
                                         "sort comparator must return Int",
                                         instruction.span,
-                                    ))
+                                    ));
                                 }
                                 Err(mut error) => {
                                     error.trace.push(instruction.span);
@@ -1051,7 +2139,7 @@ impl VmHost for Instance {
                             "R_TYPE_INVALID",
                             "sort_by_int_key requires a List",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 let length = values.len();
@@ -1089,7 +2177,7 @@ impl VmHost for Instance {
                                 "R_TYPE_INVALID",
                                 "sort_by_int_key key function must return Int",
                                 instruction.span,
-                            ))
+                            ));
                         }
                         Err(mut error) => {
                             error.trace.push(instruction.span);
@@ -1169,7 +2257,7 @@ impl VmHost for Instance {
                             "R_TYPE_INVALID",
                             "merge_sorted_by_int_key requires a List of Lists",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 let mut feeds = Vec::with_capacity(input_feeds.len());
@@ -1185,7 +2273,7 @@ impl VmHost for Instance {
                                 "R_TYPE_INVALID",
                                 "merge_sorted_by_int_key requires each feed to be a List",
                                 instruction.span,
-                            ))
+                            ));
                         }
                     };
                     total = total.saturating_add(values.len());
@@ -1236,7 +2324,7 @@ impl VmHost for Instance {
                                     "R_TYPE_INVALID",
                                     "merge_sorted_by_int_key key function must return Int",
                                     instruction.span,
-                                ))
+                                ));
                             }
                             Err(mut error) => {
                                 error.trace.push(instruction.span);
@@ -1290,7 +2378,7 @@ impl VmHost for Instance {
                             "R_TYPE_INVALID",
                             "http_get URL must be Text",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 let http = self.shared_http_client(instruction.span)?;
@@ -1347,7 +2435,7 @@ impl VmHost for Instance {
                                 "R_TYPE_INVALID",
                                 "HTTP timeout_ms must be Int",
                                 instruction.span,
-                            ))
+                            ));
                         }
                     }
                 } else {
@@ -1365,7 +2453,7 @@ impl VmHost for Instance {
                                 "http_request body must be Text"
                             },
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 let headers = match pop!() {
@@ -1388,7 +2476,7 @@ impl VmHost for Instance {
                             "R_TYPE_INVALID",
                             "http_request headers must be Map[Text]",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 let url = match pop!() {
@@ -1398,7 +2486,7 @@ impl VmHost for Instance {
                             "R_TYPE_INVALID",
                             "http_request URL must be Text",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 let method = match pop!() {
@@ -1408,7 +2496,7 @@ impl VmHost for Instance {
                             "R_TYPE_INVALID",
                             "http_request method must be Text",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 let http = self.shared_http_client(instruction.span)?;
@@ -1483,6 +2571,26 @@ impl VmHost for Instance {
                     }
                 }
             }
+            Op::HttpResponseText => {
+                let response = pop!();
+                push_stack!(http_response_text_value(
+                    response,
+                    budget.as_ref(),
+                    self.policy.max_text_bytes,
+                    instruction.span,
+                )?);
+            }
+            Op::HttpResponseJson => {
+                let response = pop!();
+                push_stack!(http_response_json_value(
+                    response,
+                    &self.artifact,
+                    budget.as_ref(),
+                    self.policy.max_text_bytes,
+                    &self.policy.vm_limits(),
+                    instruction.span,
+                )?);
+            }
             Op::FileOpenLines | Op::CsvOpen => {
                 let path = match pop!() {
                     Value::Text(path) => path,
@@ -1491,7 +2599,7 @@ impl VmHost for Instance {
                             "R_TYPE_INVALID",
                             "file reader path must be Text",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 let resolved = match host_file_path(&self.policy, &path, false, instruction.span) {
@@ -1640,7 +2748,7 @@ impl VmHost for Instance {
                             "R_TYPE_INVALID",
                             "csv_encode requires List[List[Text]]",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 let mut encoded_rows = Vec::with_capacity(rows.len());
@@ -1690,7 +2798,7 @@ impl VmHost for Instance {
                             "R_TYPE_INVALID",
                             "data parser requires Text",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 if text.len() > self.policy.max_text_bytes {
@@ -1761,7 +2869,7 @@ impl VmHost for Instance {
                             "R_TYPE_INVALID",
                             "resolve_local timezone must be Text",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 let fields = match pop!() {
@@ -1773,7 +2881,7 @@ impl VmHost for Instance {
                             "R_TYPE_INVALID",
                             "resolve_local requires a LocalDateTime record",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 let integer_field = |index: usize, field: &str, code: &str| match &fields[index] {
@@ -1855,6 +2963,53 @@ impl VmHost for Instance {
                     return Err(RuntimeError::new(
                         "R_TEXT_LIMIT",
                         "formatted timestamp exceeds configured text limit",
+                        instruction.span,
+                    ));
+                }
+                charge_allocation(
+                    budget.as_ref(),
+                    size_of::<String>().saturating_add(text.len()),
+                    instruction.span,
+                )?;
+                push_stack!(Value::Text(text.into()));
+            }
+            Op::TimeFormatUtcDate => {
+                let value = pop!();
+                let Value::Record(name, fields) = value else {
+                    return Err(RuntimeError::new(
+                        "R_TYPE_INVALID",
+                        "time_format_utc_date requires Instant",
+                        instruction.span,
+                    ));
+                };
+                if name != "Instant" || fields.len() != 1 {
+                    return Err(RuntimeError::new(
+                        "R_TYPE_INVALID",
+                        "invalid Instant record",
+                        instruction.span,
+                    ));
+                }
+                let Value::Int(micros) = &fields[0] else {
+                    return Err(RuntimeError::new(
+                        "R_TYPE_INVALID",
+                        "invalid Instant value",
+                        instruction.span,
+                    ));
+                };
+                let micros = micros.to_i64().ok_or_else(|| {
+                    RuntimeError::new(
+                        "R_TIME_RANGE",
+                        "instant is outside supported range",
+                        instruction.span,
+                    )
+                })?;
+                let text = stdlib_data::format_utc_date(stdlib_data::Instant {
+                    unix_microseconds: micros,
+                });
+                if text.len() > self.policy.max_text_bytes {
+                    return Err(RuntimeError::new(
+                        "R_TEXT_LIMIT",
+                        "formatted UTC date exceeds configured text limit",
                         instruction.span,
                     ));
                 }
@@ -1961,7 +3116,7 @@ impl VmHost for Instance {
                             "R_TYPE_INVALID",
                             "cli_parse options must be a list",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 let arguments = match pop!() {
@@ -1971,7 +3126,7 @@ impl VmHost for Instance {
                             "R_TYPE_INVALID",
                             "cli_parse arguments must be a list",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 let arguments = arguments
@@ -2068,7 +3223,7 @@ impl VmHost for Instance {
                             "R_TYPE_INVALID",
                             "fs_walk path must be Text",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 let resolved = match host_file_path_no_follow(&self.policy, &path, instruction.span)
@@ -2109,7 +3264,7 @@ impl VmHost for Instance {
                             "R_COLLECTION_LIMIT",
                             error.message,
                             instruction.span,
-                        ))
+                        ));
                     }
                     Err(error) => push_stack!(file_error_result(RuntimeError::new(
                         error.code,
@@ -2141,7 +3296,7 @@ impl VmHost for Instance {
                             "R_TYPE_INVALID",
                             "map_get key must be Text",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 let map = match pop!() {
@@ -2151,7 +3306,7 @@ impl VmHost for Instance {
                             "R_TYPE_INVALID",
                             "map_get requires Map",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 push_stack!(map
@@ -2168,7 +3323,7 @@ impl VmHost for Instance {
                             "R_TYPE_INVALID",
                             "numeric parser requires Text",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 let parsed: Result<Value, stdlib_data::DataError> =
@@ -2212,7 +3367,7 @@ impl VmHost for Instance {
                             "R_TYPE_INVALID",
                             "Unicode operation requires Text",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 if instruction.op == Op::TextCaseFold {
@@ -2250,7 +3405,7 @@ impl VmHost for Instance {
                             "R_TYPE_INVALID",
                             "normalization form must be Text",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 let text = match pop!() {
@@ -2260,7 +3415,7 @@ impl VmHost for Instance {
                             "R_TYPE_INVALID",
                             "normalization input must be Text",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 match stdlib_services::text_normalize(&text, &form) {
@@ -2273,7 +3428,7 @@ impl VmHost for Instance {
                             "R_TEXT_LIMIT",
                             "normalized text exceeds the configured text limit",
                             instruction.span,
-                        ))
+                        ));
                     }
                     Err(error) => {
                         push_stack!(Value::ResultErr(Box::new(service_error_value(error))))
@@ -2288,7 +3443,7 @@ impl VmHost for Instance {
                             "R_TYPE_INVALID",
                             "HMAC body must be Bytes",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 let key = match pop!() {
@@ -2298,7 +3453,7 @@ impl VmHost for Instance {
                             "R_TYPE_INVALID",
                             "HMAC key must be Bytes",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 push_stack!(Value::Bytes(Arc::new(stdlib_services::crypto_hmac_sha256(
@@ -2313,7 +3468,7 @@ impl VmHost for Instance {
                             "R_TYPE_INVALID",
                             "HMAC digest must be Bytes",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 let body = match pop!() {
@@ -2323,7 +3478,7 @@ impl VmHost for Instance {
                             "R_TYPE_INVALID",
                             "HMAC body must be Bytes",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 let key = match pop!() {
@@ -2333,7 +3488,7 @@ impl VmHost for Instance {
                             "R_TYPE_INVALID",
                             "HMAC key must be Bytes",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 push_stack!(Value::Bool(stdlib_services::crypto_verify_hmac_sha256(
@@ -2348,7 +3503,7 @@ impl VmHost for Instance {
                             "R_TYPE_INVALID",
                             "sqlite_open path must be Text",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 let result = if !self.policy.allow_file_read || !self.policy.allow_file_write {
@@ -2397,7 +3552,7 @@ impl VmHost for Instance {
                             "R_TYPE_INVALID",
                             "SQLite query must be Text",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 let (owner, id) =
@@ -2486,7 +3641,7 @@ impl VmHost for Instance {
                             "R_TYPE_INVALID",
                             "toml_parse input must be Text",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 let result = self.toml_documents.parse(&source).map(|handle| {
@@ -2549,7 +3704,7 @@ impl VmHost for Instance {
                             "R_TYPE_INVALID",
                             "TOML value type does not match the edit operation",
                             instruction.span,
-                        ))
+                        ));
                     }
                 }
                 .map(|()| Value::Unit);
@@ -2586,7 +3741,7 @@ impl VmHost for Instance {
                             "R_TYPE_INVALID",
                             "calendar_parse input must be Text",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 match stdlib_services::calendar_parse(&source) {
@@ -2621,7 +3776,7 @@ impl VmHost for Instance {
                             "R_TYPE_INVALID",
                             "read_text path must be Text",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 let resolved = match host_file_path(&self.policy, &path, false, instruction.span) {
@@ -2684,7 +3839,7 @@ impl VmHost for Instance {
                             "R_TYPE_INVALID",
                             "write_text content must be Text",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 let path = match pop!() {
@@ -2694,7 +3849,7 @@ impl VmHost for Instance {
                             "R_TYPE_INVALID",
                             "write_text path must be Text",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 if content.len() > self.policy.max_file_bytes {
@@ -2732,7 +3887,7 @@ impl VmHost for Instance {
                             "R_TYPE_INVALID",
                             "write_text_atomic content must be Text",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 let path = match pop!() {
@@ -2742,7 +3897,7 @@ impl VmHost for Instance {
                             "R_TYPE_INVALID",
                             "write_text_atomic path must be Text",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 if content.len() > self.policy.max_file_bytes {
@@ -2787,7 +3942,7 @@ impl VmHost for Instance {
                             "R_TYPE_INVALID",
                             "read_bytes path must be Text",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 let resolved = match host_file_path(&self.policy, &path, false, instruction.span) {
@@ -2850,7 +4005,7 @@ impl VmHost for Instance {
                             "R_TYPE_INVALID",
                             "write_bytes content must be Bytes",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 let path = match pop!() {
@@ -2860,7 +4015,7 @@ impl VmHost for Instance {
                             "R_TYPE_INVALID",
                             "write_bytes path must be Text",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 if content.len() > self.policy.max_file_bytes {
@@ -2940,7 +4095,7 @@ impl VmHost for Instance {
                             "R_TYPE_INVALID",
                             "args_from requires an Int index",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 let values = self
@@ -2983,7 +4138,7 @@ impl VmHost for Instance {
                             "R_TYPE_INVALID",
                             "env name must be Text",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 if !self
@@ -3025,7 +4180,7 @@ impl VmHost for Instance {
                             "R_TYPE_INVALID",
                             "JSON error accessor requires JsonError",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 push_stack!(match instruction.op {
@@ -3044,7 +4199,7 @@ impl VmHost for Instance {
                             "R_TYPE_INVALID",
                             "file error accessor requires FileError",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 push_stack!(match instruction.op {
@@ -3067,7 +4222,7 @@ impl VmHost for Instance {
                             "R_TYPE_INVALID",
                             "HTTP error accessor requires HttpError",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 push_stack!(Value::Text(
@@ -3085,7 +4240,7 @@ impl VmHost for Instance {
                         "R_TYPE_INVALID",
                         "task_index requires TaskError",
                         instruction.span,
-                    ))
+                    ));
                 }
             },
             Op::TaskCode => match pop!() {
@@ -3095,7 +4250,7 @@ impl VmHost for Instance {
                         "R_TYPE_INVALID",
                         "task_code requires TaskError",
                         instruction.span,
-                    ))
+                    ));
                 }
             },
             Op::TaskMessage => match pop!() {
@@ -3105,7 +4260,7 @@ impl VmHost for Instance {
                         "R_TYPE_INVALID",
                         "task_message requires TaskError",
                         instruction.span,
-                    ))
+                    ));
                 }
             },
             Op::PythonCall(target, argc) => {
@@ -3154,7 +4309,7 @@ impl VmHost for Instance {
                             "R_TYPE_INVALID",
                             "json_bool requires Bool",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 push_stack!(finish_json_value(
@@ -3172,7 +4327,7 @@ impl VmHost for Instance {
                             "R_TYPE_INVALID",
                             "json_int requires Int",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 if integer.digit_count() > self.policy.max_integer_digits {
@@ -3201,7 +4356,7 @@ impl VmHost for Instance {
                             "R_TYPE_INVALID",
                             "json_float requires Float64",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 let number = serde_json::Number::from_f64(float).ok_or_else(|| {
@@ -3226,7 +4381,7 @@ impl VmHost for Instance {
                             "R_TYPE_INVALID",
                             "json_text requires Text",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 if text.len() > self.policy.max_text_bytes {
@@ -3267,7 +4422,7 @@ impl VmHost for Instance {
                             "R_TYPE_INVALID",
                             "json_push value must be Json",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 let mut array = match pop!() {
@@ -3277,7 +4432,7 @@ impl VmHost for Instance {
                             "R_TYPE_INVALID",
                             "json_push requires a JSON array",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 let Some(items) = array.as_array_mut() else {
@@ -3303,7 +4458,7 @@ impl VmHost for Instance {
                             "R_TYPE_INVALID",
                             "json_set value must be Json",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 let key = match pop!() {
@@ -3313,7 +4468,7 @@ impl VmHost for Instance {
                             "R_TYPE_INVALID",
                             "json_set key must be Text",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 if key.len() > self.policy.max_text_bytes {
@@ -3330,7 +4485,7 @@ impl VmHost for Instance {
                             "R_TYPE_INVALID",
                             "json_set requires a JSON object",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 let Some(fields) = object.as_object_mut() else {
@@ -3356,7 +4511,7 @@ impl VmHost for Instance {
                             "R_TYPE_INVALID",
                             "json_parse requires Text",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 if source.len() > self.policy.max_text_bytes {
@@ -3366,7 +4521,14 @@ impl VmHost for Instance {
                         instruction.span,
                     ));
                 }
-                let value = match parse_unique_shared_json(&source) {
+                let parse_started = budget.runtime_profile.as_ref().map(|_| Instant::now());
+                let parsed = parse_unique_shared_json(&source);
+                if let (Some(profile), Some(started)) = (&budget.runtime_profile, parse_started) {
+                    profile.record_json_parse(
+                        started.elapsed().as_nanos().min(u64::MAX as u128) as u64
+                    );
+                }
+                let value = match parsed {
                     Ok(value) => value,
                     Err(JsonDecodeError::Parse(error)) => {
                         push_stack!(Value::ResultErr(Box::new(Value::JsonError(
@@ -3407,7 +4569,7 @@ impl VmHost for Instance {
                             "R_TYPE_INVALID",
                             "json_stringify requires Json",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 let text = serde_json::to_string(value.as_ref()).map_err(|error| {
@@ -3435,7 +4597,7 @@ impl VmHost for Instance {
                             "R_TYPE_INVALID",
                             "json_stringify_pairs value field must be Text",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 let key_field = match pop!() {
@@ -3445,7 +4607,7 @@ impl VmHost for Instance {
                             "R_TYPE_INVALID",
                             "json_stringify_pairs key field must be Text",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 let groups = match pop!() {
@@ -3455,7 +4617,7 @@ impl VmHost for Instance {
                             "R_TYPE_INVALID",
                             "json_stringify_pairs requires Map[Text, List[Text]]",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 if key_field == value_field {
@@ -3578,7 +4740,7 @@ impl VmHost for Instance {
                                     "R_TYPE_INVALID",
                                     "json_try_get key must be Text",
                                     instruction.span,
-                                ))
+                                ));
                             }
                         };
                         if key.len() > self.policy.max_text_bytes {
@@ -3595,7 +4757,7 @@ impl VmHost for Instance {
                                     "R_TYPE_INVALID",
                                     "json_try_get requires Json",
                                     instruction.span,
-                                ))
+                                ));
                             }
                         };
                         stdlib_data::json_try_get(&value, &key).map(Value::Json)
@@ -3608,7 +4770,7 @@ impl VmHost for Instance {
                                     "R_TYPE_INVALID",
                                     "json_try_index index must be Int",
                                     instruction.span,
-                                ))
+                                ));
                             }
                         };
                         let value = match pop!() {
@@ -3618,7 +4780,7 @@ impl VmHost for Instance {
                                     "R_TYPE_INVALID",
                                     "json_try_index requires Json",
                                     instruction.span,
-                                ))
+                                ));
                             }
                         };
                         stdlib_data::json_try_index(&value, index).map(Value::Json)
@@ -3631,7 +4793,7 @@ impl VmHost for Instance {
                                     "R_TYPE_INVALID",
                                     "JSON conversion requires Json",
                                     instruction.span,
-                                ))
+                                ));
                             }
                         };
                         match instruction.op {
@@ -3693,7 +4855,7 @@ impl VmHost for Instance {
                             "R_TYPE_INVALID",
                             "json_get key must be Text",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 let value = match pop!() {
@@ -3703,7 +4865,7 @@ impl VmHost for Instance {
                             "R_TYPE_INVALID",
                             "json_get requires Json",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 let object = value.as_object().ok_or_else(|| {
@@ -3741,7 +4903,7 @@ impl VmHost for Instance {
                             "R_TYPE_INVALID",
                             "json_index requires Json",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 let array = value.as_array().ok_or_else(|| {
@@ -3771,7 +4933,7 @@ impl VmHost for Instance {
                             "R_TYPE_INVALID",
                             "json_has key must be Text",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 let value = match pop!() {
@@ -3781,7 +4943,7 @@ impl VmHost for Instance {
                             "R_TYPE_INVALID",
                             "json_has requires Json",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 let object = value.as_object().ok_or_else(|| {
@@ -3801,7 +4963,7 @@ impl VmHost for Instance {
                             "R_TYPE_INVALID",
                             "json_len requires Json",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 let length = value
@@ -3825,7 +4987,7 @@ impl VmHost for Instance {
                             "R_TYPE_INVALID",
                             "json_int_column requires Text field",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 let rows = match pop!() {
@@ -3835,7 +4997,7 @@ impl VmHost for Instance {
                             "R_TYPE_INVALID",
                             "json_int_column requires Json rows",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 let rows = rows.as_array().ok_or_else(|| {
@@ -3900,7 +5062,7 @@ impl VmHost for Instance {
                             "R_TYPE_INVALID",
                             "json_text_categories requires Text field",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 let rows = match pop!() {
@@ -3910,7 +5072,7 @@ impl VmHost for Instance {
                             "R_TYPE_INVALID",
                             "json_text_categories requires Json rows",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 let rows = rows.as_array().ok_or_else(|| {
@@ -3998,7 +5160,7 @@ impl VmHost for Instance {
                             "R_TYPE_INVALID",
                             "json_as_int_list requires Json",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 let items = value.as_array().ok_or_else(|| {
@@ -4059,7 +5221,7 @@ impl VmHost for Instance {
                             "R_TYPE_INVALID",
                             "json_project_columns requires a List[Text] of fields",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 let path = match pop!() {
@@ -4079,7 +5241,7 @@ impl VmHost for Instance {
                             "R_TYPE_INVALID",
                             "json_project_columns requires a List[Text] path",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 let source = match pop!() {
@@ -4089,7 +5251,7 @@ impl VmHost for Instance {
                             "R_TYPE_INVALID",
                             "json_project_columns requires JSON Text",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 if source.len() > self.policy.max_text_bytes {
@@ -4128,7 +5290,7 @@ impl VmHost for Instance {
                             "R_TYPE_INVALID",
                             "json_text_categories_values requires Json values",
                             instruction.span,
-                        ))
+                        ));
                     }
                 };
                 let values = values.as_array().ok_or_else(|| {
@@ -4209,7 +5371,7 @@ impl VmHost for Instance {
                             "R_JSON_TYPE",
                             "JSON value is not Text",
                             instruction.span,
-                        ))
+                        ));
                     }
                 },
                 _ => {
@@ -4217,7 +5379,7 @@ impl VmHost for Instance {
                         "R_TYPE_INVALID",
                         "json_as_text requires Json",
                         instruction.span,
-                    ))
+                    ));
                 }
             },
             Op::JsonAsInt => match pop!() {
@@ -4248,14 +5410,14 @@ impl VmHost for Instance {
                         "R_JSON_TYPE",
                         "JSON value is not an integer",
                         instruction.span,
-                    ))
+                    ));
                 }
                 _ => {
                     return Err(RuntimeError::new(
                         "R_TYPE_INVALID",
                         "json_as_int requires Json",
                         instruction.span,
-                    ))
+                    ));
                 }
             },
             Op::JsonAsFloat => match pop!() {
@@ -4284,14 +5446,14 @@ impl VmHost for Instance {
                         "R_JSON_TYPE",
                         "JSON value is not a number",
                         instruction.span,
-                    ))
+                    ));
                 }
                 _ => {
                     return Err(RuntimeError::new(
                         "R_TYPE_INVALID",
                         "json_as_float requires Json",
                         instruction.span,
-                    ))
+                    ));
                 }
             },
             Op::JsonAsBool => match pop!() {
@@ -4305,14 +5467,14 @@ impl VmHost for Instance {
                         "R_JSON_TYPE",
                         "JSON value is not Bool",
                         instruction.span,
-                    ))
+                    ));
                 }
                 _ => {
                     return Err(RuntimeError::new(
                         "R_TYPE_INVALID",
                         "json_as_bool requires Json",
                         instruction.span,
-                    ))
+                    ));
                 }
             },
             Op::JsonIsNull => match pop!() {
@@ -4322,7 +5484,7 @@ impl VmHost for Instance {
                         "R_TYPE_INVALID",
                         "json_is_null requires Json",
                         instruction.span,
-                    ))
+                    ));
                 }
             },
             other => {
@@ -4330,7 +5492,7 @@ impl VmHost for Instance {
                     "R_HOST_UNSUPPORTED",
                     format!("instruction {other:?} is not implemented by the runtime host"),
                     instruction.span,
-                ))
+                ));
             }
         }
         Ok(())
@@ -4419,7 +5581,7 @@ impl Instance {
 
     pub fn native_compile_profile(&self) -> serde_json::Value {
         self.native.as_ref().map_or_else(
-            || serde_json::json!({"functions": [], "finalize_nanoseconds": 0}),
+            || NativeBackend::eligibility_profile_json(&self.artifact),
             NativeBackend::compile_profile_json,
         )
     }
@@ -4475,9 +5637,18 @@ impl Instance {
                 Span::default(),
             ));
         }
-        let runtime_profile = self
-            .runtime_profile_enabled
-            .then(|| Arc::new(RuntimeProfileCounters::default()));
+        let runtime_profile = self.runtime_profile_enabled.then(|| {
+            let profile = Arc::new(RuntimeProfileCounters::default());
+            profile.initialize_function_profiles(
+                self.artifact
+                    .functions
+                    .iter()
+                    .map(|function| function.name.clone())
+                    .collect(),
+            );
+            profile.set_sampled_mode(self.runtime_profile_sampled);
+            profile
+        });
         self.runtime_profile_metrics = runtime_profile.clone();
         let budget = Arc::new(Budget::new(
             self.policy.instruction_limit,
@@ -4485,7 +5656,8 @@ impl Instance {
             cancellation,
             runtime_profile.clone(),
         ));
-        if self.native_enabled && self.native.is_none() {
+        if self.native_enabled && !self.native_compile_attempted {
+            self.native_compile_attempted = true;
             self.native = NativeBackend::compile(
                 &self.artifact,
                 NativeSymbols {
@@ -4500,7 +5672,24 @@ impl Instance {
                     list_set_int_local: native_list_set_int_local as *const () as *const u8,
                     list_set_bool_local: native_list_set_bool_local as *const () as *const u8,
                     charge_record: native_charge_record as *const () as *const u8,
+                    charge_value_clone: native_charge_value_clone as *const () as *const u8,
+                    make_tagged_value: native_make_tagged_value as *const () as *const u8,
                     print: native_print as *const () as *const u8,
+                    direct_operations: [
+                        native_direct_json_parse as *const () as *const u8,
+                        native_direct_json_try_text as *const () as *const u8,
+                        native_direct_json_try_get as *const () as *const u8,
+                        native_direct_json_try_int as *const () as *const u8,
+                        native_direct_file_next_line as *const () as *const u8,
+                        native_direct_get_field as *const () as *const u8,
+                    ],
+                    make_record: native_direct_make_record as *const () as *const u8,
+                    capture_vm_continuation: native_capture_vm_continuation as *const ()
+                        as *const u8,
+                    capture_vm_continuation_fixed: native_capture_vm_continuation_fixed as *const ()
+                        as *const u8,
+                    capture_vm_continuation_int2: native_capture_vm_continuation_int2 as *const ()
+                        as *const u8,
                     count_guest_branch: native_count_guest_branch as *const () as *const u8,
                 },
                 runtime_profile.is_some(),
@@ -4630,9 +5819,22 @@ impl Instance {
         depth: usize,
         budget: Arc<Budget>,
     ) -> Result<Value, RuntimeError> {
-        match self.start_guest_frame(index, args, depth, budget.clone(), None)? {
+        let allow_native = self
+            .native_code
+            .as_ref()
+            .is_some_and(|native| native.has_function(index));
+        match self.start_guest_frame(index, args, depth, budget.clone(), None, allow_native)? {
             FrameStart::Returned(value) => Ok(value),
             FrameStart::Vm(frame) => self.run_guest_frames(frame, budget),
+            FrameStart::VmFrames(frames) => self.run_guest_frame_stack(frames, budget),
+        }
+    }
+
+    fn commit_native_output(&mut self, arena: &NativeListArena) {
+        self.output.push_str(&arena.pending_output);
+        for bytes in &arena.pending_print_bytes {
+            let effect = self.begin_effect(EffectKind::ProgramOutput, format!("{bytes} bytes"));
+            self.finish_effect(effect, EffectOutcome::Returned);
         }
     }
 
@@ -4657,7 +5859,7 @@ impl Instance {
                     "R_TYPE_INVALID",
                     "sort comparator must return Int",
                     span,
-                ))
+                ));
             }
             Err(mut error) => {
                 error.trace.push(span);
@@ -4674,16 +5876,28 @@ impl Instance {
         depth: usize,
         budget: Arc<Budget>,
         call_site: Option<Span>,
+        allow_native: bool,
     ) -> Result<FrameStart, RuntimeError> {
         let artifact = Arc::clone(&self.artifact);
         let f = &artifact.functions[index];
         check_call_depth(&artifact, &self.policy.vm_limits(), index, depth)?;
+        if !allow_native {
+            return Ok(FrameStart::Vm(new_vm_frame(
+                &artifact, index, args, depth, call_site,
+            )));
+        }
         let mut native_arena = NativeListArena::new(
             Arc::as_ptr(&budget),
             self.policy.max_collection_items,
             self.policy.output_limit_bytes,
             self.output.len().saturating_add(self.program_stderr.len()),
             budget.runtime_profile.clone(),
+        );
+        native_arena.attach_runtime_context(
+            self as *mut Instance,
+            Arc::clone(&artifact),
+            budget.clone(),
+            self.policy.vm_limits(),
         );
         let mut native_record_fields: Vec<Box<[i64]>> = Vec::new();
         let mut native_records: Vec<Box<NativeRecord>> = Vec::new();
@@ -4787,6 +6001,9 @@ impl Instance {
                         .find(|record| record.name == *name)?;
                     if fields.len() != definition.fields.len() {
                         return None;
+                    }
+                    if !native_record_has_native_layout(definition) {
+                        return native_arena.store_value(value.clone());
                     }
                     let mut encoded_fields = Vec::with_capacity(fields.len());
                     for (value, field) in fields.iter().zip(&definition.fields) {
@@ -4897,17 +6114,23 @@ impl Instance {
                     native_records.push(descriptor);
                     Some((&**native_records.last()? as *const NativeRecord) as i64)
                 }
-                _ => None,
+                (Value::OptionSome(_) | Value::OptionNone, Type::Option(_))
+                | (Value::ResultOk(_) | Value::ResultErr(_), Type::Result(_, _)) => {
+                    native_arena.encode_native_value(value.clone())
+                }
+                _ => native_arena.store_value(value.clone()),
             })
             .collect::<Option<Vec<_>>>();
         if let Some(native_args) = native_args {
-            if let Some(outcome) = self.native_code.as_ref().and_then(|native| {
+            let native_code = self.native_code.clone();
+            let call_depth_limit = self.policy.call_depth_limit;
+            if let Some(mut outcome) = native_code.as_ref().and_then(|native| {
                 native.invoke(
                     index,
                     &native_args,
                     Arc::as_ptr(&budget) as *const std::ffi::c_void,
                     depth,
-                    self.policy.call_depth_limit,
+                    call_depth_limit,
                     &mut native_arena,
                 )
             }) {
@@ -4928,7 +6151,14 @@ impl Instance {
                                 Float64::new(f64::from_bits(outcome.value as u64)).unwrap(),
                             ),
                             Type::Bool => Value::Bool(outcome.value != 0),
-                            Type::Record(name) => {
+                            Type::Record(name)
+                                if self
+                                    .artifact
+                                    .records
+                                    .iter()
+                                    .find(|record| record.name == *name)
+                                    .is_some_and(native_record_has_native_layout) =>
+                            {
                                 let definition = self
                                     .artifact
                                     .records
@@ -5002,7 +6232,10 @@ impl Instance {
                                                         return Err(RuntimeError::new(
                                                             "R_NATIVE_RESULT",
                                                             "native record returned an invalid list storage handle",
-                                                            f.code.last().map(|instruction| instruction.span).unwrap_or_default(),
+                                                            f.code
+                                                                .last()
+                                                                .map(|instruction| instruction.span)
+                                                                .unwrap_or_default(),
                                                         ));
                                                     };
                                                     Arc::new(std::mem::take(storage))
@@ -5020,7 +6253,10 @@ impl Instance {
                                                 return Err(RuntimeError::new(
                                                     "R_NATIVE_RESULT",
                                                     "native record returned a null integer-list descriptor",
-                                                    f.code.last().map(|instruction| instruction.span).unwrap_or_default(),
+                                                    f.code
+                                                        .last()
+                                                        .map(|instruction| instruction.span)
+                                                        .unwrap_or_default(),
                                                 ));
                                             }
                                             let list_key = descriptor as usize;
@@ -5060,7 +6296,10 @@ impl Instance {
                                                         return Err(RuntimeError::new(
                                                             "R_NATIVE_RESULT",
                                                             "native record returned an invalid integer-list storage handle",
-                                                            f.code.last().map(|instruction| instruction.span).unwrap_or_default(),
+                                                            f.code
+                                                                .last()
+                                                                .map(|instruction| instruction.span)
+                                                                .unwrap_or_default(),
                                                         ));
                                                     };
                                                     Arc::new(
@@ -5089,7 +6328,10 @@ impl Instance {
                                                 return Err(RuntimeError::new(
                                                     "R_NATIVE_RESULT",
                                                     "native record returned a null boolean-list descriptor",
-                                                    f.code.last().map(|instruction| instruction.span).unwrap_or_default(),
+                                                    f.code
+                                                        .last()
+                                                        .map(|instruction| instruction.span)
+                                                        .unwrap_or_default(),
                                                 ));
                                             }
                                             let list_key = descriptor as usize;
@@ -5122,7 +6364,10 @@ impl Instance {
                                                         return Err(RuntimeError::new(
                                                             "R_NATIVE_RESULT",
                                                             "native record returned an invalid boolean-list storage handle",
-                                                            f.code.last().map(|instruction| instruction.span).unwrap_or_default(),
+                                                            f.code
+                                                                .last()
+                                                                .map(|instruction| instruction.span)
+                                                                .unwrap_or_default(),
                                                         ));
                                                     };
                                                     Arc::new(
@@ -5145,20 +6390,47 @@ impl Instance {
                                 }
                                 Value::Record(name.clone(), Arc::new(fields))
                             }
-                            _ => unreachable!(
-                                "native backend only compiles numeric and record results"
-                            ),
+                            _ => native_arena
+                                .materialize_native_value(outcome.value)
+                                .ok_or_else(|| {
+                                    RuntimeError::new(
+                                        "R_NATIVE_RESULT",
+                                        "native function returned an invalid value handle",
+                                        f.code
+                                            .last()
+                                            .map(|instruction| instruction.span)
+                                            .unwrap_or_default(),
+                                    )
+                                })?,
                         };
-                        self.output.push_str(&native_arena.pending_output);
-                        for bytes in &native_arena.pending_print_bytes {
-                            let effect = self
-                                .begin_effect(EffectKind::ProgramOutput, format!("{bytes} bytes"));
-                            self.finish_effect(effect, EffectOutcome::Returned);
-                        }
+                        self.commit_native_output(&native_arena);
                         return Ok(FrameStart::Returned(value));
                     }
                     1 => {
+                        if let Some(error) = native_arena.host_error.take() {
+                            return Err(error);
+                        }
                         self.native_deoptimizations.fetch_add(1, Ordering::Relaxed);
+                        if !outcome.continuations.is_empty() {
+                            self.commit_native_output(&native_arena);
+                            if let Some(deepest) = outcome.continuations.last_mut() {
+                                deepest.call_site = call_site;
+                            }
+                            let frames = outcome
+                                .continuations
+                                .into_iter()
+                                .rev()
+                                .map(|frame| VmFrame {
+                                    function_index: frame.function_index,
+                                    depth: frame.depth,
+                                    call_site: frame.call_site,
+                                    locals: frame.locals,
+                                    stack: frame.stack,
+                                    ip: frame.ip,
+                                })
+                                .collect();
+                            return Ok(FrameStart::VmFrames(frames));
+                        }
                         budget.refund(outcome.steps);
                         budget.refund_allocation(outcome.allocations);
                     }
@@ -5263,6 +6535,14 @@ impl Instance {
         budget: Arc<Budget>,
     ) -> Result<Value, RuntimeError> {
         guion_vm_core::run_frames(self, initial, budget)
+    }
+
+    fn run_guest_frame_stack(
+        &mut self,
+        frames: Vec<VmFrame>,
+        budget: Arc<Budget>,
+    ) -> Result<Value, RuntimeError> {
+        guion_vm_core::run_frames_with_stack(self, frames, budget)
     }
 
     fn call_python(
@@ -5541,7 +6821,9 @@ impl Instance {
                         native: None,
                         native_code: native_code.clone(),
                         native_enabled,
+                        native_compile_attempted: false,
                         runtime_profile_enabled: false,
+                        runtime_profile_sampled: false,
                         runtime_profile_metrics: None,
                         native_calls: native_calls.clone(),
                         native_deoptimizations: native_deoptimizations.clone(),
@@ -5654,6 +6936,185 @@ impl Instance {
     }
 }
 
+unsafe extern "C" fn native_capture_vm_continuation(
+    arena: *mut NativeListArena,
+    function_index: i64,
+    resume_ip: i64,
+    depth: i64,
+    local_pairs: *const i64,
+    local_count: i64,
+    stack_pairs: *const i64,
+    stack_count: i64,
+    caller_ip: i64,
+) -> i32 {
+    let Some(function_index) = usize::try_from(function_index).ok() else {
+        return 0;
+    };
+    let Some(resume_ip) = usize::try_from(resume_ip).ok() else {
+        return 0;
+    };
+    let Some(depth) = usize::try_from(depth).ok() else {
+        return 0;
+    };
+    let Some(local_count) = usize::try_from(local_count).ok() else {
+        return 0;
+    };
+    let Some(stack_count) = usize::try_from(stack_count).ok() else {
+        return 0;
+    };
+    if arena.is_null()
+        || local_count > 16_384
+        || stack_count > 16_384
+        || (local_count > 0 && local_pairs.is_null())
+        || (stack_count > 0 && stack_pairs.is_null())
+    {
+        return 0;
+    }
+    // SAFETY: generated code allocates triples (slot, tag, value) per live
+    // local and invokes this helper while the slots are live.
+    let local_triples = if local_count == 0 {
+        &[]
+    } else {
+        unsafe { std::slice::from_raw_parts(local_pairs, local_count.saturating_mul(3)) }
+    };
+    // SAFETY: same layout and lifetime guarantee as the local pair array above.
+    let stack_pairs = if stack_count == 0 {
+        &[]
+    } else {
+        unsafe { std::slice::from_raw_parts(stack_pairs, stack_count.saturating_mul(2)) }
+    };
+    // SAFETY: the arena pointer belongs to this active NativeCode::invoke call.
+    let arena = unsafe { &mut *arena };
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let Some(local_total) = arena
+            .runtime_context
+            .as_ref()
+            .and_then(|context| context.artifact.functions.get(function_index))
+            .map(|function| function.local_count)
+        else {
+            arena.native_vm_continuations.clear();
+            return false;
+        };
+        if local_count > local_total {
+            arena.native_vm_continuations.clear();
+            return false;
+        }
+        let mut locals = vec![Value::Unit; local_total];
+        let mut initialized = vec![false; local_total];
+        for triple in local_triples.chunks_exact(3) {
+            let Ok(slot) = usize::try_from(triple[0]) else {
+                arena.native_vm_continuations.clear();
+                return false;
+            };
+            if slot >= local_total || initialized[slot] {
+                arena.native_vm_continuations.clear();
+                return false;
+            }
+            let Some(value) = arena.decode_continuation_value(triple[2], triple[1]) else {
+                arena.native_vm_continuations.clear();
+                return false;
+            };
+            locals[slot] = value;
+            initialized[slot] = true;
+        }
+        let decode_pairs = |pairs: &[i64]| -> Option<Vec<Value>> {
+            pairs
+                .chunks_exact(2)
+                .map(|pair| arena.decode_continuation_value(pair[1], pair[0]))
+                .collect()
+        };
+        let Some(stack) = decode_pairs(stack_pairs) else {
+            arena.native_vm_continuations.clear();
+            return false;
+        };
+        let caller_ip = if caller_ip < 0 {
+            None
+        } else {
+            let Ok(caller_ip) = usize::try_from(caller_ip) else {
+                arena.native_vm_continuations.clear();
+                return false;
+            };
+            Some(caller_ip)
+        };
+        arena.append_native_continuation(
+            NativeVmContinuationFrame {
+                function_index,
+                ip: resume_ip,
+                depth,
+                call_site: None,
+                locals,
+                stack,
+            },
+            caller_ip,
+        )
+    }));
+    match result {
+        Ok(true) => 1,
+        Ok(false) | Err(_) => 0,
+    }
+}
+
+unsafe extern "C" fn native_capture_vm_continuation_fixed(
+    arena: *mut NativeListArena,
+    function_index: i64,
+    resume_ip: i64,
+    depth: i64,
+    stack_count: i64,
+    first: i64,
+    first_tag: i64,
+    second: i64,
+    second_tag: i64,
+    caller_ip: i64,
+) -> i32 {
+    let Ok(stack_count) = usize::try_from(stack_count) else {
+        return 0;
+    };
+    if stack_count > 2 {
+        return 0;
+    }
+    let stack_pairs = [first_tag, first, second_tag, second];
+    // SAFETY: the local array remains live through the synchronous capture call.
+    unsafe {
+        native_capture_vm_continuation(
+            arena,
+            function_index,
+            resume_ip,
+            depth,
+            std::ptr::null(),
+            0,
+            stack_pairs.as_ptr(),
+            stack_count as i64,
+            caller_ip,
+        )
+    }
+}
+
+unsafe extern "C" fn native_capture_vm_continuation_int2(
+    arena: *mut NativeListArena,
+    function_index: i64,
+    resume_ip: i64,
+    depth: i64,
+    first: i64,
+    second: i64,
+    caller_ip: i64,
+) -> i32 {
+    let stack_pairs = [1_i64, first, 1_i64, second];
+    // SAFETY: the local array remains live through the synchronous capture call.
+    unsafe {
+        native_capture_vm_continuation(
+            arena,
+            function_index,
+            resume_ip,
+            depth,
+            std::ptr::null(),
+            0,
+            stack_pairs.as_ptr(),
+            2,
+            caller_ip,
+        )
+    }
+}
+
 unsafe extern "C" fn native_reserve_fuel(budget: *const Budget, requested: u64) -> u64 {
     if budget.is_null() {
         return 0;
@@ -5680,6 +7141,7 @@ unsafe extern "C" fn native_poll_cancellation(budget: *const Budget) -> i32 {
 const NATIVE_LIST_FLOAT_KIND: i64 = 1;
 const NATIVE_LIST_INT_KIND: i64 = 2;
 const NATIVE_LIST_BOOL_KIND: i64 = 3;
+const NATIVE_LIST_HANDLE_KIND: i64 = 4;
 
 unsafe extern "C" fn native_make_list(
     arena: *mut NativeListArena,
@@ -5688,7 +7150,7 @@ unsafe extern "C" fn native_make_list(
     item_kind: i64,
     typed_empty: i64,
 ) -> *mut std::ffi::c_void {
-    if arena.is_null() || count < 0 || !(1..=3).contains(&item_kind) {
+    if arena.is_null() || count < 0 || !(1..=4).contains(&item_kind) {
         return std::ptr::null_mut();
     }
     let arena = unsafe { &mut *arena };
@@ -5790,6 +7252,41 @@ unsafe extern "C" fn native_make_list(
             inline: [0; NATIVE_INLINE_LIST_ITEMS],
         }));
         (&mut **arena.int_lists.last_mut().unwrap() as *mut NativeIntList).cast()
+    } else if item_kind == NATIVE_LIST_HANDLE_KIND {
+        let bytes = if typed_empty != 0 {
+            size_of::<Vec<Value>>()
+        } else {
+            size_of::<Vec<Value>>().saturating_add(count.saturating_mul(size_of::<Value>()))
+        };
+        if !arena.charge(bytes) {
+            return std::ptr::null_mut();
+        }
+        if count <= NATIVE_INLINE_LIST_ITEMS {
+            let mut descriptor = Box::new(NativeHandleList {
+                data: std::ptr::null_mut(),
+                len: count,
+                storage_id: usize::MAX,
+                owned: true,
+                inline_storage: true,
+                inline: [0; NATIVE_INLINE_LIST_ITEMS],
+            });
+            descriptor.inline[..count].copy_from_slice(encoded);
+            descriptor.data = descriptor.inline.as_mut_ptr();
+            arena.handle_lists.push(descriptor);
+            (&mut **arena.handle_lists.last_mut().unwrap() as *mut NativeHandleList).cast()
+        } else {
+            let storage_id = arena.handle_storage.len();
+            arena.handle_storage.push(encoded.to_vec());
+            arena.handle_lists.push(Box::new(NativeHandleList {
+                data: arena.handle_storage.last_mut().unwrap().as_mut_ptr(),
+                len: count,
+                storage_id,
+                owned: true,
+                inline_storage: false,
+                inline: [0; NATIVE_INLINE_LIST_ITEMS],
+            }));
+            (&mut **arena.handle_lists.last_mut().unwrap() as *mut NativeHandleList).cast()
+        }
     } else {
         std::ptr::null_mut()
     }
@@ -5992,6 +7489,217 @@ unsafe extern "C" fn native_charge_record(arena: *mut NativeListArena, bytes: i6
         arena.record_record_charge(bytes);
     }
     i32::from(ok)
+}
+
+unsafe extern "C" fn native_make_tagged_value(
+    arena: *mut NativeListArena,
+    kind: i64,
+    payload_tag: i64,
+    payload: i64,
+) -> i64 {
+    if arena.is_null() {
+        return 0;
+    }
+    match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| unsafe {
+        (&mut *arena).store_native_tagged_value(kind, payload_tag, payload)
+    })) {
+        Ok(Some(handle)) => handle,
+        Ok(None) | Err(_) => 0,
+    }
+}
+
+unsafe extern "C" fn native_charge_value_clone(arena: *mut NativeListArena, handle: i64) -> i32 {
+    if arena.is_null() {
+        return 0;
+    }
+    let arena = unsafe { &mut *arena };
+    if let Some(value) = arena.constant_value(handle) {
+        return i32::from(arena.charge(cloned_value_allocation(value)));
+    }
+    if handle < 0 {
+        let Some(bytes) = arena.tagged_clone_charge_bytes(handle) else {
+            return 0;
+        };
+        return i32::from(arena.charge(bytes));
+    }
+    let Ok(index) = usize::try_from(handle.checked_sub(1).unwrap_or(-1)) else {
+        return 0;
+    };
+    let Some(bytes) = arena.values.get(index).map(cloned_value_allocation) else {
+        return 0;
+    };
+    i32::from(arena.charge(bytes))
+}
+
+// This is the fixed callback ABI emitted by Cranelift; its arguments cannot be bundled.
+#[allow(clippy::too_many_arguments)]
+unsafe fn native_direct_operation_impl(
+    operation: i64,
+    argument_count: usize,
+    arena: *mut NativeListArena,
+    function_index: i64,
+    instruction_index: i64,
+    depth: i64,
+    first: i64,
+    first_tag: i64,
+    second: i64,
+    second_tag: i64,
+    result_tag: i64,
+    output: *mut i64,
+) -> i32 {
+    if arena.is_null() || output.is_null() || argument_count > 2 {
+        return 0;
+    }
+    let values = [first, second];
+    let tags = [first_tag, second_tag];
+    // SAFETY: these pointers are supplied by the active JIT invocation.
+    let arena = unsafe { &mut *arena };
+    match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        arena.execute_native_operation(NativeOperationRequest {
+            operation,
+            function_index,
+            instruction_index,
+            depth,
+            arguments: &values[..argument_count],
+            argument_tags: &tags[..argument_count],
+            result_tag,
+        })
+    })) {
+        Ok(Some(value)) => {
+            // SAFETY: the generated caller provides one writable i64 result slot.
+            unsafe { output.write(value) };
+            1
+        }
+        Ok(None) => 0,
+        Err(_) => {
+            arena.record_bridge_panic(function_index, instruction_index);
+            0
+        }
+    }
+}
+
+macro_rules! native_direct_operation_entry {
+    ($name:ident, $operation:expr, $argument_count:expr) => {
+        unsafe extern "C" fn $name(
+            arena: *mut NativeListArena,
+            function_index: i64,
+            instruction_index: i64,
+            depth: i64,
+            first: i64,
+            first_tag: i64,
+            second: i64,
+            second_tag: i64,
+            result_tag: i64,
+            output: *mut i64,
+        ) -> i32 {
+            unsafe {
+                native_direct_operation_impl(
+                    $operation,
+                    $argument_count,
+                    arena,
+                    function_index,
+                    instruction_index,
+                    depth,
+                    first,
+                    first_tag,
+                    second,
+                    second_tag,
+                    result_tag,
+                    output,
+                )
+            }
+        }
+    };
+}
+
+native_direct_operation_entry!(
+    native_direct_json_parse,
+    native_backend::NATIVE_BRIDGE_JSON_PARSE,
+    1
+);
+native_direct_operation_entry!(
+    native_direct_json_try_text,
+    native_backend::NATIVE_BRIDGE_JSON_TRY_TEXT,
+    1
+);
+native_direct_operation_entry!(
+    native_direct_json_try_get,
+    native_backend::NATIVE_BRIDGE_JSON_TRY_GET,
+    2
+);
+native_direct_operation_entry!(
+    native_direct_json_try_int,
+    native_backend::NATIVE_BRIDGE_JSON_TRY_INT,
+    1
+);
+native_direct_operation_entry!(
+    native_direct_file_next_line,
+    native_backend::NATIVE_BRIDGE_FILE_NEXT_LINE,
+    1
+);
+native_direct_operation_entry!(
+    native_direct_get_field,
+    native_backend::NATIVE_BRIDGE_GET_FIELD,
+    1
+);
+
+unsafe extern "C" fn native_direct_make_record(
+    arena: *mut NativeListArena,
+    function_index: i64,
+    instruction_index: i64,
+    depth: i64,
+    values: *const i64,
+    tags: *const i64,
+    argument_count: i64,
+    result_tag: i64,
+    output: *mut i64,
+) -> i32 {
+    let Ok(argument_count) = usize::try_from(argument_count) else {
+        return 0;
+    };
+    if arena.is_null()
+        || output.is_null()
+        || (argument_count > 0 && (values.is_null() || tags.is_null()))
+        || argument_count > 16_384
+    {
+        return 0;
+    }
+    let values = if argument_count == 0 {
+        &[]
+    } else {
+        // SAFETY: generated code allocates both arrays for this exact count.
+        unsafe { std::slice::from_raw_parts(values, argument_count) }
+    };
+    let tags = if argument_count == 0 {
+        &[]
+    } else {
+        // SAFETY: generated code allocates both arrays for this exact count.
+        unsafe { std::slice::from_raw_parts(tags, argument_count) }
+    };
+    // SAFETY: the arena belongs to the synchronous native invocation.
+    let arena = unsafe { &mut *arena };
+    match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        arena.execute_native_operation(NativeOperationRequest {
+            operation: native_backend::NATIVE_BRIDGE_MAKE_RECORD,
+            function_index,
+            instruction_index,
+            depth,
+            arguments: values,
+            argument_tags: tags,
+            result_tag,
+        })
+    })) {
+        Ok(Some(value)) => {
+            // SAFETY: the generated caller provides one writable i64 result slot.
+            unsafe { output.write(value) };
+            1
+        }
+        Ok(None) => 0,
+        Err(_) => {
+            arena.record_bridge_panic(function_index, instruction_index);
+            0
+        }
+    }
 }
 
 unsafe extern "C" fn native_count_guest_branch(arena: *mut NativeListArena) {

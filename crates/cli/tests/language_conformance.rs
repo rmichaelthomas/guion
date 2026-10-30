@@ -94,7 +94,7 @@ fn syntax_case(id: &str, class: &str) -> Option<&'static str> {
             "record Point:\n    x: Int\n    y: Int\n\nfn sum(point: Point) -> Int:\n    return point.x + point.y\n\nfn main() -> Int:\n    return sum(Point(20, 22))\n"
         }
         ("syntax-relative-module-imports-and-project-root-confinement", "positive") => {
-            "import \"lib.gu\"\n\nfn main() -> Int:\n    return answer()\n"
+            "import \"facade.gu\"\n\nfn main() -> Int:\n    let token = Token(41)\n    let incremented = increment(token)\n    assert(incremented.value == 42)\n    return answer()\n"
         }
         ("syntax-relative-module-imports-and-project-root-confinement", "negative") => {
             "import \"../outside.gu\"\n\nfn main() -> Int:\n    return 0\n"
@@ -247,6 +247,15 @@ fn syntax_case(id: &str, class: &str) -> Option<&'static str> {
         }
         ("syntax-list-map-and-text-indexing", "interaction") => {
             "fn select(values: List[Map[Text, Int]]) -> Int:\n    return values[0][\"answer\"]\n\nfn main() -> Int:\n    return select([{\"answer\": 42}])\n"
+        }
+        ("syntax-text-slice-unicode-scalar-ranges", "positive") => {
+            "fn main() -> Int:\n    return len(text_slice(\"a🙂é\", 1, 3))\n"
+        }
+        ("syntax-text-slice-unicode-scalar-ranges", "negative") => {
+            "fn main() -> Int:\n    return len(text_slice(\"abc\", 0, \"2\"))\n"
+        }
+        ("syntax-text-slice-unicode-scalar-ranges", "interaction") => {
+            "fn main() -> Int:\n    let text = \"a🙂é\"\n    let middle = text_slice(text, 1, 2)\n    return len(middle) + len(text_slice(text, 0, 1))\n"
         }
         ("syntax-record-field-access", "positive") => {
             "record Point:\n    x: Int\n\nfn main() -> Int:\n    let point = Point(42)\n    return point.x\n"
@@ -795,7 +804,7 @@ fn manifest_current_language_corpus_has_bootstrap_and_self_host_parity() {
         .collect();
     assert_eq!(
         task_two.len(),
-        66,
+        67,
         "Task 2 manifest feature count changed; update corpus classification"
     );
 
@@ -854,7 +863,7 @@ fn manifest_current_language_corpus_has_bootstrap_and_self_host_parity() {
         }
     }
     assert_eq!(
-        ran, 198,
+        ran, 201,
         "every current positive, negative and interaction case must run"
     );
     assert!(
@@ -930,14 +939,14 @@ fn compiler_stages_compile_full_task_two_corpus_and_locked_roots() {
         .iter()
         .filter(|entry| entry["owner_task"] == 2)
         .collect();
-    assert_eq!(task_two.len(), 66, "Task 2 conformance inventory changed");
+    assert_eq!(task_two.len(), 67, "Task 2 conformance inventory changed");
     let mut cases_run = 0usize;
     for entry in task_two {
         let id = entry["id"].as_str().expect("feature ID");
         for class in ["positive", "negative", "interaction"] {
             let fixture =
                 source_case(id, class).unwrap_or_else(|| panic!("missing {class} case for {id}"));
-            eprintln!("C2/C3 corpus case {}/198: {id}.{class}", cases_run + 1);
+            eprintln!("C2/C3 corpus case {}/201: {id}.{class}", cases_run + 1);
             let case_root = format!("cases/{id}/{class}");
             let source_name = format!("{case_root}/main.gu");
             project.write(&source_name, &fixture.source);
@@ -1094,8 +1103,11 @@ fn collection_updates_preserve_preexisting_aliases_in_both_compilers() {
 
 fn extra_modules(id: &str, class: &str) -> Vec<(&'static str, &'static str)> {
     match (id, class) {
-        ("syntax-relative-module-imports-and-project-root-confinement", "positive")
-        | ("syntax-import-graph-size-depth-and-total-source-limits", "positive") => vec![
+        ("syntax-relative-module-imports-and-project-root-confinement", "positive") => vec![
+            ("facade.gu", "pub import \"inner.gu\"\npub fn answer() -> Int:\n    return 42\n"),
+            ("inner.gu", "pub record Token:\n    value: Int\n\npub fn increment(token: Token) -> Token:\n    return Token(token.value + 1)\n"),
+        ],
+        ("syntax-import-graph-size-depth-and-total-source-limits", "positive") => vec![
             ("lib.gu", "pub fn answer() -> Int:\n    return 42\n"),
         ],
         ("syntax-relative-module-imports-and-project-root-confinement", "interaction")

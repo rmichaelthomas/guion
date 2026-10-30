@@ -44,6 +44,9 @@ pub fn parse_timestamp(value: Text) -> Result[Instant, FileError]:
 pub fn format_utc(value: Instant) -> Text:
     return time_format_utc(value)
 
+pub fn format_utc_date(value: Instant) -> Text:
+    return time_format_utc_date(value)
+
 pub fn resolve_local(local: LocalDateTime, timezone: Text) -> Result[TemporalResolution, TimeError]:
     return time_resolve_local(local, timezone)
 

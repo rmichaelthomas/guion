@@ -226,6 +226,32 @@ fn parse_instruction(
                 })?;
             Op::GetField(record, field)
         }
+        "MapRecordGet" | "MapRecordSet" => {
+            let record_name = required_str(object.get("record"), "MapRecord.record")?;
+            let record = records
+                .iter()
+                .position(|record| record.name == record_name)
+                .ok_or_else(|| format!("MapRecord references unknown record `{record_name}`"))?;
+            let field_name = required_str(object.get("field"), "MapRecord.field")?;
+            let field = records[record]
+                .fields
+                .iter()
+                .position(|field| field.name == field_name)
+                .ok_or_else(|| {
+                    format!("MapRecord references unknown field `{record_name}.{field_name}`")
+                })?;
+            let nested = match object.get("nested") {
+                Some(value) => value
+                    .as_bool()
+                    .ok_or_else(|| "MapRecord.nested must be a Boolean".to_string())?,
+                None => false,
+            };
+            if op_name == "MapRecordGet" {
+                Op::MapRecordGet(record, field, nested)
+            } else {
+                Op::MapRecordSet(record, field, nested)
+            }
+        }
         "Print" => Op::Print,
         "PrintErr" => Op::PrintErr,
         "Return" => Op::Return,
@@ -319,6 +345,7 @@ fn parse_instruction(
         "JsonAsBool" => Op::JsonAsBool,
         "JsonIsNull" => Op::JsonIsNull,
         "TextChars" => Op::TextChars,
+        "TextSlice" => Op::TextSlice,
         "TextJoin" => Op::TextJoin,
         "BytesFromInts" => Op::BytesFromInts,
         "BytesFromText" => Op::BytesFromText,
@@ -339,6 +366,7 @@ fn parse_instruction(
         "TimeParseDate" => Op::TimeParseDate,
         "TimeParseTimestamp" => Op::TimeParseTimestamp,
         "TimeFormatUtc" => Op::TimeFormatUtc,
+        "TimeFormatUtcDate" => Op::TimeFormatUtcDate,
         "UnixTimeMs" => Op::UnixTimeMs,
         "TimeTodayLocal" => Op::TimeTodayLocal,
         "TimeResolveLocal" => Op::TimeResolveLocal,

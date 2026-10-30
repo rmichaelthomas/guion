@@ -8,9 +8,38 @@ use std::{
     collections::{HashMap, HashSet},
     fs,
     path::{Component, Path, PathBuf},
+    time::Instant,
 };
 
 mod builtin_catalog;
+
+/// Opt-in timings for source-module loading and function lowering.
+#[derive(Clone, Debug, Default)]
+pub struct CompileProfile {
+    /// Timing data for each unique module in the resolved source graph.
+    pub modules: Vec<ModuleLoadProfile>,
+    /// Time spent type-checking and lowering the combined program.
+    pub compile_program_ns: u128,
+}
+
+/// Timings and source size for one resolved module.
+#[derive(Clone, Debug, Default)]
+pub struct ModuleLoadProfile {
+    /// Stable logical source identity, such as `main.gu` or `std:time`.
+    pub source_name: String,
+    /// UTF-8 source size in bytes.
+    pub source_bytes: usize,
+    /// Number of direct imports declared by this module.
+    pub import_count: usize,
+    /// Time spent canonicalizing, validating, and stat'ing the module path.
+    pub path_validation_ns: u128,
+    /// Time spent reading the module source.
+    pub source_read_ns: u128,
+    /// Time spent lexing and parsing the module source.
+    pub parse_ns: u128,
+    /// Time spent resolving the module's direct import paths, excluding child loads.
+    pub import_resolution_ns: u128,
+}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum Kind {
@@ -542,6 +571,7 @@ struct Program {
 struct ImportAst {
     path: String,
     span: Span,
+    reexport: bool,
 }
 #[derive(Clone, Debug)]
 struct RecordAst {
@@ -781,7 +811,15 @@ impl Parser {
             if self.cur().kind == Kind::Eof {
                 break;
             }
-            if self.cur().text == "import" {
+            let reexport = self.cur().text == "pub"
+                && self
+                    .tokens
+                    .get(self.at + 1)
+                    .is_some_and(|token| token.text == "import");
+            if self.cur().text == "import" || reexport {
+                if reexport {
+                    self.advance();
+                }
                 let start = self.advance().span;
                 let path = self.advance();
                 if path.kind != Kind::Text || path.text.is_empty() {
@@ -805,6 +843,7 @@ impl Parser {
                 imports.push(ImportAst {
                     path: path.text,
                     span: start,
+                    reexport,
                 });
                 continue;
             }
@@ -891,10 +930,10 @@ impl Parser {
                 module_id: self.module_id,
             });
         }
-        if functions.is_empty() {
+        if functions.is_empty() && externals.is_empty() && records.is_empty() {
             return Err(diagnostic(
                 "E_MODULE_EMPTY",
-                "module must define at least one function",
+                "module must define at least one function, external, or record",
                 self.cur().span,
             ));
         }
@@ -1720,6 +1759,8 @@ impl<'a> FnCompiler<'a> {
                         "write_bytes",
                         "len",
                         "map_set",
+                        "map_record_get",
+                        "map_record_set",
                         "map_has",
                         "map_get",
                         "list_push",
@@ -2169,6 +2210,117 @@ impl<'a> FnCompiler<'a> {
                     }
                     self.emit(Op::MapSet, *s);
                     return Ok(Type::Map(item));
+                }
+                if name == "map_record_get" || name == "map_record_set" {
+                    let is_get = name == "map_record_get";
+                    if !(if is_get {
+                        [3, 4].contains(&args.len())
+                    } else {
+                        [4, 5].contains(&args.len())
+                    }) {
+                        return Err(diagnostic(
+                            "E_CALL_ARITY",
+                            if name == "map_record_get" {
+                                "map_record_get expects a Map, one or two Text keys, and a literal field name"
+                            } else {
+                                "map_record_set expects a Map, one or two Text keys, a literal field name, and a value"
+                            },
+                            *s,
+                        ));
+                    }
+                    let nested = if is_get {
+                        args.len() == 4
+                    } else {
+                        args.len() == 5
+                    };
+                    let map_type = self.expr(&args[0])?;
+                    let Type::Map(item_type) = map_type else {
+                        return Err(diagnostic(
+                            "E_TYPE_ARGUMENT",
+                            format!("{name} first argument must be a Map of records"),
+                            args[0].span(),
+                        ));
+                    };
+                    let record_type = if nested {
+                        let Type::Map(record_type) = item_type.as_ref() else {
+                            return Err(diagnostic(
+                                "E_TYPE_ARGUMENT",
+                                format!("{name} nested key form requires a Map of Maps of records"),
+                                args[0].span(),
+                            ));
+                        };
+                        record_type.as_ref()
+                    } else {
+                        item_type.as_ref()
+                    };
+                    let Type::Record(record_name) = record_type else {
+                        return Err(diagnostic(
+                            "E_TYPE_ARGUMENT",
+                            format!("{name} requires a Map of records or a nested Map of records"),
+                            args[0].span(),
+                        ));
+                    };
+                    if self.expr_with_expected(&args[1], Some(&Type::Text))? != Type::Text {
+                        return Err(diagnostic(
+                            "E_TYPE_ARGUMENT",
+                            format!("{name} key must be Text"),
+                            args[1].span(),
+                        ));
+                    }
+                    if nested && self.expr_with_expected(&args[2], Some(&Type::Text))? != Type::Text
+                    {
+                        return Err(diagnostic(
+                            "E_TYPE_ARGUMENT",
+                            format!("{name} nested key must be Text"),
+                            args[2].span(),
+                        ));
+                    }
+                    let field_arg = if nested { 3 } else { 2 };
+                    let Expr::Text(field_name, field_span) = &args[field_arg] else {
+                        return Err(diagnostic(
+                            "E_FIELD_LITERAL",
+                            format!("{name} field name must be a Text literal"),
+                            args[field_arg].span(),
+                        ));
+                    };
+                    let Some((record_index, record)) = self
+                        .records
+                        .iter()
+                        .enumerate()
+                        .find(|(_, record)| record.name == *record_name)
+                    else {
+                        return Err(diagnostic(
+                            "E_TYPE_UNKNOWN",
+                            format!("unknown record type `{record_name}`"),
+                            *field_span,
+                        ));
+                    };
+                    let Some((field_index, (_, field_type, _))) = record
+                        .fields
+                        .iter()
+                        .enumerate()
+                        .find(|(_, (name, _, _))| name == field_name)
+                    else {
+                        return Err(diagnostic(
+                            "E_FIELD_UNKNOWN",
+                            format!("record `{record_name}` has no field `{field_name}`"),
+                            *field_span,
+                        ));
+                    };
+                    if is_get {
+                        self.emit(Op::MapRecordGet(record_index, field_index, nested), *s);
+                        return Ok(field_type.clone());
+                    }
+                    let value_arg = field_arg + 1;
+                    if self.expr_with_expected(&args[value_arg], Some(field_type))? != *field_type {
+                        return Err(diagnostic(
+                            "E_TYPE_ARGUMENT",
+                            format!("map_record_set value must match `{record_name}.{field_name}`"),
+                            args[value_arg].span(),
+                        ));
+                    }
+                    self.emit(Op::MapRecordSet(record_index, field_index, nested), *s);
+                    return Ok(Type::Map(item_type));
                 }
                 if name == "list_push" {
                     if args.len() != 2 {
@@ -2905,6 +3057,91 @@ struct ModuleScope {
     records: HashSet<String>,
 }
 
+#[derive(Clone, Default)]
+struct ModuleExports {
+    functions: HashMap<String, usize>,
+    records: HashMap<String, usize>,
+}
+
+fn public_module_exports(
+    module_id: usize,
+    nodes: &[ModuleNode],
+    sources: &[String],
+    memo: &mut HashMap<usize, ModuleExports>,
+) -> Result<ModuleExports, Diagnostic> {
+    if let Some(exports) = memo.get(&module_id) {
+        return Ok(exports.clone());
+    }
+
+    let node = &nodes[module_id];
+    let local_functions = node
+        .program
+        .functions
+        .iter()
+        .filter(|function| function.public)
+        .map(|function| function.name.clone())
+        .collect::<HashSet<_>>();
+    let mut exports = ModuleExports {
+        functions: node
+            .program
+            .functions
+            .iter()
+            .filter(|function| function.public)
+            .map(|function| (function.name.clone(), function.module_id))
+            .collect(),
+        records: node
+            .program
+            .records
+            .iter()
+            .filter(|record| record.public)
+            .map(|record| (record.name.clone(), record.module_id))
+            .collect(),
+    };
+
+    for (imported_id, import_span, reexport) in &node.imports {
+        if !reexport {
+            continue;
+        }
+        let imported = public_module_exports(*imported_id, nodes, sources, memo)?;
+        for (name, owner) in imported.functions {
+            if local_functions.contains(&name) {
+                continue;
+            }
+            if let Some(previous_owner) = exports.functions.get(&name) {
+                if *previous_owner != owner {
+                    return Err(diagnostic(
+                        "E_NAME_AMBIGUOUS",
+                        format!(
+                            "public function {name} is exported by more than one public import"
+                        ),
+                        *import_span,
+                    )
+                    .with_source_name(sources[module_id].clone()));
+                }
+            } else {
+                exports.functions.insert(name, owner);
+            }
+        }
+        for (name, owner) in imported.records {
+            if let Some(previous_owner) = exports.records.get(&name) {
+                if *previous_owner != owner {
+                    return Err(diagnostic(
+                        "E_RECORD_NAME",
+                        format!("record name `{name}` is exported by multiple modules"),
+                        *import_span,
+                    )
+                    .with_source_name(sources[module_id].clone()));
+                }
+            } else {
+                exports.records.insert(name, owner);
+            }
+        }
+    }
+
+    memo.insert(module_id, exports.clone());
+    Ok(exports)
+}
+
 fn function_symbol(module_id: usize, name: &str) -> String {
     format!("$module{module_id}::{name}")
 }
@@ -2945,7 +3182,7 @@ struct ModuleNode {
     source_name: String,
     source: String,
     program: Program,
-    imports: Vec<(usize, Span)>,
+    imports: Vec<(usize, Span, bool)>,
 }
 
 const MAX_MODULE_COUNT: usize = 512;
@@ -2960,6 +3197,8 @@ struct ModuleLoader {
     by_path: HashMap<PathBuf, usize>,
     active: HashSet<PathBuf>,
     total_source_bytes: usize,
+    profile_enabled: bool,
+    module_profiles: Vec<ModuleLoadProfile>,
 }
 
 impl ModuleLoader {
@@ -2972,6 +3211,7 @@ impl ModuleLoader {
         importer: Option<(u32, String)>,
         depth: usize,
     ) -> Result<usize, Diagnostic> {
+        let path_started = self.profile_enabled.then(Instant::now);
         let canonical = path.canonicalize().map_err(|error| {
             diagnostic(
                 "E_IMPORT_READ",
@@ -3093,6 +3333,10 @@ impl ModuleLoader {
             .with_source_name(diagnostic_source_name));
         }
 
+        let path_validation_ns = path_started
+            .map(|started| started.elapsed().as_nanos())
+            .unwrap_or_default();
+        let read_started = self.profile_enabled.then(Instant::now);
         let source = fs::read_to_string(&canonical).map_err(|error| {
             diagnostic(
                 "E_IMPORT_READ",
@@ -3100,10 +3344,19 @@ impl ModuleLoader {
                 Span::default(),
             )
         })?;
+        let source_read_ns = read_started
+            .map(|started| started.elapsed().as_nanos())
+            .unwrap_or_default();
         let index = self.nodes.len();
+        let parse_started = self.profile_enabled.then(Instant::now);
         let mut program = parse_program(&source, index as u32)
             .map_err(|error| error.with_source_name(source_name.clone()))?;
+        let parse_ns = parse_started
+            .map(|started| started.elapsed().as_nanos())
+            .unwrap_or_default();
         let import_paths = std::mem::take(&mut program.imports);
+        let import_count = import_paths.len();
+        let profile_source_name = source_name.clone();
         self.by_path.insert(canonical.clone(), index);
         self.nodes.push(ModuleNode {
             path: canonical.clone(),
@@ -3116,9 +3369,15 @@ impl ModuleLoader {
         });
         self.active.insert(canonical.clone());
         let mut imports = Vec::new();
+        let mut import_resolution_ns = 0u128;
         for import in import_paths {
+            let resolve_started = self.profile_enabled.then(Instant::now);
             let (imported, child_root, child_label, child_name) =
                 self.resolve_import(index, &import.path, import.span)?;
+            if let Some(started) = resolve_started {
+                import_resolution_ns =
+                    import_resolution_ns.saturating_add(started.elapsed().as_nanos());
+            }
             let importer_name = self.nodes[index].source_name.clone();
             let child_index = self.load(
                 &imported,
@@ -3128,10 +3387,21 @@ impl ModuleLoader {
                 Some((index as u32, importer_name)),
                 depth + 1,
             )?;
-            imports.push((child_index, import.span));
+            imports.push((child_index, import.span, import.reexport));
         }
         self.active.remove(&canonical);
         self.nodes[index].imports = imports;
+        if self.profile_enabled {
+            self.module_profiles.push(ModuleLoadProfile {
+                source_name: profile_source_name,
+                source_bytes: source.len(),
+                import_count,
+                path_validation_ns,
+                source_read_ns,
+                parse_ns,
+                import_resolution_ns,
+            });
+        }
         Ok(index)
     }
 
@@ -3252,6 +3522,29 @@ pub fn compile_project_with_roots(
     stdlib_root: Option<&Path>,
     package_roots: &HashMap<String, PathBuf>,
 ) -> Result<Artifact, Diagnostic> {
+    compile_project_with_roots_inner(entry, project_root, stdlib_root, package_roots, false)
+        .map(|(artifact, _)| artifact)
+}
+
+/// Compile a project and return opt-in timings for the resolved source modules.
+///
+/// The ordinary [`compile_project_with_roots`] path does not read the clock or collect profiles.
+pub fn compile_project_with_roots_profiled(
+    entry: &Path,
+    project_root: &Path,
+    stdlib_root: Option<&Path>,
+    package_roots: &HashMap<String, PathBuf>,
+) -> Result<(Artifact, CompileProfile), Diagnostic> {
+    compile_project_with_roots_inner(entry, project_root, stdlib_root, package_roots, true)
+}
+
+fn compile_project_with_roots_inner(
+    entry: &Path,
+    project_root: &Path,
+    stdlib_root: Option<&Path>,
+    package_roots: &HashMap<String, PathBuf>,
+    profile_enabled: bool,
+) -> Result<(Artifact, CompileProfile), Diagnostic> {
     let root = project_root.canonicalize().map_err(|error| {
         diagnostic(
             "E_PROJECT_ROOT",
@@ -3322,6 +3615,8 @@ pub fn compile_project_with_roots(
         by_path: HashMap::new(),
         active: HashSet::new(),
         total_source_bytes: 0,
+        profile_enabled,
+        module_profiles: Vec::new(),
     };
     let entry_name = entry
         .strip_prefix(&root)
@@ -3329,6 +3624,8 @@ pub fn compile_project_with_roots(
         .to_string_lossy()
         .into_owned();
     loader.load(&entry, &root, "", entry_name, None, 0)?;
+    let mut module_profiles = loader.module_profiles;
+    module_profiles.sort_by(|left, right| left.source_name.cmp(&right.source_name));
     let compiled_source_sha256 = digest_sources(
         loader
             .nodes
@@ -3353,48 +3650,43 @@ pub fn compile_project_with_roots(
         program.externals.extend(node.program.externals.clone());
         program.records.extend(node.program.records.clone());
     }
+    let mut public_exports = HashMap::new();
+    for module_id in 0..nodes.len() {
+        public_module_exports(module_id, &nodes, &sources, &mut public_exports)?;
+    }
+
     let mut scopes = HashMap::new();
     for (module_id, node) in nodes.iter().enumerate() {
         let mut scope = module_scope(&node.program);
         let mut imported_functions = HashMap::<String, usize>::new();
-        for (imported_id, import_span) in &node.imports {
-            let imported = &nodes[*imported_id].program;
-            for function in imported.functions.iter().filter(|function| function.public) {
-                if let Some(previous_owner) = imported_functions.get(&function.name) {
-                    if *previous_owner != function.module_id
-                        && !module_scope(&node.program)
-                            .functions
-                            .contains_key(&function.name)
+        for (imported_id, import_span, _) in &node.imports {
+            let imported = &public_exports[imported_id];
+            for (name, owner) in &imported.functions {
+                if let Some(previous_owner) = imported_functions.get(name) {
+                    if *previous_owner != *owner
+                        && !module_scope(&node.program).functions.contains_key(name)
                     {
                         return Err(diagnostic(
                             "E_NAME_AMBIGUOUS",
                             format!(
-                                "public function {} is exported by more than one direct import",
-                                function.name
+                                "public function {name} is exported by more than one direct import"
                             ),
                             *import_span,
                         )
                         .with_source_name(sources[module_id].clone()));
                     }
                 } else {
-                    imported_functions.insert(function.name.clone(), function.module_id);
+                    imported_functions.insert(name.clone(), *owner);
                 }
-                if !scope.functions.contains_key(&function.name) {
-                    scope
-                        .functions
-                        .insert(function.name.clone(), function.module_id);
+                if !scope.functions.contains_key(name) {
+                    scope.functions.insert(name.clone(), *owner);
                 }
             }
-            scope.records.extend(
-                imported
-                    .records
-                    .iter()
-                    .filter(|record| record.public)
-                    .map(|record| record.name.clone()),
-            );
+            scope.records.extend(imported.records.keys().cloned());
         }
         scopes.insert(module_id, scope);
     }
+    let compile_program_started = profile_enabled.then(Instant::now);
     let mut artifact =
         compile_program(&sources[0], sources.clone(), program, scopes).map_err(|error| {
             let name = sources
@@ -3403,8 +3695,17 @@ pub fn compile_project_with_roots(
                 .unwrap_or_else(|| sources[0].clone());
             error.with_source_name(name)
         })?;
+    let compile_program_ns = compile_program_started
+        .map(|started| started.elapsed().as_nanos())
+        .unwrap_or_default();
     artifact.compiled_source_sha256 = Some(compiled_source_sha256);
-    Ok(artifact)
+    Ok((
+        artifact,
+        CompileProfile {
+            modules: module_profiles,
+            compile_program_ns,
+        },
+    ))
 }
 
 fn digest_sources(mut sources: Vec<(String, &str)>) -> String {

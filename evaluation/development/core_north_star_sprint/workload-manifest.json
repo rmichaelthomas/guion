@@ -1,0 +1,142 @@
+{
+  "schema_version": 1,
+  "sprint": "guion-core-north-star",
+  "baseline_revision": "a1c0d40f1445e6806238ae252fc1842d0a18a6c1",
+  "comparison_policy": "randomized paired Guion/Python runs; every execution checks the fixed oracle; Guion baseline/candidate are paired together on final reruns",
+  "target": {
+    "os": "Debian 12 (bookworm) in Docker on ARM64",
+    "image_digest": "sha256:6a45e30e542ab1dc5600a1e5a3a7579e3d520107a5fb0c1471af6e6f1e3ca1ac",
+    "cpus": 4,
+    "memory_bytes": 6442450944
+  },
+  "python_reference": {
+    "version": "3.14.7",
+    "path_in_container": "/opt/cpython-3.14.7/bin/python3.14",
+    "build": "./configure --enable-optimizations --with-ensurepip=no; make -j3; make altinstall",
+    "source_sha256": "62859805f6fdf25e2bcbf3fa3217801e1996887ca33e6a2af80674bdfa2dbe07"
+  },
+  "measurement": {
+    "source_loop_trials": 7,
+    "source_loop_warmups": 2,
+    "source_loop_seed": 20261027,
+    "standard_suite_compute_trials": 15,
+    "standard_suite_data_trials": 16,
+    "standard_suite_warmups": 2,
+    "standard_suite_seed": 20261025,
+    "bootstrap_seed": 20261026,
+    "bootstrap_resamples": 20000,
+    "candidate_order": "seeded randomized order within each paired trial",
+    "cache_policy": "fresh source runs bypass Guion source cache; cached source and prebuilt artifact lanes are distinct; OS file cache is uncontrolled",
+    "timer": "time.perf_counter around the child process from startup through exit; output is validated immediately afterward and excluded from the timed duration",
+    "memory": "resource.getrusage(RUSAGE_CHILDREN).ru_maxrss for direct child process; process-pool worker peaks are separate and their sum is only an upper bound",
+    "heavy_runs": "sequential; no concurrent build or benchmark"
+  },
+  "workloads": [
+    {
+      "id": "tiny-source",
+      "source": "evaluation/development/core_north_star_sprint/benchmark_core_workloads.py generates tiny.gu with print(\"ready\")",
+      "python_reference": "same harness generates tiny.py with identical output",
+      "expected_output": [
+        "ready"
+      ],
+      "trials": 15,
+      "warmups": 2,
+      "modes": [
+        "Guion uncached source",
+        "CPython 3.14.7 fresh process"
+      ],
+      "oracle": "exact stdout on every timed run"
+    },
+    {
+      "id": "richards-scheduler",
+      "source": "evaluation/development/famous_benchmarks/richards.vr",
+      "python": "evaluation/development/famous_benchmarks/richards_reference.py",
+      "expected_output": [
+        "9297",
+        "23246"
+      ],
+      "instruction_budget": 30000000,
+      "role": "diagnostic and collection/control-flow workload"
+    },
+    {
+      "id": "nbody-numeric",
+      "source": "evaluation/development/famous_benchmarks/nbody.vr",
+      "python": "evaluation/development/famous_benchmarks/nbody.py",
+      "workload": "five bodies, 20000 steps",
+      "oracle": "absolute floating-point tolerance 1e-12"
+    },
+    {
+      "id": "mandelbrot-image",
+      "source": "evaluation/development/famous_benchmarks/mandelbrot.vr",
+      "python": "evaluation/development/famous_benchmarks/mandelbrot.py",
+      "workload": "96x64 image, 80-iteration ceiling",
+      "expected_output": [
+        "155052",
+        "1608"
+      ]
+    },
+    {
+      "id": "parallel-cpu",
+      "source": "evaluation/development/famous_benchmarks/parallel_cpu.vr",
+      "python": "evaluation/development/famous_benchmarks/parallel_cpu.py",
+      "sizes": [
+        20000,
+        200000
+      ],
+      "modes": [
+        "Guion parallel_map",
+        "Python serial",
+        "threads",
+        "processes"
+      ]
+    },
+    {
+      "id": "jsonl-summary-data",
+      "source": "evaluation/completion/applications/jsonl-summary/main.vr",
+      "python_oracle": "evaluation/completion/performance/data_reference.py",
+      "input": "deterministic generated JSONL; 20000 rows plus 200000-row scale point; seed 20261025",
+      "modes": [
+        "uncached source",
+        "cached source",
+        "prebuilt artifact"
+      ],
+      "role": "text and JSON processing plus real application workflow"
+    },
+    {
+      "id": "agent-file-data",
+      "source": "docs/agents/examples/file_data_cli.gu",
+      "python_reference": "session.py generated reference",
+      "expected_output": [
+        "3"
+      ],
+      "role": "small file/data application"
+    },
+    {
+      "id": "agent-sqlite-toml",
+      "source": "docs/agents/examples/sqlite_toml.gu",
+      "python_reference": "session.py generated SQLite reference",
+      "expected_output": [
+        "Guion agents"
+      ],
+      "role": "small structured-data application"
+    },
+    {
+      "id": "http-local-json",
+      "source": "evaluation/development/core_north_star_sprint/http_request_legacy.gu and the typed-response equivalent in http_response_json.gu",
+      "python_reference": "evaluation/development/core_north_star_sprint/http_reference.py",
+      "fixture": "offline loopback 127.0.0.1, persistent local server, 65,579-byte JSON response, explicit exact host grant",
+      "expected_output": [
+        "hello",
+        "42",
+        "65536"
+      ],
+      "request_count": "one /json request per timed or warmup invocation; fixture count asserted against 17 per arm",
+      "trials": 15,
+      "warmups": 2
+    }
+  ],
+  "excluded": [
+    "optional Python bridge micro-optimization unless another selected outcome demonstrably depends on it",
+    "cold disk cache claims; storage cache cannot be reliably flushed in this environment"
+  ]
+}

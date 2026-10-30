@@ -1,0 +1,199 @@
+diff --git a/crates/vm-core/src/lib.rs b/crates/vm-core/src/lib.rs
+index 137ec7c..d7674e7 100644
+--- a/crates/vm-core/src/lib.rs
++++ b/crates/vm-core/src/lib.rs
+@@ -173,12 +173,69 @@ pub fn run_frames_with_stack<H: VmHost>(
+     }
+ }
+ 
++struct CostLedgerTimer {
++    started: Instant,
++    vm_nanoseconds: Cell<u64>,
++    frame_start_nanoseconds: Cell<u64>,
++    host_nanoseconds: Cell<u64>,
++    vm_segments: Cell<u64>,
++    frame_starts: Cell<u64>,
++    host_calls: Cell<u64>,
++}
++
++impl CostLedgerTimer {
++    fn new() -> Self {
++        Self {
++            started: Instant::now(),
++            vm_nanoseconds: Cell::new(0),
++            frame_start_nanoseconds: Cell::new(0),
++            host_nanoseconds: Cell::new(0),
++            vm_segments: Cell::new(0),
++            frame_starts: Cell::new(0),
++            host_calls: Cell::new(0),
++        }
++    }
++
++    fn add_vm(&self, elapsed: std::time::Duration) {
++        self.vm_nanoseconds.set(self.vm_nanoseconds.get().saturating_add(elapsed.as_nanos() as u64));
++        self.vm_segments.set(self.vm_segments.get() + 1);
++    }
++
++    fn add_frame_start(&self, elapsed: std::time::Duration) {
++        self.frame_start_nanoseconds.set(self.frame_start_nanoseconds.get().saturating_add(elapsed.as_nanos() as u64));
++        self.frame_starts.set(self.frame_starts.get() + 1);
++    }
++
++    fn add_host(&self, elapsed: std::time::Duration) {
++        self.host_nanoseconds.set(self.host_nanoseconds.get().saturating_add(elapsed.as_nanos() as u64));
++        self.host_calls.set(self.host_calls.get() + 1);
++    }
++}
++
++impl Drop for CostLedgerTimer {
++    fn drop(&mut self) {
++        let run = self.started.elapsed().as_nanos() as u64;
++        let vm = self.vm_nanoseconds.get();
++        let frame_start = self.frame_start_nanoseconds.get();
++        let host = self.host_nanoseconds.get();
++        eprintln!(
++            "GUION_COST_LEDGER {{\"run_ns\":{run},\"vm_segment_ns\":{vm},\"frame_start_ns\":{frame_start},\"host_ns\":{host},\"vm_guest_ns\":{},\"driver_ns\":{},\"vm_segments\":{},\"frame_starts\":{},\"host_calls\":{}}}",
++            vm.saturating_sub(host),
++            run.saturating_sub(vm).saturating_sub(frame_start),
++            self.vm_segments.get(),
++            self.frame_starts.get(),
++            self.host_calls.get(),
++        );
++    }
++}
++
+ fn run_frames_with_stack_profiled<const PROFILED: bool, H: VmHost>(
+     host: &mut H,
+     mut frames: Vec<VmFrame>,
+     budget: Arc<Budget>,
+ ) -> Result<Value, RuntimeError> {
+     assert!(!frames.is_empty(), "guest frame stack must not be empty");
++    let cost = std::env::var_os("GUION_COST_LEDGER").map(|_| CostLedgerTimer::new());
+     let fast_host_forwarders = host
+         .artifact()
+         .functions
+@@ -188,12 +245,18 @@ fn run_frames_with_stack_profiled<const PROFILED: bool, H: VmHost>(
+     loop {
+         let frame = frames.pop().expect("guest frame stack is non-empty");
+         let current_call_site = frame.call_site;
+-        match execute_vm_frame_with_forwarders::<PROFILED, _>(
++        let vm_started = cost.as_ref().map(|_| Instant::now());
++        let step = execute_vm_frame_with_forwarders::<PROFILED, _>(
+             host,
+             frame,
+             budget.clone(),
+             &fast_host_forwarders,
+-        ) {
++            cost.as_ref(),
++        );
++        if let (Some(cost), Some(started)) = (&cost, vm_started) {
++            cost.add_vm(started.elapsed());
++        }
++        match step {
+             Err(mut error) => {
+                 append_guest_call_trace(&mut error, current_call_site, &frames);
+                 return Err(error);
+@@ -211,13 +274,19 @@ fn run_frames_with_stack_profiled<const PROFILED: bool, H: VmHost>(
+                 target,
+                 args,
+                 span,
+-            }) => match host.start_frame(
++            }) => {
++                let start_started = cost.as_ref().map(|_| Instant::now());
++                let start_result = host.start_frame(
+                 target,
+                 args,
+                 frame.depth.saturating_add(1),
+                 &budget,
+                 Some(span),
+-            ) {
++                );
++                if let (Some(cost), Some(started)) = (&cost, start_started) {
++                    cost.add_frame_start(started.elapsed());
++                }
++                match start_result {
+                 Ok(FrameStart::Returned(value)) => {
+                     frame.stack.push(value);
+                     frames.push(frame);
+@@ -235,7 +304,8 @@ fn run_frames_with_stack_profiled<const PROFILED: bool, H: VmHost>(
+                     append_guest_call_trace(&mut error, frame.call_site, &frames);
+                     return Err(error);
+                 }
+-            },
++                }
++            }
+         }
+     }
+ }
+@@ -253,9 +323,9 @@ pub fn execute_vm_frame<H: VmHost>(
+         .map(fast_host_forwarder)
+         .collect::<Vec<_>>();
+     if budget.runtime_profile.is_some() {
+-        execute_vm_frame_with_forwarders::<true, _>(host, frame, budget, &fast_host_forwarders)
++        execute_vm_frame_with_forwarders::<true, _>(host, frame, budget, &fast_host_forwarders, None)
+     } else {
+-        execute_vm_frame_with_forwarders::<false, _>(host, frame, budget, &fast_host_forwarders)
++        execute_vm_frame_with_forwarders::<false, _>(host, frame, budget, &fast_host_forwarders, None)
+     }
+ }
+ 
+@@ -264,6 +334,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
+     frame: VmFrame,
+     budget: Arc<Budget>,
+     fast_host_forwarders: &[Option<FastHostForwarder>],
++    cost: Option<&CostLedgerTimer>,
+ ) -> Result<VmStep, RuntimeError> {
+     let VmFrame {
+         function_index,
+@@ -2005,6 +2076,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
+                             &budget,
+                             &mut instruction_fuel,
+                             depth.saturating_add(1),
++                            cost,
+                         );
+                         if let (Some(sample), Some(started)) = (&profile_sample, child_started) {
+                             sample.record_child_duration(started.elapsed());
+@@ -2196,6 +2268,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
+             _ => {
+                 instruction_fuel.flush();
+                 let host_started = if PROFILED { profile_sample.as_ref().map(|_| Instant::now()) } else { None };
++                let cost_host_started = cost.map(|_| Instant::now());
+                 let host_result = host.host_op(HostOpContext {
+                     instruction: instruction.clone(),
+                     function: f,
+@@ -2204,6 +2277,9 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
+                     budget: &budget,
+                     depth,
+                 });
++                if let (Some(cost), Some(started)) = (cost, cost_host_started) {
++                    cost.add_host(started.elapsed());
++                }
+                 if let (Some(sample), Some(started)) = (&profile_sample, host_started) {
+                     sample.record_host_duration(started.elapsed());
+                 }
+@@ -2268,6 +2344,7 @@ fn execute_fast_host_forwarder<const PROFILED: bool, H: VmHost>(
+     budget: &Arc<Budget>,
+     instruction_fuel: &mut InstructionFuel<'_>,
+     depth: usize,
++    cost: Option<&CostLedgerTimer>,
+ ) -> Result<Value, RuntimeError> {
+     let function = artifact.functions.get(target).ok_or_else(|| {
+         RuntimeError::new(
+@@ -2347,6 +2424,7 @@ fn execute_fast_host_forwarder<const PROFILED: bool, H: VmHost>(
+                     } else {
+                         None
+                     };
++                    let cost_host_started = cost.map(|_| Instant::now());
+                     let host_result = host.host_op(HostOpContext {
+                         instruction: instruction.clone(),
+                         function,
+@@ -2355,6 +2433,9 @@ fn execute_fast_host_forwarder<const PROFILED: bool, H: VmHost>(
+                         budget,
+                         depth,
+                     });
++                    if let (Some(cost), Some(started)) = (cost, cost_host_started) {
++                        cost.add_host(started.elapsed());
++                    }
+                     if let (Some(sample), Some(started)) = (&profile_sample, host_started) {
+                         sample.record_host_duration(started.elapsed());
+                     }

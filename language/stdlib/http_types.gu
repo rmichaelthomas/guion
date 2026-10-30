@@ -1,0 +1,12 @@
+# Shared record definitions used by std:http and the compatibility std:types facade.
+pub record StdError:
+    code: Text
+    message: Text
+    path: Text
+    line: Int
+    column: Int
+
+pub record HttpResponse:
+    status: Int
+    headers: Map[Text, Text]
+    body: Bytes

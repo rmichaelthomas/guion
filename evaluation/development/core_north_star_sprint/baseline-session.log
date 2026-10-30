@@ -1,0 +1,8 @@
+measuring richards-scheduler
+measuring nbody-numeric
+measuring mandelbrot-image
+measuring parallel-cpu-20000 against serial, threads, and processes
+measuring parallel-cpu-200000 against serial, threads, and processes
+measuring jsonl-summary-data on generated JSONL with Python and SQLite baselines
+measuring jsonl-summary-data-200000 on generated JSONL with Python and SQLite baselines
+/Users/rmichaelthomas/guion/.worktrees/guion-core-sprint-spec/evaluation/completion/results/real-task-sprint/2026-10-28-linux-arm64-baseline.json

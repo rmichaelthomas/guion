@@ -1,6 +1,6 @@
 # Agent examples verification
 
-Generated 2026-10-27 18:01 UTC by `scripts/verify-agent-examples.sh`.
+Generated 2026-10-28 18:29 UTC by `scripts/verify-agent-examples.sh`.
 
 The HTTP example was checked, linted, and formatted; it was not run and no network request was made.
 Runtime stdout and exit status are compared with `verification_cases` in `docs/agents/index.json`.
@@ -13,7 +13,7 @@ Runtime stdout and exit status are compared with `verification_cases` in `docs/a
 | `file_data_cli check` | PASS | exit 0; checked docs/agents/examples/file_data_cli.gu (1 functions) |
 | `file_data_cli lint` | PASS | exit 0; linted docs/agents/examples/file_data_cli.gu (no warnings) |
 | `file_data_cli fmt` | PASS | exit 0; formatted docs/agents/examples/file_data_cli.gu |
-| `http_request check` | PASS | exit 0; checked docs/agents/examples/http_request.gu (14 functions) |
+| `http_request check` | PASS | exit 0; checked docs/agents/examples/http_request.gu (23 functions) |
 | `http_request lint` | PASS | exit 0; linted docs/agents/examples/http_request.gu (no warnings) |
 | `http_request fmt` | PASS | exit 0; formatted docs/agents/examples/http_request.gu |
 | `sqlite_toml check` | PASS | exit 0; checked docs/agents/examples/sqlite_toml.gu (34 functions) |

@@ -422,6 +422,10 @@ fn ab_plain_opcode(name: Text) -> Int:
         return 60
     if name == "MapSet":
         return 61
+    if name == "MapRecordGet":
+        return 169
+    if name == "MapRecordSet":
+        return 170
     if name == "MapHas":
         return 62
     if name == "Divide":
@@ -502,10 +506,16 @@ fn ab_plain_opcode(name: Text) -> Int:
         return 101
     if name == "TextChars":
         return 102
+    if name == "TextSlice":
+        return 166
+    if name == "HttpResponseJson":
+        return 167
     if name == "TextJoin":
         return 163
     if name == "JsonStringifyPairs":
         return 164
+    if name == "HttpResponseText":
+        return 165
     if name == "ListPushLocal":
         return 103
     if name == "JsonPushLocal":
@@ -548,6 +558,8 @@ fn ab_plain_opcode(name: Text) -> Int:
         return 122
     if name == "TimeFormatUtc":
         return 123
+    if name == "TimeFormatUtcDate":
+        return 168
     if name == "UnixTimeMs":
         return 156
     if name == "TimeTodayLocal":
@@ -663,17 +675,27 @@ fn ab_instruction(instruction: Json, pc: Int, functions: Json, records: Json, ex
                             set parts = list_push(parts, ab_string(json_as_text(json_index(names, name_cursor))))
                             set name_cursor = name_cursor + 1
                 else:
-                    if name == "MakeRecord" or name == "GetField":
+                    if name == "MapRecordGet" or name == "MapRecordSet":
                         let record_name = json_as_text(json_get(instruction, "record"))
                         let record_slot = ab_record_index(records, record_name)
                         set parts = list_push(parts, ab_count(record_slot))
-                        if name == "MakeRecord":
-                            set parts = list_push(parts, ab_count(json_as_int(json_get(instruction, "count"))))
-                        else:
-                            set parts = list_push(parts, ab_count(ab_field_index(json_index(records, record_slot), json_as_text(json_get(instruction, "field")))))
+                        set parts = list_push(parts, ab_count(ab_field_index(json_index(records, record_slot), json_as_text(json_get(instruction, "field")))))
+                        var nested_flag = 0
+                        if json_as_bool(json_get(instruction, "nested")):
+                            set nested_flag = 1
+                        set parts = list_push(parts, ab_u8(nested_flag))
                     else:
-                        if name == "MakeTypedList" or name == "MakeTypedMap":
-                            set parts = list_push(parts, ab_type(json_as_text(json_get(instruction, "item_type"))))
+                        if name == "MakeRecord" or name == "GetField":
+                            let record_name = json_as_text(json_get(instruction, "record"))
+                            let record_slot = ab_record_index(records, record_name)
+                            set parts = list_push(parts, ab_count(record_slot))
+                            if name == "MakeRecord":
+                                set parts = list_push(parts, ab_count(json_as_int(json_get(instruction, "count"))))
+                            else:
+                                set parts = list_push(parts, ab_count(ab_field_index(json_index(records, record_slot), json_as_text(json_get(instruction, "field")))))
+                        else:
+                            if name == "MakeTypedList" or name == "MakeTypedMap":
+                                set parts = list_push(parts, ab_type(json_as_text(json_get(instruction, "item_type"))))
     return ab_join(parts)
 
 fn ab_encode_record(record: Json) -> Bytes:
@@ -749,7 +771,7 @@ pub fn artifact_assemble(ir: Json) -> Bytes:
     let records = json_get(ir, "records")
     let externals = json_get(ir, "externals")
     let functions = json_get(ir, "functions")
-    var parts: List[Bytes] = [bytes_from_text("VRTA"), ab_u32(44), ab_string(source_name), ab_string(entry), ab_count(json_len(sources))]
+    var parts: List[Bytes] = [bytes_from_text("VRTA"), ab_u32(49), ab_string(source_name), ab_string(entry), ab_count(json_len(sources))]
     var cursor = 0
     while cursor < json_len(sources):
         set parts = list_push(parts, ab_string(json_as_text(json_index(sources, cursor))))

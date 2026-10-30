@@ -750,7 +750,12 @@ fn validate_value(value: &Value, depth: usize) -> Result<(), PythonBridgeError> 
         ));
     }
     match value {
-        Value::Unit | Value::Bool(_) | Value::Int(_) | Value::Float64(_) | Value::Text(_) | Value::Bytes(_) => Ok(()),
+        Value::Unit
+        | Value::Bool(_)
+        | Value::Int(_)
+        | Value::Float64(_)
+        | Value::Text(_)
+        | Value::Bytes(_) => Ok(()),
         Value::List(values) => values
             .iter()
             .try_for_each(|item| validate_value(item, depth + 1)),
@@ -777,12 +782,10 @@ fn validate_value(value: &Value, depth: usize) -> Result<(), PythonBridgeError> 
         | Value::FileError(_)
         | Value::HttpError(_)
         | Value::NativeResource(_)
-        | Value::Record(_, _) => {
-            Err(bridge_error(
-                "R_PYTHON_CONVERSION",
-                "Option, Result, structured errors, and native resources cannot cross the current Python bridge",
-            ))
-        }
+        | Value::Record(_, _) => Err(bridge_error(
+            "R_PYTHON_CONVERSION",
+            "Option, Result, structured errors, and native resources cannot cross the current Python bridge",
+        )),
     }
 }
 
