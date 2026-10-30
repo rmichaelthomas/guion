@@ -1,0 +1,100 @@
+{
+  "control_binary_sha256": "d752607f8eabe9f467f615f2e038e604e9c0c201fe7d8740ff2223e54c30790c",
+  "candidate_binary_sha256": "f5d5081114da5e93ba1af7add19c3f2ffffe3350c12adbb0064892336ce55255",
+  "artifact_sha256": {
+    "before": "2dcf92604c4e831b4a40684b2515f1afdd464263653780c6c5025fa6e16bfd6a",
+    "candidate": "2dcf92604c4e831b4a40684b2515f1afdd464263653780c6c5025fa6e16bfd6a"
+  },
+  "records": [
+    {
+      "pair": 0,
+      "build": "candidate",
+      "elapsed_seconds": 2.5936191369837616,
+      "allocation_api": {
+        "malloc_calls": 19929842,
+        "calloc_calls": 683,
+        "realloc_calls": 792589,
+        "free_calls": 19930512,
+        "malloc_bytes": 1216797179,
+        "calloc_bytes": 8325,
+        "realloc_bytes": 634655404
+      },
+      "output_sha256": "b1b0afe4074a5a945c2ae6a097cb269174999dd6545ef380f5008ba8c36dd7fd"
+    },
+    {
+      "pair": 0,
+      "build": "before",
+      "elapsed_seconds": 2.547158732020762,
+      "allocation_api": {
+        "malloc_calls": 21530307,
+        "calloc_calls": 683,
+        "realloc_calls": 792589,
+        "free_calls": 21530977,
+        "malloc_bytes": 1231014923,
+        "calloc_bytes": 8325,
+        "realloc_bytes": 634655404
+      },
+      "output_sha256": "b1b0afe4074a5a945c2ae6a097cb269174999dd6545ef380f5008ba8c36dd7fd"
+    },
+    {
+      "pair": 1,
+      "build": "before",
+      "elapsed_seconds": 2.500954360002652,
+      "allocation_api": {
+        "malloc_calls": 21530307,
+        "calloc_calls": 683,
+        "realloc_calls": 792589,
+        "free_calls": 21530977,
+        "malloc_bytes": 1231014916,
+        "calloc_bytes": 8325,
+        "realloc_bytes": 634655404
+      },
+      "output_sha256": "b1b0afe4074a5a945c2ae6a097cb269174999dd6545ef380f5008ba8c36dd7fd"
+    },
+    {
+      "pair": 1,
+      "build": "candidate",
+      "elapsed_seconds": 2.4671687280060723,
+      "allocation_api": {
+        "malloc_calls": 19929842,
+        "calloc_calls": 683,
+        "realloc_calls": 792589,
+        "free_calls": 19930512,
+        "malloc_bytes": 1216797165,
+        "calloc_bytes": 8325,
+        "realloc_bytes": 634655404
+      },
+      "output_sha256": "b1b0afe4074a5a945c2ae6a097cb269174999dd6545ef380f5008ba8c36dd7fd"
+    },
+    {
+      "pair": 2,
+      "build": "before",
+      "elapsed_seconds": 2.554391746991314,
+      "allocation_api": {
+        "malloc_calls": 21530307,
+        "calloc_calls": 683,
+        "realloc_calls": 792589,
+        "free_calls": 21530977,
+        "malloc_bytes": 1231014909,
+        "calloc_bytes": 8325,
+        "realloc_bytes": 634655404
+      },
+      "output_sha256": "b1b0afe4074a5a945c2ae6a097cb269174999dd6545ef380f5008ba8c36dd7fd"
+    },
+    {
+      "pair": 2,
+      "build": "candidate",
+      "elapsed_seconds": 2.442224833997898,
+      "allocation_api": {
+        "malloc_calls": 19929842,
+        "calloc_calls": 683,
+        "realloc_calls": 792589,
+        "free_calls": 19930512,
+        "malloc_bytes": 1216797158,
+        "calloc_bytes": 8325,
+        "realloc_bytes": 634655404
+      },
+      "output_sha256": "b1b0afe4074a5a945c2ae6a097cb269174999dd6545ef380f5008ba8c36dd7fd"
+    }
+  ]
+}

@@ -259,6 +259,92 @@ pub fn execute_vm_frame<H: VmHost>(
     }
 }
 
+#[derive(Clone, Copy)]
+enum LoadFastPath<'a> {
+    Probe(bool),
+    Unwrap(&'a Value),
+    RecordField(&'a Value),
+    ListIndex(&'a Value),
+}
+
+#[derive(Clone, Copy)]
+struct TextCharsConcatFastPath {
+    result_consumer_ip: usize,
+    required_characters: usize,
+}
+
+fn text_chars_concat_fast_path(
+    code: &[guion_model::Instruction],
+    text_chars_ip: usize,
+) -> Option<TextCharsConcatFastPath> {
+    if !matches!(
+        code.get(text_chars_ip).map(|instruction| &instruction.op),
+        Some(Op::TextChars)
+    ) {
+        return None;
+    }
+    let Some(Op::Store(characters_slot)) = code
+        .get(text_chars_ip + 1)
+        .map(|instruction| &instruction.op)
+    else {
+        return None;
+    };
+
+    let mut cursor = text_chars_ip + 2;
+    let mut required_characters = 0usize;
+    loop {
+        if matches!(
+            code.get(cursor).map(|instruction| &instruction.op),
+            Some(Op::Store(_) | Op::Print)
+        ) {
+            break;
+        }
+        if !matches!(
+            code.get(cursor).map(|instruction| &instruction.op),
+            Some(Op::Load(slot)) if slot == characters_slot
+        ) {
+            return None;
+        }
+        cursor += 1;
+        if !matches!(
+            code.get(cursor).map(|instruction| &instruction.op),
+            Some(Op::Const(Value::Int(index)))
+                if index.to_usize() == Some(required_characters)
+        ) {
+            return None;
+        }
+        cursor += 1;
+        if !matches!(
+            code.get(cursor).map(|instruction| &instruction.op),
+            Some(Op::Index)
+        ) {
+            return None;
+        }
+        cursor += 1;
+        if required_characters > 0 {
+            if !matches!(
+                code.get(cursor).map(|instruction| &instruction.op),
+                Some(Op::Add)
+            ) {
+                return None;
+            }
+            cursor += 1;
+        }
+        required_characters += 1;
+        if required_characters > 64 {
+            return None;
+        }
+    }
+
+    if required_characters < 2 || cursor >= code.len() {
+        return None;
+    }
+    Some(TextCharsConcatFastPath {
+        result_consumer_ip: cursor,
+        required_characters,
+    })
+}
+
 fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
     host: &mut H,
     frame: VmFrame,
@@ -367,9 +453,177 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                 })?
             };
         }
+        macro_rules! record_skipped_instruction {
+            ($instruction_ip:expr, $skipped:expr) => {{
+                if PROFILED {
+                    if let Some(profile) = &budget.runtime_profile {
+                        if profile.detailed_counters_enabled() {
+                            let current_opcode = opcode_profile_name(&$skipped.op);
+                            profile.record_opcode_execution(current_opcode);
+                            if let Some((previous_ip, previous_opcode)) =
+                                previous_profiled_instruction
+                            {
+                                if previous_ip.checked_add(1) == Some($instruction_ip) {
+                                    profile.record_opcode_transition(
+                                        &f.name,
+                                        previous_opcode,
+                                        current_opcode,
+                                    );
+                                }
+                            }
+                            previous_profiled_instruction = Some(($instruction_ip, current_opcode));
+                            if let Op::Call(target, _) = &$skipped.op {
+                                if let Some(callee) = artifact.functions.get(*target) {
+                                    profile.record_function_call(&callee.name);
+                                }
+                            }
+                            profile
+                                .vm_interpreter_instructions
+                                .fetch_add(1, Ordering::Relaxed);
+                        }
+                        if let Some(sample) = &profile_sample {
+                            sample.record_instruction();
+                        }
+                    }
+                }
+            }};
+        }
         match &instruction_ref.op {
             Op::Load(slot) => {
                 let value = &locals[*slot];
+                let next_op = f.code.get(ip);
+                let fast_path = next_op.and_then(|next| match (&next.op, value) {
+                    (Op::IsOk, Value::ResultOk(_)) => Some(LoadFastPath::Probe(true)),
+                    (Op::IsOk, Value::ResultErr(_)) => Some(LoadFastPath::Probe(false)),
+                    (Op::IsSome, Value::OptionSome(_)) => Some(LoadFastPath::Probe(true)),
+                    (Op::IsSome, Value::OptionNone) => Some(LoadFastPath::Probe(false)),
+                    (Op::Unwrap, Value::ResultOk(payload) | Value::OptionSome(payload)) => {
+                        Some(LoadFastPath::Unwrap(payload.as_ref()))
+                    }
+                    (Op::GetField(record_index, field_index), Value::Record(name, fields)) => {
+                        let record = artifact.records.get(*record_index)?;
+                        if name != &record.name {
+                            return None;
+                        }
+                        let expected_field = record.fields.get(*field_index)?;
+                        let field = fields.get(*field_index)?;
+                        value_matches(field, &expected_field.ty, &artifact.records)
+                            .then_some(LoadFastPath::RecordField(field))
+                    }
+                    (Op::Const(Value::Int(index)), Value::List(items)) => {
+                        if index.digit_count() > limits.max_integer_digits {
+                            return None;
+                        }
+                        let index_ip = ip.checked_add(1)?;
+                        if !matches!(&f.code.get(index_ip)?.op, Op::Index) {
+                            return None;
+                        }
+                        let index = index.to_usize()?;
+                        let field = items.get(index)?;
+                        Some(LoadFastPath::ListIndex(field))
+                    }
+                    _ => None,
+                });
+                if let (Some(next), Some(fast_path)) = (next_op, fast_path) {
+                    charge_allocation(
+                        budget.as_ref(),
+                        cloned_value_allocation(value),
+                        instruction_ref.span,
+                    )?;
+                    if budget.is_cancelled() || host.externally_cancelled() {
+                        return Err(RuntimeError::new(
+                            "R_CANCELLED",
+                            "parallel task was cancelled after a sibling failed",
+                            f.code.first().map(|i| i.span).unwrap_or_default(),
+                        ));
+                    }
+                    if !instruction_fuel.consume() {
+                        return Err(RuntimeError::new(
+                            "R_STEP_LIMIT",
+                            "instruction budget exhausted",
+                            next.span,
+                        ));
+                    }
+                    record_skipped_instruction!(ip, next);
+                    if let LoadFastPath::ListIndex(field) = fast_path {
+                        if budget.is_cancelled() || host.externally_cancelled() {
+                            return Err(RuntimeError::new(
+                                "R_CANCELLED",
+                                "parallel task was cancelled after a sibling failed",
+                                f.code.first().map(|i| i.span).unwrap_or_default(),
+                            ));
+                        }
+                        let index_ip = ip + 1;
+                        let index_instruction = &f.code[index_ip];
+                        if !instruction_fuel.consume() {
+                            return Err(RuntimeError::new(
+                                "R_STEP_LIMIT",
+                                "instruction budget exhausted",
+                                index_instruction.span,
+                            ));
+                        }
+                        record_skipped_instruction!(index_ip, index_instruction);
+                        charge_allocation(
+                            budget.as_ref(),
+                            cloned_value_allocation(field),
+                            index_instruction.span,
+                        )?;
+                        if PROFILED {
+                            if let Some(profile) = &budget.runtime_profile {
+                                profile
+                                    .vm_list_index_load_fast_paths
+                                    .fetch_add(1, Ordering::Relaxed);
+                            }
+                        }
+                        ip += 2;
+                        push_stack!(field.clone());
+                        continue;
+                    }
+                    if let LoadFastPath::RecordField(field) = fast_path {
+                        // Preserve both logical clone charges while skipping the temporary record
+                        // name clone and stack value for this adjacent Load -> GetField pair.
+                        charge_allocation(
+                            budget.as_ref(),
+                            cloned_value_allocation(field),
+                            next.span,
+                        )?;
+                    }
+                    if PROFILED {
+                        if let Some(profile) = &budget.runtime_profile {
+                            match fast_path {
+                                LoadFastPath::Probe(_) => {
+                                    profile
+                                        .vm_result_option_probe_fast_paths
+                                        .fetch_add(1, Ordering::Relaxed);
+                                }
+                                LoadFastPath::Unwrap(_) => {
+                                    profile
+                                        .vm_result_option_unwrap_fast_paths
+                                        .fetch_add(1, Ordering::Relaxed);
+                                }
+                                LoadFastPath::RecordField(_) => {
+                                    profile
+                                        .vm_record_field_load_fast_paths
+                                        .fetch_add(1, Ordering::Relaxed);
+                                }
+                                LoadFastPath::ListIndex(_) => unreachable!(
+                                    "list index fast path is handled before one-op paths"
+                                ),
+                            }
+                        }
+                    }
+                    let result = match fast_path {
+                        LoadFastPath::Probe(value) => Value::Bool(value),
+                        LoadFastPath::Unwrap(value) => value.clone(),
+                        LoadFastPath::RecordField(value) => value.clone(),
+                        LoadFastPath::ListIndex(_) => {
+                            unreachable!("list index fast path is handled before one-op paths")
+                        }
+                    };
+                    ip += 1;
+                    push_stack!(result);
+                    continue;
+                }
                 charge_allocation(
                     budget.as_ref(),
                     cloned_value_allocation(value),
@@ -1496,6 +1750,125 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                         ));
                     }
                 };
+                let text_chars_ip = ip - 1;
+                if let Some(fast_path) = text_chars_concat_fast_path(&f.code, text_chars_ip) {
+                    let mut character_count = 0usize;
+                    let mut scalar_byte_lengths = [0usize; 64];
+                    let mut prefix_byte_lengths = [0usize; 64];
+                    let mut prefix_bytes = 0usize;
+                    for scalar in text
+                        .chars()
+                        .take(limits.max_collection_items.saturating_add(1))
+                    {
+                        if character_count < fast_path.required_characters {
+                            let scalar_bytes = scalar.len_utf8();
+                            scalar_byte_lengths[character_count] = scalar_bytes;
+                            prefix_bytes = prefix_bytes.saturating_add(scalar_bytes);
+                            prefix_byte_lengths[character_count] = prefix_bytes;
+                        }
+                        character_count = character_count.saturating_add(1);
+                        if character_count > limits.max_collection_items {
+                            return Err(RuntimeError::new(
+                                "R_COLLECTION_LIMIT",
+                                "text_chars result exceeds the configured item limit",
+                                instruction.span,
+                            ));
+                        }
+                    }
+                    if character_count >= fast_path.required_characters {
+                        let text_chars_allocation = size_of::<Vec<Value>>()
+                            .saturating_add(character_count.saturating_mul(size_of::<Value>()))
+                            .saturating_add(character_count.saturating_mul(size_of::<String>()))
+                            .saturating_add(text.len());
+                        charge_allocation(
+                            budget.as_ref(),
+                            text_chars_allocation,
+                            instruction_ref.span,
+                        )?;
+
+                        let mut indexed_characters = 0usize;
+                        let mut additions = 0usize;
+                        for skipped_ip in text_chars_ip + 1..fast_path.result_consumer_ip {
+                            if budget.is_cancelled() || host.externally_cancelled() {
+                                return Err(RuntimeError::new(
+                                    "R_CANCELLED",
+                                    "parallel task was cancelled after a sibling failed",
+                                    f.code.first().map(|i| i.span).unwrap_or_default(),
+                                ));
+                            }
+                            let skipped_instruction = &f.code[skipped_ip];
+                            if !instruction_fuel.consume() {
+                                return Err(RuntimeError::new(
+                                    "R_STEP_LIMIT",
+                                    "instruction budget exhausted",
+                                    skipped_instruction.span,
+                                ));
+                            }
+                            record_skipped_instruction!(skipped_ip, skipped_instruction);
+                            match &skipped_instruction.op {
+                                Op::Load(_) => {
+                                    // Cloning the immutable character list has a zero-byte
+                                    // logical charge, but still records the same budget event.
+                                    charge_allocation(budget.as_ref(), 0, skipped_instruction.span)?;
+                                }
+                                Op::Const(value) => {
+                                    charge_allocation(
+                                        budget.as_ref(),
+                                        cloned_value_allocation(value),
+                                        skipped_instruction.span,
+                                    )?;
+                                }
+                                Op::Index => {
+                                    let scalar_bytes = scalar_byte_lengths[indexed_characters];
+                                    indexed_characters += 1;
+                                    charge_allocation(
+                                        budget.as_ref(),
+                                        size_of::<String>().saturating_add(scalar_bytes),
+                                        skipped_instruction.span,
+                                    )?;
+                                }
+                                Op::Add => {
+                                    additions += 1;
+                                    let bytes = prefix_byte_lengths[additions];
+                                    if bytes > limits.max_text_bytes {
+                                        return Err(RuntimeError::new(
+                                            "R_TEXT_LIMIT",
+                                            "text value exceeds the configured byte limit",
+                                            skipped_instruction.span,
+                                        ));
+                                    }
+                                    charge_allocation(
+                                        budget.as_ref(),
+                                        size_of::<String>().saturating_add(bytes),
+                                        skipped_instruction.span,
+                                    )?;
+                                }
+                                Op::Store(_) => {}
+                                _ => unreachable!(
+                                    "text character concat fast path only skips its verified pattern"
+                                ),
+                            }
+                        }
+
+                        let mut joined = String::with_capacity(
+                            prefix_byte_lengths[fast_path.required_characters - 1],
+                        );
+                        for scalar in text.chars().take(fast_path.required_characters) {
+                            joined.push(scalar);
+                        }
+                        let value = Value::Text(Arc::<str>::from(joined));
+                        if PROFILED {
+                            if let Some(profile) = &budget.runtime_profile {
+                                profile
+                                    .vm_text_chars_concat_fast_paths
+                                    .fetch_add(1, Ordering::Relaxed);
+                            }
+                        }
+                        ip = fast_path.result_consumer_ip;
+                        push_stack!(value);
+                        continue;
+                    }
+                }
                 let count = text.chars().count();
                 if count > limits.max_collection_items {
                     return Err(RuntimeError::new(
@@ -2903,6 +3276,11 @@ pub struct RuntimeProfileCounters {
     pub vm_sampled_frames: AtomicUsize,
     pub vm_sampled_instructions: AtomicUsize,
     pub vm_sampled_nanoseconds: AtomicU64,
+    pub vm_result_option_probe_fast_paths: AtomicUsize,
+    pub vm_result_option_unwrap_fast_paths: AtomicUsize,
+    pub vm_record_field_load_fast_paths: AtomicUsize,
+    pub vm_list_index_load_fast_paths: AtomicUsize,
+    pub vm_text_chars_concat_fast_paths: AtomicUsize,
     pub json_parse_nanoseconds: AtomicU64,
     pub json_metrics_nanoseconds: AtomicU64,
     pub opcode_executions: Mutex<BTreeMap<&'static str, u64>>,
@@ -3335,6 +3713,21 @@ impl RuntimeProfileCounters {
                 "sampled_instructions": self.vm_sampled_instructions.load(Ordering::Relaxed),
                 "sampled_nanoseconds": self.vm_sampled_nanoseconds.load(Ordering::Relaxed),
                 "sample_rate_frames": VM_PROFILE_SAMPLE_RATE_FRAMES,
+                "result_option_probe_fast_paths": self
+                    .vm_result_option_probe_fast_paths
+                    .load(Ordering::Relaxed),
+                "result_option_unwrap_fast_paths": self
+                    .vm_result_option_unwrap_fast_paths
+                    .load(Ordering::Relaxed),
+                "record_field_load_fast_paths": self
+                    .vm_record_field_load_fast_paths
+                    .load(Ordering::Relaxed),
+                "list_index_load_fast_paths": self
+                    .vm_list_index_load_fast_paths
+                    .load(Ordering::Relaxed),
+                "text_chars_concat_fast_paths": self
+                    .vm_text_chars_concat_fast_paths
+                    .load(Ordering::Relaxed),
                 "sampled_wall_time_is_inclusive_of_host_operations": true,
                 "sampled_functions": sampled_functions,
             },

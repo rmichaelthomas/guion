@@ -875,7 +875,8 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
                 "cranelift_ir_instructions": instance.native_cranelift_ir_instructions(),
                 "compile_profile": instance.native_compile_profile(),
                 "calls": instance.native_calls(),
-                "deoptimizations": instance.native_deoptimizations()
+                "deoptimizations": instance.native_deoptimizations(),
+                "deoptimization_sites": instance.native_deoptimization_sites()
             });
             let effects = instance
                 .effect_report()

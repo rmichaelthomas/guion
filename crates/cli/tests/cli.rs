@@ -4097,6 +4097,13 @@ fn run_json_report_captures_program_output_status_and_runtime_failure() {
     assert_eq!(report["native_backend"]["compiled_functions"][0], "sum_to");
     assert_eq!(report["native_backend"]["calls"], 1);
     assert_eq!(report["native_backend"]["deoptimizations"], 0);
+    assert_eq!(
+        report["native_backend"]["deoptimization_sites"]
+            .as_array()
+            .unwrap()
+            .len(),
+        0
+    );
     assert_eq!(report["exit_code"], 23);
     assert!(String::from_utf8_lossy(&passed.stderr).is_empty());
 

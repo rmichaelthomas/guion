@@ -29,22 +29,84 @@ pub(crate) const NATIVE_BRIDGE_JSON_TRY_GET: i64 = 3;
 pub(crate) const NATIVE_BRIDGE_JSON_TRY_INT: i64 = 4;
 pub(crate) const NATIVE_BRIDGE_JSON_PARSE: i64 = 5;
 pub(crate) const NATIVE_BRIDGE_FILE_NEXT_LINE: i64 = 6;
+pub(crate) const NATIVE_BRIDGE_ARGS: i64 = 7;
+pub(crate) const NATIVE_BRIDGE_TEXT_EQUAL: i64 = 8;
+pub(crate) const NATIVE_BRIDGE_PRINT_ERR: i64 = 9;
+pub(crate) const NATIVE_BRIDGE_MAKE_TYPED_MAP: i64 = 10;
+pub(crate) const NATIVE_BRIDGE_JSON_ARRAY: i64 = 11;
+pub(crate) const NATIVE_BRIDGE_MAP_KEYS: i64 = 12;
+pub(crate) const NATIVE_BRIDGE_JSON_INDEX: i64 = 13;
+pub(crate) const NATIVE_BRIDGE_TEXT_CHARS: i64 = 17;
+pub(crate) const NATIVE_BRIDGE_JSON_GET: i64 = 18;
+pub(crate) const NATIVE_BRIDGE_JSON_STRINGIFY: i64 = 19;
+pub(crate) const NATIVE_BRIDGE_TEXT_CONCAT: i64 = 20;
+pub(crate) const NATIVE_BRIDGE_JSON_OBJECT: i64 = 21;
+pub(crate) const NATIVE_BRIDGE_MAP_INDEX: i64 = 22;
+pub(crate) const NATIVE_BRIDGE_MAP_SET: i64 = 23;
+pub(crate) const NATIVE_BRIDGE_JSON_INT: i64 = 24;
+pub(crate) const NATIVE_BRIDGE_MAP_HAS: i64 = 25;
+pub(crate) const NATIVE_BRIDGE_JSON_TEXT: i64 = 26;
+pub(crate) const NATIVE_BRIDGE_FILE_OPEN_LINES: i64 = 27;
+pub(crate) const NATIVE_BRIDGE_FILE_CLOSE: i64 = 28;
+pub(crate) const NATIVE_BRIDGE_TEXT_COLLAPSE_WHITESPACE: i64 = 29;
+pub(crate) const NATIVE_BRIDGE_TIME_PARSE_TIMESTAMP: i64 = 30;
+pub(crate) const NATIVE_BRIDGE_TIME_FORMAT_UTC: i64 = 31;
+pub(crate) const NATIVE_BRIDGE_TEXT_SLICE: i64 = 32;
+pub(crate) const NATIVE_BRIDGE_JSON_SET_LOCAL: i64 = 33;
+pub(crate) const NATIVE_BRIDGE_JSON_PUSH_LOCAL: i64 = 34;
 pub(crate) const NATIVE_BRIDGE_MAKE_RECORD: i64 = 14;
 pub(crate) const NATIVE_BRIDGE_GET_FIELD: i64 = 15;
 
-pub(crate) const NATIVE_DIRECT_OPERATION_NAMES: [&str; 6] = [
+pub(crate) const NATIVE_DIRECT_OPERATION_NAMES: [&str; 31] = [
     "json_parse",
     "json_try_text",
     "json_try_get",
     "json_try_int",
     "file_next_line",
     "get_field",
+    "args",
+    "text_equal",
+    "print_err",
+    "make_typed_map",
+    "json_array",
+    "map_keys",
+    "json_index",
+    "text_chars",
+    "json_get",
+    "json_stringify",
+    "text_concat",
+    "json_object",
+    "map_index",
+    "map_set",
+    "json_int",
+    "map_has",
+    "json_text",
+    "file_open_lines",
+    "file_close",
+    "text_collapse_whitespace",
+    "time_parse_timestamp",
+    "time_format_utc",
+    "text_slice",
+    "json_set_local",
+    "json_push_local",
 ];
 
 const NATIVE_BRIDGE_TAG_INT: i64 = 1;
 const NATIVE_BRIDGE_TAG_FLOAT: i64 = 2;
 const NATIVE_BRIDGE_TAG_BOOL: i64 = 3;
 const NATIVE_BRIDGE_TAG_HANDLE: i64 = 4;
+const NATIVE_BRIDGE_TAG_NATIVE_RECORD_BASE: i64 = -1024;
+
+pub(crate) fn native_record_bridge_tag(record_index: usize) -> Option<i64> {
+    NATIVE_BRIDGE_TAG_NATIVE_RECORD_BASE.checked_sub(i64::try_from(record_index).ok()?)
+}
+
+pub(crate) fn native_record_bridge_index(tag: i64) -> Option<usize> {
+    if tag > NATIVE_BRIDGE_TAG_NATIVE_RECORD_BASE {
+        return None;
+    }
+    usize::try_from(NATIVE_BRIDGE_TAG_NATIVE_RECORD_BASE.checked_sub(tag)?).ok()
+}
 
 pub(crate) const NATIVE_TAGGED_RESULT_OK: i64 = 1;
 pub(crate) const NATIVE_TAGGED_RESULT_ERR: i64 = 2;
@@ -95,6 +157,31 @@ pub(crate) fn native_bridge_operation(op: &Op) -> Option<i64> {
         Op::JsonTryInt => Some(NATIVE_BRIDGE_JSON_TRY_INT),
         Op::JsonParse => Some(NATIVE_BRIDGE_JSON_PARSE),
         Op::FileNextLine => Some(NATIVE_BRIDGE_FILE_NEXT_LINE),
+        Op::Args => Some(NATIVE_BRIDGE_ARGS),
+        Op::Equal | Op::NotEqual => Some(NATIVE_BRIDGE_TEXT_EQUAL),
+        Op::PrintErr => Some(NATIVE_BRIDGE_PRINT_ERR),
+        Op::MakeTypedMap(_) => Some(NATIVE_BRIDGE_MAKE_TYPED_MAP),
+        Op::JsonArray => Some(NATIVE_BRIDGE_JSON_ARRAY),
+        Op::MapKeys => Some(NATIVE_BRIDGE_MAP_KEYS),
+        Op::JsonIndex => Some(NATIVE_BRIDGE_JSON_INDEX),
+        Op::TextChars => Some(NATIVE_BRIDGE_TEXT_CHARS),
+        Op::JsonGet => Some(NATIVE_BRIDGE_JSON_GET),
+        Op::JsonStringify => Some(NATIVE_BRIDGE_JSON_STRINGIFY),
+        Op::Add => Some(NATIVE_BRIDGE_TEXT_CONCAT),
+        Op::JsonObject => Some(NATIVE_BRIDGE_JSON_OBJECT),
+        Op::Index => Some(NATIVE_BRIDGE_MAP_INDEX),
+        Op::MapSet => Some(NATIVE_BRIDGE_MAP_SET),
+        Op::JsonInt => Some(NATIVE_BRIDGE_JSON_INT),
+        Op::MapHas => Some(NATIVE_BRIDGE_MAP_HAS),
+        Op::JsonText => Some(NATIVE_BRIDGE_JSON_TEXT),
+        Op::FileOpenLines => Some(NATIVE_BRIDGE_FILE_OPEN_LINES),
+        Op::FileClose => Some(NATIVE_BRIDGE_FILE_CLOSE),
+        Op::TextCollapseWhitespace => Some(NATIVE_BRIDGE_TEXT_COLLAPSE_WHITESPACE),
+        Op::TimeParseTimestamp => Some(NATIVE_BRIDGE_TIME_PARSE_TIMESTAMP),
+        Op::TimeFormatUtc => Some(NATIVE_BRIDGE_TIME_FORMAT_UTC),
+        Op::TextSlice => Some(NATIVE_BRIDGE_TEXT_SLICE),
+        Op::JsonSetLocal(_) => Some(NATIVE_BRIDGE_JSON_SET_LOCAL),
+        Op::JsonPushLocal(_) => Some(NATIVE_BRIDGE_JSON_PUSH_LOCAL),
         Op::MakeRecord(_, _) => Some(NATIVE_BRIDGE_MAKE_RECORD),
         Op::GetField(_, _) => Some(NATIVE_BRIDGE_GET_FIELD),
         _ => None,
@@ -109,6 +196,31 @@ fn native_direct_operation_index(op: &Op) -> Option<usize> {
         Op::JsonTryInt => Some(3),
         Op::FileNextLine => Some(4),
         Op::GetField(_, _) => Some(5),
+        Op::Args => Some(6),
+        Op::Equal | Op::NotEqual => Some(7),
+        Op::PrintErr => Some(8),
+        Op::MakeTypedMap(_) => Some(9),
+        Op::JsonArray => Some(10),
+        Op::MapKeys => Some(11),
+        Op::JsonIndex => Some(12),
+        Op::TextChars => Some(13),
+        Op::JsonGet => Some(14),
+        Op::JsonStringify => Some(15),
+        Op::Add => Some(16),
+        Op::JsonObject => Some(17),
+        Op::Index => Some(18),
+        Op::MapSet => Some(19),
+        Op::JsonInt => Some(20),
+        Op::MapHas => Some(21),
+        Op::JsonText => Some(22),
+        Op::FileOpenLines => Some(23),
+        Op::FileClose => Some(24),
+        Op::TextCollapseWhitespace => Some(25),
+        Op::TimeParseTimestamp => Some(26),
+        Op::TimeFormatUtc => Some(27),
+        Op::TextSlice => Some(28),
+        Op::JsonSetLocal(_) => Some(29),
+        Op::JsonPushLocal(_) => Some(30),
         _ => None,
     }
 }
@@ -175,6 +287,29 @@ fn native_direct_argument_count(op: &Op) -> Option<usize> {
     match op {
         Op::JsonTryGet => Some(2),
         Op::JsonTryText | Op::JsonTryInt | Op::JsonParse | Op::FileNextLine => Some(1),
+        Op::Args => Some(0),
+        Op::Equal | Op::NotEqual => Some(2),
+        Op::PrintErr => Some(1),
+        Op::MakeTypedMap(_) => Some(0),
+        Op::JsonArray => Some(0),
+        Op::MapKeys => Some(1),
+        Op::JsonIndex => Some(2),
+        Op::TextChars => Some(1),
+        Op::JsonGet => Some(2),
+        Op::JsonStringify => Some(1),
+        Op::Add => Some(2),
+        Op::JsonObject => Some(0),
+        Op::Index => Some(2),
+        Op::MapSet => Some(5),
+        Op::JsonInt => Some(1),
+        Op::MapHas => Some(2),
+        Op::JsonText => Some(1),
+        Op::FileOpenLines => Some(1),
+        Op::FileClose => Some(1),
+        Op::TextCollapseWhitespace => Some(1),
+        Op::TimeParseTimestamp => Some(1),
+        Op::TimeFormatUtc => Some(1),
+        Op::TextSlice => Some(3),
         _ => None,
     }
 }
@@ -193,6 +328,52 @@ pub(crate) fn native_record_has_native_layout(record: &guion_model::RecordDefini
     record.fields.iter().all(|field| {
         native_item(&field.ty) || matches!(&field.ty, Type::List(item) if native_item(item))
     })
+}
+
+fn may_contain_map_handle(ty: &Type, records: &[guion_model::RecordDefinition]) -> bool {
+    fn visit(
+        ty: &Type,
+        records: &[guion_model::RecordDefinition],
+        visiting_records: &mut std::collections::HashSet<String>,
+    ) -> bool {
+        match ty {
+            Type::Map(_) => true,
+            Type::List(item) | Type::Option(item) => visit(item, records, visiting_records),
+            Type::Result(ok, err) => {
+                visit(ok, records, visiting_records) || visit(err, records, visiting_records)
+            }
+            Type::Record(name) if visiting_records.insert(name.clone()) => {
+                let contains = records
+                    .iter()
+                    .find(|record| record.name == *name)
+                    .is_some_and(|record| {
+                        record
+                            .fields
+                            .iter()
+                            .any(|field| visit(&field.ty, records, visiting_records))
+                    });
+                visiting_records.remove(name);
+                contains
+            }
+            _ => false,
+        }
+    }
+
+    visit(ty, records, &mut std::collections::HashSet::new())
+}
+
+fn may_hide_json_handle_in_native_value(ty: &Type) -> bool {
+    match ty {
+        Type::Json => true,
+        // Native List and tagged Option/Result values keep JSON references as
+        // arena handles without cloning their Arc. Maps and records materialize
+        // Value nodes, so their Arc counts already expose hidden JSON aliases.
+        Type::List(item) | Type::Option(item) => may_hide_json_handle_in_native_value(item),
+        Type::Result(ok, err) => {
+            may_hide_json_handle_in_native_value(ok) || may_hide_json_handle_in_native_value(err)
+        }
+        _ => false,
+    }
 }
 
 type NativeFunction = unsafe extern "C" fn(
@@ -552,7 +733,7 @@ impl NativeBackend {
             .ok()?;
         let mut direct_signature = Signature::new(module.target_config().default_call_conv);
         direct_signature.params.push(AbiParam::new(pointer_type));
-        for _ in 0..8 {
+        for _ in 0..14 {
             direct_signature.params.push(AbiParam::new(types::I64));
         }
         direct_signature.params.push(AbiParam::new(pointer_type));
@@ -997,7 +1178,8 @@ impl NativeBackend {
     ) -> Result<NativeFunctionCompileProfile, String> {
         let count_guest_branch = self.count_guest_branch;
         let lowering_start = Instant::now();
-        let type_states = infer_native_types(function, all_functions, records)
+        let mut blocking_ip = None;
+        let type_states = infer_native_types(function, all_functions, records, &mut blocking_ip)
             .ok_or_else(|| "unsupported types or control flow".to_owned())?;
         let live_locals_at_ip = live_local_slots_at_ip(function);
         let depths = stack_depths(function).ok_or_else(|| "invalid stack graph".to_owned())?;
@@ -1024,13 +1206,26 @@ impl NativeBackend {
                     .is_some_and(|record| !native_record_has_native_layout(record)),
                 _ => false,
             };
-            let direct_operation_requires_capture = native_direct_operation_index(&instruction.op)
-                .is_some()
-                && !matches!(&instruction.op, Op::GetField(_, _) | Op::MakeRecord(_, _));
+            let direct_operation_requires_capture = match &instruction.op {
+                Op::GetField(_, _) | Op::MakeRecord(_, _) => false,
+                Op::Add => stack_types
+                    .get(ip)
+                    .and_then(Option::as_ref)
+                    .is_some_and(|stack| {
+                        stack.len() >= 2 && stack[stack.len() - 2..] == [Type::Text, Type::Text]
+                    }),
+                Op::Index => stack_types
+                    .get(ip)
+                    .and_then(Option::as_ref)
+                    .is_some_and(|stack| {
+                        matches!(stack.get(stack.len().saturating_sub(2)), Some(Type::Map(_)))
+                    }),
+                _ => native_direct_operation_index(&instruction.op).is_some(),
+            };
             let tagged_value_requires_capture = matches!(
                 &instruction.op,
                 Op::Unwrap | Op::GetError | Op::MakeOk | Op::MakeErr | Op::MakeSome | Op::MakeNone
-            );
+            ) || matches!(&instruction.op, Op::WriteTextAtomic);
             direct_operation_requires_capture
                 || tagged_value_requires_capture
                 || record_requires_direct_call
@@ -1393,7 +1588,26 @@ impl NativeBackend {
                             .copied()
                             .flatten()
                             .ok_or_else(|| "native constant handle is missing".to_owned())?;
-                        stack.push(builder.ins().iconst(types::I64, handle));
+                        let handle_value = builder.ins().iconst(types::I64, handle);
+                        let charged = builder
+                            .ins()
+                            .call(charge_value_clone, &[arena_pointer, handle_value]);
+                        let charged = builder.inst_results(charged)[0];
+                        let zero = builder.ins().iconst(types::I32, 0);
+                        let succeeded = builder.ins().icmp(IntCC::NotEqual, charged, zero);
+                        let success = builder.create_block();
+                        let exit_args = step_exit_args(
+                            &mut builder,
+                            steps_var,
+                            ip,
+                            block_instruction_offsets[ip] + 1,
+                        );
+                        builder
+                            .ins()
+                            .brif(succeeded, success, &[], fallback, &exit_args);
+                        builder.switch_to_block(success);
+                        stack.push(handle_value);
+                        builder.seal_block(success);
                     }
                     Op::Const(Value::Bool(value)) => {
                         stack.push(builder.ins().iconst(types::I64, i64::from(*value)));
@@ -1754,43 +1968,150 @@ impl NativeBackend {
                         stack.push(length);
                     }
                     Op::Index => {
-                        let index = stack.pop().ok_or_else(|| "stack underflow".to_owned())?;
-                        let handle = stack.pop().ok_or_else(|| "stack underflow".to_owned())?;
-                        let list = handle;
-                        let length = builder.ins().load(
-                            types::I64,
-                            MemFlagsData::new(),
-                            list,
-                            std::mem::offset_of!(NativeFloatList, len) as i32,
-                        );
-                        // Unsigned comparison also rejects negative signed indices, whose
-                        // bit patterns sort above any valid list length.
-                        let in_bounds = builder.ins().icmp(IntCC::UnsignedLessThan, index, length);
-                        let load_item = builder.create_block();
-                        let fault_args = step_exit_args(
-                            &mut builder,
-                            steps_var,
-                            ip,
-                            block_instruction_offsets[ip] + 1,
-                        );
-                        builder
-                            .ins()
-                            .brif(in_bounds, load_item, &[], fallback, &fault_args);
-                        builder.switch_to_block(load_item);
-                        let data = builder.ins().load(
-                            ptr,
-                            MemFlagsData::new(),
-                            list,
-                            std::mem::offset_of!(NativeFloatList, data) as i32,
-                        );
-                        let byte_offset = builder.ins().ishl_imm_u(index, 3);
-                        let item_address = builder.ins().iadd(data, byte_offset);
-                        let value =
+                        let map_lookup = stack_types[ip]
+                            .as_ref()
+                            .and_then(|types| types.get(types.len().saturating_sub(2)))
+                            .is_some_and(|ty| matches!(ty, Type::Map(_)));
+                        if map_lookup {
+                            let key = stack.pop().ok_or_else(|| "stack underflow".to_owned())?;
+                            let map = stack.pop().ok_or_else(|| "stack underflow".to_owned())?;
+                            let input_types = stack_types[ip]
+                                .as_ref()
+                                .ok_or_else(|| "missing map index input types".to_owned())?;
+                            let argument_start = input_types
+                                .len()
+                                .checked_sub(2)
+                                .ok_or_else(|| "map index stack underflow".to_owned())?;
+                            let result_type = stack_types
+                                .get(ip + 1)
+                                .and_then(Option::as_ref)
+                                .and_then(|types| types.last())
+                                .ok_or_else(|| "missing map index result type".to_owned())?;
+                            let operation_index = native_direct_operation_index(&instruction.op)
+                                .ok_or_else(|| "missing native map index operation".to_owned())?;
+                            let local_tags =
+                                continuation_local_tags(function, &type_states, ip, records);
+                            let stack_tags = continuation_stack_tags(
+                                &type_states,
+                                ip,
+                                instruction_stack.len(),
+                                records,
+                            );
+                            let value = emit_native_direct_operation_call(
+                                &mut builder,
+                                ptr,
+                                direct_operations[operation_index],
+                                continuation_codegen,
+                                ip,
+                                block_instruction_offsets[ip],
+                                &[map, key],
+                                &input_types[argument_start..],
+                                result_type,
+                                &local_tags,
+                                &instruction_stack,
+                                &stack_tags,
+                            )?;
+                            stack.push(value);
+                        } else {
+                            let indexed_type = stack_types[ip]
+                                .as_ref()
+                                .and_then(|types| types.get(types.len().saturating_sub(2)))
+                                .and_then(|collection_type| match collection_type {
+                                    Type::List(item_type) => Some(item_type.as_ref()),
+                                    _ => None,
+                                });
+                            let index = stack.pop().ok_or_else(|| "stack underflow".to_owned())?;
+                            let handle = stack.pop().ok_or_else(|| "stack underflow".to_owned())?;
+                            let list = handle;
+                            let length = builder.ins().load(
+                                types::I64,
+                                MemFlagsData::new(),
+                                list,
+                                std::mem::offset_of!(NativeFloatList, len) as i32,
+                            );
+                            // Unsigned comparison also rejects negative signed indices, whose
+                            // bit patterns sort above any valid list length.
+                            let in_bounds =
+                                builder.ins().icmp(IntCC::UnsignedLessThan, index, length);
+                            let load_item = builder.create_block();
+                            let fault_args = step_exit_args(
+                                &mut builder,
+                                steps_var,
+                                ip,
+                                block_instruction_offsets[ip] + 1,
+                            );
                             builder
                                 .ins()
-                                .load(types::I64, MemFlagsData::new(), item_address, 0);
-                        stack.push(value);
-                        builder.seal_block(load_item);
+                                .brif(in_bounds, load_item, &[], fallback, &fault_args);
+                            builder.switch_to_block(load_item);
+                            let data = builder.ins().load(
+                                ptr,
+                                MemFlagsData::new(),
+                                list,
+                                std::mem::offset_of!(NativeFloatList, data) as i32,
+                            );
+                            let byte_offset = builder.ins().ishl_imm_u(index, 3);
+                            let item_address = builder.ins().iadd(data, byte_offset);
+                            let value = builder.ins().load(
+                                types::I64,
+                                MemFlagsData::new(),
+                                item_address,
+                                0,
+                            );
+                            if indexed_type.is_some_and(native_value_clone_uses_helper) {
+                                let exit_args = step_exit_args(
+                                    &mut builder,
+                                    steps_var,
+                                    ip,
+                                    block_instruction_offsets[ip] + 1,
+                                );
+                                let charged = builder
+                                    .ins()
+                                    .call(charge_value_clone, &[arena_pointer, value]);
+                                let charged = builder.inst_results(charged)[0];
+                                let zero = builder.ins().iconst(types::I32, 0);
+                                let succeeded = builder.ins().icmp(IntCC::NotEqual, charged, zero);
+                                let success = builder.create_block();
+                                builder
+                                    .ins()
+                                    .brif(succeeded, success, &[], fallback, &exit_args);
+                                builder.switch_to_block(success);
+                                builder.seal_block(success);
+                            } else if let Some(clone_bytes) =
+                                indexed_type.map(native_cloned_value_bytes)
+                            {
+                                if clone_bytes > 0 {
+                                    let exit_args = step_exit_args(
+                                        &mut builder,
+                                        steps_var,
+                                        ip,
+                                        block_instruction_offsets[ip] + 1,
+                                    );
+                                    let bytes = builder.ins().iconst(
+                                        types::I64,
+                                        i64::try_from(clone_bytes).unwrap_or(i64::MAX),
+                                    );
+                                    let charged =
+                                        builder.ins().call(charge_record, &[arena_pointer, bytes]);
+                                    let charged = builder.inst_results(charged)[0];
+                                    let zero = builder.ins().iconst(types::I32, 0);
+                                    let succeeded =
+                                        builder.ins().icmp(IntCC::NotEqual, charged, zero);
+                                    let success = builder.create_block();
+                                    builder.ins().brif(
+                                        succeeded,
+                                        success,
+                                        &[],
+                                        fallback,
+                                        &exit_args,
+                                    );
+                                    builder.switch_to_block(success);
+                                    builder.seal_block(success);
+                                }
+                            }
+                            stack.push(value);
+                            builder.seal_block(load_item);
+                        }
                     }
                     Op::Store(slot) => {
                         let Some(value) = stack.pop() else {
@@ -1804,9 +2125,39 @@ impl NativeBackend {
                     Op::Add | Op::Subtract | Op::Multiply => {
                         let right = stack.pop().ok_or_else(|| "stack underflow".to_owned())?;
                         let left = stack.pop().ok_or_else(|| "stack underflow".to_owned())?;
-                        if stack_types[ip].as_ref().and_then(|types| types.last())
-                            == Some(&Type::Float64)
-                        {
+                        let operand_types = stack_types[ip]
+                            .as_ref()
+                            .ok_or_else(|| "missing arithmetic operand types".to_owned())?;
+                        let text_operands = operand_types.len() >= 2
+                            && operand_types[operand_types.len() - 2..] == [Type::Text, Type::Text];
+                        if text_operands {
+                            let argument_start = operand_types.len() - 2;
+                            let local_tags =
+                                continuation_local_tags(function, &type_states, ip, records);
+                            let stack_tags = continuation_stack_tags(
+                                &type_states,
+                                ip,
+                                instruction_stack.len(),
+                                records,
+                            );
+                            let operation_index = native_direct_operation_index(&instruction.op)
+                                .ok_or_else(|| "missing text concatenation operation".to_owned())?;
+                            let value = emit_native_direct_operation_call(
+                                &mut builder,
+                                ptr,
+                                direct_operations[operation_index],
+                                continuation_codegen,
+                                ip,
+                                block_instruction_offsets[ip],
+                                &[left, right],
+                                &operand_types[argument_start..],
+                                &Type::Text,
+                                &local_tags,
+                                &instruction_stack,
+                                &stack_tags,
+                            )?;
+                            stack.push(value);
+                        } else if operand_types.last() == Some(&Type::Float64) {
                             let left = builder.ins().bitcast(types::F64, MemFlagsData::new(), left);
                             let right =
                                 builder
@@ -1917,38 +2268,73 @@ impl NativeBackend {
                     | Op::GreaterEqual => {
                         let right = stack.pop().ok_or_else(|| "stack underflow".to_owned())?;
                         let left = stack.pop().ok_or_else(|| "stack underflow".to_owned())?;
-                        let float_operands = stack_types[ip].as_ref().is_some_and(|types| {
-                            types.len() >= 2 && types[types.len() - 2] == Type::Float64
-                        });
-                        if float_operands {
-                            let left = builder.ins().bitcast(types::F64, MemFlagsData::new(), left);
-                            let right =
-                                builder
-                                    .ins()
-                                    .bitcast(types::F64, MemFlagsData::new(), right);
-                            let condition = match &instruction.op {
-                                Op::Equal => FloatCC::Equal,
-                                Op::NotEqual => FloatCC::NotEqual,
-                                Op::Less => FloatCC::LessThan,
-                                Op::LessEqual => FloatCC::LessThanOrEqual,
-                                Op::Greater => FloatCC::GreaterThan,
-                                Op::GreaterEqual => FloatCC::GreaterThanOrEqual,
-                                _ => unreachable!(),
-                            };
-                            let result = builder.ins().fcmp(condition, left, right);
-                            stack.push(builder.ins().uextend(types::I64, result));
+                        let operand_types = stack_types[ip]
+                            .as_ref()
+                            .ok_or_else(|| "missing comparison operand types".to_owned())?;
+                        let text_operands = operand_types.len() >= 2
+                            && operand_types[operand_types.len() - 2..] == [Type::Text, Type::Text];
+                        if text_operands {
+                            let argument_start = operand_types.len() - 2;
+                            let result_type = Type::Bool;
+                            let operation_index = native_direct_operation_index(&instruction.op)
+                                .ok_or_else(|| "missing text equality operation".to_owned())?;
+                            let local_tags =
+                                continuation_local_tags(function, &type_states, ip, records);
+                            let stack_tags = continuation_stack_tags(
+                                &type_states,
+                                ip,
+                                instruction_stack.len(),
+                                records,
+                            );
+                            let result = emit_native_direct_operation_call(
+                                &mut builder,
+                                ptr,
+                                direct_operations[operation_index],
+                                continuation_codegen,
+                                ip,
+                                block_instruction_offsets[ip],
+                                &[left, right],
+                                &operand_types[argument_start..],
+                                &result_type,
+                                &local_tags,
+                                &instruction_stack,
+                                &stack_tags,
+                            )?;
+                            stack.push(result);
                         } else {
-                            let condition = match &instruction.op {
-                                Op::Equal => IntCC::Equal,
-                                Op::NotEqual => IntCC::NotEqual,
-                                Op::Less => IntCC::SignedLessThan,
-                                Op::LessEqual => IntCC::SignedLessThanOrEqual,
-                                Op::Greater => IntCC::SignedGreaterThan,
-                                Op::GreaterEqual => IntCC::SignedGreaterThanOrEqual,
-                                _ => unreachable!(),
-                            };
-                            let result = builder.ins().icmp(condition, left, right);
-                            stack.push(builder.ins().uextend(types::I64, result));
+                            let float_operands = operand_types.len() >= 2
+                                && operand_types[operand_types.len() - 2] == Type::Float64;
+                            if float_operands {
+                                let left =
+                                    builder.ins().bitcast(types::F64, MemFlagsData::new(), left);
+                                let right =
+                                    builder
+                                        .ins()
+                                        .bitcast(types::F64, MemFlagsData::new(), right);
+                                let condition = match &instruction.op {
+                                    Op::Equal => FloatCC::Equal,
+                                    Op::NotEqual => FloatCC::NotEqual,
+                                    Op::Less => FloatCC::LessThan,
+                                    Op::LessEqual => FloatCC::LessThanOrEqual,
+                                    Op::Greater => FloatCC::GreaterThan,
+                                    Op::GreaterEqual => FloatCC::GreaterThanOrEqual,
+                                    _ => unreachable!(),
+                                };
+                                let result = builder.ins().fcmp(condition, left, right);
+                                stack.push(builder.ins().uextend(types::I64, result));
+                            } else {
+                                let condition = match &instruction.op {
+                                    Op::Equal => IntCC::Equal,
+                                    Op::NotEqual => IntCC::NotEqual,
+                                    Op::Less => IntCC::SignedLessThan,
+                                    Op::LessEqual => IntCC::SignedLessThanOrEqual,
+                                    Op::Greater => IntCC::SignedGreaterThan,
+                                    Op::GreaterEqual => IntCC::SignedGreaterThanOrEqual,
+                                    _ => unreachable!(),
+                                };
+                                let result = builder.ins().icmp(condition, left, right);
+                                stack.push(builder.ins().uextend(types::I64, result));
+                            }
                         }
                     }
                     Op::Jump(target) => {
@@ -2207,6 +2593,324 @@ impl NativeBackend {
                             &branch_args,
                         );
                         continue;
+                    }
+                    Op::JsonSetLocal(slot) => {
+                        let input_types = stack_types[ip]
+                            .as_ref()
+                            .ok_or_else(|| "missing JSON set local input types".to_owned())?;
+                        let value = stack.pop().ok_or_else(|| "stack underflow".to_owned())?;
+                        let key = stack.pop().ok_or_else(|| "stack underflow".to_owned())?;
+                        let object = builder.use_var(local_vars[*slot]);
+                        let locals_at_ip = type_states
+                            .locals_at_ip
+                            .get(ip)
+                            .and_then(Option::as_ref)
+                            .ok_or_else(|| "missing JSON set local types".to_owned())?;
+                        let live_aliases = live_locals_at_ip
+                            .get(ip)
+                            .ok_or_else(|| "missing JSON set local liveness".to_owned())?;
+                        let mut alias_count = builder.ins().iconst(types::I64, 0);
+                        let mut safe_alias_analysis = true;
+                        for (local, ty) in locals_at_ip.iter().enumerate() {
+                            let Some(ty) = ty.as_ref() else {
+                                continue;
+                            };
+                            let local_is_live = local == *slot || live_aliases.contains(&local);
+                            if !local_is_live {
+                                continue;
+                            }
+                            if may_hide_json_handle_in_native_value(ty) && *ty != Type::Json {
+                                safe_alias_analysis = false;
+                            }
+                            if *ty == Type::Json {
+                                let local_value = builder.use_var(local_vars[local]);
+                                let aliases_object =
+                                    builder.ins().icmp(IntCC::Equal, local_value, object);
+                                let alias_bit = builder.ins().uextend(types::I64, aliases_object);
+                                alias_count = builder.ins().iadd(alias_count, alias_bit);
+                            }
+                        }
+                        for (stack_index, ty) in input_types.iter().enumerate() {
+                            if may_hide_json_handle_in_native_value(ty) && *ty != Type::Json {
+                                safe_alias_analysis = false;
+                            }
+                            if *ty == Type::Json {
+                                let stack_value = instruction_stack[stack_index];
+                                let aliases_object =
+                                    builder.ins().icmp(IntCC::Equal, stack_value, object);
+                                let alias_bit = builder.ins().uextend(types::I64, aliases_object);
+                                alias_count = builder.ins().iadd(alias_count, alias_bit);
+                            }
+                        }
+                        let one = builder.ins().iconst(types::I64, 1);
+                        let exactly_one_reference =
+                            builder.ins().icmp(IntCC::Equal, alias_count, one);
+                        let unique_target = if safe_alias_analysis {
+                            builder.ins().uextend(types::I64, exactly_one_reference)
+                        } else {
+                            builder.ins().iconst(types::I64, 0)
+                        };
+                        let arguments = [object, key, value, unique_target];
+                        let argument_types = [Type::Json, Type::Text, Type::Json, Type::Bool];
+                        let local_tags =
+                            continuation_local_tags(function, &type_states, ip, records);
+                        let stack_tags = continuation_stack_tags(
+                            &type_states,
+                            ip,
+                            instruction_stack.len(),
+                            records,
+                        );
+                        let operation_index = native_direct_operation_index(&instruction.op)
+                            .ok_or_else(|| "missing native JSON set local operation".to_owned())?;
+                        let updated = emit_native_direct_operation_call(
+                            &mut builder,
+                            ptr,
+                            direct_operations[operation_index],
+                            continuation_codegen,
+                            ip,
+                            block_instruction_offsets[ip],
+                            &arguments,
+                            &argument_types,
+                            &Type::Json,
+                            &local_tags,
+                            &instruction_stack,
+                            &stack_tags,
+                        )?;
+                        builder.def_var(local_vars[*slot], updated);
+                    }
+                    Op::JsonPushLocal(slot) => {
+                        let input_types = stack_types[ip]
+                            .as_ref()
+                            .ok_or_else(|| "missing JSON push local input types".to_owned())?;
+                        let value = stack.pop().ok_or_else(|| "stack underflow".to_owned())?;
+                        let array = builder.use_var(local_vars[*slot]);
+                        let locals_at_ip = type_states
+                            .locals_at_ip
+                            .get(ip)
+                            .and_then(Option::as_ref)
+                            .ok_or_else(|| "missing JSON push local types".to_owned())?;
+                        let live_aliases = live_locals_at_ip
+                            .get(ip)
+                            .ok_or_else(|| "missing JSON push local liveness".to_owned())?;
+                        let mut alias_count = builder.ins().iconst(types::I64, 0);
+                        let mut safe_alias_analysis = true;
+                        for (local, ty) in locals_at_ip.iter().enumerate() {
+                            let Some(ty) = ty.as_ref() else {
+                                continue;
+                            };
+                            let local_is_live = local == *slot || live_aliases.contains(&local);
+                            if !local_is_live {
+                                continue;
+                            }
+                            if may_hide_json_handle_in_native_value(ty) && *ty != Type::Json {
+                                safe_alias_analysis = false;
+                            }
+                            if *ty == Type::Json {
+                                let local_value = builder.use_var(local_vars[local]);
+                                let aliases_array =
+                                    builder.ins().icmp(IntCC::Equal, local_value, array);
+                                let alias_bit = builder.ins().uextend(types::I64, aliases_array);
+                                alias_count = builder.ins().iadd(alias_count, alias_bit);
+                            }
+                        }
+                        for (stack_index, ty) in input_types.iter().enumerate() {
+                            if may_hide_json_handle_in_native_value(ty) && *ty != Type::Json {
+                                safe_alias_analysis = false;
+                            }
+                            if *ty == Type::Json {
+                                let stack_value = instruction_stack[stack_index];
+                                let aliases_array =
+                                    builder.ins().icmp(IntCC::Equal, stack_value, array);
+                                let alias_bit = builder.ins().uextend(types::I64, aliases_array);
+                                alias_count = builder.ins().iadd(alias_count, alias_bit);
+                            }
+                        }
+                        let one = builder.ins().iconst(types::I64, 1);
+                        let exactly_one_reference =
+                            builder.ins().icmp(IntCC::Equal, alias_count, one);
+                        let unique_target = if safe_alias_analysis {
+                            builder.ins().uextend(types::I64, exactly_one_reference)
+                        } else {
+                            builder.ins().iconst(types::I64, 0)
+                        };
+                        let arguments = [array, value, unique_target];
+                        let argument_types = [Type::Json, Type::Json, Type::Bool];
+                        let local_tags =
+                            continuation_local_tags(function, &type_states, ip, records);
+                        let stack_tags = continuation_stack_tags(
+                            &type_states,
+                            ip,
+                            instruction_stack.len(),
+                            records,
+                        );
+                        let operation_index = native_direct_operation_index(&instruction.op)
+                            .ok_or_else(|| "missing native JSON push local operation".to_owned())?;
+                        let updated = emit_native_direct_operation_call(
+                            &mut builder,
+                            ptr,
+                            direct_operations[operation_index],
+                            continuation_codegen,
+                            ip,
+                            block_instruction_offsets[ip],
+                            &arguments,
+                            &argument_types,
+                            &Type::Json,
+                            &local_tags,
+                            &instruction_stack,
+                            &stack_tags,
+                        )?;
+                        builder.def_var(local_vars[*slot], updated);
+                    }
+                    Op::WriteTextAtomic => {
+                        let local_tags =
+                            continuation_local_tags(function, &type_states, ip, records);
+                        let stack_tags = continuation_stack_tags(
+                            &type_states,
+                            ip,
+                            instruction_stack.len(),
+                            records,
+                        );
+                        emit_native_capture_exit(
+                            &mut builder,
+                            continuation_codegen,
+                            ip,
+                            block_instruction_offsets[ip],
+                            &local_tags,
+                            &instruction_stack,
+                            &stack_tags,
+                        );
+                        continue;
+                    }
+                    Op::MapSet => {
+                        let input_types = stack_types[ip]
+                            .as_ref()
+                            .ok_or_else(|| "missing map set input types".to_owned())?;
+                        let argument_start = input_types
+                            .len()
+                            .checked_sub(3)
+                            .ok_or_else(|| "map set stack underflow".to_owned())?;
+                        let map_type = input_types[argument_start].clone();
+                        let key_type = input_types[argument_start + 1].clone();
+                        let value_type = input_types[argument_start + 2].clone();
+                        let value = stack.pop().ok_or_else(|| "stack underflow".to_owned())?;
+                        let key = stack.pop().ok_or_else(|| "stack underflow".to_owned())?;
+                        let map = stack.pop().ok_or_else(|| "stack underflow".to_owned())?;
+                        let result_type = stack_types
+                            .get(ip + 1)
+                            .and_then(Option::as_ref)
+                            .and_then(|types| types.last())
+                            .ok_or_else(|| "missing map set result type".to_owned())?;
+
+                        let store_slot = function.code.get(ip + 1).and_then(|next| match next.op {
+                            Op::Store(slot) => Some(slot),
+                            _ => None,
+                        });
+                        let target_handle = store_slot
+                            .map(|slot| builder.use_var(local_vars[slot]))
+                            .unwrap_or(map);
+                        let candidate = if store_slot.is_some() {
+                            let locals_at_ip = type_states
+                                .locals_at_ip
+                                .get(ip)
+                                .and_then(Option::as_ref)
+                                .ok_or_else(|| "missing map set local types".to_owned())?;
+                            let mut alias_count = builder.ins().iconst(types::I64, 0);
+                            let mut safe_alias_analysis = true;
+                            for (local, ty) in locals_at_ip.iter().enumerate() {
+                                let Some(ty) = ty.as_ref() else {
+                                    continue;
+                                };
+                                if may_contain_map_handle(ty, records)
+                                    && !matches!(ty, Type::Map(_))
+                                {
+                                    safe_alias_analysis = false;
+                                }
+                                if matches!(ty, Type::Map(_)) {
+                                    let local_value = builder.use_var(local_vars[local]);
+                                    let aliases_input =
+                                        builder.ins().icmp(IntCC::Equal, local_value, map);
+                                    let alias_bit =
+                                        builder.ins().uextend(types::I64, aliases_input);
+                                    alias_count = builder.ins().iadd(alias_count, alias_bit);
+                                }
+                            }
+                            for (stack_index, ty) in
+                                input_types[..argument_start].iter().enumerate()
+                            {
+                                if may_contain_map_handle(ty, records)
+                                    && !matches!(ty, Type::Map(_))
+                                {
+                                    safe_alias_analysis = false;
+                                }
+                                if matches!(ty, Type::Map(_)) {
+                                    let stack_value = instruction_stack[stack_index];
+                                    let aliases_input =
+                                        builder.ins().icmp(IntCC::Equal, stack_value, map);
+                                    let alias_bit =
+                                        builder.ins().uextend(types::I64, aliases_input);
+                                    alias_count = builder.ins().iadd(alias_count, alias_bit);
+                                }
+                            }
+                            let target_matches =
+                                builder.ins().icmp(IntCC::Equal, target_handle, map);
+                            let one = builder.ins().iconst(types::I64, 1);
+                            let exactly_one_reference =
+                                builder.ins().icmp(IntCC::Equal, alias_count, one);
+                            let unique_target =
+                                builder.ins().band(target_matches, exactly_one_reference);
+                            if safe_alias_analysis {
+                                builder.ins().uextend(types::I64, unique_target)
+                            } else {
+                                builder.ins().iconst(types::I64, 0)
+                            }
+                        } else {
+                            builder.ins().iconst(types::I64, 0)
+                        };
+                        let arguments = [map, key, value, target_handle, candidate];
+                        let argument_types = [
+                            map_type,
+                            key_type,
+                            value_type.clone(),
+                            input_types[argument_start].clone(),
+                            Type::Bool,
+                        ];
+                        let local_tags =
+                            continuation_local_tags(function, &type_states, ip, records);
+                        let stack_tags = continuation_stack_tags(
+                            &type_states,
+                            ip,
+                            instruction_stack.len(),
+                            records,
+                        );
+                        let operation_index = native_direct_operation_index(&instruction.op)
+                            .ok_or_else(|| "missing native map set operation".to_owned())?;
+                        let mut argument_tag_overrides = vec![None; arguments.len()];
+                        if let Type::Record(name) = &value_type {
+                            if let Some(record_index) = records.iter().position(|record| {
+                                record.name == *name && native_record_has_native_layout(record)
+                            }) {
+                                argument_tag_overrides[2] = Some(
+                                    native_record_bridge_tag(record_index)
+                                        .ok_or_else(|| "native record tag overflow".to_owned())?,
+                                );
+                            }
+                        }
+                        let result = emit_native_direct_operation_call_with_argument_tag_overrides(
+                            &mut builder,
+                            ptr,
+                            direct_operations[operation_index],
+                            continuation_codegen,
+                            ip,
+                            block_instruction_offsets[ip],
+                            &arguments,
+                            &argument_types,
+                            &argument_tag_overrides,
+                            result_type,
+                            &local_tags,
+                            &instruction_stack,
+                            &stack_tags,
+                        )?;
+                        stack.push(result);
                     }
                     Op::ListSetLocal(slot) => {
                         let value = stack.pop().ok_or_else(|| "stack underflow".to_owned())?;
@@ -2782,7 +3486,25 @@ impl NativeBackend {
                     | Op::JsonTryGet
                     | Op::JsonTryInt
                     | Op::JsonParse
-                    | Op::FileNextLine => {
+                    | Op::FileNextLine
+                    | Op::Args
+                    | Op::MakeTypedMap(_)
+                    | Op::JsonArray
+                    | Op::MapKeys
+                    | Op::JsonIndex
+                    | Op::TextChars
+                    | Op::TextSlice
+                    | Op::JsonGet
+                    | Op::JsonStringify
+                    | Op::JsonObject
+                    | Op::JsonInt
+                    | Op::MapHas
+                    | Op::JsonText
+                    | Op::FileOpenLines
+                    | Op::FileClose
+                    | Op::TextCollapseWhitespace
+                    | Op::TimeParseTimestamp
+                    | Op::TimeFormatUtc => {
                         let argument_count = native_direct_argument_count(&instruction.op)
                             .ok_or_else(|| "missing direct native argument count".to_owned())?;
                         let input_types = stack_types[ip]
@@ -2823,6 +3545,40 @@ impl NativeBackend {
                             &stack_tags,
                         )?;
                         stack.push(result);
+                    }
+                    Op::PrintErr => {
+                        let value = stack.pop().ok_or_else(|| "stack underflow".to_owned())?;
+                        let input_type = stack_types[ip]
+                            .as_ref()
+                            .and_then(|types| types.last())
+                            .ok_or_else(|| "missing stderr value type".to_owned())?;
+                        if input_type != &Type::Text {
+                            return Err("native stderr currently requires Text".into());
+                        }
+                        let operation_index = native_direct_operation_index(&instruction.op)
+                            .ok_or_else(|| "missing direct native stderr operation".to_owned())?;
+                        let local_tags =
+                            continuation_local_tags(function, &type_states, ip, records);
+                        let stack_tags = continuation_stack_tags(
+                            &type_states,
+                            ip,
+                            instruction_stack.len(),
+                            records,
+                        );
+                        let _ = emit_native_direct_operation_call(
+                            &mut builder,
+                            ptr,
+                            direct_operations[operation_index],
+                            continuation_codegen,
+                            ip,
+                            block_instruction_offsets[ip],
+                            &[value],
+                            std::slice::from_ref(input_type),
+                            &Type::Unit,
+                            &local_tags,
+                            &instruction_stack,
+                            &stack_tags,
+                        )?;
                     }
                     Op::Return => {
                         let completed_instructions = block_instruction_counts[block_for_ip[ip]];
@@ -3040,14 +3796,54 @@ fn emit_native_direct_operation_call(
     stack_values: &[cranelift_codegen::ir::Value],
     stack_tags: &[i64],
 ) -> Result<cranelift_codegen::ir::Value, String> {
-    if arguments.len() != argument_types.len() || arguments.len() > 2 {
+    emit_native_direct_operation_call_with_argument_tag_overrides(
+        builder,
+        pointer_type,
+        direct_operation,
+        codegen,
+        ip,
+        completed_in_block,
+        arguments,
+        argument_types,
+        &[],
+        result_type,
+        local_tags,
+        stack_values,
+        stack_tags,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn emit_native_direct_operation_call_with_argument_tag_overrides(
+    builder: &mut FunctionBuilder<'_>,
+    pointer_type: cranelift_codegen::ir::Type,
+    direct_operation: FuncRef,
+    codegen: NativeContinuationCodegen<'_>,
+    ip: usize,
+    completed_in_block: usize,
+    arguments: &[cranelift_codegen::ir::Value],
+    argument_types: &[Type],
+    argument_tag_overrides: &[Option<i64>],
+    result_type: &Type,
+    local_tags: &[i64],
+    stack_values: &[cranelift_codegen::ir::Value],
+    stack_tags: &[i64],
+) -> Result<cranelift_codegen::ir::Value, String> {
+    if arguments.len() != argument_types.len() || arguments.len() > 5 {
         return Err("direct native operation has an invalid argument layout".into());
     }
     let zero = builder.ins().iconst(types::I64, 0);
-    let first = arguments.first().copied().unwrap_or(zero);
-    let first_tag = argument_types.first().map(native_bridge_tag).unwrap_or(0);
-    let second = arguments.get(1).copied().unwrap_or(zero);
-    let second_tag = argument_types.get(1).map(native_bridge_tag).unwrap_or(0);
+    let mut operation_arguments = Vec::with_capacity(10);
+    for index in 0..5 {
+        operation_arguments.push(arguments.get(index).copied().unwrap_or(zero));
+        let tag = argument_tag_overrides
+            .get(index)
+            .copied()
+            .flatten()
+            .or_else(|| argument_types.get(index).map(native_bridge_tag))
+            .unwrap_or(0);
+        operation_arguments.push(builder.ins().iconst(types::I64, tag));
+    }
     let function_index = builder.ins().iconst(
         types::I64,
         codegen.function_index.min(i64::MAX as usize) as i64,
@@ -3055,29 +3851,22 @@ fn emit_native_direct_operation_call(
     let instruction_index = builder
         .ins()
         .iconst(types::I64, ip.min(i64::MAX as usize) as i64);
-    let first_tag = builder.ins().iconst(types::I64, first_tag);
-    let second_tag = builder.ins().iconst(types::I64, second_tag);
     let result_tag = builder
         .ins()
         .iconst(types::I64, native_bridge_tag(result_type));
     let result_slot =
         builder.create_sized_stack_slot(StackSlotData::new(StackSlotKind::ExplicitSlot, 8, 3));
     let result_pointer = builder.ins().stack_addr(pointer_type, result_slot, 0);
-    let call = builder.ins().call(
-        direct_operation,
-        &[
-            codegen.arena,
-            function_index,
-            instruction_index,
-            codegen.depth,
-            first,
-            first_tag,
-            second,
-            second_tag,
-            result_tag,
-            result_pointer,
-        ],
-    );
+    let mut call_arguments = Vec::with_capacity(17);
+    call_arguments.extend([
+        codegen.arena,
+        function_index,
+        instruction_index,
+        codegen.depth,
+    ]);
+    call_arguments.extend(operation_arguments);
+    call_arguments.extend([result_tag, result_pointer]);
+    let call = builder.ins().call(direct_operation, &call_arguments);
     let status = builder.inst_results(call)[0];
     let zero_status = builder.ins().iconst(types::I32, 0);
     let succeeded = builder.ins().icmp(IntCC::NotEqual, status, zero_status);
@@ -3783,12 +4572,15 @@ fn infer_native_types(
     function: &Function,
     functions: &[Function],
     records: &[guion_model::RecordDefinition],
+    blocking_ip: &mut Option<usize>,
 ) -> Option<NativeTypeStates> {
+    *blocking_ip = None;
     if let Some(first_update) = function
         .code
         .iter()
         .position(|instruction| matches!(instruction.op, Op::ListSetLocal(_)))
     {
+        *blocking_ip = Some(first_update);
         // A list handle can be shared by a record created earlier in the function.
         // Until the verifier can prove uniqueness, don't compile local in-place
         // updates across that potential alias.
@@ -3874,6 +4666,7 @@ fn infer_native_types(
     states[0] = Some(initial);
     let mut pending = VecDeque::from([0]);
     while let Some(ip) = pending.pop_front() {
+        *blocking_ip = Some(ip);
         let mut state = states[ip].clone()?;
         stack_at_ip[ip] = Some(state.stack.clone());
         locals_at_ip[ip] = Some(state.locals.clone());
@@ -3884,6 +4677,7 @@ fn infer_native_types(
                 state.stack.push(Type::Int);
             }
             Op::Const(Value::Text(_)) => state.stack.push(Type::Text),
+            Op::Args => state.stack.push(Type::List(Box::new(Type::Text))),
             Op::Const(Value::Bytes(_)) => state.stack.push(Type::Bytes),
             Op::Const(Value::Float64(_)) => state.stack.push(Type::Float64),
             Op::Const(Value::Bool(_)) => state.stack.push(Type::Bool),
@@ -3937,7 +4731,9 @@ fn infer_native_types(
             Op::Add | Op::Subtract | Op::Multiply | Op::Divide => {
                 let right = state.stack.pop()?;
                 let left = state.stack.pop()?;
-                if left != right || !is_numeric(&left) {
+                if left != right
+                    || (!is_numeric(&left) && !(matches!(op, Op::Add) && left == Type::Text))
+                {
                     return None;
                 }
                 state.stack.push(left);
@@ -4093,17 +4889,161 @@ fn infer_native_types(
                 }
                 state.stack.push(Type::List(Box::new(item_type.clone())));
             }
-            Op::Index => {
+            Op::MakeTypedMap(item_type) => {
+                if !is_native_parameter(item_type) {
+                    return None;
+                }
+                state.stack.push(Type::Map(Box::new(item_type.clone())));
+            }
+            Op::JsonArray => state.stack.push(Type::Json),
+            Op::JsonObject => state.stack.push(Type::Json),
+            Op::JsonInt => {
                 if state.stack.pop()? != Type::Int {
                     return None;
                 }
-                let Type::List(item) = state.stack.pop()? else {
-                    return None;
-                };
-                if !is_native_list_item(&item) {
+                state.stack.push(Type::Json);
+            }
+            Op::JsonText => {
+                if state.stack.pop()? != Type::Text {
                     return None;
                 }
-                state.stack.push(*item);
+                state.stack.push(Type::Json);
+            }
+            Op::FileOpenLines => {
+                if state.stack.pop()? != Type::Text {
+                    return None;
+                }
+                state.stack.push(Type::Result(
+                    Box::new(Type::NativeResource("FileReader".into())),
+                    Box::new(Type::FileError),
+                ));
+            }
+            Op::FileClose => {
+                if state.stack.pop()? != Type::NativeResource("FileReader".into()) {
+                    return None;
+                }
+                state.stack.push(Type::Result(
+                    Box::new(Type::Unit),
+                    Box::new(Type::FileError),
+                ));
+            }
+            Op::TextCollapseWhitespace => {
+                if state.stack.pop()? != Type::Text {
+                    return None;
+                }
+                state.stack.push(Type::Text);
+            }
+            Op::TimeParseTimestamp => {
+                if state.stack.pop()? != Type::Text {
+                    return None;
+                }
+                state.stack.push(Type::Result(
+                    Box::new(Type::Record("Instant".into())),
+                    Box::new(Type::FileError),
+                ));
+            }
+            Op::TimeFormatUtc => {
+                if state.stack.pop()? != Type::Record("Instant".into()) {
+                    return None;
+                }
+                state.stack.push(Type::Text);
+            }
+            Op::TextSlice => {
+                if state.stack.pop()? != Type::Int
+                    || state.stack.pop()? != Type::Int
+                    || state.stack.pop()? != Type::Text
+                {
+                    return None;
+                }
+                state.stack.push(Type::Text);
+            }
+            Op::MapHas => {
+                if state.stack.pop()? != Type::Text {
+                    return None;
+                }
+                if !matches!(state.stack.pop()?, Type::Map(_)) {
+                    return None;
+                }
+                state.stack.push(Type::Bool);
+            }
+            Op::MapKeys => {
+                if !matches!(state.stack.pop()?, Type::Map(_)) {
+                    return None;
+                }
+                state.stack.push(Type::List(Box::new(Type::Text)));
+            }
+            Op::JsonIndex => {
+                if state.stack.pop()? != Type::Int || state.stack.pop()? != Type::Json {
+                    return None;
+                }
+                state.stack.push(Type::Json);
+            }
+            Op::JsonGet => {
+                if state.stack.pop()? != Type::Text || state.stack.pop()? != Type::Json {
+                    return None;
+                }
+                state.stack.push(Type::Json);
+            }
+            Op::JsonStringify => {
+                if state.stack.pop()? != Type::Json {
+                    return None;
+                }
+                state.stack.push(Type::Text);
+            }
+            Op::JsonSetLocal(slot) => {
+                if state.stack.pop()? != Type::Json
+                    || state.stack.pop()? != Type::Text
+                    || state.locals.get(*slot).and_then(Option::as_ref) != Some(&Type::Json)
+                {
+                    return None;
+                }
+            }
+            Op::JsonPushLocal(slot) => {
+                if state.stack.pop()? != Type::Json
+                    || state.locals.get(*slot).and_then(Option::as_ref) != Some(&Type::Json)
+                {
+                    return None;
+                }
+            }
+            Op::WriteTextAtomic => {
+                if state.stack.pop()? != Type::Text || state.stack.pop()? != Type::Text {
+                    return None;
+                }
+                state.stack.push(Type::Result(
+                    Box::new(Type::Unit),
+                    Box::new(Type::FileError),
+                ));
+            }
+            Op::MapSet => {
+                let value_type = state.stack.pop()?;
+                if state.stack.pop()? != Type::Text {
+                    return None;
+                }
+                let Type::Map(item_type) = state.stack.pop()? else {
+                    return None;
+                };
+                if value_type != *item_type || !is_native_parameter(&item_type) {
+                    return None;
+                }
+                state.stack.push(Type::Map(item_type));
+            }
+            Op::TextChars => {
+                if state.stack.pop()? != Type::Text {
+                    return None;
+                }
+                state.stack.push(Type::List(Box::new(Type::Text)));
+            }
+            Op::Index => {
+                let index_type = state.stack.pop()?;
+                match state.stack.pop()? {
+                    Type::List(item) if index_type == Type::Int && is_native_list_item(&item) => {
+                        state.stack.push(*item);
+                    }
+                    Type::Map(item) if index_type == Type::Text && is_native_parameter(&item) => {
+                        state.stack.push(*item);
+                    }
+                    _ => return None,
+                }
             }
             Op::ListSet => {
                 let value_type = state.stack.pop()?;
@@ -4121,7 +5061,8 @@ fn infer_native_types(
             Op::Equal | Op::NotEqual => {
                 let right = state.stack.pop()?;
                 let left = state.stack.pop()?;
-                if left != right || !(is_numeric(&left) || left == Type::Bool) {
+                if left != right || !(is_numeric(&left) || left == Type::Bool || left == Type::Text)
+                {
                     return None;
                 }
                 state.stack.push(Type::Bool);
@@ -4161,10 +5102,12 @@ fn infer_native_types(
                 }
             }
             Op::Print | Op::PrintErr => {
-                if matches!(op, Op::PrintErr) {
-                    return None;
-                }
-                if !matches!(state.stack.pop()?, Type::Int | Type::Float64 | Type::Bool) {
+                let printed_type = state.stack.pop()?;
+                if matches!(op, Op::Print) {
+                    if !matches!(printed_type, Type::Int | Type::Float64 | Type::Bool) {
+                        return None;
+                    }
+                } else if printed_type != Type::Text {
                     return None;
                 }
             }
@@ -4179,7 +5122,7 @@ fn infer_native_types(
                     return None;
                 }
             }
-            Op::ListPushLocal(_) | Op::JsonPushLocal(_) => return None,
+            Op::ListPushLocal(_) => return None,
             _ => return None,
         }
 
@@ -4204,6 +5147,7 @@ fn infer_native_types(
                 }
                 Some(existing) => {
                     if existing.stack != state.stack {
+                        *blocking_ip = Some(successor);
                         return None;
                     }
                     let mut changed = false;
@@ -4220,6 +5164,7 @@ fn infer_native_types(
             }
         }
     }
+    *blocking_ip = None;
     Some(NativeTypeStates {
         stack_at_ip,
         locals_at_ip,
@@ -4275,7 +5220,10 @@ fn live_local_slots_at_ip(function: &Function) -> Vec<Vec<usize>> {
             match instruction.op {
                 Op::Load(slot) => uses[slot] = true,
                 Op::Store(slot) => defines[slot] = true,
-                Op::ListSetLocal(slot) | Op::ListPushLocal(slot) | Op::JsonPushLocal(slot) => {
+                Op::ListSetLocal(slot)
+                | Op::ListPushLocal(slot)
+                | Op::JsonPushLocal(slot)
+                | Op::JsonSetLocal(slot) => {
                     uses[slot] = true;
                     defines[slot] = true;
                 }
@@ -4351,10 +5299,39 @@ fn instruction_requires_native_value_bridge(instruction: &guion_model::Instructi
     match &instruction.op {
         // MakeRecord and GetField each have operation-specific callbacks that
         // preserve value cloning and guest allocation accounting for mixed records.
-        Op::MakeRecord(_, _) | Op::GetField(_, _) => false,
-        Op::FileNextLine | Op::JsonParse | Op::JsonTryGet | Op::JsonTryText | Op::JsonTryInt => {
-            false
-        }
+        Op::MakeRecord(_, _)
+        | Op::GetField(_, _)
+        | Op::Equal
+        | Op::NotEqual
+        | Op::PrintErr
+        | Op::MakeTypedMap(_)
+        | Op::JsonArray
+        | Op::MapKeys
+        | Op::JsonIndex
+        | Op::TextChars
+        | Op::JsonGet
+        | Op::JsonStringify
+        | Op::Add
+        | Op::JsonObject
+        | Op::Index
+        | Op::MapSet
+        | Op::JsonInt
+        | Op::MapHas
+        | Op::JsonText
+        | Op::FileOpenLines
+        | Op::FileClose
+        | Op::TextCollapseWhitespace
+        | Op::TimeParseTimestamp
+        | Op::TimeFormatUtc
+        | Op::TextSlice => false,
+        Op::JsonSetLocal(_) => false,
+        Op::JsonPushLocal(_) => false,
+        Op::Args
+        | Op::FileNextLine
+        | Op::JsonParse
+        | Op::JsonTryGet
+        | Op::JsonTryText
+        | Op::JsonTryInt => false,
         _ => native_bridge_operation(&instruction.op).is_some(),
     }
 }
@@ -4403,11 +5380,91 @@ fn functions_reaching_native_host_callbacks(artifact: &Artifact) -> Vec<bool> {
     reaches_callback
 }
 
+fn functions_reaching_native_arena_allocations(artifact: &Artifact) -> Vec<bool> {
+    let mut reaches_allocation = vec![false; artifact.functions.len()];
+    let mut callers = vec![Vec::new(); artifact.functions.len()];
+    let mut pending = VecDeque::new();
+    for (caller, function) in artifact.functions.iter().enumerate() {
+        if function
+            .code
+            .iter()
+            .any(|instruction| instruction_may_allocate_native_arena_value(&instruction.op))
+        {
+            reaches_allocation[caller] = true;
+            pending.push_back(caller);
+        }
+        for instruction in &function.code {
+            if let Op::Call(target, _) = &instruction.op {
+                if let Some(target_callers) = callers.get_mut(*target) {
+                    target_callers.push(caller);
+                }
+            }
+        }
+    }
+
+    while let Some(callee) = pending.pop_front() {
+        for caller in &callers[callee] {
+            if !reaches_allocation[*caller] {
+                reaches_allocation[*caller] = true;
+                pending.push_back(*caller);
+            }
+        }
+    }
+    reaches_allocation
+}
+
+fn instruction_may_allocate_native_arena_value(op: &Op) -> bool {
+    match op {
+        Op::Args
+        | Op::ArgsFrom
+        | Op::FileOpenLines
+        | Op::FileNextLine
+        | Op::JsonParse
+        | Op::JsonStringify
+        | Op::JsonNull
+        | Op::JsonBool
+        | Op::JsonInt
+        | Op::JsonFloat
+        | Op::JsonText
+        | Op::JsonArray
+        | Op::JsonObject
+        | Op::JsonPush
+        | Op::JsonSet
+        | Op::JsonGet
+        | Op::JsonIndex
+        | Op::JsonAsFloat
+        | Op::JsonAsText
+        | Op::JsonAsInt
+        | Op::JsonAsBool
+        | Op::JsonIntColumn
+        | Op::JsonTextCategories
+        | Op::JsonAsIntList
+        | Op::JsonProjectColumns
+        | Op::JsonTextCategoriesValues
+        | Op::JsonPushLocal(_)
+        | Op::JsonSetLocal(_)
+        | Op::JsonErrorMessage
+        | Op::JsonErrorLine
+        | Op::JsonErrorColumn
+        | Op::JsonErrorCode
+        | Op::TextChars
+        | Op::TextCollapseWhitespace
+        | Op::TextSlice
+        | Op::TimeParseTimestamp
+        | Op::TimeFormatUtc
+        | Op::JsonTryGet
+        | Op::JsonTryText
+        | Op::JsonTryInt => true,
+        _ => false,
+    }
+}
+
 fn native_eligibility_report(
     artifact: &Artifact,
     native_value_bridge_enabled: bool,
 ) -> (Vec<bool>, Vec<Option<NativeFunctionRejectionProfile>>) {
     let recursive = recursive_functions(&artifact.functions);
+    let reaches_native_arena_allocation = functions_reaching_native_arena_allocations(artifact);
     let native_list_mutator: Vec<_> = artifact
         .functions
         .iter()
@@ -4434,6 +5491,20 @@ fn native_eligibility_report(
                     blocking_callee: None,
                 });
             }
+            if let Some(backedge_ip) = function_loop_backedge_with_arena_allocation(
+                function,
+                &reaches_native_arena_allocation,
+            ) {
+                return Some(NativeFunctionRejectionProfile {
+                    name: function.name.clone(),
+                    reason_code: "native_loop_value_arena_retention".into(),
+                    reason: "native arena handles are retained for the invocation, so loops that allocate JSON, file, or text values must stay in the VM until the native arena can retire dead handles".into(),
+                    blocking_instruction: Some(format!(
+                        "loop backedge at bytecode instruction {backedge_ip}"
+                    )),
+                    blocking_callee: None,
+                });
+            }
             if !native_value_bridge_enabled
                 && function_requires_native_value_bridge(function)
             {
@@ -4449,12 +5520,26 @@ fn native_eligibility_report(
                     blocking_callee: None,
                 });
             }
-            if infer_native_types(function, &artifact.functions, &artifact.records).is_none() {
+            let mut blocking_ip = None;
+            if infer_native_types(
+                function,
+                &artifact.functions,
+                &artifact.records,
+                &mut blocking_ip,
+            )
+            .is_none()
+            {
+                let blocking_instruction = blocking_ip.and_then(|ip| {
+                    function
+                        .code
+                        .get(ip)
+                        .map(|instruction| format!("bytecode instruction {ip}: {:?}", instruction.op))
+                });
                 return Some(NativeFunctionRejectionProfile {
                     name: function.name.clone(),
                     reason_code: "unsupported_types_or_control_flow".into(),
                     reason: "native type inference could not prove the function's stack and control-flow types".into(),
-                    blocking_instruction: None,
+                    blocking_instruction,
                     blocking_callee: None,
                 });
             }
@@ -4505,6 +5590,33 @@ fn native_eligibility_report(
     }
 
     (eligible, rejected)
+}
+
+fn function_loop_backedge_with_arena_allocation(
+    function: &Function,
+    reaches_native_arena_allocation: &[bool],
+) -> Option<usize> {
+    function
+        .code
+        .iter()
+        .enumerate()
+        .find_map(|(ip, instruction)| {
+            let target = match &instruction.op {
+                Op::Jump(target) | Op::JumpIfFalse(target) if *target <= ip => *target,
+                _ => return None,
+            };
+            let loop_body = function.code.get(target..=ip)?;
+            loop_body
+                .iter()
+                .any(|instruction| match &instruction.op {
+                    Op::Call(target, _) => reaches_native_arena_allocation
+                        .get(*target)
+                        .copied()
+                        .unwrap_or(false),
+                    op => instruction_may_allocate_native_arena_value(op),
+                })
+                .then_some(ip)
+        })
 }
 
 fn native_result_types(
@@ -4640,7 +5752,7 @@ fn stack_depths(function: &Function) -> Option<Vec<Option<usize>>> {
         let depth = depths[ip]?;
         let op = &function.code[ip].op;
         let (pops, pushes) = match op {
-            Op::Const(_) | Op::Load(_) => (0, 1),
+            Op::Const(_) | Op::Load(_) | Op::Args => (0, 1),
             Op::Store(_) | Op::Pop | Op::JumpIfFalse(_) | Op::Print | Op::PrintErr | Op::Return => {
                 (1, 0)
             }
@@ -4651,6 +5763,7 @@ fn stack_depths(function: &Function) -> Option<Vec<Option<usize>>> {
             | Op::JsonTryText
             | Op::JsonTryInt
             | Op::JsonParse
+            | Op::JsonStringify
             | Op::FileNextLine
             | Op::IsOk
             | Op::IsSome
@@ -4666,7 +5779,20 @@ fn stack_depths(function: &Function) -> Option<Vec<Option<usize>>> {
             Op::Index => (2, 1),
             Op::MakeRecord(_, count) => (*count, 1),
             Op::MakeList(count) => (*count, 1),
-            Op::MakeTypedList(_) => (0, 1),
+            Op::MakeTypedList(_) | Op::MakeTypedMap(_) | Op::JsonArray | Op::JsonObject => (0, 1),
+            Op::JsonInt => (1, 1),
+            Op::JsonText => (1, 1),
+            Op::FileOpenLines | Op::FileClose => (1, 1),
+            Op::TextCollapseWhitespace => (1, 1),
+            Op::TimeParseTimestamp => (1, 1),
+            Op::TimeFormatUtc => (1, 1),
+            Op::MapKeys => (1, 1),
+            Op::JsonIndex => (2, 1),
+            Op::JsonGet => (2, 1),
+            Op::JsonSetLocal(_) => (2, 0),
+            Op::MapSet => (3, 1),
+            Op::MapHas => (2, 1),
+            Op::WriteTextAtomic => (2, 1),
             Op::ListSetLocal(_) => (2, 0),
             Op::ListPushLocal(_) | Op::JsonPushLocal(_) => (1, 0),
             Op::ListSet => (3, 1),
@@ -4742,6 +5868,15 @@ fn bytecode_block_layout(
                 *leaders.get_mut(ip.checked_add(1)?)? = true;
             }
             Op::Call(_, _) if ip + 1 < instruction_count && depths[ip + 1].is_some() => {
+                leaders[ip + 1] = true;
+            }
+            Op::JsonSetLocal(_) if ip + 1 < instruction_count && depths[ip + 1].is_some() => {
+                leaders[ip + 1] = true;
+            }
+            Op::JsonPushLocal(_) if ip + 1 < instruction_count && depths[ip + 1].is_some() => {
+                leaders[ip + 1] = true;
+            }
+            Op::WriteTextAtomic if ip + 1 < instruction_count && depths[ip + 1].is_some() => {
                 leaders[ip + 1] = true;
             }
             _ => {}

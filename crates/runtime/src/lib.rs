@@ -5,10 +5,10 @@ use guion_model::{
 pub use guion_vm_core::CancellationToken;
 use guion_vm_core::{
     charge_allocation, check_call_depth, cloned_value_allocation, encoded_json_string_len,
-    finish_json_value, finish_shared_json, json_exact_integer, new_vm_frame, opcode_profile_name,
-    shared_json_push_local_allocation, shared_json_set_local_allocation, value_matches, verify,
-    Budget, FrameStart, HostOpContext, OutputStream, RuntimeProfileCounters, VmFrame, VmHost,
-    VmLimits,
+    finish_json_value, finish_shared_json, json_exact_integer, map_clone_allocation, new_vm_frame,
+    opcode_profile_name, shared_json_push_local_allocation, shared_json_set_local_allocation,
+    value_matches, verify, Budget, FrameStart, HostOpContext, OutputStream, RuntimeProfileCounters,
+    VmFrame, VmHost, VmLimits,
 };
 use std::{
     borrow::Cow,
@@ -101,7 +101,7 @@ impl serde::Serialize for JsonTextPair<'_> {
 mod native_inline_arena_tests {
     use super::{
         Budget, CancellationToken, NativeIntList, NativeListArena, NativeTaggedValue, Value,
-        NATIVE_TAGGED_RESULT_OK,
+        NATIVE_TAGGED_OPTION_SOME, NATIVE_TAGGED_RESULT_OK,
     };
 
     #[test]
@@ -172,6 +172,30 @@ mod native_inline_arena_tests {
             expected as u64
         );
     }
+
+    #[test]
+    fn native_scalar_tagged_values_cache_exact_clone_charge_at_creation() {
+        let budget = Budget::new(1000, 10000, CancellationToken::new(), None);
+        let mut arena = NativeListArena::new(&budget, 1000, 10000, 0, None);
+        let expected = std::mem::size_of::<Value>() as u64;
+        for (kind, payload_tag, payload) in [
+            (NATIVE_TAGGED_RESULT_OK, 1, 42),
+            (NATIVE_TAGGED_OPTION_SOME, 2, 1.5_f64.to_bits() as i64),
+            (NATIVE_TAGGED_OPTION_SOME, 3, 1),
+        ] {
+            let handle = arena
+                .store_native_tagged_value(kind, payload_tag, payload)
+                .expect("native scalar tagged value is stored");
+            assert_eq!(
+                arena.tagged_value(handle).unwrap().clone_charge_bytes,
+                expected
+            );
+            assert_eq!(
+                arena.tagged_clone_charge_bytes(handle),
+                Some(expected as usize)
+            );
+        }
+    }
 }
 
 // JIT code keeps raw pointers to list descriptors and tagged values. Boxes and
@@ -185,6 +209,10 @@ struct NativeListArena {
     int_storage: Vec<Vec<i64>>,
     handle_lists: Vec<Box<NativeHandleList>>,
     handle_storage: Vec<Vec<i64>>,
+    native_records: Vec<Box<NativeRecord>>,
+    native_record_types: Vec<usize>,
+    native_record_fields: Vec<Box<[i64]>>,
+    native_record_indices: HashMap<i64, usize>,
     values: Vec<Value>,
     constant_values: Vec<Value>,
     inline_tagged_values: [NativeTaggedValue; NATIVE_INLINE_TAGGED_VALUES],
@@ -199,6 +227,7 @@ struct NativeListArena {
     charged_bytes: usize,
     output_limit_bytes: usize,
     initial_output_bytes: usize,
+    committed_output_bytes: usize,
     pending_output: String,
     pending_print_bytes: Vec<usize>,
 }
@@ -260,6 +289,10 @@ impl NativeListArena {
             int_storage: Vec::new(),
             handle_lists: Vec::new(),
             handle_storage: Vec::new(),
+            native_records: Vec::new(),
+            native_record_types: Vec::new(),
+            native_record_fields: Vec::new(),
+            native_record_indices: HashMap::new(),
             values: Vec::new(),
             constant_values: Vec::new(),
             inline_tagged_values: [NativeTaggedValue {
@@ -279,6 +312,7 @@ impl NativeListArena {
             charged_bytes: 0,
             output_limit_bytes,
             initial_output_bytes,
+            committed_output_bytes: 0,
             pending_output: String::new(),
             pending_print_bytes: Vec::new(),
         }
@@ -332,6 +366,276 @@ impl NativeListArena {
             .map(|list| &**list)
     }
 
+    fn native_record(&self, handle: i64) -> Option<(&NativeRecord, usize)> {
+        let index = *self.native_record_indices.get(&handle)?;
+        Some((
+            self.native_records.get(index)?.as_ref(),
+            *self.native_record_types.get(index)?,
+        ))
+    }
+
+    fn float_list(&self, handle: i64) -> Option<&NativeFloatList> {
+        let address = usize::try_from(handle).ok()?;
+        self.float_lists
+            .iter()
+            .find(|list| (&***list as *const NativeFloatList) as usize == address)
+            .map(|list| &**list)
+    }
+
+    fn int_list(&self, handle: i64) -> Option<&NativeIntList> {
+        let address = usize::try_from(handle).ok()?;
+        self.int_lists
+            .iter()
+            .find(|list| (&***list as *const NativeIntList) as usize == address)
+            .map(|list| &**list)
+    }
+
+    fn store_native_record_value(
+        &mut self,
+        record_index: usize,
+        name: String,
+        fields: Arc<Vec<Value>>,
+    ) -> Option<i64> {
+        let definition = self
+            .runtime_context
+            .as_ref()?
+            .artifact
+            .records
+            .get(record_index)?
+            .clone();
+        if definition.name != name
+            || fields.len() != definition.fields.len()
+            || !native_record_has_native_layout(&definition)
+        {
+            return None;
+        }
+
+        let mut encoded_fields = Vec::new();
+        encoded_fields.try_reserve_exact(fields.len()).ok()?;
+        for (value, field) in fields.iter().zip(&definition.fields) {
+            let encoded = match (value, &field.ty) {
+                (Value::Int(value), Type::Int) => value.to_i64()?,
+                (Value::Float64(value), Type::Float64) => value.get().to_bits() as i64,
+                (Value::Bool(value), Type::Bool) => i64::from(*value),
+                (Value::Float64List(items), Type::List(item)) if **item == Type::Float64 => {
+                    self.float_storage.try_reserve(1).ok()?;
+                    self.float_lists.try_reserve(1).ok()?;
+                    let storage_id = self.float_storage.len();
+                    self.float_storage.push(items.as_ref().clone());
+                    let storage = self.float_storage.last_mut()?;
+                    let descriptor = Box::new(NativeFloatList {
+                        data: storage.as_mut_ptr().cast::<u64>(),
+                        len: storage.len(),
+                        storage_id,
+                        owned: false,
+                        inline_storage: false,
+                        inline: [0; NATIVE_INLINE_LIST_ITEMS],
+                    });
+                    let address = (&*descriptor as *const NativeFloatList) as usize;
+                    self.float_lists.push(descriptor);
+                    i64::try_from(address).ok()?
+                }
+                (Value::List(items), Type::List(item)) if **item == Type::Float64 => {
+                    let values: Vec<Float64> = items
+                        .iter()
+                        .map(|value| match value {
+                            Value::Float64(value) => Some(*value),
+                            _ => None,
+                        })
+                        .collect::<Option<_>>()?;
+                    if values.len() > self.max_collection_items {
+                        return None;
+                    }
+                    self.float_storage.try_reserve(1).ok()?;
+                    self.float_lists.try_reserve(1).ok()?;
+                    let storage_id = self.float_storage.len();
+                    self.float_storage.push(values);
+                    let storage = self.float_storage.last_mut()?;
+                    let descriptor = Box::new(NativeFloatList {
+                        data: storage.as_mut_ptr().cast::<u64>(),
+                        len: storage.len(),
+                        storage_id,
+                        owned: false,
+                        inline_storage: false,
+                        inline: [0; NATIVE_INLINE_LIST_ITEMS],
+                    });
+                    let address = (&*descriptor as *const NativeFloatList) as usize;
+                    self.float_lists.push(descriptor);
+                    i64::try_from(address).ok()?
+                }
+                (Value::List(items), Type::List(item))
+                    if matches!(**item, Type::Int | Type::Bool) =>
+                {
+                    let values: Vec<i64> = items
+                        .iter()
+                        .map(|value| match (value, &**item) {
+                            (Value::Int(value), Type::Int) => value.to_i64(),
+                            (Value::Bool(value), Type::Bool) => Some(i64::from(*value)),
+                            _ => None,
+                        })
+                        .collect::<Option<_>>()?;
+                    if values.len() > self.max_collection_items {
+                        return None;
+                    }
+                    self.int_storage.try_reserve(1).ok()?;
+                    self.int_lists.try_reserve(1).ok()?;
+                    let storage_id = self.int_storage.len();
+                    self.int_storage.push(values);
+                    let storage = self.int_storage.last_mut()?;
+                    let descriptor = Box::new(NativeIntList {
+                        data: storage.as_mut_ptr(),
+                        len: storage.len(),
+                        storage_id,
+                        owned: false,
+                        inline_storage: false,
+                        inline: [0; NATIVE_INLINE_LIST_ITEMS],
+                    });
+                    let address = (&*descriptor as *const NativeIntList) as usize;
+                    self.int_lists.push(descriptor);
+                    i64::try_from(address).ok()?
+                }
+                _ => return None,
+            };
+            encoded_fields.push(encoded);
+        }
+
+        self.native_records.try_reserve(1).ok()?;
+        self.native_record_types.try_reserve(1).ok()?;
+        self.native_record_fields.try_reserve(1).ok()?;
+        self.native_record_indices.try_reserve(1).ok()?;
+        let fields = encoded_fields.into_boxed_slice();
+        let descriptor = Box::new(NativeRecord {
+            fields: fields.as_ptr(),
+            len: fields.len(),
+        });
+        let address = (&*descriptor as *const NativeRecord) as usize;
+        let handle = i64::try_from(address).ok()?;
+        let index = self.native_records.len();
+        self.native_record_fields.push(fields);
+        self.native_records.push(descriptor);
+        self.native_record_types.push(record_index);
+        self.native_record_indices.insert(handle, index);
+        Some(handle)
+    }
+
+    fn materialize_native_record(&self, handle: i64) -> Option<Value> {
+        let (descriptor, record_index) = self.native_record(handle)?;
+        self.materialize_native_record_descriptor(descriptor, record_index)
+    }
+
+    fn materialize_native_record_pointer(
+        &self,
+        pointer: i64,
+        record_index: usize,
+    ) -> Option<Value> {
+        if let Some((descriptor, stored_record_index)) = self.native_record(pointer) {
+            if stored_record_index != record_index {
+                return None;
+            }
+            return self.materialize_native_record_descriptor(descriptor, record_index);
+        }
+        let address = usize::try_from(pointer).ok()?;
+        if address == 0 {
+            return None;
+        }
+        // Native-layout record pointers tagged by the compiler are either arena
+        // descriptors above or stack descriptors emitted by MakeRecord. The
+        // generated MapSet callback is synchronous, so the latter remains live
+        // for this decode.
+        let descriptor = unsafe { (address as *const NativeRecord).as_ref()? };
+        self.materialize_native_record_descriptor(descriptor, record_index)
+    }
+
+    fn materialize_native_record_descriptor(
+        &self,
+        descriptor: &NativeRecord,
+        record_index: usize,
+    ) -> Option<Value> {
+        let definition = self
+            .runtime_context
+            .as_ref()?
+            .artifact
+            .records
+            .get(record_index)?;
+        if !native_record_has_native_layout(definition)
+            || descriptor.len != definition.fields.len()
+            || (descriptor.len > 0 && descriptor.fields.is_null())
+        {
+            return None;
+        }
+        let encoded_fields = if descriptor.len == 0 {
+            &[][..]
+        } else {
+            unsafe { std::slice::from_raw_parts(descriptor.fields, descriptor.len) }
+        };
+        let mut fields = Vec::new();
+        fields.try_reserve_exact(encoded_fields.len()).ok()?;
+        for (encoded, field) in encoded_fields.iter().zip(&definition.fields) {
+            let value = match &field.ty {
+                Type::Int => Value::Int(BigInt::parse(&encoded.to_string()).ok()?),
+                Type::Float64 => Value::Float64(Float64::new(f64::from_bits(*encoded as u64))?),
+                Type::Bool => Value::Bool(*encoded != 0),
+                Type::List(item) if **item == Type::Float64 => {
+                    let list = if let Some(list) = self.float_list(*encoded) {
+                        list
+                    } else {
+                        let address = usize::try_from(*encoded).ok()?;
+                        if address == 0 {
+                            return None;
+                        }
+                        unsafe { (address as *const NativeFloatList).as_ref()? }
+                    };
+                    if list.len > self.max_collection_items || (list.len > 0 && list.data.is_null())
+                    {
+                        return None;
+                    }
+                    let values = if list.len == 0 {
+                        Vec::new()
+                    } else {
+                        unsafe { std::slice::from_raw_parts(list.data, list.len) }
+                            .iter()
+                            .map(|bits| Float64::new(f64::from_bits(*bits)).map(Value::Float64))
+                            .collect::<Option<Vec<_>>>()?
+                    };
+                    Value::from_list_items(values)
+                }
+                Type::List(item) if **item == Type::Int || **item == Type::Bool => {
+                    let list = if let Some(list) = self.int_list(*encoded) {
+                        list
+                    } else {
+                        let address = usize::try_from(*encoded).ok()?;
+                        if address == 0 {
+                            return None;
+                        }
+                        unsafe { (address as *const NativeIntList).as_ref()? }
+                    };
+                    if list.len > self.max_collection_items || (list.len > 0 && list.data.is_null())
+                    {
+                        return None;
+                    }
+                    let values = if list.len == 0 {
+                        Vec::new()
+                    } else {
+                        unsafe { std::slice::from_raw_parts(list.data, list.len) }
+                            .iter()
+                            .map(|value| {
+                                if **item == Type::Int {
+                                    BigInt::parse(&value.to_string()).ok().map(Value::Int)
+                                } else {
+                                    Some(Value::Bool(*value != 0))
+                                }
+                            })
+                            .collect::<Option<Vec<_>>>()?
+                    };
+                    Value::from_list_items(values)
+                }
+                _ => return None,
+            };
+            fields.push(value);
+        }
+        Some(Value::Record(definition.name.clone(), Arc::new(fields)))
+    }
+
     fn tagged_value(&self, handle: i64) -> Option<&NativeTaggedValue> {
         let address = usize::try_from(handle.checked_neg()?).ok()?;
         self.inline_tagged_values[..self.inline_tagged_value_len]
@@ -371,6 +675,7 @@ impl NativeListArena {
         self.constant_value(handle).is_some()
             || self.value(handle).is_some()
             || self.handle_list(handle).is_some()
+            || self.native_record(handle).is_some()
             || self.tagged_value(handle).is_some()
     }
 
@@ -428,6 +733,26 @@ impl NativeListArena {
                 self.store_tagged_value(NATIVE_TAGGED_OPTION_SOME, Some(*value))
             }
             Value::OptionNone => self.store_tagged_value(NATIVE_TAGGED_OPTION_NONE, None),
+            Value::Record(name, fields) => {
+                let record_index = self
+                    .runtime_context
+                    .as_ref()?
+                    .artifact
+                    .records
+                    .iter()
+                    .position(|record| record.name == name)?;
+                if native_record_has_native_layout(
+                    self.runtime_context
+                        .as_ref()?
+                        .artifact
+                        .records
+                        .get(record_index)?,
+                ) {
+                    self.store_native_record_value(record_index, name, fields)
+                } else {
+                    self.store_value(Value::Record(name, fields))
+                }
+            }
             value => self.store_value(value),
         }
     }
@@ -481,17 +806,149 @@ impl NativeListArena {
         if has_payload && !self.charge(size_of::<Value>()) {
             return None;
         }
+        let clone_charge_bytes = match (has_payload, payload_tag) {
+            // Primitive payload clones have no guest allocation of their own;
+            // the wrapper's allocation charge is fully known at construction.
+            (true, 1..=3) => u64::try_from(size_of::<Value>()).ok()?,
+            _ => 0,
+        };
         self.store_tagged_descriptor(NativeTaggedValue {
             kind,
             payload_tag,
             payload,
-            clone_charge_bytes: 0,
+            clone_charge_bytes,
         })
+    }
+
+    fn store_native_arguments(
+        &mut self,
+        arguments: &[String],
+        max_text_bytes: usize,
+    ) -> Option<i64> {
+        if arguments.len() > self.max_collection_items
+            || arguments
+                .iter()
+                .any(|argument| argument.len() > max_text_bytes)
+        {
+            return None;
+        }
+
+        let mut values = Vec::new();
+        values.try_reserve_exact(arguments.len()).ok()?;
+        for argument in arguments {
+            values.push(Value::Text(argument.clone().into()));
+        }
+
+        let mut encoded = Vec::new();
+        encoded.try_reserve_exact(arguments.len()).ok()?;
+        let first_handle = self.values.len().checked_add(1)?;
+        for index in 0..arguments.len() {
+            encoded.push(i64::try_from(first_handle.checked_add(index)?).ok()?);
+        }
+        self.values.try_reserve(arguments.len()).ok()?;
+        self.handle_lists.try_reserve(1).ok()?;
+        let inline_storage = arguments.len() <= NATIVE_INLINE_LIST_ITEMS;
+        if !inline_storage {
+            self.handle_storage.try_reserve(1).ok()?;
+        }
+
+        let allocation = size_of::<Vec<Value>>()
+            .saturating_add(arguments.len().saturating_mul(size_of::<Value>()))
+            .saturating_add(arguments.iter().fold(0_usize, |total, argument| {
+                total.saturating_add(size_of::<String>().saturating_add(argument.len()))
+            }));
+        let mut descriptor = Box::new(NativeHandleList {
+            data: std::ptr::null_mut(),
+            len: arguments.len(),
+            storage_id: if inline_storage {
+                usize::MAX
+            } else {
+                self.handle_storage.len()
+            },
+            owned: true,
+            inline_storage,
+            inline: [0; NATIVE_INLINE_LIST_ITEMS],
+        });
+        if inline_storage {
+            descriptor.inline[..arguments.len()].copy_from_slice(&encoded);
+            descriptor.data = descriptor.inline.as_mut_ptr();
+        } else {
+            descriptor.data = encoded.as_mut_ptr();
+        }
+
+        // If any check or quota charge fails, the caller side-exits before Args.
+        // The VM then produces the canonical error and charges the allocation once.
+        if !self.charge(allocation) {
+            return None;
+        }
+        self.values.extend(values);
+        if !inline_storage {
+            self.handle_storage.push(encoded);
+        }
+        self.handle_lists.push(descriptor);
+        let descriptor = self.handle_lists.last_mut()?;
+        i64::try_from((&mut **descriptor as *mut NativeHandleList) as usize).ok()
+    }
+
+    fn store_native_text_list(&mut self, items: Vec<Arc<str>>) -> Option<i64> {
+        if items.len() > self.max_collection_items {
+            return None;
+        }
+        let allocation = items.iter().fold(
+            size_of::<Vec<Value>>().saturating_add(items.len().saturating_mul(size_of::<Value>())),
+            |total, item| total.saturating_add(size_of::<String>().saturating_add(item.len())),
+        );
+        let mut values = Vec::new();
+        values.try_reserve_exact(items.len()).ok()?;
+        let mut encoded = Vec::new();
+        encoded.try_reserve_exact(items.len()).ok()?;
+        let first_handle = self.values.len().checked_add(1)?;
+        for (index, item) in items.into_iter().enumerate() {
+            encoded.push(i64::try_from(first_handle.checked_add(index)?).ok()?);
+            values.push(Value::Text(item));
+        }
+        self.values.try_reserve(values.len()).ok()?;
+        self.handle_lists.try_reserve(1).ok()?;
+        let inline_storage = values.len() <= NATIVE_INLINE_LIST_ITEMS;
+        if !inline_storage {
+            self.handle_storage.try_reserve(1).ok()?;
+        }
+        let mut descriptor = Box::new(NativeHandleList {
+            data: std::ptr::null_mut(),
+            len: values.len(),
+            storage_id: if inline_storage {
+                usize::MAX
+            } else {
+                self.handle_storage.len()
+            },
+            owned: true,
+            inline_storage,
+            inline: [0; NATIVE_INLINE_LIST_ITEMS],
+        });
+        if inline_storage {
+            descriptor.inline[..values.len()].copy_from_slice(&encoded);
+            descriptor.data = descriptor.inline.as_mut_ptr();
+        } else {
+            descriptor.data = encoded.as_mut_ptr();
+        }
+        if !self.charge(allocation) {
+            return None;
+        }
+        self.values.extend(values);
+        if !inline_storage {
+            self.handle_storage.push(encoded);
+        }
+        self.handle_lists.push(descriptor);
+        let descriptor = self.handle_lists.last_mut()?;
+        i64::try_from((&mut **descriptor as *mut NativeHandleList) as usize).ok()
     }
 
     fn materialize_native_value(&self, handle: i64) -> Option<Value> {
         if let Some(value) = self.constant_value(handle) {
             return Some(value.clone());
+        }
+        if self.native_record(handle).is_some() {
+            return self.materialize_native_record(handle);
         }
         if let Some(list) = self.handle_list(handle) {
             let encoded = unsafe { std::slice::from_raw_parts(list.data, list.len) };
@@ -633,6 +1090,622 @@ impl NativeListArena {
             return None;
         }
         let value = match &instruction.op {
+            Op::Index => {
+                if arguments.len() != 2 || argument_tags != [4, 4] {
+                    return None;
+                }
+                let Value::Map(map) = self.bridge_handle_argument(arguments, argument_tags, 0)?
+                else {
+                    return None;
+                };
+                let Value::Text(key) = self.bridge_handle_argument(arguments, argument_tags, 1)?
+                else {
+                    return None;
+                };
+                let value = map.get(key.as_ref())?.clone();
+                if !self.charge(cloned_value_allocation(&value)) {
+                    return None;
+                }
+                return self.encode_bridge_value(value, result_tag);
+            }
+            Op::MapSet => {
+                if arguments.len() != 5
+                    || argument_tags[0] != 4
+                    || argument_tags[1] != 4
+                    || (argument_tags[2] != 4
+                        && native_backend::native_record_bridge_index(argument_tags[2]).is_none())
+                    || argument_tags[3] != 4
+                    || argument_tags[4] != 3
+                    || result_tag != 4
+                {
+                    return None;
+                }
+                if !matches!(
+                    self.bridge_handle_argument(arguments, argument_tags, 0)?,
+                    Value::Map(_)
+                ) {
+                    return None;
+                }
+                let Value::Text(key) = self.bridge_handle_argument(arguments, argument_tags, 1)?
+                else {
+                    return None;
+                };
+                let key = key.to_string();
+                let value = if let Some(record_index) =
+                    native_backend::native_record_bridge_index(argument_tags[2])
+                {
+                    let record = runtime.artifact.records.get(record_index)?;
+                    if !native_record_has_native_layout(record) {
+                        return None;
+                    }
+                    self.materialize_native_record_pointer(arguments[2], record_index)?
+                } else {
+                    self.bridge_handle_argument(arguments, argument_tags, 2)?
+                        .clone()
+                };
+                let unique_store_target =
+                    depth == 0 && arguments[4] != 0 && arguments[3] == arguments[0];
+                let map_handle = arguments[0];
+                let map_value_index = map_handle
+                    .checked_sub(1)
+                    .and_then(|index| usize::try_from(index).ok());
+                let map_is_mutable_handle =
+                    map_value_index.is_some_and(|index| self.values.get(index).is_some());
+                let (contains_key, map_len, unique, clone_allocation, cloned_map) = {
+                    let Value::Map(map) =
+                        self.bridge_handle_argument(arguments, argument_tags, 0)?
+                    else {
+                        return None;
+                    };
+                    let contains_key = map.contains_key(&key);
+                    let unique =
+                        unique_store_target && map_is_mutable_handle && Arc::strong_count(map) == 1;
+                    let clone_allocation = if unique {
+                        if contains_key {
+                            0
+                        } else {
+                            size_of::<(String, Value)>().saturating_add(key.len())
+                        }
+                    } else {
+                        map_clone_allocation(map, Some(&key), &value)
+                    };
+                    let cloned_map = (!unique).then(|| map.as_ref().clone());
+                    (
+                        contains_key,
+                        map.len(),
+                        unique,
+                        clone_allocation,
+                        cloned_map,
+                    )
+                };
+                if !contains_key && map_len >= runtime.limits.max_collection_items {
+                    return None;
+                }
+                if key.len() > runtime.limits.max_text_bytes
+                    || guion_vm_core::value_limit_error(&value, &runtime.limits, instruction.span)
+                        .is_some()
+                    || !self.charge(clone_allocation)
+                {
+                    return None;
+                }
+                if unique {
+                    let index = map_value_index?;
+                    let Value::Map(map) = self.values.get_mut(index)? else {
+                        return None;
+                    };
+                    let values = Arc::get_mut(map)?;
+                    if let Some(existing) = values.get_mut(&key) {
+                        *existing = value;
+                    } else {
+                        values.insert(key, value);
+                    }
+                    return Some(map_handle);
+                }
+                let mut updated = cloned_map?;
+                if let Some(existing) = updated.get_mut(&key) {
+                    *existing = value;
+                } else {
+                    updated.insert(key, value);
+                }
+                return self.store_value(Value::Map(Arc::new(updated)));
+            }
+            Op::JsonSetLocal(_) => {
+                if arguments.len() != 4 || argument_tags != [4, 4, 4, 3] || result_tag != 4 {
+                    return None;
+                }
+                let profile = runtime.budget.runtime_profile.clone();
+                let host_started = profile.as_ref().map(|_| Instant::now());
+                let Value::Text(key) = self.bridge_handle_argument(arguments, argument_tags, 1)?
+                else {
+                    return None;
+                };
+                let key = key.to_string();
+                let Value::Json(value) =
+                    self.bridge_handle_argument(arguments, argument_tags, 2)?
+                else {
+                    return None;
+                };
+                let value = Arc::clone(value);
+                if key.len() > runtime.limits.max_text_bytes {
+                    return None;
+                }
+
+                let object_handle = arguments[0];
+                let object_index = object_handle
+                    .checked_sub(1)
+                    .and_then(|index| usize::try_from(index).ok())
+                    .filter(|index| self.values.get(*index).is_some());
+                let unique_target = arguments[3] != 0 && object_index.is_some();
+                let (field_count, contains_key, copied_bytes, shared) = {
+                    let Value::Json(object) =
+                        self.bridge_handle_argument(arguments, argument_tags, 0)?
+                    else {
+                        return None;
+                    };
+                    let Some(fields) = object.as_object() else {
+                        return None;
+                    };
+                    let copied_bytes = if unique_target {
+                        shared_json_set_local_allocation(object, &key)
+                    } else {
+                        // Native locals carry arena handles, so aliases do not
+                        // increment the Arc count as VM locals do. Add one
+                        // logical reference while estimating the COW charge.
+                        let aliased = Arc::clone(object);
+                        shared_json_set_local_allocation(&aliased, &key)
+                    };
+                    let shared = !unique_target
+                        || Arc::strong_count(object) > 1
+                        || matches!(
+                            object.as_ref(),
+                            SharedJson::Object(values) if Arc::strong_count(values) > 1
+                        );
+                    (
+                        fields.len(),
+                        fields.contains_key(&key),
+                        copied_bytes,
+                        shared,
+                    )
+                };
+                if !contains_key && field_count >= runtime.limits.max_collection_items {
+                    return None;
+                }
+                if !self.charge(copied_bytes) {
+                    return None;
+                }
+
+                let updated_handle = if unique_target {
+                    let index = object_index?;
+                    let Value::Json(object) = self.values.get_mut(index)? else {
+                        return None;
+                    };
+                    Arc::make_mut(object)
+                        .as_object_mut()?
+                        .insert(key.clone(), value);
+                    object_handle
+                } else {
+                    let Value::Json(mut object) = self
+                        .bridge_handle_argument(arguments, argument_tags, 0)?
+                        .clone()
+                    else {
+                        return None;
+                    };
+                    Arc::make_mut(&mut object)
+                        .as_object_mut()?
+                        .insert(key.clone(), value);
+                    self.store_value(Value::Json(object))?
+                };
+
+                if let Some(error) = self
+                    .bridge_handle_argument(&[updated_handle], &[4], 0)
+                    .and_then(|updated| {
+                        guion_vm_core::value_limit_error(updated, &runtime.limits, instruction.span)
+                    })
+                {
+                    self.host_error = Some(error);
+                    record_native_host_operation(
+                        profile.as_ref(),
+                        host_started,
+                        opcode_profile_name(&instruction.op),
+                    );
+                    return None;
+                }
+                if let Some(profile) = &profile {
+                    profile.record_json_set(if shared { copied_bytes } else { 0 });
+                }
+                record_native_host_operation(
+                    profile.as_ref(),
+                    host_started,
+                    opcode_profile_name(&instruction.op),
+                );
+                return Some(updated_handle);
+            }
+            Op::JsonPushLocal(_) => {
+                if arguments.len() != 3 || argument_tags != [4, 4, 3] || result_tag != 4 {
+                    return None;
+                }
+                let profile = runtime.budget.runtime_profile.clone();
+                let host_started = profile.as_ref().map(|_| Instant::now());
+                let Value::Json(value) =
+                    self.bridge_handle_argument(arguments, argument_tags, 1)?
+                else {
+                    return None;
+                };
+                let value = Arc::clone(value);
+
+                let array_handle = arguments[0];
+                let array_index = array_handle
+                    .checked_sub(1)
+                    .and_then(|index| usize::try_from(index).ok())
+                    .filter(|index| self.values.get(*index).is_some());
+                let unique_target = arguments[2] != 0 && array_index.is_some();
+                let (array_len, copied_bytes) = {
+                    let Value::Json(array) =
+                        self.bridge_handle_argument(arguments, argument_tags, 0)?
+                    else {
+                        return None;
+                    };
+                    let Some(items) = array.as_array() else {
+                        return None;
+                    };
+                    let copied_bytes = if unique_target {
+                        shared_json_push_local_allocation(array)
+                    } else {
+                        // Arena handles do not increase Arc counts for aliases
+                        // held in native locals. Model the VM's shared local.
+                        let aliased = Arc::clone(array);
+                        shared_json_push_local_allocation(&aliased)
+                    };
+                    (items.len(), copied_bytes)
+                };
+                if array_len >= runtime.limits.max_collection_items {
+                    return None;
+                }
+                if !self.charge(copied_bytes) {
+                    return None;
+                }
+
+                let updated_handle = if unique_target {
+                    let index = array_index?;
+                    let Value::Json(array) = self.values.get_mut(index)? else {
+                        return None;
+                    };
+                    Arc::make_mut(array).as_array_mut()?.push(value);
+                    array_handle
+                } else {
+                    let Value::Json(mut array) = self
+                        .bridge_handle_argument(arguments, argument_tags, 0)?
+                        .clone()
+                    else {
+                        return None;
+                    };
+                    Arc::make_mut(&mut array).as_array_mut()?.push(value);
+                    self.store_value(Value::Json(array))?
+                };
+
+                if let Some(error) = self
+                    .bridge_handle_argument(&[updated_handle], &[4], 0)
+                    .and_then(|updated| {
+                        guion_vm_core::value_limit_error(updated, &runtime.limits, instruction.span)
+                    })
+                {
+                    self.host_error = Some(error);
+                    record_native_host_operation(
+                        profile.as_ref(),
+                        host_started,
+                        opcode_profile_name(&instruction.op),
+                    );
+                    return None;
+                }
+                record_native_host_operation(
+                    profile.as_ref(),
+                    host_started,
+                    opcode_profile_name(&instruction.op),
+                );
+                return Some(updated_handle);
+            }
+            Op::JsonInt => {
+                if arguments.len() != 1 || argument_tags != [1] || result_tag != 4 {
+                    return None;
+                }
+                let integer = BigInt::from_i64(arguments[0]);
+                if integer.digit_count() > runtime.limits.max_integer_digits {
+                    return None;
+                }
+                let parsed =
+                    serde_json::from_str::<serde_json::Value>(&integer.to_string()).ok()?;
+                let value = match finish_json_value(
+                    parsed,
+                    &runtime.limits,
+                    &runtime.budget,
+                    instruction.span,
+                ) {
+                    Ok(value) => value,
+                    Err(error) => {
+                        self.host_error = Some(error);
+                        return None;
+                    }
+                };
+                return self.store_value(value);
+            }
+            Op::MapHas => {
+                if arguments.len() != 2 || argument_tags != [4, 4] || result_tag != 3 {
+                    return None;
+                }
+                let Value::Map(map) = self.bridge_handle_argument(arguments, argument_tags, 0)?
+                else {
+                    return None;
+                };
+                let Value::Text(key) = self.bridge_handle_argument(arguments, argument_tags, 1)?
+                else {
+                    return None;
+                };
+                return Some(i64::from(map.contains_key(key.as_ref())));
+            }
+            Op::JsonText => {
+                if arguments.len() != 1 || argument_tags != [4] || result_tag != 4 {
+                    return None;
+                }
+                let Value::Text(text) = self.bridge_handle_argument(arguments, argument_tags, 0)?
+                else {
+                    return None;
+                };
+                if text.len() > runtime.limits.max_text_bytes {
+                    return None;
+                }
+                let value = match finish_json_value(
+                    serde_json::Value::String(text.to_string()),
+                    &runtime.limits,
+                    &runtime.budget,
+                    instruction.span,
+                ) {
+                    Ok(value) => value,
+                    Err(error) => {
+                        self.host_error = Some(error);
+                        return None;
+                    }
+                };
+                return self.store_value(value);
+            }
+            Op::JsonObject => {
+                if !arguments.is_empty() || result_tag != 4 {
+                    return None;
+                }
+                let value = match finish_json_value(
+                    serde_json::Value::Object(serde_json::Map::new()),
+                    &runtime.limits,
+                    &runtime.budget,
+                    instruction.span,
+                ) {
+                    Ok(value) => value,
+                    Err(error) => {
+                        self.host_error = Some(error);
+                        return None;
+                    }
+                };
+                return self.store_value(value);
+            }
+            Op::Add => {
+                if arguments.len() != 2 || argument_tags != [4, 4] || result_tag != 4 {
+                    return None;
+                }
+                let Value::Text(left) = self.bridge_handle_argument(arguments, argument_tags, 0)?
+                else {
+                    return None;
+                };
+                let left = left.clone();
+                let Value::Text(right) =
+                    self.bridge_handle_argument(arguments, argument_tags, 1)?
+                else {
+                    return None;
+                };
+                let right = right.clone();
+                let text_bytes = left.len().saturating_add(right.len());
+                if text_bytes > runtime.limits.max_text_bytes {
+                    return None;
+                }
+                let allocation = size_of::<String>().saturating_add(text_bytes);
+                if !self.charge(allocation) {
+                    return None;
+                }
+                let mut text = String::with_capacity(text_bytes);
+                text.push_str(&left);
+                text.push_str(&right);
+                return self.store_value(Value::Text(text.into()));
+            }
+            Op::Equal | Op::NotEqual => {
+                if arguments.len() != 2 || argument_tags != [4, 4] || result_tag != 3 {
+                    return None;
+                }
+                let Value::Text(left) = self.bridge_handle_argument(arguments, argument_tags, 0)?
+                else {
+                    return None;
+                };
+                let Value::Text(right) =
+                    self.bridge_handle_argument(arguments, argument_tags, 1)?
+                else {
+                    return None;
+                };
+                let equal = left == right;
+                return Some(i64::from(if matches!(&instruction.op, Op::Equal) {
+                    equal
+                } else {
+                    !equal
+                }));
+            }
+            Op::PrintErr => {
+                if arguments.len() != 1 || argument_tags != [4] || result_tag != 4 {
+                    return None;
+                }
+                let Value::Text(text) = self.bridge_handle_argument(arguments, argument_tags, 0)?
+                else {
+                    return None;
+                };
+                let text = text.clone();
+                let output_bytes = text.len().saturating_add(1);
+                let instance = unsafe { &mut *runtime.instance };
+                if instance
+                    .program_output_bytes()
+                    .saturating_add(self.pending_output.len())
+                    .saturating_add(output_bytes)
+                    > self.output_limit_bytes
+                    || !self.charge(output_bytes)
+                {
+                    return None;
+                }
+                let mut rendered = String::with_capacity(output_bytes);
+                rendered.push_str(&text);
+                rendered.push('\n');
+                instance.commit_native_output(self);
+                instance
+                    .write_program_output(OutputStream::Stderr, &rendered, instruction.span)
+                    .ok()?;
+                self.committed_output_bytes =
+                    self.committed_output_bytes.saturating_add(rendered.len());
+                return Some(0);
+            }
+            Op::Args => {
+                if result_tag != 4 || !arguments.is_empty() {
+                    return None;
+                }
+                let instance = unsafe { &*runtime.instance };
+                return self.store_native_arguments(
+                    &instance.policy.arguments,
+                    instance.policy.max_text_bytes,
+                );
+            }
+            Op::MakeTypedMap(_) => {
+                if !arguments.is_empty() || result_tag != 4 {
+                    return None;
+                }
+                let allocation = size_of::<std::collections::BTreeMap<String, Value>>();
+                if !self.charge(allocation) {
+                    return None;
+                }
+                return self.store_value(Value::Map(Arc::new(std::collections::BTreeMap::new())));
+            }
+            Op::MapKeys => {
+                if arguments.len() != 1 || argument_tags != [4] || result_tag != 4 {
+                    return None;
+                }
+                let Value::Map(map) = self.bridge_handle_argument(arguments, argument_tags, 0)?
+                else {
+                    return None;
+                };
+                let mut keys = Vec::new();
+                keys.try_reserve_exact(map.len()).ok()?;
+                keys.extend(map.keys().map(|key| Arc::<str>::from(key.as_str())));
+                return self.store_native_text_list(keys);
+            }
+            Op::TextChars => {
+                if arguments.len() != 1 || argument_tags != [4] || result_tag != 4 {
+                    return None;
+                }
+                let Value::Text(text) = self.bridge_handle_argument(arguments, argument_tags, 0)?
+                else {
+                    return None;
+                };
+                let character_count = text.chars().count();
+                if character_count > self.max_collection_items {
+                    return None;
+                }
+                let mut characters = Vec::new();
+                characters.try_reserve_exact(character_count).ok()?;
+                characters.extend(
+                    text.chars()
+                        .map(|character| Arc::<str>::from(character.to_string())),
+                );
+                return self.store_native_text_list(characters);
+            }
+            Op::TextSlice => {
+                if arguments.len() != 3 || argument_tags != [4, 1, 1] || result_tag != 4 {
+                    return None;
+                }
+                let Value::Text(text) = self.bridge_handle_argument(arguments, argument_tags, 0)?
+                else {
+                    return None;
+                };
+                let text = Arc::clone(text);
+                let start = usize::try_from(arguments[1]).ok()?;
+                let end = usize::try_from(arguments[2]).ok()?;
+                if start > end {
+                    return None;
+                }
+
+                let mut scalar_index = 0;
+                let mut byte_start = (start == 0).then_some(0);
+                let mut byte_end = (end == 0).then_some(0);
+                let mut reached_end = false;
+                for (byte_index, _) in text.char_indices() {
+                    if scalar_index == start {
+                        byte_start = Some(byte_index);
+                    }
+                    if scalar_index == end {
+                        byte_end = Some(byte_index);
+                        reached_end = true;
+                        break;
+                    }
+                    scalar_index += 1;
+                }
+                if byte_start.is_none() && start == scalar_index {
+                    byte_start = Some(text.len());
+                }
+                if byte_end.is_none() && end == scalar_index {
+                    byte_end = Some(text.len());
+                }
+                if end > scalar_index {
+                    return None;
+                }
+                let byte_start = byte_start?;
+                let byte_end = byte_end?;
+
+                self.values.try_reserve(1).ok()?;
+                let value = if start == 0 && !reached_end {
+                    Value::Text(text)
+                } else {
+                    let sliced = Arc::<str>::from(&text[byte_start..byte_end]);
+                    if !self.charge(size_of::<String>().saturating_add(sliced.len())) {
+                        return None;
+                    }
+                    Value::Text(sliced)
+                };
+                return self.store_value(value);
+            }
+            Op::JsonGet => {
+                if arguments.len() != 2 || argument_tags != [4, 4] || result_tag != 4 {
+                    return None;
+                }
+                let Value::Json(document) =
+                    self.bridge_handle_argument(arguments, argument_tags, 0)?
+                else {
+                    return None;
+                };
+                let Value::Text(key) = self.bridge_handle_argument(arguments, argument_tags, 1)?
+                else {
+                    return None;
+                };
+                let value = document.as_object()?.get(key.as_ref())?.clone();
+                return self.store_value(Value::Json(value));
+            }
+            Op::JsonStringify => {
+                if arguments.len() != 1 || argument_tags != [4] || result_tag != 4 {
+                    return None;
+                }
+                let Value::Json(value) =
+                    self.bridge_handle_argument(arguments, argument_tags, 0)?
+                else {
+                    return None;
+                };
+                let text = serde_json::to_string(value.as_ref()).ok()?;
+                if text.len() > runtime.limits.max_text_bytes {
+                    return None;
+                }
+                let allocation = size_of::<String>().saturating_add(text.len());
+                if !self.charge(allocation) {
+                    return None;
+                }
+                return self.store_value(Value::Text(text.into()));
+            }
             Op::JsonParse | Op::JsonTryGet | Op::JsonTryText | Op::JsonTryInt => {
                 return self.execute_native_json_operation(NativeJsonOperationRequest {
                     operation,
@@ -653,6 +1726,209 @@ impl NativeListArena {
                     opcode_profile_name(&instruction.op),
                     &runtime,
                 );
+            }
+            Op::FileOpenLines => {
+                if arguments.len() != 1 || argument_tags != [4] || result_tag != 4 {
+                    return None;
+                }
+                let profile = runtime.budget.runtime_profile.clone();
+                let host_started = profile.as_ref().map(|_| Instant::now());
+                let Value::Text(path) = self.bridge_handle_argument(arguments, argument_tags, 0)?
+                else {
+                    return None;
+                };
+                let path = path.to_string();
+                self.values.try_reserve(1).ok()?;
+                self.ensure_tagged_capacity_for(1)?;
+                let instance = unsafe { runtime.instance.as_mut()? };
+                let resolved =
+                    match host_file_path(&instance.policy, &path, false, instruction.span) {
+                        Ok(resolved) => resolved,
+                        Err(error) => {
+                            let value =
+                                self.encode_bridge_value(file_error_result(error), result_tag);
+                            record_native_host_operation(
+                                profile.as_ref(),
+                                host_started,
+                                opcode_profile_name(&instruction.op),
+                            );
+                            return value;
+                        }
+                    };
+                let effect = instance.begin_effect(EffectKind::FileRead, path.as_str());
+                let result = match instance.readers.open_lines(resolved) {
+                    Ok(handle) => {
+                        instance.finish_effect(effect, EffectOutcome::Returned);
+                        let (owner, id) = handle.parts();
+                        Value::ResultOk(Box::new(Value::NativeResource(NativeResourceValue::new(
+                            "FileReader",
+                            owner,
+                            id,
+                        ))))
+                    }
+                    Err(error) => {
+                        instance.finish_effect(effect, EffectOutcome::ReturnedError);
+                        let code = match error.kind {
+                            stdlib_data::ReaderErrorKind::InvalidUtf8 => "R_FILE_UTF8",
+                            stdlib_data::ReaderErrorKind::Limit => "R_FILE_LIMIT",
+                            stdlib_data::ReaderErrorKind::ForeignOwner => "R_RESOURCE_OWNER",
+                            stdlib_data::ReaderErrorKind::Closed => "R_RESOURCE_CLOSED",
+                            stdlib_data::ReaderErrorKind::Stale => "R_RESOURCE_STALE",
+                            stdlib_data::ReaderErrorKind::Mode => "R_RESOURCE_MODE",
+                            stdlib_data::ReaderErrorKind::Io => "R_FILE_READ",
+                        };
+                        file_error_result(RuntimeError::new(code, error.message, instruction.span))
+                    }
+                };
+                let value = self.encode_bridge_value(result, result_tag);
+                record_native_host_operation(
+                    profile.as_ref(),
+                    host_started,
+                    opcode_profile_name(&instruction.op),
+                );
+                return value;
+            }
+            Op::FileClose => {
+                if arguments.len() != 1 || argument_tags != [4] || result_tag != 4 {
+                    return None;
+                }
+                let profile = runtime.budget.runtime_profile.clone();
+                let host_started = profile.as_ref().map(|_| Instant::now());
+                let value = self.bridge_handle_argument(arguments, argument_tags, 0)?;
+                let handle = match runtime_reader_handle(value, instruction.span) {
+                    Ok(handle) => handle,
+                    Err(error) => {
+                        self.host_error = Some(error);
+                        record_native_host_operation(
+                            profile.as_ref(),
+                            host_started,
+                            opcode_profile_name(&instruction.op),
+                        );
+                        return None;
+                    }
+                };
+                self.values.try_reserve(1).ok()?;
+                self.ensure_tagged_capacity_for(1)?;
+                let instance = unsafe { runtime.instance.as_mut()? };
+                let result = match instance.readers.close(handle) {
+                    Ok(()) => Value::ResultOk(Box::new(Value::Unit)),
+                    Err(error) => {
+                        let error = reader_runtime_error(
+                            error.kind,
+                            error.message,
+                            error.line,
+                            error.column,
+                            instruction.span,
+                        );
+                        if error.code == "R_FILE_LIMIT" {
+                            self.host_error = Some(error);
+                            record_native_host_operation(
+                                profile.as_ref(),
+                                host_started,
+                                opcode_profile_name(&instruction.op),
+                            );
+                            return None;
+                        }
+                        file_error_result(error)
+                    }
+                };
+                let value = self.encode_bridge_value(result, result_tag);
+                record_native_host_operation(
+                    profile.as_ref(),
+                    host_started,
+                    opcode_profile_name(&instruction.op),
+                );
+                return value;
+            }
+            Op::TextCollapseWhitespace => {
+                if arguments.len() != 1 || argument_tags != [4] || result_tag != 4 {
+                    return None;
+                }
+                let Value::Text(text) = self.bridge_handle_argument(arguments, argument_tags, 0)?
+                else {
+                    return None;
+                };
+                let Some(output) = stdlib_services::text_collapse_whitespace_if_changed(text)
+                else {
+                    return Some(arguments[0]);
+                };
+                if output.len() > runtime.limits.max_text_bytes || !self.charge(output.len()) {
+                    return None;
+                }
+                return self.store_value(Value::Text(output.into()));
+            }
+            Op::TimeParseTimestamp => {
+                if arguments.len() != 1 || argument_tags != [4] || result_tag != 4 {
+                    return None;
+                }
+                let profile = runtime.budget.runtime_profile.clone();
+                let host_started = profile.as_ref().map(|_| Instant::now());
+                let Value::Text(text) = self.bridge_handle_argument(arguments, argument_tags, 0)?
+                else {
+                    return None;
+                };
+                if text.len() > runtime.limits.max_text_bytes {
+                    return None;
+                }
+                let parsed = stdlib_data::parse_timestamp(text);
+                let result = match parsed {
+                    Ok(microseconds) => Value::ResultOk(Box::new(Value::Record(
+                        "Instant".into(),
+                        Arc::new(vec![Value::Int(BigInt::from_i64(microseconds))]),
+                    ))),
+                    Err(error) => file_error_result(RuntimeError::new(
+                        error.code,
+                        error.message,
+                        instruction.span,
+                    )),
+                };
+                let value = self.encode_bridge_value(result, result_tag);
+                record_native_host_operation(
+                    profile.as_ref(),
+                    host_started,
+                    opcode_profile_name(&instruction.op),
+                );
+                return value;
+            }
+            Op::TimeFormatUtc => {
+                if arguments.len() != 1 || argument_tags != [4] || result_tag != 4 {
+                    return None;
+                }
+                let instant_microseconds = if let Some(Value::Record(name, fields)) =
+                    self.bridge_handle_argument(arguments, argument_tags, 0)
+                {
+                    if name != "Instant" || fields.len() != 1 {
+                        return None;
+                    }
+                    let Value::Int(microseconds) = &fields[0] else {
+                        return None;
+                    };
+                    microseconds.to_i64()?
+                } else {
+                    let address = usize::try_from(arguments[0]).ok()?;
+                    if address == 0 {
+                        return None;
+                    }
+                    // Native-layout Instant records are passed as stable descriptors
+                    // owned by the active JIT invocation. Other representations use
+                    // arena handles and are decoded by bridge_handle_argument above.
+                    let record = unsafe { (address as *const NativeRecord).as_ref()? };
+                    if record.len != 1 || record.fields.is_null() {
+                        return None;
+                    }
+                    unsafe { *record.fields }
+                };
+                let text = stdlib_data::format_utc(stdlib_data::Instant {
+                    unix_microseconds: instant_microseconds,
+                });
+                if text.len() > runtime.limits.max_text_bytes {
+                    return None;
+                }
+                let allocation = size_of::<String>().saturating_add(text.len());
+                if !self.charge(allocation) {
+                    return None;
+                }
+                return self.store_value(Value::Text(text.into()));
             }
             Op::GetField(record_index, field_index) => {
                 let Value::Record(name, fields) =
@@ -1114,6 +2390,7 @@ impl NativeListArena {
         let bytes = rendered.len().saturating_add(1);
         if self
             .initial_output_bytes
+            .saturating_add(self.committed_output_bytes)
             .saturating_add(self.pending_output.len())
             .saturating_add(bytes)
             > self.output_limit_bytes
@@ -1423,6 +2700,7 @@ impl Runtime {
             runtime_profile_metrics: None,
             native_calls: Arc::new(AtomicUsize::new(0)),
             native_deoptimizations: Arc::new(AtomicUsize::new(0)),
+            native_deoptimization_sites: Arc::new(std::sync::Mutex::new(BTreeMap::new())),
             native_compilations: Arc::new(AtomicUsize::new(0)),
             readers: stdlib_data::FileReaderRegistry::new(
                 policy.max_file_bytes,
@@ -1465,6 +2743,7 @@ pub struct Instance {
     runtime_profile_metrics: Option<Arc<RuntimeProfileCounters>>,
     native_calls: Arc<AtomicUsize>,
     native_deoptimizations: Arc<AtomicUsize>,
+    native_deoptimization_sites: Arc<std::sync::Mutex<BTreeMap<(usize, usize), usize>>>,
     native_compilations: Arc<AtomicUsize>,
     policy: HostPolicy,
     readers: stdlib_data::FileReaderRegistry,
@@ -5529,6 +6808,41 @@ impl Instance {
         self.native_deoptimizations.load(Ordering::Relaxed)
     }
 
+    /// Native-to-VM side exits grouped by function and bytecode instruction.
+    pub fn native_deoptimization_sites(&self) -> serde_json::Value {
+        let sites = self
+            .native_deoptimization_sites
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        serde_json::Value::Array(
+            sites
+                .iter()
+                .filter_map(|((function_index, instruction_index), count)| {
+                    let function = self.artifact.functions.get(*function_index)?;
+                    let (operation, line, column) = function
+                        .code
+                        .get(*instruction_index)
+                        .map(|instruction| {
+                            (
+                                format!("{:?}", instruction.op),
+                                instruction.span.line,
+                                instruction.span.column,
+                            )
+                        })
+                        .unwrap_or_else(|| ("Unknown".into(), 0, 0));
+                    Some(serde_json::json!({
+                        "function": function.name,
+                        "instruction": instruction_index,
+                        "operation": operation,
+                        "line": line,
+                        "column": column,
+                        "count": count,
+                    }))
+                })
+                .collect(),
+        )
+    }
+
     pub fn native_compilations(&self) -> usize {
         self.native_compilations.load(Ordering::Relaxed)
     }
@@ -5682,6 +6996,31 @@ impl Instance {
                         native_direct_json_try_int as *const () as *const u8,
                         native_direct_file_next_line as *const () as *const u8,
                         native_direct_get_field as *const () as *const u8,
+                        native_direct_args as *const () as *const u8,
+                        native_direct_text_equal as *const () as *const u8,
+                        native_direct_print_err as *const () as *const u8,
+                        native_direct_make_typed_map as *const () as *const u8,
+                        native_direct_json_array as *const () as *const u8,
+                        native_direct_map_keys as *const () as *const u8,
+                        native_direct_json_index as *const () as *const u8,
+                        native_direct_text_chars as *const () as *const u8,
+                        native_direct_json_get as *const () as *const u8,
+                        native_direct_json_stringify as *const () as *const u8,
+                        native_direct_text_concat as *const () as *const u8,
+                        native_direct_json_object as *const () as *const u8,
+                        native_direct_map_index as *const () as *const u8,
+                        native_direct_map_set as *const () as *const u8,
+                        native_direct_json_int as *const () as *const u8,
+                        native_direct_map_has as *const () as *const u8,
+                        native_direct_json_text as *const () as *const u8,
+                        native_direct_file_open_lines as *const () as *const u8,
+                        native_direct_file_close as *const () as *const u8,
+                        native_direct_text_collapse_whitespace as *const () as *const u8,
+                        native_direct_time_parse_timestamp as *const () as *const u8,
+                        native_direct_time_format_utc as *const () as *const u8,
+                        native_direct_text_slice as *const () as *const u8,
+                        native_direct_json_set_local as *const () as *const u8,
+                        native_direct_json_push_local as *const () as *const u8,
                     ],
                     make_record: native_direct_make_record as *const () as *const u8,
                     capture_vm_continuation: native_capture_vm_continuation as *const ()
@@ -5830,9 +7169,11 @@ impl Instance {
         }
     }
 
-    fn commit_native_output(&mut self, arena: &NativeListArena) {
-        self.output.push_str(&arena.pending_output);
-        for bytes in &arena.pending_print_bytes {
+    fn commit_native_output(&mut self, arena: &mut NativeListArena) {
+        let output = std::mem::take(&mut arena.pending_output);
+        arena.committed_output_bytes = arena.committed_output_bytes.saturating_add(output.len());
+        self.output.push_str(&output);
+        for bytes in std::mem::take(&mut arena.pending_print_bytes) {
             let effect = self.begin_effect(EffectKind::ProgramOutput, format!("{bytes} bytes"));
             self.finish_effect(effect, EffectOutcome::Returned);
         }
@@ -6403,7 +7744,7 @@ impl Instance {
                                     )
                                 })?,
                         };
-                        self.commit_native_output(&native_arena);
+                        self.commit_native_output(&mut native_arena);
                         return Ok(FrameStart::Returned(value));
                     }
                     1 => {
@@ -6411,8 +7752,14 @@ impl Instance {
                             return Err(error);
                         }
                         self.native_deoptimizations.fetch_add(1, Ordering::Relaxed);
+                        *self
+                            .native_deoptimization_sites
+                            .lock()
+                            .unwrap_or_else(std::sync::PoisonError::into_inner)
+                            .entry((outcome.fault_function, outcome.fault_ip))
+                            .or_default() += 1;
                         if !outcome.continuations.is_empty() {
-                            self.commit_native_output(&native_arena);
+                            self.commit_native_output(&mut native_arena);
                             if let Some(deepest) = outcome.continuations.last_mut() {
                                 deepest.call_site = call_site;
                             }
@@ -6768,6 +8115,7 @@ impl Instance {
         let values = Arc::new(values);
         let native_calls = self.native_calls.clone();
         let native_deoptimizations = self.native_deoptimizations.clone();
+        let native_deoptimization_sites = self.native_deoptimization_sites.clone();
         let native_compilations = self.native_compilations.clone();
         // Reserve most of the remaining global instruction allowance for workers,
         // while keeping enough for the caller to inspect and handle the Result.
@@ -6791,6 +8139,7 @@ impl Instance {
             let budget = worker_budget.clone();
             let native_calls = native_calls.clone();
             let native_deoptimizations = native_deoptimizations.clone();
+            let native_deoptimization_sites = native_deoptimization_sites.clone();
             let native_compilations = native_compilations.clone();
             let native_code = native_code.clone();
             let http = self.http.clone();
@@ -6827,6 +8176,7 @@ impl Instance {
                         runtime_profile_metrics: None,
                         native_calls: native_calls.clone(),
                         native_deoptimizations: native_deoptimizations.clone(),
+                        native_deoptimization_sites: native_deoptimization_sites.clone(),
                         native_compilations: native_compilations.clone(),
                         policy: policy.clone(),
                         http: http.clone(),
@@ -7544,14 +8894,20 @@ unsafe fn native_direct_operation_impl(
     first_tag: i64,
     second: i64,
     second_tag: i64,
+    third: i64,
+    third_tag: i64,
+    fourth: i64,
+    fourth_tag: i64,
+    fifth: i64,
+    fifth_tag: i64,
     result_tag: i64,
     output: *mut i64,
 ) -> i32 {
-    if arena.is_null() || output.is_null() || argument_count > 2 {
+    if arena.is_null() || output.is_null() || argument_count > 5 {
         return 0;
     }
-    let values = [first, second];
-    let tags = [first_tag, second_tag];
+    let values = [first, second, third, fourth, fifth];
+    let tags = [first_tag, second_tag, third_tag, fourth_tag, fifth_tag];
     // SAFETY: these pointers are supplied by the active JIT invocation.
     let arena = unsafe { &mut *arena };
     match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
@@ -7589,6 +8945,12 @@ macro_rules! native_direct_operation_entry {
             first_tag: i64,
             second: i64,
             second_tag: i64,
+            third: i64,
+            third_tag: i64,
+            fourth: i64,
+            fourth_tag: i64,
+            fifth: i64,
+            fifth_tag: i64,
             result_tag: i64,
             output: *mut i64,
         ) -> i32 {
@@ -7604,6 +8966,12 @@ macro_rules! native_direct_operation_entry {
                     first_tag,
                     second,
                     second_tag,
+                    third,
+                    third_tag,
+                    fourth,
+                    fourth_tag,
+                    fifth,
+                    fifth_tag,
                     result_tag,
                     output,
                 )
@@ -7642,7 +9010,127 @@ native_direct_operation_entry!(
     native_backend::NATIVE_BRIDGE_GET_FIELD,
     1
 );
-
+native_direct_operation_entry!(native_direct_args, native_backend::NATIVE_BRIDGE_ARGS, 0);
+native_direct_operation_entry!(
+    native_direct_text_equal,
+    native_backend::NATIVE_BRIDGE_TEXT_EQUAL,
+    2
+);
+native_direct_operation_entry!(
+    native_direct_print_err,
+    native_backend::NATIVE_BRIDGE_PRINT_ERR,
+    1
+);
+native_direct_operation_entry!(
+    native_direct_make_typed_map,
+    native_backend::NATIVE_BRIDGE_MAKE_TYPED_MAP,
+    0
+);
+native_direct_operation_entry!(
+    native_direct_json_array,
+    native_backend::NATIVE_BRIDGE_JSON_ARRAY,
+    0
+);
+native_direct_operation_entry!(
+    native_direct_map_keys,
+    native_backend::NATIVE_BRIDGE_MAP_KEYS,
+    1
+);
+native_direct_operation_entry!(
+    native_direct_json_index,
+    native_backend::NATIVE_BRIDGE_JSON_INDEX,
+    2
+);
+native_direct_operation_entry!(
+    native_direct_text_chars,
+    native_backend::NATIVE_BRIDGE_TEXT_CHARS,
+    1
+);
+native_direct_operation_entry!(
+    native_direct_json_get,
+    native_backend::NATIVE_BRIDGE_JSON_GET,
+    2
+);
+native_direct_operation_entry!(
+    native_direct_json_stringify,
+    native_backend::NATIVE_BRIDGE_JSON_STRINGIFY,
+    1
+);
+native_direct_operation_entry!(
+    native_direct_text_concat,
+    native_backend::NATIVE_BRIDGE_TEXT_CONCAT,
+    2
+);
+native_direct_operation_entry!(
+    native_direct_json_object,
+    native_backend::NATIVE_BRIDGE_JSON_OBJECT,
+    0
+);
+native_direct_operation_entry!(
+    native_direct_map_index,
+    native_backend::NATIVE_BRIDGE_MAP_INDEX,
+    2
+);
+native_direct_operation_entry!(
+    native_direct_map_set,
+    native_backend::NATIVE_BRIDGE_MAP_SET,
+    5
+);
+native_direct_operation_entry!(
+    native_direct_json_int,
+    native_backend::NATIVE_BRIDGE_JSON_INT,
+    1
+);
+native_direct_operation_entry!(
+    native_direct_map_has,
+    native_backend::NATIVE_BRIDGE_MAP_HAS,
+    2
+);
+native_direct_operation_entry!(
+    native_direct_json_text,
+    native_backend::NATIVE_BRIDGE_JSON_TEXT,
+    1
+);
+native_direct_operation_entry!(
+    native_direct_file_open_lines,
+    native_backend::NATIVE_BRIDGE_FILE_OPEN_LINES,
+    1
+);
+native_direct_operation_entry!(
+    native_direct_file_close,
+    native_backend::NATIVE_BRIDGE_FILE_CLOSE,
+    1
+);
+native_direct_operation_entry!(
+    native_direct_text_collapse_whitespace,
+    native_backend::NATIVE_BRIDGE_TEXT_COLLAPSE_WHITESPACE,
+    1
+);
+native_direct_operation_entry!(
+    native_direct_time_parse_timestamp,
+    native_backend::NATIVE_BRIDGE_TIME_PARSE_TIMESTAMP,
+    1
+);
+native_direct_operation_entry!(
+    native_direct_time_format_utc,
+    native_backend::NATIVE_BRIDGE_TIME_FORMAT_UTC,
+    1
+);
+native_direct_operation_entry!(
+    native_direct_text_slice,
+    native_backend::NATIVE_BRIDGE_TEXT_SLICE,
+    3
+);
+native_direct_operation_entry!(
+    native_direct_json_set_local,
+    native_backend::NATIVE_BRIDGE_JSON_SET_LOCAL,
+    4
+);
+native_direct_operation_entry!(
+    native_direct_json_push_local,
+    native_backend::NATIVE_BRIDGE_JSON_PUSH_LOCAL,
+    3
+);
 unsafe extern "C" fn native_direct_make_record(
     arena: *mut NativeListArena,
     function_index: i64,
