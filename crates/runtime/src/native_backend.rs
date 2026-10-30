@@ -295,6 +295,7 @@ pub(crate) struct NativeBackend {
     functions: Vec<Option<*const u8>>,
     result_words: Vec<usize>,
     max_result_words: usize,
+    vm_call_stays_in_vm: Vec<bool>,
     bytecode_instructions: usize,
     bytecode_blocks: usize,
     cranelift_ir_blocks: usize,
@@ -332,6 +333,7 @@ pub(crate) struct NativeCode {
     functions: Vec<Option<usize>>,
     result_words: Vec<usize>,
     max_result_words: usize,
+    vm_call_stays_in_vm: Vec<bool>,
 }
 
 pub(crate) struct NativeOutcome {
@@ -701,6 +703,7 @@ impl NativeBackend {
                 .max()
                 .unwrap_or(1)
                 .max(1),
+            vm_call_stays_in_vm: functions_reaching_native_host_callbacks(artifact),
             bytecode_instructions: 0,
             bytecode_blocks: 0,
             cranelift_ir_blocks: 0,
@@ -885,11 +888,25 @@ impl NativeBackend {
                 .collect(),
             result_words: self.result_words.clone(),
             max_result_words: self.max_result_words,
+            vm_call_stays_in_vm: self.vm_call_stays_in_vm.clone(),
         })
     }
 }
 
 impl NativeCode {
+    pub(crate) fn has_function(&self, function_index: usize) -> bool {
+        self.functions
+            .get(function_index)
+            .is_some_and(Option::is_some)
+    }
+
+    pub(crate) fn vm_call_stays_in_vm(&self, function_index: usize) -> bool {
+        self.vm_call_stays_in_vm
+            .get(function_index)
+            .copied()
+            .unwrap_or(false)
+    }
+
     pub(crate) fn invoke(
         &self,
         index: usize,
@@ -4346,16 +4363,64 @@ fn continuation_stack_tags(
         .collect()
 }
 
-fn function_requires_native_value_bridge(
-    function: &Function,
-    records: &[guion_model::RecordDefinition],
+fn instruction_requires_native_value_bridge(
+    instruction: &guion_model::Instruction,
 ) -> bool {
-    function.code.iter().any(|instruction| match &instruction.op {
-        Op::MakeRecord(record_index, _) | Op::GetField(record_index, _) => records
-            .get(*record_index)
-            .is_some_and(|record| !native_record_has_native_layout(record)),
+    match &instruction.op {
+        // MakeRecord and GetField each have operation-specific callbacks that
+        // preserve value cloning and guest allocation accounting for mixed records.
+        Op::MakeRecord(_, _) | Op::GetField(_, _) => false,
+        Op::FileNextLine
+        | Op::JsonParse
+        | Op::JsonTryGet
+        | Op::JsonTryText
+        | Op::JsonTryInt => false,
         _ => native_bridge_operation(&instruction.op).is_some(),
-    })
+    }
+}
+
+fn function_requires_native_value_bridge(function: &Function) -> bool {
+    function
+        .code
+        .iter()
+        .any(instruction_requires_native_value_bridge)
+}
+
+fn functions_reaching_native_host_callbacks(artifact: &Artifact) -> Vec<bool> {
+    let mut reaches_callback = vec![false; artifact.functions.len()];
+    let mut callers = vec![Vec::new(); artifact.functions.len()];
+    let mut pending = VecDeque::new();
+    for (caller, function) in artifact.functions.iter().enumerate() {
+        for instruction in &function.code {
+            if matches!(
+                instruction.op,
+                Op::JsonParse
+                    | Op::JsonTryGet
+                    | Op::JsonTryText
+                    | Op::JsonTryInt
+                    | Op::FileNextLine
+            ) && !reaches_callback[caller]
+            {
+                reaches_callback[caller] = true;
+                pending.push_back(caller);
+            }
+            if let Op::Call(target, _) = &instruction.op {
+                if let Some(target_callers) = callers.get_mut(*target) {
+                    target_callers.push(caller);
+                }
+            }
+        }
+    }
+
+    while let Some(callee) = pending.pop_front() {
+        for caller in &callers[callee] {
+            if !reaches_callback[*caller] {
+                reaches_callback[*caller] = true;
+                pending.push_back(*caller);
+            }
+        }
+    }
+    reaches_callback
 }
 
 fn native_eligibility_report(
@@ -4390,11 +4455,11 @@ fn native_eligibility_report(
                 });
             }
             if !native_value_bridge_enabled
-                && function_requires_native_value_bridge(function, &artifact.records)
+                && function_requires_native_value_bridge(function)
             {
                 let blocker = function.code.iter().find_map(|instruction| {
-                    native_bridge_operation(&instruction.op)
-                        .map(|_| format!("{:?}", instruction.op))
+                    instruction_requires_native_value_bridge(instruction)
+                        .then(|| format!("{:?}", instruction.op))
                 });
                 return Some(NativeFunctionRejectionProfile {
                     name: function.name.clone(),

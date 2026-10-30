@@ -2547,7 +2547,7 @@ fn native_backend_preserves_aliases_for_functional_list_updates() {
 }
 #[cfg(not(feature = "native-value-bridge"))]
 #[test]
-fn native_mixed_value_functions_fall_back_without_opt_in() {
+fn native_json_result_functions_compile_without_enabling_the_general_bridge() {
     let source = "fn accepts_text(value: Json) -> Bool:\n    return is_ok(json_try_text(value))\n\nfn main() -> Int:\n    let parsed = json_parse(\"\\\"guion\\\"\")\n    if is_ok(parsed):\n        if accepts_text(unwrap(parsed)):\n            return 0\n    return 1\n";
     let artifact = compile("native-json-host-bridge-opt-in.gu", source)
         .expect("mixed-value bridge fixture compiles");
@@ -2569,8 +2569,8 @@ fn native_mixed_value_functions_fall_back_without_opt_in() {
         runtime.invoke("accepts_text", vec![text_json.clone()]).unwrap(),
         vm.invoke("accepts_text", vec![text_json]).unwrap()
     );
-    assert_eq!(runtime.native_compilations(), 0);
-    assert!(!runtime
+    assert_eq!(runtime.native_compilations(), 1);
+    assert!(runtime
         .native_function_names()
         .iter()
         .any(|name| name == "accepts_text"));
@@ -2578,9 +2578,9 @@ fn native_mixed_value_functions_fall_back_without_opt_in() {
     let rejected = profile["rejected_functions"]
         .as_array()
         .expect("native profile reports functions rejected from compilation");
-    assert!(rejected
-        .iter()
-        .any(|function| function["name"].as_str() == Some("accepts_text")));
+    assert!(!rejected.iter().any(|function| {
+        function["name"].as_str() == Some("accepts_text")
+    }));
 }
 
 #[test]
@@ -2628,6 +2628,30 @@ fn native_backend_keeps_result_and_option_chains_in_one_tier_by_default() {
 }
 
 #[test]
+fn vm_parent_keeps_host_callback_call_chain_in_the_vm_tier() {
+    let source = "fn parse_ok(source: Text) -> Bool:\n    return is_ok(json_parse(source))\n\nfn main() -> Int:\n    print(\"vm parent\")\n    if parse_ok(\"{\\\"value\\\":1}\"):\n        return 0\n    return 1\n";
+    let artifact = compile("vm-native-host-callback-boundary.gu", source)
+        .expect("VM/native tier boundary fixture compiles");
+    let mut native = Runtime::new()
+        .load(artifact.clone(), HostPolicy::default())
+        .expect("native runtime loads");
+    let mut vm = Runtime::vm_only()
+        .load(artifact, HostPolicy::default())
+        .expect("VM runtime loads");
+
+    let native_value = native.invoke("main", vec![]).unwrap();
+    let native_output = native.take_output();
+    let vm_value = vm.invoke("main", vec![]).unwrap();
+    let vm_output = vm.take_output();
+    assert_eq!(native_value, vm_value);
+    assert_eq!(native_output, vm_output);
+    assert_eq!(native_output, "vm parent\n");
+    assert!(native.native_function_names().iter().any(|name| name == "parse_ok"));
+    assert!(!native.native_function_names().iter().any(|name| name == "main"));
+    assert_eq!(native.native_calls(), 0, "VM child calls should not enter a native helper arena");
+}
+
+#[test]
 fn native_backend_keeps_result_error_text_literals_in_the_native_tier() {
     let source = "fn checked_result(value: Int) -> Result[Int, Text]:\n    if value % 7 == 0:\n        return Err(\"rejected\")\n    return Ok(value)\n\nfn main() -> Int:\n    let failure = checked_result(7)\n    let success = checked_result(8)\n    var index = 1\n    var checksum = 0\n    while index <= 600:\n        let current = checked_result(index)\n        if is_ok(current):\n            set checksum = checksum + unwrap(current)\n        set index = index + 1\n    if not is_ok(failure) and is_ok(success):\n        return checksum\n    return -1\n";
     let artifact = compile("native-result-error-text-literal.gu", source)
@@ -2660,13 +2684,14 @@ fn native_backend_keeps_result_error_text_literals_in_the_native_tier() {
 }
 
 #[test]
-#[cfg(feature = "native-value-bridge")]
-fn native_backend_keeps_json_result_tag_checks_in_the_native_tier_when_enabled() {
-    let source = "fn accepts_text(value: Json) -> Bool:\n    return is_ok(json_try_text(value))\n\nfn main() -> Int:\n    return 0\n";
+fn native_backend_keeps_json_result_tag_checks_in_the_native_tier_by_default() {
+    let source = "fn accepts_text(value: Json) -> Bool:\n    return is_ok(json_try_text(value))\n\nfn has_text_field(value: Json) -> Bool:\n    let field = json_try_get(value, \"name\")\n    if is_ok(field):\n        return is_ok(json_try_text(unwrap(field)))\n    return false\n\nfn accepts_integer(value: Json) -> Bool:\n    return is_ok(json_try_int(value))\n\nfn get_text_field(value: Json) -> Result[Text, JsonError]:\n    let field = json_try_get(value, \"name\")\n    if is_ok(field):\n        return json_try_text(unwrap(field))\n    return Err(error(field))\n\nfn parse_integer(value: Json) -> Result[Int, JsonError]:\n    return json_try_int(value)\n\nfn main() -> Int:\n    return 0\n";
     let artifact = compile("native-json-result-tier.gu", source)
         .expect("JSON Result execution-tier fixture compiles");
     let text_json = Value::Json(SharedJson::from_serde(serde_json::json!("guion")));
     let number_json = Value::Json(SharedJson::from_serde(serde_json::json!(42)));
+    let object_json = Value::Json(SharedJson::from_serde(serde_json::json!({"name": "guion"})));
+    let missing_json = Value::Json(SharedJson::from_serde(serde_json::json!({})));
 
     let mut native = Runtime::new()
         .load(artifact.clone(), HostPolicy::default())
@@ -2674,11 +2699,235 @@ fn native_backend_keeps_json_result_tag_checks_in_the_native_tier_when_enabled()
     let mut vm = Runtime::vm_only()
         .load(artifact, HostPolicy::default())
         .expect("VM runtime loads");
-    assert_eq!(native.invoke("accepts_text", vec![text_json.clone()]).unwrap(), Value::Bool(true));
-    assert_eq!(native.invoke("accepts_text", vec![number_json.clone()]).unwrap(), Value::Bool(false));
-    assert_eq!(vm.invoke("accepts_text", vec![text_json]).unwrap(), Value::Bool(true));
-    assert_eq!(vm.invoke("accepts_text", vec![number_json]).unwrap(), Value::Bool(false));
-    assert!(native.native_function_names().iter().any(|name| name == "accepts_text"));
+    for (function, argument, expected) in [
+        ("accepts_text", text_json.clone(), true),
+        ("accepts_text", number_json.clone(), false),
+        ("has_text_field", object_json.clone(), true),
+        ("has_text_field", missing_json.clone(), false),
+        ("accepts_integer", number_json.clone(), true),
+        ("accepts_integer", text_json.clone(), false),
+    ] {
+        let arguments = vec![argument];
+        assert_eq!(
+            native.invoke(function, arguments.clone()).unwrap(),
+            Value::Bool(expected)
+        );
+        assert_eq!(
+            vm.invoke(function, arguments).unwrap(),
+            Value::Bool(expected)
+        );
+    }
+    let expected_text = Value::ResultOk(Box::new(Value::Text("guion".into())));
+    assert_eq!(
+        native
+            .invoke("get_text_field", vec![object_json.clone()])
+            .unwrap(),
+        expected_text
+    );
+    assert_eq!(
+        native
+            .invoke("get_text_field", vec![missing_json.clone()])
+            .unwrap(),
+        Value::ResultErr(Box::new(Value::JsonError(guion_model::JsonErrorValue {
+            code: "E_JSON_MISSING".into(),
+            message: "JSON object has no key `name`".into(),
+            line: 0,
+            column: 0,
+        })))
+    );
+    assert_eq!(
+        native
+            .invoke("parse_integer", vec![number_json.clone()])
+            .unwrap(),
+        Value::ResultOk(Box::new(Value::Int(BigInt::from_i64(42))))
+    );
+    assert_eq!(
+        native
+            .invoke("parse_integer", vec![text_json.clone()])
+            .unwrap(),
+        Value::ResultErr(Box::new(Value::JsonError(guion_model::JsonErrorValue {
+            code: "E_JSON_TYPE".into(),
+            message: "expected a JSON integer".into(),
+            line: 0,
+            column: 0,
+        })))
+    );
+    for (function, argument) in [
+        ("get_text_field", object_json.clone()),
+        ("get_text_field", missing_json.clone()),
+        ("parse_integer", number_json.clone()),
+        ("parse_integer", text_json.clone()),
+    ] {
+        assert_eq!(
+            native.invoke(function, vec![argument.clone()]).unwrap(),
+            vm.invoke(function, vec![argument]).unwrap()
+        );
+    }
+    let compiled = native.native_function_names();
+    for name in [
+        "accepts_text",
+        "has_text_field",
+        "accepts_integer",
+        "get_text_field",
+        "parse_integer",
+    ] {
+        assert!(
+            compiled.iter().any(|compiled_name| compiled_name == name),
+            "{name} should stay in the native tier; compiled: {compiled:?}; profile: {}",
+            native.native_compile_profile()
+        );
+    }
+}
+
+#[test]
+fn native_backend_reads_json_fields_from_mixed_records_by_default() {
+    let source = "record Document:\n    body: Json\n\nfn has_name(document: Document) -> Bool:\n    return is_ok(json_try_get(document.body, \"name\"))\n\nfn main() -> Int:\n    return 0\n";
+    let artifact = compile("native-mixed-record-field.gu", source)
+        .expect("mixed record native field fixture compiles");
+    let document = |value| {
+        Value::Record(
+            "Document".into(),
+            std::sync::Arc::new(vec![Value::Json(SharedJson::from_serde(value))]),
+        )
+    };
+    let present = document(serde_json::json!({"name": "Guion"}));
+    let missing = document(serde_json::json!({}));
+
+    let mut native = Runtime::new()
+        .load(artifact.clone(), HostPolicy::default())
+        .expect("native runtime loads");
+    let mut vm = Runtime::vm_only()
+        .load(artifact, HostPolicy::default())
+        .expect("VM runtime loads");
+    for (argument, expected) in [(present, true), (missing, false)] {
+        let arguments = vec![argument];
+        assert_eq!(native.invoke("has_name", arguments.clone()).unwrap(), Value::Bool(expected));
+        assert_eq!(vm.invoke("has_name", arguments).unwrap(), Value::Bool(expected));
+    }
+    assert!(native
+        .native_function_names()
+        .iter()
+        .any(|name| name == "has_name"));
+}
+
+#[test]
+fn native_json_result_helpers_deopt_without_changing_policy_errors() {
+    let source = "fn accepts_text(value: Json) -> Bool:\n    return is_ok(json_try_text(value))\n\nfn get_long_key(value: Json) -> Result[Json, JsonError]:\n    return json_try_get(value, \"long\")\n\nfn parse_integer(value: Json) -> Result[Int, JsonError]:\n    return json_try_int(value)\n\nfn parse_text(source: Text) -> Result[Json, JsonError]:\n    return json_parse(source)\n\nfn parse_long_literal() -> Result[Json, JsonError]:\n    return json_parse(\"{\\\"k\\\":1}\")\n\nfn main() -> Int:\n    let parsed = json_parse(\"123\")\n    let value = unwrap(parsed)\n    let converted = parse_integer(value)\n    return 0\n";
+    let artifact = compile("native-json-result-limits.gu", source)
+        .expect("JSON Result policy fixture compiles");
+
+    let mut native = Runtime::new()
+        .load(artifact.clone(), HostPolicy::default())
+        .expect("native runtime loads");
+    let mut vm = Runtime::vm_only()
+        .load(artifact.clone(), HostPolicy::default())
+        .expect("VM runtime loads");
+    for (source, expected_code) in [
+        ("{\"k\":1}", None),
+        ("{", Some("R_JSON_PARSE")),
+        ("{\"k\":1,\"k\":2}", Some("R_JSON_DUPLICATE_KEY")),
+    ] {
+        let arguments = vec![Value::Text(source.into())];
+        let native_value = native.invoke("parse_text", arguments.clone()).unwrap();
+        let vm_value = vm.invoke("parse_text", arguments).unwrap();
+        assert_eq!(native_value, vm_value);
+        if let Some(expected_code) = expected_code {
+            let Value::ResultErr(error) = native_value else {
+                panic!("invalid JSON should be returned as a Result error")
+            };
+            let Value::JsonError(error) = *error else {
+                panic!("JSON parse error should preserve JsonError")
+            };
+            assert_eq!(error.code, expected_code);
+        } else {
+            assert!(matches!(native_value, Value::ResultOk(_)));
+        }
+    }
+    assert!(native
+        .native_function_names()
+        .iter()
+        .any(|name| name == "parse_text"));
+    assert_eq!(native.native_deoptimizations(), 0);
+
+    let text = Value::Json(SharedJson::from_serde(serde_json::json!("x")));
+    let allocation_policy = HostPolicy {
+        allocation_limit_bytes: 1,
+        ..HostPolicy::default()
+    };
+    let mut native = Runtime::new()
+        .load(artifact.clone(), allocation_policy.clone())
+        .expect("native runtime loads");
+    let mut vm = Runtime::vm_only()
+        .load(artifact.clone(), allocation_policy)
+        .expect("VM runtime loads");
+    let native_error = native
+        .invoke("accepts_text", vec![text.clone()])
+        .expect_err("text conversion must honor the allocation limit");
+    let vm_error = vm
+        .invoke("accepts_text", vec![text])
+        .expect_err("VM text conversion must honor the allocation limit");
+    assert_eq!(native_error, vm_error);
+    assert_eq!(native_error.code, "R_ALLOCATION_LIMIT");
+    let source = Value::Text("{}".into());
+    let native_error = native
+        .invoke("parse_text", vec![source.clone()])
+        .expect_err("JSON parse must honor the allocation limit");
+    let vm_error = vm
+        .invoke("parse_text", vec![source])
+        .expect_err("VM JSON parse must honor the allocation limit");
+    assert_eq!(native_error, vm_error);
+    assert_eq!(native_error.code, "R_ALLOCATION_LIMIT");
+
+    let object = Value::Json(SharedJson::from_serde(serde_json::json!({"k": 1})));
+    let key_policy = HostPolicy {
+        max_text_bytes: 3,
+        ..HostPolicy::default()
+    };
+    let mut native = Runtime::new()
+        .load(artifact.clone(), key_policy.clone())
+        .expect("native runtime loads");
+    let mut vm = Runtime::vm_only()
+        .load(artifact.clone(), key_policy)
+        .expect("VM runtime loads");
+    let native_error = native
+        .invoke("get_long_key", vec![object.clone()])
+        .expect_err("JSON key must honor the text limit");
+    let vm_error = vm
+        .invoke("get_long_key", vec![object])
+        .expect_err("VM JSON key must honor the text limit");
+    assert_eq!(native_error, vm_error);
+    assert_eq!(native_error.code, "R_TEXT_LIMIT");
+    let native_error = native
+        .invoke("parse_long_literal", vec![])
+        .expect_err("JSON parse input must honor the text limit");
+    let vm_error = vm
+        .invoke("parse_long_literal", vec![])
+        .expect_err("VM JSON parse input must honor the text limit");
+    assert_eq!(native_error, vm_error);
+    assert_eq!(native_error.code, "R_TEXT_LIMIT");
+
+    let integer_policy = HostPolicy {
+        max_integer_digits: 2,
+        ..HostPolicy::default()
+    };
+    let mut native = Runtime::new()
+        .load(artifact.clone(), integer_policy.clone())
+        .expect("native runtime loads");
+    let mut vm = Runtime::vm_only()
+        .load(artifact, integer_policy)
+        .expect("VM runtime loads");
+    let native_error = native
+        .invoke("main", vec![])
+        .expect_err("JSON integer conversion must honor the digit limit");
+    let vm_error = vm
+        .invoke("main", vec![])
+        .expect_err("VM JSON integer conversion must honor the digit limit");
+    assert_eq!(native_error, vm_error);
+    assert_eq!(native_error.code, "R_INTEGER_LIMIT");
+    assert!(native
+        .native_function_names()
+        .iter()
+        .any(|name| name == "main"));
 }
 
 #[test]
@@ -2860,9 +3109,8 @@ fn native_backend_bridges_json_values_through_a_checked_host_call() {
     );
 }
 
-#[cfg(feature = "native-value-bridge")]
 #[test]
-fn native_backend_executes_jsonl_next_when_opted_in() {
+fn native_backend_executes_jsonl_next_by_default() {
     let root = std::env::temp_dir().join(format!(
         "guion-native-jsonl-{}-{}",
         std::process::id(),
@@ -2874,7 +3122,7 @@ fn native_backend_executes_jsonl_next_when_opted_in() {
     std::fs::create_dir_all(&root).unwrap();
     let events = root.join("events.jsonl");
     std::fs::write(&events, "{\"kind\":\"ok\"}\nnot json\n").unwrap();
-    let source = "import \"std:jsonl\"\n\nfn main() -> Int:\n    let arguments = args()\n    if len(arguments) != 1:\n        return 8\n    let opened = jsonl_open(arguments[0])\n    if not is_ok(opened):\n        return 1\n    let reader = unwrap(opened)\n    let next = jsonl_next(reader)\n    if not is_ok(next):\n        return 2\n    let maybe_line = unwrap(next)\n    if not is_some(maybe_line):\n        return 3\n    let line = unwrap(maybe_line)\n    if line.raw != \"{\\\"kind\\\":\\\"ok\\\"}\":\n        return 4\n    if not is_some(line.value):\n        return 5\n    let parsed = unwrap(line.value)\n    let kind = json_try_get(parsed, \"kind\")\n    if not is_ok(kind):\n        return 6\n    if not is_ok(json_try_text(unwrap(kind))):\n        return 7\n    return 0\n";
+    let source = "import \"std:jsonl\"\n\nfn main() -> Int:\n    let arguments = args()\n    if len(arguments) != 1:\n        return 8\n    let opened = jsonl_open(arguments[0])\n    if not is_ok(opened):\n        return 1\n    let reader = unwrap(opened)\n    let next = jsonl_next(reader)\n    if not is_ok(next):\n        return 2\n    let maybe_line = unwrap(next)\n    if not is_some(maybe_line):\n        return 3\n    let line = unwrap(maybe_line)\n    if line.raw != \"{\\\"kind\\\":\\\"ok\\\"}\":\n        return 4\n    if not is_some(line.value):\n        return 5\n    let parsed = unwrap(line.value)\n    let kind = json_try_get(parsed, \"kind\")\n    if not is_ok(kind):\n        return 6\n    if not is_ok(json_try_text(unwrap(kind))):\n        return 7\n    let second = unwrap(jsonl_next(reader))\n    if not is_some(second):\n        return 9\n    if unwrap(second).raw != \"not json\":\n        return 10\n    if is_some(unwrap(second).value):\n        return 11\n    let eof = unwrap(jsonl_next(reader))\n    if is_some(eof):\n        return 12\n    return 0\n";
     let entry = root.join("main.gu");
     std::fs::write(&entry, source).unwrap();
     let stdlib_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../language/stdlib");
@@ -2903,6 +3151,7 @@ fn native_backend_executes_jsonl_next_when_opted_in() {
         .native_function_names()
         .iter()
         .any(|name| name == "fs_next_line"));
+    assert_eq!(native.native_deoptimizations(), 0, "{}", native.native_compile_profile());
 
     let mut vm = Runtime::vm_only()
         .load(artifact, policy)

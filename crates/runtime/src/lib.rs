@@ -220,6 +220,7 @@ struct NativeRuntimeContext {
     instance: *mut Instance,
     artifact: Arc<Artifact>,
     budget: Arc<Budget>,
+    limits: VmLimits,
 }
 
 impl NativeListArena {
@@ -355,13 +356,25 @@ impl NativeListArena {
     }
 
     fn ensure_tagged_capacity(&mut self) -> Option<()> {
+        self.ensure_tagged_capacity_for(1)
+    }
+
+    fn ensure_tagged_capacity_for(&mut self, additional: usize) -> Option<()> {
         const TAGGED_VALUE_CHUNK_ITEMS: usize = 256;
-        if self
+        let inline_remaining = NATIVE_INLINE_TAGGED_VALUES
+            .saturating_sub(self.inline_tagged_value_len);
+        let overflow_needed = additional.saturating_sub(inline_remaining);
+        let existing_overflow_capacity = self
             .tagged_values
             .last()
-            .is_none_or(|chunk| chunk.len() == chunk.capacity())
-        {
-            self.tagged_values.try_reserve(1).ok()?;
+            .map_or(0, |chunk| chunk.capacity().saturating_sub(chunk.len()));
+        let missing = overflow_needed.saturating_sub(existing_overflow_capacity);
+        let chunks_needed = missing.div_ceil(TAGGED_VALUE_CHUNK_ITEMS);
+        if chunks_needed == 0 {
+            return Some(());
+        }
+        self.tagged_values.try_reserve(chunks_needed).ok()?;
+        for _ in 0..chunks_needed {
             let mut chunk = Vec::new();
             chunk.try_reserve_exact(TAGGED_VALUE_CHUNK_ITEMS).ok()?;
             self.tagged_values.push(chunk);
@@ -541,7 +554,8 @@ impl NativeListArena {
         if *argument_tags.get(index)? != 4 {
             return None;
         }
-        self.value(*arguments.get(index)?)
+        let handle = *arguments.get(index)?;
+        self.constant_value(handle).or_else(|| self.value(handle))
     }
 
     fn decode_bridge_arguments(
@@ -561,6 +575,7 @@ impl NativeListArena {
         instance: *mut Instance,
         artifact: Arc<Artifact>,
         budget: Arc<Budget>,
+        limits: VmLimits,
     ) {
         self.constant_values = artifact
             .functions
@@ -575,6 +590,7 @@ impl NativeListArena {
             instance,
             artifact,
             budget,
+            limits,
         });
     }
 
@@ -600,6 +616,27 @@ impl NativeListArena {
             return None;
         }
         let value = match &instruction.op {
+            Op::JsonParse | Op::JsonTryGet | Op::JsonTryText | Op::JsonTryInt => {
+                return self.execute_native_json_operation(
+                    operation,
+                    arguments,
+                    argument_tags,
+                    result_tag,
+                    instruction.span,
+                    opcode_profile_name(&instruction.op),
+                    &runtime,
+                );
+            }
+            Op::FileNextLine => {
+                return self.execute_native_file_next_line(
+                    arguments,
+                    argument_tags,
+                    result_tag,
+                    instruction.span,
+                    opcode_profile_name(&instruction.op),
+                    &runtime,
+                );
+            }
             Op::GetField(record_index, field_index) => {
                 let Value::Record(name, fields) =
                     self.bridge_handle_argument(arguments, argument_tags, 0)?
@@ -673,6 +710,270 @@ impl NativeListArena {
             }
         };
         self.encode_bridge_value(value, result_tag)
+    }
+
+    fn execute_native_json_operation(
+        &mut self,
+        operation: i64,
+        arguments: &[i64],
+        argument_tags: &[i64],
+        result_tag: i64,
+        span: Span,
+        operation_name: &'static str,
+        runtime: &NativeRuntimeContext,
+    ) -> Option<i64> {
+        if result_tag != 4 {
+            return None;
+        }
+        // Reserve backend bookkeeping before parsing or charging guest output.
+        self.values.try_reserve(1).ok()?;
+        if self.inline_tagged_value_len == NATIVE_INLINE_TAGGED_VALUES {
+            self.ensure_tagged_capacity_for(1)?;
+        }
+        let profile = runtime.budget.runtime_profile.clone();
+        let host_started = profile.as_ref().map(|_| Instant::now());
+        let (kind, payload) = match operation {
+            native_backend::NATIVE_BRIDGE_JSON_PARSE => {
+                if arguments.len() != 1 || argument_tags != [4] {
+                    return None;
+                }
+                let Value::Text(source) =
+                    self.bridge_handle_argument(arguments, argument_tags, 0)?
+                else {
+                    return None;
+                };
+                if source.len() > runtime.limits.max_text_bytes {
+                    let constant_span = arguments
+                        .first()
+                        .and_then(|handle| handle.checked_sub(NATIVE_CONSTANT_HANDLE_BASE))
+                        .and_then(|index| usize::try_from(index).ok())
+                        .and_then(|index| {
+                            runtime
+                                .artifact
+                                .functions
+                                .iter()
+                                .flat_map(|function| function.code.iter())
+                                .filter(|instruction| {
+                                    matches!(
+                                        &instruction.op,
+                                        Op::Const(Value::Text(_) | Value::Bytes(_))
+                                    )
+                                })
+                                .nth(index)
+                                .map(|instruction| instruction.span)
+                        });
+                    let constant_error = constant_span.and_then(|constant_span| {
+                        guion_vm_core::value_limit_error_at_boundary(
+                            &Value::Text(source.clone()),
+                            &runtime.limits,
+                            constant_span,
+                        )
+                    });
+                    self.host_error = Some(constant_error.unwrap_or_else(|| {
+                        RuntimeError::new(
+                            "R_TEXT_LIMIT",
+                            "JSON input exceeds the configured byte limit",
+                            span,
+                        )
+                    }));
+                    record_native_host_operation(profile.as_ref(), host_started, operation_name);
+                    return None;
+                }
+                let parse_started = runtime.budget.runtime_profile.as_ref().map(|_| Instant::now());
+                let parsed = parse_unique_shared_json(source);
+                if let (Some(profile), Some(started)) =
+                    (&runtime.budget.runtime_profile, parse_started)
+                {
+                    profile.record_json_parse(
+                        started.elapsed().as_nanos().min(u64::MAX as u128) as u64,
+                    );
+                }
+                match parsed {
+                    Ok(value) => {
+                        let allocations_before = runtime
+                            .budget
+                            .allocation_remaining
+                            .load(Ordering::Relaxed);
+                        let parsed = finish_shared_json(
+                            value,
+                            &runtime.limits,
+                            runtime.budget.as_ref(),
+                            span,
+                        );
+                        let allocations_after = runtime
+                            .budget
+                            .allocation_remaining
+                            .load(Ordering::Relaxed);
+                        self.charged_bytes = self
+                            .charged_bytes
+                            .saturating_add(allocations_before.saturating_sub(allocations_after));
+                        match parsed {
+                            Ok(Value::Json(value)) => {
+                                (native_backend::NATIVE_TAGGED_RESULT_OK, Value::Json(value))
+                            }
+                            Ok(_) => return None,
+                            Err(error) => {
+                                self.host_error = Some(error);
+                                record_native_host_operation(
+                                    profile.as_ref(),
+                                    host_started,
+                                    operation_name,
+                                );
+                                return None;
+                            }
+                        }
+                    }
+                    Err(JsonDecodeError::Parse(error)) => (
+                        native_backend::NATIVE_TAGGED_RESULT_ERR,
+                        Value::JsonError(JsonErrorValue {
+                            code: "R_JSON_PARSE".into(),
+                            message: error.to_string(),
+                            line: error.line(),
+                            column: error.column(),
+                        }),
+                    ),
+                    Err(JsonDecodeError::DuplicateKey { key, line, column }) => (
+                        native_backend::NATIVE_TAGGED_RESULT_ERR,
+                        Value::JsonError(JsonErrorValue {
+                            code: "R_JSON_DUPLICATE_KEY".into(),
+                            message: format!("JSON object contains duplicate key `{key}`"),
+                            line,
+                            column,
+                        }),
+                    ),
+                }
+            }
+            native_backend::NATIVE_BRIDGE_JSON_TRY_GET => {
+                if arguments.len() != 2 || argument_tags != [4, 4] {
+                    return None;
+                }
+                let Value::Json(document) =
+                    self.bridge_handle_argument(arguments, argument_tags, 0)?
+                else {
+                    return None;
+                };
+                let Value::Text(key) =
+                    self.bridge_handle_argument(arguments, argument_tags, 1)?
+                else {
+                    return None;
+                };
+                if key.len() > runtime.limits.max_text_bytes {
+                    return None;
+                }
+                match stdlib_data::json_try_get(document, key) {
+                    Ok(value) => (native_backend::NATIVE_TAGGED_RESULT_OK, Value::Json(value)),
+                    Err(error) => (
+                        native_backend::NATIVE_TAGGED_RESULT_ERR,
+                        Value::JsonError(error),
+                    ),
+                }
+            }
+            native_backend::NATIVE_BRIDGE_JSON_TRY_TEXT => {
+                if arguments.len() != 1 || argument_tags != [4] {
+                    return None;
+                }
+                let Value::Json(document) =
+                    self.bridge_handle_argument(arguments, argument_tags, 0)?
+                else {
+                    return None;
+                };
+                match stdlib_data::json_try_text(document.as_ref()) {
+                    Ok(text) => (
+                        native_backend::NATIVE_TAGGED_RESULT_OK,
+                        Value::Text(text.into()),
+                    ),
+                    Err(error) => (
+                        native_backend::NATIVE_TAGGED_RESULT_ERR,
+                        Value::JsonError(error),
+                    ),
+                }
+            }
+            native_backend::NATIVE_BRIDGE_JSON_TRY_INT => {
+                if arguments.len() != 1 || argument_tags != [4] {
+                    return None;
+                }
+                let Value::Json(document) =
+                    self.bridge_handle_argument(arguments, argument_tags, 0)?
+                else {
+                    return None;
+                };
+                match stdlib_data::json_try_int(document.as_ref()) {
+                    Ok(integer) if integer.digit_count() <= runtime.limits.max_integer_digits => (
+                        native_backend::NATIVE_TAGGED_RESULT_OK,
+                        Value::Int(integer),
+                    ),
+                    Ok(_) => return None,
+                    Err(error) => (
+                        native_backend::NATIVE_TAGGED_RESULT_ERR,
+                        Value::JsonError(error),
+                    ),
+                }
+            }
+            _ => return None,
+        };
+
+        if let Value::Text(text) = &payload {
+            let bytes = size_of::<String>().saturating_add(text.len());
+            if !self.charge(bytes) {
+                return None;
+            }
+        }
+        let value = self.store_tagged_value(kind, Some(payload))?;
+        record_native_host_operation(profile.as_ref(), host_started, operation_name);
+        Some(value)
+    }
+
+    fn execute_native_file_next_line(
+        &mut self,
+        arguments: &[i64],
+        argument_tags: &[i64],
+        result_tag: i64,
+        span: Span,
+        operation_name: &'static str,
+        runtime: &NativeRuntimeContext,
+    ) -> Option<i64> {
+        if result_tag != 4 || arguments.len() != 1 || argument_tags != [4] {
+            return None;
+        }
+        let profile = runtime.budget.runtime_profile.clone();
+        let host_started = profile.as_ref().map(|_| Instant::now());
+        let value = self.bridge_handle_argument(arguments, argument_tags, 0)?;
+        let handle = match runtime_reader_handle(value, span) {
+            Ok(handle) => handle,
+            Err(error) => {
+                record_native_host_operation(profile.as_ref(), host_started, operation_name);
+                self.host_error = Some(error);
+                return None;
+            }
+        };
+
+        // A file read advances the reader. Reserve all result storage first so
+        // arena pressure cannot force a VM retry after consuming a line.
+        self.values.try_reserve(1).ok()?;
+        self.ensure_tagged_capacity_for(2)?;
+        let line = unsafe { runtime.instance.as_mut()? }.readers.next_line(handle);
+        let result = match line {
+            Ok(Some(line)) => Value::ResultOk(Box::new(Value::OptionSome(Box::new(
+                Value::Record(
+                    "SourceLine".into(),
+                    Arc::new(vec![
+                        Value::Int(BigInt::from_usize(line.number)),
+                        Value::Text(line.text.into()),
+                    ]),
+                ),
+            )))),
+            Ok(None) => Value::ResultOk(Box::new(Value::OptionNone)),
+            Err(error) => file_error_result(reader_runtime_error(
+                error.kind,
+                error.message,
+                error.line,
+                error.column,
+                span,
+            )),
+        };
+        let value = self.encode_bridge_value(result, result_tag)?;
+        record_native_host_operation(profile.as_ref(), host_started, operation_name);
+        Some(value)
     }
 
     fn decode_bridge_value(&self, value: i64, tag: i64) -> Option<Value> {
@@ -1401,6 +1702,21 @@ impl Drop for HostOperationProfileTimer {
     }
 }
 
+fn record_native_host_operation(
+    profile: Option<&Arc<RuntimeProfileCounters>>,
+    started: Option<Instant>,
+    operation: &'static str,
+) {
+    if let (Some(profile), Some(started)) = (profile, started) {
+        if profile.should_sample_host_operation() {
+            profile.record_host_operation(
+                operation,
+                started.elapsed().as_nanos().min(u64::MAX as u128) as u64,
+            );
+        }
+    }
+}
+
 impl VmHost for Instance {
     fn artifact(&self) -> &Arc<Artifact> {
         &self.artifact
@@ -1444,7 +1760,10 @@ impl VmHost for Instance {
         budget: &Arc<Budget>,
         call_site: Option<Span>,
     ) -> Result<FrameStart, RuntimeError> {
-        self.start_guest_frame(index, args, depth, budget.clone(), call_site)
+        let allow_native = self.native_code.as_ref().is_some_and(|native| {
+            native.has_function(index) && !native.vm_call_stays_in_vm(index)
+        });
+        self.start_guest_frame(index, args, depth, budget.clone(), call_site, allow_native)
     }
 
     fn host_op(&mut self, context: HostOpContext<'_>) -> Result<(), RuntimeError> {
@@ -5496,7 +5815,11 @@ impl Instance {
         depth: usize,
         budget: Arc<Budget>,
     ) -> Result<Value, RuntimeError> {
-        match self.start_guest_frame(index, args, depth, budget.clone(), None)? {
+        let allow_native = self
+            .native_code
+            .as_ref()
+            .is_some_and(|native| native.has_function(index));
+        match self.start_guest_frame(index, args, depth, budget.clone(), None, allow_native)? {
             FrameStart::Returned(value) => Ok(value),
             FrameStart::Vm(frame) => self.run_guest_frames(frame, budget),
             FrameStart::VmFrames(frames) => self.run_guest_frame_stack(frames, budget),
@@ -5549,10 +5872,16 @@ impl Instance {
         depth: usize,
         budget: Arc<Budget>,
         call_site: Option<Span>,
+        allow_native: bool,
     ) -> Result<FrameStart, RuntimeError> {
         let artifact = Arc::clone(&self.artifact);
         let f = &artifact.functions[index];
         check_call_depth(&artifact, &self.policy.vm_limits(), index, depth)?;
+        if !allow_native {
+            return Ok(FrameStart::Vm(new_vm_frame(
+                &artifact, index, args, depth, call_site,
+            )));
+        }
         let mut native_arena = NativeListArena::new(
             Arc::as_ptr(&budget),
             self.policy.max_collection_items,
@@ -5564,6 +5893,7 @@ impl Instance {
             self as *mut Instance,
             Arc::clone(&artifact),
             budget.clone(),
+            self.policy.vm_limits(),
         );
         let mut native_record_fields: Vec<Box<[i64]>> = Vec::new();
         let mut native_records: Vec<Box<NativeRecord>> = Vec::new();
