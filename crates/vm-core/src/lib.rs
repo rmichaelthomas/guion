@@ -7,8 +7,8 @@
 //! implements it for environments such as WebAssembly by rejecting those operations.
 
 use guion_model::{
-    Artifact, BigInt, FileErrorValue, Float64, HttpErrorValue, JsonErrorValue,
-    NativeResourceValue, Op, RuntimeError, SharedJson, Span, TaskErrorValue, Type, Value,
+    Artifact, BigInt, FileErrorValue, Float64, HttpErrorValue, JsonErrorValue, NativeResourceValue,
+    Op, RuntimeError, SharedJson, Span, TaskErrorValue, Type, Value,
 };
 use std::{
     cell::Cell,
@@ -16,8 +16,8 @@ use std::{
     fmt::Write as _,
     mem::size_of,
     sync::{
-        Arc, Mutex, OnceLock,
         atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering},
+        Arc, Mutex, OnceLock,
     },
     time::Instant,
 };
@@ -394,12 +394,12 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
         let instruction = instruction_ref;
         match &instruction.op {
             Op::Const(v) => {
-                if let Some(error) = value_limit_error_at_boundary(&v, &limits, instruction.span) {
+                if let Some(error) = value_limit_error_at_boundary(v, &limits, instruction.span) {
                     return Err(error);
                 }
                 charge_allocation(
                     budget.as_ref(),
-                    cloned_value_allocation(&v),
+                    cloned_value_allocation(v),
                     instruction.span,
                 )?;
                 push_stack!(v.clone())
@@ -1038,7 +1038,9 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                     } else {
                         0
                     };
-                    let (record_fields_shared, record_field_count) = if let Some(inner_key) = nested_key.as_deref() {
+                    let (record_fields_shared, record_field_count) = if let Some(inner_key) =
+                        nested_key.as_deref()
+                    {
                         let Some(Value::Map(inner)) = items.get(key.as_ref()) else {
                             return Err(RuntimeError::new(
                                 "R_MAP_KEY",
@@ -1120,8 +1122,11 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                     let Some(Value::Record(_, fields)) = inner.get(inner_key) else {
                         unreachable!("map_record_set target was checked before mutation")
                     };
-                    map_copy_bytes = map_copy_bytes
-                        .saturating_add(map_clone_allocation(inner.as_ref(), None, &Value::Unit));
+                    map_copy_bytes = map_copy_bytes.saturating_add(map_clone_allocation(
+                        inner.as_ref(),
+                        None,
+                        &Value::Unit,
+                    ));
                     record_fields = Some(fields.len());
                 } else if let Some(Value::Record(_, fields)) = values.get(key.as_ref()) {
                     record_fields = Some(fields.len());
@@ -1194,18 +1199,12 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                         }
                         _ => None,
                     };
-                if let Some((child_slot, parent_slot, parent_key)) = local_store_slot
-                    .and_then(|child_slot| {
+                if let Some((child_slot, parent_slot, parent_key)) =
+                    local_store_slot.and_then(|child_slot| {
                         unique_pending_nested_map_writeback_target(
-                            &f.code,
-                            ip,
-                            child_slot,
-                            &locals,
-                            &values,
+                            &f.code, ip, child_slot, &locals, &values,
                         )
-                        .map(|(parent_slot, parent_key)| {
-                            (child_slot, parent_slot, parent_key)
-                        })
+                        .map(|(parent_slot, parent_key)| (child_slot, parent_slot, parent_key))
                     })
                 {
                     let contains_key = values.contains_key(key.as_ref());
@@ -1263,15 +1262,17 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                                 instruction.span,
                             ));
                         };
-                        let parent_values = Arc::get_mut(parent_arc)
-                            .expect("nested writeback parent uniqueness was checked before mutation");
+                        let parent_values = Arc::get_mut(parent_arc).expect(
+                            "nested writeback parent uniqueness was checked before mutation",
+                        );
                         let Some(Value::Map(inner_arc)) =
                             parent_values.get_mut(parent_key.as_ref())
                         else {
                             unreachable!("nested writeback child was checked before mutation")
                         };
-                        let inner_values = Arc::get_mut(inner_arc)
-                            .expect("nested writeback child uniqueness was checked before mutation");
+                        let inner_values = Arc::get_mut(inner_arc).expect(
+                            "nested writeback child uniqueness was checked before mutation",
+                        );
                         replace_map_value(inner_values, key.as_ref(), value);
                         Value::Map(Arc::clone(inner_arc))
                     };
@@ -1561,9 +1562,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                 if start > end {
                     return Err(RuntimeError::new(
                         "R_INDEX_BOUNDS",
-                        format!(
-                            "text slice start {start} exceeds end {end}"
-                        ),
+                        format!("text slice start {start} exceeds end {end}"),
                         instruction.span,
                     ));
                 }
@@ -2314,14 +2313,16 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                 }
             }
             Op::Call(target, argc) => {
-                if *argc == fast_host_forwarders
-                    .get(*target)
-                    .and_then(|forwarder| *forwarder)
-                    .map(|forwarder| forwarder.argument_count)
-                    .unwrap_or(usize::MAX)
+                if *argc
+                    == fast_host_forwarders
+                        .get(*target)
+                        .and_then(|forwarder| *forwarder)
+                        .map(|forwarder| forwarder.argument_count)
+                        .unwrap_or(usize::MAX)
                     && stack.len() >= *argc
                 {
-                    if let Some(forwarder) = fast_host_forwarders.get(*target).and_then(|value| *value)
+                    if let Some(forwarder) =
+                        fast_host_forwarders.get(*target).and_then(|value| *value)
                     {
                         if let Err(mut error) =
                             check_call_depth(&artifact, &limits, *target, depth.saturating_add(1))
@@ -2329,17 +2330,23 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                             error.trace.push(instruction.span);
                             return Err(error);
                         }
-                        let child_started = if PROFILED { profile_sample.as_ref().map(|_| Instant::now()) } else { None };
+                        let child_started = if PROFILED {
+                            profile_sample.as_ref().map(|_| Instant::now())
+                        } else {
+                            None
+                        };
                         let forwarder_result = execute_fast_host_forwarder::<PROFILED, _>(
-                            host,
-                            &artifact,
-                            *target,
-                            forwarder,
-                            &mut stack,
-                            &mut locals,
-                            &budget,
-                            &mut instruction_fuel,
-                            depth.saturating_add(1),
+                            FastHostForwarderExecution {
+                                host,
+                                artifact: &artifact,
+                                target: *target,
+                                forwarder,
+                                stack: &mut stack,
+                                locals: &mut locals,
+                                budget: &budget,
+                                instruction_fuel: &mut instruction_fuel,
+                                depth: depth.saturating_add(1),
+                            },
                         );
                         if let (Some(sample), Some(started)) = (&profile_sample, child_started) {
                             sample.record_child_duration(started.elapsed());
@@ -2506,7 +2513,11 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                 } else {
                     OutputStream::Stdout
                 };
-                let host_started = if PROFILED { profile_sample.as_ref().map(|_| Instant::now()) } else { None };
+                let host_started = if PROFILED {
+                    profile_sample.as_ref().map(|_| Instant::now())
+                } else {
+                    None
+                };
                 let output_result =
                     host.write_program_output(stream, &rendered.value, instruction.span);
                 if let (Some(sample), Some(started)) = (&profile_sample, host_started) {
@@ -2530,7 +2541,11 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
             }
             _ => {
                 instruction_fuel.flush();
-                let host_started = if PROFILED { profile_sample.as_ref().map(|_| Instant::now()) } else { None };
+                let host_started = if PROFILED {
+                    profile_sample.as_ref().map(|_| Instant::now())
+                } else {
+                    None
+                };
                 let host_result = host.host_op(HostOpContext {
                     instruction: instruction.clone(),
                     function: f,
@@ -2552,6 +2567,18 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
 struct FastHostForwarder {
     argument_count: usize,
     host_operation_ip: usize,
+}
+
+struct FastHostForwarderExecution<'a, 'fuel, H: VmHost> {
+    host: &'a mut H,
+    artifact: &'a Artifact,
+    target: usize,
+    forwarder: FastHostForwarder,
+    stack: &'a mut Vec<Value>,
+    locals: &'a mut Vec<Value>,
+    budget: &'a Arc<Budget>,
+    instruction_fuel: &'a mut InstructionFuel<'fuel>,
+    depth: usize,
 }
 
 fn fast_host_forwarder(function: &guion_model::Function) -> Option<FastHostForwarder> {
@@ -2583,7 +2610,10 @@ fn fast_host_forwarder(function: &guion_model::Function) -> Option<FastHostForwa
         _ => return None,
     };
     if expected_arguments != argument_count
-        || !matches!(function.code.last().map(|instruction| &instruction.op), Some(Op::Return))
+        || !matches!(
+            function.code.last().map(|instruction| &instruction.op),
+            Some(Op::Return)
+        )
     {
         return None;
     }
@@ -2594,16 +2624,19 @@ fn fast_host_forwarder(function: &guion_model::Function) -> Option<FastHostForwa
 }
 
 fn execute_fast_host_forwarder<const PROFILED: bool, H: VmHost>(
-    host: &mut H,
-    artifact: &Artifact,
-    target: usize,
-    forwarder: FastHostForwarder,
-    stack: &mut Vec<Value>,
-    locals: &mut Vec<Value>,
-    budget: &Arc<Budget>,
-    instruction_fuel: &mut InstructionFuel<'_>,
-    depth: usize,
+    execution: FastHostForwarderExecution<'_, '_, H>,
 ) -> Result<Value, RuntimeError> {
+    let FastHostForwarderExecution {
+        host,
+        artifact,
+        target,
+        forwarder,
+        stack,
+        locals,
+        budget,
+        instruction_fuel,
+        depth,
+    } = execution;
     let function = artifact.functions.get(target).ok_or_else(|| {
         RuntimeError::new(
             "R_CALL_TARGET",
@@ -2611,13 +2644,20 @@ fn execute_fast_host_forwarder<const PROFILED: bool, H: VmHost>(
             Span::default(),
         )
     })?;
-    let argument_start = stack.len().checked_sub(forwarder.argument_count).ok_or_else(|| {
-        RuntimeError::new(
-            "R_STACK_UNDERFLOW",
-            "function call has fewer stack values than arguments",
-            function.code.first().map(|instruction| instruction.span).unwrap_or_default(),
-        )
-    })?;
+    let argument_start = stack
+        .len()
+        .checked_sub(forwarder.argument_count)
+        .ok_or_else(|| {
+            RuntimeError::new(
+                "R_STACK_UNDERFLOW",
+                "function call has fewer stack values than arguments",
+                function
+                    .code
+                    .first()
+                    .map(|instruction| instruction.span)
+                    .unwrap_or_default(),
+            )
+        })?;
     let profile_sample = if PROFILED {
         budget
             .runtime_profile
@@ -2720,8 +2760,15 @@ fn execute_fast_host_forwarder<const PROFILED: bool, H: VmHost>(
     }
     Err(RuntimeError::new(
         "R_NO_RETURN",
-        format!("function `{}` reached the end without a return", function.name),
-        function.code.last().map(|instruction| instruction.span).unwrap_or_default(),
+        format!(
+            "function `{}` reached the end without a return",
+            function.name
+        ),
+        function
+            .code
+            .last()
+            .map(|instruction| instruction.span)
+            .unwrap_or_default(),
     ))
 }
 
@@ -2788,7 +2835,10 @@ fn unique_pending_nested_map_writeback_target(
                     _ => return None,
                 };
                 if !matches!(code.get(ip + 2).map(|instruction| &instruction.op), Some(Op::Load(slot)) if *slot == child_slot)
-                    || !matches!(code.get(ip + 3).map(|instruction| &instruction.op), Some(Op::MapSet))
+                    || !matches!(
+                        code.get(ip + 3).map(|instruction| &instruction.op),
+                        Some(Op::MapSet)
+                    )
                     || !matches!(code.get(ip + 4).map(|instruction| &instruction.op), Some(Op::Store(slot)) if *slot == *parent_slot)
                 {
                     return None;
@@ -2815,10 +2865,10 @@ fn unique_pending_nested_map_writeback_target(
     }
     let mut matching_key = None;
     for (key, value) in parent.iter() {
-        if matches!(value, Value::Map(child) if Arc::ptr_eq(child, inner)) {
-            if matching_key.replace(key.as_str()).is_some() {
-                return None;
-            }
+        if matches!(value, Value::Map(child) if Arc::ptr_eq(child, inner))
+            && matching_key.replace(key.as_str()).is_some()
+        {
+            return None;
         }
     }
     if matching_key != Some(parent_key.as_ref()) {
@@ -2901,10 +2951,7 @@ fn vm_profile_sample_hash(frame_index: u64) -> u64 {
 
 impl RuntimeProfileCounters {
     pub fn initialize_function_profiles(&self, function_names: Vec<String>) {
-        let backedges = function_names
-            .iter()
-            .map(|_| AtomicU64::new(0))
-            .collect();
+        let backedges = function_names.iter().map(|_| AtomicU64::new(0)).collect();
         let _ = self.function_profile_names.set(function_names);
         let _ = self.function_loop_backedge_counts.set(backedges);
     }
@@ -3071,12 +3118,14 @@ impl RuntimeProfileCounters {
 
     #[inline]
     pub fn record_map_record_get(&self) {
-        self.map_record_get_operations.fetch_add(1, Ordering::Relaxed);
+        self.map_record_get_operations
+            .fetch_add(1, Ordering::Relaxed);
     }
 
     #[inline]
     pub fn record_map_record_set(&self, map_copy_bytes: usize, record_copy_bytes: usize) {
-        self.map_record_set_operations.fetch_add(1, Ordering::Relaxed);
+        self.map_record_set_operations
+            .fetch_add(1, Ordering::Relaxed);
         if map_copy_bytes == 0 && record_copy_bytes == 0 {
             self.map_record_set_in_place_updates
                 .fetch_add(1, Ordering::Relaxed);
@@ -3747,7 +3796,11 @@ impl Budget {
     pub fn consume(&self) -> bool {
         self.remaining
             .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |left| {
-                if left > 0 { Some(left - 1) } else { None }
+                if left > 0 {
+                    Some(left - 1)
+                } else {
+                    None
+                }
             })
             .is_ok()
     }
@@ -5503,10 +5556,14 @@ fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result
             }
             Op::MapRecordGet(record_index, field_index, nested) => {
                 if *nested && pop_type(&mut state.stack, pc)? != Type::Text {
-                    return Err(format!("map_record_get nested key requires Text at instruction {pc}"));
+                    return Err(format!(
+                        "map_record_get nested key requires Text at instruction {pc}"
+                    ));
                 }
                 if pop_type(&mut state.stack, pc)? != Type::Text {
-                    return Err(format!("map_record_get key requires Text at instruction {pc}"));
+                    return Err(format!(
+                        "map_record_get key requires Text at instruction {pc}"
+                    ));
                 }
                 let record = artifact.records.get(*record_index).ok_or_else(|| {
                     format!("map_record_get references missing record at instruction {pc}")
@@ -5537,10 +5594,14 @@ fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result
             Op::MapRecordSet(record_index, field_index, nested) => {
                 let value_type = pop_type(&mut state.stack, pc)?;
                 if *nested && pop_type(&mut state.stack, pc)? != Type::Text {
-                    return Err(format!("map_record_set nested key requires Text at instruction {pc}"));
+                    return Err(format!(
+                        "map_record_set nested key requires Text at instruction {pc}"
+                    ));
                 }
                 if pop_type(&mut state.stack, pc)? != Type::Text {
-                    return Err(format!("map_record_set key requires Text at instruction {pc}"));
+                    return Err(format!(
+                        "map_record_set key requires Text at instruction {pc}"
+                    ));
                 }
                 let record = artifact.records.get(*record_index).ok_or_else(|| {
                     format!("map_record_set references missing record at instruction {pc}")
@@ -6680,30 +6741,22 @@ mod tests {
             artifact: Arc::clone(&artifact),
             observed_stack_len: None,
         };
-        let mut stack = vec![
-            Value::Bool(true),
-            Value::Text(Arc::<str>::from("example")),
-        ];
+        let mut stack = vec![Value::Bool(true), Value::Text(Arc::<str>::from("example"))];
         let mut locals = Vec::new();
-        let budget = Arc::new(Budget::new(
-            3,
-            1024,
-            CancellationToken::new(),
-            None,
-        ));
+        let budget = Arc::new(Budget::new(3, 1024, CancellationToken::new(), None));
         let mut instruction_fuel = InstructionFuel::new(&budget);
 
-        let result = execute_fast_host_forwarder::<false, _>(
-            &mut host,
-            &artifact,
-            0,
+        let result = execute_fast_host_forwarder::<false, _>(FastHostForwarderExecution {
+            host: &mut host,
+            artifact: &artifact,
+            target: 0,
             forwarder,
-            &mut stack,
-            &mut locals,
-            &budget,
-            &mut instruction_fuel,
-            1,
-        )
+            stack: &mut stack,
+            locals: &mut locals,
+            budget: &budget,
+            instruction_fuel: &mut instruction_fuel,
+            depth: 1,
+        })
         .expect("forwarder returns its host operation result");
 
         assert_eq!(host.observed_stack_len, Some(2));

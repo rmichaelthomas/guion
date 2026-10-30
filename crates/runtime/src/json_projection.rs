@@ -9,8 +9,8 @@ use guion_model::JsonErrorValue;
 use serde::de::{DeserializeSeed, Error as DeError, MapAccess, SeqAccess, Visitor};
 
 use crate::{
-    UniqueJsonSeed, duplicate_json_key, escape_reserved_json_keys, restore_reserved_json_keys,
-    source_position,
+    duplicate_json_key, escape_reserved_json_keys, restore_reserved_json_keys, source_position,
+    UniqueJsonSeed,
 };
 
 const PRIVATE_NUMBER_KEY: &str = "$serde_json::private::Number";
@@ -686,7 +686,7 @@ fn metrics(value: &serde_json::Value) -> Metrics {
 mod tests {
     use std::borrow::Cow;
 
-    use super::{JsonKey, SeenKeys, project_columns};
+    use super::{project_columns, JsonKey, SeenKeys};
 
     #[test]
     fn plain_object_keys_borrow_the_source_and_escaped_keys_remain_exact() {

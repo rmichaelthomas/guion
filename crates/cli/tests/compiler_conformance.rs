@@ -47,7 +47,10 @@ fn http_stdlib_exports_its_small_types_without_loading_time_or_json_modules() {
     .expect("the typed HTTP module compiles from its own import");
 
     assert!(artifact.sources.iter().any(|source| source == "std:http"));
-    assert!(artifact.sources.iter().any(|source| source == "std:http_types"));
+    assert!(artifact
+        .sources
+        .iter()
+        .any(|source| source == "std:http_types"));
     assert!(!artifact.sources.iter().any(|source| source == "std:types"));
     assert!(!artifact.sources.iter().any(|source| source == "std:time"));
     assert!(!artifact.sources.iter().any(|source| source == "std:json"));
@@ -82,7 +85,9 @@ fn self_hosted_compiler_emits_nested_typed_map_record_updates() {
     project.write("main.gu", source);
     project.write("nested.gu", source);
 
-    let bootstrap = project.compile().expect("Rust compiler accepts nested map-record operations");
+    let bootstrap = project
+        .compile()
+        .expect("Rust compiler accepts nested map-record operations");
     assert!(bootstrap.functions[0]
         .code
         .iter()
@@ -102,7 +107,10 @@ fn self_hosted_compiler_emits_nested_typed_map_record_updates() {
     let seed = Artifact::from_bytes(include_bytes!("../../../language/self_host/compiler.gub"))
         .expect("format-49 self-host seed decodes");
     let mut runtime = Runtime::new()
-        .load(seed, HostPolicy::default().with_file_access(&project.0, true, false))
+        .load(
+            seed,
+            HostPolicy::default().with_file_access(&project.0, true, false),
+        )
         .expect("self-host seed loads");
     let compiled = runtime
         .invoke(
@@ -1505,8 +1513,8 @@ fn self_host_compiler_reexports_public_imported_records_and_functions() {
         "{}",
         String::from_utf8_lossy(&execution.stderr)
     );
-    let report: Value = serde_json::from_slice(&execution.stdout)
-        .expect("parse public-import execution report");
+    let report: Value =
+        serde_json::from_slice(&execution.stdout).expect("parse public-import execution report");
     assert_eq!(report["exit_code"], 0, "{report}");
 }
 

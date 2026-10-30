@@ -105,7 +105,9 @@ fn main() -> Int:
     let artifact = compile("format-utc-date.gu", source).expect("UTC date formatter compiles");
     assert_eq!(artifact.format_version, Artifact::CURRENT_VERSION);
     for runtime in [Runtime::vm_only(), Runtime::new()] {
-        let mut runtime = runtime.load(artifact.clone(), HostPolicy::default()).unwrap();
+        let mut runtime = runtime
+            .load(artifact.clone(), HostPolicy::default())
+            .unwrap();
         runtime.invoke("main", vec![]).unwrap();
     }
 }

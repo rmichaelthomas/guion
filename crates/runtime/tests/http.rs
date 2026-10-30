@@ -716,8 +716,10 @@ fn http_response_text_observes_configured_text_limit() {
     let source = "record HttpResponse:\n    status: Int\n    headers: Map[Text, Text]\n    body: Bytes\n\nfn decode(response: HttpResponse) -> Result[Text, HttpError]:\n    return http_response_text(response)\n\nfn main() -> Int:\n    return 0\n";
     let artifact = compile("http-response-text-limit.gu", source)
         .expect("typed HTTP response text helper compiles");
-    let mut policy = HostPolicy::default();
-    policy.max_text_bytes = 1;
+    let policy = HostPolicy {
+        max_text_bytes: 1,
+        ..HostPolicy::default()
+    };
     let mut instance = Runtime::new().load(artifact, policy).unwrap();
     let result = instance
         .invoke("decode", vec![http_response_value(200, b"ok")])
@@ -847,8 +849,10 @@ fn http_response_json_preserves_duplicate_key_errors() {
 fn http_response_json_observes_configured_text_limit() {
     let source = "import \"std:types\"\nimport \"std:http\"\n\nfn parse_response(response: HttpResponse) -> Result[Json, StdError]:\n    return http_response_json(response)\n\nfn main() -> Int:\n    return 0\n";
     let artifact = compile_http_project("http-response-json-text-limit", source);
-    let mut policy = HostPolicy::default();
-    policy.max_text_bytes = 80;
+    let policy = HostPolicy {
+        max_text_bytes: 80,
+        ..HostPolicy::default()
+    };
     let mut instance = Runtime::new().load(artifact, policy).unwrap();
     let oversized_body = vec![b'a'; 100];
     let result = instance

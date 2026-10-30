@@ -9,10 +9,11 @@ use std::{
 use hmac::{Hmac, Mac};
 use icu_casemap::CaseMapper;
 use icu_normalizer::{ComposingNormalizerBorrowed, DecomposingNormalizerBorrowed};
-use icu_properties::{CodePointSetData, props::WhiteSpace};
+use icu_properties::{props::WhiteSpace, CodePointSetData};
 use rusqlite::{
-    Connection, OpenFlags, params_from_iter,
+    params_from_iter,
     types::{Value as SqliteValue, ValueRef},
+    Connection, OpenFlags,
 };
 use sha2::Sha256;
 use toml_edit::{Document, DocumentMut, Item, Table, Value};

@@ -35,8 +35,8 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
     let cli_started = phase_timings_enabled.then(Instant::now);
     let runtime_profile_setting = env::var_os("GUION_RUNTIME_PROFILE");
     let runtime_profile_enabled = runtime_profile_setting.is_some();
-    let runtime_profile_sampled = runtime_profile_setting.as_deref()
-        == Some(std::ffi::OsStr::new("sampled"));
+    let runtime_profile_sampled =
+        runtime_profile_setting.as_deref() == Some(std::ffi::OsStr::new("sampled"));
     let Some(command) = args.first().map(String::as_str) else {
         return Err(
             "usage: guion <new|check|fmt|lint|test|run|build|package|verify-package|add|sync|update|inspect|doc|doctor|install> [path]"
@@ -574,8 +574,7 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
         if path.ends_with(".gub") || bytes.starts_with(b"VRTA") {
             let decode_started = phase_timings_enabled.then(Instant::now);
             let decoded = Artifact::from_bytes(&bytes);
-            input_artifact_decode_ns =
-                decode_started.map(|started| started.elapsed().as_nanos());
+            input_artifact_decode_ns = decode_started.map(|started| started.elapsed().as_nanos());
             match decoded {
                 Ok(artifact) => artifact,
                 Err(error) if json_run || json_inspect => {
@@ -856,8 +855,7 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
                 }
                 Err(error) => return Err(render_runtime(&path, &artifact, &error)),
             };
-            let runtime_load_ns =
-                runtime_load_started.map(|started| started.elapsed().as_nanos());
+            let runtime_load_ns = runtime_load_started.map(|started| started.elapsed().as_nanos());
             let program_started = phase_timings_enabled.then(Instant::now);
             let result = instance.invoke("main", vec![]);
             let program_execute_ns = program_started.map(|started| started.elapsed().as_nanos());

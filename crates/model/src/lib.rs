@@ -240,7 +240,10 @@ mod tests {
         let mut format_48 = artifact.clone();
         format_48.format_version = 48;
         format_48.functions[0].code.clear();
-        assert_eq!(Artifact::from_bytes(&format_48.to_bytes().unwrap()).unwrap(), format_48);
+        assert_eq!(
+            Artifact::from_bytes(&format_48.to_bytes().unwrap()).unwrap(),
+            format_48
+        );
 
         let mut format_48_with_new_op = artifact.clone();
         format_48_with_new_op.format_version = 48;

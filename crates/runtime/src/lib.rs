@@ -4,11 +4,11 @@ use guion_model::{
 };
 pub use guion_vm_core::CancellationToken;
 use guion_vm_core::{
+    charge_allocation, check_call_depth, cloned_value_allocation, encoded_json_string_len,
+    finish_json_value, finish_shared_json, json_exact_integer, new_vm_frame, opcode_profile_name,
+    shared_json_push_local_allocation, shared_json_set_local_allocation, value_matches, verify,
     Budget, FrameStart, HostOpContext, OutputStream, RuntimeProfileCounters, VmFrame, VmHost,
-    VmLimits, charge_allocation, check_call_depth, cloned_value_allocation,
-    encoded_json_string_len, finish_json_value, finish_shared_json, json_exact_integer,
-    new_vm_frame, opcode_profile_name, shared_json_push_local_allocation,
-    shared_json_set_local_allocation, value_matches, verify,
+    VmLimits,
 };
 use std::{
     borrow::Cow,
@@ -18,9 +18,8 @@ use std::{
     mem::size_of,
     path::{Path, PathBuf},
     sync::{
-        Arc,
         atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering},
-        mpsc,
+        mpsc, Arc,
     },
     thread,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
@@ -32,10 +31,10 @@ pub mod python_bridge;
 pub mod stdlib_data;
 pub mod stdlib_services;
 use native_backend::{
-    NATIVE_CONSTANT_HANDLE_BASE, NATIVE_INLINE_LIST_ITEMS, NATIVE_TAGGED_OPTION_NONE,
-    NATIVE_TAGGED_OPTION_SOME, NATIVE_TAGGED_RESULT_ERR, NATIVE_TAGGED_RESULT_OK, NativeBackend,
-    NativeCode, NativeFloatList, NativeHandleList, NativeIntList, NativeRecord, NativeSymbols,
-    NativeTaggedValue, native_record_has_native_layout,
+    native_record_has_native_layout, NativeBackend, NativeCode, NativeFloatList, NativeHandleList,
+    NativeIntList, NativeRecord, NativeSymbols, NativeTaggedValue, NATIVE_CONSTANT_HANDLE_BASE,
+    NATIVE_INLINE_LIST_ITEMS, NATIVE_TAGGED_OPTION_NONE, NATIVE_TAGGED_OPTION_SOME,
+    NATIVE_TAGGED_RESULT_ERR, NATIVE_TAGGED_RESULT_OK,
 };
 
 struct JsonTextPairRows<'a> {
@@ -223,6 +222,28 @@ struct NativeRuntimeContext {
     limits: VmLimits,
 }
 
+#[derive(Clone, Copy)]
+struct NativeOperationRequest<'a> {
+    operation: i64,
+    function_index: i64,
+    instruction_index: i64,
+    depth: i64,
+    arguments: &'a [i64],
+    argument_tags: &'a [i64],
+    result_tag: i64,
+}
+
+#[derive(Clone, Copy)]
+struct NativeJsonOperationRequest<'a> {
+    operation: i64,
+    arguments: &'a [i64],
+    argument_tags: &'a [i64],
+    result_tag: i64,
+    span: Span,
+    operation_name: &'static str,
+    runtime: &'a NativeRuntimeContext,
+}
+
 impl NativeListArena {
     fn new(
         budget: *const Budget,
@@ -336,10 +357,8 @@ impl NativeListArena {
         if descriptor_value.kind == NATIVE_TAGGED_OPTION_NONE {
             return Some(0);
         }
-        let payload = self.decode_bridge_value(
-            descriptor_value.payload,
-            descriptor_value.payload_tag,
-        )?;
+        let payload =
+            self.decode_bridge_value(descriptor_value.payload, descriptor_value.payload_tag)?;
         let bytes = size_of::<Value>().saturating_add(cloned_value_allocation(&payload));
         let charge = u64::try_from(bytes).unwrap_or(u64::MAX);
         // The generated code has no Rust reference to this descriptor while the
@@ -361,8 +380,8 @@ impl NativeListArena {
 
     fn ensure_tagged_capacity_for(&mut self, additional: usize) -> Option<()> {
         const TAGGED_VALUE_CHUNK_ITEMS: usize = 256;
-        let inline_remaining = NATIVE_INLINE_TAGGED_VALUES
-            .saturating_sub(self.inline_tagged_value_len);
+        let inline_remaining =
+            NATIVE_INLINE_TAGGED_VALUES.saturating_sub(self.inline_tagged_value_len);
         let overflow_needed = additional.saturating_sub(inline_remaining);
         let existing_overflow_capacity = self
             .tagged_values
@@ -440,9 +459,7 @@ impl NativeListArena {
         payload: i64,
     ) -> Option<i64> {
         let has_payload = match kind {
-            NATIVE_TAGGED_RESULT_OK
-            | NATIVE_TAGGED_RESULT_ERR
-            | NATIVE_TAGGED_OPTION_SOME => true,
+            NATIVE_TAGGED_RESULT_OK | NATIVE_TAGGED_RESULT_ERR | NATIVE_TAGGED_OPTION_SOME => true,
             NATIVE_TAGGED_OPTION_NONE if payload_tag == 0 && payload == 0 => false,
             _ => return None,
         };
@@ -594,16 +611,16 @@ impl NativeListArena {
         });
     }
 
-    fn execute_native_operation(
-        &mut self,
-        operation: i64,
-        function_index: i64,
-        instruction_index: i64,
-        depth: i64,
-        arguments: &[i64],
-        argument_tags: &[i64],
-        result_tag: i64,
-    ) -> Option<i64> {
+    fn execute_native_operation(&mut self, request: NativeOperationRequest<'_>) -> Option<i64> {
+        let NativeOperationRequest {
+            operation,
+            function_index,
+            instruction_index,
+            depth,
+            arguments,
+            argument_tags,
+            result_tag,
+        } = request;
         if arguments.len() != argument_tags.len() {
             return None;
         }
@@ -617,15 +634,15 @@ impl NativeListArena {
         }
         let value = match &instruction.op {
             Op::JsonParse | Op::JsonTryGet | Op::JsonTryText | Op::JsonTryInt => {
-                return self.execute_native_json_operation(
+                return self.execute_native_json_operation(NativeJsonOperationRequest {
                     operation,
                     arguments,
                     argument_tags,
                     result_tag,
-                    instruction.span,
-                    opcode_profile_name(&instruction.op),
-                    &runtime,
-                );
+                    span: instruction.span,
+                    operation_name: opcode_profile_name(&instruction.op),
+                    runtime: &runtime,
+                });
             }
             Op::FileNextLine => {
                 return self.execute_native_file_next_line(
@@ -672,10 +689,8 @@ impl NativeListArena {
                 // These bridged host operations do not access guest locals. Avoid
                 // allocating a frame-sized local vector for each native callback.
                 let mut locals = Vec::new();
-                let allocations_before = runtime
-                    .budget
-                    .allocation_remaining
-                    .load(Ordering::Relaxed);
+                let allocations_before =
+                    runtime.budget.allocation_remaining.load(Ordering::Relaxed);
                 // This native invocation is synchronous. NativeCode is held through a
                 // cloned Arc, so the callback is the only Instance access while JIT
                 // code is running.
@@ -692,10 +707,7 @@ impl NativeListArena {
                         },
                     )
                 };
-                let allocations_after = runtime
-                    .budget
-                    .allocation_remaining
-                    .load(Ordering::Relaxed);
+                let allocations_after = runtime.budget.allocation_remaining.load(Ordering::Relaxed);
                 self.charged_bytes = self
                     .charged_bytes
                     .saturating_add(allocations_before.saturating_sub(allocations_after));
@@ -714,14 +726,17 @@ impl NativeListArena {
 
     fn execute_native_json_operation(
         &mut self,
-        operation: i64,
-        arguments: &[i64],
-        argument_tags: &[i64],
-        result_tag: i64,
-        span: Span,
-        operation_name: &'static str,
-        runtime: &NativeRuntimeContext,
+        request: NativeJsonOperationRequest<'_>,
     ) -> Option<i64> {
+        let NativeJsonOperationRequest {
+            operation,
+            arguments,
+            argument_tags,
+            result_tag,
+            span,
+            operation_name,
+            runtime,
+        } = request;
         if result_tag != 4 {
             return None;
         }
@@ -779,31 +794,31 @@ impl NativeListArena {
                     record_native_host_operation(profile.as_ref(), host_started, operation_name);
                     return None;
                 }
-                let parse_started = runtime.budget.runtime_profile.as_ref().map(|_| Instant::now());
+                let parse_started = runtime
+                    .budget
+                    .runtime_profile
+                    .as_ref()
+                    .map(|_| Instant::now());
                 let parsed = parse_unique_shared_json(source);
                 if let (Some(profile), Some(started)) =
                     (&runtime.budget.runtime_profile, parse_started)
                 {
                     profile.record_json_parse(
-                        started.elapsed().as_nanos().min(u64::MAX as u128) as u64,
+                        started.elapsed().as_nanos().min(u64::MAX as u128) as u64
                     );
                 }
                 match parsed {
                     Ok(value) => {
-                        let allocations_before = runtime
-                            .budget
-                            .allocation_remaining
-                            .load(Ordering::Relaxed);
+                        let allocations_before =
+                            runtime.budget.allocation_remaining.load(Ordering::Relaxed);
                         let parsed = finish_shared_json(
                             value,
                             &runtime.limits,
                             runtime.budget.as_ref(),
                             span,
                         );
-                        let allocations_after = runtime
-                            .budget
-                            .allocation_remaining
-                            .load(Ordering::Relaxed);
+                        let allocations_after =
+                            runtime.budget.allocation_remaining.load(Ordering::Relaxed);
                         self.charged_bytes = self
                             .charged_bytes
                             .saturating_add(allocations_before.saturating_sub(allocations_after));
@@ -852,8 +867,7 @@ impl NativeListArena {
                 else {
                     return None;
                 };
-                let Value::Text(key) =
-                    self.bridge_handle_argument(arguments, argument_tags, 1)?
+                let Value::Text(key) = self.bridge_handle_argument(arguments, argument_tags, 1)?
                 else {
                     return None;
                 };
@@ -898,10 +912,9 @@ impl NativeListArena {
                     return None;
                 };
                 match stdlib_data::json_try_int(document.as_ref()) {
-                    Ok(integer) if integer.digit_count() <= runtime.limits.max_integer_digits => (
-                        native_backend::NATIVE_TAGGED_RESULT_OK,
-                        Value::Int(integer),
-                    ),
+                    Ok(integer) if integer.digit_count() <= runtime.limits.max_integer_digits => {
+                        (native_backend::NATIVE_TAGGED_RESULT_OK, Value::Int(integer))
+                    }
                     Ok(_) => return None,
                     Err(error) => (
                         native_backend::NATIVE_TAGGED_RESULT_ERR,
@@ -951,17 +964,19 @@ impl NativeListArena {
         // arena pressure cannot force a VM retry after consuming a line.
         self.values.try_reserve(1).ok()?;
         self.ensure_tagged_capacity_for(2)?;
-        let line = unsafe { runtime.instance.as_mut()? }.readers.next_line(handle);
+        let line = unsafe { runtime.instance.as_mut()? }
+            .readers
+            .next_line(handle);
         let result = match line {
-            Ok(Some(line)) => Value::ResultOk(Box::new(Value::OptionSome(Box::new(
-                Value::Record(
+            Ok(Some(line)) => {
+                Value::ResultOk(Box::new(Value::OptionSome(Box::new(Value::Record(
                     "SourceLine".into(),
                     Arc::new(vec![
                         Value::Int(BigInt::from_usize(line.number)),
                         Value::Text(line.text.into()),
                     ]),
-                ),
-            )))),
+                )))))
+            }
             Ok(None) => Value::ResultOk(Box::new(Value::OptionNone)),
             Err(error) => file_error_result(reader_runtime_error(
                 error.kind,
@@ -1664,24 +1679,14 @@ fn http_response_json_value(
             Ok(Value::ResultOk(Box::new(value)))
         }
         Err(JsonDecodeError::Parse(error)) => {
-            let value = std_error_record_value(
-                artifact,
-                budget,
-                "R_JSON_PARSE",
-                &error.to_string(),
-                span,
-            )?;
+            let value =
+                std_error_record_value(artifact, budget, "R_JSON_PARSE", &error.to_string(), span)?;
             Ok(Value::ResultErr(Box::new(value)))
         }
         Err(JsonDecodeError::DuplicateKey { key, .. }) => {
             let message = format!("JSON object contains duplicate key `{key}`");
-            let value = std_error_record_value(
-                artifact,
-                budget,
-                "R_JSON_DUPLICATE_KEY",
-                &message,
-                span,
-            )?;
+            let value =
+                std_error_record_value(artifact, budget, "R_JSON_DUPLICATE_KEY", &message, span)?;
             Ok(Value::ResultErr(Box::new(value)))
         }
     }
@@ -1760,9 +1765,10 @@ impl VmHost for Instance {
         budget: &Arc<Budget>,
         call_site: Option<Span>,
     ) -> Result<FrameStart, RuntimeError> {
-        let allow_native = self.native_code.as_ref().is_some_and(|native| {
-            native.has_function(index) && !native.vm_call_stays_in_vm(index)
-        });
+        let allow_native = self
+            .native_code
+            .as_ref()
+            .is_some_and(|native| native.has_function(index) && !native.vm_call_stays_in_vm(index));
         self.start_guest_frame(index, args, depth, budget.clone(), call_site, allow_native)
     }
 
@@ -3278,11 +3284,9 @@ impl VmHost for Instance {
                     return Ok(());
                 };
                 let value = list.list_item(index);
-                push_stack!(
-                    value
-                        .map(|value| Value::OptionSome(Box::new(value)))
-                        .unwrap_or(Value::OptionNone)
-                );
+                push_stack!(value
+                    .map(|value| Value::OptionSome(Box::new(value)))
+                    .unwrap_or(Value::OptionNone));
             }
             Op::MapGetOption => {
                 let key = match pop!() {
@@ -3305,12 +3309,11 @@ impl VmHost for Instance {
                         ));
                     }
                 };
-                push_stack!(
-                    map.get(key.as_ref())
-                        .cloned()
-                        .map(|value| Value::OptionSome(Box::new(value)))
-                        .unwrap_or(Value::OptionNone)
-                );
+                push_stack!(map
+                    .get(key.as_ref())
+                    .cloned()
+                    .map(|value| Value::OptionSome(Box::new(value)))
+                    .unwrap_or(Value::OptionNone));
             }
             Op::TextParseInt | Op::TextParseFloat => {
                 let text = match pop!() {
@@ -5634,20 +5637,18 @@ impl Instance {
                 Span::default(),
             ));
         }
-        let runtime_profile = self
-            .runtime_profile_enabled
-            .then(|| {
-                let profile = Arc::new(RuntimeProfileCounters::default());
-                profile.initialize_function_profiles(
-                    self.artifact
-                        .functions
-                        .iter()
-                        .map(|function| function.name.clone())
-                        .collect(),
-                );
-                profile.set_sampled_mode(self.runtime_profile_sampled);
-                profile
-            });
+        let runtime_profile = self.runtime_profile_enabled.then(|| {
+            let profile = Arc::new(RuntimeProfileCounters::default());
+            profile.initialize_function_profiles(
+                self.artifact
+                    .functions
+                    .iter()
+                    .map(|function| function.name.clone())
+                    .collect(),
+            );
+            profile.set_sampled_mode(self.runtime_profile_sampled);
+            profile
+        });
         self.runtime_profile_metrics = runtime_profile.clone();
         let budget = Arc::new(Budget::new(
             self.policy.instruction_limit,
@@ -5683,9 +5684,12 @@ impl Instance {
                         native_direct_get_field as *const () as *const u8,
                     ],
                     make_record: native_direct_make_record as *const () as *const u8,
-                    capture_vm_continuation: native_capture_vm_continuation as *const () as *const u8,
-                    capture_vm_continuation_fixed: native_capture_vm_continuation_fixed as *const () as *const u8,
-                    capture_vm_continuation_int2: native_capture_vm_continuation_int2 as *const () as *const u8,
+                    capture_vm_continuation: native_capture_vm_continuation as *const ()
+                        as *const u8,
+                    capture_vm_continuation_fixed: native_capture_vm_continuation_fixed as *const ()
+                        as *const u8,
+                    capture_vm_continuation_int2: native_capture_vm_continuation_int2 as *const ()
+                        as *const u8,
                     count_guest_branch: native_count_guest_branch as *const () as *const u8,
                 },
                 runtime_profile.is_some(),
@@ -6818,7 +6822,7 @@ impl Instance {
                         native_code: native_code.clone(),
                         native_enabled,
                         native_compile_attempted: false,
-                                    runtime_profile_enabled: false,
+                        runtime_profile_enabled: false,
                         runtime_profile_sampled: false,
                         runtime_profile_metrics: None,
                         native_calls: native_calls.clone(),
@@ -7504,10 +7508,7 @@ unsafe extern "C" fn native_make_tagged_value(
     }
 }
 
-unsafe extern "C" fn native_charge_value_clone(
-    arena: *mut NativeListArena,
-    handle: i64,
-) -> i32 {
+unsafe extern "C" fn native_charge_value_clone(arena: *mut NativeListArena, handle: i64) -> i32 {
     if arena.is_null() {
         return 0;
     }
@@ -7524,16 +7525,14 @@ unsafe extern "C" fn native_charge_value_clone(
     let Ok(index) = usize::try_from(handle.checked_sub(1).unwrap_or(-1)) else {
         return 0;
     };
-    let Some(bytes) = arena
-        .values
-        .get(index)
-        .map(cloned_value_allocation)
-    else {
+    let Some(bytes) = arena.values.get(index).map(cloned_value_allocation) else {
         return 0;
     };
     i32::from(arena.charge(bytes))
 }
 
+// This is the fixed callback ABI emitted by Cranelift; its arguments cannot be bundled.
+#[allow(clippy::too_many_arguments)]
 unsafe fn native_direct_operation_impl(
     operation: i64,
     argument_count: usize,
@@ -7556,15 +7555,15 @@ unsafe fn native_direct_operation_impl(
     // SAFETY: these pointers are supplied by the active JIT invocation.
     let arena = unsafe { &mut *arena };
     match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        arena.execute_native_operation(
+        arena.execute_native_operation(NativeOperationRequest {
             operation,
             function_index,
             instruction_index,
             depth,
-            &values[..argument_count],
-            &tags[..argument_count],
+            arguments: &values[..argument_count],
+            argument_tags: &tags[..argument_count],
             result_tag,
-        )
+        })
     })) {
         Ok(Some(value)) => {
             // SAFETY: the generated caller provides one writable i64 result slot.
@@ -7613,12 +7612,36 @@ macro_rules! native_direct_operation_entry {
     };
 }
 
-native_direct_operation_entry!(native_direct_json_parse, native_backend::NATIVE_BRIDGE_JSON_PARSE, 1);
-native_direct_operation_entry!(native_direct_json_try_text, native_backend::NATIVE_BRIDGE_JSON_TRY_TEXT, 1);
-native_direct_operation_entry!(native_direct_json_try_get, native_backend::NATIVE_BRIDGE_JSON_TRY_GET, 2);
-native_direct_operation_entry!(native_direct_json_try_int, native_backend::NATIVE_BRIDGE_JSON_TRY_INT, 1);
-native_direct_operation_entry!(native_direct_file_next_line, native_backend::NATIVE_BRIDGE_FILE_NEXT_LINE, 1);
-native_direct_operation_entry!(native_direct_get_field, native_backend::NATIVE_BRIDGE_GET_FIELD, 1);
+native_direct_operation_entry!(
+    native_direct_json_parse,
+    native_backend::NATIVE_BRIDGE_JSON_PARSE,
+    1
+);
+native_direct_operation_entry!(
+    native_direct_json_try_text,
+    native_backend::NATIVE_BRIDGE_JSON_TRY_TEXT,
+    1
+);
+native_direct_operation_entry!(
+    native_direct_json_try_get,
+    native_backend::NATIVE_BRIDGE_JSON_TRY_GET,
+    2
+);
+native_direct_operation_entry!(
+    native_direct_json_try_int,
+    native_backend::NATIVE_BRIDGE_JSON_TRY_INT,
+    1
+);
+native_direct_operation_entry!(
+    native_direct_file_next_line,
+    native_backend::NATIVE_BRIDGE_FILE_NEXT_LINE,
+    1
+);
+native_direct_operation_entry!(
+    native_direct_get_field,
+    native_backend::NATIVE_BRIDGE_GET_FIELD,
+    1
+);
 
 unsafe extern "C" fn native_direct_make_record(
     arena: *mut NativeListArena,
@@ -7656,15 +7679,15 @@ unsafe extern "C" fn native_direct_make_record(
     // SAFETY: the arena belongs to the synchronous native invocation.
     let arena = unsafe { &mut *arena };
     match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        arena.execute_native_operation(
-            native_backend::NATIVE_BRIDGE_MAKE_RECORD,
+        arena.execute_native_operation(NativeOperationRequest {
+            operation: native_backend::NATIVE_BRIDGE_MAKE_RECORD,
             function_index,
             instruction_index,
             depth,
-            values,
-            tags,
+            arguments: values,
+            argument_tags: tags,
             result_tag,
-        )
+        })
     })) {
         Ok(Some(value)) => {
             // SAFETY: the generated caller provides one writable i64 result slot.
@@ -9088,7 +9111,7 @@ fn duplicate_json_key(source: &str) -> Option<(String, usize)> {
 #[cfg(test)]
 mod unique_json_parser_tests {
     use super::{
-        JsonDecodeError, escape_reserved_json_keys, parse_unique_json, parse_unique_shared_json,
+        escape_reserved_json_keys, parse_unique_json, parse_unique_shared_json, JsonDecodeError,
     };
 
     #[test]
@@ -9516,8 +9539,9 @@ fn host_file_path_with_walk_root(
 #[cfg(test)]
 mod native_small_list_tests {
     use super::{
-        Budget, CancellationToken, NATIVE_LIST_FLOAT_KIND, NATIVE_LIST_INT_KIND, NativeFloatList,
-        NativeIntList, NativeListArena, RuntimeProfileCounters, native_list_set, native_make_list,
+        native_list_set, native_make_list, Budget, CancellationToken, NativeFloatList,
+        NativeIntList, NativeListArena, RuntimeProfileCounters, NATIVE_LIST_FLOAT_KIND,
+        NATIVE_LIST_INT_KIND,
     };
     use std::{slice, sync::Arc};
 

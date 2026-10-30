@@ -218,7 +218,11 @@ pub fn parse_timestamp(text: &str) -> Result<i64, DataError> {
                 ));
             }
             let magnitude = (hours * 60 + minutes) as i64 * 60;
-            if *sign == b'+' { magnitude } else { -magnitude }
+            if *sign == b'+' {
+                magnitude
+            } else {
+                -magnitude
+            }
         }
         _ => {
             return Err(DataError::invalid(

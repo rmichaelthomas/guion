@@ -74,7 +74,11 @@ fn public_import_reexports_public_functions_and_records() {
         "import \"facade.gu\"\nfn main() -> Int:\n    let token = Token(41)\n    let incremented = increment(token)\n    assert(incremented.value == 42)\n    return 0\n",
     )
     .unwrap();
-    fs::write(root.join("facade.gu"), "pub import \"inner.gu\"\npub fn facade_value() -> Int:\n    return 0\n").unwrap();
+    fs::write(
+        root.join("facade.gu"),
+        "pub import \"inner.gu\"\npub fn facade_value() -> Int:\n    return 0\n",
+    )
+    .unwrap();
     fs::write(
         root.join("inner.gu"),
         "pub record Token:\n    value: Int\n\npub fn increment(token: Token) -> Token:\n    return Token(token.value + 1)\n",
@@ -108,13 +112,9 @@ fn http_response_helper_exports_its_minimal_types_without_loading_time_modules()
     .unwrap();
     let stdlib = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../language/stdlib");
 
-    let (artifact, profile) = compile_project_with_roots_profiled(
-        &entry,
-        &root,
-        Some(&stdlib),
-        &HashMap::new(),
-    )
-    .expect("std:http exports the types in its public typed HTTP signature");
+    let (artifact, profile) =
+        compile_project_with_roots_profiled(&entry, &root, Some(&stdlib), &HashMap::new())
+            .expect("std:http exports the types in its public typed HTTP signature");
 
     assert_eq!(artifact.sources.len(), 3);
     assert_eq!(
@@ -178,16 +178,18 @@ fn profiled_compile_attributes_each_standard_library_module_once() {
     .unwrap();
     let stdlib = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../language/stdlib");
 
-    let (artifact, profile) = compile_project_with_roots_profiled(
-        &entry,
-        &root,
-        Some(&stdlib),
-        &HashMap::new(),
-    )
-    .expect("typed HTTP import graph compiles");
+    let (artifact, profile) =
+        compile_project_with_roots_profiled(&entry, &root, Some(&stdlib), &HashMap::new())
+            .expect("typed HTTP import graph compiles");
 
     assert_eq!(artifact.sources.len(), profile.modules.len());
-    for expected in ["main.gu", "std:http", "std:types", "std:time", "std:http_types"] {
+    for expected in [
+        "main.gu",
+        "std:http",
+        "std:types",
+        "std:time",
+        "std:http_types",
+    ] {
         assert_eq!(
             profile
                 .modules
@@ -311,7 +313,8 @@ fn text_slice_is_typechecked_for_text_and_int_bounds() {
     let valid = "fn main() -> Int:\n    let selected = text_slice(\"a🙂é\", 1, 3)\n    assert(selected == \"🙂é\")\n    return 0\n";
     compile("text-slice.gu", valid).expect("text_slice accepts Text and Int bounds");
 
-    let invalid = "fn main() -> Int:\n    let selected = text_slice(\"abc\", 0, \"2\")\n    return 0\n";
+    let invalid =
+        "fn main() -> Int:\n    let selected = text_slice(\"abc\", 0, \"2\")\n    return 0\n";
     let error = compile("text-slice-wrong-type.gu", invalid)
         .expect_err("text_slice rejects a non-Int bound");
     assert_eq!(error.code, "E_TYPE_ARGUMENT");

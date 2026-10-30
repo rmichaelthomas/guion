@@ -1,9 +1,9 @@
 use super::CancellationToken;
-use base64::{Engine as _, engine::general_purpose::STANDARD};
+use base64::{engine::general_purpose::STANDARD, Engine as _};
 use guion_model::{BigInt, Float64, SharedJson, Type, Value};
 use serde::{
-    Serialize, Serializer,
     ser::{SerializeMap, SerializeSeq},
+    Serialize, Serializer,
 };
 use serde_json::Value as JsonValue;
 use std::{
@@ -13,8 +13,8 @@ use std::{
     path::{Path, PathBuf},
     process::{Child, ChildStdin, Command, Stdio},
     sync::{
-        Arc,
         mpsc::{self, Receiver},
+        Arc,
     },
     thread,
     time::{Duration, Instant},
@@ -395,23 +395,20 @@ impl PythonBridge {
         }
         let (sender, responses) = mpsc::channel();
         let profile_enabled = profile_path.is_some();
-        thread::spawn(move || {
-            loop {
-                match read_frame(&mut output, profile_enabled) {
-                    Ok(Some(frame)) => {
-                        if sender.send(Ok(frame)).is_err() {
-                            break;
-                        }
-                    }
-                    Ok(None) => {
-                        let _ =
-                            sender.send(Err("Python sidecar closed its protocol stream".into()));
+        thread::spawn(move || loop {
+            match read_frame(&mut output, profile_enabled) {
+                Ok(Some(frame)) => {
+                    if sender.send(Ok(frame)).is_err() {
                         break;
                     }
-                    Err(error) => {
-                        let _ = sender.send(Err(error));
-                        break;
-                    }
+                }
+                Ok(None) => {
+                    let _ = sender.send(Err("Python sidecar closed its protocol stream".into()));
+                    break;
+                }
+                Err(error) => {
+                    let _ = sender.send(Err(error));
+                    break;
                 }
             }
         });

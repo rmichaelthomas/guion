@@ -2213,7 +2213,11 @@ impl<'a> FnCompiler<'a> {
                 }
                 if name == "map_record_get" || name == "map_record_set" {
                     let is_get = name == "map_record_get";
-                    if !(if is_get { [3, 4].contains(&args.len()) } else { [4, 5].contains(&args.len()) }) {
+                    if !(if is_get {
+                        [3, 4].contains(&args.len())
+                    } else {
+                        [4, 5].contains(&args.len())
+                    }) {
                         return Err(diagnostic(
                             "E_CALL_ARITY",
                             if name == "map_record_get" {
@@ -2224,7 +2228,11 @@ impl<'a> FnCompiler<'a> {
                             *s,
                         ));
                     }
-                    let nested = if is_get { args.len() == 4 } else { args.len() == 5 };
+                    let nested = if is_get {
+                        args.len() == 4
+                    } else {
+                        args.len() == 5
+                    };
                     let map_type = self.expr(&args[0])?;
                     let Type::Map(item_type) = map_type else {
                         return Err(diagnostic(
@@ -2259,8 +2267,7 @@ impl<'a> FnCompiler<'a> {
                             args[1].span(),
                         ));
                     }
-                    if nested
-                        && self.expr_with_expected(&args[2], Some(&Type::Text))? != Type::Text
+                    if nested && self.expr_with_expected(&args[2], Some(&Type::Text))? != Type::Text
                     {
                         return Err(diagnostic(
                             "E_TYPE_ARGUMENT",
