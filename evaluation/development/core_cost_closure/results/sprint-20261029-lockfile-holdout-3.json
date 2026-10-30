@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "kind": "guion-core-lockfile-auditor-holdout",
+  "packages": 512,
+  "diagnostics": 1024,
+  "trials_per_binary": 3,
+  "paired_order": [
+    [
+      "frozen_control",
+      "candidate"
+    ],
+    [
+      "candidate",
+      "frozen_control"
+    ],
+    [
+      "frozen_control",
+      "candidate"
+    ]
+  ],
+  "samples_seconds": {
+    "frozen_control": [
+      0.1088150049909018,
+      0.03235817499808036,
+      0.02475942499586381
+    ],
+    "candidate": [
+      0.10261430498212576,
+      0.052593035012250766,
+      0.026048182975500822
+    ]
+  },
+  "median_seconds": {
+    "frozen_control": 0.03235817499808036,
+    "candidate": 0.052593035012250766
+  },
+  "candidate_over_control_median_ratio": 1.625339964796248,
+  "outputs_checked": true,
+  "source_sha256": "a2f25632dee7aa44b8e7ba1a364030593ec523b054aaa577e7197d7bae106548",
+  "control_binary_sha256": "f2da40c3bf09e27d45523078ce3ffdaa97afaa75a179609424c0b9bfe4446c1b",
+  "candidate_binary_sha256": "54d3be0172f9444a168eff50fa8564f179942e362ed8359145d1eca84cdb4cfc",
+  "status": "passed"
+}

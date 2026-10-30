@@ -157,7 +157,28 @@ pub fn run_frames<H: VmHost>(
     initial: VmFrame,
     budget: Arc<Budget>,
 ) -> Result<Value, RuntimeError> {
-    let mut frames = vec![initial];
+    run_frames_with_stack(host, vec![initial], budget)
+}
+
+/// Drive an already active VM call stack to completion.
+pub fn run_frames_with_stack<H: VmHost>(
+    host: &mut H,
+    frames: Vec<VmFrame>,
+    budget: Arc<Budget>,
+) -> Result<Value, RuntimeError> {
+    if budget.runtime_profile.is_some() {
+        run_frames_with_stack_profiled::<true, _>(host, frames, budget)
+    } else {
+        run_frames_with_stack_profiled::<false, _>(host, frames, budget)
+    }
+}
+
+fn run_frames_with_stack_profiled<const PROFILED: bool, H: VmHost>(
+    host: &mut H,
+    mut frames: Vec<VmFrame>,
+    budget: Arc<Budget>,
+) -> Result<Value, RuntimeError> {
+    assert!(!frames.is_empty(), "guest frame stack must not be empty");
     let fast_host_forwarders = host
         .artifact()
         .functions
@@ -167,7 +188,12 @@ pub fn run_frames<H: VmHost>(
     loop {
         let frame = frames.pop().expect("guest frame stack is non-empty");
         let current_call_site = frame.call_site;
-        match execute_vm_frame_with_forwarders(host, frame, budget.clone(), &fast_host_forwarders) {
+        match execute_vm_frame_with_forwarders::<PROFILED, _>(
+            host,
+            frame,
+            budget.clone(),
+            &fast_host_forwarders,
+        ) {
             Err(mut error) => {
                 append_guest_call_trace(&mut error, current_call_site, &frames);
                 return Err(error);
@@ -200,6 +226,10 @@ pub fn run_frames<H: VmHost>(
                     frames.push(frame);
                     frames.push(child);
                 }
+                Ok(FrameStart::VmFrames(children)) => {
+                    frames.push(frame);
+                    frames.extend(children);
+                }
                 Err(mut error) => {
                     error.trace.push(span);
                     append_guest_call_trace(&mut error, frame.call_site, &frames);
@@ -222,10 +252,14 @@ pub fn execute_vm_frame<H: VmHost>(
         .iter()
         .map(fast_host_forwarder)
         .collect::<Vec<_>>();
-    execute_vm_frame_with_forwarders(host, frame, budget, &fast_host_forwarders)
+    if budget.runtime_profile.is_some() {
+        execute_vm_frame_with_forwarders::<true, _>(host, frame, budget, &fast_host_forwarders)
+    } else {
+        execute_vm_frame_with_forwarders::<false, _>(host, frame, budget, &fast_host_forwarders)
+    }
 }
 
-fn execute_vm_frame_with_forwarders<H: VmHost>(
+fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
     host: &mut H,
     frame: VmFrame,
     budget: Arc<Budget>,
@@ -242,11 +276,15 @@ fn execute_vm_frame_with_forwarders<H: VmHost>(
     let artifact = Arc::clone(host.artifact());
     let limits = host.limits();
     let f = &artifact.functions[function_index];
-    let profile_sample = budget
-        .runtime_profile
-        .as_ref()
-        .filter(|profile| profile.should_sample_vm_frame())
-        .map(|profile| VmFrameProfileTimer::new(Arc::clone(profile)));
+    let profile_sample = if PROFILED {
+        budget
+            .runtime_profile
+            .as_ref()
+            .filter(|profile| profile.should_sample_vm_frame())
+            .map(|profile| VmFrameProfileTimer::new(Arc::clone(profile), &f.name))
+    } else {
+        None
+    };
     let mut instruction_fuel = InstructionFuel::new(&budget);
     let mut previous_profiled_instruction: Option<(usize, &'static str)> = None;
     loop {
@@ -271,29 +309,35 @@ fn execute_vm_frame_with_forwarders<H: VmHost>(
                 f.code[ip].span,
             ));
         }
-        if let Some(profile) = &budget.runtime_profile {
-            let current_opcode = opcode_profile_name(&f.code[ip].op);
-            profile.record_opcode_execution(current_opcode);
-            if let Some((previous_ip, previous_opcode)) = previous_profiled_instruction {
-                if previous_ip.checked_add(1) == Some(ip) {
-                    profile.record_opcode_transition(
-                        &f.name,
-                        previous_opcode,
-                        current_opcode,
-                    );
+        if PROFILED {
+            if let Some(profile) = &budget.runtime_profile {
+                if profile.detailed_counters_enabled() {
+                    let current_opcode = opcode_profile_name(&f.code[ip].op);
+                    profile.record_opcode_execution(current_opcode);
+                    if let Some((previous_ip, previous_opcode)) = previous_profiled_instruction {
+                        if previous_ip.checked_add(1) == Some(ip) {
+                            profile.record_opcode_transition(
+                                &f.name,
+                                previous_opcode,
+                                current_opcode,
+                            );
+                        }
+                    }
+                    previous_profiled_instruction = Some((ip, current_opcode));
+                    if let Op::Call(target, _) = &f.code[ip].op {
+                        if let Some(callee) = artifact.functions.get(*target) {
+                            profile.record_function_call(&callee.name);
+                        }
+                    }
                 }
-            }
-            previous_profiled_instruction = Some((ip, current_opcode));
-            if let Op::Call(target, _) = &f.code[ip].op {
-                if let Some(callee) = artifact.functions.get(*target) {
-                    profile.record_function_call(&callee.name);
+                if profile.detailed_counters_enabled() {
+                    profile
+                        .vm_interpreter_instructions
+                        .fetch_add(1, Ordering::Relaxed);
                 }
-            }
-            profile
-                .vm_interpreter_instructions
-                .fetch_add(1, Ordering::Relaxed);
-            if let Some(sample) = &profile_sample {
-                sample.record_instruction();
+                if let Some(sample) = &profile_sample {
+                    sample.record_instruction();
+                }
             }
         }
         let instruction_ref = &f.code[ip];
@@ -898,8 +942,10 @@ fn execute_vm_frame_with_forwarders<H: VmHost>(
                     };
                     locals[child_slot] = updated.clone();
                     stack.push(updated);
-                    if let Some(profile) = &budget.runtime_profile {
-                        profile.record_map_set(true, 0);
+                    if PROFILED {
+                        if let Some(profile) = &budget.runtime_profile {
+                            profile.record_map_set(true, 0);
+                        }
                     }
                     continue;
                 }
@@ -970,8 +1016,10 @@ fn execute_vm_frame_with_forwarders<H: VmHost>(
                     stack.push(parent_result);
                     stack.push(Value::Text(parent_key));
                     stack.push(nested_result);
-                    if let Some(profile) = &budget.runtime_profile {
-                        profile.record_map_set(true, 0);
+                    if PROFILED {
+                        if let Some(profile) = &budget.runtime_profile {
+                            profile.record_map_set(true, 0);
+                        }
                     }
                     continue;
                 }
@@ -1022,8 +1070,10 @@ fn execute_vm_frame_with_forwarders<H: VmHost>(
                         return Err(error);
                     }
                     replace_map_value(Arc::make_mut(items), key.as_ref(), value);
-                    if let Some(profile) = &budget.runtime_profile {
-                        profile.record_map_set(!shared, if shared { allocation } else { 0 });
+                    if PROFILED {
+                        if let Some(profile) = &budget.runtime_profile {
+                            profile.record_map_set(!shared, if shared { allocation } else { 0 });
+                        }
                     }
                     push_stack!(Value::Map(Arc::clone(items)));
                     continue;
@@ -1048,8 +1098,10 @@ fn execute_vm_frame_with_forwarders<H: VmHost>(
                 charge_allocation(budget.as_ref(), map_clone_bytes, instruction.span)?;
                 let mut updated = values.as_ref().clone();
                 replace_map_value(&mut updated, key.as_ref(), value);
-                if let Some(profile) = &budget.runtime_profile {
-                    profile.record_map_set(false, map_clone_bytes);
+                if PROFILED {
+                    if let Some(profile) = &budget.runtime_profile {
+                        profile.record_map_set(false, map_clone_bytes);
+                    }
                 }
                 let map = Value::Map(Arc::new(updated));
                 if let Some(error) = value_limit_error(&map, &limits, instruction.span) {
@@ -1889,11 +1941,33 @@ fn execute_vm_frame_with_forwarders<H: VmHost>(
                 };
                 push_stack!(Value::Bool(value));
             }
-            Op::Jump(target) => ip = *target,
+            Op::Jump(target) => {
+                if PROFILED {
+                    if let Some(profile) = &budget.runtime_profile {
+                        if *target < ip {
+                            profile.record_function_loop_backedge(function_index);
+                            if let Some(profile) = &profile_sample {
+                                profile.record_loop_backedge();
+                            }
+                        }
+                    }
+                }
+                ip = *target;
+            }
             Op::JumpIfFalse(target) => {
                 if let Value::Bool(c) = pop!() {
                     budget.record_guest_conditional_branch();
                     if !c {
+                        if PROFILED {
+                            if let Some(profile) = &budget.runtime_profile {
+                                if *target < ip {
+                                    profile.record_function_loop_backedge(function_index);
+                                    if let Some(profile) = &profile_sample {
+                                        profile.record_loop_backedge();
+                                    }
+                                }
+                            }
+                        }
                         ip = *target;
                     }
                 } else {
@@ -1920,7 +1994,8 @@ fn execute_vm_frame_with_forwarders<H: VmHost>(
                             error.trace.push(instruction.span);
                             return Err(error);
                         }
-                        match execute_fast_host_forwarder(
+                        let child_started = if PROFILED { profile_sample.as_ref().map(|_| Instant::now()) } else { None };
+                        let forwarder_result = execute_fast_host_forwarder::<PROFILED, _>(
                             host,
                             &artifact,
                             *target,
@@ -1930,7 +2005,11 @@ fn execute_vm_frame_with_forwarders<H: VmHost>(
                             &budget,
                             &mut instruction_fuel,
                             depth.saturating_add(1),
-                        ) {
+                        );
+                        if let (Some(sample), Some(started)) = (&profile_sample, child_started) {
+                            sample.record_child_duration(started.elapsed());
+                        }
+                        match forwarder_result {
                             Ok(value) => {
                                 push_stack!(value);
                                 continue;
@@ -2092,7 +2171,13 @@ fn execute_vm_frame_with_forwarders<H: VmHost>(
                 } else {
                     OutputStream::Stdout
                 };
-                host.write_program_output(stream, &rendered.value, instruction.span)?;
+                let host_started = if PROFILED { profile_sample.as_ref().map(|_| Instant::now()) } else { None };
+                let output_result =
+                    host.write_program_output(stream, &rendered.value, instruction.span);
+                if let (Some(sample), Some(started)) = (&profile_sample, host_started) {
+                    sample.record_host_duration(started.elapsed());
+                }
+                output_result?;
             }
             Op::Return => {
                 let result = pop!();
@@ -2110,14 +2195,19 @@ fn execute_vm_frame_with_forwarders<H: VmHost>(
             }
             _ => {
                 instruction_fuel.flush();
-                host.host_op(HostOpContext {
+                let host_started = if PROFILED { profile_sample.as_ref().map(|_| Instant::now()) } else { None };
+                let host_result = host.host_op(HostOpContext {
                     instruction: instruction.clone(),
                     function: f,
                     stack: &mut stack,
                     locals: &mut locals,
                     budget: &budget,
                     depth,
-                })?
+                });
+                if let (Some(sample), Some(started)) = (&profile_sample, host_started) {
+                    sample.record_host_duration(started.elapsed());
+                }
+                host_result?;
             }
         }
     }
@@ -2168,7 +2258,7 @@ fn fast_host_forwarder(function: &guion_model::Function) -> Option<FastHostForwa
     })
 }
 
-fn execute_fast_host_forwarder<H: VmHost>(
+fn execute_fast_host_forwarder<const PROFILED: bool, H: VmHost>(
     host: &mut H,
     artifact: &Artifact,
     target: usize,
@@ -2193,11 +2283,15 @@ fn execute_fast_host_forwarder<H: VmHost>(
             function.code.first().map(|instruction| instruction.span).unwrap_or_default(),
         )
     })?;
-    let profile_sample = budget
-        .runtime_profile
-        .as_ref()
-        .filter(|profile| profile.should_sample_vm_frame())
-        .map(|profile| VmFrameProfileTimer::new(Arc::clone(profile)));
+    let profile_sample = if PROFILED {
+        budget
+            .runtime_profile
+            .as_ref()
+            .filter(|profile| profile.should_sample_vm_frame())
+            .map(|profile| VmFrameProfileTimer::new(Arc::clone(profile), &function.name))
+    } else {
+        None
+    };
     for (ip, instruction) in function.code.iter().enumerate() {
         if budget.is_cancelled() || host.externally_cancelled() {
             return Err(RuntimeError::new(
@@ -2213,23 +2307,25 @@ fn execute_fast_host_forwarder<H: VmHost>(
                 instruction.span,
             ));
         }
-        if let Some(profile) = &budget.runtime_profile {
-            profile.record_opcode_execution(opcode_profile_name(&instruction.op));
-            profile
-                .vm_interpreter_instructions
-                .fetch_add(1, Ordering::Relaxed);
-            if let Some(sample) = &profile_sample {
-                sample.record_instruction();
+        if PROFILED {
+            if let Some(profile) = &budget.runtime_profile {
+                if profile.detailed_counters_enabled() {
+                    profile.record_opcode_execution(opcode_profile_name(&instruction.op));
+                    profile
+                        .vm_interpreter_instructions
+                        .fetch_add(1, Ordering::Relaxed);
+                }
+                if let Some(sample) = &profile_sample {
+                    sample.record_instruction();
+                }
             }
         }
         if ip < forwarder.argument_count {
             if !matches!(instruction.op, Op::Load(_)) {
                 unreachable!("forwarder descriptor only accepts parameter loads")
             }
-            // The caller's argument values already occupy the exact stack positions the
-            // forwarding operation needs. Avoid cloning each value and pushing a second
-            // copy; the host operation consumes these arguments, and the caller discards
-            // them when this call returns.
+            // The caller's arguments already occupy the stack positions used by the host
+            // operation; avoid cloning and pushing another copy of each value.
         } else if ip == forwarder.host_operation_ip {
             match &instruction.op {
                 Op::MakeNone => stack.push(Value::OptionNone),
@@ -2246,14 +2342,23 @@ fn execute_fast_host_forwarder<H: VmHost>(
                 }
                 _ => {
                     instruction_fuel.flush();
-                    host.host_op(HostOpContext {
+                    let host_started = if PROFILED {
+                        profile_sample.as_ref().map(|_| Instant::now())
+                    } else {
+                        None
+                    };
+                    let host_result = host.host_op(HostOpContext {
                         instruction: instruction.clone(),
                         function,
                         stack,
                         locals,
                         budget,
                         depth,
-                    })?
+                    });
+                    if let (Some(sample), Some(started)) = (&profile_sample, host_started) {
+                        sample.record_host_duration(started.elapsed());
+                    }
+                    host_result?;
                 }
             }
         } else {
@@ -2280,7 +2385,7 @@ fn execute_fast_host_forwarder<H: VmHost>(
     }
     Err(RuntimeError::new(
         "R_NO_RETURN",
-        format!("function `{}` reached the end without returning", function.name),
+        format!("function `{}` reached the end without a return", function.name),
         function.code.last().map(|instruction| instruction.span).unwrap_or_default(),
     ))
 }
@@ -2395,6 +2500,8 @@ pub struct CopySizeBucket {
 
 #[derive(Debug, Default)]
 pub struct RuntimeProfileCounters {
+    sampled_mode: AtomicBool,
+    host_operation_events: AtomicUsize,
     pub allocation_charge_events: AtomicUsize,
     pub estimated_allocation_gross_bytes: AtomicUsize,
     pub estimated_allocation_refunded_bytes: AtomicUsize,
@@ -2416,6 +2523,9 @@ pub struct RuntimeProfileCounters {
     pub opcode_executions: Mutex<BTreeMap<&'static str, u64>>,
     pub opcode_transition_counts: Mutex<BTreeMap<String, u64>>,
     pub function_call_counts: Mutex<BTreeMap<String, u64>>,
+    function_profile_names: OnceLock<Vec<String>>,
+    function_loop_backedge_counts: OnceLock<Vec<AtomicU64>>,
+    sampled_function_counts: Mutex<BTreeMap<String, SampledFunctionProfile>>,
     pub host_operation_counts: Mutex<BTreeMap<&'static str, u64>>,
     pub host_operation_nanoseconds: Mutex<BTreeMap<&'static str, u64>>,
     pub map_set_operations: AtomicUsize,
@@ -2427,9 +2537,61 @@ pub struct RuntimeProfileCounters {
     pub json_set_estimated_copy_bytes: AtomicUsize,
 }
 
+#[derive(Debug, Default)]
+struct SampledFunctionProfile {
+    sampled_frames: u64,
+    sampled_instructions: u64,
+    sampled_loop_backedges: u64,
+    sampled_wall_nanoseconds: u64,
+    sampled_host_nanoseconds: u64,
+    sampled_child_nanoseconds: u64,
+    sampled_guest_nanoseconds: u64,
+}
+
+const VM_PROFILE_SAMPLE_RATE_FRAMES: u64 = 1024;
+
+#[inline]
+fn vm_profile_sample_hash(frame_index: u64) -> u64 {
+    let mut value = frame_index.wrapping_add(0x9e37_79b9_7f4a_7c15);
+    value = (value ^ (value >> 30)).wrapping_mul(0xbf58_476d_1ce4_e5b9);
+    value = (value ^ (value >> 27)).wrapping_mul(0x94d0_49bb_1331_11eb);
+    value ^ (value >> 31)
+}
+
 impl RuntimeProfileCounters {
+    pub fn initialize_function_profiles(&self, function_names: Vec<String>) {
+        let backedges = function_names
+            .iter()
+            .map(|_| AtomicU64::new(0))
+            .collect();
+        let _ = self.function_profile_names.set(function_names);
+        let _ = self.function_loop_backedge_counts.set(backedges);
+    }
+
+    pub fn set_sampled_mode(&self, sampled: bool) {
+        self.sampled_mode.store(sampled, Ordering::Relaxed);
+    }
+
+    #[inline]
+    pub fn detailed_counters_enabled(&self) -> bool {
+        !self.sampled_mode.load(Ordering::Relaxed)
+    }
+
+    #[inline]
+    pub fn should_sample_host_operation(&self) -> bool {
+        if self.detailed_counters_enabled() {
+            return true;
+        }
+        let event_index = self.host_operation_events.fetch_add(1, Ordering::Relaxed) as u64;
+        event_index == 0
+            || vm_profile_sample_hash(event_index) & (VM_PROFILE_SAMPLE_RATE_FRAMES - 1) == 0
+    }
+
     #[inline]
     pub fn record_opcode_execution(&self, name: &'static str) {
+        if !self.detailed_counters_enabled() {
+            return;
+        }
         *self
             .opcode_executions
             .lock()
@@ -2445,6 +2607,9 @@ impl RuntimeProfileCounters {
         previous: &'static str,
         current: &'static str,
     ) {
+        if !self.detailed_counters_enabled() {
+            return;
+        }
         let key = format!("{function_name}::{previous}->{current}");
         *self
             .opcode_transition_counts
@@ -2456,6 +2621,9 @@ impl RuntimeProfileCounters {
 
     #[inline]
     pub fn record_function_call(&self, name: &str) {
+        if !self.detailed_counters_enabled() {
+            return;
+        }
         *self
             .function_call_counts
             .lock()
@@ -2466,16 +2634,56 @@ impl RuntimeProfileCounters {
 
     #[inline]
     pub fn should_sample_vm_frame(&self) -> bool {
-        self.vm_interpreter_frames.fetch_add(1, Ordering::Relaxed) % 1024 == 0
+        let frame_index = self.vm_interpreter_frames.fetch_add(1, Ordering::Relaxed) as u64;
+        frame_index == 0
+            || vm_profile_sample_hash(frame_index) & (VM_PROFILE_SAMPLE_RATE_FRAMES - 1) == 0
     }
 
     #[inline]
-    pub fn record_vm_sample(&self, instructions: usize, nanoseconds: u64) {
+    pub fn record_vm_sample(
+        &self,
+        function_name: &str,
+        instructions: usize,
+        loop_backedges: usize,
+        wall_nanoseconds: u64,
+        host_nanoseconds: u64,
+        child_nanoseconds: u64,
+    ) {
+        let host_nanoseconds = host_nanoseconds.min(wall_nanoseconds);
+        let child_nanoseconds = child_nanoseconds.min(wall_nanoseconds - host_nanoseconds);
+        let guest_nanoseconds = wall_nanoseconds
+            .saturating_sub(host_nanoseconds)
+            .saturating_sub(child_nanoseconds);
         self.vm_sampled_frames.fetch_add(1, Ordering::Relaxed);
         self.vm_sampled_instructions
             .fetch_add(instructions, Ordering::Relaxed);
         self.vm_sampled_nanoseconds
-            .fetch_add(nanoseconds, Ordering::Relaxed);
+            .fetch_add(wall_nanoseconds, Ordering::Relaxed);
+        let mut sampled_functions = self
+            .sampled_function_counts
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let function = sampled_functions
+            .entry(function_name.to_owned())
+            .or_default();
+        function.sampled_frames += 1;
+        function.sampled_instructions += instructions as u64;
+        function.sampled_loop_backedges += loop_backedges as u64;
+        function.sampled_wall_nanoseconds += wall_nanoseconds;
+        function.sampled_host_nanoseconds += host_nanoseconds;
+        function.sampled_child_nanoseconds += child_nanoseconds;
+        function.sampled_guest_nanoseconds += guest_nanoseconds;
+    }
+
+    #[inline]
+    pub fn record_function_loop_backedge(&self, function_index: usize) {
+        if let Some(count) = self
+            .function_loop_backedge_counts
+            .get()
+            .and_then(|counts| counts.get(function_index))
+        {
+            count.fetch_add(1, Ordering::Relaxed);
+        }
     }
 
     #[inline]
@@ -2589,6 +2797,7 @@ impl RuntimeProfileCounters {
 
     #[inline]
     pub fn to_json(&self) -> serde_json::Value {
+        let sampled_mode = self.sampled_mode.load(Ordering::Relaxed);
         let gross_bytes = self
             .estimated_allocation_gross_bytes
             .load(Ordering::Relaxed);
@@ -2622,6 +2831,40 @@ impl RuntimeProfileCounters {
             .iter()
             .map(|(name, count)| (name.clone(), serde_json::json!(count)))
             .collect::<serde_json::Map<_, _>>();
+        let function_loop_backedge_counts = match (
+            self.function_profile_names.get(),
+            self.function_loop_backedge_counts.get(),
+        ) {
+            (Some(names), Some(counts)) => names
+                .iter()
+                .zip(counts)
+                .filter_map(|(name, count)| {
+                    let count = count.load(Ordering::Relaxed);
+                    (count > 0).then(|| (name.clone(), serde_json::json!(count)))
+                })
+                .collect::<serde_json::Map<_, _>>(),
+            _ => serde_json::Map::new(),
+        };
+        let sampled_functions = self
+            .sampled_function_counts
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .iter()
+            .map(|(name, counts)| {
+                (
+                    name.clone(),
+                    serde_json::json!({
+                        "sampled_frames": counts.sampled_frames,
+                        "sampled_instructions": counts.sampled_instructions,
+                        "sampled_loop_backedges": counts.sampled_loop_backedges,
+                        "sampled_wall_nanoseconds": counts.sampled_wall_nanoseconds,
+                        "sampled_host_nanoseconds": counts.sampled_host_nanoseconds,
+                        "sampled_child_nanoseconds": counts.sampled_child_nanoseconds,
+                        "sampled_guest_nanoseconds": counts.sampled_guest_nanoseconds,
+                    }),
+                )
+            })
+            .collect::<serde_json::Map<_, _>>();
         let host_operation_counts = self
             .host_operation_counts
             .lock()
@@ -2638,6 +2881,7 @@ impl RuntimeProfileCounters {
             .collect::<serde_json::Map<_, _>>();
         serde_json::json!({
             "scope": "latest guest invocation",
+            "profile_detail": if sampled_mode { "sampled" } else { "detailed" },
             "estimated_guest_allocation_budget_charges": {
                 "successful_events": self.allocation_charge_events.load(Ordering::Relaxed),
                 "estimated_gross_bytes": gross_bytes,
@@ -2667,16 +2911,25 @@ impl RuntimeProfileCounters {
             "opcode_executions": opcode_executions,
             "opcode_transition_counts": opcode_transition_counts,
             "function_call_counts": function_call_counts,
+            "function_loop_backedge_counts": function_loop_backedge_counts,
             "vm_interpreter": {
-                "instructions": self.vm_interpreter_instructions.load(Ordering::Relaxed),
+                "instructions": if sampled_mode {
+                    serde_json::Value::Null
+                } else {
+                    serde_json::json!(self.vm_interpreter_instructions.load(Ordering::Relaxed))
+                },
+                "instructions_are_sampled": sampled_mode,
                 "frames": self.vm_interpreter_frames.load(Ordering::Relaxed),
                 "sampled_frames": self.vm_sampled_frames.load(Ordering::Relaxed),
                 "sampled_instructions": self.vm_sampled_instructions.load(Ordering::Relaxed),
                 "sampled_nanoseconds": self.vm_sampled_nanoseconds.load(Ordering::Relaxed),
-                "sample_rate_frames": 1024,
+                "sample_rate_frames": VM_PROFILE_SAMPLE_RATE_FRAMES,
                 "sampled_wall_time_is_inclusive_of_host_operations": true,
+                "sampled_functions": sampled_functions,
             },
             "host_operations": {
+                "timings_are_sampled": sampled_mode,
+                "sample_rate_operations": if sampled_mode { VM_PROFILE_SAMPLE_RATE_FRAMES } else { 1 },
                 "counts": host_operation_counts,
                 "inclusive_nanoseconds": host_operation_nanoseconds,
             },
@@ -2698,8 +2951,12 @@ impl RuntimeProfileCounters {
             "metric_limits": {
                 "allocation": "estimated guest-data budget charges, not host allocator calls",
                 "branches": "executed guest conditional branches, not hardware branch-misprediction counts",
-                "vm_sampled_time": "sampled interpreter-frame wall time, inclusive of host calls; one in every 1024 frames; attribution only, not final benchmark timing",
-                "host_operation_time": "inclusive time at host-op boundary; nested parse/metrics timers overlap and must not be summed",
+                "vm_sampled_time": "sampled wall time includes host calls and inline fast-forwarded guest children; sampled_functions subtracts both to estimate exclusive guest time; deterministic hash sampling targets one in 1024 frames and always includes the first frame; attribution only, not final benchmark timing",
+                "vm_instruction_counts": if sampled_mode { "exact instruction count omitted in sampled mode; sampled_instructions records selected frames" } else { "exact executed instruction count" },
+                "opcode_counts": if sampled_mode { "exact opcode counts are omitted in sampled mode; use detailed mode" } else { "exact executed opcode counts" },
+                "opcode_transitions": if sampled_mode { "opcode transitions are omitted in sampled mode; use detailed mode" } else { "exact adjacent opcode transitions attributed to the current function" },
+                "function_calls": if sampled_mode { "exact function call counts are omitted in sampled mode; use detailed mode" } else { "exact function call counts" },
+                "host_operation_time": if sampled_mode { "sampled inclusive time at the host-op boundary; counts and time are sampled together; nested parse/metrics timers overlap and must not be summed" } else { "inclusive time at host-op boundary; nested parse/metrics timers overlap and must not be summed" },
             },
         })
     }
@@ -2707,16 +2964,24 @@ impl RuntimeProfileCounters {
 
 struct VmFrameProfileTimer {
     profile: Arc<RuntimeProfileCounters>,
+    function_name: String,
     started: Instant,
     instructions: Cell<usize>,
+    loop_backedges: Cell<usize>,
+    host_nanoseconds: Cell<u64>,
+    child_nanoseconds: Cell<u64>,
 }
 
 impl VmFrameProfileTimer {
-    fn new(profile: Arc<RuntimeProfileCounters>) -> Self {
+    fn new(profile: Arc<RuntimeProfileCounters>, function_name: &str) -> Self {
         Self {
             profile,
+            function_name: function_name.to_owned(),
             started: Instant::now(),
             instructions: Cell::new(0),
+            loop_backedges: Cell::new(0),
+            host_nanoseconds: Cell::new(0),
+            child_nanoseconds: Cell::new(0),
         }
     }
 
@@ -2724,13 +2989,37 @@ impl VmFrameProfileTimer {
     fn record_instruction(&self) {
         self.instructions.set(self.instructions.get() + 1);
     }
+
+    #[inline]
+    fn record_loop_backedge(&self) {
+        self.loop_backedges.set(self.loop_backedges.get() + 1);
+    }
+
+    #[inline]
+    fn record_host_duration(&self, duration: std::time::Duration) {
+        let elapsed = duration.as_nanos().min(u64::MAX as u128) as u64;
+        self.host_nanoseconds
+            .set(self.host_nanoseconds.get().saturating_add(elapsed));
+    }
+
+    #[inline]
+    fn record_child_duration(&self, duration: std::time::Duration) {
+        let elapsed = duration.as_nanos().min(u64::MAX as u128) as u64;
+        self.child_nanoseconds
+            .set(self.child_nanoseconds.get().saturating_add(elapsed));
+    }
 }
 
 impl Drop for VmFrameProfileTimer {
     fn drop(&mut self) {
+        let loop_backedges = self.loop_backedges.get();
         self.profile.record_vm_sample(
+            &self.function_name,
             self.instructions.get(),
+            loop_backedges,
             self.started.elapsed().as_nanos().min(u64::MAX as u128) as u64,
+            self.host_nanoseconds.get(),
+            self.child_nanoseconds.get(),
         );
     }
 }
@@ -2944,6 +3233,8 @@ pub struct VmFrame {
 pub enum FrameStart {
     Returned(Value),
     Vm(VmFrame),
+    /// Resume a native call chain as a VM stack, ordered outermost to innermost.
+    VmFrames(Vec<VmFrame>),
 }
 
 pub enum VmStep {
@@ -5663,6 +5954,9 @@ impl PortableHost {
         let result = match self.start_frame(index, args, 0, &budget, None) {
             Ok(FrameStart::Returned(value)) => Ok(value),
             Ok(FrameStart::Vm(frame)) => run_frames(self, frame, Arc::clone(&budget)),
+            Ok(FrameStart::VmFrames(frames)) => {
+                run_frames_with_stack(self, frames, Arc::clone(&budget))
+            }
             Err(error) => Err(error),
         };
         self.steps_used = max_steps.saturating_sub(budget.remaining.load(Ordering::Relaxed));
@@ -5773,6 +6067,26 @@ mod tests {
 
         assert!(fuel.consume());
         assert_eq!(worker.remaining.load(Ordering::Relaxed), 2);
+    }
+
+    #[test]
+    fn vm_profile_sampling_is_deterministic_without_a_fixed_frame_stride() {
+        let collect_samples = || {
+            let profile = RuntimeProfileCounters::default();
+            (0..65_536)
+                .filter(|_| profile.should_sample_vm_frame())
+                .collect::<Vec<_>>()
+        };
+
+        let first = collect_samples();
+        let second = collect_samples();
+        assert_eq!(first, second);
+        assert_eq!(first.first(), Some(&0));
+        assert!((40..=88).contains(&first.len()));
+        assert!(
+            first.iter().any(|frame| frame % 1024 != 0),
+            "sampling should not lock onto the same fixed frame stride"
+        );
     }
 
     #[test]

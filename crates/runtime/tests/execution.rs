@@ -244,6 +244,86 @@ fn vm_profile_attributes_calls_to_the_called_function() {
 }
 
 #[test]
+fn vm_profile_attributes_sampled_guest_time_by_function_and_separates_host_time() {
+    let source = r#"fn safe_text(value: Json) -> Result[Text, JsonError]:
+    return json_try_text(value)
+
+fn main() -> Int:
+    let value = unwrap(json_parse("\"hello\""))
+    let text = unwrap(safe_text(value))
+    var index = 0
+    while index < 3:
+        set index = index + 1
+    print(text)
+    return index
+"#;
+    let artifact = compile("function-time-profile.gu", source)
+        .expect("function-time profile fixture compiles");
+    let mut instance = Runtime::vm_only()
+        .with_runtime_profile()
+        .load(artifact, HostPolicy::default())
+        .expect("runtime loads the artifact");
+
+    assert_eq!(
+        instance.invoke("main", vec![]).expect("program runs"),
+        Value::Int(BigInt::from_i64(3))
+    );
+    assert_eq!(instance.take_output(), "hello\n");
+
+    let profile = instance.runtime_profile().expect("profile is enabled");
+    let main = &profile["vm_interpreter"]["sampled_functions"]["main"];
+    assert!(main["sampled_frames"].as_u64().unwrap() > 0);
+    let wall = main["sampled_wall_nanoseconds"].as_u64().unwrap();
+    let host = main["sampled_host_nanoseconds"].as_u64().unwrap();
+    let child = main["sampled_child_nanoseconds"].as_u64().unwrap();
+    let guest = main["sampled_guest_nanoseconds"].as_u64().unwrap();
+    assert!(host > 0, "JSON host operations should be timed separately");
+    assert!(child > 0, "fast-forwarded guest calls should be attributed as children");
+    assert!(guest > 0, "VM execution should retain exclusive sampled time");
+    assert_eq!(wall, host + child + guest);
+    assert_eq!(main["sampled_loop_backedges"].as_u64(), Some(3));
+    assert_eq!(
+        profile["function_loop_backedge_counts"]["main"].as_u64(),
+        Some(3)
+    );
+}
+
+#[test]
+fn sampled_runtime_profile_keeps_attribution_without_exact_opcode_maps() {
+    let source = "fn main() -> Int:\n    let value = unwrap(json_parse(\"\\\"sample\\\"\"))\n    print(unwrap(json_try_text(value)))\n    return 0\n";
+    let artifact = compile("sampled-profile.gu", source).expect("profile fixture compiles");
+    let mut instance = Runtime::vm_only()
+        .with_sampled_runtime_profile()
+        .load(artifact, HostPolicy::default())
+        .expect("runtime loads the artifact");
+
+    assert_eq!(
+        instance.invoke("main", vec![]).expect("program runs"),
+        Value::Int(BigInt::from_i64(0))
+    );
+    assert_eq!(instance.take_output(), "sample\n");
+
+    let profile = instance.runtime_profile().expect("profile is enabled");
+    assert_eq!(profile["profile_detail"].as_str(), Some("sampled"));
+    assert!(profile["vm_interpreter"]["sampled_functions"]["main"]["sampled_frames"]
+        .as_u64()
+        .unwrap()
+        > 0);
+    assert!(profile["vm_interpreter"]["instructions"].is_null());
+    assert!(profile["vm_interpreter"]["sampled_instructions"]
+        .as_u64()
+        .unwrap()
+        > 0);
+    assert_eq!(profile["opcode_executions"].as_object().unwrap().len(), 0);
+    assert_eq!(profile["function_call_counts"].as_object().unwrap().len(), 0);
+    assert_eq!(profile["host_operations"]["timings_are_sampled"], true);
+    assert!(profile["host_operations"]["counts"]["JsonParse"]
+        .as_u64()
+        .unwrap()
+        > 0);
+}
+
+#[test]
 fn tiny_json_forwarders_keep_call_and_opcode_profile_counts() {
     let source = "fn safe_text(value: Json) -> Result[Text, JsonError]:\n    return json_try_text(value)\n\nfn main() -> Int:\n    let value = unwrap(json_parse(\"\\\"hello\\\"\"))\n    let result = safe_text(value)\n    assert(is_ok(result))\n    return 0\n";
     let artifact = compile("fast-json-forwarder.gu", source).expect("forwarder compiles");
@@ -1658,6 +1738,7 @@ fn native_integer_division_overflow_deoptimizes_to_arbitrary_precision_vm() {
     let source = "fn quotient(left: Int, right: Int) -> Int:\n    return left // right\n\nfn main() -> Int:\n    return quotient(-9223372036854775808, -1)\n";
     let artifact = compile("native-int-divide-overflow.gu", source).unwrap();
     let mut native = Runtime::new()
+        .with_runtime_profile()
         .load(artifact.clone(), HostPolicy::default())
         .unwrap();
     let mut vm = Runtime::vm_only()
@@ -1671,6 +1752,99 @@ fn native_integer_division_overflow_deoptimizes_to_arbitrary_precision_vm() {
         Value::Int(BigInt::parse("9223372036854775808").unwrap())
     );
     assert!(native.native_deoptimizations() > 0);
+    assert_eq!(
+        native.runtime_profile().unwrap()["vm_interpreter"]["instructions"].as_u64(),
+        Some(8),
+        "the VM should execute the non-native caller and only the callee instructions after division"
+    );
+}
+
+#[test]
+fn native_side_exit_resumes_exact_vm_locals_stack_and_fuel() {
+    let source = "fn carry_state(value: Int) -> Int:\n    let saved = value + 1\n    return saved + value\n\nfn main() -> Int:\n    return 0\n";
+    let artifact = compile("native-side-exit-state.gu", source).unwrap();
+    let argument = || vec![Value::Int(BigInt::parse("5000000000000000000").unwrap())];
+    let mut native = Runtime::new()
+        .with_runtime_profile()
+        .load(artifact.clone(), HostPolicy::default())
+        .unwrap();
+
+    let native_result = native.invoke("carry_state", argument()).unwrap();
+    assert_eq!(
+        native_result,
+        Value::Int(BigInt::parse("10000000000000000001").unwrap())
+    );
+    assert!(native
+        .native_function_names()
+        .iter()
+        .any(|name| name == "carry_state"));
+    assert_eq!(native.native_deoptimizations(), 1);
+    assert_eq!(
+        native.runtime_profile().unwrap()["vm_interpreter"]["instructions"].as_u64(),
+        Some(2),
+        "VM should execute only the Add and Return at and after the side-exit IP"
+    );
+
+    let mut vm = Runtime::vm_only()
+        .load(artifact.clone(), HostPolicy::default())
+        .unwrap();
+    assert_eq!(native_result, vm.invoke("carry_state", argument()).unwrap());
+
+    let mut exact = Runtime::new()
+        .load(
+            artifact.clone(),
+            HostPolicy {
+                instruction_limit: 8,
+                ..HostPolicy::default()
+            },
+        )
+        .unwrap();
+    assert_eq!(exact.invoke("carry_state", argument()).unwrap(), native_result);
+    let mut one_short = Runtime::new()
+        .load(
+            artifact,
+            HostPolicy {
+                instruction_limit: 7,
+                ..HostPolicy::default()
+            },
+        )
+        .unwrap();
+    assert_eq!(
+        one_short.invoke("carry_state", argument()).unwrap_err().code,
+        "R_STEP_LIMIT"
+    );
+}
+
+#[test]
+fn native_side_exit_resumes_callers_and_commits_pending_output_once() {
+    let source = "fn carry_state(value: Int) -> Int:\n    let saved = value + 1\n    return saved + value\n\nfn wrapper(value: Int) -> Int:\n    print(value)\n    return carry_state(value) + 5\n\nfn main() -> Int:\n    return 0\n";
+    let artifact = compile("native-side-exit-call-chain.gu", source).unwrap();
+    let argument = || vec![Value::Int(BigInt::parse("5000000000000000000").unwrap())];
+    let mut native = Runtime::new()
+        .with_runtime_profile()
+        .load(artifact.clone(), HostPolicy::default())
+        .unwrap();
+    let native_result = native.invoke("wrapper", argument()).unwrap();
+    let native_output = native.take_output();
+
+    let mut vm = Runtime::vm_only()
+        .load(artifact, HostPolicy::default())
+        .unwrap();
+    let vm_result = vm.invoke("wrapper", argument()).unwrap();
+    let vm_output = vm.take_output();
+
+    assert_eq!(native_result, vm_result);
+    assert_eq!(
+        native_result,
+        Value::Int(BigInt::parse("10000000000000000006").unwrap())
+    );
+    assert_eq!(native_output, "5000000000000000000\n");
+    assert_eq!(native_output, vm_output);
+    assert_eq!(
+        native.runtime_profile().unwrap()["vm_interpreter"]["instructions"].as_u64(),
+        Some(5),
+        "the resumed child and caller should execute only their remaining instructions"
+    );
 }
 
 #[test]
@@ -2036,6 +2210,7 @@ fn native_backend_reads_float64_lists_with_vm_parity() {
     let source = "fn sum(values: List[Float64]) -> Float64:\n    var total = 0.0\n    var i = 0\n    while i < len(values):\n        set total = total + values[i]\n        set i = i + 1\n    return total\n\nfn main() -> Int:\n    assert(sum([1.25, 2.5, 3.75]) == 7.5)\n    return 0\n";
     let artifact = compile("native-float-list.gu", source).unwrap();
     let mut native = Runtime::new()
+        .with_runtime_profile()
         .load(artifact.clone(), HostPolicy::default())
         .unwrap();
     let mut vm = Runtime::vm_only()
@@ -2167,6 +2342,32 @@ fn native_integer_list_bounds_fault_deopts_to_the_vm() {
 }
 
 #[test]
+fn native_integer_negation_overflow_resumes_at_the_faulting_instruction() {
+    let source = "fn negate(value: Int) -> Int:\n    return -value\n\nfn main() -> Int:\n    return 0\n";
+    let artifact = compile("native-int-negate-overflow.gu", source).unwrap();
+    let argument = || vec![Value::Int(BigInt::parse("-9223372036854775808").unwrap())];
+    let mut native = Runtime::new()
+        .with_runtime_profile()
+        .load(artifact.clone(), HostPolicy::default())
+        .unwrap();
+    let result = native.invoke("negate", argument()).unwrap();
+
+    let mut vm = Runtime::vm_only()
+        .load(artifact, HostPolicy::default())
+        .unwrap();
+    assert_eq!(result, vm.invoke("negate", argument()).unwrap());
+    assert_eq!(
+        result,
+        Value::Int(BigInt::parse("9223372036854775808").unwrap())
+    );
+    assert_eq!(native.native_deoptimizations(), 1);
+    assert_eq!(
+        native.runtime_profile().unwrap()["vm_interpreter"]["instructions"].as_u64(),
+        Some(2)
+    );
+}
+
+#[test]
 fn native_backend_updates_boolean_lists_in_record_results() {
     let source = "record Flags:\n    active: Bool\n    pending: List[Bool]\n\nfn update(flags: Flags) -> Flags:\n    let active = not flags.active\n    var pending = flags.pending\n    set pending = list_set(pending, 1, not pending[1])\n    return Flags(active, pending)\n\nfn main() -> Int:\n    let original = Flags(true, [true, false, true])\n    let changed = update(original)\n    assert(original.active == true)\n    assert(original.pending[1] == false)\n    assert(changed.active == false)\n    assert(changed.pending[1] == true)\n    return 0\n";
     let artifact = compile("native-bool-record-list.gu", source).unwrap();
@@ -2235,42 +2436,131 @@ fn native_backend_preserves_aliases_for_functional_list_updates() {
 }
 #[cfg(not(feature = "native-value-bridge"))]
 #[test]
-fn native_value_bridge_is_disabled_by_default() {
+fn native_mixed_value_functions_fall_back_without_opt_in() {
     let source = "fn accepts_text(value: Json) -> Bool:\n    return is_ok(json_try_text(value))\n\nfn main() -> Int:\n    let parsed = json_parse(\"\\\"guion\\\"\")\n    if is_ok(parsed):\n        if accepts_text(unwrap(parsed)):\n            return 0\n    return 1\n";
     let artifact = compile("native-json-host-bridge-opt-in.gu", source)
         .expect("mixed-value bridge fixture compiles");
     let text_json = Value::Json(SharedJson::from_serde(serde_json::json!("guion")));
     let mut runtime = Runtime::new()
-        .load(artifact, HostPolicy::default())
+        .load(artifact.clone(), HostPolicy::default())
         .expect("runtime loads");
+    let mut vm = Runtime::vm_only()
+        .load(artifact, HostPolicy::default())
+        .expect("VM runtime loads");
 
     assert_eq!(
-        runtime.invoke("accepts_text", vec![text_json]).unwrap(),
+        runtime
+            .invoke("accepts_text", vec![text_json.clone()])
+            .unwrap(),
         Value::Bool(true)
     );
-    assert!(
-        !runtime
-            .native_function_names()
-            .iter()
-            .any(|name| name == "accepts_text"),
-        "mixed-value bridge must stay opt-in until it clears the speed gate"
+    assert_eq!(
+        runtime.invoke("accepts_text", vec![text_json.clone()]).unwrap(),
+        vm.invoke("accepts_text", vec![text_json]).unwrap()
     );
-    assert!(runtime.native_function_names().is_empty());
+    assert_eq!(runtime.native_compilations(), 0);
+    assert!(!runtime
+        .native_function_names()
+        .iter()
+        .any(|name| name == "accepts_text"));
     let profile = runtime.native_compile_profile();
     let rejected = profile["rejected_functions"]
         .as_array()
         .expect("native profile reports functions rejected from compilation");
-    let accepts_text = rejected
+    assert!(rejected
         .iter()
-        .find(|function| function["name"].as_str() == Some("accepts_text"))
-        .expect("mixed-value rejection is attributed to accepts_text");
+        .any(|function| function["name"].as_str() == Some("accepts_text")));
+}
+
+#[cfg(feature = "native-value-bridge")]
+#[test]
+fn native_mixed_value_handles_preserve_vm_allocation_limits() {
+    let source = r#"record Payload:
+    text: Text
+
+fn payload_text(payload: Payload) -> Text:
+    return payload.text
+
+fn has_field(document: Json, key: Text) -> Bool:
+    return is_ok(json_try_get(document, key))
+
+fn main() -> Int:
+    let parsed = json_parse("{\"value\":\"guion\"}")
+    let document = unwrap(parsed)
+    let payload = Payload("guion")
+    var cursor = 0
+    var found = 0
+    while cursor < 100:
+        if has_field(document, "value") and payload_text(payload) == "guion":
+            set found = found + 1
+        set cursor = cursor + 1
+    return found
+"#;
+    let artifact = compile("native-json-handle-budget.gu", source).unwrap();
+
+    for allocation_limit_bytes in [4096, 8192, 16384, 32768] {
+        let policy = HostPolicy {
+            allocation_limit_bytes,
+            ..HostPolicy::default()
+        };
+        let mut native = Runtime::new()
+            .load(artifact.clone(), policy.clone())
+            .unwrap();
+        let mut vm = Runtime::vm_only()
+            .load(artifact.clone(), policy)
+            .unwrap();
+
+        match (native.invoke("main", vec![]), vm.invoke("main", vec![])) {
+            (Ok(native), Ok(vm)) => assert_eq!(native, vm),
+            (Err(native), Err(vm)) => {
+                assert_eq!(native.code, vm.code);
+                assert_eq!(native.trace, vm.trace);
+            }
+            (native, vm) => panic!(
+                "native mixed-value handles changed the allocation outcome at {allocation_limit_bytes} bytes: {native:?} vs {vm:?}"
+            ),
+        }
+        assert!(
+            native
+                .native_function_names()
+                .iter()
+                .any(|name| name == "has_field")
+                && native
+                    .native_function_names()
+                    .iter()
+                    .any(|name| name == "payload_text"),
+            "JSON and record helpers must exercise native mixed-value handles"
+        );
+    }
+
+    let profiled_policy = HostPolicy {
+        allocation_limit_bytes: 1_000_000,
+        ..HostPolicy::default()
+    };
+    let mut native = Runtime::new()
+        .with_runtime_profile()
+        .load(artifact.clone(), profiled_policy.clone())
+        .unwrap();
+    let mut vm = Runtime::vm_only()
+        .with_runtime_profile()
+        .load(artifact, profiled_policy)
+        .unwrap();
+    let expected = Value::Int(BigInt::parse("100").unwrap());
+    assert_eq!(native.invoke("main", vec![]).unwrap(), expected);
+    assert_eq!(vm.invoke("main", vec![]).unwrap(), expected);
+    let native_profile = native.runtime_profile().unwrap();
+    let vm_profile = vm.runtime_profile().unwrap();
+    let native_allocated = native_profile
+        ["estimated_guest_allocation_budget_charges"]["estimated_gross_bytes"]
+        .as_u64()
+        .unwrap();
+    let vm_allocated = vm_profile
+        ["estimated_guest_allocation_budget_charges"]["estimated_gross_bytes"]
+        .as_u64()
+        .unwrap();
     assert_eq!(
-        accepts_text["reason_code"].as_str(),
-        Some("mixed_value_bridge_disabled")
-    );
-    assert_eq!(
-        accepts_text["blocking_instruction"].as_str(),
-        Some("JsonTryText")
+        native_allocated, vm_allocated,
+        "native arena handles must not be charged as guest allocations"
     );
 }
 
@@ -2325,7 +2615,7 @@ fn native_backend_bridges_json_values_through_a_checked_host_call() {
 
 #[cfg(feature = "native-value-bridge")]
 #[test]
-fn native_backend_executes_jsonl_next_with_vm_equivalent_results() {
+fn native_backend_executes_jsonl_next_when_opted_in() {
     let root = std::env::temp_dir().join(format!(
         "guion-native-jsonl-{}-{}",
         std::process::id(),
@@ -2908,7 +3198,9 @@ fn native_backend_calls_native_functions_and_obeys_call_depth_limit() {
             .unwrap(),
         Value::Int(BigInt::parse("9223372036854775808").unwrap())
     );
-    assert_eq!(instance.native_calls(), 10);
+    // The overflowing `increment` native entry is counted once; its resumed
+    // VM continuation is not a second native invocation.
+    assert_eq!(instance.native_calls(), 9);
 
     let mut shallow = Runtime::new()
         .load(

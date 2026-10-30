@@ -1,0 +1,287 @@
+{
+  "schema_version": 1,
+  "sprint": "guion-core-jsonl-performance-research-plan",
+  "plan_revision": 2,
+  "plan_status": "approved_in_progress",
+  "plan_path": "docs/superpowers/plans/2026-10-29-guion-jsonl-performance-research-plan.md",
+  "branch": "codex/guion-core-sprint-spec",
+  "source_revision": "0c0239e1e9c042bc6a15f6ff8eeb1d07098e37aa",
+  "worktree_path": "/Users/rmichaelthomas/guion/.worktrees/guion-core-sprint-spec",
+  "container": {
+    "id": "4e0bf3187312",
+    "name": "guion-core-north-star-sprint",
+    "image_digest": "sha256:6a45e30e542ab1dc5600a1e5a3a7579e3d520107a5fb0c1471af6e6f1e3ca1ac",
+    "working_directory": "/Users/rmichaelthomas/guion/.worktrees/guion-core-sprint-spec",
+    "rustc": "rustc 1.97.1 (8bab26f4f 2026-07-14)",
+    "cargo": "cargo 1.97.1 (c980f4866 2026-06-30)",
+    "python": "Python 3.11.2",
+    "free_disk_human": "47G",
+    "existing_target_cache_human": "4.0G",
+    "preexisting_temp_human": "7.4G",
+    "shell_path_note": "non-login sh preserves /usr/local/cargo/bin; login shell does not"
+  },
+  "constraints": {
+    "external_evaluator": false,
+    "external_delegation": false,
+    "restart_container": false,
+    "change_artifact_format": false,
+    "python_bridge_optimization": false,
+    "preserve_preexisting_container_processes": true
+  },
+  "tasks": {
+    "task_1": {
+      "status": "complete",
+      "completed": [
+        "frozen 15-pair 20k/200k source and artifact baseline with output checks",
+        "sampled per-function guest/host profiling and profiling-overhead comparison",
+        "exact-build native eligibility report; zero native functions compiled for the JSONL workload"
+      ],
+      "next_action": "none"
+    },
+    "task_2": {
+      "status": "implementation_experiments_complete_no_speed_win",
+      "next_action": "design and implement a genuine whole-function register/SSA path for the measured guest JSON/Result hot path; the predecoded host-forwarder smoke regressed and is rejected"
+    },
+    "task_3": {
+      "status": "complete_correctness_and_holdout_pass_performance_gate_open",
+      "next_action": "final paired evidence is recorded; all four Python parity lanes remain open"
+    },
+    "task_4": {
+      "status": "reported_gate_open",
+      "next_action": "a further implementation sprint is required for a whole-function guest execution tier; do not mark JSONL parity complete"
+    }
+  },
+  "initial_worktree_status": [
+    "?? docs/superpowers/plans/2026-10-29-guion-jsonl-performance-research-plan.md"
+  ],
+  "previous_report": "evaluation/development/core_cost_closure/results/jsonl-inline-i64-vs-preinline-paired-15.json",
+  "previous_report_binary_sha256": {
+    "baseline": "5bc700dce2bdd1a1a1fd25b239b43863bf2b0d789753eb449c478f8beb094c4e",
+    "candidate": "efc64a87cbc50ad545e1cae71369b1be272fab519a3e28a2e6f60789a5dfb015"
+  },
+  "current_control_binary": {
+    "path": "target/perf-session/cargo/release/guion",
+    "sha256": "f2da40c3bf09e27d45523078ce3ffdaa97afaa75a179609424c0b9bfe4446c1b",
+    "built_from_revision": "0c0239e1e9c042bc6a15f6ff8eeb1d07098e37aa",
+    "command": "CARGO_TARGET_DIR=target/perf-session/cargo CARGO_INCREMENTAL=0 cargo build --locked --offline --release -p guion-cli --bin guion",
+    "exit_code": 0,
+    "built_at_utc": "2026-10-29T20:56:39.016286+00:00"
+  },
+  "baseline_smoke": {
+    "path": "evaluation/development/core_cost_closure/results/sprint-20261029-current-baseline-smoke-3.json",
+    "status": "passed",
+    "trials_per_lane": 3,
+    "outputs_checked": true,
+    "binary_sha256": "f2da40c3bf09e27d45523078ce3ffdaa97afaa75a179609424c0b9bfe4446c1b"
+  },
+  "baseline_full": {
+    "path": "evaluation/development/core_cost_closure/results/sprint-20261029-current-baseline-paired-15.json",
+    "status": "passed",
+    "correctness_status": "passed",
+    "trials_per_lane": 15,
+    "outputs_checked": true,
+    "binary_sha256": "f2da40c3bf09e27d45523078ce3ffdaa97afaa75a179609424c0b9bfe4446c1b",
+    "input_hashes_match_retained_cohort": true
+  },
+  "profile_findings": {
+    "profile_reports": [
+      "evaluation/development/core_cost_closure/results/sprint-20261029-current-profile-200k-source.json",
+      "evaluation/development/core_cost_closure/results/sprint-20261029-current-profile-200k-artifact.json",
+      "evaluation/development/core_cost_closure/results/sprint-20261029-sampled-profile-200k-source.json",
+      "evaluation/development/core_cost_closure/results/sprint-20261029-sampled-profile-200k-artifact.json"
+    ],
+    "exact_control_vm_instructions_at_200k": 61476177,
+    "exact_control_vm_frames_at_200k": 3770554,
+    "sampled_hot_functions": [
+      "main",
+      "jsonl_next",
+      "json_get_safe",
+      "json_int_safe",
+      "json_text_safe"
+    ],
+    "native_functions_compiled": 0,
+    "first_native_rejections": {
+      "main": "IsOk / mixed_value_bridge_disabled",
+      "jsonl_next": "IsOk / mixed_value_bridge_disabled",
+      "json_get_safe": "JsonTryGet / mixed_value_bridge_disabled",
+      "json_int_safe": "JsonTryInt / mixed_value_bridge_disabled"
+    },
+    "interpretation": "guest dispatch and repeated guest frames dominate the selected call path; current native eligibility excludes the mixed Result/JSON path before native execution"
+  },
+  "rejected_experiments": [
+    {
+      "name": "control-flow last-use move for boxed Option/Result values",
+      "binary_sha256": "84217df677e08e11bfa4a251d896a98c28aa7f97cf36171466e6f28a68569015",
+      "report": "evaluation/development/core_cost_closure/results/sprint-20261029-last-use-move-smoke-3.json",
+      "correctness_status": "passed",
+      "decision": "removed after 3-pair speed regression",
+      "candidate_over_control_median_ratio": {
+        "20k_source": 1.08109,
+        "20k_artifact": 1.07482,
+        "200k_source": 1.143,
+        "200k_artifact": 1.07375
+      }
+    },
+    {
+      "name": "constant-index Text list concatenation VM superinstruction",
+      "binary_sha256": "a3e69056bbe73e0c2d019e1e1b8c5ba764d7af5596669c53a53ce302c380f186",
+      "smoke_report": "evaluation/development/core_cost_closure/results/sprint-20261029-textchar-concat-smoke-3.json",
+      "confirmation_report": "evaluation/development/core_cost_closure/results/sprint-20261029-textchar-concat-paired-15.json",
+      "extended_confirmation_report": "evaluation/development/core_cost_closure/results/sprint-20261029-textchar-concat-confirm-30.json",
+      "correctness_status": "passed",
+      "decision": "removed after the one-time 30-pair confirmation failed to separate from parity",
+      "candidate_over_control_median_ratio_at_30_pairs": {
+        "20k_source": 0.99843,
+        "20k_artifact": 1.00658,
+        "200k_source": 1.0031,
+        "200k_artifact": 1.00937
+      },
+      "peak_rss_bytes_unchanged_for_guion": true
+    }
+  ],
+  "final_current_candidate": {
+    "result": "evaluation/development/core_cost_closure/results/sprint-20261029-final-current-clean-paired-15.json",
+    "correctness_status": "passed",
+    "speed_status": "no_statistically_clear_candidate_win",
+    "trials_per_lane": 15,
+    "binary_sha256": "54d3be0172f9444a168eff50fa8564f179942e362ed8359145d1eca84cdb4cfc",
+    "python_gate": "open",
+    "candidate_over_python_median_and_ci95": {
+      "20000_source": [
+        2.9976013,
+        2.97533495,
+        3.04956539
+      ],
+      "20000_artifact": [
+        2.95991961,
+        2.89117213,
+        3.01666848
+      ],
+      "200000_source": [
+        3.6779,
+        3.4355,
+        4.1111
+      ],
+      "200000_artifact": [
+        3.575,
+        3.3602,
+        3.8708
+      ]
+    },
+    "candidate_over_control_median_and_ci95": {
+      "20000_source": [
+        1.00143439,
+        0.98424219,
+        1.0155413
+      ],
+      "20000_artifact": [
+        0.99661287,
+        0.9625107,
+        1.00379141
+      ],
+      "200000_source": [
+        1.0152,
+        0.9423,
+        1.0343
+      ],
+      "200000_artifact": [
+        1.002,
+        0.977,
+        1.0542
+      ]
+    },
+    "source_state": {
+      "base_revision": "0c0239e1e9c042bc6a15f6ff8eeb1d07098e37aa",
+      "tracked_source_patch_sha256": "8a211512ad30b4622c41f37b5ed0f21bf658c0923656bf1e77ecc0a4dead232c",
+      "paths": [
+        "crates/cli/src/main.rs",
+        "crates/runtime/src/lib.rs",
+        "crates/runtime/src/native_backend.rs",
+        "crates/runtime/tests/execution.rs",
+        "crates/vm-core/Cargo.toml",
+        "crates/vm-core/src/lib.rs"
+      ],
+      "build_command": "CARGO_TARGET_DIR=target/perf-session/cargo CARGO_INCREMENTAL=0 cargo build --locked --offline --release -p guion-cli --bin guion"
+    },
+    "control_regression_guardrail": "unresolved_200000_source_and_artifact_upper_ci_above_1.02",
+    "control_upper_ci95": {
+      "20000_source": 1.0155413,
+      "20000_artifact": 1.00379141,
+      "200000_source": 1.0343,
+      "200000_artifact": 1.0542
+    }
+  },
+  "lockfile_auditor_holdout": {
+    "result": "evaluation/development/core_cost_closure/results/sprint-20261029-lockfile-holdout-paired-15.json",
+    "status": "passed",
+    "outputs_checked": true,
+    "packages": 512,
+    "diagnostics": 1024,
+    "trials": 15,
+    "candidate_over_control_median_ratio": 0.97655585,
+    "paired_ci95": [
+      0.90855059,
+      0.99926564
+    ],
+    "candidate_binary_sha256": "54d3be0172f9444a168eff50fa8564f179942e362ed8359145d1eca84cdb4cfc"
+  },
+  "quality_checks": {
+    "runtime_execution_tests": {
+      "status": "passed",
+      "passed": 142,
+      "failed": 0
+    },
+    "bootstrap_compiler_stage_equality": {
+      "status": "passed",
+      "elapsed_seconds": 450.53,
+      "scope_note": "focused exact test only; not a full CLI or workspace suite"
+    }
+  },
+  "outcome_report": "evaluation/development/core_cost_closure/results/sprint-20261029-jsonl-core-performance-outcome.md",
+  "jsonl_speed_gate": "open_all_four_lanes",
+  "predecoded_forwarder_experiment": {
+    "status": "rejected_after_three_pair_speed_smoke",
+    "correctness_status": "passed",
+    "reports": [
+      "evaluation/development/core_cost_closure/results/sprint-20261029-predecoded-forwarder-smoke-3.json",
+      "evaluation/development/core_cost_closure/results/sprint-20261029-predecoded-forwarder-direct-smoke-3.json"
+    ],
+    "candidate_over_control_median_ranges": {
+      "predecoded": [
+        1.0691,
+        1.5008
+      ],
+      "direct": [
+        1.1052,
+        1.1379
+      ]
+    },
+    "whole_function_register_interpreter": "not_implemented; next candidate"
+  },
+  "rejected_direct_variant_probe": {
+    "status": "rejected_after_three_pair_smoke",
+    "correctness_status": "passed",
+    "output_checks": true,
+    "candidate_binary_sha256": "65f07fd51151366a58e07d6a36c6581dfb2c8e28c680388aca2a790d34eeb6c2",
+    "report": "evaluation/development/core_cost_closure/results/sprint-20261029-native-direct-variant-smoke-3.json",
+    "candidate_over_control_median": {
+      "20000_source": 1.131,
+      "20000_artifact": 1.1143,
+      "200000_source": 1.1472,
+      "200000_artifact": 1.2168
+    },
+    "candidate_over_python_median": {
+      "20000_source": 3.4825,
+      "20000_artifact": 3.4274,
+      "200000_source": 4.1035,
+      "200000_artifact": 3.9472
+    },
+    "unit_test": "native_variant_test_matches_result_and_option_tags passed on candidate source",
+    "feature_enabled_runtime_execution_suite": {
+      "passed": 144,
+      "failed": 0,
+      "source_state": "candidate source before rejection and revert"
+    },
+    "decision": "reverted; no confirmation cohort run because all lanes regressed in the smoke"
+  }
+}

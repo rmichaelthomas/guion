@@ -33,7 +33,10 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
     }
     let phase_timings_enabled = env::var_os("GUION_PHASE_TIMINGS").is_some();
     let cli_started = phase_timings_enabled.then(Instant::now);
-    let runtime_profile_enabled = env::var_os("GUION_RUNTIME_PROFILE").is_some();
+    let runtime_profile_setting = env::var_os("GUION_RUNTIME_PROFILE");
+    let runtime_profile_enabled = runtime_profile_setting.is_some();
+    let runtime_profile_sampled = runtime_profile_setting.as_deref()
+        == Some(std::ffi::OsStr::new("sampled"));
     let Some(command) = args.first().map(String::as_str) else {
         return Err(
             "usage: guion <new|check|fmt|lint|test|run|build|package|verify-package|add|sync|update|inspect|doc|doctor|install> [path]"
@@ -803,7 +806,9 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
         "run" => {
             #[cfg(feature = "python-interop")]
             let managed_interpreter = dependencies::interpreter_for_locked_run(&project_root)?;
-            let runtime = if runtime_profile_enabled {
+            let runtime = if runtime_profile_sampled {
+                Runtime::new().with_sampled_runtime_profile()
+            } else if runtime_profile_enabled {
                 Runtime::new().with_runtime_profile()
             } else {
                 Runtime::new()

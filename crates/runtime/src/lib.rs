@@ -130,6 +130,7 @@ struct NativeListArena {
     inline_int_lists: Vec<Vec<NativeIntList>>,
     int_storage: Vec<Vec<i64>>,
     values: Vec<Value>,
+    native_vm_continuations: Vec<NativeVmContinuationFrame>,
     runtime_context: Option<NativeRuntimeContext>,
     host_error: Option<RuntimeError>,
     budget: *const Budget,
@@ -140,6 +141,15 @@ struct NativeListArena {
     initial_output_bytes: usize,
     pending_output: String,
     pending_print_bytes: Vec<usize>,
+}
+
+pub(crate) struct NativeVmContinuationFrame {
+    pub(crate) function_index: usize,
+    pub(crate) ip: usize,
+    pub(crate) depth: usize,
+    pub(crate) call_site: Option<Span>,
+    pub(crate) locals: Vec<Value>,
+    pub(crate) stack: Vec<Value>,
 }
 
 #[derive(Clone)]
@@ -164,6 +174,7 @@ impl NativeListArena {
             inline_int_lists: Vec::new(),
             int_storage: Vec::new(),
             values: Vec::new(),
+            native_vm_continuations: Vec::new(),
             runtime_context: None,
             host_error: None,
             budget,
@@ -199,16 +210,10 @@ impl NativeListArena {
     }
 
     fn store_value(&mut self, value: Value) -> Option<i64> {
-        let previous_capacity = self.values.capacity();
         self.values.try_reserve(1).ok()?;
-        let capacity_bytes = self
-            .values
-            .capacity()
-            .saturating_sub(previous_capacity)
-            .saturating_mul(size_of::<Value>());
-        if !self.charge(capacity_bytes.saturating_add(size_of::<Value>())) {
-            return None;
-        }
+        // These are backend handle-table entries. Their producer has already
+        // charged any guest-visible value allocation; charging the handle slot
+        // here would make the quota depend on whether the VM or JIT ran it.
         self.values.push(value);
         i64::try_from(self.values.len()).ok()
     }
@@ -216,6 +221,45 @@ impl NativeListArena {
     fn value(&self, handle: i64) -> Option<&Value> {
         let index = usize::try_from(handle.checked_sub(1)?).ok()?;
         self.values.get(index)
+    }
+
+    fn decode_continuation_value(&self, raw: i64, tag: i64) -> Option<Value> {
+        match tag {
+            0 => Some(Value::Unit),
+            1 => Some(Value::Int(BigInt::parse(&raw.to_string()).ok()?)),
+            2 => Some(Value::Float64(Float64::new(f64::from_bits(raw as u64))?)),
+            3 => Some(Value::Bool(raw != 0)),
+            4 => self.value(raw).cloned(),
+            _ => None,
+        }
+    }
+
+    fn append_native_continuation(
+        &mut self,
+        frame: NativeVmContinuationFrame,
+        caller_ip: Option<usize>,
+    ) -> bool {
+        if let Some(caller_ip) = caller_ip {
+            let Some(child) = self.native_vm_continuations.last_mut() else {
+                return false;
+            };
+            let Some(span) = self
+                .runtime_context
+                .as_ref()
+                .and_then(|context| context.artifact.functions.get(frame.function_index))
+                .and_then(|function| function.code.get(caller_ip))
+                .map(|instruction| instruction.span)
+            else {
+                self.native_vm_continuations.clear();
+                return false;
+            };
+            child.call_site = Some(span);
+        } else if !self.native_vm_continuations.is_empty() {
+            self.native_vm_continuations.clear();
+            return false;
+        }
+        self.native_vm_continuations.push(frame);
+        true
     }
 
     fn bridge_handle_argument<'a>(
@@ -255,7 +299,7 @@ impl NativeListArena {
         });
     }
 
-    fn bridge_value_operation(
+    fn execute_native_operation(
         &mut self,
         operation: i64,
         function_index: i64,
@@ -329,7 +373,11 @@ impl NativeListArena {
                 if name != &definition.name {
                     return None;
                 }
-                fields.get(*field_index)?.clone()
+                let field = fields.get(*field_index)?.clone();
+                if !self.charge_or_error(cloned_value_allocation(&field), instruction.span) {
+                    return None;
+                }
+                field
             }
             Op::MakeOk => {
                 let value = self.decode_bridge_value(*arguments.first()?, *argument_tags.first()?)?;
@@ -372,7 +420,6 @@ impl NativeListArena {
                 // These bridged host operations do not access guest locals. Avoid
                 // allocating a frame-sized local vector for each native callback.
                 let mut locals = Vec::new();
-                let span = instruction.span;
                 let allocations_before = runtime
                     .budget
                     .allocation_remaining
@@ -407,10 +454,10 @@ impl NativeListArena {
                 if stack.len() != 1 {
                     return None;
                 }
-                return self.encode_bridge_value(stack.pop()?, result_tag, span);
+                return self.encode_bridge_value(stack.pop()?, result_tag);
             }
         };
-        self.encode_bridge_value(value, result_tag, instruction.span)
+        self.encode_bridge_value(value, result_tag)
     }
 
     fn decode_bridge_value(&self, value: i64, tag: i64) -> Option<Value> {
@@ -423,22 +470,14 @@ impl NativeListArena {
         }
     }
 
-    fn encode_bridge_value(&mut self, value: Value, tag: i64, span: Span) -> Option<i64> {
+    fn encode_bridge_value(&mut self, value: Value, tag: i64) -> Option<i64> {
         match (tag, value) {
             (1, Value::Int(value)) => value.to_i64(),
             (2, Value::Float64(value)) => Some(value.get().to_bits() as i64),
             (3, Value::Bool(value)) => Some(i64::from(value)),
-            (4, value) => match self.store_value(value) {
-                Some(handle) => Some(handle),
-                None => {
-                    self.host_error = Some(RuntimeError::new(
-                        "R_ALLOCATION_LIMIT",
-                        "cumulative allocation budget exhausted during this invocation",
-                        span,
-                    ));
-                    None
-                }
-            },
+            // Storing a handle is backend bookkeeping. Guest allocation limits
+            // are charged by the operation that produced `value`.
+            (4, value) => self.store_value(value),
             _ => None,
         }
     }
@@ -728,6 +767,7 @@ impl HostPolicy {
 pub struct Runtime {
     native_enabled: bool,
     runtime_profile_enabled: bool,
+    runtime_profile_sampled: bool,
 }
 
 fn current_unix_time_ms() -> Result<i64, String> {
@@ -783,6 +823,7 @@ impl Runtime {
         Self {
             native_enabled: true,
             runtime_profile_enabled: false,
+            runtime_profile_sampled: false,
         }
     }
 
@@ -792,6 +833,7 @@ impl Runtime {
         Self {
             native_enabled: false,
             runtime_profile_enabled: false,
+            runtime_profile_sampled: false,
         }
     }
 
@@ -799,6 +841,14 @@ impl Runtime {
     /// This adds instrumentation and should be used only for untimed profiles.
     pub fn with_runtime_profile(mut self) -> Self {
         self.runtime_profile_enabled = true;
+        self.runtime_profile_sampled = false;
+        self
+    }
+
+    /// Enable sampled attribution with reduced per-instruction instrumentation.
+    pub fn with_sampled_runtime_profile(mut self) -> Self {
+        self.runtime_profile_enabled = true;
+        self.runtime_profile_sampled = true;
         self
     }
     pub fn load(
@@ -836,7 +886,9 @@ impl Runtime {
             native: None,
             native_code: None,
             native_enabled: self.native_enabled,
+            native_compile_attempted: false,
             runtime_profile_enabled: self.runtime_profile_enabled,
+            runtime_profile_sampled: self.runtime_profile_sampled,
             runtime_profile_metrics: None,
             native_calls: Arc::new(AtomicUsize::new(0)),
             native_deoptimizations: Arc::new(AtomicUsize::new(0)),
@@ -876,7 +928,9 @@ pub struct Instance {
     native: Option<NativeBackend>,
     native_code: Option<Arc<NativeCode>>,
     native_enabled: bool,
+    native_compile_attempted: bool,
     runtime_profile_enabled: bool,
+    runtime_profile_sampled: bool,
     runtime_profile_metrics: Option<Arc<RuntimeProfileCounters>>,
     native_calls: Arc<AtomicUsize>,
     native_deoptimizations: Arc<AtomicUsize>,
@@ -1188,15 +1242,16 @@ impl VmHost for Instance {
             depth,
         } = context;
         let budget = budget.clone();
-        let _profile_timer =
-            budget
-                .runtime_profile
-                .clone()
-                .map(|profile| HostOperationProfileTimer {
-                    profile,
-                    operation: opcode_profile_name(&instruction.op),
-                    started: Instant::now(),
-                });
+        let _profile_timer = budget
+            .runtime_profile
+            .as_ref()
+            .filter(|profile| profile.should_sample_host_operation())
+            .cloned()
+            .map(|profile| HostOperationProfileTimer {
+                profile,
+                operation: opcode_profile_name(&instruction.op),
+                started: Instant::now(),
+            });
         macro_rules! push_stack {
             ($value:expr) => {{
                 let value = $value;
@@ -5047,7 +5102,18 @@ impl Instance {
         }
         let runtime_profile = self
             .runtime_profile_enabled
-            .then(|| Arc::new(RuntimeProfileCounters::default()));
+            .then(|| {
+                let profile = Arc::new(RuntimeProfileCounters::default());
+                profile.initialize_function_profiles(
+                    self.artifact
+                        .functions
+                        .iter()
+                        .map(|function| function.name.clone())
+                        .collect(),
+                );
+                profile.set_sampled_mode(self.runtime_profile_sampled);
+                profile
+            });
         self.runtime_profile_metrics = runtime_profile.clone();
         let budget = Arc::new(Budget::new(
             self.policy.instruction_limit,
@@ -5055,7 +5121,8 @@ impl Instance {
             cancellation,
             runtime_profile.clone(),
         ));
-        if self.native_enabled && self.native.is_none() {
+        if self.native_enabled && !self.native_compile_attempted {
+            self.native_compile_attempted = true;
             self.native = NativeBackend::compile(
                 &self.artifact,
                 NativeSymbols {
@@ -5070,8 +5137,28 @@ impl Instance {
                     list_set_int_local: native_list_set_int_local as *const () as *const u8,
                     list_set_bool_local: native_list_set_bool_local as *const () as *const u8,
                     charge_record: native_charge_record as *const () as *const u8,
+                    charge_value_clone: native_charge_value_clone as *const () as *const u8,
                     print: native_print as *const () as *const u8,
-                    bridge_value_operation: native_bridge_value_operation as *const () as *const u8,
+                    direct_operations: [
+                        native_direct_json_parse as *const () as *const u8,
+                        native_direct_json_try_text as *const () as *const u8,
+                        native_direct_json_try_get as *const () as *const u8,
+                        native_direct_json_try_int as *const () as *const u8,
+                        native_direct_file_next_line as *const () as *const u8,
+                        native_direct_is_ok as *const () as *const u8,
+                        native_direct_is_some as *const () as *const u8,
+                        native_direct_unwrap as *const () as *const u8,
+                        native_direct_get_error as *const () as *const u8,
+                        native_direct_make_ok as *const () as *const u8,
+                        native_direct_make_err as *const () as *const u8,
+                        native_direct_make_some as *const () as *const u8,
+                        native_direct_make_none as *const () as *const u8,
+                        native_direct_get_field as *const () as *const u8,
+                    ],
+                    make_record: native_direct_make_record as *const () as *const u8,
+                    capture_vm_continuation: native_capture_vm_continuation as *const () as *const u8,
+                    capture_vm_continuation_fixed: native_capture_vm_continuation_fixed as *const () as *const u8,
+                    capture_vm_continuation_int2: native_capture_vm_continuation_int2 as *const () as *const u8,
                     count_guest_branch: native_count_guest_branch as *const () as *const u8,
                 },
                 runtime_profile.is_some(),
@@ -5204,6 +5291,15 @@ impl Instance {
         match self.start_guest_frame(index, args, depth, budget.clone(), None)? {
             FrameStart::Returned(value) => Ok(value),
             FrameStart::Vm(frame) => self.run_guest_frames(frame, budget),
+            FrameStart::VmFrames(frames) => self.run_guest_frame_stack(frames, budget),
+        }
+    }
+
+    fn commit_native_output(&mut self, arena: &NativeListArena) {
+        self.output.push_str(&arena.pending_output);
+        for bytes in &arena.pending_print_bytes {
+            let effect = self.begin_effect(EffectKind::ProgramOutput, format!("{bytes} bytes"));
+            self.finish_effect(effect, EffectOutcome::Returned);
         }
     }
 
@@ -5482,7 +5578,7 @@ impl Instance {
         if let Some(native_args) = native_args {
             let native_code = self.native_code.clone();
             let call_depth_limit = self.policy.call_depth_limit;
-            if let Some(outcome) = native_code.as_ref().and_then(|native| {
+            if let Some(mut outcome) = native_code.as_ref().and_then(|native| {
                 native.invoke(
                     index,
                     &native_args,
@@ -5762,12 +5858,7 @@ impl Instance {
                                     )
                                 })?,
                         };
-                        self.output.push_str(&native_arena.pending_output);
-                        for bytes in &native_arena.pending_print_bytes {
-                            let effect = self
-                                .begin_effect(EffectKind::ProgramOutput, format!("{bytes} bytes"));
-                            self.finish_effect(effect, EffectOutcome::Returned);
-                        }
+                        self.commit_native_output(&native_arena);
                         return Ok(FrameStart::Returned(value));
                     }
                     1 => {
@@ -5775,6 +5866,26 @@ impl Instance {
                             return Err(error);
                         }
                         self.native_deoptimizations.fetch_add(1, Ordering::Relaxed);
+                        if !outcome.continuations.is_empty() {
+                            self.commit_native_output(&native_arena);
+                            if let Some(deepest) = outcome.continuations.last_mut() {
+                                deepest.call_site = call_site;
+                            }
+                            let frames = outcome
+                                .continuations
+                                .into_iter()
+                                .rev()
+                                .map(|frame| VmFrame {
+                                    function_index: frame.function_index,
+                                    depth: frame.depth,
+                                    call_site: frame.call_site,
+                                    locals: frame.locals,
+                                    stack: frame.stack,
+                                    ip: frame.ip,
+                                })
+                                .collect();
+                            return Ok(FrameStart::VmFrames(frames));
+                        }
                         budget.refund(outcome.steps);
                         budget.refund_allocation(outcome.allocations);
                     }
@@ -5879,6 +5990,14 @@ impl Instance {
         budget: Arc<Budget>,
     ) -> Result<Value, RuntimeError> {
         guion_vm_core::run_frames(self, initial, budget)
+    }
+
+    fn run_guest_frame_stack(
+        &mut self,
+        frames: Vec<VmFrame>,
+        budget: Arc<Budget>,
+    ) -> Result<Value, RuntimeError> {
+        guion_vm_core::run_frames_with_stack(self, frames, budget)
     }
 
     fn call_python(
@@ -6157,7 +6276,9 @@ impl Instance {
                         native: None,
                         native_code: native_code.clone(),
                         native_enabled,
-                        runtime_profile_enabled: false,
+                        native_compile_attempted: false,
+                                    runtime_profile_enabled: false,
+                        runtime_profile_sampled: false,
                         runtime_profile_metrics: None,
                         native_calls: native_calls.clone(),
                         native_deoptimizations: native_deoptimizations.clone(),
@@ -6267,6 +6388,185 @@ impl Instance {
             ));
         }
         Ok(Ok(results))
+    }
+}
+
+unsafe extern "C" fn native_capture_vm_continuation(
+    arena: *mut NativeListArena,
+    function_index: i64,
+    resume_ip: i64,
+    depth: i64,
+    local_pairs: *const i64,
+    local_count: i64,
+    stack_pairs: *const i64,
+    stack_count: i64,
+    caller_ip: i64,
+) -> i32 {
+    let Some(function_index) = usize::try_from(function_index).ok() else {
+        return 0;
+    };
+    let Some(resume_ip) = usize::try_from(resume_ip).ok() else {
+        return 0;
+    };
+    let Some(depth) = usize::try_from(depth).ok() else {
+        return 0;
+    };
+    let Some(local_count) = usize::try_from(local_count).ok() else {
+        return 0;
+    };
+    let Some(stack_count) = usize::try_from(stack_count).ok() else {
+        return 0;
+    };
+    if arena.is_null()
+        || local_count > 16_384
+        || stack_count > 16_384
+        || (local_count > 0 && local_pairs.is_null())
+        || (stack_count > 0 && stack_pairs.is_null())
+    {
+        return 0;
+    }
+    // SAFETY: generated code allocates triples (slot, tag, value) per live
+    // local and invokes this helper while the slots are live.
+    let local_triples = if local_count == 0 {
+        &[]
+    } else {
+        unsafe { std::slice::from_raw_parts(local_pairs, local_count.saturating_mul(3)) }
+    };
+    // SAFETY: same layout and lifetime guarantee as the local pair array above.
+    let stack_pairs = if stack_count == 0 {
+        &[]
+    } else {
+        unsafe { std::slice::from_raw_parts(stack_pairs, stack_count.saturating_mul(2)) }
+    };
+    // SAFETY: the arena pointer belongs to this active NativeCode::invoke call.
+    let arena = unsafe { &mut *arena };
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let Some(local_total) = arena
+            .runtime_context
+            .as_ref()
+            .and_then(|context| context.artifact.functions.get(function_index))
+            .map(|function| function.local_count)
+        else {
+            arena.native_vm_continuations.clear();
+            return false;
+        };
+        if local_count > local_total {
+            arena.native_vm_continuations.clear();
+            return false;
+        }
+        let mut locals = vec![Value::Unit; local_total];
+        let mut initialized = vec![false; local_total];
+        for triple in local_triples.chunks_exact(3) {
+            let Ok(slot) = usize::try_from(triple[0]) else {
+                arena.native_vm_continuations.clear();
+                return false;
+            };
+            if slot >= local_total || initialized[slot] {
+                arena.native_vm_continuations.clear();
+                return false;
+            }
+            let Some(value) = arena.decode_continuation_value(triple[2], triple[1]) else {
+                arena.native_vm_continuations.clear();
+                return false;
+            };
+            locals[slot] = value;
+            initialized[slot] = true;
+        }
+        let decode_pairs = |pairs: &[i64]| -> Option<Vec<Value>> {
+            pairs
+                .chunks_exact(2)
+                .map(|pair| arena.decode_continuation_value(pair[1], pair[0]))
+                .collect()
+        };
+        let Some(stack) = decode_pairs(stack_pairs) else {
+            arena.native_vm_continuations.clear();
+            return false;
+        };
+        let caller_ip = if caller_ip < 0 {
+            None
+        } else {
+            let Ok(caller_ip) = usize::try_from(caller_ip) else {
+                arena.native_vm_continuations.clear();
+                return false;
+            };
+            Some(caller_ip)
+        };
+        arena.append_native_continuation(
+            NativeVmContinuationFrame {
+                function_index,
+                ip: resume_ip,
+                depth,
+                call_site: None,
+                locals,
+                stack,
+            },
+            caller_ip,
+        )
+    }));
+    match result {
+        Ok(true) => 1,
+        Ok(false) | Err(_) => 0,
+    }
+}
+
+unsafe extern "C" fn native_capture_vm_continuation_fixed(
+    arena: *mut NativeListArena,
+    function_index: i64,
+    resume_ip: i64,
+    depth: i64,
+    stack_count: i64,
+    first: i64,
+    first_tag: i64,
+    second: i64,
+    second_tag: i64,
+    caller_ip: i64,
+) -> i32 {
+    let Ok(stack_count) = usize::try_from(stack_count) else {
+        return 0;
+    };
+    if stack_count > 2 {
+        return 0;
+    }
+    let stack_pairs = [first_tag, first, second_tag, second];
+    // SAFETY: the local array remains live through the synchronous capture call.
+    unsafe {
+        native_capture_vm_continuation(
+            arena,
+            function_index,
+            resume_ip,
+            depth,
+            std::ptr::null(),
+            0,
+            stack_pairs.as_ptr(),
+            stack_count as i64,
+            caller_ip,
+        )
+    }
+}
+
+unsafe extern "C" fn native_capture_vm_continuation_int2(
+    arena: *mut NativeListArena,
+    function_index: i64,
+    resume_ip: i64,
+    depth: i64,
+    first: i64,
+    second: i64,
+    caller_ip: i64,
+) -> i32 {
+    let stack_pairs = [1_i64, first, 1_i64, second];
+    // SAFETY: the local array remains live through the synchronous capture call.
+    unsafe {
+        native_capture_vm_continuation(
+            arena,
+            function_index,
+            resume_ip,
+            depth,
+            std::ptr::null(),
+            0,
+            stack_pairs.as_ptr(),
+            2,
+            caller_ip,
+        )
     }
 }
 
@@ -6610,9 +6910,123 @@ unsafe extern "C" fn native_charge_record(arena: *mut NativeListArena, bytes: i6
     i32::from(ok)
 }
 
-unsafe extern "C" fn native_bridge_value_operation(
+unsafe extern "C" fn native_charge_value_clone(
     arena: *mut NativeListArena,
+    handle: i64,
+) -> i32 {
+    if arena.is_null() {
+        return 0;
+    }
+    let arena = unsafe { &mut *arena };
+    let Ok(index) = usize::try_from(handle.checked_sub(1).unwrap_or(-1)) else {
+        return 0;
+    };
+    let Some(bytes) = arena
+        .values
+        .get(index)
+        .map(cloned_value_allocation)
+    else {
+        return 0;
+    };
+    i32::from(arena.charge(bytes))
+}
+
+unsafe fn native_direct_operation_impl(
     operation: i64,
+    argument_count: usize,
+    arena: *mut NativeListArena,
+    function_index: i64,
+    instruction_index: i64,
+    depth: i64,
+    first: i64,
+    first_tag: i64,
+    second: i64,
+    second_tag: i64,
+    result_tag: i64,
+    output: *mut i64,
+) -> i32 {
+    if arena.is_null() || output.is_null() || argument_count > 2 {
+        return 0;
+    }
+    let values = [first, second];
+    let tags = [first_tag, second_tag];
+    // SAFETY: these pointers are supplied by the active JIT invocation.
+    let arena = unsafe { &mut *arena };
+    match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        arena.execute_native_operation(
+            operation,
+            function_index,
+            instruction_index,
+            depth,
+            &values[..argument_count],
+            &tags[..argument_count],
+            result_tag,
+        )
+    })) {
+        Ok(Some(value)) => {
+            // SAFETY: the generated caller provides one writable i64 result slot.
+            unsafe { output.write(value) };
+            1
+        }
+        Ok(None) => 0,
+        Err(_) => {
+            arena.record_bridge_panic(function_index, instruction_index);
+            0
+        }
+    }
+}
+
+macro_rules! native_direct_operation_entry {
+    ($name:ident, $operation:expr, $argument_count:expr) => {
+        unsafe extern "C" fn $name(
+            arena: *mut NativeListArena,
+            function_index: i64,
+            instruction_index: i64,
+            depth: i64,
+            first: i64,
+            first_tag: i64,
+            second: i64,
+            second_tag: i64,
+            result_tag: i64,
+            output: *mut i64,
+        ) -> i32 {
+            unsafe {
+                native_direct_operation_impl(
+                    $operation,
+                    $argument_count,
+                    arena,
+                    function_index,
+                    instruction_index,
+                    depth,
+                    first,
+                    first_tag,
+                    second,
+                    second_tag,
+                    result_tag,
+                    output,
+                )
+            }
+        }
+    };
+}
+
+native_direct_operation_entry!(native_direct_json_parse, native_backend::NATIVE_BRIDGE_JSON_PARSE, 1);
+native_direct_operation_entry!(native_direct_json_try_text, native_backend::NATIVE_BRIDGE_JSON_TRY_TEXT, 1);
+native_direct_operation_entry!(native_direct_json_try_get, native_backend::NATIVE_BRIDGE_JSON_TRY_GET, 2);
+native_direct_operation_entry!(native_direct_json_try_int, native_backend::NATIVE_BRIDGE_JSON_TRY_INT, 1);
+native_direct_operation_entry!(native_direct_file_next_line, native_backend::NATIVE_BRIDGE_FILE_NEXT_LINE, 1);
+native_direct_operation_entry!(native_direct_is_ok, native_backend::NATIVE_BRIDGE_IS_OK, 1);
+native_direct_operation_entry!(native_direct_is_some, native_backend::NATIVE_BRIDGE_IS_SOME, 1);
+native_direct_operation_entry!(native_direct_unwrap, native_backend::NATIVE_BRIDGE_UNWRAP, 1);
+native_direct_operation_entry!(native_direct_get_error, native_backend::NATIVE_BRIDGE_GET_ERROR, 1);
+native_direct_operation_entry!(native_direct_make_ok, native_backend::NATIVE_BRIDGE_MAKE_OK, 1);
+native_direct_operation_entry!(native_direct_make_err, native_backend::NATIVE_BRIDGE_MAKE_ERR, 1);
+native_direct_operation_entry!(native_direct_make_some, native_backend::NATIVE_BRIDGE_MAKE_SOME, 1);
+native_direct_operation_entry!(native_direct_make_none, native_backend::NATIVE_BRIDGE_MAKE_NONE, 0);
+native_direct_operation_entry!(native_direct_get_field, native_backend::NATIVE_BRIDGE_GET_FIELD, 1);
+
+unsafe extern "C" fn native_direct_make_record(
+    arena: *mut NativeListArena,
     function_index: i64,
     instruction_index: i64,
     depth: i64,
@@ -6620,34 +7034,35 @@ unsafe extern "C" fn native_bridge_value_operation(
     tags: *const i64,
     argument_count: i64,
     result_tag: i64,
-) -> i64 {
+    output: *mut i64,
+) -> i32 {
     let Ok(argument_count) = usize::try_from(argument_count) else {
-        return -1;
+        return 0;
     };
     if arena.is_null()
+        || output.is_null()
         || (argument_count > 0 && (values.is_null() || tags.is_null()))
-        || argument_count > isize::MAX as usize / size_of::<i64>()
+        || argument_count > 16_384
     {
-        return -1;
+        return 0;
     }
     let values = if argument_count == 0 {
         &[]
     } else {
-        // SAFETY: generated code passes pointers to stack slots sized for this count.
+        // SAFETY: generated code allocates both arrays for this exact count.
         unsafe { std::slice::from_raw_parts(values, argument_count) }
     };
     let tags = if argument_count == 0 {
         &[]
     } else {
-        // SAFETY: generated code passes pointers to stack slots sized for this count.
+        // SAFETY: generated code allocates both arrays for this exact count.
         unsafe { std::slice::from_raw_parts(tags, argument_count) }
     };
-    // SAFETY: the generated function receives the live invocation-local arena
-    // pointer from NativeCode::invoke and calls synchronously on that invocation.
+    // SAFETY: the arena belongs to the synchronous native invocation.
     let arena = unsafe { &mut *arena };
     match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        arena.bridge_value_operation(
-            operation,
+        arena.execute_native_operation(
+            native_backend::NATIVE_BRIDGE_MAKE_RECORD,
             function_index,
             instruction_index,
             depth,
@@ -6656,11 +7071,15 @@ unsafe extern "C" fn native_bridge_value_operation(
             result_tag,
         )
     })) {
-        Ok(Some(value)) => value,
-        Ok(None) => -1,
+        Ok(Some(value)) => {
+            // SAFETY: the generated caller provides one writable i64 result slot.
+            unsafe { output.write(value) };
+            1
+        }
+        Ok(None) => 0,
         Err(_) => {
             arena.record_bridge_panic(function_index, instruction_index);
-            -1
+            0
         }
     }
 }
