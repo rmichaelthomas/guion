@@ -1015,6 +1015,117 @@ fn same_local_map_update_preserves_other_shared_aliases() {
 }
 
 #[test]
+fn map_record_updates_preserve_map_and_record_aliases() {
+    let source = "record Summary:\n    count: Int\n    oldest: Int\n    newest: Int\n\nfn main() -> Int:\n    var groups: Map[Text, Summary] = {}\n    set groups = map_set(groups, \"svc:date\", Summary(1, 10, 10))\n    let previous = groups\n    set groups = map_record_set(groups, \"svc:date\", \"count\", 2)\n    set groups = map_record_set(groups, \"svc:date\", \"newest\", 20)\n    assert(map_record_get(previous, \"svc:date\", \"count\") == 1)\n    assert(map_record_get(previous, \"svc:date\", \"newest\") == 10)\n    assert(map_record_get(groups, \"svc:date\", \"count\") == 2)\n    assert(map_record_get(groups, \"svc:date\", \"newest\") == 20)\n    return len(previous) + len(groups)\n";
+    let artifact = compile("map-record-update-alias.gu", source)
+        .expect("typed map record update source compiles");
+    let mut native = Runtime::new()
+        .load(artifact.clone(), HostPolicy::default())
+        .unwrap();
+    let mut vm = Runtime::vm_only()
+        .load(artifact, HostPolicy::default())
+        .unwrap();
+
+    let expected = Value::Int(BigInt::from_usize(2));
+    assert_eq!(native.invoke("main", vec![]).unwrap(), expected);
+    assert_eq!(vm.invoke("main", vec![]).unwrap(), expected);
+}
+
+#[test]
+fn same_local_map_record_updates_reuse_unique_ownership() {
+    let source = "record Summary:\n    count: Int\n\nfn main() -> Int:\n    var groups: Map[Text, Summary] = {}\n    set groups = map_set(groups, \"svc:date\", Summary(0))\n    var index = 0\n    while index < 100:\n        let count = map_record_get(groups, \"svc:date\", \"count\")\n        set groups = map_record_set(groups, \"svc:date\", \"count\", count + 1)\n        set index = index + 1\n    return map_record_get(groups, \"svc:date\", \"count\")\n";
+    let artifact = compile("map-record-update-budget.gu", source)
+        .expect("typed map record update source compiles");
+    assert!(artifact.functions[0].code.windows(2).any(|window| {
+        matches!(window[0].op, Op::MapRecordSet(_, _, false)) && matches!(window[1].op, Op::Store(_))
+    }), "mutable record update should store back to its map local: {:?}", artifact.functions[0].code);
+    let mut instance = Runtime::new()
+        .with_runtime_profile()
+        .load(artifact, HostPolicy::default())
+        .unwrap();
+
+    assert_eq!(
+        instance.invoke("main", vec![]).unwrap(),
+        Value::Int(BigInt::from_usize(100))
+    );
+    let update_profile = instance.runtime_profile().unwrap()["map_record_update"].clone();
+    assert_eq!(update_profile["operations"], 100);
+    assert_eq!(update_profile["in_place_updates"], 100, "{update_profile}");
+    assert_eq!(update_profile["copy_on_write_copies"], 0, "{update_profile}");
+}
+
+#[test]
+fn nested_map_record_updates_preserve_shared_aliases() {
+    let source = "record Summary:\n    count: Int\n\nfn main() -> Int:\n    var groups: Map[Text, Map[Text, Summary]] = {}\n    var by_date: Map[Text, Summary] = {}\n    set by_date = map_set(by_date, \"2026-10-29\", Summary(1))\n    set groups = map_set(groups, \"svc\", by_date)\n    let previous = groups\n    set groups = map_record_set(groups, \"svc\", \"2026-10-29\", \"count\", 2)\n    assert(map_record_get(previous, \"svc\", \"2026-10-29\", \"count\") == 1)\n    assert(map_record_get(groups, \"svc\", \"2026-10-29\", \"count\") == 2)\n    return 0\n";
+    let artifact = compile("nested-map-record-alias.gu", source)
+        .expect("nested typed map record update source compiles");
+    let mut instance = Runtime::new()
+        .with_runtime_profile()
+        .load(artifact, HostPolicy::default())
+        .unwrap();
+
+    assert_eq!(
+        instance.invoke("main", vec![]).unwrap(),
+        Value::Int(BigInt::from_usize(0))
+    );
+    let profile = instance.runtime_profile().unwrap()["map_record_update"].clone();
+    assert_eq!(profile["operations"], 1);
+    assert_eq!(profile["in_place_updates"], 0);
+    assert_eq!(profile["copy_on_write_copies"], 1);
+    assert!(profile["estimated_map_copy_bytes"].as_u64().unwrap() > 0);
+}
+
+#[test]
+fn same_local_nested_map_record_updates_reuse_unique_ownership() {
+    let source = "record Summary:\n    count: Int\n\nfn main() -> Int:\n    var by_date: Map[Text, Summary] = {}\n    set by_date = map_set(by_date, \"2026-10-29\", Summary(0))\n    var groups: Map[Text, Map[Text, Summary]] = {}\n    set groups = map_set(groups, \"svc\", by_date)\n    set by_date = {}\n    var index = 0\n    while index < 100:\n        let count = map_record_get(groups, \"svc\", \"2026-10-29\", \"count\")\n        set groups = map_record_set(groups, \"svc\", \"2026-10-29\", \"count\", count + 1)\n        set index = index + 1\n    return map_record_get(groups, \"svc\", \"2026-10-29\", \"count\")\n";
+    let artifact = compile("nested-map-record-update-unique.gu", source)
+        .expect("nested typed map record update source compiles");
+    assert!(artifact.functions[0].code.windows(2).any(|window| {
+        matches!(window[0].op, Op::MapRecordSet(_, _, true))
+            && matches!(window[1].op, Op::Store(_))
+    }));
+    let mut instance = Runtime::new()
+        .with_runtime_profile()
+        .load(artifact, HostPolicy::default())
+        .unwrap();
+
+    assert_eq!(
+        instance.invoke("main", vec![]).unwrap(),
+        Value::Int(BigInt::from_usize(100))
+    );
+    let profile = instance.runtime_profile().unwrap()["map_record_update"].clone();
+    assert_eq!(profile["operations"], 100);
+    assert_eq!(profile["in_place_updates"], 100, "{profile}");
+    assert_eq!(profile["copy_on_write_copies"], 0, "{profile}");
+}
+
+#[test]
+fn map_record_update_requires_an_existing_key_and_valid_typed_field() {
+    let missing_key_source = "record Summary:\n    count: Int\n\nfn main() -> Int:\n    var groups: Map[Text, Summary] = {}\n    set groups = map_set(groups, \"present\", Summary(1))\n    set groups = map_record_set(groups, \"missing\", \"count\", 2)\n    return 0\n";
+    let artifact = compile("map-record-update-missing.gu", missing_key_source).unwrap();
+    let mut instance = Runtime::new()
+        .load(artifact, HostPolicy::default())
+        .unwrap();
+    assert_eq!(instance.invoke("main", vec![]).unwrap_err().code, "R_MAP_KEY");
+
+    let invalid_field_source = "record Summary:\n    count: Int\n\nfn main() -> Int:\n    var groups: Map[Text, Summary] = {}\n    set groups = map_record_set(groups, \"key\", \"missing\", 1)\n    return 0\n";
+    assert_eq!(
+        compile("map-record-update-invalid-field.gu", invalid_field_source)
+            .unwrap_err()
+            .code,
+        "E_FIELD_UNKNOWN"
+    );
+
+    let invalid_value_source = "record Summary:\n    count: Int\n\nfn main() -> Int:\n    var groups: Map[Text, Summary] = {}\n    set groups = map_record_set(groups, \"key\", \"count\", \"two\")\n    return 0\n";
+    assert_eq!(
+        compile("map-record-update-invalid-value.gu", invalid_value_source)
+            .unwrap_err()
+            .code,
+        "E_TYPE_ARGUMENT"
+    );
+}
+
+#[test]
 fn map_set_existing_key_preserves_nonlocal_aliases() {
     let source = "fn main() -> Int:\n    let original: Map[Text, Int] = {\"one\": 1}\n    let updated = map_set(original, \"one\", 2)\n    assert(original[\"one\"] == 1)\n    assert(updated[\"one\"] == 2)\n    return len(original) + len(updated)\n";
     let artifact = compile("map-update-existing-alias.gu", source).unwrap();
@@ -2470,6 +2581,142 @@ fn native_mixed_value_functions_fall_back_without_opt_in() {
     assert!(rejected
         .iter()
         .any(|function| function["name"].as_str() == Some("accepts_text")));
+}
+
+#[test]
+fn native_backend_keeps_result_and_option_chains_in_one_tier_by_default() {
+    let source = "fn make_result(value: Int, message: Text) -> Result[Int, Text]:\n    if value < 0:\n        return Err(message)\n    return Ok(value)\n\nfn make_option(value: Int) -> Option[Int]:\n    if value < 0:\n        return None\n    return Some(value)\n\nfn run_result(value: Int, message: Text) -> Int:\n    let result = make_result(value, message)\n    if is_ok(result):\n        return unwrap(result)\n    return -1\n\nfn run_option(value: Int) -> Int:\n    let option = make_option(value)\n    if is_some(option):\n        return unwrap(option)\n    return -1\n\nfn main() -> Int:\n    return run_option(22) + run_option(-1)\n";
+    let artifact = compile("native-result-option-tier.gu", source)
+        .expect("Result/Option execution-tier fixture compiles");
+
+    let mut native = Runtime::new()
+        .load(artifact.clone(), HostPolicy::default())
+        .expect("native runtime loads");
+    let mut vm = Runtime::vm_only()
+        .load(artifact, HostPolicy::default())
+        .expect("VM runtime loads");
+
+    let expected = Value::Int(BigInt::from_i64(21));
+    assert_eq!(native.invoke("main", vec![]).unwrap(), expected);
+    assert_eq!(vm.invoke("main", vec![]).unwrap(), expected);
+    let result_arguments = vec![Value::Int(BigInt::from_i64(11)), Value::Text("negative".into())];
+    assert_eq!(
+        native.invoke("run_result", result_arguments.clone()).unwrap(),
+        Value::Int(BigInt::from_i64(11))
+    );
+    assert_eq!(
+        vm.invoke("run_result", result_arguments.clone()).unwrap(),
+        Value::Int(BigInt::from_i64(11))
+    );
+    let error_arguments = vec![Value::Int(BigInt::from_i64(-1)), Value::Text("negative".into())];
+    assert_eq!(
+        native.invoke("run_result", error_arguments.clone()).unwrap(),
+        Value::Int(BigInt::from_i64(-1))
+    );
+    assert_eq!(
+        vm.invoke("run_result", error_arguments).unwrap(),
+        Value::Int(BigInt::from_i64(-1))
+    );
+    let compiled = native.native_function_names();
+    for name in ["make_result", "make_option", "run_result", "run_option", "main"] {
+        assert!(
+            compiled.iter().any(|compiled_name| compiled_name == name),
+            "{name} should stay in the native execution tier; compiled: {compiled:?}; profile: {}",
+            native.native_compile_profile()
+        );
+    }
+}
+
+#[test]
+fn native_backend_keeps_result_error_text_literals_in_the_native_tier() {
+    let source = "fn checked_result(value: Int) -> Result[Int, Text]:\n    if value % 7 == 0:\n        return Err(\"rejected\")\n    return Ok(value)\n\nfn main() -> Int:\n    let failure = checked_result(7)\n    let success = checked_result(8)\n    var index = 1\n    var checksum = 0\n    while index <= 600:\n        let current = checked_result(index)\n        if is_ok(current):\n            set checksum = checksum + unwrap(current)\n        set index = index + 1\n    if not is_ok(failure) and is_ok(success):\n        return checksum\n    return -1\n";
+    let artifact = compile("native-result-error-text-literal.gu", source)
+        .expect("Result error literal fixture compiles");
+    let mut native = Runtime::new()
+        .load(artifact.clone(), HostPolicy::default())
+        .expect("native runtime loads");
+    let mut vm = Runtime::vm_only()
+        .load(artifact, HostPolicy::default())
+        .expect("VM runtime loads");
+
+    let expected_error = Value::ResultErr(Box::new(Value::Text("rejected".into())));
+    assert_eq!(
+        native
+            .invoke("checked_result", vec![Value::Int(BigInt::from_i64(7))])
+            .unwrap(),
+        expected_error
+    );
+    assert_eq!(
+        native.invoke("main", vec![]).unwrap(),
+        Value::Int(BigInt::from_i64(154715))
+    );
+    assert_eq!(
+        vm.invoke("main", vec![]).unwrap(),
+        Value::Int(BigInt::from_i64(154715))
+    );
+    let compiled = native.native_function_names();
+    assert!(compiled.iter().any(|name| name == "checked_result"));
+    assert!(compiled.iter().any(|name| name == "main"));
+}
+
+#[test]
+#[cfg(feature = "native-value-bridge")]
+fn native_backend_keeps_json_result_tag_checks_in_the_native_tier_when_enabled() {
+    let source = "fn accepts_text(value: Json) -> Bool:\n    return is_ok(json_try_text(value))\n\nfn main() -> Int:\n    return 0\n";
+    let artifact = compile("native-json-result-tier.gu", source)
+        .expect("JSON Result execution-tier fixture compiles");
+    let text_json = Value::Json(SharedJson::from_serde(serde_json::json!("guion")));
+    let number_json = Value::Json(SharedJson::from_serde(serde_json::json!(42)));
+
+    let mut native = Runtime::new()
+        .load(artifact.clone(), HostPolicy::default())
+        .expect("native runtime loads");
+    let mut vm = Runtime::vm_only()
+        .load(artifact, HostPolicy::default())
+        .expect("VM runtime loads");
+    assert_eq!(native.invoke("accepts_text", vec![text_json.clone()]).unwrap(), Value::Bool(true));
+    assert_eq!(native.invoke("accepts_text", vec![number_json.clone()]).unwrap(), Value::Bool(false));
+    assert_eq!(vm.invoke("accepts_text", vec![text_json]).unwrap(), Value::Bool(true));
+    assert_eq!(vm.invoke("accepts_text", vec![number_json]).unwrap(), Value::Bool(false));
+    assert!(native.native_function_names().iter().any(|name| name == "accepts_text"));
+}
+
+#[test]
+#[cfg(feature = "native-value-bridge")]
+fn native_backend_indexes_typed_json_handle_lists() {
+    let source = "import \"std:json\"\n\nfn main() -> Int:\n    let document = unwrap(json_parse(\"{\\\"count\\\":7}\"))\n    let rows: List[Json] = [document]\n    let field = unwrap(json_get_safe(rows[0], \"count\"))\n    let count = json_int_safe(field)\n    if is_ok(count):\n        return unwrap(count)\n    return -1\n";
+    let project_root = std::env::temp_dir().join(format!(
+        "guion-native-json-handle-list-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    std::fs::create_dir_all(&project_root).expect("temporary project directory is created");
+    let entry = project_root.join("main.gu");
+    std::fs::write(&entry, source).expect("temporary project source is written");
+    let stdlib_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../language/stdlib");
+    let artifact = compile_project_with_roots(
+        &entry,
+        &project_root,
+        Some(&stdlib_root),
+        &std::collections::HashMap::new(),
+    )
+    .expect("typed JSON handle-list fixture compiles");
+    let mut native = Runtime::new()
+        .load(artifact.clone(), HostPolicy::default())
+        .expect("native runtime loads");
+    let mut vm = Runtime::vm_only()
+        .load(artifact, HostPolicy::default())
+        .expect("VM runtime loads");
+
+    let expected = Value::Int(BigInt::from_i64(7));
+    assert_eq!(native.invoke("main", vec![]).unwrap(), expected);
+    assert_eq!(vm.invoke("main", vec![]).unwrap(), expected);
+    assert!(native.native_function_names().iter().any(|name| name == "main"));
+    let _ = std::fs::remove_dir_all(project_root);
 }
 
 #[cfg(feature = "native-value-bridge")]

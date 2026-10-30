@@ -1,0 +1,32 @@
+record EventSummary:
+    count: Int
+    oldest: Int
+    newest: Int
+
+fn main() -> Int:
+    let iterations = 120000
+    let keys: List[Text] = ["service-0/date-0", "service-0/date-1", "service-0/date-2", "service-0/date-3", "service-0/date-4", "service-1/date-0", "service-1/date-1", "service-1/date-2", "service-1/date-3", "service-1/date-4", "service-2/date-0", "service-2/date-1", "service-2/date-2", "service-2/date-3", "service-2/date-4", "service-3/date-0", "service-3/date-1", "service-3/date-2", "service-3/date-3", "service-3/date-4"]
+    var groups: Map[Text, EventSummary] = {}
+    for key in keys:
+        set groups = map_set(groups, key, EventSummary(0, -1, 0))
+    var index = 0
+    while index < iterations:
+        let key = keys[index % 20]
+        let timestamp = index + 1
+        let count = map_record_get(groups, key, "count")
+        var oldest = map_record_get(groups, key, "oldest")
+        if oldest < 0 or timestamp < oldest:
+            set oldest = timestamp
+        var newest = map_record_get(groups, key, "newest")
+        if timestamp > newest:
+            set newest = timestamp
+        set groups = map_record_set(groups, key, "count", count + 1)
+        set groups = map_record_set(groups, key, "oldest", oldest)
+        set groups = map_record_set(groups, key, "newest", newest)
+        set index = index + 1
+    for key in groups:
+        print(key)
+        print(map_record_get(groups, key, "count"))
+        print(map_record_get(groups, key, "oldest"))
+        print(map_record_get(groups, key, "newest"))
+    return 0

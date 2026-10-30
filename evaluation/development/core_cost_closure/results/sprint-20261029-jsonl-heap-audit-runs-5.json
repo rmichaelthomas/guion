@@ -1,0 +1,107 @@
+{
+  "binary_sha256": "a3175b7bd6e249b717e6e2c4aca1fe07ebefde2feb84552ed0b69234923a669b",
+  "artifact_sha256": "31ee626fff705d65dd4a479cba7c5fbcc7c131a9b7eded9d443b409fe343e962",
+  "output_sha256": "b1b0afe4074a5a945c2ae6a097cb269174999dd6545ef380f5008ba8c36dd7fd",
+  "records": [
+    {
+      "pair": 0,
+      "mode": "off",
+      "execute_ns": 2574824424,
+      "allocation_api": null
+    },
+    {
+      "pair": 0,
+      "mode": "on",
+      "execute_ns": 2710294190,
+      "allocation_api": {
+        "malloc_calls": 28295730,
+        "calloc_calls": 5,
+        "realloc_calls": 790147,
+        "free_calls": 28295722,
+        "malloc_bytes": 1770222980,
+        "calloc_bytes": 356,
+        "realloc_bytes": 632207605
+      }
+    },
+    {
+      "pair": 1,
+      "mode": "on",
+      "execute_ns": 2763904284,
+      "allocation_api": {
+        "malloc_calls": 28295730,
+        "calloc_calls": 5,
+        "realloc_calls": 790147,
+        "free_calls": 28295722,
+        "malloc_bytes": 1770222980,
+        "calloc_bytes": 356,
+        "realloc_bytes": 632207605
+      }
+    },
+    {
+      "pair": 1,
+      "mode": "off",
+      "execute_ns": 2523403587,
+      "allocation_api": null
+    },
+    {
+      "pair": 2,
+      "mode": "off",
+      "execute_ns": 2506661467,
+      "allocation_api": null
+    },
+    {
+      "pair": 2,
+      "mode": "on",
+      "execute_ns": 2712534950,
+      "allocation_api": {
+        "malloc_calls": 28295730,
+        "calloc_calls": 5,
+        "realloc_calls": 790147,
+        "free_calls": 28295722,
+        "malloc_bytes": 1770222980,
+        "calloc_bytes": 356,
+        "realloc_bytes": 632207605
+      }
+    },
+    {
+      "pair": 3,
+      "mode": "on",
+      "execute_ns": 2707453302,
+      "allocation_api": {
+        "malloc_calls": 28295730,
+        "calloc_calls": 5,
+        "realloc_calls": 790147,
+        "free_calls": 28295722,
+        "malloc_bytes": 1770222980,
+        "calloc_bytes": 356,
+        "realloc_bytes": 632207605
+      }
+    },
+    {
+      "pair": 3,
+      "mode": "off",
+      "execute_ns": 2595663593,
+      "allocation_api": null
+    },
+    {
+      "pair": 4,
+      "mode": "on",
+      "execute_ns": 2725065142,
+      "allocation_api": {
+        "malloc_calls": 28295730,
+        "calloc_calls": 5,
+        "realloc_calls": 790147,
+        "free_calls": 28295722,
+        "malloc_bytes": 1770222980,
+        "calloc_bytes": 356,
+        "realloc_bytes": 632207605
+      }
+    },
+    {
+      "pair": 4,
+      "mode": "off",
+      "execute_ns": 2516370850,
+      "allocation_api": null
+    }
+  ]
+}

@@ -26,35 +26,19 @@ use std::fmt;
 
 pub(crate) const NATIVE_INLINE_LIST_ITEMS: usize = 8;
 pub(crate) const NATIVE_BRIDGE_JSON_TRY_TEXT: i64 = 1;
-pub(crate) const NATIVE_BRIDGE_IS_OK: i64 = 2;
 pub(crate) const NATIVE_BRIDGE_JSON_TRY_GET: i64 = 3;
 pub(crate) const NATIVE_BRIDGE_JSON_TRY_INT: i64 = 4;
 pub(crate) const NATIVE_BRIDGE_JSON_PARSE: i64 = 5;
 pub(crate) const NATIVE_BRIDGE_FILE_NEXT_LINE: i64 = 6;
-pub(crate) const NATIVE_BRIDGE_IS_SOME: i64 = 7;
-pub(crate) const NATIVE_BRIDGE_UNWRAP: i64 = 8;
-pub(crate) const NATIVE_BRIDGE_GET_ERROR: i64 = 9;
-pub(crate) const NATIVE_BRIDGE_MAKE_OK: i64 = 10;
-pub(crate) const NATIVE_BRIDGE_MAKE_ERR: i64 = 11;
-pub(crate) const NATIVE_BRIDGE_MAKE_SOME: i64 = 12;
-pub(crate) const NATIVE_BRIDGE_MAKE_NONE: i64 = 13;
 pub(crate) const NATIVE_BRIDGE_MAKE_RECORD: i64 = 14;
 pub(crate) const NATIVE_BRIDGE_GET_FIELD: i64 = 15;
 
-pub(crate) const NATIVE_DIRECT_OPERATION_NAMES: [&str; 14] = [
+pub(crate) const NATIVE_DIRECT_OPERATION_NAMES: [&str; 6] = [
     "json_parse",
     "json_try_text",
     "json_try_get",
     "json_try_int",
     "file_next_line",
-    "is_ok",
-    "is_some",
-    "unwrap",
-    "get_error",
-    "make_ok",
-    "make_err",
-    "make_some",
-    "make_none",
     "get_field",
 ];
 
@@ -63,21 +47,55 @@ const NATIVE_BRIDGE_TAG_FLOAT: i64 = 2;
 const NATIVE_BRIDGE_TAG_BOOL: i64 = 3;
 const NATIVE_BRIDGE_TAG_HANDLE: i64 = 4;
 
+pub(crate) const NATIVE_TAGGED_RESULT_OK: i64 = 1;
+pub(crate) const NATIVE_TAGGED_RESULT_ERR: i64 = 2;
+pub(crate) const NATIVE_TAGGED_OPTION_SOME: i64 = 3;
+pub(crate) const NATIVE_TAGGED_OPTION_NONE: i64 = 4;
+pub(crate) const NATIVE_CONSTANT_HANDLE_BASE: i64 = 1_i64 << 60;
+
+fn native_constant_handles(artifact: &Artifact) -> Vec<Vec<Option<i64>>> {
+    let mut next = 0_i64;
+    artifact
+        .functions
+        .iter()
+        .map(|function| {
+            function
+                .code
+                .iter()
+                .map(|instruction| {
+                    if matches!(&instruction.op, Op::Const(Value::Text(_) | Value::Bytes(_))) {
+                        let handle = NATIVE_CONSTANT_HANDLE_BASE.checked_add(next)?;
+                        next = next.checked_add(1)?;
+                        Some(handle)
+                    } else {
+                        None
+                    }
+                })
+                .collect()
+        })
+        .collect()
+}
+
+/// Stable, invocation-local layout for Result and Option values inside native code.
+/// Handles are negative pointers into stable inline arena slots or overflow chunks;
+/// ordinary arena handles remain positive indices. The VM value is materialized only
+/// at a VM/native boundary.
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub(crate) struct NativeTaggedValue {
+    pub(crate) kind: i64,
+    pub(crate) payload_tag: i64,
+    pub(crate) payload: i64,
+    pub(crate) clone_charge_bytes: u64,
+}
+
 pub(crate) fn native_bridge_operation(op: &Op) -> Option<i64> {
     match op {
         Op::JsonTryText => Some(NATIVE_BRIDGE_JSON_TRY_TEXT),
-        Op::IsOk => Some(NATIVE_BRIDGE_IS_OK),
         Op::JsonTryGet => Some(NATIVE_BRIDGE_JSON_TRY_GET),
         Op::JsonTryInt => Some(NATIVE_BRIDGE_JSON_TRY_INT),
         Op::JsonParse => Some(NATIVE_BRIDGE_JSON_PARSE),
         Op::FileNextLine => Some(NATIVE_BRIDGE_FILE_NEXT_LINE),
-        Op::IsSome => Some(NATIVE_BRIDGE_IS_SOME),
-        Op::Unwrap => Some(NATIVE_BRIDGE_UNWRAP),
-        Op::GetError => Some(NATIVE_BRIDGE_GET_ERROR),
-        Op::MakeOk => Some(NATIVE_BRIDGE_MAKE_OK),
-        Op::MakeErr => Some(NATIVE_BRIDGE_MAKE_ERR),
-        Op::MakeSome => Some(NATIVE_BRIDGE_MAKE_SOME),
-        Op::MakeNone => Some(NATIVE_BRIDGE_MAKE_NONE),
         Op::MakeRecord(_, _) => Some(NATIVE_BRIDGE_MAKE_RECORD),
         Op::GetField(_, _) => Some(NATIVE_BRIDGE_GET_FIELD),
         _ => None,
@@ -91,15 +109,7 @@ fn native_direct_operation_index(op: &Op) -> Option<usize> {
         Op::JsonTryGet => Some(2),
         Op::JsonTryInt => Some(3),
         Op::FileNextLine => Some(4),
-        Op::IsOk => Some(5),
-        Op::IsSome => Some(6),
-        Op::Unwrap => Some(7),
-        Op::GetError => Some(8),
-        Op::MakeOk => Some(9),
-        Op::MakeErr => Some(10),
-        Op::MakeSome => Some(11),
-        Op::MakeNone => Some(12),
-        Op::GetField(_, _) => Some(13),
+        Op::GetField(_, _) => Some(5),
         _ => None,
     }
 }
@@ -165,18 +175,10 @@ fn native_integer_overflow_operation_at(
 fn native_direct_argument_count(op: &Op) -> Option<usize> {
     match op {
         Op::JsonTryGet => Some(2),
-        Op::MakeNone => Some(0),
         Op::JsonTryText
-        | Op::IsOk
         | Op::JsonTryInt
         | Op::JsonParse
-        | Op::FileNextLine
-        | Op::IsSome
-        | Op::Unwrap
-        | Op::GetError
-        | Op::MakeOk
-        | Op::MakeErr
-        | Op::MakeSome => Some(1),
+        | Op::FileNextLine => Some(1),
         _ => None,
     }
 }
@@ -221,6 +223,7 @@ pub(crate) struct NativeSymbols {
     pub(crate) list_set_bool_local: *const u8,
     pub(crate) charge_record: *const u8,
     pub(crate) charge_value_clone: *const u8,
+    pub(crate) make_tagged_value: *const u8,
     pub(crate) print: *const u8,
     pub(crate) direct_operations: [*const u8; NATIVE_DIRECT_OPERATION_NAMES.len()],
     pub(crate) make_record: *const u8,
@@ -251,6 +254,16 @@ pub(crate) struct NativeIntList {
 }
 
 #[repr(C)]
+pub(crate) struct NativeHandleList {
+    pub(crate) data: *mut i64,
+    pub(crate) len: usize,
+    pub(crate) storage_id: usize,
+    pub(crate) owned: bool,
+    pub(crate) inline_storage: bool,
+    pub(crate) inline: [i64; NATIVE_INLINE_LIST_ITEMS],
+}
+
+#[repr(C)]
 pub(crate) struct NativeRecord {
     pub(crate) fields: *const i64,
     pub(crate) len: usize,
@@ -270,6 +283,7 @@ pub(crate) struct NativeBackend {
     list_set_bool_local: FuncId,
     charge_record: FuncId,
     charge_value_clone: FuncId,
+    make_tagged_value: FuncId,
     print: FuncId,
     direct_operations: Vec<FuncId>,
     make_record: FuncId,
@@ -277,6 +291,7 @@ pub(crate) struct NativeBackend {
     capture_vm_continuation_fixed: FuncId,
     capture_vm_continuation_int2: FuncId,
     count_guest_branch: Option<FuncId>,
+    constant_handles: Vec<Vec<Option<i64>>>,
     functions: Vec<Option<*const u8>>,
     result_words: Vec<usize>,
     max_result_words: usize,
@@ -372,6 +387,7 @@ impl NativeBackend {
         builder.symbol("guion_list_set_bool_local", symbols.list_set_bool_local);
         builder.symbol("guion_charge_record", symbols.charge_record);
         builder.symbol("guion_charge_value_clone", symbols.charge_value_clone);
+        builder.symbol("guion_make_tagged_value", symbols.make_tagged_value);
         builder.symbol("guion_print", symbols.print);
         for (name, address) in NATIVE_DIRECT_OPERATION_NAMES
             .into_iter()
@@ -507,6 +523,30 @@ impl NativeBackend {
                 &charge_record_signature,
             )
             .ok()?;
+        let mut make_tagged_value_signature =
+            Signature::new(module.target_config().default_call_conv);
+        make_tagged_value_signature
+            .params
+            .push(AbiParam::new(pointer_type));
+        make_tagged_value_signature
+            .params
+            .push(AbiParam::new(types::I64));
+        make_tagged_value_signature
+            .params
+            .push(AbiParam::new(types::I64));
+        make_tagged_value_signature
+            .params
+            .push(AbiParam::new(types::I64));
+        make_tagged_value_signature
+            .returns
+            .push(AbiParam::new(types::I64));
+        let make_tagged_value_id = module
+            .declare_function(
+                "guion_make_tagged_value",
+                Linkage::Import,
+                &make_tagged_value_signature,
+            )
+            .ok()?;
         let mut print_signature = Signature::new(module.target_config().default_call_conv);
         print_signature.params.push(AbiParam::new(pointer_type));
         print_signature.params.push(AbiParam::new(types::I64));
@@ -635,6 +675,7 @@ impl NativeBackend {
             list_set_bool_local: list_set_bool_local_id,
             charge_record: charge_record_id,
             charge_value_clone: charge_value_clone_id,
+            make_tagged_value: make_tagged_value_id,
             print: print_id,
             direct_operations,
             make_record: make_record_id,
@@ -642,6 +683,7 @@ impl NativeBackend {
             capture_vm_continuation_fixed: capture_vm_continuation_fixed_id,
             capture_vm_continuation_int2: capture_vm_continuation_int2_id,
             count_guest_branch: count_guest_branch_id,
+            constant_handles: native_constant_handles(artifact),
             functions: vec![None; artifact.functions.len()],
             result_words: artifact
                 .functions
@@ -951,7 +993,12 @@ impl NativeBackend {
             let direct_operation_requires_capture =
                 native_direct_operation_index(&instruction.op).is_some()
                     && !matches!(&instruction.op, Op::GetField(_, _) | Op::MakeRecord(_, _));
+            let tagged_value_requires_capture = matches!(
+                &instruction.op,
+                Op::Unwrap | Op::GetError | Op::MakeOk | Op::MakeErr | Op::MakeSome | Op::MakeNone
+            );
             direct_operation_requires_capture
+                || tagged_value_requires_capture
                 || record_requires_direct_call
                 || stack_types
                     .get(ip)
@@ -1023,6 +1070,9 @@ impl NativeBackend {
         let charge_value_clone = self
             .module
             .declare_func_in_func(self.charge_value_clone, &mut context.func);
+        let make_tagged_value = self
+            .module
+            .declare_func_in_func(self.make_tagged_value, &mut context.func);
         let print = self
             .module
             .declare_func_in_func(self.print, &mut context.func);
@@ -1304,6 +1354,16 @@ impl NativeBackend {
                         };
                         stack.push(builder.ins().iconst(types::I64, value));
                     }
+                    Op::Const(Value::Text(_) | Value::Bytes(_)) => {
+                        let handle = self
+                            .constant_handles
+                            .get(index)
+                            .and_then(|handles| handles.get(ip))
+                            .copied()
+                            .flatten()
+                            .ok_or_else(|| "native constant handle is missing".to_owned())?;
+                        stack.push(builder.ins().iconst(types::I64, handle));
+                    }
                     Op::Const(Value::Bool(value)) => {
                         stack.push(builder.ins().iconst(types::I64, i64::from(*value)));
                     }
@@ -1527,7 +1587,7 @@ impl NativeBackend {
                             let value = emit_native_direct_operation_call(
                                 &mut builder,
                                 ptr,
-                                direct_operations[13],
+                                direct_operations[5],
                                 continuation_codegen,
                                 ip,
                                 block_instruction_offsets[ip],
@@ -2567,19 +2627,138 @@ impl NativeBackend {
                         builder.switch_to_block(success);
                         builder.seal_block(success);
                     }
+                    Op::IsOk | Op::IsSome => {
+                        let handle = stack.pop().ok_or_else(|| "stack underflow".to_owned())?;
+                        let pointer = native_tagged_value_pointer(&mut builder, ptr, handle);
+                        let kind_offset = i32::try_from(std::mem::offset_of!(NativeTaggedValue, kind))
+                            .map_err(|_| "tagged value layout is invalid".to_owned())?;
+                        let kind = builder
+                            .ins()
+                            .load(types::I64, MemFlagsData::new(), pointer, kind_offset);
+                        let expected_kind = if matches!(&instruction.op, Op::IsOk) {
+                            NATIVE_TAGGED_RESULT_OK
+                        } else {
+                            NATIVE_TAGGED_OPTION_SOME
+                        };
+                        let expected = builder.ins().iconst(types::I64, expected_kind);
+                        let matched = builder.ins().icmp(IntCC::Equal, kind, expected);
+                        stack.push(builder.ins().uextend(types::I64, matched));
+                    }
+                    Op::Unwrap | Op::GetError => {
+                        let input_type = stack_types[ip]
+                            .as_ref()
+                            .and_then(|types| types.last())
+                            .ok_or_else(|| "missing tagged input type".to_owned())?;
+                        let output_type = stack_types
+                            .get(ip + 1)
+                            .and_then(Option::as_ref)
+                            .and_then(|types| types.last())
+                            .ok_or_else(|| "missing tagged output type".to_owned())?;
+                        let expected_kind = match (&instruction.op, input_type) {
+                            (Op::Unwrap, Type::Result(_, _)) => NATIVE_TAGGED_RESULT_OK,
+                            (Op::Unwrap, Type::Option(_)) => NATIVE_TAGGED_OPTION_SOME,
+                            (Op::GetError, Type::Result(_, _)) => NATIVE_TAGGED_RESULT_ERR,
+                            _ => return Err("invalid native tagged extraction".into()),
+                        };
+                        let handle = stack.pop().ok_or_else(|| "stack underflow".to_owned())?;
+                        let local_tags =
+                            continuation_local_tags(function, &type_states, ip, records);
+                        let stack_tags = continuation_stack_tags(
+                            &type_states,
+                            ip,
+                            instruction_stack.len(),
+                            records,
+                        );
+                        let value = emit_native_tagged_value_extract(
+                            &mut builder,
+                            ptr,
+                            handle,
+                            expected_kind,
+                            native_bridge_tag(output_type),
+                            continuation_codegen,
+                            ip,
+                            block_instruction_offsets[ip],
+                            &local_tags,
+                            &instruction_stack,
+                            &stack_tags,
+                        )?;
+                        stack.push(value);
+                    }
+                    Op::MakeOk | Op::MakeErr | Op::MakeSome | Op::MakeNone => {
+                        let (kind, payload_type, payload) = match &instruction.op {
+                            Op::MakeOk => (
+                                NATIVE_TAGGED_RESULT_OK,
+                                stack_types[ip]
+                                    .as_ref()
+                                    .and_then(|types| types.last())
+                                    .cloned(),
+                                stack.pop(),
+                            ),
+                            Op::MakeErr => (
+                                NATIVE_TAGGED_RESULT_ERR,
+                                stack_types[ip]
+                                    .as_ref()
+                                    .and_then(|types| types.last())
+                                    .cloned(),
+                                stack.pop(),
+                            ),
+                            Op::MakeSome => (
+                                NATIVE_TAGGED_OPTION_SOME,
+                                stack_types[ip]
+                                    .as_ref()
+                                    .and_then(|types| types.last())
+                                    .cloned(),
+                                stack.pop(),
+                            ),
+                            Op::MakeNone => (NATIVE_TAGGED_OPTION_NONE, None, None),
+                            _ => unreachable!(),
+                        };
+                        let kind = builder.ins().iconst(types::I64, kind);
+                        let payload_tag = builder.ins().iconst(
+                            types::I64,
+                            payload_type.as_ref().map_or(0, native_bridge_tag),
+                        );
+                        let payload = payload.unwrap_or_else(|| builder.ins().iconst(types::I64, 0));
+                        let tagged_value = builder.ins().call(
+                            make_tagged_value,
+                            &[arena_pointer, kind, payload_tag, payload],
+                        );
+                        let tagged_value = builder.inst_results(tagged_value)[0];
+                        let zero = builder.ins().iconst(types::I64, 0);
+                        let succeeded = builder
+                            .ins()
+                            .icmp(IntCC::NotEqual, tagged_value, zero);
+                        let success = builder.create_block();
+                        let failure = builder.create_block();
+                        builder.ins().brif(succeeded, success, &[], failure, &[]);
+                        builder.switch_to_block(failure);
+                        let local_tags =
+                            continuation_local_tags(function, &type_states, ip, records);
+                        let stack_tags = continuation_stack_tags(
+                            &type_states,
+                            ip,
+                            instruction_stack.len(),
+                            records,
+                        );
+                        emit_native_capture_exit(
+                            &mut builder,
+                            continuation_codegen,
+                            ip,
+                            block_instruction_offsets[ip],
+                            &local_tags,
+                            &instruction_stack,
+                            &stack_tags,
+                        );
+                        builder.seal_block(failure);
+                        builder.switch_to_block(success);
+                        stack.push(tagged_value);
+                        builder.seal_block(success);
+                    }
                     Op::JsonTryText
-                    | Op::IsOk
                     | Op::JsonTryGet
                     | Op::JsonTryInt
                     | Op::JsonParse
-                    | Op::FileNextLine
-                    | Op::IsSome
-                    | Op::Unwrap
-                    | Op::GetError
-                    | Op::MakeOk
-                    | Op::MakeErr
-                    | Op::MakeSome
-                    | Op::MakeNone =>
+                    | Op::FileNextLine =>
                     {
                         let argument_count = native_direct_argument_count(&instruction.op)
                             .ok_or_else(|| "missing direct native argument count".to_owned())?;
@@ -2904,6 +3083,85 @@ fn emit_native_direct_operation_call(
         .load(types::I64, MemFlagsData::new(), result_pointer, 0);
     builder.seal_block(success);
     Ok(result)
+}
+
+fn native_tagged_value_pointer(
+    builder: &mut FunctionBuilder<'_>,
+    pointer_type: cranelift_codegen::ir::Type,
+    handle: cranelift_codegen::ir::Value,
+) -> cranelift_codegen::ir::Value {
+    let address = builder.ins().ineg(handle);
+    if pointer_type == types::I64 {
+        address
+    } else {
+        builder.ins().ireduce(pointer_type, address)
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn emit_native_tagged_value_extract(
+    builder: &mut FunctionBuilder<'_>,
+    pointer_type: cranelift_codegen::ir::Type,
+    handle: cranelift_codegen::ir::Value,
+    expected_kind: i64,
+    expected_payload_tag: i64,
+    codegen: NativeContinuationCodegen<'_>,
+    ip: usize,
+    completed_in_block: usize,
+    local_tags: &[i64],
+    stack_values: &[cranelift_codegen::ir::Value],
+    stack_tags: &[i64],
+) -> Result<cranelift_codegen::ir::Value, String> {
+    let pointer = native_tagged_value_pointer(builder, pointer_type, handle);
+    let kind_offset = i32::try_from(std::mem::offset_of!(NativeTaggedValue, kind))
+        .map_err(|_| "tagged value layout is invalid".to_owned())?;
+    let payload_tag_offset =
+        i32::try_from(std::mem::offset_of!(NativeTaggedValue, payload_tag))
+            .map_err(|_| "tagged value layout is invalid".to_owned())?;
+    let payload_offset = i32::try_from(std::mem::offset_of!(NativeTaggedValue, payload))
+        .map_err(|_| "tagged value layout is invalid".to_owned())?;
+    let kind = builder
+        .ins()
+        .load(types::I64, MemFlagsData::new(), pointer, kind_offset);
+    let expected_kind = builder.ins().iconst(types::I64, expected_kind);
+    let kind_matches = builder
+        .ins()
+        .icmp(IntCC::Equal, kind, expected_kind);
+    let payload_tag = builder.ins().load(
+        types::I64,
+        MemFlagsData::new(),
+        pointer,
+        payload_tag_offset,
+    );
+    let expected_payload_tag = builder
+        .ins()
+        .iconst(types::I64, expected_payload_tag);
+    let payload_matches = builder
+        .ins()
+        .icmp(IntCC::Equal, payload_tag, expected_payload_tag);
+    let can_extract = builder.ins().band(kind_matches, payload_matches);
+    let success = builder.create_block();
+    let side_exit = builder.create_block();
+    builder
+        .ins()
+        .brif(can_extract, success, &[], side_exit, &[]);
+    builder.switch_to_block(side_exit);
+    emit_native_capture_exit(
+        builder,
+        codegen,
+        ip,
+        completed_in_block,
+        local_tags,
+        stack_values,
+        stack_tags,
+    );
+    builder.seal_block(side_exit);
+    builder.switch_to_block(success);
+    let value = builder
+        .ins()
+        .load(types::I64, MemFlagsData::new(), pointer, payload_offset);
+    builder.seal_block(success);
+    Ok(value)
 }
 
 fn emit_native_make_record_call(
@@ -3556,6 +3814,25 @@ fn infer_native_types(
     }
     let is_numeric = |ty: &Type| matches!(ty, Type::Int | Type::Float64);
     let is_native_item = |ty: &Type| is_numeric(ty) || *ty == Type::Bool;
+    let is_native_list_item = |ty: &Type| {
+        is_native_item(ty)
+            || matches!(
+                ty,
+                Type::Text
+                    | Type::Bytes
+                    | Type::List(_)
+                    | Type::Map(_)
+                    | Type::Option(_)
+                    | Type::Result(_, _)
+                    | Type::TaskError
+                    | Type::Json
+                    | Type::JsonError
+                    | Type::FileError
+                    | Type::HttpError
+                    | Type::NativeResource(_)
+                    | Type::Record(_)
+            )
+    };
     let is_native_parameter = |ty: &Type| {
         is_native_item(ty)
             || matches!(
@@ -3603,6 +3880,8 @@ fn infer_native_types(
                 value.to_string().parse::<i64>().ok()?;
                 state.stack.push(Type::Int);
             }
+            Op::Const(Value::Text(_)) => state.stack.push(Type::Text),
+            Op::Const(Value::Bytes(_)) => state.stack.push(Type::Bytes),
             Op::Const(Value::Float64(_)) => state.stack.push(Type::Float64),
             Op::Const(Value::Bool(_)) => state.stack.push(Type::Bool),
             Op::Load(slot) => state.stack.push(state.locals.get(*slot)?.clone()?),
@@ -3790,7 +4069,7 @@ fn infer_native_types(
                 state.stack.push(function.result.clone());
             }
             Op::Length => {
-                if !matches!(state.stack.pop()?, Type::List(item) if is_native_item(&item)) {
+                if !matches!(state.stack.pop()?, Type::List(item) if is_native_list_item(&item)) {
                     return None;
                 }
                 state.stack.push(Type::Int);
@@ -3798,7 +4077,7 @@ fn infer_native_types(
             Op::MakeList(count) => {
                 let start = state.stack.len().checked_sub(*count)?;
                 let item_type = state.stack.get(start).cloned()?;
-                if !is_native_item(&item_type)
+                if !is_native_list_item(&item_type)
                     || state.stack[start..].iter().any(|ty| *ty != item_type)
                 {
                     return None;
@@ -3807,7 +4086,7 @@ fn infer_native_types(
                 state.stack.push(Type::List(Box::new(item_type)));
             }
             Op::MakeTypedList(item_type) => {
-                if !is_native_item(item_type) {
+                if !is_native_list_item(item_type) {
                     return None;
                 }
                 state.stack.push(Type::List(Box::new(item_type.clone())));
@@ -3819,7 +4098,7 @@ fn infer_native_types(
                 let Type::List(item) = state.stack.pop()? else {
                     return None;
                 };
-                if !is_native_item(&item) {
+                if !is_native_list_item(&item) {
                     return None;
                 }
                 state.stack.push(*item);
@@ -4244,6 +4523,19 @@ fn native_list_kind(item_type: &Type) -> Option<i64> {
         Type::Float64 => Some(1),
         Type::Int => Some(2),
         Type::Bool => Some(3),
+        Type::Text
+        | Type::Bytes
+        | Type::List(_)
+        | Type::Map(_)
+        | Type::Option(_)
+        | Type::Result(_, _)
+        | Type::TaskError
+        | Type::Json
+        | Type::JsonError
+        | Type::FileError
+        | Type::HttpError
+        | Type::NativeResource(_)
+        | Type::Record(_) => Some(4),
         _ => None,
     }
 }

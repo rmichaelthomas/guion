@@ -1,6 +1,6 @@
 # Guion artifact format
 
-This document specifies the canonical artifact encoding currently emitted by the Guion compiler and accepted by the native model reader. The current format is **48**. Multi-byte integers are unsigned little-endian unless a value is explicitly described as signed or textual. Strings are UTF-8 prefixed by a `u32` byte length; counts use a `u32` and are bounded to 1,000,000. A complete artifact is at most 64 MiB. Recursive values and types are limited to 64 nested levels. Readers reject truncation, overflow, unknown tags, invalid indexes, trailing bytes, and version-incompatible instructions.
+This document specifies the canonical artifact encoding currently emitted by the Guion compiler and accepted by the native model reader. The current format is **49**. Multi-byte integers are unsigned little-endian unless a value is explicitly described as signed or textual. Strings are UTF-8 prefixed by a `u32` byte length; counts use a `u32` and are bounded to 1,000,000. A complete artifact is at most 64 MiB. Recursive values and types are limited to 64 nested levels. Readers reject truncation, overflow, unknown tags, invalid indexes, trailing bytes, and version-incompatible instructions.
 
 ## Top-level layout
 
@@ -9,7 +9,7 @@ Fields occur in this order, without padding:
 | Field | Encoding | Meaning |
 |---|---|---|
 | Magic | 4 bytes `VRTA` | Identifies a Guion artifact. |
-| Format version | `u32` | Reader accepts versions 14 through 48. The current writer emits 48. |
+| Format version | `u32` | Reader accepts versions 14 through 49. The current writer emits 49. |
 | Source name | string | Entry source identity; relative names are portable. |
 | Entry function | string | Name of the entry function, normally `main`. |
 | Sources | count, then strings | Source graph in stable compiler order. A span's `source_id` indexes this table. |
@@ -248,6 +248,8 @@ Every instruction is its span followed by a one-byte opcode tag and the listed o
 | 166 | `TextSlice` | — |
 | 167 | `HttpResponseJson` | — |
 | 168 | `TimeFormatUtcDate` | — |
+| 169 | `MapRecordGet` | record index, field index, nested flag (`u8`: 0 for a direct map, 1 for a map of maps) |
+| 170 | `MapRecordSet` | record index, field index, nested flag (`u8`: 0 for a direct map, 1 for a map of maps) |
 
 Opcode tags are append-only within a format version. Tags 73–132 were added by successive format versions; format-version checks reject artifacts that use an instruction newer than their declared version. Format 36 adds stable generic sorting; the named comparator has signature `(T, T) -> Int` and must have a pure transitive call graph. Format 37 adds Unicode normalization/case mapping, exact-byte HMAC, instance-owned SQLite/TOML resources, and iCalendar parsing. Native resource type tag 17 is valid in format 37; resource handles remain non-serializable values. Format 38 adds byte-preserving HTTP request and response bodies through `http_request_bytes`. Format 39 adds explicit-grant wall-clock access through `unix_time_ms()` and `time_today_local()`.
 

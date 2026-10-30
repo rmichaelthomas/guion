@@ -827,6 +827,341 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                     ));
                 }
             },
+            Op::MapRecordGet(record_index, field_index, nested) => {
+                let nested_key = if *nested {
+                    Some(match pop!() {
+                        Value::Text(key) => key,
+                        _ => {
+                            return Err(RuntimeError::new(
+                                "R_TYPE_INVALID",
+                                "map_record_get nested key must be Text",
+                                instruction.span,
+                            ));
+                        }
+                    })
+                } else {
+                    None
+                };
+                let key = match pop!() {
+                    Value::Text(key) => key,
+                    _ => {
+                        return Err(RuntimeError::new(
+                            "R_TYPE_INVALID",
+                            "map_record_get key must be Text",
+                            instruction.span,
+                        ));
+                    }
+                };
+                let values = match pop!() {
+                    Value::Map(values) => values,
+                    _ => {
+                        return Err(RuntimeError::new(
+                            "R_TYPE_INVALID",
+                            "map_record_get first argument must be a Map",
+                            instruction.span,
+                        ));
+                    }
+                };
+                let record = artifact.records.get(*record_index).ok_or_else(|| {
+                    RuntimeError::new(
+                        "R_TYPE_INVALID",
+                        "map_record_get references a missing record type",
+                        instruction.span,
+                    )
+                })?;
+                let field = record.fields.get(*field_index).ok_or_else(|| {
+                    RuntimeError::new(
+                        "R_TYPE_INVALID",
+                        "map_record_get references a missing record field",
+                        instruction.span,
+                    )
+                })?;
+                let entry = match (values.get(key.as_ref()), nested_key.as_deref()) {
+                    (Some(Value::Record(name, fields)), None) => Some((name, fields)),
+                    (Some(Value::Map(inner)), Some(inner_key)) => match inner.get(inner_key) {
+                        Some(Value::Record(name, fields)) => Some((name, fields)),
+                        _ => None,
+                    },
+                    _ => None,
+                };
+                let Some((record_name, fields)) = entry else {
+                    return Err(RuntimeError::new(
+                        "R_MAP_KEY",
+                        format!("map_record_get key `{key}` is missing or is not a record"),
+                        instruction.span,
+                    ));
+                };
+                if record_name != &record.name {
+                    return Err(RuntimeError::new(
+                        "R_TYPE_INVALID",
+                        "map_record_get record type does not match the declared Map value",
+                        instruction.span,
+                    ));
+                }
+                let value = fields.get(*field_index).cloned().ok_or_else(|| {
+                    RuntimeError::new(
+                        "R_TYPE_INVALID",
+                        "map_record_get record is missing a declared field",
+                        instruction.span,
+                    )
+                })?;
+                if !value_matches(&value, &field.ty, &artifact.records) {
+                    return Err(RuntimeError::new(
+                        "R_TYPE_INVALID",
+                        "map_record_get field value does not match its declared type",
+                        instruction.span,
+                    ));
+                }
+                charge_allocation(
+                    budget.as_ref(),
+                    cloned_value_allocation(&value),
+                    instruction.span,
+                )?;
+                if PROFILED {
+                    if let Some(profile) = &budget.runtime_profile {
+                        profile.record_map_record_get();
+                    }
+                }
+                push_stack!(value);
+            }
+            Op::MapRecordSet(record_index, field_index, nested) => {
+                let value = pop!();
+                let nested_key = if *nested {
+                    Some(match pop!() {
+                        Value::Text(key) => key,
+                        _ => {
+                            return Err(RuntimeError::new(
+                                "R_TYPE_INVALID",
+                                "map_record_set nested key must be Text",
+                                instruction.span,
+                            ));
+                        }
+                    })
+                } else {
+                    None
+                };
+                let key = match pop!() {
+                    Value::Text(key) => key,
+                    _ => {
+                        return Err(RuntimeError::new(
+                            "R_TYPE_INVALID",
+                            "map_record_set key must be Text",
+                            instruction.span,
+                        ));
+                    }
+                };
+                let values = match pop!() {
+                    Value::Map(values) => values,
+                    _ => {
+                        return Err(RuntimeError::new(
+                            "R_TYPE_INVALID",
+                            "map_record_set first argument must be a Map",
+                            instruction.span,
+                        ));
+                    }
+                };
+                let record = artifact.records.get(*record_index).ok_or_else(|| {
+                    RuntimeError::new(
+                        "R_TYPE_INVALID",
+                        "map_record_set references a missing record type",
+                        instruction.span,
+                    )
+                })?;
+                let field = record.fields.get(*field_index).ok_or_else(|| {
+                    RuntimeError::new(
+                        "R_TYPE_INVALID",
+                        "map_record_set references a missing record field",
+                        instruction.span,
+                    )
+                })?;
+                if let Some(error) = value_limit_error(&value, &limits, instruction.span) {
+                    return Err(error);
+                }
+                let entry = match (values.get(key.as_ref()), nested_key.as_deref()) {
+                    (Some(Value::Record(name, fields)), None) => Some((name, fields)),
+                    (Some(Value::Map(inner)), Some(inner_key)) => match inner.get(inner_key) {
+                        Some(Value::Record(name, fields)) => Some((name, fields)),
+                        _ => None,
+                    },
+                    _ => None,
+                };
+                let Some((record_name, fields)) = entry else {
+                    return Err(RuntimeError::new(
+                        "R_MAP_KEY",
+                        format!("map_record_set key `{key}` is missing or is not a record"),
+                        instruction.span,
+                    ));
+                };
+                if record_name != &record.name || fields.get(*field_index).is_none() {
+                    return Err(RuntimeError::new(
+                        "R_TYPE_INVALID",
+                        "map_record_set record does not match its declared type",
+                        instruction.span,
+                    ));
+                }
+                if !value_matches(&value, &field.ty, &artifact.records) {
+                    return Err(RuntimeError::new(
+                        "R_TYPE_INVALID",
+                        "map_record_set value does not match the record field type",
+                        instruction.span,
+                    ));
+                }
+                let local_store_slot = match f.code.get(ip).map(|next| &next.op) {
+                    Some(Op::Store(slot))
+                        if locals.get(*slot).is_some_and(|local| {
+                            matches!(local, Value::Map(current) if Arc::ptr_eq(current, &values))
+                        }) =>
+                    {
+                        Some(*slot)
+                    }
+                    _ => None,
+                };
+                if let Some(slot) = local_store_slot {
+                    drop(values);
+                    let local = locals.get_mut(slot).ok_or_else(|| {
+                        RuntimeError::new(
+                            "R_LOCAL_UNINITIALIZED",
+                            "map_record_set assignment targets an uninitialized local",
+                            instruction.span,
+                        )
+                    })?;
+                    let Value::Map(items) = local else {
+                        return Err(RuntimeError::new(
+                            "R_TYPE_INVALID",
+                            "map_record_set assignment target must be a Map",
+                            instruction.span,
+                        ));
+                    };
+                    let map_shared = Arc::strong_count(items) > 1;
+                    let mut map_copy_bytes = if map_shared {
+                        map_clone_allocation(items.as_ref(), None, &Value::Unit)
+                    } else {
+                        0
+                    };
+                    let (record_fields_shared, record_field_count) = if let Some(inner_key) = nested_key.as_deref() {
+                        let Some(Value::Map(inner)) = items.get(key.as_ref()) else {
+                            return Err(RuntimeError::new(
+                                "R_MAP_KEY",
+                                format!("map_record_set key `{key}` is missing or is not a Map"),
+                                instruction.span,
+                            ));
+                        };
+                        let Some(Value::Record(_, fields)) = inner.get(inner_key) else {
+                            return Err(RuntimeError::new(
+                                "R_MAP_KEY",
+                                format!("map_record_set nested key `{inner_key}` is missing or is not a record"),
+                                instruction.span,
+                            ));
+                        };
+                        let inner_shared = Arc::strong_count(inner) > 1;
+                        let fields_shared = Arc::strong_count(fields) > 1;
+                        let inner_will_copy = map_shared || inner_shared;
+                        if inner_will_copy {
+                            map_copy_bytes = map_copy_bytes.saturating_add(map_clone_allocation(
+                                inner.as_ref(),
+                                None,
+                                &Value::Unit,
+                            ));
+                        }
+                        (map_shared || inner_will_copy || fields_shared, fields.len())
+                    } else {
+                        let Some(Value::Record(_, fields)) = items.get(key.as_ref()) else {
+                            return Err(RuntimeError::new(
+                                "R_MAP_KEY",
+                                format!("map_record_set key `{key}` is missing or is not a record"),
+                                instruction.span,
+                            ));
+                        };
+                        (map_shared || Arc::strong_count(fields) > 1, fields.len())
+                    };
+                    let record_copy_bytes = if record_fields_shared {
+                        size_of::<Vec<Value>>()
+                            .saturating_add(record_field_count.saturating_mul(size_of::<Value>()))
+                    } else {
+                        0
+                    };
+                    charge_allocation(
+                        budget.as_ref(),
+                        map_copy_bytes.saturating_add(record_copy_bytes),
+                        instruction.span,
+                    )?;
+                    let map = Arc::make_mut(items);
+                    let fields = if let Some(inner_key) = nested_key.as_deref() {
+                        let Some(Value::Map(inner)) = map.get_mut(key.as_ref()) else {
+                            unreachable!("map_record_set outer map was checked before mutation")
+                        };
+                        let inner = Arc::make_mut(inner);
+                        let Some(Value::Record(_, fields)) = inner.get_mut(inner_key) else {
+                            unreachable!("map_record_set inner map was checked before mutation")
+                        };
+                        fields
+                    } else {
+                        let Some(Value::Record(_, fields)) = map.get_mut(key.as_ref()) else {
+                            unreachable!("map_record_set target was checked before mutation")
+                        };
+                        fields
+                    };
+                    Arc::make_mut(fields)[*field_index] = value;
+                    if PROFILED {
+                        if let Some(profile) = &budget.runtime_profile {
+                            profile.record_map_record_set(map_copy_bytes, record_copy_bytes);
+                        }
+                    }
+                    let updated = Value::Map(Arc::clone(items));
+                    push_stack!(updated);
+                    continue;
+                }
+                let mut map_copy_bytes = map_clone_allocation(values.as_ref(), None, &Value::Unit);
+                let mut record_fields = None;
+                if let Some(inner_key) = nested_key.as_deref() {
+                    let Some(Value::Map(inner)) = values.get(key.as_ref()) else {
+                        unreachable!("map_record_set target was checked before mutation")
+                    };
+                    let Some(Value::Record(_, fields)) = inner.get(inner_key) else {
+                        unreachable!("map_record_set target was checked before mutation")
+                    };
+                    map_copy_bytes = map_copy_bytes
+                        .saturating_add(map_clone_allocation(inner.as_ref(), None, &Value::Unit));
+                    record_fields = Some(fields.len());
+                } else if let Some(Value::Record(_, fields)) = values.get(key.as_ref()) {
+                    record_fields = Some(fields.len());
+                }
+                let record_copy_bytes = record_fields.map_or(0, |count| {
+                    size_of::<Vec<Value>>().saturating_add(count.saturating_mul(size_of::<Value>()))
+                });
+                charge_allocation(
+                    budget.as_ref(),
+                    map_copy_bytes.saturating_add(record_copy_bytes),
+                    instruction.span,
+                )?;
+                let mut updated = values.as_ref().clone();
+                let fields = if let Some(inner_key) = nested_key.as_deref() {
+                    let Some(Value::Map(inner)) = updated.get_mut(key.as_ref()) else {
+                        unreachable!("map_record_set cloned outer map must retain nested map")
+                    };
+                    let inner = Arc::make_mut(inner);
+                    let Some(Value::Record(_, fields)) = inner.get_mut(inner_key) else {
+                        unreachable!("map_record_set cloned inner map must retain record")
+                    };
+                    fields
+                } else {
+                    let Some(Value::Record(_, fields)) = updated.get_mut(key.as_ref()) else {
+                        unreachable!("map_record_set cloned map must retain record")
+                    };
+                    fields
+                };
+                Arc::make_mut(fields)[*field_index] = value;
+                let map = Value::Map(Arc::new(updated));
+                if let Some(error) = value_limit_error(&map, &limits, instruction.span) {
+                    return Err(error);
+                }
+                if PROFILED {
+                    if let Some(profile) = &budget.runtime_profile {
+                        profile.record_map_record_set(map_copy_bytes, record_copy_bytes);
+                    }
+                }
+                push_stack!(map);
+            }
             Op::MapSet => {
                 let value = pop!();
                 let key = match pop!() {
@@ -2532,6 +2867,12 @@ pub struct RuntimeProfileCounters {
     pub map_set_in_place_updates: AtomicUsize,
     pub map_set_copy_on_write_copies: AtomicUsize,
     pub map_set_estimated_copy_bytes: AtomicUsize,
+    pub map_record_get_operations: AtomicUsize,
+    pub map_record_set_operations: AtomicUsize,
+    pub map_record_set_in_place_updates: AtomicUsize,
+    pub map_record_set_copy_on_write_copies: AtomicUsize,
+    pub map_record_set_estimated_map_copy_bytes: AtomicUsize,
+    pub map_record_set_estimated_record_copy_bytes: AtomicUsize,
     pub json_set_operations: AtomicUsize,
     pub json_set_copy_on_write_copies: AtomicUsize,
     pub json_set_estimated_copy_bytes: AtomicUsize,
@@ -2725,6 +3066,27 @@ impl RuntimeProfileCounters {
                 .fetch_add(1, Ordering::Relaxed);
             self.map_set_estimated_copy_bytes
                 .fetch_add(copied_bytes, Ordering::Relaxed);
+        }
+    }
+
+    #[inline]
+    pub fn record_map_record_get(&self) {
+        self.map_record_get_operations.fetch_add(1, Ordering::Relaxed);
+    }
+
+    #[inline]
+    pub fn record_map_record_set(&self, map_copy_bytes: usize, record_copy_bytes: usize) {
+        self.map_record_set_operations.fetch_add(1, Ordering::Relaxed);
+        if map_copy_bytes == 0 && record_copy_bytes == 0 {
+            self.map_record_set_in_place_updates
+                .fetch_add(1, Ordering::Relaxed);
+        } else {
+            self.map_record_set_copy_on_write_copies
+                .fetch_add(1, Ordering::Relaxed);
+            self.map_record_set_estimated_map_copy_bytes
+                .fetch_add(map_copy_bytes, Ordering::Relaxed);
+            self.map_record_set_estimated_record_copy_bytes
+                .fetch_add(record_copy_bytes, Ordering::Relaxed);
         }
     }
 
@@ -2943,6 +3305,14 @@ impl RuntimeProfileCounters {
                 "copy_on_write_copies": self.map_set_copy_on_write_copies.load(Ordering::Relaxed),
                 "estimated_copy_bytes": self.map_set_estimated_copy_bytes.load(Ordering::Relaxed),
             },
+            "map_record_update": {
+                "reads": self.map_record_get_operations.load(Ordering::Relaxed),
+                "operations": self.map_record_set_operations.load(Ordering::Relaxed),
+                "in_place_updates": self.map_record_set_in_place_updates.load(Ordering::Relaxed),
+                "copy_on_write_copies": self.map_record_set_copy_on_write_copies.load(Ordering::Relaxed),
+                "estimated_map_copy_bytes": self.map_record_set_estimated_map_copy_bytes.load(Ordering::Relaxed),
+                "estimated_record_copy_bytes": self.map_record_set_estimated_record_copy_bytes.load(Ordering::Relaxed),
+            },
             "json_set": {
                 "operations": self.json_set_operations.load(Ordering::Relaxed),
                 "copy_on_write_copies": self.json_set_copy_on_write_copies.load(Ordering::Relaxed),
@@ -3055,6 +3425,8 @@ pub fn opcode_profile_name(op: &Op) -> &'static str {
         Op::MakeTypedMap(_) => "MakeTypedMap",
         Op::MapKeys => "MapKeys",
         Op::MapSet => "MapSet",
+        Op::MapRecordGet(_, _, _) => "MapRecordGet",
+        Op::MapRecordSet(_, _, _) => "MapRecordSet",
         Op::MapHas => "MapHas",
         Op::ListPush => "ListPush",
         Op::ListPushLocal(_) => "ListPushLocal",
@@ -5129,6 +5501,73 @@ fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result
                 }
                 state.stack.push(Type::Map(item_type));
             }
+            Op::MapRecordGet(record_index, field_index, nested) => {
+                if *nested && pop_type(&mut state.stack, pc)? != Type::Text {
+                    return Err(format!("map_record_get nested key requires Text at instruction {pc}"));
+                }
+                if pop_type(&mut state.stack, pc)? != Type::Text {
+                    return Err(format!("map_record_get key requires Text at instruction {pc}"));
+                }
+                let record = artifact.records.get(*record_index).ok_or_else(|| {
+                    format!("map_record_get references missing record at instruction {pc}")
+                })?;
+                let field = record.fields.get(*field_index).ok_or_else(|| {
+                    format!("map_record_get references missing field at instruction {pc}")
+                })?;
+                let Type::Map(item_type) = pop_type(&mut state.stack, pc)? else {
+                    return Err(format!("map_record_get requires Map at instruction {pc}"));
+                };
+                let value_type = if *nested {
+                    let Type::Map(record_type) = item_type.as_ref() else {
+                        return Err(format!(
+                            "nested map_record_get requires Map of Maps at instruction {pc}"
+                        ));
+                    };
+                    record_type.as_ref()
+                } else {
+                    item_type.as_ref()
+                };
+                if *value_type != Type::Record(record.name.clone()) {
+                    return Err(format!(
+                        "map_record_get value type does not match record at instruction {pc}"
+                    ));
+                }
+                state.stack.push(field.ty.clone());
+            }
+            Op::MapRecordSet(record_index, field_index, nested) => {
+                let value_type = pop_type(&mut state.stack, pc)?;
+                if *nested && pop_type(&mut state.stack, pc)? != Type::Text {
+                    return Err(format!("map_record_set nested key requires Text at instruction {pc}"));
+                }
+                if pop_type(&mut state.stack, pc)? != Type::Text {
+                    return Err(format!("map_record_set key requires Text at instruction {pc}"));
+                }
+                let record = artifact.records.get(*record_index).ok_or_else(|| {
+                    format!("map_record_set references missing record at instruction {pc}")
+                })?;
+                let field = record.fields.get(*field_index).ok_or_else(|| {
+                    format!("map_record_set references missing field at instruction {pc}")
+                })?;
+                let Type::Map(item_type) = pop_type(&mut state.stack, pc)? else {
+                    return Err(format!("map_record_set requires Map at instruction {pc}"));
+                };
+                let record_type = if *nested {
+                    let Type::Map(record_type) = item_type.as_ref() else {
+                        return Err(format!(
+                            "nested map_record_set requires Map of Maps at instruction {pc}"
+                        ));
+                    };
+                    record_type.as_ref()
+                } else {
+                    item_type.as_ref()
+                };
+                if *record_type != Type::Record(record.name.clone()) || value_type != field.ty {
+                    return Err(format!(
+                        "map_record_set types do not match record field at instruction {pc}"
+                    ));
+                }
+                state.stack.push(Type::Map(item_type));
+            }
             Op::MapHas => {
                 if pop_type(&mut state.stack, pc)? != Type::Text {
                     return Err(format!("map_has key requires Text at instruction {pc}"));
@@ -6254,7 +6693,7 @@ mod tests {
         ));
         let mut instruction_fuel = InstructionFuel::new(&budget);
 
-        let result = execute_fast_host_forwarder(
+        let result = execute_fast_host_forwarder::<false, _>(
             &mut host,
             &artifact,
             0,

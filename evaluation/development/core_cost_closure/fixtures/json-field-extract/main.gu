@@ -1,0 +1,26 @@
+import "std:json"
+
+fn main() -> Int:
+    let iterations = 120000
+    let valid = unwrap(json_parse("{\"count\":7}"))
+    let wrong_type = unwrap(json_parse("{\"count\":\"7\"}"))
+    let missing = unwrap(json_parse("{\"other\":7}"))
+    let rows: List[Json] = [valid, wrong_type, missing]
+    var index = 0
+    var checksum = 0
+    var invalid = 0
+    while index < iterations:
+        let row = rows[index % 3]
+        let field = json_get_safe(row, "count")
+        if is_ok(field):
+            let integer = json_int_safe(unwrap(field))
+            if is_ok(integer):
+                set checksum = checksum + unwrap(integer)
+            else:
+                set invalid = invalid + 1
+        else:
+            set invalid = invalid + 1
+        set index = index + 1
+    print(checksum)
+    print(invalid)
+    return 0

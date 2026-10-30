@@ -1759,6 +1759,8 @@ impl<'a> FnCompiler<'a> {
                         "write_bytes",
                         "len",
                         "map_set",
+                        "map_record_get",
+                        "map_record_set",
                         "map_has",
                         "map_get",
                         "list_push",
@@ -2208,6 +2210,110 @@ impl<'a> FnCompiler<'a> {
                     }
                     self.emit(Op::MapSet, *s);
                     return Ok(Type::Map(item));
+                }
+                if name == "map_record_get" || name == "map_record_set" {
+                    let is_get = name == "map_record_get";
+                    if !(if is_get { [3, 4].contains(&args.len()) } else { [4, 5].contains(&args.len()) }) {
+                        return Err(diagnostic(
+                            "E_CALL_ARITY",
+                            if name == "map_record_get" {
+                                "map_record_get expects a Map, one or two Text keys, and a literal field name"
+                            } else {
+                                "map_record_set expects a Map, one or two Text keys, a literal field name, and a value"
+                            },
+                            *s,
+                        ));
+                    }
+                    let nested = if is_get { args.len() == 4 } else { args.len() == 5 };
+                    let map_type = self.expr(&args[0])?;
+                    let Type::Map(item_type) = map_type else {
+                        return Err(diagnostic(
+                            "E_TYPE_ARGUMENT",
+                            format!("{name} first argument must be a Map of records"),
+                            args[0].span(),
+                        ));
+                    };
+                    let record_type = if nested {
+                        let Type::Map(record_type) = item_type.as_ref() else {
+                            return Err(diagnostic(
+                                "E_TYPE_ARGUMENT",
+                                format!("{name} nested key form requires a Map of Maps of records"),
+                                args[0].span(),
+                            ));
+                        };
+                        record_type.as_ref()
+                    } else {
+                        item_type.as_ref()
+                    };
+                    let Type::Record(record_name) = record_type else {
+                        return Err(diagnostic(
+                            "E_TYPE_ARGUMENT",
+                            format!("{name} requires a Map of records or a nested Map of records"),
+                            args[0].span(),
+                        ));
+                    };
+                    if self.expr_with_expected(&args[1], Some(&Type::Text))? != Type::Text {
+                        return Err(diagnostic(
+                            "E_TYPE_ARGUMENT",
+                            format!("{name} key must be Text"),
+                            args[1].span(),
+                        ));
+                    }
+                    if nested
+                        && self.expr_with_expected(&args[2], Some(&Type::Text))? != Type::Text
+                    {
+                        return Err(diagnostic(
+                            "E_TYPE_ARGUMENT",
+                            format!("{name} nested key must be Text"),
+                            args[2].span(),
+                        ));
+                    }
+                    let field_arg = if nested { 3 } else { 2 };
+                    let Expr::Text(field_name, field_span) = &args[field_arg] else {
+                        return Err(diagnostic(
+                            "E_FIELD_LITERAL",
+                            format!("{name} field name must be a Text literal"),
+                            args[field_arg].span(),
+                        ));
+                    };
+                    let Some((record_index, record)) = self
+                        .records
+                        .iter()
+                        .enumerate()
+                        .find(|(_, record)| record.name == *record_name)
+                    else {
+                        return Err(diagnostic(
+                            "E_TYPE_UNKNOWN",
+                            format!("unknown record type `{record_name}`"),
+                            *field_span,
+                        ));
+                    };
+                    let Some((field_index, (_, field_type, _))) = record
+                        .fields
+                        .iter()
+                        .enumerate()
+                        .find(|(_, (name, _, _))| name == field_name)
+                    else {
+                        return Err(diagnostic(
+                            "E_FIELD_UNKNOWN",
+                            format!("record `{record_name}` has no field `{field_name}`"),
+                            *field_span,
+                        ));
+                    };
+                    if is_get {
+                        self.emit(Op::MapRecordGet(record_index, field_index, nested), *s);
+                        return Ok(field_type.clone());
+                    }
+                    let value_arg = field_arg + 1;
+                    if self.expr_with_expected(&args[value_arg], Some(field_type))? != *field_type {
+                        return Err(diagnostic(
+                            "E_TYPE_ARGUMENT",
+                            format!("map_record_set value must match `{record_name}.{field_name}`"),
+                            args[value_arg].span(),
+                        ));
+                    }
+                    self.emit(Op::MapRecordSet(record_index, field_index, nested), *s);
+                    return Ok(Type::Map(item_type));
                 }
                 if name == "list_push" {
                     if args.len() != 2 {

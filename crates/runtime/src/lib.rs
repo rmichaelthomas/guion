@@ -32,8 +32,10 @@ pub mod python_bridge;
 pub mod stdlib_data;
 pub mod stdlib_services;
 use native_backend::{
-    NATIVE_INLINE_LIST_ITEMS, NativeBackend, NativeCode, NativeFloatList, NativeIntList,
-    NativeRecord, NativeSymbols, native_record_has_native_layout,
+    NATIVE_CONSTANT_HANDLE_BASE, NATIVE_INLINE_LIST_ITEMS, NATIVE_TAGGED_OPTION_NONE,
+    NATIVE_TAGGED_OPTION_SOME, NATIVE_TAGGED_RESULT_ERR, NATIVE_TAGGED_RESULT_OK, NativeBackend,
+    NativeCode, NativeFloatList, NativeHandleList, NativeIntList, NativeRecord, NativeSymbols,
+    NativeTaggedValue, native_record_has_native_layout,
 };
 
 struct JsonTextPairRows<'a> {
@@ -98,7 +100,10 @@ impl serde::Serialize for JsonTextPair<'_> {
 
 #[cfg(test)]
 mod native_inline_arena_tests {
-    use super::{NativeIntList, NativeListArena};
+    use super::{
+        Budget, CancellationToken, NativeIntList, NativeListArena, NativeTaggedValue, Value,
+        NATIVE_TAGGED_RESULT_OK,
+    };
 
     #[test]
     fn inline_list_addresses_and_values_survive_arena_growth() {
@@ -119,9 +124,59 @@ mod native_inline_arena_tests {
             &[10, 99, 30]
         );
     }
+
+    #[test]
+    fn tagged_value_arena_uses_inline_storage_and_stable_overflow_growth() {
+        let mut arena = NativeListArena::new(std::ptr::null(), 10000, 10000, 0, None);
+        let value = || NativeTaggedValue {
+            kind: 1,
+            payload_tag: 1,
+            payload: 7,
+            clone_charge_bytes: 0,
+        };
+
+        let first_handle = arena.store_tagged_descriptor(value()).unwrap();
+        for _ in 1..8 {
+            arena.store_tagged_descriptor(value()).unwrap();
+        }
+        assert!(arena.tagged_values.is_empty());
+        let first_descriptor =
+            arena.tagged_value(first_handle).unwrap() as *const NativeTaggedValue;
+        arena.store_tagged_descriptor(value()).unwrap();
+        assert_eq!(arena.tagged_values.len(), 1);
+        assert_eq!(arena.tagged_values[0].capacity(), 256);
+        assert_eq!(
+            arena.tagged_value(first_handle).unwrap() as *const NativeTaggedValue,
+            first_descriptor
+        );
+    }
+
+    #[test]
+    fn tagged_value_creation_defers_recursive_clone_charge_estimation() {
+        let budget = Budget::new(1000, 10000, CancellationToken::new(), None);
+        let mut arena = NativeListArena::new(&budget, 10000, 10000, 0, None);
+        let payload = Value::Record(
+            "EventLine".to_owned(),
+            std::sync::Arc::new(vec![Value::Text("record payload".into())]),
+        );
+        let payload_handle = arena.store_value(payload.clone()).unwrap();
+        assert!(arena.native_value_handle_exists(payload_handle));
+        let handle = arena
+            .store_native_tagged_value(NATIVE_TAGGED_RESULT_OK, 4, payload_handle)
+            .unwrap();
+
+        let expected = std::mem::size_of::<Value>() + super::cloned_value_allocation(&payload);
+        assert_eq!(arena.tagged_value(handle).unwrap().clone_charge_bytes, 0);
+        assert_eq!(arena.tagged_clone_charge_bytes(handle), Some(expected));
+        assert_eq!(
+            arena.tagged_value(handle).unwrap().clone_charge_bytes,
+            expected as u64
+        );
+    }
 }
 
-// JIT code keeps raw pointers to these descriptors; Box preserves each address when the Vec grows.
+// JIT code keeps raw pointers to list descriptors and tagged values. Boxes and
+// inline slots plus fixed-capacity overflow chunks keep their addresses stable.
 #[allow(clippy::vec_box)]
 struct NativeListArena {
     float_lists: Vec<Box<NativeFloatList>>,
@@ -129,7 +184,13 @@ struct NativeListArena {
     int_lists: Vec<Box<NativeIntList>>,
     inline_int_lists: Vec<Vec<NativeIntList>>,
     int_storage: Vec<Vec<i64>>,
+    handle_lists: Vec<Box<NativeHandleList>>,
+    handle_storage: Vec<Vec<i64>>,
     values: Vec<Value>,
+    constant_values: Vec<Value>,
+    inline_tagged_values: [NativeTaggedValue; NATIVE_INLINE_TAGGED_VALUES],
+    inline_tagged_value_len: usize,
+    tagged_values: Vec<Vec<NativeTaggedValue>>,
     native_vm_continuations: Vec<NativeVmContinuationFrame>,
     runtime_context: Option<NativeRuntimeContext>,
     host_error: Option<RuntimeError>,
@@ -142,6 +203,8 @@ struct NativeListArena {
     pending_output: String,
     pending_print_bytes: Vec<usize>,
 }
+
+const NATIVE_INLINE_TAGGED_VALUES: usize = 8;
 
 pub(crate) struct NativeVmContinuationFrame {
     pub(crate) function_index: usize,
@@ -173,7 +236,18 @@ impl NativeListArena {
             int_lists: Vec::new(),
             inline_int_lists: Vec::new(),
             int_storage: Vec::new(),
+            handle_lists: Vec::new(),
+            handle_storage: Vec::new(),
             values: Vec::new(),
+            constant_values: Vec::new(),
+            inline_tagged_values: [NativeTaggedValue {
+                kind: 0,
+                payload_tag: 0,
+                payload: 0,
+                clone_charge_bytes: 0,
+            }; NATIVE_INLINE_TAGGED_VALUES],
+            inline_tagged_value_len: 0,
+            tagged_values: Vec::new(),
             native_vm_continuations: Vec::new(),
             runtime_context: None,
             host_error: None,
@@ -223,13 +297,209 @@ impl NativeListArena {
         self.values.get(index)
     }
 
+    fn constant_value(&self, handle: i64) -> Option<&Value> {
+        let index = usize::try_from(handle.checked_sub(NATIVE_CONSTANT_HANDLE_BASE)?).ok()?;
+        self.constant_values.get(index)
+    }
+
+    fn handle_list(&self, handle: i64) -> Option<&NativeHandleList> {
+        let address = usize::try_from(handle).ok()?;
+        self.handle_lists
+            .iter()
+            .find(|list| (&***list as *const NativeHandleList) as usize == address)
+            .map(|list| &**list)
+    }
+
+    fn tagged_value(&self, handle: i64) -> Option<&NativeTaggedValue> {
+        let address = usize::try_from(handle.checked_neg()?).ok()?;
+        self.inline_tagged_values[..self.inline_tagged_value_len]
+            .iter()
+            .find(|value| (*value as *const NativeTaggedValue) as usize == address)
+            .or_else(|| {
+                self.tagged_values
+                    .iter()
+                    .flat_map(|chunk| chunk.iter())
+                    .find(|value| (*value as *const NativeTaggedValue) as usize == address)
+            })
+    }
+
+    fn tagged_clone_charge_bytes(&mut self, handle: i64) -> Option<usize> {
+        let address = usize::try_from(handle.checked_neg()?).ok()?;
+        let descriptor = address as *mut NativeTaggedValue;
+        // Negative handles are issued only for descriptors owned by this arena.
+        // Inline slots and overflow chunks stay at fixed addresses for its lifetime.
+        let descriptor_value = unsafe { descriptor.read() };
+        if descriptor_value.clone_charge_bytes != 0 {
+            return usize::try_from(descriptor_value.clone_charge_bytes).ok();
+        }
+        if descriptor_value.kind == NATIVE_TAGGED_OPTION_NONE {
+            return Some(0);
+        }
+        let payload = self.decode_bridge_value(
+            descriptor_value.payload,
+            descriptor_value.payload_tag,
+        )?;
+        let bytes = size_of::<Value>().saturating_add(cloned_value_allocation(&payload));
+        let charge = u64::try_from(bytes).unwrap_or(u64::MAX);
+        // The generated code has no Rust reference to this descriptor while the
+        // callback runs; update only its cached quota field.
+        unsafe { std::ptr::addr_of_mut!((*descriptor).clone_charge_bytes).write(charge) };
+        Some(bytes)
+    }
+
+    fn native_value_handle_exists(&self, handle: i64) -> bool {
+        self.constant_value(handle).is_some()
+            || self.value(handle).is_some()
+            || self.handle_list(handle).is_some()
+            || self.tagged_value(handle).is_some()
+    }
+
+    fn ensure_tagged_capacity(&mut self) -> Option<()> {
+        const TAGGED_VALUE_CHUNK_ITEMS: usize = 256;
+        if self
+            .tagged_values
+            .last()
+            .is_none_or(|chunk| chunk.len() == chunk.capacity())
+        {
+            self.tagged_values.try_reserve(1).ok()?;
+            let mut chunk = Vec::new();
+            chunk.try_reserve_exact(TAGGED_VALUE_CHUNK_ITEMS).ok()?;
+            self.tagged_values.push(chunk);
+        }
+        Some(())
+    }
+
+    fn store_tagged_descriptor(&mut self, value: NativeTaggedValue) -> Option<i64> {
+        if self.inline_tagged_value_len < NATIVE_INLINE_TAGGED_VALUES {
+            let index = self.inline_tagged_value_len;
+            self.inline_tagged_values[index] = value;
+            self.inline_tagged_value_len += 1;
+            let address = (&self.inline_tagged_values[index] as *const NativeTaggedValue) as usize;
+            return i64::try_from(address).ok()?.checked_neg();
+        }
+        self.ensure_tagged_capacity()?;
+        let chunk = self.tagged_values.last_mut()?;
+        chunk.push(value);
+        let address = (chunk.last()? as *const NativeTaggedValue) as usize;
+        i64::try_from(address).ok()?.checked_neg()
+    }
+
+    fn encode_native_value(&mut self, value: Value) -> Option<i64> {
+        match value {
+            Value::ResultOk(value) => {
+                self.store_tagged_value(NATIVE_TAGGED_RESULT_OK, Some(*value))
+            }
+            Value::ResultErr(value) => {
+                self.store_tagged_value(NATIVE_TAGGED_RESULT_ERR, Some(*value))
+            }
+            Value::OptionSome(value) => {
+                self.store_tagged_value(NATIVE_TAGGED_OPTION_SOME, Some(*value))
+            }
+            Value::OptionNone => self.store_tagged_value(NATIVE_TAGGED_OPTION_NONE, None),
+            value => self.store_value(value),
+        }
+    }
+
+    fn store_tagged_value(&mut self, kind: i64, payload: Option<Value>) -> Option<i64> {
+        let (payload_tag, payload) = match payload {
+            None => (0, 0),
+            Some(Value::Int(value)) => match value.to_i64() {
+                Some(value) => (1, value),
+                None => (4, self.store_value(Value::Int(value))?),
+            },
+            Some(Value::Float64(value)) => (2, value.get().to_bits() as i64),
+            Some(Value::Bool(value)) => (3, i64::from(value)),
+            Some(value) => (4, self.encode_native_value(value)?),
+        };
+        self.store_tagged_descriptor(NativeTaggedValue {
+            kind,
+            payload_tag,
+            payload,
+            // The exact logical clone charge is needed only if guest code clones it.
+            clone_charge_bytes: 0,
+        })
+    }
+
+    fn store_native_tagged_value(
+        &mut self,
+        kind: i64,
+        payload_tag: i64,
+        payload: i64,
+    ) -> Option<i64> {
+        let has_payload = match kind {
+            NATIVE_TAGGED_RESULT_OK
+            | NATIVE_TAGGED_RESULT_ERR
+            | NATIVE_TAGGED_OPTION_SOME => true,
+            NATIVE_TAGGED_OPTION_NONE if payload_tag == 0 && payload == 0 => false,
+            _ => return None,
+        };
+        if has_payload {
+            let valid_payload = match payload_tag {
+                1 => true,
+                2 => Float64::new(f64::from_bits(payload as u64)).is_some(),
+                3 => true,
+                4 => self.native_value_handle_exists(payload),
+                _ => false,
+            };
+            if !valid_payload {
+                return None;
+            }
+        }
+        if self.inline_tagged_value_len == NATIVE_INLINE_TAGGED_VALUES {
+            self.ensure_tagged_capacity()?;
+        }
+        if has_payload && !self.charge(size_of::<Value>()) {
+            return None;
+        }
+        self.store_tagged_descriptor(NativeTaggedValue {
+            kind,
+            payload_tag,
+            payload,
+            clone_charge_bytes: 0,
+        })
+    }
+
+    fn materialize_native_value(&self, handle: i64) -> Option<Value> {
+        if let Some(value) = self.constant_value(handle) {
+            return Some(value.clone());
+        }
+        if let Some(list) = self.handle_list(handle) {
+            let encoded = unsafe { std::slice::from_raw_parts(list.data, list.len) };
+            let values = encoded
+                .iter()
+                .map(|value| self.materialize_native_value(*value))
+                .collect::<Option<Vec<_>>>()?;
+            return Some(Value::List(Arc::new(values)));
+        }
+        let Some(tagged) = self.tagged_value(handle) else {
+            return self.value(handle).cloned();
+        };
+        let (kind, payload_tag, payload) = (tagged.kind, tagged.payload_tag, tagged.payload);
+        if kind == NATIVE_TAGGED_OPTION_NONE {
+            return Some(Value::OptionNone);
+        }
+        let payload = match payload_tag {
+            1 => Value::Int(BigInt::parse(&payload.to_string()).ok()?),
+            2 => Value::Float64(Float64::new(f64::from_bits(payload as u64))?),
+            3 => Value::Bool(payload != 0),
+            4 => self.materialize_native_value(payload)?,
+            _ => return None,
+        };
+        match kind {
+            NATIVE_TAGGED_RESULT_OK => Some(Value::ResultOk(Box::new(payload))),
+            NATIVE_TAGGED_RESULT_ERR => Some(Value::ResultErr(Box::new(payload))),
+            NATIVE_TAGGED_OPTION_SOME => Some(Value::OptionSome(Box::new(payload))),
+            _ => None,
+        }
+    }
+
     fn decode_continuation_value(&self, raw: i64, tag: i64) -> Option<Value> {
         match tag {
             0 => Some(Value::Unit),
             1 => Some(Value::Int(BigInt::parse(&raw.to_string()).ok()?)),
             2 => Some(Value::Float64(Float64::new(f64::from_bits(raw as u64))?)),
             3 => Some(Value::Bool(raw != 0)),
-            4 => self.value(raw).cloned(),
+            4 => self.materialize_native_value(raw),
             _ => None,
         }
     }
@@ -292,6 +562,15 @@ impl NativeListArena {
         artifact: Arc<Artifact>,
         budget: Arc<Budget>,
     ) {
+        self.constant_values = artifact
+            .functions
+            .iter()
+            .flat_map(|function| function.code.iter())
+            .filter_map(|instruction| match &instruction.op {
+                Op::Const(value @ (Value::Text(_) | Value::Bytes(_))) => Some(value.clone()),
+                _ => None,
+            })
+            .collect();
         self.runtime_context = Some(NativeRuntimeContext {
             instance,
             artifact,
@@ -321,48 +600,6 @@ impl NativeListArena {
             return None;
         }
         let value = match &instruction.op {
-            Op::IsOk => match self.bridge_handle_argument(arguments, argument_tags, 0)? {
-                Value::ResultOk(_) => Value::Bool(true),
-                Value::ResultErr(_) => Value::Bool(false),
-                _ => return None,
-            },
-            Op::IsSome => match self.bridge_handle_argument(arguments, argument_tags, 0)? {
-                Value::OptionSome(_) => Value::Bool(true),
-                Value::OptionNone => Value::Bool(false),
-                _ => return None,
-            },
-            Op::Unwrap => match self.bridge_handle_argument(arguments, argument_tags, 0)? {
-                Value::ResultOk(value) | Value::OptionSome(value) => (**value).clone(),
-                Value::ResultErr(_) => {
-                    self.host_error = Some(RuntimeError::new(
-                        "R_RESULT_UNWRAP",
-                        "cannot unwrap an Err result",
-                        instruction.span,
-                    ));
-                    return None;
-                }
-                Value::OptionNone => {
-                    self.host_error = Some(RuntimeError::new(
-                        "R_OPTION_UNWRAP",
-                        "cannot unwrap None",
-                        instruction.span,
-                    ));
-                    return None;
-                }
-                _ => return None,
-            },
-            Op::GetError => match self.bridge_handle_argument(arguments, argument_tags, 0)? {
-                Value::ResultErr(value) => (**value).clone(),
-                Value::ResultOk(_) => {
-                    self.host_error = Some(RuntimeError::new(
-                        "R_RESULT_ERROR",
-                        "cannot get the error from an Ok result",
-                        instruction.span,
-                    ));
-                    return None;
-                }
-                _ => return None,
-            },
             Op::GetField(record_index, field_index) => {
                 let Value::Record(name, fields) =
                     self.bridge_handle_argument(arguments, argument_tags, 0)?
@@ -379,28 +616,6 @@ impl NativeListArena {
                 }
                 field
             }
-            Op::MakeOk => {
-                let value = self.decode_bridge_value(*arguments.first()?, *argument_tags.first()?)?;
-                if !self.charge_or_error(size_of::<Value>(), instruction.span) {
-                    return None;
-                }
-                Value::ResultOk(Box::new(value))
-            }
-            Op::MakeErr => {
-                let value = self.decode_bridge_value(*arguments.first()?, *argument_tags.first()?)?;
-                if !self.charge_or_error(size_of::<Value>(), instruction.span) {
-                    return None;
-                }
-                Value::ResultErr(Box::new(value))
-            }
-            Op::MakeSome => {
-                let value = self.decode_bridge_value(*arguments.first()?, *argument_tags.first()?)?;
-                if !self.charge_or_error(size_of::<Value>(), instruction.span) {
-                    return None;
-                }
-                Value::OptionSome(Box::new(value))
-            }
-            Op::MakeNone => Value::OptionNone,
             Op::MakeRecord(record_index, count) => {
                 if *count != arguments.len() {
                     return None;
@@ -465,7 +680,7 @@ impl NativeListArena {
             1 => Some(Value::Int(BigInt::parse(&value.to_string()).ok()?)),
             2 => Some(Value::Float64(Float64::new(f64::from_bits(value as u64))?)),
             3 => Some(Value::Bool(value != 0)),
-            4 => self.value(value).cloned(),
+            4 => self.materialize_native_value(value),
             _ => None,
         }
     }
@@ -477,7 +692,7 @@ impl NativeListArena {
             (3, Value::Bool(value)) => Some(i64::from(value)),
             // Storing a handle is backend bookkeeping. Guest allocation limits
             // are charged by the operation that produced `value`.
-            (4, value) => self.store_value(value),
+            (4, value) => self.encode_native_value(value),
             _ => None,
         }
     }
@@ -5138,6 +5353,7 @@ impl Instance {
                     list_set_bool_local: native_list_set_bool_local as *const () as *const u8,
                     charge_record: native_charge_record as *const () as *const u8,
                     charge_value_clone: native_charge_value_clone as *const () as *const u8,
+                    make_tagged_value: native_make_tagged_value as *const () as *const u8,
                     print: native_print as *const () as *const u8,
                     direct_operations: [
                         native_direct_json_parse as *const () as *const u8,
@@ -5145,14 +5361,6 @@ impl Instance {
                         native_direct_json_try_get as *const () as *const u8,
                         native_direct_json_try_int as *const () as *const u8,
                         native_direct_file_next_line as *const () as *const u8,
-                        native_direct_is_ok as *const () as *const u8,
-                        native_direct_is_some as *const () as *const u8,
-                        native_direct_unwrap as *const () as *const u8,
-                        native_direct_get_error as *const () as *const u8,
-                        native_direct_make_ok as *const () as *const u8,
-                        native_direct_make_err as *const () as *const u8,
-                        native_direct_make_some as *const () as *const u8,
-                        native_direct_make_none as *const () as *const u8,
                         native_direct_get_field as *const () as *const u8,
                     ],
                     make_record: native_direct_make_record as *const () as *const u8,
@@ -5572,6 +5780,10 @@ impl Instance {
                     native_records.push(descriptor);
                     Some((&**native_records.last()? as *const NativeRecord) as i64)
                 }
+                (Value::OptionSome(_) | Value::OptionNone, Type::Option(_))
+                | (Value::ResultOk(_) | Value::ResultErr(_), Type::Result(_, _)) => {
+                    native_arena.encode_native_value(value.clone())
+                }
                 _ => native_arena.store_value(value.clone()),
             })
             .collect::<Option<Vec<_>>>();
@@ -5845,8 +6057,7 @@ impl Instance {
                                 Value::Record(name.clone(), Arc::new(fields))
                             }
                             _ => native_arena
-                                .value(outcome.value)
-                                .cloned()
+                                .materialize_native_value(outcome.value)
                                 .ok_or_else(|| {
                                     RuntimeError::new(
                                         "R_NATIVE_RESULT",
@@ -6596,6 +6807,7 @@ unsafe extern "C" fn native_poll_cancellation(budget: *const Budget) -> i32 {
 const NATIVE_LIST_FLOAT_KIND: i64 = 1;
 const NATIVE_LIST_INT_KIND: i64 = 2;
 const NATIVE_LIST_BOOL_KIND: i64 = 3;
+const NATIVE_LIST_HANDLE_KIND: i64 = 4;
 
 unsafe extern "C" fn native_make_list(
     arena: *mut NativeListArena,
@@ -6604,7 +6816,7 @@ unsafe extern "C" fn native_make_list(
     item_kind: i64,
     typed_empty: i64,
 ) -> *mut std::ffi::c_void {
-    if arena.is_null() || count < 0 || !(1..=3).contains(&item_kind) {
+    if arena.is_null() || count < 0 || !(1..=4).contains(&item_kind) {
         return std::ptr::null_mut();
     }
     let arena = unsafe { &mut *arena };
@@ -6706,6 +6918,41 @@ unsafe extern "C" fn native_make_list(
             inline: [0; NATIVE_INLINE_LIST_ITEMS],
         }));
         (&mut **arena.int_lists.last_mut().unwrap() as *mut NativeIntList).cast()
+    } else if item_kind == NATIVE_LIST_HANDLE_KIND {
+        let bytes = if typed_empty != 0 {
+            size_of::<Vec<Value>>()
+        } else {
+            size_of::<Vec<Value>>().saturating_add(count.saturating_mul(size_of::<Value>()))
+        };
+        if !arena.charge(bytes) {
+            return std::ptr::null_mut();
+        }
+        if count <= NATIVE_INLINE_LIST_ITEMS {
+            let mut descriptor = Box::new(NativeHandleList {
+                data: std::ptr::null_mut(),
+                len: count,
+                storage_id: usize::MAX,
+                owned: true,
+                inline_storage: true,
+                inline: [0; NATIVE_INLINE_LIST_ITEMS],
+            });
+            descriptor.inline[..count].copy_from_slice(encoded);
+            descriptor.data = descriptor.inline.as_mut_ptr();
+            arena.handle_lists.push(descriptor);
+            (&mut **arena.handle_lists.last_mut().unwrap() as *mut NativeHandleList).cast()
+        } else {
+            let storage_id = arena.handle_storage.len();
+            arena.handle_storage.push(encoded.to_vec());
+            arena.handle_lists.push(Box::new(NativeHandleList {
+                data: arena.handle_storage.last_mut().unwrap().as_mut_ptr(),
+                len: count,
+                storage_id,
+                owned: true,
+                inline_storage: false,
+                inline: [0; NATIVE_INLINE_LIST_ITEMS],
+            }));
+            (&mut **arena.handle_lists.last_mut().unwrap() as *mut NativeHandleList).cast()
+        }
     } else {
         std::ptr::null_mut()
     }
@@ -6910,6 +7157,23 @@ unsafe extern "C" fn native_charge_record(arena: *mut NativeListArena, bytes: i6
     i32::from(ok)
 }
 
+unsafe extern "C" fn native_make_tagged_value(
+    arena: *mut NativeListArena,
+    kind: i64,
+    payload_tag: i64,
+    payload: i64,
+) -> i64 {
+    if arena.is_null() {
+        return 0;
+    }
+    match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| unsafe {
+        (&mut *arena).store_native_tagged_value(kind, payload_tag, payload)
+    })) {
+        Ok(Some(handle)) => handle,
+        Ok(None) | Err(_) => 0,
+    }
+}
+
 unsafe extern "C" fn native_charge_value_clone(
     arena: *mut NativeListArena,
     handle: i64,
@@ -6918,6 +7182,15 @@ unsafe extern "C" fn native_charge_value_clone(
         return 0;
     }
     let arena = unsafe { &mut *arena };
+    if let Some(value) = arena.constant_value(handle) {
+        return i32::from(arena.charge(cloned_value_allocation(value)));
+    }
+    if handle < 0 {
+        let Some(bytes) = arena.tagged_clone_charge_bytes(handle) else {
+            return 0;
+        };
+        return i32::from(arena.charge(bytes));
+    }
     let Ok(index) = usize::try_from(handle.checked_sub(1).unwrap_or(-1)) else {
         return 0;
     };
@@ -7015,14 +7288,6 @@ native_direct_operation_entry!(native_direct_json_try_text, native_backend::NATI
 native_direct_operation_entry!(native_direct_json_try_get, native_backend::NATIVE_BRIDGE_JSON_TRY_GET, 2);
 native_direct_operation_entry!(native_direct_json_try_int, native_backend::NATIVE_BRIDGE_JSON_TRY_INT, 1);
 native_direct_operation_entry!(native_direct_file_next_line, native_backend::NATIVE_BRIDGE_FILE_NEXT_LINE, 1);
-native_direct_operation_entry!(native_direct_is_ok, native_backend::NATIVE_BRIDGE_IS_OK, 1);
-native_direct_operation_entry!(native_direct_is_some, native_backend::NATIVE_BRIDGE_IS_SOME, 1);
-native_direct_operation_entry!(native_direct_unwrap, native_backend::NATIVE_BRIDGE_UNWRAP, 1);
-native_direct_operation_entry!(native_direct_get_error, native_backend::NATIVE_BRIDGE_GET_ERROR, 1);
-native_direct_operation_entry!(native_direct_make_ok, native_backend::NATIVE_BRIDGE_MAKE_OK, 1);
-native_direct_operation_entry!(native_direct_make_err, native_backend::NATIVE_BRIDGE_MAKE_ERR, 1);
-native_direct_operation_entry!(native_direct_make_some, native_backend::NATIVE_BRIDGE_MAKE_SOME, 1);
-native_direct_operation_entry!(native_direct_make_none, native_backend::NATIVE_BRIDGE_MAKE_NONE, 0);
 native_direct_operation_entry!(native_direct_get_field, native_backend::NATIVE_BRIDGE_GET_FIELD, 1);
 
 unsafe extern "C" fn native_direct_make_record(

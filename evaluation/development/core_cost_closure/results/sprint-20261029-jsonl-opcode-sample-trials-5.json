@@ -1,0 +1,200 @@
+{
+  "kind": "guion-jsonl-cost-ledger-trials",
+  "binary_sha256": "2ec2e51978bf91a009548aeb7794f86db5f5c5e3e29aa07aaa8f9e97ddfe716c",
+  "artifact_sha256": "31ee626fff705d65dd4a479cba7c5fbcc7c131a9b7eded9d443b409fe343e962",
+  "input_sha256": "c87117d62d5559a5a907465c4ed035251aad4d112f9431a4bacd53faf550ce6c",
+  "output_sha256": "b1b0afe4074a5a945c2ae6a097cb269174999dd6545ef380f5008ba8c36dd7fd",
+  "trials_per_mode": 5,
+  "records": [
+    {
+      "pair": 0,
+      "mode": "off",
+      "program_execute_ns": 2780552579,
+      "cost": null
+    },
+    {
+      "pair": 0,
+      "mode": "on",
+      "program_execute_ns": 2985899695,
+      "cost": {
+        "run_ns": 2980507769,
+        "vm_segment_ns": 2897507597,
+        "frame_start_ns": 33322030,
+        "host_ns": 851560721,
+        "vm_guest_ns": 2045946876,
+        "driver_ns": 49678142,
+        "vm_segments": 401905,
+        "frame_starts": 200952,
+        "host_calls": 3384984,
+        "instruction_count": 50585603,
+        "sample_rate": 257,
+        "sampled_opcode_ns": [
+          12108667,
+          1540404,
+          3370320,
+          2588736
+        ],
+        "sampled_opcode_counts": [
+          128620,
+          23076,
+          36572,
+          8564
+        ],
+        "timer_pair_ns": 22,
+        "outside_vm_ns": 5391926
+      }
+    },
+    {
+      "pair": 1,
+      "mode": "on",
+      "program_execute_ns": 2939610879,
+      "cost": {
+        "run_ns": 2934519233,
+        "vm_segment_ns": 2852431994,
+        "frame_start_ns": 33289895,
+        "host_ns": 832273621,
+        "vm_guest_ns": 2020158373,
+        "driver_ns": 48797344,
+        "vm_segments": 401905,
+        "frame_starts": 200952,
+        "host_calls": 3384984,
+        "instruction_count": 50585603,
+        "sample_rate": 257,
+        "sampled_opcode_ns": [
+          11774795,
+          1467724,
+          3269761,
+          2504589
+        ],
+        "sampled_opcode_counts": [
+          128620,
+          23076,
+          36572,
+          8564
+        ],
+        "timer_pair_ns": 21,
+        "outside_vm_ns": 5091646
+      }
+    },
+    {
+      "pair": 1,
+      "mode": "off",
+      "program_execute_ns": 2709797902,
+      "cost": null
+    },
+    {
+      "pair": 2,
+      "mode": "off",
+      "program_execute_ns": 3167379005,
+      "cost": null
+    },
+    {
+      "pair": 2,
+      "mode": "on",
+      "program_execute_ns": 3001563625,
+      "cost": {
+        "run_ns": 2995670715,
+        "vm_segment_ns": 2912541164,
+        "frame_start_ns": 33896275,
+        "host_ns": 858514830,
+        "vm_guest_ns": 2054026334,
+        "driver_ns": 49233276,
+        "vm_segments": 401905,
+        "frame_starts": 200952,
+        "host_calls": 3384984,
+        "instruction_count": 50585603,
+        "sample_rate": 257,
+        "sampled_opcode_ns": [
+          12006283,
+          1502527,
+          3321543,
+          2583501
+        ],
+        "sampled_opcode_counts": [
+          128620,
+          23076,
+          36572,
+          8564
+        ],
+        "timer_pair_ns": 24,
+        "outside_vm_ns": 5892910
+      }
+    },
+    {
+      "pair": 3,
+      "mode": "off",
+      "program_execute_ns": 2920913594,
+      "cost": null
+    },
+    {
+      "pair": 3,
+      "mode": "on",
+      "program_execute_ns": 2979668442,
+      "cost": {
+        "run_ns": 2974161140,
+        "vm_segment_ns": 2890896109,
+        "frame_start_ns": 33700700,
+        "host_ns": 838627351,
+        "vm_guest_ns": 2052268758,
+        "driver_ns": 49564331,
+        "vm_segments": 401905,
+        "frame_starts": 200952,
+        "host_calls": 3384984,
+        "instruction_count": 50585603,
+        "sample_rate": 257,
+        "sampled_opcode_ns": [
+          12244024,
+          1454467,
+          3310389,
+          2598184
+        ],
+        "sampled_opcode_counts": [
+          128620,
+          23076,
+          36572,
+          8564
+        ],
+        "timer_pair_ns": 23,
+        "outside_vm_ns": 5507302
+      }
+    },
+    {
+      "pair": 4,
+      "mode": "off",
+      "program_execute_ns": 2669926486,
+      "cost": null
+    },
+    {
+      "pair": 4,
+      "mode": "on",
+      "program_execute_ns": 2937453737,
+      "cost": {
+        "run_ns": 2931952933,
+        "vm_segment_ns": 2850742902,
+        "frame_start_ns": 32454061,
+        "host_ns": 802166664,
+        "vm_guest_ns": 2048576238,
+        "driver_ns": 48755970,
+        "vm_segments": 401905,
+        "frame_starts": 200952,
+        "host_calls": 3384984,
+        "instruction_count": 50585603,
+        "sample_rate": 257,
+        "sampled_opcode_ns": [
+          11897711,
+          1471039,
+          3312396,
+          2497362
+        ],
+        "sampled_opcode_counts": [
+          128620,
+          23076,
+          36572,
+          8564
+        ],
+        "timer_pair_ns": 23,
+        "outside_vm_ns": 5500804
+      }
+    }
+  ]
+}

@@ -1048,6 +1048,42 @@ fn expression(node: Json, state: CompilerState, functions: List[FunctionSignatur
         let keywords = json_get(node, "keywords")
         let known_index = function_index(functions, callee)
         let record = record_index(records, callee)
+        if callee == "map_record_get" or callee == "map_record_set":
+            let is_get = callee == "map_record_get"
+            var nested = false
+            if is_get and json_len(arguments) == 4:
+                set nested = true
+            if not is_get and json_len(arguments) == 5:
+                set nested = true
+            let collection = expression(json_index(arguments, 0), state, functions, records, "")
+            let map_type = expression_type(collection)
+            var record_type = result_error_type(map_type)
+            if nested:
+                set record_type = result_error_type(record_type)
+            let record_name = record_name_from_type(record_type)
+            var field_argument = 2
+            if nested:
+                set field_argument = 3
+            let field_name = json_as_text(json_get(json_index(arguments, field_argument), "text"))
+            var code = expression_code(collection)
+            let outer_key = expression(json_index(arguments, 1), state, functions, records, "Text")
+            set code = append_code(code, expression_code(outer_key))
+            if nested:
+                let inner_key = expression(json_index(arguments, 2), state, functions, records, "Text")
+                set code = append_code(code, expression_code(inner_key))
+            var operation = "MapRecordGet"
+            if not is_get:
+                set operation = "MapRecordSet"
+            var instruction = ir_text(operation, "record", record_name)
+            set instruction = json_set(instruction, "field", json_text(field_name))
+            set instruction = json_set(instruction, "nested", json_bool(nested))
+            if is_get:
+                set code = append_code(code, singleton(instruction))
+                return expression_result(code, record_field_type(records, record_name, field_name))
+            let value = expression(json_index(arguments, field_argument + 1), state, functions, records, record_field_type(records, record_name, field_name))
+            set code = append_code(code, expression_code(value))
+            set code = append_code(code, singleton(instruction))
+            return expression_result(code, map_type)
         if callee == "list_get" or callee == "map_get":
             let collection = expression(json_index(arguments, 0), state, functions, records, "")
             let collection_type = expression_type(collection)
@@ -1400,6 +1436,8 @@ fn compile_function(function: Json, functions: List[FunctionSignature], records:
     return result
 
 fn known_builtin_name(name: Text) -> Bool:
+    if name == "map_record_get" or name == "map_record_set":
+        return true
     return builtin_catalog_has(name)
 
 fn source_line_column(source: Text, character_index: Int) -> List[Int]:
@@ -1476,6 +1514,10 @@ fn find_unknown_call(node: Json, functions: List[FunctionSignature], records: Li
                 return failure_at_node("E_CALL_ARITY", "builtin `" + callee + "` has the wrong number of arguments", node, source_name, source, len(callee))
             if json_len(keywords) > 0:
                 return failure_at_node("E_CALL_KEYWORD", "keyword arguments require a declared Python external", node, source_name, source, len(callee))
+        if callee == "map_record_get" and json_len(arguments) != 3 and json_len(arguments) != 4:
+            return failure_at_node("E_CALL_ARITY", "map_record_get expects a Map, one or two Text keys, and a literal field name", node, source_name, source, len(callee))
+        if callee == "map_record_set" and json_len(arguments) != 4 and json_len(arguments) != 5:
+            return failure_at_node("E_CALL_ARITY", "map_record_set expects a Map, one or two Text keys, a literal field name, and a value", node, source_name, source, len(callee))
         if is_record(records, callee) and json_len(keywords) > 0:
             return failure_at_node("E_CALL_KEYWORD", "record constructors do not accept keyword arguments", node, source_name, source, len(callee))
         if is_record(records, callee):
@@ -1799,6 +1841,48 @@ fn find_type_error_expression(node: Json, state: CompilerState, functions: List[
             return failure_at_node("E_OPTION_CONSTRUCTOR_CONTEXT", "Some requires an expected Option type", node, source_name, source, len(callee))
         if (callee == "Ok" or callee == "Err") and not is_result_type(expected):
             return failure_at_node("E_RESULT_CONSTRUCTOR_CONTEXT", "Ok and Err require an expected Result type", node, source_name, source, len(callee))
+        if callee == "map_record_get" or callee == "map_record_set":
+            let is_get = callee == "map_record_get"
+            var nested = false
+            if is_get and json_len(arguments) == 4:
+                set nested = true
+            if not is_get and json_len(arguments) == 5:
+                set nested = true
+            let map_type = expression_type(expression(json_index(arguments, 0), state, functions, records, ""))
+            if not is_map_type(map_type):
+                return failure_at_node("E_TYPE_ARGUMENT", "map_record operation requires a Map first argument", json_index(arguments, 0), source_name, source, 1)
+            var record_type = result_error_type(map_type)
+            if nested:
+                if not is_map_type(record_type):
+                    return failure_at_node("E_TYPE_ARGUMENT", "nested map_record operation requires a Map of Maps of records", json_index(arguments, 0), source_name, source, 1)
+                set record_type = result_error_type(record_type)
+            if not is_record_type(record_type):
+                return failure_at_node("E_TYPE_ARGUMENT", "map_record operation requires a Map of records", json_index(arguments, 0), source_name, source, 1)
+            let record_name = record_name_from_type(record_type)
+            if record_index(records, record_name) < 0:
+                return failure_at_node("E_TYPE_UNKNOWN", "map_record operation references an unknown record type", json_index(arguments, 0), source_name, source, 1)
+            if expression_type(expression(json_index(arguments, 1), state, functions, records, "Text")) != "Text":
+                return failure_at_node("E_TYPE_ARGUMENT", "map_record key must be Text", json_index(arguments, 1), source_name, source, 1)
+            if nested and expression_type(expression(json_index(arguments, 2), state, functions, records, "Text")) != "Text":
+                return failure_at_node("E_TYPE_ARGUMENT", "map_record nested key must be Text", json_index(arguments, 2), source_name, source, 1)
+            var field_argument = 2
+            if nested:
+                set field_argument = 3
+            let field_node = json_index(arguments, field_argument)
+            if json_as_text(json_get(field_node, "kind")) != "Text":
+                return failure_at_node("E_FIELD_LITERAL", "map_record field name must be a Text literal", field_node, source_name, source, 1)
+            let field_name = json_as_text(json_get(field_node, "text"))
+            if record_field_index(records, record_name, field_name) < 0:
+                return failure_at_node("E_FIELD_UNKNOWN", "record `" + record_name + "` has no field `" + field_name + "`", field_node, source_name, source, len(field_name))
+            if not is_get:
+                let value_node = json_index(arguments, field_argument + 1)
+                let expected_value = record_field_type(records, record_name, field_name)
+                let value_failure = find_type_error_expression(value_node, state, functions, records, source_name, source, expected_value)
+                if not json_is_null(value_failure):
+                    return value_failure
+                if expression_type(expression(value_node, state, functions, records, expected_value)) != expected_value:
+                    return failure_at_node("E_TYPE_ARGUMENT", "map_record_set value must match the record field type", value_node, source_name, source, 1)
+            return json_null()
         var cursor = 0
         while cursor < json_len(arguments):
             var argument_expected = ""

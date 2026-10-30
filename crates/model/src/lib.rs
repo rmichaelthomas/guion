@@ -207,6 +207,59 @@ mod tests {
     }
 
     #[test]
+    fn typed_map_record_updates_require_format_49_and_round_trip() {
+        let artifact = Artifact {
+            format_version: 49,
+            build_metadata: None,
+            compiled_source_sha256: None,
+            source_name: "map-record-update.gu".into(),
+            sources: vec![],
+            entry: "main".into(),
+            functions: vec![Function {
+                name: "main".into(),
+                parameters: vec![],
+                result: Type::Int,
+                local_count: 0,
+                code: vec![
+                    Instruction {
+                        op: Op::MapRecordGet(0, 1, true),
+                        span: Span::default(),
+                    },
+                    Instruction {
+                        op: Op::MapRecordSet(0, 1, false),
+                        span: Span::default(),
+                    },
+                ],
+            }],
+            externals: vec![],
+            records: vec![],
+        };
+        let encoded = artifact.to_bytes().expect("format 49 artifact encodes");
+        assert_eq!(Artifact::from_bytes(&encoded).unwrap(), artifact);
+
+        let mut format_48 = artifact.clone();
+        format_48.format_version = 48;
+        format_48.functions[0].code.clear();
+        assert_eq!(Artifact::from_bytes(&format_48.to_bytes().unwrap()).unwrap(), format_48);
+
+        let mut format_48_with_new_op = artifact.clone();
+        format_48_with_new_op.format_version = 48;
+        assert_eq!(
+            format_48_with_new_op.to_bytes().unwrap_err().code,
+            "E_ARTIFACT_VERSION"
+        );
+
+        let mut legacy_header_with_new_instruction = encoded;
+        legacy_header_with_new_instruction[4..8].copy_from_slice(&48u32.to_le_bytes());
+        assert_eq!(
+            Artifact::from_bytes(&legacy_header_with_new_instruction)
+                .unwrap_err()
+                .code,
+            "E_ARTIFACT_VERSION"
+        );
+    }
+
+    #[test]
     fn cloned_text_values_share_immutable_storage() {
         let value = Value::Text("a sufficiently long immutable string value".into());
         let cloned = value.clone();
@@ -1963,6 +2016,8 @@ pub enum Op {
     MakeTypedMap(Type),
     MapKeys,
     MapSet,
+    MapRecordGet(usize, usize, bool),
+    MapRecordSet(usize, usize, bool),
     MapHas,
     ListPush,
     ListPushLocal(usize),
@@ -2180,7 +2235,7 @@ pub struct Artifact {
 }
 
 impl Artifact {
-    pub const CURRENT_VERSION: u32 = 48;
+    pub const CURRENT_VERSION: u32 = 49;
     pub fn entry(&self) -> &str {
         &self.entry
     }
@@ -2392,6 +2447,12 @@ impl Artifact {
                 "UTC date formatting requires artifact format 48",
             ));
         }
+        if self.format_version < 49 && artifact_uses_map_record_update(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "typed map-record updates require artifact format 49",
+            ));
+        }
         validate_sort_comparator_effects(self)
             .map_err(|message| ArtifactError::new("E_SORT_EFFECT", message))?;
         let mut w = Writer(Vec::new());
@@ -2539,6 +2600,18 @@ impl Artifact {
                     }
                     Op::MapKeys => w.u8(60),
                     Op::MapSet => w.u8(61),
+                    Op::MapRecordGet(record, field, nested) => {
+                        w.u8(169);
+                        w.count(*record)?;
+                        w.count(*field)?;
+                        w.u8(u8::from(*nested));
+                    }
+                    Op::MapRecordSet(record, field, nested) => {
+                        w.u8(170);
+                        w.count(*record)?;
+                        w.count(*field)?;
+                        w.u8(u8::from(*nested));
+                    }
                     Op::MapHas => w.u8(62),
                     Op::Divide => w.u8(63),
                     Op::JsonAsFloat => w.u8(64),
@@ -2972,6 +3045,48 @@ impl Artifact {
                         return Err(ArtifactError::new(
                             "E_ARTIFACT_VERSION",
                             "UTC date formatting requires artifact format 48",
+                        ));
+                    }
+                    169 if format_version >= 49 => {
+                        let record = r.count()?;
+                        let field = r.count()?;
+                        let nested = match r.u8()? {
+                            0 => false,
+                            1 => true,
+                            _ => {
+                                return Err(ArtifactError::new(
+                                    "E_ARTIFACT_ENCODING",
+                                    "typed map-record read has an invalid nesting flag",
+                                ));
+                            }
+                        };
+                        Op::MapRecordGet(record, field, nested)
+                    }
+                    169 => {
+                        return Err(ArtifactError::new(
+                            "E_ARTIFACT_VERSION",
+                            "typed map-record reads require artifact format 49",
+                        ));
+                    }
+                    170 if format_version >= 49 => {
+                        let record = r.count()?;
+                        let field = r.count()?;
+                        let nested = match r.u8()? {
+                            0 => false,
+                            1 => true,
+                            _ => {
+                                return Err(ArtifactError::new(
+                                    "E_ARTIFACT_ENCODING",
+                                    "typed map-record update has an invalid nesting flag",
+                                ));
+                            }
+                        };
+                        Op::MapRecordSet(record, field, nested)
+                    }
+                    170 => {
+                        return Err(ArtifactError::new(
+                            "E_ARTIFACT_VERSION",
+                            "typed map-record updates require artifact format 49",
                         ));
                     }
                     103 => Op::ListPushLocal(r.count()?),
@@ -3463,6 +3578,17 @@ fn artifact_uses_time_format_utc_date(artifact: &Artifact) -> bool {
             .code
             .iter()
             .any(|instruction| matches!(instruction.op, Op::TimeFormatUtcDate))
+    })
+}
+
+fn artifact_uses_map_record_update(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function.code.iter().any(|instruction| {
+            matches!(
+                &instruction.op,
+                Op::MapRecordGet(_, _, _) | Op::MapRecordSet(_, _, _)
+            )
+        })
     })
 }
 
