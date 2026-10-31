@@ -201,13 +201,82 @@ mod native_inline_arena_tests {
 // JIT code keeps raw pointers to list descriptors and tagged values. Boxes and
 // inline slots plus fixed-capacity overflow chunks keep their addresses stable.
 #[allow(clippy::vec_box)]
+/// Boxed descriptors with stable addresses and constant-time address membership.
+struct AddressedBoxes<T> {
+    items: Vec<Box<T>>,
+    addresses: std::collections::HashSet<usize, std::hash::BuildHasherDefault<AddressHasher>>,
+}
+
+#[derive(Default)]
+struct AddressHasher(u64);
+
+impl std::hash::Hasher for AddressHasher {
+    fn finish(&self) -> u64 {
+        self.0
+    }
+
+    fn write(&mut self, bytes: &[u8]) {
+        for byte in bytes {
+            self.0 = (self.0 ^ u64::from(*byte)).wrapping_mul(0x100_0000_01b3);
+        }
+    }
+
+    fn write_usize(&mut self, value: usize) {
+        self.0 = (value as u64 >> 3).wrapping_mul(0x9E37_79B9_7F4A_7C15);
+    }
+}
+
+impl<T> AddressedBoxes<T> {
+    fn new() -> Self {
+        Self {
+            items: Vec::new(),
+            addresses: Default::default(),
+        }
+    }
+
+    fn try_reserve(&mut self, additional: usize) -> Result<(), std::collections::TryReserveError> {
+        self.items.try_reserve(additional)?;
+        self.addresses.try_reserve(additional)
+    }
+
+    fn push(&mut self, item: Box<T>) {
+        self.addresses.insert((&*item as *const T) as usize);
+        self.items.push(item);
+    }
+
+    fn last_mut(&mut self) -> Option<&mut Box<T>> {
+        self.items.last_mut()
+    }
+
+    fn clear(&mut self) {
+        self.items.clear();
+        self.addresses.clear();
+    }
+
+    fn find_address(&self, address: usize) -> Option<&T> {
+        if !self.addresses.contains(&address) {
+            return None;
+        }
+        // The address is a live boxed descriptor owned by `items`.
+        Some(unsafe { &*(address as *const T) })
+    }
+}
+
+impl<T> std::ops::Deref for AddressedBoxes<T> {
+    type Target = Vec<Box<T>>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.items
+    }
+}
+
 struct NativeListArena {
-    float_lists: Vec<Box<NativeFloatList>>,
+    float_lists: AddressedBoxes<NativeFloatList>,
     float_storage: Vec<Vec<Float64>>,
-    int_lists: Vec<Box<NativeIntList>>,
+    int_lists: AddressedBoxes<NativeIntList>,
     inline_int_lists: Vec<Vec<NativeIntList>>,
     int_storage: Vec<Vec<i64>>,
-    handle_lists: Vec<Box<NativeHandleList>>,
+    handle_lists: AddressedBoxes<NativeHandleList>,
     handle_storage: Vec<Vec<i64>>,
     native_records: Vec<Box<NativeRecord>>,
     native_record_types: Vec<usize>,
@@ -218,6 +287,7 @@ struct NativeListArena {
     inline_tagged_values: [NativeTaggedValue; NATIVE_INLINE_TAGGED_VALUES],
     inline_tagged_value_len: usize,
     tagged_values: Vec<Vec<NativeTaggedValue>>,
+    tagged_chunk_starts: std::collections::BTreeMap<usize, usize>,
     native_vm_continuations: Vec<NativeVmContinuationFrame>,
     runtime_context: Option<NativeRuntimeContext>,
     host_error: Option<RuntimeError>,
@@ -230,9 +300,15 @@ struct NativeListArena {
     committed_output_bytes: usize,
     pending_output: String,
     pending_print_bytes: Vec<usize>,
+    reclaim_floor: usize,
+    reclamations: u64,
 }
 
 const NATIVE_INLINE_TAGGED_VALUES: usize = 8;
+/// Arena entries that must accumulate before a loop safepoint attempts to retire dead handles.
+const NATIVE_ARENA_RECLAIM_MIN_ENTRIES: usize = 2048;
+/// Safepoint root kind for a `List[Text]` local stored as a native handle list.
+pub(crate) const NATIVE_SAFEPOINT_TEXT_LIST_TAG: i64 = 5;
 
 pub(crate) struct NativeVmContinuationFrame {
     pub(crate) function_index: usize,
@@ -282,12 +358,12 @@ impl NativeListArena {
         profile: Option<Arc<RuntimeProfileCounters>>,
     ) -> Self {
         Self {
-            float_lists: Vec::new(),
+            float_lists: AddressedBoxes::new(),
             float_storage: Vec::new(),
-            int_lists: Vec::new(),
+            int_lists: AddressedBoxes::new(),
             inline_int_lists: Vec::new(),
             int_storage: Vec::new(),
-            handle_lists: Vec::new(),
+            handle_lists: AddressedBoxes::new(),
             handle_storage: Vec::new(),
             native_records: Vec::new(),
             native_record_types: Vec::new(),
@@ -303,6 +379,7 @@ impl NativeListArena {
             }; NATIVE_INLINE_TAGGED_VALUES],
             inline_tagged_value_len: 0,
             tagged_values: Vec::new(),
+            tagged_chunk_starts: std::collections::BTreeMap::new(),
             native_vm_continuations: Vec::new(),
             runtime_context: None,
             host_error: None,
@@ -315,6 +392,8 @@ impl NativeListArena {
             committed_output_bytes: 0,
             pending_output: String::new(),
             pending_print_bytes: Vec::new(),
+            reclaim_floor: NATIVE_ARENA_RECLAIM_MIN_ENTRIES,
+            reclamations: 0,
         }
     }
 
@@ -323,6 +402,105 @@ impl NativeListArena {
             return false;
         }
         self.charged_bytes = self.charged_bytes.saturating_add(bytes);
+        true
+    }
+
+    fn retained_entries(&self) -> usize {
+        self.values
+            .len()
+            .saturating_add(self.handle_lists.len())
+            .saturating_add(self.int_lists.len())
+            .saturating_add(self.float_lists.len())
+            .saturating_add(self.native_records.len())
+            .saturating_add(self.inline_tagged_value_len)
+            .saturating_add(
+                self.tagged_values
+                    .iter()
+                    .map(Vec::len)
+                    .fold(0usize, usize::saturating_add),
+            )
+    }
+
+    fn discard_arena_handles(&mut self) {
+        self.float_lists.clear();
+        self.float_storage.clear();
+        self.int_lists.clear();
+        self.inline_int_lists.clear();
+        self.int_storage.clear();
+        self.handle_lists.clear();
+        self.handle_storage.clear();
+        self.native_records.clear();
+        self.native_record_types.clear();
+        self.native_record_fields.clear();
+        self.native_record_indices.clear();
+        self.values.clear();
+        self.inline_tagged_value_len = 0;
+        self.tagged_values.clear();
+        self.tagged_chunk_starts.clear();
+    }
+
+    /// Retire every handle that is not reachable from the supplied live locals.
+    ///
+    /// `roots` is `(slot, tag, raw handle)` triples. Handles are materialized,
+    /// the arena is emptied, and the live values are stored again; the raw
+    /// words are rewritten in place. If any root cannot be evacuated the arena
+    /// is left untouched. Guest allocation charges are cumulative and unchanged.
+    fn reclaim_dead_handles(&mut self, roots: &mut [[i64; 3]]) -> bool {
+        let retained = self.retained_entries();
+        if retained < self.reclaim_floor || !self.native_vm_continuations.is_empty() {
+            return false;
+        }
+        let mut live = Vec::with_capacity(roots.len());
+        for root in roots.iter() {
+            if !matches!(root[1], 4 | NATIVE_SAFEPOINT_TEXT_LIST_TAG)
+                || root[2] >= NATIVE_CONSTANT_HANDLE_BASE
+            {
+                live.push(None);
+                continue;
+            }
+            match self.materialize_native_value(root[2]) {
+                Some(value) => live.push(Some(value)),
+                None => return false,
+            }
+        }
+        self.discard_arena_handles();
+        for (root, value) in roots.iter_mut().zip(live) {
+            let Some(value) = value else { continue };
+            let stored = if root[1] == NATIVE_SAFEPOINT_TEXT_LIST_TAG {
+                match value {
+                    Value::List(items) => items
+                        .iter()
+                        .map(|item| match item {
+                            Value::Text(text) => Some(Arc::clone(text)),
+                            _ => None,
+                        })
+                        .collect::<Option<Vec<_>>>()
+                        .and_then(|items| self.store_native_text_list_charged(items, false)),
+                    _ => None,
+                }
+            } else {
+                self.encode_native_value(value)
+            };
+            match stored {
+                Some(handle) => root[2] = handle,
+                None => {
+                    // Allocation of a handle slot failed after the arena was emptied.
+                    self.host_error.get_or_insert_with(|| {
+                        RuntimeError::new(
+                            "R_ALLOCATION_LIMIT",
+                            "native arena could not retain a live value",
+                            Span::default(),
+                        )
+                    });
+                    return true;
+                }
+            }
+        }
+        self.reclamations = self.reclamations.saturating_add(1);
+        self.reclaim_floor = self
+            .retained_entries()
+            .saturating_mul(2)
+            .max(NATIVE_ARENA_RECLAIM_MIN_ENTRIES);
         true
     }
 
@@ -360,10 +538,7 @@ impl NativeListArena {
 
     fn handle_list(&self, handle: i64) -> Option<&NativeHandleList> {
         let address = usize::try_from(handle).ok()?;
-        self.handle_lists
-            .iter()
-            .find(|list| (&***list as *const NativeHandleList) as usize == address)
-            .map(|list| &**list)
+        self.handle_lists.find_address(address)
     }
 
     fn native_record(&self, handle: i64) -> Option<(&NativeRecord, usize)> {
@@ -376,18 +551,12 @@ impl NativeListArena {
 
     fn float_list(&self, handle: i64) -> Option<&NativeFloatList> {
         let address = usize::try_from(handle).ok()?;
-        self.float_lists
-            .iter()
-            .find(|list| (&***list as *const NativeFloatList) as usize == address)
-            .map(|list| &**list)
+        self.float_lists.find_address(address)
     }
 
     fn int_list(&self, handle: i64) -> Option<&NativeIntList> {
         let address = usize::try_from(handle).ok()?;
-        self.int_lists
-            .iter()
-            .find(|list| (&***list as *const NativeIntList) as usize == address)
-            .map(|list| &**list)
+        self.int_lists.find_address(address)
     }
 
     fn store_native_record_value(
@@ -642,10 +811,15 @@ impl NativeListArena {
             .iter()
             .find(|value| (*value as *const NativeTaggedValue) as usize == address)
             .or_else(|| {
+                let (start, chunk_index) =
+                    self.tagged_chunk_starts.range(..=address).next_back()?;
+                let offset = address - start;
+                if offset % size_of::<NativeTaggedValue>() != 0 {
+                    return None;
+                }
                 self.tagged_values
-                    .iter()
-                    .flat_map(|chunk| chunk.iter())
-                    .find(|value| (*value as *const NativeTaggedValue) as usize == address)
+                    .get(*chunk_index)?
+                    .get(offset / size_of::<NativeTaggedValue>())
             })
     }
 
@@ -701,6 +875,8 @@ impl NativeListArena {
         for _ in 0..chunks_needed {
             let mut chunk = Vec::new();
             chunk.try_reserve_exact(TAGGED_VALUE_CHUNK_ITEMS).ok()?;
+            self.tagged_chunk_starts
+                .insert(chunk.as_ptr() as usize, self.tagged_values.len());
             self.tagged_values.push(chunk);
         }
         Some(())
@@ -891,6 +1067,15 @@ impl NativeListArena {
     }
 
     fn store_native_text_list(&mut self, items: Vec<Arc<str>>) -> Option<i64> {
+        self.store_native_text_list_charged(items, true)
+    }
+
+    /// `charge` is false only when re-storing a list whose allocation was already charged.
+    fn store_native_text_list_charged(
+        &mut self,
+        items: Vec<Arc<str>>,
+        charge: bool,
+    ) -> Option<i64> {
         if items.len() > self.max_collection_items {
             return None;
         }
@@ -931,7 +1116,7 @@ impl NativeListArena {
         } else {
             descriptor.data = encoded.as_mut_ptr();
         }
-        if !self.charge(allocation) {
+        if charge && !self.charge(allocation) {
             return None;
         }
         self.values.extend(values);
@@ -7030,6 +7215,7 @@ impl Instance {
                     capture_vm_continuation_int2: native_capture_vm_continuation_int2 as *const ()
                         as *const u8,
                     count_guest_branch: native_count_guest_branch as *const () as *const u8,
+                    loop_safepoint: native_loop_safepoint as *const () as *const u8,
                 },
                 runtime_profile.is_some(),
             );
@@ -9188,6 +9374,29 @@ unsafe extern "C" fn native_direct_make_record(
             0
         }
     }
+}
+
+/// Loop-backedge safepoint. `triples` points at `count` `(slot, tag, handle)` words.
+/// Returns non-zero only when the arena failed after being emptied.
+unsafe extern "C" fn native_loop_safepoint(
+    arena: *mut NativeListArena,
+    triples: *mut [i64; 3],
+    count: i64,
+) -> i32 {
+    if arena.is_null() {
+        return 0;
+    }
+    let arena = unsafe { &mut *arena };
+    if arena.retained_entries() < arena.reclaim_floor {
+        return 0;
+    }
+    let roots: &mut [[i64; 3]] = if triples.is_null() || count <= 0 {
+        &mut []
+    } else {
+        unsafe { std::slice::from_raw_parts_mut(triples, count as usize) }
+    };
+    arena.reclaim_dead_handles(roots);
+    i32::from(arena.host_error.is_some())
 }
 
 unsafe extern "C" fn native_count_guest_branch(arena: *mut NativeListArena) {

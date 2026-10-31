@@ -5681,6 +5681,7 @@ fn native_rejection_profile_names_the_first_unsupported_instruction() {
 }
 
 #[test]
+#[cfg(not(feature = "native-value-bridge"))]
 fn native_loops_reaching_value_callbacks_stay_in_vm_for_arena_lifetime() {
     let source = "fn parses(value: Text) -> Bool:\n    return is_ok(json_parse(value))\n\nfn main() -> Int:\n    var index = 0\n    while index < 10:\n        if parses(\"{\\\"value\\\":1}\"):\n            set index = index + 1\n        else:\n            return -1\n    return index\n";
     let artifact =
@@ -5720,6 +5721,7 @@ fn native_loops_reaching_value_callbacks_stay_in_vm_for_arena_lifetime() {
 }
 
 #[test]
+#[cfg(not(feature = "native-value-bridge"))]
 fn native_json_value_creation_loops_stay_in_vm_for_arena_lifetime() {
     let source = "fn main() -> Int:\n    var index = 0\n    var report = json_object()\n    while index < 100:\n        set report = json_set(report, \"index\", json_int(index))\n        set index = index + 1\n    return index\n";
     let artifact = compile("native-json-allocation-loop-arena.gu", source)
@@ -6868,4 +6870,28 @@ fn native_text_chars_index_charges_the_cloned_scalar() {
         .native_function_names()
         .iter()
         .any(|name| name == "first"));
+}
+
+#[cfg(feature = "native-value-bridge")]
+#[test]
+fn native_loop_safepoints_retire_dead_handles_without_changing_results() {
+    let source = "fn main() -> Int:\n    var index = 0\n    var total = 0\n    var report = json_object()\n    while index < 12000:\n        set report = json_set(report, \"last\", json_int(index))\n        set total = total + index\n        set index = index + 1\n    return total\n";
+    let artifact = compile("native-loop-safepoint.gu", source).expect("safepoint fixture compiles");
+    let mut native = Runtime::new()
+        .load(artifact.clone(), HostPolicy::default())
+        .unwrap();
+    let mut vm = Runtime::vm_only()
+        .load(artifact, HostPolicy::default())
+        .unwrap();
+    let native_value = native.invoke("main", vec![]).unwrap();
+    assert_eq!(native_value, vm.invoke("main", vec![]).unwrap());
+    assert_eq!(native_value, Value::Int(BigInt::from_usize(71_994_000)));
+    assert!(
+        native
+            .native_function_names()
+            .iter()
+            .any(|name| name == "main"),
+        "{}",
+        native.native_compile_profile()
+    );
 }
