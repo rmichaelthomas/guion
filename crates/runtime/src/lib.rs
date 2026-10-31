@@ -7645,6 +7645,21 @@ impl Instance {
                 | (Value::ResultOk(_) | Value::ResultErr(_), Type::Result(_, _)) => {
                     native_arena.encode_native_value(value.clone())
                 }
+                // Native list indexing dereferences a list descriptor, so a plain
+                // `values` index here would be read as an address. Text lists get a
+                // real handle list (the caller already owns and paid for the value);
+                // other list shapes have no entry encoding and stay in the VM.
+                (Value::List(items), Type::List(item)) if **item == Type::Text => {
+                    let texts = items
+                        .iter()
+                        .map(|value| match value {
+                            Value::Text(text) => Some(Arc::clone(text)),
+                            _ => None,
+                        })
+                        .collect::<Option<Vec<_>>>()?;
+                    native_arena.store_native_text_list_charged(texts, false)
+                }
+                (_, Type::List(_)) => None,
                 _ => native_arena.store_value(value.clone()),
             })
             .collect::<Option<Vec<_>>>();
