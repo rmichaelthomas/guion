@@ -12,7 +12,11 @@ mod compiler_driver;
 mod dependencies;
 mod native_dependencies;
 mod native_packages;
+mod pool_alloc;
 mod source_run_cache;
+
+#[global_allocator]
+static GLOBAL_ALLOCATOR: pool_alloc::PoolAllocator = pool_alloc::PoolAllocator;
 use guion_model::{Artifact, BuildMetadata, Op, ResourceLimits, Value};
 use guion_runtime::{EffectKind, EffectOutcome, HostPolicy, Runtime};
 

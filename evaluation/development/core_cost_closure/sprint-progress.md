@@ -120,3 +120,22 @@ Result on the frozen 200k-row JSONL workload (container, feature build, output i
 Verification: `cargo test -p guion-runtime` passes 196 execution tests in the default build and 197 with `native-value-bridge` (the two guard tests are now default-build only, and a new feature-gated test runs a 12,000-iteration native JSON loop past the reclamation threshold against the VM). `stdlib_data` and `stdlib_services` crash with SIGSEGV in debug builds; the `stdlib_data` crash (`every_shipped_data_module_compiles_as_an_independent_std_import`) reproduces on the unmodified branch, and the `stdlib_services` crash was not checked against it. `cargo fmt --all` is clean.
 
 The direction to close the speed gap is now narrowed to removing bridge work, not memory: lower the hot JSON/Text/Option/Result operations inline in native code on native-resident representations, and cut per-row allocations.
+
+## Pool allocator and native-resident design findings — 2026-10-31
+
+Allocation attribution (VM, `43a48af`, 200k-row JSONL): about 82 `malloc` calls per row, of which about 36 are reading and parsing the line (`jsonl_next`) before any user code runs. Native `main` through the bridge made about 140 per row.
+
+New lever, not previously tried: `crates/cli/src/pool_alloc.rs`, a dependency-free thread-local size-class pool installed as the `guion` binary's global allocator (blocks up to 512 bytes, 16-byte classes, 256 KiB chunks never returned to the OS, shared spill list past 16k blocks so cross-thread frees cannot grow memory without bound). Container, 200k rows, interleaved, output hash identical:
+
+| Build | Time | Peak RSS |
+| --- | --- | --- |
+| VM, glibc malloc (`43a48af`) | 1.37 s | 12 MB |
+| VM, pool allocator | 1.16 s | 12 MB |
+| Native `main` (bridge feature), glibc | 2.67 s | 20 MB |
+| Native `main` (bridge feature), pool | 1.60 s | 21 MB |
+
+Python is 0.648 s on the same workload, so the VM is now about 1.75x Python (was 2.25x). Native `main` is still slower than the VM, so the bridge stays opt-in.
+
+Post-pool VM profile: dispatch about 29%, `value_limit_error_with_json` about 5%, Value clone/drop about 7%, quota bookkeeping about 4%. The limit check, `map_clone_allocation` and the map clone each walk the whole map on every `map_set`, so the per-row cost grows with distinct dates per service. Closing that needs an in-place `set m = map_set(m, ...)` form with an incrementally maintained clone-charge, which is a bytecode and artifact-format change.
+
+Fixed along the way: VM-to-native entry passed `List[Text]` as a handle-table index that native indexing dereferenced as an address (SIGSEGV in `text_split`, `stdlib_data`, `stdlib_services`). Regression test `native_text_list_parameters_match_the_vm`.
