@@ -5565,11 +5565,17 @@ fn main() -> Int:
     assert!(lines[5].starts_with("missing:"), "{output}");
     for line in &lines[1..3] {
         let parts: Vec<&str> = line.split(':').collect();
-        assert_eq!(parts[1], parts[2], "fused and stepped error codes differ: {line}");
+        assert_eq!(
+            parts[1], parts[2],
+            "fused and stepped error codes differ: {line}"
+        );
     }
     for line in &lines[4..6] {
         let parts: Vec<&str> = line.split(':').collect();
-        assert_eq!(parts[1], parts[2], "fused and stepped error codes differ: {line}");
+        assert_eq!(
+            parts[1], parts[2],
+            "fused and stepped error codes differ: {line}"
+        );
     }
 }
 

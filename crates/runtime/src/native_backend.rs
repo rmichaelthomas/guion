@@ -1501,12 +1501,10 @@ impl NativeBackend {
             }
             let zero_steps = builder.ins().iconst(types::I64, 0);
             builder.def_var(steps_var, zero_steps);
-            let handed_fuel = builder.ins().load(
-                types::I64,
-                MemFlagsData::new(),
-                output_pointer,
-                5 * 8,
-            );
+            let handed_fuel =
+                builder
+                    .ins()
+                    .load(types::I64, MemFlagsData::new(), output_pointer, 5 * 8);
             builder.def_var(fuel_var, handed_fuel);
             let first_native_call = builder.ins().iconst(types::I64, 1);
             builder.def_var(native_calls_var, first_native_call);
@@ -3735,13 +3733,7 @@ impl NativeBackend {
                         }
                         let unused_fuel = builder.use_var(fuel_var);
                         let calls = builder.use_var(native_calls_var);
-                        emit_success(
-                            &mut builder,
-                            output_pointer,
-                            steps,
-                            unused_fuel,
-                            calls,
-                        );
+                        emit_success(&mut builder, output_pointer, steps, unused_fuel, calls);
                         continue;
                     }
                     _ => return Err("unsupported instruction".into()),
