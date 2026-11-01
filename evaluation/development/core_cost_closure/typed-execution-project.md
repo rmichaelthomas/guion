@@ -35,3 +35,12 @@ alternating: release 948 ms, no-head probe 907 ms, same output hash
 `a1a9b95d`. The ceiling is 4.1%, below the 8% kill line, so the full refactor
 was not built. The VM's remaining cost is in the handlers and value plumbing,
 not in dispatch. The probe was reverted and not committed.
+
+## Lever result: Arc payloads for Option/Result
+
+`OptionSome`/`ResultOk`/`ResultErr` were switched from `Box<Value>` to
+`Arc<Value>` across model, vm-core, runtime and tests (the quota charge was
+left unchanged). 200k-row JSONL, alternating runs: baseline 960 ms, Arc build
+994 and 1005 ms, same output hash `a1a9b95d`. The atomic refcount traffic on
+clone and drop costs more than the `Box` malloc it avoids, so this is about 4%
+slower. Reverted and not committed.
