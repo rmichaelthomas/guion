@@ -31,6 +31,19 @@ Cumulative wall time for loop bodies of increasing depth:
 
 About 575 ms is the grouping logic after the fields are decoded. The PC profile of the full program is flat: the interpreter loop is 31%, and nothing else exceeds 5%. Spread across it are limit checks (about 8%), `Value` clone and drop, allocation, and Arc refcount traffic.
 
+The grouping logic was split further with a synthetic 200k-iteration loop (10 services, 60 dates, no file I/O), adding one block at a time:
+
+| Block added | ms |
+| --- | ---: |
+| loop, index two lists | 74 |
+| `var by_date = {}` and the `groups[service]` lookup | 10 |
+| `map_has`, `by_date[date]` and branch | 70 |
+| three `json_int_safe(unwrap(json_get_safe(...)))` reads | 120 |
+| up to three `json_set` updates and compares | 125 |
+| two `map_set` writes | 110 |
+
+Every block is about six operations at roughly 100 ns each, so the cost is per-operation overhead (call frame, `Result` box, unwrap, accounting) spread evenly, not one slow operation.
+
 Levers tried, all with byte-identical output:
 
 | Lever | Gain | Decision |
@@ -54,6 +67,6 @@ Typed constructor ops (`MakeNoneOf(T)` and so on) would remove the shims and the
 
 ## Position
 
-Incremental levers on this workload are each 7% or less. Closing the remaining gap (ratio 1.45 to below 1.0 needs about 31% less wall time) needs a different value representation for dynamic data, such as lazy JSON field access and fewer allocations per row, not another VM tweak. That is a multi-session engine project whose payoff is unmeasured until prototyped.
+Incremental levers on this workload are each 10% or less. The best measured candidates are a fused field accessor (get, type-check and unwrap in one operation, about 10%) and removing the `jsonl_next` shims (about 7%); lazy JSON parsing is now estimated at about 5%, because parsing is only 11% of the run. Closing the remaining gap (ratio 1.45 to below 1.0 needs about 31% less wall time) needs a different value representation for dynamic data, such as lazy JSON field access and fewer allocations per row, not another VM tweak. That is a multi-session engine project whose payoff is unmeasured until prototyped.
 
 The gate is not met. The honest claim today is the per-class table above: Guion leads on compute, parallel, short-source, and everyday-application classes, and trails on large-corpus dynamic-data shaping.
