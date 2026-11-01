@@ -24,3 +24,14 @@ Each step is committed with its measurement. Failed steps are reverted and recor
 
 ## Next: Milestone 1 design
 A call-threaded baseline: pre-decode each function once into a vector of handler entries with operands resolved (slot numbers, constant references, jump targets, statically known clone charges), executed without the per-instruction `match`, bounds check and cancellation/fuel head, keeping the existing value stack, quota, fuel and error behaviour. Expected ceiling from the profile: the dispatch share (up to about 28%) minus handler-call cost. Kill if it measures under 8% on the JSONL loop.
+
+## Milestone 1 result: call-threaded baseline killed by probe
+
+The charter's ceiling for a call-threaded baseline is the per-instruction head
+(cancellation loads, `ip` bounds check, fuel decrement). A probe build deleted
+that head outright, which a real design cannot do because it must still honor
+cancellation and fuel. On `base2.gu`/`jsonl.gu` at 200k rows, median of 3,
+alternating: release 948 ms, no-head probe 907 ms, same output hash
+`a1a9b95d`. The ceiling is 4.1%, below the 8% kill line, so the full refactor
+was not built. The VM's remaining cost is in the handlers and value plumbing,
+not in dispatch. The probe was reverted and not committed.
