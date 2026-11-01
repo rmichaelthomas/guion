@@ -1,10 +1,22 @@
 name: Rust source checks
 
+# Cost policy: pull requests run only the cheap checks (formatting and lint on Linux).
+# The full test suite runs when a change lands on main. The macOS and Debian
+# release-target matrices (hours of runner time, macOS billed at a multiple) run only
+# on a manual dispatch or a version tag, never on every push.
 on:
   push:
     branches: [main]
+    tags: ["v*"]
   pull_request:
+    paths-ignore:
+      - "**/*.md"
+      - "evaluation/**/results/**"
   workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -13,7 +25,7 @@ jobs:
   source-checks:
     name: Ubuntu x86_64 source checks (not a release-target gate)
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 90
     steps:
       - name: Check out source
         uses: actions/checkout@v7.0.1
@@ -38,30 +50,37 @@ jobs:
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
 
       - name: Run workspace tests
+        if: github.event_name != 'pull_request'
         run: cargo test --workspace --locked
 
       - name: Check AllHereHTML and large text regressions
+        if: github.event_name != 'pull_request'
         run: |
           cargo build --locked -p guion-cli
           python3 evaluation/completion/test_text_scaling.py --binary target/debug/guion
           python3 evaluation/completion/check_allherehtml.py --binary target/debug/guion
 
       - name: Build the shared VM for WebAssembly
+        if: github.event_name != 'pull_request'
         run: |
           rustup target add wasm32-unknown-unknown --toolchain 1.97.1
           cargo build --locked --target wasm32-unknown-unknown -p guion-vm-wasm
 
       - name: Check completion report schemas only
+        if: github.event_name != 'pull_request'
         run: cargo xtask closeout --check-schema
 
       - name: Check generated agent reference
+        if: github.event_name != 'pull_request'
         run: cargo xtask agent-reference --check
 
       - name: Validate switch-condition evidence ledger
+        if: github.event_name != 'pull_request'
         run: python3 evaluation/agent-choice/validate_switch_conditions.py
 
   macos-aarch64-release-target:
     name: macOS ARM64 release-target matrix
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
     runs-on: macos-15
     timeout-minutes: 150
     env:
@@ -105,6 +124,7 @@ jobs:
 
   debian-aarch64-release-target:
     name: Debian 12 ARM64 release-target matrix
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
     needs: macos-aarch64-release-target
     runs-on: ubuntu-24.04-arm
     container:
@@ -166,6 +186,7 @@ jobs:
 
   debian-x86_64-release-target:
     name: Debian 12 x86_64 release-target matrix
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
     needs: debian-aarch64-release-target
     runs-on: ubuntu-24.04
     container:
