@@ -449,7 +449,9 @@ fn vm_text_chars_concat_fast_path_preserves_allocation_limit_outcomes() {
     let fallback_artifact = compile("text-chars-allocation-fallback.gu", fallback_source)
         .expect("fallback allocation fixture compiles");
 
-    for allocation_limit_bytes in [0, 100, 256, 512, 1024, 4096] {
+    // The fallback's extra `+ ""` shifts its charges after byte 505, so limits between 506 and
+    // 587 legitimately stop the two programs at different points.
+    for allocation_limit_bytes in [0, 100, 256, 505, 1024, 4096] {
         let run = |artifact: &guion_model::Artifact| {
             let mut instance = Runtime::vm_only()
                 .load(
@@ -6941,10 +6943,26 @@ fn native_text_chars_index_charges_the_cloned_scalar() {
     )
     .unwrap();
     let policy = HostPolicy {
-        allocation_limit_bytes: 399,
+        allocation_limit_bytes: 231,
         ..HostPolicy::default()
     };
     let input = vec![Value::Text("a🙂".into())];
+    let sufficient = HostPolicy {
+        allocation_limit_bytes: 232,
+        ..HostPolicy::default()
+    };
+    assert_eq!(
+        Runtime::new()
+            .load(artifact.clone(), sufficient.clone())
+            .unwrap()
+            .invoke("first", input.clone())
+            .unwrap(),
+        Runtime::vm_only()
+            .load(artifact.clone(), sufficient)
+            .unwrap()
+            .invoke("first", input.clone())
+            .unwrap()
+    );
     let mut native = Runtime::new()
         .load(artifact.clone(), policy.clone())
         .unwrap();

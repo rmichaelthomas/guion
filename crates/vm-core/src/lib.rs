@@ -663,7 +663,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
     } else {
         None
     };
-    let mut instruction_fuel = InstructionFuel::new(&budget);
+    let mut instruction_fuel = InstructionFuel::new(budget);
     let mut previous_profiled_instruction: Option<(usize, &'static str)> = None;
     let fused: &[FusedEntry] = shared
         .fused
@@ -813,7 +813,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                     &mut locals,
                     &mut stack,
                     budget.as_ref(),
-                    &limits,
+                    limits,
                     &mut ip,
                 )? {
                     continue;
@@ -979,7 +979,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                 continue;
             }
             Op::Const(v) => {
-                if let Some(error) = value_limit_error_at_boundary(v, &limits, instruction.span) {
+                if let Some(error) = value_limit_error_at_boundary(v, limits, instruction.span) {
                     return Err(error);
                 }
                 charge_allocation(
@@ -1029,7 +1029,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                         ));
                     }
                 };
-                if let Some(error) = value_limit_error(&v, &limits, instruction.span) {
+                if let Some(error) = value_limit_error(&v, limits, instruction.span) {
                     return Err(error);
                 }
                 charge_allocation(budget.as_ref(), new_value_allocation(&v), instruction.span)?;
@@ -1058,7 +1058,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                         ));
                     }
                 };
-                if let Some(error) = value_limit_error(&v, &limits, instruction.span) {
+                if let Some(error) = value_limit_error(&v, limits, instruction.span) {
                     return Err(error);
                 }
                 charge_allocation(budget.as_ref(), new_value_allocation(&v), instruction.span)?;
@@ -1087,7 +1087,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                         ));
                     }
                 };
-                if let Some(error) = value_limit_error(&v, &limits, instruction.span) {
+                if let Some(error) = value_limit_error(&v, limits, instruction.span) {
                     return Err(error);
                 }
                 charge_allocation(budget.as_ref(), new_value_allocation(&v), instruction.span)?;
@@ -1186,7 +1186,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                     quotient
                 };
                 let value = Value::Int(value);
-                if let Some(error) = value_limit_error(&value, &limits, instruction.span) {
+                if let Some(error) = value_limit_error(&value, limits, instruction.span) {
                     return Err(error);
                 }
                 charge_allocation(
@@ -1309,7 +1309,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                     }
                 }
                 let map = Value::Map(Arc::new(values));
-                if let Some(error) = value_limit_error(&map, &limits, instruction.span) {
+                if let Some(error) = value_limit_error(&map, limits, instruction.span) {
                     return Err(error);
                 }
                 push_stack!(map);
@@ -1568,7 +1568,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                         instruction.span,
                     )
                 })?;
-                if let Some(error) = value_limit_error(&value, &limits, instruction.span) {
+                if let Some(error) = value_limit_error(&value, limits, instruction.span) {
                     return Err(error);
                 }
                 let entry = match (values.get(key.as_ref()), nested_key.as_deref()) {
@@ -1753,7 +1753,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                 };
                 Arc::make_mut(fields)[*field_index] = value;
                 let map = Value::Map(Arc::new(updated));
-                if let Some(error) = value_limit_error(&map, &limits, instruction.span) {
+                if let Some(error) = value_limit_error(&map, limits, instruction.span) {
                     return Err(error);
                 }
                 if PROFILED {
@@ -1824,7 +1824,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                         size_of::<(String, Value)>().saturating_add(key.len())
                     };
                     charge_allocation(budget.as_ref(), allocation, instruction.span)?;
-                    if let Some(error) = value_limit_error(&value, &limits, instruction.span) {
+                    if let Some(error) = value_limit_error(&value, limits, instruction.span) {
                         return Err(error);
                     }
 
@@ -1905,7 +1905,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                         size_of::<(String, Value)>().saturating_add(key.len())
                     };
                     charge_allocation(budget.as_ref(), allocation, instruction.span)?;
-                    if let Some(error) = value_limit_error(&value, &limits, instruction.span) {
+                    if let Some(error) = value_limit_error(&value, limits, instruction.span) {
                         return Err(error);
                     }
 
@@ -1998,7 +1998,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                         size_of::<(String, Value)>().saturating_add(key.len())
                     };
                     charge_allocation(budget.as_ref(), allocation, instruction.span)?;
-                    if let Some(error) = value_limit_error(&value, &limits, instruction.span) {
+                    if let Some(error) = value_limit_error(&value, limits, instruction.span) {
                         return Err(error);
                     }
                     replace_map_value(Arc::make_mut(items), key.as_ref(), value);
@@ -2036,7 +2036,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                     }
                 }
                 let map = Value::Map(Arc::new(updated));
-                if let Some(error) = value_limit_error(&map, &limits, instruction.span) {
+                if let Some(error) = value_limit_error(&map, limits, instruction.span) {
                     return Err(error);
                 }
                 push_stack!(map);
@@ -2720,7 +2720,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                     }
                     _ => unreachable!("list type checked above"),
                 };
-                if let Some(error) = value_limit_error(&list, &limits, instruction.span) {
+                if let Some(error) = value_limit_error(&list, limits, instruction.span) {
                     return Err(error);
                 }
                 push_stack!(list);
@@ -2794,7 +2794,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                         ));
                     }
                 }
-                if let Some(error) = value_limit_error(local, &limits, instruction.span) {
+                if let Some(error) = value_limit_error(local, limits, instruction.span) {
                     return Err(error);
                 }
             }
@@ -2864,7 +2864,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                     _ => unreachable!("list type checked above"),
                 };
                 budget.record_list_set_copy(len, copy_bytes);
-                if let Some(error) = value_limit_error(&list, &limits, instruction.span) {
+                if let Some(error) = value_limit_error(&list, limits, instruction.span) {
                     return Err(error);
                 }
                 push_stack!(list);
@@ -2951,7 +2951,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                     }
                     _ => unreachable!("list type checked above"),
                 }
-                if let Some(error) = value_limit_error(local, &limits, instruction.span) {
+                if let Some(error) = value_limit_error(local, limits, instruction.span) {
                     return Err(error);
                 }
             }
@@ -3051,7 +3051,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                         fast_host_forwarders.get(*target).and_then(|value| *value)
                     {
                         if let Err(mut error) =
-                            check_call_depth(&artifact, &limits, *target, depth.saturating_add(1))
+                            check_call_depth(artifact, limits, *target, depth.saturating_add(1))
                         {
                             error.trace.push(instruction.span);
                             return Err(error);
@@ -3064,12 +3064,12 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                         let forwarder_result = execute_fast_host_forwarder::<PROFILED, _>(
                             FastHostForwarderExecution {
                                 host,
-                                artifact: &artifact,
+                                artifact,
                                 target: *target,
                                 forwarder,
                                 stack: &mut stack,
                                 locals: &mut locals,
-                                budget: &budget,
+                                budget,
                                 instruction_fuel: &mut instruction_fuel,
                                 depth: depth.saturating_add(1),
                             },
@@ -3260,7 +3260,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                         instruction.span,
                     ));
                 }
-                if let Some(error) = value_limit_error(&result, &limits, instruction.span) {
+                if let Some(error) = value_limit_error(&result, limits, instruction.span) {
                     return Err(error);
                 }
                 pool.give(locals);
@@ -3279,7 +3279,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                     function: f,
                     stack: &mut stack,
                     locals: &mut locals,
-                    budget: &budget,
+                    budget,
                     depth,
                 });
                 if let (Some(sample), Some(started)) = (&profile_sample, host_started) {
@@ -3306,7 +3306,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                         | Op::HttpResponseJson
                 ) {
                     if let Some(result) = stack.last() {
-                        if let Some(error) = value_limit_error(result, &limits, instruction.span) {
+                        if let Some(error) = value_limit_error(result, limits, instruction.span) {
                             return Err(error);
                         }
                     }
