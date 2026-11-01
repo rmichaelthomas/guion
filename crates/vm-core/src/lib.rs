@@ -1347,7 +1347,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                     fields.push(pop!());
                 }
                 fields.reverse();
-                push_stack!(Value::Record(record.name.as_str().into(), Arc::new(fields)));
+                push_stack!(Value::Record(record.name.clone(), Arc::new(fields)));
             }
             Op::GetField(record_index, field_index) => {
                 let record = host.artifact().records.get(*record_index).ok_or_else(|| {
@@ -5463,7 +5463,7 @@ pub fn verify(artifact: &Artifact) -> Result<(), RuntimeError> {
     }
     let mut names = record_names
         .iter()
-        .map(String::as_str)
+        .map(|name| name.as_str())
         .collect::<HashSet<_>>();
     for function in &artifact.functions {
         if function.name.is_empty() || !names.insert(function.name.as_str()) {
@@ -5624,9 +5624,9 @@ pub fn verify(artifact: &Artifact) -> Result<(), RuntimeError> {
     Ok(())
 }
 
-fn artifact_type_known(ty: &Type, record_names: &HashSet<String>) -> bool {
+fn artifact_type_known(ty: &Type, record_names: &HashSet<guion_model::RecordName>) -> bool {
     match ty {
-        Type::Record(name) => record_names.contains(name),
+        Type::Record(name) => record_names.contains(name.as_str()),
         Type::NativeResource(name) => matches!(
             name.as_str(),
             "FileReader" | "Db" | "Transaction" | "TomlDocument"
@@ -6395,7 +6395,7 @@ fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result
                         ));
                     }
                 }
-                state.stack.push(Type::Record(record.name.clone()));
+                state.stack.push(Type::Record(record.name.to_string()));
             }
             Op::GetField(record_index, field_index) => {
                 let record = artifact.records.get(*record_index).ok_or_else(|| {
@@ -6404,7 +6404,7 @@ fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result
                 let field = record.fields.get(*field_index).ok_or_else(|| {
                     format!("field access references missing field at instruction {pc}")
                 })?;
-                if pop_type(&mut state.stack, pc)? != Type::Record(record.name.clone()) {
+                if pop_type(&mut state.stack, pc)? != Type::Record(record.name.to_string()) {
                     return Err(format!(
                         "field access record type mismatch at instruction {pc}"
                     ));
@@ -6462,7 +6462,7 @@ fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result
                 } else {
                     item_type.as_ref()
                 };
-                if *value_type != Type::Record(record.name.clone()) {
+                if *value_type != Type::Record(record.name.to_string()) {
                     return Err(format!(
                         "map_record_get value type does not match record at instruction {pc}"
                     ));
@@ -6500,7 +6500,7 @@ fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result
                 } else {
                     item_type.as_ref()
                 };
-                if *record_type != Type::Record(record.name.clone()) || value_type != field.ty {
+                if *record_type != Type::Record(record.name.to_string()) || value_type != field.ty {
                     return Err(format!(
                         "map_record_set types do not match record field at instruction {pc}"
                     ));

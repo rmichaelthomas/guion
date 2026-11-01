@@ -582,7 +582,10 @@ fn parse_records(value: Option<&Json>) -> Result<Vec<RecordDefinition>, String> 
                     })
                 })
                 .collect::<Result<Vec<_>, String>>()?;
-            Ok(RecordDefinition { name, fields })
+            Ok(RecordDefinition {
+                name: name.into(),
+                fields,
+            })
         })
         .collect()
 }

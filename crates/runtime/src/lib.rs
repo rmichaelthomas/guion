@@ -804,10 +804,7 @@ impl NativeListArena {
             };
             fields.push(value);
         }
-        Some(Value::Record(
-            definition.name.as_str().into(),
-            Arc::new(fields),
-        ))
+        Some(Value::Record(definition.name.clone(), Arc::new(fields)))
     }
 
     fn tagged_value(&self, handle: i64) -> Option<&NativeTaggedValue> {
@@ -2144,7 +2141,7 @@ impl NativeListArena {
                 if !self.charge_or_error(charge_bytes, instruction.span) {
                     return None;
                 }
-                Value::Record(definition.name.as_str().into(), Arc::new(values))
+                Value::Record(definition.name.clone(), Arc::new(values))
             }
             _ => {
                 let mut stack = self.decode_bridge_arguments(arguments, argument_tags)?;
@@ -3105,7 +3102,7 @@ fn std_error_record_value(
     charge_allocation(budget, record_bytes, span)?;
     budget.record_record_charge(record_bytes);
     Ok(Value::Record(
-        record.name.as_str().into(),
+        record.name.clone(),
         Arc::new(vec![
             Value::Text(Arc::from(code)),
             Value::Text(Arc::from(message)),

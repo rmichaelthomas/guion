@@ -4066,7 +4066,7 @@ fn compile_program(
             .records
             .iter()
             .map(|record| RecordDefinition {
-                name: record.name.clone(),
+                name: record.name.clone().into(),
                 fields: record
                     .fields
                     .iter()

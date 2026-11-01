@@ -4782,7 +4782,7 @@ fn infer_native_types(
             Op::Load(slot) => state.stack.push(state.locals.get(*slot)?.clone()?),
             Op::GetField(record_index, field_index) => {
                 let definition = records.get(*record_index)?;
-                if state.stack.pop()? != Type::Record(definition.name.clone()) {
+                if state.stack.pop()? != Type::Record(definition.name.to_string()) {
                     return None;
                 }
                 state
@@ -4805,7 +4805,7 @@ fn infer_native_types(
                     return None;
                 }
                 state.stack.truncate(start);
-                state.stack.push(Type::Record(definition.name.clone()));
+                state.stack.push(Type::Record(definition.name.to_string()));
             }
             Op::Store(slot) => {
                 let ty = state.stack.pop()?;

@@ -2626,7 +2626,7 @@ fn api_report(source: &str, project_root: &Path, artifact: &Artifact) -> serde_j
             "profile_requirement": "python-interop",
         })).collect::<Vec<_>>(),
         "records": artifact.records.iter().map(|record| serde_json::json!({
-            "name": record.name,
+            "name": record.name.as_str(),
             "fields": record.fields.iter().map(|field| serde_json::json!({"name": field.name, "type": display_type(&field.ty)})).collect::<Vec<_>>(),
         })).collect::<Vec<_>>(),
         "standard_library": {

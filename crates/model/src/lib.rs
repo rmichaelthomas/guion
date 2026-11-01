@@ -1825,6 +1825,12 @@ impl std::ops::Deref for RecordName {
     }
 }
 
+impl std::borrow::Borrow<str> for RecordName {
+    fn borrow(&self) -> &str {
+        self.as_str()
+    }
+}
+
 impl From<&str> for RecordName {
     fn from(name: &str) -> Self {
         Self(Arc::new(name.to_owned()))
@@ -2328,7 +2334,7 @@ pub struct RecordField {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RecordDefinition {
-    pub name: String,
+    pub name: RecordName,
     pub fields: Vec<RecordField>,
 }
 
@@ -3006,7 +3012,10 @@ impl Artifact {
                     ty: r.ty()?,
                 });
             }
-            records.push(RecordDefinition { name, fields });
+            records.push(RecordDefinition {
+                name: name.into(),
+                fields,
+            });
         }
         let ne = r.count()?;
         let mut externals = Vec::with_capacity(ne);
