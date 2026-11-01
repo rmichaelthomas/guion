@@ -150,3 +150,13 @@ The gate (upper 95% below 1.0 in the source and artifact lanes at 20k and 200k r
 PC-sampled VM run (2,174 in-binary samples). Real data work is small: serde JSON parse 0.9%, file line read 1.0%, text collapse 0.9%, BTreeMap get 1.3%, `json_try_get` 0.9% (about 5–6% together). `execute_vm_frame_with_forwarders` is 28.1% and includes inlined handlers, so pure dispatch is below that. Value plumbing is about 22%: `drop_glue<Value>` 4.1%, `value_limit_error_with_json` 3.7%, `cloned_value_allocation` 3.2%, alloc 2.9%, `Value::clone` 2.6%, atomics 3.4%, `charge_allocation` 1.2%, `shared_json_metrics` 1.1%.
 
 Reading: an owned-pointer native tier removes dispatch (at most about 28%) but keeps clone, drop, limit and quota work unless values also get an unboxed representation. If native callbacks matched VM handler cost, JSONL would land near 0.72 x 1.15 s = 0.83 s against Python's about 0.85 s: at best break-even with the gate, not a clear win, and only after every op family is native. The fully native run today is 1.60 s against the VM's 1.15 s, so callbacks currently cost more than VM handlers. CSV stays above 2x on the same arithmetic. This bound is measured from the profile, not from the earlier 43% guess.
+
+## Native callback-path steps (bridge build, JSONL 200k, output hash a1a9b95d unchanged)
+
+| Step | Native median | VM |
+| --- | ---: | ---: |
+| Before | 1.60 s | 1.10 s |
+| Native-to-native calls hand remaining fuel to the callee through the output buffer instead of reserve/release on the shared budget | 1.57 s | 1.10 s |
+| Literal Text/Bytes constants charge a compile-time byte count instead of an arena lookup | 1.56 s | 1.10 s |
+
+Both steps pass the native test suites with and without `native-value-bridge`; the IR-size guard thresholds in `execution.rs` were raised to cover the extra fuel load/store per function. Run-level counts for the same program: 3.57M native calls, 20.2M successful allocation charges (about 100 per row), 4.38M record charges, 3.48 GB gross charged bytes. The profile stays flat: the native gap is spread across per-operation callbacks, arena stores and quota charges, not one hotspot.

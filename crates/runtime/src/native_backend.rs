@@ -1155,7 +1155,7 @@ impl NativeCode {
         *trace_buffer.last_mut()? = depth.min(i64::MAX as usize) as i64;
         let result_words = *self.result_words.get(index)?;
         let metadata_start = self.max_result_words;
-        let mut output = vec![0_i64; metadata_start.checked_add(4)?];
+        let mut output = vec![0_i64; metadata_start.checked_add(5)?];
         // `args` and `output` are live, properly aligned arrays for this call.
         let status = unsafe {
             function(
@@ -1168,6 +1168,11 @@ impl NativeCode {
                 arena as *mut NativeListArena as *mut std::ffi::c_void,
             )
         };
+        let unused_fuel = output[metadata_start + 4].max(0) as u64;
+        if unused_fuel > 0 && !budget.is_null() {
+            // SAFETY: the caller passes a pointer to the live Budget for the whole call.
+            unsafe { (*(budget as *const guion_vm_core::Budget)).refund(unused_fuel) };
+        }
         let trace_depth = usize::try_from(*trace_buffer.last()?).ok()?;
         let trace = trace_buffer
             .as_slice()
@@ -1496,7 +1501,13 @@ impl NativeBackend {
             }
             let zero_steps = builder.ins().iconst(types::I64, 0);
             builder.def_var(steps_var, zero_steps);
-            builder.def_var(fuel_var, zero_steps);
+            let handed_fuel = builder.ins().load(
+                types::I64,
+                MemFlagsData::new(),
+                output_pointer,
+                5 * 8,
+            );
+            builder.def_var(fuel_var, handed_fuel);
             let first_native_call = builder.ins().iconst(types::I64, 1);
             builder.def_var(native_calls_var, first_native_call);
             builder.ins().jump(blocks[block_for_ip[0]], &[]);
@@ -1589,9 +1600,7 @@ impl NativeBackend {
                                 fuel_var,
                                 block_instruction_offsets[ip] + 1,
                             );
-                            builder
-                                .ins()
-                                .call(release_fuel, &[budget_pointer, unused_fuel]);
+                            store_output(&mut builder, output_pointer, 5, unused_fuel);
                             let steps = step_count_after(
                                 &mut builder,
                                 steps_var,
@@ -1611,7 +1620,8 @@ impl NativeBackend {
                         };
                         stack.push(builder.ins().iconst(types::I64, value));
                     }
-                    Op::Const(Value::Text(_) | Value::Bytes(_)) => {
+                    Op::Const(constant @ (Value::Text(_) | Value::Bytes(_))) => {
+                        let clone_bytes = guion_vm_core::cloned_value_allocation(constant);
                         let handle = self
                             .constant_handles
                             .get(index)
@@ -1620,9 +1630,10 @@ impl NativeBackend {
                             .flatten()
                             .ok_or_else(|| "native constant handle is missing".to_owned())?;
                         let handle_value = builder.ins().iconst(types::I64, handle);
-                        let charged = builder
+                        let bytes = builder
                             .ins()
-                            .call(charge_value_clone, &[arena_pointer, handle_value]);
+                            .iconst(types::I64, i64::try_from(clone_bytes).unwrap_or(i64::MAX));
+                        let charged = builder.ins().call(charge_record, &[arena_pointer, bytes]);
                         let charged = builder.inst_results(charged)[0];
                         let zero = builder.ins().iconst(types::I32, 0);
                         let succeeded = builder.ins().icmp(IntCC::NotEqual, charged, zero);
@@ -2474,7 +2485,7 @@ impl NativeBackend {
                         ));
                         let output_slot = builder.create_sized_stack_slot(StackSlotData::new(
                             StackSlotKind::ExplicitSlot,
-                            ((max_result_words + 4) * 8) as u32,
+                            ((max_result_words + 5) * 8) as u32,
                             3,
                         ));
                         let args_address = builder.ins().stack_addr(ptr, args_slot, 0);
@@ -2522,9 +2533,7 @@ impl NativeBackend {
                             .brif(depth_exceeded, too_deep, &[], allowed_depth, &[]);
                         builder.switch_to_block(too_deep);
                         let unused_fuel = builder.use_var(fuel_var);
-                        builder
-                            .ins()
-                            .call(release_fuel, &[budget_pointer, unused_fuel]);
+                        store_output(&mut builder, output_pointer, 5, unused_fuel);
                         let target_span = builder.ins().iconst(types::I64, 0);
                         let calls = builder.use_var(native_calls_var);
                         emit_exit(
@@ -2539,6 +2548,8 @@ impl NativeBackend {
                         builder.switch_to_block(allowed_depth);
                         let callee = native_function_refs[*target]
                             .ok_or_else(|| "callee is not native".to_owned())?;
+                        let handed_fuel = builder.use_var(fuel_var);
+                        store_output(&mut builder, child_metadata, 5, handed_fuel);
                         let result = builder.ins().call(
                             callee,
                             &[
@@ -2552,6 +2563,13 @@ impl NativeBackend {
                             ],
                         );
                         let status = builder.inst_results(result)[0];
+                        let returned_fuel = builder.ins().load(
+                            types::I64,
+                            MemFlagsData::new(),
+                            child_metadata,
+                            5 * 8,
+                        );
+                        builder.def_var(fuel_var, returned_fuel);
                         let zero_status = builder.ins().iconst(types::I32, 0);
                         let succeeded = builder.ins().icmp(IntCC::Equal, status, zero_status);
                         let success = builder.create_block();
@@ -2581,9 +2599,7 @@ impl NativeBackend {
                             ip.min(i64::MAX as usize) as i64,
                         );
                         let unused_fuel = builder.use_var(fuel_var);
-                        builder
-                            .ins()
-                            .call(release_fuel, &[budget_pointer, unused_fuel]);
+                        store_output(&mut builder, output_pointer, 5, unused_fuel);
                         let child_steps =
                             builder
                                 .ins()
@@ -3723,8 +3739,6 @@ impl NativeBackend {
                             &mut builder,
                             output_pointer,
                             steps,
-                            release_fuel,
-                            budget_pointer,
                             unused_fuel,
                             calls,
                         );
@@ -3790,9 +3804,7 @@ impl NativeBackend {
                 builder.switch_to_block(block);
                 let reserved_fuel = builder.use_var(fuel_var);
                 let unused_fuel = builder.ins().isub(reserved_fuel, completed);
-                builder
-                    .ins()
-                    .call(release_fuel, &[budget_pointer, unused_fuel]);
+                store_output(&mut builder, output_pointer, 5, unused_fuel);
                 let completed_steps = builder.use_var(steps_var);
                 let steps = builder.ins().iadd(completed_steps, completed);
                 let calls = builder.use_var(native_calls_var);
@@ -3821,9 +3833,7 @@ impl NativeBackend {
                 let reserved_fuel = builder.use_var(fuel_var);
                 let completed_instructions = params[2];
                 let unused_fuel = builder.ins().isub(reserved_fuel, completed_instructions);
-                builder
-                    .ins()
-                    .call(release_fuel, &[budget_pointer, unused_fuel]);
+                store_output(&mut builder, output_pointer, 5, unused_fuel);
                 let calls = builder.use_var(native_calls_var);
                 let steps = builder.ins().iadd(params[0], params[2]);
                 emit_exit(
@@ -4563,12 +4573,10 @@ fn emit_success(
     builder: &mut FunctionBuilder<'_>,
     output: cranelift_codegen::ir::Value,
     steps: cranelift_codegen::ir::Value,
-    release_fuel: cranelift_codegen::ir::FuncRef,
-    budget: cranelift_codegen::ir::Value,
     unused_fuel: cranelift_codegen::ir::Value,
     calls: cranelift_codegen::ir::Value,
 ) {
-    builder.ins().call(release_fuel, &[budget, unused_fuel]);
+    store_output(builder, output, 5, unused_fuel);
     store_output(builder, output, 1, steps);
     let zero = builder.ins().iconst(types::I64, 0);
     store_output(builder, output, 2, zero);

@@ -1406,7 +1406,7 @@ fn native_list_set_uses_element_typed_helpers_without_changing_copy_semantics() 
         .as_u64()
         .expect("main IR instruction count is present");
     assert!(
-        main_instructions <= 461,
+        main_instructions <= 477,
         "typed list-set calls should remove runtime kind and copy-mode operands: {main_instructions} instructions"
     );
 }
@@ -2071,7 +2071,7 @@ fn native_constant_division_by_two_uses_compact_code_and_preserves_floor_semanti
 
     let ir_instructions = native.native_cranelift_ir_instructions();
     assert!(
-        ir_instructions < 451,
+        ir_instructions < 505,
         "constant divide/remainder by two should use compact native code, got {ir_instructions} IR instructions"
     );
 }
