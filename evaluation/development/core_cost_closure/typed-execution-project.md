@@ -44,3 +44,26 @@ left unchanged). 200k-row JSONL, alternating runs: baseline 960 ms, Arc build
 994 and 1005 ms, same output hash `a1a9b95d`. The atomic refcount traffic on
 clone and drop costs more than the `Box` malloc it avoids, so this is about 4%
 slower. Reverted and not committed.
+
+## Lever results: metrics allocation, and the remaining levers against a flat profile
+
+- **JSON number metrics without `to_string`.** `json_metrics` and
+  `shared_json_metrics` allocated a `String` per JSON number. Replacing that
+  with an arithmetic digit count for `i64`/`u64` (floats and big numbers fall
+  back to `to_string`) measured as noise on the 200k JSONL loop: baseline
+  958/965/938 ms, candidate 963/947/951 ms, same hash `a1a9b95d`. Reverted.
+- **Fresh VM profile (`guion-prof`, 200k JSONL, about 1000 samples).** No
+  location holds more than 5%. The top entries are `drop_in_place` (5.0%),
+  the instruction match (3.9%), thread-local access in the pool allocator
+  (about 5.3% combined) and `lib.rs:4368` clone accounting (2.1%).
+  `serde_json` parsing does not appear in the top 45 locations.
+- **Consequences for the other levers.**
+  - Lazy JSON parsing has no parse hotspot to remove, so it is not built.
+  - Folding the metrics walk into the parse is bounded by the metrics result
+    above, so it is not built.
+  - `JumpIfTrue`/compaction is covered by the earlier instruction-pair
+    fusion negative result (`Not`→`JumpIfFalse` and similar, all within noise).
+  - Native lowering of `JsonTryGetText`/`JsonTryGetInt`/`TimeFormatUtcDate`
+    would make the fused program native-eligible, but native is currently
+    about 47% slower than the VM on the frozen program (1.47 s vs 1.00 s), so
+    eligibility alone cannot close the gap.
