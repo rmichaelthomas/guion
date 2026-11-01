@@ -5540,7 +5540,27 @@ fn main() -> Int:
     print(describe_int(document, "absent"))
     return 0
 "#;
-    let artifact = compile("fused-json.gu", source).unwrap();
+    let project_root = std::env::temp_dir().join(format!(
+        "guion-fused-json-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    std::fs::create_dir_all(&project_root).unwrap();
+    let entry = project_root.join("main.gu");
+    std::fs::write(&entry, source).unwrap();
+    let stdlib_root =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../language/stdlib");
+    let artifact = compile_project_with_roots(
+        &entry,
+        &project_root,
+        Some(&stdlib_root),
+        &std::collections::HashMap::new(),
+    )
+    .expect("fused accessor fixture compiles");
+    let _ = std::fs::remove_dir_all(&project_root);
     let mut instance = Runtime::new()
         .load(artifact, HostPolicy::default())
         .unwrap();
