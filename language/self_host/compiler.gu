@@ -1818,6 +1818,8 @@ fn find_type_error_expression(node: Json, state: CompilerState, functions: List[
     if kind == "Name" and json_as_text(json_get(node, "text")) == "None":
         if not is_option_type(expected):
             return failure_at_node("E_OPTION_CONSTRUCTOR_CONTEXT", "None requires an expected Option type", node, source_name, source, 4)
+        if expected != state.return_type:
+            return failure_at_node("E_OPTION_CONSTRUCTOR_CONTEXT", "None is only supported in a function that returns that Option type; build it in a small helper function that returns it", node, source_name, source, 4)
         return json_null()
     if kind == "Field":
         let value = json_get(node, "value")
@@ -1954,6 +1956,10 @@ fn find_type_error_expression(node: Json, state: CompilerState, functions: List[
                         set diagnostic_message = "Result constructor value has an incompatible type"
                     return failure_at_node(diagnostic_code, diagnostic_message, argument, source_name, source, 1)
             set cursor = cursor + 1
+        if callee == "Some" and expected != state.return_type:
+            return failure_at_node("E_OPTION_CONSTRUCTOR_CONTEXT", "Some is only supported in a function that returns that Option type; build it in a small helper function that returns it", node, source_name, source, len(callee))
+        if (callee == "Ok" or callee == "Err") and expected != state.return_type:
+            return failure_at_node("E_RESULT_CONSTRUCTOR_CONTEXT", callee + " is only supported in a function that returns that Result type; build it in a small helper function that returns it", node, source_name, source, len(callee))
         if callee == "parallel_map":
             let values_type = expression_type(expression(json_index(arguments, 0), state, functions, records, ""))
             if not is_list_type(values_type):
