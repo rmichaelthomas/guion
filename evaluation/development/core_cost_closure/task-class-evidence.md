@@ -173,3 +173,20 @@ JSONL 200k, output hash a1a9b95d unchanged:
 | Host-op forwarders inlined | 1.00 s | 1.47 s |
 
 A first attempt that also inlined `MakeSome`/`MakeNone` appeared to bring native to 1.08 s, but the profile showed `main` and `jsonl_next` had stopped compiling natively (6 native calls), so that figure was a VM run and is not used.
+
+## Paired result after forwarder inlining and the JSON key pre-check (container, PGO CPython 3.14.7, 9 interleaved output-checked trials)
+
+Raw output: [`results/jsonl-forwarder-inlined-paired-9.txt`](results/jsonl-forwarder-inlined-paired-9.txt) (binary before the JSON key pre-check). Guion/Python median / upper 95%:
+
+| Rows | Program | Lane | Ratio |
+| ---: | --- | --- | ---: |
+| 20k | frozen | source | 1.238 / 1.312 |
+| 20k | frozen | artifact | 1.082 / 1.149 |
+| 20k | fused + `format_utc_date` | source | 1.144 / 1.238 |
+| 20k | fused + `format_utc_date` | artifact | **0.995 / 1.047** |
+| 200k | frozen | source | 1.385 / 1.427 |
+| 200k | frozen | artifact | 1.354 / 1.392 |
+| 200k | fused + `format_utc_date` | source | 1.325 / 1.355 |
+| 200k | fused + `format_utc_date` | artifact | 1.250 / 1.286 |
+
+The gate is still not met. Compared with the previous paired run, the frozen artifact lane at 200k moved from 1.658 to 1.354 and the fused artifact lane at 20k from 1.096 to 0.995. Per-row cost is about 4.5 us for Guion against about 3.5 us for Python at 200k rows. Executed instructions are about 265 per row (Load 72, Store 30, Const 23, JumpIfFalse 21, Unwrap 18, Not 13, Index 12); the remaining levers measured so far are each 1–5%: lazy JSON, typed constructors, superinstruction fusion of the top opcode pairs (Store-Load, Load-Const, Load-Unwrap, Not-JumpIfFalse), folding JSON metrics into the parse.
