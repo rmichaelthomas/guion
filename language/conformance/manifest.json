@@ -9581,7 +9581,7 @@
       "id": "host_operation-utc-date-formatting",
       "kind": "host_operation",
       "name": "UTC date formatting",
-      "owner_task": 2,
+      "owner_task": 4,
       "source": "language/host-api.md#temporal-interpretation",
       "compiler_status": {
         "bootstrap": "implemented",
@@ -9591,17 +9591,17 @@
         "positive": {
           "case_id": "host_operation.utc-date-formatting.positive",
           "state": "implemented",
-          "owner_task": 2
+          "owner_task": 4
         },
         "negative": {
           "case_id": "host_operation.utc-date-formatting.negative",
           "state": "implemented",
-          "owner_task": 2
+          "owner_task": 4
         },
         "interaction": {
           "case_id": "host_operation.utc-date-formatting.interaction",
           "state": "implemented",
-          "owner_task": 2
+          "owner_task": 4
         }
       },
       "source_signature": "`format_utc_date(value: Instant) -> Text`",

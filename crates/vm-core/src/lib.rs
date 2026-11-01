@@ -80,6 +80,11 @@ pub struct HostOpContext<'a> {
 /// Services the shared VM requests from whatever environment embeds it.
 pub trait VmHost {
     fn artifact(&self) -> &Arc<Artifact>;
+    /// Load-time fused instruction entries for every function, indexed by original
+    /// instruction position. Hosts that do not build tables return `None`.
+    fn fused_tables(&self) -> Option<Arc<Vec<Vec<FusedEntry>>>> {
+        None
+    }
     fn limits(&self) -> VmLimits;
     /// Extra cancellation signal checked before every instruction.
     fn externally_cancelled(&self) -> bool {
@@ -259,6 +264,227 @@ pub fn execute_vm_frame<H: VmHost>(
     }
 }
 
+/// A short instruction sequence the VM executes as one step.
+///
+/// Entries are indexed by the position of the first original instruction, so
+/// `ip`, spans and jump targets keep their original meaning. Each entry charges
+/// the exact fuel and allocation the plain sequence would, and the VM falls back
+/// to the plain instruction whenever an entry's preconditions do not hold.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct FusedEntry {
+    kind: FusedKind,
+    slot: u32,
+    dest: u32,
+    target: u32,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum FusedKind {
+    None,
+    /// `Load slot; IsOk|IsSome; [Not]; JumpIfFalse target`
+    ProbeBranch {
+        is_ok: bool,
+        negate: bool,
+    },
+    /// `Not; JumpIfFalse target`
+    NotBranch,
+    /// `Load slot; Unwrap; Store dest`
+    UnwrapStore,
+    /// `Const; Store dest`
+    ConstStore,
+}
+
+impl FusedEntry {
+    const NONE: Self = Self {
+        kind: FusedKind::None,
+        slot: 0,
+        dest: 0,
+        target: 0,
+    };
+
+    #[inline]
+    fn extra_fuel(&self) -> u64 {
+        match self.kind {
+            FusedKind::None => 0,
+            FusedKind::ProbeBranch { negate, .. } => 2 + u64::from(negate),
+            FusedKind::NotBranch | FusedKind::ConstStore => 1,
+            FusedKind::UnwrapStore => 2,
+        }
+    }
+}
+
+/// Build the fused-entry tables for every function of a verified artifact.
+pub fn build_fused_tables(artifact: &Artifact) -> Vec<Vec<FusedEntry>> {
+    artifact.functions.iter().map(build_fused_table).collect()
+}
+
+fn build_fused_table(function: &guion_model::Function) -> Vec<FusedEntry> {
+    let code = &function.code;
+    let mut is_target = vec![false; code.len() + 1];
+    for instruction in code {
+        if let Op::Jump(target) | Op::JumpIfFalse(target) = &instruction.op {
+            if let Some(slot) = is_target.get_mut(*target) {
+                *slot = true;
+            }
+        }
+    }
+    let op_at = |ip: usize| code.get(ip).map(|instruction| &instruction.op);
+    let mut table = vec![FusedEntry::NONE; code.len()];
+    let mut any = false;
+    for ip in 0..code.len() {
+        let entry = match op_at(ip) {
+            Some(Op::Load(slot)) => match (op_at(ip + 1), op_at(ip + 2), op_at(ip + 3)) {
+                (Some(op @ (Op::IsOk | Op::IsSome)), Some(Op::JumpIfFalse(target)), _) => Some((
+                    FusedEntry {
+                        kind: FusedKind::ProbeBranch {
+                            is_ok: matches!(op, Op::IsOk),
+                            negate: false,
+                        },
+                        slot: *slot as u32,
+                        dest: 0,
+                        target: *target as u32,
+                    },
+                    3,
+                )),
+                (
+                    Some(op @ (Op::IsOk | Op::IsSome)),
+                    Some(Op::Not),
+                    Some(Op::JumpIfFalse(target)),
+                ) => Some((
+                    FusedEntry {
+                        kind: FusedKind::ProbeBranch {
+                            is_ok: matches!(op, Op::IsOk),
+                            negate: true,
+                        },
+                        slot: *slot as u32,
+                        dest: 0,
+                        target: *target as u32,
+                    },
+                    4,
+                )),
+                (Some(Op::Unwrap), Some(Op::Store(dest)), _) => Some((
+                    FusedEntry {
+                        kind: FusedKind::UnwrapStore,
+                        slot: *slot as u32,
+                        dest: *dest as u32,
+                        target: 0,
+                    },
+                    3,
+                )),
+                _ => None,
+            },
+            Some(Op::Not) => match op_at(ip + 1) {
+                Some(Op::JumpIfFalse(target)) => Some((
+                    FusedEntry {
+                        kind: FusedKind::NotBranch,
+                        slot: 0,
+                        dest: 0,
+                        target: *target as u32,
+                    },
+                    2,
+                )),
+                _ => None,
+            },
+            Some(Op::Const(_)) => match op_at(ip + 1) {
+                Some(Op::Store(dest)) => Some((
+                    FusedEntry {
+                        kind: FusedKind::ConstStore,
+                        slot: 0,
+                        dest: *dest as u32,
+                        target: 0,
+                    },
+                    2,
+                )),
+                _ => None,
+            },
+            _ => None,
+        };
+        if let Some((entry, length)) = entry {
+            // A jump into the middle of a sequence must still see the plain instructions.
+            if (1..length).all(|offset| !is_target.get(ip + offset).copied().unwrap_or(false)) {
+                table[ip] = entry;
+                any = true;
+            }
+        }
+    }
+    if any {
+        table
+    } else {
+        Vec::new()
+    }
+}
+
+/// Execute one fused entry. Returns `Ok(false)` without side effects when the
+/// entry's preconditions do not hold, so the caller runs the plain instructions.
+#[inline(never)]
+fn run_fused_entry(
+    entry: &FusedEntry,
+    instruction: &guion_model::Instruction,
+    locals: &mut [Value],
+    stack: &mut Vec<Value>,
+    budget: &Budget,
+    limits: &VmLimits,
+    ip: &mut usize,
+) -> Result<bool, RuntimeError> {
+    let start = *ip - 1;
+    match entry.kind {
+        FusedKind::ProbeBranch { is_ok, negate } => {
+            let value = &locals[entry.slot as usize];
+            let probe = match (is_ok, value) {
+                (true, Value::ResultOk(_)) | (false, Value::OptionSome(_)) => true,
+                (true, Value::ResultErr(_)) | (false, Value::OptionNone) => false,
+                _ => return Ok(false),
+            };
+            charge_allocation(budget, cloned_value_allocation(value), instruction.span)?;
+            budget.record_guest_conditional_branch();
+            *ip = if probe != negate {
+                start + entry.extra_fuel() as usize + 1
+            } else {
+                entry.target as usize
+            };
+            Ok(true)
+        }
+        FusedKind::NotBranch => {
+            let Some(Value::Bool(condition)) = stack.last() else {
+                return Ok(false);
+            };
+            let condition = *condition;
+            stack.pop();
+            budget.record_guest_conditional_branch();
+            *ip = if condition {
+                entry.target as usize
+            } else {
+                start + 2
+            };
+            Ok(true)
+        }
+        FusedKind::UnwrapStore => {
+            let value = &locals[entry.slot as usize];
+            let payload = match value {
+                Value::ResultOk(payload) | Value::OptionSome(payload) => payload.as_ref().clone(),
+                _ => return Ok(false),
+            };
+            charge_allocation(budget, cloned_value_allocation(value), instruction.span)?;
+            locals[entry.dest as usize] = payload;
+            *ip = start + 3;
+            Ok(true)
+        }
+        FusedKind::ConstStore => {
+            let Op::Const(constant) = &instruction.op else {
+                unreachable!("const-store entries start at a Const instruction")
+            };
+            if let Some(error) = value_limit_error_at_boundary(constant, limits, instruction.span) {
+                return Err(error);
+            }
+            charge_allocation(budget, cloned_value_allocation(constant), instruction.span)?;
+            locals[entry.dest as usize] = constant.clone();
+            *ip = start + 2;
+            Ok(true)
+        }
+        FusedKind::None => Ok(false),
+    }
+}
+
 #[derive(Clone, Copy)]
 enum LoadFastPath<'a> {
     Probe(bool),
@@ -373,6 +599,11 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
     };
     let mut instruction_fuel = InstructionFuel::new(&budget);
     let mut previous_profiled_instruction: Option<(usize, &'static str)> = None;
+    let fused_tables = if PROFILED { None } else { host.fused_tables() };
+    let fused: &[FusedEntry] = fused_tables
+        .as_ref()
+        .and_then(|tables| tables.get(function_index))
+        .map_or(&[], |table| table.as_slice());
     loop {
         if budget.is_cancelled() || host.externally_cancelled() {
             return Err(RuntimeError::new(
@@ -489,6 +720,24 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
             }};
         }
         let instruction = instruction_ref;
+        if let Some(entry) = fused.get(ip - 1) {
+            if entry.kind != FusedKind::None && instruction_fuel.consume_extra(entry.extra_fuel()) {
+                if run_fused_entry(
+                    entry,
+                    instruction,
+                    &mut locals,
+                    &mut stack,
+                    budget.as_ref(),
+                    &limits,
+                    &mut ip,
+                )? {
+                    continue;
+                }
+                // Preconditions failed after the fuel was taken: give it back so the
+                // plain instructions charge it themselves.
+                instruction_fuel.remaining += entry.extra_fuel();
+            }
+        }
         match &instruction.op {
             Op::Load(slot) => {
                 let value = &locals[*slot];
@@ -3012,7 +3261,8 @@ fn fast_host_forwarder(function: &guion_model::Function) -> Option<FastHostForwa
 /// The host operation a tiny forwarding function applies to its own parameters, when
 /// the function is exactly `Load 0..n; <host operation>; Return`.
 pub fn forwarded_host_operation(function: &guion_model::Function) -> Option<Op> {
-    fast_host_forwarder(function).map(|forwarder| function.code[forwarder.host_operation_ip].op.clone())
+    fast_host_forwarder(function)
+        .map(|forwarder| function.code[forwarder.host_operation_ip].op.clone())
 }
 
 fn execute_fast_host_forwarder<const PROFILED: bool, H: VmHost>(
@@ -4138,6 +4388,18 @@ impl<'a> InstructionFuel<'a> {
         }
         self.remaining -= 1;
         true
+    }
+
+    /// Take `count` more units from the local reservation. Returns false, taking
+    /// nothing, when exact atomic charging is in force or the reservation is short.
+    #[inline]
+    fn consume_extra(&mut self, count: u64) -> bool {
+        if self.reserve_locally && self.remaining >= count {
+            self.remaining -= count;
+            true
+        } else {
+            false
+        }
     }
 
     #[inline]
@@ -7252,6 +7514,150 @@ mod tests {
             context.stack.push(value);
             Ok(())
         }
+    }
+
+    struct FusionTestHost {
+        artifact: Arc<Artifact>,
+        fused: Option<Arc<Vec<Vec<FusedEntry>>>>,
+    }
+
+    impl VmHost for FusionTestHost {
+        fn artifact(&self) -> &Arc<Artifact> {
+            &self.artifact
+        }
+
+        fn fused_tables(&self) -> Option<Arc<Vec<Vec<FusedEntry>>>> {
+            self.fused.clone()
+        }
+
+        fn limits(&self) -> VmLimits {
+            VmLimits::default()
+        }
+
+        fn program_output_bytes(&self) -> usize {
+            0
+        }
+
+        fn write_program_output(
+            &mut self,
+            _stream: OutputStream,
+            _text: &str,
+            _span: Span,
+        ) -> Result<(), RuntimeError> {
+            Ok(())
+        }
+
+        fn start_frame(
+            &mut self,
+            _index: usize,
+            _args: Vec<Value>,
+            _depth: usize,
+            _budget: &Arc<Budget>,
+            _call_site: Option<Span>,
+        ) -> Result<FrameStart, RuntimeError> {
+            unreachable!("the fusion test does not call another function")
+        }
+
+        fn host_op(&mut self, _context: HostOpContext<'_>) -> Result<(), RuntimeError> {
+            unreachable!("the fusion test uses no host operations")
+        }
+    }
+
+    fn fusion_test_artifact() -> Arc<Artifact> {
+        let ops = vec![
+            Op::Const(Value::Int(BigInt::from_i64(7))),
+            Op::MakeOk,
+            Op::Store(1),
+            // probe branch with Not, taken: Ok -> IsOk true -> Not false -> jump
+            Op::Load(1),
+            Op::IsOk,
+            Op::Not,
+            Op::JumpIfFalse(9),
+            Op::Const(Value::Int(BigInt::from_i64(-1))),
+            Op::Store(2),
+            // probe branch, not taken
+            Op::Load(1),
+            Op::IsOk,
+            Op::JumpIfFalse(16),
+            // unwrap-store
+            Op::Load(1),
+            Op::Unwrap,
+            Op::Store(3),
+            Op::Jump(16),
+            // Not;JumpIfFalse with a Bool already on the stack
+            Op::Const(Value::Bool(true)),
+            Op::Not,
+            Op::JumpIfFalse(21),
+            Op::Const(Value::Int(BigInt::from_i64(-2))),
+            Op::Store(2),
+            Op::Load(3),
+            Op::Return,
+        ];
+        let code = ops
+            .into_iter()
+            .enumerate()
+            .map(|(index, op)| Instruction {
+                op,
+                span: Span {
+                    source_id: 0,
+                    start: index,
+                    end: index + 1,
+                    line: index + 1,
+                    column: 1,
+                },
+            })
+            .collect();
+        Arc::new(Artifact {
+            format_version: Artifact::CURRENT_VERSION,
+            build_metadata: None,
+            compiled_source_sha256: None,
+            source_name: "fusion-test.gu".into(),
+            sources: vec![],
+            entry: "main".into(),
+            functions: vec![guion_model::Function {
+                name: "main".into(),
+                parameters: vec![],
+                result: Type::Int,
+                local_count: 4,
+                code,
+            }],
+            externals: vec![],
+            records: vec![],
+        })
+    }
+
+    #[test]
+    fn fused_entries_match_plain_execution_at_every_instruction_limit() {
+        let artifact = fusion_test_artifact();
+        let tables = Arc::new(build_fused_tables(&artifact));
+        assert!(
+            tables[0].iter().any(|entry| entry.kind != FusedKind::None),
+            "the test program must contain fusable sequences"
+        );
+        let run = |fused: Option<Arc<Vec<Vec<FusedEntry>>>>, limit: u64| {
+            let mut host = FusionTestHost {
+                artifact: Arc::clone(&artifact),
+                fused,
+            };
+            let budget = Arc::new(Budget::new(limit, 1 << 20, CancellationToken::new(), None));
+            let frame = new_vm_frame(&artifact, 0, vec![], 1, None);
+            let result = run_frames(&mut host, frame, Arc::clone(&budget));
+            let outcome = match result {
+                Ok(value) => Ok(value),
+                Err(error) => Err((error.code, error.trace)),
+            };
+            (outcome, budget.remaining.load(Ordering::Relaxed))
+        };
+        let mut succeeded = false;
+        for limit in 0..40 {
+            let plain = run(None, limit);
+            let fused = run(Some(Arc::clone(&tables)), limit);
+            assert_eq!(plain, fused, "instruction limit {limit}");
+            succeeded |= plain.0.is_ok();
+        }
+        assert!(succeeded, "a large enough limit completes the program");
+        let (outcome, _) = run(Some(tables), 1000);
+        assert_eq!(outcome, Ok(Value::Int(BigInt::from_i64(7))));
     }
 
     #[test]

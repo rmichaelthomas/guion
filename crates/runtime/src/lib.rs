@@ -4,11 +4,11 @@ use guion_model::{
 };
 pub use guion_vm_core::CancellationToken;
 use guion_vm_core::{
-    charge_allocation, check_call_depth, cloned_value_allocation, encoded_json_string_len,
-    finish_json_value, finish_shared_json, json_exact_integer, map_clone_allocation, new_vm_frame,
-    opcode_profile_name, shared_json_push_local_allocation, shared_json_set_local_allocation,
-    value_matches, verify, Budget, FrameStart, HostOpContext, OutputStream, RuntimeProfileCounters,
-    VmFrame, VmHost, VmLimits,
+    build_fused_tables, charge_allocation, check_call_depth, cloned_value_allocation,
+    encoded_json_string_len, finish_json_value, finish_shared_json, json_exact_integer,
+    map_clone_allocation, new_vm_frame, opcode_profile_name, shared_json_push_local_allocation,
+    shared_json_set_local_allocation, value_matches, verify, Budget, FrameStart, FusedEntry,
+    HostOpContext, OutputStream, RuntimeProfileCounters, VmFrame, VmHost, VmLimits,
 };
 use std::{
     borrow::Cow,
@@ -2877,9 +2877,11 @@ impl Runtime {
         database_roots.extend(policy.file_root_aliases.values().cloned());
         let mut artifact = artifact;
         inline_host_forwarders(&mut artifact);
+        let fused = Arc::new(build_fused_tables(&artifact));
         let artifact = share_artifact(artifact);
         Ok(Instance {
             artifact,
+            fused,
             native: None,
             native_code: None,
             native_enabled: self.native_enabled,
@@ -2923,6 +2925,7 @@ impl Runtime {
 #[derive(Debug)]
 pub struct Instance {
     artifact: Arc<Artifact>,
+    fused: Arc<Vec<Vec<FusedEntry>>>,
     native: Option<NativeBackend>,
     native_code: Option<Arc<NativeCode>>,
     native_enabled: bool,
@@ -3219,6 +3222,10 @@ fn record_native_host_operation(
 impl VmHost for Instance {
     fn artifact(&self) -> &Arc<Artifact> {
         &self.artifact
+    }
+
+    fn fused_tables(&self) -> Option<Arc<Vec<Vec<FusedEntry>>>> {
+        Some(Arc::clone(&self.fused))
     }
 
     fn limits(&self) -> VmLimits {
@@ -6257,17 +6264,18 @@ impl VmHost for Instance {
                             }
                         };
                         match instruction.op {
-                            Op::JsonTryGet => stdlib_data::json_try_get(&value, &key).map(Value::Json),
-                            Op::JsonTryGetText => stdlib_data::json_try_get(&value, &key).and_then(
-                                |child| {
+                            Op::JsonTryGet => {
+                                stdlib_data::json_try_get(&value, &key).map(Value::Json)
+                            }
+                            Op::JsonTryGetText => {
+                                stdlib_data::json_try_get(&value, &key).and_then(|child| {
                                     stdlib_data::json_try_text(child.as_ref())
                                         .map(|text| Value::Text(text.into()))
-                                },
-                            ),
-                            _ => stdlib_data::json_try_get(&value, &key)
-                                .and_then(|child| {
-                                    stdlib_data::json_try_int(child.as_ref()).map(Value::Int)
-                                }),
+                                })
+                            }
+                            _ => stdlib_data::json_try_get(&value, &key).and_then(|child| {
+                                stdlib_data::json_try_int(child.as_ref()).map(Value::Int)
+                            }),
                         }
                     }
                     Op::JsonTryIndex => {
@@ -8354,6 +8362,7 @@ impl Instance {
         let next = Arc::new(AtomicUsize::new(worker_count));
         let cancelled = Arc::new(AtomicBool::new(false));
         let artifact = Arc::clone(&self.artifact);
+        let fused = Arc::clone(&self.fused);
         let policy = self.policy.clone();
         let native_enabled = self.native_enabled;
         let native_code = self.native_code.clone();
@@ -8379,6 +8388,7 @@ impl Instance {
             let next = next.clone();
             let cancelled = cancelled.clone();
             let artifact = artifact.clone();
+            let fused = fused.clone();
             let policy = policy.clone();
             let values = values.clone();
             let budget = worker_budget.clone();
@@ -8412,6 +8422,7 @@ impl Instance {
                     database_roots.extend(policy.file_root_aliases.values().cloned());
                     let mut worker = Instance {
                         artifact: Arc::clone(&artifact),
+                        fused: Arc::clone(&fused),
                         native: None,
                         native_code: native_code.clone(),
                         native_enabled,
