@@ -4,6 +4,7 @@ Changes are recorded here as the project moves toward its first release. No publ
 
 ## Unreleased — pre-release development
 
+- Shrank the runtime `Value` from 88 to 24 bytes, added integer and clone fast paths to the VM, and made packages profile-guided by default (`GUION_PGO=0` opts out). Allocation limits charge the smaller value size, so a given `allocation_limit_bytes` now holds more values.
 - Added format-45 `http_response_text` with bounded checked UTF-8 decoding, plus `std:http.http_response_json` for typed JSON parsing and stable error mapping. Existing HTTP request APIs retain their result types.
 - Added format-41 stable integer-key sorting and merging plus `JsonSetLocal` bytecode for alias-safe, copy-on-write local JSON-object updates; added a fast artifact-format assertion audit that runs before long validation gates. Format 42 assigns distinct local-time opcode tags so temporal resolution coexists with those format-41 instructions.
 - Added pure `std:time` local-time resolution that reports exact times, daylight-saving gaps, and folds with all candidate instants using bundled tzdata 2026c. Calendar events now preserve local endpoint identity and ambiguity instead of selecting an instant; `guion --version` reports the timezone-data version.

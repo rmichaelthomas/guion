@@ -82,8 +82,8 @@ sh "$ROOT/distribution/tests/test_install.sh"
 CARGO_TARGET_DIR="$BUILD_DIR" cargo build --release --offline --workspace --manifest-path "$ROOT/Cargo.toml"
 CARGO_TARGET_DIR="$BUILD_DIR" cargo build --release --offline -p guion-runtime --example runtime_lifecycle_stress --manifest-path "$ROOT/Cargo.toml"
 GUION_BINARY="$BUILD_DIR/release/guion"
-# GUION_PGO=1 packages the profile-guided binary; see distribution/pgo/build.sh.
-if [ "${GUION_PGO:-0}" = "1" ]; then
+# Packages are profile-guided by default; see distribution/pgo/build.sh. GUION_PGO=0 opts out.
+if [ "${GUION_PGO:-1}" = "1" ]; then
   sh "$ROOT/distribution/pgo/build.sh" "$BUILD_DIR/pgo"
   GUION_BINARY="$BUILD_DIR/pgo/guion"
 fi
