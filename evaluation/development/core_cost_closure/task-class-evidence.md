@@ -190,3 +190,7 @@ Raw output: [`results/jsonl-forwarder-inlined-paired-9.txt`](results/jsonl-forwa
 | 200k | fused + `format_utc_date` | artifact | 1.250 / 1.286 |
 
 The gate is still not met. Compared with the previous paired run, the frozen artifact lane at 200k moved from 1.658 to 1.354 and the fused artifact lane at 20k from 1.096 to 0.995. Per-row cost is about 4.5 us for Guion against about 3.5 us for Python at 200k rows. Executed instructions are about 265 per row (Load 72, Store 30, Const 23, JumpIfFalse 21, Unwrap 18, Not 13, Index 12); the remaining levers measured so far are each 1–5%: lazy JSON, typed constructors, superinstruction fusion of the top opcode pairs (Store-Load, Load-Const, Load-Unwrap, Not-JumpIfFalse), folding JSON metrics into the parse.
+
+## Instruction-pair fusion (negative result)
+
+Fused `Not`->`JumpIfFalse`, plain `Store`->`Load` and `Load`->`Const` inside the VM loop with exact fuel and quota accounting, plus a scalar fast path for `Const` limit checks (the existing `Load` fast paths already fuse `Load` with `IsOk`/`IsSome`/`Unwrap`/`GetField`/list `Index`, so those pairs in the transition profile were already single dispatches). Output hashes unchanged. JSONL 200k: 1.018 s to 0.998 s; second benchmark pair 0.913 s to 0.933 s; CSV 434 ms to 419 ms; integer loop 2467 ms to 2489 ms. All within run-to-run noise; reverted.
