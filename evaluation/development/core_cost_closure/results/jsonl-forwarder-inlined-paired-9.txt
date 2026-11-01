@@ -1,0 +1,10 @@
+rows=20000 python median 0.109s
+  base-src   median 0.133s ratio median 1.238 upper95 1.312
+  base-art   median 0.116s ratio median 1.082 upper95 1.149
+  fused-src  median 0.125s ratio median 1.144 upper95 1.238
+  fused-art  median 0.107s ratio median 0.995 upper95 1.047
+rows=200000 python median 0.732s
+  base-src   median 1.014s ratio median 1.385 upper95 1.427
+  base-art   median 0.995s ratio median 1.354 upper95 1.392
+  fused-src  median 0.960s ratio median 1.325 upper95 1.355
+  fused-art  median 0.919s ratio median 1.250 upper95 1.286

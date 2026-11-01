@@ -80,6 +80,11 @@ pub struct HostOpContext<'a> {
 /// Services the shared VM requests from whatever environment embeds it.
 pub trait VmHost {
     fn artifact(&self) -> &Arc<Artifact>;
+    /// Load-time fused instruction entries for every function, indexed by original
+    /// instruction position. Hosts that do not build tables return `None`.
+    fn fused_tables(&self) -> Option<Arc<Vec<Vec<FusedEntry>>>> {
+        None
+    }
     fn limits(&self) -> VmLimits;
     /// Extra cancellation signal checked before every instruction.
     fn externally_cancelled(&self) -> bool {
@@ -259,6 +264,313 @@ pub fn execute_vm_frame<H: VmHost>(
     }
 }
 
+/// A short instruction sequence the VM executes as one step.
+///
+/// Entries are indexed by the position of the first original instruction, so
+/// `ip`, spans and jump targets keep their original meaning. Each entry charges
+/// the exact fuel and allocation the plain sequence would, and the VM falls back
+/// to the plain instruction whenever an entry's preconditions do not hold.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct FusedEntry {
+    kind: FusedKind,
+    slot: u32,
+    dest: u32,
+    target: u32,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum FusedKind {
+    None,
+    /// `Load slot; IsOk|IsSome; [Not]; JumpIfFalse target`
+    ProbeBranch {
+        is_ok: bool,
+        negate: bool,
+    },
+    /// `Not; JumpIfFalse target`
+    NotBranch,
+    /// `Load slot; Unwrap; Store dest`
+    UnwrapStore,
+    /// `Const; Store dest`
+    ConstStore,
+}
+
+impl FusedEntry {
+    const NONE: Self = Self {
+        kind: FusedKind::None,
+        slot: 0,
+        dest: 0,
+        target: 0,
+    };
+
+    #[inline]
+    fn extra_fuel(&self) -> u64 {
+        match self.kind {
+            FusedKind::None => 0,
+            FusedKind::ProbeBranch { negate, .. } => 2 + u64::from(negate),
+            FusedKind::NotBranch | FusedKind::ConstStore => 1,
+            FusedKind::UnwrapStore => 2,
+        }
+    }
+}
+
+/// Build the fused-entry tables for every function of a verified artifact.
+pub fn build_fused_tables(artifact: &Artifact) -> Vec<Vec<FusedEntry>> {
+    artifact.functions.iter().map(build_fused_table).collect()
+}
+
+fn build_fused_table(function: &guion_model::Function) -> Vec<FusedEntry> {
+    let code = &function.code;
+    let mut is_target = vec![false; code.len() + 1];
+    for instruction in code {
+        if let Op::Jump(target) | Op::JumpIfFalse(target) = &instruction.op {
+            if let Some(slot) = is_target.get_mut(*target) {
+                *slot = true;
+            }
+        }
+    }
+    let op_at = |ip: usize| code.get(ip).map(|instruction| &instruction.op);
+    let mut table = vec![FusedEntry::NONE; code.len()];
+    let mut any = false;
+    for (ip, table_entry) in table.iter_mut().enumerate() {
+        let entry = match op_at(ip) {
+            Some(Op::Load(slot)) => match (op_at(ip + 1), op_at(ip + 2), op_at(ip + 3)) {
+                (Some(op @ (Op::IsOk | Op::IsSome)), Some(Op::JumpIfFalse(target)), _) => Some((
+                    FusedEntry {
+                        kind: FusedKind::ProbeBranch {
+                            is_ok: matches!(op, Op::IsOk),
+                            negate: false,
+                        },
+                        slot: *slot as u32,
+                        dest: 0,
+                        target: *target as u32,
+                    },
+                    3,
+                )),
+                (
+                    Some(op @ (Op::IsOk | Op::IsSome)),
+                    Some(Op::Not),
+                    Some(Op::JumpIfFalse(target)),
+                ) => Some((
+                    FusedEntry {
+                        kind: FusedKind::ProbeBranch {
+                            is_ok: matches!(op, Op::IsOk),
+                            negate: true,
+                        },
+                        slot: *slot as u32,
+                        dest: 0,
+                        target: *target as u32,
+                    },
+                    4,
+                )),
+                (Some(Op::Unwrap), Some(Op::Store(dest)), _) => Some((
+                    FusedEntry {
+                        kind: FusedKind::UnwrapStore,
+                        slot: *slot as u32,
+                        dest: *dest as u32,
+                        target: 0,
+                    },
+                    3,
+                )),
+                _ => None,
+            },
+            Some(Op::Not) => match op_at(ip + 1) {
+                Some(Op::JumpIfFalse(target)) => Some((
+                    FusedEntry {
+                        kind: FusedKind::NotBranch,
+                        slot: 0,
+                        dest: 0,
+                        target: *target as u32,
+                    },
+                    2,
+                )),
+                _ => None,
+            },
+            Some(Op::Const(_)) => match op_at(ip + 1) {
+                Some(Op::Store(dest)) => Some((
+                    FusedEntry {
+                        kind: FusedKind::ConstStore,
+                        slot: 0,
+                        dest: *dest as u32,
+                        target: 0,
+                    },
+                    2,
+                )),
+                _ => None,
+            },
+            _ => None,
+        };
+        if let Some((entry, length)) = entry {
+            // A jump into the middle of a sequence must still see the plain instructions.
+            if (1..length).all(|offset| !is_target.get(ip + offset).copied().unwrap_or(false)) {
+                *table_entry = entry;
+                any = true;
+            }
+        }
+    }
+    if any {
+        table
+    } else {
+        Vec::new()
+    }
+}
+
+/// Execute one fused entry. Returns `Ok(false)` without side effects when the
+/// entry's preconditions do not hold, so the caller runs the plain instructions.
+#[inline(never)]
+fn run_fused_entry(
+    entry: &FusedEntry,
+    instruction: &guion_model::Instruction,
+    locals: &mut [Value],
+    stack: &mut Vec<Value>,
+    budget: &Budget,
+    limits: &VmLimits,
+    ip: &mut usize,
+) -> Result<bool, RuntimeError> {
+    let start = *ip - 1;
+    match entry.kind {
+        FusedKind::ProbeBranch { is_ok, negate } => {
+            let value = &locals[entry.slot as usize];
+            let probe = match (is_ok, value) {
+                (true, Value::ResultOk(_)) | (false, Value::OptionSome(_)) => true,
+                (true, Value::ResultErr(_)) | (false, Value::OptionNone) => false,
+                _ => return Ok(false),
+            };
+            charge_allocation(budget, cloned_value_allocation(value), instruction.span)?;
+            budget.record_guest_conditional_branch();
+            *ip = if probe != negate {
+                start + entry.extra_fuel() as usize + 1
+            } else {
+                entry.target as usize
+            };
+            Ok(true)
+        }
+        FusedKind::NotBranch => {
+            let Some(Value::Bool(condition)) = stack.last() else {
+                return Ok(false);
+            };
+            let condition = *condition;
+            stack.pop();
+            budget.record_guest_conditional_branch();
+            *ip = if condition {
+                entry.target as usize
+            } else {
+                start + 2
+            };
+            Ok(true)
+        }
+        FusedKind::UnwrapStore => {
+            let value = &locals[entry.slot as usize];
+            let payload = match value {
+                Value::ResultOk(payload) | Value::OptionSome(payload) => payload.as_ref().clone(),
+                _ => return Ok(false),
+            };
+            charge_allocation(budget, cloned_value_allocation(value), instruction.span)?;
+            locals[entry.dest as usize] = payload;
+            *ip = start + 3;
+            Ok(true)
+        }
+        FusedKind::ConstStore => {
+            let Op::Const(constant) = &instruction.op else {
+                unreachable!("const-store entries start at a Const instruction")
+            };
+            if let Some(error) = value_limit_error_at_boundary(constant, limits, instruction.span) {
+                return Err(error);
+            }
+            charge_allocation(budget, cloned_value_allocation(constant), instruction.span)?;
+            locals[entry.dest as usize] = constant.clone();
+            *ip = start + 2;
+            Ok(true)
+        }
+        FusedKind::None => Ok(false),
+    }
+}
+
+#[derive(Clone, Copy)]
+enum LoadFastPath<'a> {
+    Probe(bool),
+    Unwrap(&'a Value),
+    RecordField(&'a Value),
+    ListIndex(&'a Value),
+}
+
+#[derive(Clone, Copy)]
+struct TextCharsConcatFastPath {
+    result_consumer_ip: usize,
+    required_characters: usize,
+}
+
+fn text_chars_concat_fast_path(
+    code: &[guion_model::Instruction],
+    text_chars_ip: usize,
+) -> Option<TextCharsConcatFastPath> {
+    if !matches!(
+        code.get(text_chars_ip).map(|instruction| &instruction.op),
+        Some(Op::TextChars)
+    ) {
+        return None;
+    }
+    let Some(Op::Store(characters_slot)) = code
+        .get(text_chars_ip + 1)
+        .map(|instruction| &instruction.op)
+    else {
+        return None;
+    };
+
+    let mut cursor = text_chars_ip + 2;
+    let mut required_characters = 0usize;
+    loop {
+        if matches!(
+            code.get(cursor).map(|instruction| &instruction.op),
+            Some(Op::Store(_) | Op::Print)
+        ) {
+            break;
+        }
+        if !matches!(
+            code.get(cursor).map(|instruction| &instruction.op),
+            Some(Op::Load(slot)) if slot == characters_slot
+        ) {
+            return None;
+        }
+        cursor += 1;
+        if !matches!(
+            code.get(cursor).map(|instruction| &instruction.op),
+            Some(Op::Const(Value::Int(index)))
+                if index.to_usize() == Some(required_characters)
+        ) {
+            return None;
+        }
+        cursor += 1;
+        if !matches!(
+            code.get(cursor).map(|instruction| &instruction.op),
+            Some(Op::Index)
+        ) {
+            return None;
+        }
+        cursor += 1;
+        if required_characters > 0 {
+            if !matches!(
+                code.get(cursor).map(|instruction| &instruction.op),
+                Some(Op::Add)
+            ) {
+                return None;
+            }
+            cursor += 1;
+        }
+        required_characters += 1;
+        if required_characters > 64 {
+            return None;
+        }
+    }
+
+    if required_characters < 2 || cursor >= code.len() {
+        return None;
+    }
+    Some(TextCharsConcatFastPath {
+        result_consumer_ip: cursor,
+        required_characters,
+    })
+}
+
 fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
     host: &mut H,
     frame: VmFrame,
@@ -287,6 +599,11 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
     };
     let mut instruction_fuel = InstructionFuel::new(&budget);
     let mut previous_profiled_instruction: Option<(usize, &'static str)> = None;
+    let fused_tables = if PROFILED { None } else { host.fused_tables() };
+    let fused: &[FusedEntry] = fused_tables
+        .as_ref()
+        .and_then(|tables| tables.get(function_index))
+        .map_or(&[], |table| table.as_slice());
     loop {
         if budget.is_cancelled() || host.externally_cancelled() {
             return Err(RuntimeError::new(
@@ -367,9 +684,196 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                 })?
             };
         }
-        match &instruction_ref.op {
+        macro_rules! record_skipped_instruction {
+            ($instruction_ip:expr, $skipped:expr) => {{
+                if PROFILED {
+                    if let Some(profile) = &budget.runtime_profile {
+                        if profile.detailed_counters_enabled() {
+                            let current_opcode = opcode_profile_name(&$skipped.op);
+                            profile.record_opcode_execution(current_opcode);
+                            if let Some((previous_ip, previous_opcode)) =
+                                previous_profiled_instruction
+                            {
+                                if previous_ip.checked_add(1) == Some($instruction_ip) {
+                                    profile.record_opcode_transition(
+                                        &f.name,
+                                        previous_opcode,
+                                        current_opcode,
+                                    );
+                                }
+                            }
+                            previous_profiled_instruction = Some(($instruction_ip, current_opcode));
+                            if let Op::Call(target, _) = &$skipped.op {
+                                if let Some(callee) = artifact.functions.get(*target) {
+                                    profile.record_function_call(&callee.name);
+                                }
+                            }
+                            profile
+                                .vm_interpreter_instructions
+                                .fetch_add(1, Ordering::Relaxed);
+                        }
+                        if let Some(sample) = &profile_sample {
+                            sample.record_instruction();
+                        }
+                    }
+                }
+            }};
+        }
+        let instruction = instruction_ref;
+        if let Some(entry) = fused.get(ip - 1) {
+            if entry.kind != FusedKind::None && instruction_fuel.consume_extra(entry.extra_fuel()) {
+                if run_fused_entry(
+                    entry,
+                    instruction,
+                    &mut locals,
+                    &mut stack,
+                    budget.as_ref(),
+                    &limits,
+                    &mut ip,
+                )? {
+                    continue;
+                }
+                // Preconditions failed after the fuel was taken: give it back so the
+                // plain instructions charge it themselves.
+                instruction_fuel.remaining += entry.extra_fuel();
+            }
+        }
+        match &instruction.op {
             Op::Load(slot) => {
                 let value = &locals[*slot];
+                let next_op = f.code.get(ip);
+                let fast_path = next_op.and_then(|next| match (&next.op, value) {
+                    (Op::IsOk, Value::ResultOk(_)) => Some(LoadFastPath::Probe(true)),
+                    (Op::IsOk, Value::ResultErr(_)) => Some(LoadFastPath::Probe(false)),
+                    (Op::IsSome, Value::OptionSome(_)) => Some(LoadFastPath::Probe(true)),
+                    (Op::IsSome, Value::OptionNone) => Some(LoadFastPath::Probe(false)),
+                    (Op::Unwrap, Value::ResultOk(payload) | Value::OptionSome(payload)) => {
+                        Some(LoadFastPath::Unwrap(payload.as_ref()))
+                    }
+                    (Op::GetField(record_index, field_index), Value::Record(name, fields)) => {
+                        let record = artifact.records.get(*record_index)?;
+                        if name != &record.name {
+                            return None;
+                        }
+                        let expected_field = record.fields.get(*field_index)?;
+                        let field = fields.get(*field_index)?;
+                        value_matches(field, &expected_field.ty, &artifact.records)
+                            .then_some(LoadFastPath::RecordField(field))
+                    }
+                    (Op::Const(Value::Int(index)), Value::List(items)) => {
+                        if index.digit_count() > limits.max_integer_digits {
+                            return None;
+                        }
+                        let index_ip = ip.checked_add(1)?;
+                        if !matches!(&f.code.get(index_ip)?.op, Op::Index) {
+                            return None;
+                        }
+                        let index = index.to_usize()?;
+                        let field = items.get(index)?;
+                        Some(LoadFastPath::ListIndex(field))
+                    }
+                    _ => None,
+                });
+                if let (Some(next), Some(fast_path)) = (next_op, fast_path) {
+                    charge_allocation(
+                        budget.as_ref(),
+                        cloned_value_allocation(value),
+                        instruction_ref.span,
+                    )?;
+                    if budget.is_cancelled() || host.externally_cancelled() {
+                        return Err(RuntimeError::new(
+                            "R_CANCELLED",
+                            "parallel task was cancelled after a sibling failed",
+                            f.code.first().map(|i| i.span).unwrap_or_default(),
+                        ));
+                    }
+                    if !instruction_fuel.consume() {
+                        return Err(RuntimeError::new(
+                            "R_STEP_LIMIT",
+                            "instruction budget exhausted",
+                            next.span,
+                        ));
+                    }
+                    record_skipped_instruction!(ip, next);
+                    if let LoadFastPath::ListIndex(field) = fast_path {
+                        if budget.is_cancelled() || host.externally_cancelled() {
+                            return Err(RuntimeError::new(
+                                "R_CANCELLED",
+                                "parallel task was cancelled after a sibling failed",
+                                f.code.first().map(|i| i.span).unwrap_or_default(),
+                            ));
+                        }
+                        let index_ip = ip + 1;
+                        let index_instruction = &f.code[index_ip];
+                        if !instruction_fuel.consume() {
+                            return Err(RuntimeError::new(
+                                "R_STEP_LIMIT",
+                                "instruction budget exhausted",
+                                index_instruction.span,
+                            ));
+                        }
+                        record_skipped_instruction!(index_ip, index_instruction);
+                        charge_allocation(
+                            budget.as_ref(),
+                            cloned_value_allocation(field),
+                            index_instruction.span,
+                        )?;
+                        if PROFILED {
+                            if let Some(profile) = &budget.runtime_profile {
+                                profile
+                                    .vm_list_index_load_fast_paths
+                                    .fetch_add(1, Ordering::Relaxed);
+                            }
+                        }
+                        ip += 2;
+                        push_stack!(field.clone());
+                        continue;
+                    }
+                    if let LoadFastPath::RecordField(field) = fast_path {
+                        // Preserve both logical clone charges while skipping the temporary record
+                        // name clone and stack value for this adjacent Load -> GetField pair.
+                        charge_allocation(
+                            budget.as_ref(),
+                            cloned_value_allocation(field),
+                            next.span,
+                        )?;
+                    }
+                    if PROFILED {
+                        if let Some(profile) = &budget.runtime_profile {
+                            match fast_path {
+                                LoadFastPath::Probe(_) => {
+                                    profile
+                                        .vm_result_option_probe_fast_paths
+                                        .fetch_add(1, Ordering::Relaxed);
+                                }
+                                LoadFastPath::Unwrap(_) => {
+                                    profile
+                                        .vm_result_option_unwrap_fast_paths
+                                        .fetch_add(1, Ordering::Relaxed);
+                                }
+                                LoadFastPath::RecordField(_) => {
+                                    profile
+                                        .vm_record_field_load_fast_paths
+                                        .fetch_add(1, Ordering::Relaxed);
+                                }
+                                LoadFastPath::ListIndex(_) => unreachable!(
+                                    "list index fast path is handled before one-op paths"
+                                ),
+                            }
+                        }
+                    }
+                    let result = match fast_path {
+                        LoadFastPath::Probe(value) => Value::Bool(value),
+                        LoadFastPath::Unwrap(value) => value.clone(),
+                        LoadFastPath::RecordField(value) => value.clone(),
+                        LoadFastPath::ListIndex(_) => {
+                            unreachable!("list index fast path is handled before one-op paths")
+                        }
+                    };
+                    ip += 1;
+                    push_stack!(result);
+                    continue;
+                }
                 charge_allocation(
                     budget.as_ref(),
                     cloned_value_allocation(value),
@@ -389,10 +893,6 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                 locals[*slot] = value;
                 continue;
             }
-            _ => {}
-        }
-        let instruction = instruction_ref;
-        match &instruction.op {
             Op::Const(v) => {
                 if let Some(error) = value_limit_error_at_boundary(v, &limits, instruction.span) {
                     return Err(error);
@@ -404,15 +904,6 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                 )?;
                 push_stack!(v.clone())
             }
-            Op::Load(slot) => {
-                charge_allocation(
-                    budget.as_ref(),
-                    cloned_value_allocation(&locals[*slot]),
-                    instruction.span,
-                )?;
-                push_stack!(locals[*slot].clone());
-            }
-            Op::Store(slot) => locals[*slot] = pop!(),
             Op::Pop => {
                 pop!();
             }
@@ -1496,6 +1987,125 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                         ));
                     }
                 };
+                let text_chars_ip = ip - 1;
+                if let Some(fast_path) = text_chars_concat_fast_path(&f.code, text_chars_ip) {
+                    let mut character_count = 0usize;
+                    let mut scalar_byte_lengths = [0usize; 64];
+                    let mut prefix_byte_lengths = [0usize; 64];
+                    let mut prefix_bytes = 0usize;
+                    for scalar in text
+                        .chars()
+                        .take(limits.max_collection_items.saturating_add(1))
+                    {
+                        if character_count < fast_path.required_characters {
+                            let scalar_bytes = scalar.len_utf8();
+                            scalar_byte_lengths[character_count] = scalar_bytes;
+                            prefix_bytes = prefix_bytes.saturating_add(scalar_bytes);
+                            prefix_byte_lengths[character_count] = prefix_bytes;
+                        }
+                        character_count = character_count.saturating_add(1);
+                        if character_count > limits.max_collection_items {
+                            return Err(RuntimeError::new(
+                                "R_COLLECTION_LIMIT",
+                                "text_chars result exceeds the configured item limit",
+                                instruction.span,
+                            ));
+                        }
+                    }
+                    if character_count >= fast_path.required_characters {
+                        let text_chars_allocation = size_of::<Vec<Value>>()
+                            .saturating_add(character_count.saturating_mul(size_of::<Value>()))
+                            .saturating_add(character_count.saturating_mul(size_of::<String>()))
+                            .saturating_add(text.len());
+                        charge_allocation(
+                            budget.as_ref(),
+                            text_chars_allocation,
+                            instruction_ref.span,
+                        )?;
+
+                        let mut indexed_characters = 0usize;
+                        let mut additions = 0usize;
+                        for skipped_ip in text_chars_ip + 1..fast_path.result_consumer_ip {
+                            if budget.is_cancelled() || host.externally_cancelled() {
+                                return Err(RuntimeError::new(
+                                    "R_CANCELLED",
+                                    "parallel task was cancelled after a sibling failed",
+                                    f.code.first().map(|i| i.span).unwrap_or_default(),
+                                ));
+                            }
+                            let skipped_instruction = &f.code[skipped_ip];
+                            if !instruction_fuel.consume() {
+                                return Err(RuntimeError::new(
+                                    "R_STEP_LIMIT",
+                                    "instruction budget exhausted",
+                                    skipped_instruction.span,
+                                ));
+                            }
+                            record_skipped_instruction!(skipped_ip, skipped_instruction);
+                            match &skipped_instruction.op {
+                                Op::Load(_) => {
+                                    // Cloning the immutable character list has a zero-byte
+                                    // logical charge, but still records the same budget event.
+                                    charge_allocation(budget.as_ref(), 0, skipped_instruction.span)?;
+                                }
+                                Op::Const(value) => {
+                                    charge_allocation(
+                                        budget.as_ref(),
+                                        cloned_value_allocation(value),
+                                        skipped_instruction.span,
+                                    )?;
+                                }
+                                Op::Index => {
+                                    let scalar_bytes = scalar_byte_lengths[indexed_characters];
+                                    indexed_characters += 1;
+                                    charge_allocation(
+                                        budget.as_ref(),
+                                        size_of::<String>().saturating_add(scalar_bytes),
+                                        skipped_instruction.span,
+                                    )?;
+                                }
+                                Op::Add => {
+                                    additions += 1;
+                                    let bytes = prefix_byte_lengths[additions];
+                                    if bytes > limits.max_text_bytes {
+                                        return Err(RuntimeError::new(
+                                            "R_TEXT_LIMIT",
+                                            "text value exceeds the configured byte limit",
+                                            skipped_instruction.span,
+                                        ));
+                                    }
+                                    charge_allocation(
+                                        budget.as_ref(),
+                                        size_of::<String>().saturating_add(bytes),
+                                        skipped_instruction.span,
+                                    )?;
+                                }
+                                Op::Store(_) => {}
+                                _ => unreachable!(
+                                    "text character concat fast path only skips its verified pattern"
+                                ),
+                            }
+                        }
+
+                        let mut joined = String::with_capacity(
+                            prefix_byte_lengths[fast_path.required_characters - 1],
+                        );
+                        for scalar in text.chars().take(fast_path.required_characters) {
+                            joined.push(scalar);
+                        }
+                        let value = Value::Text(Arc::<str>::from(joined));
+                        if PROFILED {
+                            if let Some(profile) = &budget.runtime_profile {
+                                profile
+                                    .vm_text_chars_concat_fast_paths
+                                    .fetch_add(1, Ordering::Relaxed);
+                            }
+                        }
+                        ip = fast_path.result_consumer_ip;
+                        push_stack!(value);
+                        continue;
+                    }
+                }
                 let count = text.chars().count();
                 if count > limits.max_collection_items {
                     return Err(RuntimeError::new(
@@ -2558,6 +3168,31 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                     sample.record_host_duration(started.elapsed());
                 }
                 host_result?;
+                // These operations were reached through forwarding wrappers whose return
+                // applied the value limits; keep that check now that they are called directly.
+                if matches!(
+                    instruction.op,
+                    Op::JsonTryGet
+                        | Op::JsonTryIndex
+                        | Op::JsonTryGetText
+                        | Op::JsonTryGetInt
+                        | Op::JsonTryText
+                        | Op::JsonTryInt
+                        | Op::JsonTryBool
+                        | Op::JsonTryFloat
+                        | Op::FileNextLine
+                        | Op::TextCollapseWhitespace
+                        | Op::TimeParseTimestamp
+                        | Op::TimeFormatUtc
+                        | Op::TimeFormatUtcDate
+                        | Op::HttpResponseJson
+                ) {
+                    if let Some(result) = stack.last() {
+                        if let Some(error) = value_limit_error(result, &limits, instruction.span) {
+                            return Err(error);
+                        }
+                    }
+                }
             }
         }
     }
@@ -2594,7 +3229,7 @@ fn fast_host_forwarder(function: &guion_model::Function) -> Option<FastHostForwa
     let host_operation_ip = argument_count;
     let host_operation = &function.code[host_operation_ip].op;
     let expected_arguments = match host_operation {
-        Op::JsonTryGet | Op::JsonTryIndex => 2,
+        Op::JsonTryGet | Op::JsonTryIndex | Op::JsonTryGetText | Op::JsonTryGetInt => 2,
         Op::JsonTryText
         | Op::JsonTryInt
         | Op::JsonTryBool
@@ -2621,6 +3256,13 @@ fn fast_host_forwarder(function: &guion_model::Function) -> Option<FastHostForwa
         argument_count,
         host_operation_ip,
     })
+}
+
+/// The host operation a tiny forwarding function applies to its own parameters, when
+/// the function is exactly `Load 0..n; <host operation>; Return`.
+pub fn forwarded_host_operation(function: &guion_model::Function) -> Option<Op> {
+    fast_host_forwarder(function)
+        .map(|forwarder| function.code[forwarder.host_operation_ip].op.clone())
 }
 
 fn execute_fast_host_forwarder<const PROFILED: bool, H: VmHost>(
@@ -2903,6 +3545,11 @@ pub struct RuntimeProfileCounters {
     pub vm_sampled_frames: AtomicUsize,
     pub vm_sampled_instructions: AtomicUsize,
     pub vm_sampled_nanoseconds: AtomicU64,
+    pub vm_result_option_probe_fast_paths: AtomicUsize,
+    pub vm_result_option_unwrap_fast_paths: AtomicUsize,
+    pub vm_record_field_load_fast_paths: AtomicUsize,
+    pub vm_list_index_load_fast_paths: AtomicUsize,
+    pub vm_text_chars_concat_fast_paths: AtomicUsize,
     pub json_parse_nanoseconds: AtomicU64,
     pub json_metrics_nanoseconds: AtomicU64,
     pub opcode_executions: Mutex<BTreeMap<&'static str, u64>>,
@@ -3335,6 +3982,21 @@ impl RuntimeProfileCounters {
                 "sampled_instructions": self.vm_sampled_instructions.load(Ordering::Relaxed),
                 "sampled_nanoseconds": self.vm_sampled_nanoseconds.load(Ordering::Relaxed),
                 "sample_rate_frames": VM_PROFILE_SAMPLE_RATE_FRAMES,
+                "result_option_probe_fast_paths": self
+                    .vm_result_option_probe_fast_paths
+                    .load(Ordering::Relaxed),
+                "result_option_unwrap_fast_paths": self
+                    .vm_result_option_unwrap_fast_paths
+                    .load(Ordering::Relaxed),
+                "record_field_load_fast_paths": self
+                    .vm_record_field_load_fast_paths
+                    .load(Ordering::Relaxed),
+                "list_index_load_fast_paths": self
+                    .vm_list_index_load_fast_paths
+                    .load(Ordering::Relaxed),
+                "text_chars_concat_fast_paths": self
+                    .vm_text_chars_concat_fast_paths
+                    .load(Ordering::Relaxed),
                 "sampled_wall_time_is_inclusive_of_host_operations": true,
                 "sampled_functions": sampled_functions,
             },
@@ -3573,6 +4235,8 @@ pub fn opcode_profile_name(op: &Op) -> &'static str {
         Op::JsonTryInt => "JsonTryInt",
         Op::JsonTryBool => "JsonTryBool",
         Op::JsonTryFloat => "JsonTryFloat",
+        Op::JsonTryGetText => "JsonTryGetText",
+        Op::JsonTryGetInt => "JsonTryGetInt",
         Op::TimeParseDate => "TimeParseDate",
         Op::TimeParseTimestamp => "TimeParseTimestamp",
         Op::TimeFormatUtc => "TimeFormatUtc",
@@ -3726,6 +4390,18 @@ impl<'a> InstructionFuel<'a> {
         true
     }
 
+    /// Take `count` more units from the local reservation. Returns false, taking
+    /// nothing, when exact atomic charging is in force or the reservation is short.
+    #[inline]
+    fn consume_extra(&mut self, count: u64) -> bool {
+        if self.reserve_locally && self.remaining >= count {
+            self.remaining -= count;
+            true
+        } else {
+            false
+        }
+    }
+
     #[inline]
     fn flush(&mut self) {
         if self.remaining != 0 {
@@ -3839,6 +4515,10 @@ impl Budget {
 
     #[inline]
     pub fn allocate(&self, bytes: usize) -> bool {
+        // A zero-byte charge never changes the remaining budget and always fits.
+        if bytes == 0 {
+            return true;
+        }
         let allocated = self
             .allocation_remaining
             .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |left| {
@@ -4395,9 +5075,16 @@ pub fn value_matches(value: &Value, ty: &Type, records: &[guion_model::RecordDef
     }
 }
 
-#[inline]
+#[inline(always)]
 pub fn value_limit_error(value: &Value, limits: &VmLimits, span: Span) -> Option<RuntimeError> {
-    value_limit_error_with_json(value, limits, span, false)
+    // Scalars within their limits are the common case on arithmetic and comparison
+    // results; answer them without entering the recursive walk.
+    match value {
+        Value::Int(i) if i.digit_count() <= limits.max_integer_digits => None,
+        Value::Text(s) if s.len() <= limits.max_text_bytes => None,
+        Value::Bool(_) | Value::Float64(_) | Value::Unit | Value::OptionNone => None,
+        _ => value_limit_error_with_json(value, limits, span, false),
+    }
 }
 
 #[inline]
@@ -5221,6 +5908,23 @@ fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result
                     Box::new(Type::Json),
                     Box::new(Type::JsonError),
                 ));
+            }
+            Op::JsonTryGetText | Op::JsonTryGetInt => {
+                if pop_type(&mut state.stack, pc)? != Type::Text
+                    || pop_type(&mut state.stack, pc)? != Type::Json
+                {
+                    return Err(format!(
+                        "JSON accessor argument types do not match at instruction {pc}"
+                    ));
+                }
+                let result = if instruction.op == Op::JsonTryGetText {
+                    Type::Text
+                } else {
+                    Type::Int
+                };
+                state
+                    .stack
+                    .push(Type::Result(Box::new(result), Box::new(Type::JsonError)));
             }
             Op::JsonTryText | Op::JsonTryInt | Op::JsonTryBool | Op::JsonTryFloat => {
                 if pop_type(&mut state.stack, pc)? != Type::Json {
@@ -6810,6 +7514,150 @@ mod tests {
             context.stack.push(value);
             Ok(())
         }
+    }
+
+    struct FusionTestHost {
+        artifact: Arc<Artifact>,
+        fused: Option<Arc<Vec<Vec<FusedEntry>>>>,
+    }
+
+    impl VmHost for FusionTestHost {
+        fn artifact(&self) -> &Arc<Artifact> {
+            &self.artifact
+        }
+
+        fn fused_tables(&self) -> Option<Arc<Vec<Vec<FusedEntry>>>> {
+            self.fused.clone()
+        }
+
+        fn limits(&self) -> VmLimits {
+            VmLimits::default()
+        }
+
+        fn program_output_bytes(&self) -> usize {
+            0
+        }
+
+        fn write_program_output(
+            &mut self,
+            _stream: OutputStream,
+            _text: &str,
+            _span: Span,
+        ) -> Result<(), RuntimeError> {
+            Ok(())
+        }
+
+        fn start_frame(
+            &mut self,
+            _index: usize,
+            _args: Vec<Value>,
+            _depth: usize,
+            _budget: &Arc<Budget>,
+            _call_site: Option<Span>,
+        ) -> Result<FrameStart, RuntimeError> {
+            unreachable!("the fusion test does not call another function")
+        }
+
+        fn host_op(&mut self, _context: HostOpContext<'_>) -> Result<(), RuntimeError> {
+            unreachable!("the fusion test uses no host operations")
+        }
+    }
+
+    fn fusion_test_artifact() -> Arc<Artifact> {
+        let ops = vec![
+            Op::Const(Value::Int(BigInt::from_i64(7))),
+            Op::MakeOk,
+            Op::Store(1),
+            // probe branch with Not, taken: Ok -> IsOk true -> Not false -> jump
+            Op::Load(1),
+            Op::IsOk,
+            Op::Not,
+            Op::JumpIfFalse(9),
+            Op::Const(Value::Int(BigInt::from_i64(-1))),
+            Op::Store(2),
+            // probe branch, not taken
+            Op::Load(1),
+            Op::IsOk,
+            Op::JumpIfFalse(16),
+            // unwrap-store
+            Op::Load(1),
+            Op::Unwrap,
+            Op::Store(3),
+            Op::Jump(16),
+            // Not;JumpIfFalse with a Bool already on the stack
+            Op::Const(Value::Bool(true)),
+            Op::Not,
+            Op::JumpIfFalse(21),
+            Op::Const(Value::Int(BigInt::from_i64(-2))),
+            Op::Store(2),
+            Op::Load(3),
+            Op::Return,
+        ];
+        let code = ops
+            .into_iter()
+            .enumerate()
+            .map(|(index, op)| Instruction {
+                op,
+                span: Span {
+                    source_id: 0,
+                    start: index,
+                    end: index + 1,
+                    line: index + 1,
+                    column: 1,
+                },
+            })
+            .collect();
+        Arc::new(Artifact {
+            format_version: Artifact::CURRENT_VERSION,
+            build_metadata: None,
+            compiled_source_sha256: None,
+            source_name: "fusion-test.gu".into(),
+            sources: vec![],
+            entry: "main".into(),
+            functions: vec![guion_model::Function {
+                name: "main".into(),
+                parameters: vec![],
+                result: Type::Int,
+                local_count: 4,
+                code,
+            }],
+            externals: vec![],
+            records: vec![],
+        })
+    }
+
+    #[test]
+    fn fused_entries_match_plain_execution_at_every_instruction_limit() {
+        let artifact = fusion_test_artifact();
+        let tables = Arc::new(build_fused_tables(&artifact));
+        assert!(
+            tables[0].iter().any(|entry| entry.kind != FusedKind::None),
+            "the test program must contain fusable sequences"
+        );
+        let run = |fused: Option<Arc<Vec<Vec<FusedEntry>>>>, limit: u64| {
+            let mut host = FusionTestHost {
+                artifact: Arc::clone(&artifact),
+                fused,
+            };
+            let budget = Arc::new(Budget::new(limit, 1 << 20, CancellationToken::new(), None));
+            let frame = new_vm_frame(&artifact, 0, vec![], 1, None);
+            let result = run_frames(&mut host, frame, Arc::clone(&budget));
+            let outcome = match result {
+                Ok(value) => Ok(value),
+                Err(error) => Err((error.code, error.trace)),
+            };
+            (outcome, budget.remaining.load(Ordering::Relaxed))
+        };
+        let mut succeeded = false;
+        for limit in 0..40 {
+            let plain = run(None, limit);
+            let fused = run(Some(Arc::clone(&tables)), limit);
+            assert_eq!(plain, fused, "instruction limit {limit}");
+            succeeded |= plain.0.is_ok();
+        }
+        assert!(succeeded, "a large enough limit completes the program");
+        let (outcome, _) = run(Some(tables), 1000);
+        assert_eq!(outcome, Ok(Value::Int(BigInt::from_i64(7))));
     }
 
     #[test]

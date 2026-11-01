@@ -1,0 +1,4168 @@
+{
+  "baseline_binary": {
+    "path": "/var/cache/guion-core-north-star/bin/guion-43a48af",
+    "sha256": "7b4b0fadcd18c4112b34b8cf06b16b2f9a1b5f9cbaf9ab4ca2d921179fd4de01"
+  },
+  "candidate_binary": {
+    "path": "/var/cache/guion-core-north-star/bin/guion-43a48af",
+    "sha256": "7b4b0fadcd18c4112b34b8cf06b16b2f9a1b5f9cbaf9ab4ca2d921179fd4de01"
+  },
+  "correctness_status": "passed",
+  "created_at_utc": "2026-10-31T21:48:52.515844+00:00",
+  "input_sha256": {
+    "benchmark_script": "e19126cb202a79c81c5fb484abad339cb04be2da694a6f26d8a72b3f9465dfee",
+    "jsonl_generator": "c3620ead9557a3ce543697144dfbfd79d01df045707bff25af5b6585d92ea76b",
+    "performance_runner": "e5b7187facd8f3f35f7f2e04ed68b8d9ca4570835f3e971ca978dc7dd90fd80a",
+    "python_reference": "be8ee4c3ffc9b3e3a0b98f22bcc0d3e9be43b778320a360203ccc70076ebb847",
+    "source_application": "4cb05ac5abaa1b893a879b2efd838936e56ff857e037802178909e245dbcff9a",
+    "stdlib_tree": "1a55ba2e830ea53adaa6674521ea8fbe5122c476d5eee2cd04dc48047a67569a",
+    "workloads": {
+      "200000": {
+        "application_source": "4cb05ac5abaa1b893a879b2efd838936e56ff857e037802178909e245dbcff9a",
+        "events": "c87117d62d5559a5a907465c4ed035251aad4d112f9431a4bacd53faf550ce6c",
+        "python_reference": "be8ee4c3ffc9b3e3a0b98f22bcc0d3e9be43b778320a360203ccc70076ebb847",
+        "services": "fc205cad4ae2a35f7d0df8d70a2b5284560a6c626af96a8f40bc9654d756eac8"
+      }
+    }
+  },
+  "kind": "guion-jsonl-release-binary-pair",
+  "performance_status": {
+    "200000": {
+      "artifact_candidate_win": false,
+      "source_candidate_win": false
+    }
+  },
+  "schema_version": 1,
+  "scope": "same frozen source and generated inputs; all timed Guion and Python outputs checked against the independent oracle; separate source and artifact lanes",
+  "status": "passed",
+  "toolchain": {
+    "architecture": "aarch64",
+    "cargo": "cargo 1.97.1 (c980f4866 2026-06-30)",
+    "platform": "Linux-6.8.0-117-generic-aarch64-with-glibc2.36",
+    "python": "Python 3.11.2",
+    "rustc": "rustc 1.97.1 (8bab26f4f 2026-07-14)"
+  },
+  "workloads": {
+    "200000": {
+      "binary_pair_comparisons": {
+        "candidate_artifact_over_baseline_artifact": {
+          "ci95_percentile": [
+            0.998169200248941,
+            1.012681516711138
+          ],
+          "median_ratio": 1.0006106611574273,
+          "ties_or_regressions": 3,
+          "win": false
+        },
+        "candidate_source_over_baseline_source": {
+          "ci95_percentile": [
+            0.9090110920436445,
+            1.0071042096866567
+          ],
+          "median_ratio": 0.9885085763541049,
+          "ties_or_regressions": 1,
+          "win": false
+        }
+      },
+      "build_seconds": {
+        "before_artifact": 0.009392940000012118,
+        "candidate_artifact": 0.004401837000003184
+      },
+      "commands": {
+        "guion_before_artifact": [
+          "/var/cache/guion-core-north-star/bin/guion-43a48af",
+          "run",
+          "--json",
+          "/tmp/sc-base/jsonl-summary-data-200000/before.gub",
+          "--events",
+          "performance-inputs/events.jsonl",
+          "--output",
+          "performance-inputs/summary.json"
+        ],
+        "guion_before_source_uncached": [
+          "/var/cache/guion-core-north-star/bin/guion-43a48af",
+          "run",
+          "--json",
+          "--no-cache",
+          "/tmp/sc-base/jsonl-summary-data-200000/main.gu",
+          "--events",
+          "performance-inputs/events.jsonl",
+          "--output",
+          "performance-inputs/summary.json"
+        ],
+        "guion_candidate_artifact": [
+          "/var/cache/guion-core-north-star/bin/guion-43a48af",
+          "run",
+          "--json",
+          "/tmp/sc-base/jsonl-summary-data-200000/candidate.gub",
+          "--events",
+          "performance-inputs/events.jsonl",
+          "--output",
+          "performance-inputs/summary.json"
+        ],
+        "guion_candidate_source_uncached": [
+          "/var/cache/guion-core-north-star/bin/guion-43a48af",
+          "run",
+          "--json",
+          "--no-cache",
+          "/tmp/sc-base/jsonl-summary-data-200000/main.gu",
+          "--events",
+          "performance-inputs/events.jsonl",
+          "--output",
+          "performance-inputs/summary.json"
+        ],
+        "python_data": [
+          "/usr/bin/python3.11",
+          "/tmp/sc-base/jsonl-summary-data-200000/data_reference.py",
+          "python",
+          "/tmp/sc-base/jsonl-summary-data-200000/performance-inputs/events.jsonl",
+          "/tmp/sc-base/jsonl-summary-data-200000/performance-inputs/services.txt",
+          "/tmp/sc-base/jsonl-summary-data-200000/performance-inputs/summary.json"
+        ],
+        "python_sqlite_native": [
+          "/usr/bin/python3.11",
+          "/tmp/sc-base/jsonl-summary-data-200000/data_reference.py",
+          "sqlite",
+          "/tmp/sc-base/jsonl-summary-data-200000/performance-inputs/events.jsonl",
+          "/tmp/sc-base/jsonl-summary-data-200000/performance-inputs/services.txt",
+          "/tmp/sc-base/jsonl-summary-data-200000/performance-inputs/summary.json"
+        ]
+      },
+      "comparisons": {
+        "before_artifact_over_python": {
+          "ci95_percentile": [
+            2.2014815349324577,
+            2.2755094022556817
+          ],
+          "median_ratio": 2.2549410372827374,
+          "ties_or_regressions": 5,
+          "win": false
+        },
+        "before_source_over_python": {
+          "ci95_percentile": [
+            2.253825122847237,
+            2.4859945190065402
+          ],
+          "median_ratio": 2.2659005944458976,
+          "ties_or_regressions": 5,
+          "win": false
+        },
+        "candidate_artifact_over_before_artifact": {
+          "ci95_percentile": [
+            0.998169200248941,
+            1.012681516711138
+          ],
+          "median_ratio": 1.0006106611574273,
+          "ties_or_regressions": 3,
+          "win": false
+        },
+        "candidate_artifact_over_python": {
+          "ci95_percentile": [
+            2.2293996598069654,
+            2.27164853269499
+          ],
+          "median_ratio": 2.261181928149001,
+          "ties_or_regressions": 5,
+          "win": false
+        },
+        "candidate_source_over_before_source": {
+          "ci95_percentile": [
+            0.9090110920436445,
+            1.0071042096866567
+          ],
+          "median_ratio": 0.9885085763541049,
+          "ties_or_regressions": 1,
+          "win": false
+        },
+        "candidate_source_over_python": {
+          "ci95_percentile": [
+            2.239862170775634,
+            2.2730107526336
+          ],
+          "median_ratio": 2.25979659253665,
+          "ties_or_regressions": 5,
+          "win": false
+        }
+      },
+      "generator_seed": 20261025,
+      "native_backend_reports": {
+        "guion_before_artifact": {
+          "bytecode_blocks": 158,
+          "bytecode_instructions": 443,
+          "calls": 4,
+          "compilations": 1,
+          "compile_profile": {
+            "finalize_nanoseconds": 88840,
+            "functions": [
+              {
+                "bytecode_blocks": 1,
+                "bytecode_instructions": 3,
+                "cranelift_ir_blocks": 15,
+                "cranelift_ir_instructions": 203,
+                "define_nanoseconds": 384194,
+                "lowering_nanoseconds": 67505,
+                "name": "fs_open_lines",
+                "verification_nanoseconds": 49504
+              },
+              {
+                "bytecode_blocks": 1,
+                "bytecode_instructions": 3,
+                "cranelift_ir_blocks": 15,
+                "cranelift_ir_instructions": 203,
+                "define_nanoseconds": 224891,
+                "lowering_nanoseconds": 36253,
+                "name": "fs_next_line",
+                "verification_nanoseconds": 23085
+              },
+              {
+                "bytecode_blocks": 1,
+                "bytecode_instructions": 3,
+                "cranelift_ir_blocks": 15,
+                "cranelift_ir_instructions": 203,
+                "define_nanoseconds": 220099,
+                "lowering_nanoseconds": 34127,
+                "name": "fs_close_reader",
+                "verification_nanoseconds": 24544
+              },
+              {
+                "bytecode_blocks": 1,
+                "bytecode_instructions": 7,
+                "cranelift_ir_blocks": 17,
+                "cranelift_ir_instructions": 259,
+                "define_nanoseconds": 276395,
+                "lowering_nanoseconds": 42711,
+                "name": "std_error",
+                "verification_nanoseconds": 43420
+              },
+              {
+                "bytecode_blocks": 1,
+                "bytecode_instructions": 7,
+                "cranelift_ir_blocks": 17,
+                "cranelift_ir_instructions": 256,
+                "define_nanoseconds": 275686,
+                "lowering_nanoseconds": 40378,
+                "name": "sql_blob",
+                "verification_nanoseconds": 28585
+              },
+              {
+                "bytecode_blocks": 1,
+                "bytecode_instructions": 3,
+                "cranelift_ir_blocks": 15,
+                "cranelift_ir_instructions": 203,
+                "define_nanoseconds": 216474,
+                "lowering_nanoseconds": 46379,
+                "name": "parse_timestamp",
+                "verification_nanoseconds": 23335
+              },
+              {
+                "bytecode_blocks": 1,
+                "bytecode_instructions": 3,
+                "cranelift_ir_blocks": 15,
+                "cranelift_ir_instructions": 204,
+                "define_nanoseconds": 284979,
+                "lowering_nanoseconds": 34127,
+                "name": "format_utc",
+                "verification_nanoseconds": 52754
+              },
+              {
+                "bytecode_blocks": 1,
+                "bytecode_instructions": 4,
+                "cranelift_ir_blocks": 15,
+                "cranelift_ir_instructions": 207,
+                "define_nanoseconds": 248226,
+                "lowering_nanoseconds": 45836,
+                "name": "json_get_safe",
+                "verification_nanoseconds": 25460
+              },
+              {
+                "bytecode_blocks": 1,
+                "bytecode_instructions": 3,
+                "cranelift_ir_blocks": 14,
+                "cranelift_ir_instructions": 197,
+                "define_nanoseconds": 236559,
+                "lowering_nanoseconds": 63630,
+                "name": "json_text_safe",
+                "verification_nanoseconds": 23669
+              },
+              {
+                "bytecode_blocks": 1,
+                "bytecode_instructions": 3,
+                "cranelift_ir_blocks": 14,
+                "cranelift_ir_instructions": 197,
+                "define_nanoseconds": 285729,
+                "lowering_nanoseconds": 34502,
+                "name": "json_int_safe",
+                "verification_nanoseconds": 22543
+              },
+              {
+                "bytecode_blocks": 2,
+                "bytecode_instructions": 3,
+                "cranelift_ir_blocks": 17,
+                "cranelift_ir_instructions": 232,
+                "define_nanoseconds": 317273,
+                "lowering_nanoseconds": 58004,
+                "name": "jsonl_open",
+                "verification_nanoseconds": 37169
+              },
+              {
+                "bytecode_blocks": 1,
+                "bytecode_instructions": 2,
+                "cranelift_ir_blocks": 14,
+                "cranelift_ir_instructions": 185,
+                "define_nanoseconds": 202515,
+                "lowering_nanoseconds": 34253,
+                "name": "jsonl_no_line",
+                "verification_nanoseconds": 22168
+              },
+              {
+                "bytecode_blocks": 1,
+                "bytecode_instructions": 2,
+                "cranelift_ir_blocks": 14,
+                "cranelift_ir_instructions": 185,
+                "define_nanoseconds": 182930,
+                "lowering_nanoseconds": 30461,
+                "name": "jsonl_no_value",
+                "verification_nanoseconds": 19876
+              },
+              {
+                "bytecode_blocks": 1,
+                "bytecode_instructions": 2,
+                "cranelift_ir_blocks": 14,
+                "cranelift_ir_instructions": 185,
+                "define_nanoseconds": 181430,
+                "lowering_nanoseconds": 28210,
+                "name": "jsonl_no_error",
+                "verification_nanoseconds": 19459
+              },
+              {
+                "bytecode_blocks": 1,
+                "bytecode_instructions": 3,
+                "cranelift_ir_blocks": 15,
+                "cranelift_ir_instructions": 195,
+                "define_nanoseconds": 202557,
+                "lowering_nanoseconds": 32211,
+                "name": "jsonl_some_line",
+                "verification_nanoseconds": 21460
+              },
+              {
+                "bytecode_blocks": 1,
+                "bytecode_instructions": 3,
+                "cranelift_ir_blocks": 14,
+                "cranelift_ir_instructions": 188,
+                "define_nanoseconds": 180597,
+                "lowering_nanoseconds": 30210,
+                "name": "jsonl_some_value",
+                "verification_nanoseconds": 20210
+              },
+              {
+                "bytecode_blocks": 1,
+                "bytecode_instructions": 3,
+                "cranelift_ir_blocks": 15,
+                "cranelift_ir_instructions": 194,
+                "define_nanoseconds": 191597,
+                "lowering_nanoseconds": 29461,
+                "name": "jsonl_some_error",
+                "verification_nanoseconds": 20752
+              },
+              {
+                "bytecode_blocks": 18,
+                "bytecode_instructions": 58,
+                "cranelift_ir_blocks": 109,
+                "cranelift_ir_instructions": 1656,
+                "define_nanoseconds": 2479888,
+                "lowering_nanoseconds": 191430,
+                "name": "jsonl_next",
+                "verification_nanoseconds": 172429
+              },
+              {
+                "bytecode_blocks": 2,
+                "bytecode_instructions": 3,
+                "cranelift_ir_blocks": 17,
+                "cranelift_ir_instructions": 232,
+                "define_nanoseconds": 382903,
+                "lowering_nanoseconds": 68505,
+                "name": "jsonl_close",
+                "verification_nanoseconds": 40628
+              },
+              {
+                "bytecode_blocks": 73,
+                "bytecode_instructions": 148,
+                "cranelift_ir_blocks": 184,
+                "cranelift_ir_instructions": 1938,
+                "define_nanoseconds": 2627733,
+                "lowering_nanoseconds": 219391,
+                "name": "text_has_space",
+                "verification_nanoseconds": 199931
+              },
+              {
+                "bytecode_blocks": 16,
+                "bytecode_instructions": 60,
+                "cranelift_ir_blocks": 49,
+                "cranelift_ir_instructions": 693,
+                "define_nanoseconds": 839602,
+                "lowering_nanoseconds": 148010,
+                "name": "text_matches_at",
+                "verification_nanoseconds": 84756
+              },
+              {
+                "bytecode_blocks": 17,
+                "bytecode_instructions": 61,
+                "cranelift_ir_blocks": 70,
+                "cranelift_ir_instructions": 802,
+                "define_nanoseconds": 1247632,
+                "lowering_nanoseconds": 143469,
+                "name": "text_trim",
+                "verification_nanoseconds": 96049
+              },
+              {
+                "bytecode_blocks": 11,
+                "bytecode_instructions": 50,
+                "cranelift_ir_blocks": 56,
+                "cranelift_ir_instructions": 801,
+                "define_nanoseconds": 1277384,
+                "lowering_nanoseconds": 140177,
+                "name": "text_replace",
+                "verification_nanoseconds": 97507
+              },
+              {
+                "bytecode_blocks": 2,
+                "bytecode_instructions": 3,
+                "cranelift_ir_blocks": 17,
+                "cranelift_ir_instructions": 232,
+                "define_nanoseconds": 277603,
+                "lowering_nanoseconds": 54837,
+                "name": "text_collapse_whitespace",
+                "verification_nanoseconds": 29002
+              },
+              {
+                "bytecode_blocks": 1,
+                "bytecode_instructions": 3,
+                "cranelift_ir_blocks": 15,
+                "cranelift_ir_instructions": 203,
+                "define_nanoseconds": 214974,
+                "lowering_nanoseconds": 32252,
+                "name": "unicode_collapse_whitespace",
+                "verification_nanoseconds": 22585
+              }
+            ],
+            "rejected_functions": [
+              {
+                "blocking_callee": null,
+                "blocking_instruction": "loop backedge at bytecode instruction 225",
+                "name": "main",
+                "reason": "native arena handles are retained for the invocation, so loops that allocate JSON, file, or text values must stay in the VM until the native arena can retire dead handles",
+                "reason_code": "native_loop_value_arena_retention"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": "bytecode instruction 1: ReadText",
+                "name": "fs_read_text",
+                "reason": "native type inference could not prove the function's stack and control-flow types",
+                "reason_code": "unsupported_types_or_control_flow"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": "bytecode instruction 5: BytesFromText",
+                "name": "sql_null",
+                "reason": "native type inference could not prove the function's stack and control-flow types",
+                "reason_code": "unsupported_types_or_control_flow"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": "bytecode instruction 5: BytesFromText",
+                "name": "sql_integer",
+                "reason": "native type inference could not prove the function's stack and control-flow types",
+                "reason_code": "unsupported_types_or_control_flow"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": "bytecode instruction 5: BytesFromText",
+                "name": "sql_real",
+                "reason": "native type inference could not prove the function's stack and control-flow types",
+                "reason_code": "unsupported_types_or_control_flow"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": "bytecode instruction 5: BytesFromText",
+                "name": "sql_text",
+                "reason": "native type inference could not prove the function's stack and control-flow types",
+                "reason_code": "unsupported_types_or_control_flow"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": "bytecode instruction 0: TimeTodayLocal",
+                "name": "today_local",
+                "reason": "native type inference could not prove the function's stack and control-flow types",
+                "reason_code": "unsupported_types_or_control_flow"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": "bytecode instruction 1: TimeParseDate",
+                "name": "parse_date",
+                "reason": "native type inference could not prove the function's stack and control-flow types",
+                "reason_code": "unsupported_types_or_control_flow"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": "bytecode instruction 1: TimeFormatUtcDate",
+                "name": "format_utc_date",
+                "reason": "native type inference could not prove the function's stack and control-flow types",
+                "reason_code": "unsupported_types_or_control_flow"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": "bytecode instruction 2: TimeResolveLocal",
+                "name": "resolve_local",
+                "reason": "native type inference could not prove the function's stack and control-flow types",
+                "reason_code": "unsupported_types_or_control_flow"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": "bytecode instruction 0: TimeZoneDataVersion",
+                "name": "time_zone_data_version",
+                "reason": "native type inference could not prove the function's stack and control-flow types",
+                "reason_code": "unsupported_types_or_control_flow"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": "bytecode instruction 2: JsonTryIndex",
+                "name": "json_index_safe",
+                "reason": "native type inference could not prove the function's stack and control-flow types",
+                "reason_code": "unsupported_types_or_control_flow"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": "bytecode instruction 3: JsonStringifyPairs",
+                "name": "json_stringify_pairs",
+                "reason": "native type inference could not prove the function's stack and control-flow types",
+                "reason_code": "unsupported_types_or_control_flow"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": "bytecode instruction 1: JsonTryBool",
+                "name": "json_bool_safe",
+                "reason": "native type inference could not prove the function's stack and control-flow types",
+                "reason_code": "unsupported_types_or_control_flow"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": "bytecode instruction 1: JsonTryFloat",
+                "name": "json_float_safe",
+                "reason": "native type inference could not prove the function's stack and control-flow types",
+                "reason_code": "unsupported_types_or_control_flow"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": "bytecode instruction 2: Less",
+                "name": "text_compare_scalar",
+                "reason": "native type inference could not prove the function's stack and control-flow types",
+                "reason_code": "unsupported_types_or_control_flow"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": "bytecode instruction 2: Less",
+                "name": "text_compare_bytes",
+                "reason": "native type inference could not prove the function's stack and control-flow types",
+                "reason_code": "unsupported_types_or_control_flow"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": null,
+                "name": "text_join_range",
+                "reason": "recursive functions are not compiled by the native backend",
+                "reason_code": "recursive_function"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": null,
+                "name": "text_split",
+                "reason": "native type inference could not prove the function's stack and control-flow types",
+                "reason_code": "unsupported_types_or_control_flow"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": "bytecode instruction 2: TextJoin",
+                "name": "text_join",
+                "reason": "native type inference could not prove the function's stack and control-flow types",
+                "reason_code": "unsupported_types_or_control_flow"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": "bytecode instruction 1: TextParseInt",
+                "name": "text_parse_integer",
+                "reason": "native type inference could not prove the function's stack and control-flow types",
+                "reason_code": "unsupported_types_or_control_flow"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": "bytecode instruction 1: TextParseFloat",
+                "name": "text_parse_decimal",
+                "reason": "native type inference could not prove the function's stack and control-flow types",
+                "reason_code": "unsupported_types_or_control_flow"
+              },
+              {
+                "blocking_callee": "unicode_casefold",
+                "blocking_instruction": "Call at bytecode instruction 1",
+                "name": "text_casefold",
+                "reason": "function calls a callee that is not available in the native subset",
+                "reason_code": "callee_requires_vm"
+              },
+              {
+                "blocking_callee": "unicode_normalize",
+                "blocking_instruction": "Call at bytecode instruction 2",
+                "name": "text_normalize",
+                "reason": "function calls a callee that is not available in the native subset",
+                "reason_code": "callee_requires_vm"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": "bytecode instruction 1: TextCaseFold",
+                "name": "unicode_casefold",
+                "reason": "native type inference could not prove the function's stack and control-flow types",
+                "reason_code": "unsupported_types_or_control_flow"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": "bytecode instruction 2: TextNormalize",
+                "name": "unicode_normalize",
+                "reason": "native type inference could not prove the function's stack and control-flow types",
+                "reason_code": "unsupported_types_or_control_flow"
+              }
+            ]
+          },
+          "compiled_functions": [
+            "fs_open_lines",
+            "fs_next_line",
+            "fs_close_reader",
+            "std_error",
+            "sql_blob",
+            "parse_timestamp",
+            "format_utc",
+            "json_get_safe",
+            "json_text_safe",
+            "json_int_safe",
+            "jsonl_open",
+            "jsonl_no_line",
+            "jsonl_no_value",
+            "jsonl_no_error",
+            "jsonl_some_line",
+            "jsonl_some_value",
+            "jsonl_some_error",
+            "jsonl_next",
+            "jsonl_close",
+            "text_has_space",
+            "text_matches_at",
+            "text_trim",
+            "text_replace",
+            "text_collapse_whitespace",
+            "unicode_collapse_whitespace"
+          ],
+          "cranelift_ir_blocks": 772,
+          "cranelift_ir_instructions": 10053,
+          "deoptimization_sites": [],
+          "deoptimizations": 0
+        },
+        "guion_before_source_uncached": {
+          "bytecode_blocks": 158,
+          "bytecode_instructions": 443,
+          "calls": 4,
+          "compilations": 1,
+          "compile_profile": {
+            "finalize_nanoseconds": 83922,
+            "functions": [
+              {
+                "bytecode_blocks": 1,
+                "bytecode_instructions": 3,
+                "cranelift_ir_blocks": 15,
+                "cranelift_ir_instructions": 203,
+                "define_nanoseconds": 353900,
+                "lowering_nanoseconds": 65338,
+                "name": "fs_open_lines",
+                "verification_nanoseconds": 45420
+              },
+              {
+                "bytecode_blocks": 1,
+                "bytecode_instructions": 3,
+                "cranelift_ir_blocks": 15,
+                "cranelift_ir_instructions": 203,
+                "define_nanoseconds": 251142,
+                "lowering_nanoseconds": 38836,
+                "name": "fs_next_line",
+                "verification_nanoseconds": 24168
+              },
+              {
+                "bytecode_blocks": 1,
+                "bytecode_instructions": 3,
+                "cranelift_ir_blocks": 15,
+                "cranelift_ir_instructions": 203,
+                "define_nanoseconds": 227474,
+                "lowering_nanoseconds": 34003,
+                "name": "fs_close_reader",
+                "verification_nanoseconds": 22335
+              },
+              {
+                "bytecode_blocks": 1,
+                "bytecode_instructions": 7,
+                "cranelift_ir_blocks": 17,
+                "cranelift_ir_instructions": 259,
+                "define_nanoseconds": 282436,
+                "lowering_nanoseconds": 44503,
+                "name": "std_error",
+                "verification_nanoseconds": 31627
+              },
+              {
+                "bytecode_blocks": 1,
+                "bytecode_instructions": 7,
+                "cranelift_ir_blocks": 17,
+                "cranelift_ir_instructions": 256,
+                "define_nanoseconds": 283936,
+                "lowering_nanoseconds": 39544,
+                "name": "sql_blob",
+                "verification_nanoseconds": 28335
+              },
+              {
+                "bytecode_blocks": 1,
+                "bytecode_instructions": 3,
+                "cranelift_ir_blocks": 15,
+                "cranelift_ir_instructions": 203,
+                "define_nanoseconds": 216557,
+                "lowering_nanoseconds": 32544,
+                "name": "parse_timestamp",
+                "verification_nanoseconds": 22668
+              },
+              {
+                "bytecode_blocks": 1,
+                "bytecode_instructions": 3,
+                "cranelift_ir_blocks": 15,
+                "cranelift_ir_instructions": 204,
+                "define_nanoseconds": 212264,
+                "lowering_nanoseconds": 31918,
+                "name": "format_utc",
+                "verification_nanoseconds": 27502
+              },
+              {
+                "bytecode_blocks": 1,
+                "bytecode_instructions": 4,
+                "cranelift_ir_blocks": 15,
+                "cranelift_ir_instructions": 207,
+                "define_nanoseconds": 213181,
+                "lowering_nanoseconds": 34294,
+                "name": "json_get_safe",
+                "verification_nanoseconds": 22543
+              },
+              {
+                "bytecode_blocks": 1,
+                "bytecode_instructions": 3,
+                "cranelift_ir_blocks": 14,
+                "cranelift_ir_instructions": 197,
+                "define_nanoseconds": 205431,
+                "lowering_nanoseconds": 31627,
+                "name": "json_text_safe",
+                "verification_nanoseconds": 21668
+              },
+              {
+                "bytecode_blocks": 1,
+                "bytecode_instructions": 3,
+                "cranelift_ir_blocks": 14,
+                "cranelift_ir_instructions": 197,
+                "define_nanoseconds": 200264,
+                "lowering_nanoseconds": 30127,
+                "name": "json_int_safe",
+                "verification_nanoseconds": 21294
+              },
+              {
+                "bytecode_blocks": 2,
+                "bytecode_instructions": 3,
+                "cranelift_ir_blocks": 17,
+                "cranelift_ir_instructions": 232,
+                "define_nanoseconds": 272935,
+                "lowering_nanoseconds": 37127,
+                "name": "jsonl_open",
+                "verification_nanoseconds": 26127
+              },
+              {
+                "bytecode_blocks": 1,
+                "bytecode_instructions": 2,
+                "cranelift_ir_blocks": 14,
+                "cranelift_ir_instructions": 185,
+                "define_nanoseconds": 190429,
+                "lowering_nanoseconds": 30252,
+                "name": "jsonl_no_line",
+                "verification_nanoseconds": 20627
+              },
+              {
+                "bytecode_blocks": 1,
+                "bytecode_instructions": 2,
+                "cranelift_ir_blocks": 14,
+                "cranelift_ir_instructions": 185,
+                "define_nanoseconds": 182638,
+                "lowering_nanoseconds": 28793,
+                "name": "jsonl_no_value",
+                "verification_nanoseconds": 20085
+              },
+              {
+                "bytecode_blocks": 1,
+                "bytecode_instructions": 2,
+                "cranelift_ir_blocks": 14,
+                "cranelift_ir_instructions": 185,
+                "define_nanoseconds": 205848,
+                "lowering_nanoseconds": 28544,
+                "name": "jsonl_no_error",
+                "verification_nanoseconds": 19918
+              },
+              {
+                "bytecode_blocks": 1,
+                "bytecode_instructions": 3,
+                "cranelift_ir_blocks": 15,
+                "cranelift_ir_instructions": 195,
+                "define_nanoseconds": 202056,
+                "lowering_nanoseconds": 32544,
+                "name": "jsonl_some_line",
+                "verification_nanoseconds": 22543
+              },
+              {
+                "bytecode_blocks": 1,
+                "bytecode_instructions": 3,
+                "cranelift_ir_blocks": 14,
+                "cranelift_ir_instructions": 188,
+                "define_nanoseconds": 185555,
+                "lowering_nanoseconds": 29377,
+                "name": "jsonl_some_value",
+                "verification_nanoseconds": 20502
+              },
+              {
+                "bytecode_blocks": 1,
+                "bytecode_instructions": 3,
+                "cranelift_ir_blocks": 15,
+                "cranelift_ir_instructions": 194,
+                "define_nanoseconds": 195222,
+                "lowering_nanoseconds": 29543,
+                "name": "jsonl_some_error",
+                "verification_nanoseconds": 21168
+              },
+              {
+                "bytecode_blocks": 18,
+                "bytecode_instructions": 58,
+                "cranelift_ir_blocks": 109,
+                "cranelift_ir_instructions": 1656,
+                "define_nanoseconds": 2439545,
+                "lowering_nanoseconds": 214307,
+                "name": "jsonl_next",
+                "verification_nanoseconds": 178262
+              },
+              {
+                "bytecode_blocks": 2,
+                "bytecode_instructions": 3,
+                "cranelift_ir_blocks": 17,
+                "cranelift_ir_instructions": 232,
+                "define_nanoseconds": 326189,
+                "lowering_nanoseconds": 65337,
+                "name": "jsonl_close",
+                "verification_nanoseconds": 48754
+              },
+              {
+                "bytecode_blocks": 73,
+                "bytecode_instructions": 148,
+                "cranelift_ir_blocks": 184,
+                "cranelift_ir_instructions": 1938,
+                "define_nanoseconds": 2828613,
+                "lowering_nanoseconds": 221640,
+                "name": "text_has_space",
+                "verification_nanoseconds": 208223
+              },
+              {
+                "bytecode_blocks": 16,
+                "bytecode_instructions": 60,
+                "cranelift_ir_blocks": 49,
+                "cranelift_ir_instructions": 693,
+                "define_nanoseconds": 859519,
+                "lowering_nanoseconds": 151261,
+                "name": "text_matches_at",
+                "verification_nanoseconds": 87590
+              },
+              {
+                "bytecode_blocks": 17,
+                "bytecode_instructions": 61,
+                "cranelift_ir_blocks": 70,
+                "cranelift_ir_instructions": 802,
+                "define_nanoseconds": 1232127,
+                "lowering_nanoseconds": 134759,
+                "name": "text_trim",
+                "verification_nanoseconds": 93048
+              },
+              {
+                "bytecode_blocks": 11,
+                "bytecode_instructions": 50,
+                "cranelift_ir_blocks": 56,
+                "cranelift_ir_instructions": 801,
+                "define_nanoseconds": 1152538,
+                "lowering_nanoseconds": 140302,
+                "name": "text_replace",
+                "verification_nanoseconds": 90757
+              },
+              {
+                "bytecode_blocks": 2,
+                "bytecode_instructions": 3,
+                "cranelift_ir_blocks": 17,
+                "cranelift_ir_instructions": 232,
+                "define_nanoseconds": 278227,
+                "lowering_nanoseconds": 45045,
+                "name": "text_collapse_whitespace",
+                "verification_nanoseconds": 28585
+              },
+              {
+                "bytecode_blocks": 1,
+                "bytecode_instructions": 3,
+                "cranelift_ir_blocks": 15,
+                "cranelift_ir_instructions": 203,
+                "define_nanoseconds": 235100,
+                "lowering_nanoseconds": 46795,
+                "name": "unicode_collapse_whitespace",
+                "verification_nanoseconds": 26627
+              }
+            ],
+            "rejected_functions": [
+              {
+                "blocking_callee": null,
+                "blocking_instruction": "loop backedge at bytecode instruction 225",
+                "name": "main",
+                "reason": "native arena handles are retained for the invocation, so loops that allocate JSON, file, or text values must stay in the VM until the native arena can retire dead handles",
+                "reason_code": "native_loop_value_arena_retention"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": "bytecode instruction 1: ReadText",
+                "name": "fs_read_text",
+                "reason": "native type inference could not prove the function's stack and control-flow types",
+                "reason_code": "unsupported_types_or_control_flow"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": "bytecode instruction 5: BytesFromText",
+                "name": "sql_null",
+                "reason": "native type inference could not prove the function's stack and control-flow types",
+                "reason_code": "unsupported_types_or_control_flow"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": "bytecode instruction 5: BytesFromText",
+                "name": "sql_integer",
+                "reason": "native type inference could not prove the function's stack and control-flow types",
+                "reason_code": "unsupported_types_or_control_flow"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": "bytecode instruction 5: BytesFromText",
+                "name": "sql_real",
+                "reason": "native type inference could not prove the function's stack and control-flow types",
+                "reason_code": "unsupported_types_or_control_flow"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": "bytecode instruction 5: BytesFromText",
+                "name": "sql_text",
+                "reason": "native type inference could not prove the function's stack and control-flow types",
+                "reason_code": "unsupported_types_or_control_flow"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": "bytecode instruction 0: TimeTodayLocal",
+                "name": "today_local",
+                "reason": "native type inference could not prove the function's stack and control-flow types",
+                "reason_code": "unsupported_types_or_control_flow"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": "bytecode instruction 1: TimeParseDate",
+                "name": "parse_date",
+                "reason": "native type inference could not prove the function's stack and control-flow types",
+                "reason_code": "unsupported_types_or_control_flow"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": "bytecode instruction 1: TimeFormatUtcDate",
+                "name": "format_utc_date",
+                "reason": "native type inference could not prove the function's stack and control-flow types",
+                "reason_code": "unsupported_types_or_control_flow"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": "bytecode instruction 2: TimeResolveLocal",
+                "name": "resolve_local",
+                "reason": "native type inference could not prove the function's stack and control-flow types",
+                "reason_code": "unsupported_types_or_control_flow"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": "bytecode instruction 0: TimeZoneDataVersion",
+                "name": "time_zone_data_version",
+                "reason": "native type inference could not prove the function's stack and control-flow types",
+                "reason_code": "unsupported_types_or_control_flow"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": "bytecode instruction 2: JsonTryIndex",
+                "name": "json_index_safe",
+                "reason": "native type inference could not prove the function's stack and control-flow types",
+                "reason_code": "unsupported_types_or_control_flow"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": "bytecode instruction 3: JsonStringifyPairs",
+                "name": "json_stringify_pairs",
+                "reason": "native type inference could not prove the function's stack and control-flow types",
+                "reason_code": "unsupported_types_or_control_flow"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": "bytecode instruction 1: JsonTryBool",
+                "name": "json_bool_safe",
+                "reason": "native type inference could not prove the function's stack and control-flow types",
+                "reason_code": "unsupported_types_or_control_flow"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": "bytecode instruction 1: JsonTryFloat",
+                "name": "json_float_safe",
+                "reason": "native type inference could not prove the function's stack and control-flow types",
+                "reason_code": "unsupported_types_or_control_flow"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": "bytecode instruction 2: Less",
+                "name": "text_compare_scalar",
+                "reason": "native type inference could not prove the function's stack and control-flow types",
+                "reason_code": "unsupported_types_or_control_flow"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": "bytecode instruction 2: Less",
+                "name": "text_compare_bytes",
+                "reason": "native type inference could not prove the function's stack and control-flow types",
+                "reason_code": "unsupported_types_or_control_flow"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": null,
+                "name": "text_join_range",
+                "reason": "recursive functions are not compiled by the native backend",
+                "reason_code": "recursive_function"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": null,
+                "name": "text_split",
+                "reason": "native type inference could not prove the function's stack and control-flow types",
+                "reason_code": "unsupported_types_or_control_flow"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": "bytecode instruction 2: TextJoin",
+                "name": "text_join",
+                "reason": "native type inference could not prove the function's stack and control-flow types",
+                "reason_code": "unsupported_types_or_control_flow"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": "bytecode instruction 1: TextParseInt",
+                "name": "text_parse_integer",
+                "reason": "native type inference could not prove the function's stack and control-flow types",
+                "reason_code": "unsupported_types_or_control_flow"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": "bytecode instruction 1: TextParseFloat",
+                "name": "text_parse_decimal",
+                "reason": "native type inference could not prove the function's stack and control-flow types",
+                "reason_code": "unsupported_types_or_control_flow"
+              },
+              {
+                "blocking_callee": "unicode_casefold",
+                "blocking_instruction": "Call at bytecode instruction 1",
+                "name": "text_casefold",
+                "reason": "function calls a callee that is not available in the native subset",
+                "reason_code": "callee_requires_vm"
+              },
+              {
+                "blocking_callee": "unicode_normalize",
+                "blocking_instruction": "Call at bytecode instruction 2",
+                "name": "text_normalize",
+                "reason": "function calls a callee that is not available in the native subset",
+                "reason_code": "callee_requires_vm"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": "bytecode instruction 1: TextCaseFold",
+                "name": "unicode_casefold",
+                "reason": "native type inference could not prove the function's stack and control-flow types",
+                "reason_code": "unsupported_types_or_control_flow"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": "bytecode instruction 2: TextNormalize",
+                "name": "unicode_normalize",
+                "reason": "native type inference could not prove the function's stack and control-flow types",
+                "reason_code": "unsupported_types_or_control_flow"
+              }
+            ]
+          },
+          "compiled_functions": [
+            "fs_open_lines",
+            "fs_next_line",
+            "fs_close_reader",
+            "std_error",
+            "sql_blob",
+            "parse_timestamp",
+            "format_utc",
+            "json_get_safe",
+            "json_text_safe",
+            "json_int_safe",
+            "jsonl_open",
+            "jsonl_no_line",
+            "jsonl_no_value",
+            "jsonl_no_error",
+            "jsonl_some_line",
+            "jsonl_some_value",
+            "jsonl_some_error",
+            "jsonl_next",
+            "jsonl_close",
+            "text_has_space",
+            "text_matches_at",
+            "text_trim",
+            "text_replace",
+            "text_collapse_whitespace",
+            "unicode_collapse_whitespace"
+          ],
+          "cranelift_ir_blocks": 772,
+          "cranelift_ir_instructions": 10053,
+          "deoptimization_sites": [],
+          "deoptimizations": 0
+        },
+        "guion_candidate_artifact": {
+          "bytecode_blocks": 158,
+          "bytecode_instructions": 443,
+          "calls": 4,
+          "compilations": 1,
+          "compile_profile": {
+            "finalize_nanoseconds": 97341,
+            "functions": [
+              {
+                "bytecode_blocks": 1,
+                "bytecode_instructions": 3,
+                "cranelift_ir_blocks": 15,
+                "cranelift_ir_instructions": 203,
+                "define_nanoseconds": 360903,
+                "lowering_nanoseconds": 68381,
+                "name": "fs_open_lines",
+                "verification_nanoseconds": 43754
+              },
+              {
+                "bytecode_blocks": 1,
+                "bytecode_instructions": 3,
+                "cranelift_ir_blocks": 15,
+                "cranelift_ir_instructions": 203,
+                "define_nanoseconds": 240727,
+                "lowering_nanoseconds": 40461,
+                "name": "fs_next_line",
+                "verification_nanoseconds": 25210
+              },
+              {
+                "bytecode_blocks": 1,
+                "bytecode_instructions": 3,
+                "cranelift_ir_blocks": 15,
+                "cranelift_ir_instructions": 203,
+                "define_nanoseconds": 224976,
+                "lowering_nanoseconds": 37378,
+                "name": "fs_close_reader",
+                "verification_nanoseconds": 24502
+              },
+              {
+                "bytecode_blocks": 1,
+                "bytecode_instructions": 7,
+                "cranelift_ir_blocks": 17,
+                "cranelift_ir_instructions": 259,
+                "define_nanoseconds": 292356,
+                "lowering_nanoseconds": 45921,
+                "name": "std_error",
+                "verification_nanoseconds": 28419
+              },
+              {
+                "bytecode_blocks": 1,
+                "bytecode_instructions": 7,
+                "cranelift_ir_blocks": 17,
+                "cranelift_ir_instructions": 256,
+                "define_nanoseconds": 277813,
+                "lowering_nanoseconds": 44087,
+                "name": "sql_blob",
+                "verification_nanoseconds": 28752
+              },
+              {
+                "bytecode_blocks": 1,
+                "bytecode_instructions": 3,
+                "cranelift_ir_blocks": 15,
+                "cranelift_ir_instructions": 203,
+                "define_nanoseconds": 212975,
+                "lowering_nanoseconds": 34753,
+                "name": "parse_timestamp",
+                "verification_nanoseconds": 23085
+              },
+              {
+                "bytecode_blocks": 1,
+                "bytecode_instructions": 3,
+                "cranelift_ir_blocks": 15,
+                "cranelift_ir_instructions": 204,
+                "define_nanoseconds": 203725,
+                "lowering_nanoseconds": 33253,
+                "name": "format_utc",
+                "verification_nanoseconds": 22169
+              },
+              {
+                "bytecode_blocks": 1,
+                "bytecode_instructions": 4,
+                "cranelift_ir_blocks": 15,
+                "cranelift_ir_instructions": 207,
+                "define_nanoseconds": 333110,
+                "lowering_nanoseconds": 34836,
+                "name": "json_get_safe",
+                "verification_nanoseconds": 22502
+              },
+              {
+                "bytecode_blocks": 1,
+                "bytecode_instructions": 3,
+                "cranelift_ir_blocks": 14,
+                "cranelift_ir_instructions": 197,
+                "define_nanoseconds": 245561,
+                "lowering_nanoseconds": 43546,
+                "name": "json_text_safe",
+                "verification_nanoseconds": 26711
+              },
+              {
+                "bytecode_blocks": 1,
+                "bytecode_instructions": 3,
+                "cranelift_ir_blocks": 14,
+                "cranelift_ir_instructions": 197,
+                "define_nanoseconds": 217350,
+                "lowering_nanoseconds": 35545,
+                "name": "json_int_safe",
+                "verification_nanoseconds": 23544
+              },
+              {
+                "bytecode_blocks": 2,
+                "bytecode_instructions": 3,
+                "cranelift_ir_blocks": 17,
+                "cranelift_ir_instructions": 232,
+                "define_nanoseconds": 310524,
+                "lowering_nanoseconds": 40128,
+                "name": "jsonl_open",
+                "verification_nanoseconds": 28294
+              },
+              {
+                "bytecode_blocks": 1,
+                "bytecode_instructions": 2,
+                "cranelift_ir_blocks": 14,
+                "cranelift_ir_instructions": 185,
+                "define_nanoseconds": 200475,
+                "lowering_nanoseconds": 33753,
+                "name": "jsonl_no_line",
+                "verification_nanoseconds": 22294
+              },
+              {
+                "bytecode_blocks": 1,
+                "bytecode_instructions": 2,
+                "cranelift_ir_blocks": 14,
+                "cranelift_ir_instructions": 185,
+                "define_nanoseconds": 178389,
+                "lowering_nanoseconds": 40795,
+                "name": "jsonl_no_value",
+                "verification_nanoseconds": 19627
+              },
+              {
+                "bytecode_blocks": 1,
+                "bytecode_instructions": 2,
+                "cranelift_ir_blocks": 14,
+                "cranelift_ir_instructions": 185,
+                "define_nanoseconds": 215226,
+                "lowering_nanoseconds": 27419,
+                "name": "jsonl_no_error",
+                "verification_nanoseconds": 19293
+              },
+              {
+                "bytecode_blocks": 1,
+                "bytecode_instructions": 3,
+                "cranelift_ir_blocks": 15,
+                "cranelift_ir_instructions": 195,
+                "define_nanoseconds": 210016,
+                "lowering_nanoseconds": 31960,
+                "name": "jsonl_some_line",
+                "verification_nanoseconds": 21460
+              },
+              {
+                "bytecode_blocks": 1,
+                "bytecode_instructions": 3,
+                "cranelift_ir_blocks": 14,
+                "cranelift_ir_instructions": 188,
+                "define_nanoseconds": 207558,
+                "lowering_nanoseconds": 29336,
+                "name": "jsonl_some_value",
+                "verification_nanoseconds": 31377
+              },
+              {
+                "bytecode_blocks": 1,
+                "bytecode_instructions": 3,
+                "cranelift_ir_blocks": 15,
+                "cranelift_ir_instructions": 194,
+                "define_nanoseconds": 217933,
+                "lowering_nanoseconds": 29919,
+                "name": "jsonl_some_error",
+                "verification_nanoseconds": 20710
+              },
+              {
+                "bytecode_blocks": 18,
+                "bytecode_instructions": 58,
+                "cranelift_ir_blocks": 109,
+                "cranelift_ir_instructions": 1656,
+                "define_nanoseconds": 2390688,
+                "lowering_nanoseconds": 207599,
+                "name": "jsonl_next",
+                "verification_nanoseconds": 183140
+              },
+              {
+                "bytecode_blocks": 2,
+                "bytecode_instructions": 3,
+                "cranelift_ir_blocks": 17,
+                "cranelift_ir_instructions": 232,
+                "define_nanoseconds": 328901,
+                "lowering_nanoseconds": 59130,
+                "name": "jsonl_close",
+                "verification_nanoseconds": 35877
+              },
+              {
+                "bytecode_blocks": 73,
+                "bytecode_instructions": 148,
+                "cranelift_ir_blocks": 184,
+                "cranelift_ir_instructions": 1938,
+                "define_nanoseconds": 2441276,
+                "lowering_nanoseconds": 203974,
+                "name": "text_has_space",
+                "verification_nanoseconds": 195807
+              },
+              {
+                "bytecode_blocks": 16,
+                "bytecode_instructions": 60,
+                "cranelift_ir_blocks": 49,
+                "cranelift_ir_instructions": 693,
+                "define_nanoseconds": 801188,
+                "lowering_nanoseconds": 127469,
+                "name": "text_matches_at",
+                "verification_nanoseconds": 78215
+              },
+              {
+                "bytecode_blocks": 17,
+                "bytecode_instructions": 61,
+                "cranelift_ir_blocks": 70,
+                "cranelift_ir_instructions": 802,
+                "define_nanoseconds": 1192510,
+                "lowering_nanoseconds": 136345,
+                "name": "text_trim",
+                "verification_nanoseconds": 93257
+              },
+              {
+                "bytecode_blocks": 11,
+                "bytecode_instructions": 50,
+                "cranelift_ir_blocks": 56,
+                "cranelift_ir_instructions": 801,
+                "define_nanoseconds": 1103712,
+                "lowering_nanoseconds": 127260,
+                "name": "text_replace",
+                "verification_nanoseconds": 89132
+              },
+              {
+                "bytecode_blocks": 2,
+                "bytecode_instructions": 3,
+                "cranelift_ir_blocks": 17,
+                "cranelift_ir_instructions": 232,
+                "define_nanoseconds": 277105,
+                "lowering_nanoseconds": 36670,
+                "name": "text_collapse_whitespace",
+                "verification_nanoseconds": 28627
+              },
+              {
+                "bytecode_blocks": 1,
+                "bytecode_instructions": 3,
+                "cranelift_ir_blocks": 15,
+                "cranelift_ir_instructions": 203,
+                "define_nanoseconds": 220350,
+                "lowering_nanoseconds": 32544,
+                "name": "unicode_collapse_whitespace",
+                "verification_nanoseconds": 22794
+              }
+            ],
+            "rejected_functions": [
+              {
+                "blocking_callee": null,
+                "blocking_instruction": "loop backedge at bytecode instruction 225",
+                "name": "main",
+                "reason": "native arena handles are retained for the invocation, so loops that allocate JSON, file, or text values must stay in the VM until the native arena can retire dead handles",
+                "reason_code": "native_loop_value_arena_retention"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": "bytecode instruction 1: ReadText",
+                "name": "fs_read_text",
+                "reason": "native type inference could not prove the function's stack and control-flow types",
+                "reason_code": "unsupported_types_or_control_flow"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": "bytecode instruction 5: BytesFromText",
+                "name": "sql_null",
+                "reason": "native type inference could not prove the function's stack and control-flow types",
+                "reason_code": "unsupported_types_or_control_flow"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": "bytecode instruction 5: BytesFromText",
+                "name": "sql_integer",
+                "reason": "native type inference could not prove the function's stack and control-flow types",
+                "reason_code": "unsupported_types_or_control_flow"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": "bytecode instruction 5: BytesFromText",
+                "name": "sql_real",
+                "reason": "native type inference could not prove the function's stack and control-flow types",
+                "reason_code": "unsupported_types_or_control_flow"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": "bytecode instruction 5: BytesFromText",
+                "name": "sql_text",
+                "reason": "native type inference could not prove the function's stack and control-flow types",
+                "reason_code": "unsupported_types_or_control_flow"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": "bytecode instruction 0: TimeTodayLocal",
+                "name": "today_local",
+                "reason": "native type inference could not prove the function's stack and control-flow types",
+                "reason_code": "unsupported_types_or_control_flow"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": "bytecode instruction 1: TimeParseDate",
+                "name": "parse_date",
+                "reason": "native type inference could not prove the function's stack and control-flow types",
+                "reason_code": "unsupported_types_or_control_flow"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": "bytecode instruction 1: TimeFormatUtcDate",
+                "name": "format_utc_date",
+                "reason": "native type inference could not prove the function's stack and control-flow types",
+                "reason_code": "unsupported_types_or_control_flow"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": "bytecode instruction 2: TimeResolveLocal",
+                "name": "resolve_local",
+                "reason": "native type inference could not prove the function's stack and control-flow types",
+                "reason_code": "unsupported_types_or_control_flow"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": "bytecode instruction 0: TimeZoneDataVersion",
+                "name": "time_zone_data_version",
+                "reason": "native type inference could not prove the function's stack and control-flow types",
+                "reason_code": "unsupported_types_or_control_flow"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": "bytecode instruction 2: JsonTryIndex",
+                "name": "json_index_safe",
+                "reason": "native type inference could not prove the function's stack and control-flow types",
+                "reason_code": "unsupported_types_or_control_flow"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": "bytecode instruction 3: JsonStringifyPairs",
+                "name": "json_stringify_pairs",
+                "reason": "native type inference could not prove the function's stack and control-flow types",
+                "reason_code": "unsupported_types_or_control_flow"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": "bytecode instruction 1: JsonTryBool",
+                "name": "json_bool_safe",
+                "reason": "native type inference could not prove the function's stack and control-flow types",
+                "reason_code": "unsupported_types_or_control_flow"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": "bytecode instruction 1: JsonTryFloat",
+                "name": "json_float_safe",
+                "reason": "native type inference could not prove the function's stack and control-flow types",
+                "reason_code": "unsupported_types_or_control_flow"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": "bytecode instruction 2: Less",
+                "name": "text_compare_scalar",
+                "reason": "native type inference could not prove the function's stack and control-flow types",
+                "reason_code": "unsupported_types_or_control_flow"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": "bytecode instruction 2: Less",
+                "name": "text_compare_bytes",
+                "reason": "native type inference could not prove the function's stack and control-flow types",
+                "reason_code": "unsupported_types_or_control_flow"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": null,
+                "name": "text_join_range",
+                "reason": "recursive functions are not compiled by the native backend",
+                "reason_code": "recursive_function"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": null,
+                "name": "text_split",
+                "reason": "native type inference could not prove the function's stack and control-flow types",
+                "reason_code": "unsupported_types_or_control_flow"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": "bytecode instruction 2: TextJoin",
+                "name": "text_join",
+                "reason": "native type inference could not prove the function's stack and control-flow types",
+                "reason_code": "unsupported_types_or_control_flow"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": "bytecode instruction 1: TextParseInt",
+                "name": "text_parse_integer",
+                "reason": "native type inference could not prove the function's stack and control-flow types",
+                "reason_code": "unsupported_types_or_control_flow"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": "bytecode instruction 1: TextParseFloat",
+                "name": "text_parse_decimal",
+                "reason": "native type inference could not prove the function's stack and control-flow types",
+                "reason_code": "unsupported_types_or_control_flow"
+              },
+              {
+                "blocking_callee": "unicode_casefold",
+                "blocking_instruction": "Call at bytecode instruction 1",
+                "name": "text_casefold",
+                "reason": "function calls a callee that is not available in the native subset",
+                "reason_code": "callee_requires_vm"
+              },
+              {
+                "blocking_callee": "unicode_normalize",
+                "blocking_instruction": "Call at bytecode instruction 2",
+                "name": "text_normalize",
+                "reason": "function calls a callee that is not available in the native subset",
+                "reason_code": "callee_requires_vm"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": "bytecode instruction 1: TextCaseFold",
+                "name": "unicode_casefold",
+                "reason": "native type inference could not prove the function's stack and control-flow types",
+                "reason_code": "unsupported_types_or_control_flow"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": "bytecode instruction 2: TextNormalize",
+                "name": "unicode_normalize",
+                "reason": "native type inference could not prove the function's stack and control-flow types",
+                "reason_code": "unsupported_types_or_control_flow"
+              }
+            ]
+          },
+          "compiled_functions": [
+            "fs_open_lines",
+            "fs_next_line",
+            "fs_close_reader",
+            "std_error",
+            "sql_blob",
+            "parse_timestamp",
+            "format_utc",
+            "json_get_safe",
+            "json_text_safe",
+            "json_int_safe",
+            "jsonl_open",
+            "jsonl_no_line",
+            "jsonl_no_value",
+            "jsonl_no_error",
+            "jsonl_some_line",
+            "jsonl_some_value",
+            "jsonl_some_error",
+            "jsonl_next",
+            "jsonl_close",
+            "text_has_space",
+            "text_matches_at",
+            "text_trim",
+            "text_replace",
+            "text_collapse_whitespace",
+            "unicode_collapse_whitespace"
+          ],
+          "cranelift_ir_blocks": 772,
+          "cranelift_ir_instructions": 10053,
+          "deoptimization_sites": [],
+          "deoptimizations": 0
+        },
+        "guion_candidate_source_uncached": {
+          "bytecode_blocks": 158,
+          "bytecode_instructions": 443,
+          "calls": 4,
+          "compilations": 1,
+          "compile_profile": {
+            "finalize_nanoseconds": 104508,
+            "functions": [
+              {
+                "bytecode_blocks": 1,
+                "bytecode_instructions": 3,
+                "cranelift_ir_blocks": 15,
+                "cranelift_ir_instructions": 203,
+                "define_nanoseconds": 337484,
+                "lowering_nanoseconds": 61338,
+                "name": "fs_open_lines",
+                "verification_nanoseconds": 39878
+              },
+              {
+                "bytecode_blocks": 1,
+                "bytecode_instructions": 3,
+                "cranelift_ir_blocks": 15,
+                "cranelift_ir_instructions": 203,
+                "define_nanoseconds": 220517,
+                "lowering_nanoseconds": 36461,
+                "name": "fs_next_line",
+                "verification_nanoseconds": 22335
+              },
+              {
+                "bytecode_blocks": 1,
+                "bytecode_instructions": 3,
+                "cranelift_ir_blocks": 15,
+                "cranelift_ir_instructions": 203,
+                "define_nanoseconds": 205432,
+                "lowering_nanoseconds": 32669,
+                "name": "fs_close_reader",
+                "verification_nanoseconds": 21752
+              },
+              {
+                "bytecode_blocks": 1,
+                "bytecode_instructions": 7,
+                "cranelift_ir_blocks": 17,
+                "cranelift_ir_instructions": 259,
+                "define_nanoseconds": 268603,
+                "lowering_nanoseconds": 42087,
+                "name": "std_error",
+                "verification_nanoseconds": 27294
+              },
+              {
+                "bytecode_blocks": 1,
+                "bytecode_instructions": 7,
+                "cranelift_ir_blocks": 17,
+                "cranelift_ir_instructions": 256,
+                "define_nanoseconds": 269646,
+                "lowering_nanoseconds": 37378,
+                "name": "sql_blob",
+                "verification_nanoseconds": 26294
+              },
+              {
+                "bytecode_blocks": 1,
+                "bytecode_instructions": 3,
+                "cranelift_ir_blocks": 15,
+                "cranelift_ir_instructions": 203,
+                "define_nanoseconds": 210266,
+                "lowering_nanoseconds": 31086,
+                "name": "parse_timestamp",
+                "verification_nanoseconds": 21669
+              },
+              {
+                "bytecode_blocks": 1,
+                "bytecode_instructions": 3,
+                "cranelift_ir_blocks": 15,
+                "cranelift_ir_instructions": 204,
+                "define_nanoseconds": 197223,
+                "lowering_nanoseconds": 31961,
+                "name": "format_utc",
+                "verification_nanoseconds": 21502
+              },
+              {
+                "bytecode_blocks": 1,
+                "bytecode_instructions": 4,
+                "cranelift_ir_blocks": 15,
+                "cranelift_ir_instructions": 207,
+                "define_nanoseconds": 206057,
+                "lowering_nanoseconds": 31835,
+                "name": "json_get_safe",
+                "verification_nanoseconds": 25586
+              },
+              {
+                "bytecode_blocks": 1,
+                "bytecode_instructions": 3,
+                "cranelift_ir_blocks": 14,
+                "cranelift_ir_instructions": 197,
+                "define_nanoseconds": 211099,
+                "lowering_nanoseconds": 30377,
+                "name": "json_text_safe",
+                "verification_nanoseconds": 21043
+              },
+              {
+                "bytecode_blocks": 1,
+                "bytecode_instructions": 3,
+                "cranelift_ir_blocks": 14,
+                "cranelift_ir_instructions": 197,
+                "define_nanoseconds": 207224,
+                "lowering_nanoseconds": 28753,
+                "name": "json_int_safe",
+                "verification_nanoseconds": 20752
+              },
+              {
+                "bytecode_blocks": 2,
+                "bytecode_instructions": 3,
+                "cranelift_ir_blocks": 17,
+                "cranelift_ir_instructions": 232,
+                "define_nanoseconds": 307940,
+                "lowering_nanoseconds": 33545,
+                "name": "jsonl_open",
+                "verification_nanoseconds": 25377
+              },
+              {
+                "bytecode_blocks": 1,
+                "bytecode_instructions": 2,
+                "cranelift_ir_blocks": 14,
+                "cranelift_ir_instructions": 185,
+                "define_nanoseconds": 181055,
+                "lowering_nanoseconds": 28461,
+                "name": "jsonl_no_line",
+                "verification_nanoseconds": 20001
+              },
+              {
+                "bytecode_blocks": 1,
+                "bytecode_instructions": 2,
+                "cranelift_ir_blocks": 14,
+                "cranelift_ir_instructions": 185,
+                "define_nanoseconds": 184847,
+                "lowering_nanoseconds": 35419,
+                "name": "jsonl_no_value",
+                "verification_nanoseconds": 19543
+              },
+              {
+                "bytecode_blocks": 1,
+                "bytecode_instructions": 2,
+                "cranelift_ir_blocks": 14,
+                "cranelift_ir_instructions": 185,
+                "define_nanoseconds": 194474,
+                "lowering_nanoseconds": 33878,
+                "name": "jsonl_no_error",
+                "verification_nanoseconds": 19502
+              },
+              {
+                "bytecode_blocks": 1,
+                "bytecode_instructions": 3,
+                "cranelift_ir_blocks": 15,
+                "cranelift_ir_instructions": 195,
+                "define_nanoseconds": 204182,
+                "lowering_nanoseconds": 30086,
+                "name": "jsonl_some_line",
+                "verification_nanoseconds": 21126
+              },
+              {
+                "bytecode_blocks": 1,
+                "bytecode_instructions": 3,
+                "cranelift_ir_blocks": 14,
+                "cranelift_ir_instructions": 188,
+                "define_nanoseconds": 177764,
+                "lowering_nanoseconds": 29336,
+                "name": "jsonl_some_value",
+                "verification_nanoseconds": 19959
+              },
+              {
+                "bytecode_blocks": 1,
+                "bytecode_instructions": 3,
+                "cranelift_ir_blocks": 15,
+                "cranelift_ir_instructions": 194,
+                "define_nanoseconds": 188889,
+                "lowering_nanoseconds": 28169,
+                "name": "jsonl_some_error",
+                "verification_nanoseconds": 20709
+              },
+              {
+                "bytecode_blocks": 18,
+                "bytecode_instructions": 58,
+                "cranelift_ir_blocks": 109,
+                "cranelift_ir_instructions": 1656,
+                "define_nanoseconds": 2124077,
+                "lowering_nanoseconds": 197056,
+                "name": "jsonl_next",
+                "verification_nanoseconds": 181388
+              },
+              {
+                "bytecode_blocks": 2,
+                "bytecode_instructions": 3,
+                "cranelift_ir_blocks": 17,
+                "cranelift_ir_instructions": 232,
+                "define_nanoseconds": 486578,
+                "lowering_nanoseconds": 44045,
+                "name": "jsonl_close",
+                "verification_nanoseconds": 29252
+              },
+              {
+                "bytecode_blocks": 73,
+                "bytecode_instructions": 148,
+                "cranelift_ir_blocks": 184,
+                "cranelift_ir_instructions": 1938,
+                "define_nanoseconds": 2850674,
+                "lowering_nanoseconds": 274813,
+                "name": "text_has_space",
+                "verification_nanoseconds": 213850
+              },
+              {
+                "bytecode_blocks": 16,
+                "bytecode_instructions": 60,
+                "cranelift_ir_blocks": 49,
+                "cranelift_ir_instructions": 693,
+                "define_nanoseconds": 868399,
+                "lowering_nanoseconds": 149011,
+                "name": "text_matches_at",
+                "verification_nanoseconds": 83923
+              },
+              {
+                "bytecode_blocks": 17,
+                "bytecode_instructions": 61,
+                "cranelift_ir_blocks": 70,
+                "cranelift_ir_instructions": 802,
+                "define_nanoseconds": 1340768,
+                "lowering_nanoseconds": 140011,
+                "name": "text_trim",
+                "verification_nanoseconds": 92423
+              },
+              {
+                "bytecode_blocks": 11,
+                "bytecode_instructions": 50,
+                "cranelift_ir_blocks": 56,
+                "cranelift_ir_instructions": 801,
+                "define_nanoseconds": 1149920,
+                "lowering_nanoseconds": 145220,
+                "name": "text_replace",
+                "verification_nanoseconds": 96216
+              },
+              {
+                "bytecode_blocks": 2,
+                "bytecode_instructions": 3,
+                "cranelift_ir_blocks": 17,
+                "cranelift_ir_instructions": 232,
+                "define_nanoseconds": 273021,
+                "lowering_nanoseconds": 39378,
+                "name": "text_collapse_whitespace",
+                "verification_nanoseconds": 28460
+              },
+              {
+                "bytecode_blocks": 1,
+                "bytecode_instructions": 3,
+                "cranelift_ir_blocks": 15,
+                "cranelift_ir_instructions": 203,
+                "define_nanoseconds": 216016,
+                "lowering_nanoseconds": 31669,
+                "name": "unicode_collapse_whitespace",
+                "verification_nanoseconds": 22460
+              }
+            ],
+            "rejected_functions": [
+              {
+                "blocking_callee": null,
+                "blocking_instruction": "loop backedge at bytecode instruction 225",
+                "name": "main",
+                "reason": "native arena handles are retained for the invocation, so loops that allocate JSON, file, or text values must stay in the VM until the native arena can retire dead handles",
+                "reason_code": "native_loop_value_arena_retention"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": "bytecode instruction 1: ReadText",
+                "name": "fs_read_text",
+                "reason": "native type inference could not prove the function's stack and control-flow types",
+                "reason_code": "unsupported_types_or_control_flow"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": "bytecode instruction 5: BytesFromText",
+                "name": "sql_null",
+                "reason": "native type inference could not prove the function's stack and control-flow types",
+                "reason_code": "unsupported_types_or_control_flow"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": "bytecode instruction 5: BytesFromText",
+                "name": "sql_integer",
+                "reason": "native type inference could not prove the function's stack and control-flow types",
+                "reason_code": "unsupported_types_or_control_flow"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": "bytecode instruction 5: BytesFromText",
+                "name": "sql_real",
+                "reason": "native type inference could not prove the function's stack and control-flow types",
+                "reason_code": "unsupported_types_or_control_flow"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": "bytecode instruction 5: BytesFromText",
+                "name": "sql_text",
+                "reason": "native type inference could not prove the function's stack and control-flow types",
+                "reason_code": "unsupported_types_or_control_flow"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": "bytecode instruction 0: TimeTodayLocal",
+                "name": "today_local",
+                "reason": "native type inference could not prove the function's stack and control-flow types",
+                "reason_code": "unsupported_types_or_control_flow"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": "bytecode instruction 1: TimeParseDate",
+                "name": "parse_date",
+                "reason": "native type inference could not prove the function's stack and control-flow types",
+                "reason_code": "unsupported_types_or_control_flow"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": "bytecode instruction 1: TimeFormatUtcDate",
+                "name": "format_utc_date",
+                "reason": "native type inference could not prove the function's stack and control-flow types",
+                "reason_code": "unsupported_types_or_control_flow"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": "bytecode instruction 2: TimeResolveLocal",
+                "name": "resolve_local",
+                "reason": "native type inference could not prove the function's stack and control-flow types",
+                "reason_code": "unsupported_types_or_control_flow"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": "bytecode instruction 0: TimeZoneDataVersion",
+                "name": "time_zone_data_version",
+                "reason": "native type inference could not prove the function's stack and control-flow types",
+                "reason_code": "unsupported_types_or_control_flow"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": "bytecode instruction 2: JsonTryIndex",
+                "name": "json_index_safe",
+                "reason": "native type inference could not prove the function's stack and control-flow types",
+                "reason_code": "unsupported_types_or_control_flow"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": "bytecode instruction 3: JsonStringifyPairs",
+                "name": "json_stringify_pairs",
+                "reason": "native type inference could not prove the function's stack and control-flow types",
+                "reason_code": "unsupported_types_or_control_flow"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": "bytecode instruction 1: JsonTryBool",
+                "name": "json_bool_safe",
+                "reason": "native type inference could not prove the function's stack and control-flow types",
+                "reason_code": "unsupported_types_or_control_flow"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": "bytecode instruction 1: JsonTryFloat",
+                "name": "json_float_safe",
+                "reason": "native type inference could not prove the function's stack and control-flow types",
+                "reason_code": "unsupported_types_or_control_flow"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": "bytecode instruction 2: Less",
+                "name": "text_compare_scalar",
+                "reason": "native type inference could not prove the function's stack and control-flow types",
+                "reason_code": "unsupported_types_or_control_flow"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": "bytecode instruction 2: Less",
+                "name": "text_compare_bytes",
+                "reason": "native type inference could not prove the function's stack and control-flow types",
+                "reason_code": "unsupported_types_or_control_flow"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": null,
+                "name": "text_join_range",
+                "reason": "recursive functions are not compiled by the native backend",
+                "reason_code": "recursive_function"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": null,
+                "name": "text_split",
+                "reason": "native type inference could not prove the function's stack and control-flow types",
+                "reason_code": "unsupported_types_or_control_flow"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": "bytecode instruction 2: TextJoin",
+                "name": "text_join",
+                "reason": "native type inference could not prove the function's stack and control-flow types",
+                "reason_code": "unsupported_types_or_control_flow"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": "bytecode instruction 1: TextParseInt",
+                "name": "text_parse_integer",
+                "reason": "native type inference could not prove the function's stack and control-flow types",
+                "reason_code": "unsupported_types_or_control_flow"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": "bytecode instruction 1: TextParseFloat",
+                "name": "text_parse_decimal",
+                "reason": "native type inference could not prove the function's stack and control-flow types",
+                "reason_code": "unsupported_types_or_control_flow"
+              },
+              {
+                "blocking_callee": "unicode_casefold",
+                "blocking_instruction": "Call at bytecode instruction 1",
+                "name": "text_casefold",
+                "reason": "function calls a callee that is not available in the native subset",
+                "reason_code": "callee_requires_vm"
+              },
+              {
+                "blocking_callee": "unicode_normalize",
+                "blocking_instruction": "Call at bytecode instruction 2",
+                "name": "text_normalize",
+                "reason": "function calls a callee that is not available in the native subset",
+                "reason_code": "callee_requires_vm"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": "bytecode instruction 1: TextCaseFold",
+                "name": "unicode_casefold",
+                "reason": "native type inference could not prove the function's stack and control-flow types",
+                "reason_code": "unsupported_types_or_control_flow"
+              },
+              {
+                "blocking_callee": null,
+                "blocking_instruction": "bytecode instruction 2: TextNormalize",
+                "name": "unicode_normalize",
+                "reason": "native type inference could not prove the function's stack and control-flow types",
+                "reason_code": "unsupported_types_or_control_flow"
+              }
+            ]
+          },
+          "compiled_functions": [
+            "fs_open_lines",
+            "fs_next_line",
+            "fs_close_reader",
+            "std_error",
+            "sql_blob",
+            "parse_timestamp",
+            "format_utc",
+            "json_get_safe",
+            "json_text_safe",
+            "json_int_safe",
+            "jsonl_open",
+            "jsonl_no_line",
+            "jsonl_no_value",
+            "jsonl_no_error",
+            "jsonl_some_line",
+            "jsonl_some_value",
+            "jsonl_some_error",
+            "jsonl_next",
+            "jsonl_close",
+            "text_has_space",
+            "text_matches_at",
+            "text_trim",
+            "text_replace",
+            "text_collapse_whitespace",
+            "unicode_collapse_whitespace"
+          ],
+          "cranelift_ir_blocks": 772,
+          "cranelift_ir_instructions": 10053,
+          "deoptimization_sites": [],
+          "deoptimizations": 0
+        }
+      },
+      "paired_trial_order": [
+        [
+          "python_data",
+          "python_sqlite_native",
+          "guion_candidate_source_uncached",
+          "guion_candidate_artifact",
+          "guion_before_artifact",
+          "guion_before_source_uncached"
+        ],
+        [
+          "guion_candidate_artifact",
+          "guion_candidate_source_uncached",
+          "python_sqlite_native",
+          "guion_before_source_uncached",
+          "python_data",
+          "guion_before_artifact"
+        ],
+        [
+          "guion_candidate_source_uncached",
+          "guion_before_artifact",
+          "guion_candidate_artifact",
+          "python_sqlite_native",
+          "guion_before_source_uncached",
+          "python_data"
+        ],
+        [
+          "python_sqlite_native",
+          "guion_candidate_source_uncached",
+          "guion_before_source_uncached",
+          "python_data",
+          "guion_candidate_artifact",
+          "guion_before_artifact"
+        ],
+        [
+          "guion_candidate_artifact",
+          "guion_candidate_source_uncached",
+          "python_data",
+          "guion_before_artifact",
+          "python_sqlite_native",
+          "guion_before_source_uncached"
+        ]
+      ],
+      "peak_rss_bytes": {
+        "guion_before_artifact": 10428416,
+        "guion_before_source_uncached": 10756096,
+        "guion_candidate_artifact": 10428416,
+        "guion_candidate_source_uncached": 10756096,
+        "python_data": 69259264,
+        "python_sqlite_native": 81444864
+      },
+      "phase_profiles": {
+        "guion_candidate_artifact": {
+          "cache_status": "not_applicable",
+          "elapsed_seconds_including_process_startup": 11.206751429999997,
+          "reported_phase_timings_ns": {
+            "artifact_runtime_load_ns": 1820558,
+            "cli_to_report_excluding_process_startup_ns": 11204933629,
+            "compiler_pipeline": null,
+            "input_artifact_decode_ns": 163801,
+            "native_compilation": {
+              "finalize_nanoseconds": 95547,
+              "functions": [
+                {
+                  "bytecode_blocks": 1,
+                  "bytecode_instructions": 3,
+                  "cranelift_ir_blocks": 15,
+                  "cranelift_ir_instructions": 203,
+                  "define_nanoseconds": 407356,
+                  "lowering_nanoseconds": 86547,
+                  "name": "fs_open_lines",
+                  "verification_nanoseconds": 46085
+                },
+                {
+                  "bytecode_blocks": 1,
+                  "bytecode_instructions": 3,
+                  "cranelift_ir_blocks": 15,
+                  "cranelift_ir_instructions": 203,
+                  "define_nanoseconds": 237763,
+                  "lowering_nanoseconds": 41043,
+                  "name": "fs_next_line",
+                  "verification_nanoseconds": 46086
+                },
+                {
+                  "bytecode_blocks": 1,
+                  "bytecode_instructions": 3,
+                  "cranelift_ir_blocks": 15,
+                  "cranelift_ir_instructions": 203,
+                  "define_nanoseconds": 218887,
+                  "lowering_nanoseconds": 36085,
+                  "name": "fs_close_reader",
+                  "verification_nanoseconds": 23042
+                },
+                {
+                  "bytecode_blocks": 1,
+                  "bytecode_instructions": 7,
+                  "cranelift_ir_blocks": 17,
+                  "cranelift_ir_instructions": 259,
+                  "define_nanoseconds": 383354,
+                  "lowering_nanoseconds": 45711,
+                  "name": "std_error",
+                  "verification_nanoseconds": 29085
+                },
+                {
+                  "bytecode_blocks": 1,
+                  "bytecode_instructions": 7,
+                  "cranelift_ir_blocks": 17,
+                  "cranelift_ir_instructions": 256,
+                  "define_nanoseconds": 308017,
+                  "lowering_nanoseconds": 61878,
+                  "name": "sql_blob",
+                  "verification_nanoseconds": 37585
+                },
+                {
+                  "bytecode_blocks": 1,
+                  "bytecode_instructions": 3,
+                  "cranelift_ir_blocks": 15,
+                  "cranelift_ir_instructions": 203,
+                  "define_nanoseconds": 222846,
+                  "lowering_nanoseconds": 36627,
+                  "name": "parse_timestamp",
+                  "verification_nanoseconds": 22834
+                },
+                {
+                  "bytecode_blocks": 1,
+                  "bytecode_instructions": 3,
+                  "cranelift_ir_blocks": 15,
+                  "cranelift_ir_instructions": 204,
+                  "define_nanoseconds": 211470,
+                  "lowering_nanoseconds": 34252,
+                  "name": "format_utc",
+                  "verification_nanoseconds": 22168
+                },
+                {
+                  "bytecode_blocks": 1,
+                  "bytecode_instructions": 4,
+                  "cranelift_ir_blocks": 15,
+                  "cranelift_ir_instructions": 207,
+                  "define_nanoseconds": 212595,
+                  "lowering_nanoseconds": 35585,
+                  "name": "json_get_safe",
+                  "verification_nanoseconds": 22376
+                },
+                {
+                  "bytecode_blocks": 1,
+                  "bytecode_instructions": 3,
+                  "cranelift_ir_blocks": 14,
+                  "cranelift_ir_instructions": 197,
+                  "define_nanoseconds": 202970,
+                  "lowering_nanoseconds": 32877,
+                  "name": "json_text_safe",
+                  "verification_nanoseconds": 21876
+                },
+                {
+                  "bytecode_blocks": 1,
+                  "bytecode_instructions": 3,
+                  "cranelift_ir_blocks": 14,
+                  "cranelift_ir_instructions": 197,
+                  "define_nanoseconds": 189886,
+                  "lowering_nanoseconds": 31502,
+                  "name": "json_int_safe",
+                  "verification_nanoseconds": 20918
+                },
+                {
+                  "bytecode_blocks": 2,
+                  "bytecode_instructions": 3,
+                  "cranelift_ir_blocks": 17,
+                  "cranelift_ir_instructions": 232,
+                  "define_nanoseconds": 262806,
+                  "lowering_nanoseconds": 35460,
+                  "name": "jsonl_open",
+                  "verification_nanoseconds": 25751
+                },
+                {
+                  "bytecode_blocks": 1,
+                  "bytecode_instructions": 2,
+                  "cranelift_ir_blocks": 14,
+                  "cranelift_ir_instructions": 185,
+                  "define_nanoseconds": 182551,
+                  "lowering_nanoseconds": 29502,
+                  "name": "jsonl_no_line",
+                  "verification_nanoseconds": 20001
+                },
+                {
+                  "bytecode_blocks": 1,
+                  "bytecode_instructions": 2,
+                  "cranelift_ir_blocks": 14,
+                  "cranelift_ir_instructions": 185,
+                  "define_nanoseconds": 190719,
+                  "lowering_nanoseconds": 27626,
+                  "name": "jsonl_no_value",
+                  "verification_nanoseconds": 19376
+                },
+                {
+                  "bytecode_blocks": 1,
+                  "bytecode_instructions": 2,
+                  "cranelift_ir_blocks": 14,
+                  "cranelift_ir_instructions": 185,
+                  "define_nanoseconds": 182510,
+                  "lowering_nanoseconds": 27460,
+                  "name": "jsonl_no_error",
+                  "verification_nanoseconds": 19417
+                },
+                {
+                  "bytecode_blocks": 1,
+                  "bytecode_instructions": 3,
+                  "cranelift_ir_blocks": 15,
+                  "cranelift_ir_instructions": 195,
+                  "define_nanoseconds": 202261,
+                  "lowering_nanoseconds": 31710,
+                  "name": "jsonl_some_line",
+                  "verification_nanoseconds": 21251
+                },
+                {
+                  "bytecode_blocks": 1,
+                  "bytecode_instructions": 3,
+                  "cranelift_ir_blocks": 14,
+                  "cranelift_ir_instructions": 188,
+                  "define_nanoseconds": 176259,
+                  "lowering_nanoseconds": 29418,
+                  "name": "jsonl_some_value",
+                  "verification_nanoseconds": 20085
+                },
+                {
+                  "bytecode_blocks": 1,
+                  "bytecode_instructions": 3,
+                  "cranelift_ir_blocks": 15,
+                  "cranelift_ir_instructions": 194,
+                  "define_nanoseconds": 188385,
+                  "lowering_nanoseconds": 29460,
+                  "name": "jsonl_some_error",
+                  "verification_nanoseconds": 20751
+                },
+                {
+                  "bytecode_blocks": 18,
+                  "bytecode_instructions": 58,
+                  "cranelift_ir_blocks": 109,
+                  "cranelift_ir_instructions": 1659,
+                  "define_nanoseconds": 2506471,
+                  "lowering_nanoseconds": 190718,
+                  "name": "jsonl_next",
+                  "verification_nanoseconds": 192302
+                },
+                {
+                  "bytecode_blocks": 2,
+                  "bytecode_instructions": 3,
+                  "cranelift_ir_blocks": 17,
+                  "cranelift_ir_instructions": 232,
+                  "define_nanoseconds": 266598,
+                  "lowering_nanoseconds": 42961,
+                  "name": "jsonl_close",
+                  "verification_nanoseconds": 27293
+                },
+                {
+                  "bytecode_blocks": 73,
+                  "bytecode_instructions": 148,
+                  "cranelift_ir_blocks": 184,
+                  "cranelift_ir_instructions": 1962,
+                  "define_nanoseconds": 2508180,
+                  "lowering_nanoseconds": 211970,
+                  "name": "text_has_space",
+                  "verification_nanoseconds": 196594
+                },
+                {
+                  "bytecode_blocks": 16,
+                  "bytecode_instructions": 60,
+                  "cranelift_ir_blocks": 49,
+                  "cranelift_ir_instructions": 698,
+                  "define_nanoseconds": 818545,
+                  "lowering_nanoseconds": 131590,
+                  "name": "text_matches_at",
+                  "verification_nanoseconds": 79380
+                },
+                {
+                  "bytecode_blocks": 17,
+                  "bytecode_instructions": 61,
+                  "cranelift_ir_blocks": 70,
+                  "cranelift_ir_instructions": 807,
+                  "define_nanoseconds": 1283029,
+                  "lowering_nanoseconds": 156092,
+                  "name": "text_trim",
+                  "verification_nanoseconds": 94631
+                },
+                {
+                  "bytecode_blocks": 11,
+                  "bytecode_instructions": 50,
+                  "cranelift_ir_blocks": 56,
+                  "cranelift_ir_instructions": 804,
+                  "define_nanoseconds": 1229109,
+                  "lowering_nanoseconds": 145300,
+                  "name": "text_replace",
+                  "verification_nanoseconds": 92088
+                },
+                {
+                  "bytecode_blocks": 2,
+                  "bytecode_instructions": 3,
+                  "cranelift_ir_blocks": 17,
+                  "cranelift_ir_instructions": 232,
+                  "define_nanoseconds": 270307,
+                  "lowering_nanoseconds": 54461,
+                  "name": "text_collapse_whitespace",
+                  "verification_nanoseconds": 28001
+                },
+                {
+                  "bytecode_blocks": 1,
+                  "bytecode_instructions": 3,
+                  "cranelift_ir_blocks": 15,
+                  "cranelift_ir_instructions": 203,
+                  "define_nanoseconds": 229054,
+                  "lowering_nanoseconds": 31002,
+                  "name": "unicode_collapse_whitespace",
+                  "verification_nanoseconds": 22459
+                }
+              ],
+              "rejected_functions": [
+                {
+                  "blocking_callee": null,
+                  "blocking_instruction": "loop backedge at bytecode instruction 225",
+                  "name": "main",
+                  "reason": "native arena handles are retained for the invocation, so loops that allocate JSON, file, or text values must stay in the VM until the native arena can retire dead handles",
+                  "reason_code": "native_loop_value_arena_retention"
+                },
+                {
+                  "blocking_callee": null,
+                  "blocking_instruction": "bytecode instruction 1: ReadText",
+                  "name": "fs_read_text",
+                  "reason": "native type inference could not prove the function's stack and control-flow types",
+                  "reason_code": "unsupported_types_or_control_flow"
+                },
+                {
+                  "blocking_callee": null,
+                  "blocking_instruction": "bytecode instruction 5: BytesFromText",
+                  "name": "sql_null",
+                  "reason": "native type inference could not prove the function's stack and control-flow types",
+                  "reason_code": "unsupported_types_or_control_flow"
+                },
+                {
+                  "blocking_callee": null,
+                  "blocking_instruction": "bytecode instruction 5: BytesFromText",
+                  "name": "sql_integer",
+                  "reason": "native type inference could not prove the function's stack and control-flow types",
+                  "reason_code": "unsupported_types_or_control_flow"
+                },
+                {
+                  "blocking_callee": null,
+                  "blocking_instruction": "bytecode instruction 5: BytesFromText",
+                  "name": "sql_real",
+                  "reason": "native type inference could not prove the function's stack and control-flow types",
+                  "reason_code": "unsupported_types_or_control_flow"
+                },
+                {
+                  "blocking_callee": null,
+                  "blocking_instruction": "bytecode instruction 5: BytesFromText",
+                  "name": "sql_text",
+                  "reason": "native type inference could not prove the function's stack and control-flow types",
+                  "reason_code": "unsupported_types_or_control_flow"
+                },
+                {
+                  "blocking_callee": null,
+                  "blocking_instruction": "bytecode instruction 0: TimeTodayLocal",
+                  "name": "today_local",
+                  "reason": "native type inference could not prove the function's stack and control-flow types",
+                  "reason_code": "unsupported_types_or_control_flow"
+                },
+                {
+                  "blocking_callee": null,
+                  "blocking_instruction": "bytecode instruction 1: TimeParseDate",
+                  "name": "parse_date",
+                  "reason": "native type inference could not prove the function's stack and control-flow types",
+                  "reason_code": "unsupported_types_or_control_flow"
+                },
+                {
+                  "blocking_callee": null,
+                  "blocking_instruction": "bytecode instruction 1: TimeFormatUtcDate",
+                  "name": "format_utc_date",
+                  "reason": "native type inference could not prove the function's stack and control-flow types",
+                  "reason_code": "unsupported_types_or_control_flow"
+                },
+                {
+                  "blocking_callee": null,
+                  "blocking_instruction": "bytecode instruction 2: TimeResolveLocal",
+                  "name": "resolve_local",
+                  "reason": "native type inference could not prove the function's stack and control-flow types",
+                  "reason_code": "unsupported_types_or_control_flow"
+                },
+                {
+                  "blocking_callee": null,
+                  "blocking_instruction": "bytecode instruction 0: TimeZoneDataVersion",
+                  "name": "time_zone_data_version",
+                  "reason": "native type inference could not prove the function's stack and control-flow types",
+                  "reason_code": "unsupported_types_or_control_flow"
+                },
+                {
+                  "blocking_callee": null,
+                  "blocking_instruction": "bytecode instruction 2: JsonTryIndex",
+                  "name": "json_index_safe",
+                  "reason": "native type inference could not prove the function's stack and control-flow types",
+                  "reason_code": "unsupported_types_or_control_flow"
+                },
+                {
+                  "blocking_callee": null,
+                  "blocking_instruction": "bytecode instruction 3: JsonStringifyPairs",
+                  "name": "json_stringify_pairs",
+                  "reason": "native type inference could not prove the function's stack and control-flow types",
+                  "reason_code": "unsupported_types_or_control_flow"
+                },
+                {
+                  "blocking_callee": null,
+                  "blocking_instruction": "bytecode instruction 1: JsonTryBool",
+                  "name": "json_bool_safe",
+                  "reason": "native type inference could not prove the function's stack and control-flow types",
+                  "reason_code": "unsupported_types_or_control_flow"
+                },
+                {
+                  "blocking_callee": null,
+                  "blocking_instruction": "bytecode instruction 1: JsonTryFloat",
+                  "name": "json_float_safe",
+                  "reason": "native type inference could not prove the function's stack and control-flow types",
+                  "reason_code": "unsupported_types_or_control_flow"
+                },
+                {
+                  "blocking_callee": null,
+                  "blocking_instruction": "bytecode instruction 2: Less",
+                  "name": "text_compare_scalar",
+                  "reason": "native type inference could not prove the function's stack and control-flow types",
+                  "reason_code": "unsupported_types_or_control_flow"
+                },
+                {
+                  "blocking_callee": null,
+                  "blocking_instruction": "bytecode instruction 2: Less",
+                  "name": "text_compare_bytes",
+                  "reason": "native type inference could not prove the function's stack and control-flow types",
+                  "reason_code": "unsupported_types_or_control_flow"
+                },
+                {
+                  "blocking_callee": null,
+                  "blocking_instruction": null,
+                  "name": "text_join_range",
+                  "reason": "recursive functions are not compiled by the native backend",
+                  "reason_code": "recursive_function"
+                },
+                {
+                  "blocking_callee": null,
+                  "blocking_instruction": null,
+                  "name": "text_split",
+                  "reason": "native type inference could not prove the function's stack and control-flow types",
+                  "reason_code": "unsupported_types_or_control_flow"
+                },
+                {
+                  "blocking_callee": null,
+                  "blocking_instruction": "bytecode instruction 2: TextJoin",
+                  "name": "text_join",
+                  "reason": "native type inference could not prove the function's stack and control-flow types",
+                  "reason_code": "unsupported_types_or_control_flow"
+                },
+                {
+                  "blocking_callee": null,
+                  "blocking_instruction": "bytecode instruction 1: TextParseInt",
+                  "name": "text_parse_integer",
+                  "reason": "native type inference could not prove the function's stack and control-flow types",
+                  "reason_code": "unsupported_types_or_control_flow"
+                },
+                {
+                  "blocking_callee": null,
+                  "blocking_instruction": "bytecode instruction 1: TextParseFloat",
+                  "name": "text_parse_decimal",
+                  "reason": "native type inference could not prove the function's stack and control-flow types",
+                  "reason_code": "unsupported_types_or_control_flow"
+                },
+                {
+                  "blocking_callee": "unicode_casefold",
+                  "blocking_instruction": "Call at bytecode instruction 1",
+                  "name": "text_casefold",
+                  "reason": "function calls a callee that is not available in the native subset",
+                  "reason_code": "callee_requires_vm"
+                },
+                {
+                  "blocking_callee": "unicode_normalize",
+                  "blocking_instruction": "Call at bytecode instruction 2",
+                  "name": "text_normalize",
+                  "reason": "function calls a callee that is not available in the native subset",
+                  "reason_code": "callee_requires_vm"
+                },
+                {
+                  "blocking_callee": null,
+                  "blocking_instruction": "bytecode instruction 1: TextCaseFold",
+                  "name": "unicode_casefold",
+                  "reason": "native type inference could not prove the function's stack and control-flow types",
+                  "reason_code": "unsupported_types_or_control_flow"
+                },
+                {
+                  "blocking_callee": null,
+                  "blocking_instruction": "bytecode instruction 2: TextNormalize",
+                  "name": "unicode_normalize",
+                  "reason": "native type inference could not prove the function's stack and control-flow types",
+                  "reason_code": "unsupported_types_or_control_flow"
+                }
+              ]
+            },
+            "program_execute_ns": 11202511373,
+            "source_compile_or_cache_ns": null
+          },
+          "runtime_profile": {
+            "dynamic_guest_conditional_branch_executions": 4173319,
+            "estimated_guest_allocation_budget_charges": {
+              "estimated_gross_bytes": 1747005113,
+              "estimated_net_bytes": 1747005113,
+              "estimated_refunded_bytes": 0,
+              "successful_events": 27342699
+            },
+            "function_call_counts": {
+              "format_utc": 196381,
+              "fs_next_line": 200948,
+              "json_get_safe": 985575,
+              "json_int_safe": 588723,
+              "json_text_safe": 396852,
+              "jsonl_close": 1,
+              "jsonl_next": 200948,
+              "jsonl_no_error": 198426,
+              "jsonl_no_line": 1,
+              "jsonl_no_value": 2521,
+              "jsonl_open": 1,
+              "jsonl_some_error": 2521,
+              "jsonl_some_line": 200947,
+              "jsonl_some_value": 198426,
+              "parse_timestamp": 196381,
+              "unicode_collapse_whitespace": 200947
+            },
+            "function_loop_backedge_counts": {
+              "main": 201095
+            },
+            "host_operations": {
+              "counts": {
+                "Args": 1,
+                "FileClose": 1,
+                "FileNextLine": 200948,
+                "FileOpenLines": 1,
+                "JsonArray": 2,
+                "JsonGet": 420,
+                "JsonInt": 202151,
+                "JsonObject": 3900,
+                "JsonParse": 200947,
+                "JsonPushLocal": 3759,
+                "JsonSetLocal": 205283,
+                "JsonStringify": 1,
+                "JsonText": 2710,
+                "JsonTryGet": 985575,
+                "JsonTryInt": 588723,
+                "JsonTryText": 396852,
+                "TextCollapseWhitespace": 200947,
+                "TimeFormatUtc": 196381,
+                "TimeParseTimestamp": 196381,
+                "WriteTextAtomic": 1
+              },
+              "inclusive_nanoseconds": {
+                "Args": 5334,
+                "FileClose": 13292,
+                "FileNextLine": 72059773,
+                "FileOpenLines": 21293,
+                "JsonArray": 1667,
+                "JsonGet": 72830,
+                "JsonInt": 51675522,
+                "JsonObject": 1043804,
+                "JsonParse": 146769549,
+                "JsonPushLocal": 1410757,
+                "JsonSetLocal": 96543416,
+                "JsonStringify": 293722,
+                "JsonText": 448018,
+                "JsonTryGet": 150859321,
+                "JsonTryInt": 56413962,
+                "JsonTryText": 43742311,
+                "TextCollapseWhitespace": 20693762,
+                "TimeFormatUtc": 61434849,
+                "TimeParseTimestamp": 21909989,
+                "WriteTextAtomic": 1979008
+              },
+              "sample_rate_operations": 1,
+              "timings_are_sampled": false
+            },
+            "json_phase_nanoseconds": {
+              "parse_and_reserved_key_handling": 100777995,
+              "post_parse_metrics_traversal": 19141398
+            },
+            "json_set": {
+              "copy_on_write_copies": 196241,
+              "estimated_copy_bytes": 94786273,
+              "operations": 205283
+            },
+            "list_set": {
+              "copy_on_write_copies": 0,
+              "copy_size_histogram": {
+                "buckets": {
+                  "0-8": {
+                    "copies": 0,
+                    "estimated_copy_bytes": 0
+                  },
+                  "129+": {
+                    "copies": 0,
+                    "estimated_copy_bytes": 0
+                  },
+                  "33-128": {
+                    "copies": 0,
+                    "estimated_copy_bytes": 0
+                  },
+                  "9-32": {
+                    "copies": 0,
+                    "estimated_copy_bytes": 0
+                  }
+                },
+                "unit": "elements"
+              },
+              "estimated_copy_bytes": 0,
+              "in_place_updates": 0,
+              "operations": 0
+            },
+            "map_record_update": {
+              "copy_on_write_copies": 0,
+              "estimated_map_copy_bytes": 0,
+              "estimated_record_copy_bytes": 0,
+              "in_place_updates": 0,
+              "operations": 0,
+              "reads": 0
+            },
+            "map_set": {
+              "copy_on_write_copies": 0,
+              "estimated_copy_bytes": 0,
+              "in_place_updates": 392762,
+              "operations": 392762
+            },
+            "metric_limits": {
+              "allocation": "estimated guest-data budget charges, not host allocator calls",
+              "branches": "executed guest conditional branches, not hardware branch-misprediction counts",
+              "function_calls": "exact function call counts",
+              "host_operation_time": "inclusive time at host-op boundary; nested parse/metrics timers overlap and must not be summed",
+              "opcode_counts": "exact executed opcode counts",
+              "opcode_transitions": "exact adjacent opcode transitions attributed to the current function",
+              "vm_instruction_counts": "exact executed instruction count",
+              "vm_sampled_time": "sampled wall time includes host calls and inline fast-forwarded guest children; sampled_functions subtracts both to estimate exclusive guest time; deterministic hash sampling targets one in 1024 frames and always includes the first frame; attribution only, not final benchmark timing"
+            },
+            "opcode_executions": {
+              "Add": 1967441,
+              "Args": 1,
+              "Call": 3569599,
+              "Const": 4753063,
+              "Equal": 196386,
+              "FileNextLine": 200948,
+              "GetError": 2521,
+              "GetField": 1600465,
+              "Greater": 196241,
+              "Index": 2356722,
+              "IsOk": 1590885,
+              "IsSome": 601896,
+              "JsonArray": 2,
+              "JsonGet": 420,
+              "JsonInt": 202151,
+              "JsonObject": 3900,
+              "JsonParse": 200947,
+              "JsonPushLocal": 3759,
+              "JsonSetLocal": 205283,
+              "JsonStringify": 1,
+              "JsonText": 2710,
+              "JsonTryGet": 985575,
+              "JsonTryInt": 588723,
+              "JsonTryText": 396852,
+              "Jump": 806915,
+              "JumpIfFalse": 4173319,
+              "Length": 156,
+              "Less": 196397,
+              "Load": 17820591,
+              "MakeNone": 200948,
+              "MakeOk": 200948,
+              "MakeRecord": 400947,
+              "MakeSome": 401894,
+              "MakeTypedMap": 196383,
+              "MapHas": 392762,
+              "MapKeys": 6,
+              "MapSet": 392762,
+              "Not": 2392783,
+              "NotEqual": 397329,
+              "Return": 3569598,
+              "Store": 5955380,
+              "TextChars": 196381,
+              "TextCollapseWhitespace": 200947,
+              "TimeFormatUtc": 196381,
+              "TimeParseTimestamp": 196381,
+              "Unwrap": 3560465,
+              "WriteTextAtomic": 1
+            },
+            "opcode_transition_counts": {
+              "jsonl_next::Call->Call": 198426,
+              "jsonl_next::Call->Load": 2521,
+              "jsonl_next::Call->MakeOk": 200948,
+              "jsonl_next::Call->MakeRecord": 200947,
+              "jsonl_next::Call->Store": 200948,
+              "jsonl_next::GetError->Call": 2521,
+              "jsonl_next::GetField->Call": 2521,
+              "jsonl_next::GetField->JsonParse": 200947,
+              "jsonl_next::GetField->Load": 399373,
+              "jsonl_next::IsOk->JumpIfFalse": 200947,
+              "jsonl_next::IsOk->Not": 200948,
+              "jsonl_next::IsSome->Not": 200948,
+              "jsonl_next::JsonParse->Store": 200947,
+              "jsonl_next::JumpIfFalse->Call": 1,
+              "jsonl_next::JumpIfFalse->Load": 198426,
+              "jsonl_next::Load->Call": 200948,
+              "jsonl_next::Load->GetError": 2521,
+              "jsonl_next::Load->GetField": 602841,
+              "jsonl_next::Load->IsOk": 401895,
+              "jsonl_next::Load->IsSome": 200948,
+              "jsonl_next::Load->Unwrap": 600321,
+              "jsonl_next::MakeOk->Return": 200948,
+              "jsonl_next::MakeRecord->Call": 200947,
+              "jsonl_next::Not->JumpIfFalse": 401896,
+              "jsonl_next::Store->Load": 803790,
+              "jsonl_next::Unwrap->Call": 198426,
+              "jsonl_next::Unwrap->Store": 401895,
+              "main::Add->Index": 2,
+              "main::Add->JsonInt": 196241,
+              "main::Add->Load": 1571050,
+              "main::Add->Store": 200147,
+              "main::Add->WriteTextAtomic": 1,
+              "main::Args->Store": 1,
+              "main::Call->Const": 200947,
+              "main::Call->Store": 1775189,
+              "main::Call->Unwrap": 588723,
+              "main::Const->Add": 200012,
+              "main::Const->Call": 985575,
+              "main::Const->Const": 140,
+              "main::Const->Equal": 196386,
+              "main::Const->Index": 1963810,
+              "main::Const->JsonGet": 420,
+              "main::Const->JsonInt": 140,
+              "main::Const->Jump": 4090,
+              "main::Const->JumpIfFalse": 196383,
+              "main::Const->Load": 205143,
+              "main::Const->MakeRecord": 200000,
+              "main::Const->NotEqual": 397329,
+              "main::Const->Return": 1,
+              "main::Const->Store": 403634,
+              "main::Equal->JumpIfFalse": 196386,
+              "main::GetField->Call": 200947,
+              "main::GetField->IsSome": 200000,
+              "main::GetField->JsonInt": 5769,
+              "main::GetField->Load": 392482,
+              "main::GetField->Unwrap": 198426,
+              "main::Greater->JumpIfFalse": 196241,
+              "main::Index->Add": 1767429,
+              "main::Index->Const": 3,
+              "main::Index->Load": 196381,
+              "main::Index->Store": 392909,
+              "main::IsOk->Not": 1188990,
+              "main::IsSome->Not": 400948,
+              "main::JsonArray->Store": 2,
+              "main::JsonGet->JsonSetLocal": 420,
+              "main::JsonInt->JsonSetLocal": 202151,
+              "main::JsonObject->Store": 3900,
+              "main::JsonPushLocal->Load": 3759,
+              "main::JsonSetLocal->Const": 3272,
+              "main::JsonSetLocal->Jump": 1870,
+              "main::JsonSetLocal->Load": 200141,
+              "main::JsonStringify->Const": 1,
+              "main::JsonText->JsonSetLocal": 2710,
+              "main::Jump->Jump": 200000,
+              "main::Jump->Load": 198246,
+              "main::JumpIfFalse->Const": 209580,
+              "main::JumpIfFalse->JsonObject": 3619,
+              "main::JumpIfFalse->Load": 593716,
+              "main::Length->Less": 156,
+              "main::Less->Jump": 2,
+              "main::Less->JumpIfFalse": 196395,
+              "main::Load->Call": 397331,
+              "main::Load->Const": 3149959,
+              "main::Load->GetField": 997624,
+              "main::Load->Index": 392910,
+              "main::Load->IsOk": 1188990,
+              "main::Load->IsSome": 200948,
+              "main::Load->JsonInt": 1,
+              "main::Load->JsonPushLocal": 3759,
+              "main::Load->JsonSetLocal": 2,
+              "main::Load->JsonStringify": 1,
+              "main::Load->JsonText": 2710,
+              "main::Load->JumpIfFalse": 1,
+              "main::Load->Length": 156,
+              "main::Load->Load": 1571353,
+              "main::Load->MapHas": 392762,
+              "main::Load->MapKeys": 6,
+              "main::Load->MapSet": 392762,
+              "main::Load->Not": 400949,
+              "main::Load->Store": 196241,
+              "main::Load->TextChars": 196381,
+              "main::Load->Unwrap": 2172995,
+              "main::MakeRecord->Store": 200000,
+              "main::MakeTypedMap->Store": 196383,
+              "main::MapHas->JumpIfFalse": 392762,
+              "main::MapKeys->Store": 6,
+              "main::MapSet->Store": 392762,
+              "main::Not->JumpIfFalse": 1990887,
+              "main::NotEqual->JumpIfFalse": 397329,
+              "main::Store->Const": 600155,
+              "main::Store->JsonArray": 1,
+              "main::Store->JsonObject": 140,
+              "main::Store->Jump": 596384,
+              "main::Store->Load": 3758528,
+              "main::Store->MakeTypedMap": 196382,
+              "main::TextChars->Store": 196381,
+              "main::Unwrap->Call": 1181956,
+              "main::Unwrap->Const": 392622,
+              "main::Unwrap->Greater": 196241,
+              "main::Unwrap->Less": 196241,
+              "main::Unwrap->Store": 993084,
+              "main::WriteTextAtomic->Store": 1
+            },
+            "profile_detail": "detailed",
+            "record_charges": {
+              "estimated_bytes": 101164595,
+              "events": 400947
+            },
+            "scope": "latest guest invocation",
+            "vm_interpreter": {
+              "frames": 3770548,
+              "instructions": 61476165,
+              "instructions_are_sampled": false,
+              "list_index_load_fast_paths": 0,
+              "record_field_load_fast_paths": 1600465,
+              "result_option_probe_fast_paths": 1992781,
+              "result_option_unwrap_fast_paths": 2773316,
+              "sample_rate_frames": 1024,
+              "sampled_frames": 3689,
+              "sampled_functions": {
+                "format_utc": {
+                  "sampled_child_nanoseconds": 0,
+                  "sampled_frames": 198,
+                  "sampled_guest_nanoseconds": 43962,
+                  "sampled_host_nanoseconds": 90673,
+                  "sampled_instructions": 594,
+                  "sampled_loop_backedges": 0,
+                  "sampled_wall_nanoseconds": 134635
+                },
+                "fs_next_line": {
+                  "sampled_child_nanoseconds": 0,
+                  "sampled_frames": 206,
+                  "sampled_guest_nanoseconds": 52500,
+                  "sampled_host_nanoseconds": 86747,
+                  "sampled_instructions": 618,
+                  "sampled_loop_backedges": 0,
+                  "sampled_wall_nanoseconds": 139247
+                },
+                "json_get_safe": {
+                  "sampled_child_nanoseconds": 0,
+                  "sampled_frames": 983,
+                  "sampled_guest_nanoseconds": 241237,
+                  "sampled_host_nanoseconds": 255802,
+                  "sampled_instructions": 3932,
+                  "sampled_loop_backedges": 0,
+                  "sampled_wall_nanoseconds": 497039
+                },
+                "json_int_safe": {
+                  "sampled_child_nanoseconds": 0,
+                  "sampled_frames": 564,
+                  "sampled_guest_nanoseconds": 126333,
+                  "sampled_host_nanoseconds": 130179,
+                  "sampled_instructions": 1692,
+                  "sampled_loop_backedges": 0,
+                  "sampled_wall_nanoseconds": 256512
+                },
+                "json_text_safe": {
+                  "sampled_child_nanoseconds": 0,
+                  "sampled_frames": 364,
+                  "sampled_guest_nanoseconds": 82128,
+                  "sampled_host_nanoseconds": 87462,
+                  "sampled_instructions": 1092,
+                  "sampled_loop_backedges": 0,
+                  "sampled_wall_nanoseconds": 169590
+                },
+                "jsonl_next": {
+                  "sampled_child_nanoseconds": 237813,
+                  "sampled_frames": 196,
+                  "sampled_guest_nanoseconds": 1861595,
+                  "sampled_host_nanoseconds": 192260,
+                  "sampled_instructions": 7056,
+                  "sampled_loop_backedges": 0,
+                  "sampled_wall_nanoseconds": 2291668
+                },
+                "jsonl_no_error": {
+                  "sampled_child_nanoseconds": 0,
+                  "sampled_frames": 188,
+                  "sampled_guest_nanoseconds": 30049,
+                  "sampled_host_nanoseconds": 0,
+                  "sampled_instructions": 376,
+                  "sampled_loop_backedges": 0,
+                  "sampled_wall_nanoseconds": 30049
+                },
+                "jsonl_no_value": {
+                  "sampled_child_nanoseconds": 0,
+                  "sampled_frames": 2,
+                  "sampled_guest_nanoseconds": 292,
+                  "sampled_host_nanoseconds": 0,
+                  "sampled_instructions": 4,
+                  "sampled_loop_backedges": 0,
+                  "sampled_wall_nanoseconds": 292
+                },
+                "jsonl_some_error": {
+                  "sampled_child_nanoseconds": 0,
+                  "sampled_frames": 2,
+                  "sampled_guest_nanoseconds": 417,
+                  "sampled_host_nanoseconds": 0,
+                  "sampled_instructions": 6,
+                  "sampled_loop_backedges": 0,
+                  "sampled_wall_nanoseconds": 417
+                },
+                "jsonl_some_line": {
+                  "sampled_child_nanoseconds": 0,
+                  "sampled_frames": 189,
+                  "sampled_guest_nanoseconds": 49921,
+                  "sampled_host_nanoseconds": 0,
+                  "sampled_instructions": 567,
+                  "sampled_loop_backedges": 0,
+                  "sampled_wall_nanoseconds": 49921
+                },
+                "jsonl_some_value": {
+                  "sampled_child_nanoseconds": 0,
+                  "sampled_frames": 193,
+                  "sampled_guest_nanoseconds": 39006,
+                  "sampled_host_nanoseconds": 0,
+                  "sampled_instructions": 579,
+                  "sampled_loop_backedges": 0,
+                  "sampled_wall_nanoseconds": 39006
+                },
+                "main": {
+                  "sampled_child_nanoseconds": 1114878,
+                  "sampled_frames": 217,
+                  "sampled_guest_nanoseconds": 9331812,
+                  "sampled_host_nanoseconds": 203017,
+                  "sampled_instructions": 46433,
+                  "sampled_loop_backedges": 218,
+                  "sampled_wall_nanoseconds": 10649707
+                },
+                "parse_timestamp": {
+                  "sampled_child_nanoseconds": 0,
+                  "sampled_frames": 221,
+                  "sampled_guest_nanoseconds": 63457,
+                  "sampled_host_nanoseconds": 61338,
+                  "sampled_instructions": 663,
+                  "sampled_loop_backedges": 0,
+                  "sampled_wall_nanoseconds": 124795
+                },
+                "unicode_collapse_whitespace": {
+                  "sampled_child_nanoseconds": 0,
+                  "sampled_frames": 166,
+                  "sampled_guest_nanoseconds": 39882,
+                  "sampled_host_nanoseconds": 47085,
+                  "sampled_instructions": 498,
+                  "sampled_loop_backedges": 0,
+                  "sampled_wall_nanoseconds": 86967
+                }
+              },
+              "sampled_instructions": 64110,
+              "sampled_nanoseconds": 14469845,
+              "sampled_wall_time_is_inclusive_of_host_operations": true,
+              "text_chars_concat_fast_paths": 196381
+            }
+          },
+          "runtime_profile_enabled": true
+        },
+        "guion_candidate_source_uncached": {
+          "cache_status": "bypassed",
+          "elapsed_seconds_including_process_startup": 11.34323702399999,
+          "reported_phase_timings_ns": {
+            "artifact_runtime_load_ns": 1482850,
+            "cli_to_report_excluding_process_startup_ns": 11341342367,
+            "compiler_pipeline": {
+              "compile_program_ns": 522452,
+              "compiler_backend": "rust",
+              "modules": [
+                {
+                  "import_count": 6,
+                  "import_resolution_ns": 5501,
+                  "parse_ns": 293520,
+                  "path_validation_ns": 7251,
+                  "source_bytes": 8820,
+                  "source_name": "main.gu",
+                  "source_read_ns": 9792
+                },
+                {
+                  "import_count": 1,
+                  "import_resolution_ns": 1041,
+                  "parse_ns": 36502,
+                  "path_validation_ns": 80047,
+                  "source_bytes": 716,
+                  "source_name": "std:fs",
+                  "source_read_ns": 605790
+                },
+                {
+                  "import_count": 0,
+                  "import_resolution_ns": 0,
+                  "parse_ns": 9334,
+                  "path_validation_ns": 63713,
+                  "source_bytes": 271,
+                  "source_name": "std:http_types",
+                  "source_read_ns": 142885
+                },
+                {
+                  "import_count": 0,
+                  "import_resolution_ns": 0,
+                  "parse_ns": 28211,
+                  "path_validation_ns": 58796,
+                  "source_bytes": 788,
+                  "source_name": "std:json",
+                  "source_read_ns": 172553
+                },
+                {
+                  "import_count": 2,
+                  "import_resolution_ns": 1500,
+                  "parse_ns": 55628,
+                  "path_validation_ns": 60713,
+                  "source_bytes": 1378,
+                  "source_name": "std:jsonl",
+                  "source_read_ns": 160261
+                },
+                {
+                  "import_count": 2,
+                  "import_resolution_ns": 1667,
+                  "parse_ns": 159844,
+                  "path_validation_ns": 56504,
+                  "source_bytes": 4236,
+                  "source_name": "std:text",
+                  "source_read_ns": 149843
+                },
+                {
+                  "import_count": 0,
+                  "import_resolution_ns": 0,
+                  "parse_ns": 41753,
+                  "path_validation_ns": 57295,
+                  "source_bytes": 1585,
+                  "source_name": "std:time",
+                  "source_read_ns": 153969
+                },
+                {
+                  "import_count": 2,
+                  "import_resolution_ns": 1667,
+                  "parse_ns": 43378,
+                  "path_validation_ns": 69171,
+                  "source_bytes": 1116,
+                  "source_name": "std:types",
+                  "source_read_ns": 158803
+                },
+                {
+                  "import_count": 1,
+                  "import_resolution_ns": 791,
+                  "parse_ns": 11376,
+                  "path_validation_ns": 58295,
+                  "source_bytes": 337,
+                  "source_name": "std:unicode",
+                  "source_read_ns": 148010
+                }
+              ],
+              "rust_compiler_compile_ns": 3977183
+            },
+            "input_artifact_decode_ns": null,
+            "native_compilation": {
+              "finalize_nanoseconds": 87714,
+              "functions": [
+                {
+                  "bytecode_blocks": 1,
+                  "bytecode_instructions": 3,
+                  "cranelift_ir_blocks": 15,
+                  "cranelift_ir_instructions": 203,
+                  "define_nanoseconds": 362191,
+                  "lowering_nanoseconds": 66546,
+                  "name": "fs_open_lines",
+                  "verification_nanoseconds": 45670
+                },
+                {
+                  "bytecode_blocks": 1,
+                  "bytecode_instructions": 3,
+                  "cranelift_ir_blocks": 15,
+                  "cranelift_ir_instructions": 203,
+                  "define_nanoseconds": 245141,
+                  "lowering_nanoseconds": 45628,
+                  "name": "fs_next_line",
+                  "verification_nanoseconds": 25085
+                },
+                {
+                  "bytecode_blocks": 1,
+                  "bytecode_instructions": 3,
+                  "cranelift_ir_blocks": 15,
+                  "cranelift_ir_instructions": 203,
+                  "define_nanoseconds": 226057,
+                  "lowering_nanoseconds": 36294,
+                  "name": "fs_close_reader",
+                  "verification_nanoseconds": 24002
+                },
+                {
+                  "bytecode_blocks": 1,
+                  "bytecode_instructions": 7,
+                  "cranelift_ir_blocks": 17,
+                  "cranelift_ir_instructions": 259,
+                  "define_nanoseconds": 447447,
+                  "lowering_nanoseconds": 45711,
+                  "name": "std_error",
+                  "verification_nanoseconds": 30502
+                },
+                {
+                  "bytecode_blocks": 1,
+                  "bytecode_instructions": 7,
+                  "cranelift_ir_blocks": 17,
+                  "cranelift_ir_instructions": 256,
+                  "define_nanoseconds": 296520,
+                  "lowering_nanoseconds": 58379,
+                  "name": "sql_blob",
+                  "verification_nanoseconds": 34168
+                },
+                {
+                  "bytecode_blocks": 1,
+                  "bytecode_instructions": 3,
+                  "cranelift_ir_blocks": 15,
+                  "cranelift_ir_instructions": 203,
+                  "define_nanoseconds": 218848,
+                  "lowering_nanoseconds": 34002,
+                  "name": "parse_timestamp",
+                  "verification_nanoseconds": 22627
+                },
+                {
+                  "bytecode_blocks": 1,
+                  "bytecode_instructions": 3,
+                  "cranelift_ir_blocks": 15,
+                  "cranelift_ir_instructions": 204,
+                  "define_nanoseconds": 210306,
+                  "lowering_nanoseconds": 33085,
+                  "name": "format_utc",
+                  "verification_nanoseconds": 22002
+                },
+                {
+                  "bytecode_blocks": 1,
+                  "bytecode_instructions": 4,
+                  "cranelift_ir_blocks": 15,
+                  "cranelift_ir_instructions": 207,
+                  "define_nanoseconds": 214556,
+                  "lowering_nanoseconds": 33377,
+                  "name": "json_get_safe",
+                  "verification_nanoseconds": 22210
+                },
+                {
+                  "bytecode_blocks": 1,
+                  "bytecode_instructions": 3,
+                  "cranelift_ir_blocks": 14,
+                  "cranelift_ir_instructions": 197,
+                  "define_nanoseconds": 207097,
+                  "lowering_nanoseconds": 30210,
+                  "name": "json_text_safe",
+                  "verification_nanoseconds": 21335
+                },
+                {
+                  "bytecode_blocks": 1,
+                  "bytecode_instructions": 3,
+                  "cranelift_ir_blocks": 14,
+                  "cranelift_ir_instructions": 197,
+                  "define_nanoseconds": 190096,
+                  "lowering_nanoseconds": 29252,
+                  "name": "json_int_safe",
+                  "verification_nanoseconds": 20918
+                },
+                {
+                  "bytecode_blocks": 2,
+                  "bytecode_instructions": 3,
+                  "cranelift_ir_blocks": 17,
+                  "cranelift_ir_instructions": 232,
+                  "define_nanoseconds": 266809,
+                  "lowering_nanoseconds": 35169,
+                  "name": "jsonl_open",
+                  "verification_nanoseconds": 25752
+                },
+                {
+                  "bytecode_blocks": 1,
+                  "bytecode_instructions": 2,
+                  "cranelift_ir_blocks": 14,
+                  "cranelift_ir_instructions": 185,
+                  "define_nanoseconds": 185638,
+                  "lowering_nanoseconds": 28835,
+                  "name": "jsonl_no_line",
+                  "verification_nanoseconds": 20252
+                },
+                {
+                  "bytecode_blocks": 1,
+                  "bytecode_instructions": 2,
+                  "cranelift_ir_blocks": 14,
+                  "cranelift_ir_instructions": 185,
+                  "define_nanoseconds": 174970,
+                  "lowering_nanoseconds": 27377,
+                  "name": "jsonl_no_value",
+                  "verification_nanoseconds": 19459
+                },
+                {
+                  "bytecode_blocks": 1,
+                  "bytecode_instructions": 2,
+                  "cranelift_ir_blocks": 14,
+                  "cranelift_ir_instructions": 185,
+                  "define_nanoseconds": 174095,
+                  "lowering_nanoseconds": 25669,
+                  "name": "jsonl_no_error",
+                  "verification_nanoseconds": 19335
+                },
+                {
+                  "bytecode_blocks": 1,
+                  "bytecode_instructions": 3,
+                  "cranelift_ir_blocks": 15,
+                  "cranelift_ir_instructions": 195,
+                  "define_nanoseconds": 211889,
+                  "lowering_nanoseconds": 30086,
+                  "name": "jsonl_some_line",
+                  "verification_nanoseconds": 21168
+                },
+                {
+                  "bytecode_blocks": 1,
+                  "bytecode_instructions": 3,
+                  "cranelift_ir_blocks": 14,
+                  "cranelift_ir_instructions": 188,
+                  "define_nanoseconds": 177095,
+                  "lowering_nanoseconds": 27335,
+                  "name": "jsonl_some_value",
+                  "verification_nanoseconds": 19876
+                },
+                {
+                  "bytecode_blocks": 1,
+                  "bytecode_instructions": 3,
+                  "cranelift_ir_blocks": 15,
+                  "cranelift_ir_instructions": 194,
+                  "define_nanoseconds": 189305,
+                  "lowering_nanoseconds": 27460,
+                  "name": "jsonl_some_error",
+                  "verification_nanoseconds": 20710
+                },
+                {
+                  "bytecode_blocks": 18,
+                  "bytecode_instructions": 58,
+                  "cranelift_ir_blocks": 109,
+                  "cranelift_ir_instructions": 1659,
+                  "define_nanoseconds": 2385493,
+                  "lowering_nanoseconds": 189930,
+                  "name": "jsonl_next",
+                  "verification_nanoseconds": 169887
+                },
+                {
+                  "bytecode_blocks": 2,
+                  "bytecode_instructions": 3,
+                  "cranelift_ir_blocks": 17,
+                  "cranelift_ir_instructions": 232,
+                  "define_nanoseconds": 367692,
+                  "lowering_nanoseconds": 67588,
+                  "name": "jsonl_close",
+                  "verification_nanoseconds": 38336
+                },
+                {
+                  "bytecode_blocks": 73,
+                  "bytecode_instructions": 148,
+                  "cranelift_ir_blocks": 184,
+                  "cranelift_ir_instructions": 1962,
+                  "define_nanoseconds": 2902028,
+                  "lowering_nanoseconds": 223139,
+                  "name": "text_has_space",
+                  "verification_nanoseconds": 211598
+                },
+                {
+                  "bytecode_blocks": 16,
+                  "bytecode_instructions": 60,
+                  "cranelift_ir_blocks": 49,
+                  "cranelift_ir_instructions": 698,
+                  "define_nanoseconds": 930896,
+                  "lowering_nanoseconds": 150177,
+                  "name": "text_matches_at",
+                  "verification_nanoseconds": 91506
+                },
+                {
+                  "bytecode_blocks": 17,
+                  "bytecode_instructions": 61,
+                  "cranelift_ir_blocks": 70,
+                  "cranelift_ir_instructions": 807,
+                  "define_nanoseconds": 1358299,
+                  "lowering_nanoseconds": 136176,
+                  "name": "text_trim",
+                  "verification_nanoseconds": 95923
+                },
+                {
+                  "bytecode_blocks": 11,
+                  "bytecode_instructions": 50,
+                  "cranelift_ir_blocks": 56,
+                  "cranelift_ir_instructions": 804,
+                  "define_nanoseconds": 1121992,
+                  "lowering_nanoseconds": 132717,
+                  "name": "text_replace",
+                  "verification_nanoseconds": 91589
+                },
+                {
+                  "bytecode_blocks": 2,
+                  "bytecode_instructions": 3,
+                  "cranelift_ir_blocks": 17,
+                  "cranelift_ir_instructions": 232,
+                  "define_nanoseconds": 272143,
+                  "lowering_nanoseconds": 38919,
+                  "name": "text_collapse_whitespace",
+                  "verification_nanoseconds": 27585
+                },
+                {
+                  "bytecode_blocks": 1,
+                  "bytecode_instructions": 3,
+                  "cranelift_ir_blocks": 15,
+                  "cranelift_ir_instructions": 203,
+                  "define_nanoseconds": 218223,
+                  "lowering_nanoseconds": 32960,
+                  "name": "unicode_collapse_whitespace",
+                  "verification_nanoseconds": 24835
+                }
+              ],
+              "rejected_functions": [
+                {
+                  "blocking_callee": null,
+                  "blocking_instruction": "loop backedge at bytecode instruction 225",
+                  "name": "main",
+                  "reason": "native arena handles are retained for the invocation, so loops that allocate JSON, file, or text values must stay in the VM until the native arena can retire dead handles",
+                  "reason_code": "native_loop_value_arena_retention"
+                },
+                {
+                  "blocking_callee": null,
+                  "blocking_instruction": "bytecode instruction 1: ReadText",
+                  "name": "fs_read_text",
+                  "reason": "native type inference could not prove the function's stack and control-flow types",
+                  "reason_code": "unsupported_types_or_control_flow"
+                },
+                {
+                  "blocking_callee": null,
+                  "blocking_instruction": "bytecode instruction 5: BytesFromText",
+                  "name": "sql_null",
+                  "reason": "native type inference could not prove the function's stack and control-flow types",
+                  "reason_code": "unsupported_types_or_control_flow"
+                },
+                {
+                  "blocking_callee": null,
+                  "blocking_instruction": "bytecode instruction 5: BytesFromText",
+                  "name": "sql_integer",
+                  "reason": "native type inference could not prove the function's stack and control-flow types",
+                  "reason_code": "unsupported_types_or_control_flow"
+                },
+                {
+                  "blocking_callee": null,
+                  "blocking_instruction": "bytecode instruction 5: BytesFromText",
+                  "name": "sql_real",
+                  "reason": "native type inference could not prove the function's stack and control-flow types",
+                  "reason_code": "unsupported_types_or_control_flow"
+                },
+                {
+                  "blocking_callee": null,
+                  "blocking_instruction": "bytecode instruction 5: BytesFromText",
+                  "name": "sql_text",
+                  "reason": "native type inference could not prove the function's stack and control-flow types",
+                  "reason_code": "unsupported_types_or_control_flow"
+                },
+                {
+                  "blocking_callee": null,
+                  "blocking_instruction": "bytecode instruction 0: TimeTodayLocal",
+                  "name": "today_local",
+                  "reason": "native type inference could not prove the function's stack and control-flow types",
+                  "reason_code": "unsupported_types_or_control_flow"
+                },
+                {
+                  "blocking_callee": null,
+                  "blocking_instruction": "bytecode instruction 1: TimeParseDate",
+                  "name": "parse_date",
+                  "reason": "native type inference could not prove the function's stack and control-flow types",
+                  "reason_code": "unsupported_types_or_control_flow"
+                },
+                {
+                  "blocking_callee": null,
+                  "blocking_instruction": "bytecode instruction 1: TimeFormatUtcDate",
+                  "name": "format_utc_date",
+                  "reason": "native type inference could not prove the function's stack and control-flow types",
+                  "reason_code": "unsupported_types_or_control_flow"
+                },
+                {
+                  "blocking_callee": null,
+                  "blocking_instruction": "bytecode instruction 2: TimeResolveLocal",
+                  "name": "resolve_local",
+                  "reason": "native type inference could not prove the function's stack and control-flow types",
+                  "reason_code": "unsupported_types_or_control_flow"
+                },
+                {
+                  "blocking_callee": null,
+                  "blocking_instruction": "bytecode instruction 0: TimeZoneDataVersion",
+                  "name": "time_zone_data_version",
+                  "reason": "native type inference could not prove the function's stack and control-flow types",
+                  "reason_code": "unsupported_types_or_control_flow"
+                },
+                {
+                  "blocking_callee": null,
+                  "blocking_instruction": "bytecode instruction 2: JsonTryIndex",
+                  "name": "json_index_safe",
+                  "reason": "native type inference could not prove the function's stack and control-flow types",
+                  "reason_code": "unsupported_types_or_control_flow"
+                },
+                {
+                  "blocking_callee": null,
+                  "blocking_instruction": "bytecode instruction 3: JsonStringifyPairs",
+                  "name": "json_stringify_pairs",
+                  "reason": "native type inference could not prove the function's stack and control-flow types",
+                  "reason_code": "unsupported_types_or_control_flow"
+                },
+                {
+                  "blocking_callee": null,
+                  "blocking_instruction": "bytecode instruction 1: JsonTryBool",
+                  "name": "json_bool_safe",
+                  "reason": "native type inference could not prove the function's stack and control-flow types",
+                  "reason_code": "unsupported_types_or_control_flow"
+                },
+                {
+                  "blocking_callee": null,
+                  "blocking_instruction": "bytecode instruction 1: JsonTryFloat",
+                  "name": "json_float_safe",
+                  "reason": "native type inference could not prove the function's stack and control-flow types",
+                  "reason_code": "unsupported_types_or_control_flow"
+                },
+                {
+                  "blocking_callee": null,
+                  "blocking_instruction": "bytecode instruction 2: Less",
+                  "name": "text_compare_scalar",
+                  "reason": "native type inference could not prove the function's stack and control-flow types",
+                  "reason_code": "unsupported_types_or_control_flow"
+                },
+                {
+                  "blocking_callee": null,
+                  "blocking_instruction": "bytecode instruction 2: Less",
+                  "name": "text_compare_bytes",
+                  "reason": "native type inference could not prove the function's stack and control-flow types",
+                  "reason_code": "unsupported_types_or_control_flow"
+                },
+                {
+                  "blocking_callee": null,
+                  "blocking_instruction": null,
+                  "name": "text_join_range",
+                  "reason": "recursive functions are not compiled by the native backend",
+                  "reason_code": "recursive_function"
+                },
+                {
+                  "blocking_callee": null,
+                  "blocking_instruction": null,
+                  "name": "text_split",
+                  "reason": "native type inference could not prove the function's stack and control-flow types",
+                  "reason_code": "unsupported_types_or_control_flow"
+                },
+                {
+                  "blocking_callee": null,
+                  "blocking_instruction": "bytecode instruction 2: TextJoin",
+                  "name": "text_join",
+                  "reason": "native type inference could not prove the function's stack and control-flow types",
+                  "reason_code": "unsupported_types_or_control_flow"
+                },
+                {
+                  "blocking_callee": null,
+                  "blocking_instruction": "bytecode instruction 1: TextParseInt",
+                  "name": "text_parse_integer",
+                  "reason": "native type inference could not prove the function's stack and control-flow types",
+                  "reason_code": "unsupported_types_or_control_flow"
+                },
+                {
+                  "blocking_callee": null,
+                  "blocking_instruction": "bytecode instruction 1: TextParseFloat",
+                  "name": "text_parse_decimal",
+                  "reason": "native type inference could not prove the function's stack and control-flow types",
+                  "reason_code": "unsupported_types_or_control_flow"
+                },
+                {
+                  "blocking_callee": "unicode_casefold",
+                  "blocking_instruction": "Call at bytecode instruction 1",
+                  "name": "text_casefold",
+                  "reason": "function calls a callee that is not available in the native subset",
+                  "reason_code": "callee_requires_vm"
+                },
+                {
+                  "blocking_callee": "unicode_normalize",
+                  "blocking_instruction": "Call at bytecode instruction 2",
+                  "name": "text_normalize",
+                  "reason": "function calls a callee that is not available in the native subset",
+                  "reason_code": "callee_requires_vm"
+                },
+                {
+                  "blocking_callee": null,
+                  "blocking_instruction": "bytecode instruction 1: TextCaseFold",
+                  "name": "unicode_casefold",
+                  "reason": "native type inference could not prove the function's stack and control-flow types",
+                  "reason_code": "unsupported_types_or_control_flow"
+                },
+                {
+                  "blocking_callee": null,
+                  "blocking_instruction": "bytecode instruction 2: TextNormalize",
+                  "name": "unicode_normalize",
+                  "reason": "native type inference could not prove the function's stack and control-flow types",
+                  "reason_code": "unsupported_types_or_control_flow"
+                }
+              ]
+            },
+            "program_execute_ns": 11335064534,
+            "source_compile_or_cache_ns": 4347917
+          },
+          "runtime_profile": {
+            "dynamic_guest_conditional_branch_executions": 4173319,
+            "estimated_guest_allocation_budget_charges": {
+              "estimated_gross_bytes": 1747005113,
+              "estimated_net_bytes": 1747005113,
+              "estimated_refunded_bytes": 0,
+              "successful_events": 27342699
+            },
+            "function_call_counts": {
+              "format_utc": 196381,
+              "fs_next_line": 200948,
+              "json_get_safe": 985575,
+              "json_int_safe": 588723,
+              "json_text_safe": 396852,
+              "jsonl_close": 1,
+              "jsonl_next": 200948,
+              "jsonl_no_error": 198426,
+              "jsonl_no_line": 1,
+              "jsonl_no_value": 2521,
+              "jsonl_open": 1,
+              "jsonl_some_error": 2521,
+              "jsonl_some_line": 200947,
+              "jsonl_some_value": 198426,
+              "parse_timestamp": 196381,
+              "unicode_collapse_whitespace": 200947
+            },
+            "function_loop_backedge_counts": {
+              "main": 201095
+            },
+            "host_operations": {
+              "counts": {
+                "Args": 1,
+                "FileClose": 1,
+                "FileNextLine": 200948,
+                "FileOpenLines": 1,
+                "JsonArray": 2,
+                "JsonGet": 420,
+                "JsonInt": 202151,
+                "JsonObject": 3900,
+                "JsonParse": 200947,
+                "JsonPushLocal": 3759,
+                "JsonSetLocal": 205283,
+                "JsonStringify": 1,
+                "JsonText": 2710,
+                "JsonTryGet": 985575,
+                "JsonTryInt": 588723,
+                "JsonTryText": 396852,
+                "TextCollapseWhitespace": 200947,
+                "TimeFormatUtc": 196381,
+                "TimeParseTimestamp": 196381,
+                "WriteTextAtomic": 1
+              },
+              "inclusive_nanoseconds": {
+                "Args": 5625,
+                "FileClose": 16168,
+                "FileNextLine": 73506816,
+                "FileOpenLines": 40586,
+                "JsonArray": 2001,
+                "JsonGet": 50640,
+                "JsonInt": 55102371,
+                "JsonObject": 1176662,
+                "JsonParse": 146835040,
+                "JsonPushLocal": 1299270,
+                "JsonSetLocal": 99186459,
+                "JsonStringify": 352436,
+                "JsonText": 488287,
+                "JsonTryGet": 148628332,
+                "JsonTryInt": 56975364,
+                "JsonTryText": 43970171,
+                "TextCollapseWhitespace": 21058225,
+                "TimeFormatUtc": 60732855,
+                "TimeParseTimestamp": 22447513,
+                "WriteTextAtomic": 1915313
+              },
+              "sample_rate_operations": 1,
+              "timings_are_sampled": false
+            },
+            "json_phase_nanoseconds": {
+              "parse_and_reserved_key_handling": 100187875,
+              "post_parse_metrics_traversal": 19580701
+            },
+            "json_set": {
+              "copy_on_write_copies": 196241,
+              "estimated_copy_bytes": 94786273,
+              "operations": 205283
+            },
+            "list_set": {
+              "copy_on_write_copies": 0,
+              "copy_size_histogram": {
+                "buckets": {
+                  "0-8": {
+                    "copies": 0,
+                    "estimated_copy_bytes": 0
+                  },
+                  "129+": {
+                    "copies": 0,
+                    "estimated_copy_bytes": 0
+                  },
+                  "33-128": {
+                    "copies": 0,
+                    "estimated_copy_bytes": 0
+                  },
+                  "9-32": {
+                    "copies": 0,
+                    "estimated_copy_bytes": 0
+                  }
+                },
+                "unit": "elements"
+              },
+              "estimated_copy_bytes": 0,
+              "in_place_updates": 0,
+              "operations": 0
+            },
+            "map_record_update": {
+              "copy_on_write_copies": 0,
+              "estimated_map_copy_bytes": 0,
+              "estimated_record_copy_bytes": 0,
+              "in_place_updates": 0,
+              "operations": 0,
+              "reads": 0
+            },
+            "map_set": {
+              "copy_on_write_copies": 0,
+              "estimated_copy_bytes": 0,
+              "in_place_updates": 392762,
+              "operations": 392762
+            },
+            "metric_limits": {
+              "allocation": "estimated guest-data budget charges, not host allocator calls",
+              "branches": "executed guest conditional branches, not hardware branch-misprediction counts",
+              "function_calls": "exact function call counts",
+              "host_operation_time": "inclusive time at host-op boundary; nested parse/metrics timers overlap and must not be summed",
+              "opcode_counts": "exact executed opcode counts",
+              "opcode_transitions": "exact adjacent opcode transitions attributed to the current function",
+              "vm_instruction_counts": "exact executed instruction count",
+              "vm_sampled_time": "sampled wall time includes host calls and inline fast-forwarded guest children; sampled_functions subtracts both to estimate exclusive guest time; deterministic hash sampling targets one in 1024 frames and always includes the first frame; attribution only, not final benchmark timing"
+            },
+            "opcode_executions": {
+              "Add": 1967441,
+              "Args": 1,
+              "Call": 3569599,
+              "Const": 4753063,
+              "Equal": 196386,
+              "FileNextLine": 200948,
+              "GetError": 2521,
+              "GetField": 1600465,
+              "Greater": 196241,
+              "Index": 2356722,
+              "IsOk": 1590885,
+              "IsSome": 601896,
+              "JsonArray": 2,
+              "JsonGet": 420,
+              "JsonInt": 202151,
+              "JsonObject": 3900,
+              "JsonParse": 200947,
+              "JsonPushLocal": 3759,
+              "JsonSetLocal": 205283,
+              "JsonStringify": 1,
+              "JsonText": 2710,
+              "JsonTryGet": 985575,
+              "JsonTryInt": 588723,
+              "JsonTryText": 396852,
+              "Jump": 806915,
+              "JumpIfFalse": 4173319,
+              "Length": 156,
+              "Less": 196397,
+              "Load": 17820591,
+              "MakeNone": 200948,
+              "MakeOk": 200948,
+              "MakeRecord": 400947,
+              "MakeSome": 401894,
+              "MakeTypedMap": 196383,
+              "MapHas": 392762,
+              "MapKeys": 6,
+              "MapSet": 392762,
+              "Not": 2392783,
+              "NotEqual": 397329,
+              "Return": 3569598,
+              "Store": 5955380,
+              "TextChars": 196381,
+              "TextCollapseWhitespace": 200947,
+              "TimeFormatUtc": 196381,
+              "TimeParseTimestamp": 196381,
+              "Unwrap": 3560465,
+              "WriteTextAtomic": 1
+            },
+            "opcode_transition_counts": {
+              "jsonl_next::Call->Call": 198426,
+              "jsonl_next::Call->Load": 2521,
+              "jsonl_next::Call->MakeOk": 200948,
+              "jsonl_next::Call->MakeRecord": 200947,
+              "jsonl_next::Call->Store": 200948,
+              "jsonl_next::GetError->Call": 2521,
+              "jsonl_next::GetField->Call": 2521,
+              "jsonl_next::GetField->JsonParse": 200947,
+              "jsonl_next::GetField->Load": 399373,
+              "jsonl_next::IsOk->JumpIfFalse": 200947,
+              "jsonl_next::IsOk->Not": 200948,
+              "jsonl_next::IsSome->Not": 200948,
+              "jsonl_next::JsonParse->Store": 200947,
+              "jsonl_next::JumpIfFalse->Call": 1,
+              "jsonl_next::JumpIfFalse->Load": 198426,
+              "jsonl_next::Load->Call": 200948,
+              "jsonl_next::Load->GetError": 2521,
+              "jsonl_next::Load->GetField": 602841,
+              "jsonl_next::Load->IsOk": 401895,
+              "jsonl_next::Load->IsSome": 200948,
+              "jsonl_next::Load->Unwrap": 600321,
+              "jsonl_next::MakeOk->Return": 200948,
+              "jsonl_next::MakeRecord->Call": 200947,
+              "jsonl_next::Not->JumpIfFalse": 401896,
+              "jsonl_next::Store->Load": 803790,
+              "jsonl_next::Unwrap->Call": 198426,
+              "jsonl_next::Unwrap->Store": 401895,
+              "main::Add->Index": 2,
+              "main::Add->JsonInt": 196241,
+              "main::Add->Load": 1571050,
+              "main::Add->Store": 200147,
+              "main::Add->WriteTextAtomic": 1,
+              "main::Args->Store": 1,
+              "main::Call->Const": 200947,
+              "main::Call->Store": 1775189,
+              "main::Call->Unwrap": 588723,
+              "main::Const->Add": 200012,
+              "main::Const->Call": 985575,
+              "main::Const->Const": 140,
+              "main::Const->Equal": 196386,
+              "main::Const->Index": 1963810,
+              "main::Const->JsonGet": 420,
+              "main::Const->JsonInt": 140,
+              "main::Const->Jump": 4090,
+              "main::Const->JumpIfFalse": 196383,
+              "main::Const->Load": 205143,
+              "main::Const->MakeRecord": 200000,
+              "main::Const->NotEqual": 397329,
+              "main::Const->Return": 1,
+              "main::Const->Store": 403634,
+              "main::Equal->JumpIfFalse": 196386,
+              "main::GetField->Call": 200947,
+              "main::GetField->IsSome": 200000,
+              "main::GetField->JsonInt": 5769,
+              "main::GetField->Load": 392482,
+              "main::GetField->Unwrap": 198426,
+              "main::Greater->JumpIfFalse": 196241,
+              "main::Index->Add": 1767429,
+              "main::Index->Const": 3,
+              "main::Index->Load": 196381,
+              "main::Index->Store": 392909,
+              "main::IsOk->Not": 1188990,
+              "main::IsSome->Not": 400948,
+              "main::JsonArray->Store": 2,
+              "main::JsonGet->JsonSetLocal": 420,
+              "main::JsonInt->JsonSetLocal": 202151,
+              "main::JsonObject->Store": 3900,
+              "main::JsonPushLocal->Load": 3759,
+              "main::JsonSetLocal->Const": 3272,
+              "main::JsonSetLocal->Jump": 1870,
+              "main::JsonSetLocal->Load": 200141,
+              "main::JsonStringify->Const": 1,
+              "main::JsonText->JsonSetLocal": 2710,
+              "main::Jump->Jump": 200000,
+              "main::Jump->Load": 198246,
+              "main::JumpIfFalse->Const": 209580,
+              "main::JumpIfFalse->JsonObject": 3619,
+              "main::JumpIfFalse->Load": 593716,
+              "main::Length->Less": 156,
+              "main::Less->Jump": 2,
+              "main::Less->JumpIfFalse": 196395,
+              "main::Load->Call": 397331,
+              "main::Load->Const": 3149959,
+              "main::Load->GetField": 997624,
+              "main::Load->Index": 392910,
+              "main::Load->IsOk": 1188990,
+              "main::Load->IsSome": 200948,
+              "main::Load->JsonInt": 1,
+              "main::Load->JsonPushLocal": 3759,
+              "main::Load->JsonSetLocal": 2,
+              "main::Load->JsonStringify": 1,
+              "main::Load->JsonText": 2710,
+              "main::Load->JumpIfFalse": 1,
+              "main::Load->Length": 156,
+              "main::Load->Load": 1571353,
+              "main::Load->MapHas": 392762,
+              "main::Load->MapKeys": 6,
+              "main::Load->MapSet": 392762,
+              "main::Load->Not": 400949,
+              "main::Load->Store": 196241,
+              "main::Load->TextChars": 196381,
+              "main::Load->Unwrap": 2172995,
+              "main::MakeRecord->Store": 200000,
+              "main::MakeTypedMap->Store": 196383,
+              "main::MapHas->JumpIfFalse": 392762,
+              "main::MapKeys->Store": 6,
+              "main::MapSet->Store": 392762,
+              "main::Not->JumpIfFalse": 1990887,
+              "main::NotEqual->JumpIfFalse": 397329,
+              "main::Store->Const": 600155,
+              "main::Store->JsonArray": 1,
+              "main::Store->JsonObject": 140,
+              "main::Store->Jump": 596384,
+              "main::Store->Load": 3758528,
+              "main::Store->MakeTypedMap": 196382,
+              "main::TextChars->Store": 196381,
+              "main::Unwrap->Call": 1181956,
+              "main::Unwrap->Const": 392622,
+              "main::Unwrap->Greater": 196241,
+              "main::Unwrap->Less": 196241,
+              "main::Unwrap->Store": 993084,
+              "main::WriteTextAtomic->Store": 1
+            },
+            "profile_detail": "detailed",
+            "record_charges": {
+              "estimated_bytes": 101164595,
+              "events": 400947
+            },
+            "scope": "latest guest invocation",
+            "vm_interpreter": {
+              "frames": 3770548,
+              "instructions": 61476165,
+              "instructions_are_sampled": false,
+              "list_index_load_fast_paths": 0,
+              "record_field_load_fast_paths": 1600465,
+              "result_option_probe_fast_paths": 1992781,
+              "result_option_unwrap_fast_paths": 2773316,
+              "sample_rate_frames": 1024,
+              "sampled_frames": 3689,
+              "sampled_functions": {
+                "format_utc": {
+                  "sampled_child_nanoseconds": 0,
+                  "sampled_frames": 198,
+                  "sampled_guest_nanoseconds": 46410,
+                  "sampled_host_nanoseconds": 97266,
+                  "sampled_instructions": 594,
+                  "sampled_loop_backedges": 0,
+                  "sampled_wall_nanoseconds": 143676
+                },
+                "fs_next_line": {
+                  "sampled_child_nanoseconds": 0,
+                  "sampled_frames": 206,
+                  "sampled_guest_nanoseconds": 66790,
+                  "sampled_host_nanoseconds": 100544,
+                  "sampled_instructions": 618,
+                  "sampled_loop_backedges": 0,
+                  "sampled_wall_nanoseconds": 167334
+                },
+                "json_get_safe": {
+                  "sampled_child_nanoseconds": 0,
+                  "sampled_frames": 983,
+                  "sampled_guest_nanoseconds": 253011,
+                  "sampled_host_nanoseconds": 311581,
+                  "sampled_instructions": 3932,
+                  "sampled_loop_backedges": 0,
+                  "sampled_wall_nanoseconds": 564592
+                },
+                "json_int_safe": {
+                  "sampled_child_nanoseconds": 0,
+                  "sampled_frames": 564,
+                  "sampled_guest_nanoseconds": 128603,
+                  "sampled_host_nanoseconds": 123585,
+                  "sampled_instructions": 1692,
+                  "sampled_loop_backedges": 0,
+                  "sampled_wall_nanoseconds": 252188
+                },
+                "json_text_safe": {
+                  "sampled_child_nanoseconds": 0,
+                  "sampled_frames": 364,
+                  "sampled_guest_nanoseconds": 87299,
+                  "sampled_host_nanoseconds": 88173,
+                  "sampled_instructions": 1092,
+                  "sampled_loop_backedges": 0,
+                  "sampled_wall_nanoseconds": 175472
+                },
+                "jsonl_next": {
+                  "sampled_child_nanoseconds": 227822,
+                  "sampled_frames": 196,
+                  "sampled_guest_nanoseconds": 1620443,
+                  "sampled_host_nanoseconds": 166392,
+                  "sampled_instructions": 7056,
+                  "sampled_loop_backedges": 0,
+                  "sampled_wall_nanoseconds": 2014657
+                },
+                "jsonl_no_error": {
+                  "sampled_child_nanoseconds": 0,
+                  "sampled_frames": 188,
+                  "sampled_guest_nanoseconds": 30919,
+                  "sampled_host_nanoseconds": 0,
+                  "sampled_instructions": 376,
+                  "sampled_loop_backedges": 0,
+                  "sampled_wall_nanoseconds": 30919
+                },
+                "jsonl_no_value": {
+                  "sampled_child_nanoseconds": 0,
+                  "sampled_frames": 2,
+                  "sampled_guest_nanoseconds": 416,
+                  "sampled_host_nanoseconds": 0,
+                  "sampled_instructions": 4,
+                  "sampled_loop_backedges": 0,
+                  "sampled_wall_nanoseconds": 416
+                },
+                "jsonl_some_error": {
+                  "sampled_child_nanoseconds": 0,
+                  "sampled_frames": 2,
+                  "sampled_guest_nanoseconds": 416,
+                  "sampled_host_nanoseconds": 0,
+                  "sampled_instructions": 6,
+                  "sampled_loop_backedges": 0,
+                  "sampled_wall_nanoseconds": 416
+                },
+                "jsonl_some_line": {
+                  "sampled_child_nanoseconds": 0,
+                  "sampled_frames": 189,
+                  "sampled_guest_nanoseconds": 49504,
+                  "sampled_host_nanoseconds": 0,
+                  "sampled_instructions": 567,
+                  "sampled_loop_backedges": 0,
+                  "sampled_wall_nanoseconds": 49504
+                },
+                "jsonl_some_value": {
+                  "sampled_child_nanoseconds": 0,
+                  "sampled_frames": 193,
+                  "sampled_guest_nanoseconds": 44632,
+                  "sampled_host_nanoseconds": 0,
+                  "sampled_instructions": 579,
+                  "sampled_loop_backedges": 0,
+                  "sampled_wall_nanoseconds": 44632
+                },
+                "main": {
+                  "sampled_child_nanoseconds": 1123269,
+                  "sampled_frames": 217,
+                  "sampled_guest_nanoseconds": 9574302,
+                  "sampled_host_nanoseconds": 240551,
+                  "sampled_instructions": 46433,
+                  "sampled_loop_backedges": 218,
+                  "sampled_wall_nanoseconds": 10938122
+                },
+                "parse_timestamp": {
+                  "sampled_child_nanoseconds": 0,
+                  "sampled_frames": 221,
+                  "sampled_guest_nanoseconds": 64798,
+                  "sampled_host_nanoseconds": 60040,
+                  "sampled_instructions": 663,
+                  "sampled_loop_backedges": 0,
+                  "sampled_wall_nanoseconds": 124838
+                },
+                "unicode_collapse_whitespace": {
+                  "sampled_child_nanoseconds": 0,
+                  "sampled_frames": 166,
+                  "sampled_guest_nanoseconds": 38921,
+                  "sampled_host_nanoseconds": 40331,
+                  "sampled_instructions": 498,
+                  "sampled_loop_backedges": 0,
+                  "sampled_wall_nanoseconds": 79252
+                }
+              },
+              "sampled_instructions": 64110,
+              "sampled_nanoseconds": 14586018,
+              "sampled_wall_time_is_inclusive_of_host_operations": true,
+              "text_chars_concat_fast_paths": 196381
+            }
+          },
+          "runtime_profile_enabled": true
+        }
+      },
+      "repetitions_per_process": 1,
+      "rows": 200000,
+      "samples": {
+        "guion_before_artifact": {
+          "median_seconds": 1.4568032349999953,
+          "p95_seconds_nearest_rank": 1.4669673829999965,
+          "samples_seconds": [
+            1.4535482809999962,
+            1.459735668999997,
+            1.4364186409999888,
+            1.4669673829999965,
+            1.4568032349999953
+          ]
+        },
+        "guion_before_source_uncached": {
+          "median_seconds": 1.4712901810000005,
+          "p95_seconds_nearest_rank": 1.613801981999984,
+          "samples_seconds": [
+            1.4548604919999946,
+            1.4595889010000178,
+            1.4784506710000187,
+            1.613801981999984,
+            1.4712901810000005
+          ]
+        },
+        "guion_candidate_artifact": {
+          "median_seconds": 1.4590846760000034,
+          "p95_seconds_nearest_rank": 1.4678632030000074,
+          "samples_seconds": [
+            1.4643180310000048,
+            1.4590846760000034,
+            1.4546346080000205,
+            1.4678632030000074,
+            1.4541361200000154
+          ]
+        },
+        "guion_candidate_source_uncached": {
+          "median_seconds": 1.4614611679999996,
+          "p95_seconds_nearest_rank": 1.4669639020000034,
+          "samples_seconds": [
+            1.465196125999995,
+            1.4562768050000017,
+            1.4614611679999996,
+            1.4669639020000034,
+            1.4483532309999987
+          ]
+        },
+        "python_data": {
+          "median_seconds": 0.6476052139999808,
+          "p95_seconds_nearest_rank": 0.652478168999977,
+          "samples_seconds": [
+            0.6446058930000049,
+            0.6476052139999808,
+            0.652478168999977,
+            0.6491574979999939,
+            0.640209719000012
+          ]
+        },
+        "python_sqlite_native": {
+          "median_seconds": 0.9027593200000013,
+          "p95_seconds_nearest_rank": 0.9257980849999967,
+          "samples_seconds": [
+            0.8998549330000003,
+            0.9027593200000013,
+            0.9257980849999967,
+            0.9093802339999968,
+            0.8871916179999744
+          ]
+        }
+      },
+      "source_cache_states": {
+        "guion_before_artifact": [
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable"
+        ],
+        "guion_before_source_uncached": [
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed"
+        ],
+        "guion_candidate_artifact": [
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable",
+          "not_applicable"
+        ],
+        "guion_candidate_source_uncached": [
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed",
+          "bypassed"
+        ]
+      },
+      "trials_per_lane": 5
+    }
+  }
+}

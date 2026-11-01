@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import platform
 import subprocess
 import sys
@@ -20,6 +21,38 @@ import benchmark_core_workloads as benchmark  # noqa: E402
 
 def sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def sha256_tree(root: Path) -> str:
+    digest = hashlib.sha256()
+    for path in sorted(root.rglob("*.gu")):
+        digest.update(path.relative_to(root).as_posix().encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(path.read_bytes())
+        digest.update(b"\0")
+    return digest.hexdigest()
+
+
+def jsonl_input_hashes(scratch: Path, rows: list[int]) -> dict[str, Any]:
+    stdlib_root = Path(os.environ.get("GUION_STDLIB_ROOT", ROOT / "language/stdlib"))
+    workloads = {}
+    for row_count in rows:
+        project = scratch / f"jsonl-summary-data-{row_count}"
+        workloads[str(row_count)] = {
+            "application_source": sha256(project / "main.gu"),
+            "events": sha256(project / "performance-inputs/events.jsonl"),
+            "services": sha256(project / "performance-inputs/services.txt"),
+            "python_reference": sha256(project / "data_reference.py"),
+        }
+    return {
+        "benchmark_script": sha256(Path(__file__)),
+        "performance_runner": sha256(Path(benchmark.runner.__file__)),
+        "jsonl_generator": sha256(benchmark.runner.GENERATOR),
+        "source_application": sha256(benchmark.runner.APP / "main.vr"),
+        "python_reference": sha256(benchmark.runner.DATA_REFERENCE),
+        "stdlib_tree": sha256_tree(stdlib_root),
+        "workloads": workloads,
+    }
 
 
 def paired_ratio(samples: dict[str, dict[str, Any]], numerator: str, denominator: str) -> dict[str, Any]:
@@ -92,7 +125,7 @@ def main() -> int:
         "scope": "same frozen source and generated inputs; all timed Guion and Python outputs checked against the independent oracle; separate source and artifact lanes",
         "baseline_binary": {"path": str(baseline), "sha256": sha256(baseline)},
         "candidate_binary": {"path": str(candidate), "sha256": sha256(candidate)},
-        "input_sha256": benchmark.benchmark_input_hashes(),
+        "input_sha256": jsonl_input_hashes(args.scratch_dir, args.rows),
         "toolchain": {"platform": platform.platform(), "architecture": platform.machine(), **toolchain},
         "workloads": workloads,
     }

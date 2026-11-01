@@ -1,0 +1,61 @@
+import "std:csv"
+import "std:fs"
+import "std:text"
+
+fn main() -> Int:
+    let arguments = args()
+    if len(arguments) != 2 or arguments[0] != "--input":
+        eprint("usage: csv-ledger --input PATH")
+        return 2
+    let reader_result = csv_open_reader(arguments[1])
+    if not is_ok(reader_result):
+        eprint("cannot read input CSV")
+        return 1
+    let reader = unwrap(reader_result)
+    let header_result = csv_next_row(reader)
+    if not is_ok(header_result) or not is_some(unwrap(header_result)):
+        eprint("header is missing")
+        return 1
+    var order: List[Text] = []
+    var counts: Map[Text, Int] = {}
+    var errors: Map[Text, Int] = {}
+    var totals: Map[Text, Int] = {}
+    var peaks: Map[Text, Int] = {}
+    var invalid = 0
+    var done = false
+    while not done:
+        let next_result = csv_next_row(reader)
+        if not is_ok(next_result):
+            eprint("cannot parse CSV record")
+            return 1
+        let maybe_row = unwrap(next_result)
+        if not is_some(maybe_row):
+            set done = true
+        else:
+            let fields = unwrap(maybe_row).fields
+            let status = text_parse_integer(fields[1])
+            let latency = text_parse_integer(fields[2])
+            if len(fields) != 4 or fields[0] == "" or not is_ok(status) or not is_ok(latency):
+                set invalid = invalid + 1
+            else:
+                let service = fields[0]
+                if not map_has(counts, service):
+                    set order = list_push(order, service)
+                    set counts = map_set(counts, service, 0)
+                    set errors = map_set(errors, service, 0)
+                    set totals = map_set(totals, service, 0)
+                    set peaks = map_set(peaks, service, 0)
+                set counts = map_set(counts, service, counts[service] + 1)
+                if unwrap(status) >= 500:
+                    set errors = map_set(errors, service, errors[service] + 1)
+                set totals = map_set(totals, service, totals[service] + unwrap(latency))
+                if unwrap(latency) > peaks[service]:
+                    set peaks = map_set(peaks, service, unwrap(latency))
+    let closed = fs_close_reader(reader)
+    var index = 0
+    while index < len(order):
+        let service = order[index]
+        print(service + " " + json_stringify(json_int(counts[service])) + " " + json_stringify(json_int(errors[service])) + " " + json_stringify(json_int(totals[service])) + " " + json_stringify(json_int(peaks[service])))
+        set index = index + 1
+    print("invalid " + json_stringify(json_int(invalid)))
+    return 0

@@ -9,6 +9,46 @@ use std::{
 };
 
 #[test]
+fn misplaced_option_and_result_constructors_are_reported_at_the_source_line() {
+    let dir = std::env::temp_dir().join(format!(
+        "guion-constructor-context-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    let _cleanup = RemoveDirOnDrop(dir.clone());
+    std::fs::create_dir_all(&dir).unwrap();
+    let cases = [
+        (
+            "option.gu",
+            "record Box:\n    value: Option[Int]\n\nfn main() -> Int:\n    let boxed = Box(Some(1))\n    return 0\n",
+            "E_OPTION_CONSTRUCTOR_CONTEXT",
+            "option.gu:5:",
+        ),
+        (
+            "result.gu",
+            "fn wrap() -> Option[Result[Int, Text]]:\n    return Some(Ok(1))\n\nfn main() -> Int:\n    return 0\n",
+            "E_RESULT_CONSTRUCTOR_CONTEXT",
+            "result.gu:2:",
+        ),
+    ];
+    for (name, source, code, location) in cases {
+        std::fs::write(dir.join(name), source).unwrap();
+        let output = Command::new(env!("CARGO_BIN_EXE_guion"))
+            .args(["run", name])
+            .current_dir(&dir)
+            .output()
+            .unwrap();
+        assert!(!output.status.success());
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(stderr.contains(code), "{stderr}");
+        assert!(stderr.contains(location), "{stderr}");
+    }
+}
+
+#[test]
 fn version_reports_artifact_and_pinned_timezone_data_versions() {
     let output = Command::new(env!("CARGO_BIN_EXE_guion"))
         .arg("--version")
@@ -4097,6 +4137,13 @@ fn run_json_report_captures_program_output_status_and_runtime_failure() {
     assert_eq!(report["native_backend"]["compiled_functions"][0], "sum_to");
     assert_eq!(report["native_backend"]["calls"], 1);
     assert_eq!(report["native_backend"]["deoptimizations"], 0);
+    assert_eq!(
+        report["native_backend"]["deoptimization_sites"]
+            .as_array()
+            .unwrap()
+            .len(),
+        0
+    );
     assert_eq!(report["exit_code"], 23);
     assert!(String::from_utf8_lossy(&passed.stderr).is_empty());
 

@@ -444,6 +444,10 @@ def main() -> int:
     )
     parser.add_argument("--trials", type=int, default=15)
     parser.add_argument("--rows", type=int, nargs="+", default=[20_000, 200_000])
+    parser.add_argument(
+        "--source-revision",
+        help="record a known checkout revision when running from a source mirror without Git metadata",
+    )
     args = parser.parse_args()
     if args.trials < 3:
         parser.error("at least three paired trials are required")
@@ -461,13 +465,19 @@ def main() -> int:
         )
         for rows in args.rows
     }
+    source_revision = args.source_revision
+    if source_revision is None:
+        try:
+            source_revision = runner.subprocess.run(
+                ["git", "rev-parse", "HEAD"], cwd=ROOT, capture_output=True, text=True, check=True
+            ).stdout.strip()
+        except runner.subprocess.CalledProcessError:
+            source_revision = "unavailable (source mirror has no Git metadata)"
     report = {
         "schema_version": 1,
         "kind": "guion-jsonl-source-variant-comparison",
         "created_at_utc": datetime.now(timezone.utc).isoformat(),
-        "source_revision": runner.subprocess.run(
-            ["git", "rev-parse", "HEAD"], cwd=ROOT, capture_output=True, text=True, check=True
-        ).stdout.strip(),
+        "source_revision": source_revision,
         "binary": {
             "path": str(binary),
             "sha256": digest(binary),

@@ -512,6 +512,16 @@ def main() -> None:
     parser.add_argument("--baseline-binary", type=Path)
     parser.add_argument("--scratch-dir", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument(
+        "--source-revision",
+        help="record the source checkout revision when benchmarking a Git-less synced copy",
+    )
+    parser.add_argument(
+        "--changed-source-path",
+        type=Path,
+        action="append",
+        help="relative source path to hash when Git metadata is unavailable; repeat as needed",
+    )
     parser.add_argument("--trials", type=int, default=15)
     parser.add_argument("--rows", type=int, nargs="+", default=[20000, 200000])
     parser.add_argument("--focused-only", action="store_true")
@@ -524,6 +534,28 @@ def main() -> None:
     binary = args.binary.resolve(strict=True)
     baseline_binary = args.baseline_binary.resolve(strict=True) if args.baseline_binary else None
     args.scratch_dir.mkdir(parents=True, exist_ok=True)
+    source_revision = args.source_revision
+    changed_source_paths = args.changed_source_path
+    if source_revision is None:
+        source_revision = subprocess.run(
+            ["git", "-C", str(ROOT), "rev-parse", "HEAD"],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+    if changed_source_paths is None:
+        changed_source_paths = [
+            Path(relative)
+            for relative in subprocess.run(
+                ["git", "-C", str(ROOT), "diff", "--name-only", "HEAD"],
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout.splitlines()
+        ]
+    for relative in changed_source_paths:
+        if relative.is_absolute() or ".." in relative.parts:
+            raise ValueError(f"changed source path must stay under the checkout: {relative}")
     results: dict[str, Any] = {
         "schema_version": 1,
         "kind": "guion-core-cost-closure-benchmark",
@@ -531,21 +563,10 @@ def main() -> None:
         "binary_sha256": sha256(binary),
         "baseline_binary": str(baseline_binary) if baseline_binary else None,
         "baseline_binary_sha256": sha256(baseline_binary) if baseline_binary else None,
-        "source_revision": subprocess.run(
-            ["git", "-C", str(ROOT), "rev-parse", "HEAD"],
-            check=True,
-            capture_output=True,
-            text=True,
-        ).stdout.strip(),
+        "source_revision": source_revision,
         "benchmark_harness_sha256": sha256(Path(__file__)),
         "working_tree_source_sha256": {
-            relative: sha256(ROOT / relative)
-            for relative in subprocess.run(
-                ["git", "-C", str(ROOT), "diff", "--name-only", "HEAD"],
-                check=True,
-                capture_output=True,
-                text=True,
-            ).stdout.splitlines()
+            str(relative): sha256(ROOT / relative) for relative in changed_source_paths
         },
         "source_sha256": {
             str(path.relative_to(ROOT)): sha256(path)

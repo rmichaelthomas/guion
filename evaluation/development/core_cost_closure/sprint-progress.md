@@ -66,3 +66,108 @@ The measured implementation adds operation-specific native callbacks for JSON pa
 The separate no-native-entry guard did not show an additional JSONL win over the immediately preceding candidate: its five-pair 200k ratios were 0.9997 for original artifact mode (95% interval 0.9901–1.4032) and 0.9870 for compact-record artifact mode (0.9606–1.0133). These direct results are in `results/sprint-20261029-native-no-entry-vs-tier-boundary-jsonl-200000-paired-5.json`. A broader runtime check changed the decision: `guion_public_service_modules_call_typed_native_apis` took 251.34 seconds with that guard disabled and 24.60 seconds with it enabled; an earlier guarded run was 28.26 seconds. This self-hosted compiler workload is distinct from JSONL, and the guard is retained for this demonstrated benefit. The JSONL results do not support claiming that the guard speeds JSONL.
 
 Final-source verification with the guard retained: `cargo test --locked --offline -p guion-runtime` passed 244 tests. The rebuilt release binary matched the measured candidate SHA-256 `3c19a580153303f3adb48c94f43654fb83a0a2d430b6b294ab956e0bf8fe7061`. A full workspace test attempt passed the nine-application acceptance case (500.56 seconds) but was stopped after the self-hosting `compiler_stage_equality` test remained CPU-bound for over six minutes; it is not recorded as a full workspace pass. The PR's workspace CI remains the gate for that check. `cargo fmt --all -- --check` was unavailable because rustfmt is not installed in the container; `git diff --check` passed.
+
+
+## Implementation continuation — 2026-10-30
+
+The quota-faithful `TextChars` constant-index concatenation fast path is retained as an end-to-end improvement. The exact 15-pair output-checked result is `results/sprint-20261030-jsonl-textchars-quota-paired-15.json`; candidate SHA-256 `27bca691f20e10d5591d95563f8b001f83b9d902694fdf052d947aa81acf0595`, immediate control SHA-256 `2289793912b6da890119fce4500bb128c2b6a5ce94dd1199fd788aae9b2633ec`. Candidate/control medians and paired percentile 95% intervals: 20k artifact **0.9219** (0.9119–0.9434), 20k source **0.9315** (0.9178–0.9584), 200k artifact **0.9275** (0.9080–0.9360), 200k source **0.9287** (0.8957–0.9576). All four intervals exclude parity in the favorable direction; output oracles passed. The focused runtime execution suite passed 159/159. The 200k lane remains about 2.93–2.94× Python and the 20k lane 2.51–2.52× Python, so this is useful progress but not closure. Peak RSS did not materially change.
+
+A preliminary on-demand variant incorrectly undercharged allocation and was rejected. The retained implementation replays logical list, index-clone and concatenation charges at their original instruction spans; a dedicated differential allocation-limit test and full paired output oracle pass. Earlier whole-function planning/scanning and the on-demand quota-bypass candidates are not retained as measured wins.
+
+The next implementation target remains broad native-tier coverage for the hot JSONL caller: the exact artifact profile shows native JSON helpers compile but `main` is rejected by native type/control-flow inference, leaving the dominant loop in the VM. A diagnostic now records the bytecode location where native type inference stops; the existing container is healthy and its live source mount is the Guion worktree. This task is ongoing; no native-tier speed claim is made yet.
+
+## Native JSON loop arena guard — 2026-10-30
+
+The direct native `JsonSetLocal` / `JsonPushLocal` candidate exposed a more basic constraint: native value handles are retained in `NativeListArena` for the lifetime of the invocation, and the backend has no loop safepoint that can retire dead handles. On the frozen 200k workload with the optional services argument omitted, the candidate compiled `main` and reached 887 MB RSS after 58 seconds; the run was stopped. A bounded 10k comparison showed the same path at 2.0 seconds / 159.5 MB, versus the preserved control at 0.173 seconds / 9.2 MB. Supplying `--services` caused an early deoptimization at `MapSet` and masked the problem; both configurations still matched the independent oracle.
+
+Implemented a native eligibility guard: loops that directly or transitively allocate JSON/file/text values stay in the VM until the native arena can reclaim dead handles. The range-aware check examines the loop body, so value creation outside a loop does not reject it. The rejection report uses `native_loop_value_arena_retention` and identifies the backedge. Direct JSON-constructor and transitive helper-call regression tests cover the guard; numeric, typed-list, and record-loop tests confirm those loops remain eligible. The final runtime execution integration suite passes 196/196, and the release build succeeds.
+
+The initial guarded candidate completed the exact 200k no-services invocation in 2.683 seconds at 10.3 MB RSS with exact output equality. A subsequent range-aware refinement completed the same exact invocation in 2.155 seconds at 10.4 MB RSS, also with oracle equality. Three-pair official smoke reports are preserved in `results/sprint-20261030-jsonl-native-loop-guard-20k-3.json` and `results/sprint-20261030-jsonl-native-loop-guard-200k-3.json`; these are preliminary and superseded by the final paired cohort below.
+
+The full 15-pair comparison is preserved in `results/sprint-20261030-jsonl-native-loop-guard-paired-15.json`. Correctness and output-oracle checks passed at 20k and 200k in source and artifact modes. Against the preserved Guion control, candidate/control median ratios (paired percentile 95% intervals) were: 20k source **0.9261** (0.9152–0.9348), 20k artifact **0.9292** (0.9224–0.9301), 200k source **0.8807** (0.8495–0.8869), and 200k artifact **0.8726** (0.8588–0.8796). All 15 paired trials favored the candidate in every lane. Median execution times were 0.228s vs 0.248s at 20k source, 0.227s vs 0.245s at 20k artifact, 2.042s vs 2.320s at 200k source, and 2.025s vs 2.323s at 200k artifact.
+
+The candidate remains slower than Python: candidate/Python ratios were 2.6230 (2.5790–2.6608) for 20k source, 2.6038 (2.5517–2.6530) for 20k artifact, 3.0507 (2.7961–3.0826) for 200k source, and 3.0199 (2.7790–3.0479) for 200k artifact. At 200k, median Python execution was 0.672s. Candidate peak RSS stayed near 10 MiB; Python peaked at 66.1 MiB and the Python/SQLite reference at 77.7 MiB. The guard therefore prevents the severe native-arena memory growth and retains a reproducible 12–13% improvement over the preserved Guion control, but does not close the speed gate.
+
+The final candidate compiled 25 helper functions, while `main` remained in the VM. The report pinpoints its rejection at the loop backedge, bytecode instruction 225, because the loop allocates values retained by the native arena until invocation end. This confirms the remaining bottleneck: the hot per-row control-flow and value path still executes in the VM. The approved sprint's speed target remains open; safe reclamation or an ownership-aware representation for loop-local native values is the next architecture-level candidate, not a result claimed by this sprint.
+
+
+## Reclamation feasibility study — 2026-10-31
+
+Environment: Colima restarted by explicit user approval; the existing `guion-core-north-star-sprint` container was reused (rustc 1.97.1, Python 3.11.2, 4 CPUs, 6 GiB). About 9 GiB of stale target/scratch data was removed from it (debug incremental cache and an old `/tmp/guion-core-cost-closure/target`); no images or other projects' containers were touched. `scripts/guion-bench-shell.sh` runs commands in that container, starting Colima/the container if needed.
+
+Container baseline for branch commit `43a48af` (binary SHA-256 `7b4b0fad…de01`, 200k rows, 5 interleaved output-checked trials, no `--services`): Guion artifact median **1.457 s**, Guion source **1.471 s**, Python **0.648 s**, so about **2.25×** Python. Raw: `results/sprint-20261031-container-baseline-43a48af-200k-5.json`. Earlier records show ~3.0× on the original host; the container run is the reference for this study, and the two should not be mixed.
+
+CPU sampling of the VM path (`audit_tools/guion_pc_sampler.c`, 3 runs, 4,417 samples): 23.8% of all samples are inside the VM dispatch function, about 25% in libc malloc/free, and about 8% in quota/limit bookkeeping (`value_limit_error_with_json`, `cloned_value_allocation`, `charge_allocation`, `shared_json_metrics`, `value_matches`). Dispatch is therefore an upper bound of roughly one quarter of runtime: even a free register/predecoded interpreter could not take 2.25× below about 1.7×. A whole-function register interpreter was **not built** because the ceiling cannot reach parity.
+
+Native `main` with the loop guard disabled (temporary experiment, since removed; feature `native-value-bridge`):
+
+| rows | VM (guarded) | native main, original arena | native main, O(1) arena lookups | RSS native |
+| ---: | ---: | ---: | ---: | ---: |
+| 5k | 0.056 s | 0.583 s | 0.151 s | 81 MB |
+| 10k | 0.087 s | 1.942 s | 0.235 s | 155 MB |
+| 20k | 0.160 s | 7.374 s | 0.409 s | 304 MB |
+
+Outputs matched at every size. The original arena was quadratic: `materialize_native_value` and `tagged_value` scanned every list/tagged descriptor on every miss (88% of samples). Replacing those scans with constant/log-time address lookups (`AddressedBoxes`, `tagged_chunk_starts`) makes native `main` linear, and that fix is retained. It does not make native `main` fast: after ~16 ms of compile time it costs about **16 µs/row against 6 µs/row for the VM**. User time was 0.316 s vs 0.157 s and system time (page faults) only 0.060 s of 0.379 s, so memory growth explains at most ~15% of the gap.
+
+Conclusion: safe reclamation or ownership-aware handle retirement is necessary to run the native loop in bounded memory, but it is **not sufficient** for speed. The slowdown is the per-operation mixed-value bridge (generic operation dispatch, Value decode/encode, and per-call fuel, cancellation and clone-charge callbacks), which matches the earlier no-gain result for the per-op bridge. A reclamation safepoint alone is expected to land near or below VM speed, so it was not built. The next candidate that can plausibly close the gap is native-resident representations and inline lowering for the hot JSON/Text/Option/Result operations, with reclamation added once those values no longer round-trip through `Value`.
+
+## Loop-backedge arena reclamation — 2026-10-31 (opt-in `native-value-bridge` only)
+
+Implemented a native loop safepoint. At each backedge of an allocating loop, native code spills the live handle-typed locals as `(slot, tag, handle)` triples and calls `native_loop_safepoint`; once the arena holds at least `max(2048, 2× the entries left after the last reclamation)` entries, the runtime materializes those locals, empties every arena handle store, re-stores the live values (without charging the allocation budget again, so quotas stay cumulative and VM-identical) and the generated code reloads the rewritten handles. Supported live local types: scalars, Text, Bytes, Json and the error types, `Map`, `NativeResource`, `List[Text]`, and Option/Result over those. A function qualifies only when nothing else calls it, every allocating backedge is an unconditional `Jump` with an empty operand stack, and every live local is supported; otherwise the existing `native_loop_value_arena_retention` guard still keeps it in the VM. The guard is lifted only with the `native-value-bridge` feature, so default builds behave exactly as before (the only default-build change is the O(1) arena lookups).
+
+Result on the frozen 200k-row JSONL workload (container, feature build, output identical, `--services` omitted): `main` now compiles natively with peak RSS **20 MB** (previously 304 MB at only 20k rows without reclamation) and a linear time curve, but it takes **2.67 s against 1.46 s for the VM binary** (20k rows: 0.326 s vs 0.163 s). Reclamation fixed memory and the quadratic scans; it did not make the native loop fast. Sampling the native run shows the remaining cost is the per-operation mixed-value bridge: generic operation dispatch, Value materialization/encoding, per-call clone-charge/fuel/cancellation callbacks, and roughly 140 heap allocations per row that glibc tuning does not change (GLIBC_TUNABLES trim/top-pad/arena settings measured 1.43–1.46 s against 1.44–1.46 s for the unmodified VM run).
+
+Verification: `cargo test -p guion-runtime` passes 196 execution tests in the default build and 197 with `native-value-bridge` (the two guard tests are now default-build only, and a new feature-gated test runs a 12,000-iteration native JSON loop past the reclamation threshold against the VM). `stdlib_data` and `stdlib_services` crash with SIGSEGV in debug builds; the `stdlib_data` crash (`every_shipped_data_module_compiles_as_an_independent_std_import`) reproduces on the unmodified branch, and the `stdlib_services` crash was not checked against it. `cargo fmt --all` is clean.
+
+The direction to close the speed gap is now narrowed to removing bridge work, not memory: lower the hot JSON/Text/Option/Result operations inline in native code on native-resident representations, and cut per-row allocations.
+
+## Pool allocator and native-resident design findings — 2026-10-31
+
+Allocation attribution (VM, `43a48af`, 200k-row JSONL): about 82 `malloc` calls per row, of which about 36 are reading and parsing the line (`jsonl_next`) before any user code runs. Native `main` through the bridge made about 140 per row.
+
+New lever, not previously tried: `crates/cli/src/pool_alloc.rs`, a dependency-free thread-local size-class pool installed as the `guion` binary's global allocator (blocks up to 512 bytes, 16-byte classes, 256 KiB chunks never returned to the OS, shared spill list past 16k blocks so cross-thread frees cannot grow memory without bound). Container, 200k rows, interleaved, output hash identical:
+
+| Build | Time | Peak RSS |
+| --- | --- | --- |
+| VM, glibc malloc (`43a48af`) | 1.37 s | 12 MB |
+| VM, pool allocator | 1.16 s | 12 MB |
+| Native `main` (bridge feature), glibc | 2.67 s | 20 MB |
+| Native `main` (bridge feature), pool | 1.60 s | 21 MB |
+
+Python is 0.648 s on the same workload, so the VM is now about 1.75x Python (was 2.25x). Native `main` is still slower than the VM, so the bridge stays opt-in.
+
+Post-pool VM profile: dispatch about 29%, `value_limit_error_with_json` about 5%, Value clone/drop about 7%, quota bookkeeping about 4%. The limit check, `map_clone_allocation` and the map clone each walk the whole map on every `map_set`, so the per-row cost grows with distinct dates per service. Closing that needs an in-place `set m = map_set(m, ...)` form with an incrementally maintained clone-charge, which is a bytecode and artifact-format change.
+
+Fixed along the way: VM-to-native entry passed `List[Text]` as a handle-table index that native indexing dereferenced as an address (SIGSEGV in `text_split`, `stdlib_data`, `stdlib_services`). Regression test `native_text_list_parameters_match_the_vm`.
+
+### Corrections and results — 2026-10-31 (later)
+
+- The suspected O(n)-per-row `map_set` cost was wrong. The runtime profile shows 39,276 in-place `map_set` updates and zero copy-on-write copies on the 20k-row run; the local-assignment form already exists. Dropped.
+- JSON line parsing already deserializes straight into `SharedJson` after a reserved-key prescan; nothing left to remove cheaply there.
+- `[profile.release] lto = "fat", codegen-units = 1` added: about 4% on the VM (1.16 s to 1.11 s at 200k rows). Release builds take about 2 minutes instead of 15 seconds.
+- A leaf-value fast path in `value_limit_error` gave no measurable gain and was reverted.
+- Paired, interleaved, output-checked (9 trials, container, identical output hashes), against the pinned PGO CPython 3.14.7:
+
+| Rows | Python | `43a48af` | Pool + LTO | Ratio before | Ratio now |
+| --- | --- | --- | --- | --- | --- |
+| 20k | 0.106 s | 0.157 s | 0.126 s | 1.48 | 1.19 |
+| 200k | 0.749 s | 1.366 s | 1.082 s | 1.82 | 1.45 |
+
+The 0.648 s Python figure in the earlier container baseline came from a different interpreter and is not comparable to these rows. The gate (paired 95% upper ratio below 1.0 at 20k and 200k, source and artifact lanes) is not met.
+
+### VM dispatch study — 2026-10-31 (later)
+
+Executed-opcode profile on the 20k-row workload: 6.16M VM instructions, about 308 per row. `Load` is 29% and `Store` 9.7% of them, then `Const` 7.8%, `JumpIfFalse` 6.8%, `Call` and `Return` 5.8% each, `Unwrap` 5.8%. There are about 18 calls per row. Dispatch self time is about 28%, so a register VM that removed even 40% of the instructions would save roughly 11% of wall time, which cannot close a 1.45x gap by itself. Not built.
+
+Tried and rejected: polling cancellation every 64 instructions instead of every instruction. About 3% gain, but three HTTP cancellation tests (`http_cancellation_interrupts_in_flight_requests_and_marks_the_effect_interrupted` and two others) depend on the next instruction after a host call observing cancellation. Reverted.
+
+Remaining candidates by estimated size: compiler-level inlining of small stdlib wrappers (removes `Call`/`Return`/`Load`/`Store` traffic and the `Option`/`Result` boxing between `jsonl_next` and `main`; must preserve error traces, call-depth limits and exact function-call profile counts), carrying instruction fuel across frames instead of reserving and refunding per call and per host op (about 4%), and Option/Result unwrap fusion.
+
+### Fuel carry and wrapper inlining — 2026-10-31 (later)
+
+- Fuel carry across frames: an unsound upper bound (thread-local carry, 4096-instruction reservation, no flush on host ops or frame exit) measured 1.10 to 1.16 s against 1.11 to 1.24 s for the committed binary, with no consistent gain. Dropped; the atomics are not the cost.
+- Wrapper inlining: hand-inlining the stdlib wrappers in the benchmark source (`json_get_safe` to `json_try_get`, and the matching text, int, timestamp, format and whitespace wrappers) gave 1.122 s to 1.048 s (about 6.5%) with an identical output hash. A compiler pass would reproduce this, but it would remove the forwarder call-depth check and the exact per-function call counts that `tiny_json_forwarders_keep_call_and_opcode_profile_counts` and `tiny_json_forwarder_preserves_call_depth_limit` assert on purpose. Not built; 6.5% does not justify weakening those guarantees.
+- Decomposition at 200k rows (source lane, container): reading lines 0.09 s, adding the `jsonl_next` layer 0.32 s in total (JSON parse about 0.11 s of that), whole program about 1.1 s.
+- Native `main` with pool and LTO: 1.60 s versus 1.11 s for the VM. Its profile is dominated by clone charging on every local load (7.5% plus about 5% in the helpers it calls), per-operation generic dispatch, and fuel and cancellation callbacks. The per-load clone charge walks the whole value and is the same accounting the VM does, so it cannot be removed without changing the quota model.
+
+Speed-closure sprint close (2026-10-31, branch codex/guion-speed-closure): the JSONL gate is not met (200k paired upper 95% 1.38-1.40 for the fused program, 1.64-1.71 for the frozen one). Holdout lockfile auditor leads Python; the CSV second workload trails it at 3.6x. The Option/Result box, CSV parser fast path, scalar limit-check fast path and native-tier slice were each measured or bounded and not adopted; the evidence and the per-class conclusion are in task-class-evidence.md. Committed and kept: pool allocator, fat LTO, fused JSON accessors (format 50), the misplaced Option/Result constructor diagnostic in both compilers. Remaining candidate, unbuilt: a leaner interpreter core or a native tier for owned data values (ceiling about 40%).

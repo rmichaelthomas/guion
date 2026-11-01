@@ -931,3 +931,41 @@ fn main() -> Int:
     let error = runtime.invoke("main", vec![]).unwrap_err();
     assert_eq!(error.code, "R_SORT_ORDER");
 }
+
+#[test]
+fn native_text_list_parameters_match_the_vm() {
+    let root = std::env::temp_dir().join(format!("guion-native-text-list-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(&root).unwrap();
+    let source = r#"import "std:text"
+fn first_two(values: List[Text]) -> Text:
+    var result = ""
+    var index = 0
+    while index < 2:
+        set result = result + values[index]
+        set index = index + 1
+    return result
+fn main() -> Int:
+    let parts = text_split("a::b::", "::")
+    return len(first_two(text_chars("a::b::"))) * 100 + len(parts)
+"#;
+    let entry = root.join("main.gu");
+    std::fs::write(&entry, source).unwrap();
+    let stdlib = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../language/stdlib");
+    let artifact = guion_compiler::compile_project_with_roots(
+        &entry,
+        &root,
+        Some(&stdlib),
+        &std::collections::HashMap::new(),
+    )
+    .expect("fixture compiles");
+    let mut vm = Runtime::vm_only()
+        .load(artifact.clone(), HostPolicy::default())
+        .unwrap();
+    let expected = vm.invoke("main", vec![]).unwrap();
+    let mut native = Runtime::new()
+        .load(artifact, HostPolicy::default())
+        .unwrap();
+    assert_eq!(native.invoke("main", vec![]).unwrap(), expected);
+    let _ = std::fs::remove_dir_all(root);
+}

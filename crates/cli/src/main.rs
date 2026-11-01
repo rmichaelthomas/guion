@@ -12,7 +12,11 @@ mod compiler_driver;
 mod dependencies;
 mod native_dependencies;
 mod native_packages;
+mod pool_alloc;
 mod source_run_cache;
+
+#[global_allocator]
+static GLOBAL_ALLOCATOR: pool_alloc::PoolAllocator = pool_alloc::PoolAllocator;
 use guion_model::{Artifact, BuildMetadata, Op, ResourceLimits, Value};
 use guion_runtime::{EffectKind, EffectOutcome, HostPolicy, Runtime};
 
@@ -875,7 +879,8 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
                 "cranelift_ir_instructions": instance.native_cranelift_ir_instructions(),
                 "compile_profile": instance.native_compile_profile(),
                 "calls": instance.native_calls(),
-                "deoptimizations": instance.native_deoptimizations()
+                "deoptimizations": instance.native_deoptimizations(),
+                "deoptimization_sites": instance.native_deoptimization_sites()
             });
             let effects = instance
                 .effect_report()

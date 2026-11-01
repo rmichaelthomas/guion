@@ -563,6 +563,24 @@
       "operation": "JsonTryGet"
     },
     {
+      "name": "json_try_get_int",
+      "parameters": [
+        "Json",
+        "Text"
+      ],
+      "result": "Result[Int, JsonError]",
+      "operation": "JsonTryGetInt"
+    },
+    {
+      "name": "json_try_get_text",
+      "parameters": [
+        "Json",
+        "Text"
+      ],
+      "result": "Result[Text, JsonError]",
+      "operation": "JsonTryGetText"
+    },
+    {
       "name": "json_try_index",
       "parameters": [
         "Json",

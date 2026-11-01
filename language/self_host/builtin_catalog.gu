@@ -149,6 +149,10 @@ pub fn builtin_catalog_signature(name: Text) -> Text:
             return "1:JsonTryFloat:Result[Float64, JsonError]:Json"
         if name == "json_try_get":
             return "2:JsonTryGet:Result[Json, JsonError]:Json;Text"
+        if name == "json_try_get_int":
+            return "2:JsonTryGetInt:Result[Int, JsonError]:Json;Text"
+        if name == "json_try_get_text":
+            return "2:JsonTryGetText:Result[Text, JsonError]:Json;Text"
         if name == "json_try_index":
             return "2:JsonTryIndex:Result[Json, JsonError]:Json;Int"
         if name == "json_try_int":

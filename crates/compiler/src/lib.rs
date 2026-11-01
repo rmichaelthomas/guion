@@ -1605,6 +1605,13 @@ impl<'a> FnCompiler<'a> {
                             ));
                         }
                     };
+                    if *option_type != self.ast.result {
+                        return Err(diagnostic(
+                            "E_OPTION_CONSTRUCTOR_CONTEXT",
+                            "None is only supported in a function that returns that Option type; build it in a small helper function that returns it",
+                            *s,
+                        ));
+                    }
                     self.emit(Op::MakeNone, *s);
                     return Ok(option_type.clone());
                 }
@@ -1802,6 +1809,13 @@ impl<'a> FnCompiler<'a> {
                             args[0].span(),
                         ));
                     }
+                    if option_type != self.ast.result {
+                        return Err(diagnostic(
+                            "E_OPTION_CONSTRUCTOR_CONTEXT",
+                            "Some is only supported in a function that returns that Option type; build it in a small helper function that returns it",
+                            *s,
+                        ));
+                    }
                     self.emit(Op::MakeSome, *s);
                     return Ok(option_type);
                 }
@@ -1835,6 +1849,13 @@ impl<'a> FnCompiler<'a> {
                             "E_RESULT_CONSTRUCTOR_TYPE",
                             format!("{name} value must have type {payload_type:?}"),
                             args[0].span(),
+                        ));
+                    }
+                    if result_type != self.ast.result {
+                        return Err(diagnostic(
+                            "E_RESULT_CONSTRUCTOR_CONTEXT",
+                            format!("{name} is only supported in a function that returns that Result type; build it in a small helper function that returns it"),
+                            *s,
                         ));
                     }
                     self.emit(

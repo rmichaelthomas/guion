@@ -1,0 +1,169 @@
+import "std:fs"
+import "std:json"
+import "std:jsonl"
+import "std:text"
+import "std:time"
+import "std:unicode"
+
+fn main() -> Int:
+    let arguments = args()
+    var events_path = ""
+    var output_path = ""
+    var services_path = ""
+    var strict = false
+    var index = 0
+    while index < len(arguments):
+        if arguments[index] == "--events" and index + 1 < len(arguments):
+            set events_path = arguments[index + 1]
+            set index = index + 2
+        else:
+            if arguments[index] == "--output" and index + 1 < len(arguments):
+                set output_path = arguments[index + 1]
+                set index = index + 2
+            else:
+                if arguments[index] == "--services" and index + 1 < len(arguments):
+                    set services_path = arguments[index + 1]
+                    set index = index + 2
+                else:
+                    if arguments[index] == "--strict":
+                        set strict = true
+                        set index = index + 1
+                    else:
+                        eprint("unknown or incomplete argument")
+                        return 2
+    if events_path == "" or output_path == "":
+        eprint("usage: jsonl-summary --events PATH --output PATH [--strict] [--services PATH]")
+        return 2
+
+    var allowed: Map[Text, Bool] = {}
+    if services_path != "":
+        let services_result = fs_open_lines(services_path)
+        if not is_ok(services_result):
+            eprint("cannot read services allow-list")
+            return 1
+        let services_reader = unwrap(services_result)
+        var services_done = false
+        while not services_done:
+            let line_result = fs_next_line(services_reader)
+            if not is_ok(line_result):
+                eprint("cannot read services allow-list")
+                return 1
+            let maybe_service = unwrap(line_result)
+            if not is_some(maybe_service):
+                set services_done = true
+            else:
+                let line = unwrap(maybe_service).text
+                let characters = text_chars(line)
+                var service = ""
+                var character_index = 0
+                while character_index < len(characters):
+                    if not (character_index == len(characters) - 1 and characters[character_index] == "\r"):
+                        set service = service + characters[character_index]
+                    set character_index = character_index + 1
+                set allowed = map_set(allowed, service, true)
+        let closed_services = fs_close_reader(services_reader)
+
+    let reader_result = jsonl_open(events_path)
+    if not is_ok(reader_result):
+        eprint("cannot read events JSONL")
+        return 1
+    let reader = unwrap(reader_result)
+    var groups: Map[Text, Map[Text, Json]] = {}
+    var invalid = json_array()
+    var ignored_count = 0
+    var invalid_count = 0
+    var done = false
+    while not done:
+        let next_result = jsonl_next(reader)
+        if not is_ok(next_result):
+            eprint("cannot read events JSONL")
+            return 1
+        let maybe_line = unwrap(next_result)
+        if not is_some(maybe_line):
+            set done = true
+        else:
+            let line = unwrap(maybe_line)
+            if unicode_collapse_whitespace(line.raw) != "":
+                var valid = true
+                var service = ""
+                var instant: Instant = Instant(0)
+                if not is_some(line.value):
+                    set valid = false
+                else:
+                    let record = unwrap(line.value)
+                    let service_text = json_get_text_safe(record, "service")
+                    let at_text = json_get_text_safe(record, "at")
+                    if not is_ok(service_text) or not is_ok(at_text) or unwrap(service_text) == "":
+                        set valid = false
+                    else:
+                        set service = unwrap(service_text)
+                        let parsed_time = parse_timestamp(unwrap(at_text))
+                        if not is_ok(parsed_time):
+                            set valid = false
+                        else:
+                            set instant = unwrap(parsed_time)
+                if not valid:
+                    var invalid_row = json_object()
+                    set invalid_row = json_set(invalid_row, "line", json_int(line.number))
+                    set invalid = json_push(invalid, invalid_row)
+                    set invalid_count = invalid_count + 1
+                else:
+                    if services_path != "" and not map_has(allowed, service):
+                        set ignored_count = ignored_count + 1
+                    else:
+                        let at = format_utc(instant)
+                        let date = format_utc_date(instant)
+                        var by_date: Map[Text, Json] = {}
+                        if map_has(groups, service):
+                            set by_date = groups[service]
+                        if map_has(by_date, date):
+                            let previous = by_date[date]
+                            let old = json_get_int_safe(previous, "oldest_us")
+                            let new = json_get_int_safe(previous, "newest_us")
+                            var updated = previous
+                            if instant.unix_microseconds < unwrap(old):
+                                set updated = json_set(updated, "oldest", json_text(at))
+                                set updated = json_set(updated, "oldest_us", json_int(instant.unix_microseconds))
+                            if instant.unix_microseconds > unwrap(new):
+                                set updated = json_set(updated, "newest", json_text(at))
+                                set updated = json_set(updated, "newest_us", json_int(instant.unix_microseconds))
+                            let count_value = json_get_int_safe(previous, "count")
+                            set updated = json_set(updated, "count", json_int(unwrap(count_value) + 1))
+                            set by_date = map_set(by_date, date, updated)
+                        else:
+                            var group = json_object()
+                            set group = json_set(group, "service", json_text(service))
+                            set group = json_set(group, "date", json_text(date))
+                            set group = json_set(group, "count", json_int(1))
+                            set group = json_set(group, "oldest", json_text(at))
+                            set group = json_set(group, "newest", json_text(at))
+                            set group = json_set(group, "oldest_us", json_int(instant.unix_microseconds))
+                            set group = json_set(group, "newest_us", json_int(instant.unix_microseconds))
+                            set by_date = map_set(by_date, date, group)
+                        set groups = map_set(groups, service, by_date)
+    let closed_events = jsonl_close(reader)
+    if strict and invalid_count > 0:
+        eprint("invalid JSONL event at physical line " + json_stringify(json_get(json_index(invalid, 0), "line")))
+        return 1
+
+    var output_groups = json_array()
+    for service in groups:
+        let by_date = groups[service]
+        for date in by_date:
+            let internal = by_date[date]
+            var group = json_object()
+            set group = json_set(group, "service", json_text(service))
+            set group = json_set(group, "date", json_text(date))
+            set group = json_set(group, "count", json_get(internal, "count"))
+            set group = json_set(group, "oldest", json_get(internal, "oldest"))
+            set group = json_set(group, "newest", json_get(internal, "newest"))
+            set output_groups = json_push(output_groups, group)
+    var report = json_object()
+    set report = json_set(report, "groups", output_groups)
+    set report = json_set(report, "invalid", invalid)
+    set report = json_set(report, "ignored_count", json_int(ignored_count))
+    let written = write_text_atomic(output_path, json_stringify(report) + "\n")
+    if not is_ok(written):
+        eprint("cannot write JSONL summary")
+        return 1
+    return 0

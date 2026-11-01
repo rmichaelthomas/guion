@@ -1,0 +1,92 @@
+{
+  "input_sha256": "c87117d62d5559a5a907465c4ed035251aad4d112f9431a4bacd53faf550ce6c",
+  "baseline_binary_sha256": "3c19a580153303f3adb48c94f43654fb83a0a2d430b6b294ab956e0bf8fe7061",
+  "candidate_binary_sha256": "d752607f8eabe9f467f615f2e038e604e9c0c201fe7d8740ff2223e54c30790c",
+  "allocator_counter_sha256": "d86700149c71c6c88505dc46c9907290bd6be7ccc5defdb0cd1e8a601b6a5853",
+  "records": [
+    {
+      "pair": 0,
+      "mode": "candidate",
+      "execute_ns": 2545454758,
+      "allocator": {
+        "malloc_calls": 21531360,
+        "calloc_calls": 683,
+        "realloc_calls": 792597,
+        "free_calls": 21532014,
+        "malloc_bytes": 1231081689,
+        "calloc_bytes": 8325,
+        "realloc_bytes": 634660286
+      }
+    },
+    {
+      "pair": 0,
+      "mode": "baseline",
+      "execute_ns": 2775410569,
+      "allocator": {
+        "malloc_calls": 27708697,
+        "calloc_calls": 683,
+        "realloc_calls": 792597,
+        "free_calls": 27709351,
+        "malloc_bytes": 1695078959,
+        "calloc_bytes": 8325,
+        "realloc_bytes": 634660286
+      }
+    },
+    {
+      "pair": 1,
+      "mode": "baseline",
+      "execute_ns": 2748761258,
+      "allocator": {
+        "malloc_calls": 27708697,
+        "calloc_calls": 683,
+        "realloc_calls": 792597,
+        "free_calls": 27709351,
+        "malloc_bytes": 1695078941,
+        "calloc_bytes": 8325,
+        "realloc_bytes": 634660286
+      }
+    },
+    {
+      "pair": 1,
+      "mode": "candidate",
+      "execute_ns": 2705949234,
+      "allocator": {
+        "malloc_calls": 21531360,
+        "calloc_calls": 683,
+        "realloc_calls": 792597,
+        "free_calls": 21532014,
+        "malloc_bytes": 1231081689,
+        "calloc_bytes": 8325,
+        "realloc_bytes": 634660286
+      }
+    },
+    {
+      "pair": 2,
+      "mode": "baseline",
+      "execute_ns": 2712047148,
+      "allocator": {
+        "malloc_calls": 27708697,
+        "calloc_calls": 683,
+        "realloc_calls": 792597,
+        "free_calls": 27709351,
+        "malloc_bytes": 1695078950,
+        "calloc_bytes": 8325,
+        "realloc_bytes": 634660286
+      }
+    },
+    {
+      "pair": 2,
+      "mode": "candidate",
+      "execute_ns": 2506730976,
+      "allocator": {
+        "malloc_calls": 21531360,
+        "calloc_calls": 683,
+        "realloc_calls": 792597,
+        "free_calls": 21532014,
+        "malloc_bytes": 1231081671,
+        "calloc_bytes": 8325,
+        "realloc_bytes": 634660286
+      }
+    }
+  ]
+}

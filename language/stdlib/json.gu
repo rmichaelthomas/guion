@@ -1,6 +1,12 @@
 pub fn json_get_safe(value: Json, key: Text) -> Result[Json, JsonError]:
     return json_try_get(value, key)
 
+pub fn json_get_text_safe(value: Json, key: Text) -> Result[Text, JsonError]:
+    return json_try_get_text(value, key)
+
+pub fn json_get_int_safe(value: Json, key: Text) -> Result[Int, JsonError]:
+    return json_try_get_int(value, key)
+
 pub fn json_index_safe(value: Json, index: Int) -> Result[Json, JsonError]:
     return json_try_index(value, index)
 

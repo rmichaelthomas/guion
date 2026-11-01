@@ -358,6 +358,8 @@ fn parse_instruction(
         "CsvNext" => Op::CsvNext,
         "CsvEncode" => Op::CsvEncode,
         "JsonTryGet" => Op::JsonTryGet,
+        "JsonTryGetInt" => Op::JsonTryGetInt,
+        "JsonTryGetText" => Op::JsonTryGetText,
         "JsonTryIndex" => Op::JsonTryIndex,
         "JsonTryText" => Op::JsonTryText,
         "JsonTryInt" => Op::JsonTryInt,
