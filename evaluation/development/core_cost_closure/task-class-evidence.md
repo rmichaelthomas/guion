@@ -124,3 +124,23 @@ The planned prototype (cheaper `Option`/`Result` handling) was checked against t
 What the measurements do show: the CSV read-only loop is 25 VM instructions per row (500,080 for 20,000 rows) and the full ledger is 102 per row (2,042,237 for 20,000 rows), which is about 20–25 ns per instruction. A pure integer loop in the VM costs about 10 ns per instruction (2.77 s for 20 million iterations of about 14 instructions), roughly twice CPython's cost for the same loop. The PC profile of that integer loop puts 62% in the VM dispatch function itself, with the limit check (11%), `Value` clone (8%) and drop (5%) and the allocation accounting (4%) behind it. Compute benchmarks beat Python because their hot loops run in the native tier; data programs do not, because `main` is rejected from native compilation at the first mixed `Value` operation and the mixed-value bridge made things slower (2.67 s against 1.46 s).
 
 So the remaining distance on data-shaping programs is the interpreter tier's per-instruction cost, not any one operation or container. Another small VM change is not expected to close it. The two ways to change that are a native tier that owns `Text`/`List`/`Map`/`Json` values (so data programs run native like compute programs), or a much leaner interpreter core. Both are multi-session projects.
+
+## Native-tier ceiling on the CSV ledger
+
+Before building a native tier that owns `Text`/`List`/`Map` values, its payoff was bounded with the PC sampler on the 200k-row CSV ledger (three runs, 1,315 samples, format 50 release binary):
+
+| Share of samples | Where |
+| ---: | --- |
+| 34% | VM dispatch loop (`execute_vm_frame_with_forwarders`) |
+| about 9% | frame setup, `value_matches`, `host_op` dispatch |
+| about 15% | `Value` clone and drop, limit checks, allocation accounting |
+| about 8% | map lookup and replace (`BTreeMap::get`, `replace_map_value`) |
+| about 7% | CSV read and integer parse |
+| about 5.5% | atomic refcount and compare-and-swap traffic |
+| about 4% | allocation |
+
+A native tier removes dispatch and frame setup, at most about 43% of the run. Ownership, limits and allocation accounting must stay in native code, so the other shares remain. The ceiling is therefore about 450 ms to 260 ms, a Guion/Python ratio near 2.2 against the measured 3.6. It cannot reach 1.0 on this workload, so it was not built. The same shares on the JSONL gate program put its ceiling near 1.0 only if the native tier lost no accounting cost at all, which is not a result to plan on.
+
+## Conclusion
+
+The gate (upper 95% below 1.0 in the source and artifact lanes at 20k and 200k rows) is not met: JSONL is 1.36 at 200k and the CSV ledger is 3.6. Every lever the records list has been measured. The remaining ones are each under 10%, and the native-tier ceiling above is about 40%. The claim this evidence supports is per task class: Guion is faster than CPython on short-lived programs, compute-bound programs, parallel CPU work and the lockfile-auditor holdout, and is slower on programs that run a long interpreter loop over a large stream of rows.
