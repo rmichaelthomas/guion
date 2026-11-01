@@ -144,3 +144,9 @@ A native tier removes dispatch and frame setup, at most about 43% of the run. Ow
 ## Conclusion
 
 The gate (upper 95% below 1.0 in the source and artifact lanes at 20k and 200k rows) is not met: JSONL is 1.36 at 200k and the CSV ledger is 3.6. Every lever the records list has been measured. The remaining ones are each under 10%, and the native-tier ceiling above is about 40%. The claim this evidence supports is per task class: Guion is faster than CPython on short-lived programs, compute-bound programs, parallel CPU work and the lockfile-auditor holdout, and is slower on programs that run a long interpreter loop over a large stream of rows.
+
+## Measured bound on the owned-value native tier (VM profile, JSONL 200k, line-table build)
+
+PC-sampled VM run (2,174 in-binary samples). Real data work is small: serde JSON parse 0.9%, file line read 1.0%, text collapse 0.9%, BTreeMap get 1.3%, `json_try_get` 0.9% (about 5–6% together). `execute_vm_frame_with_forwarders` is 28.1% and includes inlined handlers, so pure dispatch is below that. Value plumbing is about 22%: `drop_glue<Value>` 4.1%, `value_limit_error_with_json` 3.7%, `cloned_value_allocation` 3.2%, alloc 2.9%, `Value::clone` 2.6%, atomics 3.4%, `charge_allocation` 1.2%, `shared_json_metrics` 1.1%.
+
+Reading: an owned-pointer native tier removes dispatch (at most about 28%) but keeps clone, drop, limit and quota work unless values also get an unboxed representation. If native callbacks matched VM handler cost, JSONL would land near 0.72 x 1.15 s = 0.83 s against Python's about 0.85 s: at best break-even with the gate, not a clear win, and only after every op family is native. The fully native run today is 1.60 s against the VM's 1.15 s, so callbacks currently cost more than VM handlers. CSV stays above 2x on the same arithmetic. This bound is measured from the profile, not from the earlier 43% guess.
