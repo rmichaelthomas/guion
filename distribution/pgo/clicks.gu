@@ -1,0 +1,66 @@
+import "std:json"
+import "std:jsonl"
+import "std:text"
+import "std:time"
+
+fn main() -> Int:
+    let reader = unwrap(jsonl_open("clicks.jsonl"))
+    var totals: Map[Text, Int] = {}
+    var firsts: Map[Text, Json] = {}
+    var months: Map[Text, Map[Text, Int]] = {}
+    var bad = 0
+    var done = false
+    while not done:
+        let next = jsonl_next(reader)
+        if not is_ok(next):
+            return 1
+        let maybe = unwrap(next)
+        if not is_some(maybe):
+            set done = true
+        else:
+            let line = unwrap(maybe)
+            if not is_some(line.value):
+                set bad = bad + 1
+            else:
+                let row = unwrap(line.value)
+                let user = json_get_text_safe(row, "user")
+                let kind = json_get_text_safe(row, "kind")
+                let ms = json_get_int_safe(row, "ms")
+                let ts = json_get_text_safe(row, "ts")
+                if is_ok(user) and is_ok(kind) and is_ok(ms) and is_ok(ts):
+                    let key = unwrap(user) + "/" + unwrap(kind)
+                    var total = 0
+                    if map_has(totals, key):
+                        set total = totals[key]
+                    set totals = map_set(totals, key, total + unwrap(ms))
+                    let when = parse_timestamp(unwrap(ts))
+                    if is_ok(when):
+                        let day = format_utc_date(unwrap(when))
+                        let stamp = format_utc(unwrap(when))
+                        var per: Map[Text, Int] = {}
+                        if map_has(months, unwrap(kind)):
+                            set per = months[unwrap(kind)]
+                        var seen = 0
+                        if map_has(per, day):
+                            set seen = per[day]
+                        set per = map_set(per, day, seen + 1)
+                        set months = map_set(months, unwrap(kind), per)
+                        if not map_has(firsts, key):
+                            var first = json_object()
+                            set first = json_set(first, "at", json_text(stamp))
+                            set first = json_set(first, "ms", json_int(unwrap(ms)))
+                            set firsts = map_set(firsts, key, first)
+                        else:
+                            let old = firsts[key]
+                            let best = json_get_int_safe(old, "ms")
+                            if unwrap(ms) > unwrap(best):
+                                set firsts = map_set(firsts, key, json_set(old, "ms", json_int(unwrap(ms))))
+    var out = json_array()
+    for key in totals:
+        var o = json_object()
+        set o = json_set(o, "key", json_text(key))
+        set o = json_set(o, "total", json_int(totals[key]))
+        set out = json_push(out, o)
+    print(json_stringify(json_int(bad)))
+    print(json_stringify(json_int(len(json_stringify(out)))))
+    return 0
