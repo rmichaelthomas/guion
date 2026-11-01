@@ -147,3 +147,100 @@ exact atomic fuel charging as they do now.
 Changing the language, the artifact format, quota semantics, or the
 self-hosted compiler; benchmark-specific special cases; re-enabling the
 per-op native bridge by default.
+
+## Milestone 2 results (2026-11-01)
+
+### Stage 2.0, trace analysis: go
+A temporary probe counted every executed `main` instruction in the 200k-row
+frozen run, including the ones the VM's existing fused `Load` handler skips
+(44.1M dynamic instructions, 220 per row, output hash `a1a9b95d`).
+- Removable by operand folding, store-destination fusion, jump threading and
+  `Not;JumpIfFalse` fusion: 54.7% of dynamic instructions.
+- The VM already fuses `Load` with a following `IsOk`/`IsSome`/`Unwrap`/
+  `GetField`/`Index`, which covers 9.5M of the 16.0M removable `Load`/`Const`
+  executions. Excluding those, the genuinely removable share is about 40% of
+  real dispatches, still above the 35% bar. The cheap instructions (`Const`,
+  `Store`, `Not`, `Jump`) are the ones left.
+
+### Stage A, as built: fused entries instead of a register IR
+A register form needed a second interpreter or new `Op` variants across the
+model, verifier, native backend and wasm crates. Fused entries reach the same
+instructions with far less surface:
+- A load-time table (`build_fused_tables`, `VmHost::fused_tables`) indexed by
+  original `ip`, so `ip`, spans, jump targets and frame state keep their
+  meaning and the artifact format is unchanged.
+- Four entries: `Load;IsOk|IsSome;[Not];JumpIfFalse`, `Not;JumpIfFalse`,
+  `Load;Unwrap;Store`, `Const;Store`. Each charges exactly the fuel and
+  allocation the plain sequence charges and falls back to the plain
+  instruction when fuel is short or a precondition fails, so `R_STEP_LIMIT`
+  fires at the same instruction. Disabled when profiling and under exact
+  atomic fuel (parallel workers). No entry spans a jump target.
+- `fused_entries_match_plain_execution_at_every_instruction_limit` sweeps the
+  instruction limit from 0 to 39 and requires the same result, error code,
+  trace and remaining fuel with and without fusion.
+- Cancellation is checked at the head of a fused entry rather than before each
+  covered instruction (the sign-off item above); entries contain no loops.
+
+Measured (alternating A/B, 5 rounds, median of 3 per round; the baseline's own
+spread across runs is about 1.5%):
+
+| Workload | Before | After | Delta |
+| --- | ---: | ---: | ---: |
+| JSONL 200k | 924 ms | 905 ms | -2.1% |
+| CSV ledger | 433 ms | 433 ms | 0.0% |
+| Text | 4723 ms | 4735 ms | +0.3% |
+| Int compute | 2505 ms | 2531 ms | +1.0% |
+
+Output hashes are unchanged (`a1a9b95d` JSONL, `9eafdec9` CSV). The fusions
+removed 14.9% of dynamic instructions (6.57M of 44.1M) for about 2% of time.
+A first version with the handler inline in the dispatch function slowed the
+int workload by 2.2%; moving it into an out-of-line function removed that.
+
+**Verdict: Stage A missed its 6% kill line (2.1%).** The code stays because it
+is exact, tested and not slower anywhere beyond noise, but the stage is closed.
+The remaining sequences are scattered: the largest un-fused 2-grams are
+`Store;Load` (3.6M, already measured as noise), `Load;Const` (3.1M),
+`Call;Store` (2.0M), each under 8% of dispatches and worth about 0.5% apiece.
+
+### Stage B, typed slots: not built
+Gated on adding at least 5% over Stage A, which it cannot. Small `BigInt`
+values are already stored inline as `i64` (two words), so unboxing saves tag
+checks only. The arithmetic and comparison ops are about 8% of dynamic
+instructions, so a one-third cost cut is about 1%.
+
+### Stage C, moves by liveness: not built
+A liveness pass over `main` shows 4.0M of 12.1M dynamic `Load`s (33%) are last
+uses of their slot. Two things cap the value:
+- `MapSet` and `MapRecordSet` already peek at the following `Store(slot)` and
+  take the value out of the local, so the `Load m; MapSet; Store m` pattern
+  already mutates in place.
+- A generic move would break those handlers (they expect the slot to still
+  hold the map), and mutation charges depend on `Arc::strong_count`, so a
+  move would change quota charges.
+- All atomic operations together are 3.0% of the profile, and moves can only
+  touch a share of them. Ceiling about 1–2%, under the 3% kill line.
+
+### Stage D, native consumption: not attempted
+The condition was that A–C leave the VM above Python. They do, but native is
+about 47% slower than the VM on the frozen program and the native profile is
+flat, so a typed register IR is not the blocker native needs fixed first.
+
+### Paired gate after Stage A (container, PGO CPython 3.14.7, 9 trials)
+Guion/Python ratio, median / upper 95%, build `d1ad443`:
+
+| Rows | Program | Lane | Ratio |
+| ---: | --- | --- | ---: |
+| 20k | frozen | source | 1.220 / 1.274 |
+| 20k | frozen | artifact | 1.087 / 1.137 |
+| 20k | fused | source | 1.171 / 1.215 |
+| 20k | fused | artifact | 1.035 / 1.080 |
+| 200k | frozen | source | 1.383 / 1.391 |
+| 200k | frozen | artifact | 1.357 / 1.383 |
+| 200k | fused | source | 1.250 / 1.287 |
+| 200k | fused | artifact | 1.260 / 1.275 |
+
+Against the pre-Stage-A paired run (`jsonl-forwarder-inlined-paired-9.txt`) the
+200k fused-source lane improved (1.325 to 1.250) and the others are within the
+run-to-run spread (the 20k fused-artifact median moved 0.995 to 1.035 on a
+0.106 s Python baseline). **The gate is not met in any of the four lanes at
+200k.** The best upper 95% bound is 1.275.
