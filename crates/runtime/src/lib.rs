@@ -278,6 +278,8 @@ struct NativeListArena {
     int_storage: Vec<Vec<i64>>,
     handle_lists: AddressedBoxes<NativeHandleList>,
     handle_storage: Vec<Vec<i64>>,
+    // Native code holds raw pointers to each descriptor, so each needs a stable address.
+    #[allow(clippy::vec_box)]
     native_records: Vec<Box<NativeRecord>>,
     native_record_types: Vec<usize>,
     native_record_fields: Vec<Box<[i64]>>,
@@ -1429,9 +1431,7 @@ impl NativeListArena {
                     else {
                         return None;
                     };
-                    let Some(fields) = object.as_object() else {
-                        return None;
-                    };
+                    let fields = object.as_object()?;
                     let copied_bytes = if unique_target {
                         shared_json_set_local_allocation(object, &key)
                     } else {
@@ -1532,9 +1532,7 @@ impl NativeListArena {
                     else {
                         return None;
                     };
-                    let Some(items) = array.as_array() else {
-                        return None;
-                    };
+                    let items = array.as_array()?;
                     let copied_bytes = if unique_target {
                         shared_json_push_local_allocation(array)
                     } else {

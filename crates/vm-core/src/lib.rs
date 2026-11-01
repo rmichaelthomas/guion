@@ -331,7 +331,7 @@ fn build_fused_table(function: &guion_model::Function) -> Vec<FusedEntry> {
     let op_at = |ip: usize| code.get(ip).map(|instruction| &instruction.op);
     let mut table = vec![FusedEntry::NONE; code.len()];
     let mut any = false;
-    for ip in 0..code.len() {
+    for (ip, table_entry) in table.iter_mut().enumerate() {
         let entry = match op_at(ip) {
             Some(Op::Load(slot)) => match (op_at(ip + 1), op_at(ip + 2), op_at(ip + 3)) {
                 (Some(op @ (Op::IsOk | Op::IsSome)), Some(Op::JumpIfFalse(target)), _) => Some((
@@ -402,7 +402,7 @@ fn build_fused_table(function: &guion_model::Function) -> Vec<FusedEntry> {
         if let Some((entry, length)) = entry {
             // A jump into the middle of a sequence must still see the plain instructions.
             if (1..length).all(|offset| !is_target.get(ip + offset).copied().unwrap_or(false)) {
-                table[ip] = entry;
+                *table_entry = entry;
                 any = true;
             }
         }

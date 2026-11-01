@@ -5627,49 +5627,49 @@ fn loop_safepoint_functions(artifact: &Artifact) -> Vec<bool> {
 }
 
 fn instruction_may_allocate_native_arena_value(op: &Op) -> bool {
-    match op {
+    matches!(
+        op,
         Op::Args
-        | Op::ArgsFrom
-        | Op::FileOpenLines
-        | Op::FileNextLine
-        | Op::JsonParse
-        | Op::JsonStringify
-        | Op::JsonNull
-        | Op::JsonBool
-        | Op::JsonInt
-        | Op::JsonFloat
-        | Op::JsonText
-        | Op::JsonArray
-        | Op::JsonObject
-        | Op::JsonPush
-        | Op::JsonSet
-        | Op::JsonGet
-        | Op::JsonIndex
-        | Op::JsonAsFloat
-        | Op::JsonAsText
-        | Op::JsonAsInt
-        | Op::JsonAsBool
-        | Op::JsonIntColumn
-        | Op::JsonTextCategories
-        | Op::JsonAsIntList
-        | Op::JsonProjectColumns
-        | Op::JsonTextCategoriesValues
-        | Op::JsonPushLocal(_)
-        | Op::JsonSetLocal(_)
-        | Op::JsonErrorMessage
-        | Op::JsonErrorLine
-        | Op::JsonErrorColumn
-        | Op::JsonErrorCode
-        | Op::TextChars
-        | Op::TextCollapseWhitespace
-        | Op::TextSlice
-        | Op::TimeParseTimestamp
-        | Op::TimeFormatUtc
-        | Op::JsonTryGet
-        | Op::JsonTryText
-        | Op::JsonTryInt => true,
-        _ => false,
-    }
+            | Op::ArgsFrom
+            | Op::FileOpenLines
+            | Op::FileNextLine
+            | Op::JsonParse
+            | Op::JsonStringify
+            | Op::JsonNull
+            | Op::JsonBool
+            | Op::JsonInt
+            | Op::JsonFloat
+            | Op::JsonText
+            | Op::JsonArray
+            | Op::JsonObject
+            | Op::JsonPush
+            | Op::JsonSet
+            | Op::JsonGet
+            | Op::JsonIndex
+            | Op::JsonAsFloat
+            | Op::JsonAsText
+            | Op::JsonAsInt
+            | Op::JsonAsBool
+            | Op::JsonIntColumn
+            | Op::JsonTextCategories
+            | Op::JsonAsIntList
+            | Op::JsonProjectColumns
+            | Op::JsonTextCategoriesValues
+            | Op::JsonPushLocal(_)
+            | Op::JsonSetLocal(_)
+            | Op::JsonErrorMessage
+            | Op::JsonErrorLine
+            | Op::JsonErrorColumn
+            | Op::JsonErrorCode
+            | Op::TextChars
+            | Op::TextCollapseWhitespace
+            | Op::TextSlice
+            | Op::TimeParseTimestamp
+            | Op::TimeFormatUtc
+            | Op::JsonTryGet
+            | Op::JsonTryText
+            | Op::JsonTryInt
+    )
 }
 
 fn native_eligibility_report(
