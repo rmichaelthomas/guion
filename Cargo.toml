@@ -28,6 +28,10 @@ reqwest = { version = "=0.12.28", default-features = false, features = ["rustls-
 tokio = { version = "=1.53.2", features = ["rt-multi-thread", "time", "net", "macros"] }
 
 
+# Self-hosting tests run the compiler in the VM; unoptimized, they exceed the CI time limit.
+[profile.dev]
+opt-level = 1
+
 [profile.release]
 lto = "fat"
 codegen-units = 1
