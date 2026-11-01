@@ -263,3 +263,26 @@ candidate. Alternating A/B, 5 rounds, medians in ms, against `d1ad443`:
 Closing the 200k gap needs roughly 20% (ratio 1.25 to below 1.0). The entire
 charging machinery is worth about 4%, so a typed value model that only removes
 charge-and-clone cannot reach the gate on its own.
+
+## Stacked ceiling probe: no per-instruction head and no charging
+
+Probe (reverted, never committed): the per-instruction cancel and fuel checks
+removed, `Budget::allocate` and `refund_allocation` made no-ops, and
+`cloned_value_allocation` and `new_value_allocation` returning 0. This breaks
+fuel, cancellation and quota semantics; it bounds what any design that removes
+all of that bookkeeping could recover. Alternating A/B, 5 rounds, medians in
+ms, against `d1ad443`:
+
+| Workload | HEAD | Stacked probe | Delta |
+| --- | ---: | ---: | ---: |
+| int compute | 2597 | 2054 | -20.9% |
+| text | 4858 | 3885 | -20.0% |
+| CSV | 436 | 395 | -9.4% |
+| JSONL | 935 | 837 | -10.5% |
+
+Verdict: the bookkeeping is worth 20% on compute-bound code but only about 10%
+on JSONL and CSV. With every guard removed, the 200k fused JSONL ratio would
+move from about 1.25 to about 1.12, still above 1.0. The JSONL gap is not
+closable by the value model or the guards. The remainder is in the work itself
+(JSON parse and build, records, time formatting, I/O), which the VM profile
+showed as flat.
