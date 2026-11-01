@@ -640,7 +640,7 @@ fn self_host_compiler_lowers_exhaustive_option_match() {
         fs::copy(self_host.join(filename), project.0.join(filename))
             .expect("copy self-host compiler source");
     }
-    let source = "fn choose(value: Option[Int]) -> Int:\n    match value:\n        Some(number):\n            return number\n        None:\n            return 0\n\nfn main() -> Int:\n    return choose(Some(42))\n";
+    let source = "fn choose(value: Option[Int]) -> Int:\n    match value:\n        Some(number):\n            return number\n        None:\n            return 0\n\nfn forty_two() -> Option[Int]:\n    return Some(42)\n\nfn main() -> Int:\n    return choose(forty_two())\n";
     compile("match.gu", source).expect("bootstrap compiler accepts exhaustive Option match");
     project.write("match.gu", source);
 
@@ -1772,7 +1772,7 @@ fn accepts_unicode_scalar_escapes_in_text_literals() {
 
 #[test]
 fn option_and_result_constructors_use_nested_expected_types() {
-    let source = "fn main() -> Int:\n    let first: Option[Int] = Some(1)\n    let second: Option[Int] = None\n    let ok: Result[List[Int], Text] = Ok([])\n    let err: Result[List[Int], Text] = Err(\"unavailable\")\n    return 0\n";
+    let source = "fn first() -> Option[Int]:\n    return Some(1)\n\nfn second() -> Option[Int]:\n    return None\n\nfn ok() -> Result[List[Int], Text]:\n    return Ok([])\n\nfn err() -> Result[List[Int], Text]:\n    return Err(\"unavailable\")\n\nfn main() -> Int:\n    return 0\n";
     compile("constructors.gu", source)
         .expect("constructors and empty collections inherit nested expected types");
 }

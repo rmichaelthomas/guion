@@ -5502,6 +5502,18 @@ fn option_unwrap_reports_absence_and_none_needs_an_option_context() {
     assert_eq!(invalid.code, "E_OPTION_CONSTRUCTOR_CONTEXT");
 }
 
+#[test]
+fn option_and_result_constructors_outside_a_matching_function_are_source_diagnostics() {
+    let option = "record Box:\n    value: Option[Int]\n\nfn main() -> Int:\n    let boxed = Box(Some(1))\n    return 0\n";
+    let invalid = compile("option-nested.gu", option).unwrap_err();
+    assert_eq!(invalid.code, "E_OPTION_CONSTRUCTOR_CONTEXT");
+    assert_eq!(invalid.span.line, 5);
+
+    let result = "fn wrap() -> Option[Result[Int, Text]]:\n    return Some(Ok(1))\n\nfn main() -> Int:\n    return 0\n";
+    let invalid = compile("result-nested.gu", result).unwrap_err();
+    assert_eq!(invalid.code, "E_RESULT_CONSTRUCTOR_CONTEXT");
+}
+
 /// The native runtime and the portable core run the same instruction loop, so output, return
 /// value, and the exact instruction count agree when the native runtime uses its bytecode VM.
 #[test]
