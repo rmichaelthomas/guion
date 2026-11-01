@@ -194,3 +194,7 @@ The gate is still not met. Compared with the previous paired run, the frozen art
 ## Instruction-pair fusion (negative result)
 
 Fused `Not`->`JumpIfFalse`, plain `Store`->`Load` and `Load`->`Const` inside the VM loop with exact fuel and quota accounting, plus a scalar fast path for `Const` limit checks (the existing `Load` fast paths already fuse `Load` with `IsOk`/`IsSome`/`Unwrap`/`GetField`/list `Index`, so those pairs in the transition profile were already single dispatches). Output hashes unchanged. JSONL 200k: 1.018 s to 0.998 s; second benchmark pair 0.913 s to 0.933 s; CSV 434 ms to 419 ms; integer loop 2467 ms to 2489 ms. All within run-to-run noise; reverted.
+
+## Upper bound on the quota and limit plumbing (throwaway build, not committed)
+
+To bound what a value-representation redesign could recover, a probe build turned `charge_allocation`, `Budget::allocate` and `value_limit_error` into no-ops (all allocation accounting and value-limit checks removed; output hash a1a9b95d unchanged). JSONL 200k: 1.02 s to about 0.92 s (median of the three runs after the first), roughly 10%. That is the ceiling for removing every quota charge and limit check, which a real design must keep in some form (compile-time-known sizes, batched charges), so the realistic recovery is well under 10%. The gap to Python at 200k is about 22%; quota and limit plumbing cannot close it, and the rest of the value cost (clone and drop with atomic refcounts, allocation, dispatch) is spread across the same flat profile.
