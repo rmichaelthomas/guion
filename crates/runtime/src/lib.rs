@@ -2160,7 +2160,7 @@ impl NativeListArena {
                     VmHost::host_op(
                         &mut *runtime.instance,
                         HostOpContext {
-                            instruction: instruction.clone(),
+                            instruction,
                             function,
                             stack: &mut stack,
                             locals: &mut locals,
@@ -5201,7 +5201,7 @@ impl VmHost for Instance {
                 let (owner, id) =
                     runtime_service_resource(&pop!(), "TomlDocument", instruction.span)?;
                 let handle = stdlib_services::TomlHandle::from_parts(owner, id);
-                let result = match (instruction.op, replacement) {
+                let result = match (&instruction.op, replacement) {
                     (Op::TomlPutText, Value::Text(value)) => {
                         self.toml_documents.put_text(handle, &path, &value)
                     }
@@ -5791,7 +5791,7 @@ impl VmHost for Instance {
                     self.call_python(target, &call_args, &[], budget.as_ref(), instruction.span)?;
                 push_stack!(result);
             }
-            Op::PythonCallKw(target, positional_count, keyword_names) => {
+            Op::PythonCallKw(target, positional_count, ref keyword_names) => {
                 let mut supplied = Vec::with_capacity(positional_count + keyword_names.len());
                 for _ in 0..positional_count + keyword_names.len() {
                     supplied.push(pop!());
@@ -5799,7 +5799,8 @@ impl VmHost for Instance {
                 supplied.reverse();
                 let keyword_values = supplied.split_off(positional_count);
                 let call_kwargs = keyword_names
-                    .into_iter()
+                    .iter()
+                    .cloned()
                     .zip(keyword_values)
                     .collect::<Vec<_>>();
                 let result = self.call_python(
@@ -7024,7 +7025,7 @@ impl VmHost for Instance {
                     ));
                 }
             },
-            other => {
+            ref other => {
                 return Err(RuntimeError::new(
                     "R_HOST_UNSUPPORTED",
                     format!("instruction {other:?} is not implemented by the runtime host"),

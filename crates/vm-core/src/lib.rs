@@ -69,7 +69,7 @@ pub enum OutputStream {
 
 /// Mutable view of the executing frame handed to [`VmHost::host_op`].
 pub struct HostOpContext<'a> {
-    pub instruction: guion_model::Instruction,
+    pub instruction: &'a guion_model::Instruction,
     pub function: &'a guion_model::Function,
     pub stack: &'a mut Vec<Value>,
     pub locals: &'a mut Vec<Value>,
@@ -190,23 +190,28 @@ fn run_frames_with_stack_profiled<const PROFILED: bool, H: VmHost>(
         .iter()
         .map(fast_host_forwarder)
         .collect::<Vec<_>>();
+    let artifact = Arc::clone(host.artifact());
+    let fused_tables = if PROFILED { None } else { host.fused_tables() };
+    let shared = VmRunShared {
+        artifact: &artifact,
+        limits: host.limits(),
+        fused: fused_tables.as_ref().map(|tables| tables.as_slice()),
+        fast_host_forwarders: &fast_host_forwarders,
+    };
+    let mut pool = VmVecPool::default();
     loop {
         let frame = frames.pop().expect("guest frame stack is non-empty");
         let current_call_site = frame.call_site;
         match execute_vm_frame_with_forwarders::<PROFILED, _>(
-            host,
-            frame,
-            budget.clone(),
-            &fast_host_forwarders,
+            host, frame, &budget, &shared, &mut pool,
         ) {
             Err(mut error) => {
                 append_guest_call_trace(&mut error, current_call_site, &frames);
                 return Err(error);
             }
             Ok(VmStep::Return(value)) => {
-                if let Some(mut parent) = frames.pop() {
+                if let Some(parent) = frames.last_mut() {
                     parent.stack.push(value);
-                    frames.push(parent);
                 } else {
                     return Ok(value);
                 }
@@ -257,10 +262,24 @@ pub fn execute_vm_frame<H: VmHost>(
         .iter()
         .map(fast_host_forwarder)
         .collect::<Vec<_>>();
-    if budget.runtime_profile.is_some() {
-        execute_vm_frame_with_forwarders::<true, _>(host, frame, budget, &fast_host_forwarders)
+    let artifact = Arc::clone(host.artifact());
+    let fused_tables = host.fused_tables();
+    let profiled = budget.runtime_profile.is_some();
+    let shared = VmRunShared {
+        artifact: &artifact,
+        limits: host.limits(),
+        fused: if profiled {
+            None
+        } else {
+            fused_tables.as_ref().map(|tables| tables.as_slice())
+        },
+        fast_host_forwarders: &fast_host_forwarders,
+    };
+    let mut pool = VmVecPool::default();
+    if profiled {
+        execute_vm_frame_with_forwarders::<true, _>(host, frame, &budget, &shared, &mut pool)
     } else {
-        execute_vm_frame_with_forwarders::<false, _>(host, frame, budget, &fast_host_forwarders)
+        execute_vm_frame_with_forwarders::<false, _>(host, frame, &budget, &shared, &mut pool)
     }
 }
 
@@ -571,11 +590,54 @@ fn text_chars_concat_fast_path(
     })
 }
 
+/// Per-run state that every frame entry reads, resolved once so calls and returns do
+/// not touch reference counts or rebuild it.
+struct VmRunShared<'r> {
+    artifact: &'r Arc<Artifact>,
+    limits: VmLimits,
+    fused: Option<&'r [Vec<FusedEntry>]>,
+    fast_host_forwarders: &'r [Option<FastHostForwarder>],
+}
+
+/// Emptied frame vectors kept for the next call, so a call does not allocate.
+#[derive(Default)]
+struct VmVecPool {
+    free: Vec<Vec<Value>>,
+}
+
+const VM_VEC_POOL_ENTRIES: usize = 64;
+const VM_VEC_POOL_MAX_CAPACITY: usize = 256;
+
+impl VmVecPool {
+    #[inline]
+    fn take(&mut self, capacity: usize) -> Vec<Value> {
+        match self.free.pop() {
+            Some(mut values) => {
+                values.reserve(capacity);
+                values
+            }
+            None => Vec::with_capacity(capacity),
+        }
+    }
+
+    #[inline]
+    fn give(&mut self, mut values: Vec<Value>) {
+        if self.free.len() < VM_VEC_POOL_ENTRIES
+            && values.capacity() > 0
+            && values.capacity() <= VM_VEC_POOL_MAX_CAPACITY
+        {
+            values.clear();
+            self.free.push(values);
+        }
+    }
+}
+
 fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
     host: &mut H,
     frame: VmFrame,
-    budget: Arc<Budget>,
-    fast_host_forwarders: &[Option<FastHostForwarder>],
+    budget: &Arc<Budget>,
+    shared: &VmRunShared<'_>,
+    pool: &mut VmVecPool,
 ) -> Result<VmStep, RuntimeError> {
     let VmFrame {
         function_index,
@@ -585,9 +647,13 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
         mut stack,
         mut ip,
     } = frame;
-    let artifact = Arc::clone(host.artifact());
-    let limits = host.limits();
+    let artifact = shared.artifact;
+    let limits = &shared.limits;
+    let fast_host_forwarders = shared.fast_host_forwarders;
     let f = &artifact.functions[function_index];
+    if stack.capacity() == 0 {
+        stack = pool.take(0);
+    }
     let profile_sample = if PROFILED {
         budget
             .runtime_profile
@@ -599,9 +665,8 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
     };
     let mut instruction_fuel = InstructionFuel::new(&budget);
     let mut previous_profiled_instruction: Option<(usize, &'static str)> = None;
-    let fused_tables = if PROFILED { None } else { host.fused_tables() };
-    let fused: &[FusedEntry] = fused_tables
-        .as_ref()
+    let fused: &[FusedEntry] = shared
+        .fused
         .and_then(|tables| tables.get(function_index))
         .map_or(&[], |table| table.as_slice());
     loop {
@@ -2979,7 +3044,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                     .functions
                     .get(*target)
                     .map_or(*argc, |callee| callee.local_count);
-                let mut call_args = Vec::with_capacity(local_count.max(*argc));
+                let mut call_args = pool.take(local_count.max(*argc));
                 for _ in 0..*argc {
                     call_args.push(pop!());
                 }
@@ -3149,6 +3214,8 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                 if let Some(error) = value_limit_error(&result, &limits, instruction.span) {
                     return Err(error);
                 }
+                pool.give(locals);
+                pool.give(stack);
                 return Ok(VmStep::Return(result));
             }
             _ => {
@@ -3159,7 +3226,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                     None
                 };
                 let host_result = host.host_op(HostOpContext {
-                    instruction: instruction.clone(),
+                    instruction,
                     function: f,
                     stack: &mut stack,
                     locals: &mut locals,
@@ -3367,7 +3434,7 @@ fn execute_fast_host_forwarder<const PROFILED: bool, H: VmHost>(
                         None
                     };
                     let host_result = host.host_op(HostOpContext {
-                        instruction: instruction.clone(),
+                        instruction,
                         function,
                         stack,
                         locals,
