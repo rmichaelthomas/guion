@@ -155,7 +155,7 @@ mod native_inline_arena_tests {
         let budget = Budget::new(1000, 10000, CancellationToken::new(), None);
         let mut arena = NativeListArena::new(&budget, 10000, 10000, 0, None);
         let payload = Value::Record(
-            "EventLine".to_owned(),
+            "EventLine".into(),
             std::sync::Arc::new(vec![Value::Text("record payload".into())]),
         );
         let payload_handle = arena.store_value(payload.clone()).unwrap();
@@ -804,7 +804,10 @@ impl NativeListArena {
             };
             fields.push(value);
         }
-        Some(Value::Record(definition.name.clone(), Arc::new(fields)))
+        Some(Value::Record(
+            definition.name.as_str().into(),
+            Arc::new(fields),
+        ))
     }
 
     fn tagged_value(&self, handle: i64) -> Option<&NativeTaggedValue> {
@@ -926,7 +929,7 @@ impl NativeListArena {
                         .records
                         .get(record_index)?,
                 ) {
-                    self.store_native_record_value(record_index, name, fields)
+                    self.store_native_record_value(record_index, name.into(), fields)
                 } else {
                     self.store_value(Value::Record(name, fields))
                 }
@@ -1945,10 +1948,8 @@ impl NativeListArena {
                     Ok(handle) => {
                         instance.finish_effect(effect, EffectOutcome::Returned);
                         let (owner, id) = handle.parts();
-                        Value::ResultOk(Box::new(Value::NativeResource(NativeResourceValue::new(
-                            "FileReader",
-                            owner,
-                            id,
+                        Value::ResultOk(Box::new(Value::NativeResource(Box::new(
+                            NativeResourceValue::new("FileReader", owner, id),
                         ))))
                     }
                     Err(error) => {
@@ -2143,7 +2144,7 @@ impl NativeListArena {
                 if !self.charge_or_error(charge_bytes, instruction.span) {
                     return None;
                 }
-                Value::Record(definition.name.clone(), Arc::new(values))
+                Value::Record(definition.name.as_str().into(), Arc::new(values))
             }
             _ => {
                 let mut stack = self.decode_bridge_arguments(arguments, argument_tags)?;
@@ -2301,21 +2302,21 @@ impl NativeListArena {
                     }
                     Err(JsonDecodeError::Parse(error)) => (
                         native_backend::NATIVE_TAGGED_RESULT_ERR,
-                        Value::JsonError(JsonErrorValue {
+                        Value::JsonError(Box::new(JsonErrorValue {
                             code: "R_JSON_PARSE".into(),
                             message: error.to_string(),
                             line: error.line(),
                             column: error.column(),
-                        }),
+                        })),
                     ),
                     Err(JsonDecodeError::DuplicateKey { key, line, column }) => (
                         native_backend::NATIVE_TAGGED_RESULT_ERR,
-                        Value::JsonError(JsonErrorValue {
+                        Value::JsonError(Box::new(JsonErrorValue {
                             code: "R_JSON_DUPLICATE_KEY".into(),
                             message: format!("JSON object contains duplicate key `{key}`"),
                             line,
                             column,
-                        }),
+                        })),
                     ),
                 }
             }
@@ -2339,7 +2340,7 @@ impl NativeListArena {
                     Ok(value) => (native_backend::NATIVE_TAGGED_RESULT_OK, Value::Json(value)),
                     Err(error) => (
                         native_backend::NATIVE_TAGGED_RESULT_ERR,
-                        Value::JsonError(error),
+                        Value::JsonError(Box::new(error)),
                     ),
                 }
             }
@@ -2359,7 +2360,7 @@ impl NativeListArena {
                     ),
                     Err(error) => (
                         native_backend::NATIVE_TAGGED_RESULT_ERR,
-                        Value::JsonError(error),
+                        Value::JsonError(Box::new(error)),
                     ),
                 }
             }
@@ -2379,7 +2380,7 @@ impl NativeListArena {
                     Ok(_) => return None,
                     Err(error) => (
                         native_backend::NATIVE_TAGGED_RESULT_ERR,
-                        Value::JsonError(error),
+                        Value::JsonError(Box::new(error)),
                     ),
                 }
             }
@@ -3054,7 +3055,9 @@ fn http_response_text_value(
             "HTTP response exceeds the configured text byte limit",
         );
         error.trace.push(span);
-        return Ok(Value::ResultErr(Box::new(Value::HttpError(error))));
+        return Ok(Value::ResultErr(Box::new(Value::HttpError(Box::new(
+            error,
+        )))));
     }
     match std::str::from_utf8(body.as_ref()) {
         Ok(text) => {
@@ -3064,7 +3067,9 @@ fn http_response_text_value(
         Err(_) => {
             let mut error = http_error("R_HTTP_ENCODING", "HTTP response body is not valid UTF-8");
             error.trace.push(span);
-            Ok(Value::ResultErr(Box::new(Value::HttpError(error))))
+            Ok(Value::ResultErr(Box::new(Value::HttpError(Box::new(
+                error,
+            )))))
         }
     }
 }
@@ -3100,7 +3105,7 @@ fn std_error_record_value(
     charge_allocation(budget, record_bytes, span)?;
     budget.record_record_charge(record_bytes);
     Ok(Value::Record(
-        record.name.clone(),
+        record.name.as_str().into(),
         Arc::new(vec![
             Value::Text(Arc::from(code)),
             Value::Text(Arc::from(message)),
@@ -3500,7 +3505,9 @@ impl VmHost for Instance {
                         push_stack!(Value::ResultOk(Box::new(Value::from_list_items(results))))
                     }
                     Ok(Err(error)) => {
-                        push_stack!(Value::ResultErr(Box::new(Value::TaskError(error))))
+                        push_stack!(Value::ResultErr(Box::new(Value::TaskError(Box::new(
+                            error
+                        )))))
                     }
                     Err(mut error) => {
                         error.trace.push(instruction.span);
@@ -3900,7 +3907,9 @@ impl VmHost for Instance {
                         }
                         self.finish_effect(effect, EffectOutcome::ReturnedError);
                         error.trace.push(instruction.span);
-                        push_stack!(Value::ResultErr(Box::new(Value::HttpError(error))));
+                        push_stack!(Value::ResultErr(Box::new(Value::HttpError(Box::new(
+                            error
+                        )))));
                     }
                 }
             }
@@ -3925,7 +3934,9 @@ impl VmHost for Instance {
                                     "per-request timeout_ms must be a positive 64-bit integer",
                                 );
                                 error.trace.push(instruction.span);
-                                push_stack!(Value::ResultErr(Box::new(Value::HttpError(error))));
+                                push_stack!(Value::ResultErr(Box::new(Value::HttpError(
+                                    Box::new(error)
+                                ))));
                                 return Ok(());
                             }
                         },
@@ -4053,7 +4064,7 @@ impl VmHost for Instance {
                                     self.finish_effect(effect, EffectOutcome::ReturnedError);
                                     error.trace.push(instruction.span);
                                     push_stack!(Value::ResultErr(Box::new(Value::HttpError(
-                                        error
+                                        Box::new(error)
                                     ))));
                                 }
                             }
@@ -4066,7 +4077,9 @@ impl VmHost for Instance {
                         }
                         self.finish_effect(effect, EffectOutcome::ReturnedError);
                         error.trace.push(instruction.span);
-                        push_stack!(Value::ResultErr(Box::new(Value::HttpError(error))));
+                        push_stack!(Value::ResultErr(Box::new(Value::HttpError(Box::new(
+                            error
+                        )))));
                     }
                 }
             }
@@ -4118,9 +4131,9 @@ impl VmHost for Instance {
                     Ok(handle) => {
                         self.finish_effect(effect, EffectOutcome::Returned);
                         let (owner, id) = handle.parts();
-                        push_stack!(Value::ResultOk(Box::new(Value::NativeResource(
+                        push_stack!(Value::ResultOk(Box::new(Value::NativeResource(Box::new(
                             NativeResourceValue::new("FileReader", owner, id),
-                        ))));
+                        )))));
                     }
                     Err(error) => {
                         self.finish_effect(effect, EffectOutcome::ReturnedError);
@@ -5014,7 +5027,9 @@ impl VmHost for Instance {
                     match host_file_path(&self.policy, &path, true, instruction.span) {
                         Ok(path) => self.databases.open(path).map(|handle| {
                             let (owner, id) = handle.parts();
-                            Value::NativeResource(NativeResourceValue::new("Db", owner, id))
+                            Value::NativeResource(Box::new(NativeResourceValue::new(
+                                "Db", owner, id,
+                            )))
                         }),
                         Err(error) => Err(stdlib_services::ServiceError::new(
                             "E_SQLITE_PATH",
@@ -5034,11 +5049,11 @@ impl VmHost for Instance {
                         let cancellation = budget.cancellation.cancelled.clone();
                         self.databases.set_cancelled(handle, cancellation)?;
                         let (owner, id) = handle.parts();
-                        Ok(Value::NativeResource(NativeResourceValue::new(
+                        Ok(Value::NativeResource(Box::new(NativeResourceValue::new(
                             "Transaction",
                             owner,
                             id,
-                        )))
+                        ))))
                     });
                 push_stack!(service_result_value(result));
             }
@@ -5145,7 +5160,11 @@ impl VmHost for Instance {
                 };
                 let result = self.toml_documents.parse(&source).map(|handle| {
                     let (owner, id) = handle.parts();
-                    Value::NativeResource(NativeResourceValue::new("TomlDocument", owner, id))
+                    Value::NativeResource(Box::new(NativeResourceValue::new(
+                        "TomlDocument",
+                        owner,
+                        id,
+                    )))
                 });
                 push_stack!(service_result_value(result));
             }
@@ -6030,25 +6049,25 @@ impl VmHost for Instance {
                 let value = match parsed {
                     Ok(value) => value,
                     Err(JsonDecodeError::Parse(error)) => {
-                        push_stack!(Value::ResultErr(Box::new(Value::JsonError(
+                        push_stack!(Value::ResultErr(Box::new(Value::JsonError(Box::new(
                             JsonErrorValue {
                                 code: "R_JSON_PARSE".into(),
                                 message: error.to_string(),
                                 line: error.line(),
                                 column: error.column(),
                             },
-                        ))));
+                        )))));
                         return Ok(());
                     }
                     Err(JsonDecodeError::DuplicateKey { key, line, column }) => {
-                        push_stack!(Value::ResultErr(Box::new(Value::JsonError(
+                        push_stack!(Value::ResultErr(Box::new(Value::JsonError(Box::new(
                             JsonErrorValue {
                                 code: "R_JSON_DUPLICATE_KEY".into(),
                                 message: format!("JSON object contains duplicate key `{key}`"),
                                 line,
                                 column,
                             },
-                        ))));
+                        )))));
                         return Ok(());
                     }
                 };
@@ -6357,7 +6376,9 @@ impl VmHost for Instance {
                         push_stack!(Value::ResultOk(Box::new(value)));
                     }
                     Err(error) => {
-                        push_stack!(Value::ResultErr(Box::new(Value::JsonError(error))))
+                        push_stack!(Value::ResultErr(Box::new(Value::JsonError(Box::new(
+                            error
+                        )))))
                     }
                 }
             }
@@ -6792,7 +6813,9 @@ impl VmHost for Instance {
                         instruction.span,
                     )?))),
                     Err(error) => {
-                        push_stack!(Value::ResultErr(Box::new(Value::JsonError(error,))))
+                        push_stack!(Value::ResultErr(Box::new(Value::JsonError(Box::new(
+                            error,
+                        )))))
                     }
                 }
             }
@@ -7980,7 +8003,7 @@ impl Instance {
                                     };
                                     fields.push(field);
                                 }
-                                Value::Record(name.clone(), Arc::new(fields))
+                                Value::Record(name.as_str().into(), Arc::new(fields))
                             }
                             _ => native_arena
                                 .materialize_native_value(outcome.value)
@@ -9590,11 +9613,11 @@ fn input_value_allocation(value: &Value) -> usize {
 }
 
 fn file_error_result(error: RuntimeError) -> Value {
-    Value::ResultErr(Box::new(Value::FileError(FileErrorValue {
+    Value::ResultErr(Box::new(Value::FileError(Box::new(FileErrorValue {
         code: error.code,
         message: error.message,
         trace: error.trace,
-    })))
+    }))))
 }
 
 fn runtime_reader_handle(

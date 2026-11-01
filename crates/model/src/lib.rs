@@ -954,16 +954,16 @@ mod tests {
                         span: Span::default(),
                     },
                     Instruction {
-                        op: Op::Const(Value::JsonError(JsonErrorValue {
+                        op: Op::Const(Value::JsonError(Box::new(JsonErrorValue {
                             code: "R_JSON_PARSE".into(),
                             message: "unexpected end of input".into(),
                             line: 1,
                             column: 1,
-                        })),
+                        }))),
                         span: Span::default(),
                     },
                     Instruction {
-                        op: Op::Const(Value::FileError(FileErrorValue {
+                        op: Op::Const(Value::FileError(Box::new(FileErrorValue {
                             code: "R_FILE_READ".into(),
                             message: "file is missing".into(),
                             trace: vec![Span {
@@ -973,7 +973,7 @@ mod tests {
                                 line: 3,
                                 column: 7,
                             }],
-                        })),
+                        }))),
                         span: Span::default(),
                     },
                 ],
@@ -1791,11 +1791,76 @@ impl fmt::Display for SharedJson {
     }
 }
 
+/// A record value's type name: one pointer wide so `Value` stays small, and cheap to clone.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct RecordName(Arc<String>);
+
+impl RecordName {
+    pub fn as_str(&self) -> &str {
+        self.0.as_str()
+    }
+}
+
+impl std::ops::Deref for RecordName {
+    type Target = str;
+    fn deref(&self) -> &str {
+        self.0.as_str()
+    }
+}
+
+impl From<&str> for RecordName {
+    fn from(name: &str) -> Self {
+        Self(Arc::new(name.to_owned()))
+    }
+}
+
+impl From<String> for RecordName {
+    fn from(name: String) -> Self {
+        Self(Arc::new(name))
+    }
+}
+
+impl From<RecordName> for String {
+    fn from(name: RecordName) -> Self {
+        name.as_str().to_owned()
+    }
+}
+
+impl PartialEq<str> for RecordName {
+    fn eq(&self, other: &str) -> bool {
+        self.as_str() == other
+    }
+}
+
+impl PartialEq<&str> for RecordName {
+    fn eq(&self, other: &&str) -> bool {
+        self.as_str() == *other
+    }
+}
+
+impl PartialEq<String> for RecordName {
+    fn eq(&self, other: &String) -> bool {
+        self.as_str() == other.as_str()
+    }
+}
+
+impl PartialEq<RecordName> for String {
+    fn eq(&self, other: &RecordName) -> bool {
+        self.as_str() == other.as_str()
+    }
+}
+
+impl std::fmt::Display for RecordName {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
 #[derive(Clone, Debug)]
 pub enum Value {
     Int(BigInt),
     Float64(Float64),
-    Record(String, Arc<Vec<Value>>),
+    Record(RecordName, Arc<Vec<Value>>),
     Bytes(Arc<Vec<u8>>),
     Bool(bool),
     Text(Arc<str>),
@@ -1806,12 +1871,12 @@ pub enum Value {
     OptionSome(Box<Value>),
     ResultOk(Box<Value>),
     ResultErr(Box<Value>),
-    TaskError(TaskErrorValue),
+    TaskError(Box<TaskErrorValue>),
     Json(Arc<SharedJson>),
-    JsonError(JsonErrorValue),
-    FileError(FileErrorValue),
-    HttpError(HttpErrorValue),
-    NativeResource(NativeResourceValue),
+    JsonError(Box<JsonErrorValue>),
+    FileError(Box<FileErrorValue>),
+    HttpError(Box<HttpErrorValue>),
+    NativeResource(Box<NativeResourceValue>),
     Unit,
 }
 
@@ -4450,24 +4515,24 @@ impl<'a> Reader<'a> {
                 for _ in 0..n {
                     trace.push(self.span()?);
                 }
-                Ok(Value::TaskError(TaskErrorValue {
+                Ok(Value::TaskError(Box::new(TaskErrorValue {
                     index,
                     code,
                     message,
                     trace,
-                }))
+                })))
             }
             8 => serde_json::from_str(&self.string()?)
                 .map(SharedJson::from_serde)
                 .map(Value::Json)
                 .map_err(|_| ArtifactError::new("E_ARTIFACT_JSON", "invalid JSON value encoding")),
-            9 => Ok(Value::JsonError(JsonErrorValue {
+            9 => Ok(Value::JsonError(Box::new(JsonErrorValue {
                 code: self.string()?,
                 message: self.string()?,
                 line: self.count()?,
                 column: self.count()?,
-            })),
-            10 => Ok(Value::FileError(FileErrorValue {
+            }))),
+            10 => Ok(Value::FileError(Box::new(FileErrorValue {
                 code: self.string()?,
                 message: self.string()?,
                 trace: {
@@ -4478,7 +4543,7 @@ impl<'a> Reader<'a> {
                     }
                     trace
                 },
-            })),
+            }))),
             11 => Ok(Value::OptionNone),
             12 => Ok(Value::OptionSome(Box::new(self.value_at(depth + 1)?))),
             13 => {
@@ -4506,10 +4571,10 @@ impl<'a> Reader<'a> {
                 for _ in 0..count {
                     fields.push(self.value_at(depth + 1)?);
                 }
-                Ok(Value::Record(name, Arc::new(fields)))
+                Ok(Value::Record(name.into(), Arc::new(fields)))
             }
             16 => Ok(Value::Bytes(Arc::new(self.blob()?))),
-            17 => Ok(Value::HttpError(HttpErrorValue {
+            17 => Ok(Value::HttpError(Box::new(HttpErrorValue {
                 code: self.string()?,
                 message: self.string()?,
                 trace: {
@@ -4520,7 +4585,7 @@ impl<'a> Reader<'a> {
                     }
                     trace
                 },
-            })),
+            }))),
             _ => Err(ArtifactError::new("E_ARTIFACT_VALUE", "unknown value tag")),
         }
     }

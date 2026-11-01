@@ -752,7 +752,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                     }
                     (Op::GetField(record_index, field_index), Value::Record(name, fields)) => {
                         let record = artifact.records.get(*record_index)?;
-                        if name != &record.name {
+                        if name.as_str() != record.name.as_str() {
                             return None;
                         }
                         let expected_field = record.fields.get(*field_index)?;
@@ -1244,7 +1244,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                     fields.push(pop!());
                 }
                 fields.reverse();
-                push_stack!(Value::Record(record.name.clone(), Arc::new(fields)));
+                push_stack!(Value::Record(record.name.as_str().into(), Arc::new(fields)));
             }
             Op::GetField(record_index, field_index) => {
                 let record = host.artifact().records.get(*record_index).ok_or_else(|| {
@@ -1268,7 +1268,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                         instruction.span,
                     ));
                 };
-                if name != record.name {
+                if name.as_str() != record.name.as_str() {
                     return Err(RuntimeError::new(
                         "R_TYPE_INVALID",
                         "field access record type does not match",
@@ -1382,7 +1382,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                         instruction.span,
                     ));
                 };
-                if record_name != &record.name {
+                if record_name.as_str() != record.name.as_str() {
                     return Err(RuntimeError::new(
                         "R_TYPE_INVALID",
                         "map_record_get record type does not match the declared Map value",
@@ -1483,7 +1483,9 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                         instruction.span,
                     ));
                 };
-                if record_name != &record.name || fields.get(*field_index).is_none() {
+                if record_name.as_str() != record.name.as_str()
+                    || fields.get(*field_index).is_none()
+                {
                     return Err(RuntimeError::new(
                         "R_TYPE_INVALID",
                         "map_record_set record does not match its declared type",
@@ -4619,7 +4621,7 @@ pub fn new_value_allocation(value: &Value) -> usize {
         // remain Arc-shared. Their payloads were charged when first created.
         Value::Record(name, fields) => size_of::<Vec<Value>>()
             .saturating_add(fields.len().saturating_mul(size_of::<Value>()))
-            .saturating_add(name.capacity()),
+            .saturating_add(name.len()),
         // JSON nodes are immutable and Arc-shared; cloning a value allocates no subtree.
         Value::Json(_) => 0,
         Value::TaskError(error) => size_of::<TaskErrorValue>()
@@ -5053,16 +5055,20 @@ pub fn value_matches(value: &Value, ty: &Type, records: &[guion_model::RecordDef
         (Value::OptionSome(value), Type::Option(item)) => value_matches(value, item, records),
         (Value::ResultOk(value), Type::Result(ok, _)) => value_matches(value, ok, records),
         (Value::ResultErr(value), Type::Result(_, err)) => value_matches(value, err, records),
-        (Value::Record(name, fields), Type::Record(expected)) if name == expected => records
-            .iter()
-            .find(|record| record.name == *name)
-            .is_some_and(|record| {
-                fields.len() == record.fields.len()
-                    && fields
-                        .iter()
-                        .zip(&record.fields)
-                        .all(|(value, field)| value_matches(value, &field.ty, records))
-            }),
+        (Value::Record(name, fields), Type::Record(expected))
+            if name.as_str() == expected.as_str() =>
+        {
+            records
+                .iter()
+                .find(|record| record.name.as_str() == name.as_str())
+                .is_some_and(|record| {
+                    fields.len() == record.fields.len()
+                        && fields
+                            .iter()
+                            .zip(&record.fields)
+                            .all(|(value, field)| value_matches(value, &field.ty, records))
+                })
+        }
         (Value::TaskError(_), Type::TaskError) => true,
         (Value::Json(_), Type::Json) => true,
         (Value::JsonError(_), Type::JsonError) => true,
@@ -5506,7 +5512,7 @@ fn value_type(value: &Value) -> Option<Type> {
     Some(match value {
         Value::Int(_) => Type::Int,
         Value::Float64(_) => Type::Float64,
-        Value::Record(name, _) => Type::Record(name.clone()),
+        Value::Record(name, _) => Type::Record(name.to_string()),
         Value::NativeResource(resource) => Type::NativeResource(resource.kind().to_owned()),
         Value::Bool(_) => Type::Bool,
         Value::Text(_) => Type::Text,

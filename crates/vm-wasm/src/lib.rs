@@ -709,7 +709,7 @@ fn decode_wire_value(
                 }
                 values.push(decode_wire_value(field.value, records, depth + 1, nodes)?);
             }
-            Ok(Value::Record(record.name, Arc::new(values)))
+            Ok(Value::Record(record.name.into(), Arc::new(values)))
         }
         WireValue::OptionNone => Ok(Value::OptionNone),
         WireValue::OptionSome(value) => Ok(Value::OptionSome(Box::new(decode_wire_value(
@@ -840,7 +840,7 @@ fn encode_wire_value(
                 });
             }
             Ok(WireValue::Record(WireRecord {
-                name: name.clone(),
+                name: name.to_string(),
                 fields: encoded,
             }))
         }
@@ -1165,7 +1165,9 @@ mod typed_abi_tests {
     fn runtime_resource_values_are_not_transferable() {
         let mut nodes = 0;
         let error = encode_wire_value(
-            &Value::NativeResource(guion_model::NativeResourceValue::new("test", 1, 1)),
+            &Value::NativeResource(Box::new(guion_model::NativeResourceValue::new(
+                "test", 1, 1,
+            ))),
             &[],
             0,
             &mut nodes,

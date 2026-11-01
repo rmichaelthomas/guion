@@ -3369,12 +3369,14 @@ fn native_backend_keeps_json_result_tag_checks_in_the_native_tier_by_default() {
         native
             .invoke("get_text_field", vec![missing_json.clone()])
             .unwrap(),
-        Value::ResultErr(Box::new(Value::JsonError(guion_model::JsonErrorValue {
-            code: "E_JSON_MISSING".into(),
-            message: "JSON object has no key `name`".into(),
-            line: 0,
-            column: 0,
-        })))
+        Value::ResultErr(Box::new(Value::JsonError(Box::new(
+            guion_model::JsonErrorValue {
+                code: "E_JSON_MISSING".into(),
+                message: "JSON object has no key `name`".into(),
+                line: 0,
+                column: 0,
+            }
+        ))))
     );
     assert_eq!(
         native
@@ -3386,12 +3388,14 @@ fn native_backend_keeps_json_result_tag_checks_in_the_native_tier_by_default() {
         native
             .invoke("parse_integer", vec![text_json.clone()])
             .unwrap(),
-        Value::ResultErr(Box::new(Value::JsonError(guion_model::JsonErrorValue {
-            code: "E_JSON_TYPE".into(),
-            message: "expected a JSON integer".into(),
-            line: 0,
-            column: 0,
-        })))
+        Value::ResultErr(Box::new(Value::JsonError(Box::new(
+            guion_model::JsonErrorValue {
+                code: "E_JSON_TYPE".into(),
+                message: "expected a JSON integer".into(),
+                line: 0,
+                column: 0,
+            }
+        ))))
     );
     for (function, argument) in [
         ("get_text_field", object_json.clone()),
