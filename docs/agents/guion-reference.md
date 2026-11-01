@@ -191,6 +191,8 @@ std:fs — pub fn fs_next_line(reader: FileReader) -> Result[Option[SourceLine],
 std:fs — pub fn fs_close_reader(reader: FileReader) -> Result[Unit, FileError]
 std:http — pub fn http_response_json(response: HttpResponse) -> Result[Json, StdError]
 std:json — pub fn json_get_safe(value: Json, key: Text) -> Result[Json, JsonError]
+std:json — pub fn json_get_text_safe(value: Json, key: Text) -> Result[Text, JsonError]
+std:json — pub fn json_get_int_safe(value: Json, key: Text) -> Result[Int, JsonError]
 std:json — pub fn json_index_safe(value: Json, index: Int) -> Result[Json, JsonError]
 std:json — pub fn json_text_safe(value: Json) -> Result[Text, JsonError]
 std:json — pub fn json_stringify_pairs(values: Map[Text, List[Text]], key_field: Text, value_field: Text) -> Text

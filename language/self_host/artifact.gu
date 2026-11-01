@@ -560,6 +560,10 @@ fn ab_plain_opcode(name: Text) -> Int:
         return 123
     if name == "TimeFormatUtcDate":
         return 168
+    if name == "JsonTryGetText":
+        return 171
+    if name == "JsonTryGetInt":
+        return 172
     if name == "UnixTimeMs":
         return 156
     if name == "TimeTodayLocal":
@@ -771,7 +775,7 @@ pub fn artifact_assemble(ir: Json) -> Bytes:
     let records = json_get(ir, "records")
     let externals = json_get(ir, "externals")
     let functions = json_get(ir, "functions")
-    var parts: List[Bytes] = [bytes_from_text("VRTA"), ab_u32(49), ab_string(source_name), ab_string(entry), ab_count(json_len(sources))]
+    var parts: List[Bytes] = [bytes_from_text("VRTA"), ab_u32(50), ab_string(source_name), ab_string(entry), ab_count(json_len(sources))]
     var cursor = 0
     while cursor < json_len(sources):
         set parts = list_push(parts, ab_string(json_as_text(json_index(sources, cursor))))

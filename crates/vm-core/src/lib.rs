@@ -2967,7 +2967,7 @@ fn fast_host_forwarder(function: &guion_model::Function) -> Option<FastHostForwa
     let host_operation_ip = argument_count;
     let host_operation = &function.code[host_operation_ip].op;
     let expected_arguments = match host_operation {
-        Op::JsonTryGet | Op::JsonTryIndex => 2,
+        Op::JsonTryGet | Op::JsonTryIndex | Op::JsonTryGetText | Op::JsonTryGetInt => 2,
         Op::JsonTryText
         | Op::JsonTryInt
         | Op::JsonTryBool
@@ -3966,6 +3966,8 @@ pub fn opcode_profile_name(op: &Op) -> &'static str {
         Op::JsonTryInt => "JsonTryInt",
         Op::JsonTryBool => "JsonTryBool",
         Op::JsonTryFloat => "JsonTryFloat",
+        Op::JsonTryGetText => "JsonTryGetText",
+        Op::JsonTryGetInt => "JsonTryGetInt",
         Op::TimeParseDate => "TimeParseDate",
         Op::TimeParseTimestamp => "TimeParseTimestamp",
         Op::TimeFormatUtc => "TimeFormatUtc",
@@ -5614,6 +5616,23 @@ fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result
                     Box::new(Type::Json),
                     Box::new(Type::JsonError),
                 ));
+            }
+            Op::JsonTryGetText | Op::JsonTryGetInt => {
+                if pop_type(&mut state.stack, pc)? != Type::Text
+                    || pop_type(&mut state.stack, pc)? != Type::Json
+                {
+                    return Err(format!(
+                        "JSON accessor argument types do not match at instruction {pc}"
+                    ));
+                }
+                let result = if instruction.op == Op::JsonTryGetText {
+                    Type::Text
+                } else {
+                    Type::Int
+                };
+                state
+                    .stack
+                    .push(Type::Result(Box::new(result), Box::new(Type::JsonError)));
             }
             Op::JsonTryText | Op::JsonTryInt | Op::JsonTryBool | Op::JsonTryFloat => {
                 if pop_type(&mut state.stack, pc)? != Type::Json {

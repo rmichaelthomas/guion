@@ -5503,6 +5503,68 @@ fn option_unwrap_reports_absence_and_none_needs_an_option_context() {
 }
 
 #[test]
+fn fused_json_field_accessors_match_the_two_step_form() {
+    let source = r#"import "std:json"
+
+fn describe_text(value: Json, key: Text) -> Text:
+    let fused = json_get_text_safe(value, key)
+    let stepped = json_text_safe_chain(value, key)
+    if is_ok(fused) and is_ok(stepped):
+        return "ok:" + unwrap(fused) + ":" + unwrap(stepped)
+    if not is_ok(fused) and not is_ok(stepped):
+        return "err:" + json_error_code(error(fused)) + ":" + json_error_code(error(stepped))
+    return "mismatch"
+
+fn json_text_safe_chain(value: Json, key: Text) -> Result[Text, JsonError]:
+    let field = json_get_safe(value, key)
+    if not is_ok(field):
+        return Err(error(field))
+    return json_text_safe(unwrap(field))
+
+fn describe_int(value: Json, key: Text) -> Text:
+    let fused = json_get_int_safe(value, key)
+    let field = json_get_safe(value, key)
+    if is_ok(fused):
+        return "ok:" + json_stringify(json_int(unwrap(fused)))
+    if is_ok(field):
+        return "type:" + json_error_code(error(fused)) + ":" + json_error_code(error(json_int_safe(unwrap(field))))
+    return "missing:" + json_error_code(error(fused)) + ":" + json_error_code(error(field))
+
+fn main() -> Int:
+    let document = unwrap(json_parse("{\"name\":\"ada\",\"count\":7}"))
+    print(describe_text(document, "name"))
+    print(describe_text(document, "count"))
+    print(describe_text(document, "absent"))
+    print(describe_int(document, "count"))
+    print(describe_int(document, "name"))
+    print(describe_int(document, "absent"))
+    return 0
+"#;
+    let artifact = compile("fused-json.gu", source).unwrap();
+    let mut instance = Runtime::new()
+        .load(artifact, HostPolicy::default())
+        .unwrap();
+    instance.invoke("main", vec![]).unwrap();
+    let output = instance.take_output();
+    let lines: Vec<&str> = output.lines().collect();
+    assert_eq!(lines.len(), 6, "{output}");
+    assert_eq!(lines[0], "ok:ada:ada");
+    assert!(lines[1].starts_with("err:"), "{output}");
+    assert!(lines[2].starts_with("err:"), "{output}");
+    assert_eq!(lines[3], "ok:7");
+    assert!(lines[4].starts_with("type:"), "{output}");
+    assert!(lines[5].starts_with("missing:"), "{output}");
+    for line in &lines[1..3] {
+        let parts: Vec<&str> = line.split(':').collect();
+        assert_eq!(parts[1], parts[2], "fused and stepped error codes differ: {line}");
+    }
+    for line in &lines[4..6] {
+        let parts: Vec<&str> = line.split(':').collect();
+        assert_eq!(parts[1], parts[2], "fused and stepped error codes differ: {line}");
+    }
+}
+
+#[test]
 fn option_and_result_constructors_outside_a_matching_function_are_source_diagnostics() {
     let option = "record Box:\n    value: Option[Int]\n\nfn main() -> Int:\n    let boxed = Box(Some(1))\n    return 0\n";
     let invalid = compile("option-nested.gu", option).unwrap_err();

@@ -6190,13 +6190,15 @@ impl VmHost for Instance {
                 push_stack!(Value::Text(text.into()));
             }
             Op::JsonTryGet
+            | Op::JsonTryGetText
+            | Op::JsonTryGetInt
             | Op::JsonTryIndex
             | Op::JsonTryText
             | Op::JsonTryInt
             | Op::JsonTryBool
             | Op::JsonTryFloat => {
                 let outcome: Result<Value, JsonErrorValue> = match instruction.op {
-                    Op::JsonTryGet => {
+                    Op::JsonTryGet | Op::JsonTryGetText | Op::JsonTryGetInt => {
                         let key = match pop!() {
                             Value::Text(key) => key,
                             _ => {
@@ -6224,7 +6226,19 @@ impl VmHost for Instance {
                                 ));
                             }
                         };
-                        stdlib_data::json_try_get(&value, &key).map(Value::Json)
+                        match instruction.op {
+                            Op::JsonTryGet => stdlib_data::json_try_get(&value, &key).map(Value::Json),
+                            Op::JsonTryGetText => stdlib_data::json_try_get(&value, &key).and_then(
+                                |child| {
+                                    stdlib_data::json_try_text(child.as_ref())
+                                        .map(|text| Value::Text(text.into()))
+                                },
+                            ),
+                            _ => stdlib_data::json_try_get(&value, &key)
+                                .and_then(|child| {
+                                    stdlib_data::json_try_int(child.as_ref()).map(Value::Int)
+                                }),
+                        }
                     }
                     Op::JsonTryIndex => {
                         let index = match pop!() {

@@ -217,6 +217,8 @@ pub(crate) fn operation(name: &str) -> Option<Op> {
         "CsvNext" => Op::CsvNext,
         "CsvEncode" => Op::CsvEncode,
         "JsonTryGet" => Op::JsonTryGet,
+        "JsonTryGetInt" => Op::JsonTryGetInt,
+        "JsonTryGetText" => Op::JsonTryGetText,
         "JsonTryIndex" => Op::JsonTryIndex,
         "JsonTryText" => Op::JsonTryText,
         "JsonTryInt" => Op::JsonTryInt,

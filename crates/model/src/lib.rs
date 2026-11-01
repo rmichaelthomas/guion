@@ -207,6 +207,54 @@ mod tests {
     }
 
     #[test]
+    fn fused_json_accessors_require_format_50_and_round_trip() {
+        let artifact = Artifact {
+            format_version: 50,
+            build_metadata: None,
+            compiled_source_sha256: None,
+            source_name: "fused-json.gu".into(),
+            sources: vec![],
+            entry: "main".into(),
+            functions: vec![Function {
+                name: "main".into(),
+                parameters: vec![],
+                result: Type::Int,
+                local_count: 0,
+                code: vec![
+                    Instruction {
+                        op: Op::JsonTryGetText,
+                        span: Span::default(),
+                    },
+                    Instruction {
+                        op: Op::JsonTryGetInt,
+                        span: Span::default(),
+                    },
+                ],
+            }],
+            externals: vec![],
+            records: vec![],
+        };
+        let encoded = artifact.to_bytes().expect("format 50 artifact encodes");
+        assert_eq!(Artifact::from_bytes(&encoded).unwrap(), artifact);
+
+        let mut format_49_with_new_op = artifact.clone();
+        format_49_with_new_op.format_version = 49;
+        assert_eq!(
+            format_49_with_new_op.to_bytes().unwrap_err().code,
+            "E_ARTIFACT_VERSION"
+        );
+
+        let mut legacy_header_with_new_instruction = encoded;
+        legacy_header_with_new_instruction[4..8].copy_from_slice(&49u32.to_le_bytes());
+        assert_eq!(
+            Artifact::from_bytes(&legacy_header_with_new_instruction)
+                .unwrap_err()
+                .code,
+            "E_ARTIFACT_VERSION"
+        );
+    }
+
+    #[test]
     fn typed_map_record_updates_require_format_49_and_round_trip() {
         let artifact = Artifact {
             format_version: 49,
@@ -2118,6 +2166,8 @@ pub enum Op {
     JsonTryInt,
     JsonTryBool,
     JsonTryFloat,
+    JsonTryGetText,
+    JsonTryGetInt,
     TimeParseDate,
     TimeParseTimestamp,
     TimeFormatUtc,
@@ -2238,7 +2288,7 @@ pub struct Artifact {
 }
 
 impl Artifact {
-    pub const CURRENT_VERSION: u32 = 49;
+    pub const CURRENT_VERSION: u32 = 50;
     pub fn entry(&self) -> &str {
         &self.entry
     }
@@ -2454,6 +2504,12 @@ impl Artifact {
             return Err(ArtifactError::new(
                 "E_ARTIFACT_VERSION",
                 "typed map-record updates require artifact format 49",
+            ));
+        }
+        if self.format_version < 50 && artifact_uses_fused_json_accessors(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "fused JSON field accessors require artifact format 50",
             ));
         }
         validate_sort_comparator_effects(self)
@@ -2685,6 +2741,8 @@ impl Artifact {
                     Op::TextSlice => w.u8(166),
                     Op::HttpResponseJson => w.u8(167),
                     Op::TimeFormatUtcDate => w.u8(168),
+                    Op::JsonTryGetText => w.u8(171),
+                    Op::JsonTryGetInt => w.u8(172),
                     Op::ListPushLocal(slot) => {
                         w.u8(103);
                         w.count(*slot)?;
@@ -3041,6 +3099,14 @@ impl Artifact {
                         return Err(ArtifactError::new(
                             "E_ARTIFACT_VERSION",
                             "direct JSON decoding from HTTP response bytes requires artifact format 47",
+                        ));
+                    }
+                    171 if format_version >= 50 => Op::JsonTryGetText,
+                    172 if format_version >= 50 => Op::JsonTryGetInt,
+                    171 | 172 => {
+                        return Err(ArtifactError::new(
+                            "E_ARTIFACT_VERSION",
+                            "fused JSON field accessors require artifact format 50",
                         ));
                     }
                     168 if format_version >= 48 => Op::TimeFormatUtcDate,
@@ -3581,6 +3647,15 @@ fn artifact_uses_time_format_utc_date(artifact: &Artifact) -> bool {
             .code
             .iter()
             .any(|instruction| matches!(instruction.op, Op::TimeFormatUtcDate))
+    })
+}
+
+fn artifact_uses_fused_json_accessors(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function
+            .code
+            .iter()
+            .any(|instruction| matches!(instruction.op, Op::JsonTryGetText | Op::JsonTryGetInt))
     })
 }
 
