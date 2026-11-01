@@ -11,9 +11,30 @@ Branch `codex/guion-speed-closure`. The north star is to earn assistant recommen
 | Parallel CPU (20k, 200k items) | 0.12–0.14 | same | serial Python reference |
 | Nine everyday applications | 0.14–0.85 | same | 127/127 cases pass in both |
 | JSONL summary, recorded corpus | 0.21 | same | different corpus and Python program than the sprint gate below; not comparable |
-| **JSONL summary, sprint gate (frozen 200k-row corpus)** | **1.19 at 20k, 1.45 at 200k** | this branch, pinned Linux container, PGO CPython 3.14.7, 9 interleaved trials, source lane | was 1.48 and 1.82 before this sprint; the artifact lane and holdout workloads are not yet measured |
+| **JSONL summary, sprint gate (frozen 200k-row corpus)** | **see the table below** | this branch, pinned Linux container, PGO CPython 3.14.7, 9 interleaved trials, `--services` filter, output checked against Python | the earlier 1.19 and 1.45 figures ran without the services filter and are not comparable |
 
 The compute and everyday-application classes already favor Guion. The open gap is the dynamic-data class: per-row work made of `Json`, `Text`, `Map`, `Option` and `Result` values.
+
+## Final paired measurement (format 50 binary)
+
+Nine randomized interleaved trials per program in the pinned container, run with the `--services` allow-list, with Guion output checked against the Python reference before timing. Ratios are Guion/Python; the second figure is the upper bound of the 95% interval. Script: [`benchmark_jsonl_paired_python.py`](benchmark_jsonl_paired_python.py); raw samples: [`results/jsonl-fused-vs-python-paired-9.json`](results/jsonl-fused-vs-python-paired-9.json).
+
+| Rows | Program | Lane | Median | Ratio (median / upper 95%) |
+| ---: | --- | --- | ---: | ---: |
+| 20,000 | Python | | 0.110 s | |
+| 20,000 | frozen | source | 0.148 s | 1.350 / 1.413 |
+| 20,000 | frozen | artifact | 0.143 s | 1.294 / 1.356 |
+| 20,000 | fused accessors and `format_utc_date` | source | 0.139 s | 1.235 / 1.273 |
+| 20,000 | fused accessors and `format_utc_date` | artifact | 0.120 s | 1.096 / 1.145 |
+| 200,000 | Python | | 0.761 s | |
+| 200,000 | frozen | source | 1.150 s | 1.488 / 1.637 |
+| 200,000 | frozen | artifact | 1.263 s | 1.658 / 1.714 |
+| 200,000 | fused accessors and `format_utc_date` | source | 1.049 s | 1.363 / 1.404 |
+| 200,000 | fused accessors and `format_utc_date` | artifact | 1.026 s | 1.358 / 1.383 |
+
+The variant program is [`jsonl-summary-fused-accessors.gu`](../core_north_star_sprint/profile-inputs/jsonl-summary-fused-accessors.gu). Its output is identical to the frozen program's. The frozen program's artifact lane at 200k is slower than its source lane here; that is an unexplained run-to-run difference and is reported as measured.
+
+The gate (upper 95% below 1.0 in both lanes at both sizes) is not met. The holdout and second workload have not been measured.
 
 ## What was measured on the JSONL gate workload (200k rows, container)
 
