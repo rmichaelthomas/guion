@@ -488,7 +488,8 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                 }
             }};
         }
-        match &instruction_ref.op {
+        let instruction = instruction_ref;
+        match &instruction.op {
             Op::Load(slot) => {
                 let value = &locals[*slot];
                 let next_op = f.code.get(ip);
@@ -643,10 +644,6 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                 locals[*slot] = value;
                 continue;
             }
-            _ => {}
-        }
-        let instruction = instruction_ref;
-        match &instruction.op {
             Op::Const(v) => {
                 if let Some(error) = value_limit_error_at_boundary(v, &limits, instruction.span) {
                     return Err(error);
@@ -658,15 +655,6 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                 )?;
                 push_stack!(v.clone())
             }
-            Op::Load(slot) => {
-                charge_allocation(
-                    budget.as_ref(),
-                    cloned_value_allocation(&locals[*slot]),
-                    instruction.span,
-                )?;
-                push_stack!(locals[*slot].clone());
-            }
-            Op::Store(slot) => locals[*slot] = pop!(),
             Op::Pop => {
                 pop!();
             }
@@ -4234,6 +4222,10 @@ impl Budget {
 
     #[inline]
     pub fn allocate(&self, bytes: usize) -> bool {
+        // A zero-byte charge never changes the remaining budget and always fits.
+        if bytes == 0 {
+            return true;
+        }
         let allocated = self
             .allocation_remaining
             .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |left| {
@@ -4790,9 +4782,16 @@ pub fn value_matches(value: &Value, ty: &Type, records: &[guion_model::RecordDef
     }
 }
 
-#[inline]
+#[inline(always)]
 pub fn value_limit_error(value: &Value, limits: &VmLimits, span: Span) -> Option<RuntimeError> {
-    value_limit_error_with_json(value, limits, span, false)
+    // Scalars within their limits are the common case on arithmetic and comparison
+    // results; answer them without entering the recursive walk.
+    match value {
+        Value::Int(i) if i.digit_count() <= limits.max_integer_digits => None,
+        Value::Text(s) if s.len() <= limits.max_text_bytes => None,
+        Value::Bool(_) | Value::Float64(_) | Value::Unit | Value::OptionNone => None,
+        _ => value_limit_error_with_json(value, limits, span, false),
+    }
 }
 
 #[inline]

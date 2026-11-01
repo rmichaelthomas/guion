@@ -1297,7 +1297,7 @@ impl NativeListArena {
                 if arguments.len() != 5
                     || argument_tags[0] != 4
                     || argument_tags[1] != 4
-                    || (argument_tags[2] != 4
+                    || (!matches!(argument_tags[2], 1..=4)
                         && native_backend::native_record_bridge_index(argument_tags[2]).is_none())
                     || argument_tags[3] != 4
                     || argument_tags[4] != 3
@@ -1324,9 +1324,11 @@ impl NativeListArena {
                         return None;
                     }
                     self.materialize_native_record_pointer(arguments[2], record_index)?
-                } else {
+                } else if argument_tags[2] == 4 {
                     self.bridge_handle_argument(arguments, argument_tags, 2)?
                         .clone()
+                } else {
+                    self.decode_bridge_value(arguments[2], argument_tags[2])?
                 };
                 let unique_store_target =
                     depth == 0 && arguments[4] != 0 && arguments[3] == arguments[0];
