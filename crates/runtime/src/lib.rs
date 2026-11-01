@@ -3285,7 +3285,6 @@ impl VmHost for Instance {
             budget,
             depth,
         } = context;
-        let budget = budget.clone();
         let _profile_timer = budget
             .runtime_profile
             .as_ref()

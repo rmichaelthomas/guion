@@ -1286,6 +1286,23 @@ impl BigInt {
         }
     }
 
+    /// The value, when it is stored inline.
+    #[inline(always)]
+    pub fn small(&self) -> Option<i64> {
+        if self.digits.is_none() {
+            Some(self.small_or_sign)
+        } else {
+            None
+        }
+    }
+
+    /// Whether the value has more decimal digits than `limit`. An inline value has at
+    /// most 19, so ordinary limits answer without counting.
+    #[inline(always)]
+    pub fn exceeds_digits(&self, limit: usize) -> bool {
+        (self.digits.is_some() || limit < 19) && self.digit_count() > limit
+    }
+
     pub fn is_zero(&self) -> bool {
         self.digits.is_none() && self.small_or_sign == 0
     }

@@ -749,6 +749,26 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                 })?
             };
         }
+        // Both operands inline: `$compute` yields the result, or None to take the general
+        // path. Inline operands own nothing and an inline result needs no digit check
+        // or allocation charge, so the slower handler is skipped.
+        macro_rules! small_int_binary {
+            ($compute:expr) => {
+                if let [.., Value::Int(left), Value::Int(right)] = stack.as_slice() {
+                    if let (Some(left), Some(right)) = (left.small(), right.small()) {
+                        let compute: fn(i64, i64) -> Option<Value> = $compute;
+                        if limits.max_integer_digits >= 19 {
+                            if let Some(result) = compute(left, right) {
+                                std::mem::forget(stack.pop());
+                                std::mem::forget(stack.pop());
+                                stack.push(result);
+                                continue;
+                            }
+                        }
+                    }
+                }
+            };
+        }
         macro_rules! record_skipped_instruction {
             ($instruction_ip:expr, $skipped:expr) => {{
                 if PROFILED {
@@ -941,10 +961,10 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                 }
                 charge_allocation(
                     budget.as_ref(),
-                    cloned_value_allocation(value),
+                    cloned_value_allocation_fast(value),
                     instruction_ref.span,
                 )?;
-                push_stack!(value.clone());
+                push_stack!(clone_value_fast(value));
                 continue;
             }
             Op::Store(slot) => {
@@ -955,7 +975,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                         instruction_ref.span,
                     )
                 })?;
-                locals[*slot] = value;
+                drop_value_fast(std::mem::replace(&mut locals[*slot], value));
                 continue;
             }
             Op::Const(v) => {
@@ -964,15 +984,16 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                 }
                 charge_allocation(
                     budget.as_ref(),
-                    cloned_value_allocation(v),
+                    cloned_value_allocation_fast(v),
                     instruction.span,
                 )?;
-                push_stack!(v.clone())
+                push_stack!(clone_value_fast(v))
             }
             Op::Pop => {
                 pop!();
             }
             Op::Add => {
+                small_int_binary!(|a, b| a.checked_add(b).map(|v| Value::Int(BigInt::from_i64(v))));
                 let b = pop!();
                 let a = pop!();
                 let v = match (a, b) {
@@ -1015,6 +1036,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                 push_stack!(v);
             }
             Op::Subtract => {
+                small_int_binary!(|a, b| a.checked_sub(b).map(|v| Value::Int(BigInt::from_i64(v))));
                 let b = pop!();
                 let a = pop!();
                 let v = match (a, b) {
@@ -1043,6 +1065,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                 push_stack!(v);
             }
             Op::Multiply => {
+                small_int_binary!(|a, b| a.checked_mul(b).map(|v| Value::Int(BigInt::from_i64(v))));
                 let b = pop!();
                 let a = pop!();
                 let v = match (a, b) {
@@ -1121,6 +1144,21 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                 push_stack!(Value::Float64(result));
             }
             Op::IntegerDivide | Op::FloorDivide | Op::Remainder => {
+                match instruction.op {
+                    Op::IntegerDivide => small_int_binary!(|a, b| {
+                        a.checked_div(b).map(|q| Value::Int(BigInt::from_i64(q)))
+                    }),
+                    Op::FloorDivide => small_int_binary!(|a, b| {
+                        let (q, r) = (a.checked_div(b)?, a.checked_rem(b)?);
+                        let adjust = r != 0 && (a < 0) != (b < 0);
+                        Some(Value::Int(BigInt::from_i64(if adjust { q - 1 } else { q })))
+                    }),
+                    _ => small_int_binary!(|a, b| {
+                        let r = a.checked_rem(b)?;
+                        let adjust = r != 0 && (a < 0) != (b < 0);
+                        Some(Value::Int(BigInt::from_i64(if adjust { r + b } else { r })))
+                    }),
+                }
                 let right = pop!();
                 let left = pop!();
                 let (Value::Int(left), Value::Int(right)) = (left, right) else {
@@ -2918,6 +2956,11 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                 }
             }
             Op::Equal | Op::NotEqual => {
+                if matches!(instruction.op, Op::Equal) {
+                    small_int_binary!(|a, b| Some(Value::Bool(a == b)));
+                } else {
+                    small_int_binary!(|a, b| Some(Value::Bool(a != b)));
+                }
                 let b = pop!();
                 let a = pop!();
                 let eq = a == b;
@@ -2928,6 +2971,12 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                 }));
             }
             Op::Less | Op::LessEqual | Op::Greater | Op::GreaterEqual => {
+                match instruction.op {
+                    Op::Less => small_int_binary!(|a, b| Some(Value::Bool(a < b))),
+                    Op::LessEqual => small_int_binary!(|a, b| Some(Value::Bool(a <= b))),
+                    Op::Greater => small_int_binary!(|a, b| Some(Value::Bool(a > b))),
+                    _ => small_int_binary!(|a, b| Some(Value::Bool(a >= b))),
+                }
                 let b = pop!();
                 let a = pop!();
                 let ord = match (&a, &b) {
@@ -4658,19 +4707,66 @@ impl Budget {
     }
 }
 
-#[inline]
+#[inline(always)]
 pub fn charge_allocation(budget: &Budget, bytes: usize, span: Span) -> Result<(), RuntimeError> {
-    if budget.allocate(bytes) {
+    if bytes == 0 || budget.allocate(bytes) {
         Ok(())
     } else {
-        let remaining = budget.allocation_remaining.load(Ordering::Relaxed);
-        Err(RuntimeError::new(
-            "R_ALLOCATION_LIMIT",
-            format!(
-                "cumulative allocation budget exhausted during this invocation (requested {bytes} bytes; {remaining} remain)"
-            ),
-            span,
-        ))
+        Err(allocation_limit_error(budget, bytes, span))
+    }
+}
+
+#[cold]
+fn allocation_limit_error(budget: &Budget, bytes: usize, span: Span) -> RuntimeError {
+    let remaining = budget.allocation_remaining.load(Ordering::Relaxed);
+    RuntimeError::new(
+        "R_ALLOCATION_LIMIT",
+        format!(
+            "cumulative allocation budget exhausted during this invocation (requested {bytes} bytes; {remaining} remain)"
+        ),
+        span,
+    )
+}
+
+/// The clone charge for the common values, without a call.
+#[inline(always)]
+fn cloned_value_allocation_fast(value: &Value) -> usize {
+    match value {
+        Value::Int(_) | Value::Bool(_) | Value::Float64(_) | Value::Unit | Value::OptionNone => 0,
+        Value::Json(_) | Value::Map(_) | Value::List(_) => 0,
+        Value::Text(text) => size_of::<String>().saturating_add(text.len()),
+        _ => cloned_value_allocation(value),
+    }
+}
+
+/// `Value::clone` for the common values, without a call.
+#[inline(always)]
+fn clone_value_fast(value: &Value) -> Value {
+    match value {
+        Value::Int(int) => match int.small() {
+            Some(small) => Value::Int(BigInt::from_i64(small)),
+            None => value.clone(),
+        },
+        Value::Bool(flag) => Value::Bool(*flag),
+        Value::Float64(float) => Value::Float64(*float),
+        Value::Text(text) => Value::Text(Arc::clone(text)),
+        Value::Json(json) => Value::Json(Arc::clone(json)),
+        Value::Map(map) => Value::Map(Arc::clone(map)),
+        Value::List(items) => Value::List(Arc::clone(items)),
+        _ => value.clone(),
+    }
+}
+
+/// Drop a value, skipping the drop call when it owns nothing.
+#[inline(always)]
+fn drop_value_fast(value: Value) {
+    let owns_nothing = match &value {
+        Value::Int(int) => int.small().is_some(),
+        Value::Bool(_) | Value::Float64(_) | Value::Unit | Value::OptionNone => true,
+        _ => false,
+    };
+    if owns_nothing {
+        std::mem::forget(value);
     }
 }
 
@@ -5153,7 +5249,7 @@ pub fn value_limit_error(value: &Value, limits: &VmLimits, span: Span) -> Option
     // Scalars within their limits are the common case on arithmetic and comparison
     // results; answer them without entering the recursive walk.
     match value {
-        Value::Int(i) if i.digit_count() <= limits.max_integer_digits => None,
+        Value::Int(i) if !i.exceeds_digits(limits.max_integer_digits) => None,
         Value::Text(s) if s.len() <= limits.max_text_bytes => None,
         Value::Bool(_) | Value::Float64(_) | Value::Unit | Value::OptionNone => None,
         _ => value_limit_error_with_json(value, limits, span, false),
@@ -5166,7 +5262,12 @@ pub fn value_limit_error_at_boundary(
     limits: &VmLimits,
     span: Span,
 ) -> Option<RuntimeError> {
-    value_limit_error_with_json(value, limits, span, true)
+    match value {
+        Value::Int(i) if !i.exceeds_digits(limits.max_integer_digits) => None,
+        Value::Text(s) if s.len() <= limits.max_text_bytes => None,
+        Value::Bool(_) | Value::Float64(_) | Value::Unit | Value::OptionNone => None,
+        _ => value_limit_error_with_json(value, limits, span, true),
+    }
 }
 
 fn value_limit_error_with_json(
@@ -5179,7 +5280,7 @@ fn value_limit_error_with_json(
         Value::Record(_, fields) => fields
             .iter()
             .find_map(|field| value_limit_error_with_json(field, limits, span, check_json)),
-        Value::Int(i) if i.digit_count() > limits.max_integer_digits => Some(RuntimeError::new(
+        Value::Int(i) if i.exceeds_digits(limits.max_integer_digits) => Some(RuntimeError::new(
             "R_INTEGER_LIMIT",
             format!(
                 "integer has {} digits; configured limit is {}",
