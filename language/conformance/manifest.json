@@ -9436,6 +9436,176 @@
           "owner_task": 3
         }
       }
+    },
+    {
+      "id": "opcode-jsontrygettext",
+      "kind": "opcode",
+      "name": "JsonTryGetText",
+      "owner_task": 4,
+      "source": "crates/model/src/lib.rs::Op",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "implemented_current_subset"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "opcode-jsontrygettext.positive",
+          "state": "implemented",
+          "owner_task": 4
+        },
+        "negative": {
+          "case_id": "opcode-jsontrygettext.negative",
+          "state": "implemented",
+          "owner_task": 4
+        },
+        "interaction": {
+          "case_id": "opcode-jsontrygettext.interaction",
+          "state": "implemented",
+          "owner_task": 4
+        }
+      }
+    },
+    {
+      "id": "opcode-jsontrygetint",
+      "kind": "opcode",
+      "name": "JsonTryGetInt",
+      "owner_task": 4,
+      "source": "crates/model/src/lib.rs::Op",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "implemented_current_subset"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "opcode-jsontrygetint.positive",
+          "state": "implemented",
+          "owner_task": 4
+        },
+        "negative": {
+          "case_id": "opcode-jsontrygetint.negative",
+          "state": "implemented",
+          "owner_task": 4
+        },
+        "interaction": {
+          "case_id": "opcode-jsontrygetint.interaction",
+          "state": "implemented",
+          "owner_task": 4
+        }
+      }
+    },
+    {
+      "id": "opcode-timeformatutcdate",
+      "kind": "opcode",
+      "name": "TimeFormatUtcDate",
+      "owner_task": 4,
+      "source": "crates/model/src/lib.rs::Op",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "implemented_current_subset"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "opcode-timeformatutcdate.positive",
+          "state": "implemented",
+          "owner_task": 4
+        },
+        "negative": {
+          "case_id": "opcode-timeformatutcdate.negative",
+          "state": "implemented",
+          "owner_task": 4
+        },
+        "interaction": {
+          "case_id": "opcode-timeformatutcdate.interaction",
+          "state": "implemented",
+          "owner_task": 4
+        }
+      }
+    },
+    {
+      "id": "opcode-maprecordget",
+      "kind": "opcode",
+      "name": "MapRecordGet",
+      "owner_task": 4,
+      "source": "crates/model/src/lib.rs::Op",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "implemented_current_subset"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "opcode-maprecordget.positive",
+          "state": "implemented",
+          "owner_task": 4
+        },
+        "negative": {
+          "case_id": "opcode-maprecordget.negative",
+          "state": "implemented",
+          "owner_task": 4
+        },
+        "interaction": {
+          "case_id": "opcode-maprecordget.interaction",
+          "state": "implemented",
+          "owner_task": 4
+        }
+      }
+    },
+    {
+      "id": "opcode-maprecordset",
+      "kind": "opcode",
+      "name": "MapRecordSet",
+      "owner_task": 4,
+      "source": "crates/model/src/lib.rs::Op",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "implemented_current_subset"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "opcode-maprecordset.positive",
+          "state": "implemented",
+          "owner_task": 4
+        },
+        "negative": {
+          "case_id": "opcode-maprecordset.negative",
+          "state": "implemented",
+          "owner_task": 4
+        },
+        "interaction": {
+          "case_id": "opcode-maprecordset.interaction",
+          "state": "implemented",
+          "owner_task": 4
+        }
+      }
+    },
+    {
+      "id": "host_operation-utc-date-formatting",
+      "kind": "host_operation",
+      "name": "UTC date formatting",
+      "owner_task": 2,
+      "source": "language/host-api.md#temporal-interpretation",
+      "compiler_status": {
+        "bootstrap": "implemented",
+        "self_hosted": "implemented"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "host_operation.utc-date-formatting.positive",
+          "state": "implemented",
+          "owner_task": 2
+        },
+        "negative": {
+          "case_id": "host_operation.utc-date-formatting.negative",
+          "state": "implemented",
+          "owner_task": 2
+        },
+        "interaction": {
+          "case_id": "host_operation.utc-date-formatting.interaction",
+          "state": "implemented",
+          "owner_task": 2
+        }
+      },
+      "source_signature": "`format_utc_date(value: Instant) -> Text`",
+      "declared_status": "Implemented in standard library; requires format 48"
     }
   ],
   "regression_applications": [
