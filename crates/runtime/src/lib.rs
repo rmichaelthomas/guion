@@ -2875,6 +2875,8 @@ impl Runtime {
         }
         database_roots.extend(policy.additional_file_roots.iter().cloned());
         database_roots.extend(policy.file_root_aliases.values().cloned());
+        let mut artifact = artifact;
+        inline_host_forwarders(&mut artifact);
         let artifact = share_artifact(artifact);
         Ok(Instance {
             artifact,
@@ -2961,6 +2963,32 @@ impl HostPolicy {
             max_text_bytes: self.max_text_bytes,
             max_collection_items: self.max_collection_items,
             max_file_bytes: self.max_file_bytes,
+        }
+    }
+}
+
+/// Replaces calls to tiny forwarding functions (`Load 0..n; <host operation>; Return`) with
+/// the host operation itself. Instruction indices, jump targets and spans are unchanged and
+/// the stack effect is identical, so the VM and the native backend both see the direct op.
+fn inline_host_forwarders(artifact: &mut Artifact) {
+    let operations: Vec<Option<Op>> = artifact
+        .functions
+        .iter()
+        .map(|function| {
+            guion_vm_core::forwarded_host_operation(function)
+                .filter(|operation| !matches!(operation, Op::MakeSome | Op::MakeNone))
+        })
+        .collect();
+    if operations.iter().all(Option::is_none) {
+        return;
+    }
+    for function in &mut artifact.functions {
+        for instruction in &mut function.code {
+            if let Op::Call(target, _) = &instruction.op {
+                if let Some(Some(operation)) = operations.get(*target) {
+                    instruction.op = operation.clone();
+                }
+            }
         }
     }
 }

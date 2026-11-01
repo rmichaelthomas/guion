@@ -2919,6 +2919,31 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                     sample.record_host_duration(started.elapsed());
                 }
                 host_result?;
+                // These operations were reached through forwarding wrappers whose return
+                // applied the value limits; keep that check now that they are called directly.
+                if matches!(
+                    instruction.op,
+                    Op::JsonTryGet
+                        | Op::JsonTryIndex
+                        | Op::JsonTryGetText
+                        | Op::JsonTryGetInt
+                        | Op::JsonTryText
+                        | Op::JsonTryInt
+                        | Op::JsonTryBool
+                        | Op::JsonTryFloat
+                        | Op::FileNextLine
+                        | Op::TextCollapseWhitespace
+                        | Op::TimeParseTimestamp
+                        | Op::TimeFormatUtc
+                        | Op::TimeFormatUtcDate
+                        | Op::HttpResponseJson
+                ) {
+                    if let Some(result) = stack.last() {
+                        if let Some(error) = value_limit_error(result, &limits, instruction.span) {
+                            return Err(error);
+                        }
+                    }
+                }
             }
         }
     }
@@ -2982,6 +3007,12 @@ fn fast_host_forwarder(function: &guion_model::Function) -> Option<FastHostForwa
         argument_count,
         host_operation_ip,
     })
+}
+
+/// The host operation a tiny forwarding function applies to its own parameters, when
+/// the function is exactly `Load 0..n; <host operation>; Return`.
+pub fn forwarded_host_operation(function: &guion_model::Function) -> Option<Op> {
+    fast_host_forwarder(function).map(|forwarder| function.code[forwarder.host_operation_ip].op.clone())
 }
 
 fn execute_fast_host_forwarder<const PROFILED: bool, H: VmHost>(

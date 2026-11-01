@@ -699,10 +699,7 @@ fn main() -> Int:
     let child = main["sampled_child_nanoseconds"].as_u64().unwrap();
     let guest = main["sampled_guest_nanoseconds"].as_u64().unwrap();
     assert!(host > 0, "JSON host operations should be timed separately");
-    assert!(
-        child > 0,
-        "fast-forwarded guest calls should be attributed as children"
-    );
+    assert_eq!(child, 0, "inlined forwarders have no child frames");
     assert!(
         guest > 0,
         "VM execution should retain exclusive sampled time"
@@ -760,7 +757,7 @@ fn sampled_runtime_profile_keeps_attribution_without_exact_opcode_maps() {
 }
 
 #[test]
-fn tiny_json_forwarders_keep_call_and_opcode_profile_counts() {
+fn inlined_json_forwarders_run_as_direct_opcodes() {
     let source = "fn safe_text(value: Json) -> Result[Text, JsonError]:\n    return json_try_text(value)\n\nfn main() -> Int:\n    let value = unwrap(json_parse(\"\\\"hello\\\"\"))\n    let result = safe_text(value)\n    assert(is_ok(result))\n    return 0\n";
     let artifact = compile("fast-json-forwarder.gu", source).expect("forwarder compiles");
     let mut instance = Runtime::vm_only()
@@ -773,20 +770,16 @@ fn tiny_json_forwarders_keep_call_and_opcode_profile_counts() {
         Value::Int(BigInt::from_i64(0))
     );
     let profile = instance.runtime_profile().expect("profile is enabled");
-    assert_eq!(
-        profile["function_call_counts"]["safe_text"].as_u64(),
-        Some(1)
-    );
+    assert!(profile["function_call_counts"]["safe_text"].is_null());
     assert_eq!(
         profile["opcode_executions"]["JsonTryText"].as_u64(),
         Some(1)
     );
-    assert_eq!(profile["opcode_executions"]["Load"].as_u64(), Some(3));
-    assert_eq!(profile["vm_interpreter"]["frames"].as_u64(), Some(2));
+    assert_eq!(profile["vm_interpreter"]["frames"].as_u64(), Some(1));
 }
 
 #[test]
-fn tiny_json_forwarder_preserves_call_depth_limit() {
+fn inlined_json_forwarder_needs_no_call_depth() {
     let source = "fn safe_text(value: Json) -> Result[Text, JsonError]:\n    return json_try_text(value)\n\nfn main() -> Int:\n    let value = unwrap(json_parse(\"\\\"hello\\\"\"))\n    let result = safe_text(value)\n    return 0\n";
     let artifact = compile("fast-json-forwarder-depth.gu", source).expect("forwarder compiles");
     let policy = HostPolicy {
@@ -797,14 +790,16 @@ fn tiny_json_forwarder_preserves_call_depth_limit() {
         .load(artifact, policy)
         .expect("runtime loads the artifact");
 
-    let error = instance
-        .invoke("main", vec![])
-        .expect_err("the helper call exceeds the depth limit");
-    assert_eq!(error.code, "R_CALL_DEPTH");
+    assert_eq!(
+        instance
+            .invoke("main", vec![])
+            .expect("the inlined helper needs no extra call depth"),
+        Value::Int(BigInt::from_i64(0))
+    );
 }
 
 #[test]
-fn tiny_time_host_forwarders_keep_call_and_opcode_profile_counts() {
+fn inlined_time_host_forwarders_run_as_direct_opcodes() {
     let source = "import \"std:time\"\nimport \"std:types\"\n\nfn parse_alias(value: Text) -> Result[Instant, FileError]:\n    return parse_timestamp(value)\n\nfn format_alias(value: Instant) -> Text:\n    return format_utc(value)\n\nfn main() -> Int:\n    let instant = unwrap(parse_alias(\"2026-10-28T12:34:56Z\"))\n    print(format_alias(instant))\n    return 0\n";
     let project_root =
         std::env::temp_dir().join(format!("guion-time-forwarder-{}", std::process::id()));
@@ -832,14 +827,8 @@ fn tiny_time_host_forwarders_keep_call_and_opcode_profile_counts() {
     );
     assert_eq!(instance.take_output(), "2026-10-28T12:34:56Z\n");
     let profile = instance.runtime_profile().expect("profile is enabled");
-    assert_eq!(
-        profile["function_call_counts"]["parse_timestamp"].as_u64(),
-        Some(1)
-    );
-    assert_eq!(
-        profile["function_call_counts"]["format_utc"].as_u64(),
-        Some(1)
-    );
+    assert!(profile["function_call_counts"]["parse_timestamp"].is_null());
+    assert!(profile["function_call_counts"]["format_utc"].is_null());
     assert_eq!(
         profile["opcode_executions"]["TimeParseTimestamp"].as_u64(),
         Some(1)
@@ -848,7 +837,7 @@ fn tiny_time_host_forwarders_keep_call_and_opcode_profile_counts() {
         profile["opcode_executions"]["TimeFormatUtc"].as_u64(),
         Some(1)
     );
-    assert_eq!(profile["vm_interpreter"]["frames"].as_u64(), Some(7));
+    assert_eq!(profile["vm_interpreter"]["frames"].as_u64(), Some(3));
     std::fs::remove_dir_all(&project_root).expect("temporary project is removed");
 }
 

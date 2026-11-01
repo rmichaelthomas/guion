@@ -160,3 +160,16 @@ Reading: an owned-pointer native tier removes dispatch (at most about 28%) but k
 | Literal Text/Bytes constants charge a compile-time byte count instead of an arena lookup | 1.56 s | 1.10 s |
 
 Both steps pass the native test suites with and without `native-value-bridge`; the IR-size guard thresholds in `execution.rs` were raised to cover the extra fuel load/store per function. Run-level counts for the same program: 3.57M native calls, 20.2M successful allocation charges (about 100 per row), 4.38M record charges, 3.48 GB gross charged bytes. The profile stays flat: the native gap is spread across per-operation callbacks, arena stores and quota charges, not one hotspot.
+
+## Load-time forwarder inlining (relaxes the forwarder call-count and depth guarantees)
+
+`Runtime::load` now rewrites each `Call` to a tiny forwarding function (`Load 0..n; <host operation>; Return`) into the host operation itself, for host operations only (`MakeSome`/`MakeNone` forwarders stay as calls because the native backend does not lower them inside functions returning other types). Instruction indices, spans and stack effect are unchanged; no format bump, no compiler or seed change, so the source and artifact lanes both get it. The result-limit check that the forwarder's return applied is kept after each such host operation in the VM. User-approved relaxations: wrapper calls no longer appear in `function_call_counts`, no longer consume call depth, and no longer add a trace frame.
+
+JSONL 200k, output hash a1a9b95d unchanged:
+
+| Build | VM median | Native (bridge) median |
+| --- | ---: | ---: |
+| Before (fuel handoff only) | 1.10–1.15 s | 1.56 s |
+| Host-op forwarders inlined | 1.00 s | 1.47 s |
+
+A first attempt that also inlined `MakeSome`/`MakeNone` appeared to bring native to 1.08 s, but the profile showed `main` and `jsonl_next` had stopped compiling natively (6 native calls), so that figure was a VM run and is not used.
