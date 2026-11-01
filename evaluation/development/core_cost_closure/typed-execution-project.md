@@ -67,3 +67,83 @@ slower. Reverted and not committed.
     would make the fused program native-eligible, but native is currently
     about 47% slower than the VM on the frozen program (1.47 s vs 1.00 s), so
     eligibility alone cannot close the gap.
+
+## Milestone 2 (scoped 2026-11-01): typed register tier in vm-core
+
+### Why this shape
+Five levers in a row measured 0–7% because the cost is spread across the value
+model, not concentrated. Facts that shape the design:
+- `main` in `base2.gu` is one 709-op function holding the loop. By static count
+  53% of its ops are pure stack traffic (165 `Load`, 123 `Const`, 87 `Store`),
+  plus 42 `Jump` and 18 `Not` that the compiler emits mechanically. `jsonl_next`
+  is 14 `Load` of 62 ops. Every one of these clones or drops a `Value` and
+  charges the quota.
+- The verifier already computes a `FlowState` (stack types and
+  `Vec<Option<Type>>` local types) at every instruction, so type facts exist at
+  load time with no compiler or artifact-format change.
+- Dispatch itself is only about 4% (Milestone 1 probe), so the win has to come
+  from executing fewer, cheaper operations, not from dispatching faster.
+
+### Design
+Lower verified bytecode at `Runtime::load`, next to `inline_host_forwarders`,
+into a register form per function. Artifact format 50 is unchanged. The new
+code lives in a new module (`crates/vm-core/src/register.rs`), not in the
+7k-line `lib.rs`.
+- **Eligibility is per function.** A function runs in the register tier only if
+  every op in it is supported; otherwise it keeps the current path. Both tiers
+  share `VmFrame` (same `locals`), so calls between them and error traces keep
+  working. This lets support grow op by op.
+- **Exact accounting is kept, not approximated.**
+  - Fuel is charged per basic block with the exact count of original
+    instructions in it, so `steps_used` totals are identical. If the remaining
+    fuel is smaller than a block's cost, that block runs through the original
+    bytecode path so `R_STEP_LIMIT` fires at the same instruction with the same
+    span.
+  - Every register op keeps the span of the instruction it came from.
+  - Quota charges are never dropped. Statically known amounts are folded into
+    one charge per block; amounts that depend on the value stay dynamic.
+- **Stage A, register lowering.** Stack to registers, then copy propagation,
+  dead-store elimination, jump threading, removal of unreachable code, and
+  fusion of `Load;IsOk;Not;JumpIfFalse` style sequences. Registers are extra
+  slots after the declared locals.
+- **Stage B, typed slots.** Using `FlowState`, slots proven `Int`, `Bool` or
+  `Text` hold unboxed values: `i64` with checked arithmetic that deopts to
+  `BigInt` on overflow, `bool`, `Arc<str>`. This removes tag checks and
+  statically known clone charges.
+- **Stage C, moves by liveness.** A `Load` of a slot that is dead afterwards
+  becomes a move, so `Json`, `Record` and `Map` values stop paying clone and
+  drop atomics. No allocation charge is skipped for anything that actually
+  allocates.
+- **Stage D, native consumption, only if needed.** The register IR is the input
+  Cranelift would have wanted all along (typed, no stack). Attempted only if
+  A–C leave the VM above Python.
+
+### One behavior change that needs sign-off
+Cancellation is checked per instruction today. In the register tier it is
+checked at each basic-block head, so a block of N original instructions can
+run to completion after cancellation. Blocks contain no loops (back-edges end
+blocks), so the delay is bounded by block length. Parallel-worker budgets keep
+exact atomic fuel charging as they do now.
+
+### Gates and kill lines (each stage is committed with its measurement)
+- **2.0 Trace analysis, no executor.** From the real 200k-row run, measure the
+  dynamic count of removable instructions (copy propagation, dead stores,
+  threaded jumps) and the dynamic type mix of `Load`/`Store`. Go only if at
+  least 35% of dynamic instructions are removable. This is a day-scale
+  analysis and prevents building an executor on a wrong estimate.
+- **2.A** Kill if the JSONL loop improves by under 6% (target 8–12%).
+- **2.B** Kill if it adds under 5% on top of 2.A (target about 10%).
+- **2.C** Kill if it adds under 3% (target 3–5%).
+- Stacked target: 20–25% against the 22–30% gap. My estimate that A–C reaches
+  an upper 95% ratio below 1.0 in all four lanes is about 35–40%, so the plan
+  includes Stage D rather than assuming A–C suffice.
+- **Every stage:** same output hash (`a1a9b95d` for the JSONL loop), full
+  workspace tests including conformance and the xtask inventory, the
+  limit/cancellation/trace tests unchanged, then a paired measurement at 20k
+  and 200k in both lanes. CSV ledger, holdout and compute workloads are
+  re-run at the end of A and of C; any regression there stops the stage.
+
+### Out of scope
+Changing the language, the artifact format, quota semantics, or the
+self-hosted compiler; benchmark-specific special cases; re-enabling the
+per-op native bridge by default.
