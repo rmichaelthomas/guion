@@ -14,3 +14,13 @@ VM 1.00 s; native bridge build 1.47 s; Python about 0.73–0.85 s. Per-row cost 
 3. Extend to the CSV ledger and re-run the holdout and compute workloads; ship only with identical output and passing suites.
 
 Each step is committed with its measurement. Failed steps are reverted and recorded.
+
+## Milestone 0 findings (2026-11-01)
+- Per-row cost is flat with input size (4.83, 4.57, 4.60 us at 60k, 120k, 180k rows; RSS 19, 35, 44 MB), so the 20k-versus-200k ratio difference is Python's startup amortisation, not a Guion scaling problem. The program fails with "cannot read events JSONL" at 240k rows (a file-size limit, not a speed issue).
+- The compiled `main` is a stack-machine translation with heavy redundancy (`Load r; IsOk; Not; JumpIfFalse ...; Load r; Unwrap; Store s`, jumps to the next instruction, unreachable jumps after `Return`). `crates/runtime/examples/dump_ops.rs` prints a function's opcode stream from a `.gub` for this analysis.
+- The fused-accessor program is not native-eligible (`JsonTryGetText`, `JsonTryGetInt`, `TimeFormatUtcDate` have no native lowering), so the native comparison so far is on the frozen program only.
+- Native bridge profile after forwarder inlining stays flat: `native_charge_value_clone` 6.4%, `execute_native_operation` 4.7%, allocation 4.5%, atomics about 4.8%, direct-entry prologue 4.2%.
+- A shallow `Return` limit check measured 0% on the frozen program and was reverted.
+
+## Next: Milestone 1 design
+A call-threaded baseline: pre-decode each function once into a vector of handler entries with operands resolved (slot numbers, constant references, jump targets, statically known clone charges), executed without the per-instruction `match`, bounds check and cancellation/fuel head, keeping the existing value stack, quota, fuel and error behaviour. Expected ceiling from the profile: the dispatch share (up to about 28%) minus handler-call cost. Kill if it measures under 8% on the JSONL loop.
