@@ -27,3 +27,7 @@ base64 = "=0.22.1"
 reqwest = { version = "=0.12.28", default-features = false, features = ["rustls-tls"] }
 tokio = { version = "=1.53.2", features = ["rt-multi-thread", "time", "net", "macros"] }
 
+
+[profile.release]
+lto = "fat"
+codegen-units = 1

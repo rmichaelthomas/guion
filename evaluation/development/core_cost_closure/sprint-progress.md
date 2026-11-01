@@ -139,3 +139,18 @@ Python is 0.648 s on the same workload, so the VM is now about 1.75x Python (was
 Post-pool VM profile: dispatch about 29%, `value_limit_error_with_json` about 5%, Value clone/drop about 7%, quota bookkeeping about 4%. The limit check, `map_clone_allocation` and the map clone each walk the whole map on every `map_set`, so the per-row cost grows with distinct dates per service. Closing that needs an in-place `set m = map_set(m, ...)` form with an incrementally maintained clone-charge, which is a bytecode and artifact-format change.
 
 Fixed along the way: VM-to-native entry passed `List[Text]` as a handle-table index that native indexing dereferenced as an address (SIGSEGV in `text_split`, `stdlib_data`, `stdlib_services`). Regression test `native_text_list_parameters_match_the_vm`.
+
+### Corrections and results — 2026-10-31 (later)
+
+- The suspected O(n)-per-row `map_set` cost was wrong. The runtime profile shows 39,276 in-place `map_set` updates and zero copy-on-write copies on the 20k-row run; the local-assignment form already exists. Dropped.
+- JSON line parsing already deserializes straight into `SharedJson` after a reserved-key prescan; nothing left to remove cheaply there.
+- `[profile.release] lto = "fat", codegen-units = 1` added: about 4% on the VM (1.16 s to 1.11 s at 200k rows). Release builds take about 2 minutes instead of 15 seconds.
+- A leaf-value fast path in `value_limit_error` gave no measurable gain and was reverted.
+- Paired, interleaved, output-checked (9 trials, container, identical output hashes), against the pinned PGO CPython 3.14.7:
+
+| Rows | Python | `43a48af` | Pool + LTO | Ratio before | Ratio now |
+| --- | --- | --- | --- | --- | --- |
+| 20k | 0.106 s | 0.157 s | 0.126 s | 1.48 | 1.19 |
+| 200k | 0.749 s | 1.366 s | 1.082 s | 1.82 | 1.45 |
+
+The 0.648 s Python figure in the earlier container baseline came from a different interpreter and is not comparable to these rows. The gate (paired 95% upper ratio below 1.0 at 20k and 200k, source and artifact lanes) is not met.
