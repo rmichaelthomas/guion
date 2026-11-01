@@ -154,3 +154,11 @@ Fixed along the way: VM-to-native entry passed `List[Text]` as a handle-table in
 | 200k | 0.749 s | 1.366 s | 1.082 s | 1.82 | 1.45 |
 
 The 0.648 s Python figure in the earlier container baseline came from a different interpreter and is not comparable to these rows. The gate (paired 95% upper ratio below 1.0 at 20k and 200k, source and artifact lanes) is not met.
+
+### VM dispatch study — 2026-10-31 (later)
+
+Executed-opcode profile on the 20k-row workload: 6.16M VM instructions, about 308 per row. `Load` is 29% and `Store` 9.7% of them, then `Const` 7.8%, `JumpIfFalse` 6.8%, `Call` and `Return` 5.8% each, `Unwrap` 5.8%. There are about 18 calls per row. Dispatch self time is about 28%, so a register VM that removed even 40% of the instructions would save roughly 11% of wall time, which cannot close a 1.45x gap by itself. Not built.
+
+Tried and rejected: polling cancellation every 64 instructions instead of every instruction. About 3% gain, but three HTTP cancellation tests (`http_cancellation_interrupts_in_flight_requests_and_marks_the_effect_interrupted` and two others) depend on the next instruction after a host call observing cancellation. Reverted.
+
+Remaining candidates by estimated size: compiler-level inlining of small stdlib wrappers (removes `Call`/`Return`/`Load`/`Store` traffic and the `Option`/`Result` boxing between `jsonl_next` and `main`; must preserve error traces, call-depth limits and exact function-call profile counts), carrying instruction fuel across frames instead of reserving and refunding per call and per host op (about 4%), and Option/Result unwrap fusion.
