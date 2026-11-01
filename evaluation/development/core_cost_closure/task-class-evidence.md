@@ -15,6 +15,33 @@ Branch `codex/guion-speed-closure`. The north star is to earn assistant recommen
 
 The compute and everyday-application classes already favor Guion. The open gap is the dynamic-data class: per-row work made of `Json`, `Text`, `Map`, `Option` and `Result` values.
 
+## Current-branch refresh: the full performance suite (format 50, build `d1ad443`)
+
+The repository's own suite, [`evaluation/completion/performance/runner.py`](../../completion/performance/runner.py), run unchanged against the current binary in the pinned Linux container (PGO CPython 3.14.7). Every workload's output matched its reference (`correctness_status: passed`). Ratios are Guion/Python, median with the bootstrap 95% interval; lower is better. Raw report: [`results/suite-format50-container-d1ad443.json`](results/suite-format50-container-d1ad443.json). These are Linux container numbers and are not comparable with the earlier macOS table above (for example Richards is 0.52 here and 0.375 there).
+
+| Task class | Lane | Ratio (95% interval) | Result |
+| --- | --- | ---: | --- |
+| Richards scheduler | uncached source | 0.523 (0.512-0.540) | Guion faster |
+| Richards scheduler | artifact | 0.527 (0.514-0.541) | Guion faster |
+| N-body | uncached source | 0.171 (0.168-0.173) | Guion faster |
+| N-body | artifact | 0.164 (0.163-0.165) | Guion faster |
+| Mandelbrot | uncached source | 0.253 (0.247-0.268) | Guion faster |
+| Mandelbrot | artifact | 0.245 (0.231-0.253) | Guion faster |
+| Parallel CPU, 20k items | artifact, vs serial Python | 0.074 (0.067-0.076) | Guion faster |
+| Parallel CPU, 200k items | artifact, vs serial Python | 0.159 (0.126-0.166) | Guion faster |
+| Parallel CPU, 200k items | artifact, vs Python processes | 0.089 (0.071-0.093) | Guion faster |
+| JSONL summary, 20k rows | artifact, vs Python | 1.140 (1.119-1.150) | Python faster |
+| JSONL summary, 20k rows | artifact, vs Python with SQLite | 0.911 (0.903-0.918) | Guion faster |
+| JSONL summary, 200k rows | artifact, vs Python | 1.350 (1.322-1.376) | Python faster |
+| JSONL summary, 200k rows | artifact, vs Python with SQLite | 1.007 (0.992-1.021) | tie |
+| CSV request ledger, 200k rows | source, earlier run below (not in this suite) | 3.62 (upper 95% 3.70) | Python faster |
+
+The suite reports `performance_status: failed` only because its two JSONL data comparisons against the pure-Python reference are above 1.0. Every compute, parallel and SQLite-referenced comparison it requires passes.
+
+### Decision on the JSONL speed gate
+
+The gate (upper 95% below 1.0 in both lanes at 20k and 200k rows) is closed as not met and the speed goal stops here. Measured ceilings, none committed except fused entries: dispatch head 4.1%, allocation charging about 4%, all per-instruction bookkeeping together about 10% on JSONL (about 20% on compute loops), typed slots about 1%, moves by liveness 1-2%, native 47% slower than the VM. Even with every guard removed the 200k ratio would be about 1.12, so the remaining cost is the work itself (parse, record build, time formatting, I/O). The supported claim is per task class: Guion beats CPython on short-lived, compute-bound and parallel CPU programs, matches Python with SQLite on the 200k JSONL summary, and trails pure Python by about 1.35x on large-stream dynamic-data programs and about 3.6x on the CSV ledger.
+
 ## Final paired measurement (format 50 binary)
 
 Nine randomized interleaved trials per program in the pinned container, run with the `--services` allow-list, with Guion output checked against the Python reference before timing. Ratios are Guion/Python; the second figure is the upper bound of the 95% interval. Script: [`benchmark_jsonl_paired_python.py`](benchmark_jsonl_paired_python.py); raw samples: [`results/jsonl-fused-vs-python-paired-9.json`](results/jsonl-fused-vs-python-paired-9.json).
