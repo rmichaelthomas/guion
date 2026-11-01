@@ -244,3 +244,22 @@ Against the pre-Stage-A paired run (`jsonl-forwarder-inlined-paired-9.txt`) the
 run-to-run spread (the 20k fused-artifact median moved 0.995 to 1.035 on a
 0.106 s Python baseline). **The gate is not met in any of the four lanes at
 200k.** The best upper 95% bound is 1.275.
+
+## Value-model ceiling probe: allocation charging removed
+
+Probe (reverted, never committed): `Budget::allocate` always succeeds and
+`refund_allocation` does nothing, so every charge calculation and atomic
+operation on the allocation budget disappears. This breaks quota semantics and
+is an upper bound for any value model that avoids clone-and-charge, not a
+candidate. Alternating A/B, 5 rounds, medians in ms, against `d1ad443`:
+
+| Workload | HEAD | No charging | Delta |
+| --- | ---: | ---: | ---: |
+| int compute | 2506 | 2406 | -4.0% |
+| text | 4648 | 4428 | -4.7% |
+| CSV | 421 | 412 | -2.1% |
+| JSONL | 888 | 853 | -3.9% |
+
+Closing the 200k gap needs roughly 20% (ratio 1.25 to below 1.0). The entire
+charging machinery is worth about 4%, so a typed value model that only removes
+charge-and-clone cannot reach the gate on its own.
