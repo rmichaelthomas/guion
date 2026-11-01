@@ -34,7 +34,26 @@ Nine randomized interleaved trials per program in the pinned container, run with
 
 The variant program is [`jsonl-summary-fused-accessors.gu`](../core_north_star_sprint/profile-inputs/jsonl-summary-fused-accessors.gu). Its output is identical to the frozen program's. The frozen program's artifact lane at 200k is slower than its source lane here; that is an unexplained run-to-run difference and is reported as measured.
 
-The gate (upper 95% below 1.0 in both lanes at both sizes) is not met. The holdout and second workload have not been measured.
+The gate (upper 95% below 1.0 in both lanes at both sizes) is not met.
+
+## Holdout and second workload (format 50 binary, same container and Python)
+
+**Holdout: lockfile auditor** (`evaluation/completion/performance/benchmark_lockfile_diagnostics.py`, 15 fresh-process source runs per size, outputs checked against the expected report; raw: [`results/lockfile-diagnostics-format50-vs-python.json`](results/lockfile-diagnostics-format50-vs-python.json)). Guion/Python median ratio 0.325 (bootstrap 95% 0.314–0.343) at 512 packages and 0.412 (0.404–0.418) at 2,048. Guion leads. The `candidate_over_baseline` field in that file compares the current source against itself (`--baseline-commit HEAD`) and is a noise control (about 1.00), not a regression check.
+
+**Second workload: CSV request ledger** ([`second_workload/`](second_workload/)): a per-service group-by over `service,status,latency_ms,bytes` rows with typed integer parsing, about 1% malformed rows, 40 services, and Python's C `csv` module as the reference. Stdout is identical to the reference on every run. Nine interleaved trials (raw: [`results/csv-ledger-vs-python-paired-9.json`](results/csv-ledger-vs-python-paired-9.json)):
+
+| Rows | Python | Lane | Median | Ratio (median / upper 95%) |
+| ---: | ---: | --- | ---: | ---: |
+| 20,000 | 0.020 s | source | 0.057 s | 2.813 / 2.839 |
+| 20,000 | | artifact | 0.054 s | 2.624 / 2.684 |
+| 200,000 | 0.119 s | source | 0.434 s | 3.623 / 3.696 |
+| 200,000 | | artifact | 0.436 s | 3.611 / 3.667 |
+
+Cumulative cost at 200k rows (ms): read rows only 140; plus field access and two `text_parse_integer` calls 250; full ledger with four map updates 450. Reading alone already costs more than the whole Python run, and it is five VM operations per row around one host call (`csv_next_row`, `is_ok`, `unwrap`, `is_some`, `unwrap`), so the cost is again per-operation overhead, not the CSV state machine.
+
+The calendar-conflicts scaling harness was also tried and rejected as a second workload: its Python reference needs the third-party `icalendar` package, which the pinned CPython does not have, so the Python side failed (`results/calendar-scaling-format50-vs-python.json` records that failed preflight).
+
+Reading across classes: Guion leads on short-lived and compute-bound programs, and trails Python on programs whose time is spent in many small operations over a large stream of rows, where Python runs its loop body in C (`csv`, `json`) and Guion runs it in the interpreter. The CSV gap (3.6×) is larger than the JSONL gap (1.36×), so the per-operation cost is the common lever, and it is worth more than any JSONL-specific change.
 
 ## What was measured on the JSONL gate workload (200k rows, container)
 

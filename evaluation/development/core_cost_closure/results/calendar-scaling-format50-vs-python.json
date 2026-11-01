@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "kind": "calendar-event-scaling-diagnostic",
+  "status": "failed",
+  "commit": "283f888",
+  "guion_sha256": "5dacb1a48ec1e92605c0b4f5065041fe466ed9478d45708a8eae9dd4c3f12e81",
+  "calendar_source_sha256": "2de48b404554ada08b18a8826fd399ac1d794013aabcd338e5de5a54e587d935",
+  "calendar_project_config_sha256": "59d4ca21d27439337f6d60e23ab8a33d2090cf7afedb77f24bf4973ba0e6b34c",
+  "runtime_instruction_limit": 10000000,
+  "python": "3.14.7 (main, Oct 28 2026, 17:28:03) [GCC 12.2.0]",
+  "platform": "Linux-6.8.0-117-generic-aarch64-with-glibc2.36",
+  "trials": 15,
+  "layout": "disjoint",
+  "measurement": "One unmeasured randomized warmup pair plus randomized paired trials. Fresh-process source execution, Guion cache bypassed with the project instruction limit set to 10000000, output and concurrency checks included, fixture setup excluded, OS cache uncontrolled. Three calendars use the disjoint event-time layout inside a three-day window; the other two endpoints retain fixed error cases.",
+  "workloads": {
+    "250": {
+      "events_per_calendar": 250,
+      "parsed_events": 750,
+      "preflight": {
+        "guion": {
+          "passed": true,
+          "elapsed_seconds": 0.14321,
+          "failures": [],
+          "stderr": ""
+        },
+        "python": {
+          "passed": false,
+          "elapsed_seconds": 0.085063,
+          "failures": [
+            "step 1: expected exit code 0, received 1",
+            "step 1: check 1: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/Users/rmichaelthomas/guion/.worktrees/guion-core-sprint-spec/target/perf-session/real-tasks-tmp/veritas-independent-case-ik2klrse/report.json'",
+            "step 1: check 2: json_path_equals could not be evaluated: [Errno 2] No such file or directory: '/Users/rmichaelthomas/guion/.worktrees/guion-core-sprint-spec/target/perf-session/real-tasks-tmp/veritas-independent-case-ik2klrse/report.json'",
+            "step 1: check 3: http_request_count_equals did not match its expected value",
+            "step 1: check 5: http_max_in_flight_at_least did not match its expected value",
+            "step 1: check 6: json_equals could not be evaluated: [Errno 2] No such file or directory: '/Users/rmichaelthomas/guion/.worktrees/guion-core-sprint-spec/target/perf-session/real-tasks-tmp/veritas-independent-case-ik2klrse/report.json'"
+          ],
+          "stderr": "No module named 'icalendar'\n"
+        }
+      },
+      "status": "failed"
+    }
+  }
+}
