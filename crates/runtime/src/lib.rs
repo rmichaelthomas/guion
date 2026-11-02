@@ -4,10 +4,10 @@ use guion_model::{
 };
 pub use guion_vm_core::CancellationToken;
 use guion_vm_core::{
-    build_fused_tables, charge_allocation, check_call_depth, cloned_value_allocation,
+    build_register_programs, charge_allocation, check_call_depth, cloned_value_allocation,
     encoded_json_string_len, finish_json_value, finish_shared_json, json_exact_integer,
     map_clone_allocation, new_vm_frame, opcode_profile_name, shared_json_push_local_allocation,
-    shared_json_set_local_allocation, value_matches, verify, Budget, FrameStart, FusedEntry,
+    shared_json_set_local_allocation, value_matches, verify, Budget, FrameStart, RegisterProgram,
     HostOpContext, OutputStream, RuntimeProfileCounters, VmFrame, VmHost, VmLimits,
 };
 use std::{
@@ -2877,11 +2877,11 @@ impl Runtime {
         database_roots.extend(policy.file_root_aliases.values().cloned());
         let mut artifact = artifact;
         inline_host_forwarders(&mut artifact);
-        let fused = Arc::new(build_fused_tables(&artifact));
+        let registers = Arc::new(build_register_programs(&artifact));
         let artifact = share_artifact(artifact);
         Ok(Instance {
             artifact,
-            fused,
+            registers,
             native: None,
             native_code: None,
             native_enabled: self.native_enabled,
@@ -2925,7 +2925,7 @@ impl Runtime {
 #[derive(Debug)]
 pub struct Instance {
     artifact: Arc<Artifact>,
-    fused: Arc<Vec<Vec<FusedEntry>>>,
+    registers: Arc<Vec<RegisterProgram>>,
     native: Option<NativeBackend>,
     native_code: Option<Arc<NativeCode>>,
     native_enabled: bool,
@@ -3239,8 +3239,8 @@ impl VmHost for Instance {
         &self.artifact
     }
 
-    fn fused_tables(&self) -> Option<Arc<Vec<Vec<FusedEntry>>>> {
-        Some(Arc::clone(&self.fused))
+    fn register_programs(&self) -> Option<Arc<Vec<RegisterProgram>>> {
+        Some(Arc::clone(&self.registers))
     }
 
     fn limits(&self) -> VmLimits {
@@ -8397,7 +8397,7 @@ impl Instance {
         let next = Arc::new(AtomicUsize::new(worker_count));
         let cancelled = Arc::new(AtomicBool::new(false));
         let artifact = Arc::clone(&self.artifact);
-        let fused = Arc::clone(&self.fused);
+        let registers = Arc::clone(&self.registers);
         let policy = self.policy.clone();
         let native_enabled = self.native_enabled;
         let native_code = self.native_code.clone();
@@ -8423,7 +8423,7 @@ impl Instance {
             let next = next.clone();
             let cancelled = cancelled.clone();
             let artifact = artifact.clone();
-            let fused = fused.clone();
+            let registers = registers.clone();
             let policy = policy.clone();
             let values = values.clone();
             let budget = worker_budget.clone();
@@ -8457,7 +8457,7 @@ impl Instance {
                     database_roots.extend(policy.file_root_aliases.values().cloned());
                     let mut worker = Instance {
                         artifact: Arc::clone(&artifact),
-                        fused: Arc::clone(&fused),
+                        registers: Arc::clone(&registers),
                         native: None,
                         native_code: native_code.clone(),
                         native_enabled,

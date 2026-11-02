@@ -22,6 +22,10 @@ use std::{
     time::Instant,
 };
 
+mod register;
+
+pub use register::{build_register_programs, RegisterProgram};
+
 fn shared_text_scalar(scalar: char) -> Arc<str> {
     if !scalar.is_ascii() {
         return Arc::<str>::from(scalar.to_string());
@@ -80,9 +84,8 @@ pub struct HostOpContext<'a> {
 /// Services the shared VM requests from whatever environment embeds it.
 pub trait VmHost {
     fn artifact(&self) -> &Arc<Artifact>;
-    /// Load-time fused instruction entries for every function, indexed by original
-    /// instruction position. Hosts that do not build tables return `None`.
-    fn fused_tables(&self) -> Option<Arc<Vec<Vec<FusedEntry>>>> {
+    /// Load-time register form of every function. Hosts that do not build it return `None`.
+    fn register_programs(&self) -> Option<Arc<Vec<RegisterProgram>>> {
         None
     }
     fn limits(&self) -> VmLimits;
@@ -191,11 +194,17 @@ fn run_frames_with_stack_profiled<const PROFILED: bool, H: VmHost>(
         .map(fast_host_forwarder)
         .collect::<Vec<_>>();
     let artifact = Arc::clone(host.artifact());
-    let fused_tables = if PROFILED { None } else { host.fused_tables() };
+    let register_programs = if PROFILED {
+        None
+    } else {
+        host.register_programs()
+    };
     let shared = VmRunShared {
         artifact: &artifact,
         limits: host.limits(),
-        fused: fused_tables.as_ref().map(|tables| tables.as_slice()),
+        registers: register_programs
+            .as_ref()
+            .map(|programs| programs.as_slice()),
         fast_host_forwarders: &fast_host_forwarders,
     };
     let mut pool = VmVecPool::default();
@@ -263,15 +272,17 @@ pub fn execute_vm_frame<H: VmHost>(
         .map(fast_host_forwarder)
         .collect::<Vec<_>>();
     let artifact = Arc::clone(host.artifact());
-    let fused_tables = host.fused_tables();
+    let register_programs = host.register_programs();
     let profiled = budget.runtime_profile.is_some();
     let shared = VmRunShared {
         artifact: &artifact,
         limits: host.limits(),
-        fused: if profiled {
+        registers: if profiled {
             None
         } else {
-            fused_tables.as_ref().map(|tables| tables.as_slice())
+            register_programs
+                .as_ref()
+                .map(|programs| programs.as_slice())
         },
         fast_host_forwarders: &fast_host_forwarders,
     };
@@ -280,350 +291,6 @@ pub fn execute_vm_frame<H: VmHost>(
         execute_vm_frame_with_forwarders::<true, _>(host, frame, &budget, &shared, &mut pool)
     } else {
         execute_vm_frame_with_forwarders::<false, _>(host, frame, &budget, &shared, &mut pool)
-    }
-}
-
-/// A short instruction sequence the VM executes as one step.
-///
-/// Entries are indexed by the position of the first original instruction, so
-/// `ip`, spans and jump targets keep their original meaning. Each entry charges
-/// the exact fuel and allocation the plain sequence would, and the VM falls back
-/// to the plain instruction whenever an entry's preconditions do not hold.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct FusedEntry {
-    kind: FusedKind,
-    slot: u32,
-    dest: u32,
-    target: u32,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum FusedKind {
-    None,
-    /// `Load slot; IsOk|IsSome; [Not]; JumpIfFalse target`
-    ProbeBranch {
-        is_ok: bool,
-        negate: bool,
-    },
-    /// `Not; JumpIfFalse target`
-    NotBranch,
-    /// `Load slot; Unwrap; Store dest`
-    UnwrapStore,
-    /// `Const; Store dest`
-    ConstStore,
-    /// `Load slot; Load dest; Index`, reading a map or list entry without cloning either
-    LoadLoadIndex,
-    /// `Load slot; Load dest; MapHas`, probing a map without cloning either
-    LoadLoadMapHas,
-    /// `Call` of a function that is exactly `Load 0; MakeSome; Return`
-    CallSome,
-    /// `Call` of a function that is exactly `MakeNone; Return`
-    CallNone,
-}
-
-impl FusedEntry {
-    const NONE: Self = Self {
-        kind: FusedKind::None,
-        slot: 0,
-        dest: 0,
-        target: 0,
-    };
-
-    #[inline]
-    fn extra_fuel(&self) -> u64 {
-        match self.kind {
-            FusedKind::None => 0,
-            FusedKind::ProbeBranch { negate, .. } => 2 + u64::from(negate),
-            FusedKind::NotBranch | FusedKind::ConstStore => 1,
-            FusedKind::UnwrapStore | FusedKind::LoadLoadIndex | FusedKind::LoadLoadMapHas => 2,
-            FusedKind::CallNone => 2,
-            FusedKind::CallSome => 3,
-        }
-    }
-}
-
-/// Build the fused-entry tables for every function of a verified artifact.
-pub fn build_fused_tables(artifact: &Artifact) -> Vec<Vec<FusedEntry>> {
-    let constructors: Vec<Option<FusedKind>> = artifact
-        .functions
-        .iter()
-        .map(|function| match forwarded_host_operation(function) {
-            Some(Op::MakeSome) => Some(FusedKind::CallSome),
-            Some(Op::MakeNone) => Some(FusedKind::CallNone),
-            _ => None,
-        })
-        .collect();
-    artifact
-        .functions
-        .iter()
-        .map(|function| build_fused_table(function, &constructors))
-        .collect()
-}
-
-fn build_fused_table(
-    function: &guion_model::Function,
-    constructors: &[Option<FusedKind>],
-) -> Vec<FusedEntry> {
-    let code = &function.code;
-    let mut is_target = vec![false; code.len() + 1];
-    for instruction in code {
-        if let Op::Jump(target) | Op::JumpIfFalse(target) = &instruction.op {
-            if let Some(slot) = is_target.get_mut(*target) {
-                *slot = true;
-            }
-        }
-    }
-    let op_at = |ip: usize| code.get(ip).map(|instruction| &instruction.op);
-    let mut table = vec![FusedEntry::NONE; code.len()];
-    let mut any = false;
-    for (ip, table_entry) in table.iter_mut().enumerate() {
-        let entry = match op_at(ip) {
-            Some(Op::Load(slot)) => match (op_at(ip + 1), op_at(ip + 2), op_at(ip + 3)) {
-                (Some(op @ (Op::IsOk | Op::IsSome)), Some(Op::JumpIfFalse(target)), _) => Some((
-                    FusedEntry {
-                        kind: FusedKind::ProbeBranch {
-                            is_ok: matches!(op, Op::IsOk),
-                            negate: false,
-                        },
-                        slot: *slot as u32,
-                        dest: 0,
-                        target: *target as u32,
-                    },
-                    3,
-                )),
-                (
-                    Some(op @ (Op::IsOk | Op::IsSome)),
-                    Some(Op::Not),
-                    Some(Op::JumpIfFalse(target)),
-                ) => Some((
-                    FusedEntry {
-                        kind: FusedKind::ProbeBranch {
-                            is_ok: matches!(op, Op::IsOk),
-                            negate: true,
-                        },
-                        slot: *slot as u32,
-                        dest: 0,
-                        target: *target as u32,
-                    },
-                    4,
-                )),
-                (Some(Op::Unwrap), Some(Op::Store(dest)), _) => Some((
-                    FusedEntry {
-                        kind: FusedKind::UnwrapStore,
-                        slot: *slot as u32,
-                        dest: *dest as u32,
-                        target: 0,
-                    },
-                    3,
-                )),
-                (Some(Op::Load(dest)), Some(op @ (Op::Index | Op::MapHas)), _) => Some((
-                    FusedEntry {
-                        kind: if matches!(op, Op::Index) {
-                            FusedKind::LoadLoadIndex
-                        } else {
-                            FusedKind::LoadLoadMapHas
-                        },
-                        slot: *slot as u32,
-                        dest: *dest as u32,
-                        target: 0,
-                    },
-                    3,
-                )),
-                _ => None,
-            },
-            Some(Op::Call(target, _)) => constructors.get(*target).copied().flatten().map(|kind| {
-                (
-                    FusedEntry {
-                        kind,
-                        ..FusedEntry::NONE
-                    },
-                    1,
-                )
-            }),
-            Some(Op::Not) => match op_at(ip + 1) {
-                Some(Op::JumpIfFalse(target)) => Some((
-                    FusedEntry {
-                        kind: FusedKind::NotBranch,
-                        slot: 0,
-                        dest: 0,
-                        target: *target as u32,
-                    },
-                    2,
-                )),
-                _ => None,
-            },
-            Some(Op::Const(_)) => match op_at(ip + 1) {
-                Some(Op::Store(dest)) => Some((
-                    FusedEntry {
-                        kind: FusedKind::ConstStore,
-                        slot: 0,
-                        dest: *dest as u32,
-                        target: 0,
-                    },
-                    2,
-                )),
-                _ => None,
-            },
-            _ => None,
-        };
-        if let Some((entry, length)) = entry {
-            // A jump into the middle of a sequence must still see the plain instructions.
-            if (1..length).all(|offset| !is_target.get(ip + offset).copied().unwrap_or(false)) {
-                *table_entry = entry;
-                any = true;
-            }
-        }
-    }
-    if any {
-        table
-    } else {
-        Vec::new()
-    }
-}
-
-/// Execute one fused entry. Returns `Ok(false)` without side effects when the
-/// entry's preconditions do not hold, so the caller runs the plain instructions.
-#[inline(never)]
-#[allow(clippy::too_many_arguments)]
-fn run_fused_entry(
-    entry: &FusedEntry,
-    instruction: &guion_model::Instruction,
-    locals: &mut [Value],
-    stack: &mut Vec<Value>,
-    budget: &Budget,
-    limits: &VmLimits,
-    depth: usize,
-    ip: &mut usize,
-) -> Result<bool, RuntimeError> {
-    let start = *ip - 1;
-    match entry.kind {
-        FusedKind::ProbeBranch { is_ok, negate } => {
-            let value = &locals[entry.slot as usize];
-            let probe = match (is_ok, value) {
-                (true, Value::ResultOk(_)) | (false, Value::OptionSome(_)) => true,
-                (true, Value::ResultErr(_)) | (false, Value::OptionNone) => false,
-                _ => return Ok(false),
-            };
-            charge_allocation(budget, cloned_value_allocation(value), instruction.span)?;
-            budget.record_guest_conditional_branch();
-            *ip = if probe != negate {
-                start + entry.extra_fuel() as usize + 1
-            } else {
-                entry.target as usize
-            };
-            Ok(true)
-        }
-        FusedKind::NotBranch => {
-            let Some(Value::Bool(condition)) = stack.last() else {
-                return Ok(false);
-            };
-            let condition = *condition;
-            stack.pop();
-            budget.record_guest_conditional_branch();
-            *ip = if condition {
-                entry.target as usize
-            } else {
-                start + 2
-            };
-            Ok(true)
-        }
-        FusedKind::UnwrapStore => {
-            let value = &locals[entry.slot as usize];
-            let payload = match value {
-                Value::ResultOk(payload) | Value::OptionSome(payload) => payload.as_ref().clone(),
-                _ => return Ok(false),
-            };
-            charge_allocation(budget, cloned_value_allocation(value), instruction.span)?;
-            locals[entry.dest as usize] = payload;
-            *ip = start + 3;
-            Ok(true)
-        }
-        FusedKind::ConstStore => {
-            let Op::Const(constant) = &instruction.op else {
-                unreachable!("const-store entries start at a Const instruction")
-            };
-            if let Some(error) = value_limit_error_at_boundary(constant, limits, instruction.span) {
-                return Err(error);
-            }
-            charge_allocation(budget, cloned_value_allocation(constant), instruction.span)?;
-            locals[entry.dest as usize] = constant.clone();
-            *ip = start + 2;
-            Ok(true)
-        }
-        FusedKind::LoadLoadIndex => {
-            let index = &locals[entry.dest as usize];
-            let item = match (&locals[entry.slot as usize], index) {
-                (Value::Map(items), Value::Text(key)) => items.get(key.as_ref()),
-                (Value::List(items), Value::Int(position)) => {
-                    match position
-                        .small()
-                        .and_then(|position| usize::try_from(position).ok())
-                    {
-                        Some(position) => items.get(position),
-                        None => None,
-                    }
-                }
-                _ => None,
-            };
-            let Some(item) = item else {
-                return Ok(false);
-            };
-            // Both loads and the read in one charge: it fits exactly when each would, and a
-            // refusal leaves the budget untouched so the plain path reports it at its own span.
-            let charge =
-                cloned_value_allocation(index).saturating_add(cloned_value_allocation(item));
-            if !budget.allocate(charge) {
-                return Ok(false);
-            }
-            stack.push(item.clone());
-            *ip = start + 3;
-            Ok(true)
-        }
-        FusedKind::LoadLoadMapHas => {
-            let (Value::Map(items), key @ Value::Text(text)) =
-                (&locals[entry.slot as usize], &locals[entry.dest as usize])
-            else {
-                return Ok(false);
-            };
-            if !budget.allocate(cloned_value_allocation(key)) {
-                return Ok(false);
-            }
-            stack.push(Value::Bool(items.contains_key(text.as_ref())));
-            *ip = start + 3;
-            Ok(true)
-        }
-        FusedKind::CallNone => {
-            if depth.saturating_add(1) >= limits.call_depth_limit {
-                return Ok(false);
-            }
-            stack.push(Value::OptionNone);
-            Ok(true)
-        }
-        FusedKind::CallSome => {
-            if depth.saturating_add(1) >= limits.call_depth_limit {
-                return Ok(false);
-            }
-            let Some(value) = stack.pop() else {
-                return Ok(false);
-            };
-            let charged = budget.allocate(size_of::<Value>());
-            let wrapped = Value::OptionSome(Box::new(value));
-            let within_limits =
-                charged && value_limit_error(&wrapped, limits, instruction.span).is_none();
-            if !within_limits {
-                if charged {
-                    budget.refund_allocation(size_of::<Value>());
-                }
-                let Value::OptionSome(value) = wrapped else {
-                    unreachable!("the wrapper was built just above")
-                };
-                stack.push(*value);
-                return Ok(false);
-            }
-            stack.push(wrapped);
-            Ok(true)
-        }
-        FusedKind::None => Ok(false),
     }
 }
 
@@ -718,7 +385,7 @@ fn text_chars_concat_fast_path(
 struct VmRunShared<'r> {
     artifact: &'r Arc<Artifact>,
     limits: VmLimits,
-    fused: Option<&'r [Vec<FusedEntry>]>,
+    registers: Option<&'r [RegisterProgram]>,
     fast_host_forwarders: &'r [Option<FastHostForwarder>],
 }
 
@@ -788,10 +455,14 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
     };
     let mut instruction_fuel = InstructionFuel::new(budget);
     let mut previous_profiled_instruction: Option<(usize, &'static str)> = None;
-    let fused: &[FusedEntry] = shared
-        .fused
-        .and_then(|tables| tables.get(function_index))
-        .map_or(&[], |table| table.as_slice());
+    let registers = shared
+        .registers
+        .and_then(|programs| programs.get(function_index))
+        // Parallel workers charge fuel exactly, one atomic at a time, which this form does
+        // not; they stay on the stack interpreter.
+        .filter(|program| instruction_fuel.reserve_locally && program.usable_under(limits));
+    // The stack interpreter takes at least one instruction after this form hands back.
+    let mut stay_on_stack = false;
     // Cancellation is polled on frame entry, on every taken backward jump and after every host
     // operation: code between two polls is straight-line, so it stops soon after a cancellation.
     let mut poll_cancellation = true;
@@ -805,6 +476,33 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                     f.code.first().map(|i| i.span).unwrap_or_default(),
                 ));
             }
+        }
+        if let Some(program) = registers {
+            if !stay_on_stack {
+                if let Some(pc) = program.entry(ip) {
+                    instruction_fuel.top_up();
+                    let exit = register::run_registers(
+                        program,
+                        pc as usize,
+                        register::RegisterRun {
+                            host: &mut *host,
+                            artifact,
+                            function: f,
+                            locals: &mut locals,
+                            stack: &mut stack,
+                            fuel: &mut instruction_fuel,
+                            budget,
+                            limits,
+                            depth,
+                        },
+                    )?;
+                    ip = exit.ip;
+                    poll_cancellation = exit.poll_cancellation;
+                    stay_on_stack = true;
+                    continue;
+                }
+            }
+            stay_on_stack = false;
         }
         if ip >= f.code.len() {
             return Err(RuntimeError::new(
@@ -934,28 +632,6 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
             }};
         }
         let instruction = instruction_ref;
-        let fused_start = ip;
-        if let Some(entry) = fused.get(ip - 1) {
-            if entry.kind != FusedKind::None && instruction_fuel.consume_extra(entry.extra_fuel()) {
-                if run_fused_entry(
-                    entry,
-                    instruction,
-                    &mut locals,
-                    &mut stack,
-                    budget.as_ref(),
-                    limits,
-                    depth,
-                    &mut ip,
-                )? {
-                    // A fused branch can be a loop's backward edge.
-                    poll_cancellation = ip < fused_start;
-                    continue;
-                }
-                // Preconditions failed after the fuel was taken: give it back so the
-                // plain instructions charge it themselves.
-                instruction_fuel.remaining += entry.extra_fuel();
-            }
-        }
         match &instruction.op {
             Op::Load(slot) => {
                 let value = &locals[*slot];
@@ -3431,28 +3107,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                 if budget.is_cancelled() || host.externally_cancelled() {
                     continue;
                 }
-                // These operations were reached through forwarding wrappers whose return
-                // applied the value limits; keep that check now that they are called directly.
-                if matches!(
-                    instruction.op,
-                    Op::JsonTryGet
-                        | Op::JsonTryIndex
-                        | Op::JsonTryGetText
-                        | Op::JsonTryGetInt
-                        | Op::JsonTryText
-                        | Op::JsonTryInt
-                        | Op::JsonTryBool
-                        | Op::JsonTryFloat
-                        | Op::FileNextLine
-                        | Op::CsvNext
-                        | Op::TextParseInt
-                        | Op::TextParseFloat
-                        | Op::TextCollapseWhitespace
-                        | Op::TimeParseTimestamp
-                        | Op::TimeFormatUtc
-                        | Op::TimeFormatUtcDate
-                        | Op::HttpResponseJson
-                ) {
+                if host_result_needs_limit_check(&instruction.op) {
                     if let Some(result) = stack.last() {
                         if let Some(error) = value_limit_error(result, limits, instruction.span) {
                             return Err(error);
@@ -3462,6 +3117,31 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
             }
         }
     }
+}
+
+/// These operations were reached through forwarding wrappers whose return applied the
+/// value limits; the check stays now that they are called directly.
+fn host_result_needs_limit_check(op: &Op) -> bool {
+    matches!(
+        op,
+        Op::JsonTryGet
+            | Op::JsonTryIndex
+            | Op::JsonTryGetText
+            | Op::JsonTryGetInt
+            | Op::JsonTryText
+            | Op::JsonTryInt
+            | Op::JsonTryBool
+            | Op::JsonTryFloat
+            | Op::FileNextLine
+            | Op::CsvNext
+            | Op::TextParseInt
+            | Op::TextParseFloat
+            | Op::TextCollapseWhitespace
+            | Op::TimeParseTimestamp
+            | Op::TimeFormatUtc
+            | Op::TimeFormatUtcDate
+            | Op::HttpResponseJson
+    )
 }
 
 #[derive(Clone, Copy)]
@@ -4625,7 +4305,7 @@ pub struct Budget {
     pub runtime_profile: Option<Arc<RuntimeProfileCounters>>,
 }
 
-const INSTRUCTION_FUEL_RESERVATION: u64 = 32;
+const INSTRUCTION_FUEL_RESERVATION: u64 = 4096;
 
 struct InstructionFuel<'a> {
     budget: &'a Budget,
@@ -4667,15 +4347,11 @@ impl<'a> InstructionFuel<'a> {
         true
     }
 
-    /// Take `count` more units from the local reservation. Returns false, taking
-    /// nothing, when exact atomic charging is in force or the reservation is short.
+    /// Reserve more fuel once the local reservation has run out.
     #[inline]
-    fn consume_extra(&mut self, count: u64) -> bool {
-        if self.reserve_locally && self.remaining >= count {
-            self.remaining -= count;
-            true
-        } else {
-            false
+    fn top_up(&mut self) {
+        if self.remaining == 0 && self.reserve_locally {
+            self.remaining = self.budget.reserve(INSTRUCTION_FUEL_RESERVATION);
         }
     }
 
@@ -7849,18 +7525,18 @@ mod tests {
         }
     }
 
-    struct FusionTestHost {
+    struct RegisterTestHost {
         artifact: Arc<Artifact>,
-        fused: Option<Arc<Vec<Vec<FusedEntry>>>>,
+        registers: Option<Arc<Vec<RegisterProgram>>>,
     }
 
-    impl VmHost for FusionTestHost {
+    impl VmHost for RegisterTestHost {
         fn artifact(&self) -> &Arc<Artifact> {
             &self.artifact
         }
 
-        fn fused_tables(&self) -> Option<Arc<Vec<Vec<FusedEntry>>>> {
-            self.fused.clone()
+        fn register_programs(&self) -> Option<Arc<Vec<RegisterProgram>>> {
+            self.registers.clone()
         }
 
         fn limits(&self) -> VmLimits {
@@ -7896,7 +7572,7 @@ mod tests {
         }
     }
 
-    fn fusion_test_artifact() -> Arc<Artifact> {
+    fn register_test_artifact() -> Arc<Artifact> {
         let ops = vec![
             Op::Const(Value::Int(BigInt::from_i64(7))),
             Op::MakeOk,
@@ -7944,7 +7620,7 @@ mod tests {
             format_version: Artifact::CURRENT_VERSION,
             build_metadata: None,
             compiled_source_sha256: None,
-            source_name: "fusion-test.gu".into(),
+            source_name: "register-test.gu".into(),
             sources: vec![],
             entry: "main".into(),
             functions: vec![guion_model::Function {
@@ -7960,17 +7636,17 @@ mod tests {
     }
 
     #[test]
-    fn fused_entries_match_plain_execution_at_every_instruction_limit() {
-        let artifact = fusion_test_artifact();
-        let tables = Arc::new(build_fused_tables(&artifact));
+    fn register_form_matches_plain_execution_at_every_instruction_limit() {
+        let artifact = register_test_artifact();
+        let tables = Arc::new(build_register_programs(&artifact));
         assert!(
-            tables[0].iter().any(|entry| entry.kind != FusedKind::None),
-            "the test program must contain fusable sequences"
+            tables[0].covers_instruction_ranges(),
+            "the test program must contain register instructions"
         );
-        let run = |fused: Option<Arc<Vec<Vec<FusedEntry>>>>, limit: u64| {
-            let mut host = FusionTestHost {
+        let run = |registers: Option<Arc<Vec<RegisterProgram>>>, limit: u64| {
+            let mut host = RegisterTestHost {
                 artifact: Arc::clone(&artifact),
-                fused,
+                registers,
             };
             let budget = Arc::new(Budget::new(limit, 1 << 20, CancellationToken::new(), None));
             let frame = new_vm_frame(&artifact, 0, vec![], 1, None);
@@ -7984,8 +7660,8 @@ mod tests {
         let mut succeeded = false;
         for limit in 0..40 {
             let plain = run(None, limit);
-            let fused = run(Some(Arc::clone(&tables)), limit);
-            assert_eq!(plain, fused, "instruction limit {limit}");
+            let registers = run(Some(Arc::clone(&tables)), limit);
+            assert_eq!(plain, registers, "instruction limit {limit}");
             succeeded |= plain.0.is_ok();
         }
         assert!(succeeded, "a large enough limit completes the program");
@@ -7994,7 +7670,7 @@ mod tests {
     }
 
     #[test]
-    fn fused_reads_and_constructor_calls_match_plain_execution_at_every_limit() {
+    fn register_reads_and_constructor_calls_match_plain_execution_at_every_limit() {
         let span = |index: usize| Span {
             source_id: 0,
             start: index,
@@ -8073,60 +7749,56 @@ mod tests {
             format_version: Artifact::CURRENT_VERSION,
             build_metadata: None,
             compiled_source_sha256: None,
-            source_name: "fusion-reads-test.gu".into(),
+            source_name: "register-reads-test.gu".into(),
             sources: vec![],
             entry: "main".into(),
             functions: vec![main, some, none],
             externals: vec![],
             records: vec![],
         });
-        let tables = Arc::new(build_fused_tables(&artifact));
-        for kind in [
-            FusedKind::LoadLoadIndex,
-            FusedKind::LoadLoadMapHas,
-            FusedKind::CallSome,
-            FusedKind::CallNone,
-        ] {
+        let tables = Arc::new(build_register_programs(&artifact));
+        for kind in ["Index", "MapHas", "CallSome", "CallNone"] {
             assert!(
-                tables[0].iter().any(|entry| entry.kind == kind),
-                "the test program must reach {kind:?}"
+                tables[0].has_kind(kind),
+                "the test program must reach {kind}"
             );
         }
-        let run = |fused: Option<Arc<Vec<Vec<FusedEntry>>>>, instructions: u64, bytes: usize| {
-            let mut host = FusionTestHost {
-                artifact: Arc::clone(&artifact),
-                fused,
+        let run =
+            |registers: Option<Arc<Vec<RegisterProgram>>>, instructions: u64, bytes: usize| {
+                let mut host = RegisterTestHost {
+                    artifact: Arc::clone(&artifact),
+                    registers,
+                };
+                let budget = Arc::new(Budget::new(
+                    instructions,
+                    bytes,
+                    CancellationToken::new(),
+                    None,
+                ));
+                let frame = new_vm_frame(&artifact, 0, vec![], 1, None);
+                let outcome = match run_frames(&mut host, frame, Arc::clone(&budget)) {
+                    Ok(value) => Ok(value),
+                    Err(error) => Err((error.code, error.trace)),
+                };
+                (
+                    outcome,
+                    budget.remaining.load(Ordering::Relaxed),
+                    budget.allocation_remaining.load(Ordering::Relaxed),
+                )
             };
-            let budget = Arc::new(Budget::new(
-                instructions,
-                bytes,
-                CancellationToken::new(),
-                None,
-            ));
-            let frame = new_vm_frame(&artifact, 0, vec![], 1, None);
-            let outcome = match run_frames(&mut host, frame, Arc::clone(&budget)) {
-                Ok(value) => Ok(value),
-                Err(error) => Err((error.code, error.trace)),
-            };
-            (
-                outcome,
-                budget.remaining.load(Ordering::Relaxed),
-                budget.allocation_remaining.load(Ordering::Relaxed),
-            )
-        };
         for limit in 0..50 {
             let plain = run(None, limit, 1 << 20);
-            let fused = run(Some(Arc::clone(&tables)), limit, 1 << 20);
-            assert_eq!(plain, fused, "instruction limit {limit}");
+            let registers = run(Some(Arc::clone(&tables)), limit, 1 << 20);
+            assert_eq!(plain, registers, "instruction limit {limit}");
         }
         let mut exhausted = false;
         for bytes in 0..200 {
             let plain = run(None, 1000, bytes);
-            let fused = run(Some(Arc::clone(&tables)), 1000, bytes);
+            let registers = run(Some(Arc::clone(&tables)), 1000, bytes);
             // The failing program stops here, so the fuel left over is not observable.
             assert_eq!(
                 (&plain.0, plain.2),
-                (&fused.0, fused.2),
+                (&registers.0, registers.2),
                 "allocation limit {bytes}"
             );
             exhausted |= plain.0.is_err();
