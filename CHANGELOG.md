@@ -4,6 +4,7 @@ Changes are recorded here as the project moves toward its first release. No publ
 
 ## Unreleased — pre-release development
 
+- Native functions that fail now keep the output they printed first; previously `print(7)` followed by a failure printed nothing. `print` of `Text` now compiles natively in functions with a loop. `csv_next_row` and `text_parse_integer` run as direct host operations, plain CSV records take a faster path, and the VM reads maps and lists without clones. The VM now polls cancellation at frame entry, loop edges and after host operations, so a cancelled program can finish its current straight-line run of instructions before stopping.
 - Shrank the runtime `Value` from 88 to 24 bytes, added integer and clone fast paths to the VM, and made packages profile-guided by default (`GUION_PGO=0` opts out). Allocation limits charge the smaller value size, so a given `allocation_limit_bytes` now holds more values.
 - Added format-45 `http_response_text` with bounded checked UTF-8 decoding, plus `std:http.http_response_json` for typed JSON parsing and stable error mapping. Existing HTTP request APIs retain their result types.
 - Added format-41 stable integer-key sorting and merging plus `JsonSetLocal` bytecode for alias-safe, copy-on-write local JSON-object updates; added a fast artifact-format assertion audit that runs before long validation gates. Format 42 assigns distinct local-time opcode tags so temporal resolution coexists with those format-41 instructions.
