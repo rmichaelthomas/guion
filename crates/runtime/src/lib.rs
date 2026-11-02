@@ -1,6 +1,6 @@
 use guion_model::{
     Artifact, BigInt, FileErrorValue, Float64, HttpErrorValue, JsonErrorValue, NativeResourceValue,
-    Op, RuntimeError, SharedJson, Span, TaskErrorValue, TextMap, Type, Value,
+    Op, RuntimeError, SharedJson, SharedText, Span, TaskErrorValue, TextMap, Type, Value,
 };
 pub use guion_vm_core::CancellationToken;
 use guion_vm_core::{
@@ -477,7 +477,7 @@ impl NativeListArena {
                     Value::List(items) => items
                         .iter()
                         .map(|item| match item {
-                            Value::Text(text) => Some(Arc::clone(text)),
+                            Value::Text(text) => Some(SharedText::clone(text)),
                             _ => None,
                         })
                         .collect::<Option<Vec<_>>>()
@@ -1072,14 +1072,14 @@ impl NativeListArena {
         i64::try_from((&mut **descriptor as *mut NativeHandleList) as usize).ok()
     }
 
-    fn store_native_text_list(&mut self, items: Vec<Arc<str>>) -> Option<i64> {
+    fn store_native_text_list(&mut self, items: Vec<SharedText>) -> Option<i64> {
         self.store_native_text_list_charged(items, true)
     }
 
     /// `charge` is false only when re-storing a list whose allocation was already charged.
     fn store_native_text_list_charged(
         &mut self,
-        items: Vec<Arc<str>>,
+        items: Vec<SharedText>,
         charge: bool,
     ) -> Option<i64> {
         if items.len() > self.max_collection_items {
@@ -1802,7 +1802,7 @@ impl NativeListArena {
                 characters.try_reserve_exact(character_count).ok()?;
                 characters.extend(
                     text.chars()
-                        .map(|character| Arc::<str>::from(character.to_string())),
+                        .map(|character| SharedText::from(character.to_string())),
                 );
                 return self.store_native_text_list(characters);
             }
@@ -1814,7 +1814,7 @@ impl NativeListArena {
                 else {
                     return None;
                 };
-                let text = Arc::clone(text);
+                let text = SharedText::clone(text);
                 let start = usize::try_from(arguments[1]).ok()?;
                 let end = usize::try_from(arguments[2]).ok()?;
                 if start > end {
@@ -1852,7 +1852,7 @@ impl NativeListArena {
                 let value = if start == 0 && !reached_end {
                     Value::Text(text)
                 } else {
-                    let sliced = Arc::<str>::from(&text[byte_start..byte_end]);
+                    let sliced = SharedText::from(&text[byte_start..byte_end]);
                     if !self.charge(size_of::<String>().saturating_add(sliced.len())) {
                         return None;
                     }
@@ -1903,8 +1903,8 @@ impl NativeListArena {
                 else {
                     return None;
                 };
-                let fields: Vec<Arc<str>> = if delimiter.is_empty() {
-                    vec![Arc::clone(text)]
+                let fields: Vec<SharedText> = if delimiter.is_empty() {
+                    vec![SharedText::clone(text)]
                 } else {
                     let offsets = guion_vm_core::text_match_offsets(
                         text,
@@ -1914,10 +1914,10 @@ impl NativeListArena {
                     let mut fields = Vec::with_capacity(offsets.len() + 1);
                     let mut start = 0;
                     for offset in offsets {
-                        fields.push(Arc::<str>::from(&text[start..offset]));
+                        fields.push(SharedText::from(&text[start..offset]));
                         start = offset + delimiter.len();
                     }
-                    fields.push(Arc::<str>::from(&text[start..]));
+                    fields.push(SharedText::from(&text[start..]));
                     fields
                 };
                 return self.store_native_text_list(fields);
@@ -1946,7 +1946,7 @@ impl NativeListArena {
                     guion_vm_core::text_match_count(text, needle)
                 };
                 let value = if count == 0 {
-                    Value::Text(Arc::clone(text))
+                    Value::Text(SharedText::clone(text))
                 } else {
                     let total = (text.len() - count * needle.len())
                         .saturating_add(count.saturating_mul(replacement.len()));
@@ -1973,9 +1973,9 @@ impl NativeListArena {
                 };
                 let trimmed = text.trim();
                 let value = if trimmed.len() == text.len() {
-                    Value::Text(Arc::clone(text))
+                    Value::Text(SharedText::clone(text))
                 } else {
-                    let trimmed = Arc::<str>::from(trimmed);
+                    let trimmed = SharedText::from(trimmed);
                     if !self.charge(size_of::<String>().saturating_add(trimmed.len())) {
                         return None;
                     }
@@ -2005,7 +2005,7 @@ impl NativeListArena {
                 if !self.charge(joined.len()) {
                     return None;
                 }
-                return self.store_value(Value::Text(Arc::<str>::from(joined)));
+                return self.store_value(Value::Text(SharedText::from(joined)));
             }
             Op::JsonGet => {
                 if arguments.len() != 2 || argument_tags != [4, 4] || result_tag != 4 {
@@ -3310,9 +3310,9 @@ fn std_error_record_value(
     Ok(Value::Record(
         record.name.clone(),
         Arc::new(vec![
-            Value::Text(Arc::from(code)),
-            Value::Text(Arc::from(message)),
-            Value::Text(Arc::from("")),
+            Value::Text(SharedText::from(code)),
+            Value::Text(SharedText::from(message)),
+            Value::Text(SharedText::from("")),
             Value::Int(BigInt::zero()),
             Value::Int(BigInt::zero()),
         ]),
@@ -7970,7 +7970,7 @@ impl Instance {
                     let texts = items
                         .iter()
                         .map(|value| match value {
-                            Value::Text(text) => Some(Arc::clone(text)),
+                            Value::Text(text) => Some(SharedText::clone(text)),
                             _ => None,
                         })
                         .collect::<Option<Vec<_>>>()?;
@@ -10920,11 +10920,11 @@ impl<'de> serde::de::Visitor<'de> for SharedJsonVisitor<'_> {
     }
 
     fn visit_str<E>(self, value: &str) -> Result<Self::Value, E> {
-        Ok(SharedJson::String(Arc::from(value)))
+        Ok(SharedJson::String(SharedText::from(value)))
     }
 
     fn visit_string<E>(self, value: String) -> Result<Self::Value, E> {
-        Ok(SharedJson::String(Arc::from(value)))
+        Ok(SharedJson::String(SharedText::from(value)))
     }
 
     fn visit_unit<E>(self) -> Result<Self::Value, E> {

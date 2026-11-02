@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Exercise text splitting and joining on long Unicode and many-field inputs, and check that
-text processing time grows linearly with input size."""
+text processing and appending to a text local grow linearly with input size."""
 
 from __future__ import annotations
 
@@ -47,6 +47,37 @@ def check_linear_growth(binary: Path, scratch: Path) -> None:
             f"text processing grew {growth:.1f}x for 10x more input "
             f"({timings[20000]:.3f}s -> {timings[200000]:.3f}s); expected linear growth")
     print(f"text processing growth {growth:.1f}x for 10x input")
+
+
+APPEND_SOURCE = """fn main() -> Int:
+    var s = ""
+    var index = 0
+    while index < COUNT:
+        set s = s + "row,"
+        set index = index + 1
+    print(len(s))
+    return 0
+"""
+
+
+def check_append_growth(binary: Path, scratch: Path) -> None:
+    timings = {}
+    for count in (20000, 200000):
+        project = scratch / f"append-growth-{count}"
+        project.mkdir()
+        (project / "guion.toml").write_text(
+            '[project]\nname = "append-growth"\nversion = "1.0.0"\nentry = "main.gu"\n'
+            '[runtime]\ninstruction_limit = 200000000\nallocation_limit_bytes = 8589934592\n',
+            encoding="utf-8")
+        (project / "main.gu").write_text(APPEND_SOURCE.replace("COUNT", str(count)), encoding="utf-8")
+        timed_run(binary, project)  # warms the compilation cache
+        timings[count] = min(timed_run(binary, project) for _ in range(3))
+    growth = timings[200000] / timings[20000]
+    if growth > MAX_GROWTH:
+        raise SystemExit(
+            f"appending to a text local grew {growth:.1f}x for 10x more appends "
+            f"({timings[20000]:.3f}s -> {timings[200000]:.3f}s); expected linear growth")
+    print(f"text append growth {growth:.1f}x for 10x appends")
 
 
 def main() -> None:
@@ -105,6 +136,7 @@ fn main() -> Int:
             raise SystemExit(f"text scaling failed ({result.returncode}):\n{result.stdout}{result.stderr}")
         print(result.stdout, end="")
         check_linear_growth(binary, Path(directory))
+        check_append_growth(binary, Path(directory))
 
 
 if __name__ == "__main__":

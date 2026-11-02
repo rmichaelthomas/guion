@@ -6,6 +6,62 @@ use guion_runtime::{
 use std::time::Duration;
 
 #[test]
+fn text_append_to_a_local_grows_in_place_without_changing_shared_copies() {
+    let source = r#"fn build(count: Int) -> Text:
+    var s = ""
+    var index = 0
+    while index < count:
+        set s = s + "ab"
+        set index = index + 1
+    return s
+
+fn main() -> Int:
+    var s = "start"
+    let before = s
+    var kept: List[Text] = []
+    set s = s + "-one"
+    set kept = list_push(kept, s)
+    set s = s + "-two"
+    set s = s + s
+    let piece = "é"
+    var index = 0
+    while index < 3:
+        set s = s + piece
+        set index = index + 1
+    print(before)
+    print(kept[0])
+    print(s)
+    print(len(build(50000)))
+    return 0
+"#;
+    let artifact = compile("text-append.gu", source).expect("text append source compiles");
+    let mut native = Runtime::new()
+        .load(artifact.clone(), HostPolicy::default())
+        .expect("native runtime loads the artifact");
+    let mut vm = Runtime::vm_only()
+        .load(artifact, HostPolicy::default())
+        .expect("runtime loads the artifact");
+
+    native.invoke("main", vec![]).expect("native program runs");
+    vm.invoke("main", vec![]).expect("VM program runs");
+    let output = native.take_output();
+    assert_eq!(
+        output,
+        "start\nstart-one\nstart-one-twostart-one-twoééé\n100000\n"
+    );
+    assert_eq!(output, vm.take_output());
+    let compile_profile = native.native_compile_profile();
+    let build = compile_profile["rejected_functions"]
+        .as_array()
+        .expect("native compile profile lists rejected functions")
+        .iter()
+        .find(|function| function["name"] == "build")
+        .expect("text append loop stays in the VM")
+        .clone();
+    assert_eq!(build["reason_code"], "text_append_to_local");
+}
+
+#[test]
 fn text_length_and_index_use_unicode_scalar_positions() {
     let source =
         "fn main() -> Int:\n    print(len(\"a🙂é\"))\n    print(\"a🙂é\"[1])\n    return 0\n";
@@ -1574,7 +1630,7 @@ fn text_chars_reuses_immutable_storage_for_ascii_scalars() {
         panic!("text_chars must return text values");
     };
 
-    assert!(std::sync::Arc::ptr_eq(first, second));
+    assert!(guion_model::SharedText::ptr_eq(first, second));
 }
 
 #[test]

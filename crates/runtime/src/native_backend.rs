@@ -4719,6 +4719,41 @@ struct NativeTypeStates {
     locals_at_ip: Vec<Option<Vec<Option<Type>>>>,
 }
 
+/// The first text `Add` whose left operand was loaded from the local its result is stored
+/// back into, as `set s = s + piece` compiles.
+fn text_append_to_local(function: &Function, types: &NativeTypeStates) -> Option<usize> {
+    let depth_at = |ip: usize| types.stack_at_ip.get(ip)?.as_ref().map(Vec::len);
+    function
+        .code
+        .windows(2)
+        .enumerate()
+        .find_map(|(add_ip, pair)| {
+            let (Op::Add, Op::Store(slot)) = (&pair[0].op, &pair[1].op) else {
+                return None;
+            };
+            let stack = types.stack_at_ip.get(add_ip)?.as_ref()?;
+            if stack.last() != Some(&Type::Text) {
+                return None;
+            }
+            let left_depth = stack.len().checked_sub(2)?;
+            // Walk back to the instruction that pushed the left operand: the nearest one that
+            // starts at its depth, with the operand left in place by everything after it.
+            let mut ip = add_ip;
+            while ip > 0 {
+                ip -= 1;
+                let depth = depth_at(ip)?;
+                if depth < left_depth {
+                    return None;
+                }
+                if depth == left_depth {
+                    return matches!(function.code[ip].op, Op::Load(source) if source == *slot)
+                        .then_some(add_ip);
+                }
+            }
+            None
+        })
+}
+
 fn recursive_functions(functions: &[Function]) -> Vec<bool> {
     fn visit(
         index: usize,
@@ -5892,14 +5927,27 @@ fn native_eligibility_report(
                 });
             }
             let mut blocking_ip = None;
-            if infer_native_types(
+            let types = infer_native_types(
                 function,
                 &artifact.functions,
                 &artifact.records,
                 &mut blocking_ip,
-            )
-            .is_none()
+            );
+            if let Some(append_ip) = types
+                .as_ref()
+                .and_then(|types| text_append_to_local(function, types))
             {
+                return Some(NativeFunctionRejectionProfile {
+                    name: function.name.clone(),
+                    reason_code: "text_append_to_local".into(),
+                    reason: "the VM appends to a text local in place; native handles can be shared, so native code would copy the whole text on every append".into(),
+                    blocking_instruction: Some(format!(
+                        "bytecode instruction {append_ip}: Add"
+                    )),
+                    blocking_callee: None,
+                });
+            }
+            if types.is_none() {
                 let blocking_instruction = blocking_ip.and_then(|ip| {
                     function
                         .code

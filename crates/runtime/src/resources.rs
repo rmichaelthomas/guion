@@ -1,13 +1,11 @@
 //! Bounded, owner-checked streaming file readers shared by the standard library.
+use guion_model::SharedText;
 use std::{
     collections::{HashMap, VecDeque},
     fs::File,
     io::{self, BufRead, BufReader},
     path::Path,
-    sync::{
-        atomic::{AtomicU64, Ordering},
-        Arc,
-    },
+    sync::atomic::{AtomicU64, Ordering},
 };
 
 static NEXT_OWNER: AtomicU64 = AtomicU64::new(1);
@@ -67,13 +65,13 @@ impl FileReaderHandle {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SourceLine {
     pub number: usize,
-    pub text: Arc<str>,
+    pub text: SharedText,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CsvRow {
     pub start_line: usize,
-    pub fields: Vec<Arc<str>>,
+    pub fields: Vec<SharedText>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -267,7 +265,7 @@ impl FileReaderRegistry {
                 error.valid_up_to() + 1,
             )
         })?;
-        let text = Arc::<str>::from(text);
+        let text = SharedText::from(text);
         resource.record = bytes;
         Ok(Some(SourceLine {
             number: start_line,
@@ -311,7 +309,7 @@ impl FileReaderRegistry {
         })?;
         Ok(Some(CsvRow {
             start_line,
-            fields: parsed.into_iter().map(Arc::from).collect(),
+            fields: parsed.into_iter().map(SharedText::from).collect(),
         }))
     }
 
@@ -410,7 +408,7 @@ enum CsvState {
 /// The common record: complete in the read buffer, valid UTF-8, within the limits, with no
 /// quote or inner carriage return. Its fields are exactly the comma-separated pieces. Returns
 /// None without consuming anything otherwise, and the general reader takes it from there.
-fn read_plain_csv_record(resource: &mut ReaderResource) -> Option<Vec<Arc<str>>> {
+fn read_plain_csv_record(resource: &mut ReaderResource) -> Option<Vec<SharedText>> {
     let available = resource.reader.fill_buf().ok()?;
     let newline = memchr::memchr(b'\n', available)?;
     let consumed = newline + 1;
@@ -428,10 +426,10 @@ fn read_plain_csv_record(resource: &mut ReaderResource) -> Option<Vec<Arc<str>>>
     let mut fields = Vec::with_capacity(resource.last_field_count);
     let mut field_start = 0;
     for comma in memchr::memchr_iter(b',', line.as_bytes()) {
-        fields.push(Arc::from(&line[field_start..comma]));
+        fields.push(SharedText::from(&line[field_start..comma]));
         field_start = comma + 1;
     }
-    fields.push(Arc::from(&line[field_start..]));
+    fields.push(SharedText::from(&line[field_start..]));
     resource.last_field_count = fields.len();
     resource.reader.consume(consumed);
     resource.bytes_read += consumed;

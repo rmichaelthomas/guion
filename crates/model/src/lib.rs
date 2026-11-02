@@ -1701,6 +1701,166 @@ impl PartialEq for Float64 {
 }
 impl Eq for Float64 {}
 
+/// Text shared between values. Cloning shares the bytes. Most text is stored in one
+/// allocation; text built by concatenation is stored growable, so that appending to a text
+/// held in only one place costs only the appended bytes rather than a full copy.
+#[derive(Clone)]
+pub struct SharedText(TextStorage);
+
+#[derive(Clone)]
+enum TextStorage {
+    Fixed(Arc<str>),
+    Growable(Arc<String>),
+}
+
+impl SharedText {
+    /// Text that later appends can extend in place while it is held in only one place.
+    pub fn growable(text: String) -> Self {
+        Self(TextStorage::Growable(Arc::new(text)))
+    }
+
+    pub fn ptr_eq(left: &Self, right: &Self) -> bool {
+        match (&left.0, &right.0) {
+            (TextStorage::Fixed(left), TextStorage::Fixed(right)) => Arc::ptr_eq(left, right),
+            (TextStorage::Growable(left), TextStorage::Growable(right)) => Arc::ptr_eq(left, right),
+            _ => false,
+        }
+    }
+
+    pub fn strong_count(text: &Self) -> usize {
+        match &text.0 {
+            TextStorage::Fixed(text) => Arc::strong_count(text),
+            TextStorage::Growable(text) => Arc::strong_count(text),
+        }
+    }
+
+    /// The text to append to, when it is growable and no other value shares it.
+    pub fn get_mut(text: &mut Self) -> Option<&mut String> {
+        match &mut text.0 {
+            TextStorage::Fixed(_) => None,
+            TextStorage::Growable(text) => Arc::get_mut(text),
+        }
+    }
+
+    /// Bytes reserved for this text, which can exceed its length after appends.
+    pub fn capacity(&self) -> usize {
+        match &self.0 {
+            TextStorage::Fixed(text) => text.len(),
+            TextStorage::Growable(text) => text.capacity(),
+        }
+    }
+}
+
+impl Default for SharedText {
+    fn default() -> Self {
+        Self::from("")
+    }
+}
+
+impl std::ops::Deref for SharedText {
+    type Target = str;
+
+    #[inline]
+    fn deref(&self) -> &str {
+        match &self.0 {
+            TextStorage::Fixed(text) => text,
+            TextStorage::Growable(text) => text,
+        }
+    }
+}
+
+impl PartialEq for SharedText {
+    fn eq(&self, other: &Self) -> bool {
+        **self == **other
+    }
+}
+
+impl Eq for SharedText {}
+
+impl PartialOrd for SharedText {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for SharedText {
+    fn cmp(&self, other: &Self) -> Ordering {
+        (**self).cmp(&**other)
+    }
+}
+
+impl std::hash::Hash for SharedText {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        (**self).hash(state);
+    }
+}
+
+impl AsRef<str> for SharedText {
+    fn as_ref(&self) -> &str {
+        self
+    }
+}
+
+impl std::borrow::Borrow<str> for SharedText {
+    fn borrow(&self) -> &str {
+        self
+    }
+}
+
+impl fmt::Debug for SharedText {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Debug::fmt(&**self, formatter)
+    }
+}
+
+impl fmt::Display for SharedText {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(self)
+    }
+}
+
+impl From<String> for SharedText {
+    fn from(text: String) -> Self {
+        Self(TextStorage::Fixed(Arc::from(text)))
+    }
+}
+
+impl From<&str> for SharedText {
+    fn from(text: &str) -> Self {
+        Self(TextStorage::Fixed(Arc::from(text)))
+    }
+}
+
+impl From<&String> for SharedText {
+    fn from(text: &String) -> Self {
+        Self::from(text.as_str())
+    }
+}
+
+impl From<Box<str>> for SharedText {
+    fn from(text: Box<str>) -> Self {
+        Self(TextStorage::Fixed(Arc::from(text)))
+    }
+}
+
+impl From<std::borrow::Cow<'_, str>> for SharedText {
+    fn from(text: std::borrow::Cow<'_, str>) -> Self {
+        Self::from(&*text)
+    }
+}
+
+impl PartialEq<str> for SharedText {
+    fn eq(&self, other: &str) -> bool {
+        &**self == other
+    }
+}
+
+impl PartialEq<&str> for SharedText {
+    fn eq(&self, other: &&str) -> bool {
+        &**self == *other
+    }
+}
+
 /// Immutable JSON nodes with shared child storage. Reading a nested value
 /// clones an Arc instead of recursively copying the entire subtree.
 #[derive(Clone, Debug, PartialEq)]
@@ -1708,7 +1868,7 @@ pub enum SharedJson {
     Null,
     Bool(bool),
     Number(serde_json::Number),
-    String(Arc<str>),
+    String(SharedText),
     Array(Arc<Vec<Arc<SharedJson>>>),
     Object(Arc<BTreeMap<String, Arc<SharedJson>>>),
 }
@@ -1751,7 +1911,7 @@ impl SharedJson {
             serde_json::Value::Null => Self::Null,
             serde_json::Value::Bool(value) => Self::Bool(value),
             serde_json::Value::Number(value) => Self::Number(value),
-            serde_json::Value::String(value) => Self::String(Arc::from(value)),
+            serde_json::Value::String(value) => Self::String(SharedText::from(value)),
             serde_json::Value::Array(values) => {
                 Self::Array(Arc::new(values.into_iter().map(Self::from_serde).collect()))
             }
@@ -1927,7 +2087,7 @@ impl std::fmt::Display for RecordName {
 /// `Map`'s storage: hashed for lookups, and sorted by key whenever it is observed in order.
 #[derive(Clone, Default)]
 pub struct TextMap {
-    entries: hashbrown::HashTable<(Arc<str>, Value)>,
+    entries: hashbrown::HashTable<(SharedText, Value)>,
 }
 
 impl TextMap {
@@ -1970,7 +2130,7 @@ impl TextMap {
             .map(|entry| &entry.1)
     }
 
-    pub fn get_key_value(&self, key: &str) -> Option<(&Arc<str>, &Value)> {
+    pub fn get_key_value(&self, key: &str) -> Option<(&SharedText, &Value)> {
         self.entries
             .find(Self::hash_key(key), |entry| &*entry.0 == key)
             .map(|entry| (&entry.0, &entry.1))
@@ -1995,7 +2155,7 @@ impl TextMap {
     }
 
     /// Keys are shared, so copying a map or adding a `Text` value as a key copies no key bytes.
-    pub fn insert(&mut self, key: impl Into<Arc<str>>, value: Value) -> Option<Value> {
+    pub fn insert(&mut self, key: impl Into<SharedText>, value: Value) -> Option<Value> {
         let key = key.into();
         let hash = Self::hash_key(&key);
         if let Some(existing) = self.get_mut_hashed(hash, &key) {
@@ -2015,14 +2175,14 @@ impl TextMap {
     }
 
     /// Entries in key order.
-    pub fn iter(&self) -> std::vec::IntoIter<(&Arc<str>, &Value)> {
+    pub fn iter(&self) -> std::vec::IntoIter<(&SharedText, &Value)> {
         let mut entries: Vec<_> = self.iter_unordered().collect();
         entries.sort_unstable_by_key(|entry| entry.0);
         entries.into_iter()
     }
 
     /// Keys in key order.
-    pub fn keys(&self) -> impl ExactSizeIterator<Item = &Arc<str>> {
+    pub fn keys(&self) -> impl ExactSizeIterator<Item = &SharedText> {
         self.iter().map(|entry| entry.0)
     }
 
@@ -2032,7 +2192,7 @@ impl TextMap {
     }
 
     /// Entries in no particular order, for work whose result does not depend on it.
-    pub fn iter_unordered(&self) -> impl ExactSizeIterator<Item = (&Arc<str>, &Value)> {
+    pub fn iter_unordered(&self) -> impl ExactSizeIterator<Item = (&SharedText, &Value)> {
         self.entries.iter().map(|entry| (&entry.0, &entry.1))
     }
 }
@@ -2069,8 +2229,8 @@ impl<const N: usize> From<[(String, Value); N]> for TextMap {
 }
 
 impl IntoIterator for TextMap {
-    type Item = (Arc<str>, Value);
-    type IntoIter = std::vec::IntoIter<(Arc<str>, Value)>;
+    type Item = (SharedText, Value);
+    type IntoIter = std::vec::IntoIter<(SharedText, Value)>;
 
     /// Entries in key order.
     fn into_iter(self) -> Self::IntoIter {
@@ -2081,8 +2241,8 @@ impl IntoIterator for TextMap {
 }
 
 impl<'a> IntoIterator for &'a TextMap {
-    type Item = (&'a Arc<str>, &'a Value);
-    type IntoIter = std::vec::IntoIter<(&'a Arc<str>, &'a Value)>;
+    type Item = (&'a SharedText, &'a Value);
+    type IntoIter = std::vec::IntoIter<(&'a SharedText, &'a Value)>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.iter()
@@ -2096,7 +2256,7 @@ pub enum Value {
     Record(RecordName, Arc<Vec<Value>>),
     Bytes(Arc<Vec<u8>>),
     Bool(bool),
-    Text(Arc<str>),
+    Text(SharedText),
     List(Arc<Vec<Value>>),
     Float64List(Arc<Vec<Float64>>),
     Map(Arc<TextMap>),

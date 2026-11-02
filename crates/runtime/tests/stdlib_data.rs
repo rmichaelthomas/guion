@@ -112,7 +112,7 @@ fn main() -> Int:
     }
 }
 
-fn field_texts(fields: &[std::sync::Arc<str>]) -> Vec<&str> {
+fn field_texts(fields: &[guion_model::SharedText]) -> Vec<&str> {
     fields.iter().map(|field| &**field).collect()
 }
 

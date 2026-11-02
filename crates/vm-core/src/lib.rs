@@ -8,7 +8,7 @@
 
 use guion_model::{
     Artifact, BigInt, FileErrorValue, Float64, HttpErrorValue, JsonErrorValue, NativeResourceValue,
-    Op, RuntimeError, SharedJson, Span, TaskErrorValue, TextMap, Type, Value,
+    Op, RuntimeError, SharedJson, SharedText, Span, TaskErrorValue, TextMap, Type, Value,
 };
 use std::{
     cell::Cell,
@@ -30,7 +30,7 @@ pub use register::{build_register_programs, RegisterProgram, RegisterPrograms};
 /// so repeated `text_find` calls over one long text seek in constant time instead of
 /// rescanning from the start. The cache holds the text alive, so its address cannot be reused.
 struct TextScalarIndex {
-    text: Arc<str>,
+    text: SharedText,
     ascii: bool,
     scalars: usize,
     checkpoints: Vec<usize>,
@@ -42,6 +42,8 @@ struct TextScalarIndex {
 }
 
 const TEXT_INDEX_STRIDE: usize = 64;
+/// Room reserved when appending to a text local first makes it growable.
+const TEXT_APPEND_MIN_CAPACITY: usize = 32;
 /// Texts shorter than this are scanned directly; indexing them would cost more than it saves.
 const TEXT_INDEX_MIN_BYTES: usize = 4096;
 
@@ -51,7 +53,7 @@ thread_local! {
 }
 
 impl TextScalarIndex {
-    fn new(text: &Arc<str>) -> Self {
+    fn new(text: &SharedText) -> Self {
         let ascii = text.is_ascii();
         let mut checkpoints = Vec::new();
         let mut scalars = text.len();
@@ -65,7 +67,7 @@ impl TextScalarIndex {
             }
         }
         Self {
-            text: Arc::clone(text),
+            text: SharedText::clone(text),
             ascii,
             scalars,
             checkpoints,
@@ -120,13 +122,13 @@ impl TextScalarIndex {
 /// Finds `needle` in `text` at or after the Unicode scalar index `from`.
 /// Returns `None` when `from` is past the end, `Some(None)` when there is no
 /// match, and the scalar index of the first match otherwise.
-pub fn text_find_scalar(text: &Arc<str>, needle: &str, from: usize) -> Option<Option<usize>> {
+pub fn text_find_scalar(text: &SharedText, needle: &str, from: usize) -> Option<Option<usize>> {
     if text.len() >= TEXT_INDEX_MIN_BYTES {
         return TEXT_INDEX_CACHE.with(|cache| {
             let mut cache = cache.borrow_mut();
             if !cache
                 .as_ref()
-                .is_some_and(|index| Arc::ptr_eq(&index.text, text))
+                .is_some_and(|index| SharedText::ptr_eq(&index.text, text))
             {
                 *cache = Some(TextScalarIndex::new(text));
             }
@@ -175,10 +177,10 @@ pub fn text_split_at(text: &str, offsets: &[usize], delimiter_len: usize) -> Vec
     let mut fields = Vec::with_capacity(offsets.len() + 1);
     let mut start = 0;
     for &offset in offsets {
-        fields.push(Value::Text(Arc::from(&text[start..offset])));
+        fields.push(Value::Text(SharedText::from(&text[start..offset])));
         start = offset + delimiter_len;
     }
-    fields.push(Value::Text(Arc::from(&text[start..])));
+    fields.push(Value::Text(SharedText::from(&text[start..])));
     fields
 }
 
@@ -189,7 +191,7 @@ pub fn text_match_count(text: &str, needle: &str) -> usize {
 
 /// `text` with every match of a non-empty `needle` replaced, as `text.replace(needle,
 /// replacement)` would; `total` is the result length in bytes.
-pub fn text_replace_all(text: &str, needle: &str, replacement: &str, total: usize) -> Arc<str> {
+pub fn text_replace_all(text: &str, needle: &str, replacement: &str, total: usize) -> SharedText {
     let mut replaced = String::with_capacity(total);
     let mut start = 0;
     for offset in memchr::memmem::find_iter(text.as_bytes(), needle.as_bytes()) {
@@ -198,7 +200,7 @@ pub fn text_replace_all(text: &str, needle: &str, replacement: &str, total: usiz
         start = offset + needle.len();
     }
     replaced.push_str(&text[start..]);
-    Arc::from(replaced)
+    SharedText::from(replaced)
 }
 
 /// Joins a `List[Text]` value, or returns `None` when an item is not text or the result
@@ -244,14 +246,14 @@ pub fn text_list_allocation(count: usize, text_bytes: usize) -> usize {
         .saturating_add(text_bytes)
 }
 
-fn shared_text_scalar(scalar: char) -> Arc<str> {
+fn shared_text_scalar(scalar: char) -> SharedText {
     if !scalar.is_ascii() {
-        return Arc::<str>::from(scalar.to_string());
+        return SharedText::from(scalar.to_string());
     }
 
-    static ASCII_SCALARS: OnceLock<[OnceLock<Arc<str>>; 128]> = OnceLock::new();
+    static ASCII_SCALARS: OnceLock<[OnceLock<SharedText>; 128]> = OnceLock::new();
     let scalars = ASCII_SCALARS.get_or_init(|| std::array::from_fn(|_| OnceLock::new()));
-    Arc::clone(scalars[scalar as usize].get_or_init(|| Arc::<str>::from(scalar.to_string())))
+    SharedText::clone(scalars[scalar as usize].get_or_init(|| SharedText::from(scalar.to_string())))
 }
 
 /// Size and depth limits the shared VM enforces while executing guest code.
@@ -1018,7 +1020,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                         })?;
                         Value::Float64(value)
                     }
-                    (Value::Text(x), Value::Text(y)) => {
+                    (Value::Text(mut x), Value::Text(y)) => {
                         if x.len().saturating_add(y.len()) > limits.max_text_bytes {
                             return Err(RuntimeError::new(
                                 "R_TEXT_LIMIT",
@@ -1026,10 +1028,42 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                                 instruction.span,
                             ));
                         }
-                        let mut text = String::with_capacity(x.len() + y.len());
+                        // `set s = s + piece` stores straight back into the local it read.
+                        // Releasing the local's reference first lets the append extend the
+                        // text in place, so building text this way stays linear. Other
+                        // concatenations produce ordinary single-allocation text.
+                        let appending = match f.code.get(ip).map(|next| &next.op) {
+                            Some(Op::Store(slot)) => matches!(
+                                &locals[*slot],
+                                Value::Text(local) if SharedText::ptr_eq(local, &x)
+                            )
+                            .then_some(*slot),
+                            _ => None,
+                        };
+                        let mut text;
+                        if let Some(slot) = appending {
+                            drop_value_fast(std::mem::replace(&mut locals[slot], Value::Unit));
+                            if let Some(text) = SharedText::get_mut(&mut x) {
+                                // The budget counts the text's length, as it does for a fresh
+                                // concatenation, so it does not depend on how text grows.
+                                charge_allocation(budget.as_ref(), y.len(), instruction.span)?;
+                                text.push_str(&y);
+                                push_stack!(Value::Text(x));
+                                continue;
+                            }
+                            text = String::with_capacity(
+                                (x.len() + y.len()).max(TEXT_APPEND_MIN_CAPACITY),
+                            );
+                        } else {
+                            text = String::with_capacity(x.len() + y.len());
+                        }
                         text.push_str(&x);
                         text.push_str(&y);
-                        Value::Text(text.into())
+                        Value::Text(if appending.is_some() {
+                            SharedText::growable(text)
+                        } else {
+                            SharedText::from(text)
+                        })
                     }
                     _ => {
                         return Err(RuntimeError::new(
@@ -1310,7 +1344,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                             .saturating_add(size_of::<String>() + size_of::<Value>() * 2),
                         instruction.span,
                     )?;
-                    if values.insert(Arc::clone(&key), value).is_some() {
+                    if values.insert(SharedText::clone(&key), value).is_some() {
                         return Err(RuntimeError::new(
                             "R_MAP_DUPLICATE_KEY",
                             format!("duplicate map key `{key}`"),
@@ -1419,7 +1453,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                     charge_allocation(budget.as_ref(), allocation, instruction.span)?;
                     let keys = values
                         .keys()
-                        .map(|key| Value::Text(Arc::clone(key)))
+                        .map(|key| Value::Text(SharedText::clone(key)))
                         .collect::<Vec<_>>();
                     push_stack!(Value::List(Arc::new(keys)));
                 }
@@ -2227,7 +2261,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                         for scalar in text.chars().take(fast_path.required_characters) {
                             joined.push(scalar);
                         }
-                        let value = Value::Text(Arc::<str>::from(joined));
+                        let value = Value::Text(SharedText::from(joined));
                         if PROFILED {
                             if let Some(profile) = &budget.runtime_profile {
                                 profile
@@ -2347,7 +2381,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                     continue;
                 }
                 let sliced = &text[byte_start..byte_end];
-                let value = Value::Text(Arc::<str>::from(sliced));
+                let value = Value::Text(SharedText::from(sliced));
                 charge_allocation(
                     budget.as_ref(),
                     new_value_allocation(&value),
@@ -2427,7 +2461,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                         joined.push_str(text);
                     }
                 }
-                push_stack!(Value::Text(Arc::<str>::from(joined)));
+                push_stack!(Value::Text(SharedText::from(joined)));
             }
             Op::TextFind => {
                 let from = match pop!() {
@@ -2606,7 +2640,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                     push_stack!(Value::Text(text));
                     continue;
                 }
-                let value = Value::Text(Arc::<str>::from(trimmed));
+                let value = Value::Text(SharedText::from(trimmed));
                 charge_allocation(
                     budget.as_ref(),
                     new_value_allocation(&value),
@@ -3773,7 +3807,7 @@ fn unique_nested_map_update_target(
     stack: &[Value],
     locals: &[Value],
     inner: &Arc<TextMap>,
-) -> Option<(usize, Arc<str>)> {
+) -> Option<(usize, SharedText)> {
     let Some(Op::MapSet) = code.get(next_ip).map(|instruction| &instruction.op) else {
         return None;
     };
@@ -3794,7 +3828,7 @@ fn unique_nested_map_update_target(
     {
         return None;
     }
-    Some((*parent_slot, Arc::clone(parent_key)))
+    Some((*parent_slot, SharedText::clone(parent_key)))
 }
 
 fn unique_pending_nested_map_writeback_target(
@@ -3803,7 +3837,7 @@ fn unique_pending_nested_map_writeback_target(
     child_slot: usize,
     locals: &[Value],
     inner: &Arc<TextMap>,
-) -> Option<(usize, Arc<str>)> {
+) -> Option<(usize, SharedText)> {
     let Some(Op::Store(stored_child)) = code.get(child_store_ip).map(|instruction| &instruction.op)
     else {
         return None;
@@ -3823,10 +3857,10 @@ fn unique_pending_nested_map_writeback_target(
             Op::Load(parent_slot) if *parent_slot != child_slot => {
                 let parent_key = match &code.get(ip + 1)?.op {
                     Op::Load(key_slot) => match locals.get(*key_slot)? {
-                        Value::Text(key) => Arc::clone(key),
+                        Value::Text(key) => SharedText::clone(key),
                         _ => return None,
                     },
-                    Op::Const(Value::Text(key)) => Arc::clone(key),
+                    Op::Const(Value::Text(key)) => SharedText::clone(key),
                     _ => return None,
                 };
                 if !matches!(code.get(ip + 2).map(|instruction| &instruction.op), Some(Op::Load(slot)) if *slot == child_slot)
@@ -4991,7 +5025,7 @@ fn clone_value_fast(value: &Value) -> Value {
         },
         Value::Bool(flag) => Value::Bool(*flag),
         Value::Float64(float) => Value::Float64(*float),
-        Value::Text(text) => Value::Text(Arc::clone(text)),
+        Value::Text(text) => Value::Text(SharedText::clone(text)),
         Value::Json(json) => Value::Json(Arc::clone(json)),
         Value::Map(map) => Value::Map(Arc::clone(map)),
         Value::List(items) => Value::List(Arc::clone(items)),
@@ -5086,11 +5120,11 @@ pub fn cloned_value_allocation(value: &Value) -> usize {
 }
 
 #[inline]
-fn replace_map_value(values: &mut TextMap, key: &Arc<str>, value: Value) {
+fn replace_map_value(values: &mut TextMap, key: &SharedText, value: Value) {
     if let Some(existing_value) = values.get_mut(key) {
         *existing_value = value;
     } else {
-        values.insert(Arc::clone(key), value);
+        values.insert(SharedText::clone(key), value);
     }
 }
 
@@ -7737,7 +7771,7 @@ mod tests {
         }
         assert_eq!(text_match_offsets("a,b,c", ",", 1), None);
         assert_eq!(text_match_offsets("a,b,c", ",", 2), Some(vec![1, 3]));
-        let long: Arc<str> = Arc::from("é".repeat(5000) + "tea" + &"x".repeat(10) + "tea");
+        let long: SharedText = SharedText::from("é".repeat(5000) + "tea" + &"x".repeat(10) + "tea");
         assert_eq!(text_find_scalar(&long, "tea", 0), Some(Some(5000)));
         assert_eq!(text_find_scalar(&long, "tea", 5001), Some(Some(5013)));
         assert_eq!(text_find_scalar(&long, "x", 5001), Some(Some(5003)));
@@ -7878,12 +7912,12 @@ mod tests {
         };
         let mut args = Vec::with_capacity(8);
         args.push(Value::Int(BigInt::one()));
-        args.push(Value::Text(Arc::<str>::from("kept")));
+        args.push(Value::Text(SharedText::from("kept")));
 
         let frame = new_vm_frame(&artifact, 0, args, 1, None);
 
         assert_eq!(frame.locals[0], Value::Int(BigInt::one()));
-        assert_eq!(frame.locals[1], Value::Text(Arc::<str>::from("kept")));
+        assert_eq!(frame.locals[1], Value::Text(SharedText::from("kept")));
         assert!(frame.locals.capacity() >= 8);
     }
 
@@ -7952,7 +7986,7 @@ mod tests {
             artifact: Arc::clone(&artifact),
             observed_stack_len: None,
         };
-        let mut stack = vec![Value::Bool(true), Value::Text(Arc::<str>::from("example"))];
+        let mut stack = vec![Value::Bool(true), Value::Text(SharedText::from("example"))];
         let mut locals = Vec::new();
         let budget = Arc::new(Budget::new(3, 1024, CancellationToken::new(), None));
         let mut instruction_fuel = InstructionFuel::new(&budget);
@@ -7972,7 +8006,7 @@ mod tests {
 
         assert_eq!(host.observed_stack_len, Some(2));
         assert_eq!(stack, vec![Value::Bool(true)]);
-        assert_eq!(result, Value::Text(Arc::<str>::from("example")));
+        assert_eq!(result, Value::Text(SharedText::from("example")));
         drop(instruction_fuel);
         assert_eq!(budget.remaining.load(Ordering::Relaxed), 0);
     }
@@ -8313,11 +8347,11 @@ mod tests {
     #[test]
     fn map_update_existing_key_preserves_owned_key_storage() {
         let mut values = TextMap::new();
-        let key = Arc::<str>::from("service");
+        let key = SharedText::from("service");
         let original_key_ptr = key.as_ptr();
         values.insert(key, Value::Bool(false));
 
-        replace_map_value(&mut values, &Arc::from("service"), Value::Bool(true));
+        replace_map_value(&mut values, &SharedText::from("service"), Value::Bool(true));
 
         let (stored_key, stored_value) = values
             .get_key_value("service")

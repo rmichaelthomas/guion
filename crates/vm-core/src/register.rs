@@ -881,14 +881,14 @@ pub(super) fn run_registers<H: VmHost>(
     } = run;
     // The hash of the last map key. Python keeps a string's hash in the string; a program
     // tends to look one key up in several maps in a row, so this gets most of the same gain.
-    let mut last_key: Option<(Arc<str>, u64)> = None;
+    let mut last_key: Option<(SharedText, u64)> = None;
     loop {
         let instruction = &program.code[pc];
-        let mut key_hash = |key: &Arc<str>| match &last_key {
-            Some((last, hash)) if Arc::ptr_eq(last, key) => *hash,
+        let mut key_hash = |key: &SharedText| match &last_key {
+            Some((last, hash)) if SharedText::ptr_eq(last, key) => *hash,
             _ => {
                 let hash = TextMap::hash_key(key);
-                last_key = Some((Arc::clone(key), hash));
+                last_key = Some((SharedText::clone(key), hash));
                 hash
             }
         };
@@ -1350,7 +1350,7 @@ pub(super) fn run_registers<H: VmHost>(
                     exit!()
                 };
                 commit!(size_of::<String>().saturating_add(text.len()));
-                let text = Arc::clone(text);
+                let text = SharedText::clone(text);
                 drop_operands!();
                 finish_value!(Value::ResultOk(Box::new(Value::Text(text))))
             }
@@ -1379,7 +1379,7 @@ pub(super) fn run_registers<H: VmHost>(
                     exit!()
                 };
                 commit!(size_of::<String>().saturating_add(text.len()));
-                let text = Arc::clone(text);
+                let text = SharedText::clone(text);
                 drop_operands!();
                 finish_value!(Value::ResultOk(Box::new(Value::Text(text))))
             }
@@ -1547,7 +1547,7 @@ fn json_small_int(json: &SharedJson) -> Option<Value> {
 }
 
 #[inline]
-fn json_text<'v>(json: &'v SharedJson, limits: &VmLimits) -> Option<&'v Arc<str>> {
+fn json_text<'v>(json: &'v SharedJson, limits: &VmLimits) -> Option<&'v SharedText> {
     match json {
         SharedJson::String(text) if text.len() <= limits.max_text_bytes => Some(text),
         _ => None,
