@@ -815,7 +815,8 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
                 Runtime::new().with_runtime_profile()
             } else {
                 Runtime::new()
-            };
+            }
+            .with_whole_program_entry();
             let program_args = args.iter().skip(path_index + 1).cloned().collect();
             let mut policy = runtime_policy(&project_root)?
                 .with_file_access(project_root.clone(), true, true)

@@ -95,6 +95,15 @@ enum Kind {
     UnwrapJsonInt,
     /// `Unwrap; JsonTryText` of an `Ok` holding a JSON string.
     UnwrapJsonText,
+    /// `TextParseInt` of a short run of digits.
+    ParseInt,
+    /// `Index; TextParseInt` of a short run of digits.
+    IndexParseInt,
+    /// `Unwrap; GetField` of an `Ok` or `Some` holding the record.
+    UnwrapGetField {
+        record: u32,
+        field: u32,
+    },
     /// A host operation at `op_ip`. Its pending operands go on the stack first.
     Host {
         op_ip: u32,
@@ -636,11 +645,24 @@ impl<'a> Translator<'a> {
             Op::Add => self.emit_value(Kind::Add, 2, ip),
             Op::Subtract => self.emit_value(Kind::Subtract, 2, ip),
             Op::Multiply => self.emit_value(Kind::Multiply, 2, ip),
-            Op::Index => self.emit_value(Kind::Index, 2, ip),
+            Op::Index => match self.follower(ip + 1) {
+                Some(Op::TextParseInt) => self.emit_chain(Kind::IndexParseInt, 2, ip, 1),
+                _ => self.emit_value(Kind::Index, 2, ip),
+            },
+            Op::TextParseInt => self.emit_value(Kind::ParseInt, 1, ip),
             Op::Length => self.emit_value(Kind::Length, 1, ip),
             Op::Unwrap => match self.follower(ip + 1) {
                 Some(Op::JsonTryInt) => self.emit_chain(Kind::UnwrapJsonInt, 1, ip, 1),
                 Some(Op::JsonTryText) => self.emit_chain(Kind::UnwrapJsonText, 1, ip, 1),
+                Some(Op::GetField(record, field)) => self.emit_chain(
+                    Kind::UnwrapGetField {
+                        record: *record as u32,
+                        field: *field as u32,
+                    },
+                    1,
+                    ip,
+                    1,
+                ),
                 _ => self.emit_value(Kind::Unwrap, 1, ip),
             },
             Op::JsonTryGet => match (self.follower(ip + 1), self.follower(ip + 2)) {
@@ -1304,6 +1326,61 @@ pub(super) fn run_registers<H: VmHost>(
                 drop_operands!();
                 finish_value!(Value::ResultOk(Box::new(Value::Text(text))))
             }
+            Kind::ParseInt => {
+                let Some(parsed) = parse_short_digits(read!(instruction.a)) else {
+                    exit!()
+                };
+                commit!(0);
+                drop_operands!();
+                finish_value!(Value::ResultOk(Box::new(parsed)))
+            }
+            Kind::IndexParseInt => {
+                let (Value::List(items), Value::Int(position)) =
+                    (read!(instruction.a), read!(instruction.b))
+                else {
+                    exit!()
+                };
+                let Some(item) = position
+                    .small()
+                    .and_then(|position| usize::try_from(position).ok())
+                    .and_then(|position| items.get(position))
+                else {
+                    exit!()
+                };
+                let Some(parsed) = parse_short_digits(item) else {
+                    exit!()
+                };
+                commit!(cloned_value_allocation_fast(item));
+                drop_operands!();
+                finish_value!(Value::ResultOk(Box::new(parsed)))
+            }
+            Kind::UnwrapGetField { record, field } => {
+                let (Value::ResultOk(payload) | Value::OptionSome(payload)) = read!(instruction.a)
+                else {
+                    exit!()
+                };
+                let Value::Record(name, fields) = payload.as_ref() else {
+                    exit!()
+                };
+                let Some(definition) = artifact.records.get(record as usize) else {
+                    exit!()
+                };
+                let (Some(expected), Some(item)) = (
+                    definition.fields.get(field as usize),
+                    fields.get(field as usize),
+                ) else {
+                    exit!()
+                };
+                if name.as_str() != definition.name.as_str()
+                    || !value_matches(item, &expected.ty, &artifact.records)
+                {
+                    exit!();
+                }
+                commit!(cloned_value_allocation(item));
+                let value = clone_value_fast(item);
+                drop_operands!();
+                finish_value!(value)
+            }
             Kind::Host {
                 op_ip,
                 check_result,
@@ -1418,4 +1495,19 @@ fn json_text<'v>(json: &'v SharedJson, limits: &VmLimits) -> Option<&'v Arc<str>
         SharedJson::String(text) if text.len() <= limits.max_text_bytes => Some(text),
         _ => None,
     }
+}
+
+/// Up to 18 unsigned digits always fit an `i64`. Everything else takes the host's parser.
+#[inline]
+fn parse_short_digits(value: &Value) -> Option<Value> {
+    let Value::Text(text) = value else {
+        return None;
+    };
+    if text.is_empty() || text.len() > 18 || !text.bytes().all(|byte| byte.is_ascii_digit()) {
+        return None;
+    }
+    let parsed = text
+        .bytes()
+        .fold(0i64, |total, byte| total * 10 + i64::from(byte - b'0'));
+    Some(Value::Int(BigInt::from_i64(parsed)))
 }

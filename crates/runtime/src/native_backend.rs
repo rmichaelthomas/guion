@@ -543,14 +543,47 @@ impl fmt::Debug for NativeBackend {
     }
 }
 
+/// Every function a run starting at `root` can enter.
+fn functions_reachable_from(artifact: &Artifact, root: usize) -> Vec<bool> {
+    let mut reachable = vec![false; artifact.functions.len()];
+    let mut pending = vec![root];
+    while let Some(index) = pending.pop() {
+        if !reachable.get(index).is_some_and(|seen| !seen) {
+            continue;
+        }
+        reachable[index] = true;
+        for instruction in &artifact.functions[index].code {
+            if let Op::Call(target, _)
+            | Op::ParallelMap(target)
+            | Op::SortBy(target)
+            | Op::SortByIntKey(target)
+            | Op::MergeSortedByIntKey(target) = &instruction.op
+            {
+                pending.push(*target);
+            }
+        }
+    }
+    reachable
+}
+
 impl NativeBackend {
     pub(crate) fn compile(
         artifact: &Artifact,
         symbols: NativeSymbols,
         profile_guest_branches: bool,
+        root: Option<usize>,
     ) -> Option<Self> {
-        let (eligible, mut rejection_profiles) =
+        let (mut eligible, mut rejection_profiles) =
             native_eligibility_report(artifact, cfg!(feature = "native-value-bridge"));
+        // Compiling costs far more than most library functions a program imports but never
+        // calls would ever return. The reachable set is closed under calls, so what remains
+        // eligible can still call everything it needs.
+        if let Some(root) = root {
+            let reachable = functions_reachable_from(artifact, root);
+            for (function, reached) in eligible.iter_mut().zip(reachable) {
+                *function &= reached;
+            }
+        }
         if !eligible.iter().any(|eligible| *eligible) {
             return None;
         }

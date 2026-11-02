@@ -109,6 +109,8 @@ struct ReaderResource {
     failed: bool,
     /// Holds the record being read, kept between reads so each one needs no new buffer.
     record: Vec<u8>,
+    /// Fields in the last CSV record, which is nearly always how many the next one has.
+    last_field_count: usize,
 }
 
 /// Owns native readers. Handles are scoped to this registry and become stale when it closes.
@@ -174,6 +176,7 @@ impl FileReaderRegistry {
                 eof: false,
                 failed: false,
                 record: Vec::new(),
+                last_field_count: 0,
             },
         );
         Ok(FileReaderHandle {
@@ -422,7 +425,14 @@ fn read_plain_csv_record(resource: &mut ReaderResource) -> Option<Vec<Arc<str>>>
         return None;
     }
     let line = std::str::from_utf8(line).ok()?;
-    let fields = line.split(',').map(Arc::from).collect();
+    let mut fields = Vec::with_capacity(resource.last_field_count);
+    let mut field_start = 0;
+    for comma in memchr::memchr_iter(b',', line.as_bytes()) {
+        fields.push(Arc::from(&line[field_start..comma]));
+        field_start = comma + 1;
+    }
+    fields.push(Arc::from(&line[field_start..]));
+    resource.last_field_count = fields.len();
     resource.reader.consume(consumed);
     resource.bytes_read += consumed;
     resource.physical_line = resource.physical_line.saturating_add(1);

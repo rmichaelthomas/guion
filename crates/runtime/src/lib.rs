@@ -2761,6 +2761,7 @@ impl HostPolicy {
 
 pub struct Runtime {
     native_enabled: bool,
+    native_whole_program_entry: bool,
     runtime_profile_enabled: bool,
     runtime_profile_sampled: bool,
 }
@@ -2817,6 +2818,7 @@ impl Runtime {
     pub fn new() -> Self {
         Self {
             native_enabled: true,
+            native_whole_program_entry: false,
             runtime_profile_enabled: false,
             runtime_profile_sampled: false,
         }
@@ -2827,6 +2829,7 @@ impl Runtime {
     pub fn vm_only() -> Self {
         Self {
             native_enabled: false,
+            native_whole_program_entry: false,
             runtime_profile_enabled: false,
             runtime_profile_sampled: false,
         }
@@ -2834,6 +2837,13 @@ impl Runtime {
 
     /// Enable diagnostic execution counters for the latest guest invocation.
     /// This adds instrumentation and should be used only for untimed profiles.
+    /// The first function invoked is the only one this runtime will invoke, as for a program
+    /// run from its entry point, so nothing it cannot reach needs native code.
+    pub fn with_whole_program_entry(mut self) -> Self {
+        self.native_whole_program_entry = true;
+        self
+    }
+
     pub fn with_runtime_profile(mut self) -> Self {
         self.runtime_profile_enabled = true;
         self.runtime_profile_sampled = false;
@@ -2885,6 +2895,7 @@ impl Runtime {
             native: None,
             native_code: None,
             native_enabled: self.native_enabled,
+            native_whole_program_entry: self.native_whole_program_entry,
             native_compile_attempted: false,
             runtime_profile_enabled: self.runtime_profile_enabled,
             runtime_profile_sampled: self.runtime_profile_sampled,
@@ -2929,6 +2940,7 @@ pub struct Instance {
     native: Option<NativeBackend>,
     native_code: Option<Arc<NativeCode>>,
     native_enabled: bool,
+    native_whole_program_entry: bool,
     native_compile_attempted: bool,
     runtime_profile_enabled: bool,
     runtime_profile_sampled: bool,
@@ -7300,6 +7312,7 @@ impl Instance {
                     loop_safepoint: native_loop_safepoint as *const () as *const u8,
                 },
                 runtime_profile.is_some(),
+                self.native_whole_program_entry.then_some(index),
             );
             if let Some(native) = self.native.as_ref() {
                 self.native_code = Some(native.shared_code());
@@ -8461,6 +8474,7 @@ impl Instance {
                         native: None,
                         native_code: native_code.clone(),
                         native_enabled,
+                        native_whole_program_entry: false,
                         native_compile_attempted: false,
                         runtime_profile_enabled: false,
                         runtime_profile_sampled: false,
