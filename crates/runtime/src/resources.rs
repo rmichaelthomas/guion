@@ -4,7 +4,10 @@ use std::{
     fs::File,
     io::{self, BufRead, BufReader},
     path::Path,
-    sync::atomic::{AtomicU64, Ordering},
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc,
+    },
 };
 
 static NEXT_OWNER: AtomicU64 = AtomicU64::new(1);
@@ -64,13 +67,13 @@ impl FileReaderHandle {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SourceLine {
     pub number: usize,
-    pub text: String,
+    pub text: Arc<str>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CsvRow {
     pub start_line: usize,
-    pub fields: Vec<String>,
+    pub fields: Vec<Arc<str>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -104,6 +107,8 @@ struct ReaderResource {
     physical_line: usize,
     eof: bool,
     failed: bool,
+    /// Holds the record being read, kept between reads so each one needs no new buffer.
+    record: Vec<u8>,
 }
 
 /// Owns native readers. Handles are scoped to this registry and become stale when it closes.
@@ -168,6 +173,7 @@ impl FileReaderRegistry {
                 physical_line: 1,
                 eof: false,
                 failed: false,
+                record: Vec::new(),
             },
         );
         Ok(FileReaderHandle {
@@ -233,29 +239,33 @@ impl FileReaderRegistry {
             return Ok(None);
         }
         let start_line = resource.physical_line;
-        let bytes = read_bounded_record(resource, b'\n')?;
+        let mut bytes = std::mem::take(&mut resource.record);
+        bytes.clear();
+        read_bounded_record(resource, b'\n', &mut bytes)?;
         if bytes.is_empty() && resource.eof {
             return Ok(None);
         }
         resource.physical_line = resource
             .physical_line
             .saturating_add(bytes.iter().filter(|byte| **byte == b'\n').count());
-        let mut content = bytes;
-        if content.last() == Some(&b'\n') {
-            content.pop();
+        let mut content = bytes.as_slice();
+        if let Some(rest) = content.strip_suffix(b"\n") {
+            content = rest;
         }
-        if content.last() == Some(&b'\r') {
-            content.pop();
+        if let Some(rest) = content.strip_suffix(b"\r") {
+            content = rest;
         }
-        let text = String::from_utf8(content).map_err(|error| {
+        let text = std::str::from_utf8(content).map_err(|error| {
             resource.failed = true;
             ReaderError::new(
                 ReaderErrorKind::InvalidUtf8,
                 "line is not valid UTF-8",
                 start_line,
-                error.utf8_error().valid_up_to() + 1,
+                error.valid_up_to() + 1,
             )
         })?;
+        let text = Arc::<str>::from(text);
+        resource.record = bytes;
         Ok(Some(SourceLine {
             number: start_line,
             text,
@@ -274,6 +284,9 @@ impl FileReaderRegistry {
             return Ok(None);
         }
         let start_line = resource.physical_line;
+        if let Some(fields) = read_plain_csv_record(resource) {
+            return Ok(Some(CsvRow { start_line, fields }));
+        }
         let record = read_csv_record(resource).map_err(CsvError::Reader)?;
         let Some(record) = record else {
             return Ok(None);
@@ -295,7 +308,7 @@ impl FileReaderRegistry {
         })?;
         Ok(Some(CsvRow {
             start_line,
-            fields: parsed,
+            fields: parsed.into_iter().map(Arc::from).collect(),
         }))
     }
 
@@ -347,8 +360,8 @@ impl FileReaderRegistry {
 fn read_bounded_record(
     resource: &mut ReaderResource,
     delimiter: u8,
-) -> Result<Vec<u8>, ReaderError> {
-    let mut output = Vec::new();
+    output: &mut Vec<u8>,
+) -> Result<(), ReaderError> {
     loop {
         let available = resource
             .reader
@@ -358,10 +371,8 @@ fn read_bounded_record(
             resource.eof = true;
             break;
         }
-        let take = available
-            .iter()
-            .position(|byte| *byte == delimiter)
-            .map_or(available.len(), |position| position + 1);
+        let take =
+            memchr::memchr(delimiter, available).map_or(available.len(), |position| position + 1);
         let next_total = resource.bytes_read.saturating_add(take);
         let next_record = output.len().saturating_add(take);
         if next_total > resource.max_file_bytes || next_record > resource.max_record_bytes {
@@ -381,7 +392,7 @@ fn read_bounded_record(
             break;
         }
     }
-    Ok(output)
+    Ok(())
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -391,6 +402,31 @@ enum CsvState {
     Quoted,
     AfterQuote,
     AfterQuoteCr,
+}
+
+/// The common record: complete in the read buffer, valid UTF-8, within the limits, with no
+/// quote or inner carriage return. Its fields are exactly the comma-separated pieces. Returns
+/// None without consuming anything otherwise, and the general reader takes it from there.
+fn read_plain_csv_record(resource: &mut ReaderResource) -> Option<Vec<Arc<str>>> {
+    let available = resource.reader.fill_buf().ok()?;
+    let newline = memchr::memchr(b'\n', available)?;
+    let consumed = newline + 1;
+    if resource.bytes_read.saturating_add(consumed) > resource.max_file_bytes
+        || consumed > resource.max_record_bytes
+    {
+        return None;
+    }
+    let line = &available[..newline];
+    let line = line.strip_suffix(b"\r").unwrap_or(line);
+    if memchr::memchr2(b'"', b'\r', line).is_some() {
+        return None;
+    }
+    let line = std::str::from_utf8(line).ok()?;
+    let fields = line.split(',').map(Arc::from).collect();
+    resource.reader.consume(consumed);
+    resource.bytes_read += consumed;
+    resource.physical_line = resource.physical_line.saturating_add(1);
+    Some(fields)
 }
 
 fn read_csv_record(resource: &mut ReaderResource) -> Result<Option<Vec<u8>>, ReaderError> {

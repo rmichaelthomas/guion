@@ -2429,10 +2429,10 @@ impl NativeListArena {
         let result = match line {
             Ok(Some(line)) => {
                 Value::ResultOk(Box::new(Value::OptionSome(Box::new(Value::Record(
-                    "SourceLine".into(),
+                    source_line_record_name(),
                     Arc::new(vec![
                         Value::Int(BigInt::from_usize(line.number)),
-                        Value::Text(line.text.into()),
+                        Value::Text(line.text),
                     ]),
                 )))))
             }
@@ -2568,6 +2568,10 @@ impl NativeListArena {
             }
             3 if value == 0 => "false".to_owned(),
             3 if value == 1 => "true".to_owned(),
+            4 => match self.constant_value(value).or_else(|| self.value(value)) {
+                Some(Value::Text(text)) => text.to_string(),
+                _ => return false,
+            },
             _ => return false,
         };
         let bytes = rendered.len().saturating_add(1);
@@ -2969,6 +2973,17 @@ impl HostPolicy {
 /// Replaces calls to tiny forwarding functions (`Load 0..n; <host operation>; Return`) with
 /// the host operation itself. Instruction indices, jump targets and spans are unchanged and
 /// the stack effect is identical, so the VM and the native backend both see the direct op.
+/// Readers build one of these records per row, so each name is allocated only once.
+fn source_line_record_name() -> guion_model::RecordName {
+    static NAME: std::sync::OnceLock<guion_model::RecordName> = std::sync::OnceLock::new();
+    NAME.get_or_init(|| "SourceLine".into()).clone()
+}
+
+fn csv_row_record_name() -> guion_model::RecordName {
+    static NAME: std::sync::OnceLock<guion_model::RecordName> = std::sync::OnceLock::new();
+    NAME.get_or_init(|| "CsvRow".into()).clone()
+}
+
 fn inline_host_forwarders(artifact: &mut Artifact) {
     let operations: Vec<Option<Op>> = artifact
         .functions
@@ -4174,10 +4189,10 @@ impl VmHost for Instance {
                     match self.readers.next_line(handle) {
                         Ok(Some(line)) => push_stack!(Value::ResultOk(Box::new(
                             Value::OptionSome(Box::new(Value::Record(
-                                "SourceLine".into(),
+                                source_line_record_name(),
                                 Arc::new(vec![
                                     Value::Int(BigInt::from_usize(line.number)),
-                                    Value::Text(line.text.into())
+                                    Value::Text(line.text)
                                 ]),
                             )))
                         ))),
@@ -4194,14 +4209,11 @@ impl VmHost for Instance {
                     match self.readers.next_csv(handle) {
                         Ok(Some(row)) => push_stack!(Value::ResultOk(Box::new(Value::OptionSome(
                             Box::new(Value::Record(
-                                "CsvRow".into(),
+                                csv_row_record_name(),
                                 Arc::new(vec![
                                     Value::Int(BigInt::from_usize(row.start_line)),
                                     Value::from_list_items(
-                                        row.fields
-                                            .into_iter()
-                                            .map(|field| Value::Text(field.into()))
-                                            .collect()
+                                        row.fields.into_iter().map(Value::Text).collect()
                                     )
                                 ]),
                             ))
@@ -7748,6 +7760,11 @@ impl Instance {
             }) {
                 self.native_calls
                     .fetch_add(outcome.calls, Ordering::Relaxed);
+                // A native failure ends the program, so what it printed first must still reach
+                // the output, as it does in the VM. A plain deoptimization replays instead.
+                if outcome.status >= 2 || native_arena.host_error.is_some() {
+                    self.commit_native_output(&mut native_arena);
+                }
                 let fault_frame = self
                     .artifact
                     .functions

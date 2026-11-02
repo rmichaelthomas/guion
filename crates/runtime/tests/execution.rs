@@ -20,6 +20,67 @@ fn text_length_and_index_use_unicode_scalar_positions() {
 }
 
 #[test]
+fn text_print_compiles_natively_and_matches_the_vm() {
+    let source = "fn main() -> Int:\n    var total = 0\n    var index = 0\n    while index < 1000:\n        set total = total + index % 3\n        set index = index + 1\n    print(\"a🙂é\")\n    print(\"\")\n    print(\"total \" + json_stringify(json_int(total)))\n    return 0\n";
+    let artifact = compile("text-print.gu", source).expect("text print source compiles");
+    let mut native = Runtime::new()
+        .load(artifact.clone(), HostPolicy::default())
+        .expect("native runtime loads the artifact");
+    let mut vm = Runtime::vm_only()
+        .load(artifact, HostPolicy::default())
+        .expect("runtime loads the artifact");
+
+    native.invoke("main", vec![]).expect("native program runs");
+    vm.invoke("main", vec![]).expect("VM program runs");
+    let output = native.take_output();
+    assert_eq!(output, "a🙂é\n\ntotal 999\n");
+    assert_eq!(output, vm.take_output());
+    assert!(
+        native
+            .native_function_names()
+            .iter()
+            .any(|name| name == "main"),
+        "{}",
+        native.native_compile_profile()
+    );
+    assert_eq!(native.native_deoptimizations(), 0);
+}
+
+#[test]
+fn native_failure_keeps_output_printed_before_it() {
+    for (source, expected) in [
+        ("fn main() -> Int:\n    print(7)\n    return 1 / 0\n", "7\n"),
+        (
+            "fn main() -> Int:\n    var index = 0\n    while index < 3:\n        set index = index + 1\n    print(\"before\")\n    return 1 / 0\n",
+            "before\n",
+        ),
+    ] {
+        let artifact = compile("print-then-fail.gu", source).expect("source compiles");
+        let mut native = Runtime::new()
+            .load(artifact.clone(), HostPolicy::default())
+            .expect("native runtime loads");
+        let mut vm = Runtime::vm_only()
+            .load(artifact, HostPolicy::default())
+            .expect("VM runtime loads");
+        assert_eq!(
+            native.invoke("main", vec![]).unwrap_err().code,
+            "R_DIV_ZERO"
+        );
+        assert_eq!(vm.invoke("main", vec![]).unwrap_err().code, "R_DIV_ZERO");
+        assert_eq!(native.take_output(), expected);
+        assert_eq!(vm.take_output(), expected);
+        assert!(
+            native
+                .native_function_names()
+                .iter()
+                .any(|name| name == "main"),
+            "{}",
+            native.native_compile_profile()
+        );
+    }
+}
+
+#[test]
 fn text_slice_uses_unicode_scalar_half_open_bounds() {
     let source = "fn slice_text() -> Text:\n    return text_slice(\"a🙂é\", 1, 3)\n\nfn empty_slice() -> Text:\n    return text_slice(\"a🙂é\", 2, 2)\n\nfn main() -> Int:\n    if slice_text() == \"🙂é\" and empty_slice() == \"\":\n        return 0\n    return 1\n";
     let artifact = compile("text-slice.gu", source).expect("text_slice source compiles");

@@ -311,6 +311,14 @@ enum FusedKind {
     UnwrapStore,
     /// `Const; Store dest`
     ConstStore,
+    /// `Load slot; Load dest; Index`, reading a map or list entry without cloning either
+    LoadLoadIndex,
+    /// `Load slot; Load dest; MapHas`, probing a map without cloning either
+    LoadLoadMapHas,
+    /// `Call` of a function that is exactly `Load 0; MakeSome; Return`
+    CallSome,
+    /// `Call` of a function that is exactly `MakeNone; Return`
+    CallNone,
 }
 
 impl FusedEntry {
@@ -327,17 +335,35 @@ impl FusedEntry {
             FusedKind::None => 0,
             FusedKind::ProbeBranch { negate, .. } => 2 + u64::from(negate),
             FusedKind::NotBranch | FusedKind::ConstStore => 1,
-            FusedKind::UnwrapStore => 2,
+            FusedKind::UnwrapStore | FusedKind::LoadLoadIndex | FusedKind::LoadLoadMapHas => 2,
+            FusedKind::CallNone => 2,
+            FusedKind::CallSome => 3,
         }
     }
 }
 
 /// Build the fused-entry tables for every function of a verified artifact.
 pub fn build_fused_tables(artifact: &Artifact) -> Vec<Vec<FusedEntry>> {
-    artifact.functions.iter().map(build_fused_table).collect()
+    let constructors: Vec<Option<FusedKind>> = artifact
+        .functions
+        .iter()
+        .map(|function| match forwarded_host_operation(function) {
+            Some(Op::MakeSome) => Some(FusedKind::CallSome),
+            Some(Op::MakeNone) => Some(FusedKind::CallNone),
+            _ => None,
+        })
+        .collect();
+    artifact
+        .functions
+        .iter()
+        .map(|function| build_fused_table(function, &constructors))
+        .collect()
 }
 
-fn build_fused_table(function: &guion_model::Function) -> Vec<FusedEntry> {
+fn build_fused_table(
+    function: &guion_model::Function,
+    constructors: &[Option<FusedKind>],
+) -> Vec<FusedEntry> {
     let code = &function.code;
     let mut is_target = vec![false; code.len() + 1];
     for instruction in code {
@@ -390,8 +416,30 @@ fn build_fused_table(function: &guion_model::Function) -> Vec<FusedEntry> {
                     },
                     3,
                 )),
+                (Some(Op::Load(dest)), Some(op @ (Op::Index | Op::MapHas)), _) => Some((
+                    FusedEntry {
+                        kind: if matches!(op, Op::Index) {
+                            FusedKind::LoadLoadIndex
+                        } else {
+                            FusedKind::LoadLoadMapHas
+                        },
+                        slot: *slot as u32,
+                        dest: *dest as u32,
+                        target: 0,
+                    },
+                    3,
+                )),
                 _ => None,
             },
+            Some(Op::Call(target, _)) => constructors.get(*target).copied().flatten().map(|kind| {
+                (
+                    FusedEntry {
+                        kind,
+                        ..FusedEntry::NONE
+                    },
+                    1,
+                )
+            }),
             Some(Op::Not) => match op_at(ip + 1) {
                 Some(Op::JumpIfFalse(target)) => Some((
                     FusedEntry {
@@ -436,6 +484,7 @@ fn build_fused_table(function: &guion_model::Function) -> Vec<FusedEntry> {
 /// Execute one fused entry. Returns `Ok(false)` without side effects when the
 /// entry's preconditions do not hold, so the caller runs the plain instructions.
 #[inline(never)]
+#[allow(clippy::too_many_arguments)]
 fn run_fused_entry(
     entry: &FusedEntry,
     instruction: &guion_model::Instruction,
@@ -443,6 +492,7 @@ fn run_fused_entry(
     stack: &mut Vec<Value>,
     budget: &Budget,
     limits: &VmLimits,
+    depth: usize,
     ip: &mut usize,
 ) -> Result<bool, RuntimeError> {
     let start = *ip - 1;
@@ -498,6 +548,79 @@ fn run_fused_entry(
             charge_allocation(budget, cloned_value_allocation(constant), instruction.span)?;
             locals[entry.dest as usize] = constant.clone();
             *ip = start + 2;
+            Ok(true)
+        }
+        FusedKind::LoadLoadIndex => {
+            let index = &locals[entry.dest as usize];
+            let item = match (&locals[entry.slot as usize], index) {
+                (Value::Map(items), Value::Text(key)) => items.get(key.as_ref()),
+                (Value::List(items), Value::Int(position)) => {
+                    match position
+                        .small()
+                        .and_then(|position| usize::try_from(position).ok())
+                    {
+                        Some(position) => items.get(position),
+                        None => None,
+                    }
+                }
+                _ => None,
+            };
+            let Some(item) = item else {
+                return Ok(false);
+            };
+            // Both loads and the read in one charge: it fits exactly when each would, and a
+            // refusal leaves the budget untouched so the plain path reports it at its own span.
+            let charge =
+                cloned_value_allocation(index).saturating_add(cloned_value_allocation(item));
+            if !budget.allocate(charge) {
+                return Ok(false);
+            }
+            stack.push(item.clone());
+            *ip = start + 3;
+            Ok(true)
+        }
+        FusedKind::LoadLoadMapHas => {
+            let (Value::Map(items), key @ Value::Text(text)) =
+                (&locals[entry.slot as usize], &locals[entry.dest as usize])
+            else {
+                return Ok(false);
+            };
+            if !budget.allocate(cloned_value_allocation(key)) {
+                return Ok(false);
+            }
+            stack.push(Value::Bool(items.contains_key(text.as_ref())));
+            *ip = start + 3;
+            Ok(true)
+        }
+        FusedKind::CallNone => {
+            if depth.saturating_add(1) >= limits.call_depth_limit {
+                return Ok(false);
+            }
+            stack.push(Value::OptionNone);
+            Ok(true)
+        }
+        FusedKind::CallSome => {
+            if depth.saturating_add(1) >= limits.call_depth_limit {
+                return Ok(false);
+            }
+            let Some(value) = stack.pop() else {
+                return Ok(false);
+            };
+            let charged = budget.allocate(size_of::<Value>());
+            let wrapped = Value::OptionSome(Box::new(value));
+            let within_limits =
+                charged && value_limit_error(&wrapped, limits, instruction.span).is_none();
+            if !within_limits {
+                if charged {
+                    budget.refund_allocation(size_of::<Value>());
+                }
+                let Value::OptionSome(value) = wrapped else {
+                    unreachable!("the wrapper was built just above")
+                };
+                stack.push(*value);
+                return Ok(false);
+            }
+            stack.push(wrapped);
             Ok(true)
         }
         FusedKind::None => Ok(false),
@@ -669,13 +792,19 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
         .fused
         .and_then(|tables| tables.get(function_index))
         .map_or(&[], |table| table.as_slice());
+    // Cancellation is polled on frame entry, on every taken backward jump and after every host
+    // operation: code between two polls is straight-line, so it stops soon after a cancellation.
+    let mut poll_cancellation = true;
     loop {
-        if budget.is_cancelled() || host.externally_cancelled() {
-            return Err(RuntimeError::new(
-                "R_CANCELLED",
-                "parallel task was cancelled after a sibling failed",
-                f.code.first().map(|i| i.span).unwrap_or_default(),
-            ));
+        if poll_cancellation {
+            poll_cancellation = false;
+            if budget.is_cancelled() || host.externally_cancelled() {
+                return Err(RuntimeError::new(
+                    "R_CANCELLED",
+                    "parallel task was cancelled after a sibling failed",
+                    f.code.first().map(|i| i.span).unwrap_or_default(),
+                ));
+            }
         }
         if ip >= f.code.len() {
             return Err(RuntimeError::new(
@@ -805,6 +934,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
             }};
         }
         let instruction = instruction_ref;
+        let fused_start = ip;
         if let Some(entry) = fused.get(ip - 1) {
             if entry.kind != FusedKind::None && instruction_fuel.consume_extra(entry.extra_fuel()) {
                 if run_fused_entry(
@@ -814,8 +944,11 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                     &mut stack,
                     budget.as_ref(),
                     limits,
+                    depth,
                     &mut ip,
                 )? {
+                    // A fused branch can be a loop's backward edge.
+                    poll_cancellation = ip < fused_start;
                     continue;
                 }
                 // Preconditions failed after the fuel was taken: give it back so the
@@ -865,13 +998,6 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                         cloned_value_allocation(value),
                         instruction_ref.span,
                     )?;
-                    if budget.is_cancelled() || host.externally_cancelled() {
-                        return Err(RuntimeError::new(
-                            "R_CANCELLED",
-                            "parallel task was cancelled after a sibling failed",
-                            f.code.first().map(|i| i.span).unwrap_or_default(),
-                        ));
-                    }
                     if !instruction_fuel.consume() {
                         return Err(RuntimeError::new(
                             "R_STEP_LIMIT",
@@ -881,13 +1007,6 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                     }
                     record_skipped_instruction!(ip, next);
                     if let LoadFastPath::ListIndex(field) = fast_path {
-                        if budget.is_cancelled() || host.externally_cancelled() {
-                            return Err(RuntimeError::new(
-                                "R_CANCELLED",
-                                "parallel task was cancelled after a sibling failed",
-                                f.code.first().map(|i| i.span).unwrap_or_default(),
-                            ));
-                        }
                         let index_ip = ip + 1;
                         let index_instruction = &f.code[index_ip];
                         if !instruction_fuel.consume() {
@@ -1974,6 +2093,25 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                             instruction.span,
                         ));
                     };
+                    // Updating an existing key of a unique map charges nothing: one lookup is enough.
+                    if key.len() <= limits.max_text_bytes {
+                        if let Some(existing) =
+                            Arc::get_mut(items).and_then(|entries| entries.get_mut(key.as_ref()))
+                        {
+                            if let Some(error) = value_limit_error(&value, limits, instruction.span)
+                            {
+                                return Err(error);
+                            }
+                            *existing = value;
+                            if PROFILED {
+                                if let Some(profile) = &budget.runtime_profile {
+                                    profile.record_map_set(true, 0);
+                                }
+                            }
+                            push_stack!(Value::Map(Arc::clone(items)));
+                            continue;
+                        }
+                    }
                     let contains_key = items.contains_key(key.as_ref());
                     if !contains_key && items.len() >= limits.max_collection_items {
                         return Err(RuntimeError::new(
@@ -3012,6 +3150,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                         }
                     }
                 }
+                poll_cancellation = *target < ip;
                 ip = *target;
             }
             Op::JumpIfFalse(target) => {
@@ -3028,6 +3167,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                                 }
                             }
                         }
+                        poll_cancellation = *target < ip;
                         ip = *target;
                     }
                 } else {
@@ -3286,6 +3426,11 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                     sample.record_host_duration(started.elapsed());
                 }
                 host_result?;
+                // A host operation can stop early on cancellation, leaving no result behind.
+                poll_cancellation = true;
+                if budget.is_cancelled() || host.externally_cancelled() {
+                    continue;
+                }
                 // These operations were reached through forwarding wrappers whose return
                 // applied the value limits; keep that check now that they are called directly.
                 if matches!(
@@ -3299,6 +3444,9 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                         | Op::JsonTryBool
                         | Op::JsonTryFloat
                         | Op::FileNextLine
+                        | Op::CsvNext
+                        | Op::TextParseInt
+                        | Op::TextParseFloat
                         | Op::TextCollapseWhitespace
                         | Op::TimeParseTimestamp
                         | Op::TimeFormatUtc
@@ -3353,6 +3501,9 @@ fn fast_host_forwarder(function: &guion_model::Function) -> Option<FastHostForwa
         | Op::JsonTryBool
         | Op::JsonTryFloat
         | Op::FileNextLine
+        | Op::CsvNext
+        | Op::TextParseInt
+        | Op::TextParseFloat
         | Op::TextCollapseWhitespace
         | Op::TimeParseTimestamp
         | Op::TimeFormatUtc
@@ -4495,14 +4646,22 @@ impl<'a> InstructionFuel<'a> {
 
     #[inline]
     fn consume(&mut self) -> bool {
+        // `remaining` stays zero under exact atomic charging, so one test covers both.
+        if self.remaining != 0 {
+            self.remaining -= 1;
+            return true;
+        }
+        self.consume_slow()
+    }
+
+    #[cold]
+    fn consume_slow(&mut self) -> bool {
         if !self.reserve_locally {
             return self.budget.consume();
         }
+        self.remaining = self.budget.reserve(INSTRUCTION_FUEL_RESERVATION);
         if self.remaining == 0 {
-            self.remaining = self.budget.reserve(INSTRUCTION_FUEL_RESERVATION);
-            if self.remaining == 0 {
-                return false;
-            }
+            return false;
         }
         self.remaining -= 1;
         true
@@ -7832,6 +7991,148 @@ mod tests {
         assert!(succeeded, "a large enough limit completes the program");
         let (outcome, _) = run(Some(tables), 1000);
         assert_eq!(outcome, Ok(Value::Int(BigInt::from_i64(7))));
+    }
+
+    #[test]
+    fn fused_reads_and_constructor_calls_match_plain_execution_at_every_limit() {
+        let span = |index: usize| Span {
+            source_id: 0,
+            start: index,
+            end: index + 1,
+            line: index + 1,
+            column: 1,
+        };
+        let function =
+            |name: &str, parameters, result, local_count, ops: Vec<Op>| guion_model::Function {
+                name: name.into(),
+                parameters,
+                result,
+                local_count,
+                code: ops
+                    .into_iter()
+                    .enumerate()
+                    .map(|(index, op)| Instruction {
+                        op,
+                        span: span(index),
+                    })
+                    .collect(),
+            };
+        let int = |value| Value::Int(BigInt::from_i64(value));
+        let mut entries = BTreeMap::new();
+        entries.insert("key".to_owned(), Value::Text("value".into()));
+        let main = function(
+            "main",
+            vec![],
+            Type::Int,
+            4,
+            vec![
+                Op::Const(Value::Map(Arc::new(entries))),
+                Op::Store(0),
+                Op::Const(Value::Text("key".into())),
+                Op::Store(1),
+                Op::Const(Value::List(Arc::new(vec![int(5)]))),
+                Op::Store(2),
+                Op::Const(int(0)),
+                Op::Store(3),
+                Op::Load(0),
+                Op::Load(1),
+                Op::MapHas,
+                Op::Pop,
+                Op::Load(0),
+                Op::Load(1),
+                Op::Index,
+                Op::Pop,
+                Op::Load(2),
+                Op::Load(3),
+                Op::Index,
+                Op::Pop,
+                Op::Const(int(1)),
+                Op::Call(1, 1),
+                Op::Pop,
+                Op::Call(2, 0),
+                Op::Pop,
+                Op::Const(int(7)),
+                Op::Return,
+            ],
+        );
+        let some = function(
+            "some",
+            vec![Type::Int],
+            Type::Option(Box::new(Type::Int)),
+            1,
+            vec![Op::Load(0), Op::MakeSome, Op::Return],
+        );
+        let none = function(
+            "none",
+            vec![],
+            Type::Option(Box::new(Type::Int)),
+            0,
+            vec![Op::MakeNone, Op::Return],
+        );
+        let artifact = Arc::new(Artifact {
+            format_version: Artifact::CURRENT_VERSION,
+            build_metadata: None,
+            compiled_source_sha256: None,
+            source_name: "fusion-reads-test.gu".into(),
+            sources: vec![],
+            entry: "main".into(),
+            functions: vec![main, some, none],
+            externals: vec![],
+            records: vec![],
+        });
+        let tables = Arc::new(build_fused_tables(&artifact));
+        for kind in [
+            FusedKind::LoadLoadIndex,
+            FusedKind::LoadLoadMapHas,
+            FusedKind::CallSome,
+            FusedKind::CallNone,
+        ] {
+            assert!(
+                tables[0].iter().any(|entry| entry.kind == kind),
+                "the test program must reach {kind:?}"
+            );
+        }
+        let run = |fused: Option<Arc<Vec<Vec<FusedEntry>>>>, instructions: u64, bytes: usize| {
+            let mut host = FusionTestHost {
+                artifact: Arc::clone(&artifact),
+                fused,
+            };
+            let budget = Arc::new(Budget::new(
+                instructions,
+                bytes,
+                CancellationToken::new(),
+                None,
+            ));
+            let frame = new_vm_frame(&artifact, 0, vec![], 1, None);
+            let outcome = match run_frames(&mut host, frame, Arc::clone(&budget)) {
+                Ok(value) => Ok(value),
+                Err(error) => Err((error.code, error.trace)),
+            };
+            (
+                outcome,
+                budget.remaining.load(Ordering::Relaxed),
+                budget.allocation_remaining.load(Ordering::Relaxed),
+            )
+        };
+        for limit in 0..50 {
+            let plain = run(None, limit, 1 << 20);
+            let fused = run(Some(Arc::clone(&tables)), limit, 1 << 20);
+            assert_eq!(plain, fused, "instruction limit {limit}");
+        }
+        let mut exhausted = false;
+        for bytes in 0..200 {
+            let plain = run(None, 1000, bytes);
+            let fused = run(Some(Arc::clone(&tables)), 1000, bytes);
+            // The failing program stops here, so the fuel left over is not observable.
+            assert_eq!(
+                (&plain.0, plain.2),
+                (&fused.0, fused.2),
+                "allocation limit {bytes}"
+            );
+            exhausted |= plain.0.is_err();
+        }
+        assert!(exhausted, "a small allocation budget must be exhausted");
+        assert_eq!(run(Some(tables), 1000, 1 << 20).0, Ok(int(7)));
     }
 
     #[test]

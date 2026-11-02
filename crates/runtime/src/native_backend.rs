@@ -5202,7 +5202,9 @@ fn infer_native_types(
             Op::Print | Op::PrintErr => {
                 let printed_type = state.stack.pop()?;
                 if matches!(op, Op::Print) {
-                    if !matches!(printed_type, Type::Int | Type::Float64 | Type::Bool) {
+                    native_print_kind(&printed_type)?;
+                    // Compiling straight-line text output costs more than running it once.
+                    if printed_type == Type::Text && !function_has_backward_jump(function) {
                         return None;
                     }
                 } else if printed_type != Type::Text {
@@ -5953,11 +5955,18 @@ fn native_list_set_function(
     }
 }
 
+fn function_has_backward_jump(function: &Function) -> bool {
+    function.code.iter().enumerate().any(|(ip, instruction)| {
+        matches!(&instruction.op, Op::Jump(target) | Op::JumpIfFalse(target) if *target <= ip)
+    })
+}
+
 fn native_print_kind(value_type: &Type) -> Option<i64> {
     match value_type {
         Type::Int => Some(1),
         Type::Float64 => Some(2),
         Type::Bool => Some(3),
+        Type::Text => Some(4),
         _ => None,
     }
 }
