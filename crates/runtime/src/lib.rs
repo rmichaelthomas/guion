@@ -1906,12 +1906,19 @@ impl NativeListArena {
                 let fields: Vec<Arc<str>> = if delimiter.is_empty() {
                     vec![Arc::clone(text)]
                 } else {
-                    if text.matches(delimiter.as_ref()).count() >= self.max_collection_items {
-                        return None;
+                    let offsets = guion_vm_core::text_match_offsets(
+                        text,
+                        delimiter,
+                        self.max_collection_items.saturating_sub(1),
+                    )?;
+                    let mut fields = Vec::with_capacity(offsets.len() + 1);
+                    let mut start = 0;
+                    for offset in offsets {
+                        fields.push(Arc::<str>::from(&text[start..offset]));
+                        start = offset + delimiter.len();
                     }
-                    text.split(delimiter.as_ref())
-                        .map(Arc::<str>::from)
-                        .collect()
+                    fields.push(Arc::<str>::from(&text[start..]));
+                    fields
                 };
                 return self.store_native_text_list(fields);
             }
@@ -1936,7 +1943,7 @@ impl NativeListArena {
                 let count = if needle.is_empty() {
                     0
                 } else {
-                    text.matches(needle.as_ref()).count()
+                    guion_vm_core::text_match_count(text, needle)
                 };
                 let value = if count == 0 {
                     Value::Text(Arc::clone(text))
@@ -1946,7 +1953,8 @@ impl NativeListArena {
                     if total > runtime.limits.max_text_bytes {
                         return None;
                     }
-                    let replaced = Arc::<str>::from(text.replace(needle.as_ref(), replacement));
+                    let replaced =
+                        guion_vm_core::text_replace_all(text, needle, replacement, total);
                     if !self.charge(total) {
                         return None;
                     }

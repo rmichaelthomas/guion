@@ -532,6 +532,7 @@ version = "0.1.0"
 dependencies = [
  "guion-compiler",
  "guion-model",
+ "memchr",
  "serde_json",
 ]
 

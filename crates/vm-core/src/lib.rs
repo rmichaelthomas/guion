@@ -37,6 +37,8 @@ struct TextScalarIndex {
     /// The scalar and byte position of the last match, so a search that moves forward
     /// from it walks only the scalars in between.
     cursor: (usize, usize),
+    /// The searcher for the needle most recently looked for in this text.
+    finder: Option<memchr::memmem::Finder<'static>>,
 }
 
 const TEXT_INDEX_STRIDE: usize = 64;
@@ -68,6 +70,7 @@ impl TextScalarIndex {
             scalars,
             checkpoints,
             cursor: (0, 0),
+            finder: None,
         }
     }
 
@@ -93,7 +96,15 @@ impl TextScalarIndex {
 
     fn find(&mut self, needle: &str, from: usize) -> Option<Option<usize>> {
         let byte_start = self.byte_offset(from)?;
-        let Some(offset) = self.text[byte_start..].find(needle) else {
+        if self
+            .finder
+            .as_ref()
+            .is_none_or(|finder| finder.needle() != needle.as_bytes())
+        {
+            self.finder = Some(memchr::memmem::Finder::new(needle).into_owned());
+        }
+        let finder = self.finder.as_ref().expect("finder was just stored");
+        let Some(offset) = finder.find(&self.text.as_bytes()[byte_start..]) else {
             return Some(None);
         };
         let found = if self.ascii {
@@ -135,13 +146,59 @@ pub fn text_find_scalar(text: &Arc<str>, needle: &str, from: usize) -> Option<Op
             None => return None,
         }
     };
-    Some(text[byte_start..].find(needle).map(|offset| {
-        if ascii {
-            from + offset
-        } else {
-            from + text[byte_start..byte_start + offset].chars().count()
+    Some(
+        memchr::memmem::find(&text.as_bytes()[byte_start..], needle.as_bytes()).map(|offset| {
+            if ascii {
+                from + offset
+            } else {
+                from + text[byte_start..byte_start + offset].chars().count()
+            }
+        }),
+    )
+}
+
+/// Byte offsets of the non-overlapping matches of a non-empty `needle`, left to right, or
+/// `None` when there are more than `limit` of them.
+pub fn text_match_offsets(text: &str, needle: &str, limit: usize) -> Option<Vec<usize>> {
+    let mut offsets = Vec::new();
+    for offset in memchr::memmem::find_iter(text.as_bytes(), needle.as_bytes()) {
+        if offsets.len() == limit {
+            return None;
         }
-    }))
+        offsets.push(offset);
+    }
+    Some(offsets)
+}
+
+/// The fields between the delimiter matches at `offsets`, as `text.split(delimiter)` would.
+pub fn text_split_at(text: &str, offsets: &[usize], delimiter_len: usize) -> Vec<Value> {
+    let mut fields = Vec::with_capacity(offsets.len() + 1);
+    let mut start = 0;
+    for &offset in offsets {
+        fields.push(Value::Text(Arc::from(&text[start..offset])));
+        start = offset + delimiter_len;
+    }
+    fields.push(Value::Text(Arc::from(&text[start..])));
+    fields
+}
+
+/// The number of non-overlapping matches of a non-empty `needle`.
+pub fn text_match_count(text: &str, needle: &str) -> usize {
+    memchr::memmem::find_iter(text.as_bytes(), needle.as_bytes()).count()
+}
+
+/// `text` with every match of a non-empty `needle` replaced, as `text.replace(needle,
+/// replacement)` would; `total` is the result length in bytes.
+pub fn text_replace_all(text: &str, needle: &str, replacement: &str, total: usize) -> Arc<str> {
+    let mut replaced = String::with_capacity(total);
+    let mut start = 0;
+    for offset in memchr::memmem::find_iter(text.as_bytes(), needle.as_bytes()) {
+        replaced.push_str(&text[start..offset]);
+        replaced.push_str(replacement);
+        start = offset + needle.len();
+    }
+    replaced.push_str(&text[start..]);
+    Arc::from(replaced)
 }
 
 /// Joins a `List[Text]` value, or returns `None` when an item is not text or the result
@@ -2452,25 +2509,29 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                     push_stack!(Value::from_list_items(vec![Value::Text(text)]));
                     continue;
                 }
-                let count = text.matches(delimiter.as_ref()).count().saturating_add(1);
-                if count > limits.max_collection_items {
+                let Some(offsets) = text_match_offsets(
+                    &text,
+                    &delimiter,
+                    limits.max_collection_items.saturating_sub(1),
+                ) else {
                     return Err(RuntimeError::new(
                         "R_COLLECTION_LIMIT",
                         "text_split result exceeds the configured item limit",
                         instruction.span,
                     ));
-                }
+                };
+                let count = offsets.len() + 1;
                 let field_bytes = text.len() - (count - 1) * delimiter.len();
                 charge_allocation(
                     budget.as_ref(),
                     text_list_allocation(count, field_bytes),
                     instruction.span,
                 )?;
-                let values = text
-                    .split(delimiter.as_ref())
-                    .map(|field| Value::Text(Arc::<str>::from(field)))
-                    .collect::<Vec<_>>();
-                push_stack!(Value::from_list_items(values));
+                push_stack!(Value::from_list_items(text_split_at(
+                    &text,
+                    &offsets,
+                    delimiter.len()
+                )));
             }
             Op::TextReplace => {
                 let replacement = match pop!() {
@@ -2506,7 +2567,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                 let count = if needle.is_empty() {
                     0
                 } else {
-                    text.matches(needle.as_ref()).count()
+                    text_match_count(&text, &needle)
                 };
                 if count == 0 {
                     push_stack!(Value::Text(text));
@@ -2522,8 +2583,12 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                     ));
                 }
                 charge_allocation(budget.as_ref(), total, instruction.span)?;
-                let replaced = text.replace(needle.as_ref(), &replacement);
-                push_stack!(Value::Text(Arc::<str>::from(replaced)));
+                push_stack!(Value::Text(text_replace_all(
+                    &text,
+                    &needle,
+                    &replacement,
+                    total
+                )));
             }
             Op::TextTrim => {
                 let text = match pop!() {
@@ -7638,6 +7703,46 @@ impl VmHost for PortableHost {
 mod tests {
     use super::*;
     use guion_model::{Function, Instruction};
+
+    #[test]
+    fn text_search_helpers_match_the_standard_library() {
+        let cases = [
+            ("a,b,,c", ","),
+            ("aaaa", "aa"),
+            ("aaa", "aa"),
+            ("α::🙂::", "::"),
+            ("café|é|", "é"),
+            ("no match", "xyz"),
+            ("", ","),
+            ("{{x}}{{x}}", "{{x}}"),
+        ];
+        for (text, needle) in cases {
+            let offsets = text_match_offsets(text, needle, usize::MAX).unwrap();
+            let fields: Vec<String> = text_split_at(text, &offsets, needle.len())
+                .into_iter()
+                .map(|value| match value {
+                    Value::Text(field) => field.to_string(),
+                    _ => unreachable!(),
+                })
+                .collect();
+            assert_eq!(fields, text.split(needle).collect::<Vec<_>>(), "{text:?}");
+            let count = text_match_count(text, needle);
+            assert_eq!(count, text.matches(needle).count(), "{text:?}");
+            let total = text.len() - count * needle.len() + count * 2;
+            assert_eq!(
+                &*text_replace_all(text, needle, "§", total),
+                text.replace(needle, "§"),
+                "{text:?}"
+            );
+        }
+        assert_eq!(text_match_offsets("a,b,c", ",", 1), None);
+        assert_eq!(text_match_offsets("a,b,c", ",", 2), Some(vec![1, 3]));
+        let long: Arc<str> = Arc::from("é".repeat(5000) + "tea" + &"x".repeat(10) + "tea");
+        assert_eq!(text_find_scalar(&long, "tea", 0), Some(Some(5000)));
+        assert_eq!(text_find_scalar(&long, "tea", 5001), Some(Some(5013)));
+        assert_eq!(text_find_scalar(&long, "x", 5001), Some(Some(5003)));
+        assert_eq!(text_find_scalar(&long, "zz", 0), Some(None));
+    }
 
     #[test]
     fn instruction_fuel_refunds_unused_reservation_and_keeps_exact_exhaustion() {
