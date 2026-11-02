@@ -424,7 +424,13 @@ E_BRIDGE_TEXT_CHARS
 E_BRIDGE_TEXT_COLLAPSE_WHITESPACE
 E_BRIDGE_TEXT_CONCAT
 E_BRIDGE_TEXT_EQUAL
+E_BRIDGE_TEXT_FIND
+E_BRIDGE_TEXT_JOIN
+E_BRIDGE_TEXT_LENGTH
+E_BRIDGE_TEXT_REPLACE
 E_BRIDGE_TEXT_SLICE
+E_BRIDGE_TEXT_SPLIT
+E_BRIDGE_TEXT_TRIM
 E_BRIDGE_TIME_FORMAT_UTC
 E_BRIDGE_TIME_PARSE_TIMESTAMP
 E_BUILD_TYPE
@@ -1000,4 +1006,4 @@ fn main() -> Int:
 - [Host API and effects](../../language/host-api.md)
 - [Agent recipes](recipes.md)
 
-<!-- Generated reference content digest: sha256:694cb333421187ec310cfe4770789c07238b6393d5b365990c691add342488f3. Validated by `cargo xtask agent-reference --check`. -->
+<!-- Generated reference content digest: sha256:cbf6b97dbc6b7e7405f3ba1ae1d5bd38aeb93ae54df7c5accee1b60e86bdb2b2. Validated by `cargo xtask agent-reference --check`. -->

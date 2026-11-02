@@ -54,10 +54,16 @@ pub(crate) const NATIVE_BRIDGE_TIME_FORMAT_UTC: i64 = 31;
 pub(crate) const NATIVE_BRIDGE_TEXT_SLICE: i64 = 32;
 pub(crate) const NATIVE_BRIDGE_JSON_SET_LOCAL: i64 = 33;
 pub(crate) const NATIVE_BRIDGE_JSON_PUSH_LOCAL: i64 = 34;
+pub(crate) const NATIVE_BRIDGE_TEXT_FIND: i64 = 35;
+pub(crate) const NATIVE_BRIDGE_TEXT_SPLIT: i64 = 36;
+pub(crate) const NATIVE_BRIDGE_TEXT_REPLACE: i64 = 37;
+pub(crate) const NATIVE_BRIDGE_TEXT_TRIM: i64 = 38;
+pub(crate) const NATIVE_BRIDGE_TEXT_JOIN: i64 = 39;
+pub(crate) const NATIVE_BRIDGE_TEXT_LENGTH: i64 = 40;
 pub(crate) const NATIVE_BRIDGE_MAKE_RECORD: i64 = 14;
 pub(crate) const NATIVE_BRIDGE_GET_FIELD: i64 = 15;
 
-pub(crate) const NATIVE_DIRECT_OPERATION_NAMES: [&str; 31] = [
+pub(crate) const NATIVE_DIRECT_OPERATION_NAMES: [&str; 37] = [
     "json_parse",
     "json_try_text",
     "json_try_get",
@@ -89,6 +95,12 @@ pub(crate) const NATIVE_DIRECT_OPERATION_NAMES: [&str; 31] = [
     "text_slice",
     "json_set_local",
     "json_push_local",
+    "text_find",
+    "text_split",
+    "text_replace",
+    "text_trim",
+    "text_join",
+    "text_length",
 ];
 
 const NATIVE_BRIDGE_TAG_INT: i64 = 1;
@@ -180,6 +192,12 @@ pub(crate) fn native_bridge_operation(op: &Op) -> Option<i64> {
         Op::TimeParseTimestamp => Some(NATIVE_BRIDGE_TIME_PARSE_TIMESTAMP),
         Op::TimeFormatUtc => Some(NATIVE_BRIDGE_TIME_FORMAT_UTC),
         Op::TextSlice => Some(NATIVE_BRIDGE_TEXT_SLICE),
+        Op::TextFind => Some(NATIVE_BRIDGE_TEXT_FIND),
+        Op::TextSplit => Some(NATIVE_BRIDGE_TEXT_SPLIT),
+        Op::TextReplace => Some(NATIVE_BRIDGE_TEXT_REPLACE),
+        Op::TextTrim => Some(NATIVE_BRIDGE_TEXT_TRIM),
+        Op::TextJoin => Some(NATIVE_BRIDGE_TEXT_JOIN),
+        Op::Length => Some(NATIVE_BRIDGE_TEXT_LENGTH),
         Op::JsonSetLocal(_) => Some(NATIVE_BRIDGE_JSON_SET_LOCAL),
         Op::JsonPushLocal(_) => Some(NATIVE_BRIDGE_JSON_PUSH_LOCAL),
         Op::MakeRecord(_, _) => Some(NATIVE_BRIDGE_MAKE_RECORD),
@@ -221,6 +239,12 @@ fn native_direct_operation_index(op: &Op) -> Option<usize> {
         Op::TextSlice => Some(28),
         Op::JsonSetLocal(_) => Some(29),
         Op::JsonPushLocal(_) => Some(30),
+        Op::TextFind => Some(31),
+        Op::TextSplit => Some(32),
+        Op::TextReplace => Some(33),
+        Op::TextTrim => Some(34),
+        Op::TextJoin => Some(35),
+        Op::Length => Some(36),
         _ => None,
     }
 }
@@ -310,6 +334,9 @@ fn native_direct_argument_count(op: &Op) -> Option<usize> {
         Op::TimeParseTimestamp => Some(1),
         Op::TimeFormatUtc => Some(1),
         Op::TextSlice => Some(3),
+        Op::TextFind | Op::TextReplace => Some(3),
+        Op::TextSplit | Op::TextJoin => Some(2),
+        Op::TextTrim | Op::Length => Some(1),
         _ => None,
     }
 }
@@ -2029,6 +2056,41 @@ impl NativeBackend {
                             stack.push(descriptor);
                         }
                     }
+                    Op::Length
+                        if stack_types[ip]
+                            .as_ref()
+                            .and_then(|types| types.last())
+                            .is_some_and(|ty| *ty == Type::Text) =>
+                    {
+                        let text = stack.pop().ok_or_else(|| "stack underflow".to_owned())?;
+                        let input_types = stack_types[ip]
+                            .as_ref()
+                            .ok_or_else(|| "missing text length input type".to_owned())?;
+                        let local_tags =
+                            continuation_local_tags(function, &type_states, ip, records);
+                        let stack_tags = continuation_stack_tags(
+                            &type_states,
+                            ip,
+                            instruction_stack.len(),
+                            records,
+                        );
+                        let length = emit_native_direct_operation_call(
+                            &mut builder,
+                            ptr,
+                            direct_operations[native_direct_operation_index(&instruction.op)
+                                .ok_or_else(|| "missing text length operation".to_owned())?],
+                            continuation_codegen,
+                            ip,
+                            block_instruction_offsets[ip],
+                            &[text],
+                            &input_types[input_types.len() - 1..],
+                            &Type::Int,
+                            &local_tags,
+                            &instruction_stack,
+                            &stack_tags,
+                        )?;
+                        stack.push(length);
+                    }
                     Op::Length => {
                         let handle = stack.pop().ok_or_else(|| "stack underflow".to_owned())?;
                         let list = handle;
@@ -3639,6 +3701,11 @@ impl NativeBackend {
                     | Op::JsonIndex
                     | Op::TextChars
                     | Op::TextSlice
+                    | Op::TextFind
+                    | Op::TextSplit
+                    | Op::TextReplace
+                    | Op::TextTrim
+                    | Op::TextJoin
                     | Op::JsonGet
                     | Op::JsonStringify
                     | Op::JsonObject
@@ -4998,8 +5065,10 @@ fn infer_native_types(
                 state.stack.push(function.result.clone());
             }
             Op::Length => {
-                if !matches!(state.stack.pop()?, Type::List(item) if is_native_list_item(&item)) {
-                    return None;
+                match state.stack.pop()? {
+                    Type::List(item) if is_native_list_item(&item) => {}
+                    Type::Text => {}
+                    _ => return None,
                 }
                 state.stack.push(Type::Int);
             }
@@ -5083,6 +5152,44 @@ fn infer_native_types(
                 if state.stack.pop()? != Type::Int
                     || state.stack.pop()? != Type::Int
                     || state.stack.pop()? != Type::Text
+                {
+                    return None;
+                }
+                state.stack.push(Type::Text);
+            }
+            Op::TextFind => {
+                if state.stack.pop()? != Type::Int
+                    || state.stack.pop()? != Type::Text
+                    || state.stack.pop()? != Type::Text
+                {
+                    return None;
+                }
+                state.stack.push(Type::Int);
+            }
+            Op::TextSplit => {
+                if state.stack.pop()? != Type::Text || state.stack.pop()? != Type::Text {
+                    return None;
+                }
+                state.stack.push(Type::List(Box::new(Type::Text)));
+            }
+            Op::TextReplace => {
+                if state.stack.pop()? != Type::Text
+                    || state.stack.pop()? != Type::Text
+                    || state.stack.pop()? != Type::Text
+                {
+                    return None;
+                }
+                state.stack.push(Type::Text);
+            }
+            Op::TextTrim => {
+                if state.stack.pop()? != Type::Text {
+                    return None;
+                }
+                state.stack.push(Type::Text);
+            }
+            Op::TextJoin => {
+                if state.stack.pop()? != Type::Text
+                    || state.stack.pop()? != Type::List(Box::new(Type::Text))
                 {
                     return None;
                 }
@@ -5456,7 +5563,13 @@ fn instruction_requires_native_value_bridge(instruction: &guion_model::Instructi
         | Op::TextCollapseWhitespace
         | Op::TimeParseTimestamp
         | Op::TimeFormatUtc
-        | Op::TextSlice => false,
+        | Op::TextSlice
+        | Op::TextFind
+        | Op::TextSplit
+        | Op::TextReplace
+        | Op::TextTrim
+        | Op::TextJoin
+        | Op::Length => false,
         Op::JsonSetLocal(_) => false,
         Op::JsonPushLocal(_) => false,
         Op::Args
@@ -5699,6 +5812,10 @@ fn instruction_may_allocate_native_arena_value(op: &Op) -> bool {
             | Op::TextChars
             | Op::TextCollapseWhitespace
             | Op::TextSlice
+            | Op::TextSplit
+            | Op::TextReplace
+            | Op::TextTrim
+            | Op::TextJoin
             | Op::TimeParseTimestamp
             | Op::TimeFormatUtc
             | Op::JsonTryGet
@@ -6037,7 +6154,9 @@ fn stack_depths(function: &Function) -> Option<Vec<Option<usize>>> {
             | Op::MakeSome => (1, 1),
             Op::JsonTryGet => (2, 1),
             Op::MakeNone => (0, 1),
-            Op::TextSlice => (3, 1),
+            Op::TextSlice | Op::TextFind | Op::TextReplace => (3, 1),
+            Op::TextSplit | Op::TextJoin => (2, 1),
+            Op::TextTrim => (1, 1),
             Op::Length | Op::GetField(_, _) => (1, 1),
             Op::Index => (2, 1),
             Op::MakeRecord(_, count) => (*count, 1),

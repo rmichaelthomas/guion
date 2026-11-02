@@ -34,6 +34,9 @@ struct TextScalarIndex {
     ascii: bool,
     scalars: usize,
     checkpoints: Vec<usize>,
+    /// The scalar and byte position of the last match, so a search that moves forward
+    /// from it walks only the scalars in between.
+    cursor: (usize, usize),
 }
 
 const TEXT_INDEX_STRIDE: usize = 64;
@@ -64,6 +67,7 @@ impl TextScalarIndex {
             ascii,
             scalars,
             checkpoints,
+            cursor: (0, 0),
         }
     }
 
@@ -74,33 +78,40 @@ impl TextScalarIndex {
         if self.ascii || scalar == self.scalars {
             return Some(if self.ascii { scalar } else { self.text.len() });
         }
-        let base = self.checkpoints[scalar / TEXT_INDEX_STRIDE];
-        let skip = scalar % TEXT_INDEX_STRIDE;
+        let (mut base_scalar, mut base) = (
+            scalar - scalar % TEXT_INDEX_STRIDE,
+            self.checkpoints[scalar / TEXT_INDEX_STRIDE],
+        );
+        if (base_scalar..=scalar).contains(&self.cursor.0) {
+            (base_scalar, base) = self.cursor;
+        }
         self.text[base..]
             .char_indices()
-            .nth(skip)
+            .nth(scalar - base_scalar)
             .map(|(offset, _)| base + offset)
+    }
+
+    fn find(&mut self, needle: &str, from: usize) -> Option<Option<usize>> {
+        let byte_start = self.byte_offset(from)?;
+        let Some(offset) = self.text[byte_start..].find(needle) else {
+            return Some(None);
+        };
+        let found = if self.ascii {
+            from + offset
+        } else {
+            from + self.text[byte_start..byte_start + offset].chars().count()
+        };
+        self.cursor = (found, byte_start + offset);
+        Some(Some(found))
     }
 }
 
 /// Finds `needle` in `text` at or after the Unicode scalar index `from`.
 /// Returns `None` when `from` is past the end, `Some(None)` when there is no
 /// match, and the scalar index of the first match otherwise.
-fn text_find_scalar(text: &Arc<str>, needle: &str, from: usize) -> Option<Option<usize>> {
-    let (byte_start, ascii) = if text.len() < TEXT_INDEX_MIN_BYTES {
-        let ascii = text.is_ascii();
-        let byte_start = if ascii || from == 0 {
-            (from <= text.len()).then_some(from)?
-        } else {
-            match text.char_indices().nth(from) {
-                Some((byte_index, _)) => byte_index,
-                None if text.chars().count() == from => text.len(),
-                None => return None,
-            }
-        };
-        (byte_start, ascii)
-    } else {
-        TEXT_INDEX_CACHE.with(|cache| {
+pub fn text_find_scalar(text: &Arc<str>, needle: &str, from: usize) -> Option<Option<usize>> {
+    if text.len() >= TEXT_INDEX_MIN_BYTES {
+        return TEXT_INDEX_CACHE.with(|cache| {
             let mut cache = cache.borrow_mut();
             if !cache
                 .as_ref()
@@ -108,11 +119,21 @@ fn text_find_scalar(text: &Arc<str>, needle: &str, from: usize) -> Option<Option
             {
                 *cache = Some(TextScalarIndex::new(text));
             }
-            let index = cache.as_ref().expect("text scalar index was just stored");
-            index
-                .byte_offset(from)
-                .map(|byte_start| (byte_start, index.ascii))
-        })?
+            cache
+                .as_mut()
+                .expect("text scalar index was just stored")
+                .find(needle, from)
+        });
+    }
+    let ascii = text.is_ascii();
+    let byte_start = if ascii || from == 0 {
+        (from <= text.len()).then_some(from)?
+    } else {
+        match text.char_indices().nth(from) {
+            Some((byte_index, _)) => byte_index,
+            None if text.chars().count() == from => text.len(),
+            None => return None,
+        }
     };
     Some(text[byte_start..].find(needle).map(|offset| {
         if ascii {
@@ -121,6 +142,49 @@ fn text_find_scalar(text: &Arc<str>, needle: &str, from: usize) -> Option<Option
             from + text[byte_start..byte_start + offset].chars().count()
         }
     }))
+}
+
+/// Joins a `List[Text]` value, or returns `None` when an item is not text or the result
+/// would exceed the item or text-size ceilings. Callers report the specific error.
+pub fn text_join_checked(
+    values: &[Value],
+    delimiter: &str,
+    max_collection_items: usize,
+    max_text_bytes: usize,
+) -> Option<String> {
+    if values.len() > max_collection_items {
+        return None;
+    }
+    let mut total = delimiter
+        .len()
+        .checked_mul(values.len().saturating_sub(1))?;
+    for value in values {
+        let Value::Text(text) = value else {
+            return None;
+        };
+        total = total.checked_add(text.len())?;
+    }
+    if total > max_text_bytes {
+        return None;
+    }
+    let mut joined = String::with_capacity(total);
+    for (index, value) in values.iter().enumerate() {
+        if index > 0 {
+            joined.push_str(delimiter);
+        }
+        if let Value::Text(text) = value {
+            joined.push_str(text);
+        }
+    }
+    Some(joined)
+}
+
+/// The guest allocation charged for a `List[Text]` of `count` items whose text totals
+/// `text_bytes`. Native code charges the same amount when it stores such a list.
+pub fn text_list_allocation(count: usize, text_bytes: usize) -> usize {
+    size_of::<Vec<Value>>()
+        .saturating_add(count.saturating_mul(size_of::<Value>() + size_of::<String>()))
+        .saturating_add(text_bytes)
 }
 
 fn shared_text_scalar(scalar: char) -> Arc<str> {
@@ -2380,6 +2444,11 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                     }
                 };
                 if delimiter.is_empty() {
+                    charge_allocation(
+                        budget.as_ref(),
+                        text_list_allocation(1, text.len()),
+                        instruction.span,
+                    )?;
                     push_stack!(Value::from_list_items(vec![Value::Text(text)]));
                     continue;
                 }
@@ -2391,10 +2460,12 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                         instruction.span,
                     ));
                 }
-                let allocation = size_of::<Vec<Value>>()
-                    .saturating_add(count.saturating_mul(size_of::<Value>() + size_of::<String>()))
-                    .saturating_add(text.len());
-                charge_allocation(budget.as_ref(), allocation, instruction.span)?;
+                let field_bytes = text.len() - (count - 1) * delimiter.len();
+                charge_allocation(
+                    budget.as_ref(),
+                    text_list_allocation(count, field_bytes),
+                    instruction.span,
+                )?;
                 let values = text
                     .split(delimiter.as_ref())
                     .map(|field| Value::Text(Arc::<str>::from(field)))

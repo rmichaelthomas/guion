@@ -1860,6 +1860,145 @@ impl NativeListArena {
                 };
                 return self.store_value(value);
             }
+            Op::Length => {
+                if arguments.len() != 1 || argument_tags != [4] || result_tag != 1 {
+                    return None;
+                }
+                let Value::Text(text) = self.bridge_handle_argument(arguments, argument_tags, 0)?
+                else {
+                    return None;
+                };
+                return i64::try_from(text.chars().count()).ok();
+            }
+            Op::TextFind => {
+                if arguments.len() != 3 || argument_tags != [4, 4, 1] || result_tag != 1 {
+                    return None;
+                }
+                let Value::Text(text) = self.bridge_handle_argument(arguments, argument_tags, 0)?
+                else {
+                    return None;
+                };
+                let Value::Text(needle) =
+                    self.bridge_handle_argument(arguments, argument_tags, 1)?
+                else {
+                    return None;
+                };
+                let from = usize::try_from(arguments[2]).ok()?;
+                // A start past the end replays in the VM, which reports R_INDEX_BOUNDS.
+                return match guion_vm_core::text_find_scalar(text, needle, from)? {
+                    Some(index) => i64::try_from(index).ok(),
+                    None => Some(-1),
+                };
+            }
+            Op::TextSplit => {
+                if arguments.len() != 2 || argument_tags != [4, 4] || result_tag != 4 {
+                    return None;
+                }
+                let Value::Text(text) = self.bridge_handle_argument(arguments, argument_tags, 0)?
+                else {
+                    return None;
+                };
+                let Value::Text(delimiter) =
+                    self.bridge_handle_argument(arguments, argument_tags, 1)?
+                else {
+                    return None;
+                };
+                let fields: Vec<Arc<str>> = if delimiter.is_empty() {
+                    vec![Arc::clone(text)]
+                } else {
+                    if text.matches(delimiter.as_ref()).count() >= self.max_collection_items {
+                        return None;
+                    }
+                    text.split(delimiter.as_ref())
+                        .map(Arc::<str>::from)
+                        .collect()
+                };
+                return self.store_native_text_list(fields);
+            }
+            Op::TextReplace => {
+                if arguments.len() != 3 || argument_tags != [4, 4, 4] || result_tag != 4 {
+                    return None;
+                }
+                let Value::Text(text) = self.bridge_handle_argument(arguments, argument_tags, 0)?
+                else {
+                    return None;
+                };
+                let Value::Text(needle) =
+                    self.bridge_handle_argument(arguments, argument_tags, 1)?
+                else {
+                    return None;
+                };
+                let Value::Text(replacement) =
+                    self.bridge_handle_argument(arguments, argument_tags, 2)?
+                else {
+                    return None;
+                };
+                let count = if needle.is_empty() {
+                    0
+                } else {
+                    text.matches(needle.as_ref()).count()
+                };
+                let value = if count == 0 {
+                    Value::Text(Arc::clone(text))
+                } else {
+                    let total = (text.len() - count * needle.len())
+                        .saturating_add(count.saturating_mul(replacement.len()));
+                    if total > runtime.limits.max_text_bytes {
+                        return None;
+                    }
+                    let replaced = Arc::<str>::from(text.replace(needle.as_ref(), replacement));
+                    if !self.charge(total) {
+                        return None;
+                    }
+                    Value::Text(replaced)
+                };
+                self.values.try_reserve(1).ok()?;
+                return self.store_value(value);
+            }
+            Op::TextTrim => {
+                if arguments.len() != 1 || argument_tags != [4] || result_tag != 4 {
+                    return None;
+                }
+                let Value::Text(text) = self.bridge_handle_argument(arguments, argument_tags, 0)?
+                else {
+                    return None;
+                };
+                let trimmed = text.trim();
+                let value = if trimmed.len() == text.len() {
+                    Value::Text(Arc::clone(text))
+                } else {
+                    let trimmed = Arc::<str>::from(trimmed);
+                    if !self.charge(size_of::<String>().saturating_add(trimmed.len())) {
+                        return None;
+                    }
+                    Value::Text(trimmed)
+                };
+                self.values.try_reserve(1).ok()?;
+                return self.store_value(value);
+            }
+            Op::TextJoin => {
+                if arguments.len() != 2 || argument_tags != [4, 4] || result_tag != 4 {
+                    return None;
+                }
+                let Value::List(values) = self.materialize_native_value(arguments[0])? else {
+                    return None;
+                };
+                let Value::Text(delimiter) =
+                    self.bridge_handle_argument(arguments, argument_tags, 1)?
+                else {
+                    return None;
+                };
+                let joined = guion_vm_core::text_join_checked(
+                    &values,
+                    delimiter,
+                    runtime.limits.max_collection_items,
+                    runtime.limits.max_text_bytes,
+                )?;
+                if !self.charge(joined.len()) {
+                    return None;
+                }
+                return self.store_value(Value::Text(Arc::<str>::from(joined)));
+            }
             Op::JsonGet => {
                 if arguments.len() != 2 || argument_tags != [4, 4] || result_tag != 4 {
                     return None;
@@ -3010,6 +3149,7 @@ fn inline_host_forwarders(artifact: &mut Artifact) {
         .map(|function| {
             guion_vm_core::forwarded_host_operation(function)
                 .filter(|operation| !matches!(operation, Op::MakeSome | Op::MakeNone))
+                .or_else(|| forwarded_text_operation(function))
         })
         .collect();
     if operations.iter().all(Option::is_none) {
@@ -3024,6 +3164,30 @@ fn inline_host_forwarders(artifact: &mut Artifact) {
             }
         }
     }
+}
+
+/// The text operation a `std:text` wrapper such as `text_split` applies to its own
+/// parameters, when the function is exactly `Load 0..n; <operation>; Return`. Inlining it
+/// lets native callers use the operation directly instead of calling into the VM.
+fn forwarded_text_operation(function: &guion_model::Function) -> Option<Op> {
+    let arity = function.parameters.len();
+    let operation = &function.code.get(arity)?.op;
+    let expected = match operation {
+        Op::TextFind | Op::TextReplace => 3,
+        Op::TextSplit | Op::TextJoin => 2,
+        Op::TextTrim => 1,
+        _ => return None,
+    };
+    let loads_parameters = function.code[..arity]
+        .iter()
+        .enumerate()
+        .all(|(slot, instruction)| matches!(instruction.op, Op::Load(loaded) if loaded == slot));
+    (arity == expected
+        && function.local_count == arity
+        && function.code.len() == arity + 2
+        && loads_parameters
+        && matches!(function.code[arity + 1].op, Op::Return))
+    .then(|| operation.clone())
 }
 
 fn value_limit_error(value: &Value, policy: &HostPolicy, span: Span) -> Option<RuntimeError> {
@@ -7323,6 +7487,12 @@ impl Instance {
                         native_direct_text_slice as *const () as *const u8,
                         native_direct_json_set_local as *const () as *const u8,
                         native_direct_json_push_local as *const () as *const u8,
+                        native_direct_text_find as *const () as *const u8,
+                        native_direct_text_split as *const () as *const u8,
+                        native_direct_text_replace as *const () as *const u8,
+                        native_direct_text_trim as *const () as *const u8,
+                        native_direct_text_join as *const () as *const u8,
+                        native_direct_text_length as *const () as *const u8,
                     ],
                     make_record: native_direct_make_record as *const () as *const u8,
                     capture_vm_continuation: native_capture_vm_continuation as *const ()
@@ -9495,6 +9665,36 @@ native_direct_operation_entry!(
     native_direct_json_push_local,
     native_backend::NATIVE_BRIDGE_JSON_PUSH_LOCAL,
     3
+);
+native_direct_operation_entry!(
+    native_direct_text_find,
+    native_backend::NATIVE_BRIDGE_TEXT_FIND,
+    3
+);
+native_direct_operation_entry!(
+    native_direct_text_split,
+    native_backend::NATIVE_BRIDGE_TEXT_SPLIT,
+    2
+);
+native_direct_operation_entry!(
+    native_direct_text_replace,
+    native_backend::NATIVE_BRIDGE_TEXT_REPLACE,
+    3
+);
+native_direct_operation_entry!(
+    native_direct_text_trim,
+    native_backend::NATIVE_BRIDGE_TEXT_TRIM,
+    1
+);
+native_direct_operation_entry!(
+    native_direct_text_join,
+    native_backend::NATIVE_BRIDGE_TEXT_JOIN,
+    2
+);
+native_direct_operation_entry!(
+    native_direct_text_length,
+    native_backend::NATIVE_BRIDGE_TEXT_LENGTH,
+    1
 );
 unsafe extern "C" fn native_direct_make_record(
     arena: *mut NativeListArena,

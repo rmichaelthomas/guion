@@ -364,6 +364,97 @@ fn native_text_search_matches_scalar_semantics() {
 }
 
 #[test]
+fn native_text_operations_match_the_vm() {
+    let source = "fn text_split(value: Text, delimiter: Text) -> List[Text]:\n    return text_split_native(value, delimiter)\n\nfn text_trim(value: Text) -> Text:\n    return text_trim_native(value)\n\nfn text_replace(value: Text, needle: Text, replacement: Text) -> Text:\n    return text_replace_native(value, needle, replacement)\n\nfn text_join(values: List[Text], delimiter: Text) -> Text:\n    return text_join_native(values, delimiter)\n\nfn fields(row: Text) -> Int:\n    let parts = text_split(row, \",\")\n    return len(text_trim(parts[0])) + len(parts) * 100\n\nfn fill(template: Text) -> Text:\n    return text_replace(text_replace(template, \"{{name}}\", \"Ada\"), \"{{x}}\", \"é\")\n\nfn rejoin(row: Text) -> Text:\n    return text_join(text_split(row, \",\"), \"|\")\n\nfn count(text: Text, needle: Text) -> Int:\n    var found = 0\n    var position = text_find(text, needle, 0)\n    while position >= 0:\n        set found = found + 1\n        set position = text_find(text, needle, position + 1)\n    return found\n\nfn find_past_end(text: Text) -> Int:\n    return text_find(text, \"a\", len(text) + 1)\n\nfn main() -> Int:\n    return 0\n";
+    let artifact = compile("native-text-ops.gu", source).expect("text operations compile");
+    let mut native = Runtime::new()
+        .load(artifact.clone(), HostPolicy::default())
+        .expect("native runtime loads the artifact");
+    let mut vm = Runtime::vm_only()
+        .load(artifact, HostPolicy::default())
+        .expect("runtime loads the artifact");
+    let long = "aé🙂b".repeat(3000);
+    let cases = [
+        ("fields", vec![Value::Text("  α  ,b,,c".into())]),
+        (
+            "fill",
+            vec![Value::Text("{{name}} {{x}}{{x}} {{nam".into())],
+        ),
+        ("fill", vec![Value::Text("unchanged".into())]),
+        ("rejoin", vec![Value::Text("a,,é,".into())]),
+        (
+            "count",
+            vec![Value::Text(long.as_str().into()), Value::Text("🙂".into())],
+        ),
+        (
+            "count",
+            vec![Value::Text(long.as_str().into()), Value::Text("éx".into())],
+        ),
+    ];
+    for (function, arguments) in cases {
+        assert_eq!(
+            native
+                .invoke(function, arguments.clone())
+                .expect("native call runs"),
+            vm.invoke(function, arguments).expect("VM call runs"),
+            "{function}"
+        );
+    }
+    let names = native.native_function_names();
+    for function in ["fields", "fill", "rejoin", "count"] {
+        assert!(
+            names.iter().any(|name| name == function),
+            "{function} is not native: {}",
+            native.native_compile_profile()
+        );
+    }
+    assert_eq!(native.native_deoptimizations(), 0);
+
+    let arguments = vec![Value::Text("abc".into())];
+    let native_error = native
+        .invoke("find_past_end", arguments.clone())
+        .expect_err("a start past the end is rejected");
+    let vm_error = vm
+        .invoke("find_past_end", arguments)
+        .expect_err("a start past the end is rejected");
+    assert_eq!(native_error.code, "R_INDEX_BOUNDS");
+    assert_eq!(native_error.code, vm_error.code);
+    assert_eq!(native.native_deoptimizations(), 1);
+}
+
+#[test]
+fn native_text_split_and_join_charge_the_same_allocation_as_the_vm() {
+    let source = "fn split_join(row: Text) -> Text:\n    return text_join_native(text_split_native(row, \",\"), \"|\")\n\nfn main() -> Int:\n    return 0\n";
+    let artifact = compile("native-text-split-allocation.gu", source).unwrap();
+    let input = vec![Value::Text("a,bb,ccc".into())];
+    let outcome = |runtime: Runtime, limit: usize| {
+        runtime
+            .load(
+                artifact.clone(),
+                HostPolicy {
+                    allocation_limit_bytes: limit,
+                    ..HostPolicy::default()
+                },
+            )
+            .unwrap()
+            .invoke("split_join", input.clone())
+            .map_err(|error| error.code)
+    };
+    let mut limit = 1;
+    while outcome(Runtime::vm_only(), limit).is_err() {
+        limit += 1;
+    }
+    assert_eq!(
+        outcome(Runtime::new(), limit),
+        Ok(Value::Text("a|bb|ccc".into()))
+    );
+    assert_eq!(
+        outcome(Runtime::new(), limit - 1),
+        Err("R_ALLOCATION_LIMIT".to_string())
+    );
+}
+
+#[test]
 fn text_find_seeks_scalar_indices_in_long_unicode_text() {
     let source = "fn main() -> Int:\n    var parts: List[Text] = []\n    var index = 0\n    while index < 3000:\n        set parts = list_push(parts, \"é-ab\")\n        set index = index + 1\n    let text = text_join_native(parts, \"\")\n    var found = 0\n    var position = text_find(text, \"ab\", 0)\n    while position >= 0:\n        assert(position % 4 == 2)\n        set found = found + 1\n        set position = text_find(text, \"ab\", position + 2)\n    assert(text_find(text, \"ab\", 8001) == 8002)\n    assert(text_find(text, \"é\", 11999) == -1)\n    assert(text_find(text, \"x\", 12000) == -1)\n    return found\n\nfn find_past_end() -> Int:\n    var parts: List[Text] = []\n    var index = 0\n    while index < 3000:\n        set parts = list_push(parts, \"é-ab\")\n        set index = index + 1\n    return text_find(text_join_native(parts, \"\"), \"ab\", 12001)\n";
     let artifact = compile("text-find-long.gu", source).expect("long text search compiles");
