@@ -5084,6 +5084,14 @@ pub fn value_limit_error(value: &Value, limits: &VmLimits, span: Span) -> Option
     // Scalars within their limits are the common case on arithmetic and comparison
     // results; answer them without entering the recursive walk.
     match value {
+        // This check leaves JSON payloads to the boundary check.
+        Value::Json(_) => None,
+        Value::ResultOk(inner) | Value::OptionSome(inner) => match inner.as_ref() {
+            Value::Int(i) if !i.exceeds_digits(limits.max_integer_digits) => None,
+            Value::Text(s) if s.len() <= limits.max_text_bytes => None,
+            Value::Json(_) | Value::Bool(_) | Value::Float64(_) => None,
+            _ => value_limit_error_with_json(value, limits, span, false),
+        },
         Value::Int(i) if !i.exceeds_digits(limits.max_integer_digits) => None,
         Value::Text(s) if s.len() <= limits.max_text_bytes => None,
         Value::Bool(_) | Value::Float64(_) | Value::Unit | Value::OptionNone => None,

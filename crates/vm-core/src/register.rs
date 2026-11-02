@@ -85,6 +85,16 @@ enum Kind {
         record: u32,
         count: u32,
     },
+    /// `JsonTryGet` of a key that is present.
+    JsonGet,
+    /// `JsonTryGet; Unwrap; JsonTryInt` of a key that is present and an `i64`.
+    JsonGetInt,
+    /// `JsonTryGet; Unwrap; JsonTryText` of a key that is present and a string.
+    JsonGetText,
+    /// `Unwrap; JsonTryInt` of an `Ok` holding an `i64`.
+    UnwrapJsonInt,
+    /// `Unwrap; JsonTryText` of an `Ok` holding a JSON string.
+    UnwrapJsonText,
     /// A host operation at `op_ip`. Its pending operands go on the stack first.
     Host {
         op_ip: u32,
@@ -397,8 +407,14 @@ impl<'a> Translator<'a> {
     /// Emit an instruction whose value is used by what follows, folding that when possible.
     /// Returns how many original instructions after `ip` it covered.
     fn emit_value(&mut self, kind: Kind, arguments: usize, ip: usize) -> usize {
+        self.emit_chain(kind, arguments, ip, 0)
+    }
+
+    /// As `emit_value`, for an instruction that also stands for the `chained` after `ip`.
+    fn emit_chain(&mut self, kind: Kind, arguments: usize, ip: usize, chained: u32) -> usize {
         let remaining = self.stack.len().saturating_sub(arguments);
-        let store = match self.follower(ip + 1) {
+        let next = ip + chained as usize + 1;
+        let store = match self.follower(next) {
             Some(Op::Store(slot))
                 if !self.stack[..remaining]
                     .iter()
@@ -409,11 +425,11 @@ impl<'a> Translator<'a> {
             _ => None,
         };
         if let Some(slot) = store {
-            self.emit(kind, arguments, ip, Dest::Local(slot), 1);
-            return 1;
+            self.emit(kind, arguments, ip, Dest::Local(slot), chained + 1);
+            return chained as usize + 1;
         }
-        self.emit(kind, arguments, ip, Dest::Push, 0);
-        0
+        self.emit(kind, arguments, ip, Dest::Push, chained);
+        chained as usize
     }
 
     /// As `emit_value`, for a `Bool` result that a conditional jump may consume directly.
@@ -622,7 +638,20 @@ impl<'a> Translator<'a> {
             Op::Multiply => self.emit_value(Kind::Multiply, 2, ip),
             Op::Index => self.emit_value(Kind::Index, 2, ip),
             Op::Length => self.emit_value(Kind::Length, 1, ip),
-            Op::Unwrap => self.emit_value(Kind::Unwrap, 1, ip),
+            Op::Unwrap => match self.follower(ip + 1) {
+                Some(Op::JsonTryInt) => self.emit_chain(Kind::UnwrapJsonInt, 1, ip, 1),
+                Some(Op::JsonTryText) => self.emit_chain(Kind::UnwrapJsonText, 1, ip, 1),
+                _ => self.emit_value(Kind::Unwrap, 1, ip),
+            },
+            Op::JsonTryGet => match (self.follower(ip + 1), self.follower(ip + 2)) {
+                (Some(Op::Unwrap), Some(Op::JsonTryInt)) => {
+                    self.emit_chain(Kind::JsonGetInt, 2, ip, 2)
+                }
+                (Some(Op::Unwrap), Some(Op::JsonTryText)) => {
+                    self.emit_chain(Kind::JsonGetText, 2, ip, 2)
+                }
+                _ => self.emit_value(Kind::JsonGet, 2, ip),
+            },
             Op::GetField(record, field) => self.emit_value(
                 Kind::GetField {
                     record: *record as u32,
@@ -1215,6 +1244,66 @@ pub(super) fn run_registers<H: VmHost>(
                 let fields = stack.split_off(stack.len() - count);
                 finish_value!(Value::Record(definition.name.clone(), Arc::new(fields)))
             }
+            Kind::JsonGet => {
+                let Some(child) = json_field(read!(instruction.a), read!(instruction.b), limits)
+                else {
+                    exit!()
+                };
+                let result = Value::ResultOk(Box::new(Value::Json(Arc::clone(child))));
+                commit!(0);
+                drop_operands!();
+                finish_value!(result)
+            }
+            Kind::JsonGetInt => {
+                let Some(field) = json_field(read!(instruction.a), read!(instruction.b), limits)
+                    .and_then(|child| json_small_int(child))
+                else {
+                    exit!()
+                };
+                commit!(0);
+                drop_operands!();
+                finish_value!(Value::ResultOk(Box::new(field)))
+            }
+            Kind::JsonGetText => {
+                let Some(text) = json_field(read!(instruction.a), read!(instruction.b), limits)
+                    .and_then(|child| json_text(child, limits))
+                else {
+                    exit!()
+                };
+                commit!(size_of::<String>().saturating_add(text.len()));
+                let text = Arc::clone(text);
+                drop_operands!();
+                finish_value!(Value::ResultOk(Box::new(Value::Text(text))))
+            }
+            Kind::UnwrapJsonInt => {
+                let Value::ResultOk(payload) = read!(instruction.a) else {
+                    exit!()
+                };
+                let Value::Json(child) = payload.as_ref() else {
+                    exit!()
+                };
+                let Some(field) = json_small_int(child) else {
+                    exit!()
+                };
+                commit!(0);
+                drop_operands!();
+                finish_value!(Value::ResultOk(Box::new(field)))
+            }
+            Kind::UnwrapJsonText => {
+                let Value::ResultOk(payload) = read!(instruction.a) else {
+                    exit!()
+                };
+                let Value::Json(child) = payload.as_ref() else {
+                    exit!()
+                };
+                let Some(text) = json_text(child, limits) else {
+                    exit!()
+                };
+                commit!(size_of::<String>().saturating_add(text.len()));
+                let text = Arc::clone(text);
+                drop_operands!();
+                finish_value!(Value::ResultOk(Box::new(Value::Text(text))))
+            }
             Kind::Host {
                 op_ip,
                 check_result,
@@ -1303,5 +1392,30 @@ fn read_operand<'v>(
             .len()
             .checked_sub(distance as usize + 1)
             .and_then(|position| stack.get(position)),
+    }
+}
+
+#[inline]
+fn json_field<'v>(json: &'v Value, key: &Value, limits: &VmLimits) -> Option<&'v Arc<SharedJson>> {
+    let (Value::Json(json), Value::Text(key)) = (json, key) else {
+        return None;
+    };
+    if key.len() > limits.max_text_bytes {
+        return None;
+    }
+    json.as_object()?.get(key.as_ref())
+}
+
+#[inline]
+fn json_small_int(json: &SharedJson) -> Option<Value> {
+    let number = json.as_number()?.as_i64()?;
+    Some(Value::Int(BigInt::from_i64(number)))
+}
+
+#[inline]
+fn json_text<'v>(json: &'v SharedJson, limits: &VmLimits) -> Option<&'v Arc<str>> {
+    match json {
+        SharedJson::String(text) if text.len() <= limits.max_text_bytes => Some(text),
+        _ => None,
     }
 }

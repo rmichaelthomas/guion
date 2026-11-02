@@ -46,6 +46,138 @@ fn text_print_compiles_natively_and_matches_the_vm() {
     assert_eq!(native.native_deoptimizations(), 0);
 }
 
+/// The register form must not be observable: both VM paths have to agree on the result, the
+/// output, and the error with its location and remaining budget at every limit.
+#[test]
+fn register_form_matches_the_stack_interpreter_at_every_limit() {
+    let source = r#"import "std:json"
+
+record Item:
+    name: Text
+    count: Int
+
+fn pick(flag: Bool) -> Option[Int]:
+    if flag:
+        return Some(7)
+    return None
+
+fn checked(value: Int) -> Result[Int, Text]:
+    if value < 0:
+        return Err("negative")
+    return Ok(value * 2)
+
+fn main() -> Int:
+    var counts: Map[Text, Int] = {}
+    var seen: List[Text] = []
+    var total = 0
+    var ratio = 1.5
+    var index = 0
+    let names = ["a", "bb", "a", "ccc", "bb", "a"]
+    while index < len(names):
+        let name = names[index]
+        if not map_has(counts, name):
+            set counts = map_set(counts, name, 0)
+            set seen = list_push(seen, name)
+        set counts = map_set(counts, name, counts[name] + index)
+        set total = total + counts[name] * 2 - 1
+        set ratio = ratio * 1.25 - 0.5
+        set index = index + 1
+    let item = Item("tool", total)
+    let shadow = item
+    if shadow.name == "tool" and shadow.count != 0 and item.name != "":
+        set total = total + shadow.count
+    let some = pick(total > 3)
+    let none = pick(total < 3)
+    if is_some(some) and not is_some(none):
+        set total = total + unwrap(some)
+    let good = checked(total)
+    let bad = checked(0 - total)
+    if is_ok(good) and not is_ok(bad):
+        set total = total + unwrap(good)
+    let record = json_parse("{\"id\": 41, \"name\": \"nine\", \"big\": 123456789012345678901234567890, \"tag\": [1]}")
+    if is_ok(record):
+        let document = unwrap(record)
+        let id = json_int_safe(unwrap(json_get_safe(document, "id")))
+        let name = json_text_safe(unwrap(json_get_safe(document, "name")))
+        let held = json_get_safe(document, "name")
+        let held_text = json_text_safe(unwrap(held))
+        let number = json_get_safe(document, "id")
+        let held_int = json_int_safe(unwrap(number))
+        let huge = json_int_safe(unwrap(json_get_safe(document, "big")))
+        let wrong = json_int_safe(unwrap(json_get_safe(document, "name")))
+        let missing = json_get_safe(document, "absent")
+        if is_ok(id) and is_ok(name) and is_ok(held_text) and is_ok(held_int) and not is_ok(wrong) and not is_ok(missing):
+            set total = total + unwrap(id) + unwrap(held_int)
+            print(unwrap(name) + unwrap(held_text))
+        print(is_ok(huge))
+    print(seen[0] + seen[len(seen) - 1])
+    print(total)
+    print(ratio)
+    let last = names[total - total + 5]
+    print(last)
+    print(counts["missing" + last])
+    return total
+"#;
+    let project_root = std::env::temp_dir().join(format!(
+        "guion-register-exact-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    std::fs::create_dir_all(&project_root).unwrap();
+    let entry = project_root.join("main.gu");
+    std::fs::write(&entry, source).unwrap();
+    let stdlib_root =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../language/stdlib");
+    let artifact = compile_project_with_roots(
+        &entry,
+        &project_root,
+        Some(&stdlib_root),
+        &std::collections::HashMap::new(),
+    )
+    .expect("source compiles");
+    let _ = std::fs::remove_dir_all(&project_root);
+    let run = |plain: bool, instructions: u64, bytes: usize| {
+        let policy = HostPolicy {
+            instruction_limit: instructions,
+            allocation_limit_bytes: bytes,
+            ..HostPolicy::default()
+        };
+        let runtime = if plain {
+            // Profiled runs do not use the register form.
+            Runtime::vm_only().with_runtime_profile()
+        } else {
+            Runtime::vm_only()
+        };
+        let mut instance = runtime.load(artifact.clone(), policy).expect("loads");
+        let result = instance.invoke("main", vec![]);
+        (format!("{result:?}"), instance.take_output())
+    };
+    let (finished, output) = run(false, 1_000_000, 1 << 24);
+    assert!(
+        finished.contains("R_MAP_KEY_MISSING"),
+        "the program ends on its deliberate error: {finished}"
+    );
+    assert!(output.contains("ninenine"), "{output}");
+    assert_eq!(run(true, 1_000_000, 1 << 24), (finished, output));
+    let mut stopped_by_fuel = 0;
+    for instructions in 0..1200 {
+        let plain = run(true, instructions, 1 << 24);
+        stopped_by_fuel += usize::from(plain.0.contains("R_STEP_LIMIT"));
+        assert_eq!(plain, run(false, instructions, 1 << 24), "{instructions}");
+    }
+    assert!(stopped_by_fuel > 200, "{stopped_by_fuel}");
+    let mut stopped_by_bytes = 0;
+    for bytes in (0..3000).step_by(3) {
+        let plain = run(true, 1_000_000, bytes);
+        stopped_by_bytes += usize::from(plain.0.contains("R_ALLOCATION_LIMIT"));
+        assert_eq!(plain, run(false, 1_000_000, bytes), "{bytes}");
+    }
+    assert!(stopped_by_bytes > 100, "{stopped_by_bytes}");
+}
+
 #[test]
 fn native_failure_keeps_output_printed_before_it() {
     for (source, expected) in [
