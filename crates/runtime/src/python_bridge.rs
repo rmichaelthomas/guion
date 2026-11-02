@@ -1,6 +1,6 @@
 use super::CancellationToken;
 use base64::{engine::general_purpose::STANDARD, Engine as _};
-use guion_model::{BigInt, Float64, SharedJson, Type, Value};
+use guion_model::{BigInt, Float64, SharedJson, TextMap, Type, Value};
 use serde::{
     ser::{SerializeMap, SerializeSeq},
     Serialize, Serializer,
@@ -278,7 +278,7 @@ impl Serialize for WireFloat64Value {
 }
 
 struct WireMap<'data, 'attachments> {
-    values: &'data std::collections::BTreeMap<String, Value>,
+    values: &'data TextMap,
     attachments: &'attachments RefCell<Vec<&'data [u8]>>,
 }
 
@@ -856,7 +856,7 @@ fn decode_value(value: &JsonValue, expected: &Type) -> Result<Value, PythonBridg
             .map(Value::from_list_items),
         ("map", Type::Map(item_type)) => {
             let object = payload.as_object().ok_or_else(invalid)?;
-            let mut values = std::collections::BTreeMap::new();
+            let mut values = TextMap::new();
             for (key, item) in object {
                 values.insert(key.clone(), decode_value(item, item_type)?);
             }
@@ -1030,7 +1030,7 @@ mod tests {
         let top_level = Value::Bytes(Arc::new(vec![0, 0xff]));
         let list_and_map = Value::List(Arc::new(vec![
             Value::Bytes(Arc::new(vec![b'c', 0, 0xff])),
-            Value::Map(Arc::new(BTreeMap::from([
+            Value::Map(Arc::new(TextMap::from([
                 ("zeta".into(), Value::Bytes(Arc::new(vec![0]))),
                 ("alpha".into(), Value::Bytes(Arc::new(vec![0x80]))),
             ]))),

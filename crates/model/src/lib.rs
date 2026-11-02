@@ -1162,7 +1162,7 @@ mod tests {
 
 use std::{
     cmp::Ordering,
-    collections::{BTreeMap, HashSet},
+    collections::{BTreeMap, HashMap, HashSet},
     fmt,
     ops::{Add, Mul, Sub},
     sync::Arc,
@@ -1879,6 +1879,120 @@ impl std::fmt::Display for RecordName {
     }
 }
 
+/// `Map`'s storage: hashed for lookups, and sorted by key whenever it is observed in order.
+#[derive(Clone, Default, PartialEq)]
+pub struct TextMap {
+    entries: HashMap<String, Value>,
+}
+
+impl TextMap {
+    /// What a map's own header counts for against the allocation budget. It is a fixed
+    /// figure so that the budget does not depend on how maps are stored.
+    pub const ACCOUNTED_HEADER_BYTES: usize = 24;
+
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn len(&self) -> usize {
+        self.entries.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
+
+    #[inline]
+    pub fn get(&self, key: &str) -> Option<&Value> {
+        self.entries.get(key)
+    }
+
+    pub fn get_key_value(&self, key: &str) -> Option<(&String, &Value)> {
+        self.entries.get_key_value(key)
+    }
+
+    #[inline]
+    pub fn get_mut(&mut self, key: &str) -> Option<&mut Value> {
+        self.entries.get_mut(key)
+    }
+
+    #[inline]
+    pub fn contains_key(&self, key: &str) -> bool {
+        self.entries.contains_key(key)
+    }
+
+    pub fn insert(&mut self, key: String, value: Value) -> Option<Value> {
+        self.entries.insert(key, value)
+    }
+
+    pub fn remove(&mut self, key: &str) -> Option<Value> {
+        self.entries.remove(key)
+    }
+
+    /// Entries in key order.
+    pub fn iter(&self) -> std::vec::IntoIter<(&String, &Value)> {
+        let mut entries: Vec<_> = self.entries.iter().collect();
+        entries.sort_unstable_by_key(|entry| entry.0);
+        entries.into_iter()
+    }
+
+    /// Keys in key order.
+    pub fn keys(&self) -> impl ExactSizeIterator<Item = &String> {
+        self.iter().map(|entry| entry.0)
+    }
+
+    /// Values in key order.
+    pub fn values(&self) -> impl ExactSizeIterator<Item = &Value> {
+        self.iter().map(|entry| entry.1)
+    }
+
+    /// Entries in no particular order, for work whose result does not depend on it.
+    pub fn iter_unordered(&self) -> impl ExactSizeIterator<Item = (&String, &Value)> {
+        self.entries.iter()
+    }
+}
+
+impl std::fmt::Debug for TextMap {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_map().entries(self.iter()).finish()
+    }
+}
+
+impl FromIterator<(String, Value)> for TextMap {
+    fn from_iter<I: IntoIterator<Item = (String, Value)>>(entries: I) -> Self {
+        Self {
+            entries: entries.into_iter().collect(),
+        }
+    }
+}
+
+impl<const N: usize> From<[(String, Value); N]> for TextMap {
+    fn from(entries: [(String, Value); N]) -> Self {
+        entries.into_iter().collect()
+    }
+}
+
+impl IntoIterator for TextMap {
+    type Item = (String, Value);
+    type IntoIter = std::vec::IntoIter<(String, Value)>;
+
+    /// Entries in key order.
+    fn into_iter(self) -> Self::IntoIter {
+        let mut entries: Vec<_> = self.entries.into_iter().collect();
+        entries.sort_unstable_by(|left, right| left.0.cmp(&right.0));
+        entries.into_iter()
+    }
+}
+
+impl<'a> IntoIterator for &'a TextMap {
+    type Item = (&'a String, &'a Value);
+    type IntoIter = std::vec::IntoIter<(&'a String, &'a Value)>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
+}
+
 #[derive(Clone, Debug)]
 pub enum Value {
     Int(BigInt),
@@ -1889,7 +2003,7 @@ pub enum Value {
     Text(Arc<str>),
     List(Arc<Vec<Value>>),
     Float64List(Arc<Vec<Float64>>),
-    Map(Arc<BTreeMap<String, Value>>),
+    Map(Arc<TextMap>),
     OptionNone,
     OptionSome(Box<Value>),
     ResultOk(Box<Value>),
@@ -4574,7 +4688,7 @@ impl<'a> Reader<'a> {
             12 => Ok(Value::OptionSome(Box::new(self.value_at(depth + 1)?))),
             13 => {
                 let n = self.count()?;
-                let mut items = BTreeMap::new();
+                let mut items = TextMap::new();
                 for _ in 0..n {
                     let key = self.string()?;
                     let value = self.value_at(depth + 1)?;

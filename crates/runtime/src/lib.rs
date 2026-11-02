@@ -1,14 +1,14 @@
 use guion_model::{
     Artifact, BigInt, FileErrorValue, Float64, HttpErrorValue, JsonErrorValue, NativeResourceValue,
-    Op, RuntimeError, SharedJson, Span, TaskErrorValue, Type, Value,
+    Op, RuntimeError, SharedJson, Span, TaskErrorValue, TextMap, Type, Value,
 };
 pub use guion_vm_core::CancellationToken;
 use guion_vm_core::{
     build_register_programs, charge_allocation, check_call_depth, cloned_value_allocation,
     encoded_json_string_len, finish_json_value, finish_shared_json, json_exact_integer,
     map_clone_allocation, new_vm_frame, opcode_profile_name, shared_json_push_local_allocation,
-    shared_json_set_local_allocation, value_matches, verify, Budget, FrameStart, RegisterProgram,
-    HostOpContext, OutputStream, RuntimeProfileCounters, VmFrame, VmHost, VmLimits,
+    shared_json_set_local_allocation, value_matches, verify, Budget, FrameStart, HostOpContext,
+    OutputStream, RegisterProgram, RuntimeProfileCounters, VmFrame, VmHost, VmLimits,
 };
 use std::{
     borrow::Cow,
@@ -38,7 +38,7 @@ use native_backend::{
 };
 
 struct JsonTextPairRows<'a> {
-    groups: &'a BTreeMap<String, Value>,
+    groups: &'a TextMap,
     key_field: &'a str,
     value_field: &'a str,
     row_count: usize,
@@ -1763,11 +1763,11 @@ impl NativeListArena {
                 if !arguments.is_empty() || result_tag != 4 {
                     return None;
                 }
-                let allocation = size_of::<std::collections::BTreeMap<String, Value>>();
+                let allocation = TextMap::ACCOUNTED_HEADER_BYTES;
                 if !self.charge(allocation) {
                     return None;
                 }
-                return self.store_value(Value::Map(Arc::new(std::collections::BTreeMap::new())));
+                return self.store_value(Value::Map(Arc::new(TextMap::new())));
             }
             Op::MapKeys => {
                 if arguments.len() != 1 || argument_tags != [4] || result_tag != 4 {
@@ -4712,7 +4712,7 @@ impl VmHost for Instance {
                                     ),
                                 )
                             })
-                            .collect::<BTreeMap<_, _>>();
+                            .collect::<TextMap>();
                         let result = Value::Record(
                             "CliArgs".into(),
                             Arc::new(vec![

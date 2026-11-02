@@ -8,11 +8,11 @@
 //! The exported ABI is the one the AllHereHTML loader already consumes.
 
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
-use guion_model::{Artifact, BigInt, Float64, RecordDefinition, SharedJson, Value};
+use guion_model::{Artifact, BigInt, Float64, RecordDefinition, SharedJson, TextMap, Value};
 use guion_vm_core::{PortableHost, VmLimits};
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 use std::{cell::UnsafeCell, sync::Arc};
 
 pub const MAX_ARTIFACT_BYTES: usize = 1024 * 1024;
@@ -663,7 +663,7 @@ fn decode_wire_value(
                     "map contains too many values",
                 ));
             }
-            let mut values = BTreeMap::new();
+            let mut values = TextMap::new();
             let mut previous: Option<String> = None;
             for entry in entries {
                 check_string(&entry.key)?;
@@ -1043,7 +1043,7 @@ mod typed_abi_tests {
     #[test]
     fn wire_round_trips_every_supported_value_family() {
         let records = records();
-        let mut map = BTreeMap::new();
+        let mut map = TextMap::new();
         map.insert("alpha".into(), Value::Bool(true));
         map.insert("omega".into(), Value::Text("last".into()));
         let samples = vec![

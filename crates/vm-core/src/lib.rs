@@ -8,7 +8,7 @@
 
 use guion_model::{
     Artifact, BigInt, FileErrorValue, Float64, HttpErrorValue, JsonErrorValue, NativeResourceValue,
-    Op, RuntimeError, SharedJson, Span, TaskErrorValue, Type, Value,
+    Op, RuntimeError, SharedJson, Span, TaskErrorValue, TextMap, Type, Value,
 };
 use std::{
     cell::Cell,
@@ -1068,11 +1068,11 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                 }
                 charge_allocation(
                     budget.as_ref(),
-                    size_of::<BTreeMap<String, Value>>()
+                    TextMap::ACCOUNTED_HEADER_BYTES
                         .saturating_add(count.saturating_mul(size_of::<(String, Value)>())),
                     instruction.span,
                 )?;
-                let mut values = BTreeMap::new();
+                let mut values = TextMap::new();
                 let mut entries = Vec::with_capacity(*count);
                 for _ in 0..*count {
                     let value = pop!();
@@ -1112,10 +1112,10 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
             Op::MakeTypedMap(_) => {
                 charge_allocation(
                     budget.as_ref(),
-                    size_of::<BTreeMap<String, Value>>(),
+                    TextMap::ACCOUNTED_HEADER_BYTES,
                     instruction.span,
                 )?;
-                push_stack!(Value::Map(Arc::new(BTreeMap::new())));
+                push_stack!(Value::Map(Arc::new(TextMap::new())));
             }
             Op::MakeRecord(record_index, count) => {
                 let record = host.artifact().records.get(*record_index).ok_or_else(|| {
@@ -1196,10 +1196,10 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
             }
             Op::MapKeys => match pop!() {
                 Value::Map(values) => {
-                    let allocation = values.keys().fold(
+                    let allocation = values.iter_unordered().fold(
                         size_of::<Vec<Value>>()
                             .saturating_add(values.len().saturating_mul(size_of::<Value>())),
-                        |total, key| total.saturating_add(size_of::<String>() + key.len()),
+                        |total, (key, _)| total.saturating_add(size_of::<String>() + key.len()),
                     );
                     charge_allocation(budget.as_ref(), allocation, instruction.span)?;
                     let keys = values
@@ -3368,7 +3368,7 @@ fn unique_nested_map_update_target(
     next_ip: usize,
     stack: &[Value],
     locals: &[Value],
-    inner: &Arc<BTreeMap<String, Value>>,
+    inner: &Arc<TextMap>,
 ) -> Option<(usize, Arc<str>)> {
     let Some(Op::MapSet) = code.get(next_ip).map(|instruction| &instruction.op) else {
         return None;
@@ -3398,7 +3398,7 @@ fn unique_pending_nested_map_writeback_target(
     child_store_ip: usize,
     child_slot: usize,
     locals: &[Value],
-    inner: &Arc<BTreeMap<String, Value>>,
+    inner: &Arc<TextMap>,
 ) -> Option<(usize, Arc<str>)> {
     let Some(Op::Store(stored_child)) = code.get(child_store_ip).map(|instruction| &instruction.op)
     else {
@@ -4680,7 +4680,7 @@ pub fn cloned_value_allocation(value: &Value) -> usize {
 }
 
 #[inline]
-fn replace_map_value(values: &mut BTreeMap<String, Value>, key: &str, value: Value) {
+fn replace_map_value(values: &mut TextMap, key: &str, value: Value) {
     if let Some(existing_value) = values.get_mut(key) {
         *existing_value = value;
     } else {
@@ -4689,13 +4689,9 @@ fn replace_map_value(values: &mut BTreeMap<String, Value>, key: &str, value: Val
 }
 
 #[inline]
-pub fn map_clone_allocation(
-    values: &BTreeMap<String, Value>,
-    new_key: Option<&str>,
-    new_value: &Value,
-) -> usize {
-    let mut total = size_of::<BTreeMap<String, Value>>();
-    for (key, value) in values {
+pub fn map_clone_allocation(values: &TextMap, new_key: Option<&str>, new_value: &Value) -> usize {
+    let mut total = TextMap::ACCOUNTED_HEADER_BYTES;
+    for (key, value) in values.iter_unordered() {
         total = total
             .saturating_add(size_of::<String>() + key.len())
             .saturating_add(size_of::<Value>() * 3)
@@ -5047,8 +5043,8 @@ pub fn value_matches(value: &Value, ty: &Type, records: &[guion_model::RecordDef
             .all(|item| value_matches(item, item_ty, records)),
         (Value::Float64List(_), Type::List(item_ty)) => **item_ty == Type::Float64,
         (Value::Map(items), Type::Map(item_ty)) => items
-            .values()
-            .all(|item| value_matches(item, item_ty, records)),
+            .iter_unordered()
+            .all(|(_, item)| value_matches(item, item_ty, records)),
         (Value::OptionNone, Type::Option(_)) => true,
         (Value::OptionSome(value), Type::Option(item)) => value_matches(value, item, records),
         (Value::ResultOk(value), Type::Result(ok, _)) => value_matches(value, ok, records),
@@ -5183,6 +5179,15 @@ fn value_limit_error_with_json(
             ),
             span,
         )),
+        // Which violation is reported depends on key order, so only a violation pays for it.
+        Value::Map(items)
+            if items.iter_unordered().all(|(key, value)| {
+                key.len() <= limits.max_text_bytes
+                    && value_limit_error_with_json(value, limits, span, check_json).is_none()
+            }) =>
+        {
+            None
+        }
         Value::Map(items) => items.iter().find_map(|(key, value)| {
             if key.len() > limits.max_text_bytes {
                 Some(RuntimeError::new(
@@ -5543,12 +5548,11 @@ fn value_type(value: &Value) -> Option<Type> {
         }
         Value::Float64List(_) => Type::List(Box::new(Type::Float64)),
         Value::Map(items) => {
-            let first = items.values().next()?;
+            let first = items.iter_unordered().next()?.1;
             let item_type = value_type(first)?;
             if items
-                .values()
-                .skip(1)
-                .any(|item| value_type(item).as_ref() != Some(&item_type))
+                .iter_unordered()
+                .any(|(_, item)| value_type(item).as_ref() != Some(&item_type))
             {
                 return None;
             }
@@ -7702,7 +7706,7 @@ mod tests {
                     .collect(),
             };
         let int = |value| Value::Int(BigInt::from_i64(value));
-        let mut entries = BTreeMap::new();
+        let mut entries = TextMap::new();
         entries.insert("key".to_owned(), Value::Text("value".into()));
         let main = function(
             "main",
@@ -7817,7 +7821,7 @@ mod tests {
 
     #[test]
     fn map_update_existing_key_preserves_owned_key_storage() {
-        let mut values = BTreeMap::new();
+        let mut values = TextMap::new();
         let key = String::from("service");
         let original_key_ptr = key.as_ptr();
         values.insert(key, Value::Bool(false));

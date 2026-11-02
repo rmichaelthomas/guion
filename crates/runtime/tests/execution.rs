@@ -179,6 +179,30 @@ fn main() -> Int:
 }
 
 #[test]
+fn map_order_is_sorted_by_key_however_it_was_built() {
+    let source = "fn main() -> Int:\n    var values: Map[Text, Int] = {}\n    let keys = [\"pear\", \"apple\", \"zebra\", \"mango\", \"é\", \"\", \"Apple\", \"a\", \"ab\"]\n    var index = 0\n    while index < len(keys):\n        set values = map_set(values, keys[index], index)\n        set index = index + 1\n    set values = map_set(values, \"pear\", 40)\n    for name in values:\n        print(\"[\" + name + \"]\")\n        print(values[name])\n    print(values)\n    return 0\n";
+    let artifact = compile("map-order.gu", source).expect("source compiles");
+    let mut instance = Runtime::vm_only()
+        .load(artifact, HostPolicy::default())
+        .expect("loads");
+    instance.invoke("main", vec![]).expect("runs");
+    let output = instance.take_output();
+    let names: Vec<&str> = output
+        .lines()
+        .filter(|line| line.starts_with('['))
+        .collect();
+    assert_eq!(
+        names,
+        ["[]", "[Apple]", "[a]", "[ab]", "[apple]", "[mango]", "[pear]", "[zebra]", "[é]"]
+    );
+    assert!(output.contains("40"), "{output}");
+    let rendered = output.lines().last().unwrap();
+    let order =
+        ["Apple", "apple", "mango", "pear", "zebra"].map(|key| rendered.find(key).expect(key));
+    assert!(order.windows(2).all(|pair| pair[0] < pair[1]), "{rendered}");
+}
+
+#[test]
 fn native_failure_keeps_output_printed_before_it() {
     for (source, expected) in [
         ("fn main() -> Int:\n    print(7)\n    return 1 / 0\n", "7\n"),
@@ -6115,7 +6139,7 @@ fn native_map_keys_produces_text_list_with_vm_quota_parity() {
         "fn key_count(values: Map[Text, Bool]) -> Int:\n    var count = 0\n    for key in values:\n        set count = count + 1\n    return count\n\nfn main() -> Int:\n    return 0\n",
     )
     .unwrap();
-    let values = Value::Map(std::sync::Arc::new(std::collections::BTreeMap::from([
+    let values = Value::Map(std::sync::Arc::new(guion_model::TextMap::from([
         ("first".to_owned(), Value::Bool(true)),
         ("second".to_owned(), Value::Bool(false)),
     ])));
@@ -6587,7 +6611,7 @@ fn native_record_from_map_bridge_preserves_primitive_list_fields() {
             Value::Int(BigInt::from_i64(7)),
         ]))]),
     );
-    let frames = Value::Map(std::sync::Arc::new(std::collections::BTreeMap::from([(
+    let frames = Value::Map(std::sync::Arc::new(guion_model::TextMap::from([(
         "current".to_owned(),
         frame,
     )])));
@@ -6954,7 +6978,7 @@ fn native_map_index_preserves_values_and_vm_errors() {
         "fn value_at(values: Map[Text, Text], key: Text) -> Text:\n    return values[key]\n\nfn main() -> Int:\n    return 0\n",
     )
     .unwrap();
-    let values = Value::Map(std::sync::Arc::new(std::collections::BTreeMap::from([(
+    let values = Value::Map(std::sync::Arc::new(guion_model::TextMap::from([(
         "answer".to_owned(),
         Value::Text("forty-two".into()),
     )])));
@@ -6988,7 +7012,7 @@ fn native_map_has_preserves_membership_results() {
         "fn contains(values: Map[Text, Bool], key: Text) -> Bool:\n    return map_has(values, key)\n\nfn main() -> Int:\n    return 0\n",
     )
     .unwrap();
-    let values = Value::Map(std::sync::Arc::new(std::collections::BTreeMap::from([(
+    let values = Value::Map(std::sync::Arc::new(guion_model::TextMap::from([(
         "service-a".to_owned(),
         Value::Bool(true),
     )])));
@@ -7018,7 +7042,7 @@ fn native_map_set_preserves_copy_on_write_and_vm_limits() {
         "fn update(values: Map[Text, Text], key: Text, value: Text) -> Map[Text, Text]:\n    var copy = values\n    set copy = map_set(copy, key, value)\n    return copy\n\nfn main() -> Int:\n    return 0\n",
     )
     .unwrap();
-    let values = Value::Map(std::sync::Arc::new(std::collections::BTreeMap::from([(
+    let values = Value::Map(std::sync::Arc::new(guion_model::TextMap::from([(
         "answer".to_owned(),
         Value::Text("old".into()),
     )])));
@@ -7038,14 +7062,14 @@ fn native_map_set_preserves_copy_on_write_and_vm_limits() {
     assert_eq!(native_value, vm_value);
     assert_eq!(
         native_value,
-        Value::Map(std::sync::Arc::new(std::collections::BTreeMap::from([(
+        Value::Map(std::sync::Arc::new(guion_model::TextMap::from([(
             "answer".to_owned(),
             Value::Text("new".into())
         ),])))
     );
     assert_eq!(
         values,
-        Value::Map(std::sync::Arc::new(std::collections::BTreeMap::from([(
+        Value::Map(std::sync::Arc::new(guion_model::TextMap::from([(
             "answer".to_owned(),
             Value::Text("old".into())
         ),])))
@@ -7064,7 +7088,7 @@ fn native_map_set_preserves_copy_on_write_and_vm_limits() {
         .unwrap();
     let mut vm = Runtime::vm_only().load(artifact, limited).unwrap();
     let args = vec![
-        Value::Map(std::sync::Arc::new(std::collections::BTreeMap::new())),
+        Value::Map(std::sync::Arc::new(guion_model::TextMap::new())),
         Value::Text("new".into()),
         Value::Text("value".into()),
     ];
