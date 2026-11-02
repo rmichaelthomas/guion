@@ -13,6 +13,7 @@
 //! interpreter, which then produces the exact behavior and error.
 
 use super::*;
+use std::sync::OnceLock;
 
 const NO_ENTRY: u32 = u32::MAX;
 const NO_RECIPE: u32 = 0;
@@ -58,6 +59,9 @@ enum Kind {
     Add,
     Subtract,
     Multiply,
+    IntegerDivide,
+    FloorDivide,
+    Remainder,
     Equal,
     NotEqual,
     Less,
@@ -144,21 +148,39 @@ pub struct RegisterProgram {
 }
 
 /// Build the register form of every function of a verified artifact.
-pub fn build_register_programs(artifact: &Artifact) -> Vec<RegisterProgram> {
-    let constructors: Vec<Option<Kind>> = artifact
-        .functions
-        .iter()
-        .map(|function| match forwarded_host_operation(function) {
-            Some(Op::MakeSome) => Some(Kind::CallSome),
-            Some(Op::MakeNone) => Some(Kind::CallNone),
-            _ => None,
+pub fn build_register_programs(artifact: &Artifact) -> RegisterPrograms {
+    RegisterPrograms {
+        constructors: artifact
+            .functions
+            .iter()
+            .map(|function| match forwarded_host_operation(function) {
+                Some(Op::MakeSome) => Some(Kind::CallSome),
+                Some(Op::MakeNone) => Some(Kind::CallNone),
+                _ => None,
+            })
+            .collect(),
+        programs: artifact.functions.iter().map(|_| OnceLock::new()).collect(),
+    }
+}
+
+/// One register form per function, translated the first time the function runs: most functions
+/// of a large artifact, such as the embedded compiler, never run in a given process.
+#[derive(Debug)]
+pub struct RegisterPrograms {
+    constructors: Vec<Option<Kind>>,
+    programs: Vec<OnceLock<RegisterProgram>>,
+}
+
+impl RegisterPrograms {
+    pub(super) fn get(
+        &self,
+        index: usize,
+        function: &guion_model::Function,
+    ) -> Option<&RegisterProgram> {
+        self.programs.get(index).map(|program| {
+            program.get_or_init(|| Translator::new(function, &self.constructors).translate())
         })
-        .collect();
-    artifact
-        .functions
-        .iter()
-        .map(|function| Translator::new(function, &constructors).translate())
-        .collect()
+    }
 }
 
 impl RegisterProgram {
@@ -642,6 +664,9 @@ impl<'a> Translator<'a> {
             Op::Add => self.emit_value(Kind::Add, 2, ip),
             Op::Subtract => self.emit_value(Kind::Subtract, 2, ip),
             Op::Multiply => self.emit_value(Kind::Multiply, 2, ip),
+            Op::IntegerDivide => self.emit_value(Kind::IntegerDivide, 2, ip),
+            Op::FloorDivide => self.emit_value(Kind::FloorDivide, 2, ip),
+            Op::Remainder => self.emit_value(Kind::Remainder, 2, ip),
             Op::Index => match self.follower(ip + 1) {
                 Some(Op::TextParseInt) => self.emit_chain(Kind::IndexParseInt, 2, ip, 1),
                 _ => self.emit_value(Kind::Index, 2, ip),
@@ -1079,6 +1104,26 @@ pub(super) fn run_registers<H: VmHost>(
             Kind::Add => arithmetic!(i64::checked_add, |left, right| left + right),
             Kind::Subtract => arithmetic!(i64::checked_sub, |left, right| left - right),
             Kind::Multiply => arithmetic!(i64::checked_mul, |left, right| left * right),
+            // A float operand gives a non-finite result here, which leaves, and the stack
+            // interpreter reports the type error; so does a zero divisor.
+            Kind::IntegerDivide => arithmetic!(i64::checked_div, |_, _| f64::NAN),
+            Kind::FloorDivide => arithmetic!(
+                |left, right| {
+                    let (quotient, remainder) =
+                        (left.checked_div(right)?, left.checked_rem(right)?);
+                    let adjust = remainder != 0 && (left < 0) != (right < 0);
+                    Some(if adjust { quotient - 1 } else { quotient })
+                },
+                |_, _| f64::NAN
+            ),
+            Kind::Remainder => arithmetic!(
+                |left, right| {
+                    let remainder = left.checked_rem(right)?;
+                    let adjust = remainder != 0 && (left < 0) != (right < 0);
+                    Some(if adjust { remainder + right } else { remainder })
+                },
+                |_, _| f64::NAN
+            ),
             Kind::Equal | Kind::NotEqual => {
                 let equal = read!(instruction.a) == read!(instruction.b);
                 commit!(0);

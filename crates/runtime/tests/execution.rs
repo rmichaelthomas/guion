@@ -232,6 +232,28 @@ fn csv_rows_over_the_limits_fail_the_same_on_both_vm_paths() {
 }
 
 #[test]
+fn integer_division_in_the_register_form_matches_the_stack_interpreter() {
+    let source = "fn main() -> Int:\n    let lowest = 0 - 9223372036854775807 - 1\n    let values = [7, 0 - 7, 6, 0 - 6, 0, 1, 0 - 1, lowest, 9223372036854775807]\n    var left = 0\n    while left < len(values):\n        var right = 0\n        while right < len(values):\n            if values[right] != 0:\n                print(values[left] / values[right])\n                print(values[left] // values[right])\n                print(values[left] % values[right])\n            set right = right + 1\n        set left = left + 1\n    print(lowest / (0 - 1))\n    print(lowest // (0 - 1))\n    print(lowest % (0 - 1))\n    print(left % (left - left))\n    return 0\n";
+    let artifact = compile("division.gu", source).expect("source compiles");
+    let run = |runtime: Runtime| {
+        let mut instance = runtime
+            .load(artifact.clone(), HostPolicy::default())
+            .expect("loads");
+        let result = instance.invoke("main", vec![]);
+        (format!("{result:?}"), instance.take_output())
+    };
+    let registers = run(Runtime::vm_only());
+    assert!(registers.0.contains("R_DIV_ZERO"), "{}", registers.0);
+    assert!(
+        registers.1.contains("9223372036854775808"),
+        "the lowest integer over -1 does not fit in 64 bits: {}",
+        registers.1
+    );
+    // Profiled runs do not use the register form.
+    assert_eq!(run(Runtime::vm_only().with_runtime_profile()), registers);
+}
+
+#[test]
 fn map_order_is_sorted_by_key_however_it_was_built() {
     let source = "fn main() -> Int:\n    var values: Map[Text, Int] = {}\n    let keys = [\"pear\", \"apple\", \"zebra\", \"mango\", \"é\", \"\", \"Apple\", \"a\", \"ab\"]\n    var index = 0\n    while index < len(keys):\n        set values = map_set(values, keys[index], index)\n        set index = index + 1\n    set values = map_set(values, \"pear\", 40)\n    for name in values:\n        print(\"[\" + name + \"]\")\n        print(values[name])\n    print(values)\n    return 0\n";
     let artifact = compile("map-order.gu", source).expect("source compiles");

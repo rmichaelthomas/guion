@@ -8,7 +8,7 @@ use guion_vm_core::{
     encoded_json_string_len, finish_json_value, finish_shared_json, json_exact_integer,
     map_clone_allocation, new_vm_frame, opcode_profile_name, shared_json_push_local_allocation,
     shared_json_set_local_allocation, value_matches, verify, Budget, FrameStart, HostOpContext,
-    OutputStream, RegisterProgram, RuntimeProfileCounters, VmFrame, VmHost, VmLimits,
+    OutputStream, RegisterPrograms, RuntimeProfileCounters, VmFrame, VmHost, VmLimits,
 };
 use std::{
     borrow::Cow,
@@ -1779,7 +1779,7 @@ impl NativeListArena {
                 };
                 let mut keys = Vec::new();
                 keys.try_reserve_exact(map.len()).ok()?;
-                keys.extend(map.keys().map(|key| Arc::<str>::from(key.as_str())));
+                keys.extend(map.keys().cloned());
                 return self.store_native_text_list(keys);
             }
             Op::TextChars => {
@@ -2936,7 +2936,7 @@ impl Runtime {
 #[derive(Debug)]
 pub struct Instance {
     artifact: Arc<Artifact>,
-    registers: Arc<Vec<RegisterProgram>>,
+    registers: Arc<RegisterPrograms>,
     native: Option<NativeBackend>,
     native_code: Option<Arc<NativeCode>>,
     native_enabled: bool,
@@ -3251,7 +3251,7 @@ impl VmHost for Instance {
         &self.artifact
     }
 
-    fn register_programs(&self) -> Option<Arc<Vec<RegisterProgram>>> {
+    fn register_programs(&self) -> Option<Arc<RegisterPrograms>> {
         Some(Arc::clone(&self.registers))
     }
 
@@ -4000,7 +4000,7 @@ impl VmHost for Instance {
                                     instruction.span,
                                 ));
                             };
-                            decoded.insert(name.clone(), value.to_string());
+                            decoded.insert(name.to_string(), value.to_string());
                         }
                         decoded
                     }

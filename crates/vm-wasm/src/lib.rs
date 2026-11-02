@@ -814,7 +814,7 @@ fn encode_wire_value(
                     .map(|(key, value)| {
                         check_string(key)?;
                         Ok(WireMapEntry {
-                            key: key.clone(),
+                            key: key.to_string(),
                             value: encode_wire_value(value, records, depth + 1, nodes)?,
                         })
                     })
@@ -1044,8 +1044,8 @@ mod typed_abi_tests {
     fn wire_round_trips_every_supported_value_family() {
         let records = records();
         let mut map = TextMap::new();
-        map.insert("alpha".into(), Value::Bool(true));
-        map.insert("omega".into(), Value::Text("last".into()));
+        map.insert("alpha", Value::Bool(true));
+        map.insert("omega", Value::Text("last".into()));
         let samples = vec![
             Value::Int(BigInt::parse("123456789012345678901234567890").unwrap()),
             Value::Float64(Float64::new(-123.5).unwrap()),

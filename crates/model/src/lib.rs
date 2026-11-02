@@ -1882,7 +1882,7 @@ impl std::fmt::Display for RecordName {
 /// `Map`'s storage: hashed for lookups, and sorted by key whenever it is observed in order.
 #[derive(Clone, Default)]
 pub struct TextMap {
-    entries: hashbrown::HashTable<(String, Value)>,
+    entries: hashbrown::HashTable<(Arc<str>, Value)>,
 }
 
 impl TextMap {
@@ -1921,13 +1921,13 @@ impl TextMap {
     #[inline]
     pub fn get_hashed(&self, hash: u64, key: &str) -> Option<&Value> {
         self.entries
-            .find(hash, |entry| entry.0 == key)
+            .find(hash, |entry| &*entry.0 == key)
             .map(|entry| &entry.1)
     }
 
-    pub fn get_key_value(&self, key: &str) -> Option<(&String, &Value)> {
+    pub fn get_key_value(&self, key: &str) -> Option<(&Arc<str>, &Value)> {
         self.entries
-            .find(Self::hash_key(key), |entry| entry.0 == key)
+            .find(Self::hash_key(key), |entry| &*entry.0 == key)
             .map(|entry| (&entry.0, &entry.1))
     }
 
@@ -1940,7 +1940,7 @@ impl TextMap {
     #[inline]
     pub fn get_mut_hashed(&mut self, hash: u64, key: &str) -> Option<&mut Value> {
         self.entries
-            .find_mut(hash, |entry| entry.0 == key)
+            .find_mut(hash, |entry| &*entry.0 == key)
             .map(|entry| &mut entry.1)
     }
 
@@ -1949,7 +1949,9 @@ impl TextMap {
         self.get(key).is_some()
     }
 
-    pub fn insert(&mut self, key: String, value: Value) -> Option<Value> {
+    /// Keys are shared, so copying a map or adding a `Text` value as a key copies no key bytes.
+    pub fn insert(&mut self, key: impl Into<Arc<str>>, value: Value) -> Option<Value> {
+        let key = key.into();
         let hash = Self::hash_key(&key);
         if let Some(existing) = self.get_mut_hashed(hash, &key) {
             return Some(std::mem::replace(existing, value));
@@ -1962,20 +1964,20 @@ impl TextMap {
     pub fn remove(&mut self, key: &str) -> Option<Value> {
         let entry = self
             .entries
-            .find_entry(Self::hash_key(key), |entry| entry.0 == key)
+            .find_entry(Self::hash_key(key), |entry| &*entry.0 == key)
             .ok()?;
         Some(entry.remove().0 .1)
     }
 
     /// Entries in key order.
-    pub fn iter(&self) -> std::vec::IntoIter<(&String, &Value)> {
+    pub fn iter(&self) -> std::vec::IntoIter<(&Arc<str>, &Value)> {
         let mut entries: Vec<_> = self.iter_unordered().collect();
         entries.sort_unstable_by_key(|entry| entry.0);
         entries.into_iter()
     }
 
     /// Keys in key order.
-    pub fn keys(&self) -> impl ExactSizeIterator<Item = &String> {
+    pub fn keys(&self) -> impl ExactSizeIterator<Item = &Arc<str>> {
         self.iter().map(|entry| entry.0)
     }
 
@@ -1985,7 +1987,7 @@ impl TextMap {
     }
 
     /// Entries in no particular order, for work whose result does not depend on it.
-    pub fn iter_unordered(&self) -> impl ExactSizeIterator<Item = (&String, &Value)> {
+    pub fn iter_unordered(&self) -> impl ExactSizeIterator<Item = (&Arc<str>, &Value)> {
         self.entries.iter().map(|entry| (&entry.0, &entry.1))
     }
 }
@@ -2022,8 +2024,8 @@ impl<const N: usize> From<[(String, Value); N]> for TextMap {
 }
 
 impl IntoIterator for TextMap {
-    type Item = (String, Value);
-    type IntoIter = std::vec::IntoIter<(String, Value)>;
+    type Item = (Arc<str>, Value);
+    type IntoIter = std::vec::IntoIter<(Arc<str>, Value)>;
 
     /// Entries in key order.
     fn into_iter(self) -> Self::IntoIter {
@@ -2034,8 +2036,8 @@ impl IntoIterator for TextMap {
 }
 
 impl<'a> IntoIterator for &'a TextMap {
-    type Item = (&'a String, &'a Value);
-    type IntoIter = std::vec::IntoIter<(&'a String, &'a Value)>;
+    type Item = (&'a Arc<str>, &'a Value);
+    type IntoIter = std::vec::IntoIter<(&'a Arc<str>, &'a Value)>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.iter()

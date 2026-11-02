@@ -24,7 +24,7 @@ use std::{
 
 mod register;
 
-pub use register::{build_register_programs, RegisterProgram};
+pub use register::{build_register_programs, RegisterProgram, RegisterPrograms};
 
 fn shared_text_scalar(scalar: char) -> Arc<str> {
     if !scalar.is_ascii() {
@@ -84,8 +84,8 @@ pub struct HostOpContext<'a> {
 /// Services the shared VM requests from whatever environment embeds it.
 pub trait VmHost {
     fn artifact(&self) -> &Arc<Artifact>;
-    /// Load-time register form of every function. Hosts that do not build it return `None`.
-    fn register_programs(&self) -> Option<Arc<Vec<RegisterProgram>>> {
+    /// Register form of the functions that run. Hosts that do not build it return `None`.
+    fn register_programs(&self) -> Option<Arc<RegisterPrograms>> {
         None
     }
     fn limits(&self) -> VmLimits;
@@ -202,9 +202,7 @@ fn run_frames_with_stack_profiled<const PROFILED: bool, H: VmHost>(
     let shared = VmRunShared {
         artifact: &artifact,
         limits: host.limits(),
-        registers: register_programs
-            .as_ref()
-            .map(|programs| programs.as_slice()),
+        registers: register_programs.as_deref(),
         fast_host_forwarders: &fast_host_forwarders,
     };
     let mut pool = VmVecPool::default();
@@ -280,9 +278,7 @@ pub fn execute_vm_frame<H: VmHost>(
         registers: if profiled {
             None
         } else {
-            register_programs
-                .as_ref()
-                .map(|programs| programs.as_slice())
+            register_programs.as_deref()
         },
         fast_host_forwarders: &fast_host_forwarders,
     };
@@ -385,7 +381,7 @@ fn text_chars_concat_fast_path(
 struct VmRunShared<'r> {
     artifact: &'r Arc<Artifact>,
     limits: VmLimits,
-    registers: Option<&'r [RegisterProgram]>,
+    registers: Option<&'r RegisterPrograms>,
     fast_host_forwarders: &'r [Option<FastHostForwarder>],
 }
 
@@ -455,12 +451,13 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
     };
     let mut instruction_fuel = InstructionFuel::new(budget);
     let mut previous_profiled_instruction: Option<(usize, &'static str)> = None;
+    // Parallel workers charge fuel exactly, one atomic at a time, which this form does not; they
+    // stay on the stack interpreter.
     let registers = shared
         .registers
-        .and_then(|programs| programs.get(function_index))
-        // Parallel workers charge fuel exactly, one atomic at a time, which this form does
-        // not; they stay on the stack interpreter.
-        .filter(|program| instruction_fuel.reserve_locally && program.usable_under(limits));
+        .filter(|_| instruction_fuel.reserve_locally)
+        .and_then(|programs| programs.get(function_index, f))
+        .filter(|program| program.usable_under(limits));
     // The stack interpreter takes at least one instruction after this form hands back.
     let mut stay_on_stack = false;
     // Cancellation is polled on frame entry, on every taken backward jump and after every host
@@ -1095,7 +1092,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                             .saturating_add(size_of::<String>() + size_of::<Value>() * 2),
                         instruction.span,
                     )?;
-                    if values.insert(key.to_string(), value).is_some() {
+                    if values.insert(Arc::clone(&key), value).is_some() {
                         return Err(RuntimeError::new(
                             "R_MAP_DUPLICATE_KEY",
                             format!("duplicate map key `{key}`"),
@@ -1204,7 +1201,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                     charge_allocation(budget.as_ref(), allocation, instruction.span)?;
                     let keys = values
                         .keys()
-                        .map(|key| Value::Text(Arc::<str>::from(key.as_str())))
+                        .map(|key| Value::Text(Arc::clone(key)))
                         .collect::<Vec<_>>();
                     push_stack!(Value::List(Arc::new(keys)));
                 }
@@ -1664,7 +1661,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                         let inner_values = Arc::get_mut(inner_arc).expect(
                             "nested writeback child uniqueness was checked before mutation",
                         );
-                        replace_map_value(inner_values, key.as_ref(), value);
+                        replace_map_value(inner_values, &key, value);
                         Value::Map(Arc::clone(inner_arc))
                     };
                     locals[child_slot] = updated.clone();
@@ -1736,7 +1733,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                         };
                         let inner_values = Arc::get_mut(inner_arc)
                             .expect("nested update child uniqueness was checked before mutation");
-                        replace_map_value(inner_values, key.as_ref(), value);
+                        replace_map_value(inner_values, &key, value);
                         Value::Map(Arc::clone(inner_arc))
                     };
                     let parent_result = Value::Map(Arc::clone(parent_arc));
@@ -1815,7 +1812,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                     if let Some(error) = value_limit_error(&value, limits, instruction.span) {
                         return Err(error);
                     }
-                    replace_map_value(Arc::make_mut(items), key.as_ref(), value);
+                    replace_map_value(Arc::make_mut(items), &key, value);
                     if PROFILED {
                         if let Some(profile) = &budget.runtime_profile {
                             profile.record_map_set(!shared, if shared { allocation } else { 0 });
@@ -1843,7 +1840,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                     map_clone_allocation(values.as_ref(), Some(key.as_ref()), &value);
                 charge_allocation(budget.as_ref(), map_clone_bytes, instruction.span)?;
                 let mut updated = values.as_ref().clone();
-                replace_map_value(&mut updated, key.as_ref(), value);
+                replace_map_value(&mut updated, &key, value);
                 if PROFILED {
                     if let Some(profile) = &budget.runtime_profile {
                         profile.record_map_set(false, map_clone_bytes);
@@ -3457,7 +3454,7 @@ fn unique_pending_nested_map_writeback_target(
     let mut matching_key = None;
     for (key, value) in parent.iter() {
         if matches!(value, Value::Map(child) if Arc::ptr_eq(child, inner))
-            && matching_key.replace(key.as_str()).is_some()
+            && matching_key.replace(&**key).is_some()
         {
             return None;
         }
@@ -4680,11 +4677,11 @@ pub fn cloned_value_allocation(value: &Value) -> usize {
 }
 
 #[inline]
-fn replace_map_value(values: &mut TextMap, key: &str, value: Value) {
+fn replace_map_value(values: &mut TextMap, key: &Arc<str>, value: Value) {
     if let Some(existing_value) = values.get_mut(key) {
         *existing_value = value;
     } else {
-        values.insert(key.to_owned(), value);
+        values.insert(Arc::clone(key), value);
     }
 }
 
@@ -7539,7 +7536,7 @@ mod tests {
 
     struct RegisterTestHost {
         artifact: Arc<Artifact>,
-        registers: Option<Arc<Vec<RegisterProgram>>>,
+        registers: Option<Arc<RegisterPrograms>>,
     }
 
     impl VmHost for RegisterTestHost {
@@ -7547,7 +7544,7 @@ mod tests {
             &self.artifact
         }
 
-        fn register_programs(&self) -> Option<Arc<Vec<RegisterProgram>>> {
+        fn register_programs(&self) -> Option<Arc<RegisterPrograms>> {
             self.registers.clone()
         }
 
@@ -7652,10 +7649,13 @@ mod tests {
         let artifact = register_test_artifact();
         let tables = Arc::new(build_register_programs(&artifact));
         assert!(
-            tables[0].covers_instruction_ranges(),
+            tables
+                .get(0, &artifact.functions[0])
+                .unwrap()
+                .covers_instruction_ranges(),
             "the test program must contain register instructions"
         );
-        let run = |registers: Option<Arc<Vec<RegisterProgram>>>, limit: u64| {
+        let run = |registers: Option<Arc<RegisterPrograms>>, limit: u64| {
             let mut host = RegisterTestHost {
                 artifact: Arc::clone(&artifact),
                 registers,
@@ -7771,33 +7771,35 @@ mod tests {
         let tables = Arc::new(build_register_programs(&artifact));
         for kind in ["Index", "MapHas", "CallSome", "CallNone"] {
             assert!(
-                tables[0].has_kind(kind),
+                tables
+                    .get(0, &artifact.functions[0])
+                    .unwrap()
+                    .has_kind(kind),
                 "the test program must reach {kind}"
             );
         }
-        let run =
-            |registers: Option<Arc<Vec<RegisterProgram>>>, instructions: u64, bytes: usize| {
-                let mut host = RegisterTestHost {
-                    artifact: Arc::clone(&artifact),
-                    registers,
-                };
-                let budget = Arc::new(Budget::new(
-                    instructions,
-                    bytes,
-                    CancellationToken::new(),
-                    None,
-                ));
-                let frame = new_vm_frame(&artifact, 0, vec![], 1, None);
-                let outcome = match run_frames(&mut host, frame, Arc::clone(&budget)) {
-                    Ok(value) => Ok(value),
-                    Err(error) => Err((error.code, error.trace)),
-                };
-                (
-                    outcome,
-                    budget.remaining.load(Ordering::Relaxed),
-                    budget.allocation_remaining.load(Ordering::Relaxed),
-                )
+        let run = |registers: Option<Arc<RegisterPrograms>>, instructions: u64, bytes: usize| {
+            let mut host = RegisterTestHost {
+                artifact: Arc::clone(&artifact),
+                registers,
             };
+            let budget = Arc::new(Budget::new(
+                instructions,
+                bytes,
+                CancellationToken::new(),
+                None,
+            ));
+            let frame = new_vm_frame(&artifact, 0, vec![], 1, None);
+            let outcome = match run_frames(&mut host, frame, Arc::clone(&budget)) {
+                Ok(value) => Ok(value),
+                Err(error) => Err((error.code, error.trace)),
+            };
+            (
+                outcome,
+                budget.remaining.load(Ordering::Relaxed),
+                budget.allocation_remaining.load(Ordering::Relaxed),
+            )
+        };
         for limit in 0..50 {
             let plain = run(None, limit, 1 << 20);
             let registers = run(Some(Arc::clone(&tables)), limit, 1 << 20);
@@ -7822,11 +7824,11 @@ mod tests {
     #[test]
     fn map_update_existing_key_preserves_owned_key_storage() {
         let mut values = TextMap::new();
-        let key = String::from("service");
+        let key = Arc::<str>::from("service");
         let original_key_ptr = key.as_ptr();
         values.insert(key, Value::Bool(false));
 
-        replace_map_value(&mut values, "service", Value::Bool(true));
+        replace_map_value(&mut values, &Arc::from("service"), Value::Bool(true));
 
         let (stored_key, stored_value) = values
             .get_key_value("service")
