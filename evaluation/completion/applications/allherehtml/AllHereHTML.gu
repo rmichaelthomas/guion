@@ -40,25 +40,12 @@ pub fn build_page() -> Text:
     let hello_code = highlight_guion(hello)
     let option_code = highlight_guion(option)
     let records_code = highlight_guion(records)
-    let lines = text_split(template, "\n")
-    var rendered_lines: List[Text] = []
-    var hello_hits = 0
-    var option_hits = 0
-    var record_hits = 0
-    var index = 0
-    while index < len(lines):
-        let line = lines[index]
-        let replaced_line = replace_markers_on_line(line, hello_code, option_code, records_code)
-        set hello_hits = hello_hits + replaced_line.hello_hits
-        set option_hits = option_hits + replaced_line.option_hits
-        set record_hits = record_hits + replaced_line.record_hits
-        set rendered_lines = list_push(rendered_lines, replaced_line.value)
-        set index = index + 1
-    if hello_hits != 1 or option_hits != 1 or record_hits != 1:
+    let rendered = replace_markers(template, hello_code, option_code, records_code)
+    if rendered.hello_hits != 1 or rendered.option_hits != 1 or rendered.record_hits != 1:
         return ""
-    return text_join(rendered_lines, "\n")
+    return rendered.value
 
-fn replace_markers_on_line(source: Text, hello_code: Text, option_code: Text, record_code: Text) -> MarkerReplacement:
+fn replace_markers(source: Text, hello_code: Text, option_code: Text, record_code: Text) -> MarkerReplacement:
     let characters = text_chars(source)
     let hello_marker = text_chars("{{CODE_HELLO}}")
     let option_marker = text_chars("{{CODE_OPTION}}")
@@ -70,28 +57,29 @@ fn replace_markers_on_line(source: Text, hello_code: Text, option_code: Text, re
     var option_hits = 0
     var record_hits = 0
     while cursor < len(characters):
-        if characters[cursor] == "{" and text_matches_at(characters, hello_marker, cursor):
-            set result = result + chars_to_text(characters, segment_start, cursor) + hello_code
-            set cursor = cursor + len(hello_marker)
-            set segment_start = cursor
-            set hello_hits = hello_hits + 1
-        else:
-            if characters[cursor] == "{" and text_matches_at(characters, option_marker, cursor):
-                set result = result + chars_to_text(characters, segment_start, cursor) + option_code
-                set cursor = cursor + len(option_marker)
+        if characters[cursor] == "{" and cursor + 1 < len(characters) and characters[cursor + 1] == "{":
+            if text_matches_at(characters, hello_marker, cursor):
+                set result = result + text_slice(source, segment_start, cursor) + hello_code
+                set cursor = cursor + len(hello_marker)
                 set segment_start = cursor
-                set option_hits = option_hits + 1
+                set hello_hits = hello_hits + 1
             else:
-                if characters[cursor] == "{" and text_matches_at(characters, record_marker, cursor):
-                    set result = result + chars_to_text(characters, segment_start, cursor) + record_code
-                    set cursor = cursor + len(record_marker)
+                if text_matches_at(characters, option_marker, cursor):
+                    set result = result + text_slice(source, segment_start, cursor) + option_code
+                    set cursor = cursor + len(option_marker)
                     set segment_start = cursor
-                    set record_hits = record_hits + 1
+                    set option_hits = option_hits + 1
                 else:
-                    set cursor = cursor + 1
-    if hello_hits + option_hits + record_hits == 0:
-        return MarkerReplacement(source, 0, 0, 0)
-    set result = result + chars_to_text(characters, segment_start, len(characters))
+                    if text_matches_at(characters, record_marker, cursor):
+                        set result = result + text_slice(source, segment_start, cursor) + record_code
+                        set cursor = cursor + len(record_marker)
+                        set segment_start = cursor
+                        set record_hits = record_hits + 1
+                    else:
+                        set cursor = cursor + 1
+        else:
+            set cursor = cursor + 1
+    set result = result + text_slice(source, segment_start, len(characters))
     return MarkerReplacement(result, hello_hits, option_hits, record_hits)
 
 fn strip_trailing_line_feeds(source: Text) -> Text:
@@ -383,8 +371,6 @@ fn html_document_error(document: List[Text]) -> Text:
     let doctype = text_chars("<!doctype html>")
     let comment_open = text_chars("<!--")
     let comment_close = text_chars("-->")
-    let declaration_open = text_chars("<!")
-    let instruction_open = text_chars("<?")
     let code_placeholder = text_chars("{{CODE_")
     var stack: List[Text] = []
     var ids: List[Text] = []
@@ -403,24 +389,28 @@ fn html_document_error(document: List[Text]) -> Text:
     var h1_count = 0
     var unexpanded_code = false
     while index < len(document):
-        if text_matches_at(document, code_placeholder, index):
+        let current = document[index]
+        var following = ""
+        if index + 1 < len(document):
+            set following = document[index + 1]
+        if current == "{" and following == "{" and text_matches_at(document, code_placeholder, index):
             set unexpanded_code = true
-        if document[index] != "<":
-            if document[index] == "@" and css_import_at(document, index):
+        if current != "<":
+            if current == "@" and following == "i" and css_import_at(document, index):
                 set external_stylesheet = true
-            if document[index] == "u" and css_remote_url_at(document, index):
+            if current == "u" and following == "r" and css_remote_url_at(document, index):
                 set external_stylesheet = true
             set index = index + 1
         else:
-            if text_matches_at(document, doctype, index):
+            if following == "!" and text_matches_at(document, doctype, index):
                 set has_doctype = true
                 set index = index + len(doctype)
             else:
-                if text_matches_at(document, comment_open, index):
+                if following == "!" and text_matches_at(document, comment_open, index):
                     var scan = index + 4
                     var ended = false
                     while scan + 2 < len(document) and not ended:
-                        if text_matches_at(document, comment_close, scan):
+                        if document[scan] == "-" and text_matches_at(document, comment_close, scan):
                             set ended = true
                         else:
                             set scan = scan + 1
@@ -437,7 +427,7 @@ fn html_document_error(document: List[Text]) -> Text:
                         set comment_index = comment_index + 1
                     set index = scan + 3
                 else:
-                    if text_matches_at(document, declaration_open, index) or text_matches_at(document, instruction_open, index):
+                    if following == "!" or following == "?":
                         var scan = index + 2
                         while scan < len(document) and document[scan] != ">":
                             set scan = scan + 1
@@ -605,7 +595,7 @@ fn test_showcase_links_optional_browser_playground() -> Unit:
     var found = false
     var index = 0
     while index + len(needle) <= len(page):
-        if text_matches_at(page, needle, index):
+        if page[index] == "h" and text_matches_at(page, needle, index):
             set found = true
         set index = index + 1
     assert(found)
