@@ -1,23 +1,6 @@
 import "std:unicode"
 import "std:types"
 
-fn text_has_space(value: Text) -> Bool:
-    return value == " " or value == "\t" or value == "\n" or value == "\r" or value == "\u{000b}" or value == "\u{000c}" or value == "\u{0085}" or value == "\u{00a0}" or value == "\u{1680}" or value == "\u{2000}" or value == "\u{2001}" or value == "\u{2002}" or value == "\u{2003}" or value == "\u{2004}" or value == "\u{2005}" or value == "\u{2006}" or value == "\u{2007}" or value == "\u{2008}" or value == "\u{2009}" or value == "\u{200a}" or value == "\u{2028}" or value == "\u{2029}" or value == "\u{202f}" or value == "\u{205f}" or value == "\u{3000}"
-
-fn text_matches_at(source: List[Text], needle: List[Text], start: Int) -> Bool:
-    if len(needle) == 0:
-        return false
-    if start + len(needle) > len(source):
-        return false
-    if len(needle) == 1:
-        return source[start] == needle[0]
-    var index = 0
-    while index < len(needle):
-        if source[start + index] != needle[index]:
-            return false
-        set index = index + 1
-    return true
-
 pub fn text_compare_scalar(left: Text, right: Text) -> Int:
     if left < right:
         return -1
@@ -33,70 +16,16 @@ pub fn text_compare_bytes(left: Text, right: Text) -> Int:
     return 0
 
 pub fn text_trim(value: Text) -> Text:
-    let characters = text_chars(value)
-    var start = 0
-    var end = len(characters)
-    while start < end and text_has_space(characters[start]):
-        set start = start + 1
-    while end > start and text_has_space(characters[end - 1]):
-        set end = end - 1
-    var result = ""
-    while start < end:
-        set result = result + characters[start]
-        set start = start + 1
-    return result
-
-fn text_join_range(values: List[Text], delimiter: Text, start: Int, end: Int) -> Text:
-    if end - start <= 64:
-        var result = ""
-        var index = start
-        while index < end:
-            if index > start:
-                set result = result + delimiter
-            set result = result + values[index]
-            set index = index + 1
-        return result
-    let middle = start + (end - start) / 2
-    let left = text_join_range(values, delimiter, start, middle)
-    let right = text_join_range(values, delimiter, middle, end)
-    return left + delimiter + right
+    return text_trim_native(value)
 
 pub fn text_split(value: Text, delimiter: Text) -> List[Text]:
-    if delimiter == "":
-        return [value]
-    let characters = text_chars(value)
-    let needle = text_chars(delimiter)
-    var fields: List[Text] = []
-    var field_start = 0
-    var cursor = 0
-    while cursor < len(characters):
-        if text_matches_at(characters, needle, cursor):
-            set fields = list_push(fields, text_join_range(characters, "", field_start, cursor))
-            set cursor = cursor + len(needle)
-            set field_start = cursor
-        else:
-            set cursor = cursor + 1
-    set fields = list_push(fields, text_join_range(characters, "", field_start, cursor))
-    return fields
+    return text_split_native(value, delimiter)
 
 pub fn text_join(values: List[Text], delimiter: Text) -> Text:
     return text_join_native(values, delimiter)
 
 pub fn text_replace(value: Text, needle: Text, replacement: Text) -> Text:
-    if needle == "":
-        return value
-    let characters = text_chars(value)
-    let match = text_chars(needle)
-    var result = ""
-    var cursor = 0
-    while cursor < len(characters):
-        if text_matches_at(characters, match, cursor):
-            set result = result + replacement
-            set cursor = cursor + len(match)
-        else:
-            set result = result + characters[cursor]
-            set cursor = cursor + 1
-    return result
+    return text_replace_native(value, needle, replacement)
 
 pub fn text_parse_integer(value: Text) -> Result[Int, FileError]:
     return text_parse_int(value)

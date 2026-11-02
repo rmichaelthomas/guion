@@ -152,10 +152,14 @@ task_code(TaskError) -> Text
 task_index(TaskError) -> Int
 task_message(TaskError) -> Text
 text_chars(Text) -> List[Text]
+text_find(Text, Text, Int) -> Int
 text_join_native(List[Text], Text) -> Text
 text_parse_float(Text) -> Result[Float64, FileError]
 text_parse_int(Text) -> Result[Int, FileError]
+text_replace_native(Text, Text, Text) -> Text
 text_slice(Text, Int, Int) -> Text
+text_split_native(Text, Text) -> List[Text]
+text_trim_native(Text) -> Text
 time_format_utc(Record[Instant]) -> Text
 time_format_utc_date(Record[Instant]) -> Text
 time_parse_date(Text) -> Result[Record[Date], FileError]
@@ -996,4 +1000,4 @@ fn main() -> Int:
 - [Host API and effects](../../language/host-api.md)
 - [Agent recipes](recipes.md)
 
-<!-- Generated reference content digest: sha256:165b706b72c0336e71650a99e7748643f809a38d5a1cb2d1fb330f755ae527c1. Validated by `cargo xtask agent-reference --check`. -->
+<!-- Generated reference content digest: sha256:694cb333421187ec310cfe4770789c07238b6393d5b365990c691add342488f3. Validated by `cargo xtask agent-reference --check`. -->

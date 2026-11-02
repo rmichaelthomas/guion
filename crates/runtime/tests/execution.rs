@@ -342,6 +342,116 @@ fn text_slice_uses_unicode_scalar_half_open_bounds() {
 }
 
 #[test]
+fn native_text_search_matches_scalar_semantics() {
+    let source = "fn main() -> Int:\n    assert(text_find(\"a🙂b🙂\", \"🙂\", 0) == 1)\n    assert(text_find(\"a🙂b🙂\", \"🙂\", 2) == 3)\n    assert(text_find(\"a🙂b🙂\", \"x\", 0) == -1)\n    assert(text_find(\"abcabc\", \"bc\", 2) == 4)\n    assert(text_find(\"abc\", \"\", 3) == 3)\n    assert(text_find(\"\", \"a\", 0) == -1)\n    let fields = text_split_native(\"|α||🙂|\", \"|\")\n    assert(len(fields) == 5)\n    assert(fields[1] == \"α\" and fields[2] == \"\" and fields[3] == \"🙂\" and fields[4] == \"\")\n    assert(len(text_split_native(\"aaaa\", \"aa\")) == 3)\n    assert(text_split_native(\"abc\", \"\")[0] == \"abc\")\n    assert(len(text_split_native(\"\", \",\")) == 1)\n    assert(text_replace_native(\"αββ\", \"β\", \"X\") == \"αXX\")\n    assert(text_replace_native(\"aaa\", \"aa\", \"b\") == \"ba\")\n    assert(text_replace_native(\"abc\", \"\", \"x\") == \"abc\")\n    assert(text_trim_native(\"\\u{3000} hi \\u{00a0}\\n\") == \"hi\")\n    assert(text_trim_native(\" \\t\") == \"\")\n    return 0\n\nfn find_past_end() -> Int:\n    return text_find(\"ab\", \"a\", 3)\n";
+    let artifact = compile("text-search.gu", source).expect("text search source compiles");
+    for runtime in [Runtime::new(), Runtime::vm_only()] {
+        let mut instance = runtime
+            .load(artifact.clone(), HostPolicy::default())
+            .expect("runtime loads the artifact");
+        assert_eq!(
+            instance.invoke("main", vec![]).expect("program runs"),
+            Value::Int(BigInt::from_i64(0))
+        );
+        assert_eq!(
+            instance
+                .invoke("find_past_end", vec![])
+                .expect_err("a start past the end is rejected")
+                .code,
+            "R_INDEX_BOUNDS"
+        );
+    }
+}
+
+#[test]
+fn text_find_seeks_scalar_indices_in_long_unicode_text() {
+    let source = "fn main() -> Int:\n    var parts: List[Text] = []\n    var index = 0\n    while index < 3000:\n        set parts = list_push(parts, \"é-ab\")\n        set index = index + 1\n    let text = text_join_native(parts, \"\")\n    var found = 0\n    var position = text_find(text, \"ab\", 0)\n    while position >= 0:\n        assert(position % 4 == 2)\n        set found = found + 1\n        set position = text_find(text, \"ab\", position + 2)\n    assert(text_find(text, \"ab\", 8001) == 8002)\n    assert(text_find(text, \"é\", 11999) == -1)\n    assert(text_find(text, \"x\", 12000) == -1)\n    return found\n\nfn find_past_end() -> Int:\n    var parts: List[Text] = []\n    var index = 0\n    while index < 3000:\n        set parts = list_push(parts, \"é-ab\")\n        set index = index + 1\n    return text_find(text_join_native(parts, \"\"), \"ab\", 12001)\n";
+    let artifact = compile("text-find-long.gu", source).expect("long text search compiles");
+    for runtime in [Runtime::new(), Runtime::vm_only()] {
+        let mut instance = runtime
+            .load(artifact.clone(), HostPolicy::default())
+            .expect("runtime loads the artifact");
+        assert_eq!(
+            instance.invoke("main", vec![]).expect("program runs"),
+            Value::Int(BigInt::from_i64(3000))
+        );
+        assert_eq!(
+            instance
+                .invoke("find_past_end", vec![])
+                .expect_err("a start past the end is rejected")
+                .code,
+            "R_INDEX_BOUNDS"
+        );
+    }
+}
+
+#[test]
+fn vm_callers_keep_copy_dominated_native_entries_in_the_vm() {
+    // `main` stays in the VM (it pushes onto a local list); `first_is` is native, does
+    // constant work, and would otherwise copy the whole list on every call.
+    let source = "fn first_is(values: List[Text], expected: Text) -> Bool:\n    return values[0] == expected\n\nfn main() -> Int:\n    var values: List[Text] = []\n    var index = 0\n    while index < 5000:\n        set values = list_push(values, \"x\")\n        set index = index + 1\n    var hits = 0\n    var call = 0\n    while call < 200:\n        if first_is(values, \"x\"):\n            set hits = hits + 1\n        set call = call + 1\n    return hits\n";
+    let artifact = compile("entry-cost.gu", source).expect("entry-cost source compiles");
+    let mut native = Runtime::new()
+        .load(artifact.clone(), HostPolicy::default())
+        .expect("native runtime loads the artifact");
+    let mut vm = Runtime::vm_only()
+        .load(artifact, HostPolicy::default())
+        .expect("runtime loads the artifact");
+    assert_eq!(
+        native.invoke("main", vec![]).expect("native program runs"),
+        Value::Int(BigInt::from_i64(200))
+    );
+    assert_eq!(
+        vm.invoke("main", vec![]).expect("VM program runs"),
+        Value::Int(BigInt::from_i64(200))
+    );
+    assert!(
+        native
+            .native_function_names()
+            .iter()
+            .any(|name| name == "first_is"),
+        "{}",
+        native.native_compile_profile()
+    );
+    assert!(
+        native.native_calls() < 50,
+        "copy-dominated entries kept entering native code: {}",
+        native.native_calls()
+    );
+}
+
+#[test]
+fn list_push_and_in_place_set_keep_item_limits() {
+    let source = "fn main() -> Int:\n    var values: List[Text] = []\n    var index = 0\n    while index < 20000:\n        set values = list_push(values, \"x\")\n        set index = index + 1\n    set values = list_set(values, 3, \"y\")\n    return len(values)\n\nfn oversized() -> Int:\n    var values: List[Text] = [\"a\"]\n    set values = list_push(values, \"abcdefgh\")\n    return len(values)\n";
+    let artifact = compile("list-push-limits.gu", source).expect("list push source compiles");
+    let policy = HostPolicy {
+        instruction_limit: 10_000_000,
+        ..HostPolicy::default()
+    };
+    let mut vm = Runtime::vm_only()
+        .load(artifact.clone(), policy)
+        .expect("runtime loads the artifact");
+    assert_eq!(
+        vm.invoke("main", vec![]).expect("program runs"),
+        Value::Int(BigInt::from_i64(20000))
+    );
+    let policy = HostPolicy {
+        max_text_bytes: 4,
+        ..HostPolicy::default()
+    };
+    let mut limited = Runtime::vm_only()
+        .load(artifact, policy)
+        .expect("runtime loads the artifact");
+    assert_eq!(
+        limited
+            .invoke("oversized", vec![])
+            .expect_err("an oversized pushed text is rejected")
+            .code,
+        "R_TEXT_LIMIT"
+    );
+}
+
+#[test]
 fn text_slice_rejects_invalid_scalar_ranges() {
     let source = "fn invalid_slice() -> Text:\n    return text_slice(\"abc\", 2, 1)\n\nfn main() -> Int:\n    return 0\n";
     let artifact = compile("text-slice-range.gu", source).expect("text_slice source compiles");
@@ -372,9 +482,11 @@ fn text_slice_rejects_invalid_scalar_ranges() {
 fn native_text_slice_preserves_allocation_charges_and_full_slice_reuse() {
     let source = "fn full_slice() -> Text:\n    return text_slice(\"a🙂é\", 0, 3)\n\nfn partial_slice() -> Text:\n    return text_slice(\"a🙂é\", 1, 3)\n\nfn main() -> Int:\n    return 0\n";
     let artifact = compile("native-text-slice-allocation.gu", source).unwrap();
-    let literal_allocation = std::mem::size_of::<String>() + "a🙂é".len();
+    // The full slice reuses the shared literal and allocates nothing; the partial slice
+    // allocates a new text, one byte more than the limit allows.
+    let partial_allocation = std::mem::size_of::<String>() + "🙂é".len();
     let policy = HostPolicy {
-        allocation_limit_bytes: literal_allocation,
+        allocation_limit_bytes: partial_allocation - 1,
         ..HostPolicy::default()
     };
     let mut native = Runtime::new()
@@ -5433,8 +5545,9 @@ fn runtime_enforces_a_configurable_integer_size_limit() {
 fn allocation_limit_is_shared_across_nested_calls_and_resets_per_invocation() {
     let source = "fn churn(rounds: Int) -> Int:\n    var i = 0\n    while i < rounds:\n        let text = \"12345678\" + \"abcdefgh\"\n        set i = i + 1\n    return 0\n\nfn main() -> Int:\n    return churn(20)\n";
     let artifact = compile("allocation-limit.gu", source).unwrap();
+    // Each round's concatenation allocates a fresh 16-byte text; the literals are shared.
     let policy = HostPolicy {
-        allocation_limit_bytes: 2048,
+        allocation_limit_bytes: 512,
         ..HostPolicy::default()
     };
     let mut instance = Runtime::new().load(artifact, policy).unwrap();
@@ -5530,8 +5643,9 @@ fn allocation_limit_accounts_for_print_rendering() {
     let payload = "a".repeat(900_000);
     let source = format!("fn main() -> Int:\n    print(\"{payload}\")\n    return 0\n");
     let artifact = compile("print-allocation-limit.gu", &source).unwrap();
+    // The literal is shared and allocates nothing; rendering it for output does.
     let policy = HostPolicy {
-        allocation_limit_bytes: 1_500_000,
+        allocation_limit_bytes: 800_000,
         ..HostPolicy::default()
     };
     let mut instance = Runtime::new().load(artifact, policy).unwrap();
@@ -7235,12 +7349,12 @@ fn native_text_chars_index_charges_the_cloned_scalar() {
     )
     .unwrap();
     let policy = HostPolicy {
-        allocation_limit_bytes: 231,
+        allocation_limit_bytes: 177,
         ..HostPolicy::default()
     };
     let input = vec![Value::Text("a🙂".into())];
     let sufficient = HostPolicy {
-        allocation_limit_bytes: 232,
+        allocation_limit_bytes: 178,
         ..HostPolicy::default()
     };
     assert_eq!(

@@ -9438,6 +9438,118 @@
       }
     },
     {
+      "id": "opcode-textfind",
+      "kind": "opcode",
+      "name": "TextFind",
+      "owner_task": 4,
+      "source": "crates/model/src/lib.rs::Op",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "implemented_current_subset"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "opcode-textfind.positive",
+          "state": "implemented",
+          "owner_task": 4
+        },
+        "negative": {
+          "case_id": "opcode-textfind.negative",
+          "state": "implemented",
+          "owner_task": 4
+        },
+        "interaction": {
+          "case_id": "opcode-textfind.interaction",
+          "state": "implemented",
+          "owner_task": 4
+        }
+      }
+    },
+    {
+      "id": "opcode-textsplit",
+      "kind": "opcode",
+      "name": "TextSplit",
+      "owner_task": 4,
+      "source": "crates/model/src/lib.rs::Op",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "implemented_current_subset"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "opcode-textsplit.positive",
+          "state": "implemented",
+          "owner_task": 4
+        },
+        "negative": {
+          "case_id": "opcode-textsplit.negative",
+          "state": "implemented",
+          "owner_task": 4
+        },
+        "interaction": {
+          "case_id": "opcode-textsplit.interaction",
+          "state": "implemented",
+          "owner_task": 4
+        }
+      }
+    },
+    {
+      "id": "opcode-textreplace",
+      "kind": "opcode",
+      "name": "TextReplace",
+      "owner_task": 4,
+      "source": "crates/model/src/lib.rs::Op",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "implemented_current_subset"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "opcode-textreplace.positive",
+          "state": "implemented",
+          "owner_task": 4
+        },
+        "negative": {
+          "case_id": "opcode-textreplace.negative",
+          "state": "implemented",
+          "owner_task": 4
+        },
+        "interaction": {
+          "case_id": "opcode-textreplace.interaction",
+          "state": "implemented",
+          "owner_task": 4
+        }
+      }
+    },
+    {
+      "id": "opcode-texttrim",
+      "kind": "opcode",
+      "name": "TextTrim",
+      "owner_task": 4,
+      "source": "crates/model/src/lib.rs::Op",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "implemented_current_subset"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "opcode-texttrim.positive",
+          "state": "implemented",
+          "owner_task": 4
+        },
+        "negative": {
+          "case_id": "opcode-texttrim.negative",
+          "state": "implemented",
+          "owner_task": 4
+        },
+        "interaction": {
+          "case_id": "opcode-texttrim.interaction",
+          "state": "implemented",
+          "owner_task": 4
+        }
+      }
+    },
+    {
       "id": "opcode-jsontrygettext",
       "kind": "opcode",
       "name": "JsonTryGetText",

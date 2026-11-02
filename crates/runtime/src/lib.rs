@@ -309,6 +309,10 @@ struct NativeListArena {
 const NATIVE_INLINE_TAGGED_VALUES: usize = 8;
 /// Arena entries that must accumulate before a loop safepoint attempts to retire dead handles.
 const NATIVE_ARENA_RECLAIM_MIN_ENTRIES: usize = 2048;
+/// List items an entry must copy into a fresh native frame before its cost is tracked.
+const LIST_ITEMS_TRACKED_AT_ENTRY: usize = 4096;
+/// Copy-dominated large entries after which VM callers run the function in the VM.
+const COPY_DOMINATED_ENTRY_LIMIT: u8 = 8;
 /// Safepoint root kind for a `List[Text]` local stored as a native handle list.
 pub(crate) const NATIVE_SAFEPOINT_TEXT_LIST_TAG: i64 = 5;
 
@@ -2904,6 +2908,7 @@ impl Runtime {
             native_deoptimizations: Arc::new(AtomicUsize::new(0)),
             native_deoptimization_sites: Arc::new(std::sync::Mutex::new(BTreeMap::new())),
             native_compilations: Arc::new(AtomicUsize::new(0)),
+            native_entry_copy_dominated: Vec::new(),
             readers: stdlib_data::FileReaderRegistry::new(
                 policy.max_file_bytes,
                 policy.max_file_bytes,
@@ -2949,6 +2954,8 @@ pub struct Instance {
     native_deoptimizations: Arc<AtomicUsize>,
     native_deoptimization_sites: Arc<std::sync::Mutex<BTreeMap<(usize, usize), usize>>>,
     native_compilations: Arc<AtomicUsize>,
+    /// Per function, how many native entries copied far more list items than they used.
+    native_entry_copy_dominated: Vec<u8>,
     policy: HostPolicy,
     readers: stdlib_data::FileReaderRegistry,
     databases: stdlib_services::DatabaseRegistry,
@@ -7519,7 +7526,28 @@ impl Instance {
         let artifact = Arc::clone(&self.artifact);
         let f = &artifact.functions[index];
         check_call_depth(&artifact, &self.policy.vm_limits(), index, depth)?;
-        if !allow_native {
+        // Entering native code copies every list argument into a fresh arena. A small
+        // function called from a VM loop with the same large list would pay that copy on
+        // every call, so once its entries are shown to be dominated by the copy, keep it in
+        // the VM. Results are identical in both tiers; only the cost changes.
+        let entry_list_items = args
+            .iter()
+            .map(|value| match value {
+                Value::List(items) => items.len(),
+                Value::Float64List(items) => items.len(),
+                _ => 0,
+            })
+            .sum::<usize>();
+        let large_entry = entry_list_items >= LIST_ITEMS_TRACKED_AT_ENTRY;
+        if !allow_native
+            || (large_entry
+                && self
+                    .native_entry_copy_dominated
+                    .get(index)
+                    .copied()
+                    .unwrap_or(0)
+                    >= COPY_DOMINATED_ENTRY_LIMIT)
+        {
             return Ok(FrameStart::Vm(new_vm_frame(
                 &artifact, index, args, depth, call_site,
             )));
@@ -7777,6 +7805,7 @@ impl Instance {
         if let Some(native_args) = native_args {
             let native_code = self.native_code.clone();
             let call_depth_limit = self.policy.call_depth_limit;
+            let fuel_before = budget.remaining.load(Ordering::Relaxed);
             if let Some(mut outcome) = native_code.as_ref().and_then(|native| {
                 native.invoke(
                     index,
@@ -7789,6 +7818,20 @@ impl Instance {
             }) {
                 self.native_calls
                     .fetch_add(outcome.calls, Ordering::Relaxed);
+                if large_entry {
+                    let fuel_used =
+                        fuel_before.saturating_sub(budget.remaining.load(Ordering::Relaxed));
+                    if usize::try_from(fuel_used)
+                        .is_ok_and(|used| used.saturating_mul(4) < entry_list_items)
+                    {
+                        if self.native_entry_copy_dominated.len() <= index {
+                            self.native_entry_copy_dominated
+                                .resize(artifact.functions.len(), 0);
+                        }
+                        let count = &mut self.native_entry_copy_dominated[index];
+                        *count = count.saturating_add(1);
+                    }
+                }
                 // A native failure ends the program, so what it printed first must still reach
                 // the output, as it does in the VM. A plain deoptimization replays instead.
                 if outcome.status >= 2 || native_arena.host_error.is_some() {
@@ -8498,6 +8541,7 @@ impl Instance {
                         native_calls: native_calls.clone(),
                         native_deoptimizations: native_deoptimizations.clone(),
                         native_deoptimization_sites: native_deoptimization_sites.clone(),
+                        native_entry_copy_dominated: Vec::new(),
                         native_compilations: native_compilations.clone(),
                         policy: policy.clone(),
                         http: http.clone(),

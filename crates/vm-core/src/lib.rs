@@ -26,6 +26,103 @@ mod register;
 
 pub use register::{build_register_programs, RegisterProgram, RegisterPrograms};
 
+/// Byte offsets of every `TEXT_INDEX_STRIDE`th scalar of the text most recently searched,
+/// so repeated `text_find` calls over one long text seek in constant time instead of
+/// rescanning from the start. The cache holds the text alive, so its address cannot be reused.
+struct TextScalarIndex {
+    text: Arc<str>,
+    ascii: bool,
+    scalars: usize,
+    checkpoints: Vec<usize>,
+}
+
+const TEXT_INDEX_STRIDE: usize = 64;
+/// Texts shorter than this are scanned directly; indexing them would cost more than it saves.
+const TEXT_INDEX_MIN_BYTES: usize = 4096;
+
+thread_local! {
+    static TEXT_INDEX_CACHE: std::cell::RefCell<Option<TextScalarIndex>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+impl TextScalarIndex {
+    fn new(text: &Arc<str>) -> Self {
+        let ascii = text.is_ascii();
+        let mut checkpoints = Vec::new();
+        let mut scalars = text.len();
+        if !ascii {
+            scalars = 0;
+            for (byte_index, _) in text.char_indices() {
+                if scalars.is_multiple_of(TEXT_INDEX_STRIDE) {
+                    checkpoints.push(byte_index);
+                }
+                scalars += 1;
+            }
+        }
+        Self {
+            text: Arc::clone(text),
+            ascii,
+            scalars,
+            checkpoints,
+        }
+    }
+
+    fn byte_offset(&self, scalar: usize) -> Option<usize> {
+        if scalar > self.scalars {
+            return None;
+        }
+        if self.ascii || scalar == self.scalars {
+            return Some(if self.ascii { scalar } else { self.text.len() });
+        }
+        let base = self.checkpoints[scalar / TEXT_INDEX_STRIDE];
+        let skip = scalar % TEXT_INDEX_STRIDE;
+        self.text[base..]
+            .char_indices()
+            .nth(skip)
+            .map(|(offset, _)| base + offset)
+    }
+}
+
+/// Finds `needle` in `text` at or after the Unicode scalar index `from`.
+/// Returns `None` when `from` is past the end, `Some(None)` when there is no
+/// match, and the scalar index of the first match otherwise.
+fn text_find_scalar(text: &Arc<str>, needle: &str, from: usize) -> Option<Option<usize>> {
+    let (byte_start, ascii) = if text.len() < TEXT_INDEX_MIN_BYTES {
+        let ascii = text.is_ascii();
+        let byte_start = if ascii || from == 0 {
+            (from <= text.len()).then_some(from)?
+        } else {
+            match text.char_indices().nth(from) {
+                Some((byte_index, _)) => byte_index,
+                None if text.chars().count() == from => text.len(),
+                None => return None,
+            }
+        };
+        (byte_start, ascii)
+    } else {
+        TEXT_INDEX_CACHE.with(|cache| {
+            let mut cache = cache.borrow_mut();
+            if !cache
+                .as_ref()
+                .is_some_and(|index| Arc::ptr_eq(&index.text, text))
+            {
+                *cache = Some(TextScalarIndex::new(text));
+            }
+            let index = cache.as_ref().expect("text scalar index was just stored");
+            index
+                .byte_offset(from)
+                .map(|byte_start| (byte_start, index.ascii))
+        })?
+    };
+    Some(text[byte_start..].find(needle).map(|offset| {
+        if ascii {
+            from + offset
+        } else {
+            from + text[byte_start..byte_start + offset].chars().count()
+        }
+    }))
+}
+
 fn shared_text_scalar(scalar: char) -> Arc<str> {
     if !scalar.is_ascii() {
         return Arc::<str>::from(scalar.to_string());
@@ -2211,6 +2308,176 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                 }
                 push_stack!(Value::Text(Arc::<str>::from(joined)));
             }
+            Op::TextFind => {
+                let from = match pop!() {
+                    Value::Int(index) => index.to_usize().ok_or_else(|| {
+                        RuntimeError::new(
+                            "R_INDEX_INVALID",
+                            "text_find start must be a non-negative machine-sized integer",
+                            instruction.span,
+                        )
+                    })?,
+                    _ => {
+                        return Err(RuntimeError::new(
+                            "R_TYPE_INVALID",
+                            "text_find start must be Int",
+                            instruction.span,
+                        ));
+                    }
+                };
+                let needle = match pop!() {
+                    Value::Text(text) => text,
+                    _ => {
+                        return Err(RuntimeError::new(
+                            "R_TYPE_INVALID",
+                            "text_find requires Text needle",
+                            instruction.span,
+                        ));
+                    }
+                };
+                let text = match pop!() {
+                    Value::Text(text) => text,
+                    _ => {
+                        return Err(RuntimeError::new(
+                            "R_TYPE_INVALID",
+                            "text_find requires Text",
+                            instruction.span,
+                        ));
+                    }
+                };
+                let found = text_find_scalar(&text, &needle, from).ok_or_else(|| {
+                    RuntimeError::new(
+                        "R_INDEX_BOUNDS",
+                        format!("text_find start {from} is past the end of the text"),
+                        instruction.span,
+                    )
+                })?;
+                let found = match found {
+                    Some(index) => BigInt::from_usize(index),
+                    None => BigInt::from_i64(-1),
+                };
+                push_stack!(Value::Int(found));
+            }
+            Op::TextSplit => {
+                let delimiter = match pop!() {
+                    Value::Text(text) => text,
+                    _ => {
+                        return Err(RuntimeError::new(
+                            "R_TYPE_INVALID",
+                            "text_split_native requires Text delimiter",
+                            instruction.span,
+                        ));
+                    }
+                };
+                let text = match pop!() {
+                    Value::Text(text) => text,
+                    _ => {
+                        return Err(RuntimeError::new(
+                            "R_TYPE_INVALID",
+                            "text_split_native requires Text",
+                            instruction.span,
+                        ));
+                    }
+                };
+                if delimiter.is_empty() {
+                    push_stack!(Value::from_list_items(vec![Value::Text(text)]));
+                    continue;
+                }
+                let count = text.matches(delimiter.as_ref()).count().saturating_add(1);
+                if count > limits.max_collection_items {
+                    return Err(RuntimeError::new(
+                        "R_COLLECTION_LIMIT",
+                        "text_split result exceeds the configured item limit",
+                        instruction.span,
+                    ));
+                }
+                let allocation = size_of::<Vec<Value>>()
+                    .saturating_add(count.saturating_mul(size_of::<Value>() + size_of::<String>()))
+                    .saturating_add(text.len());
+                charge_allocation(budget.as_ref(), allocation, instruction.span)?;
+                let values = text
+                    .split(delimiter.as_ref())
+                    .map(|field| Value::Text(Arc::<str>::from(field)))
+                    .collect::<Vec<_>>();
+                push_stack!(Value::from_list_items(values));
+            }
+            Op::TextReplace => {
+                let replacement = match pop!() {
+                    Value::Text(text) => text,
+                    _ => {
+                        return Err(RuntimeError::new(
+                            "R_TYPE_INVALID",
+                            "text_replace_native requires Text replacement",
+                            instruction.span,
+                        ));
+                    }
+                };
+                let needle = match pop!() {
+                    Value::Text(text) => text,
+                    _ => {
+                        return Err(RuntimeError::new(
+                            "R_TYPE_INVALID",
+                            "text_replace_native requires Text needle",
+                            instruction.span,
+                        ));
+                    }
+                };
+                let text = match pop!() {
+                    Value::Text(text) => text,
+                    _ => {
+                        return Err(RuntimeError::new(
+                            "R_TYPE_INVALID",
+                            "text_replace_native requires Text",
+                            instruction.span,
+                        ));
+                    }
+                };
+                let count = if needle.is_empty() {
+                    0
+                } else {
+                    text.matches(needle.as_ref()).count()
+                };
+                if count == 0 {
+                    push_stack!(Value::Text(text));
+                    continue;
+                }
+                let total = (text.len() - count * needle.len())
+                    .saturating_add(count.saturating_mul(replacement.len()));
+                if total > limits.max_text_bytes {
+                    return Err(RuntimeError::new(
+                        "R_ALLOCATION_LIMIT",
+                        "replaced text exceeds the configured text limit",
+                        instruction.span,
+                    ));
+                }
+                charge_allocation(budget.as_ref(), total, instruction.span)?;
+                let replaced = text.replace(needle.as_ref(), &replacement);
+                push_stack!(Value::Text(Arc::<str>::from(replaced)));
+            }
+            Op::TextTrim => {
+                let text = match pop!() {
+                    Value::Text(text) => text,
+                    _ => {
+                        return Err(RuntimeError::new(
+                            "R_TYPE_INVALID",
+                            "text_trim_native requires Text",
+                            instruction.span,
+                        ));
+                    }
+                };
+                let trimmed = text.trim();
+                if trimmed.len() == text.len() {
+                    push_stack!(Value::Text(text));
+                    continue;
+                }
+                let value = Value::Text(Arc::<str>::from(trimmed));
+                charge_allocation(
+                    budget.as_ref(),
+                    new_value_allocation(&value),
+                    instruction.span,
+                )?;
+                push_stack!(value);
+            }
             Op::BytesFromInts => {
                 let values = match pop!() {
                     Value::List(values) => values,
@@ -2538,6 +2805,11 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
             }
             Op::ListPushLocal(slot) => {
                 let value = pop!();
+                // Items already in the list passed this check when they were created, so
+                // checking the pushed value keeps each push constant-time.
+                if let Some(error) = value_limit_error(&value, limits, instruction.span) {
+                    return Err(error);
+                }
                 let local = locals.get_mut(*slot).ok_or_else(|| {
                     RuntimeError::new(
                         "R_LOCAL_UNINITIALIZED",
@@ -2604,9 +2876,6 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                             instruction.span,
                         ));
                     }
-                }
-                if let Some(error) = value_limit_error(local, limits, instruction.span) {
-                    return Err(error);
                 }
             }
             Op::ListSet => {
@@ -2698,6 +2967,11 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                         ));
                     }
                 };
+                // The other items passed this check when they were created, so checking the
+                // stored value keeps each in-place update constant-time.
+                if let Some(error) = value_limit_error(&value, limits, instruction.span) {
+                    return Err(error);
+                }
                 let local = locals.get_mut(*slot).ok_or_else(|| {
                     RuntimeError::new(
                         "R_LOCAL_UNINITIALIZED",
@@ -2761,9 +3035,6 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                         }
                     }
                     _ => unreachable!("list type checked above"),
-                }
-                if let Some(error) = value_limit_error(local, limits, instruction.span) {
-                    return Err(error);
                 }
             }
             Op::Equal | Op::NotEqual => {
@@ -4165,6 +4436,10 @@ pub fn opcode_profile_name(op: &Op) -> &'static str {
         Op::TextChars => "TextChars",
         Op::TextSlice => "TextSlice",
         Op::TextJoin => "TextJoin",
+        Op::TextFind => "TextFind",
+        Op::TextSplit => "TextSplit",
+        Op::TextReplace => "TextReplace",
+        Op::TextTrim => "TextTrim",
         Op::BytesFromInts => "BytesFromInts",
         Op::BytesFromText => "BytesFromText",
         Op::BytesJoin => "BytesJoin",
@@ -4565,8 +4840,7 @@ fn allocation_limit_error(budget: &Budget, bytes: usize, span: Span) -> RuntimeE
 fn cloned_value_allocation_fast(value: &Value) -> usize {
     match value {
         Value::Int(_) | Value::Bool(_) | Value::Float64(_) | Value::Unit | Value::OptionNone => 0,
-        Value::Json(_) | Value::Map(_) | Value::List(_) => 0,
-        Value::Text(text) => size_of::<String>().saturating_add(text.len()),
+        Value::Json(_) | Value::Map(_) | Value::List(_) | Value::Text(_) => 0,
         _ => cloned_value_allocation(value),
     }
 }
@@ -4644,10 +4918,9 @@ pub fn new_value_allocation(value: &Value) -> usize {
 #[inline]
 pub fn cloned_value_allocation(value: &Value) -> usize {
     match value {
-        Value::Int(_) => 0,
-        // Keep the existing logical copy quota even though the clone now
-        // shares its immutable backing storage.
-        Value::Text(text) => size_of::<String>().saturating_add(text.len()),
+        // A text clone shares its immutable backing storage, as Lists, Maps and JSON do,
+        // so it allocates nothing. The text was charged once when it was created.
+        Value::Int(_) | Value::Text(_) => 0,
         Value::Record(name, _) => size_of::<String>().saturating_add(name.len()),
         Value::OptionSome(value) | Value::ResultOk(value) | Value::ResultErr(value) => {
             size_of::<Value>().saturating_add(cloned_value_allocation(value))
@@ -6136,6 +6409,46 @@ fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result
                 if delimiter != Type::Text || values != Type::List(Box::new(Type::Text)) {
                     return Err(format!(
                         "text_join_native requires List[Text] and Text at instruction {pc}"
+                    ));
+                }
+                state.stack.push(Type::Text);
+            }
+            Op::TextFind => {
+                if pop_type(&mut state.stack, pc)? != Type::Int
+                    || pop_type(&mut state.stack, pc)? != Type::Text
+                    || pop_type(&mut state.stack, pc)? != Type::Text
+                {
+                    return Err(format!(
+                        "text_find requires Text, Text and an Int start at instruction {pc}"
+                    ));
+                }
+                state.stack.push(Type::Int);
+            }
+            Op::TextSplit => {
+                if pop_type(&mut state.stack, pc)? != Type::Text
+                    || pop_type(&mut state.stack, pc)? != Type::Text
+                {
+                    return Err(format!(
+                        "text_split_native requires Text and Text at instruction {pc}"
+                    ));
+                }
+                state.stack.push(Type::List(Box::new(Type::Text)));
+            }
+            Op::TextReplace => {
+                if pop_type(&mut state.stack, pc)? != Type::Text
+                    || pop_type(&mut state.stack, pc)? != Type::Text
+                    || pop_type(&mut state.stack, pc)? != Type::Text
+                {
+                    return Err(format!(
+                        "text_replace_native requires three Text arguments at instruction {pc}"
+                    ));
+                }
+                state.stack.push(Type::Text);
+            }
+            Op::TextTrim => {
+                if pop_type(&mut state.stack, pc)? != Type::Text {
+                    return Err(format!(
+                        "text_trim_native requires Text at instruction {pc}"
                     ));
                 }
                 state.stack.push(Type::Text);

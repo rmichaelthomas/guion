@@ -207,6 +207,51 @@ mod tests {
     }
 
     #[test]
+    fn native_text_search_requires_format_51_and_round_trips() {
+        let artifact = Artifact {
+            format_version: 51,
+            build_metadata: None,
+            compiled_source_sha256: None,
+            source_name: "text-search.gu".into(),
+            sources: vec![],
+            entry: "main".into(),
+            functions: vec![Function {
+                name: "main".into(),
+                parameters: vec![],
+                result: Type::Int,
+                local_count: 0,
+                code: [Op::TextFind, Op::TextSplit, Op::TextReplace, Op::TextTrim]
+                    .into_iter()
+                    .map(|op| Instruction {
+                        op,
+                        span: Span::default(),
+                    })
+                    .collect(),
+            }],
+            externals: vec![],
+            records: vec![],
+        };
+        let encoded = artifact.to_bytes().expect("format 51 artifact encodes");
+        assert_eq!(Artifact::from_bytes(&encoded).unwrap(), artifact);
+
+        let mut format_50_with_new_op = artifact.clone();
+        format_50_with_new_op.format_version = 50;
+        assert_eq!(
+            format_50_with_new_op.to_bytes().unwrap_err().code,
+            "E_ARTIFACT_VERSION"
+        );
+
+        let mut legacy_header_with_new_instruction = encoded;
+        legacy_header_with_new_instruction[4..8].copy_from_slice(&50u32.to_le_bytes());
+        assert_eq!(
+            Artifact::from_bytes(&legacy_header_with_new_instruction)
+                .unwrap_err()
+                .code,
+            "E_ARTIFACT_VERSION"
+        );
+    }
+
+    #[test]
     fn fused_json_accessors_require_format_50_and_round_trip() {
         let artifact = Artifact {
             format_version: 50,
@@ -2403,6 +2448,10 @@ pub enum Op {
     TextChars,
     TextSlice,
     TextJoin,
+    TextFind,
+    TextSplit,
+    TextReplace,
+    TextTrim,
     BytesFromInts,
     BytesFromText,
     BytesJoin,
@@ -2541,7 +2590,7 @@ pub struct Artifact {
 }
 
 impl Artifact {
-    pub const CURRENT_VERSION: u32 = 50;
+    pub const CURRENT_VERSION: u32 = 51;
     pub fn entry(&self) -> &str {
         &self.entry
     }
@@ -2763,6 +2812,12 @@ impl Artifact {
             return Err(ArtifactError::new(
                 "E_ARTIFACT_VERSION",
                 "fused JSON field accessors require artifact format 50",
+            ));
+        }
+        if self.format_version < 51 && artifact_uses_native_text_search(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "native text search, split, replace and trim require artifact format 51",
             ));
         }
         validate_sort_comparator_effects(self)
@@ -2996,6 +3051,10 @@ impl Artifact {
                     Op::TimeFormatUtcDate => w.u8(168),
                     Op::JsonTryGetText => w.u8(171),
                     Op::JsonTryGetInt => w.u8(172),
+                    Op::TextFind => w.u8(173),
+                    Op::TextSplit => w.u8(174),
+                    Op::TextReplace => w.u8(175),
+                    Op::TextTrim => w.u8(176),
                     Op::ListPushLocal(slot) => {
                         w.u8(103);
                         w.count(*slot)?;
@@ -3363,6 +3422,16 @@ impl Artifact {
                         return Err(ArtifactError::new(
                             "E_ARTIFACT_VERSION",
                             "fused JSON field accessors require artifact format 50",
+                        ));
+                    }
+                    173 if format_version >= 51 => Op::TextFind,
+                    174 if format_version >= 51 => Op::TextSplit,
+                    175 if format_version >= 51 => Op::TextReplace,
+                    176 if format_version >= 51 => Op::TextTrim,
+                    173..=176 => {
+                        return Err(ArtifactError::new(
+                            "E_ARTIFACT_VERSION",
+                            "native text search, split, replace and trim require artifact format 51",
                         ));
                     }
                     168 if format_version >= 48 => Op::TimeFormatUtcDate,
@@ -3921,6 +3990,17 @@ fn artifact_uses_map_record_update(artifact: &Artifact) -> bool {
             matches!(
                 &instruction.op,
                 Op::MapRecordGet(_, _, _) | Op::MapRecordSet(_, _, _)
+            )
+        })
+    })
+}
+
+fn artifact_uses_native_text_search(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function.code.iter().any(|instruction| {
+            matches!(
+                instruction.op,
+                Op::TextFind | Op::TextSplit | Op::TextReplace | Op::TextTrim
             )
         })
     })
