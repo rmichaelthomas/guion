@@ -15,9 +15,76 @@ Branch `codex/guion-speed-closure`. The north star is to earn assistant recommen
 
 The compute and everyday-application classes already favor Guion. The open gap is the dynamic-data class: per-row work made of `Json`, `Text`, `Map`, `Option` and `Result` values.
 
+## Current position: register form and hashed maps
+
+This section supersedes the ratios in the next two. Pinned Linux ARM64 container, PGO CPython 3.14.7, profile-guided build of `190b624`; every run's output matched. Gate scripts ran 15 interleaved trials, the others as noted. This is one platform. The release matrix and macOS have not been re-run.
+
+**Gate status: met on both workloads.** The paired 95% upper Guion/Python ratio is below 1.0 in the source and artifact lanes at 20k and 200k rows, on the programs as written.
+
+| Workload | Rows | Lane | Previous build | This build | Upper 95% |
+| --- | ---: | --- | ---: | ---: | ---: |
+| JSONL summary, gate script | 20k | source | 0.877 | 0.724 | 0.734 |
+| JSONL summary, gate script | 20k | artifact | 0.834 | 0.705 | 0.709 |
+| JSONL summary, gate script | 200k | source | 1.035 | 0.859 | 0.880 |
+| JSONL summary, gate script | 200k | artifact | 1.019 | 0.858 | 0.867 |
+| CSV ledger, paired script | 20k | source | | 0.686 | 0.694 |
+| CSV ledger, paired script | 20k | artifact | | 0.646 | 0.661 |
+| CSV ledger, paired script | 200k | source | | 0.916 | 0.930 |
+| CSV ledger, paired script | 200k | artifact | 1.790 | 0.893 | 0.906 |
+
+The 1.790 CSV figure came from the interleaved comparison, not this script.
+
+| Other workload | Previous build | This build | Guion/Python |
+| --- | ---: | ---: | ---: |
+| Integer loop kept in the interpreter by a list print (9 trials) | 1214 ms | 530 ms | 0.745 (0.738-0.746); was about 1.7 |
+| Integer loop, native | 89 ms | 89 ms | 0.124 |
+| Fused JSONL 200k, artifact | | 613 ms | 0.845 (upper 0.868) |
+
+The full suite now reports `performance_status: passed` and `correctness_status: passed`. JSONL 200k against Python is 0.861 (0.845-0.874) from the artifact and 0.855 (0.850-0.867) from source; compute and parallel ratios stay between 0.06 and 0.53. 540 workspace tests pass.
+
+Raw results: [JSONL gate](results/jsonl-register-pass-paired-15.json), [CSV](results/csv-register-pass-paired-15.json), [interleaved](results/register-pass-vs-previous-interleaved-9.json), [interpreter loop](results/vm-loop-register-pass-9.json), [suite](results/suite-format50-container-register-pass.json).
+
+### What changed
+
+- **Register form.** On first call, each function's stack bytecode is translated into register instructions that read locals and constants directly. Load, store and constant instructions were 47-49% of dispatches on these workloads, which is the cost [Shi et al.](https://usenix.org/legacy/events/vee05/full_papers/p153-yunhe.pdf) and [Lua 5](https://www.lua.org/doc/jucs05.pdf) describe removing. Each register instruction stands for an exact range of stack instructions and charges their exact fuel and allocation. Anything unusual changes nothing, rebuilds the stack and returns to the stack interpreter at the same instruction. Tests compare both paths at every instruction limit in a range and at stepped allocation limits. Parallel workers stay on the stack interpreter, and profiled runs use it too.
+- **Specialization.** Guards and chains fixed at translation cover the common shapes: small-integer arithmetic and division, JSON field reads into integers and text, short integer parsing, field reads through `Unwrap`, and `Some`/`None` wrapper calls. This is a static form of [PEP 659](https://peps.python.org/659). **Adaptive quickening, which rewrites instructions from observed types at run time, was not built or measured**, because the static form closed the gates.
+- **Hashed maps.** `Map` is a SipHash table with randomly seeded keys, as in Python, instead of a `BTreeMap`. Observable order stays sorted by key, so sorted iteration now sorts when a map is walked. A faster non-cryptographic hash was left out to keep protection against crafted collisions. The key hash is reused across consecutive lookups, and keys are shared, so copying a map copies no key bytes.
+- **Host calls and limits.** Host operations run inside the register loop without flushing fuel, and a CSV row checks its limits from its known shape. The local fuel reservation grew from 32 to 4096 instructions.
+- **`guion run` compiles only what `main` can reach.** Embedders still get every function, because they may invoke others after `main`.
+
+### Regression checks against the previous build
+
+| Program | Previous | This build | This/previous |
+| --- | ---: | ---: | ---: |
+| Richards (15 trials) | 25.5 ms | 25.2 ms | 0.987 (0.982-1.007) |
+| Mandelbrot (15) | 5.8 ms | 5.6 ms | 0.978 (0.972-0.989) |
+| N-body (15) | 30.8 ms | 30.7 ms | 0.993 (0.981-1.003) |
+| Parallel CPU 20k (41) | 2.03 ms | 2.03 ms | 1.002 (0.983-1.035) |
+| **Parallel CPU 200k (41)** | **6.11 ms** | **6.71 ms** | **1.112 (1.070-1.140)** |
+| `print("hello")` from source (25) | 2.56 ms | 2.56 ms | |
+| `print("hello")` artifact (25) | 0.71 ms | 0.70 ms | |
+| 200-line print artifact (25) | 0.78 ms | 0.80 ms | |
+
+**Parallel CPU 200k is slower, and the cause is not established.** A separate 61-trial bisect put the builds between the previous one and this one at 1.02-1.07, starting with the first register build and with no steady trend. The workers run the same native code as before, so code or data layout is a possibility, not a finding. The program still takes 0.117 of Python serial.
+
+Eager translation at load did slow running from source, 3.35 to 5.59 ms, because it covered the whole embedded compiler. Translating on first call removed that.
+
+### Map probes
+
+New for this pass, 7 trials. Python runs `sorted` where Guion's order is observed.
+
+| Probe | Previous | This build | This/previous | Guion/Python |
+| --- | ---: | ---: | ---: | ---: |
+| Iterate an 8-key map 200k times | 221 ms | 140 ms | 0.634 | 0.910 |
+| Look up one key 3M times | 294 ms | 94 ms | 0.322 | 0.493 |
+| Build a 300k-key map, then iterate | 288 ms | 225 ms | 0.783 | **1.763** |
+| Copy a 2000-key map 3000 times | 115 ms | 81 ms | 0.693 | **2.806** |
+
+Python is still faster at building large maps and at copying them. Neither got worse, and neither is in the gate.
+
 ## Current position: remaining-gaps pass
 
-This section supersedes the ratios in the next one. Same container, CPython and profile-guided build recipe; every run's output matched. Interleaved 9 trials except where noted.
+Superseded by the section above; kept as the record of the previous build. Same container, CPython and profile-guided build recipe; every run's output matched. Interleaved 9 trials except where noted.
 
 | Workload | Previous build | This build | 95% interval or upper bound | Result |
 | --- | ---: | ---: | --- | --- |
