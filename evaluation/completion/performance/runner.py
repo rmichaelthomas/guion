@@ -40,6 +40,7 @@ RESUMABLE_BASELINE_WORKLOADS = (
     "richards-scheduler",
     "nbody-numeric",
     "mandelbrot-image",
+    "text-processing",
     "parallel-cpu-20000",
     "parallel-cpu-200000",
     "jsonl-summary-data",
@@ -1022,6 +1023,13 @@ def run_suite(
         "richards-scheduler": ("richards.vr", "richards_reference.py", ["9297", "23246"], 30_000_000),
         "nbody-numeric": ("nbody.vr", "nbody.py", None, 300_000_000),
         "mandelbrot-image": ("mandelbrot.vr", "mandelbrot.py", ["155052", "1608"], 30_000_000),
+        # Measured and reported; not yet one of the required speed wins.
+        "text-processing": (
+            "text_processing.vr",
+            "text_processing.py",
+            ["40000", "1010000", "1169999", "40000"],
+            30_000_000,
+        ),
     }
     for workload_id, (source_name, python_name, expected, instruction_limit) in python_cases.items():
         print(f"measuring {workload_id}", file=sys.stderr, flush=True)

@@ -1,14 +1,52 @@
 #!/usr/bin/env python3
-"""Exercise text splitting and joining on long Unicode and many-field inputs."""
+"""Exercise text splitting and joining on long Unicode and many-field inputs, and check that
+text processing time grows linearly with input size."""
 
 from __future__ import annotations
 
 import argparse
 import subprocess
 import tempfile
+import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
+WORKLOAD = ROOT / "evaluation/development/famous_benchmarks/text_processing.vr"
+# Linear work grows about 10x from the small run to the large one; quadratic work grows
+# about 100x. Process startup is included in both, which only lowers the ratio.
+MAX_GROWTH = 30.0
+
+
+def timed_run(binary: Path, project: Path) -> float:
+    started = time.perf_counter()
+    result = subprocess.run([str(binary), "run", str(project)], capture_output=True, text=True, timeout=180)
+    elapsed = time.perf_counter() - started
+    if result.returncode:
+        raise SystemExit(f"text workload failed ({result.returncode}):\n{result.stdout}{result.stderr}")
+    return elapsed
+
+
+def check_linear_growth(binary: Path, scratch: Path) -> None:
+    source = WORKLOAD.read_text(encoding="utf-8")
+    if source.count("40000") != 1:
+        raise SystemExit(f"expected one line count in {WORKLOAD}")
+    timings = {}
+    for lines in (20000, 200000):
+        project = scratch / f"text-growth-{lines}"
+        project.mkdir()
+        (project / "guion.toml").write_text(
+            '[project]\nname = "text-growth"\nversion = "1.0.0"\nentry = "main.gu"\n'
+            '[runtime]\ninstruction_limit = 200000000\nallocation_limit_bytes = 8589934592\n',
+            encoding="utf-8")
+        (project / "main.gu").write_text(source.replace("40000", str(lines)), encoding="utf-8")
+        timed_run(binary, project)  # warms the compilation cache
+        timings[lines] = min(timed_run(binary, project) for _ in range(3))
+    growth = timings[200000] / timings[20000]
+    if growth > MAX_GROWTH:
+        raise SystemExit(
+            f"text processing grew {growth:.1f}x for 10x more input "
+            f"({timings[20000]:.3f}s -> {timings[200000]:.3f}s); expected linear growth")
+    print(f"text processing growth {growth:.1f}x for 10x input")
 
 
 def main() -> None:
@@ -66,6 +104,7 @@ fn main() -> Int:
         if result.returncode or result.stdout != "text scaling passed\n":
             raise SystemExit(f"text scaling failed ({result.returncode}):\n{result.stdout}{result.stderr}")
         print(result.stdout, end="")
+        check_linear_growth(binary, Path(directory))
 
 
 if __name__ == "__main__":
