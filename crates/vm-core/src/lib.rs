@@ -3120,7 +3120,8 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
 }
 
 /// These operations were reached through forwarding wrappers whose return applied the
-/// value limits; the check stays now that they are called directly.
+/// value limits; the check stays now that they are called directly. `CsvNext` checks its own
+/// row, where it knows the shape.
 fn host_result_needs_limit_check(op: &Op) -> bool {
     matches!(
         op,
@@ -3133,7 +3134,6 @@ fn host_result_needs_limit_check(op: &Op) -> bool {
             | Op::JsonTryBool
             | Op::JsonTryFloat
             | Op::FileNextLine
-            | Op::CsvNext
             | Op::TextParseInt
             | Op::TextParseFloat
             | Op::TextCollapseWhitespace

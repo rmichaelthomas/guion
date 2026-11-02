@@ -309,9 +309,7 @@ impl<'a> Translator<'a> {
     }
 
     fn holds_local(&self, slot: u32) -> bool {
-        self.stack
-            .iter()
-            .any(|entry| *entry == Virtual::Deferred(Src::Local(slot)))
+        self.stack.contains(&Virtual::Deferred(Src::Local(slot)))
     }
 
     /// The recipe for the stack below the pending entries.
@@ -426,8 +424,7 @@ impl<'a> Translator<'a> {
         let store = match self.follower(next) {
             Some(Op::Store(slot))
                 if !self.stack[..remaining]
-                    .iter()
-                    .any(|entry| *entry == Virtual::Deferred(Src::Local(*slot as u32))) =>
+                    .contains(&Virtual::Deferred(Src::Local(*slot as u32))) =>
             {
                 Some(*slot as u32)
             }
@@ -857,8 +854,19 @@ pub(super) fn run_registers<H: VmHost>(
         limits,
         depth,
     } = run;
+    // The hash of the last map key. Python keeps a string's hash in the string; a program
+    // tends to look one key up in several maps in a row, so this gets most of the same gain.
+    let mut last_key: Option<(Arc<str>, u64)> = None;
     loop {
         let instruction = &program.code[pc];
+        let mut key_hash = |key: &Arc<str>| match &last_key {
+            Some((last, hash)) if Arc::ptr_eq(last, key) => *hash,
+            _ => {
+                let hash = TextMap::hash_key(key);
+                last_key = Some((Arc::clone(key), hash));
+                hash
+            }
+        };
 
         macro_rules! exit {
             () => {{
@@ -1082,7 +1090,9 @@ pub(super) fn run_registers<H: VmHost>(
             Kind::GreaterEqual => compare!(i64::ge, f64::ge, |left, right| left >= right),
             Kind::Index => {
                 let item = match (read!(instruction.a), read!(instruction.b)) {
-                    (Value::Map(items), Value::Text(key)) => items.get(key.as_ref()),
+                    (Value::Map(items), Value::Text(key)) => {
+                        items.get_hashed(key_hash(key), key.as_ref())
+                    }
                     (Value::List(items), Value::Int(position)) => position
                         .small()
                         .and_then(|position| usize::try_from(position).ok())
@@ -1101,7 +1111,7 @@ pub(super) fn run_registers<H: VmHost>(
                 else {
                     exit!()
                 };
-                let value = items.contains_key(key.as_ref());
+                let value = items.get_hashed(key_hash(key), key.as_ref()).is_some();
                 commit!(0);
                 finish_bool!(value)
             }
@@ -1129,7 +1139,9 @@ pub(super) fn run_registers<H: VmHost>(
                         Some(Value::Text(key)) if key.len() <= limits.max_text_bytes => key,
                         _ => leave!(),
                     };
-                    Arc::get_mut(&mut map).and_then(|entries| entries.get_mut(key.as_ref()))
+                    let hash = key_hash(key);
+                    Arc::get_mut(&mut map)
+                        .and_then(|entries| entries.get_mut_hashed(hash, key.as_ref()))
                 };
                 let Some(existing) = existing else { leave!() };
                 let within_limits = match read_operand(program, locals, stack, instruction.c) {

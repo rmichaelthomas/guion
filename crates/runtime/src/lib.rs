@@ -4219,17 +4219,33 @@ impl VmHost for Instance {
                     }
                 } else {
                     match self.readers.next_csv(handle) {
-                        Ok(Some(row)) => push_stack!(Value::ResultOk(Box::new(Value::OptionSome(
-                            Box::new(Value::Record(
-                                csv_row_record_name(),
-                                Arc::new(vec![
-                                    Value::Int(BigInt::from_usize(row.start_line)),
-                                    Value::from_list_items(
-                                        row.fields.into_iter().map(Value::Text).collect()
-                                    )
-                                ]),
-                            ))
-                        )))),
+                        Ok(Some(row)) => {
+                            let within_limits = self.policy.max_integer_digits >= 19
+                                && row.fields.len() <= self.policy.max_collection_items
+                                && row
+                                    .fields
+                                    .iter()
+                                    .all(|field| field.len() <= self.policy.max_text_bytes);
+                            let result = Value::ResultOk(Box::new(Value::OptionSome(Box::new(
+                                Value::Record(
+                                    csv_row_record_name(),
+                                    Arc::new(vec![
+                                        Value::Int(BigInt::from_usize(row.start_line)),
+                                        Value::from_list_items(
+                                            row.fields.into_iter().map(Value::Text).collect(),
+                                        ),
+                                    ]),
+                                ),
+                            ))));
+                            if !within_limits {
+                                if let Some(error) =
+                                    value_limit_error(&result, &self.policy, instruction.span)
+                                {
+                                    return Err(error);
+                                }
+                            }
+                            push_stack!(result);
+                        }
                         Ok(None) => push_stack!(Value::ResultOk(Box::new(Value::OptionNone))),
                         Err(error) => {
                             let (code, line, column, message) = match error {

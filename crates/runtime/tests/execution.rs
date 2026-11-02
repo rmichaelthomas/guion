@@ -179,6 +179,59 @@ fn main() -> Int:
 }
 
 #[test]
+fn csv_rows_over_the_limits_fail_the_same_on_both_vm_paths() {
+    let source = "import \"std:csv\"\n\nfn main() -> Int:\n    let reader = unwrap(csv_open_reader(\"rows.csv\"))\n    var rows = 0\n    var done = false\n    while not done:\n        let next = unwrap(csv_next_row(reader))\n        if is_some(next):\n            set rows = rows + len(unwrap(next).fields)\n        else:\n            set done = true\n    return rows\n";
+    let root = std::env::temp_dir().join(format!(
+        "guion-csv-limits-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    std::fs::create_dir_all(&root).unwrap();
+    let entry = root.join("main.gu");
+    std::fs::write(&entry, source).unwrap();
+    std::fs::write(root.join("rows.csv"), "a,b\nc,d,e\nlonger,f\n").unwrap();
+    let stdlib_root =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../language/stdlib");
+    let artifact = compile_project_with_roots(
+        &entry,
+        &root,
+        Some(&stdlib_root),
+        &std::collections::HashMap::new(),
+    )
+    .expect("source compiles");
+    let run = |plain: bool, text: usize, items: usize, digits: usize| {
+        let policy = HostPolicy {
+            max_text_bytes: text,
+            max_collection_items: items,
+            max_integer_digits: digits,
+            ..HostPolicy::default()
+        }
+        .with_file_access(root.clone(), true, false);
+        let runtime = if plain {
+            Runtime::vm_only().with_runtime_profile()
+        } else {
+            Runtime::vm_only()
+        };
+        let mut instance = runtime.load(artifact.clone(), policy).expect("loads");
+        format!("{:?}", instance.invoke("main", vec![]))
+    };
+    for (text, items, digits, expected) in [
+        (1000, 1000, 100, "7"),
+        (3, 1000, 100, "R_TEXT_LIMIT"),
+        (1000, 2, 100, "R_COLLECTION_LIMIT"),
+        (1000, 1000, 1, "7"),
+    ] {
+        let register = run(false, text, items, digits);
+        assert!(register.contains(expected), "{register}");
+        assert_eq!(run(true, text, items, digits), register);
+    }
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+#[test]
 fn map_order_is_sorted_by_key_however_it_was_built() {
     let source = "fn main() -> Int:\n    var values: Map[Text, Int] = {}\n    let keys = [\"pear\", \"apple\", \"zebra\", \"mango\", \"é\", \"\", \"Apple\", \"a\", \"ab\"]\n    var index = 0\n    while index < len(keys):\n        set values = map_set(values, keys[index], index)\n        set index = index + 1\n    set values = map_set(values, \"pear\", 40)\n    for name in values:\n        print(\"[\" + name + \"]\")\n        print(values[name])\n    print(values)\n    return 0\n";
     let artifact = compile("map-order.gu", source).expect("source compiles");

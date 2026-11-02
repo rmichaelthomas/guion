@@ -1162,7 +1162,7 @@ mod tests {
 
 use std::{
     cmp::Ordering,
-    collections::{BTreeMap, HashMap, HashSet},
+    collections::{BTreeMap, HashSet},
     fmt,
     ops::{Add, Mul, Sub},
     sync::Arc,
@@ -1880,9 +1880,9 @@ impl std::fmt::Display for RecordName {
 }
 
 /// `Map`'s storage: hashed for lookups, and sorted by key whenever it is observed in order.
-#[derive(Clone, Default, PartialEq)]
+#[derive(Clone, Default)]
 pub struct TextMap {
-    entries: HashMap<String, Value>,
+    entries: hashbrown::HashTable<(String, Value)>,
 }
 
 impl TextMap {
@@ -1892,6 +1892,16 @@ impl TextMap {
 
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// The hash of a key, valid for every map in this process. SipHash with a random key, as
+    /// in Python, so that input data cannot be crafted to collide.
+    #[inline]
+    pub fn hash_key(key: &str) -> u64 {
+        use std::hash::BuildHasher;
+        static STATE: std::sync::OnceLock<std::collections::hash_map::RandomState> =
+            std::sync::OnceLock::new();
+        STATE.get_or_init(Default::default).hash_one(key)
     }
 
     pub fn len(&self) -> usize {
@@ -1904,34 +1914,62 @@ impl TextMap {
 
     #[inline]
     pub fn get(&self, key: &str) -> Option<&Value> {
-        self.entries.get(key)
+        self.get_hashed(Self::hash_key(key), key)
+    }
+
+    /// `get` for a caller that already has `hash_key(key)`.
+    #[inline]
+    pub fn get_hashed(&self, hash: u64, key: &str) -> Option<&Value> {
+        self.entries
+            .find(hash, |entry| entry.0 == key)
+            .map(|entry| &entry.1)
     }
 
     pub fn get_key_value(&self, key: &str) -> Option<(&String, &Value)> {
-        self.entries.get_key_value(key)
+        self.entries
+            .find(Self::hash_key(key), |entry| entry.0 == key)
+            .map(|entry| (&entry.0, &entry.1))
     }
 
     #[inline]
     pub fn get_mut(&mut self, key: &str) -> Option<&mut Value> {
-        self.entries.get_mut(key)
+        self.get_mut_hashed(Self::hash_key(key), key)
+    }
+
+    /// `get_mut` for a caller that already has `hash_key(key)`.
+    #[inline]
+    pub fn get_mut_hashed(&mut self, hash: u64, key: &str) -> Option<&mut Value> {
+        self.entries
+            .find_mut(hash, |entry| entry.0 == key)
+            .map(|entry| &mut entry.1)
     }
 
     #[inline]
     pub fn contains_key(&self, key: &str) -> bool {
-        self.entries.contains_key(key)
+        self.get(key).is_some()
     }
 
     pub fn insert(&mut self, key: String, value: Value) -> Option<Value> {
-        self.entries.insert(key, value)
+        let hash = Self::hash_key(&key);
+        if let Some(existing) = self.get_mut_hashed(hash, &key) {
+            return Some(std::mem::replace(existing, value));
+        }
+        self.entries
+            .insert_unique(hash, (key, value), |entry| Self::hash_key(&entry.0));
+        None
     }
 
     pub fn remove(&mut self, key: &str) -> Option<Value> {
-        self.entries.remove(key)
+        let entry = self
+            .entries
+            .find_entry(Self::hash_key(key), |entry| entry.0 == key)
+            .ok()?;
+        Some(entry.remove().0 .1)
     }
 
     /// Entries in key order.
     pub fn iter(&self) -> std::vec::IntoIter<(&String, &Value)> {
-        let mut entries: Vec<_> = self.entries.iter().collect();
+        let mut entries: Vec<_> = self.iter_unordered().collect();
         entries.sort_unstable_by_key(|entry| entry.0);
         entries.into_iter()
     }
@@ -1948,7 +1986,16 @@ impl TextMap {
 
     /// Entries in no particular order, for work whose result does not depend on it.
     pub fn iter_unordered(&self) -> impl ExactSizeIterator<Item = (&String, &Value)> {
-        self.entries.iter()
+        self.entries.iter().map(|entry| (&entry.0, &entry.1))
+    }
+}
+
+impl PartialEq for TextMap {
+    fn eq(&self, other: &Self) -> bool {
+        self.len() == other.len()
+            && self
+                .iter_unordered()
+                .all(|(key, value)| other.get(key) == Some(value))
     }
 }
 
@@ -1960,9 +2007,11 @@ impl std::fmt::Debug for TextMap {
 
 impl FromIterator<(String, Value)> for TextMap {
     fn from_iter<I: IntoIterator<Item = (String, Value)>>(entries: I) -> Self {
-        Self {
-            entries: entries.into_iter().collect(),
+        let mut map = Self::new();
+        for (key, value) in entries {
+            map.insert(key, value);
         }
+        map
     }
 }
 
