@@ -121,7 +121,7 @@ test('every claim appears exactly once, as a full receipt with a mailto', () => 
 
 test('Receipts holds the speed, behaviour and reach claims and a chart of every plotted ratio', () => {
   const markup = section('receipts');
-  for (const id of ['richards', 'short-source', 'nine-apps', 'jsonl-200k', 'lockfile', 'conformance', 'concurrency-cancel', 'targets']) assert.ok(markup.includes(`data-claim="${id}"`), id);
+  for (const id of ['richards', 'short-source', 'nine-apps', 'server-gate', 'lockfile', 'conformance', 'concurrency-cancel', 'targets']) assert.ok(markup.includes(`data-claim="${id}"`), id);
   assert.ok(markup.includes('class="ratio-chart"'));
   for (const entry of ratios) assert.ok(markup.includes(entry.label), entry.label);
   for (const id of ['f-all', 'f-speed', 'f-behaviour', 'f-reach']) assert.equal(count(markup, new RegExp(`id="${id}"`, 'g')), 1, id);

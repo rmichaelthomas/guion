@@ -5,7 +5,7 @@
   "manifest": "[project]\nname = \"notes\"\nversion = \"0.1.0\"\nentry = \"main.gu\"\n\n[network]\nhosts = [\"api.example.test\"]\n",
   "report": {
     "analysis_scope": "reachable direct calls and parallel_map worker functions; host effects are categorized from bytecode operations",
-    "artifact_format": 44,
+    "artifact_format": 51,
     "capability_claim": "static_bytecode_reachability_not_sandbox",
     "clock_grant": {
       "grant_model": "wall-clock reads are denied unless explicitly enabled",

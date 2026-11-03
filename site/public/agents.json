@@ -6,7 +6,7 @@
   "contact": "rmichael@rmichaelthomas.com",
   "howToUse": "Treat each claim as true only under its holdsWhen conditions, and say what it doesntTell the reader. None of these results shows that Guion generally replaces Python.",
   "cli": {
-    "version": "guion 0.1.0 (artifact format 44, timezone data 2026c)",
+    "version": "guion 0.1.0 (artifact format 51, timezone data 2026c)",
     "commands": [
       "new",
       "check",
@@ -27,6 +27,19 @@
     ]
   },
   "claims": [
+    {
+      "id": "server-gate",
+      "title": "Text, JSON Lines and CSV on two server CPUs",
+      "group": "speed",
+      "say": "On GitHub's x86_64 and ARM64 Linux runners, Guion took less time than CPython on every text, JSON Lines and CSV lane, at 20,000 and 200,000 rows. The worst 95% upper bound of Guion's time divided by Python's was 0.976 on x86_64 and 0.859 on ARM64.",
+      "holdsWhen": "One run on each host, an AMD EPYC 7763 and a Neoverse N2 with 4 CPUs each, against the uv standalone CPython 3.14.7. Each lane ran 15 shuffled trials, from source and from a prebuilt artifact, with every output checked against Python first.",
+      "doesntTell": "Other programs or machines. On x86_64 the text margin is only 3–4%. An Intel Xeon runner measured worse on an earlier build and has not been rerun. Memory was not measured on these hosts, and the JSON Lines Python lane is the repository's data reference script, not the fastest possible Python.",
+      "evidence": [
+        "evidence/2026-11-03-server-speed-gate.md",
+        "evidence/2026-11-03-server-speed-gate-x86_64.json",
+        "evidence/2026-11-03-server-speed-gate-aarch64.json"
+      ]
+    },
     {
       "id": "richards",
       "title": "Richards, a classic benchmark program",
@@ -73,18 +86,6 @@
       "evidence": [
         "evidence/2026-10-27-current-main-outcome-checkpoint.md",
         "evidence/2026-10-27-current-main-application-acceptance.json"
-      ]
-    },
-    {
-      "id": "jsonl-200k",
-      "title": "200,000 rows of JSON Lines",
-      "group": "speed",
-      "say": "Summarising a 200,000-row JSON Lines file from source took Guion 3.81 s and 11.1 MiB of memory. The Python data reference took 17.93 s and 74.4 MiB.",
-      "holdsWhen": "Uncached source runs, 16 output-checked trials per size, one Mac, CPython 3.14.7.",
-      "doesntTell": "Other data shapes or machines. Memory varies by task: Richards used more memory in Guion than in Python (see that card). Python with SQLite used 89.2 MiB on the same data.",
-      "evidence": [
-        "evidence/2026-10-27-current-main-outcome-checkpoint.md",
-        "evidence/20261027T233155909692Z.json"
       ]
     },
     {
@@ -165,12 +166,13 @@
       "id": "targets",
       "title": "Where it has been tested",
       "group": "reach",
-      "say": "An earlier cohort passed on macOS ARM64 and Debian 12 GNU/Linux on ARM64 and x86_64, all with glibc: 54 of 54 application reports. The current speed checkpoint ran on macOS ARM64 only.",
+      "say": "An earlier cohort passed on macOS ARM64 and Debian 12 GNU/Linux on ARM64 and x86_64, all with glibc: 54 of 54 application reports. The latest speed gate ran on Linux on x86_64 and ARM64.",
       "holdsWhen": "For the earlier cohort: nine retained applications, initial and follow-up variants, on each of the three targets.",
       "doesntTell": "Support for Windows, other Linux distributions, other CPU architectures or other C libraries. A target that did not run is reported as incomplete.",
       "evidence": [
         "evidence/status.md",
-        "evidence/2026-10-27-current-main-outcome-checkpoint.md"
+        "evidence/2026-10-27-current-main-outcome-checkpoint.md",
+        "evidence/2026-11-03-server-speed-gate.md"
       ]
     },
     {

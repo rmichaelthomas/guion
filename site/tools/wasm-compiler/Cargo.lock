@@ -69,6 +69,7 @@ dependencies = [
 name = "guion-model"
 version = "0.1.0"
 dependencies = [
+ "hashbrown",
  "serde",
  "serde_json",
 ]
@@ -80,6 +81,12 @@ dependencies = [
  "guion-compiler",
  "guion-model",
 ]
+
+[[package]]
+name = "hashbrown"
+version = "0.16.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "841d1cc9bed7f9236f321df977030373f4a4163ae1a7dbfe1a51a2c1a51d9100"
 
 [[package]]
 name = "itoa"

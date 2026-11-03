@@ -6,7 +6,8 @@
 //! conditional jump into the instruction that produced the value.
 //!
 //! Each instruction stands for a contiguous range of original instructions starting at
-//! `start`. Running it charges exactly the fuel and allocation that range would. When
+//! `start`, or, for a jump through a short-circuit test, for the instructions control passes
+//! through. Running it charges exactly the fuel and allocation those would. When
 //! anything is out of the ordinary (a type the fast path does not handle, an error, a
 //! charge that does not fit, an operation with no register form) it changes nothing,
 //! rebuilds the stack the original code would have at `start`, and hands back to the stack
@@ -76,6 +77,11 @@ enum Kind {
     MapHas,
     /// `map_set` of an existing key of a unique map, assigned back to its own local.
     MapSetLocal,
+    /// `set m = map_set(m, k, m[k] + n)`, with `n` an integer operand or, when `unwrap`, the
+    /// `unwrap` of one: the entry is found once and updated in place.
+    MapAddLocal {
+        unwrap: bool,
+    },
     Length,
     Unwrap,
     GetField {
@@ -293,6 +299,68 @@ fn host_operation_spends_no_fuel(op: &Op) -> bool {
     )
 }
 
+/// A `Jump` to a forward `JumpIfFalse`: the position of the test and where it jumps.
+fn jump_to_test(code: &[guion_model::Instruction], ip: usize) -> Option<(usize, usize)> {
+    let Op::Jump(test) = code.get(ip)?.op else {
+        return None;
+    };
+    let Op::JumpIfFalse(target) = code.get(test)?.op else {
+        return None;
+    };
+    // Forward only, so no cancellation poll is skipped.
+    (test > ip && target > test).then_some((test, target))
+}
+
+/// A `Const(Bool)` whose `Jump` is threaded: where it goes, the fuel of the instructions it
+/// stands for, and how many original instructions after the `Const` it covers.
+#[derive(Clone, Copy)]
+struct Threaded {
+    target: u32,
+    fuel: u32,
+    covered: usize,
+}
+
+/// `a or b` compiles to `a; JumpIfFalse(L1); Const(true); Jump(L2); L1: b; L2: JumpIfFalse(T)`,
+/// and `a and b` to `a; JumpIfFalse(L1); b; Jump(L2); L1: Const(false); L2: JumpIfFalse(T)`.
+/// A `Const` there knows what `L2` will decide, so it goes straight to its destination,
+/// following chains of them; `b`'s own jump to `L2` becomes a branch (see `emit_test_jump`).
+/// With no jump into `L2` left, `b` in an `or` branches on its own instead of meeting the
+/// other path there.
+fn thread_known_tests(
+    code: &[guion_model::Instruction],
+    is_leader: &[bool],
+) -> Vec<Option<Threaded>> {
+    let known_test = |ip: usize| -> Option<(usize, u32, usize)> {
+        let Op::Const(Value::Bool(value)) = code.get(ip)?.op else {
+            return None;
+        };
+        let (test, target, fuel, covered) = match code.get(ip + 1)?.op {
+            Op::JumpIfFalse(target) if target > ip + 1 => (ip + 1, target, 2, 0),
+            // Nothing else may enter the `Jump`, since it is skipped.
+            Op::Jump(_) if !is_leader[ip + 1] => {
+                let (test, target) = jump_to_test(code, ip + 1)?;
+                (test, target, 3, 1)
+            }
+            _ => return None,
+        };
+        Some((if value { test + 1 } else { target }, fuel, covered))
+    };
+    (0..code.len())
+        .map(|ip| {
+            let (mut target, mut fuel, covered) = known_test(ip)?;
+            while let Some((next, more, _)) = known_test(target) {
+                target = next;
+                fuel += more;
+            }
+            Some(Threaded {
+                target: target as u32,
+                fuel,
+                covered,
+            })
+        })
+        .collect()
+}
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Virtual {
     Deferred(Src),
@@ -303,6 +371,7 @@ struct Translator<'a> {
     function: &'a guion_model::Function,
     constructors: &'a [Option<Kind>],
     is_leader: Vec<bool>,
+    threaded: Vec<Option<Threaded>>,
     code: Vec<Instr>,
     consts: Vec<Value>,
     charges: Vec<Src>,
@@ -318,18 +387,49 @@ struct Translator<'a> {
 
 impl<'a> Translator<'a> {
     fn new(function: &'a guion_model::Function, constructors: &'a [Option<Kind>]) -> Self {
-        let mut is_leader = vec![false; function.code.len() + 1];
-        for instruction in &function.code {
+        let code = &function.code;
+        let mut is_leader = vec![false; code.len() + 1];
+        for instruction in code {
             if let Op::Jump(target) | Op::JumpIfFalse(target) = &instruction.op {
                 if let Some(leader) = is_leader.get_mut(*target) {
                     *leader = true;
                 }
             }
         }
+        let threaded = thread_known_tests(code, &is_leader);
+        // Leaders again, with each jump landing where it now goes.
+        is_leader.iter_mut().for_each(|leader| *leader = false);
+        let mut lead = |target: usize| {
+            if let Some(leader) = is_leader.get_mut(target) {
+                *leader = true;
+            }
+        };
+        for (ip, instruction) in code.iter().enumerate() {
+            if let Some(threaded) = threaded[ip] {
+                lead(threaded.target as usize);
+            }
+            let skipped = ip
+                .checked_sub(1)
+                .and_then(|before| threaded[before])
+                .is_some_and(|threaded| threaded.covered == 1);
+            match instruction.op {
+                _ if skipped => {}
+                Op::Jump(target) => match jump_to_test(code, ip) {
+                    Some((test, target)) => {
+                        lead(test + 1);
+                        lead(target);
+                    }
+                    None => lead(target),
+                },
+                Op::JumpIfFalse(target) => lead(target),
+                _ => {}
+            }
+        }
         Self {
             function,
             constructors,
             is_leader,
+            threaded,
             code: Vec::new(),
             consts: Vec::new(),
             charges: Vec::new(),
@@ -515,8 +615,60 @@ impl<'a> Translator<'a> {
                 self.emit(kind, arguments, ip, dest, folded as u32);
                 return folded;
             }
+            let code = &self.function.code;
+            let test = match (self.follower(ip + 1), self.follower(ip + 2)) {
+                (Some(Op::Jump(_)), _) => jump_to_test(code, ip + 1).map(|test| (test, false, 1)),
+                (Some(Op::Not), Some(Op::Jump(_))) => {
+                    jump_to_test(code, ip + 2).map(|test| (test, true, 2))
+                }
+                _ => None,
+            };
+            if let Some(((test, target), jump_when, covered)) = test {
+                self.emit_test_jump(kind, arguments, ip, test, target, jump_when, covered);
+                return covered;
+            }
         }
         self.emit_value(kind, arguments, ip)
+    }
+
+    /// A `Bool` result whose next `Jump` goes to a `JumpIfFalse`: branch on it here, then go
+    /// on after the test. Both ways spend the fuel of the `Jump` and the test.
+    #[allow(clippy::too_many_arguments)]
+    fn emit_test_jump(
+        &mut self,
+        kind: Kind,
+        arguments: usize,
+        ip: usize,
+        test: usize,
+        target: usize,
+        jump_when: bool,
+        covered: usize,
+    ) {
+        let dest = Dest::Branch {
+            target: target as u32,
+            jump_when,
+            backward: false,
+        };
+        self.emit(kind, arguments, ip, dest, covered as u32 + 1);
+        let start = self.code.last().map_or(ip as u32, |branch| branch.start);
+        let charges = self.charges.len() as u32;
+        // No fuel, and the branch's start, so it is never where the stack interpreter enters.
+        self.code.push(Instr {
+            kind: Kind::Jump {
+                target: (test + 1) as u32,
+                backward: false,
+            },
+            a: Src::Stack(0),
+            b: Src::Stack(0),
+            c: Src::Stack(0),
+            dest: Dest::Local(u32::MAX),
+            start,
+            fuel: 0,
+            pops: 0,
+            charges_start: charges,
+            charges_end: charges,
+            recipe: NO_RECIPE,
+        });
     }
 
     /// Make the virtual stack real, so the current position is a clean boundary.
@@ -626,6 +778,68 @@ impl<'a> Translator<'a> {
         });
     }
 
+    /// Fold the `Index`, optional `Unwrap` and `Add` that computed the value of the
+    /// `MapSetLocal` just emitted into it, when they read the same map and key.
+    fn fuse_map_add(&mut self) {
+        let length = self.code.len();
+        let Some(&set) = self.code.last() else { return };
+        let Some(&add) = length.checked_sub(2).map(|at| &self.code[at]) else {
+            return;
+        };
+        if add.kind != Kind::Add || add.dest != Dest::Push || set.c != Src::Stack(0) {
+            return;
+        }
+        let (first, addend, unwrap) = match (add.a, add.b, add.pops) {
+            (Src::Stack(0), addend @ (Src::Local(_) | Src::Const(_)), 1) => {
+                (length - 3, addend, false)
+            }
+            (Src::Stack(1), Src::Stack(0), 2) => {
+                let Some(&produce) = length.checked_sub(3).map(|at| &self.code[at]) else {
+                    return;
+                };
+                if produce.kind != Kind::Unwrap
+                    || produce.dest != Dest::Push
+                    || matches!(produce.a, Src::Stack(_))
+                {
+                    return;
+                }
+                (length - 4, produce.a, true)
+            }
+            _ => return,
+        };
+        let Some(&index) = self.code.get(first) else {
+            return;
+        };
+        let fused = &self.code[first..];
+        let contiguous = fused
+            .windows(2)
+            .all(|pair| pair[0].charges_end == pair[1].charges_start);
+        if index.kind != Kind::Index
+            || index.dest != Dest::Push
+            || index.a != set.a
+            || index.b != set.b
+            || matches!(set.b, Src::Stack(_))
+            || !contiguous
+        {
+            return;
+        }
+        let fuel = fused.iter().map(|instruction| instruction.fuel).sum();
+        self.code.truncate(first);
+        self.code.push(Instr {
+            kind: Kind::MapAddLocal { unwrap },
+            a: set.a,
+            b: set.b,
+            c: addend,
+            dest: set.dest,
+            start: index.start,
+            fuel,
+            pops: 0,
+            charges_start: index.charges_start,
+            charges_end: set.charges_end,
+            recipe: index.recipe,
+        });
+    }
+
     fn translate(mut self) -> RegisterProgram {
         let length = self.function.code.len();
         let mut ip = 0;
@@ -647,6 +861,23 @@ impl<'a> Translator<'a> {
             Op::Load(slot) => {
                 self.push_deferred(Src::Local(*slot as u32), ip);
                 0
+            }
+            Op::Const(_) if self.threaded[ip].is_some() => {
+                let Some(threaded) = self.threaded[ip] else {
+                    unreachable!("checked by the guard")
+                };
+                self.realize_all(ip);
+                let kind = Kind::Jump {
+                    target: threaded.target,
+                    backward: false,
+                };
+                self.emit(kind, 0, ip, Dest::Local(u32::MAX), threaded.fuel - 1);
+                // A test this falls into that nothing else now enters needs no register form.
+                if threaded.covered == 0 && !self.is_leader[ip + 1] {
+                    1
+                } else {
+                    threaded.covered
+                }
             }
             Op::Const(value) => {
                 match self.const_index(value) {
@@ -803,11 +1034,16 @@ impl<'a> Translator<'a> {
                     return 0;
                 }
                 self.emit(Kind::MapSetLocal, 3, ip, Dest::Local(store), 1);
+                self.fuse_map_add();
                 1
             }
             Op::Jump(target) => {
                 let target = *target;
                 self.realize_all(ip);
+                if let Some((test, target)) = jump_to_test(code, ip) {
+                    self.emit_test_jump(Kind::Truth, 1, ip, test, target, false, 0);
+                    return 0;
+                }
                 self.emit(
                     Kind::Jump {
                         target: target as u32,
@@ -1333,6 +1569,26 @@ pub(super) fn run_registers<H: VmHost>(
                 locals[slot as usize] = Value::Map(map);
                 pc += 1;
             }
+            Kind::MapAddLocal { unwrap } => {
+                let Value::Text(key) = read!(instruction.b) else {
+                    exit!()
+                };
+                let hash = key_hash(key);
+                if !add_to_map_entry(
+                    program,
+                    instruction,
+                    unwrap,
+                    hash,
+                    locals,
+                    stack,
+                    fuel,
+                    budget,
+                    limits,
+                ) {
+                    exit!();
+                }
+                pc += 1;
+            }
             Kind::Length => {
                 let length = match read!(instruction.a) {
                     Value::List(items) => items.len(),
@@ -1710,6 +1966,83 @@ fn new_text(text: SharedText) -> (usize, Value) {
         size_of::<String>().saturating_add(text.len()),
         Value::Text(text),
     )
+}
+
+/// `Kind::MapAddLocal`, out of the dispatch loop: true when the entry was updated and the
+/// range charged; false, with nothing changed, when the stack interpreter must run it.
+#[inline(never)]
+#[allow(clippy::too_many_arguments)]
+fn add_to_map_entry(
+    program: &RegisterProgram,
+    instruction: &Instr,
+    unwrap: bool,
+    hash: u64,
+    locals: &mut [Value],
+    stack: &[Value],
+    fuel: &mut InstructionFuel<'_>,
+    budget: &Budget,
+    limits: &VmLimits,
+) -> bool {
+    let Src::Local(slot) = instruction.a else {
+        return false;
+    };
+    if !matches!(locals[slot as usize], Value::Map(_)) {
+        return false;
+    }
+    // Out of the local so the key and addend can still be read from the others.
+    let Value::Map(mut map) = std::mem::replace(&mut locals[slot as usize], Value::Unit) else {
+        unreachable!("the local was checked just above")
+    };
+    let mut update = || -> Option<()> {
+        let addend = match (read_operand(program, locals, stack, instruction.c)?, unwrap) {
+            (Value::ResultOk(payload) | Value::OptionSome(payload), true) => payload.as_ref(),
+            (value, false) => value,
+            _ => return None,
+        };
+        let Value::Int(addend) = addend else {
+            return None;
+        };
+        let addend = addend.small()?;
+        let Value::Text(key) = read_operand(program, locals, stack, instruction.b)? else {
+            return None;
+        };
+        if key.len() > limits.max_text_bytes {
+            return None;
+        }
+        let existing = Shared::get_mut(&mut map)?.get_mut_hashed(hash, key.as_ref())?;
+        let Value::Int(current) = existing else {
+            return None;
+        };
+        let sum = current.small()?.checked_add(addend)?;
+        if fuel.remaining < u64::from(instruction.fuel) {
+            return None;
+        }
+        let mut charge = 0usize;
+        for source in
+            &program.charges[instruction.charges_start as usize..instruction.charges_end as usize]
+        {
+            let value = match *source {
+                // The map itself charges nothing, and it is out of its local here.
+                Src::Local(charged) if charged == slot => continue,
+                Src::Local(charged) => &locals[charged as usize],
+                Src::Const(index) => &program.consts[index as usize],
+                Src::Stack(_) => unreachable!("charges only name locals and constants"),
+            };
+            charge = charge.saturating_add(cloned_value_allocation_fast(value));
+        }
+        if charge != 0 && !budget.allocate(charge) {
+            return None;
+        }
+        fuel.remaining -= u64::from(instruction.fuel);
+        drop_value_fast(std::mem::replace(
+            existing,
+            Value::Int(BigInt::from_i64(sum)),
+        ));
+        Some(())
+    };
+    let updated = update().is_some();
+    locals[slot as usize] = Value::Map(map);
+    updated
 }
 
 #[inline(never)]

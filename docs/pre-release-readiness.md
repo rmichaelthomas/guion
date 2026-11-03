@@ -27,6 +27,8 @@ The current-format `evaluation/development/guion_feed_digest` app uses managed p
 
 ## Performance result and boundary
 
+The latest speed result is the 2026-11-03 [server speed gate](../evaluation/completion/results/real-task-sprint/2026-11-03-server-speed-gate.md): Guion took less time than the uv standalone CPython 3.14.7 on every text, JSONL and CSV lane at 20,000 and 200,000 rows on x86_64 (AMD EPYC 7763, worst upper bound 0.976) and ARM64 (Neoverse N2, 0.859). The cohorts below are earlier, macOS ARM64 measurements.
+
 The [real-task and runtime sprint](../evaluation/completion/results/real-task-sprint/summary.md) contains several historical cohorts. Its earlier post-VM-core Richards result was 45.67 ms for Guion versus 70.16 ms for CPython 3.14.7; the current-main measurement below supersedes that result. The older three-target records do not by themselves establish that a later build passed on all three targets.
 
 The performance report compares the installed Guion artifact with pinned, GIL-enabled CPython 3.14.7 on macOS ARM64. Each reported ratio is the median of paired per-trial ratios (Guion time divided by Python time); below 1.0 means the Guion artifact was faster for that named comparison.

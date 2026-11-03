@@ -596,7 +596,7 @@
 <a class="skip" href="#content">Skip to the page</a>
 <input type="radio" name="view" id="view-plain" class="sr-only" checked>
 <input type="radio" name="view" id="view-dev" class="sr-only">
-<div class="sitebar"><div class="shell"><span class="pillstatus">Pre-release · No public Guion release has been published</span><span class="v-dev mono">artifact format 44 · browser ABI 1.0</span></div></div>
+<div class="sitebar"><div class="shell"><span class="pillstatus">Pre-release · No public Guion release has been published</span><span class="v-dev mono">artifact format 51 · browser ABI 1.0</span></div></div>
 <header class="navwrap"><div class="shell nav">
 <a class="wordmark" href="#top"><span class="brandmark" aria-hidden="true">g</span><span class="wm">guion</span></a>
 <nav class="navlinks" data-ahi="ahi.navigation-journeys.chapter-rail" aria-label="Page sections"><a href="#try">Try it</a><a href="#why">Why</a><a href="#lifecycle">One command</a><a href="#read">Read it</a><a href="#permissions">Permissions</a><a href="#receipts">Receipts</a><a href="#python">Python</a><a href="#agents">Agents</a><a href="#story">Story</a></nav>
@@ -611,7 +611,7 @@
 <div class="ahi"><section id="slot-hero-headline" class="instrument family-typography-reading renderer-kinetic-headline interaction-progressive-css" data-ahi="ahi.typography-reading.kinetic-headline" data-ahi-renderer="kinetic-headline" data-ahi-element="section" data-ahi-version="1"><section class="instrument-semantic instrument-semantic-section" data-ahi-semantic="section"><header class="kinetic-headline"><h2>A language for the work ahead.</h2><p class="headline-deck">Programming, re-examined</p><p>A general-purpose programming language and toolchain built around one challenge: make useful software easier to write, understand, run, and deliver.</p></header></section></section></div>
 <div class="v-dev hero-specs">
 <dl class="specs">
-<div><dt>Version</dt><dd><code>guion 0.1.0 (artifact format 44, timezone data 2026c)</code></dd></div>
+<div><dt>Version</dt><dd><code>guion 0.1.0 (artifact format 51, timezone data 2026c)</code></dd></div>
 <div><dt>Files</dt><dd><code>.gu</code> source · <code>.gub</code> artifact · <code>guion.toml</code> · <code>guion.lock</code> · <code>.guion/</code></dd></div>
 <div><dt>Compiler</dt><dd>self-hosted, written in Guion; normal source runs use the in-process Rust compiler</dd></div>
 <div><dt>Runtime</dt><dd>Rust, with explicit host permissions</dd></div>
@@ -644,7 +644,7 @@
 <rect x="336" y="268" width="288" height="230" rx="18" fill="#10261e" stroke="#11251d" stroke-width="2.5"/>
 <text x="396" y="302" font-family="ui-monospace,Menlo,monospace" font-size="14" fill="#d9f987">hello.gub · 342 bytes</text>
 <g font-family="ui-monospace,Menlo,monospace" font-size="12" fill="#e7efe5" style="white-space:pre">
-<text x="372" y="346" xml:space="preserve">56 52 54 41 2c 00 00 00  <tspan fill="#7fa592">VRTA,...</tspan></text>
+<text x="372" y="346" xml:space="preserve">56 52 54 41 33 00 00 00  <tspan fill="#7fa592">VRTA3...</tspan></text>
 <text x="372" y="374" xml:space="preserve">0d 00 00 00 70 6c 61 79  <tspan fill="#7fa592">....play</tspan></text>
 <text x="372" y="402" xml:space="preserve">67 72 6f 75 6e 64 2e 67  <tspan fill="#7fa592">ground.g</tspan></text>
 <text x="372" y="430" xml:space="preserve" fill="#7fa592">…</text>
@@ -706,7 +706,7 @@
 <tr><th scope="row">Artifact</th><td>at most 1 MiB</td></tr>
 <tr><th scope="row">Host</th><td>no capabilities granted; file, network, database, clock and process operations return <code>R_HOST_UNSUPPORTED</code></td></tr>
 <tr><th scope="row">Call</th><td><code>execute_artifact_v1</code> with <code>entry: "main"</code>, <code>capabilities: []</code>; the response JSON is the source of truth</td></tr>
-<tr><th scope="row">Weight</th><td>1.3 MB of Wasm, fetched on first Run</td></tr>
+<tr><th scope="row">Weight</th><td>1.6 MB of Wasm, fetched on first Run</td></tr>
 </tbody>
 </table>
 </div>
@@ -942,9 +942,9 @@ entry = &quot;main.gu&quot;
 [network]
 hosts = [&quot;api.example.test&quot;]
 </code></pre></div>
-<div><p class="mono muted">report (schema_version 1, captured with guion 0.1.0 (artifact format 44, timezone data 2026c))</p><pre class="code light"><code>{
+<div><p class="mono muted">report (schema_version 1, captured with guion 0.1.0 (artifact format 51, timezone data 2026c))</p><pre class="code light"><code>{
   <span class="k">&quot;analysis_scope&quot;</span>: &quot;reachable direct calls and parallel_map worker functions; host effects are categorized from bytecode operations&quot;,
-  <span class="k">&quot;artifact_format&quot;</span>: 44,
+  <span class="k">&quot;artifact_format&quot;</span>: 51,
   <span class="k">&quot;capability_claim&quot;</span>: &quot;static_bytecode_reachability_not_sandbox&quot;,
   <span class="k">&quot;clock_grant&quot;</span>: {
     <span class="k">&quot;grant_model&quot;</span>: &quot;wall-clock reads are denied unless explicitly enabled&quot;,
@@ -1022,25 +1022,25 @@ hosts = [&quot;api.example.test&quot;]
 </div>
 <div class="receipts-top">
 <figure class="ratio-figure" data-ahi="ahi.relationships-diagrams.comparison-bridge">
-<svg class="ratio-chart" viewBox="0 0 960 602" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="ratio-title ratio-desc">
+<svg class="ratio-chart" viewBox="0 0 960 772" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="ratio-title ratio-desc">
 <title id="ratio-title">Guion's time as a fraction of the comparison's time, on a log scale</title>
 <desc id="ratio-desc">Each dot is the ratio of Guion's median time to the comparison's, with its 95% interval as a line. A dot left of the dashed line means Guion took less time; right of it means Guion took more.</desc>
-<rect class="band-fast" x="360" y="46" width="465.07" height="498"/>
-<rect class="band-slow" x="825.07" y="46" width="94.93" height="498"/>
+<rect class="band-fast" x="360" y="46" width="465.07" height="668"/>
+<rect class="band-slow" x="825.07" y="46" width="94.93" height="668"/>
 <text class="band-label" x="815.07" y="34" text-anchor="end">← Guion faster</text>
 <text class="band-label" x="835.07" y="34">Guion slower →</text>
-<line class="grid" x1="360" x2="360" y1="46" y2="562"/>
-<text class="tick" x="360" y="582" text-anchor="middle">0.1×</text>
-<line class="grid" x1="500" x2="500" y1="46" y2="562"/>
-<text class="tick" x="500" y="582" text-anchor="middle">0.2×</text>
-<line class="grid" x1="685.07" x2="685.07" y1="46" y2="562"/>
-<text class="tick" x="685.07" y="582" text-anchor="middle">0.5×</text>
-<line class="grid" x1="825.07" x2="825.07" y1="46" y2="562"/>
-<text class="tick" x="825.07" y="582" text-anchor="middle">1×</text>
-<line class="grid" x1="906.96" x2="906.96" y1="46" y2="562"/>
-<text class="tick" x="906.96" y="582" text-anchor="middle">1.5×</text>
-<line data-reference="1" class="reference" x1="825.07" x2="825.07" y1="42" y2="562"/>
-<text class="reference-label" x="825.07" y="598" text-anchor="middle">same time as Python</text>
+<line class="grid" x1="360" x2="360" y1="46" y2="732"/>
+<text class="tick" x="360" y="752" text-anchor="middle">0.1×</text>
+<line class="grid" x1="500" x2="500" y1="46" y2="732"/>
+<text class="tick" x="500" y="752" text-anchor="middle">0.2×</text>
+<line class="grid" x1="685.07" x2="685.07" y1="46" y2="732"/>
+<text class="tick" x="685.07" y="752" text-anchor="middle">0.5×</text>
+<line class="grid" x1="825.07" x2="825.07" y1="46" y2="732"/>
+<text class="tick" x="825.07" y="752" text-anchor="middle">1×</text>
+<line class="grid" x1="906.96" x2="906.96" y1="46" y2="732"/>
+<text class="tick" x="906.96" y="752" text-anchor="middle">1.5×</text>
+<line data-reference="1" class="reference" x1="825.07" x2="825.07" y1="42" y2="732"/>
+<text class="reference-label" x="825.07" y="768" text-anchor="middle">same time as Python</text>
 <text class="group" x="20" y="82">Guion faster</text>
 <g class="row row-fast">
 <text class="row-label" x="326" y="117" text-anchor="end">Parallel CPU, 200,000 items</text>
@@ -1055,68 +1055,98 @@ hosts = [&quot;api.example.test&quot;]
 <text class="value" x="447.05" y="151">0.144×</text>
 </g>
 <g class="row row-fast">
-<text class="row-label" x="326" y="185" text-anchor="end">JSON Lines, 200,000 rows</text>
-<line class="whisker" x1="510.81" x2="515.54" y1="181" y2="181"/>
-<circle data-id="jsonl" class="dot dot-fast" cx="512.72" cy="181" r="6.5"/>
-<text class="value" x="527.54" y="185">0.213×</text>
+<text class="row-label" x="326" y="185" text-anchor="end">Mandelbrot, uncached source</text>
+<line class="whisker" x1="544.26" x2="562.1" y1="181" y2="181"/>
+<circle data-id="mandelbrot" class="dot dot-fast" cx="556.08" cy="181" r="6.5"/>
+<text class="value" x="574.1" y="185">0.264×</text>
 </g>
 <g class="row row-fast">
-<text class="row-label" x="326" y="219" text-anchor="end">Mandelbrot, uncached source</text>
-<line class="whisker" x1="544.26" x2="562.1" y1="215" y2="215"/>
-<circle data-id="mandelbrot" class="dot dot-fast" cx="556.08" cy="215" r="6.5"/>
-<text class="value" x="574.1" y="219">0.264×</text>
+<text class="row-label" x="326" y="219" text-anchor="end">Richards, uncached source</text>
+<line class="whisker" x1="624.25" x2="629.11" y1="215" y2="215"/>
+<circle data-id="richards" class="dot dot-fast" cx="626.96" cy="215" r="6.5"/>
+<text class="value" x="641.11" y="219">0.375×</text>
 </g>
 <g class="row row-fast">
-<text class="row-label" x="326" y="253" text-anchor="end">Richards, uncached source</text>
-<line class="whisker" x1="624.25" x2="629.11" y1="249" y2="249"/>
-<circle data-id="richards" class="dot dot-fast" cx="626.96" cy="249" r="6.5"/>
-<text class="value" x="641.11" y="253">0.375×</text>
+<text class="row-label" x="326" y="253" text-anchor="end">Calendar conflicts app</text>
+<line class="whisker" x1="741.15" x2="746.58" y1="249" y2="249"/>
+<circle data-id="calendar" class="dot dot-fast" cx="745.98" cy="249" r="6.5"/>
+<text class="value" x="758.58" y="253">0.676×</text>
 </g>
 <g class="row row-fast">
-<text class="row-label" x="326" y="287" text-anchor="end">Calendar conflicts app</text>
-<line class="whisker" x1="741.15" x2="746.58" y1="283" y2="283"/>
-<circle data-id="calendar" class="dot dot-fast" cx="745.98" cy="283" r="6.5"/>
-<text class="value" x="758.58" y="287">0.676×</text>
+<text class="row-label" x="326" y="287" text-anchor="end">CSV ledger, 200,000 rows, ARM64 server</text>
+<line class="whisker" x1="776.69" x2="778.73" y1="283" y2="283"/>
+<circle data-id="gate-csv-arm" class="dot dot-fast" cx="777.71" cy="283" r="6.5"/>
+<text class="value" x="790.73" y="287">0.791×</text>
 </g>
 <g class="row row-fast">
-<text class="row-label" x="326" y="321" text-anchor="end">Service health app</text>
-<line class="whisker" x1="789.13" x2="793.19" y1="317" y2="317"/>
-<circle data-id="health" class="dot dot-fast" cx="791.05" cy="317" r="6.5"/>
-<text class="value" x="805.19" y="321">0.845×</text>
+<text class="row-label" x="326" y="321" text-anchor="end">Text, 200,000 rows, ARM64 server</text>
+<line class="whisker" x1="781.76" x2="783.5" y1="317" y2="317"/>
+<circle data-id="gate-text-arm" class="dot dot-fast" cx="782.51" cy="317" r="6.5"/>
+<text class="value" x="795.5" y="321">0.810×</text>
 </g>
 <g class="row row-fast">
-<text class="row-label" x="326" y="355" text-anchor="end">Lockfile auditor, 16,384 packages</text>
-<line class="whisker" x1="813" x2="819.96" y1="351" y2="351"/>
-<circle data-id="lockfile" class="dot dot-fast" cx="814.28" cy="351" r="6.5"/>
-<text class="value" x="831.96" y="355">0.948×</text>
+<text class="row-label" x="326" y="355" text-anchor="end">Service health app</text>
+<line class="whisker" x1="789.13" x2="793.19" y1="351" y2="351"/>
+<circle data-id="health" class="dot dot-fast" cx="791.05" cy="351" r="6.5"/>
+<text class="value" x="805.19" y="355">0.845×</text>
 </g>
-<text class="group" x="20" y="390">Guion slower</text>
+<g class="row row-fast">
+<text class="row-label" x="326" y="389" text-anchor="end">JSON Lines, 200,000 rows, ARM64 server</text>
+<line class="whisker" x1="792.48" x2="794.37" y1="385" y2="385"/>
+<circle data-id="gate-jsonl-arm" class="dot dot-fast" cx="793.43" cy="385" r="6.5"/>
+<text class="value" x="806.37" y="389">0.855×</text>
+</g>
+<g class="row row-fast">
+<text class="row-label" x="326" y="423" text-anchor="end">CSV ledger, 200,000 rows, x86_64 server</text>
+<line class="whisker" x1="793.43" x2="796.01" y1="419" y2="419"/>
+<circle data-id="gate-csv-x86" class="dot dot-fast" cx="794.61" cy="419" r="6.5"/>
+<text class="value" x="808.01" y="423">0.860×</text>
+</g>
+<g class="row row-fast">
+<text class="row-label" x="326" y="457" text-anchor="end">JSON Lines, 200,000 rows, x86_64 server</text>
+<line class="whisker" x1="799.94" x2="802.66" y1="453" y2="453"/>
+<circle data-id="gate-jsonl-x86" class="dot dot-fast" cx="801.31" cy="453" r="6.5"/>
+<text class="value" x="814.66" y="457">0.889×</text>
+</g>
+<g class="row row-fast">
+<text class="row-label" x="326" y="491" text-anchor="end">Lockfile auditor, 16,384 packages</text>
+<line class="whisker" x1="813" x2="819.96" y1="487" y2="487"/>
+<circle data-id="lockfile" class="dot dot-fast" cx="814.28" cy="487" r="6.5"/>
+<text class="value" x="831.96" y="491">0.948×</text>
+</g>
+<g class="row row-fast">
+<text class="row-label" x="326" y="525" text-anchor="end">Text, 200,000 rows, x86_64 server</text>
+<line class="whisker" x1="812.57" x2="818.29" y1="521" y2="521"/>
+<circle data-id="gate-text-x86" class="dot dot-fast" cx="815.56" cy="521" r="6.5"/>
+<text class="value" x="830.29" y="525">0.954×</text>
+</g>
+<text class="group" x="20" y="560">Guion slower</text>
 <g class="row row-slow">
-<text class="row-label" x="326" y="425" text-anchor="end">NumPy call, raw bytes, vs the same Python function</text>
-<line class="whisker" x1="825.27" x2="830.45" y1="421" y2="421"/>
-<circle data-id="bridge-bytes-pkg" class="dot dot-slow" cx="830.06" cy="421" r="6.5"/>
-<text class="value" x="842.45" y="425">1.025×</text>
+<text class="row-label" x="326" y="595" text-anchor="end">NumPy call, raw bytes, vs the same Python function</text>
+<line class="whisker" x1="825.27" x2="830.45" y1="591" y2="591"/>
+<circle data-id="bridge-bytes-pkg" class="dot dot-slow" cx="830.06" cy="591" r="6.5"/>
+<text class="value" x="842.45" y="595">1.025×</text>
 </g>
 <g class="row row-slow">
-<text class="row-label" x="326" y="459" text-anchor="end">NumPy call, fewer copies, vs the same Python function</text>
-<line class="whisker" x1="845.42" x2="853.12" y1="455" y2="455"/>
-<circle data-id="bridge-ser-pkg" class="dot dot-slow" cx="849.58" cy="455" r="6.5"/>
-<text class="value" x="865.12" y="459">1.129×</text>
+<text class="row-label" x="326" y="629" text-anchor="end">NumPy call, fewer copies, vs the same Python function</text>
+<line class="whisker" x1="845.42" x2="853.12" y1="625" y2="625"/>
+<circle data-id="bridge-ser-pkg" class="dot dot-slow" cx="849.58" cy="625" r="6.5"/>
+<text class="value" x="865.12" y="629">1.129×</text>
 </g>
 <g class="row row-slow">
-<text class="row-label" x="326" y="493" text-anchor="end">NumPy call, raw bytes, vs standard-library Python</text>
-<line class="whisker" x1="863.74" x2="867.54" y1="489" y2="489"/>
-<circle data-id="bridge-bytes-std" class="dot dot-slow" cx="865.23" cy="489" r="6.5"/>
-<text class="value" x="879.54" y="493">1.220×</text>
+<text class="row-label" x="326" y="663" text-anchor="end">NumPy call, raw bytes, vs standard-library Python</text>
+<line class="whisker" x1="863.74" x2="867.54" y1="659" y2="659"/>
+<circle data-id="bridge-bytes-std" class="dot dot-slow" cx="865.23" cy="659" r="6.5"/>
+<text class="value" x="879.54" y="663">1.220×</text>
 </g>
 <g class="row row-slow">
-<text class="row-label" x="326" y="527" text-anchor="end">NumPy call, fewer copies, vs standard-library Python</text>
-<line class="whisker" x1="889.1" x2="899" y1="523" y2="523"/>
-<circle data-id="bridge-ser-std" class="dot dot-slow" cx="893.89" cy="523" r="6.5"/>
-<text class="value" x="911" y="527">1.406×</text>
+<text class="row-label" x="326" y="697" text-anchor="end">NumPy call, fewer copies, vs standard-library Python</text>
+<line class="whisker" x1="889.1" x2="899" y1="693" y2="693"/>
+<circle data-id="bridge-ser-std" class="dot dot-slow" cx="893.89" cy="693" r="6.5"/>
+<text class="value" x="911" y="697">1.406×</text>
 </g>
 </svg>
-<figcaption class="caption"><span class="v-plain">Each dot is how long Guion took divided by how long the comparison took. Left of the dashed line is faster. The line through each dot is its 95% interval. Different machines, programs and Python versions would move every dot.</span><span class="v-dev">Log scale, 0.1× to 1.6×. Comparison and sample counts are on each receipt. Host: one Apple Silicon Mac, macOS 27; CPython 3.14.7 unless a receipt says otherwise.</span></figcaption>
+<figcaption class="caption"><span class="v-plain">Each dot is how long Guion took divided by how long the comparison took. Left of the dashed line is faster. The line through each dot is its 95% interval. Different machines, programs and Python versions would move every dot.</span><span class="v-dev">Log scale, 0.1× to 1.6×. Comparison and sample counts are on each receipt. Hosts: GitHub's x86_64 and ARM64 Linux runners for the rows marked server, against the uv standalone CPython 3.14.7; one Apple Silicon Mac, macOS 27, with CPython 3.14.7 for the rest unless a receipt says otherwise.</span></figcaption>
 </figure>
 <div class="dossier"><div class="ahi"><section id="slot-receipts-richards-dossier" class="instrument family-publications-objects renderer-case-dossier interaction-details" data-ahi="ahi.publications-objects.case-dossier" data-ahi-renderer="case-dossier" data-ahi-element="article" data-ahi-version="1"><article data-ahi-semantic="article" class="case-dossier"><header><p class="dossier-id">Case file 01</p><h2>Richards, uncached source</h2></header><details open><summary>Evidence</summary><p>27.46 ms for Guion against 72.92 ms for CPython 3.14.7, from a fresh source run.</p></details><details><summary>Working note</summary><p>One benchmark on one Mac. Guion also used more memory here: 24.2 MiB against 18.3 MiB.</p></details></article></section></div></div>
 </div>
@@ -1129,6 +1159,17 @@ hosts = [&quot;api.example.test&quot;]
 <label for="f-all">All</label><label for="f-speed">Speed and memory</label><label for="f-behaviour">Behaviour</label><label for="f-reach">Where it runs</label>
 </div>
 <div class="receipt-list">
+<article class="claim" id="claim-server-gate" data-claim="server-gate" data-group="speed">
+<h3>Text, JSON Lines and CSV on two server CPUs</h3>
+<dl class="receipt">
+<div><dt>Claim</dt><dd>On GitHub's x86_64 and ARM64 Linux runners, Guion took less time than CPython on every text, JSON Lines and CSV lane, at 20,000 and 200,000 rows. The worst 95% upper bound of Guion's time divided by Python's was 0.976 on x86_64 and 0.859 on ARM64.</dd></div>
+<div><dt>Holds when</dt><dd>One run on each host, an AMD EPYC 7763 and a Neoverse N2 with 4 CPUs each, against the uv standalone CPython 3.14.7. Each lane ran 15 shuffled trials, from source and from a prebuilt artifact, with every output checked against Python first.</dd></div>
+<div><dt>Doesn't tell you</dt><dd>Other programs or machines. On x86_64 the text margin is only 3–4%. An Intel Xeon runner measured worse on an earlier build and has not been rerun. Memory was not measured on these hosts, and the JSON Lines Python lane is the repository's data reference script, not the fastest possible Python.</dd></div>
+<div><dt>Check it</dt><dd><a href="evidence/2026-11-03-server-speed-gate.md">2026-11-03-server-speed-gate.md</a> · <a href="evidence/2026-11-03-server-speed-gate-x86_64.json">2026-11-03-server-speed-gate-x86_64.json</a> · <a href="evidence/2026-11-03-server-speed-gate-aarch64.json">2026-11-03-server-speed-gate-aarch64.json</a></dd></div>
+<div><dt>Say it's wrong</dt><dd><a href="mailto:rmichael@rmichaelthomas.com?subject=Guion%20claim%3A%20Text%2C%20JSON%20Lines%20and%20CSV%20on%20two%20server%20CPUs">rmichael@rmichaelthomas.com</a></dd></div>
+</dl>
+<div class="v-dev"><table class="claim-table"><tbody><tr><th scope="row">x86_64, 200,000 rows: text / JSONL / CSV</th><td>0.957 / 0.892 / 0.862 (median ratio, artifact)</td></tr><tr><th scope="row">ARM64, 200,000 rows: text / JSONL / CSV</th><td>0.810 / 0.854 / 0.789</td></tr><tr><th scope="row">Worst upper 95%, x86_64 / ARM64</th><td>0.976 / 0.859</td></tr><tr><th scope="row">20,000 rows, every lane</th><td>0.536–0.710</td></tr><tr><th scope="row">Trials</th><td>15 per lane, shuffled order</td></tr><tr><th scope="row">Python</th><td>uv standalone CPython 3.14.7</td></tr><tr><th scope="row">Hosts</th><td>AMD EPYC 7763 · Neoverse N2, Linux, 4 CPUs</td></tr><tr><th scope="row">Commit</th><td>1746d10 (artifact format 51)</td></tr></tbody></table></div>
+</article>
 <article class="claim" id="claim-richards" data-claim="richards" data-group="speed">
 <h3>Richards, a classic benchmark program</h3>
 <dl class="receipt">
@@ -1161,17 +1202,6 @@ hosts = [&quot;api.example.test&quot;]
 <div><dt>Say it's wrong</dt><dd><a href="mailto:rmichael@rmichaelthomas.com?subject=Guion%20claim%3A%20Nine%20everyday%20applications">rmichael@rmichaelthomas.com</a></dd></div>
 </dl>
 <div class="v-dev"><table class="claim-table"><tbody><tr><th scope="row">SLA report</th><td>15.5 ms vs 102.8 ms · 0.150 (0.142–0.153)</td></tr><tr><th scope="row">JSONL summary</th><td>15.2 ms vs 102.2 ms · 0.152 (0.144–0.157)</td></tr><tr><th scope="row">Release notes</th><td>21.6 ms vs 105.1 ms · 0.211 (0.197–0.216)</td></tr><tr><th scope="row">Calendar conflicts</th><td>252.7 ms vs 372.7 ms · 0.676 (0.660–0.678)</td></tr><tr><th scope="row">Webhook replay</th><td>143.1 ms vs 825.7 ms · 0.173 (0.169–0.180)</td></tr><tr><th scope="row">Service health</th><td>529.8 ms vs 630.6 ms · 0.845 (0.837–0.854)</td></tr><tr><th scope="row">Config migrator</th><td>13.6 ms vs 97.3 ms · 0.137 (0.130–0.151)</td></tr><tr><th scope="row">Document index</th><td>54.0 ms vs 295.8 ms · 0.183 (0.182–0.193)</td></tr><tr><th scope="row">Lockfile auditor</th><td>18.4 ms vs 95.6 ms · 0.192 (0.162–0.202)</td></tr></tbody></table></div>
-</article>
-<article class="claim" id="claim-jsonl-200k" data-claim="jsonl-200k" data-group="speed">
-<h3>200,000 rows of JSON Lines</h3>
-<dl class="receipt">
-<div><dt>Claim</dt><dd>Summarising a 200,000-row JSON Lines file from source took Guion 3.81 s and 11.1 MiB of memory. The Python data reference took 17.93 s and 74.4 MiB.</dd></div>
-<div><dt>Holds when</dt><dd>Uncached source runs, 16 output-checked trials per size, one Mac, CPython 3.14.7.</dd></div>
-<div><dt>Doesn't tell you</dt><dd>Other data shapes or machines. Memory varies by task: Richards used more memory in Guion than in Python (see that card). Python with SQLite used 89.2 MiB on the same data.</dd></div>
-<div><dt>Check it</dt><dd><a href="evidence/2026-10-27-current-main-outcome-checkpoint.md">2026-10-27-current-main-outcome-checkpoint.md</a> · <a href="evidence/20261027T233155909692Z.json">20261027T233155909692Z.json</a></dd></div>
-<div><dt>Say it's wrong</dt><dd><a href="mailto:rmichael@rmichaelthomas.com?subject=Guion%20claim%3A%20200%2C000%20rows%20of%20JSON%20Lines">rmichael@rmichaelthomas.com</a></dd></div>
-</dl>
-<div class="v-dev"><table class="claim-table"><tbody><tr><th scope="row">200,000 rows, Guion / Python</th><td>3.81 s / 17.93 s</td></tr><tr><th scope="row">Ratio (95% interval)</th><td>0.213 (0.211–0.216)</td></tr><tr><th scope="row">Peak RSS, Guion</th><td>11.1 MiB</td></tr><tr><th scope="row">Peak RSS, Python</th><td>74.4 MiB</td></tr><tr><th scope="row">Peak RSS, Python with SQLite</th><td>89.2 MiB</td></tr><tr><th scope="row">20,000 rows, Guion / Python</th><td>394.3 ms / 1.84 s</td></tr><tr><th scope="row">20,000 rows ratio</th><td>0.211 (0.207–0.215)</td></tr></tbody></table></div>
 </article>
 <article class="claim" id="claim-lockfile" data-claim="lockfile" data-group="speed">
 <h3>A lockfile auditor, up to 16,384 packages</h3>
@@ -1209,13 +1239,13 @@ hosts = [&quot;api.example.test&quot;]
 <article class="claim" id="claim-targets" data-claim="targets" data-group="reach">
 <h3>Where it has been tested</h3>
 <dl class="receipt">
-<div><dt>Claim</dt><dd>An earlier cohort passed on macOS ARM64 and Debian 12 GNU/Linux on ARM64 and x86_64, all with glibc: 54 of 54 application reports. The current speed checkpoint ran on macOS ARM64 only.</dd></div>
+<div><dt>Claim</dt><dd>An earlier cohort passed on macOS ARM64 and Debian 12 GNU/Linux on ARM64 and x86_64, all with glibc: 54 of 54 application reports. The latest speed gate ran on Linux on x86_64 and ARM64.</dd></div>
 <div><dt>Holds when</dt><dd>For the earlier cohort: nine retained applications, initial and follow-up variants, on each of the three targets.</dd></div>
 <div><dt>Doesn't tell you</dt><dd>Support for Windows, other Linux distributions, other CPU architectures or other C libraries. A target that did not run is reported as incomplete.</dd></div>
-<div><dt>Check it</dt><dd><a href="evidence/status.md">status.md</a> · <a href="evidence/2026-10-27-current-main-outcome-checkpoint.md">2026-10-27-current-main-outcome-checkpoint.md</a></dd></div>
+<div><dt>Check it</dt><dd><a href="evidence/status.md">status.md</a> · <a href="evidence/2026-10-27-current-main-outcome-checkpoint.md">2026-10-27-current-main-outcome-checkpoint.md</a> · <a href="evidence/2026-11-03-server-speed-gate.md">2026-11-03-server-speed-gate.md</a></dd></div>
 <div><dt>Say it's wrong</dt><dd><a href="mailto:rmichael@rmichaelthomas.com?subject=Guion%20claim%3A%20Where%20it%20has%20been%20tested">rmichael@rmichaelthomas.com</a></dd></div>
 </dl>
-<div class="v-dev"><table class="claim-table"><tbody><tr><th scope="row">Earlier cohort</th><td>54 of 54 application reports passed</td></tr><tr><th scope="row">Targets</th><td>macOS ARM64 · Debian 12 ARM64 · Debian 12 x86_64 (glibc)</td></tr><tr><th scope="row">Current speed checkpoint</th><td>macOS ARM64 only</td></tr></tbody></table></div>
+<div class="v-dev"><table class="claim-table"><tbody><tr><th scope="row">Earlier cohort</th><td>54 of 54 application reports passed</td></tr><tr><th scope="row">Targets</th><td>macOS ARM64 · Debian 12 ARM64 · Debian 12 x86_64 (glibc)</td></tr><tr><th scope="row">Latest speed gate</th><td>Linux x86_64 and ARM64 (GitHub runners)</td></tr></tbody></table></div>
 </article>
 </div>
 </div>
@@ -1349,7 +1379,8 @@ hosts = [&quot;api.example.test&quot;]
 <ol class="time-ribbon" data-ahi="ahi.motion-time.time-ribbon">
 <li><time datetime="2026-10-22">22 Oct 2026</time><h3>The question was written down.</h3><p class="v-plain">Under the working name Veritas, the first design put usability, one coherent toolchain, honest comparison and executable evidence at the center.</p><p class="v-dev"><code>docs/north-star-design.md</code> v0.2, “approved build direction.” Veritas, then.</p></li>
 <li><time datetime="2026-10-25">25 Oct 2026</time><h3>It became Guion.</h3><p class="v-plain">The implementation and its tools were renamed. The earlier results stay on file under their original name.</p><p class="v-dev">Commit <code>6a4fab1</code>, “rename Veritas product surfaces to Guion.” Veritas-era checkpoints and results are preserved as history; selected legacy manifests and files remain readable.</p></li>
-<li><time datetime="2026-10-27">27 Oct 2026</time><h3>The latest checkpoint.</h3><p class="v-plain">The results on this page come from it, including the ones where Guion is still behind. It is a checkpoint, not a finish line.</p><p class="v-dev">Build at commit <code>6b5e5aba</code>, artifact format 44, macOS ARM64. Summary in <code>docs/status.md</code>.</p></li>
+<li><time datetime="2026-10-27">27 Oct 2026</time><h3>The application checkpoint.</h3><p class="v-plain">Most results on this page come from it, including the ones where Guion is still behind. It is a checkpoint, not a finish line.</p><p class="v-dev">Build at commit <code>6b5e5aba</code>, artifact format 44, macOS ARM64. Summary in <code>docs/status.md</code>.</p></li>
+<li><time datetime="2026-11-03">3 Nov 2026</time><h3>The server speed gate.</h3><p class="v-plain">On two kinds of server CPU, Guion took less time than Python on every text, JSON Lines and CSV run, at both sizes. A week earlier it was several times slower on the same kind of work.</p><p class="v-dev">Build <code>1746d10</code>, artifact format 51, Linux x86_64 and ARM64. Report in <code>evaluation/completion/results/real-task-sprint/2026-11-03-server-speed-gate.md</code>.</p></li>
 </ol>
 </div>
 </section>
@@ -1373,12 +1404,12 @@ hosts = [&quot;api.example.test&quot;]
 <div class="footer-about">
 <p class="smallcaps">Good to know</p>
 <p>Guion is MIT licensed. Third-party notices are kept in the project repository. To say a claim is wrong, write to <a href="mailto:rmichael@rmichaelthomas.com">rmichael@rmichaelthomas.com</a>.</p>
-<p class="v-plain">This page is about 80 KB of HTML and 50 KB of styles, with 9.9 KB of JavaScript and 0 requests to anyone else. The 1.3 MB playground loads only when you press Run.</p>
+<p class="v-plain">This page is about 80 KB of HTML and 50 KB of styles, with 9.9 KB of JavaScript and 0 requests to anyone else. The 1.6 MB playground loads only when you press Run.</p>
 <table class="v-dev spec-table"><caption>Page weight</caption><tbody>
 <tr><th scope="row">HTML</th><td>80 KB</td></tr>
 <tr><th scope="row">CSS</th><td>50 KB</td></tr>
 <tr><th scope="row">JavaScript</th><td>9.9 KB (the playground loader; inert until Run)</td></tr>
-<tr><th scope="row">Wasm</th><td>1.3 MB, fetched on first Run</td></tr>
+<tr><th scope="row">Wasm</th><td>1.6 MB, fetched on first Run</td></tr>
 <tr><th scope="row">Remote requests</th><td>0</td></tr>
 </tbody></table>
 </div>

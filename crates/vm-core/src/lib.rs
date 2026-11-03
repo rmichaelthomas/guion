@@ -8653,6 +8653,256 @@ mod tests {
     }
 
     #[test]
+    fn register_map_updates_and_threaded_tests_match_plain_execution_at_every_limit() {
+        let int = |value| Value::Int(BigInt::from_i64(value));
+        let text = |value: &str| Value::Text(SharedText::from(value));
+        enum Item {
+            Op(Op),
+            Jump(&'static str),
+            JumpIfFalse(&'static str),
+            Label(&'static str),
+        }
+        use Item::{Jump, JumpIfFalse, Label, Op as O};
+        // set m = map_set(m, k, m[k] + addend), with `addend` already on the stack
+        let update = |map: usize, key: usize, addend: Vec<Item>| {
+            let mut items = vec![O(Op::Load(map)), O(Op::Load(key))];
+            items.extend([O(Op::Load(map)), O(Op::Load(key)), O(Op::Index)]);
+            items.extend(addend);
+            items.extend([O(Op::Add), O(Op::MapSet), O(Op::Store(map))]);
+            items
+        };
+        let add_to_total = |amount| {
+            vec![
+                O(Op::Load(3)),
+                O(Op::Const(int(amount))),
+                O(Op::Add),
+                O(Op::Store(3)),
+            ]
+        };
+        let compare = |op: Op, right| vec![O(Op::Load(3)), O(Op::Const(int(right))), O(op)];
+        let mut items = vec![
+            // m = {"a": 1, "s": "x"}, k = "a", r = Ok(5), s = "s"
+            O(Op::MakeTypedMap(Type::Int)),
+            O(Op::Store(0)),
+            O(Op::Const(text("a"))),
+            O(Op::Store(1)),
+            O(Op::Const(int(5))),
+            O(Op::MakeOk),
+            O(Op::Store(2)),
+            O(Op::Const(text("s"))),
+            O(Op::Store(4)),
+            O(Op::Load(0)),
+            O(Op::Load(1)),
+            O(Op::Const(int(1))),
+            O(Op::MapSet),
+            O(Op::Store(0)),
+            O(Op::Load(0)),
+            O(Op::Load(4)),
+            O(Op::Const(text("x"))),
+            O(Op::MapSet),
+            O(Op::Store(0)),
+        ];
+        // in place; then shared with local 5, so copied; then by an unwrapped addend
+        items.extend(update(0, 1, vec![O(Op::Const(int(1)))]));
+        items.extend([O(Op::Load(0)), O(Op::Store(5))]);
+        items.extend(update(0, 1, vec![O(Op::Const(int(1)))]));
+        items.extend(update(0, 1, vec![O(Op::Load(2)), O(Op::Unwrap)]));
+        // a text entry, which the fused form leaves to the stack interpreter
+        items.extend(update(0, 4, vec![O(Op::Const(text("y")))]));
+        items.extend([
+            O(Op::Load(0)),
+            O(Op::Const(text("a"))),
+            O(Op::Index),
+            O(Op::Store(3)),
+        ]);
+        // if total == 0 or total > 7, with the right side deciding
+        items.extend(compare(Op::Equal, 0));
+        items.extend([
+            JumpIfFalse("or1-right"),
+            O(Op::Const(Value::Bool(true))),
+            Jump("or1-end"),
+        ]);
+        items.push(Label("or1-right"));
+        items.extend(compare(Op::Greater, 7));
+        items.extend([Label("or1-end"), JumpIfFalse("if1-end")]);
+        items.extend(add_to_total(10));
+        items.extend([Jump("if1-end"), Label("if1-end")]);
+        // if total > 0 or total == 99, with the left side deciding
+        items.extend(compare(Op::Greater, 0));
+        items.extend([
+            JumpIfFalse("or2-right"),
+            O(Op::Const(Value::Bool(true))),
+            Jump("or2-end"),
+        ]);
+        items.push(Label("or2-right"));
+        items.extend(compare(Op::Equal, 99));
+        items.extend([Label("or2-end"), JumpIfFalse("if2-end")]);
+        items.extend(add_to_total(100));
+        items.extend([Jump("if2-end"), Label("if2-end")]);
+        // if total > 0 and total < 1000
+        items.extend(compare(Op::Greater, 0));
+        items.push(JumpIfFalse("and1-false"));
+        items.extend(compare(Op::Less, 1000));
+        items.extend([
+            Jump("and1-end"),
+            Label("and1-false"),
+            O(Op::Const(Value::Bool(false))),
+        ]);
+        items.extend([Label("and1-end"), JumpIfFalse("if3-end")]);
+        items.extend(add_to_total(20));
+        items.extend([Jump("if3-end"), Label("if3-end")]);
+        // if total < 0 and total > 0, false on the left
+        items.extend(compare(Op::Less, 0));
+        items.push(JumpIfFalse("and2-false"));
+        items.extend(compare(Op::Greater, 0));
+        items.extend([
+            Jump("and2-end"),
+            Label("and2-false"),
+            O(Op::Const(Value::Bool(false))),
+        ]);
+        items.extend([Label("and2-end"), JumpIfFalse("if4-end")]);
+        items.extend(add_to_total(10_000));
+        items.extend([Jump("if4-end"), Label("if4-end")]);
+        // if total > 0 and not total == 5
+        items.extend(compare(Op::Greater, 0));
+        items.push(JumpIfFalse("and3-false"));
+        items.extend(compare(Op::Equal, 5));
+        items.push(O(Op::Not));
+        items.extend([
+            Jump("and3-end"),
+            Label("and3-false"),
+            O(Op::Const(Value::Bool(false))),
+        ]);
+        items.extend([Label("and3-end"), JumpIfFalse("if5-end")]);
+        items.extend(add_to_total(1000));
+        items.extend([Jump("if5-end"), Label("if5-end")]);
+        // total + len(m["s"]) + the copy's m["a"]
+        items.extend([
+            O(Op::Load(3)),
+            O(Op::Load(0)),
+            O(Op::Const(text("s"))),
+            O(Op::Index),
+        ]);
+        items.extend([O(Op::Length), O(Op::Add)]);
+        items.extend([
+            O(Op::Load(5)),
+            O(Op::Const(text("a"))),
+            O(Op::Index),
+            O(Op::Add),
+        ]);
+        items.push(O(Op::Return));
+
+        let mut labels = std::collections::HashMap::new();
+        let mut position = 0;
+        for item in &items {
+            match item {
+                Label(name) => {
+                    labels.insert(*name, position);
+                }
+                _ => position += 1,
+            }
+        }
+        let ops: Vec<Op> = items
+            .into_iter()
+            .filter_map(|item| match item {
+                O(op) => Some(op),
+                Jump(name) => Some(Op::Jump(labels[name])),
+                JumpIfFalse(name) => Some(Op::JumpIfFalse(labels[name])),
+                Label(_) => None,
+            })
+            .collect();
+        let artifact = Arc::new(Artifact {
+            format_version: Artifact::CURRENT_VERSION,
+            build_metadata: None,
+            compiled_source_sha256: None,
+            source_name: "register-map-test.gu".into(),
+            sources: vec![],
+            entry: "main".into(),
+            functions: vec![guion_model::Function {
+                name: "main".into(),
+                parameters: vec![],
+                result: Type::Int,
+                local_count: 6,
+                code: ops
+                    .into_iter()
+                    .enumerate()
+                    .map(|(index, op)| Instruction {
+                        op,
+                        span: Span {
+                            source_id: 0,
+                            start: index,
+                            end: index + 1,
+                            line: index + 1,
+                            column: 1,
+                        },
+                    })
+                    .collect(),
+            }],
+            externals: vec![],
+            records: vec![],
+        });
+        let tables = Arc::new(build_register_programs(&artifact));
+        let program = tables.get(0, &artifact.functions[0]).unwrap();
+        for kind in [
+            "MapAddLocal { unwrap: false }",
+            "MapAddLocal { unwrap: true }",
+        ] {
+            assert!(program.has_kind(kind), "the test program must reach {kind}");
+        }
+        // Every `or` and `and` test branches directly, so no `Truth` of a joined value is left.
+        assert!(!program.has_kind("Truth"), "a test was not threaded");
+        let run = |registers: Option<Arc<RegisterPrograms>>, instructions: u64, bytes: usize| {
+            let mut host = RegisterTestHost {
+                artifact: Arc::clone(&artifact),
+                registers,
+            };
+            let budget = Arc::new(Budget::new(
+                instructions,
+                bytes,
+                CancellationToken::new(),
+                None,
+            ));
+            let frame = new_vm_frame(&artifact, 0, vec![], 1, None);
+            let outcome = match run_frames(&mut host, frame, Arc::clone(&budget)) {
+                Ok(value) => Ok(value),
+                Err(error) => Err((error.code, error.trace)),
+            };
+            (
+                outcome,
+                budget.remaining.load(Ordering::Relaxed),
+                budget.allocation.remaining(),
+            )
+        };
+        for limit in 0..200 {
+            let plain = run(None, limit, 1 << 20);
+            let registers = run(Some(Arc::clone(&tables)), limit, 1 << 20);
+            assert_eq!(plain, registers, "instruction limit {limit}");
+        }
+        assert!(
+            run(None, 199, 1 << 20).0.is_ok(),
+            "the sweep must reach the end"
+        );
+        let mut exhausted = false;
+        for bytes in 0..1200 {
+            let plain = run(None, 1000, bytes);
+            let registers = run(Some(Arc::clone(&tables)), 1000, bytes);
+            assert_eq!(
+                (&plain.0, plain.2),
+                (&registers.0, registers.2),
+                "allocation limit {bytes}"
+            );
+            exhausted |= plain.0.is_err();
+        }
+        assert!(exhausted, "a small allocation budget must be exhausted");
+        // m["a"] = 1 + 1 + 1 + 5 = 8, then 8 + 10 + 100 + 20 + 1000; "xy" has 2 scalars, and
+        // the copy taken before the last two updates holds 2.
+        assert_eq!(
+            run(Some(tables), 1000, 1 << 20).0,
+            Ok(int(8 + 10 + 100 + 20 + 1000 + 2 + 2))
+        );
+    }
+
+    #[test]
     fn text_scalar_range_agrees_with_a_scalar_walk() {
         for sample in [
             "",
