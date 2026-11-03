@@ -25,21 +25,21 @@
       "mode": "render",
       "instrumentId": "ahi.reveals-discoveries.accordion",
       "content": {
-        "heading": "Packages and ecosystem",
-        "body": "Guion can call Python libraries such as NumPy through a typed bridge, and the packages tested so far work. Broad package compatibility is still open, so for a project that leans on many libraries, Python is the safer choice today.",
-        "caption": "Packages and ecosystem",
-        "note": "The bridge is an explicit typed call. It is not transparent Python compatibility."
+        "heading": "Libraries and packages",
+        "body": "Python has hundreds of thousands of packages and decades of libraries behind it. Guion ships 17 standard-library modules and a package manager that installs from a local path or a checksummed URL. It has no public package registry yet.",
+        "caption": "Libraries and packages",
+        "note": "Next: a much wider standard library, with processes, regular expressions, sockets, an HTTP server and compression, plus version ranges, guion publish and a hosted registry."
       }
     },
     {
-      "id": "python-accordion-bridge",
+      "id": "python-accordion-arrays",
       "mode": "render",
       "instrumentId": "ahi.reveals-discoveries.accordion",
       "content": {
-        "heading": "Calling NumPy from Guion",
-        "body": "On the one 100,000-row task measured, Guion took 1.025 times as long as the same function called from Python.",
-        "caption": "Calling NumPy from Guion",
-        "note": "Sending raw bytes instead of text closed most of the gap. Not all of it."
+        "heading": "Arrays and data science",
+        "body": "NumPy and pandas make Python the default for numeric and data work. Guion does not have a native array type yet.",
+        "caption": "Arrays and data science",
+        "note": "Next: typed n-dimensional arrays built into the runtime, then data frames, measured head to head against NumPy and pandas. Earlier tests that reached NumPy through Python are retired."
       }
     },
     {
@@ -48,9 +48,9 @@
       "instrumentId": "ahi.reveals-discoveries.accordion",
       "content": {
         "heading": "A release you can use",
-        "body": "No public Guion release has been published. Python is a released language with a long track record.",
+        "body": "Guion's first public build is a Linux pre-release, v0.1.0-preview, for Debian 12 on ARM64 and x86_64. There is no macOS package yet. Python is a released language with a long track record.",
         "caption": "A release you can use",
-        "note": "Guion is in active development. It has been validated on macOS ARM64 and on Debian 12 for ARM64 and x86_64. No other target is claimed."
+        "note": "Next: release 0.2.0, with installers for macOS ARM64 and both Debian targets and a written stability policy."
       }
     },
     {

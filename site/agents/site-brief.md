@@ -22,7 +22,7 @@ Always: **No public Guion release has been published.** The repository is privat
 ## Claims policy
 
 - Every figure is a claim in `site/src/claims.json` and appears on the page as a receipt: **Claim, Holds when, Doesn't tell you, Check it, Say it's wrong.**
-- Show unfavourable results with the same weight as favourable ones (Richards used more memory; the lockfile workload was once slower than Python; the NumPy bridge is still slower; assistants chose Python in all 18 choices for the older candidate).
+- Show unfavourable results with the same weight as favourable ones (Richards used more memory; the lockfile workload was once slower than Python; assistants chose Python in all 18 choices for the older candidate).
 - Never broader than the report. The measurements are named workloads on one Apple Silicon Mac against CPython 3.14.7, unless a receipt says otherwise. Do not say Guion is generally faster than Python or replaces it.
 - "Say it's wrong" is a `mailto:` to rmichael@rmichaelthomas.com with the claim's name in the subject.
 

@@ -114,55 +114,6 @@
       ]
     },
     {
-      "id": "bridge-bytes",
-      "title": "Calling NumPy from Guion: raw bytes",
-      "group": "python",
-      "say": "Sending the input as raw bytes instead of text cut the cost of a 100,000-row NumPy and orjson task by 13.7%, from 161.60 ms to 140.59 ms. Guion is still a little slower than the same Python function, which took 137.93 ms.",
-      "holdsWhen": "One typed Python call, 100,000 rows, 15 randomized fresh-process pairs, macOS ARM64, CPython 3.14.7, NumPy 2.5.1 and orjson 3.11.9. Outputs matched byte for byte.",
-      "doesntTell": "That Guion beats Python on this task: it took 1.025× as long as the same package function and 1.220× as long as plain standard-library Python. CPU attribution and peak memory were not measured.",
-      "evidence": [
-        "evidence/2026-10-27-python-bridge-bytes.md",
-        "evidence/2026-10-27-python-bridge-bytes.json"
-      ]
-    },
-    {
-      "id": "bridge-serialization",
-      "title": "Calling NumPy from Guion: fewer copies",
-      "group": "python",
-      "say": "A change that removes payload-sized copies did not measurably change the speed. The ratio against the previous build was 1.012, and its interval includes 1.",
-      "holdsWhen": "15 randomized pairs on the same 100,000-row task and host as the raw-bytes card.",
-      "doesntTell": "A speedup. The candidate was slower in 10 of 15 pairs, and peak memory was not measured. Against Python it stayed at 1.129× the same NumPy function and 1.406× the standard-library reference, slower in all 15 pairs.",
-      "evidence": [
-        "evidence/2026-10-27-python-bridge-serialization.md",
-        "evidence/2026-10-27-python-bridge-serialization.json"
-      ]
-    },
-    {
-      "id": "managed-packages",
-      "title": "Packaging a Python-backed app into one folder",
-      "group": "python",
-      "say": "A Guion program that uses NumPy and orjson was packaged into a self-contained folder. It ran after being moved to a path with spaces and Unicode, with no external Python or uv settings.",
-      "holdsWhen": "The 100,000-row analysis app on artifact format 44, passing on macOS ARM64 and, in separate runs, on Debian 12 for ARM64 and x86_64. Output matched the independent Python report exactly.",
-      "doesntTell": "Download size: the folder sizes are uncompressed. It is a packaging result, not a speed claim and not broad Python package compatibility.",
-      "evidence": [
-        "evidence/2026-10-27-current-format-managed-package-analysis.md",
-        "evidence/2026-10-27-current-format-managed-package-analysis-debian-aarch64.md",
-        "evidence/2026-10-27-current-format-managed-package-analysis-debian-x86_64.md"
-      ]
-    },
-    {
-      "id": "feed-digest",
-      "title": "A feed digest app with feedparser",
-      "group": "python",
-      "say": "A Guion Feed Digest app that uses the pure-Python feedparser library passed the same six acceptance cases as an independent Python version. Every digest matched byte for byte.",
-      "holdsWhen": "macOS ARM64, artifact format 44, managed CPython 3.14.8 and feedparser 6.0.14, run offline against a local loopback server.",
-      "doesntTell": "Broad package compatibility, native-wheel coverage, package-size advantages or any speed result. It is one more library and one more application shape.",
-      "evidence": [
-        "evidence/2026-10-27-feed-digest-managed-package.md",
-        "evidence/2026-10-27-feed-digest-managed-package.json"
-      ]
-    },
-    {
       "id": "targets",
       "title": "Where it has been tested",
       "group": "reach",

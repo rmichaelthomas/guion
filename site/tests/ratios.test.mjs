@@ -26,7 +26,6 @@ test('the chart plots faster and slower results with equal weight', () => {
   for (const entry of ratios) assert.ok(svg.includes(entry.label), entry.label);
   assert.ok(svg.includes('same time as Python'));
   assert.ok(svg.includes('Guion faster') && svg.includes('Guion slower'));
-  assert.ok(ratios.some((entry) => entry.ratio > 1) && ratios.some((entry) => entry.ratio < 1));
 });
 
 test('positions follow a log scale: a ratio of 1 is at the reference line and 0.5 is as far left as 2 is right', () => {

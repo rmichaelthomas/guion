@@ -82,46 +82,6 @@ Doesn't tell you: That Guion has a general async runtime, that effects already r
 
 Evidence: https://rmichaelthomas.github.io/guion/evidence/2026-10-27-parallel-http-cancellation.md
 
-### Calling NumPy from Guion: raw bytes
-
-Sending the input as raw bytes instead of text cut the cost of a 100,000-row NumPy and orjson task by 13.7%, from 161.60 ms to 140.59 ms. Guion is still a little slower than the same Python function, which took 137.93 ms.
-
-Holds when: One typed Python call, 100,000 rows, 15 randomized fresh-process pairs, macOS ARM64, CPython 3.14.7, NumPy 2.5.1 and orjson 3.11.9. Outputs matched byte for byte.
-
-Doesn't tell you: That Guion beats Python on this task: it took 1.025× as long as the same package function and 1.220× as long as plain standard-library Python. CPU attribution and peak memory were not measured.
-
-Evidence: https://rmichaelthomas.github.io/guion/evidence/2026-10-27-python-bridge-bytes.md https://rmichaelthomas.github.io/guion/evidence/2026-10-27-python-bridge-bytes.json
-
-### Calling NumPy from Guion: fewer copies
-
-A change that removes payload-sized copies did not measurably change the speed. The ratio against the previous build was 1.012, and its interval includes 1.
-
-Holds when: 15 randomized pairs on the same 100,000-row task and host as the raw-bytes card.
-
-Doesn't tell you: A speedup. The candidate was slower in 10 of 15 pairs, and peak memory was not measured. Against Python it stayed at 1.129× the same NumPy function and 1.406× the standard-library reference, slower in all 15 pairs.
-
-Evidence: https://rmichaelthomas.github.io/guion/evidence/2026-10-27-python-bridge-serialization.md https://rmichaelthomas.github.io/guion/evidence/2026-10-27-python-bridge-serialization.json
-
-### Packaging a Python-backed app into one folder
-
-A Guion program that uses NumPy and orjson was packaged into a self-contained folder. It ran after being moved to a path with spaces and Unicode, with no external Python or uv settings.
-
-Holds when: The 100,000-row analysis app on artifact format 44, passing on macOS ARM64 and, in separate runs, on Debian 12 for ARM64 and x86_64. Output matched the independent Python report exactly.
-
-Doesn't tell you: Download size: the folder sizes are uncompressed. It is a packaging result, not a speed claim and not broad Python package compatibility.
-
-Evidence: https://rmichaelthomas.github.io/guion/evidence/2026-10-27-current-format-managed-package-analysis.md https://rmichaelthomas.github.io/guion/evidence/2026-10-27-current-format-managed-package-analysis-debian-aarch64.md https://rmichaelthomas.github.io/guion/evidence/2026-10-27-current-format-managed-package-analysis-debian-x86_64.md
-
-### A feed digest app with feedparser
-
-A Guion Feed Digest app that uses the pure-Python feedparser library passed the same six acceptance cases as an independent Python version. Every digest matched byte for byte.
-
-Holds when: macOS ARM64, artifact format 44, managed CPython 3.14.8 and feedparser 6.0.14, run offline against a local loopback server.
-
-Doesn't tell you: Broad package compatibility, native-wheel coverage, package-size advantages or any speed result. It is one more library and one more application shape.
-
-Evidence: https://rmichaelthomas.github.io/guion/evidence/2026-10-27-feed-digest-managed-package.md https://rmichaelthomas.github.io/guion/evidence/2026-10-27-feed-digest-managed-package.json
-
 ### Where it has been tested
 
 An earlier cohort passed on macOS ARM64 and Debian 12 GNU/Linux on ARM64 and x86_64, all with glibc: 54 of 54 application reports. The latest speed gate ran on Linux on x86_64 and ARM64.

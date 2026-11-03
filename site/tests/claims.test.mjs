@@ -78,6 +78,6 @@ test('claim text is escaped', () => {
 
 test('the real claims are all backed by their sources', () => {
   const claims = loadClaims(path.join(SITE_ROOT, 'src'));
-  assert.ok(claims.length >= 12);
+  assert.ok(claims.length >= 10);
   assert.deepEqual(checkClaims(claims, REPO_ROOT), []);
 });

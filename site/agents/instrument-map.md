@@ -26,7 +26,7 @@ Instruments in use: 18 of 100 · families: 10 of 10.
 | receipts | Case dossier (`ahi.publications-objects.case-dossier`) | publications-objects | case-dossier | authored |
 | receipts | Comparison bridge (`ahi.relationships-diagrams.comparison-bridge`) | relationships-diagrams | comparison-bridge | authored |
 | receipts | Tabbed scene (`ahi.reveals-discoveries.tabbed-scene`) | reveals-discoveries | tabbed-scene | authored |
-| python | Accordion (`ahi.reveals-discoveries.accordion`) | reveals-discoveries | accordion | vendored, slot `python-accordion-bridge` |
+| python | Accordion (`ahi.reveals-discoveries.accordion`) | reveals-discoveries | accordion | vendored, slot `python-accordion-arrays` |
 | python | Accordion (`ahi.reveals-discoveries.accordion`) | reveals-discoveries | accordion | vendored, slot `python-accordion-compare` |
 | python | Accordion (`ahi.reveals-discoveries.accordion`) | reveals-discoveries | accordion | vendored, slot `python-accordion-ecosystem` |
 | python | Accordion (`ahi.reveals-discoveries.accordion`) | reveals-discoveries | accordion | vendored, slot `python-accordion-learn` |
