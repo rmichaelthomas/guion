@@ -10692,7 +10692,7 @@ fn restore_reserved_shared_json_keys(value: &mut SharedJson, reserved_key: &str)
 pub(crate) fn escape_reserved_json_keys<'a>(source: &'a str) -> (Cow<'a, str>, Option<String>) {
     const RESERVED: &str = "$serde_json::private::Number";
     // The reserved key starts with `$` and can otherwise only appear through an escape.
-    if !source.contains(['$', '\\']) {
+    if memchr::memchr2(b'$', b'\\', source.as_bytes()).is_none() {
         return (Cow::Borrowed(source), None);
     }
     let bytes = source.as_bytes();

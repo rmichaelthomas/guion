@@ -5078,13 +5078,27 @@ pub fn new_value_allocation(value: &Value) -> usize {
 
 #[inline]
 pub fn cloned_value_allocation(value: &Value) -> usize {
+    // Each Option or Result wrapper clones one boxed value around its payload.
+    let mut wrappers = 0usize;
+    let mut value = value;
+    while let Value::OptionSome(inner) | Value::ResultOk(inner) | Value::ResultErr(inner) = value {
+        wrappers += 1;
+        value = inner;
+    }
+    wrappers
+        .saturating_mul(size_of::<Value>())
+        .saturating_add(cloned_payload_allocation(value))
+}
+
+#[inline]
+fn cloned_payload_allocation(value: &Value) -> usize {
     match value {
         // A text clone shares its immutable backing storage, as Lists, Maps and JSON do,
         // so it allocates nothing. The text was charged once when it was created.
         Value::Int(_) | Value::Text(_) => 0,
         Value::Record(name, _) => size_of::<String>().saturating_add(name.len()),
-        Value::OptionSome(value) | Value::ResultOk(value) | Value::ResultErr(value) => {
-            size_of::<Value>().saturating_add(cloned_value_allocation(value))
+        Value::OptionSome(_) | Value::ResultOk(_) | Value::ResultErr(_) => {
+            unreachable!("wrappers are unwrapped by cloned_value_allocation")
         }
         Value::TaskError(error) => size_of::<TaskErrorValue>()
             .saturating_add(error.code.len())
@@ -5285,15 +5299,17 @@ pub fn shared_json_metrics(value: &SharedJson, max_integer_digits: usize) -> Jso
             },
         },
         SharedJson::Number(number) => {
-            let text = number.to_string();
-            let digits = text.strip_prefix('-').unwrap_or(&text);
+            // Numbers keep their source text, so measuring one needs no formatting.
+            let text = number.as_str();
+            let digits = text.strip_prefix('-').unwrap_or(text);
             let is_integer = !digits.is_empty() && digits.bytes().all(|byte| byte.is_ascii_digit());
+            let (len, digits) = (text.len(), is_integer.then_some(digits.len()));
             JsonMetrics {
                 depth: 0,
                 item_count: 0,
-                oversized_integer: is_integer && digits.len() > max_integer_digits,
-                allocation_bytes: size_of::<SharedJson>().saturating_add(text.len()),
-                encoded_len: text.len(),
+                oversized_integer: digits.is_some_and(|digits| digits > max_integer_digits),
+                allocation_bytes: size_of::<SharedJson>().saturating_add(len),
+                encoded_len: len,
             }
         }
         SharedJson::String(text) => JsonMetrics {
@@ -5522,7 +5538,30 @@ pub fn value_limit_error(value: &Value, limits: &VmLimits, span: Span) -> Option
         Value::Int(i) if !i.exceeds_digits(limits.max_integer_digits) => None,
         Value::Text(s) if s.len() <= limits.max_text_bytes => None,
         Value::Bool(_) | Value::Float64(_) | Value::Unit | Value::OptionNone => None,
+        // Records of scalars, such as an aggregate row stored back into a map, are checked
+        // field by field without entering the recursive walk.
+        Value::Record(_, fields)
+            if fields
+                .iter()
+                .all(|field| scalar_within_limits(field, limits)) =>
+        {
+            None
+        }
         _ => value_limit_error_with_json(value, limits, span, false),
+    }
+}
+
+/// Whether `value` is a scalar within its limits; JSON payloads are left to the boundary
+/// check, as `value_limit_error` leaves them.
+#[inline(always)]
+fn scalar_within_limits(value: &Value, limits: &VmLimits) -> bool {
+    match value {
+        Value::Int(i) => !i.exceeds_digits(limits.max_integer_digits),
+        Value::Text(s) => s.len() <= limits.max_text_bytes,
+        Value::Bool(_) | Value::Float64(_) | Value::Unit | Value::OptionNone | Value::Json(_) => {
+            true
+        }
+        _ => false,
     }
 }
 
@@ -8349,5 +8388,86 @@ mod tests {
             .expect("the existing map key remains present");
         assert_eq!(stored_key.as_ptr(), original_key_ptr);
         assert_eq!(stored_value, &Value::Bool(true));
+    }
+
+    #[test]
+    fn record_limit_fast_path_agrees_with_the_full_walk() {
+        let limits = VmLimits {
+            max_integer_digits: 3,
+            max_text_bytes: 4,
+            max_collection_items: 2,
+            ..VmLimits::default()
+        };
+        let record = |fields: Vec<Value>| Value::Record("Row".into(), Arc::new(fields));
+        let text = |text: &str| Value::Text(SharedText::from(text));
+        let int = |value: i64| Value::Int(BigInt::from_i64(value));
+        let cases = [
+            record(vec![]),
+            record(vec![int(123), text("ok"), Value::Bool(true), Value::Unit]),
+            record(vec![int(1234), text("ok")]),
+            record(vec![int(1), text("too long")]),
+            record(vec![
+                Value::OptionNone,
+                Value::Json(Arc::new(SharedJson::Null)),
+            ]),
+            record(vec![record(vec![text("too long")])]),
+            record(vec![Value::OptionSome(Box::new(int(12345)))]),
+            record(vec![Value::List(Arc::new(vec![int(1), int(2), int(3)]))]),
+        ];
+        for value in cases {
+            let code = |error: Option<RuntimeError>| error.map(|error| error.code);
+            assert_eq!(
+                code(value_limit_error(&value, &limits, Span::default())),
+                code(value_limit_error_with_json(
+                    &value,
+                    &limits,
+                    Span::default(),
+                    false
+                )),
+                "{value:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn cloned_allocation_counts_every_option_and_result_wrapper() {
+        let text = Value::Text(SharedText::from("payload"));
+        let wrapped = Value::OptionSome(Box::new(Value::ResultOk(Box::new(Value::ResultErr(
+            Box::new(text.clone()),
+        )))));
+        assert_eq!(cloned_value_allocation(&text), 0);
+        assert_eq!(cloned_value_allocation(&wrapped), 3 * size_of::<Value>());
+        let record = Value::Record("Row".into(), Arc::new(vec![]));
+        assert_eq!(
+            cloned_value_allocation(&Value::ResultOk(Box::new(record.clone()))),
+            size_of::<Value>() + cloned_value_allocation(&record)
+        );
+    }
+
+    #[test]
+    fn json_number_metrics_measure_the_number_as_written() {
+        // The parser stores a number's text (normalising exponents), and both `as_str` and
+        // `Display` return that stored text.
+        for (source, digits_over_three) in [
+            ("0", false),
+            ("-123", false),
+            ("1234", true),
+            ("-12345678901234567890123", true),
+            ("1.5", false),
+            ("-2.50e10", false),
+            ("1E400", false),
+        ] {
+            let number: serde_json::Number = serde_json::from_str(source).unwrap();
+            let written = number.to_string();
+            assert_eq!(number.as_str(), written);
+            let metrics = shared_json_metrics(&SharedJson::Number(number), 3);
+            assert_eq!(metrics.encoded_len, written.len(), "{source}");
+            assert_eq!(metrics.oversized_integer, digits_over_three, "{source}");
+            assert_eq!(
+                metrics.allocation_bytes,
+                size_of::<SharedJson>() + written.len(),
+                "{source}"
+            );
+        }
     }
 }
