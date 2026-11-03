@@ -1,6 +1,6 @@
 //! Small-object pool allocator for the `guion` binary.
 //!
-//! Guion values are built from many short-lived small `Arc`/`String`/`Vec`
+//! Guion values are built from many short-lived small `Shared`/`String`/`Vec`
 //! allocations. This allocator serves requests of up to `MAX_SMALL` bytes from
 //! thread-local size-class free lists carved out of large chunks, and forwards
 //! everything else to the system allocator. Chunks are never returned to the

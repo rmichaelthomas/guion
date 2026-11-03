@@ -1,5 +1,5 @@
 use guion_compiler::{compile, compile_project_with_roots};
-use guion_model::{BigInt, SharedJson, Value};
+use guion_model::{BigInt, ShareAcrossThreads, SharedJson, Value};
 use guion_runtime::{CancellationToken, EffectKind, EffectOutcome, HostPolicy, Runtime};
 use std::{
     collections::HashMap,
@@ -7,7 +7,7 @@ use std::{
     io::{Read, Write},
     net::TcpListener,
     path::PathBuf,
-    sync::{mpsc, Arc},
+    sync::mpsc,
     thread,
     time::{Duration, Instant},
 };
@@ -157,6 +157,8 @@ fn http_cancellation_interrupts_in_flight_requests_and_marks_the_effect_interrup
             HostPolicy::default().with_network_hosts(["127.0.0.1"], Duration::from_secs(2), 64);
         let cancellation = CancellationToken::new();
         let task_cancellation = cancellation.clone();
+        // The artifact is loaded on another thread, which reads its constants.
+        artifact.share_across_threads();
         let invocation = thread::spawn(move || {
             let mut instance = Runtime::new().load(artifact, policy).unwrap();
             let result = instance.invoke_with_cancellation("main", vec![], task_cancellation);
@@ -384,7 +386,7 @@ fn byte_http_preserves_binary_request_and_response_bodies() {
             "send",
             vec![
                 Value::Text(url.into()),
-                Value::Bytes(std::sync::Arc::new(payload.clone())),
+                Value::Bytes(guion_model::Shared::new(payload.clone())),
             ],
         )
         .unwrap();
@@ -401,7 +403,7 @@ fn byte_http_preserves_binary_request_and_response_bodies() {
     );
     assert_eq!(
         fields[2],
-        Value::Bytes(std::sync::Arc::new(vec![0x00, 0xff, 0x80, b'v']))
+        Value::Bytes(guion_model::Shared::new(vec![0x00, 0xff, 0x80, b'v']))
     );
     let request = server.join().unwrap();
     assert!(request
@@ -438,6 +440,8 @@ fn byte_http_cancellation_interrupts_during_response_body_read() {
         HostPolicy::default().with_network_hosts(["127.0.0.1"], Duration::from_secs(5), 1024);
     let cancellation = CancellationToken::new();
     let task_cancellation = cancellation.clone();
+    // The artifact is loaded on another thread, which reads its constants.
+    artifact.share_across_threads();
     let invocation = thread::spawn(move || {
         let mut instance = Runtime::new().load(artifact, policy).unwrap();
         let result = instance.invoke_with_cancellation("main", vec![], task_cancellation);
@@ -654,10 +658,10 @@ fn compile_http_project(name: &str, source: &str) -> guion_model::Artifact {
 fn http_response_value(status: i64, body: &[u8]) -> Value {
     Value::Record(
         "HttpResponse".into(),
-        Arc::new(vec![
+        guion_model::Shared::new(vec![
             Value::Int(BigInt::from_i64(status)),
-            Value::Map(Arc::new(guion_model::TextMap::new())),
-            Value::Bytes(Arc::new(body.to_vec())),
+            Value::Map(guion_model::Shared::new(guion_model::TextMap::new())),
+            Value::Bytes(guion_model::Shared::new(body.to_vec())),
         ]),
     )
 }

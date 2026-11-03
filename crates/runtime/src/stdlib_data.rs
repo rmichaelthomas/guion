@@ -2,8 +2,7 @@
 #[path = "resources.rs"]
 pub mod resources;
 
-use guion_model::{BigInt, JsonErrorValue, SharedJson};
-use std::sync::Arc;
+use guion_model::{BigInt, JsonErrorValue, Shared, SharedJson};
 use std::{cmp::Ordering, collections::BTreeMap, path::Path};
 
 pub use resources::{
@@ -28,7 +27,10 @@ impl DataError {
 
 pub type JsonTryError = JsonErrorValue;
 
-pub fn json_try_get(value: &Arc<SharedJson>, key: &str) -> Result<Arc<SharedJson>, JsonTryError> {
+pub fn json_try_get(
+    value: &Shared<SharedJson>,
+    key: &str,
+) -> Result<Shared<SharedJson>, JsonTryError> {
     let Some(object) = value.as_object() else {
         return Err(json_error("E_JSON_SHAPE", "expected a JSON object"));
     };
@@ -39,9 +41,9 @@ pub fn json_try_get(value: &Arc<SharedJson>, key: &str) -> Result<Arc<SharedJson
 }
 
 pub fn json_try_index(
-    value: &Arc<SharedJson>,
+    value: &Shared<SharedJson>,
     index: i64,
-) -> Result<Arc<SharedJson>, JsonTryError> {
+) -> Result<Shared<SharedJson>, JsonTryError> {
     let Some(array) = value.as_array() else {
         return Err(json_error("E_JSON_SHAPE", "expected a JSON array"));
     };

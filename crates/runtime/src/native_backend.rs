@@ -393,8 +393,8 @@ fn may_hide_json_handle_in_native_value(ty: &Type) -> bool {
     match ty {
         Type::Json => true,
         // Native List and tagged Option/Result values keep JSON references as
-        // arena handles without cloning their Arc. Maps and records materialize
-        // Value nodes, so their Arc counts already expose hidden JSON aliases.
+        // arena handles without cloning their pointer. Maps and records materialize
+        // Value nodes, so their reference counts already expose hidden JSON aliases.
         Type::List(item) | Type::Option(item) => may_hide_json_handle_in_native_value(item),
         Type::Result(ok, err) => {
             may_hide_json_handle_in_native_value(ok) || may_hide_json_handle_in_native_value(err)

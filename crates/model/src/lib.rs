@@ -2,7 +2,7 @@
 /// (`cargo +nightly miri test -p guion-model shared_text`).
 #[cfg(test)]
 mod shared_text_tests {
-    use super::{SharedText, Value};
+    use super::{ShareAcrossThreads, SharedText, Value};
 
     #[test]
     fn shared_text_reads_back_what_it_was_made_from() {
@@ -79,6 +79,7 @@ mod shared_text_tests {
     #[test]
     fn shared_text_crosses_threads() {
         let text = SharedText::concat("from ", "main", 0, true);
+        text.share_across_threads();
         let workers: Vec<_> = (0..4)
             .map(|_| {
                 let text = text.clone();
@@ -104,11 +105,11 @@ mod shared_text_tests {
 
 #[cfg(test)]
 mod tests {
+    use super::Shared;
     use super::{
         Artifact, BigInt, BuildMetadata, ExternalFunction, FileErrorValue, Function, Instruction,
         JsonErrorValue, Op, ResourceLimits, SharedJson, Span, Type, Value,
     };
-    use std::sync::Arc;
 
     #[test]
     fn http_response_text_requires_format_45_and_round_trips() {
@@ -478,7 +479,7 @@ mod tests {
         let (Some(original), Some(copy)) = (&value.digits, &cloned.digits) else {
             panic!("an out-of-range integer uses shared large storage")
         };
-        assert!(Arc::ptr_eq(original, copy));
+        assert!(Shared::ptr_eq(original, copy));
     }
 
     #[test]
@@ -492,7 +493,7 @@ mod tests {
         #[allow(dead_code)]
         struct PreviousBigIntLayout {
             sign: i8,
-            digits: Arc<Vec<u8>>,
+            digits: Shared<Vec<u8>>,
         }
         assert_eq!(
             std::mem::size_of::<BigInt>(),
@@ -1033,9 +1034,12 @@ mod tests {
                 local_count: 0,
                 code: vec![
                     Instruction {
-                        op: Op::Const(Value::List(Arc::new(vec![
+                        op: Op::Const(Value::List(Shared::new(vec![
                             Value::Int(BigInt::parse("123456789012345678901234567890").unwrap()),
-                            Value::List(Arc::new(vec![Value::Bool(true), Value::Text("é".into())])),
+                            Value::List(Shared::new(vec![
+                                Value::Bool(true),
+                                Value::Text("é".into()),
+                            ])),
                         ]))),
                         span: Span {
                             source_id: 0,
@@ -1046,7 +1050,7 @@ mod tests {
                         },
                     },
                     Instruction {
-                        op: Op::Const(Value::Bytes(Arc::new(vec![0, 0xff, 0x80, b'a']))),
+                        op: Op::Const(Value::Bytes(Shared::new(vec![0, 0xff, 0x80, b'a']))),
                         span: Span::default(),
                     },
                     Instruction {
@@ -1297,24 +1301,27 @@ mod tests {
         let (Value::Json(original), Value::Json(copied)) = (&original, &copied) else {
             panic!("expected JSON values")
         };
-        assert!(Arc::ptr_eq(original, copied));
+        assert!(Shared::ptr_eq(original, copied));
 
-        let original_list = Value::List(Arc::new(vec![Value::Int(BigInt::from_usize(1))]));
+        let original_list = Value::List(Shared::new(vec![Value::Int(BigInt::from_usize(1))]));
         let copied_list = original_list.clone();
         let (Value::List(original_list), Value::List(copied_list)) = (&original_list, &copied_list)
         else {
             panic!("expected list values")
         };
-        assert!(Arc::ptr_eq(original_list, copied_list));
+        assert!(Shared::ptr_eq(original_list, copied_list));
     }
 }
 
+mod shared;
+
+use shared::HybridCount;
+pub use shared::{ShareAcrossThreads, Shared};
 use std::{
     cmp::Ordering,
     collections::{BTreeMap, HashSet},
     fmt,
     ops::{Add, Mul, Sub},
-    sync::Arc,
 };
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -1356,7 +1363,7 @@ pub struct BigInt {
     // two machine words while storing every i64 inline.
     small_or_sign: i64,
     // Base 10, least significant digit first; present only outside i64.
-    digits: Option<Arc<Vec<u8>>>,
+    digits: Option<Shared<Vec<u8>>>,
 }
 
 impl BigInt {
@@ -1536,7 +1543,7 @@ impl BigInt {
         }
         Self {
             small_or_sign: if sign < 0 { -1 } else { 1 },
-            digits: Some(Arc::new(digits)),
+            digits: Some(Shared::new(digits)),
         }
     }
 
@@ -1712,7 +1719,7 @@ impl Sub<&BigInt> for &BigInt {
             ),
             (Some(digits), sign) => BigInt {
                 small_or_sign: -sign,
-                digits: Some(Arc::clone(digits)),
+                digits: Some(Shared::clone(digits)),
             },
         };
         self + &neg
@@ -1813,7 +1820,7 @@ pub struct SharedText(std::ptr::NonNull<TextHeader>);
 
 #[repr(C)]
 struct TextHeader {
-    count: std::sync::atomic::AtomicUsize,
+    count: HybridCount,
     len: usize,
     /// Capacity in bytes; the top bit marks text that appends may extend in place.
     capacity: usize,
@@ -1822,8 +1829,8 @@ struct TextHeader {
 const TEXT_HEADER_BYTES: usize = std::mem::size_of::<TextHeader>();
 const TEXT_GROWABLE: usize = 1 << (usize::BITS - 1);
 
-// SAFETY: the bytes are mutated only through `&mut SharedText` while the count is one, and
-// the count is atomic, as in `Arc`.
+// SAFETY: the bytes are mutated only through `&mut SharedText` while the count is one, and the
+// count follows the rules in the `shared` module.
 unsafe impl Send for SharedText {}
 // SAFETY: as above.
 unsafe impl Sync for SharedText {}
@@ -1849,7 +1856,7 @@ impl SharedText {
         // SAFETY: `raw` is a fresh allocation with room for the header and `capacity` bytes.
         unsafe {
             header.as_ptr().write(TextHeader {
-                count: std::sync::atomic::AtomicUsize::new(1),
+                count: HybridCount::new(),
                 len: text.len(),
                 capacity: capacity | if growable { TEXT_GROWABLE } else { 0 },
             });
@@ -1889,18 +1896,22 @@ impl SharedText {
     }
 
     pub fn strong_count(text: &Self) -> usize {
-        text.header()
-            .count
-            .load(std::sync::atomic::Ordering::Acquire)
+        text.header().count.get()
+    }
+
+    /// Text that is never freed and never counted, for process-wide caches.
+    pub fn immortal(text: &str) -> Self {
+        let text = Self::with_capacity(text, text.len(), false);
+        // SAFETY: the text was just made and is held only here.
+        unsafe { (*text.0.as_ptr()).count = HybridCount::immortal() };
+        text
     }
 
     /// Append `more` in place when the text is growable and no other value shares it,
     /// doubling the capacity when it runs out. Returns whether it appended.
     pub fn try_append(text: &mut Self, more: &str) -> bool {
         let header = text.header();
-        if header.capacity & TEXT_GROWABLE == 0
-            || header.count.load(std::sync::atomic::Ordering::Acquire) != 1
-        {
+        if header.capacity & TEXT_GROWABLE == 0 || !header.count.claim_unique() {
             return false;
         }
         let len = header.len;
@@ -1946,13 +1957,7 @@ impl SharedText {
 impl Clone for SharedText {
     #[inline]
     fn clone(&self) -> Self {
-        let previous = self
-            .header()
-            .count
-            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        if previous > isize::MAX as usize {
-            std::process::abort();
-        }
+        self.header().count.increment();
         Self(self.0)
     }
 }
@@ -1960,18 +1965,110 @@ impl Clone for SharedText {
 impl Drop for SharedText {
     #[inline]
     fn drop(&mut self) {
-        if self
-            .header()
-            .count
-            .fetch_sub(1, std::sync::atomic::Ordering::Release)
-            != 1
-        {
+        if !self.header().count.decrement() {
             return;
         }
-        std::sync::atomic::fence(std::sync::atomic::Ordering::Acquire);
         let layout = Self::layout(self.capacity());
         // SAFETY: this was the last reference, and the allocation was made with this layout.
         unsafe { std::alloc::dealloc(self.0.as_ptr().cast(), layout) };
+    }
+}
+
+impl ShareAcrossThreads for SharedText {
+    fn share_across_threads(&self) {
+        self.header().count.share();
+    }
+}
+
+impl ShareAcrossThreads for Float64 {
+    fn share_across_threads(&self) {}
+}
+
+impl ShareAcrossThreads for BigInt {
+    fn share_across_threads(&self) {
+        if let Some(digits) = &self.digits {
+            digits.share_across_threads();
+        }
+    }
+}
+
+impl ShareAcrossThreads for RecordName {
+    fn share_across_threads(&self) {
+        self.0.share_across_threads();
+    }
+}
+
+impl ShareAcrossThreads for SharedJson {
+    fn share_across_threads(&self) {
+        match self {
+            Self::Null | Self::Bool(_) | Self::Number(_) => {}
+            Self::String(text) => text.share_across_threads(),
+            Self::Array(values) => values.share_across_threads(),
+            Self::Object(values) => values.share_across_threads(),
+        }
+    }
+}
+
+impl ShareAcrossThreads for BTreeMap<String, Shared<SharedJson>> {
+    fn share_across_threads(&self) {
+        for value in self.values() {
+            value.share_across_threads();
+        }
+    }
+}
+
+impl ShareAcrossThreads for TextMap {
+    fn share_across_threads(&self) {
+        for (key, value) in self.iter_unordered() {
+            key.share_across_threads();
+            value.share_across_threads();
+        }
+    }
+}
+
+impl ShareAcrossThreads for Artifact {
+    /// Shares the constants and record names that every thread running this artifact reads.
+    fn share_across_threads(&self) {
+        for function in &self.functions {
+            for instruction in &function.code {
+                if let Op::Const(value) = &instruction.op {
+                    value.share_across_threads();
+                }
+            }
+        }
+        for record in &self.records {
+            record.name.share_across_threads();
+        }
+    }
+}
+
+impl ShareAcrossThreads for Value {
+    fn share_across_threads(&self) {
+        match self {
+            Value::Int(value) => value.share_across_threads(),
+            Value::Record(name, fields) => {
+                name.share_across_threads();
+                fields.share_across_threads();
+            }
+            Value::Bytes(bytes) => bytes.share_across_threads(),
+            Value::Text(text) => text.share_across_threads(),
+            Value::List(items) => items.share_across_threads(),
+            Value::Float64List(items) => items.share_across_threads(),
+            Value::Map(items) => items.share_across_threads(),
+            Value::OptionSome(value) | Value::ResultOk(value) | Value::ResultErr(value) => {
+                value.share_across_threads()
+            }
+            Value::TaskError(error) => error.index.share_across_threads(),
+            Value::Json(json) => json.share_across_threads(),
+            Value::Float64(_)
+            | Value::Bool(_)
+            | Value::OptionNone
+            | Value::JsonError(_)
+            | Value::FileError(_)
+            | Value::HttpError(_)
+            | Value::NativeResource(_)
+            | Value::Unit => {}
+        }
     }
 }
 
@@ -2091,15 +2188,15 @@ impl PartialEq<&str> for SharedText {
 }
 
 /// Immutable JSON nodes with shared child storage. Reading a nested value
-/// clones an Arc instead of recursively copying the entire subtree.
+/// clones a `Shared` pointer instead of recursively copying the entire subtree.
 #[derive(Clone, Debug, PartialEq)]
 pub enum SharedJson {
     Null,
     Bool(bool),
     Number(serde_json::Number),
     String(SharedText),
-    Array(Arc<Vec<Arc<SharedJson>>>),
-    Object(Arc<BTreeMap<String, Arc<SharedJson>>>),
+    Array(Shared<Vec<Shared<SharedJson>>>),
+    Object(Shared<BTreeMap<String, Shared<SharedJson>>>),
 }
 
 impl serde::Serialize for SharedJson {
@@ -2135,16 +2232,16 @@ impl serde::Serialize for SharedJson {
 }
 
 impl SharedJson {
-    pub fn from_serde(value: serde_json::Value) -> Arc<Self> {
-        Arc::new(match value {
+    pub fn from_serde(value: serde_json::Value) -> Shared<Self> {
+        Shared::new(match value {
             serde_json::Value::Null => Self::Null,
             serde_json::Value::Bool(value) => Self::Bool(value),
             serde_json::Value::Number(value) => Self::Number(value),
             serde_json::Value::String(value) => Self::String(SharedText::from(value)),
-            serde_json::Value::Array(values) => {
-                Self::Array(Arc::new(values.into_iter().map(Self::from_serde).collect()))
-            }
-            serde_json::Value::Object(values) => Self::Object(Arc::new(
+            serde_json::Value::Array(values) => Self::Array(Shared::new(
+                values.into_iter().map(Self::from_serde).collect(),
+            )),
+            serde_json::Value::Object(values) => Self::Object(Shared::new(
                 values
                     .into_iter()
                     .map(|(key, value)| (key, Self::from_serde(value)))
@@ -2171,30 +2268,30 @@ impl SharedJson {
         }
     }
 
-    pub fn as_array(&self) -> Option<&[Arc<SharedJson>]> {
+    pub fn as_array(&self) -> Option<&[Shared<SharedJson>]> {
         match self {
             Self::Array(values) => Some(values),
             _ => None,
         }
     }
 
-    pub fn as_array_mut(&mut self) -> Option<&mut Vec<Arc<SharedJson>>> {
+    pub fn as_array_mut(&mut self) -> Option<&mut Vec<Shared<SharedJson>>> {
         match self {
-            Self::Array(values) => Some(Arc::make_mut(values)),
+            Self::Array(values) => Some(Shared::make_mut(values)),
             _ => None,
         }
     }
 
-    pub fn as_object(&self) -> Option<&BTreeMap<String, Arc<SharedJson>>> {
+    pub fn as_object(&self) -> Option<&BTreeMap<String, Shared<SharedJson>>> {
         match self {
             Self::Object(values) => Some(values),
             _ => None,
         }
     }
 
-    pub fn as_object_mut(&mut self) -> Option<&mut BTreeMap<String, Arc<SharedJson>>> {
+    pub fn as_object_mut(&mut self) -> Option<&mut BTreeMap<String, Shared<SharedJson>>> {
         match self {
-            Self::Object(values) => Some(Arc::make_mut(values)),
+            Self::Object(values) => Some(Shared::make_mut(values)),
             _ => None,
         }
     }
@@ -2244,9 +2341,14 @@ impl fmt::Display for SharedJson {
 
 /// A record value's type name: one pointer wide so `Value` stays small, and cheap to clone.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct RecordName(Arc<String>);
+pub struct RecordName(Shared<String>);
 
 impl RecordName {
+    /// A name that is never freed and never counted, for process-wide caches.
+    pub fn immortal(name: &str) -> Self {
+        Self(Shared::immortal(name.to_owned()))
+    }
+
     pub fn as_str(&self) -> &str {
         self.0.as_str()
     }
@@ -2267,13 +2369,13 @@ impl std::borrow::Borrow<str> for RecordName {
 
 impl From<&str> for RecordName {
     fn from(name: &str) -> Self {
-        Self(Arc::new(name.to_owned()))
+        Self(Shared::new(name.to_owned()))
     }
 }
 
 impl From<String> for RecordName {
     fn from(name: String) -> Self {
-        Self(Arc::new(name))
+        Self(Shared::new(name))
     }
 }
 
@@ -2482,19 +2584,19 @@ impl<'a> IntoIterator for &'a TextMap {
 pub enum Value {
     Int(BigInt),
     Float64(Float64),
-    Record(RecordName, Arc<Vec<Value>>),
-    Bytes(Arc<Vec<u8>>),
+    Record(RecordName, Shared<Vec<Value>>),
+    Bytes(Shared<Vec<u8>>),
     Bool(bool),
     Text(SharedText),
-    List(Arc<Vec<Value>>),
-    Float64List(Arc<Vec<Float64>>),
-    Map(Arc<TextMap>),
+    List(Shared<Vec<Value>>),
+    Float64List(Shared<Vec<Float64>>),
+    Map(Shared<TextMap>),
     OptionNone,
     OptionSome(Box<Value>),
     ResultOk(Box<Value>),
     ResultErr(Box<Value>),
     TaskError(Box<TaskErrorValue>),
-    Json(Arc<SharedJson>),
+    Json(Shared<SharedJson>),
     JsonError(Box<JsonErrorValue>),
     FileError(Box<FileErrorValue>),
     HttpError(Box<HttpErrorValue>),
@@ -2506,7 +2608,7 @@ impl Value {
     /// Build a list, using packed Float64 storage when every element has that type.
     pub fn from_list_items(items: Vec<Value>) -> Self {
         if !items.is_empty() && items.iter().all(|item| matches!(item, Value::Float64(_))) {
-            Value::Float64List(Arc::new(
+            Value::Float64List(Shared::new(
                 items
                     .into_iter()
                     .map(|item| match item {
@@ -2516,7 +2618,7 @@ impl Value {
                     .collect(),
             ))
         } else {
-            Value::List(Arc::new(items))
+            Value::List(Shared::new(items))
         }
     }
 
@@ -5216,7 +5318,7 @@ impl<'a> Reader<'a> {
                         return Err(ArtifactError::new("E_ARTIFACT_MAP", "duplicate map key"));
                     }
                 }
-                Ok(Value::Map(Arc::new(items)))
+                Ok(Value::Map(Shared::new(items)))
             }
             14 => {
                 let value = f64::from_bits(self.u64()?);
@@ -5231,9 +5333,9 @@ impl<'a> Reader<'a> {
                 for _ in 0..count {
                     fields.push(self.value_at(depth + 1)?);
                 }
-                Ok(Value::Record(name.into(), Arc::new(fields)))
+                Ok(Value::Record(name.into(), Shared::new(fields)))
             }
-            16 => Ok(Value::Bytes(Arc::new(self.blob()?))),
+            16 => Ok(Value::Bytes(Shared::new(self.blob()?))),
             17 => Ok(Value::HttpError(Box::new(HttpErrorValue {
                 code: self.string()?,
                 message: self.string()?,

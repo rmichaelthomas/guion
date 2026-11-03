@@ -13,7 +13,11 @@
 //! interpreter, which then produces the exact behavior and error.
 
 use super::*;
-use std::sync::OnceLock;
+use guion_model::ShareAcrossThreads;
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    OnceLock,
+};
 
 const NO_ENTRY: u32 = u32::MAX;
 const NO_RECIPE: u32 = 0;
@@ -160,6 +164,7 @@ pub fn build_register_programs(artifact: &Artifact) -> RegisterPrograms {
             })
             .collect(),
         programs: artifact.functions.iter().map(|_| OnceLock::new()).collect(),
+        shared: AtomicBool::new(false),
     }
 }
 
@@ -169,6 +174,9 @@ pub fn build_register_programs(artifact: &Artifact) -> RegisterPrograms {
 pub struct RegisterPrograms {
     constructors: Vec<Option<Kind>>,
     programs: Vec<OnceLock<RegisterProgram>>,
+    /// Set once other threads may run these programs; constants of programs translated
+    /// afterwards are shared as they are made.
+    shared: AtomicBool,
 }
 
 impl RegisterPrograms {
@@ -178,8 +186,26 @@ impl RegisterPrograms {
         function: &guion_model::Function,
     ) -> Option<&RegisterProgram> {
         self.programs.get(index).map(|program| {
-            program.get_or_init(|| Translator::new(function, &self.constructors).translate())
+            program.get_or_init(|| {
+                let program = Translator::new(function, &self.constructors).translate();
+                if self.shared.load(Ordering::Acquire) {
+                    program.consts.share_across_threads();
+                }
+                program
+            })
         })
+    }
+
+    /// Prepare the programs to be run from other threads: share the constants of those
+    /// already translated, and of those translated from now on. Call it on the thread that
+    /// has been running them, before other threads can reach them.
+    pub fn share_across_threads(&self) {
+        self.shared.store(true, Ordering::Release);
+        for program in &self.programs {
+            if let Some(program) = program.get() {
+                program.consts.share_across_threads();
+            }
+        }
     }
 }
 
@@ -1185,7 +1211,7 @@ pub(super) fn run_registers<H: VmHost>(
                         _ => leave!(),
                     };
                     let hash = key_hash(key);
-                    Arc::get_mut(&mut map)
+                    Shared::get_mut(&mut map)
                         .and_then(|entries| entries.get_mut_hashed(hash, key.as_ref()))
                 };
                 let Some(existing) = existing else { leave!() };
@@ -1321,14 +1347,14 @@ pub(super) fn run_registers<H: VmHost>(
                     .saturating_add(definition.name.len());
                 commit!(record_bytes);
                 let fields = stack.split_off(stack.len() - count);
-                finish_value!(Value::Record(definition.name.clone(), Arc::new(fields)))
+                finish_value!(Value::Record(definition.name.clone(), Shared::new(fields)))
             }
             Kind::JsonGet => {
                 let Some(child) = json_field(read!(instruction.a), read!(instruction.b), limits)
                 else {
                     exit!()
                 };
-                let result = Value::ResultOk(Box::new(Value::Json(Arc::clone(child))));
+                let result = Value::ResultOk(Box::new(Value::Json(Shared::clone(child))));
                 commit!(0);
                 drop_operands!();
                 finish_value!(result)
@@ -1530,7 +1556,11 @@ fn read_operand<'v>(
 }
 
 #[inline]
-fn json_field<'v>(json: &'v Value, key: &Value, limits: &VmLimits) -> Option<&'v Arc<SharedJson>> {
+fn json_field<'v>(
+    json: &'v Value,
+    key: &Value,
+    limits: &VmLimits,
+) -> Option<&'v Shared<SharedJson>> {
     let (Value::Json(json), Value::Text(key)) = (json, key) else {
         return None;
     };

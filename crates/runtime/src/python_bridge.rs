@@ -1,6 +1,6 @@
 use super::CancellationToken;
 use base64::{engine::general_purpose::STANDARD, Engine as _};
-use guion_model::{BigInt, Float64, SharedJson, TextMap, Type, Value};
+use guion_model::{BigInt, Float64, Shared, SharedJson, TextMap, Type, Value};
 use serde::{
     ser::{SerializeMap, SerializeSeq},
     Serialize, Serializer,

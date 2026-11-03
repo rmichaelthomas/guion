@@ -8,7 +8,8 @@
 
 use guion_model::{
     Artifact, BigInt, FileErrorValue, Float64, HttpErrorValue, JsonErrorValue, NativeResourceValue,
-    Op, RuntimeError, SharedJson, SharedText, Span, TaskErrorValue, TextMap, Type, Value,
+    Op, RuntimeError, ShareAcrossThreads, Shared, SharedJson, SharedText, Span, TaskErrorValue,
+    TextMap, Type, Value,
 };
 use std::{
     cell::Cell,
@@ -130,6 +131,9 @@ pub fn text_find_scalar(text: &SharedText, needle: &str, from: usize) -> Option<
                 .as_ref()
                 .is_some_and(|index| SharedText::ptr_eq(&index.text, text))
             {
+                // The cache outlives the program on this thread and keeps a reference to the
+                // text, which other threads may hold too, so it is counted atomically.
+                text.share_across_threads();
                 *cache = Some(TextScalarIndex::new(text));
             }
             cache
@@ -253,7 +257,10 @@ fn shared_text_scalar(scalar: char) -> SharedText {
 
     static ASCII_SCALARS: OnceLock<[OnceLock<SharedText>; 128]> = OnceLock::new();
     let scalars = ASCII_SCALARS.get_or_init(|| std::array::from_fn(|_| OnceLock::new()));
-    SharedText::clone(scalars[scalar as usize].get_or_init(|| SharedText::from(scalar.to_string())))
+    SharedText::clone(
+        scalars[scalar as usize]
+            .get_or_init(|| SharedText::immortal(scalar.encode_utf8(&mut [0; 4]))),
+    )
 }
 
 /// Size and depth limits the shared VM enforces while executing guest code.
@@ -1292,11 +1299,11 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
             }
             Op::MakeTypedList(Type::Float64) => {
                 charge_allocation(budget.as_ref(), size_of::<Vec<Float64>>(), instruction.span)?;
-                push_stack!(Value::Float64List(Arc::new(Vec::new())));
+                push_stack!(Value::Float64List(Shared::new(Vec::new())));
             }
             Op::MakeTypedList(_) => {
                 charge_allocation(budget.as_ref(), size_of::<Vec<Value>>(), instruction.span)?;
-                push_stack!(Value::List(Arc::new(Vec::new())));
+                push_stack!(Value::List(Shared::new(Vec::new())));
             }
             Op::MakeMap(count) => {
                 if *count > limits.max_collection_items {
@@ -1343,7 +1350,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                         ));
                     }
                 }
-                let map = Value::Map(Arc::new(values));
+                let map = Value::Map(Shared::new(values));
                 if let Some(error) = value_limit_error(&map, limits, instruction.span) {
                     return Err(error);
                 }
@@ -1355,7 +1362,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                     TextMap::ACCOUNTED_HEADER_BYTES,
                     instruction.span,
                 )?;
-                push_stack!(Value::Map(Arc::new(TextMap::new())));
+                push_stack!(Value::Map(Shared::new(TextMap::new())));
             }
             Op::MakeRecord(record_index, count) => {
                 let record = host.artifact().records.get(*record_index).ok_or_else(|| {
@@ -1382,7 +1389,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                     fields.push(pop!());
                 }
                 fields.reverse();
-                push_stack!(Value::Record(record.name.clone(), Arc::new(fields)));
+                push_stack!(Value::Record(record.name.clone(), Shared::new(fields)));
             }
             Op::GetField(record_index, field_index) => {
                 let record = host.artifact().records.get(*record_index).ok_or_else(|| {
@@ -1446,7 +1453,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                         .keys()
                         .map(|key| Value::Text(SharedText::clone(key)))
                         .collect::<Vec<_>>();
-                    push_stack!(Value::List(Arc::new(keys)));
+                    push_stack!(Value::List(Shared::new(keys)));
                 }
                 _ => {
                     return Err(RuntimeError::new(
@@ -1640,7 +1647,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                 let local_store_slot = match f.code.get(ip).map(|next| &next.op) {
                     Some(Op::Store(slot))
                         if locals.get(*slot).is_some_and(|local| {
-                            matches!(local, Value::Map(current) if Arc::ptr_eq(current, &values))
+                            matches!(local, Value::Map(current) if Shared::ptr_eq(current, &values))
                         }) =>
                     {
                         Some(*slot)
@@ -1663,7 +1670,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                             instruction.span,
                         ));
                     };
-                    let map_shared = Arc::strong_count(items) > 1;
+                    let map_shared = Shared::strong_count(items) > 1;
                     let mut map_copy_bytes = if map_shared {
                         map_clone_allocation(items.as_ref(), None, &Value::Unit)
                     } else {
@@ -1686,8 +1693,8 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                                 instruction.span,
                             ));
                         };
-                        let inner_shared = Arc::strong_count(inner) > 1;
-                        let fields_shared = Arc::strong_count(fields) > 1;
+                        let inner_shared = Shared::strong_count(inner) > 1;
+                        let fields_shared = Shared::strong_count(fields) > 1;
                         let inner_will_copy = map_shared || inner_shared;
                         if inner_will_copy {
                             map_copy_bytes = map_copy_bytes.saturating_add(map_clone_allocation(
@@ -1705,7 +1712,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                                 instruction.span,
                             ));
                         };
-                        (map_shared || Arc::strong_count(fields) > 1, fields.len())
+                        (map_shared || Shared::strong_count(fields) > 1, fields.len())
                     };
                     let record_copy_bytes = if record_fields_shared {
                         size_of::<Vec<Value>>()
@@ -1718,12 +1725,12 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                         map_copy_bytes.saturating_add(record_copy_bytes),
                         instruction.span,
                     )?;
-                    let map = Arc::make_mut(items);
+                    let map = Shared::make_mut(items);
                     let fields = if let Some(inner_key) = nested_key.as_deref() {
                         let Some(Value::Map(inner)) = map.get_mut(key.as_ref()) else {
                             unreachable!("map_record_set outer map was checked before mutation")
                         };
-                        let inner = Arc::make_mut(inner);
+                        let inner = Shared::make_mut(inner);
                         let Some(Value::Record(_, fields)) = inner.get_mut(inner_key) else {
                             unreachable!("map_record_set inner map was checked before mutation")
                         };
@@ -1734,13 +1741,13 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                         };
                         fields
                     };
-                    Arc::make_mut(fields)[*field_index] = value;
+                    Shared::make_mut(fields)[*field_index] = value;
                     if PROFILED {
                         if let Some(profile) = &budget.runtime_profile {
                             profile.record_map_record_set(map_copy_bytes, record_copy_bytes);
                         }
                     }
-                    let updated = Value::Map(Arc::clone(items));
+                    let updated = Value::Map(Shared::clone(items));
                     push_stack!(updated);
                     continue;
                 }
@@ -1775,7 +1782,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                     let Some(Value::Map(inner)) = updated.get_mut(key.as_ref()) else {
                         unreachable!("map_record_set cloned outer map must retain nested map")
                     };
-                    let inner = Arc::make_mut(inner);
+                    let inner = Shared::make_mut(inner);
                     let Some(Value::Record(_, fields)) = inner.get_mut(inner_key) else {
                         unreachable!("map_record_set cloned inner map must retain record")
                     };
@@ -1786,8 +1793,8 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                     };
                     fields
                 };
-                Arc::make_mut(fields)[*field_index] = value;
-                let map = Value::Map(Arc::new(updated));
+                Shared::make_mut(fields)[*field_index] = value;
+                let map = Value::Map(Shared::new(updated));
                 if let Some(error) = value_limit_error(&map, limits, instruction.span) {
                     return Err(error);
                 }
@@ -1823,7 +1830,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                 let local_store_slot = match f.code.get(ip).map(|next| &next.op) {
                         Some(Op::Store(slot))
                             if locals.get(*slot).is_some_and(|local| {
-                                matches!(local, Value::Map(current) if Arc::ptr_eq(current, &values))
+                                matches!(local, Value::Map(current) if Shared::ptr_eq(current, &values))
                             }) =>
                         {
                             Some(*slot)
@@ -1893,7 +1900,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                                 instruction.span,
                             ));
                         };
-                        let parent_values = Arc::get_mut(parent_arc).expect(
+                        let parent_values = Shared::get_mut(parent_arc).expect(
                             "nested writeback parent uniqueness was checked before mutation",
                         );
                         let Some(Value::Map(inner_arc)) =
@@ -1901,11 +1908,11 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                         else {
                             unreachable!("nested writeback child was checked before mutation")
                         };
-                        let inner_values = Arc::get_mut(inner_arc).expect(
+                        let inner_values = Shared::get_mut(inner_arc).expect(
                             "nested writeback child uniqueness was checked before mutation",
                         );
                         replace_map_value(inner_values, &key, value);
-                        Value::Map(Arc::clone(inner_arc))
+                        Value::Map(Shared::clone(inner_arc))
                     };
                     locals[child_slot] = updated.clone();
                     stack.push(updated);
@@ -1967,19 +1974,19 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                         ));
                     };
                     let nested_result = {
-                        let parent_values = Arc::get_mut(parent_arc)
+                        let parent_values = Shared::get_mut(parent_arc)
                             .expect("nested update parent uniqueness was checked before mutation");
                         let Some(Value::Map(inner_arc)) =
                             parent_values.get_mut(parent_key.as_ref())
                         else {
                             unreachable!("nested update target was checked before mutation")
                         };
-                        let inner_values = Arc::get_mut(inner_arc)
+                        let inner_values = Shared::get_mut(inner_arc)
                             .expect("nested update child uniqueness was checked before mutation");
                         replace_map_value(inner_values, &key, value);
-                        Value::Map(Arc::clone(inner_arc))
+                        Value::Map(Shared::clone(inner_arc))
                     };
-                    let parent_result = Value::Map(Arc::clone(parent_arc));
+                    let parent_result = Value::Map(Shared::clone(parent_arc));
                     stack.push(parent_result);
                     stack.push(Value::Text(parent_key));
                     stack.push(nested_result);
@@ -2012,7 +2019,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                     // Updating an existing key of a unique map charges nothing: one lookup is enough.
                     if key.len() <= limits.max_text_bytes {
                         if let Some(existing) =
-                            Arc::get_mut(items).and_then(|entries| entries.get_mut(key.as_ref()))
+                            Shared::get_mut(items).and_then(|entries| entries.get_mut(key.as_ref()))
                         {
                             if let Some(error) = value_limit_error(&value, limits, instruction.span)
                             {
@@ -2024,7 +2031,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                                     profile.record_map_set(true, 0);
                                 }
                             }
-                            push_stack!(Value::Map(Arc::clone(items)));
+                            push_stack!(Value::Map(Shared::clone(items)));
                             continue;
                         }
                     }
@@ -2043,7 +2050,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                             instruction.span,
                         ));
                     }
-                    let shared = Arc::strong_count(items) > 1;
+                    let shared = Shared::strong_count(items) > 1;
                     let allocation = if shared {
                         map_clone_allocation(items.as_ref(), Some(key.as_ref()), &value)
                     } else if contains_key {
@@ -2055,13 +2062,13 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                     if let Some(error) = value_limit_error(&value, limits, instruction.span) {
                         return Err(error);
                     }
-                    replace_map_value(Arc::make_mut(items), &key, value);
+                    replace_map_value(Shared::make_mut(items), &key, value);
                     if PROFILED {
                         if let Some(profile) = &budget.runtime_profile {
                             profile.record_map_set(!shared, if shared { allocation } else { 0 });
                         }
                     }
-                    push_stack!(Value::Map(Arc::clone(items)));
+                    push_stack!(Value::Map(Shared::clone(items)));
                     continue;
                 }
                 if !values.contains_key(key.as_ref()) && values.len() >= limits.max_collection_items
@@ -2089,7 +2096,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                         profile.record_map_set(false, map_clone_bytes);
                     }
                 }
-                let map = Value::Map(Arc::new(updated));
+                let map = Value::Map(Shared::new(updated));
                 if let Some(error) = value_limit_error(&map, limits, instruction.span) {
                     return Err(error);
                 }
@@ -2683,7 +2690,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                     bytes.push(byte as u8);
                 }
                 charge_allocation(budget.as_ref(), bytes.capacity(), instruction.span)?;
-                push_stack!(Value::Bytes(Arc::new(bytes)));
+                push_stack!(Value::Bytes(Shared::new(bytes)));
             }
             Op::BytesFromText => {
                 let text = match pop!() {
@@ -2704,7 +2711,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                     ));
                 }
                 charge_allocation(budget.as_ref(), text.len(), instruction.span)?;
-                push_stack!(Value::Bytes(Arc::new(text.as_bytes().to_vec())));
+                push_stack!(Value::Bytes(Shared::new(text.as_bytes().to_vec())));
             }
             Op::BytesJoin => {
                 let values = match pop!() {
@@ -2755,7 +2762,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                         bytes.extend_from_slice(part);
                     }
                 }
-                push_stack!(Value::Bytes(Arc::new(bytes)));
+                push_stack!(Value::Bytes(Shared::new(bytes)));
             }
             Op::Float64Bits => match pop!() {
                 Value::Float64(value) => {
@@ -2955,7 +2962,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                         };
                         let mut updated = items.as_ref().clone();
                         updated.push(value);
-                        Value::Float64List(Arc::new(updated))
+                        Value::Float64List(Shared::new(updated))
                     }
                     _ => unreachable!("list type checked above"),
                 };
@@ -2988,7 +2995,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                                 instruction.span,
                             ));
                         }
-                        let shared = Arc::strong_count(items) > 1;
+                        let shared = Shared::strong_count(items) > 1;
                         let capacity = items.capacity();
                         let allocation = if shared || capacity == len {
                             let grown_capacity =
@@ -2999,7 +3006,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                             0
                         };
                         charge_allocation(budget.as_ref(), allocation, instruction.span)?;
-                        Arc::make_mut(items).push(value);
+                        Shared::make_mut(items).push(value);
                     }
                     Value::Float64List(items) => {
                         let Value::Float64(value) = value else {
@@ -3017,7 +3024,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                                 instruction.span,
                             ));
                         }
-                        let shared = Arc::strong_count(items) > 1;
+                        let shared = Shared::strong_count(items) > 1;
                         let capacity = items.capacity();
                         let allocation = if shared || capacity == len {
                             let grown_capacity =
@@ -3028,7 +3035,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                             0
                         };
                         charge_allocation(budget.as_ref(), allocation, instruction.span)?;
-                        Arc::make_mut(items).push(value);
+                        Shared::make_mut(items).push(value);
                     }
                     _ => {
                         return Err(RuntimeError::new(
@@ -3100,7 +3107,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                         };
                         let mut updated = items.as_ref().clone();
                         updated[index] = value;
-                        Value::Float64List(Arc::new(updated))
+                        Value::Float64List(Shared::new(updated))
                     }
                     _ => unreachable!("list type checked above"),
                 };
@@ -3161,13 +3168,13 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                 budget.record_list_set_operation();
                 match local {
                     Value::List(items) => {
-                        let needs_copy = Arc::strong_count(items) > 1;
+                        let needs_copy = Shared::strong_count(items) > 1;
                         let copy_bytes = size_of::<Vec<Value>>()
                             .saturating_add(len.saturating_mul(size_of::<Value>()));
                         if needs_copy {
                             charge_allocation(budget.as_ref(), copy_bytes, instruction.span)?;
                         }
-                        Arc::make_mut(items)[index] = value;
+                        Shared::make_mut(items)[index] = value;
                         if needs_copy {
                             budget.record_list_set_copy(len, copy_bytes);
                         } else {
@@ -3182,13 +3189,13 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                                 instruction.span,
                             ));
                         };
-                        let needs_copy = Arc::strong_count(items) > 1;
+                        let needs_copy = Shared::strong_count(items) > 1;
                         let copy_bytes = size_of::<Vec<Float64>>()
                             .saturating_add(len.saturating_mul(size_of::<Float64>()));
                         if needs_copy {
                             charge_allocation(budget.as_ref(), copy_bytes, instruction.span)?;
                         }
-                        Arc::make_mut(items)[index] = value;
+                        Shared::make_mut(items)[index] = value;
                         if needs_copy {
                             budget.record_list_set_copy(len, copy_bytes);
                         } else {
@@ -3797,7 +3804,7 @@ fn unique_nested_map_update_target(
     next_ip: usize,
     stack: &[Value],
     locals: &[Value],
-    inner: &Arc<TextMap>,
+    inner: &Shared<TextMap>,
 ) -> Option<(usize, SharedText)> {
     let Some(Op::MapSet) = code.get(next_ip).map(|instruction| &instruction.op) else {
         return None;
@@ -3812,10 +3819,10 @@ fn unique_nested_map_update_target(
     let Some(Value::Map(local_parent)) = locals.get(*parent_slot) else {
         return None;
     };
-    if !Arc::ptr_eq(parent, local_parent)
-        || Arc::strong_count(parent) != 2
-        || Arc::strong_count(inner) != 2
-        || !matches!(parent.get(parent_key.as_ref()), Some(Value::Map(child)) if Arc::ptr_eq(child, inner))
+    if !Shared::ptr_eq(parent, local_parent)
+        || Shared::strong_count(parent) != 2
+        || Shared::strong_count(inner) != 2
+        || !matches!(parent.get(parent_key.as_ref()), Some(Value::Map(child)) if Shared::ptr_eq(child, inner))
     {
         return None;
     }
@@ -3827,7 +3834,7 @@ fn unique_pending_nested_map_writeback_target(
     child_store_ip: usize,
     child_slot: usize,
     locals: &[Value],
-    inner: &Arc<TextMap>,
+    inner: &Shared<TextMap>,
 ) -> Option<(usize, SharedText)> {
     let Some(Op::Store(stored_child)) = code.get(child_store_ip).map(|instruction| &instruction.op)
     else {
@@ -3877,15 +3884,15 @@ fn unique_pending_nested_map_writeback_target(
     let Some(Value::Map(parent)) = locals.get(parent_slot) else {
         return None;
     };
-    if !Arc::ptr_eq(local_child, inner)
-        || Arc::strong_count(parent) != 1
-        || Arc::strong_count(inner) != 3
+    if !Shared::ptr_eq(local_child, inner)
+        || Shared::strong_count(parent) != 1
+        || Shared::strong_count(inner) != 3
     {
         return None;
     }
     let mut matching_key = None;
     for (key, value) in parent.iter() {
-        if matches!(value, Value::Map(child) if Arc::ptr_eq(child, inner))
+        if matches!(value, Value::Map(child) if Shared::ptr_eq(child, inner))
             && matching_key.replace(&**key).is_some()
         {
             return None;
@@ -5017,9 +5024,9 @@ fn clone_value_fast(value: &Value) -> Value {
         Value::Bool(flag) => Value::Bool(*flag),
         Value::Float64(float) => Value::Float64(*float),
         Value::Text(text) => Value::Text(SharedText::clone(text)),
-        Value::Json(json) => Value::Json(Arc::clone(json)),
-        Value::Map(map) => Value::Map(Arc::clone(map)),
-        Value::List(items) => Value::List(Arc::clone(items)),
+        Value::Json(json) => Value::Json(Shared::clone(json)),
+        Value::Map(map) => Value::Map(Shared::clone(map)),
+        Value::List(items) => Value::List(Shared::clone(items)),
         _ => value.clone(),
     }
 }
@@ -5048,11 +5055,11 @@ pub fn new_value_allocation(value: &Value) -> usize {
         Value::Float64List(items) => size_of::<Vec<Float64>>()
             .saturating_add(items.len().saturating_mul(size_of::<Float64>())),
         // Records own a fresh field-vector, but nested Lists, Maps, and JSON
-        // remain Arc-shared. Their payloads were charged when first created.
+        // remain shared. Their payloads were charged when first created.
         Value::Record(name, fields) => size_of::<Vec<Value>>()
             .saturating_add(fields.len().saturating_mul(size_of::<Value>()))
             .saturating_add(name.len()),
-        // JSON nodes are immutable and Arc-shared; cloning a value allocates no subtree.
+        // JSON nodes are immutable and shared by reference; cloning a value allocates no subtree.
         Value::Json(_) => 0,
         Value::TaskError(error) => size_of::<TaskErrorValue>()
             .saturating_add(error.code.capacity())
@@ -5325,11 +5332,11 @@ pub fn shared_json_metrics(value: &SharedJson, max_integer_digits: usize) -> Jso
                 item_count: items.len(),
                 oversized_integer: false,
                 allocation_bytes: size_of::<SharedJson>()
-                    .saturating_add(size_of::<Vec<Arc<SharedJson>>>())
+                    .saturating_add(size_of::<Vec<Shared<SharedJson>>>())
                     .saturating_add(
                         items
                             .capacity()
-                            .saturating_mul(size_of::<Arc<SharedJson>>()),
+                            .saturating_mul(size_of::<Shared<SharedJson>>()),
                     ),
                 encoded_len: 2usize.saturating_add(items.len().saturating_sub(1)),
             };
@@ -5348,7 +5355,7 @@ pub fn shared_json_metrics(value: &SharedJson, max_integer_digits: usize) -> Jso
                 item_count: items.len(),
                 oversized_integer: false,
                 allocation_bytes: size_of::<SharedJson>()
-                    .saturating_add(size_of::<BTreeMap<String, Arc<SharedJson>>>()),
+                    .saturating_add(size_of::<BTreeMap<String, Shared<SharedJson>>>()),
                 encoded_len: 2usize.saturating_add(items.len().saturating_sub(1)),
             };
             for (key, child_value) in items.iter() {
@@ -5359,7 +5366,7 @@ pub fn shared_json_metrics(value: &SharedJson, max_integer_digits: usize) -> Jso
                 metrics.allocation_bytes = metrics
                     .allocation_bytes
                     .saturating_add(size_of::<String>() + key.len())
-                    .saturating_add(size_of::<Arc<SharedJson>>() * 3);
+                    .saturating_add(size_of::<Shared<SharedJson>>() * 3);
                 metrics.encoded_len = metrics
                     .encoded_len
                     .saturating_add(encoded_json_string_len(key))
@@ -5384,7 +5391,7 @@ pub fn finish_shared_json(
     }
     validate_json_metrics(&metrics, limits, span)?;
     charge_allocation(budget, metrics.allocation_bytes, span)?;
-    Ok(Value::Json(Arc::new(value)))
+    Ok(Value::Json(Shared::new(value)))
 }
 
 pub fn validate_json_metrics(
@@ -5423,57 +5430,57 @@ pub fn validate_json_metrics(
     Ok(())
 }
 
-pub fn shared_json_push_local_allocation(value: &Arc<SharedJson>) -> usize {
+pub fn shared_json_push_local_allocation(value: &Shared<SharedJson>) -> usize {
     let SharedJson::Array(items) = value.as_ref() else {
         return 0;
     };
     let len = items.len();
-    let mut allocation = if Arc::strong_count(value) > 1 {
+    let mut allocation = if Shared::strong_count(value) > 1 {
         size_of::<SharedJson>()
     } else {
         0
     };
-    if Arc::strong_count(items) > 1 {
+    if Shared::strong_count(items) > 1 {
         allocation = allocation.saturating_add(
-            size_of::<Vec<Arc<SharedJson>>>()
-                .saturating_add(len.saturating_mul(size_of::<Arc<SharedJson>>())),
+            size_of::<Vec<Shared<SharedJson>>>()
+                .saturating_add(len.saturating_mul(size_of::<Shared<SharedJson>>())),
         );
     } else if items.capacity() == len {
         allocation = allocation.saturating_add(
-            size_of::<Vec<Arc<SharedJson>>>().saturating_add(
+            size_of::<Vec<Shared<SharedJson>>>().saturating_add(
                 items
                     .capacity()
                     .saturating_mul(2)
                     .max(len.saturating_add(1))
                     .max(4)
-                    .saturating_mul(size_of::<Arc<SharedJson>>()),
+                    .saturating_mul(size_of::<Shared<SharedJson>>()),
             ),
         );
     }
     allocation
 }
 
-pub fn shared_json_set_local_allocation(value: &Arc<SharedJson>, key: &str) -> usize {
+pub fn shared_json_set_local_allocation(value: &Shared<SharedJson>, key: &str) -> usize {
     let SharedJson::Object(fields) = value.as_ref() else {
         return 0;
     };
-    let outer_shared = Arc::strong_count(value) > 1;
+    let outer_shared = Shared::strong_count(value) > 1;
     let mut allocation = if outer_shared {
         size_of::<SharedJson>()
     } else {
         0
     };
-    if outer_shared || Arc::strong_count(fields) > 1 {
-        allocation = allocation.saturating_add(size_of::<BTreeMap<String, Arc<SharedJson>>>());
+    if outer_shared || Shared::strong_count(fields) > 1 {
+        allocation = allocation.saturating_add(size_of::<BTreeMap<String, Shared<SharedJson>>>());
         for existing_key in fields.keys() {
             allocation = allocation
                 .saturating_add(size_of::<String>() + existing_key.len())
-                .saturating_add(size_of::<Arc<SharedJson>>() * 3);
+                .saturating_add(size_of::<Shared<SharedJson>>() * 3);
         }
     }
     allocation
         .saturating_add(size_of::<String>() + key.len())
-        .saturating_add(size_of::<Arc<SharedJson>>() * 3)
+        .saturating_add(size_of::<Shared<SharedJson>>() * 3)
 }
 
 #[inline]
@@ -8267,11 +8274,11 @@ mod tests {
             Type::Int,
             4,
             vec![
-                Op::Const(Value::Map(Arc::new(entries))),
+                Op::Const(Value::Map(Shared::new(entries))),
                 Op::Store(0),
                 Op::Const(Value::Text("key".into())),
                 Op::Store(1),
-                Op::Const(Value::List(Arc::new(vec![int(5)]))),
+                Op::Const(Value::List(Shared::new(vec![int(5)]))),
                 Op::Store(2),
                 Op::Const(int(0)),
                 Op::Store(3),
@@ -8398,7 +8405,7 @@ mod tests {
             max_collection_items: 2,
             ..VmLimits::default()
         };
-        let record = |fields: Vec<Value>| Value::Record("Row".into(), Arc::new(fields));
+        let record = |fields: Vec<Value>| Value::Record("Row".into(), Shared::new(fields));
         let text = |text: &str| Value::Text(SharedText::from(text));
         let int = |value: i64| Value::Int(BigInt::from_i64(value));
         let cases = [
@@ -8408,11 +8415,11 @@ mod tests {
             record(vec![int(1), text("too long")]),
             record(vec![
                 Value::OptionNone,
-                Value::Json(Arc::new(SharedJson::Null)),
+                Value::Json(Shared::new(SharedJson::Null)),
             ]),
             record(vec![record(vec![text("too long")])]),
             record(vec![Value::OptionSome(Box::new(int(12345)))]),
-            record(vec![Value::List(Arc::new(vec![int(1), int(2), int(3)]))]),
+            record(vec![Value::List(Shared::new(vec![int(1), int(2), int(3)]))]),
         ];
         for value in cases {
             let code = |error: Option<RuntimeError>| error.map(|error| error.code);
@@ -8437,7 +8444,7 @@ mod tests {
         )))));
         assert_eq!(cloned_value_allocation(&text), 0);
         assert_eq!(cloned_value_allocation(&wrapped), 3 * size_of::<Value>());
-        let record = Value::Record("Row".into(), Arc::new(vec![]));
+        let record = Value::Record("Row".into(), Shared::new(vec![]));
         assert_eq!(
             cloned_value_allocation(&Value::ResultOk(Box::new(record.clone()))),
             size_of::<Value>() + cloned_value_allocation(&record)

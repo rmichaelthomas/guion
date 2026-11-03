@@ -3985,7 +3985,7 @@ fn native_backend_reads_json_fields_from_mixed_records_by_default() {
     let document = |value| {
         Value::Record(
             "Document".into(),
-            std::sync::Arc::new(vec![Value::Json(SharedJson::from_serde(value))]),
+            guion_model::Shared::new(vec![Value::Json(SharedJson::from_serde(value))]),
         )
     };
     let present = document(serde_json::json!({"name": "Guion"}));
@@ -6475,7 +6475,7 @@ fn native_map_keys_produces_text_list_with_vm_quota_parity() {
         "fn key_count(values: Map[Text, Bool]) -> Int:\n    var count = 0\n    for key in values:\n        set count = count + 1\n    return count\n\nfn main() -> Int:\n    return 0\n",
     )
     .unwrap();
-    let values = Value::Map(std::sync::Arc::new(guion_model::TextMap::from([
+    let values = Value::Map(guion_model::Shared::new(guion_model::TextMap::from([
         ("first".to_owned(), Value::Bool(true)),
         ("second".to_owned(), Value::Bool(false)),
     ])));
@@ -6871,7 +6871,7 @@ fn native_time_format_utc_preserves_record_inputs_and_limits() {
     .unwrap();
     let instant = Value::Record(
         "Instant".into(),
-        std::sync::Arc::new(vec![Value::Int(BigInt::from_i64(1_704_067_200_000_000))]),
+        guion_model::Shared::new(vec![Value::Int(BigInt::from_i64(1_704_067_200_000_000))]),
     );
     let mut native = Runtime::new()
         .load(artifact.clone(), HostPolicy::default())
@@ -6924,7 +6924,7 @@ fn native_time_format_utc_preserves_record_inputs_and_limits() {
     let mut vm = Runtime::vm_only().load(artifact, limited).unwrap();
     let instant = Value::Record(
         "Instant".into(),
-        std::sync::Arc::new(vec![Value::Int(BigInt::from_i64(1_704_067_200_000_000))]),
+        guion_model::Shared::new(vec![Value::Int(BigInt::from_i64(1_704_067_200_000_000))]),
     );
     let native_error = native
         .invoke("format_value", vec![instant.clone()])
@@ -6942,12 +6942,12 @@ fn native_record_from_map_bridge_preserves_primitive_list_fields() {
         .expect("record map bridge source compiles");
     let frame = Value::Record(
         "Frame".into(),
-        std::sync::Arc::new(vec![Value::List(std::sync::Arc::new(vec![
+        guion_model::Shared::new(vec![Value::List(guion_model::Shared::new(vec![
             Value::Int(BigInt::from_i64(4)),
             Value::Int(BigInt::from_i64(7)),
         ]))]),
     );
-    let frames = Value::Map(std::sync::Arc::new(guion_model::TextMap::from([(
+    let frames = Value::Map(guion_model::Shared::new(guion_model::TextMap::from([(
         "current".to_owned(),
         frame,
     )])));
@@ -7314,7 +7314,7 @@ fn native_map_index_preserves_values_and_vm_errors() {
         "fn value_at(values: Map[Text, Text], key: Text) -> Text:\n    return values[key]\n\nfn main() -> Int:\n    return 0\n",
     )
     .unwrap();
-    let values = Value::Map(std::sync::Arc::new(guion_model::TextMap::from([(
+    let values = Value::Map(guion_model::Shared::new(guion_model::TextMap::from([(
         "answer".to_owned(),
         Value::Text("forty-two".into()),
     )])));
@@ -7348,7 +7348,7 @@ fn native_map_has_preserves_membership_results() {
         "fn contains(values: Map[Text, Bool], key: Text) -> Bool:\n    return map_has(values, key)\n\nfn main() -> Int:\n    return 0\n",
     )
     .unwrap();
-    let values = Value::Map(std::sync::Arc::new(guion_model::TextMap::from([(
+    let values = Value::Map(guion_model::Shared::new(guion_model::TextMap::from([(
         "service-a".to_owned(),
         Value::Bool(true),
     )])));
@@ -7378,7 +7378,7 @@ fn native_map_set_preserves_copy_on_write_and_vm_limits() {
         "fn update(values: Map[Text, Text], key: Text, value: Text) -> Map[Text, Text]:\n    var copy = values\n    set copy = map_set(copy, key, value)\n    return copy\n\nfn main() -> Int:\n    return 0\n",
     )
     .unwrap();
-    let values = Value::Map(std::sync::Arc::new(guion_model::TextMap::from([(
+    let values = Value::Map(guion_model::Shared::new(guion_model::TextMap::from([(
         "answer".to_owned(),
         Value::Text("old".into()),
     )])));
@@ -7398,14 +7398,14 @@ fn native_map_set_preserves_copy_on_write_and_vm_limits() {
     assert_eq!(native_value, vm_value);
     assert_eq!(
         native_value,
-        Value::Map(std::sync::Arc::new(guion_model::TextMap::from([(
+        Value::Map(guion_model::Shared::new(guion_model::TextMap::from([(
             "answer".to_owned(),
             Value::Text("new".into())
         ),])))
     );
     assert_eq!(
         values,
-        Value::Map(std::sync::Arc::new(guion_model::TextMap::from([(
+        Value::Map(guion_model::Shared::new(guion_model::TextMap::from([(
             "answer".to_owned(),
             Value::Text("old".into())
         ),])))
@@ -7424,7 +7424,7 @@ fn native_map_set_preserves_copy_on_write_and_vm_limits() {
         .unwrap();
     let mut vm = Runtime::vm_only().load(artifact, limited).unwrap();
     let args = vec![
-        Value::Map(std::sync::Arc::new(guion_model::TextMap::new())),
+        Value::Map(guion_model::Shared::new(guion_model::TextMap::new())),
         Value::Text("new".into()),
         Value::Text("value".into()),
     ];
