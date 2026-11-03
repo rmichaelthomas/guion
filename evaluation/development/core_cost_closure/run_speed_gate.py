@@ -17,6 +17,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import os
 import platform
 import random
 import shutil
@@ -38,6 +39,19 @@ RUNTIME_LIMITS = "[runtime]\ninstruction_limit = 2000000000\nallocation_limit_by
 # Two-sided 97.5% t quantiles by degrees of freedom, for the 95% upper bound of the mean ratio.
 T_975 = {4: 2.776, 5: 2.571, 6: 2.447, 7: 2.365, 8: 2.306, 9: 2.262, 10: 2.228, 11: 2.201,
          12: 2.179, 13: 2.160, 14: 2.145, 19: 2.093, 24: 2.064, 29: 2.045}
+
+
+def cpu_model() -> str:
+    if platform.system() == "Darwin":
+        return subprocess.run(["sysctl", "-n", "machdep.cpu.brand_string"], capture_output=True, text=True).stdout.strip()
+    try:
+        for line in Path("/proc/cpuinfo").read_text(encoding="utf-8").splitlines():
+            key, _, value = line.partition(":")
+            if key.strip() in ("model name", "CPU part"):
+                return value.strip()
+    except OSError:
+        pass
+    return platform.processor()
 
 
 def run(command: list[str], cwd: Path) -> str:
@@ -174,7 +188,8 @@ def main() -> int:
         parser.error(f"unknown workloads {unknown}; choose from {sorted(WORKLOADS)}")
 
     report = {
-        "host": {"system": platform.system(), "machine": platform.machine(), "processor": platform.processor()},
+        "host": {"system": platform.system(), "machine": platform.machine(), "cpu": cpu_model(),
+                 "cpus": os.cpu_count()},
         "guion_version": run([guion, "--version"], ROOT).strip(),
         "python_version": run([python, "--version"], ROOT).strip(),
         "trials": options.trials,

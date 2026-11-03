@@ -51,6 +51,7 @@ jobs:
         run: sh distribution/pgo/build.sh target/pgo
 
       - name: Run the speed gate
+        shell: bash
         run: |
           {
             echo "## ${{ matrix.runner }} ($(uname -m), $(nproc) CPUs)"
