@@ -1,0 +1,101 @@
+name: Linux preview release
+
+# Builds the profile-guided Linux packages (Debian 12 ARM64 and x86_64) with `cargo xtask release`,
+# which also verifies each package's manifest, tamper rejection, relocation and installer. A
+# `v*-preview*` tag attaches both archives to a GitHub pre-release. The macOS package is not built
+# here: it would bill macOS runner minutes, and it can be built on a Mac with the same command.
+on:
+  push:
+    tags: ["v*-preview*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    name: Package ${{ matrix.target }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: debian-aarch64
+            runner: ubuntu-24.04-arm
+          - target: debian-x86_64
+            runner: ubuntu-24.04
+    runs-on: ${{ matrix.runner }}
+    container:
+      image: debian:12
+      options: --user root
+    timeout-minutes: 120
+    env:
+      GUION_TARGET: ${{ matrix.target }}
+      GUION_SOURCE_REVISION: ${{ github.sha }}
+    steps:
+      - name: Install Debian build prerequisites
+        run: |
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            binutils build-essential ca-certificates cmake curl git pkg-config python3 tar
+
+      - name: Check out source
+        uses: actions/checkout@v7.0.1
+
+      - name: Install the project Rust toolchain and fetch locked dependencies
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain 1.97.1 --profile minimal --component llvm-tools
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+          "$HOME/.cargo/bin/cargo" fetch --locked
+
+      # The command exits non-zero while the other targets' reports are absent, so this step
+      # judges the current target's own checks, as scripts/verify-release-target-matrix.sh does.
+      - name: Build and verify the profile-guided package
+        run: |
+          cargo xtask release --target both || true
+          python3 - "${{ matrix.target }}" <<'PY'
+          import json, sys
+          target = sys.argv[1]
+          report = json.load(open("evaluation/completion/results/release.json", encoding="utf-8"))
+          checks = [check for check in report["checks"] if check.get("target") == target]
+          for check in checks:
+              print(check["status"], check["id"])
+          if not checks or target not in report["completed_targets"] or any(check["status"] != "passed" for check in checks):
+              sys.exit(f"release checks for {target} did not all pass")
+          PY
+
+      - name: Collect the archive
+        run: |
+          mkdir -p dist
+          cp "target/completion/releases/${{ matrix.target }}/guion-${{ matrix.target }}.tar.gz" dist/
+          cd dist && sha256sum "guion-${{ matrix.target }}.tar.gz" > "guion-${{ matrix.target }}.tar.gz.sha256"
+          cat "guion-${{ matrix.target }}.tar.gz.sha256"
+
+      - name: Retain the package
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: guion-${{ matrix.target }}
+          path: dist/
+          if-no-files-found: error
+          retention-days: 90
+
+  publish:
+    name: Attach packages to the pre-release
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: package
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: Download packages
+        uses: actions/download-artifact@v8.0.2
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Create the GitHub pre-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --prerelease \
+            --title "Guion $GITHUB_REF_NAME (Linux preview)" \
+            --notes "Profile-guided Linux packages for Debian 12-compatible ARM64 and x86_64. Extract an archive and run \`sh install.sh\` (installs under ~/.local, or pass a prefix); no Rust, Python or uv is needed. Each \`.sha256\` file holds the archive's checksum. No macOS package is attached."

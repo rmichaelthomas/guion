@@ -1,0 +1,9 @@
+
+ Performance counter stats for '/home/runner/.local/share/uv/python/cpython-3.14.7-linux-aarch64-gnu/bin/python3.14 reference.py' (5 runs):
+
+             28.03 msec task-clock                                                              ( +-  0.78% )
+              2655      page-faults                                                             ( +-  0.90% )
+                 0      context-switches                                                      
+
+       0.028966689 +- 0.000228604 seconds time elapsed  ( +-  0.79% )
+

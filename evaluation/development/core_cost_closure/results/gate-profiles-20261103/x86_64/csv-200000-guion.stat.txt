@@ -1,0 +1,11 @@
+
+ Performance counter stats for '/home/runner/work/guion/guion/target/pgo/guion run main.gub --input ledger.csv' (5 runs):
+
+                 1      context-switches                 #      8.4 cs/sec  cs_per_second       ( +- 20.00% )
+                 0      cpu-migrations                   #      0.0 migrations/sec  migrations_per_second
+               373      page-faults                      #   3121.1 faults/sec  page_faults_per_second  ( +-  0.17% )
+            119.51 msec task-clock                       #      1.0 CPUs  CPUs_utilized         ( +-  0.57% )
+   <not supported>      cpu-cycles                       #      nan GHz  cycles_frequency     
+
+       0.120330961 +- 0.000678174 seconds time elapsed  ( +-  0.56% )
+

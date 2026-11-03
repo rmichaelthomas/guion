@@ -1,0 +1,11 @@
+
+ Performance counter stats for '/home/runner/.local/share/uv/python/cpython-3.14.7-linux-x86_64-gnu/bin/python3.14 reference.py' (5 runs):
+
+                 2      context-switches                 #     12.0 cs/sec  cs_per_second       ( +- 35.36% )
+                 0      cpu-migrations                   #      0.0 migrations/sec  migrations_per_second
+             15500      page-faults                      #  92843.0 faults/sec  page_faults_per_second  ( +-  0.00% )
+            166.95 msec task-clock                       #      1.0 CPUs  CPUs_utilized         ( +-  1.03% )
+   <not supported>      cpu-cycles                       #      nan GHz  cycles_frequency     
+
+       0.167926037 +- 0.001702440 seconds time elapsed  ( +-  1.01% )
+

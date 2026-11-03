@@ -1,0 +1,33 @@
+# To display the perf.data header info, please use --header/--header-only options.
+#
+#
+# Total Lost Samples: 0
+#
+# Samples: 1K of event 'cpu-clock'
+# Event count (approx.): 200240040
+#
+# Overhead  Shared Object      Symbol                                                                                 IPC   [IPC Coverage]
+# ........  .................  .....................................................................................  ....................
+#
+    51.25%  guion              [.] guion_vm_core::execute_vm_frame_with_forwarders::<false, guion_runtime::Instance>  -      -            
+    14.99%  guion              [.] __aarch64_ldadd8_rel                                                               -      -            
+     4.70%  guion              [.] __aarch64_ldadd8_relax                                                             -      -            
+     3.50%  guion              [.] core::ptr::drop_glue::<guion_model::Value>                                         -      -            
+     2.70%  [kernel.kallsyms]  [k] __pi_clear_page                                                                    -      -            
+     2.10%  guion              [.] guion_vm_core::text_replace_all                                                    -      -            
+     1.90%  [kernel.kallsyms]  [k] _raw_spin_unlock_irqrestore                                                        -      -            
+     1.90%  guion              [.] guion_vm_core::text_match_count                                                    -      -            
+     1.50%  guion              [.] core::ptr::drop_glue::<guion_model::Value>                                         -      -            
+     1.40%  [kernel.kallsyms]  [k] el0_da                                                                             -      -            
+     1.40%  guion              [.] __aarch64_cas8_relax                                                               -      -            
+     1.20%  [kernel.kallsyms]  [k] __rmqueue_pcplist                                                                  -      -            
+     0.90%  guion              [.] <guion_model::Value as core::clone::Clone>::clone.579                              -      -            
+     0.70%  guion              [.] <alloc::sync::Arc<alloc::vec::Vec<guion_model::Value>>>::drop_slow                 -      -            
+     0.70%  guion              [.] __aarch64_cas8_acq                                                                 -      -            
+     0.60%  [kernel.kallsyms]  [k] zap_present_ptes                                                                   -      -            
+     0.50%  [kernel.kallsyms]  [k] try_charge_memcg                                                                   -      -            
+
+
+#
+# (Cannot load tips.txt file, please install perf!)
+#

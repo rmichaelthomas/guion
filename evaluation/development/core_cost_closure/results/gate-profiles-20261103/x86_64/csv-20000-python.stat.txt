@@ -1,0 +1,11 @@
+
+ Performance counter stats for '/home/runner/.local/share/uv/python/cpython-3.14.7-linux-x86_64-gnu/bin/python3.14 /home/runner/work/guion/guion/evaluation/development/core_cost_closure/second_workload/csv_ledger_reference.py --input ledger.csv' (5 runs):
+
+                 0      context-switches                 #      0.0 cs/sec  cs_per_second     
+                 0      cpu-migrations                   #      0.0 migrations/sec  migrations_per_second
+               988      page-faults                      #  46975.4 faults/sec  page_faults_per_second  ( +-  0.02% )
+             21.03 msec task-clock                       #      1.0 CPUs  CPUs_utilized         ( +-  0.25% )
+   <not supported>      cpu-cycles                       #      nan GHz  cycles_frequency     
+
+       0.021805625 +- 0.000054366 seconds time elapsed  ( +-  0.25% )
+

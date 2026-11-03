@@ -1,0 +1,27 @@
+# To display the perf.data header info, please use --header/--header-only options.
+#
+#
+# Total Lost Samples: 0
+#
+# Samples: 807  of event 'cpu-clock'
+# Event count (approx.): 161432280
+#
+# Overhead  Shared Object          Symbol                                                                                                         IPC   [IPC Coverage]
+# ........  .....................  .............................................................................................................  ....................
+#
+    54.52%  guion                  [.] guion_vm_core::execute_vm_frame_with_forwarders::<false, guion_runtime::Instance>                          -      -            
+    14.87%  guion                  [.] <guion_runtime::Instance as guion_vm_core::VmHost>::host_op                                                -      -            
+    10.29%  guion                  [.] __aarch64_ldadd8_rel                                                                                       -      -            
+     3.97%  guion                  [.] __aarch64_ldadd8_relax                                                                                     -      -            
+     2.85%  guion                  [.] core::ptr::drop_glue::<guion_model::Value>                                                                 -      -            
+     2.60%  guion                  [.] core::ptr::drop_glue::<guion_model::Value>                                                                 -      -            
+     2.11%  guion                  [.] __aarch64_cas8_acq                                                                                         -      -            
+     1.73%  guion                  [.] <alloc::sync::Arc<alloc::vec::Vec<guion_model::Value>>>::drop_slow                                         -      -            
+     1.49%  guion                  [.] __aarch64_cas8_relax                                                                                       -      -            
+     1.24%  guion                  [.] <guion_model::Value as core::clone::Clone>::clone.480                                                      -      -            
+     1.24%  guion                  [.] guion_vm_core::value_matches                                                                               -      -            
+
+
+#
+# (Cannot load tips.txt file, please install perf!)
+#

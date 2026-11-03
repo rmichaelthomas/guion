@@ -1,0 +1,11 @@
+
+ Performance counter stats for '/home/runner/work/guion/guion/target/pgo/guion run main.gub' (5 runs):
+
+                 2      context-switches                 #     11.7 cs/sec  cs_per_second       ( +- 24.49% )
+                 0      cpu-migrations                   #      0.0 migrations/sec  migrations_per_second
+             18313      page-faults                      # 106886.2 faults/sec  page_faults_per_second  ( +-  0.01% )
+            171.33 msec task-clock                       #      1.0 CPUs  CPUs_utilized         ( +-  0.36% )
+   <not supported>      cpu-cycles                       #      nan GHz  cycles_frequency     
+
+       0.174831705 +- 0.000607193 seconds time elapsed  ( +-  0.35% )
+

@@ -1,0 +1,11 @@
+
+ Performance counter stats for '/home/runner/work/guion/guion/target/pgo/guion run fused.gub --events performance-inputs/events.jsonl --output summary.json --services performance-inputs/services.txt' (5 runs):
+
+                 4      context-switches                 #     47.4 cs/sec  cs_per_second       ( +-  5.00% )
+                 0      cpu-migrations                   #      0.0 migrations/sec  migrations_per_second
+              1000      page-faults                      #  11848.4 faults/sec  page_faults_per_second  ( +-  0.20% )
+             84.40 msec task-clock                       #      1.0 CPUs  CPUs_utilized         ( +-  0.34% )
+   <not supported>      cpu-cycles                       #      nan GHz  cycles_frequency     
+
+       0.085804436 +- 0.000271798 seconds time elapsed  ( +-  0.32% )
+

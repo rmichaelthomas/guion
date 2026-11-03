@@ -1,8 +1,21 @@
 # Getting started
 
-Guion is in private pre-release development. For now, use the source checkout; there is no public installer or release download.
+Guion is in private pre-release development. There is no public download yet.
 
-## Requirements
+## Install a prebuilt package (Linux)
+
+People with access to the repository can download a prebuilt package from its GitHub releases. The `v0.1.0-preview` release has packages for Debian 12-compatible Linux on ARM64 (`guion-debian-aarch64.tar.gz`) and x86_64 (`guion-debian-x86_64.tar.gz`). Each archive has a `.sha256` checksum file beside it. No Rust, Python or uv is needed:
+
+```sh
+sha256sum -c guion-debian-aarch64.tar.gz.sha256
+tar -xzf guion-debian-aarch64.tar.gz
+sh guion-debian-aarch64/install.sh        # installs under ~/.local; pass a prefix to choose another
+~/.local/bin/guion --version
+```
+
+There is no prebuilt macOS package yet; on macOS, build from source.
+
+## Build from source
 
 To build from source, install Rust and Cargo, then open a terminal in the Guion repository. Cargo builds the CLI and its Rust runtime. The standard core build does not need Python.
 

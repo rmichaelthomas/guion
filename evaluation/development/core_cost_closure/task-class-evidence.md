@@ -15,9 +15,38 @@ Branch `codex/guion-speed-closure`. The north star is to earn assistant recommen
 
 The compute and everyday-application classes already favor Guion. The open gap is the dynamic-data class: per-row work made of `Json`, `Text`, `Map`, `Option` and `Result` values.
 
-## Current position: register form and hashed maps
+## Current position: other hosts and other Python builds (2026-11-02, build `e1915f2`)
 
-This section supersedes the ratios in the next two. Pinned Linux ARM64 container, PGO CPython 3.14.7, profile-guided build of `190b624`; every run's output matched. Gate scripts ran 15 interleaved trials, the others as noted. This is one platform. The release matrix and macOS have not been re-run.
+This section qualifies the gate result below. All earlier gate runs used one machine: the pinned Linux container runs under Docker on an Apple M1 Pro, against CPython 3.14.7 built from source with PGO and LTO. The portable [`run_speed_gate.py`](run_speed_gate.py) builds the same text, JSONL and CSV fixtures from the repository. With the container's Python it reproduces the earlier container figures (200k upper bounds 0.763–0.905), so the harness is not the cause of the differences below. Every run used 15 interleaved, output-checked trials of the profile-guided binary.
+
+**The gate holds at 20k rows on every host and Python build tried. At 200k rows it depends on the host and on the Python build.**
+
+| Host | CPython 3.14.7 build | 20k, worst upper 95% | 200k, worst upper 95% (text / JSONL / CSV) | Gate |
+| --- | --- | ---: | --- | --- |
+| macOS, Apple M1 Pro | Homebrew (PGO+LTO) | 0.624 | 0.746 / 0.707 / 0.708 | met |
+| Linux container on the M1 | source-built (PGO+LTO), the gate of record | (earlier: 0.689) | 0.905 / 0.795 / 0.886 | met |
+| Linux container on the M1 | uv standalone build | not run | 0.932 / 0.889 / **1.042** | missed (CSV artifact) |
+| GitHub `ubuntu-24.04`, x86_64, 4 CPUs | uv standalone build | 0.824 | **1.074** / 0.955 / **1.030** | missed |
+| GitHub `ubuntu-24.04-arm`, ARM64, 4 CPUs | uv standalone build | 0.792 | **1.044** / **1.039** / **1.096** | missed |
+| GitHub `ubuntu-24.04`, x86_64, Intel Xeon Platinum 8573C, 2 CPUs (second run) | uv standalone build | 0.921 | **1.428** / **1.116** / **1.223** | missed |
+| GitHub `ubuntu-24.04-arm`, ARM64 Neoverse N2, 2 CPUs (second run) | uv standalone build | 0.779 | **1.044** / **1.036** / **1.087** | missed |
+
+Two separate effects show up:
+
+- **The Python build.** On the same container, the standalone CPython that `uv python install` provides ran the 200k workloads 6% (text), 11% (JSONL) and 15% (CSV) faster than the source-built one, while Guion's times stayed the same. The gate of record was therefore measured against a slower Python than most builders, and the recommendation campaign, would use. The campaign itself pins a uv-managed CPython. The difference is CPython 3.14's tail-calling interpreter: the standalone build is compiled with Clang and has it (`Py_TAIL_CALL_INTERP = 1`), while the container's GCC build and the Homebrew build on macOS do not.
+- **The CPU.** On GitHub's x86_64 and ARM64 server runners, Guion's 200k lead disappears: median ratios are 0.92–1.06 on x86_64 and 1.02–1.09 on ARM64, against 0.85–0.90 on the M1 with the same Python build (CSV artifact aside). At 20k Guion still leads on those runners, with median ratios of 0.67–0.79. The two ARM64 runs agree within 0.01. The two x86_64 runs landed on different machines and disagree: the Intel Xeon run was 1.12–1.43 at 200k and up to 0.92 at 20k, so x86_64 results vary with the CPU model, and Intel is the weakest host measured. The cause has not been profiled on those hosts. It is not a larger memory footprint: at 200k rows Guion's peak resident memory is equal to or below Python's (text 67 MB against 70 MB, JSONL 20 MB against 73 MB, CSV 20 MB each, in the container).
+
+**Profile on the server runners** ([`profile_gate_workloads.py`](profile_gate_workloads.py), sampled CPU time at 200k rows; GitHub's virtual machines expose no hardware counters; [raw profiles](results/gate-profiles-20261103/)). On ARM64 Neoverse N2, 15–20% of Guion's time is in `__aarch64_ldadd8_rel`, `__aarch64_ldadd8_relax` and `__aarch64_cas8_*`: text 20%, CSV 18%, JSONL 20%. These are the atomic reference-count updates behind every `Value` clone and drop, made through Rust's outlined-atomics helpers. On x86_64 the same `lock`-prefixed updates are inlined into the interpreter loop (65–68% of text and CSV time), so they don't show separately. CPython 3.14's default build updates reference counts without atomics. Atomic updates are cheap on the Apple M1 and cost more on these server cores. That fits Guion's lead holding on the M1 and shrinking on servers, and it points to non-atomic reference counts on values that stay on one thread as the next speed step. The text workload also spends about 10% of its time in kernel page-fault handling on x86_64.
+
+Also open: in the container, the CSV artifact lane (0.103 s) ran slower than the source lane with `--no-cache` (0.093 s) under both Python builds. Earlier container runs of the old CSV script did not show this, and macOS doesn't either.
+
+**Position:** on the M1, Guion beats Python on all three workloads at both sizes, against either Python build, except one CSV lane at 200k. On server-class CPUs it beats Python at 20k. At 200k it is 4–10% slower on ARM64 Neoverse N2, and up to 43% slower on an Intel Xeon. Before stating a speed claim to builders, the gate should run against the uv standalone CPython, and on at least one x86_64 host.
+
+Raw results: [macOS](results/speed-gate-macos-aarch64-20261102.json), [container, source-built CPython](results/speed-gate-container-arm64-source-cpython-20261102.json), [container, standalone CPython](results/speed-gate-container-arm64-standalone-cpython-20261102.json), [GitHub x86_64](results/speed-gate-github-x86_64-20261102.json), [GitHub ARM64](results/speed-gate-github-arm64-20261102.json). [GitHub x86_64, Intel Xeon](results/speed-gate-github-x86_64-xeon-8573c-20261102.json), [GitHub ARM64, Neoverse N2](results/speed-gate-github-arm64-neoverse-n2-20261102.json). The first GitHub runs predate recording the CPU model in the report.
+
+## Earlier position: register form and hashed maps
+
+This section supersedes the ratios in the next two; the section above qualifies it for other hosts and Python builds. Pinned Linux ARM64 container, PGO CPython 3.14.7, profile-guided build of `190b624`; every run's output matched. Gate scripts ran 15 interleaved trials, the others as noted. This is one platform. The release matrix and macOS have not been re-run.
 
 **Gate status: met on both workloads.** The paired 95% upper Guion/Python ratio is below 1.0 in the source and artifact lanes at 20k and 200k rows, on the programs as written.
 
