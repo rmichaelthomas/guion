@@ -3743,6 +3743,47 @@ mod tests {
     use std::fs;
 
     #[test]
+    fn small_blocks_survive_crossing_threads_through_the_pool_allocator() {
+        // One thread claims the owned free lists and the others use thread-local ones; blocks
+        // freed on a different thread from the one that made them must stay intact.
+        let made_here: Vec<Vec<u64>> = (0..2_000u64)
+            .map(|i| vec![i; 1 + (i % 40) as usize])
+            .collect();
+        let workers: Vec<_> = (0..4u64)
+            .map(|worker| {
+                std::thread::spawn(move || {
+                    (0..2_000u64)
+                        .map(|i| vec![worker * 10_000 + i; 1 + (i % 40) as usize])
+                        .collect::<Vec<_>>()
+                })
+            })
+            .collect();
+        let freer = std::thread::spawn(move || {
+            for (i, block) in made_here.iter().enumerate() {
+                assert!(block.iter().all(|&value| value == i as u64));
+            }
+        });
+        let made_there: Vec<Vec<Vec<u64>>> = workers
+            .into_iter()
+            .map(|worker| worker.join().unwrap())
+            .collect();
+        freer.join().unwrap();
+        let again: Vec<Vec<u64>> = (0..8_000u64)
+            .map(|i| vec![i; 1 + (i % 40) as usize])
+            .collect();
+        for (worker, blocks) in made_there.iter().enumerate() {
+            for (i, block) in blocks.iter().enumerate() {
+                assert!(block
+                    .iter()
+                    .all(|&value| value == worker as u64 * 10_000 + i as u64));
+            }
+        }
+        for (i, block) in again.iter().enumerate() {
+            assert!(block.iter().all(|&value| value == i as u64));
+        }
+    }
+
+    #[test]
     fn runtime_profile_is_only_added_when_enabled() {
         let mut report = json!({"status": "passed"});
 
