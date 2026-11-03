@@ -2,7 +2,7 @@
 """Hardware counters and hot functions for the speed-gate workloads, on Linux with `perf`.
 
 For each workload at each size, `perf stat` measures the Python lane and Guion's artifact lane
-(cycles, instructions, cache and branch misses), so the per-row cost can be compared between
+(task clock and page faults; GitHub's virtual machines expose no hardware counters), so the per-row cost can be compared between
 sizes and hosts. At the largest size `perf record` samples both lanes and saves the hottest
 functions. Uses the fixtures from run_speed_gate.py.
 
@@ -47,14 +47,14 @@ def main() -> int:
                     command = lanes[lane]
                     subprocess.run(command, cwd=project, check=True, capture_output=True)
                     stat = subprocess.run(
-                        ["perf", "stat", "-d", "-r", str(options.repeat), "--", *command],
+                        ["perf", "stat", "-e", "task-clock,page-faults,context-switches", "-r", str(options.repeat), "--", *command],
                         cwd=project, capture_output=True, text=True, check=True)
                     (output / f"{name}.stat.txt").write_text(stat.stderr, encoding="utf-8")
                     print(f"== {name}\n{stat.stderr}", flush=True)
                     if rows != max(sizes):
                         continue
                     data = output / f"{name}.perf.data"
-                    subprocess.run(["perf", "record", "-F", "4999", "-o", str(data), "--", *command],
+                    subprocess.run(["perf", "record", "-e", "cpu-clock", "-F", "4999", "-o", str(data), "--", *command],
                                    cwd=project, capture_output=True, check=True)
                     report = subprocess.run(
                         ["perf", "report", "-i", str(data), "--stdio", "--sort", "dso,symbol",
