@@ -294,6 +294,62 @@ pub fn builtin_catalog_signature(name: Text) -> Text:
             return "2:WriteText:Result[Unit, FileError]:Text;Text"
         if name == "write_text_atomic":
             return "2:WriteTextAtomic:Result[Unit, FileError]:Text;Text"
+    if name[0] == "n":
+        if name == "native_math_sin":
+            return "1:MathSin:Float64:Float64"
+        if name == "native_math_cos":
+            return "1:MathCos:Float64:Float64"
+        if name == "native_math_tan":
+            return "1:MathTan:Float64:Float64"
+        if name == "native_math_asin":
+            return "1:MathAsin:Float64:Float64"
+        if name == "native_math_acos":
+            return "1:MathAcos:Float64:Float64"
+        if name == "native_math_atan":
+            return "1:MathAtan:Float64:Float64"
+        if name == "native_math_sinh":
+            return "1:MathSinh:Float64:Float64"
+        if name == "native_math_cosh":
+            return "1:MathCosh:Float64:Float64"
+        if name == "native_math_tanh":
+            return "1:MathTanh:Float64:Float64"
+        if name == "native_math_exp":
+            return "1:MathExp:Float64:Float64"
+        if name == "native_math_ln":
+            return "1:MathLn:Float64:Float64"
+        if name == "native_math_log10":
+            return "1:MathLog10:Float64:Float64"
+        if name == "native_math_log2":
+            return "1:MathLog2:Float64:Float64"
+        if name == "native_math_floor":
+            return "1:MathFloor:Float64:Float64"
+        if name == "native_math_ceil":
+            return "1:MathCeil:Float64:Float64"
+        if name == "native_math_round":
+            return "1:MathRound:Float64:Float64"
+        if name == "native_math_abs":
+            return "1:MathAbs:Float64:Float64"
+        if name == "native_math_pow":
+            return "2:MathPow:Float64:Float64;Float64"
+        if name == "native_math_atan2":
+            return "2:MathAtan2:Float64:Float64;Float64"
+        if name == "native_math_hypot":
+            return "2:MathHypot:Float64:Float64;Float64"
+    if name[0] == "i":
+        if name == "int_to_float":
+            return "1:IntToFloat:Float64:Int"
+    if name[0] == "f":
+        if name == "float_to_int":
+            return "1:FloatToInt:Int:Float64"
+    if name[0] == "i":
+        if name == "int_to_text":
+            return "1:NumberToText:Text:Int"
+    if name[0] == "f":
+        if name == "float_to_text":
+            return "1:NumberToText:Text:Float64"
+    if name[0] == "n":
+        if name == "native_random_mix":
+            return "1:RandomMix:Int:Int"
     return ""
 
 fn builtin_catalog_part(value: Text, delimiter: Text, wanted: Int) -> Text:

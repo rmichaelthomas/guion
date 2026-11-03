@@ -3,8 +3,8 @@
 use std::{collections::BTreeMap, fs};
 
 use guion_model::{
-    Artifact, BigInt, ExternalFunction, Float64, Function, Instruction, Op, RecordDefinition,
-    RecordField, Span, Type, Value,
+    Artifact, BigInt, ExternalFunction, Float64, Function, Instruction, MathFunction, Op,
+    RecordDefinition, RecordField, Span, Type, Value,
 };
 use serde_json::Value as Json;
 
@@ -295,6 +295,10 @@ fn parse_instruction(
         "TextSplit" => Op::TextSplit,
         "TextReplace" => Op::TextReplace,
         "TextTrim" => Op::TextTrim,
+        "IntToFloat" => Op::IntToFloat,
+        "FloatToInt" => Op::FloatToInt,
+        "NumberToText" => Op::NumberToText,
+        "RandomMix" => Op::RandomMix,
         "BytesFromInts" => Op::BytesFromInts,
         "BytesFromText" => Op::BytesFromText,
         "BytesJoin" => Op::BytesJoin,
@@ -338,11 +342,14 @@ fn parse_instruction(
         "JsonProjectColumns" => Op::JsonProjectColumns,
         "JsonTextCategoriesValues" => Op::JsonTextCategoriesValues,
         "Assert" => Op::Assert,
-        _ => {
-            return Err(format!(
-                "unsupported IR opcode `{op_name}` at instruction {pc}"
-            ))
-        }
+        other => match MathFunction::from_op_name(other) {
+            Some(function) => Op::Math(function),
+            None => {
+                return Err(format!(
+                    "unsupported IR opcode `{op_name}` at instruction {pc}"
+                ))
+            }
+        },
     };
     let span = match object.get("span") {
         Some(span) => {

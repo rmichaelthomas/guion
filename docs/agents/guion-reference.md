@@ -31,6 +31,7 @@ Statements: `let`, `var`, `set`, `return`, `if`/`else`, `while`, `for name in li
 - `http_request(method, url, headers, body) -> Result[Json, HttpError]` supports GET, POST, PUT, PATCH, DELETE, HEAD, and OPTIONS with `Map[Text]` headers and a UTF-8 text body. Its JSON envelope contains integer `status`, text `body`, and lowercase response headers. `http_request_bytes(method, url, headers, body, timeout_ms) -> Result[HttpResponse, HttpError]` preserves arbitrary request and response bytes; `HttpResponse` has `status: Int`, `headers: Map[Text, Text]`, and `body: Bytes`. Importing `std:http` provides the response type and typed JSON helper; `std:types` re-exports the same type for compatibility. Non-2xx responses remain values. `http_response_text(response) -> Result[Text, HttpError]` checks the body's UTF-8 encoding and text-size limit; `std:http.http_response_json(response) -> Result[Json, StdError]` performs the same checks and parses JSON directly from the response bytes, without an intermediate `Text` allocation. It preserves the stable HTTP and JSON error codes and messages. A shared host client enforces one monotonic deadline through connection and body reads, bounds response accumulation, refuses cross-origin redirects, and interrupts in-flight reads on cancellation. Runtime URL hosts require exact grants in `[network].hosts` or `guion run --allow-http-host HOST`; network remains denied by default.
 - `unix_time_ms() -> Int` returns wall-clock milliseconds since the Unix epoch, and `today_local() -> Date` returns the current date in the host process time zone. `format_utc_date(instant) -> Text` formats an `Instant` as its `YYYY-MM-DD` UTC calendar date without formatting the time of day. Clock access is denied unless `[clock].enabled = true` or the caller uses `guion run --allow-clock` / an embedding `HostPolicy` grant. The host supplies local-time and daylight-saving rules; tests and embedders can pin the clock through `HostPolicy::with_clock_unix_time_ms`.
 - `parallel_map(items, worker, limit)` calls a named unary function on immutable list items in worker-local VM instances and returns `Result[List[U], TaskError]`. `is_ok(result)` tests the variant; `unwrap(result)` returns the list from `Ok`; `error(result)` returns the `TaskError` from `Err`. `task_index`, `task_code`, and `task_message` read its failed input index and failure details. Workers preserve result order, use a bounded shared worker instruction allowance, stop scheduling and poll cancellation after failure, join running tasks, and merge completed output by input index. An instruction-limit failure inside a worker is a `TaskError`; host setup errors still fail the invocation.
+- Numeric conversion and math (artifact format 52): `int_to_float(Int) -> Float64`, `float_to_int(Float64) -> Int` (truncates toward zero), `int_to_text(Int) -> Text`, and `float_to_text(Float64) -> Text` (the same shortest round-trip text `print` shows). `std:math` provides `math_sin`, `math_cos`, `math_tan`, `math_asin`, `math_acos`, `math_atan`, `math_atan2`, `math_sinh`, `math_cosh`, `math_tanh`, `math_exp`, `math_ln`, `math_log10`, `math_log2`, `math_log`, `math_pow`, `math_hypot`, `math_abs`, `math_floor`, `math_ceil`, `math_round` (half away from zero), `math_floor_int`, `math_ceil_int`, `math_round_int`, `math_radians`, `math_degrees`, and the constants `math_pi()`, `math_tau()`, `math_e()`. A domain error raises `R_MATH_DOMAIN`, zero to a negative power raises `R_DIV_ZERO`, and a non-finite result raises `R_FLOAT_NONFINITE`. Results use the platform's IEEE 754 libm, so they can differ in the last digit between targets. `std:random` is a deterministic SplitMix64 generator over immutable `Rng` values: `random_new(seed)`, `random_next_u64`, `random_next_float` (in `[0, 1)`), and `random_next_range(rng, low, high)` (uniform over `low <= value < high`, by rejection sampling); each returns the value together with the next `Rng`. The same seed gives the same sequence on every target. It reads no clock; seed it from `unix_time_ms()` when a changing sequence is wanted.
 - Runtime and compile errors preserve source spans. Format-17 artifacts add Bytes values and byte file operations; format-18 artifacts add source-level Python keyword calls; format-19 artifacts add HTTP GET and `HttpError`; format-38 artifacts add byte HTTP; format-39 artifacts add explicitly granted clock access; format-16 metadata carries source and dependency-lock provenance; format-15 metadata and format-14 artifacts remain readable. Runtime combines recorded ceilings with host policy by taking the stricter value. The bytecode is an implementation detail apart from the versioned artifact boundary.
 
 ## Builtin signatures
@@ -60,6 +61,8 @@ file_error_message(FileError) -> Text
 file_next_line(FileReader) -> Result[Option[Record[SourceLine]], FileError]
 file_open_lines(Text) -> Result[FileReader, FileError]
 float64_bits(Float64) -> Int
+float_to_int(Float64) -> Int
+float_to_text(Float64) -> Text
 fs_walk(Text) -> Result[List[Record[DirectoryEntry]], FileError]
 http_error_code(HttpError) -> Text
 http_error_message(HttpError) -> Text
@@ -69,6 +72,8 @@ http_request_bytes(Text, Text, Map[Text, Text], Bytes, Int) -> Result[Record[Htt
 http_request_with_timeout(Text, Text, Map[Text, Text], Text, Int) -> Result[Json, HttpError]
 http_response_json_bytes(Record[HttpResponse]) -> Result[Json, Record[StdError]]
 http_response_text(Record[HttpResponse]) -> Result[Text, HttpError]
+int_to_float(Int) -> Float64
+int_to_text(Int) -> Text
 is_ok(Result[$T, $E]) -> Bool
 is_some(Option[$T]) -> Bool
 json_array() -> Json
@@ -120,6 +125,27 @@ merge_sorted_by_int_key(List[List[$T]], NamedIntKey[$T]) -> List[$T]
 native_calendar_parse(Text) -> Result[List[Record[CalendarEvent]], Record[StdError]]
 native_crypto_hmac_sha256(Bytes, Bytes) -> Bytes
 native_crypto_verify_hmac_sha256(Bytes, Bytes, Bytes) -> Bool
+native_math_abs(Float64) -> Float64
+native_math_acos(Float64) -> Float64
+native_math_asin(Float64) -> Float64
+native_math_atan(Float64) -> Float64
+native_math_atan2(Float64, Float64) -> Float64
+native_math_ceil(Float64) -> Float64
+native_math_cos(Float64) -> Float64
+native_math_cosh(Float64) -> Float64
+native_math_exp(Float64) -> Float64
+native_math_floor(Float64) -> Float64
+native_math_hypot(Float64, Float64) -> Float64
+native_math_ln(Float64) -> Float64
+native_math_log10(Float64) -> Float64
+native_math_log2(Float64) -> Float64
+native_math_pow(Float64, Float64) -> Float64
+native_math_round(Float64) -> Float64
+native_math_sin(Float64) -> Float64
+native_math_sinh(Float64) -> Float64
+native_math_tan(Float64) -> Float64
+native_math_tanh(Float64) -> Float64
+native_random_mix(Int) -> Int
 native_sqlite_begin(Db) -> Result[Transaction, Record[StdError]]
 native_sqlite_close(Db) -> Result[Unit, Record[StdError]]
 native_sqlite_commit(Transaction) -> Result[Unit, Record[StdError]]
@@ -207,6 +233,39 @@ std:json — pub fn json_float_safe(value: Json) -> Result[Float64, JsonError]
 std:jsonl — pub fn jsonl_open(path: Text) -> Result[FileReader, FileError]
 std:jsonl — pub fn jsonl_next(reader: FileReader) -> Result[Option[JsonlLine], FileError]
 std:jsonl — pub fn jsonl_close(reader: FileReader) -> Result[Unit, FileError]
+std:math — pub fn math_pi() -> Float64
+std:math — pub fn math_tau() -> Float64
+std:math — pub fn math_e() -> Float64
+std:math — pub fn math_sin(value: Float64) -> Float64
+std:math — pub fn math_cos(value: Float64) -> Float64
+std:math — pub fn math_tan(value: Float64) -> Float64
+std:math — pub fn math_asin(value: Float64) -> Float64
+std:math — pub fn math_acos(value: Float64) -> Float64
+std:math — pub fn math_atan(value: Float64) -> Float64
+std:math — pub fn math_atan2(y: Float64, x: Float64) -> Float64
+std:math — pub fn math_sinh(value: Float64) -> Float64
+std:math — pub fn math_cosh(value: Float64) -> Float64
+std:math — pub fn math_tanh(value: Float64) -> Float64
+std:math — pub fn math_exp(value: Float64) -> Float64
+std:math — pub fn math_ln(value: Float64) -> Float64
+std:math — pub fn math_log10(value: Float64) -> Float64
+std:math — pub fn math_log2(value: Float64) -> Float64
+std:math — pub fn math_log(value: Float64, base: Float64) -> Float64
+std:math — pub fn math_pow(base: Float64, exponent: Float64) -> Float64
+std:math — pub fn math_hypot(x: Float64, y: Float64) -> Float64
+std:math — pub fn math_abs(value: Float64) -> Float64
+std:math — pub fn math_floor(value: Float64) -> Float64
+std:math — pub fn math_ceil(value: Float64) -> Float64
+std:math — pub fn math_round(value: Float64) -> Float64
+std:math — pub fn math_floor_int(value: Float64) -> Int
+std:math — pub fn math_ceil_int(value: Float64) -> Int
+std:math — pub fn math_round_int(value: Float64) -> Int
+std:math — pub fn math_radians(degrees: Float64) -> Float64
+std:math — pub fn math_degrees(radians: Float64) -> Float64
+std:random — pub fn random_new(seed: Int) -> Rng
+std:random — pub fn random_next_u64(rng: Rng) -> RandomInt
+std:random — pub fn random_next_float(rng: Rng) -> RandomFloat
+std:random — pub fn random_next_range(rng: Rng, low: Int, high: Int) -> RandomInt
 std:semver — pub fn parse_version(value: Text) -> Result[SemVer, FileError]
 std:semver — pub fn compare_versions(left: SemVer, right: SemVer) -> Int
 std:sqlite — pub fn sqlite_open(path: Text) -> Result[Db, StdError]
@@ -1006,4 +1065,4 @@ fn main() -> Int:
 - [Host API and effects](../../language/host-api.md)
 - [Agent recipes](recipes.md)
 
-<!-- Generated reference content digest: sha256:cbf6b97dbc6b7e7405f3ba1ae1d5bd38aeb93ae54df7c5accee1b60e86bdb2b2. Validated by `cargo xtask agent-reference --check`. -->
+<!-- Generated reference content digest: sha256:31832d4ba117b73e7455d7804380eae95dfeafd5bce530cc917cfa9e5496f943. Validated by `cargo xtask agent-reference --check`. -->

@@ -1146,6 +1146,209 @@
       ],
       "result": "Result[Unit, FileError]",
       "operation": "WriteTextAtomic"
+    },
+    {
+      "name": "native_math_sin",
+      "parameters": [
+        "Float64"
+      ],
+      "result": "Float64",
+      "operation": "MathSin"
+    },
+    {
+      "name": "native_math_cos",
+      "parameters": [
+        "Float64"
+      ],
+      "result": "Float64",
+      "operation": "MathCos"
+    },
+    {
+      "name": "native_math_tan",
+      "parameters": [
+        "Float64"
+      ],
+      "result": "Float64",
+      "operation": "MathTan"
+    },
+    {
+      "name": "native_math_asin",
+      "parameters": [
+        "Float64"
+      ],
+      "result": "Float64",
+      "operation": "MathAsin"
+    },
+    {
+      "name": "native_math_acos",
+      "parameters": [
+        "Float64"
+      ],
+      "result": "Float64",
+      "operation": "MathAcos"
+    },
+    {
+      "name": "native_math_atan",
+      "parameters": [
+        "Float64"
+      ],
+      "result": "Float64",
+      "operation": "MathAtan"
+    },
+    {
+      "name": "native_math_sinh",
+      "parameters": [
+        "Float64"
+      ],
+      "result": "Float64",
+      "operation": "MathSinh"
+    },
+    {
+      "name": "native_math_cosh",
+      "parameters": [
+        "Float64"
+      ],
+      "result": "Float64",
+      "operation": "MathCosh"
+    },
+    {
+      "name": "native_math_tanh",
+      "parameters": [
+        "Float64"
+      ],
+      "result": "Float64",
+      "operation": "MathTanh"
+    },
+    {
+      "name": "native_math_exp",
+      "parameters": [
+        "Float64"
+      ],
+      "result": "Float64",
+      "operation": "MathExp"
+    },
+    {
+      "name": "native_math_ln",
+      "parameters": [
+        "Float64"
+      ],
+      "result": "Float64",
+      "operation": "MathLn"
+    },
+    {
+      "name": "native_math_log10",
+      "parameters": [
+        "Float64"
+      ],
+      "result": "Float64",
+      "operation": "MathLog10"
+    },
+    {
+      "name": "native_math_log2",
+      "parameters": [
+        "Float64"
+      ],
+      "result": "Float64",
+      "operation": "MathLog2"
+    },
+    {
+      "name": "native_math_floor",
+      "parameters": [
+        "Float64"
+      ],
+      "result": "Float64",
+      "operation": "MathFloor"
+    },
+    {
+      "name": "native_math_ceil",
+      "parameters": [
+        "Float64"
+      ],
+      "result": "Float64",
+      "operation": "MathCeil"
+    },
+    {
+      "name": "native_math_round",
+      "parameters": [
+        "Float64"
+      ],
+      "result": "Float64",
+      "operation": "MathRound"
+    },
+    {
+      "name": "native_math_abs",
+      "parameters": [
+        "Float64"
+      ],
+      "result": "Float64",
+      "operation": "MathAbs"
+    },
+    {
+      "name": "native_math_pow",
+      "parameters": [
+        "Float64",
+        "Float64"
+      ],
+      "result": "Float64",
+      "operation": "MathPow"
+    },
+    {
+      "name": "native_math_atan2",
+      "parameters": [
+        "Float64",
+        "Float64"
+      ],
+      "result": "Float64",
+      "operation": "MathAtan2"
+    },
+    {
+      "name": "native_math_hypot",
+      "parameters": [
+        "Float64",
+        "Float64"
+      ],
+      "result": "Float64",
+      "operation": "MathHypot"
+    },
+    {
+      "name": "int_to_float",
+      "parameters": [
+        "Int"
+      ],
+      "result": "Float64",
+      "operation": "IntToFloat"
+    },
+    {
+      "name": "float_to_int",
+      "parameters": [
+        "Float64"
+      ],
+      "result": "Int",
+      "operation": "FloatToInt"
+    },
+    {
+      "name": "int_to_text",
+      "parameters": [
+        "Int"
+      ],
+      "result": "Text",
+      "operation": "NumberToText"
+    },
+    {
+      "name": "float_to_text",
+      "parameters": [
+        "Float64"
+      ],
+      "result": "Text",
+      "operation": "NumberToText"
+    },
+    {
+      "name": "native_random_mix",
+      "parameters": [
+        "Int"
+      ],
+      "result": "Int",
+      "operation": "RandomMix"
     }
   ]
 }

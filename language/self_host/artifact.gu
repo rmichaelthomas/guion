@@ -572,6 +572,14 @@ fn ab_plain_opcode(name: Text) -> Int:
         return 175
     if name == "TextTrim":
         return 176
+    if name == "IntToFloat":
+        return 178
+    if name == "FloatToInt":
+        return 179
+    if name == "NumberToText":
+        return 180
+    if name == "RandomMix":
+        return 181
     if name == "UnixTimeMs":
         return 156
     if name == "TimeTodayLocal":
@@ -652,10 +660,56 @@ fn ab_plain_opcode(name: Text) -> Int:
         return 155
     return -1
 
+fn ab_math_code(name: Text) -> Int:
+    if name == "MathSin":
+        return 0
+    if name == "MathCos":
+        return 1
+    if name == "MathTan":
+        return 2
+    if name == "MathAsin":
+        return 3
+    if name == "MathAcos":
+        return 4
+    if name == "MathAtan":
+        return 5
+    if name == "MathSinh":
+        return 6
+    if name == "MathCosh":
+        return 7
+    if name == "MathTanh":
+        return 8
+    if name == "MathExp":
+        return 9
+    if name == "MathLn":
+        return 10
+    if name == "MathLog10":
+        return 11
+    if name == "MathLog2":
+        return 12
+    if name == "MathFloor":
+        return 13
+    if name == "MathCeil":
+        return 14
+    if name == "MathRound":
+        return 15
+    if name == "MathAbs":
+        return 16
+    if name == "MathPow":
+        return 17
+    if name == "MathAtan2":
+        return 18
+    if name == "MathHypot":
+        return 19
+    return -1
+
 fn ab_instruction(instruction: Json, pc: Int, functions: Json, records: Json, externals: Json, labels: Json, source_id: Int) -> Bytes:
     let name = json_as_text(json_get(instruction, "op"))
     if name == "ConstInt" or name == "ConstBool" or name == "ConstText" or name == "ConstFloat64" or name == "ConstUnit" or name == "ConstValue":
         return ab_join([ab_instruction_span(instruction, pc, source_id), ab_u8(0), ab_constant(instruction)])
+    let math_code = ab_math_code(name)
+    if math_code >= 0:
+        return ab_join([ab_instruction_span(instruction, pc, source_id), ab_u8(177), ab_u8(math_code)])
     let tag = ab_plain_opcode(name)
     if tag < 0:
         return ab_u8(255)
@@ -783,7 +837,7 @@ pub fn artifact_assemble(ir: Json) -> Bytes:
     let records = json_get(ir, "records")
     let externals = json_get(ir, "externals")
     let functions = json_get(ir, "functions")
-    var parts: List[Bytes] = [bytes_from_text("VRTA"), ab_u32(51), ab_string(source_name), ab_string(entry), ab_count(json_len(sources))]
+    var parts: List[Bytes] = [bytes_from_text("VRTA"), ab_u32(52), ab_string(source_name), ab_string(entry), ab_count(json_len(sources))]
     var cursor = 0
     while cursor < json_len(sources):
         set parts = list_push(parts, ab_string(json_as_text(json_index(sources, cursor))))

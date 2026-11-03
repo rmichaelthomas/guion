@@ -7,9 +7,9 @@
 //! implements it for environments such as WebAssembly by rejecting those operations.
 
 use guion_model::{
-    Artifact, BigInt, FileErrorValue, Float64, HttpErrorValue, JsonErrorValue, NativeResourceValue,
-    Op, RuntimeError, ShareAcrossThreads, Shared, SharedJson, SharedText, Span, TaskErrorValue,
-    TextMap, Type, Value,
+    Artifact, BigInt, FileErrorValue, Float64, HttpErrorValue, JsonErrorValue, MathFunction,
+    NativeResourceValue, Op, RuntimeError, ShareAcrossThreads, Shared, SharedJson, SharedText,
+    Span, TaskErrorValue, TextMap, Type, Value,
 };
 use std::{
     cell::Cell,
@@ -2659,6 +2659,97 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                 )?;
                 push_stack!(value);
             }
+            Op::Math(function) => {
+                let function = *function;
+                let right = if function.arity() == 2 {
+                    match pop!() {
+                        Value::Float64(value) => Some(value.get()),
+                        _ => {
+                            return Err(RuntimeError::new(
+                                "R_TYPE_INVALID",
+                                "math functions require Float64 values",
+                                instruction.span,
+                            ));
+                        }
+                    }
+                } else {
+                    None
+                };
+                let Value::Float64(left) = pop!() else {
+                    return Err(RuntimeError::new(
+                        "R_TYPE_INVALID",
+                        "math functions require Float64 values",
+                        instruction.span,
+                    ));
+                };
+                let result = apply_math(function, left.get(), right.unwrap_or(0.0)).map_err(
+                    |(code, message)| RuntimeError::new(code, message, instruction.span),
+                )?;
+                push_stack!(Value::Float64(result));
+            }
+            Op::IntToFloat => {
+                let Value::Int(value) = pop!() else {
+                    return Err(RuntimeError::new(
+                        "R_TYPE_INVALID",
+                        "int_to_float requires an Int value",
+                        instruction.span,
+                    ));
+                };
+                let converted = match value.small() {
+                    Some(small) => Float64::new(small as f64),
+                    None => value.to_string().parse::<f64>().ok().and_then(Float64::new),
+                }
+                .ok_or_else(|| {
+                    RuntimeError::new(
+                        "R_FLOAT_NONFINITE",
+                        "Int is too large to convert to Float64",
+                        instruction.span,
+                    )
+                })?;
+                push_stack!(Value::Float64(converted));
+            }
+            Op::FloatToInt => {
+                let Value::Float64(value) = pop!() else {
+                    return Err(RuntimeError::new(
+                        "R_TYPE_INVALID",
+                        "float_to_int requires a Float64 value",
+                        instruction.span,
+                    ));
+                };
+                push_stack!(Value::Int(float_to_bigint(value.get())));
+            }
+            Op::NumberToText => {
+                let text = match pop!() {
+                    Value::Int(value) => value.to_string(),
+                    Value::Float64(value) => float_to_text(value.get()),
+                    _ => {
+                        return Err(RuntimeError::new(
+                            "R_TYPE_INVALID",
+                            "number-to-text conversion requires an Int or Float64 value",
+                            instruction.span,
+                        ));
+                    }
+                };
+                let value = Value::Text(SharedText::from(text.as_str()));
+                charge_allocation(
+                    budget.as_ref(),
+                    new_value_allocation(&value),
+                    instruction.span,
+                )?;
+                push_stack!(value);
+            }
+            Op::RandomMix => {
+                let Value::Int(state) = pop!() else {
+                    return Err(RuntimeError::new(
+                        "R_TYPE_INVALID",
+                        "random_mix requires an Int state",
+                        instruction.span,
+                    ));
+                };
+                push_stack!(Value::Int(BigInt::from_u64(splitmix64_mix(
+                    bigint_low_u64(&state)
+                ))));
+            }
             Op::BytesFromInts => {
                 let values = match pop!() {
                     Value::List(values) => values,
@@ -4617,6 +4708,11 @@ pub fn opcode_profile_name(op: &Op) -> &'static str {
         Op::TextSplit => "TextSplit",
         Op::TextReplace => "TextReplace",
         Op::TextTrim => "TextTrim",
+        Op::Math(function) => function.op_name(),
+        Op::IntToFloat => "IntToFloat",
+        Op::FloatToInt => "FloatToInt",
+        Op::NumberToText => "NumberToText",
+        Op::RandomMix => "RandomMix",
         Op::BytesFromInts => "BytesFromInts",
         Op::BytesFromText => "BytesFromText",
         Op::BytesJoin => "BytesJoin",
@@ -6578,6 +6674,42 @@ fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result
                 }
                 state.stack.push(Type::Float64);
             }
+            Op::Math(function) => {
+                for _ in 0..function.arity() {
+                    if pop_type(&mut state.stack, pc)? != Type::Float64 {
+                        return Err(format!(
+                            "math functions require Float64 at instruction {pc}"
+                        ));
+                    }
+                }
+                state.stack.push(Type::Float64);
+            }
+            Op::IntToFloat => {
+                if pop_type(&mut state.stack, pc)? != Type::Int {
+                    return Err(format!("int_to_float requires Int at instruction {pc}"));
+                }
+                state.stack.push(Type::Float64);
+            }
+            Op::FloatToInt => {
+                if pop_type(&mut state.stack, pc)? != Type::Float64 {
+                    return Err(format!("float_to_int requires Float64 at instruction {pc}"));
+                }
+                state.stack.push(Type::Int);
+            }
+            Op::NumberToText => {
+                if !matches!(pop_type(&mut state.stack, pc)?, Type::Int | Type::Float64) {
+                    return Err(format!(
+                        "number-to-text conversion requires Int or Float64 at instruction {pc}"
+                    ));
+                }
+                state.stack.push(Type::Text);
+            }
+            Op::RandomMix => {
+                if pop_type(&mut state.stack, pc)? != Type::Int {
+                    return Err(format!("random_mix requires Int at instruction {pc}"));
+                }
+                state.stack.push(Type::Int);
+            }
             Op::ListPush => {
                 let value = pop_type(&mut state.stack, pc)?;
                 match pop_type(&mut state.stack, pc)? {
@@ -7828,6 +7960,94 @@ impl VmHost for PortableHost {
             context.instruction.span,
         ))
     }
+}
+
+/// Applies a pure math function. Domain errors and non-finite results are reported, never returned
+/// as NaN or infinity, matching `sqrt`.
+fn apply_math(
+    function: MathFunction,
+    a: f64,
+    b: f64,
+) -> Result<Float64, (&'static str, &'static str)> {
+    const DOMAIN: &str = "R_MATH_DOMAIN";
+    let value = match function {
+        MathFunction::Sin => a.sin(),
+        MathFunction::Cos => a.cos(),
+        MathFunction::Tan => a.tan(),
+        MathFunction::Asin if (-1.0..=1.0).contains(&a) => a.asin(),
+        MathFunction::Acos if (-1.0..=1.0).contains(&a) => a.acos(),
+        MathFunction::Asin | MathFunction::Acos => {
+            return Err((DOMAIN, "asin and acos require a value between -1 and 1"));
+        }
+        MathFunction::Atan => a.atan(),
+        MathFunction::Sinh => a.sinh(),
+        MathFunction::Cosh => a.cosh(),
+        MathFunction::Tanh => a.tanh(),
+        MathFunction::Exp => a.exp(),
+        MathFunction::Ln | MathFunction::Log10 | MathFunction::Log2 if a <= 0.0 => {
+            return Err((DOMAIN, "logarithms require a positive value"));
+        }
+        MathFunction::Ln => a.ln(),
+        MathFunction::Log10 => a.log10(),
+        MathFunction::Log2 => a.log2(),
+        MathFunction::Floor => a.floor(),
+        MathFunction::Ceil => a.ceil(),
+        MathFunction::Round => a.round(),
+        MathFunction::Abs => a.abs(),
+        MathFunction::Pow => {
+            if a == 0.0 && b < 0.0 {
+                return Err(("R_DIV_ZERO", "pow of zero to a negative power"));
+            }
+            if a < 0.0 && b.fract() != 0.0 {
+                return Err((
+                    DOMAIN,
+                    "pow of a negative base requires an integer exponent",
+                ));
+            }
+            a.powf(b)
+        }
+        MathFunction::Atan2 => a.atan2(b),
+        MathFunction::Hypot => a.hypot(b),
+    };
+    Float64::new(value).ok_or((
+        "R_FLOAT_NONFINITE",
+        "math function produced a non-finite Float64 value",
+    ))
+}
+
+/// Truncates toward zero. `Float64` values are always finite, so the result is exact.
+fn float_to_bigint(value: f64) -> BigInt {
+    let truncated = value.trunc();
+    if truncated.abs() < 9.0e18 {
+        BigInt::from_i64(truncated as i64)
+    } else {
+        BigInt::parse(&format!("{truncated:.0}")).unwrap_or_else(|_| BigInt::zero())
+    }
+}
+
+/// The same shortest round-trip text that `print` shows for a `Float64`.
+fn float_to_text(value: f64) -> String {
+    format!("{value}")
+}
+
+/// The low 64 bits of an `Int`, in two's complement for negative values.
+fn bigint_low_u64(value: &BigInt) -> u64 {
+    if let Some(small) = value.small() {
+        return small as u64;
+    }
+    let modulus = BigInt::parse("18446744073709551616").expect("2^64 parses");
+    match value.floor_div_rem(&modulus) {
+        Some((_, remainder)) => remainder.to_string().parse::<u64>().unwrap_or(0),
+        None => 0,
+    }
+}
+
+/// The SplitMix64 output function.
+fn splitmix64_mix(state: u64) -> u64 {
+    let mut z = state;
+    z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+    z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+    z ^ (z >> 31)
 }
 
 #[cfg(test)]

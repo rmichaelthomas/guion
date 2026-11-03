@@ -1,0 +1,36 @@
+pub record Rng:
+    state: Int
+
+pub record RandomInt:
+    value: Int
+    rng: Rng
+
+pub record RandomFloat:
+    value: Float64
+    rng: Rng
+
+fn random_modulus() -> Int:
+    return 18446744073709551616
+
+pub fn random_new(seed: Int) -> Rng:
+    return Rng(seed % random_modulus())
+
+pub fn random_next_u64(rng: Rng) -> RandomInt:
+    let state = (rng.state + 11400714819323198485) % random_modulus()
+    return RandomInt(native_random_mix(state), Rng(state))
+
+pub fn random_next_float(rng: Rng) -> RandomFloat:
+    let draw = random_next_u64(rng)
+    let fraction = int_to_float(draw.value // 2048) / 9007199254740992.0
+    return RandomFloat(fraction, draw.rng)
+
+pub fn random_next_range(rng: Rng, low: Int, high: Int) -> RandomInt:
+    let span = high - low
+    assert(span > 0)
+    let limit = random_modulus() - (random_modulus() % span)
+    var current = rng
+    var draw = random_next_u64(current)
+    while draw.value >= limit:
+        set current = draw.rng
+        set draw = random_next_u64(current)
+    return RandomInt(low + draw.value % span, draw.rng)

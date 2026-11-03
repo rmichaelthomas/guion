@@ -9550,6 +9550,146 @@
       }
     },
     {
+      "id": "opcode-math",
+      "kind": "opcode",
+      "name": "Math",
+      "owner_task": 5,
+      "source": "crates/model/src/lib.rs::Op",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "implemented_current_subset"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "opcode-math.positive",
+          "state": "implemented",
+          "owner_task": 5
+        },
+        "negative": {
+          "case_id": "opcode-math.negative",
+          "state": "implemented",
+          "owner_task": 5
+        },
+        "interaction": {
+          "case_id": "opcode-math.interaction",
+          "state": "implemented",
+          "owner_task": 5
+        }
+      }
+    },
+    {
+      "id": "opcode-inttofloat",
+      "kind": "opcode",
+      "name": "IntToFloat",
+      "owner_task": 5,
+      "source": "crates/model/src/lib.rs::Op",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "implemented_current_subset"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "opcode-inttofloat.positive",
+          "state": "implemented",
+          "owner_task": 5
+        },
+        "negative": {
+          "case_id": "opcode-inttofloat.negative",
+          "state": "implemented",
+          "owner_task": 5
+        },
+        "interaction": {
+          "case_id": "opcode-inttofloat.interaction",
+          "state": "implemented",
+          "owner_task": 5
+        }
+      }
+    },
+    {
+      "id": "opcode-floattoint",
+      "kind": "opcode",
+      "name": "FloatToInt",
+      "owner_task": 5,
+      "source": "crates/model/src/lib.rs::Op",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "implemented_current_subset"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "opcode-floattoint.positive",
+          "state": "implemented",
+          "owner_task": 5
+        },
+        "negative": {
+          "case_id": "opcode-floattoint.negative",
+          "state": "implemented",
+          "owner_task": 5
+        },
+        "interaction": {
+          "case_id": "opcode-floattoint.interaction",
+          "state": "implemented",
+          "owner_task": 5
+        }
+      }
+    },
+    {
+      "id": "opcode-numbertotext",
+      "kind": "opcode",
+      "name": "NumberToText",
+      "owner_task": 5,
+      "source": "crates/model/src/lib.rs::Op",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "implemented_current_subset"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "opcode-numbertotext.positive",
+          "state": "implemented",
+          "owner_task": 5
+        },
+        "negative": {
+          "case_id": "opcode-numbertotext.negative",
+          "state": "implemented",
+          "owner_task": 5
+        },
+        "interaction": {
+          "case_id": "opcode-numbertotext.interaction",
+          "state": "implemented",
+          "owner_task": 5
+        }
+      }
+    },
+    {
+      "id": "opcode-randommix",
+      "kind": "opcode",
+      "name": "RandomMix",
+      "owner_task": 5,
+      "source": "crates/model/src/lib.rs::Op",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "implemented_current_subset"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "opcode-randommix.positive",
+          "state": "implemented",
+          "owner_task": 5
+        },
+        "negative": {
+          "case_id": "opcode-randommix.negative",
+          "state": "implemented",
+          "owner_task": 5
+        },
+        "interaction": {
+          "case_id": "opcode-randommix.interaction",
+          "state": "implemented",
+          "owner_task": 5
+        }
+      }
+    },
+    {
       "id": "opcode-jsontrygettext",
       "kind": "opcode",
       "name": "JsonTryGetText",

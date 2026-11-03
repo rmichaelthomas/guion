@@ -1,0 +1,86 @@
+pub fn math_pi() -> Float64:
+    return 3.141592653589793
+
+pub fn math_tau() -> Float64:
+    return 6.283185307179586
+
+pub fn math_e() -> Float64:
+    return 2.718281828459045
+
+pub fn math_sin(value: Float64) -> Float64:
+    return native_math_sin(value)
+
+pub fn math_cos(value: Float64) -> Float64:
+    return native_math_cos(value)
+
+pub fn math_tan(value: Float64) -> Float64:
+    return native_math_tan(value)
+
+pub fn math_asin(value: Float64) -> Float64:
+    return native_math_asin(value)
+
+pub fn math_acos(value: Float64) -> Float64:
+    return native_math_acos(value)
+
+pub fn math_atan(value: Float64) -> Float64:
+    return native_math_atan(value)
+
+pub fn math_atan2(y: Float64, x: Float64) -> Float64:
+    return native_math_atan2(y, x)
+
+pub fn math_sinh(value: Float64) -> Float64:
+    return native_math_sinh(value)
+
+pub fn math_cosh(value: Float64) -> Float64:
+    return native_math_cosh(value)
+
+pub fn math_tanh(value: Float64) -> Float64:
+    return native_math_tanh(value)
+
+pub fn math_exp(value: Float64) -> Float64:
+    return native_math_exp(value)
+
+pub fn math_ln(value: Float64) -> Float64:
+    return native_math_ln(value)
+
+pub fn math_log10(value: Float64) -> Float64:
+    return native_math_log10(value)
+
+pub fn math_log2(value: Float64) -> Float64:
+    return native_math_log2(value)
+
+pub fn math_log(value: Float64, base: Float64) -> Float64:
+    return native_math_ln(value) / native_math_ln(base)
+
+pub fn math_pow(base: Float64, exponent: Float64) -> Float64:
+    return native_math_pow(base, exponent)
+
+pub fn math_hypot(x: Float64, y: Float64) -> Float64:
+    return native_math_hypot(x, y)
+
+pub fn math_abs(value: Float64) -> Float64:
+    return native_math_abs(value)
+
+pub fn math_floor(value: Float64) -> Float64:
+    return native_math_floor(value)
+
+pub fn math_ceil(value: Float64) -> Float64:
+    return native_math_ceil(value)
+
+pub fn math_round(value: Float64) -> Float64:
+    return native_math_round(value)
+
+pub fn math_floor_int(value: Float64) -> Int:
+    return float_to_int(native_math_floor(value))
+
+pub fn math_ceil_int(value: Float64) -> Int:
+    return float_to_int(native_math_ceil(value))
+
+pub fn math_round_int(value: Float64) -> Int:
+    return float_to_int(native_math_round(value))
+
+pub fn math_radians(degrees: Float64) -> Float64:
+    return degrees * 3.141592653589793 / 180.0
+
+pub fn math_degrees(radians: Float64) -> Float64:
+    return radians * 180.0 / 3.141592653589793

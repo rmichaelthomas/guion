@@ -2868,6 +2868,108 @@ pub enum Type {
     Unit,
 }
 
+/// Pure `Float64` math functions behind `Op::Math`. Codes are part of artifact format 52.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MathFunction {
+    Sin,
+    Cos,
+    Tan,
+    Asin,
+    Acos,
+    Atan,
+    Sinh,
+    Cosh,
+    Tanh,
+    Exp,
+    Ln,
+    Log10,
+    Log2,
+    Floor,
+    Ceil,
+    Round,
+    Abs,
+    Pow,
+    Atan2,
+    Hypot,
+}
+
+impl MathFunction {
+    const ALL: [MathFunction; 20] = [
+        MathFunction::Sin,
+        MathFunction::Cos,
+        MathFunction::Tan,
+        MathFunction::Asin,
+        MathFunction::Acos,
+        MathFunction::Atan,
+        MathFunction::Sinh,
+        MathFunction::Cosh,
+        MathFunction::Tanh,
+        MathFunction::Exp,
+        MathFunction::Ln,
+        MathFunction::Log10,
+        MathFunction::Log2,
+        MathFunction::Floor,
+        MathFunction::Ceil,
+        MathFunction::Round,
+        MathFunction::Abs,
+        MathFunction::Pow,
+        MathFunction::Atan2,
+        MathFunction::Hypot,
+    ];
+
+    pub fn code(self) -> u8 {
+        Self::ALL
+            .iter()
+            .position(|candidate| *candidate == self)
+            .expect("every math function is listed") as u8
+    }
+
+    pub fn from_code(code: u8) -> Option<Self> {
+        Self::ALL.get(usize::from(code)).copied()
+    }
+
+    /// The instruction name used by builtin catalogs and the textual bytecode form.
+    pub fn op_name(self) -> &'static str {
+        match self {
+            MathFunction::Sin => "MathSin",
+            MathFunction::Cos => "MathCos",
+            MathFunction::Tan => "MathTan",
+            MathFunction::Asin => "MathAsin",
+            MathFunction::Acos => "MathAcos",
+            MathFunction::Atan => "MathAtan",
+            MathFunction::Sinh => "MathSinh",
+            MathFunction::Cosh => "MathCosh",
+            MathFunction::Tanh => "MathTanh",
+            MathFunction::Exp => "MathExp",
+            MathFunction::Ln => "MathLn",
+            MathFunction::Log10 => "MathLog10",
+            MathFunction::Log2 => "MathLog2",
+            MathFunction::Floor => "MathFloor",
+            MathFunction::Ceil => "MathCeil",
+            MathFunction::Round => "MathRound",
+            MathFunction::Abs => "MathAbs",
+            MathFunction::Pow => "MathPow",
+            MathFunction::Atan2 => "MathAtan2",
+            MathFunction::Hypot => "MathHypot",
+        }
+    }
+
+    pub fn from_op_name(name: &str) -> Option<Self> {
+        Self::ALL
+            .iter()
+            .copied()
+            .find(|candidate| candidate.op_name() == name)
+    }
+
+    /// Number of `Float64` operands the function pops.
+    pub fn arity(self) -> usize {
+        match self {
+            MathFunction::Pow | MathFunction::Atan2 | MathFunction::Hypot => 2,
+            _ => 1,
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Op {
     Const(Value),
@@ -2986,6 +3088,11 @@ pub enum Op {
     TextSplit,
     TextReplace,
     TextTrim,
+    Math(MathFunction),
+    IntToFloat,
+    FloatToInt,
+    NumberToText,
+    RandomMix,
     BytesFromInts,
     BytesFromText,
     BytesJoin,
@@ -3124,7 +3231,7 @@ pub struct Artifact {
 }
 
 impl Artifact {
-    pub const CURRENT_VERSION: u32 = 51;
+    pub const CURRENT_VERSION: u32 = 52;
     pub fn entry(&self) -> &str {
         &self.entry
     }
@@ -3352,6 +3459,12 @@ impl Artifact {
             return Err(ArtifactError::new(
                 "E_ARTIFACT_VERSION",
                 "native text search, split, replace and trim require artifact format 51",
+            ));
+        }
+        if self.format_version < 52 && artifact_uses_math_and_conversions(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "math, numeric conversion and random instructions require artifact format 52",
             ));
         }
         validate_sort_comparator_effects(self)
@@ -3589,6 +3702,14 @@ impl Artifact {
                     Op::TextSplit => w.u8(174),
                     Op::TextReplace => w.u8(175),
                     Op::TextTrim => w.u8(176),
+                    Op::Math(function) => {
+                        w.u8(177);
+                        w.u8(function.code());
+                    }
+                    Op::IntToFloat => w.u8(178),
+                    Op::FloatToInt => w.u8(179),
+                    Op::NumberToText => w.u8(180),
+                    Op::RandomMix => w.u8(181),
                     Op::ListPushLocal(slot) => {
                         w.u8(103);
                         w.count(*slot)?;
@@ -3956,6 +4077,25 @@ impl Artifact {
                         return Err(ArtifactError::new(
                             "E_ARTIFACT_VERSION",
                             "fused JSON field accessors require artifact format 50",
+                        ));
+                    }
+                    177 if format_version >= 52 => {
+                        let code = r.u8()?;
+                        Op::Math(MathFunction::from_code(code).ok_or_else(|| {
+                            ArtifactError::new(
+                                "E_ARTIFACT_ENCODING",
+                                format!("math instruction has unknown function code {code}"),
+                            )
+                        })?)
+                    }
+                    178 if format_version >= 52 => Op::IntToFloat,
+                    179 if format_version >= 52 => Op::FloatToInt,
+                    180 if format_version >= 52 => Op::NumberToText,
+                    181 if format_version >= 52 => Op::RandomMix,
+                    177..=181 => {
+                        return Err(ArtifactError::new(
+                            "E_ARTIFACT_VERSION",
+                            "math, numeric conversion and random instructions require artifact format 52",
                         ));
                     }
                     173 if format_version >= 51 => Op::TextFind,
@@ -4524,6 +4664,17 @@ fn artifact_uses_map_record_update(artifact: &Artifact) -> bool {
             matches!(
                 &instruction.op,
                 Op::MapRecordGet(_, _, _) | Op::MapRecordSet(_, _, _)
+            )
+        })
+    })
+}
+
+fn artifact_uses_math_and_conversions(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function.code.iter().any(|instruction| {
+            matches!(
+                instruction.op,
+                Op::Math(_) | Op::IntToFloat | Op::FloatToInt | Op::NumberToText | Op::RandomMix
             )
         })
     })

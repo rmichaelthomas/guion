@@ -1,6 +1,6 @@
 # Guion artifact format
 
-This document specifies the canonical artifact encoding currently emitted by the Guion compiler and accepted by the native model reader. The current format is **51**. Multi-byte integers are unsigned little-endian unless a value is explicitly described as signed or textual. Strings are UTF-8 prefixed by a `u32` byte length; counts use a `u32` and are bounded to 1,000,000. A complete artifact is at most 64 MiB. Recursive values and types are limited to 64 nested levels. Readers reject truncation, overflow, unknown tags, invalid indexes, trailing bytes, and version-incompatible instructions.
+This document specifies the canonical artifact encoding currently emitted by the Guion compiler and accepted by the native model reader. The current format is **52**. Multi-byte integers are unsigned little-endian unless a value is explicitly described as signed or textual. Strings are UTF-8 prefixed by a `u32` byte length; counts use a `u32` and are bounded to 1,000,000. A complete artifact is at most 64 MiB. Recursive values and types are limited to 64 nested levels. Readers reject truncation, overflow, unknown tags, invalid indexes, trailing bytes, and version-incompatible instructions.
 
 ## Top-level layout
 
@@ -9,7 +9,7 @@ Fields occur in this order, without padding:
 | Field | Encoding | Meaning |
 |---|---|---|
 | Magic | 4 bytes `VRTA` | Identifies a Guion artifact. |
-| Format version | `u32` | Reader accepts versions 14 through 51. The current writer emits 51. |
+| Format version | `u32` | Reader accepts versions 14 through 52. The current writer emits 52. |
 | Source name | string | Entry source identity; relative names are portable. |
 | Entry function | string | Name of the entry function, normally `main`. |
 | Sources | count, then strings | Source graph in stable compiler order. A span's `source_id` indexes this table. |
@@ -256,6 +256,11 @@ Every instruction is its span followed by a one-byte opcode tag and the listed o
 | 174 | `TextSplit` | — (format 51: pops delimiter and text, pushes `List[Text]`) |
 | 175 | `TextReplace` | — (format 51: pops replacement, needle and text, pushes `Text`) |
 | 176 | `TextTrim` | — (format 51: pops text, pushes `Text`) |
+| 177 | `Math` | function code (`u8`; format 52): 0 `sin`, 1 `cos`, 2 `tan`, 3 `asin`, 4 `acos`, 5 `atan`, 6 `sinh`, 7 `cosh`, 8 `tanh`, 9 `exp`, 10 `ln`, 11 `log10`, 12 `log2`, 13 `floor`, 14 `ceil`, 15 `round`, 16 `abs`, 17 `pow`, 18 `atan2`, 19 `hypot`. Pops one `Float64` (two for codes 17 to 19; the first operand pushed is the first argument) and pushes `Float64`. Domain errors raise `R_MATH_DOMAIN`, a zero base with a negative exponent raises `R_DIV_ZERO`, and a non-finite result raises `R_FLOAT_NONFINITE` |
+| 178 | `IntToFloat` | — (format 52: pops `Int`, pushes the nearest `Float64`; a value too large raises `R_FLOAT_NONFINITE`) |
+| 179 | `FloatToInt` | — (format 52: pops `Float64`, pushes the `Int` truncated toward zero) |
+| 180 | `NumberToText` | — (format 52: pops `Int` or `Float64`, pushes the same text `print` shows) |
+| 181 | `RandomMix` | — (format 52: pops an `Int`, pushes the SplitMix64 output function applied to its low 64 bits as a non-negative `Int`) |
 
 Opcode tags are append-only within a format version. Tags 73–132 were added by successive format versions; format-version checks reject artifacts that use an instruction newer than their declared version. Format 36 adds stable generic sorting; the named comparator has signature `(T, T) -> Int` and must have a pure transitive call graph. Format 37 adds Unicode normalization/case mapping, exact-byte HMAC, instance-owned SQLite/TOML resources, and iCalendar parsing. Native resource type tag 17 is valid in format 37; resource handles remain non-serializable values. Format 38 adds byte-preserving HTTP request and response bodies through `http_request_bytes`. Format 39 adds explicit-grant wall-clock access through `unix_time_ms()` and `time_today_local()`.
 
