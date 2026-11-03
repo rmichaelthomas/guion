@@ -1265,7 +1265,7 @@ pub(super) fn run_registers<H: VmHost>(
                     Value::Float64List(items) => items.len(),
                     Value::Map(items) => items.len(),
                     Value::Bytes(items) => items.len(),
-                    Value::Text(text) => text.chars().count(),
+                    Value::Text(text) => text.char_count(),
                     _ => exit!(),
                 };
                 commit!(0);

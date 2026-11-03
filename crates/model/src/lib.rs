@@ -77,6 +77,29 @@ mod shared_text_tests {
     }
 
     #[test]
+    fn shared_text_remembers_its_scalar_count_through_appends() {
+        let plain = SharedText::from("plain");
+        assert!(!plain.known_ascii());
+        assert_eq!(plain.char_count(), 5);
+        assert!(plain.known_ascii());
+
+        let ascii = SharedText::ascii("abc");
+        assert!(ascii.known_ascii());
+        assert_eq!(ascii.char_count(), 3);
+
+        let mut text = SharedText::concat("ab", "", 0, true);
+        assert_eq!(text.char_count(), 2);
+        assert!(SharedText::try_append(&mut text, "é!"));
+        assert_eq!((text.char_count(), text.len()), (4, 5));
+        assert!(!text.known_ascii());
+
+        // Text never counted stays uncounted through an append, and counts correctly later.
+        let mut uncounted = SharedText::concat("ü", "", 0, true);
+        assert!(SharedText::try_append(&mut uncounted, "x"));
+        assert_eq!(uncounted.char_count(), 2);
+    }
+
+    #[test]
     fn shared_text_crosses_threads() {
         let text = SharedText::concat("from ", "main", 0, true);
         text.share_across_threads();
@@ -1824,10 +1847,14 @@ struct TextHeader {
     len: usize,
     /// Capacity in bytes; the top bit marks text that appends may extend in place.
     capacity: usize,
+    /// The number of Unicode scalars once counted, or `SCALARS_UNKNOWN`. Any thread that
+    /// counts stores the same number, so relaxed loads and stores suffice.
+    scalars: std::sync::atomic::AtomicUsize,
 }
 
 const TEXT_HEADER_BYTES: usize = std::mem::size_of::<TextHeader>();
 const TEXT_GROWABLE: usize = 1 << (usize::BITS - 1);
+const SCALARS_UNKNOWN: usize = usize::MAX;
 
 // SAFETY: the bytes are mutated only through `&mut SharedText` while the count is one, and the
 // count follows the rules in the `shared` module.
@@ -1859,6 +1886,7 @@ impl SharedText {
                 count: HybridCount::new(),
                 len: text.len(),
                 capacity: capacity | if growable { TEXT_GROWABLE } else { 0 },
+                scalars: std::sync::atomic::AtomicUsize::new(SCALARS_UNKNOWN),
             });
             std::ptr::copy_nonoverlapping(text.as_ptr(), raw.add(TEXT_HEADER_BYTES), text.len());
         }
@@ -1889,6 +1917,43 @@ impl SharedText {
             unsafe { (*text.0.as_ptr()).capacity &= !TEXT_GROWABLE };
         }
         text
+    }
+
+    /// Text known to hold only ASCII, so that its length in scalars is its length in bytes.
+    pub fn ascii(text: &str) -> Self {
+        debug_assert!(text.is_ascii());
+        let shared = Self::from(text);
+        shared
+            .header()
+            .scalars
+            .store(text.len(), std::sync::atomic::Ordering::Relaxed);
+        shared
+    }
+
+    /// The number of Unicode scalars, counted on first use and remembered.
+    #[inline]
+    pub fn char_count(&self) -> usize {
+        let scalars = self
+            .header()
+            .scalars
+            .load(std::sync::atomic::Ordering::Relaxed);
+        if scalars != SCALARS_UNKNOWN {
+            return scalars;
+        }
+        let scalars = self.chars().count();
+        self.header()
+            .scalars
+            .store(scalars, std::sync::atomic::Ordering::Relaxed);
+        scalars
+    }
+
+    /// Whether the text is known to hold only ASCII, without counting it.
+    #[inline]
+    pub fn known_ascii(&self) -> bool {
+        self.header()
+            .scalars
+            .load(std::sync::atomic::Ordering::Relaxed)
+            == self.len()
     }
 
     pub fn ptr_eq(left: &Self, right: &Self) -> bool {
@@ -1944,6 +2009,10 @@ impl SharedText {
             let bytes = text.0.as_ptr().cast::<u8>().add(TEXT_HEADER_BYTES);
             std::ptr::copy_nonoverlapping(more.as_ptr(), bytes.add(len), more.len());
             (*text.0.as_ptr()).len = needed;
+            let scalars = (*text.0.as_ptr()).scalars.get_mut();
+            if *scalars != SCALARS_UNKNOWN {
+                *scalars += more.chars().count();
+            }
         }
         true
     }

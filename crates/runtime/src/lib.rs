@@ -1796,7 +1796,7 @@ impl NativeListArena {
                 else {
                     return None;
                 };
-                let character_count = text.chars().count();
+                let character_count = text.char_count();
                 if character_count > self.max_collection_items {
                     return None;
                 }
@@ -1870,7 +1870,7 @@ impl NativeListArena {
                 else {
                     return None;
                 };
-                return i64::try_from(text.chars().count()).ok();
+                return i64::try_from(text.char_count()).ok();
             }
             Op::TextFind => {
                 if arguments.len() != 3 || argument_tags != [4, 4, 1] || result_tag != 1 {
