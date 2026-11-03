@@ -52,11 +52,13 @@ test('an unresolved token stops the build and names it', async () => {
   await assert.rejects(buildSite({ ...real, srcDir, outDir: await tmp('out-') }), /unresolved token: \{\{slot:nope\}\}/);
 });
 
-test('each page has exactly one script and it is the playground module', () => {
-  assert.equal([...html.matchAll(/<script/g)].length, 1);
-  assert.ok(html.includes('<script type="module" src="playground/loader.mjs"></script>'));
-  assert.equal([...devHtml.matchAll(/<script/g)].length, 1);
-  assert.ok(devHtml.includes('<script type="module" src="../playground/loader.mjs"></script>'));
+test('each page runs exactly one script, the playground module, beside one block of inert structured data', () => {
+  for (const [page, loader] of [[html, 'playground/loader.mjs'], [devHtml, '../playground/loader.mjs']]) {
+    assert.equal([...page.matchAll(/<script/g)].length, 2);
+    assert.ok(page.includes(`<script type="module" src="${loader}"></script>`));
+    const data = /<script type="application\/ld\+json">([\s\S]*?)<\/script>/.exec(page);
+    assert.equal(JSON.parse(data[1])['@type'], 'SoftwareSourceCode');
+  }
 });
 
 test('the view switch is a native radio pair, Plain checked on the main page and Developer on /developer/', () => {
@@ -81,7 +83,8 @@ test('the CSS holds the view rules, reduced motion and print', () => {
 
 test('nothing in the page asks the network for anything', () => {
   for (const page of [html, devHtml]) {
-    const scrubbed = page.replaceAll('xmlns="http://www.w3.org/2000/svg"', '');
+    // The SVG namespace and the canonical link name addresses; neither is fetched.
+    const scrubbed = page.replaceAll('xmlns="http://www.w3.org/2000/svg"', '').replace('<link rel="canonical" href="https://rmichaelthomas.github.io/guion/">', '');
     assert.doesNotMatch(scrubbed, /(?:href|src)="(?:https?:)?\/\//);
     assert.doesNotMatch(scrubbed, /url\(\s*['"]?https?:/);
     assert.doesNotMatch(scrubbed, /@import/);

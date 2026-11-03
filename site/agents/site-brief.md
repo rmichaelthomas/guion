@@ -10,7 +10,7 @@ Builders, and the assistants who advise them. The project's own goal is a langua
 
 ## Status wording
 
-Always: **No public Guion release has been published.** The repository is private; the page is public. Never link to a private repository URL as if a visitor could open it (they cannot); cite evidence by the published files on the evidence page instead.
+Always: **the first preview build, v0.1.0-preview, is out for Linux; there is no macOS package yet.** The page links nothing off-site; cite evidence by the published files on the evidence page, not by repository URLs.
 
 ## Voice
 

@@ -33,7 +33,7 @@ These came from the project's earlier Pages site and apply here:
 ## Things not to do
 
 - Do not create a root `AGENTS.md` or `CLAUDE.md`, and do not edit any existing project-level one. Agent documents for this site live in `site/agents/`.
-- Do not add a download, install or "get started" button. There is no public release.
+- Do not add a download, install or "get started" button. The page links nothing off-site; downloads live on the GitHub release page.
 - Do not link to private repository URLs as evidence; publish the file instead.
 - Do not add JavaScript beyond the playground loader, a remote font, an analytics script, or any request that leaves the origin.
 - Do not restyle the vendored fragments by hand; override in `components.css`, which loads after them.

@@ -1,6 +1,6 @@
 {
   "product": "Guion",
-  "status": "Pre-release. No public Guion release has been published.",
+  "status": "Pre-release. The first preview build, v0.1.0-preview, is out for Linux; there is no macOS package yet.",
   "summary": "Guion is an experimental general-purpose programming language and toolchain with readable typed syntax, a compiler written in Guion, and a Rust runtime.",
   "site": "https://rmichaelthomas.github.io/guion/",
   "contact": "rmichael@rmichaelthomas.com",

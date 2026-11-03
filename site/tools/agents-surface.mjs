@@ -1,7 +1,7 @@
 import path from 'node:path';
 
 export const SITE_URL = 'https://rmichaelthomas.github.io/guion/';
-export const STATUS = 'Pre-release. No public Guion release has been published.';
+export const STATUS = 'Pre-release. The first preview build, v0.1.0-preview, is out for Linux; there is no macOS package yet.';
 const CONTACT = 'rmichael@rmichaelthomas.com';
 
 /** Machine-readable copy of the page's receipts: each claim with the conditions it holds under. */
@@ -32,7 +32,7 @@ export function renderLlmsTxt({ claims }) {
   const lines = [
     '# Guion',
     '',
-    '> Guion is an experimental general-purpose programming language and toolchain: readable typed syntax, a compiler written in Guion, and a Rust runtime. No public Guion release has been published.',
+    '> Guion is a general-purpose programming language and toolchain built to replace Python: readable typed syntax, a compiler written in Guion, and a Rust runtime. The first preview build, v0.1.0-preview, is out for Linux; there is no macOS package yet.',
     '',
     `Site: ${SITE_URL}`,
     `Machine-readable copy of everything below: ${SITE_URL}agents.json`,

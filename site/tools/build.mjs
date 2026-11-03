@@ -13,6 +13,8 @@ import { renderAgentsJson, renderLlmsTxt } from './agents-surface.mjs';
 const STYLE_BEFORE_VENDOR = ['tokens', 'base', 'layout', 'plain', 'developer'];
 const STYLE_AFTER_VENDOR = ['components', 'print'];
 const escapeHtml = (text) => String(text).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
+const SITE_URL = 'https://rmichaelthomas.github.io/guion/';
+const BRAND_FILES = ['mark.svg', 'mark-180.png', 'social-card.png'];
 const TOKEN = /\{\{([a-z][a-z-]*)(?::([^{}]+))?\}\}/g;
 
 async function walk(dir, prefix = '') {
@@ -28,7 +30,7 @@ async function walk(dir, prefix = '') {
 const kb = (bytes) => `${Math.max(10, Math.ceil(bytes / 10240) * 10)} KB`;
 
 function countRemoteRequests(html) {
-  const patterns = [/(?:href|src)="(?:https?:)?\/\//g, /url\(\s*['"]?https?:/g, /@import/g];
+  const patterns = [/(?<!rel="canonical" )(?:href|src)="(?:https?:)?\/\//g, /url\(\s*['"]?https?:/g, /@import/g];
   return patterns.reduce((total, pattern) => total + (html.match(pattern) ?? []).length, 0);
 }
 
@@ -198,6 +200,13 @@ export async function buildSite({ srcDir, vendorDir, outDir, repoRoot = REPO_ROO
     await writeFile(path.join(outDir, page.file), rendered[index]);
   }
   await writeFile(path.join(outDir, '.nojekyll'), '');
+  // The logo and link-preview card come from the repository's brand/ folder; the page head links each one.
+  await rm(path.join(outDir, 'brand'), { recursive: true, force: true });
+  if (existsSync(path.join(repoRoot, 'brand'))) {
+    await mkdir(path.join(outDir, 'brand'), { recursive: true });
+    for (const name of BRAND_FILES) await cp(path.join(repoRoot, 'brand', name), path.join(outDir, 'brand', name));
+  }
+  await writeFile(path.join(outDir, 'sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n  <url><loc>${SITE_URL}</loc></url>\n  <url><loc>${SITE_URL}evidence/</loc></url>\n</urlset>\n`);
   if (existsSync(loaderFile)) {
     await mkdir(path.join(outDir, 'playground'), { recursive: true });
     await cp(loaderFile, path.join(outDir, 'playground', 'loader.mjs'));

@@ -28,7 +28,7 @@ site/qa/           browser results and screenshots (not deployed)
 
 ## Rules that are easy to break
 
-- **No download or install button.** The page says plainly: No public Guion release has been published.
+- **No download or install button.** The page names the Linux preview, v0.1.0-preview, and says there is no macOS package yet; downloads live on the GitHub release page.
 - **No figure without a source.** A number goes in `site/src/claims.json` with the report that states it, never a bare number in a section file. The tests fail if the report does not say it.
 - **Plain English and Developer are two authored views**, not one view with parts hidden. Both live side by side in each section (`.v-plain`, `.v-dev`).
 - **No JavaScript except `playground/loader.mjs`**, and it does nothing until the visitor presses Run. No remote request of any kind, no remote fonts.

@@ -1,87 +1,161 @@
-# Guion
+<p align="center">
+  <a href="https://rmichaelthomas.github.io/guion/">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="brand/wordmark-dark.svg">
+      <img src="brand/wordmark-light.svg" alt="Guion" width="300">
+    </picture>
+  </a>
+</p>
 
-Guion (pronounced GUY-on, and [named for NASA astronaut Guion “Guy” Bluford](docs/namesake.md)) is a general-purpose programming language and toolchain built to make useful software easier to write, understand, and run. It has clear, typed syntax, a compiler written in Guion, and a Rust runtime. Normal source runs use the in-process Rust compiler. The default build works without Python.
+<p align="center"><strong>A general-purpose programming language built to replace Python.</strong></p>
 
-The long-term ambition is to make Guion a practical choice over Python for everyday programming, with quick responses and a broad range of useful work. Its programs use structured syntax; “plain English” describes the learning and tooling goal, not free-form natural-language code. The comparisons below are evidence for named workloads, not proof of broad superiority.
+<p align="center">
+  <a href="https://github.com/rmichaelthomas/guion/releases"><img alt="Latest release" src="https://img.shields.io/github/v/release/rmichaelthomas/guion?include_prereleases&label=release&color=2148e8"></a>
+  <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-11251d"></a>
+  <img alt="Built with Rust" src="https://img.shields.io/badge/built_with-Rust-11251d?logo=rust">
+  <a href="https://rmichaelthomas.github.io/guion/"><img alt="Try it in your browser" src="https://img.shields.io/badge/try_it-in_your_browser-d9f987"></a>
+</p>
 
-## Try it from this checkout
+<p align="center">
+  <a href="https://rmichaelthomas.github.io/guion/">Website</a> ·
+  <a href="docs/getting-started.md">Getting started</a> ·
+  <a href="docs/reference.md">Reference</a> ·
+  <a href="https://github.com/rmichaelthomas/guion/releases">Download</a>
+</p>
 
-You need Rust and Cargo to build Guion from source. From the repository root:
+---
 
-```sh
-cargo run --locked -p guion-cli -- new /tmp/hello-guion
-cargo run --locked -p guion-cli -- check /tmp/hello-guion/src/main.gu
-cargo run --locked -p guion-cli -- test /tmp/hello-guion/src/main.gu
-cargo run --locked -p guion-cli -- run /tmp/hello-guion
+Guion (say GUY-on) is a programming language for the same everyday work people use Python for: scripts, command-line tools, data processing, web requests, and full applications. It aims to be easier to read, harder to get wrong, and faster to run.
+
+Guion is early. The first preview build is out for Linux, and the language is changing quickly. Every speed and quality claim the project makes is measured, and the results are published with their raw data, including the places where Guion still falls short.
+
+## A first look
+
+```guion
+record Item:
+    name: Text
+    price: Int
+    quantity: Int
+
+fn line_total(item: Item) -> Int:
+    return item.price * item.quantity
+
+fn main() -> Int:
+    let cart = [Item("notebook", 4, 3), Item("pen", 2, 5)]
+    var total = 0
+    for item in cart:
+        set total = total + line_total(item)
+    print(total)
+    return 0
 ```
 
-The starter program prints `Hello, Guion!`. The same CLI can format and lint source, build portable `.gub` artifacts, package and verify applications, inspect effects, and generate API documentation.
+```console
+$ guion run main.gu
+22
+```
 
-## What works today
+Mistakes are caught before the program runs. Each one points at the exact spot and carries a stable code that people and tools can look up:
 
-- A self-hosted compiler checks and builds `.gu` programs into versioned `.gub` artifacts.
-- The Rust runtime supports typed functions and records, collections, JSON, files, SQLite, TOML, HTTP, bounded concurrency, and explicit host permissions.
-- The standard library can stably sort records by an integer key and merge feeds that are already sorted by that key.
-- The portable shared VM also exposes a versioned WebAssembly ABI for typed browser calls. ABI 1.0 preserves the legacy exports, grants no host capabilities, and bounds requests, values, output, and execution; see the [browser ABI guide](docs/browser-wasm-abi/README.md).
-- The core CLI can create, check, format, lint, test, run, build, package, install, and inspect programs.
-- Optional Python interoperability exists for projects that need it. It is off in the default core build.
+```console
+$ guion check mistake.gu
+mistake.gu:2:19: error[E_TYPE_OPERATOR]: operator `+` does not accept these operand types
+```
 
-See the [getting-started guide](docs/getting-started.md), [language and command reference](docs/reference.md), and [language contract](language/spec.md).
+You can try these examples and others [in your browser](https://rmichaelthomas.github.io/guion/#try) without installing anything.
 
-## Status and comparison with Python
+## Why Guion
 
-The current Guion-identity release matrix has passed on macOS ARM64 and Debian 12 GNU/Linux on ARM64 and x86_64 with glibc. Other operating systems, CPU architectures, and libc variants remain unverified.
+- **Easy to read.** Indentation-based syntax that feels familiar if you know Python, with types that are written where they help and inferred where they don't.
+- **Errors you can act on.** Programs are checked before they run. Every error has a stable code and a suggested repair, as text for people and as JSON for tools and AI assistants.
+- **One command for the whole project.** `guion` creates, checks, formats, lints, tests, runs, builds, packages, installs and documents programs. There is nothing else to install or configure.
+- **Permissions by default.** A program can't touch files, the network or the environment unless it's given permission. You can see what a program is able to do before you run it.
+- **Fast.** On measured everyday workloads, from text processing to JSON and CSV, Guion runs faster than CPython. The results are below.
+- **Built in itself.** The Guion compiler is written in Guion and runs on a Rust runtime. Compiled programs are portable `.gub` files.
+- **Runs in the browser.** The same runtime compiles to WebAssembly, which is how the website runs your code.
 
-**Latest speed gate: 2026-11-03.** On GitHub's x86_64 (AMD EPYC 7763) and ARM64 (Neoverse N2) Linux runners, Guion took less time than the uv standalone CPython 3.14.7 on every lane of the text, JSONL and CSV speed gate, at 20,000 and 200,000 rows, from source and from prebuilt artifacts. Each lane ran 15 shuffled trials with outputs checked against Python, and passes when the 95% upper bound of the Guion/Python time ratio is below 1.0.
+## Install
 
-| Workload, 200,000 rows | x86_64 median ratio (worst upper 95%) | ARM64 median ratio (worst upper 95%) |
+### Linux (preview)
+
+Download the archive for your machine from the [v0.1.0-preview release](https://github.com/rmichaelthomas/guion/releases/tag/v0.1.0-preview). Builds are for Debian 12–compatible systems on ARM64 and x86_64.
+
+```sh
+tar -xzf guion-debian-x86_64.tar.gz     # or guion-debian-aarch64.tar.gz
+cd guion-debian-x86_64
+sh install.sh                           # installs under ~/.local; pass a path to choose another place
+```
+
+Each archive has a matching `.sha256` checksum file. You don't need Rust or Python installed.
+
+### macOS and other systems
+
+There's no macOS package yet; one is planned for the 0.2.0 release. In the meantime you can build from source with [Rust](https://rustup.rs):
+
+```sh
+git clone https://github.com/rmichaelthomas/guion.git
+cd guion
+cargo build --release --locked -p guion-cli
+./target/release/guion --version
+```
+
+## Quick start
+
+```sh
+guion new hello        # create a project
+guion run hello        # prints: Hello, Guion!
+guion test hello       # run its tests
+guion check hello/src/main.gu
+```
+
+The [getting-started guide](docs/getting-started.md) goes further.
+
+## How it compares with Python
+
+On November 3, 2026, Guion ran faster than CPython 3.14.7 on every text, JSONL and CSV workload in the project's speed gate. The gate ran on both x86_64 and ARM64 Linux servers, at 20,000 and 200,000 rows. A ratio below 1.0 means Guion took less time.
+
+| Workload, 200,000 rows | x86_64 | ARM64 |
 | --- | --- | --- |
-| Text: split, trim, replace, find | 0.957–0.960 (0.976) | 0.810–0.816 (0.817) |
-| JSONL event summary | 0.860–0.897 (0.904) | 0.844–0.855 (0.859) |
-| CSV ledger | 0.862–0.875 (0.881) | 0.789–0.799 (0.801) |
+| Text: split, trim, replace, find | 0.96× | 0.81× |
+| JSONL event summary | 0.86–0.90× | 0.84–0.86× |
+| CSV ledger | 0.86–0.88× | 0.79–0.80× |
 
-At 20,000 rows the ratios are 0.536–0.710. The x86_64 text margin is small (3–4%), the hosts are shared cloud machines measured once each, and an Intel Xeon runner measured worse on an earlier build and has not been rerun. See the [server speed-gate report](evaluation/completion/results/real-task-sprint/2026-11-03-server-speed-gate.md) for every lane, the method, and the limits.
+Earlier tests on a Mac found Guion 2.7× faster on the Richards benchmark and faster in all nine everyday applications tested. These results cover the workloads named here, not every program. The [speed-gate report](evaluation/completion/results/real-task-sprint/2026-11-03-server-speed-gate.md) and the [website](https://rmichaelthomas.github.io/guion/#receipts) give the method, the raw samples and the limits.
 
-**Earlier application checkpoint: 2026-10-27.** The measured build at commit `6b5e5aba` (artifact format 44) was tested on macOS ARM64 against CPython 3.14.7. Guion and Python both passed **127/127** frozen application cases.
+## Where Python still leads
 
-| Workload | Guion result | Comparison |
-| --- | --- | --- |
-| Richards, uncached source | 27.46 ms | 72.92 ms Python; ratio **0.375** (95% interval 0.370–0.379), passing the 0.60 target |
-| Five short-source tasks | All gates passed | Ratios **0.182–0.236**, 21 randomized pairs each |
-| Nine everyday applications | Guion faster in all nine selected cases | Ratios **0.137–0.845**, seven randomized pairs each |
-| 200,000-row JSONL | 3.81 s uncached source; 11.1 MiB peak RSS | 17.93 s and 74.4 MiB for the Python data reference |
-| Lockfile auditor | Exact output through 16,384 packages / 32,768 diagnostics | 171.82 ms, 40.92 MiB vs. Python's 179.87 ms, 47.13 MiB |
+Python has a 35-year head start. Here is where it's still ahead, and what's planned to close each gap:
 
-N-body, Mandelbrot, both parallel CPU sizes, 20,000-row JSONL, and all application outputs also passed their checks. The full [current-main checkpoint](evaluation/completion/results/real-task-sprint/2026-10-27-current-main-outcome-checkpoint.md) links the raw samples and describes the methods and limits.
+- **Libraries and packages.** Guion ships 17 standard-library modules, including JSON, CSV, TOML, SQLite, HTTP, files, text and time, plus a package manager. It doesn't have a public package registry yet.
+- **Arrays and data science.** Guion has no native array type yet. Native arrays and data frames are planned, and they'll be measured against NumPy and pandas.
+- **A stable release.** The current build is a Linux preview. The 0.2.0 release will add installers for macOS and Linux and a written stability policy.
 
-The 2026-10-28 core sprint added a checked `HttpResponse`-to-text path and a standard-library JSON helper in artifact format 45 while preserving the byte API and format-44 readability. JSONL measurements from 2026-10-28 and 2026-10-29 found Guion 3–7× slower than CPython on the 200,000-row workload; the 2026-11-03 speed gate above supersedes them. See the [sprint completion report](evaluation/completion/results/real-task-sprint/2026-10-28-guion-core-sprint-completion.md), [typed HTTP report](evaluation/completion/results/real-task-sprint/2026-10-28-typed-http-response.md), [2026-10-29 JSONL sprint outcome](evaluation/development/core_cost_closure/results/sprint-20261029-jsonl-core-performance-outcome.md), and the [task-class evidence](evaluation/development/core_cost_closure/task-class-evidence.md) for how the gap closed.
+## Roadmap
 
-The same current-format run exercised bounded HTTP concurrency in the calendar and health-check applications, including mixed service responses. A runtime regression confirms that when one concurrent HTTP worker fails, an in-flight sibling request is interrupted and its socket closes. This supports those named cancellation cases on macOS; it is not a general async-runtime or cross-target claim. See the [concurrency report](evaluation/completion/results/real-task-sprint/2026-10-27-parallel-http-cancellation.md).
+1. **Packages and the standard library.** Version ranges, `guion publish`, and a hosted package registry, alongside a much wider standard library: processes, regular expressions, sockets, an HTTP server, and more.
+2. **Native arrays and data frames**, measured against NumPy and pandas.
+3. **Guion 0.2.0.** Installers for macOS and Linux, a stability policy, the registry live, and the first official packages.
+4. **Further standard-library waves and packages**, on a regular release schedule.
 
-On the 100,000-row NumPy/orjson bridge task, the 2026-10-28 15-pair follow-up measured Guion `Bytes` at **15.1% faster** than its `Text` path and **138.49 ms** versus **136.05 ms** for the same package-backed Python function. The paired ratio was **1.020** (95% interval **0.988–1.031**), so this run establishes neither a Guion win nor a loss against that package function. The standard-library Python reference remains faster at ratio **1.199** (95% interval **1.177–1.225**). Every output matched byte-for-byte. This single-host result is not a broad language-speed claim; see the [latest report](evaluation/completion/results/real-task-sprint/2026-10-28-python-bridge-single-copy.md) and [raw samples](evaluation/completion/results/real-task-sprint/2026-10-28-python-bridge-single-copy.json). The earlier [serialization pass](evaluation/completion/results/real-task-sprint/2026-10-27-python-bridge-serialization.md) records its own separate measurement.
-
-A four-lane no-op control kept package imports and the `Bytes` call constant while comparing empty and 5.1 MB inputs. At zero bytes, Guion and Python were at parity (ratio **0.993**, 95% interval **0.979–1.019**); at 5.1 MB, Guion was **4.3% slower** (ratio **1.043**, **1.004–1.050**). The relative payload penalty was **1.045** (**1.001–1.088**), locating the remaining difference in work that scales with transferred bytes. Every output matched. A 15-pair rerun against current PR binary `296c750` measured **1.017×** at 0 bytes (0.993–1.065) and **1.108×** at 5.1 MB (1.045–1.155); the relative payload penalty was **1.055×** (1.007–1.210). The large-payload slowdown remains open and unattributed. A phase-only capture found a 41.85 ms Rust pipe-write wait for the 5.1 MB frame, while Python frame reading took 1.56 ms; these overlapping wall timers do not attribute CPU time. See the [payload-phase profile](evaluation/completion/results/real-task-sprint/2026-10-28-python-bridge-startup-sizes.md#phase-only-payload-diagnostic). This does not attribute CPU time among file reading, pipe transfer, and frame handling; see the [current-binary samples](evaluation/completion/results/real-task-sprint/2026-10-28-python-bridge-startup-sizes-current-binary.json), the [control report](evaluation/completion/results/real-task-sprint/2026-10-28-python-bridge-startup-sizes.md) and the earlier [5.1 MB probe](evaluation/completion/results/real-task-sprint/2026-10-28-python-bridge-startup-5mb.md).
-
-The next frame-reader change reduced measured temporary allocation for one 5.1 MB frame from **10.20 MB** to **5.10 MB**. A fresh 15-pair application run remained at parity with package-backed Python (ratio **1.019**, 95% interval **0.995–1.046**); an independent-cohort comparison found no measurable timing change. See the [frame-reader report](evaluation/completion/results/real-task-sprint/2026-10-28-python-bridge-readinto.md).
-
-A direct-read fast path was tested and reverted because it showed no measurable speed or memory improvement over `readinto`. A streaming-reader prototype also failed the one-copy allocation bound for a fragmented 5.1 MB attachment. Repeated-call profiling found that native-image snapshots cost 0.220 ms per call; gating full snapshots on imports, `ctypes.dlopen`, or dyld image-count changes reduced the 1,000-call ratio from 4.131× to 1.481×. The bridge now also uses `orjson` for request parsing and response encoding when a Python program already imported it, with a standard-library fallback and no added dependency. In the latest 15-pair cohort, the 1,000-call ratio fell from 1.513× to 1.405×, and estimated excess cost fell by 9.84 μs per added call (95% same-index cross-cohort bootstrap interval: 2.50–13.17 μs lower). Typed response parsing and a one-write request frame were tested and reverted after larger benchmark cohorts showed no reliable gain. Replacing the per-call stdout/stderr redirect managers with direct save/restore produced a small ratio improvement: three 30-pair cohorts measured 1.387×, 1.387×, and 1.379× versus 1.415× in the immediately preceding 30-pair baseline. The excess-cost interval still includes no change. A direct `sys.modules` lookup removed repeated `importlib` work and cut measured module dispatch by about 0.33 μs, but its whole-workload result remained near baseline. A one-slot response channel showed no end-to-end gain and was reverted. A typed Rust response parser reduced measured parsing by 0.218 μs but did not improve the full workload: 1.395× versus 1.389× before the candidate, with the excess-cost interval crossing zero, so it was reverted too. A borrowed-string/raw-value parser missed its phase gate at 5.56 μs versus 5.47 μs, so it was reverted before a full timing cohort. New opt-in phase counters assigned about 2.1 μs per call to sidecar setup/response bookkeeping and left about 2.24 μs unassigned; Rust's first-byte wait remains about 18.61 μs. A Unix socket-pair transport regressed the fresh 30-pair workload, increasing estimated excess cost by 3.54 μs per added call, so the pipe transport was retained. Removing Python's unbuffered flag yielded no reliable 30-pair gain, so it was reverted. Batching 1,000 helper calls into one bridge request measured 1.072× direct Python (95% interval 1.061–1.081), compared with 1.422× when crossing the bridge for every item; Guion still ran 7.2% slower in the batched case. A 30-triplet source-versus-artifact follow-up found uncached source at 1.080× and a prebuilt artifact at 1.071× direct Python; prebuilding saved a median 0.50 ms of the 5.26 ms source gap, leaving 4.36 ms in the runtime/bridge path for this workload. A follow-up eager-sidecar startup candidate showed no reliable improvement in a retained replication cohort and was removed; the first apparent source gain was not reproducible. See the [bridge experiment report](evaluation/completion/results/real-task-sprint/2026-10-28-python-bridge-repeated-calls.md), [eager-startup samples](evaluation/completion/results/real-task-sprint/2026-10-28-python-bridge-batch-eager-startup.json), and [eager-startup profile](evaluation/completion/results/real-task-sprint/2026-10-28-python-bridge-payload-transfer-profile-eager.json), the [raw samples](evaluation/completion/results/real-task-sprint/2026-10-28-python-bridge-batch-artifact.json), and [phase-profile report](evaluation/completion/results/real-task-sprint/2026-10-28-python-bridge-phase-profile.md), the [control-gap profile](evaluation/completion/results/real-task-sprint/2026-10-28-python-bridge-control-gap-profile.json), the [batch report and raw samples](evaluation/completion/results/real-task-sprint/2026-10-28-python-bridge-repeated-calls.md), the [batch workload](evaluation/development/guion_python_bridge_batch_probe/main.template.gu), the [socket-pair samples](evaluation/completion/results/real-task-sprint/2026-10-28-python-bridge-repeated-calls-after-socketpair-30-pair.json), the [buffered-stdout samples](evaluation/completion/results/real-task-sprint/2026-10-28-python-bridge-repeated-calls-after-buffered-stdout-30-pair.json), the [fast JSON profile samples](evaluation/completion/results/real-task-sprint/2026-10-28-python-bridge-fast-json-phase-profile.json), the [repeated-call report](evaluation/completion/results/real-task-sprint/2026-10-28-python-bridge-repeated-calls.md), and the [allocation experiment](evaluation/completion/results/real-task-sprint/2026-10-28-python-bridge-direct-read.md).
-
-The 2026-10-27 checkpoint results come from named workloads on one Mac; operating-system file-cache state was uncontrolled. The 2026-10-27 benchmark checkpoint used artifact format 44 and does not validate other targets. This sprint advances the artifact format to 45 for checked HTTP response-text decoding; that compatibility change is not a performance claim and does not change the measured baseline. Overall competitiveness remains open.
-
-Current-format managed packaging covers the mixed-dependency app on macOS ARM64 and the 100,000-row NumPy/orjson analysis on macOS ARM64 and Debian 12 ARM64 and x86_64. Each analysis bundle relocated to a path with spaces and Unicode and launched twice with matching reference output and no external Python or uv settings. Their uncompressed directory sizes were 157,585,367 bytes on macOS, 244,199,858 bytes on Debian ARM64, and 274,853,607 bytes on Debian x86_64; these are not download sizes. A separate current-format Feed Digest package adds pure-Python feedparser 6.0.14 coverage: all six source cases and six relocated-package cases matched the Python reference on macOS ARM64 and Debian 12 ARM64 and x86_64. Debian ARM64 ran natively in the existing Colima VM without Rosetta; Debian x86_64 used Rosetta, not QEMU. The bundles include complete license records and no native extensions from feedparser; their uncompressed directories are 172,422,430 bytes on macOS, 128,874,649 bytes on Debian ARM64, and 158,943,069 bytes on Debian x86_64. These are package results, not speed claims. See the [Feed Digest macOS report](evaluation/completion/results/real-task-sprint/2026-10-27-feed-digest-managed-package.md), the [Debian ARM64 report](evaluation/completion/results/real-task-sprint/2026-10-28-feed-digest-managed-package-debian-aarch64.md), the [Debian x86_64 report](evaluation/completion/results/real-task-sprint/2026-10-28-feed-digest-managed-package-debian-x86_64.md), the [managed analysis package reports](evaluation/completion/results/real-task-sprint/2026-10-27-current-format-managed-package-analysis.md) for macOS, [Debian ARM64](evaluation/completion/results/real-task-sprint/2026-10-27-current-format-managed-package-analysis-debian-aarch64.md), and [Debian x86_64](evaluation/completion/results/real-task-sprint/2026-10-27-current-format-managed-package-analysis-debian-x86_64.md), and the [current status](docs/status.md). Broader package compatibility, bridge performance, and language learnability remain open; see the [validation record](docs/pre-release-readiness.md).
-
-## Project guide
+## Documentation
 
 - [Getting started](docs/getting-started.md)
-- [Agent programming path](docs/agents/start-here.md) and [runnable recipes](docs/agents/recipes.md)
-- [Architecture](docs/architecture.md)
-- [Browser WebAssembly ABI](docs/browser-wasm-abi/README.md)
 - [Language and command reference](docs/reference.md)
+- [Language specification](language/spec.md)
+- [Guide for AI coding assistants](docs/agents/start-here.md) and [runnable recipes](docs/agents/recipes.md)
+- [Architecture](docs/architecture.md)
+- [Browser WebAssembly interface](docs/browser-wasm-abi/README.md)
 - [Compatibility and migration](docs/compatibility-and-migrations.md)
-- [Current status](docs/status.md)
-- [Contributing](CONTRIBUTING.md)
-- [Security](SECURITY.md)
-- [License](LICENSE) and [third-party notices](THIRD-PARTY-NOTICES.md)
+- [Current status and all measured results](docs/status.md)
+- [Changelog](CHANGELOG.md)
 
+## The name
 
-The 2026-10-29 runtime follow-up removed the 64 KiB typed-HTTP cold-source penalty by splitting the shared response/error records into `std:http_types` and re-exporting them from `std:http` and `std:types`. In a fresh 15-pair ARM64 run, typed HTTP measured 0.929× legacy in cold source and 0.886× in artifacts at 64 KiB, and 0.761×/0.716× at 1 MiB. See the [raw HTTP result](evaluation/development/core_cost_closure/results/http-shared-types-paired-15.json).
+Guion is named in honour of [Guion S. "Guy" Bluford Jr.](docs/namesake.md), the NASA astronaut who in 1983 became the first African American to fly in space. It's pronounced GUY-on.
+
+## Contributing
+
+Issues and pull requests are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md). Please report security problems privately as described in [SECURITY.md](SECURITY.md).
+
+## License
+
+Guion is released under the [MIT License](LICENSE). Third-party components are listed in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).

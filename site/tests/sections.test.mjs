@@ -38,8 +38,8 @@ test('sections 1 to 5 each have a Plain English block and a Developer block', ()
   }
 });
 
-test('the hero says plainly that there is no public release', () => {
-  assert.ok(section('top').includes('No public Guion release has been published'));
+test('the hero names the preview build and the missing macOS package', () => {
+  assert.ok(section('top').includes('v0.1.0-preview') && section('top').includes('macOS'));
 });
 
 test('the hero art shows the real bytes of the compiled hello program', () => {

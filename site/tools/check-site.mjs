@@ -7,6 +7,10 @@ import { pathToFileURL } from 'node:url';
 const MAX_PAGE_BYTES = 400 * 1024;
 const ALLOWED_SCRIPT = /^<script type="module" src="(?:\.\.\/)?playground\/loader\.mjs"><\/script>$/;
 const REMOTE = /^(?:\/|https?:|\/\/)/i;
+// A canonical link names the page's own public address; it is metadata, not a request.
+const CANONICAL = /<link rel="canonical" href="https:\/\/rmichaelthomas\.github\.io\/guion\/">/g;
+// Structured data for search engines is inert JSON, never executed.
+const STRUCTURED_DATA = /^<script type="application\/ld\+json">\{[\s\S]*\}<\/script>$/;
 
 async function walk(dir, prefix = '') {
   const found = [];
@@ -18,13 +22,13 @@ async function walk(dir, prefix = '') {
   return found.sort();
 }
 
-const references = (html) => [...html.matchAll(/\b(?:href|src)\s*=\s*"([^"]*)"/g)].map((match) => match[1]);
+const references = (html) => [...html.replace(CANONICAL, '').matchAll(/\b(?:href|src)\s*=\s*"([^"]*)"/g)].map((match) => match[1]);
 const isInternalPath = (value) => value !== '' && !value.startsWith('#') && !/^(?:mailto:|data:)/i.test(value) && !REMOTE.test(value);
 
 /**
  * Check the deployed directory against the site's rules.
- * R1 every file is linked (or a declared asset) · R2 anchors resolve · R3 no absolute or remote URLs ·
- * R4 the only script is the playground loader · R5 evidence hashes match · R6 page weight · R7 .nojekyll
+ * R1 every file is linked (or a declared asset) · R2 anchors resolve · R3 no absolute or remote URLs but the canonical link ·
+ * R4 the only scripts are the playground loader and structured data · R5 evidence hashes match · R6 page weight · R7 .nojekyll
  */
 export async function checkSite(publicDir) {
   const errors = [];
@@ -49,7 +53,7 @@ export async function checkSite(publicDir) {
       if (/@import/.test(block[1])) errors.push(`R3 ${file}: @import is not allowed`);
     }
     for (const script of html.matchAll(/<script\b[^>]*>[\s\S]*?<\/script>/g)) {
-      if (!ALLOWED_SCRIPT.test(script[0])) errors.push(`R4 ${file}: unexpected script ${script[0]}`);
+      if (!ALLOWED_SCRIPT.test(script[0]) && !STRUCTURED_DATA.test(script[0])) errors.push(`R4 ${file}: unexpected script ${script[0]}`);
     }
     const bytes = Buffer.byteLength(html);
     if (bytes > MAX_PAGE_BYTES) errors.push(`R6 ${file} is ${Math.round(bytes / 1024)} KB, over the ${MAX_PAGE_BYTES / 1024} KB budget`);
