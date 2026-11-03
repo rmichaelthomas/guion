@@ -32,6 +32,7 @@ Statements: `let`, `var`, `set`, `return`, `if`/`else`, `while`, `for name in li
 - `unix_time_ms() -> Int` returns wall-clock milliseconds since the Unix epoch, and `today_local() -> Date` returns the current date in the host process time zone. `format_utc_date(instant) -> Text` formats an `Instant` as its `YYYY-MM-DD` UTC calendar date without formatting the time of day. Clock access is denied unless `[clock].enabled = true` or the caller uses `guion run --allow-clock` / an embedding `HostPolicy` grant. The host supplies local-time and daylight-saving rules; tests and embedders can pin the clock through `HostPolicy::with_clock_unix_time_ms`.
 - `parallel_map(items, worker, limit)` calls a named unary function on immutable list items in worker-local VM instances and returns `Result[List[U], TaskError]`. `is_ok(result)` tests the variant; `unwrap(result)` returns the list from `Ok`; `error(result)` returns the `TaskError` from `Err`. `task_index`, `task_code`, and `task_message` read its failed input index and failure details. Workers preserve result order, use a bounded shared worker instruction allowance, stop scheduling and poll cancellation after failure, join running tasks, and merge completed output by input index. An instruction-limit failure inside a worker is a `TaskError`; host setup errors still fail the invocation.
 - Numeric conversion and math (artifact format 52): `int_to_float(Int) -> Float64`, `float_to_int(Float64) -> Int` (truncates toward zero), `int_to_text(Int) -> Text`, and `float_to_text(Float64) -> Text` (the same shortest round-trip text `print` shows). `std:math` provides `math_sin`, `math_cos`, `math_tan`, `math_asin`, `math_acos`, `math_atan`, `math_atan2`, `math_sinh`, `math_cosh`, `math_tanh`, `math_exp`, `math_ln`, `math_log10`, `math_log2`, `math_log`, `math_pow`, `math_hypot`, `math_abs`, `math_floor`, `math_ceil`, `math_round` (half away from zero), `math_floor_int`, `math_ceil_int`, `math_round_int`, `math_radians`, `math_degrees`, and the constants `math_pi()`, `math_tau()`, `math_e()`. A domain error raises `R_MATH_DOMAIN`, zero to a negative power raises `R_DIV_ZERO`, and a non-finite result raises `R_FLOAT_NONFINITE`. Results use the platform's IEEE 754 libm, so they can differ in the last digit between targets. `std:random` is a deterministic SplitMix64 generator over immutable `Rng` values: `random_new(seed)`, `random_next_u64`, `random_next_float` (in `[0, 1)`), and `random_next_range(rng, low, high)` (uniform over `low <= value < high`, by rejection sampling); each returns the value together with the next `Rng`. The same seed gives the same sequence on every target. It reads no clock; seed it from `unix_time_ms()` when a changing sequence is wanted.
+- Bytes, encodings and URLs (artifact format 53): `bytes_to_ints(Bytes) -> List[Int]`, `bytes_slice(Bytes, start, end) -> Bytes` (raises `R_INDEX_BOUNDS` outside `0 <= start <= end <= len`), `text_from_bytes(Bytes) -> Option[Text]` (strict UTF-8) and `text_from_bytes_lossy(Bytes) -> Text`. `std:encoding` provides `base64_encode`/`base64_decode` and `base64url_encode`/`base64url_decode` (padded; decoding is strict about alphabet, length and padding and returns `E_BASE64_INVALID`), `hex_encode`/`hex_decode` (lowercase output; either case accepted; `E_HEX_INVALID`), and `encoding_utf8_encode`, `encoding_utf8_decode` (`E_UTF8_INVALID`) and `encoding_utf8_decode_lossy`. `std:url` provides `url_parse(Text) -> Result[Url, StdError]` (an RFC 3986 split into `scheme`, `userinfo`, `host`, `port` (`-1` when absent), `path`, `query` and `fragment`, with no normalization; bracketed IPv6 hosts; `E_URL_INVALID`), `url_to_text`, `url_encode_component` (everything except `A-Z a-z 0-9 - . _ ~` is percent-encoded as UTF-8), `url_decode_component`, `url_query_parse` (`+` decodes to a space) and `url_query_build`.
 - Runtime and compile errors preserve source spans. Format-17 artifacts add Bytes values and byte file operations; format-18 artifacts add source-level Python keyword calls; format-19 artifacts add HTTP GET and `HttpError`; format-38 artifacts add byte HTTP; format-39 artifacts add explicitly granted clock access; format-16 metadata carries source and dependency-lock provenance; format-15 metadata and format-14 artifacts remain readable. Runtime combines recorded ceilings with host policy by taking the stricter value. The bytecode is an implementation detail apart from the versioned artifact boundary.
 
 ## Builtin signatures
@@ -46,6 +47,8 @@ assert(Bool) -> Unit
 bytes_from_ints(List[Int]) -> Bytes
 bytes_from_text(Text) -> Bytes
 bytes_join(List[Bytes]) -> Bytes
+bytes_slice(Bytes, Int, Int) -> Bytes
+bytes_to_ints(Bytes) -> List[Int]
 cli_parse(List[Text], List[Record[CliOption]]) -> Result[Record[CliArgs], FileError]
 csv_encode(List[List[Text]]) -> Result[Text, FileError]
 csv_next(FileReader) -> Result[Option[Record[CsvRow]], FileError]
@@ -122,9 +125,15 @@ map_get(Map[Text, $T], Text) -> Option[$T]
 map_has(Map[$T], Text) -> Bool
 map_set(Map[$T], Text, $T) -> Map[$T]
 merge_sorted_by_int_key(List[List[$T]], NamedIntKey[$T]) -> List[$T]
+native_base64_decode(Text) -> Option[Bytes]
+native_base64_encode(Bytes) -> Text
+native_base64url_decode(Text) -> Option[Bytes]
+native_base64url_encode(Bytes) -> Text
 native_calendar_parse(Text) -> Result[List[Record[CalendarEvent]], Record[StdError]]
 native_crypto_hmac_sha256(Bytes, Bytes) -> Bytes
 native_crypto_verify_hmac_sha256(Bytes, Bytes, Bytes) -> Bool
+native_hex_decode(Text) -> Option[Bytes]
+native_hex_encode(Bytes) -> Text
 native_math_abs(Float64) -> Float64
 native_math_acos(Float64) -> Float64
 native_math_asin(Float64) -> Float64
@@ -145,6 +154,8 @@ native_math_sin(Float64) -> Float64
 native_math_sinh(Float64) -> Float64
 native_math_tan(Float64) -> Float64
 native_math_tanh(Float64) -> Float64
+native_percent_decode(Text) -> Option[Text]
+native_percent_encode(Text) -> Text
 native_random_mix(Int) -> Int
 native_sqlite_begin(Db) -> Result[Transaction, Record[StdError]]
 native_sqlite_close(Db) -> Result[Unit, Record[StdError]]
@@ -179,6 +190,8 @@ task_index(TaskError) -> Int
 task_message(TaskError) -> Text
 text_chars(Text) -> List[Text]
 text_find(Text, Text, Int) -> Int
+text_from_bytes(Bytes) -> Option[Text]
+text_from_bytes_lossy(Bytes) -> Text
 text_join_native(List[Text], Text) -> Text
 text_parse_float(Text) -> Result[Float64, FileError]
 text_parse_int(Text) -> Result[Int, FileError]
@@ -216,6 +229,15 @@ std:crypto — pub fn crypto_verify_hmac_sha256(key: Bytes, body: Bytes, expecte
 std:csv — pub fn csv_open_reader(path: Text) -> Result[FileReader, FileError]
 std:csv — pub fn csv_next_row(reader: FileReader) -> Result[Option[CsvRow], FileError]
 std:csv — pub fn csv_encode_rows(rows: List[List[Text]]) -> Result[Text, FileError]
+std:encoding — pub fn base64_encode(data: Bytes) -> Text
+std:encoding — pub fn base64_decode(text: Text) -> Result[Bytes, StdError]
+std:encoding — pub fn base64url_encode(data: Bytes) -> Text
+std:encoding — pub fn base64url_decode(text: Text) -> Result[Bytes, StdError]
+std:encoding — pub fn hex_encode(data: Bytes) -> Text
+std:encoding — pub fn hex_decode(text: Text) -> Result[Bytes, StdError]
+std:encoding — pub fn encoding_utf8_decode(data: Bytes) -> Result[Text, StdError]
+std:encoding — pub fn encoding_utf8_decode_lossy(data: Bytes) -> Text
+std:encoding — pub fn encoding_utf8_encode(text: Text) -> Bytes
 std:fs — pub fn fs_read_text(path: Text) -> Result[Text, StdError]
 std:fs — pub fn fs_open_lines(path: Text) -> Result[FileReader, FileError]
 std:fs — pub fn fs_next_line(reader: FileReader) -> Result[Option[SourceLine], FileError]
@@ -311,6 +333,12 @@ std:types — pub fn sql_blob(value: Bytes) -> SqlValue
 std:unicode — pub fn unicode_casefold(value: Text) -> Text
 std:unicode — pub fn unicode_collapse_whitespace(value: Text) -> Text
 std:unicode — pub fn unicode_normalize(value: Text, form: Text) -> Result[Text, StdError]
+std:url — pub fn url_encode_component(value: Text) -> Text
+std:url — pub fn url_decode_component(value: Text) -> Result[Text, StdError]
+std:url — pub fn url_parse(input: Text) -> Result[Url, StdError]
+std:url — pub fn url_to_text(url: Url) -> Text
+std:url — pub fn url_query_parse(query: Text) -> Result[List[QueryPair], StdError]
+std:url — pub fn url_query_build(pairs: List[QueryPair]) -> Text
 ```
 
 ## Effects and grants
@@ -447,6 +475,7 @@ E_ARTIFACT_UTF8
 E_ARTIFACT_VALUE
 E_ARTIFACT_VERSION
 E_ASSIGN_IMMUTABLE
+E_BASE64_INVALID
 E_BLOCK_EMPTY
 E_BLOCK_UNCLOSED
 E_BRIDGE_ARGS
@@ -537,6 +566,7 @@ E_FS_WALK
 E_FS_WALK_LIMIT
 E_FS_WALK_ROOT
 E_FS_WALK_UTF8
+E_HEX_INVALID
 E_HISTORY
 E_ICAL_DATE
 E_ICAL_EVENT
@@ -727,6 +757,8 @@ E_TYPE_MAP_VALUE
 E_TYPE_OPERATOR
 E_TYPE_RETURN
 E_TYPE_UNKNOWN
+E_URL_INVALID
+E_UTF8_INVALID
 E_UV_NOT_FOUND
 E_UV_UNAVAILABLE
 E_UV_VERSION_MISMATCH
@@ -1065,4 +1097,4 @@ fn main() -> Int:
 - [Host API and effects](../../language/host-api.md)
 - [Agent recipes](recipes.md)
 
-<!-- Generated reference content digest: sha256:31832d4ba117b73e7455d7804380eae95dfeafd5bce530cc917cfa9e5496f943. Validated by `cargo xtask agent-reference --check`. -->
+<!-- Generated reference content digest: sha256:e386f36435d8d02bf8ec84ba06bb8f470df73c21ee2ddf6abf1d73590e440f77. Validated by `cargo xtask agent-reference --check`. -->

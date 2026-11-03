@@ -7,9 +7,9 @@
 //! implements it for environments such as WebAssembly by rejecting those operations.
 
 use guion_model::{
-    Artifact, BigInt, FileErrorValue, Float64, HttpErrorValue, JsonErrorValue, MathFunction,
-    NativeResourceValue, Op, RuntimeError, ShareAcrossThreads, Shared, SharedJson, SharedText,
-    Span, TaskErrorValue, TextMap, Type, Value,
+    Artifact, BigInt, CodecFunction, FileErrorValue, Float64, HttpErrorValue, JsonErrorValue,
+    MathFunction, NativeResourceValue, Op, RuntimeError, ShareAcrossThreads, Shared, SharedJson,
+    SharedText, Span, TaskErrorValue, TextMap, Type, Value,
 };
 use std::{
     cell::Cell,
@@ -2687,6 +2687,23 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                 )?;
                 push_stack!(Value::Float64(result));
             }
+            Op::Codec(function) => {
+                let function = *function;
+                let mut operands = Vec::with_capacity(function.arity());
+                for _ in 0..function.arity() {
+                    operands.push(pop!());
+                }
+                operands.reverse();
+                let value = apply_codec(function, operands).map_err(|(code, message)| {
+                    RuntimeError::new(code, message, instruction.span)
+                })?;
+                charge_allocation(
+                    budget.as_ref(),
+                    new_value_allocation(&value),
+                    instruction.span,
+                )?;
+                push_stack!(value);
+            }
             Op::IntToFloat => {
                 let Value::Int(value) = pop!() else {
                     return Err(RuntimeError::new(
@@ -4709,6 +4726,7 @@ pub fn opcode_profile_name(op: &Op) -> &'static str {
         Op::TextReplace => "TextReplace",
         Op::TextTrim => "TextTrim",
         Op::Math(function) => function.op_name(),
+        Op::Codec(function) => function.op_name(),
         Op::IntToFloat => "IntToFloat",
         Op::FloatToInt => "FloatToInt",
         Op::NumberToText => "NumberToText",
@@ -6684,6 +6702,18 @@ fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result
                 }
                 state.stack.push(Type::Float64);
             }
+            Op::Codec(function) => {
+                let (parameters, result) = codec_signature(*function);
+                for expected in parameters.iter().rev() {
+                    if pop_type(&mut state.stack, pc)? != *expected {
+                        return Err(format!(
+                            "{} received an operand of the wrong type at instruction {pc}",
+                            function.op_name()
+                        ));
+                    }
+                }
+                state.stack.push(result);
+            }
             Op::IntToFloat => {
                 if pop_type(&mut state.stack, pc)? != Type::Int {
                     return Err(format!("int_to_float requires Int at instruction {pc}"));
@@ -8048,6 +8078,218 @@ fn splitmix64_mix(state: u64) -> u64 {
     z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
     z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
     z ^ (z >> 31)
+}
+
+/// Operand and result types of a codec function; operands are listed in push order.
+fn codec_signature(function: CodecFunction) -> (Vec<Type>, Type) {
+    let option = |inner: Type| Type::Option(Box::new(inner));
+    match function {
+        CodecFunction::Base64Encode
+        | CodecFunction::Base64UrlEncode
+        | CodecFunction::HexEncode
+        | CodecFunction::TextFromBytesLossy => (vec![Type::Bytes], Type::Text),
+        CodecFunction::Base64Decode | CodecFunction::Base64UrlDecode | CodecFunction::HexDecode => {
+            (vec![Type::Text], option(Type::Bytes))
+        }
+        CodecFunction::BytesToInts => (vec![Type::Bytes], Type::List(Box::new(Type::Int))),
+        CodecFunction::BytesSlice => (vec![Type::Bytes, Type::Int, Type::Int], Type::Bytes),
+        CodecFunction::TextFromBytes => (vec![Type::Bytes], option(Type::Text)),
+        CodecFunction::PercentEncode => (vec![Type::Text], Type::Text),
+        CodecFunction::PercentDecode => (vec![Type::Text], option(Type::Text)),
+    }
+}
+
+const BASE64_STANDARD: &[u8; 64] =
+    b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+const BASE64_URL: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+
+fn base64_encode(bytes: &[u8], alphabet: &[u8; 64]) -> String {
+    let mut out = String::with_capacity(bytes.len().div_ceil(3) * 4);
+    for chunk in bytes.chunks(3) {
+        let block = (u32::from(chunk[0]) << 16)
+            | (u32::from(*chunk.get(1).unwrap_or(&0)) << 8)
+            | u32::from(*chunk.get(2).unwrap_or(&0));
+        out.push(alphabet[(block >> 18) as usize & 63] as char);
+        out.push(alphabet[(block >> 12) as usize & 63] as char);
+        out.push(if chunk.len() > 1 {
+            alphabet[(block >> 6) as usize & 63] as char
+        } else {
+            '='
+        });
+        out.push(if chunk.len() > 2 {
+            alphabet[block as usize & 63] as char
+        } else {
+            '='
+        });
+    }
+    out
+}
+
+/// Strict decoding: the alphabet must match, the length must be a multiple of four, and padding
+/// is required. Trailing bits of the final group are ignored, as in Python's `b64decode`.
+fn base64_decode(text: &str, alphabet: &[u8; 64]) -> Option<Vec<u8>> {
+    let bytes = text.as_bytes();
+    if !bytes.len().is_multiple_of(4) {
+        return None;
+    }
+    let mut lookup = [255u8; 256];
+    for (index, symbol) in alphabet.iter().enumerate() {
+        lookup[usize::from(*symbol)] = index as u8;
+    }
+    let mut out = Vec::with_capacity(bytes.len() / 4 * 3);
+    let groups = bytes.len() / 4;
+    for (group, chunk) in bytes.chunks(4).enumerate() {
+        let last = group + 1 == groups;
+        let padding = chunk.iter().rev().take_while(|byte| **byte == b'=').count();
+        if padding > 2 || (padding > 0 && !last) {
+            return None;
+        }
+        let mut block = 0u32;
+        for byte in &chunk[..4 - padding] {
+            let value = lookup[usize::from(*byte)];
+            if value == 255 {
+                return None;
+            }
+            block = (block << 6) | u32::from(value);
+        }
+        block <<= 6 * padding as u32;
+        out.push((block >> 16) as u8);
+        if padding < 2 {
+            out.push((block >> 8) as u8);
+        }
+        if padding < 1 {
+            out.push(block as u8);
+        }
+    }
+    Some(out)
+}
+
+fn hex_decode(text: &str) -> Option<Vec<u8>> {
+    let bytes = text.as_bytes();
+    if !bytes.len().is_multiple_of(2) {
+        return None;
+    }
+    let nibble = |byte: u8| match byte {
+        b'0'..=b'9' => Some(byte - b'0'),
+        b'a'..=b'f' => Some(byte - b'a' + 10),
+        b'A'..=b'F' => Some(byte - b'A' + 10),
+        _ => None,
+    };
+    bytes
+        .chunks(2)
+        .map(|pair| Some(nibble(pair[0])? << 4 | nibble(pair[1])?))
+        .collect()
+}
+
+/// RFC 3986 component encoding: everything except unreserved characters is percent-encoded.
+fn percent_encode(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    for byte in text.bytes() {
+        if byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'.' | b'_' | b'~') {
+            out.push(byte as char);
+        } else {
+            out.push_str(&format!("%{byte:02X}"));
+        }
+    }
+    out
+}
+
+fn percent_decode(text: &str) -> Option<String> {
+    let bytes = text.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut index = 0;
+    while index < bytes.len() {
+        if bytes[index] == b'%' {
+            let pair = bytes.get(index + 1..index + 3)?;
+            let digits = std::str::from_utf8(pair).ok()?;
+            out.push(
+                u8::from_str_radix(digits, 16)
+                    .ok()
+                    .filter(|_| pair.iter().all(u8::is_ascii_hexdigit))?,
+            );
+            index += 3;
+        } else {
+            out.push(bytes[index]);
+            index += 1;
+        }
+    }
+    String::from_utf8(out).ok()
+}
+
+fn apply_codec(
+    function: CodecFunction,
+    mut operands: Vec<Value>,
+) -> Result<Value, (&'static str, &'static str)> {
+    const TYPE: (&str, &str) = (
+        "R_TYPE_INVALID",
+        "codec function received an invalid operand",
+    );
+    let text_value = |text: &str| Value::Text(SharedText::from(text));
+    let option_of = |value: Option<Value>| match value {
+        Some(value) => Value::OptionSome(Box::new(value)),
+        None => Value::OptionNone,
+    };
+    if function == CodecFunction::BytesSlice {
+        let (Value::Int(end), Value::Int(start), Value::Bytes(bytes)) = (
+            operands.pop().ok_or(TYPE)?,
+            operands.pop().ok_or(TYPE)?,
+            operands.pop().ok_or(TYPE)?,
+        ) else {
+            return Err(TYPE);
+        };
+        let bounds = (start.to_usize(), end.to_usize());
+        return match bounds {
+            (Some(start), Some(end)) if start <= end && end <= bytes.len() => {
+                Ok(Value::Bytes(Shared::new(bytes[start..end].to_vec())))
+            }
+            _ => Err((
+                "R_INDEX_BOUNDS",
+                "bytes_slice requires 0 <= start <= end <= len(bytes)",
+            )),
+        };
+    }
+    let operand = operands.pop().ok_or(TYPE)?;
+    match (function, operand) {
+        (CodecFunction::Base64Encode, Value::Bytes(bytes)) => {
+            Ok(text_value(&base64_encode(&bytes, BASE64_STANDARD)))
+        }
+        (CodecFunction::Base64UrlEncode, Value::Bytes(bytes)) => {
+            Ok(text_value(&base64_encode(&bytes, BASE64_URL)))
+        }
+        (CodecFunction::HexEncode, Value::Bytes(bytes)) => {
+            let mut out = String::with_capacity(bytes.len() * 2);
+            for byte in bytes.iter() {
+                out.push_str(&format!("{byte:02x}"));
+            }
+            Ok(text_value(&out))
+        }
+        (CodecFunction::Base64Decode, Value::Text(text)) => Ok(option_of(
+            base64_decode(&text, BASE64_STANDARD).map(|bytes| Value::Bytes(Shared::new(bytes))),
+        )),
+        (CodecFunction::Base64UrlDecode, Value::Text(text)) => Ok(option_of(
+            base64_decode(&text, BASE64_URL).map(|bytes| Value::Bytes(Shared::new(bytes))),
+        )),
+        (CodecFunction::HexDecode, Value::Text(text)) => Ok(option_of(
+            hex_decode(&text).map(|bytes| Value::Bytes(Shared::new(bytes))),
+        )),
+        (CodecFunction::BytesToInts, Value::Bytes(bytes)) => Ok(Value::List(Shared::new(
+            bytes
+                .iter()
+                .map(|byte| Value::Int(BigInt::from_i64(i64::from(*byte))))
+                .collect(),
+        ))),
+        (CodecFunction::TextFromBytes, Value::Bytes(bytes)) => {
+            Ok(option_of(std::str::from_utf8(&bytes).ok().map(text_value)))
+        }
+        (CodecFunction::TextFromBytesLossy, Value::Bytes(bytes)) => {
+            Ok(text_value(&String::from_utf8_lossy(&bytes)))
+        }
+        (CodecFunction::PercentEncode, Value::Text(text)) => Ok(text_value(&percent_encode(&text))),
+        (CodecFunction::PercentDecode, Value::Text(text)) => Ok(option_of(
+            percent_decode(&text).map(|decoded| text_value(&decoded)),
+        )),
+        _ => Err(TYPE),
+    }
 }
 
 #[cfg(test)]

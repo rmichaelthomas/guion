@@ -1,0 +1,40 @@
+import "std:types"
+
+pub fn base64_encode(data: Bytes) -> Text:
+    return native_base64_encode(data)
+
+pub fn base64_decode(text: Text) -> Result[Bytes, StdError]:
+    let decoded = native_base64_decode(text)
+    if is_some(decoded):
+        return Ok(unwrap(decoded))
+    return Err(std_error("E_BASE64_INVALID", "text is not valid padded standard base64"))
+
+pub fn base64url_encode(data: Bytes) -> Text:
+    return native_base64url_encode(data)
+
+pub fn base64url_decode(text: Text) -> Result[Bytes, StdError]:
+    let decoded = native_base64url_decode(text)
+    if is_some(decoded):
+        return Ok(unwrap(decoded))
+    return Err(std_error("E_BASE64_INVALID", "text is not valid padded URL-safe base64"))
+
+pub fn hex_encode(data: Bytes) -> Text:
+    return native_hex_encode(data)
+
+pub fn hex_decode(text: Text) -> Result[Bytes, StdError]:
+    let decoded = native_hex_decode(text)
+    if is_some(decoded):
+        return Ok(unwrap(decoded))
+    return Err(std_error("E_HEX_INVALID", "text is not an even-length hexadecimal string"))
+
+pub fn encoding_utf8_decode(data: Bytes) -> Result[Text, StdError]:
+    let decoded = text_from_bytes(data)
+    if is_some(decoded):
+        return Ok(unwrap(decoded))
+    return Err(std_error("E_UTF8_INVALID", "bytes are not valid UTF-8"))
+
+pub fn encoding_utf8_decode_lossy(data: Bytes) -> Text:
+    return text_from_bytes_lossy(data)
+
+pub fn encoding_utf8_encode(text: Text) -> Bytes:
+    return bytes_from_text(text)

@@ -1349,6 +1349,104 @@
       ],
       "result": "Int",
       "operation": "RandomMix"
+    },
+    {
+      "name": "bytes_to_ints",
+      "parameters": [
+        "Bytes"
+      ],
+      "result": "List[Int]",
+      "operation": "CodecBytesToInts"
+    },
+    {
+      "name": "bytes_slice",
+      "parameters": [
+        "Bytes",
+        "Int",
+        "Int"
+      ],
+      "result": "Bytes",
+      "operation": "CodecBytesSlice"
+    },
+    {
+      "name": "text_from_bytes",
+      "parameters": [
+        "Bytes"
+      ],
+      "result": "Option[Text]",
+      "operation": "CodecTextFromBytes"
+    },
+    {
+      "name": "text_from_bytes_lossy",
+      "parameters": [
+        "Bytes"
+      ],
+      "result": "Text",
+      "operation": "CodecTextFromBytesLossy"
+    },
+    {
+      "name": "native_base64_encode",
+      "parameters": [
+        "Bytes"
+      ],
+      "result": "Text",
+      "operation": "CodecBase64Encode"
+    },
+    {
+      "name": "native_base64url_encode",
+      "parameters": [
+        "Bytes"
+      ],
+      "result": "Text",
+      "operation": "CodecBase64UrlEncode"
+    },
+    {
+      "name": "native_base64_decode",
+      "parameters": [
+        "Text"
+      ],
+      "result": "Option[Bytes]",
+      "operation": "CodecBase64Decode"
+    },
+    {
+      "name": "native_base64url_decode",
+      "parameters": [
+        "Text"
+      ],
+      "result": "Option[Bytes]",
+      "operation": "CodecBase64UrlDecode"
+    },
+    {
+      "name": "native_hex_encode",
+      "parameters": [
+        "Bytes"
+      ],
+      "result": "Text",
+      "operation": "CodecHexEncode"
+    },
+    {
+      "name": "native_hex_decode",
+      "parameters": [
+        "Text"
+      ],
+      "result": "Option[Bytes]",
+      "operation": "CodecHexDecode"
+    },
+    {
+      "name": "native_percent_encode",
+      "parameters": [
+        "Text"
+      ],
+      "result": "Text",
+      "operation": "CodecPercentEncode"
+    },
+    {
+      "name": "native_percent_decode",
+      "parameters": [
+        "Text"
+      ],
+      "result": "Option[Text]",
+      "operation": "CodecPercentDecode"
     }
   ]
 }

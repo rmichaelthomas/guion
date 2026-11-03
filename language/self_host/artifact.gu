@@ -703,6 +703,33 @@ fn ab_math_code(name: Text) -> Int:
         return 19
     return -1
 
+fn ab_codec_code(name: Text) -> Int:
+    if name == "CodecBase64Encode":
+        return 0
+    if name == "CodecBase64UrlEncode":
+        return 1
+    if name == "CodecBase64Decode":
+        return 2
+    if name == "CodecBase64UrlDecode":
+        return 3
+    if name == "CodecHexEncode":
+        return 4
+    if name == "CodecHexDecode":
+        return 5
+    if name == "CodecBytesToInts":
+        return 6
+    if name == "CodecBytesSlice":
+        return 7
+    if name == "CodecTextFromBytes":
+        return 8
+    if name == "CodecTextFromBytesLossy":
+        return 9
+    if name == "CodecPercentEncode":
+        return 10
+    if name == "CodecPercentDecode":
+        return 11
+    return -1
+
 fn ab_instruction(instruction: Json, pc: Int, functions: Json, records: Json, externals: Json, labels: Json, source_id: Int) -> Bytes:
     let name = json_as_text(json_get(instruction, "op"))
     if name == "ConstInt" or name == "ConstBool" or name == "ConstText" or name == "ConstFloat64" or name == "ConstUnit" or name == "ConstValue":
@@ -710,6 +737,9 @@ fn ab_instruction(instruction: Json, pc: Int, functions: Json, records: Json, ex
     let math_code = ab_math_code(name)
     if math_code >= 0:
         return ab_join([ab_instruction_span(instruction, pc, source_id), ab_u8(177), ab_u8(math_code)])
+    let codec_code = ab_codec_code(name)
+    if codec_code >= 0:
+        return ab_join([ab_instruction_span(instruction, pc, source_id), ab_u8(182), ab_u8(codec_code)])
     let tag = ab_plain_opcode(name)
     if tag < 0:
         return ab_u8(255)
@@ -837,7 +867,7 @@ pub fn artifact_assemble(ir: Json) -> Bytes:
     let records = json_get(ir, "records")
     let externals = json_get(ir, "externals")
     let functions = json_get(ir, "functions")
-    var parts: List[Bytes] = [bytes_from_text("VRTA"), ab_u32(52), ab_string(source_name), ab_string(entry), ab_count(json_len(sources))]
+    var parts: List[Bytes] = [bytes_from_text("VRTA"), ab_u32(53), ab_string(source_name), ab_string(entry), ab_count(json_len(sources))]
     var cursor = 0
     while cursor < json_len(sources):
         set parts = list_push(parts, ab_string(json_as_text(json_index(sources, cursor))))

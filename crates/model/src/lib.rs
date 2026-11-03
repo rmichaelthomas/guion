@@ -2970,6 +2970,85 @@ impl MathFunction {
     }
 }
 
+/// Pure byte, text-encoding and percent-encoding functions behind `Op::Codec`. Codes are part of
+/// artifact format 53.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CodecFunction {
+    Base64Encode,
+    Base64UrlEncode,
+    Base64Decode,
+    Base64UrlDecode,
+    HexEncode,
+    HexDecode,
+    BytesToInts,
+    BytesSlice,
+    TextFromBytes,
+    TextFromBytesLossy,
+    PercentEncode,
+    PercentDecode,
+}
+
+impl CodecFunction {
+    const ALL: [CodecFunction; 12] = [
+        CodecFunction::Base64Encode,
+        CodecFunction::Base64UrlEncode,
+        CodecFunction::Base64Decode,
+        CodecFunction::Base64UrlDecode,
+        CodecFunction::HexEncode,
+        CodecFunction::HexDecode,
+        CodecFunction::BytesToInts,
+        CodecFunction::BytesSlice,
+        CodecFunction::TextFromBytes,
+        CodecFunction::TextFromBytesLossy,
+        CodecFunction::PercentEncode,
+        CodecFunction::PercentDecode,
+    ];
+
+    pub fn code(self) -> u8 {
+        Self::ALL
+            .iter()
+            .position(|candidate| *candidate == self)
+            .expect("every codec function is listed") as u8
+    }
+
+    pub fn from_code(code: u8) -> Option<Self> {
+        Self::ALL.get(usize::from(code)).copied()
+    }
+
+    /// The instruction name used by builtin catalogs and the textual bytecode form.
+    pub fn op_name(self) -> &'static str {
+        match self {
+            CodecFunction::Base64Encode => "CodecBase64Encode",
+            CodecFunction::Base64UrlEncode => "CodecBase64UrlEncode",
+            CodecFunction::Base64Decode => "CodecBase64Decode",
+            CodecFunction::Base64UrlDecode => "CodecBase64UrlDecode",
+            CodecFunction::HexEncode => "CodecHexEncode",
+            CodecFunction::HexDecode => "CodecHexDecode",
+            CodecFunction::BytesToInts => "CodecBytesToInts",
+            CodecFunction::BytesSlice => "CodecBytesSlice",
+            CodecFunction::TextFromBytes => "CodecTextFromBytes",
+            CodecFunction::TextFromBytesLossy => "CodecTextFromBytesLossy",
+            CodecFunction::PercentEncode => "CodecPercentEncode",
+            CodecFunction::PercentDecode => "CodecPercentDecode",
+        }
+    }
+
+    pub fn from_op_name(name: &str) -> Option<Self> {
+        Self::ALL
+            .iter()
+            .copied()
+            .find(|candidate| candidate.op_name() == name)
+    }
+
+    /// Number of operands the function pops.
+    pub fn arity(self) -> usize {
+        match self {
+            CodecFunction::BytesSlice => 3,
+            _ => 1,
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Op {
     Const(Value),
@@ -3089,6 +3168,7 @@ pub enum Op {
     TextReplace,
     TextTrim,
     Math(MathFunction),
+    Codec(CodecFunction),
     IntToFloat,
     FloatToInt,
     NumberToText,
@@ -3231,7 +3311,7 @@ pub struct Artifact {
 }
 
 impl Artifact {
-    pub const CURRENT_VERSION: u32 = 52;
+    pub const CURRENT_VERSION: u32 = 53;
     pub fn entry(&self) -> &str {
         &self.entry
     }
@@ -3465,6 +3545,12 @@ impl Artifact {
             return Err(ArtifactError::new(
                 "E_ARTIFACT_VERSION",
                 "math, numeric conversion and random instructions require artifact format 52",
+            ));
+        }
+        if self.format_version < 53 && artifact_uses_codecs(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "byte, encoding and percent-encoding instructions require artifact format 53",
             ));
         }
         validate_sort_comparator_effects(self)
@@ -3704,6 +3790,10 @@ impl Artifact {
                     Op::TextTrim => w.u8(176),
                     Op::Math(function) => {
                         w.u8(177);
+                        w.u8(function.code());
+                    }
+                    Op::Codec(function) => {
+                        w.u8(182);
                         w.u8(function.code());
                     }
                     Op::IntToFloat => w.u8(178),
@@ -4077,6 +4167,21 @@ impl Artifact {
                         return Err(ArtifactError::new(
                             "E_ARTIFACT_VERSION",
                             "fused JSON field accessors require artifact format 50",
+                        ));
+                    }
+                    182 if format_version >= 53 => {
+                        let code = r.u8()?;
+                        Op::Codec(CodecFunction::from_code(code).ok_or_else(|| {
+                            ArtifactError::new(
+                                "E_ARTIFACT_ENCODING",
+                                format!("codec instruction has unknown function code {code}"),
+                            )
+                        })?)
+                    }
+                    182 => {
+                        return Err(ArtifactError::new(
+                            "E_ARTIFACT_VERSION",
+                            "byte, encoding and percent-encoding instructions require artifact format 53",
                         ));
                     }
                     177 if format_version >= 52 => {
@@ -4677,6 +4782,15 @@ fn artifact_uses_math_and_conversions(artifact: &Artifact) -> bool {
                 Op::Math(_) | Op::IntToFloat | Op::FloatToInt | Op::NumberToText | Op::RandomMix
             )
         })
+    })
+}
+
+fn artifact_uses_codecs(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function
+            .code
+            .iter()
+            .any(|instruction| matches!(instruction.op, Op::Codec(_)))
     })
 }
 

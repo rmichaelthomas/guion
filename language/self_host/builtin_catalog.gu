@@ -350,6 +350,33 @@ pub fn builtin_catalog_signature(name: Text) -> Text:
     if name[0] == "n":
         if name == "native_random_mix":
             return "1:RandomMix:Int:Int"
+    if name[0] == "b":
+        if name == "bytes_to_ints":
+            return "1:CodecBytesToInts:List[Int]:Bytes"
+        if name == "bytes_slice":
+            return "3:CodecBytesSlice:Bytes:Bytes;Int;Int"
+    if name[0] == "t":
+        if name == "text_from_bytes":
+            return "1:CodecTextFromBytes:Option[Text]:Bytes"
+        if name == "text_from_bytes_lossy":
+            return "1:CodecTextFromBytesLossy:Text:Bytes"
+    if name[0] == "n":
+        if name == "native_base64_encode":
+            return "1:CodecBase64Encode:Text:Bytes"
+        if name == "native_base64url_encode":
+            return "1:CodecBase64UrlEncode:Text:Bytes"
+        if name == "native_base64_decode":
+            return "1:CodecBase64Decode:Option[Bytes]:Text"
+        if name == "native_base64url_decode":
+            return "1:CodecBase64UrlDecode:Option[Bytes]:Text"
+        if name == "native_hex_encode":
+            return "1:CodecHexEncode:Text:Bytes"
+        if name == "native_hex_decode":
+            return "1:CodecHexDecode:Option[Bytes]:Text"
+        if name == "native_percent_encode":
+            return "1:CodecPercentEncode:Text:Text"
+        if name == "native_percent_decode":
+            return "1:CodecPercentDecode:Option[Text]:Text"
     return ""
 
 fn builtin_catalog_part(value: Text, delimiter: Text, wanted: Int) -> Text:
