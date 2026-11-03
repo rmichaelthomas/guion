@@ -1,5 +1,59 @@
 [
   {
+    "id": "gate-text-x86",
+    "label": "Text, 200,000 rows, x86_64 server",
+    "ratio": 0.954,
+    "low": 0.94,
+    "high": 0.967,
+    "source": "evaluation/completion/results/real-task-sprint/2026-11-03-server-speed-gate.md",
+    "against": "uv CPython 3.14.7"
+  },
+  {
+    "id": "gate-jsonl-x86",
+    "label": "JSON Lines, 200,000 rows, x86_64 server",
+    "ratio": 0.889,
+    "low": 0.883,
+    "high": 0.895,
+    "source": "evaluation/completion/results/real-task-sprint/2026-11-03-server-speed-gate.md",
+    "against": "uv CPython 3.14.7"
+  },
+  {
+    "id": "gate-csv-x86",
+    "label": "CSV ledger, 200,000 rows, x86_64 server",
+    "ratio": 0.86,
+    "low": 0.855,
+    "high": 0.866,
+    "source": "evaluation/completion/results/real-task-sprint/2026-11-03-server-speed-gate.md",
+    "against": "uv CPython 3.14.7"
+  },
+  {
+    "id": "gate-text-arm",
+    "label": "Text, 200,000 rows, ARM64 server",
+    "ratio": 0.81,
+    "low": 0.807,
+    "high": 0.814,
+    "source": "evaluation/completion/results/real-task-sprint/2026-11-03-server-speed-gate.md",
+    "against": "uv CPython 3.14.7"
+  },
+  {
+    "id": "gate-jsonl-arm",
+    "label": "JSON Lines, 200,000 rows, ARM64 server",
+    "ratio": 0.855,
+    "low": 0.851,
+    "high": 0.859,
+    "source": "evaluation/completion/results/real-task-sprint/2026-11-03-server-speed-gate.md",
+    "against": "uv CPython 3.14.7"
+  },
+  {
+    "id": "gate-csv-arm",
+    "label": "CSV ledger, 200,000 rows, ARM64 server",
+    "ratio": 0.791,
+    "low": 0.787,
+    "high": 0.795,
+    "source": "evaluation/completion/results/real-task-sprint/2026-11-03-server-speed-gate.md",
+    "against": "uv CPython 3.14.7"
+  },
+  {
     "id": "richards",
     "label": "Richards, uncached source",
     "ratio": 0.375,
@@ -34,15 +88,6 @@
     "high": 0.162,
     "source": "evaluation/completion/results/real-task-sprint/2026-10-27-current-main-outcome-checkpoint.md",
     "against": "serial Python"
-  },
-  {
-    "id": "jsonl",
-    "label": "JSON Lines, 200,000 rows",
-    "ratio": 0.213,
-    "low": 0.211,
-    "high": 0.216,
-    "source": "evaluation/completion/results/real-task-sprint/2026-10-27-current-main-outcome-checkpoint.md",
-    "against": "Python data reference"
   },
   {
     "id": "calendar",

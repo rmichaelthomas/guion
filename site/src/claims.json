@@ -1,5 +1,82 @@
 [
   {
+    "id": "server-gate",
+    "title": "Text, JSON Lines and CSV on two server CPUs",
+    "plain": {
+      "say": "On GitHub's x86_64 and ARM64 Linux runners, Guion took less time than CPython on every text, JSON Lines and CSV lane, at 20,000 and 200,000 rows. The worst 95% upper bound of Guion's time divided by Python's was 0.976 on x86_64 and 0.859 on ARM64.",
+      "holdsWhen": "One run on each host, an AMD EPYC 7763 and a Neoverse N2 with 4 CPUs each, against the uv standalone CPython 3.14.7. Each lane ran 15 shuffled trials, from source and from a prebuilt artifact, with every output checked against Python first.",
+      "doesntTell": "Other programs or machines. On x86_64 the text margin is only 3–4%. An Intel Xeon runner measured worse on an earlier build and has not been rerun. Memory was not measured on these hosts, and the JSON Lines Python lane is the repository's data reference script, not the fastest possible Python."
+    },
+    "dev": {
+      "rows": [
+        [
+          "x86_64, 200,000 rows: text / JSONL / CSV",
+          "0.957 / 0.892 / 0.862 (median ratio, artifact)"
+        ],
+        [
+          "ARM64, 200,000 rows: text / JSONL / CSV",
+          "0.810 / 0.854 / 0.789"
+        ],
+        [
+          "Worst upper 95%, x86_64 / ARM64",
+          "0.976 / 0.859"
+        ],
+        [
+          "20,000 rows, every lane",
+          "0.536–0.710"
+        ],
+        [
+          "Trials",
+          "15 per lane, shuffled order"
+        ],
+        [
+          "Python",
+          "uv standalone CPython 3.14.7"
+        ],
+        [
+          "Hosts",
+          "AMD EPYC 7763 · Neoverse N2, Linux, 4 CPUs"
+        ],
+        [
+          "Commit",
+          "1746d10 (artifact format 51)"
+        ]
+      ]
+    },
+    "figures": [
+      "0.976",
+      "0.859",
+      "0.957",
+      "0.892",
+      "0.862",
+      "0.810",
+      "0.854",
+      "0.789",
+      "0.536",
+      "0.710"
+    ],
+    "sources": [
+      {
+        "path": "evaluation/completion/results/real-task-sprint/2026-11-03-server-speed-gate.md",
+        "needles": [
+          "uv standalone CPython 3.14.7",
+          "AMD EPYC 7763",
+          "Neoverse N2",
+          "15 trials per lane",
+          "output is checked against Python's before timing",
+          "has not been measured on this build",
+          "Not measured: free-threaded CPython, PyPy, Windows, and memory on these hosts"
+        ]
+      }
+    ],
+    "evidence": [
+      "evaluation/completion/results/real-task-sprint/2026-11-03-server-speed-gate.md",
+      "evaluation/completion/results/real-task-sprint/2026-11-03-server-speed-gate-x86_64.json",
+      "evaluation/completion/results/real-task-sprint/2026-11-03-server-speed-gate-aarch64.json"
+    ],
+    "group": "speed"
+  },
+  {
     "id": "richards",
     "title": "Richards, a classic benchmark program",
     "plain": {
@@ -247,67 +324,6 @@
       "evaluation/completion/results/real-task-sprint/2026-10-27-current-main-application-acceptance.json"
     ],
     "group": "behaviour"
-  },
-  {
-    "id": "jsonl-200k",
-    "title": "200,000 rows of JSON Lines",
-    "plain": {
-      "say": "Summarising a 200,000-row JSON Lines file from source took Guion 3.81 s and 11.1 MiB of memory. The Python data reference took 17.93 s and 74.4 MiB.",
-      "holdsWhen": "Uncached source runs, 16 output-checked trials per size, one Mac, CPython 3.14.7.",
-      "doesntTell": "Other data shapes or machines. Memory varies by task: Richards used more memory in Guion than in Python (see that card). Python with SQLite used 89.2 MiB on the same data."
-    },
-    "dev": {
-      "rows": [
-        [
-          "200,000 rows, Guion / Python",
-          "3.81 s / 17.93 s"
-        ],
-        [
-          "Ratio (95% interval)",
-          "0.213 (0.211–0.216)"
-        ],
-        [
-          "Peak RSS, Guion",
-          "11.1 MiB"
-        ],
-        [
-          "Peak RSS, Python",
-          "74.4 MiB"
-        ],
-        [
-          "Peak RSS, Python with SQLite",
-          "89.2 MiB"
-        ],
-        [
-          "20,000 rows, Guion / Python",
-          "394.3 ms / 1.84 s"
-        ],
-        [
-          "20,000 rows ratio",
-          "0.211 (0.207–0.215)"
-        ]
-      ]
-    },
-    "figures": [
-      "3.81 s",
-      "17.93 s",
-      "11.1 MiB",
-      "74.4 MiB",
-      "89.2 MiB"
-    ],
-    "sources": [
-      {
-        "path": "evaluation/completion/results/real-task-sprint/2026-10-27-current-main-outcome-checkpoint.md",
-        "needles": [
-          "16 output-checked trials for each JSONL size"
-        ]
-      }
-    ],
-    "evidence": [
-      "evaluation/completion/results/real-task-sprint/2026-10-27-current-main-outcome-checkpoint.md",
-      "evaluation/completion/results/source-loop/20261027T233155909692Z.json"
-    ],
-    "group": "speed"
   },
   {
     "id": "lockfile",
@@ -673,7 +689,7 @@
     "id": "targets",
     "title": "Where it has been tested",
     "plain": {
-      "say": "An earlier cohort passed on macOS ARM64 and Debian 12 GNU/Linux on ARM64 and x86_64, all with glibc: 54 of 54 application reports. The current speed checkpoint ran on macOS ARM64 only.",
+      "say": "An earlier cohort passed on macOS ARM64 and Debian 12 GNU/Linux on ARM64 and x86_64, all with glibc: 54 of 54 application reports. The latest speed gate ran on Linux on x86_64 and ARM64.",
       "holdsWhen": "For the earlier cohort: nine retained applications, initial and follow-up variants, on each of the three targets.",
       "doesntTell": "Support for Windows, other Linux distributions, other CPU architectures or other C libraries. A target that did not run is reported as incomplete."
     },
@@ -688,8 +704,8 @@
           "macOS ARM64 · Debian 12 ARM64 · Debian 12 x86_64 (glibc)"
         ],
         [
-          "Current speed checkpoint",
-          "macOS ARM64 only"
+          "Latest speed gate",
+          "Linux x86_64 and ARM64 (GitHub runners)"
         ]
       ]
     },
@@ -710,11 +726,18 @@
         "needles": [
           "This checkpoint is macOS ARM64 only"
         ]
+      },
+      {
+        "path": "evaluation/completion/results/real-task-sprint/2026-11-03-server-speed-gate.md",
+        "needles": [
+          "ubuntu-24.04-arm"
+        ]
       }
     ],
     "evidence": [
       "docs/status.md",
-      "evaluation/completion/results/real-task-sprint/2026-10-27-current-main-outcome-checkpoint.md"
+      "evaluation/completion/results/real-task-sprint/2026-10-27-current-main-outcome-checkpoint.md",
+      "evaluation/completion/results/real-task-sprint/2026-11-03-server-speed-gate.md"
     ],
     "group": "reach"
   },
