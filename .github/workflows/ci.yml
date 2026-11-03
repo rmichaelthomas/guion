@@ -105,7 +105,7 @@ jobs:
 
       - name: Install the project Rust toolchain and fetch locked dependencies
         run: |
-          rustup toolchain install 1.97.1 --profile minimal --component rustfmt --component clippy
+          rustup toolchain install 1.97.1 --profile minimal --component rustfmt --component clippy --component llvm-tools
           rustup default 1.97.1
           rustup target add aarch64-apple-darwin --toolchain 1.97.1
           rustc --version
@@ -159,7 +159,7 @@ jobs:
 
       - name: Install the project Rust toolchain and fetch locked dependencies
         run: |
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain 1.97.1 --profile minimal --component rustfmt --component clippy
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain 1.97.1 --profile minimal --component rustfmt --component clippy --component llvm-tools
           echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
           "$HOME/.cargo/bin/rustup" target add aarch64-unknown-linux-gnu --toolchain 1.97.1
           "$HOME/.cargo/bin/rustc" --version
@@ -222,7 +222,7 @@ jobs:
 
       - name: Install the project Rust toolchain and fetch locked dependencies
         run: |
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain 1.97.1 --profile minimal --component rustfmt --component clippy
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain 1.97.1 --profile minimal --component rustfmt --component clippy --component llvm-tools
           echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
           "$HOME/.cargo/bin/rustup" target add x86_64-unknown-linux-gnu --toolchain 1.97.1
           "$HOME/.cargo/bin/rustc" --version

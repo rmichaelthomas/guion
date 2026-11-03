@@ -586,7 +586,27 @@ fn release_target(root: &Path, target: &str, slug: &str) -> Result<Vec<Check>, S
             "release build failed; see streamed cargo diagnostics".into(),
         )]);
     }
-    let binary = release_binary_path(root, target, cargo_target_directory.as_deref());
+    let mut binary = release_binary_path(root, target, cargo_target_directory.as_deref());
+    // Packages ship the profile-guided build (distribution/pgo/build.sh); GUION_PGO=0 opts out.
+    // The release target is always the host, so the training runs can execute the binary.
+    let profile_guided = std::env::var("GUION_PGO").as_deref() != Ok("0");
+    if profile_guided {
+        let pgo_output = target_root(root, cargo_target_directory.as_deref()).join("release-pgo");
+        let pgo_output_text = pgo_output.to_str().ok_or("PGO output path is not UTF-8")?;
+        eprintln!("building profile-guided release CLI for {target}");
+        let pgo_status =
+            run_inherited(root, "sh", &["distribution/pgo/build.sh", pgo_output_text])?;
+        if !pgo_status.success() {
+            return Ok(vec![check(
+                "release-binary-build",
+                "incomplete",
+                vec!["sh".into(), "distribution/pgo/build.sh".into(), pgo_output_text.into()],
+                pgo_status.code(),
+                "profile-guided build failed (it needs the llvm-tools component); see streamed diagnostics, or set GUION_PGO=0 for a plain release build".into(),
+            )]);
+        }
+        binary = pgo_output.join("guion");
+    }
     if !binary.is_file() {
         return Err(format!(
             "release build did not produce {}",
@@ -694,6 +714,7 @@ fn release_target(root: &Path, target: &str, slug: &str) -> Result<Vec<Check>, S
             "release_id": format!("{}-{slug}-{}", env!("CARGO_PKG_VERSION"), &runtime_hash[..12]),
             "minimum_os": minimum_os,
             "architecture": target_architecture(target), "python_or_uv_required": false,
+            "profile_guided": profile_guided,
             "compiler_seed_sha256": seed_hash, "runtime_binary_sha256": runtime_hash,
             "stdlib_sha256": format!("{:x}", stdlib_hash.finalize()), "files": hashes,
             "native_components": "native-components.lock.json",
