@@ -25,7 +25,16 @@ Values now count references with plain loads and stores while one thread holds t
 | x86_64 AMD EPYC 7763 (GitHub) | −2% to +4%, within noise | 1.049 → 1.094 | fails either way |
 | Apple M1 Pro (macOS, Homebrew Python) | none (against the earlier run) | 0.708 → 0.710 | passes either way ([report](results/speed-gate-macos-aarch64-hybrid-refcount-20261103.json)) |
 
-That confirms the ARM64 profile: atomic reference counts were 15–20% of Guion's time there, and removing them closes the 200k gap on ARM servers. It does not move x86_64. On the EPYC, uncontended `lock`-prefixed updates are cheap, so the x86_64 gap at 200k rows (text and CSV about 1.03–1.09) comes from elsewhere. The x86_64 profile points at the interpreter loop and, for text, about 10% kernel page-fault time. That is the next speed step.
+That confirms the ARM64 profile: atomic reference counts were 15–20% of Guion's time there, and removing them closes the 200k gap on ARM servers. It does not move x86_64. On the EPYC, uncontended `lock`-prefixed updates are cheap, so the x86_64 gap at 200k rows (text and CSV about 1.03–1.09) comes from elsewhere.
+
+**Allocation quota (build `f4ccd14`).** A per-source-line x86_64 profile ([raw](results/gate-profiles-lines-20261103/)) put the allocation-quota compare-and-swap at 3–8% of gate time. Python incurs about as many page faults as Guion on the text workload, so page faults are not the gap. The quota now uses plain loads and stores unless parallel workers share it. A second same-runner A/B against `e1915f2` covers both changes together ([raw](results/speed-ab-allocation-pool-20261103/)):
+
+| Host | Change in Guion time | Worst 200k upper bound, base → branch | Gate |
+|---|---|---|---|
+| ARM64 Neoverse N2 | −10% to −19% (JSONL −18% to −19%) | 1.088 → 0.918 | failed → **passes** |
+| x86_64 AMD EPYC 7763 | text and JSONL −1% to −2%, CSV +0% to +3% (noise) | 1.049 → 1.040 | fails |
+
+On x86_64 the quota change recovered far less than its sampled share suggested; sampling attributes the cost of the instructions around a locked operation to it. The x86_64 gap that remains is 2–4% on text and CSV at 200k rows (JSONL now passes there, worst 0.971). The profile shows no single remaining hotspot: the interpreter loop's value pushes, drops and stores dominate. Text `len()` counts scalars on each call, which is about 3% of text time.
 
 ## Earlier position: other hosts and other Python builds (2026-11-02, build `e1915f2`)
 
