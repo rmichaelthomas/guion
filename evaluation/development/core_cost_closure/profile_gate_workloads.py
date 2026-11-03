@@ -4,7 +4,9 @@
 For each workload at each size, `perf stat` measures the Python lane and Guion's artifact lane
 (task clock and page faults; GitHub's virtual machines expose no hardware counters), so the per-row cost can be compared between
 sizes and hosts. At the largest size `perf record` samples both lanes and saves the hottest
-functions. Uses the fixtures from run_speed_gate.py.
+functions, and for Guion's lane also the hottest source lines, which needs a binary built with
+line tables (CARGO_PROFILE_RELEASE_DEBUG=line-tables-only). Uses the fixtures from
+run_speed_gate.py.
 
 usage: profile_gate_workloads.py --guion GUION --python PYTHON --output DIRECTORY
                                  [--sizes 20000,200000] [--repeat 5]
@@ -61,6 +63,12 @@ def main() -> int:
                          "--percent-limit", "0.4"],
                         capture_output=True, text=True, check=True).stdout
                     (output / f"{name}.hot.txt").write_text(report, encoding="utf-8")
+                    if lane != "python":
+                        lines = subprocess.run(
+                            ["perf", "report", "-i", str(data), "--stdio", "--no-children",
+                             "--sort", "srcline", "--dsos", "guion", "--percent-limit", "0.3"],
+                            capture_output=True, text=True, check=True).stdout
+                        (output / f"{name}.lines.txt").write_text(lines, encoding="utf-8")
                     data.unlink()
     return 0
 

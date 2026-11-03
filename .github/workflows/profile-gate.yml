@@ -46,7 +46,10 @@ jobs:
           echo "$HOME/bin" >> "$GITHUB_PATH"
           sudo sysctl -w kernel.perf_event_paranoid=-1 kernel.kptr_restrict=0
 
+      # Line tables let perf attribute samples to source lines; they do not change the code.
       - name: Build the profile-guided release binary
+        env:
+          CARGO_PROFILE_RELEASE_DEBUG: line-tables-only
         run: sh distribution/pgo/build.sh target/pgo
 
       - name: Profile the workloads
