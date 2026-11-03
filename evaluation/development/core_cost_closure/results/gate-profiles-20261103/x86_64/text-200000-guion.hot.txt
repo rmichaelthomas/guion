@@ -1,0 +1,41 @@
+# To display the perf.data header info, please use --header/--header-only options.
+#
+#
+# Total Lost Samples: 0
+#
+# Samples: 867  of event 'task-clock:ppp'
+# Event count (approx.): 173434680
+#
+# Overhead  Shared Object         Symbol                                                                                 IPC   [IPC Coverage]
+# ........  ....................  .....................................................................................  ....................
+#
+    64.59%  guion                 [.] guion_vm_core::execute_vm_frame_with_forwarders::<false, guion_runtime::Instance>  -      -            
+     3.58%  guion                 [.] <memchr::arch::x86_64::avx2::packedpair::Finder>::find_impl                        -      -            
+     3.46%  [kernel.kallsyms]     [k] do_user_addr_fault                                                                 -      -            
+     2.42%  guion                 [.] core::ptr::drop_glue::<guion_model::Value>                                         -      -            
+     2.08%  [kernel.kallsyms]     [k] kernel_init_pages                                                                  -      -            
+     1.85%  [kernel.kallsyms]     [k] _raw_spin_unlock_irqrestore                                                        -      -            
+     1.38%  libc.so.6             [.] 0x00000000001a1640                                                                 -      -            
+     1.27%  guion                 [.] <memchr::arch::x86_64::avx2::memchr::One>::find_raw_avx2                           -      -            
+     1.04%  guion                 [.] <guion_model::Value as core::clone::Clone>::clone.577                              -      -            
+     0.81%  [kernel.kallsyms]     [k] __rmqueue_pcplist                                                                  -      -            
+     0.81%  [kernel.kallsyms]     [k] do_anonymous_page                                                                  -      -            
+     0.81%  libc.so.6             [.] 0x00000000001a1644                                                                 -      -            
+     0.81%  libc.so.6             [.] 0x00000000001a16db                                                                 -      -            
+     0.69%  [kernel.kallsyms]     [k] zap_present_ptes.constprop.0                                                       -      -            
+     0.69%  guion                 [.] <alloc::sync::Arc<alloc::vec::Vec<guion_model::Value>>>::drop_slow                 -      -            
+     0.58%  [kernel.kallsyms]     [k] __handle_mm_fault                                                                  -      -            
+     0.58%  [kernel.kallsyms]     [k] memcg1_commit_charge                                                               -      -            
+     0.58%  guion                 [.] <memchr::arch::x86_64::avx2::memchr::One>::find_raw                                -      -            
+     0.58%  guion                 [.] guion_vm_core::text_replace_all                                                    -      -            
+     0.58%  libc.so.6             [.] 0x00000000001a16c4                                                                 -      -            
+     0.58%  libc.so.6             [.] 0x00000000001a16ca                                                                 -      -            
+     0.46%  [kernel.kallsyms]     [k] _raw_spin_unlock                                                                   -      -            
+     0.46%  [kernel.kallsyms]     [k] folio_add_lru_vma                                                                  -      -            
+     0.46%  [kernel.kallsyms]     [k] folio_add_new_anon_rmap                                                            -      -            
+     0.46%  guion                 [.] core::ptr::drop_glue::<guion_model::Value>                                         -      -            
+
+
+#
+# (Cannot load tips.txt file, please install perf!)
+#

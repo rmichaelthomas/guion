@@ -1,0 +1,68 @@
+# To display the perf.data header info, please use --header/--header-only options.
+#
+#
+# Total Lost Samples: 0
+#
+# Samples: 827  of event 'task-clock:ppp'
+# Event count (approx.): 165433080
+#
+# Overhead  Shared Object         Symbol                                                    IPC   [IPC Coverage]
+# ........  ....................  ........................................................  ....................
+#
+     9.67%  python3.14            [.] ucs1lib__two_way.cold                                 -      -            
+     6.89%  python3.14            [.] _PyObject_Malloc                                      -      -            
+     5.44%  python3.14            [.] PyUnicode_Concat                                      -      -            
+     5.44%  python3.14            [.] _PyUnicode_FromASCII                                  -      -            
+     4.23%  python3.14            [.] _PyObject_Free                                        -      -            
+     3.63%  [kernel.kallsyms]     [k] do_user_addr_fault                                    -      -            
+     2.66%  python3.14            [.] _TAIL_CALL_BINARY_OP_ADD_INT                          -      -            
+     2.66%  python3.14            [.] ucs1lib_find.cold                                     -      -            
+     2.30%  [kernel.kallsyms]     [k] kernel_init_pages                                     -      -            
+     2.18%  python3.14            [.] PyUnicode_DecodeLatin1.warm                           -      -            
+     2.18%  python3.14            [.] ucs1lib__preprocess                                   -      -            
+     2.06%  python3.14            [.] list_dealloc                                          -      -            
+     1.93%  python3.14            [.] _TAIL_CALL_LOAD_ATTR_METHOD_NO_DICT                   -      -            
+     1.69%  python3.14            [.] _TAIL_CALL_BINARY_OP_ADD_UNICODE                      -      -            
+     1.57%  python3.14            [.] _TAIL_CALL_CALL_METHOD_DESCRIPTOR_FAST                -      -            
+     1.57%  python3.14            [.] split                                                 -      -            
+     1.45%  python3.14            [.] _TAIL_CALL_STORE_FAST                                 -      -            
+     1.33%  [kernel.kallsyms]     [k] memcg1_commit_charge                                  -      -            
+     1.21%  [kernel.kallsyms]     [k] _raw_spin_unlock_irqrestore                           -      -            
+     1.21%  [kernel.kallsyms]     [k] zap_present_ptes.constprop.0                          -      -            
+     1.09%  python3.14            [.] _PyUnicode_JoinArray                                  -      -            
+     1.09%  python3.14            [.] _TAIL_CALL_BINARY_OP_SUBSCR_LIST_INT                  -      -            
+     1.09%  python3.14            [.] _TAIL_CALL_COMPARE_OP_INT                             -      -            
+     0.97%  python3.14            [.] PyNumber_Remainder                                    -      -            
+     0.97%  python3.14            [.] split.warm                                            -      -            
+     0.85%  python3.14            [.] _PyObject_Calloc                                      -      -            
+     0.85%  python3.14            [.] _TAIL_CALL_BINARY_OP                                  -      -            
+     0.85%  python3.14            [.] _TAIL_CALL_BINARY_OP_MULTIPLY_INT                     -      -            
+     0.85%  python3.14            [.] _TAIL_CALL_FOR_ITER_RANGE                             -      -            
+     0.85%  python3.14            [.] _TAIL_CALL_LOAD_GLOBAL_BUILTIN                        -      -            
+     0.73%  python3.14            [.] _TAIL_CALL_LOAD_GLOBAL_MODULE                         -      -            
+     0.73%  python3.14            [.] do_argstrip.3647                                      -      -            
+     0.73%  python3.14            [.] unicode_dealloc                                       -      -            
+     0.60%  [kernel.kallsyms]     [k] do_anonymous_page                                     -      -            
+     0.60%  libc.so.6             [.] 0x00000000001a16d4                                    -      -            
+     0.60%  libc.so.6             [.] 0x00000000001a16e3                                    -      -            
+     0.60%  python3.14            [.] PyObject_Free                                         -      -            
+     0.60%  python3.14            [.] _TAIL_CALL_CALL_LEN                                   -      -            
+     0.60%  python3.14            [.] _TAIL_CALL_LOAD_SMALL_INT                             -      -            
+     0.60%  python3.14            [.] gc_collect_main                                       -      -            
+     0.60%  python3.14            [.] l_mod                                                 -      -            
+     0.60%  python3.14            [.] replace                                               -      -            
+     0.48%  [kernel.kallsyms]     [k] handle_mm_fault                                       -      -            
+     0.48%  libc.so.6             [.] 0x000000000019869e                                    -      -            
+     0.48%  libc.so.6             [.] 0x00000000001a16ce                                    -      -            
+     0.48%  libc.so.6             [.] 0x00000000001a16e9                                    -      -            
+     0.48%  python3.14            [.] PyUnicode_FromKindAndData                             -      -            
+     0.48%  python3.14            [.] _TAIL_CALL_FOR_ITER_LIST                              -      -            
+     0.48%  python3.14            [.] any_find_slice                                        -      -            
+     0.48%  python3.14            [.] long_mod                                              -      -            
+     0.48%  python3.14            [.] r_object                                              -      -            
+     0.48%  python3.14            [.] ucs1lib__two_way                                      -      -            
+
+
+#
+# (Cannot load tips.txt file, please install perf!)
+#
