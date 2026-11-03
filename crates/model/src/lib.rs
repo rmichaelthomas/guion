@@ -1,3 +1,107 @@
+/// `SharedText` manages its own allocation; these tests also run under Miri
+/// (`cargo +nightly miri test -p guion-model shared_text`).
+#[cfg(test)]
+mod shared_text_tests {
+    use super::{SharedText, Value};
+
+    #[test]
+    fn shared_text_reads_back_what_it_was_made_from() {
+        for text in [
+            "",
+            "a",
+            "héllo wörld",
+            "日本語のテキスト",
+            &"x".repeat(1000),
+        ] {
+            assert_eq!(&*SharedText::from(text), text);
+            assert_eq!(&*SharedText::from(text.to_string()), text);
+            assert_eq!(&*SharedText::from(Box::<str>::from(text)), text);
+            assert_eq!(SharedText::from(text).capacity(), text.len());
+        }
+        assert_eq!(&*SharedText::default(), "");
+    }
+
+    #[test]
+    fn shared_text_clones_share_storage_until_the_last_drop() {
+        let text = SharedText::from("shared");
+        let copy = text.clone();
+        assert!(SharedText::ptr_eq(&text, &copy));
+        assert_eq!(SharedText::strong_count(&text), 2);
+        drop(copy);
+        assert_eq!(SharedText::strong_count(&text), 1);
+        assert!(!SharedText::ptr_eq(&text, &SharedText::from("shared")));
+        assert_eq!(text, SharedText::from("shared"));
+    }
+
+    #[test]
+    fn shared_text_appends_in_place_only_when_growable_and_unshared() {
+        let mut fixed = SharedText::from("fixed");
+        assert!(!SharedText::try_append(&mut fixed, "!"));
+        assert_eq!(&*fixed, "fixed");
+
+        let mut frozen = SharedText::concat("con", "cat", 64, false);
+        assert_eq!(&*frozen, "concat");
+        assert_eq!(frozen.capacity(), 64);
+        assert!(!SharedText::try_append(&mut frozen, "!"));
+
+        let mut text = SharedText::concat("a", "b", 4, true);
+        assert_eq!(text.capacity(), 4);
+        let held = text.clone();
+        assert!(!SharedText::try_append(&mut text, "c"));
+        drop(held);
+        assert!(SharedText::try_append(&mut text, "cd"));
+        assert_eq!((&*text, text.capacity()), ("abcd", 4));
+        // Outgrowing the capacity at least doubles it.
+        assert!(SharedText::try_append(&mut text, "é"));
+        assert_eq!((&*text, text.capacity()), ("abcdé", 8));
+        assert!(SharedText::try_append(&mut text, &"z".repeat(100)));
+        assert_eq!(text.len(), 106);
+        assert_eq!(text.capacity(), 106);
+        assert!(SharedText::try_append(&mut text, ""));
+        assert_eq!(text.len(), 106);
+    }
+
+    #[test]
+    fn shared_text_built_by_many_appends_keeps_every_byte() {
+        let mut text = SharedText::concat("", "", 0, true);
+        let mut expected = String::new();
+        for i in 0..300 {
+            let piece = format!("{i}ü,");
+            assert!(SharedText::try_append(&mut text, &piece));
+            expected.push_str(&piece);
+        }
+        assert_eq!(&*text, expected);
+        let snapshot = text.clone();
+        assert!(!SharedText::try_append(&mut text, "tail"));
+        assert_eq!(&*snapshot, expected);
+    }
+
+    #[test]
+    fn shared_text_crosses_threads() {
+        let text = SharedText::concat("from ", "main", 0, true);
+        let workers: Vec<_> = (0..4)
+            .map(|_| {
+                let text = text.clone();
+                std::thread::spawn(move || {
+                    let copies: Vec<SharedText> = (0..50).map(|_| text.clone()).collect();
+                    copies.iter().all(|copy| &**copy == "from main")
+                })
+            })
+            .collect();
+        for worker in workers {
+            assert!(worker.join().unwrap());
+        }
+        assert_eq!(SharedText::strong_count(&text), 1);
+    }
+
+    #[test]
+    fn shared_text_is_one_pointer_wide() {
+        assert_eq!(size_of::<SharedText>(), size_of::<usize>());
+        assert_eq!(size_of::<Option<SharedText>>(), size_of::<usize>());
+        assert_eq!(size_of::<Value>(), 24);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
@@ -1701,53 +1805,173 @@ impl PartialEq for Float64 {
 }
 impl Eq for Float64 {}
 
-/// Text shared between values. Cloning shares the bytes. Most text is stored in one
-/// allocation; text built by concatenation is stored growable, so that appending to a text
-/// held in only one place costs only the appended bytes rather than a full copy.
-#[derive(Clone)]
-pub struct SharedText(TextStorage);
+/// Text shared between values. Cloning shares the bytes. The bytes follow a header holding
+/// the reference count, length and capacity in one allocation, so reading text is one pointer
+/// step. Text built by appending to a local is marked growable, so that appending to it while
+/// it is held in only one place costs only the appended bytes rather than a full copy.
+pub struct SharedText(std::ptr::NonNull<TextHeader>);
 
-#[derive(Clone)]
-enum TextStorage {
-    Fixed(Arc<str>),
-    Growable(Arc<String>),
+#[repr(C)]
+struct TextHeader {
+    count: std::sync::atomic::AtomicUsize,
+    len: usize,
+    /// Capacity in bytes; the top bit marks text that appends may extend in place.
+    capacity: usize,
 }
 
+const TEXT_HEADER_BYTES: usize = std::mem::size_of::<TextHeader>();
+const TEXT_GROWABLE: usize = 1 << (usize::BITS - 1);
+
+// SAFETY: the bytes are mutated only through `&mut SharedText` while the count is one, and
+// the count is atomic, as in `Arc`.
+unsafe impl Send for SharedText {}
+// SAFETY: as above.
+unsafe impl Sync for SharedText {}
+
 impl SharedText {
-    /// Text that later appends can extend in place while it is held in only one place.
-    pub fn growable(text: String) -> Self {
-        Self(TextStorage::Growable(Arc::new(text)))
+    fn layout(capacity: usize) -> std::alloc::Layout {
+        TEXT_HEADER_BYTES
+            .checked_add(capacity)
+            .and_then(|size| {
+                std::alloc::Layout::from_size_align(size, std::mem::align_of::<TextHeader>()).ok()
+            })
+            .expect("text capacity fits in memory")
+    }
+
+    fn with_capacity(text: &str, capacity: usize, growable: bool) -> Self {
+        let capacity = capacity.max(text.len());
+        let layout = Self::layout(capacity);
+        // SAFETY: the layout is never zero-sized, since it includes the header.
+        let raw = unsafe { std::alloc::alloc(layout) };
+        let Some(header) = std::ptr::NonNull::new(raw.cast::<TextHeader>()) else {
+            std::alloc::handle_alloc_error(layout)
+        };
+        // SAFETY: `raw` is a fresh allocation with room for the header and `capacity` bytes.
+        unsafe {
+            header.as_ptr().write(TextHeader {
+                count: std::sync::atomic::AtomicUsize::new(1),
+                len: text.len(),
+                capacity: capacity | if growable { TEXT_GROWABLE } else { 0 },
+            });
+            std::ptr::copy_nonoverlapping(text.as_ptr(), raw.add(TEXT_HEADER_BYTES), text.len());
+        }
+        Self(header)
+    }
+
+    #[inline]
+    fn header(&self) -> &TextHeader {
+        // SAFETY: the header lives as long as any `SharedText` pointing at it.
+        unsafe { self.0.as_ref() }
+    }
+
+    /// `left` followed by `right` in one allocation of at least `min_capacity` bytes. Growable
+    /// text is extended in place by later appends while it is held in only one place.
+    pub fn concat(left: &str, right: &str, min_capacity: usize, growable: bool) -> Self {
+        let len = left
+            .len()
+            .checked_add(right.len())
+            .expect("text length fits in memory");
+        let mut text = Self::with_capacity(left, len.max(min_capacity), true);
+        let appended = Self::try_append(&mut text, right);
+        debug_assert!(
+            appended,
+            "a fresh text has room for the bytes it was sized for"
+        );
+        if !growable {
+            // SAFETY: the count is one and `text` is owned here.
+            unsafe { (*text.0.as_ptr()).capacity &= !TEXT_GROWABLE };
+        }
+        text
     }
 
     pub fn ptr_eq(left: &Self, right: &Self) -> bool {
-        match (&left.0, &right.0) {
-            (TextStorage::Fixed(left), TextStorage::Fixed(right)) => Arc::ptr_eq(left, right),
-            (TextStorage::Growable(left), TextStorage::Growable(right)) => Arc::ptr_eq(left, right),
-            _ => false,
-        }
+        left.0 == right.0
     }
 
     pub fn strong_count(text: &Self) -> usize {
-        match &text.0 {
-            TextStorage::Fixed(text) => Arc::strong_count(text),
-            TextStorage::Growable(text) => Arc::strong_count(text),
-        }
+        text.header()
+            .count
+            .load(std::sync::atomic::Ordering::Acquire)
     }
 
-    /// The text to append to, when it is growable and no other value shares it.
-    pub fn get_mut(text: &mut Self) -> Option<&mut String> {
-        match &mut text.0 {
-            TextStorage::Fixed(_) => None,
-            TextStorage::Growable(text) => Arc::get_mut(text),
+    /// Append `more` in place when the text is growable and no other value shares it,
+    /// doubling the capacity when it runs out. Returns whether it appended.
+    pub fn try_append(text: &mut Self, more: &str) -> bool {
+        let header = text.header();
+        if header.capacity & TEXT_GROWABLE == 0
+            || header.count.load(std::sync::atomic::Ordering::Acquire) != 1
+        {
+            return false;
         }
+        let len = header.len;
+        let capacity = header.capacity & !TEXT_GROWABLE;
+        let needed = len
+            .checked_add(more.len())
+            .expect("text length fits in memory");
+        if needed > capacity {
+            let grown = needed.max(capacity.saturating_mul(2));
+            let new_layout = Self::layout(grown);
+            // SAFETY: the allocation was made with `layout(capacity)`, and no other value
+            // shares it, so moving it cannot leave a dangling pointer.
+            let raw = unsafe {
+                std::alloc::realloc(
+                    text.0.as_ptr().cast(),
+                    Self::layout(capacity),
+                    new_layout.size(),
+                )
+            };
+            let Some(header) = std::ptr::NonNull::new(raw.cast::<TextHeader>()) else {
+                std::alloc::handle_alloc_error(new_layout)
+            };
+            text.0 = header;
+            // SAFETY: the count is one and `text` is borrowed mutably.
+            unsafe { (*text.0.as_ptr()).capacity = grown | TEXT_GROWABLE };
+        }
+        // SAFETY: the count is one and `text` is borrowed mutably, so nothing reads the bytes
+        // being written, and the capacity covers them.
+        unsafe {
+            let bytes = text.0.as_ptr().cast::<u8>().add(TEXT_HEADER_BYTES);
+            std::ptr::copy_nonoverlapping(more.as_ptr(), bytes.add(len), more.len());
+            (*text.0.as_ptr()).len = needed;
+        }
+        true
     }
 
     /// Bytes reserved for this text, which can exceed its length after appends.
     pub fn capacity(&self) -> usize {
-        match &self.0 {
-            TextStorage::Fixed(text) => text.len(),
-            TextStorage::Growable(text) => text.capacity(),
+        self.header().capacity & !TEXT_GROWABLE
+    }
+}
+
+impl Clone for SharedText {
+    #[inline]
+    fn clone(&self) -> Self {
+        let previous = self
+            .header()
+            .count
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        if previous > isize::MAX as usize {
+            std::process::abort();
         }
+        Self(self.0)
+    }
+}
+
+impl Drop for SharedText {
+    #[inline]
+    fn drop(&mut self) {
+        if self
+            .header()
+            .count
+            .fetch_sub(1, std::sync::atomic::Ordering::Release)
+            != 1
+        {
+            return;
+        }
+        std::sync::atomic::fence(std::sync::atomic::Ordering::Acquire);
+        let layout = Self::layout(self.capacity());
+        // SAFETY: this was the last reference, and the allocation was made with this layout.
+        unsafe { std::alloc::dealloc(self.0.as_ptr().cast(), layout) };
     }
 }
 
@@ -1762,9 +1986,13 @@ impl std::ops::Deref for SharedText {
 
     #[inline]
     fn deref(&self) -> &str {
-        match &self.0 {
-            TextStorage::Fixed(text) => text,
-            TextStorage::Growable(text) => text,
+        // SAFETY: the first `len` bytes after the header are initialised and were copied from
+        // a `str`, so they are valid UTF-8.
+        unsafe {
+            std::str::from_utf8_unchecked(std::slice::from_raw_parts(
+                self.0.as_ptr().cast::<u8>().add(TEXT_HEADER_BYTES),
+                self.header().len,
+            ))
         }
     }
 }
@@ -1821,13 +2049,14 @@ impl fmt::Display for SharedText {
 
 impl From<String> for SharedText {
     fn from(text: String) -> Self {
-        Self(TextStorage::Fixed(Arc::from(text)))
+        Self::from(text.as_str())
     }
 }
 
 impl From<&str> for SharedText {
+    #[inline]
     fn from(text: &str) -> Self {
-        Self(TextStorage::Fixed(Arc::from(text)))
+        Self::with_capacity(text, text.len(), false)
     }
 }
 
@@ -1839,7 +2068,7 @@ impl From<&String> for SharedText {
 
 impl From<Box<str>> for SharedText {
     fn from(text: Box<str>) -> Self {
-        Self(TextStorage::Fixed(Arc::from(text)))
+        Self::from(&*text)
     }
 }
 

@@ -1040,29 +1040,20 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                             .then_some(*slot),
                             _ => None,
                         };
-                        let mut text;
                         if let Some(slot) = appending {
                             drop_value_fast(std::mem::replace(&mut locals[slot], Value::Unit));
-                            if let Some(text) = SharedText::get_mut(&mut x) {
-                                // The budget counts the text's length, as it does for a fresh
-                                // concatenation, so it does not depend on how text grows.
+                            // The budget counts the appended bytes, as a fresh concatenation
+                            // counts its length, so it does not depend on how text grows.
+                            if SharedText::try_append(&mut x, &y) {
                                 charge_allocation(budget.as_ref(), y.len(), instruction.span)?;
-                                text.push_str(&y);
                                 push_stack!(Value::Text(x));
                                 continue;
                             }
-                            text = String::with_capacity(
-                                (x.len() + y.len()).max(TEXT_APPEND_MIN_CAPACITY),
-                            );
-                        } else {
-                            text = String::with_capacity(x.len() + y.len());
                         }
-                        text.push_str(&x);
-                        text.push_str(&y);
                         Value::Text(if appending.is_some() {
-                            SharedText::growable(text)
+                            SharedText::concat(&x, &y, TEXT_APPEND_MIN_CAPACITY, true)
                         } else {
-                            SharedText::from(text)
+                            SharedText::concat(&x, &y, 0, false)
                         })
                     }
                     _ => {

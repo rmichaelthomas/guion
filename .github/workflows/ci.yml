@@ -55,6 +55,11 @@ jobs:
       - name: Lint the workspace
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
 
+      - name: Check the shared text type under Miri
+        run: |
+          rustup toolchain install nightly-2026-10-15 --profile minimal --component miri --component rust-src
+          cargo +nightly-2026-10-15 miri test --locked -p guion-model shared_text
+
       - name: Run workspace tests
         if: github.event_name != 'pull_request'
         run: cargo test --workspace --locked
