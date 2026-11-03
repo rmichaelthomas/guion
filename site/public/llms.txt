@@ -1,6 +1,6 @@
 # Guion
 
-> Guion is a general-purpose programming language and toolchain built to replace Python: readable typed syntax, a compiler written in Guion, and a Rust runtime. The first preview build, v0.1.0-preview, is out for Linux; there is no macOS package yet.
+> Guion is a general-purpose programming language and toolchain: readable typed syntax, a compiler written in Guion, and a Rust runtime. The first preview build, v0.1.0-preview, is out for Linux; there is no macOS package yet.
 
 Site: https://rmichaelthomas.github.io/guion/
 Machine-readable copy of everything below: https://rmichaelthomas.github.io/guion/agents.json

@@ -81,6 +81,10 @@ test('the CSS holds the view rules, reduced motion and print', () => {
   assert.match(html, /@layer\s+reset,\s*base,\s*layouts,\s*components,\s*states,\s*responsive,\s*print;/);
 });
 
+test('the page states no goal of replacing Python', () => {
+  for (const page of [html, devHtml]) assert.doesNotMatch(page, /replac\w* Python/i);
+});
+
 test('nothing in the page asks the network for anything', () => {
   for (const page of [html, devHtml]) {
     // The SVG namespace and the canonical link name addresses; neither is fetched.

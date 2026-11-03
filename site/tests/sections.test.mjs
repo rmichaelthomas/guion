@@ -127,8 +127,9 @@ test('Receipts holds the speed, behaviour and reach claims and a chart of every 
   for (const id of ['f-all', 'f-speed', 'f-behaviour', 'f-reach']) assert.equal(count(markup, new RegExp(`id="${id}"`, 'g')), 1, id);
 });
 
-test('Python still leads: each gap names its planned work, and the remaining counter-evidence stays', () => {
+test('Python still leads: each gap is stated without announcing plans, and the remaining counter-evidence stays', () => {
   const markup = section('python');
+  assert.ok(!/Next:|planned/.test(markup));
   assert.ok(markup.includes('data-claim="python-choice"'));
   for (const heading of ['Libraries and packages', 'Arrays and data science', 'A release you can use']) assert.ok(markup.includes(heading), heading);
   assert.ok(!markup.includes('data-claim="bridge-'));

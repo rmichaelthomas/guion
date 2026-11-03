@@ -7,7 +7,7 @@
   </a>
 </p>
 
-<p align="center"><strong>A general-purpose programming language built to replace Python.</strong></p>
+<p align="center"><strong>A general-purpose programming language for software that is easier to write, understand and run.</strong></p>
 
 <p align="center">
   <a href="https://github.com/rmichaelthomas/guion/releases"><img alt="Latest release" src="https://img.shields.io/github/v/release/rmichaelthomas/guion?include_prereleases&label=release&color=2148e8"></a>
@@ -25,7 +25,7 @@
 
 ---
 
-Guion (say GUY-on) is a programming language for the same everyday work people use Python for: scripts, command-line tools, data processing, web requests, and full applications. It aims to be easier to read, harder to get wrong, and faster to run.
+Guion (say GUY-on) is a programming language for everyday work: scripts, command-line tools, data processing, web requests, and full applications. It aims to be easy to read, hard to get wrong, and fast to run.
 
 Guion is early. The first preview build is out for Linux, and the language is changing quickly. Every speed and quality claim the project makes is measured, and the results are published with their raw data, including the places where Guion still falls short.
 
@@ -89,7 +89,7 @@ Each archive has a matching `.sha256` checksum file. You don't need Rust or Pyth
 
 ### macOS and other systems
 
-There's no macOS package yet; one is planned for the 0.2.0 release. In the meantime you can build from source with [Rust](https://rustup.rs):
+There's no macOS package yet. You can build from source with [Rust](https://rustup.rs):
 
 ```sh
 git clone https://github.com/rmichaelthomas/guion.git
@@ -121,20 +121,13 @@ On November 3, 2026, Guion ran faster than CPython 3.14.7 on every text, JSONL a
 
 Earlier tests on a Mac found Guion 2.7× faster on the Richards benchmark and faster in all nine everyday applications tested. These results cover the workloads named here, not every program. The [speed-gate report](evaluation/completion/results/real-task-sprint/2026-11-03-server-speed-gate.md) and the [website](https://rmichaelthomas.github.io/guion/#receipts) give the method, the raw samples and the limits.
 
-## Where Python still leads
+## Where Python is still ahead
 
-Python has a 35-year head start. Here is where it's still ahead, and what's planned to close each gap:
+Python is mature and widely used. Here is where it's still ahead of Guion today:
 
 - **Libraries and packages.** Guion ships 17 standard-library modules, including JSON, CSV, TOML, SQLite, HTTP, files, text and time, plus a package manager. It doesn't have a public package registry yet.
-- **Arrays and data science.** Guion has no native array type yet. Native arrays and data frames are planned, and they'll be measured against NumPy and pandas.
-- **A stable release.** The current build is a Linux preview. The 0.2.0 release will add installers for macOS and Linux and a written stability policy.
-
-## Roadmap
-
-1. **Packages and the standard library.** Version ranges, `guion publish`, and a hosted package registry, alongside a much wider standard library: processes, regular expressions, sockets, an HTTP server, and more.
-2. **Native arrays and data frames**, measured against NumPy and pandas.
-3. **Guion 0.2.0.** Installers for macOS and Linux, a stability policy, the registry live, and the first official packages.
-4. **Further standard-library waves and packages**, on a regular release schedule.
+- **Arrays and data science.** Guion has no native array type yet, so NumPy and pandas have no Guion counterpart.
+- **A stable release.** The current build is a Linux preview, with no macOS package and no stability promise yet.
 
 ## Documentation
 
