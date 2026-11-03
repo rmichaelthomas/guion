@@ -304,6 +304,7 @@ class PeakMemoryTests(unittest.TestCase):
                 "richards-scheduler",
                 "nbody-numeric",
                 "mandelbrot-image",
+                "text-processing",
                 "parallel-cpu-20000",
                 "parallel-cpu-200000",
                 "jsonl-summary-data",

@@ -81,6 +81,12 @@ sh "$ROOT/distribution/tests/test_install.sh"
 (cd "$ROOT" && python3 -m unittest discover -s distribution/tests -p 'test_*.py')
 CARGO_TARGET_DIR="$BUILD_DIR" cargo build --release --offline --workspace --manifest-path "$ROOT/Cargo.toml"
 CARGO_TARGET_DIR="$BUILD_DIR" cargo build --release --offline -p guion-runtime --example runtime_lifecycle_stress --manifest-path "$ROOT/Cargo.toml"
+GUION_BINARY="$BUILD_DIR/release/guion"
+# Packages are profile-guided by default; see distribution/pgo/build.sh. GUION_PGO=0 opts out.
+if [ "${GUION_PGO:-1}" = "1" ]; then
+  sh "$ROOT/distribution/pgo/build.sh" "$BUILD_DIR/pgo"
+  GUION_BINARY="$BUILD_DIR/pgo/guion"
+fi
 mkdir -p "$OUT"
 if [ -e "$OUT/$NAME" ] || [ -e "$OUT/$NAME.tar.gz" ] || [ -e "$OUT/$NAME.tar.gz.sha256" ]; then
   echo "refusing to overwrite an existing package in $OUT" >&2
@@ -106,7 +112,7 @@ if [ "$UV_INSTALLED_VERSION" != "$UV_VERSION" ]; then
   echo "pinned uv archive contains version $UV_INSTALLED_VERSION, expected $UV_VERSION" >&2
   exit 1
 fi
-cp "$BUILD_DIR/release/guion" "$STAGING/guion"
+cp "$GUION_BINARY" "$STAGING/guion"
 cp "$MANIFEST" "$STAGING/toolchains/manifest.toml"
 cp "$ROOT/distribution/package-current-host.sh" "$STAGING/distribution/package-current-host.sh"
 cp "$ROOT/distribution/licenses/uv-LICENSE-MIT.txt" "$ROOT/distribution/licenses/uv-LICENSE-APACHE.txt" "$ROOT/distribution/licenses/tcl-license.terms" "$ROOT/distribution/licenses/tk-license.terms" "$ROOT/distribution/licenses/UPSTREAM-NOTICES.md" "$STAGING/licenses/"

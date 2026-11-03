@@ -1,0 +1,47 @@
+import "std:csv"
+import "std:fs"
+import "std:text"
+
+fn main() -> Int:
+    let reader = unwrap(csv_open_reader("items.csv"))
+    let header = csv_next_row(reader)
+    var qty: Map[Text, Int] = {}
+    var revenue: Map[Text, Int] = {}
+    var regions: Map[Text, Int] = {}
+    var names: List[Text] = []
+    var bad = 0
+    var done = false
+    while not done:
+        let next = csv_next_row(reader)
+        if not is_ok(next):
+            return 1
+        let maybe = unwrap(next)
+        if not is_some(maybe):
+            set done = true
+        else:
+            let fields = unwrap(maybe).fields
+            let q = text_parse_integer(fields[1])
+            let p = text_parse_integer(fields[2])
+            if not is_ok(q) or not is_ok(p):
+                set bad = bad + 1
+            else:
+                let item = fields[0]
+                if not map_has(qty, item):
+                    set names = list_push(names, item)
+                    set qty = map_set(qty, item, 0)
+                    set revenue = map_set(revenue, item, 0)
+                set qty = map_set(qty, item, qty[item] + unwrap(q))
+                set revenue = map_set(revenue, item, revenue[item] + unwrap(q) * unwrap(p))
+                let region = fields[3]
+                var seen = 0
+                if map_has(regions, region):
+                    set seen = regions[region]
+                set regions = map_set(regions, region, seen + 1)
+    var index = 0
+    var grand = 0
+    while index < len(names):
+        set grand = grand + revenue[names[index]]
+        set index = index + 1
+    print(json_stringify(json_int(grand)))
+    print(json_stringify(json_int(bad)))
+    return 0

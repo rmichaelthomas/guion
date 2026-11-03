@@ -54,10 +54,16 @@ pub(crate) const NATIVE_BRIDGE_TIME_FORMAT_UTC: i64 = 31;
 pub(crate) const NATIVE_BRIDGE_TEXT_SLICE: i64 = 32;
 pub(crate) const NATIVE_BRIDGE_JSON_SET_LOCAL: i64 = 33;
 pub(crate) const NATIVE_BRIDGE_JSON_PUSH_LOCAL: i64 = 34;
+pub(crate) const NATIVE_BRIDGE_TEXT_FIND: i64 = 35;
+pub(crate) const NATIVE_BRIDGE_TEXT_SPLIT: i64 = 36;
+pub(crate) const NATIVE_BRIDGE_TEXT_REPLACE: i64 = 37;
+pub(crate) const NATIVE_BRIDGE_TEXT_TRIM: i64 = 38;
+pub(crate) const NATIVE_BRIDGE_TEXT_JOIN: i64 = 39;
+pub(crate) const NATIVE_BRIDGE_TEXT_LENGTH: i64 = 40;
 pub(crate) const NATIVE_BRIDGE_MAKE_RECORD: i64 = 14;
 pub(crate) const NATIVE_BRIDGE_GET_FIELD: i64 = 15;
 
-pub(crate) const NATIVE_DIRECT_OPERATION_NAMES: [&str; 31] = [
+pub(crate) const NATIVE_DIRECT_OPERATION_NAMES: [&str; 37] = [
     "json_parse",
     "json_try_text",
     "json_try_get",
@@ -89,6 +95,12 @@ pub(crate) const NATIVE_DIRECT_OPERATION_NAMES: [&str; 31] = [
     "text_slice",
     "json_set_local",
     "json_push_local",
+    "text_find",
+    "text_split",
+    "text_replace",
+    "text_trim",
+    "text_join",
+    "text_length",
 ];
 
 const NATIVE_BRIDGE_TAG_INT: i64 = 1;
@@ -180,6 +192,12 @@ pub(crate) fn native_bridge_operation(op: &Op) -> Option<i64> {
         Op::TimeParseTimestamp => Some(NATIVE_BRIDGE_TIME_PARSE_TIMESTAMP),
         Op::TimeFormatUtc => Some(NATIVE_BRIDGE_TIME_FORMAT_UTC),
         Op::TextSlice => Some(NATIVE_BRIDGE_TEXT_SLICE),
+        Op::TextFind => Some(NATIVE_BRIDGE_TEXT_FIND),
+        Op::TextSplit => Some(NATIVE_BRIDGE_TEXT_SPLIT),
+        Op::TextReplace => Some(NATIVE_BRIDGE_TEXT_REPLACE),
+        Op::TextTrim => Some(NATIVE_BRIDGE_TEXT_TRIM),
+        Op::TextJoin => Some(NATIVE_BRIDGE_TEXT_JOIN),
+        Op::Length => Some(NATIVE_BRIDGE_TEXT_LENGTH),
         Op::JsonSetLocal(_) => Some(NATIVE_BRIDGE_JSON_SET_LOCAL),
         Op::JsonPushLocal(_) => Some(NATIVE_BRIDGE_JSON_PUSH_LOCAL),
         Op::MakeRecord(_, _) => Some(NATIVE_BRIDGE_MAKE_RECORD),
@@ -221,6 +239,12 @@ fn native_direct_operation_index(op: &Op) -> Option<usize> {
         Op::TextSlice => Some(28),
         Op::JsonSetLocal(_) => Some(29),
         Op::JsonPushLocal(_) => Some(30),
+        Op::TextFind => Some(31),
+        Op::TextSplit => Some(32),
+        Op::TextReplace => Some(33),
+        Op::TextTrim => Some(34),
+        Op::TextJoin => Some(35),
+        Op::Length => Some(36),
         _ => None,
     }
 }
@@ -310,6 +334,9 @@ fn native_direct_argument_count(op: &Op) -> Option<usize> {
         Op::TimeParseTimestamp => Some(1),
         Op::TimeFormatUtc => Some(1),
         Op::TextSlice => Some(3),
+        Op::TextFind | Op::TextReplace => Some(3),
+        Op::TextSplit | Op::TextJoin => Some(2),
+        Op::TextTrim | Op::Length => Some(1),
         _ => None,
     }
 }
@@ -543,14 +570,47 @@ impl fmt::Debug for NativeBackend {
     }
 }
 
+/// Every function a run starting at `root` can enter.
+fn functions_reachable_from(artifact: &Artifact, root: usize) -> Vec<bool> {
+    let mut reachable = vec![false; artifact.functions.len()];
+    let mut pending = vec![root];
+    while let Some(index) = pending.pop() {
+        if !reachable.get(index).is_some_and(|seen| !seen) {
+            continue;
+        }
+        reachable[index] = true;
+        for instruction in &artifact.functions[index].code {
+            if let Op::Call(target, _)
+            | Op::ParallelMap(target)
+            | Op::SortBy(target)
+            | Op::SortByIntKey(target)
+            | Op::MergeSortedByIntKey(target) = &instruction.op
+            {
+                pending.push(*target);
+            }
+        }
+    }
+    reachable
+}
+
 impl NativeBackend {
     pub(crate) fn compile(
         artifact: &Artifact,
         symbols: NativeSymbols,
         profile_guest_branches: bool,
+        root: Option<usize>,
     ) -> Option<Self> {
-        let (eligible, mut rejection_profiles) =
+        let (mut eligible, mut rejection_profiles) =
             native_eligibility_report(artifact, cfg!(feature = "native-value-bridge"));
+        // Compiling costs far more than most library functions a program imports but never
+        // calls would ever return. The reachable set is closed under calls, so what remains
+        // eligible can still call everything it needs.
+        if let Some(root) = root {
+            let reachable = functions_reachable_from(artifact, root);
+            for (function, reached) in eligible.iter_mut().zip(reachable) {
+                *function &= reached;
+            }
+        }
         if !eligible.iter().any(|eligible| *eligible) {
             return None;
         }
@@ -1995,6 +2055,41 @@ impl NativeBackend {
                             );
                             stack.push(descriptor);
                         }
+                    }
+                    Op::Length
+                        if stack_types[ip]
+                            .as_ref()
+                            .and_then(|types| types.last())
+                            .is_some_and(|ty| *ty == Type::Text) =>
+                    {
+                        let text = stack.pop().ok_or_else(|| "stack underflow".to_owned())?;
+                        let input_types = stack_types[ip]
+                            .as_ref()
+                            .ok_or_else(|| "missing text length input type".to_owned())?;
+                        let local_tags =
+                            continuation_local_tags(function, &type_states, ip, records);
+                        let stack_tags = continuation_stack_tags(
+                            &type_states,
+                            ip,
+                            instruction_stack.len(),
+                            records,
+                        );
+                        let length = emit_native_direct_operation_call(
+                            &mut builder,
+                            ptr,
+                            direct_operations[native_direct_operation_index(&instruction.op)
+                                .ok_or_else(|| "missing text length operation".to_owned())?],
+                            continuation_codegen,
+                            ip,
+                            block_instruction_offsets[ip],
+                            &[text],
+                            &input_types[input_types.len() - 1..],
+                            &Type::Int,
+                            &local_tags,
+                            &instruction_stack,
+                            &stack_tags,
+                        )?;
+                        stack.push(length);
                     }
                     Op::Length => {
                         let handle = stack.pop().ok_or_else(|| "stack underflow".to_owned())?;
@@ -3606,6 +3701,11 @@ impl NativeBackend {
                     | Op::JsonIndex
                     | Op::TextChars
                     | Op::TextSlice
+                    | Op::TextFind
+                    | Op::TextSplit
+                    | Op::TextReplace
+                    | Op::TextTrim
+                    | Op::TextJoin
                     | Op::JsonGet
                     | Op::JsonStringify
                     | Op::JsonObject
@@ -4619,6 +4719,41 @@ struct NativeTypeStates {
     locals_at_ip: Vec<Option<Vec<Option<Type>>>>,
 }
 
+/// The first text `Add` whose left operand was loaded from the local its result is stored
+/// back into, as `set s = s + piece` compiles.
+fn text_append_to_local(function: &Function, types: &NativeTypeStates) -> Option<usize> {
+    let depth_at = |ip: usize| types.stack_at_ip.get(ip)?.as_ref().map(Vec::len);
+    function
+        .code
+        .windows(2)
+        .enumerate()
+        .find_map(|(add_ip, pair)| {
+            let (Op::Add, Op::Store(slot)) = (&pair[0].op, &pair[1].op) else {
+                return None;
+            };
+            let stack = types.stack_at_ip.get(add_ip)?.as_ref()?;
+            if stack.last() != Some(&Type::Text) {
+                return None;
+            }
+            let left_depth = stack.len().checked_sub(2)?;
+            // Walk back to the instruction that pushed the left operand: the nearest one that
+            // starts at its depth, with the operand left in place by everything after it.
+            let mut ip = add_ip;
+            while ip > 0 {
+                ip -= 1;
+                let depth = depth_at(ip)?;
+                if depth < left_depth {
+                    return None;
+                }
+                if depth == left_depth {
+                    return matches!(function.code[ip].op, Op::Load(source) if source == *slot)
+                        .then_some(add_ip);
+                }
+            }
+            None
+        })
+}
+
 fn recursive_functions(functions: &[Function]) -> Vec<bool> {
     fn visit(
         index: usize,
@@ -4782,7 +4917,7 @@ fn infer_native_types(
             Op::Load(slot) => state.stack.push(state.locals.get(*slot)?.clone()?),
             Op::GetField(record_index, field_index) => {
                 let definition = records.get(*record_index)?;
-                if state.stack.pop()? != Type::Record(definition.name.clone()) {
+                if state.stack.pop()? != Type::Record(definition.name.to_string()) {
                     return None;
                 }
                 state
@@ -4805,7 +4940,7 @@ fn infer_native_types(
                     return None;
                 }
                 state.stack.truncate(start);
-                state.stack.push(Type::Record(definition.name.clone()));
+                state.stack.push(Type::Record(definition.name.to_string()));
             }
             Op::Store(slot) => {
                 let ty = state.stack.pop()?;
@@ -4965,8 +5100,10 @@ fn infer_native_types(
                 state.stack.push(function.result.clone());
             }
             Op::Length => {
-                if !matches!(state.stack.pop()?, Type::List(item) if is_native_list_item(&item)) {
-                    return None;
+                match state.stack.pop()? {
+                    Type::List(item) if is_native_list_item(&item) => {}
+                    Type::Text => {}
+                    _ => return None,
                 }
                 state.stack.push(Type::Int);
             }
@@ -5050,6 +5187,44 @@ fn infer_native_types(
                 if state.stack.pop()? != Type::Int
                     || state.stack.pop()? != Type::Int
                     || state.stack.pop()? != Type::Text
+                {
+                    return None;
+                }
+                state.stack.push(Type::Text);
+            }
+            Op::TextFind => {
+                if state.stack.pop()? != Type::Int
+                    || state.stack.pop()? != Type::Text
+                    || state.stack.pop()? != Type::Text
+                {
+                    return None;
+                }
+                state.stack.push(Type::Int);
+            }
+            Op::TextSplit => {
+                if state.stack.pop()? != Type::Text || state.stack.pop()? != Type::Text {
+                    return None;
+                }
+                state.stack.push(Type::List(Box::new(Type::Text)));
+            }
+            Op::TextReplace => {
+                if state.stack.pop()? != Type::Text
+                    || state.stack.pop()? != Type::Text
+                    || state.stack.pop()? != Type::Text
+                {
+                    return None;
+                }
+                state.stack.push(Type::Text);
+            }
+            Op::TextTrim => {
+                if state.stack.pop()? != Type::Text {
+                    return None;
+                }
+                state.stack.push(Type::Text);
+            }
+            Op::TextJoin => {
+                if state.stack.pop()? != Type::Text
+                    || state.stack.pop()? != Type::List(Box::new(Type::Text))
                 {
                     return None;
                 }
@@ -5202,7 +5377,9 @@ fn infer_native_types(
             Op::Print | Op::PrintErr => {
                 let printed_type = state.stack.pop()?;
                 if matches!(op, Op::Print) {
-                    if !matches!(printed_type, Type::Int | Type::Float64 | Type::Bool) {
+                    native_print_kind(&printed_type)?;
+                    // Compiling straight-line text output costs more than running it once.
+                    if printed_type == Type::Text && !function_has_backward_jump(function) {
                         return None;
                     }
                 } else if printed_type != Type::Text {
@@ -5421,7 +5598,13 @@ fn instruction_requires_native_value_bridge(instruction: &guion_model::Instructi
         | Op::TextCollapseWhitespace
         | Op::TimeParseTimestamp
         | Op::TimeFormatUtc
-        | Op::TextSlice => false,
+        | Op::TextSlice
+        | Op::TextFind
+        | Op::TextSplit
+        | Op::TextReplace
+        | Op::TextTrim
+        | Op::TextJoin
+        | Op::Length => false,
         Op::JsonSetLocal(_) => false,
         Op::JsonPushLocal(_) => false,
         Op::Args
@@ -5664,6 +5847,10 @@ fn instruction_may_allocate_native_arena_value(op: &Op) -> bool {
             | Op::TextChars
             | Op::TextCollapseWhitespace
             | Op::TextSlice
+            | Op::TextSplit
+            | Op::TextReplace
+            | Op::TextTrim
+            | Op::TextJoin
             | Op::TimeParseTimestamp
             | Op::TimeFormatUtc
             | Op::JsonTryGet
@@ -5740,14 +5927,27 @@ fn native_eligibility_report(
                 });
             }
             let mut blocking_ip = None;
-            if infer_native_types(
+            let types = infer_native_types(
                 function,
                 &artifact.functions,
                 &artifact.records,
                 &mut blocking_ip,
-            )
-            .is_none()
+            );
+            if let Some(append_ip) = types
+                .as_ref()
+                .and_then(|types| text_append_to_local(function, types))
             {
+                return Some(NativeFunctionRejectionProfile {
+                    name: function.name.clone(),
+                    reason_code: "text_append_to_local".into(),
+                    reason: "the VM appends to a text local in place; native handles can be shared, so native code would copy the whole text on every append".into(),
+                    blocking_instruction: Some(format!(
+                        "bytecode instruction {append_ip}: Add"
+                    )),
+                    blocking_callee: None,
+                });
+            }
+            if types.is_none() {
                 let blocking_instruction = blocking_ip.and_then(|ip| {
                     function
                         .code
@@ -5953,11 +6153,18 @@ fn native_list_set_function(
     }
 }
 
+fn function_has_backward_jump(function: &Function) -> bool {
+    function.code.iter().enumerate().any(|(ip, instruction)| {
+        matches!(&instruction.op, Op::Jump(target) | Op::JumpIfFalse(target) if *target <= ip)
+    })
+}
+
 fn native_print_kind(value_type: &Type) -> Option<i64> {
     match value_type {
         Type::Int => Some(1),
         Type::Float64 => Some(2),
         Type::Bool => Some(3),
+        Type::Text => Some(4),
         _ => None,
     }
 }
@@ -5995,7 +6202,9 @@ fn stack_depths(function: &Function) -> Option<Vec<Option<usize>>> {
             | Op::MakeSome => (1, 1),
             Op::JsonTryGet => (2, 1),
             Op::MakeNone => (0, 1),
-            Op::TextSlice => (3, 1),
+            Op::TextSlice | Op::TextFind | Op::TextReplace => (3, 1),
+            Op::TextSplit | Op::TextJoin => (2, 1),
+            Op::TextTrim => (1, 1),
             Op::Length | Op::GetField(_, _) => (1, 1),
             Op::Index => (2, 1),
             Op::MakeRecord(_, count) => (*count, 1),

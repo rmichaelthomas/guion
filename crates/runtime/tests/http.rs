@@ -656,7 +656,7 @@ fn http_response_value(status: i64, body: &[u8]) -> Value {
         "HttpResponse".into(),
         Arc::new(vec![
             Value::Int(BigInt::from_i64(status)),
-            Value::Map(Arc::new(std::collections::BTreeMap::new())),
+            Value::Map(Arc::new(guion_model::TextMap::new())),
             Value::Bytes(Arc::new(body.to_vec())),
         ]),
     )

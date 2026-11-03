@@ -536,6 +536,13 @@ pub fn text_trim(value: &str) -> String {
     value.trim().to_owned()
 }
 pub fn text_parse_int(value: &str) -> Result<BigInt, DataError> {
+    // Up to 18 unsigned digits always fit an i64, and most parsed fields look like this.
+    if !value.is_empty() && value.len() <= 18 && value.bytes().all(|byte| byte.is_ascii_digit()) {
+        let parsed = value
+            .bytes()
+            .fold(0i64, |total, byte| total * 10 + i64::from(byte - b'0'));
+        return Ok(BigInt::from_i64(parsed));
+    }
     let digits = value
         .strip_prefix('-')
         .or_else(|| value.strip_prefix('+'))

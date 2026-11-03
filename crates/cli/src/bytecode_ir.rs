@@ -347,6 +347,10 @@ fn parse_instruction(
         "TextChars" => Op::TextChars,
         "TextSlice" => Op::TextSlice,
         "TextJoin" => Op::TextJoin,
+        "TextFind" => Op::TextFind,
+        "TextSplit" => Op::TextSplit,
+        "TextReplace" => Op::TextReplace,
+        "TextTrim" => Op::TextTrim,
         "BytesFromInts" => Op::BytesFromInts,
         "BytesFromText" => Op::BytesFromText,
         "BytesJoin" => Op::BytesJoin,
@@ -582,7 +586,10 @@ fn parse_records(value: Option<&Json>) -> Result<Vec<RecordDefinition>, String> 
                     })
                 })
                 .collect::<Result<Vec<_>, String>>()?;
-            Ok(RecordDefinition { name, fields })
+            Ok(RecordDefinition {
+                name: name.into(),
+                fields,
+            })
         })
         .collect()
 }

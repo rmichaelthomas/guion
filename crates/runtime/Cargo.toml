@@ -11,6 +11,7 @@ python-interop = []
 native-value-bridge = []
 
 [dependencies]
+memchr = "2"
 guion-model.workspace = true
 guion-vm-core.workspace = true
 libc.workspace = true

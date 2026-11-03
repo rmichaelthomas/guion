@@ -1,7 +1,7 @@
 use guion_compiler::compile;
 use guion_model::{BigInt, Float64, Type, Value};
 use guion_runtime::{python_bridge::PythonBridge, CancellationToken, HostPolicy, Runtime};
-use std::{collections::BTreeMap, path::PathBuf, process::Command, sync::Arc, time::Duration};
+use std::{path::PathBuf, process::Command, sync::Arc, time::Duration};
 
 #[test]
 fn cancellation_terminates_a_running_python_call() {
@@ -89,7 +89,7 @@ fn bridge_preserves_large_integers_and_keyword_arguments() {
 
 #[test]
 fn bridge_round_trips_typed_maps_as_python_dictionaries() {
-    let mut values = BTreeMap::new();
+    let mut values = guion_model::TextMap::new();
     values.insert("pear".into(), Value::Int(BigInt::parse("4").unwrap()));
     values.insert("apple".into(), Value::Int(BigInt::parse("3").unwrap()));
     let mut bridge = PythonBridge::launch(

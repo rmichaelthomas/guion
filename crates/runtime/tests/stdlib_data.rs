@@ -112,6 +112,47 @@ fn main() -> Int:
     }
 }
 
+fn field_texts(fields: &[guion_model::SharedText]) -> Vec<&str> {
+    fields.iter().map(|field| &**field).collect()
+}
+
+#[test]
+fn csv_reader_plain_records_match_the_general_parser() {
+    let input = b"a,b\n,\n\r\n\nx,\r\r\ny\rz,1\r\n\"q,1\",2\n\"m\nn\",3\nsnow\xc3\xa9,4\nlast,5";
+    let path = temp_file(input);
+    let mut readers = FileReaderRegistry::new(1024, 1024);
+    let handle = readers.open_csv(&path).unwrap();
+    let mut rows = Vec::new();
+    while let Some(row) = readers.next_csv(handle).unwrap() {
+        let fields: Vec<String> = row.fields.iter().map(|field| field.to_string()).collect();
+        rows.push((row.start_line, fields));
+    }
+    let expected: Vec<(usize, Vec<&str>)> = vec![
+        (1, vec!["a", "b"]),
+        (2, vec!["", ""]),
+        (3, vec![""]),
+        (4, vec![""]),
+        (5, vec!["x", ""]),
+        (6, vec!["y\rz", "1"]),
+        (7, vec!["q,1", "2"]),
+        (8, vec!["m\nn", "3"]),
+        (10, vec!["snowé", "4"]),
+        (11, vec!["last", "5"]),
+    ];
+    let rows: Vec<(usize, Vec<&str>)> = rows
+        .iter()
+        .map(|(line, fields)| (*line, fields.iter().map(String::as_str).collect()))
+        .collect();
+    assert_eq!(rows, expected);
+    let _ = std::fs::remove_file(path);
+
+    let invalid = temp_file(&[b'a', b'\n', 0xff, b',', b'b', b'\n']);
+    let handle = readers.open_csv(&invalid).unwrap();
+    assert_eq!(readers.next_csv(handle).unwrap().unwrap().start_line, 1);
+    assert!(readers.next_csv(handle).is_err());
+    let _ = std::fs::remove_file(invalid);
+}
+
 #[test]
 fn line_reader_is_incremental_strict_utf8_and_tracks_physical_lines() {
     let large = format!("{}\r\nlast\n", "x".repeat(2 * 1024 * 1024));
@@ -121,7 +162,7 @@ fn line_reader_is_incremental_strict_utf8_and_tracks_physical_lines() {
     let first = readers.next_line(handle).unwrap().unwrap();
     assert_eq!(first.number, 1);
     assert_eq!(first.text.len(), 2 * 1024 * 1024);
-    assert_eq!(readers.next_line(handle).unwrap().unwrap().text, "last");
+    assert_eq!(&*readers.next_line(handle).unwrap().unwrap().text, "last");
     assert_eq!(readers.next_line(handle).unwrap(), None);
     readers.close(handle).unwrap();
     assert_eq!(
@@ -147,10 +188,13 @@ fn csv_reader_handles_multiline_quotes_empty_fields_and_malformed_rows() {
     let handle = readers.open_csv(&path).unwrap();
     let row1 = readers.next_csv(handle).unwrap().unwrap();
     assert_eq!(row1.start_line, 1);
-    assert_eq!(row1.fields, ["a", "", ""]);
+    assert_eq!(field_texts(&row1.fields), ["a", "", ""]);
     let row2 = readers.next_csv(handle).unwrap().unwrap();
     assert_eq!(row2.start_line, 2);
-    assert_eq!(row2.fields, ["b,b", "say \"hi\"", "two\r\nlines"]);
+    assert_eq!(
+        field_texts(&row2.fields),
+        ["b,b", "say \"hi\"", "two\r\nlines"]
+    );
     assert_eq!(readers.next_csv(handle).unwrap(), None);
     readers.close(handle).unwrap();
     let _ = std::fs::remove_file(path);

@@ -1,3 +1,107 @@
+/// `SharedText` manages its own allocation; these tests also run under Miri
+/// (`cargo +nightly miri test -p guion-model shared_text`).
+#[cfg(test)]
+mod shared_text_tests {
+    use super::{SharedText, Value};
+
+    #[test]
+    fn shared_text_reads_back_what_it_was_made_from() {
+        for text in [
+            "",
+            "a",
+            "héllo wörld",
+            "日本語のテキスト",
+            &"x".repeat(1000),
+        ] {
+            assert_eq!(&*SharedText::from(text), text);
+            assert_eq!(&*SharedText::from(text.to_string()), text);
+            assert_eq!(&*SharedText::from(Box::<str>::from(text)), text);
+            assert_eq!(SharedText::from(text).capacity(), text.len());
+        }
+        assert_eq!(&*SharedText::default(), "");
+    }
+
+    #[test]
+    fn shared_text_clones_share_storage_until_the_last_drop() {
+        let text = SharedText::from("shared");
+        let copy = text.clone();
+        assert!(SharedText::ptr_eq(&text, &copy));
+        assert_eq!(SharedText::strong_count(&text), 2);
+        drop(copy);
+        assert_eq!(SharedText::strong_count(&text), 1);
+        assert!(!SharedText::ptr_eq(&text, &SharedText::from("shared")));
+        assert_eq!(text, SharedText::from("shared"));
+    }
+
+    #[test]
+    fn shared_text_appends_in_place_only_when_growable_and_unshared() {
+        let mut fixed = SharedText::from("fixed");
+        assert!(!SharedText::try_append(&mut fixed, "!"));
+        assert_eq!(&*fixed, "fixed");
+
+        let mut frozen = SharedText::concat("con", "cat", 64, false);
+        assert_eq!(&*frozen, "concat");
+        assert_eq!(frozen.capacity(), 64);
+        assert!(!SharedText::try_append(&mut frozen, "!"));
+
+        let mut text = SharedText::concat("a", "b", 4, true);
+        assert_eq!(text.capacity(), 4);
+        let held = text.clone();
+        assert!(!SharedText::try_append(&mut text, "c"));
+        drop(held);
+        assert!(SharedText::try_append(&mut text, "cd"));
+        assert_eq!((&*text, text.capacity()), ("abcd", 4));
+        // Outgrowing the capacity at least doubles it.
+        assert!(SharedText::try_append(&mut text, "é"));
+        assert_eq!((&*text, text.capacity()), ("abcdé", 8));
+        assert!(SharedText::try_append(&mut text, &"z".repeat(100)));
+        assert_eq!(text.len(), 106);
+        assert_eq!(text.capacity(), 106);
+        assert!(SharedText::try_append(&mut text, ""));
+        assert_eq!(text.len(), 106);
+    }
+
+    #[test]
+    fn shared_text_built_by_many_appends_keeps_every_byte() {
+        let mut text = SharedText::concat("", "", 0, true);
+        let mut expected = String::new();
+        for i in 0..300 {
+            let piece = format!("{i}ü,");
+            assert!(SharedText::try_append(&mut text, &piece));
+            expected.push_str(&piece);
+        }
+        assert_eq!(&*text, expected);
+        let snapshot = text.clone();
+        assert!(!SharedText::try_append(&mut text, "tail"));
+        assert_eq!(&*snapshot, expected);
+    }
+
+    #[test]
+    fn shared_text_crosses_threads() {
+        let text = SharedText::concat("from ", "main", 0, true);
+        let workers: Vec<_> = (0..4)
+            .map(|_| {
+                let text = text.clone();
+                std::thread::spawn(move || {
+                    let copies: Vec<SharedText> = (0..50).map(|_| text.clone()).collect();
+                    copies.iter().all(|copy| &**copy == "from main")
+                })
+            })
+            .collect();
+        for worker in workers {
+            assert!(worker.join().unwrap());
+        }
+        assert_eq!(SharedText::strong_count(&text), 1);
+    }
+
+    #[test]
+    fn shared_text_is_one_pointer_wide() {
+        assert_eq!(size_of::<SharedText>(), size_of::<usize>());
+        assert_eq!(size_of::<Option<SharedText>>(), size_of::<usize>());
+        assert_eq!(size_of::<Value>(), 24);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
@@ -198,6 +302,51 @@ mod tests {
 
         let mut legacy_header_with_new_instruction = encoded;
         legacy_header_with_new_instruction[4..8].copy_from_slice(&47u32.to_le_bytes());
+        assert_eq!(
+            Artifact::from_bytes(&legacy_header_with_new_instruction)
+                .unwrap_err()
+                .code,
+            "E_ARTIFACT_VERSION"
+        );
+    }
+
+    #[test]
+    fn native_text_search_requires_format_51_and_round_trips() {
+        let artifact = Artifact {
+            format_version: 51,
+            build_metadata: None,
+            compiled_source_sha256: None,
+            source_name: "text-search.gu".into(),
+            sources: vec![],
+            entry: "main".into(),
+            functions: vec![Function {
+                name: "main".into(),
+                parameters: vec![],
+                result: Type::Int,
+                local_count: 0,
+                code: [Op::TextFind, Op::TextSplit, Op::TextReplace, Op::TextTrim]
+                    .into_iter()
+                    .map(|op| Instruction {
+                        op,
+                        span: Span::default(),
+                    })
+                    .collect(),
+            }],
+            externals: vec![],
+            records: vec![],
+        };
+        let encoded = artifact.to_bytes().expect("format 51 artifact encodes");
+        assert_eq!(Artifact::from_bytes(&encoded).unwrap(), artifact);
+
+        let mut format_50_with_new_op = artifact.clone();
+        format_50_with_new_op.format_version = 50;
+        assert_eq!(
+            format_50_with_new_op.to_bytes().unwrap_err().code,
+            "E_ARTIFACT_VERSION"
+        );
+
+        let mut legacy_header_with_new_instruction = encoded;
+        legacy_header_with_new_instruction[4..8].copy_from_slice(&50u32.to_le_bytes());
         assert_eq!(
             Artifact::from_bytes(&legacy_header_with_new_instruction)
                 .unwrap_err()
@@ -954,16 +1103,16 @@ mod tests {
                         span: Span::default(),
                     },
                     Instruction {
-                        op: Op::Const(Value::JsonError(JsonErrorValue {
+                        op: Op::Const(Value::JsonError(Box::new(JsonErrorValue {
                             code: "R_JSON_PARSE".into(),
                             message: "unexpected end of input".into(),
                             line: 1,
                             column: 1,
-                        })),
+                        }))),
                         span: Span::default(),
                     },
                     Instruction {
-                        op: Op::Const(Value::FileError(FileErrorValue {
+                        op: Op::Const(Value::FileError(Box::new(FileErrorValue {
                             code: "R_FILE_READ".into(),
                             message: "file is missing".into(),
                             trace: vec![Span {
@@ -973,7 +1122,7 @@ mod tests {
                                 line: 3,
                                 column: 7,
                             }],
-                        })),
+                        }))),
                         span: Span::default(),
                     },
                 ],
@@ -1284,6 +1433,23 @@ impl BigInt {
             None => Some(self.small_or_sign),
             Some(digits) => digits_to_i64(self.small_or_sign.signum() as i8, digits),
         }
+    }
+
+    /// The value, when it is stored inline.
+    #[inline(always)]
+    pub fn small(&self) -> Option<i64> {
+        if self.digits.is_none() {
+            Some(self.small_or_sign)
+        } else {
+            None
+        }
+    }
+
+    /// Whether the value has more decimal digits than `limit`. An inline value has at
+    /// most 19, so ordinary limits answer without counting.
+    #[inline(always)]
+    pub fn exceeds_digits(&self, limit: usize) -> bool {
+        (self.digits.is_some() || limit < 19) && self.digit_count() > limit
     }
 
     pub fn is_zero(&self) -> bool {
@@ -1639,6 +1805,291 @@ impl PartialEq for Float64 {
 }
 impl Eq for Float64 {}
 
+/// Text shared between values. Cloning shares the bytes. The bytes follow a header holding
+/// the reference count, length and capacity in one allocation, so reading text is one pointer
+/// step. Text built by appending to a local is marked growable, so that appending to it while
+/// it is held in only one place costs only the appended bytes rather than a full copy.
+pub struct SharedText(std::ptr::NonNull<TextHeader>);
+
+#[repr(C)]
+struct TextHeader {
+    count: std::sync::atomic::AtomicUsize,
+    len: usize,
+    /// Capacity in bytes; the top bit marks text that appends may extend in place.
+    capacity: usize,
+}
+
+const TEXT_HEADER_BYTES: usize = std::mem::size_of::<TextHeader>();
+const TEXT_GROWABLE: usize = 1 << (usize::BITS - 1);
+
+// SAFETY: the bytes are mutated only through `&mut SharedText` while the count is one, and
+// the count is atomic, as in `Arc`.
+unsafe impl Send for SharedText {}
+// SAFETY: as above.
+unsafe impl Sync for SharedText {}
+
+impl SharedText {
+    fn layout(capacity: usize) -> std::alloc::Layout {
+        TEXT_HEADER_BYTES
+            .checked_add(capacity)
+            .and_then(|size| {
+                std::alloc::Layout::from_size_align(size, std::mem::align_of::<TextHeader>()).ok()
+            })
+            .expect("text capacity fits in memory")
+    }
+
+    fn with_capacity(text: &str, capacity: usize, growable: bool) -> Self {
+        let capacity = capacity.max(text.len());
+        let layout = Self::layout(capacity);
+        // SAFETY: the layout is never zero-sized, since it includes the header.
+        let raw = unsafe { std::alloc::alloc(layout) };
+        let Some(header) = std::ptr::NonNull::new(raw.cast::<TextHeader>()) else {
+            std::alloc::handle_alloc_error(layout)
+        };
+        // SAFETY: `raw` is a fresh allocation with room for the header and `capacity` bytes.
+        unsafe {
+            header.as_ptr().write(TextHeader {
+                count: std::sync::atomic::AtomicUsize::new(1),
+                len: text.len(),
+                capacity: capacity | if growable { TEXT_GROWABLE } else { 0 },
+            });
+            std::ptr::copy_nonoverlapping(text.as_ptr(), raw.add(TEXT_HEADER_BYTES), text.len());
+        }
+        Self(header)
+    }
+
+    #[inline]
+    fn header(&self) -> &TextHeader {
+        // SAFETY: the header lives as long as any `SharedText` pointing at it.
+        unsafe { self.0.as_ref() }
+    }
+
+    /// `left` followed by `right` in one allocation of at least `min_capacity` bytes. Growable
+    /// text is extended in place by later appends while it is held in only one place.
+    pub fn concat(left: &str, right: &str, min_capacity: usize, growable: bool) -> Self {
+        let len = left
+            .len()
+            .checked_add(right.len())
+            .expect("text length fits in memory");
+        let mut text = Self::with_capacity(left, len.max(min_capacity), true);
+        let appended = Self::try_append(&mut text, right);
+        debug_assert!(
+            appended,
+            "a fresh text has room for the bytes it was sized for"
+        );
+        if !growable {
+            // SAFETY: the count is one and `text` is owned here.
+            unsafe { (*text.0.as_ptr()).capacity &= !TEXT_GROWABLE };
+        }
+        text
+    }
+
+    pub fn ptr_eq(left: &Self, right: &Self) -> bool {
+        left.0 == right.0
+    }
+
+    pub fn strong_count(text: &Self) -> usize {
+        text.header()
+            .count
+            .load(std::sync::atomic::Ordering::Acquire)
+    }
+
+    /// Append `more` in place when the text is growable and no other value shares it,
+    /// doubling the capacity when it runs out. Returns whether it appended.
+    pub fn try_append(text: &mut Self, more: &str) -> bool {
+        let header = text.header();
+        if header.capacity & TEXT_GROWABLE == 0
+            || header.count.load(std::sync::atomic::Ordering::Acquire) != 1
+        {
+            return false;
+        }
+        let len = header.len;
+        let capacity = header.capacity & !TEXT_GROWABLE;
+        let needed = len
+            .checked_add(more.len())
+            .expect("text length fits in memory");
+        if needed > capacity {
+            let grown = needed.max(capacity.saturating_mul(2));
+            let new_layout = Self::layout(grown);
+            // SAFETY: the allocation was made with `layout(capacity)`, and no other value
+            // shares it, so moving it cannot leave a dangling pointer.
+            let raw = unsafe {
+                std::alloc::realloc(
+                    text.0.as_ptr().cast(),
+                    Self::layout(capacity),
+                    new_layout.size(),
+                )
+            };
+            let Some(header) = std::ptr::NonNull::new(raw.cast::<TextHeader>()) else {
+                std::alloc::handle_alloc_error(new_layout)
+            };
+            text.0 = header;
+            // SAFETY: the count is one and `text` is borrowed mutably.
+            unsafe { (*text.0.as_ptr()).capacity = grown | TEXT_GROWABLE };
+        }
+        // SAFETY: the count is one and `text` is borrowed mutably, so nothing reads the bytes
+        // being written, and the capacity covers them.
+        unsafe {
+            let bytes = text.0.as_ptr().cast::<u8>().add(TEXT_HEADER_BYTES);
+            std::ptr::copy_nonoverlapping(more.as_ptr(), bytes.add(len), more.len());
+            (*text.0.as_ptr()).len = needed;
+        }
+        true
+    }
+
+    /// Bytes reserved for this text, which can exceed its length after appends.
+    pub fn capacity(&self) -> usize {
+        self.header().capacity & !TEXT_GROWABLE
+    }
+}
+
+impl Clone for SharedText {
+    #[inline]
+    fn clone(&self) -> Self {
+        let previous = self
+            .header()
+            .count
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        if previous > isize::MAX as usize {
+            std::process::abort();
+        }
+        Self(self.0)
+    }
+}
+
+impl Drop for SharedText {
+    #[inline]
+    fn drop(&mut self) {
+        if self
+            .header()
+            .count
+            .fetch_sub(1, std::sync::atomic::Ordering::Release)
+            != 1
+        {
+            return;
+        }
+        std::sync::atomic::fence(std::sync::atomic::Ordering::Acquire);
+        let layout = Self::layout(self.capacity());
+        // SAFETY: this was the last reference, and the allocation was made with this layout.
+        unsafe { std::alloc::dealloc(self.0.as_ptr().cast(), layout) };
+    }
+}
+
+impl Default for SharedText {
+    fn default() -> Self {
+        Self::from("")
+    }
+}
+
+impl std::ops::Deref for SharedText {
+    type Target = str;
+
+    #[inline]
+    fn deref(&self) -> &str {
+        // SAFETY: the first `len` bytes after the header are initialised and were copied from
+        // a `str`, so they are valid UTF-8.
+        unsafe {
+            std::str::from_utf8_unchecked(std::slice::from_raw_parts(
+                self.0.as_ptr().cast::<u8>().add(TEXT_HEADER_BYTES),
+                self.header().len,
+            ))
+        }
+    }
+}
+
+impl PartialEq for SharedText {
+    fn eq(&self, other: &Self) -> bool {
+        **self == **other
+    }
+}
+
+impl Eq for SharedText {}
+
+impl PartialOrd for SharedText {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for SharedText {
+    fn cmp(&self, other: &Self) -> Ordering {
+        (**self).cmp(&**other)
+    }
+}
+
+impl std::hash::Hash for SharedText {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        (**self).hash(state);
+    }
+}
+
+impl AsRef<str> for SharedText {
+    fn as_ref(&self) -> &str {
+        self
+    }
+}
+
+impl std::borrow::Borrow<str> for SharedText {
+    fn borrow(&self) -> &str {
+        self
+    }
+}
+
+impl fmt::Debug for SharedText {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Debug::fmt(&**self, formatter)
+    }
+}
+
+impl fmt::Display for SharedText {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(self)
+    }
+}
+
+impl From<String> for SharedText {
+    fn from(text: String) -> Self {
+        Self::from(text.as_str())
+    }
+}
+
+impl From<&str> for SharedText {
+    #[inline]
+    fn from(text: &str) -> Self {
+        Self::with_capacity(text, text.len(), false)
+    }
+}
+
+impl From<&String> for SharedText {
+    fn from(text: &String) -> Self {
+        Self::from(text.as_str())
+    }
+}
+
+impl From<Box<str>> for SharedText {
+    fn from(text: Box<str>) -> Self {
+        Self::from(&*text)
+    }
+}
+
+impl From<std::borrow::Cow<'_, str>> for SharedText {
+    fn from(text: std::borrow::Cow<'_, str>) -> Self {
+        Self::from(&*text)
+    }
+}
+
+impl PartialEq<str> for SharedText {
+    fn eq(&self, other: &str) -> bool {
+        &**self == other
+    }
+}
+
+impl PartialEq<&str> for SharedText {
+    fn eq(&self, other: &&str) -> bool {
+        &**self == *other
+    }
+}
+
 /// Immutable JSON nodes with shared child storage. Reading a nested value
 /// clones an Arc instead of recursively copying the entire subtree.
 #[derive(Clone, Debug, PartialEq)]
@@ -1646,7 +2097,7 @@ pub enum SharedJson {
     Null,
     Bool(bool),
     Number(serde_json::Number),
-    String(Arc<str>),
+    String(SharedText),
     Array(Arc<Vec<Arc<SharedJson>>>),
     Object(Arc<BTreeMap<String, Arc<SharedJson>>>),
 }
@@ -1689,7 +2140,7 @@ impl SharedJson {
             serde_json::Value::Null => Self::Null,
             serde_json::Value::Bool(value) => Self::Bool(value),
             serde_json::Value::Number(value) => Self::Number(value),
-            serde_json::Value::String(value) => Self::String(Arc::from(value)),
+            serde_json::Value::String(value) => Self::String(SharedText::from(value)),
             serde_json::Value::Array(values) => {
                 Self::Array(Arc::new(values.into_iter().map(Self::from_serde).collect()))
             }
@@ -1791,27 +2242,263 @@ impl fmt::Display for SharedJson {
     }
 }
 
+/// A record value's type name: one pointer wide so `Value` stays small, and cheap to clone.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct RecordName(Arc<String>);
+
+impl RecordName {
+    pub fn as_str(&self) -> &str {
+        self.0.as_str()
+    }
+}
+
+impl std::ops::Deref for RecordName {
+    type Target = str;
+    fn deref(&self) -> &str {
+        self.0.as_str()
+    }
+}
+
+impl std::borrow::Borrow<str> for RecordName {
+    fn borrow(&self) -> &str {
+        self.as_str()
+    }
+}
+
+impl From<&str> for RecordName {
+    fn from(name: &str) -> Self {
+        Self(Arc::new(name.to_owned()))
+    }
+}
+
+impl From<String> for RecordName {
+    fn from(name: String) -> Self {
+        Self(Arc::new(name))
+    }
+}
+
+impl From<RecordName> for String {
+    fn from(name: RecordName) -> Self {
+        name.as_str().to_owned()
+    }
+}
+
+impl PartialEq<str> for RecordName {
+    fn eq(&self, other: &str) -> bool {
+        self.as_str() == other
+    }
+}
+
+impl PartialEq<&str> for RecordName {
+    fn eq(&self, other: &&str) -> bool {
+        self.as_str() == *other
+    }
+}
+
+impl PartialEq<String> for RecordName {
+    fn eq(&self, other: &String) -> bool {
+        self.as_str() == other.as_str()
+    }
+}
+
+impl PartialEq<RecordName> for String {
+    fn eq(&self, other: &RecordName) -> bool {
+        self.as_str() == other.as_str()
+    }
+}
+
+impl std::fmt::Display for RecordName {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+/// `Map`'s storage: hashed for lookups, and sorted by key whenever it is observed in order.
+#[derive(Clone, Default)]
+pub struct TextMap {
+    entries: hashbrown::HashTable<(SharedText, Value)>,
+}
+
+impl TextMap {
+    /// What a map's own header counts for against the allocation budget. It is a fixed
+    /// figure so that the budget does not depend on how maps are stored.
+    pub const ACCOUNTED_HEADER_BYTES: usize = 24;
+
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// The hash of a key, valid for every map in this process. SipHash with a random key, as
+    /// in Python, so that input data cannot be crafted to collide.
+    #[inline]
+    pub fn hash_key(key: &str) -> u64 {
+        use std::hash::BuildHasher;
+        static STATE: std::sync::OnceLock<std::collections::hash_map::RandomState> =
+            std::sync::OnceLock::new();
+        STATE.get_or_init(Default::default).hash_one(key)
+    }
+
+    pub fn len(&self) -> usize {
+        self.entries.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
+
+    #[inline]
+    pub fn get(&self, key: &str) -> Option<&Value> {
+        self.get_hashed(Self::hash_key(key), key)
+    }
+
+    /// `get` for a caller that already has `hash_key(key)`.
+    #[inline]
+    pub fn get_hashed(&self, hash: u64, key: &str) -> Option<&Value> {
+        self.entries
+            .find(hash, |entry| &*entry.0 == key)
+            .map(|entry| &entry.1)
+    }
+
+    pub fn get_key_value(&self, key: &str) -> Option<(&SharedText, &Value)> {
+        self.entries
+            .find(Self::hash_key(key), |entry| &*entry.0 == key)
+            .map(|entry| (&entry.0, &entry.1))
+    }
+
+    #[inline]
+    pub fn get_mut(&mut self, key: &str) -> Option<&mut Value> {
+        self.get_mut_hashed(Self::hash_key(key), key)
+    }
+
+    /// `get_mut` for a caller that already has `hash_key(key)`.
+    #[inline]
+    pub fn get_mut_hashed(&mut self, hash: u64, key: &str) -> Option<&mut Value> {
+        self.entries
+            .find_mut(hash, |entry| &*entry.0 == key)
+            .map(|entry| &mut entry.1)
+    }
+
+    #[inline]
+    pub fn contains_key(&self, key: &str) -> bool {
+        self.get(key).is_some()
+    }
+
+    /// Keys are shared, so copying a map or adding a `Text` value as a key copies no key bytes.
+    pub fn insert(&mut self, key: impl Into<SharedText>, value: Value) -> Option<Value> {
+        let key = key.into();
+        let hash = Self::hash_key(&key);
+        if let Some(existing) = self.get_mut_hashed(hash, &key) {
+            return Some(std::mem::replace(existing, value));
+        }
+        self.entries
+            .insert_unique(hash, (key, value), |entry| Self::hash_key(&entry.0));
+        None
+    }
+
+    pub fn remove(&mut self, key: &str) -> Option<Value> {
+        let entry = self
+            .entries
+            .find_entry(Self::hash_key(key), |entry| &*entry.0 == key)
+            .ok()?;
+        Some(entry.remove().0 .1)
+    }
+
+    /// Entries in key order.
+    pub fn iter(&self) -> std::vec::IntoIter<(&SharedText, &Value)> {
+        let mut entries: Vec<_> = self.iter_unordered().collect();
+        entries.sort_unstable_by_key(|entry| entry.0);
+        entries.into_iter()
+    }
+
+    /// Keys in key order.
+    pub fn keys(&self) -> impl ExactSizeIterator<Item = &SharedText> {
+        self.iter().map(|entry| entry.0)
+    }
+
+    /// Values in key order.
+    pub fn values(&self) -> impl ExactSizeIterator<Item = &Value> {
+        self.iter().map(|entry| entry.1)
+    }
+
+    /// Entries in no particular order, for work whose result does not depend on it.
+    pub fn iter_unordered(&self) -> impl ExactSizeIterator<Item = (&SharedText, &Value)> {
+        self.entries.iter().map(|entry| (&entry.0, &entry.1))
+    }
+}
+
+impl PartialEq for TextMap {
+    fn eq(&self, other: &Self) -> bool {
+        self.len() == other.len()
+            && self
+                .iter_unordered()
+                .all(|(key, value)| other.get(key) == Some(value))
+    }
+}
+
+impl std::fmt::Debug for TextMap {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_map().entries(self.iter()).finish()
+    }
+}
+
+impl FromIterator<(String, Value)> for TextMap {
+    fn from_iter<I: IntoIterator<Item = (String, Value)>>(entries: I) -> Self {
+        let mut map = Self::new();
+        for (key, value) in entries {
+            map.insert(key, value);
+        }
+        map
+    }
+}
+
+impl<const N: usize> From<[(String, Value); N]> for TextMap {
+    fn from(entries: [(String, Value); N]) -> Self {
+        entries.into_iter().collect()
+    }
+}
+
+impl IntoIterator for TextMap {
+    type Item = (SharedText, Value);
+    type IntoIter = std::vec::IntoIter<(SharedText, Value)>;
+
+    /// Entries in key order.
+    fn into_iter(self) -> Self::IntoIter {
+        let mut entries: Vec<_> = self.entries.into_iter().collect();
+        entries.sort_unstable_by(|left, right| left.0.cmp(&right.0));
+        entries.into_iter()
+    }
+}
+
+impl<'a> IntoIterator for &'a TextMap {
+    type Item = (&'a SharedText, &'a Value);
+    type IntoIter = std::vec::IntoIter<(&'a SharedText, &'a Value)>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
+}
+
 #[derive(Clone, Debug)]
 pub enum Value {
     Int(BigInt),
     Float64(Float64),
-    Record(String, Arc<Vec<Value>>),
+    Record(RecordName, Arc<Vec<Value>>),
     Bytes(Arc<Vec<u8>>),
     Bool(bool),
-    Text(Arc<str>),
+    Text(SharedText),
     List(Arc<Vec<Value>>),
     Float64List(Arc<Vec<Float64>>),
-    Map(Arc<BTreeMap<String, Value>>),
+    Map(Arc<TextMap>),
     OptionNone,
     OptionSome(Box<Value>),
     ResultOk(Box<Value>),
     ResultErr(Box<Value>),
-    TaskError(TaskErrorValue),
+    TaskError(Box<TaskErrorValue>),
     Json(Arc<SharedJson>),
-    JsonError(JsonErrorValue),
-    FileError(FileErrorValue),
-    HttpError(HttpErrorValue),
-    NativeResource(NativeResourceValue),
+    JsonError(Box<JsonErrorValue>),
+    FileError(Box<FileErrorValue>),
+    HttpError(Box<HttpErrorValue>),
+    NativeResource(Box<NativeResourceValue>),
     Unit,
 }
 
@@ -2150,6 +2837,10 @@ pub enum Op {
     TextChars,
     TextSlice,
     TextJoin,
+    TextFind,
+    TextSplit,
+    TextReplace,
+    TextTrim,
     BytesFromInts,
     BytesFromText,
     BytesJoin,
@@ -2246,7 +2937,7 @@ pub struct RecordField {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RecordDefinition {
-    pub name: String,
+    pub name: RecordName,
     pub fields: Vec<RecordField>,
 }
 
@@ -2288,7 +2979,7 @@ pub struct Artifact {
 }
 
 impl Artifact {
-    pub const CURRENT_VERSION: u32 = 50;
+    pub const CURRENT_VERSION: u32 = 51;
     pub fn entry(&self) -> &str {
         &self.entry
     }
@@ -2510,6 +3201,12 @@ impl Artifact {
             return Err(ArtifactError::new(
                 "E_ARTIFACT_VERSION",
                 "fused JSON field accessors require artifact format 50",
+            ));
+        }
+        if self.format_version < 51 && artifact_uses_native_text_search(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "native text search, split, replace and trim require artifact format 51",
             ));
         }
         validate_sort_comparator_effects(self)
@@ -2743,6 +3440,10 @@ impl Artifact {
                     Op::TimeFormatUtcDate => w.u8(168),
                     Op::JsonTryGetText => w.u8(171),
                     Op::JsonTryGetInt => w.u8(172),
+                    Op::TextFind => w.u8(173),
+                    Op::TextSplit => w.u8(174),
+                    Op::TextReplace => w.u8(175),
+                    Op::TextTrim => w.u8(176),
                     Op::ListPushLocal(slot) => {
                         w.u8(103);
                         w.count(*slot)?;
@@ -2924,7 +3625,10 @@ impl Artifact {
                     ty: r.ty()?,
                 });
             }
-            records.push(RecordDefinition { name, fields });
+            records.push(RecordDefinition {
+                name: name.into(),
+                fields,
+            });
         }
         let ne = r.count()?;
         let mut externals = Vec::with_capacity(ne);
@@ -3107,6 +3811,16 @@ impl Artifact {
                         return Err(ArtifactError::new(
                             "E_ARTIFACT_VERSION",
                             "fused JSON field accessors require artifact format 50",
+                        ));
+                    }
+                    173 if format_version >= 51 => Op::TextFind,
+                    174 if format_version >= 51 => Op::TextSplit,
+                    175 if format_version >= 51 => Op::TextReplace,
+                    176 if format_version >= 51 => Op::TextTrim,
+                    173..=176 => {
+                        return Err(ArtifactError::new(
+                            "E_ARTIFACT_VERSION",
+                            "native text search, split, replace and trim require artifact format 51",
                         ));
                     }
                     168 if format_version >= 48 => Op::TimeFormatUtcDate,
@@ -3665,6 +4379,17 @@ fn artifact_uses_map_record_update(artifact: &Artifact) -> bool {
             matches!(
                 &instruction.op,
                 Op::MapRecordGet(_, _, _) | Op::MapRecordSet(_, _, _)
+            )
+        })
+    })
+}
+
+fn artifact_uses_native_text_search(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function.code.iter().any(|instruction| {
+            matches!(
+                instruction.op,
+                Op::TextFind | Op::TextSplit | Op::TextReplace | Op::TextTrim
             )
         })
     })
@@ -4450,24 +5175,24 @@ impl<'a> Reader<'a> {
                 for _ in 0..n {
                     trace.push(self.span()?);
                 }
-                Ok(Value::TaskError(TaskErrorValue {
+                Ok(Value::TaskError(Box::new(TaskErrorValue {
                     index,
                     code,
                     message,
                     trace,
-                }))
+                })))
             }
             8 => serde_json::from_str(&self.string()?)
                 .map(SharedJson::from_serde)
                 .map(Value::Json)
                 .map_err(|_| ArtifactError::new("E_ARTIFACT_JSON", "invalid JSON value encoding")),
-            9 => Ok(Value::JsonError(JsonErrorValue {
+            9 => Ok(Value::JsonError(Box::new(JsonErrorValue {
                 code: self.string()?,
                 message: self.string()?,
                 line: self.count()?,
                 column: self.count()?,
-            })),
-            10 => Ok(Value::FileError(FileErrorValue {
+            }))),
+            10 => Ok(Value::FileError(Box::new(FileErrorValue {
                 code: self.string()?,
                 message: self.string()?,
                 trace: {
@@ -4478,12 +5203,12 @@ impl<'a> Reader<'a> {
                     }
                     trace
                 },
-            })),
+            }))),
             11 => Ok(Value::OptionNone),
             12 => Ok(Value::OptionSome(Box::new(self.value_at(depth + 1)?))),
             13 => {
                 let n = self.count()?;
-                let mut items = BTreeMap::new();
+                let mut items = TextMap::new();
                 for _ in 0..n {
                     let key = self.string()?;
                     let value = self.value_at(depth + 1)?;
@@ -4506,10 +5231,10 @@ impl<'a> Reader<'a> {
                 for _ in 0..count {
                     fields.push(self.value_at(depth + 1)?);
                 }
-                Ok(Value::Record(name, Arc::new(fields)))
+                Ok(Value::Record(name.into(), Arc::new(fields)))
             }
             16 => Ok(Value::Bytes(Arc::new(self.blob()?))),
-            17 => Ok(Value::HttpError(HttpErrorValue {
+            17 => Ok(Value::HttpError(Box::new(HttpErrorValue {
                 code: self.string()?,
                 message: self.string()?,
                 trace: {
@@ -4520,7 +5245,7 @@ impl<'a> Reader<'a> {
                     }
                     trace
                 },
-            })),
+            }))),
             _ => Err(ArtifactError::new("E_ARTIFACT_VALUE", "unknown value tag")),
         }
     }

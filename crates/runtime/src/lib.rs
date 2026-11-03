@@ -1,14 +1,14 @@
 use guion_model::{
     Artifact, BigInt, FileErrorValue, Float64, HttpErrorValue, JsonErrorValue, NativeResourceValue,
-    Op, RuntimeError, SharedJson, Span, TaskErrorValue, Type, Value,
+    Op, RuntimeError, SharedJson, SharedText, Span, TaskErrorValue, TextMap, Type, Value,
 };
 pub use guion_vm_core::CancellationToken;
 use guion_vm_core::{
-    build_fused_tables, charge_allocation, check_call_depth, cloned_value_allocation,
+    build_register_programs, charge_allocation, check_call_depth, cloned_value_allocation,
     encoded_json_string_len, finish_json_value, finish_shared_json, json_exact_integer,
     map_clone_allocation, new_vm_frame, opcode_profile_name, shared_json_push_local_allocation,
-    shared_json_set_local_allocation, value_matches, verify, Budget, FrameStart, FusedEntry,
-    HostOpContext, OutputStream, RuntimeProfileCounters, VmFrame, VmHost, VmLimits,
+    shared_json_set_local_allocation, value_matches, verify, Budget, FrameStart, HostOpContext,
+    OutputStream, RegisterPrograms, RuntimeProfileCounters, VmFrame, VmHost, VmLimits,
 };
 use std::{
     borrow::Cow,
@@ -38,7 +38,7 @@ use native_backend::{
 };
 
 struct JsonTextPairRows<'a> {
-    groups: &'a BTreeMap<String, Value>,
+    groups: &'a TextMap,
     key_field: &'a str,
     value_field: &'a str,
     row_count: usize,
@@ -155,7 +155,7 @@ mod native_inline_arena_tests {
         let budget = Budget::new(1000, 10000, CancellationToken::new(), None);
         let mut arena = NativeListArena::new(&budget, 10000, 10000, 0, None);
         let payload = Value::Record(
-            "EventLine".to_owned(),
+            "EventLine".into(),
             std::sync::Arc::new(vec![Value::Text("record payload".into())]),
         );
         let payload_handle = arena.store_value(payload.clone()).unwrap();
@@ -309,6 +309,10 @@ struct NativeListArena {
 const NATIVE_INLINE_TAGGED_VALUES: usize = 8;
 /// Arena entries that must accumulate before a loop safepoint attempts to retire dead handles.
 const NATIVE_ARENA_RECLAIM_MIN_ENTRIES: usize = 2048;
+/// List items an entry must copy into a fresh native frame before its cost is tracked.
+const LIST_ITEMS_TRACKED_AT_ENTRY: usize = 4096;
+/// Copy-dominated large entries after which VM callers run the function in the VM.
+const COPY_DOMINATED_ENTRY_LIMIT: u8 = 8;
 /// Safepoint root kind for a `List[Text]` local stored as a native handle list.
 pub(crate) const NATIVE_SAFEPOINT_TEXT_LIST_TAG: i64 = 5;
 
@@ -473,7 +477,7 @@ impl NativeListArena {
                     Value::List(items) => items
                         .iter()
                         .map(|item| match item {
-                            Value::Text(text) => Some(Arc::clone(text)),
+                            Value::Text(text) => Some(SharedText::clone(text)),
                             _ => None,
                         })
                         .collect::<Option<Vec<_>>>()
@@ -926,7 +930,7 @@ impl NativeListArena {
                         .records
                         .get(record_index)?,
                 ) {
-                    self.store_native_record_value(record_index, name, fields)
+                    self.store_native_record_value(record_index, name.into(), fields)
                 } else {
                     self.store_value(Value::Record(name, fields))
                 }
@@ -1068,14 +1072,14 @@ impl NativeListArena {
         i64::try_from((&mut **descriptor as *mut NativeHandleList) as usize).ok()
     }
 
-    fn store_native_text_list(&mut self, items: Vec<Arc<str>>) -> Option<i64> {
+    fn store_native_text_list(&mut self, items: Vec<SharedText>) -> Option<i64> {
         self.store_native_text_list_charged(items, true)
     }
 
     /// `charge` is false only when re-storing a list whose allocation was already charged.
     fn store_native_text_list_charged(
         &mut self,
-        items: Vec<Arc<str>>,
+        items: Vec<SharedText>,
         charge: bool,
     ) -> Option<i64> {
         if items.len() > self.max_collection_items {
@@ -1763,11 +1767,11 @@ impl NativeListArena {
                 if !arguments.is_empty() || result_tag != 4 {
                     return None;
                 }
-                let allocation = size_of::<std::collections::BTreeMap<String, Value>>();
+                let allocation = TextMap::ACCOUNTED_HEADER_BYTES;
                 if !self.charge(allocation) {
                     return None;
                 }
-                return self.store_value(Value::Map(Arc::new(std::collections::BTreeMap::new())));
+                return self.store_value(Value::Map(Arc::new(TextMap::new())));
             }
             Op::MapKeys => {
                 if arguments.len() != 1 || argument_tags != [4] || result_tag != 4 {
@@ -1779,7 +1783,7 @@ impl NativeListArena {
                 };
                 let mut keys = Vec::new();
                 keys.try_reserve_exact(map.len()).ok()?;
-                keys.extend(map.keys().map(|key| Arc::<str>::from(key.as_str())));
+                keys.extend(map.keys().cloned());
                 return self.store_native_text_list(keys);
             }
             Op::TextChars => {
@@ -1798,7 +1802,7 @@ impl NativeListArena {
                 characters.try_reserve_exact(character_count).ok()?;
                 characters.extend(
                     text.chars()
-                        .map(|character| Arc::<str>::from(character.to_string())),
+                        .map(|character| SharedText::from(character.to_string())),
                 );
                 return self.store_native_text_list(characters);
             }
@@ -1810,7 +1814,7 @@ impl NativeListArena {
                 else {
                     return None;
                 };
-                let text = Arc::clone(text);
+                let text = SharedText::clone(text);
                 let start = usize::try_from(arguments[1]).ok()?;
                 let end = usize::try_from(arguments[2]).ok()?;
                 if start > end {
@@ -1848,13 +1852,160 @@ impl NativeListArena {
                 let value = if start == 0 && !reached_end {
                     Value::Text(text)
                 } else {
-                    let sliced = Arc::<str>::from(&text[byte_start..byte_end]);
+                    let sliced = SharedText::from(&text[byte_start..byte_end]);
                     if !self.charge(size_of::<String>().saturating_add(sliced.len())) {
                         return None;
                     }
                     Value::Text(sliced)
                 };
                 return self.store_value(value);
+            }
+            Op::Length => {
+                if arguments.len() != 1 || argument_tags != [4] || result_tag != 1 {
+                    return None;
+                }
+                let Value::Text(text) = self.bridge_handle_argument(arguments, argument_tags, 0)?
+                else {
+                    return None;
+                };
+                return i64::try_from(text.chars().count()).ok();
+            }
+            Op::TextFind => {
+                if arguments.len() != 3 || argument_tags != [4, 4, 1] || result_tag != 1 {
+                    return None;
+                }
+                let Value::Text(text) = self.bridge_handle_argument(arguments, argument_tags, 0)?
+                else {
+                    return None;
+                };
+                let Value::Text(needle) =
+                    self.bridge_handle_argument(arguments, argument_tags, 1)?
+                else {
+                    return None;
+                };
+                let from = usize::try_from(arguments[2]).ok()?;
+                // A start past the end replays in the VM, which reports R_INDEX_BOUNDS.
+                return match guion_vm_core::text_find_scalar(text, needle, from)? {
+                    Some(index) => i64::try_from(index).ok(),
+                    None => Some(-1),
+                };
+            }
+            Op::TextSplit => {
+                if arguments.len() != 2 || argument_tags != [4, 4] || result_tag != 4 {
+                    return None;
+                }
+                let Value::Text(text) = self.bridge_handle_argument(arguments, argument_tags, 0)?
+                else {
+                    return None;
+                };
+                let Value::Text(delimiter) =
+                    self.bridge_handle_argument(arguments, argument_tags, 1)?
+                else {
+                    return None;
+                };
+                let fields: Vec<SharedText> = if delimiter.is_empty() {
+                    vec![SharedText::clone(text)]
+                } else {
+                    let offsets = guion_vm_core::text_match_offsets(
+                        text,
+                        delimiter,
+                        self.max_collection_items.saturating_sub(1),
+                    )?;
+                    let mut fields = Vec::with_capacity(offsets.len() + 1);
+                    let mut start = 0;
+                    for offset in offsets {
+                        fields.push(SharedText::from(&text[start..offset]));
+                        start = offset + delimiter.len();
+                    }
+                    fields.push(SharedText::from(&text[start..]));
+                    fields
+                };
+                return self.store_native_text_list(fields);
+            }
+            Op::TextReplace => {
+                if arguments.len() != 3 || argument_tags != [4, 4, 4] || result_tag != 4 {
+                    return None;
+                }
+                let Value::Text(text) = self.bridge_handle_argument(arguments, argument_tags, 0)?
+                else {
+                    return None;
+                };
+                let Value::Text(needle) =
+                    self.bridge_handle_argument(arguments, argument_tags, 1)?
+                else {
+                    return None;
+                };
+                let Value::Text(replacement) =
+                    self.bridge_handle_argument(arguments, argument_tags, 2)?
+                else {
+                    return None;
+                };
+                let count = if needle.is_empty() {
+                    0
+                } else {
+                    guion_vm_core::text_match_count(text, needle)
+                };
+                let value = if count == 0 {
+                    Value::Text(SharedText::clone(text))
+                } else {
+                    let total = (text.len() - count * needle.len())
+                        .saturating_add(count.saturating_mul(replacement.len()));
+                    if total > runtime.limits.max_text_bytes {
+                        return None;
+                    }
+                    let replaced =
+                        guion_vm_core::text_replace_all(text, needle, replacement, total);
+                    if !self.charge(total) {
+                        return None;
+                    }
+                    Value::Text(replaced)
+                };
+                self.values.try_reserve(1).ok()?;
+                return self.store_value(value);
+            }
+            Op::TextTrim => {
+                if arguments.len() != 1 || argument_tags != [4] || result_tag != 4 {
+                    return None;
+                }
+                let Value::Text(text) = self.bridge_handle_argument(arguments, argument_tags, 0)?
+                else {
+                    return None;
+                };
+                let trimmed = text.trim();
+                let value = if trimmed.len() == text.len() {
+                    Value::Text(SharedText::clone(text))
+                } else {
+                    let trimmed = SharedText::from(trimmed);
+                    if !self.charge(size_of::<String>().saturating_add(trimmed.len())) {
+                        return None;
+                    }
+                    Value::Text(trimmed)
+                };
+                self.values.try_reserve(1).ok()?;
+                return self.store_value(value);
+            }
+            Op::TextJoin => {
+                if arguments.len() != 2 || argument_tags != [4, 4] || result_tag != 4 {
+                    return None;
+                }
+                let Value::List(values) = self.materialize_native_value(arguments[0])? else {
+                    return None;
+                };
+                let Value::Text(delimiter) =
+                    self.bridge_handle_argument(arguments, argument_tags, 1)?
+                else {
+                    return None;
+                };
+                let joined = guion_vm_core::text_join_checked(
+                    &values,
+                    delimiter,
+                    runtime.limits.max_collection_items,
+                    runtime.limits.max_text_bytes,
+                )?;
+                if !self.charge(joined.len()) {
+                    return None;
+                }
+                return self.store_value(Value::Text(SharedText::from(joined)));
             }
             Op::JsonGet => {
                 if arguments.len() != 2 || argument_tags != [4, 4] || result_tag != 4 {
@@ -1945,10 +2096,8 @@ impl NativeListArena {
                     Ok(handle) => {
                         instance.finish_effect(effect, EffectOutcome::Returned);
                         let (owner, id) = handle.parts();
-                        Value::ResultOk(Box::new(Value::NativeResource(NativeResourceValue::new(
-                            "FileReader",
-                            owner,
-                            id,
+                        Value::ResultOk(Box::new(Value::NativeResource(Box::new(
+                            NativeResourceValue::new("FileReader", owner, id),
                         ))))
                     }
                     Err(error) => {
@@ -2159,7 +2308,7 @@ impl NativeListArena {
                     VmHost::host_op(
                         &mut *runtime.instance,
                         HostOpContext {
-                            instruction: instruction.clone(),
+                            instruction,
                             function,
                             stack: &mut stack,
                             locals: &mut locals,
@@ -2301,21 +2450,21 @@ impl NativeListArena {
                     }
                     Err(JsonDecodeError::Parse(error)) => (
                         native_backend::NATIVE_TAGGED_RESULT_ERR,
-                        Value::JsonError(JsonErrorValue {
+                        Value::JsonError(Box::new(JsonErrorValue {
                             code: "R_JSON_PARSE".into(),
                             message: error.to_string(),
                             line: error.line(),
                             column: error.column(),
-                        }),
+                        })),
                     ),
                     Err(JsonDecodeError::DuplicateKey { key, line, column }) => (
                         native_backend::NATIVE_TAGGED_RESULT_ERR,
-                        Value::JsonError(JsonErrorValue {
+                        Value::JsonError(Box::new(JsonErrorValue {
                             code: "R_JSON_DUPLICATE_KEY".into(),
                             message: format!("JSON object contains duplicate key `{key}`"),
                             line,
                             column,
-                        }),
+                        })),
                     ),
                 }
             }
@@ -2339,7 +2488,7 @@ impl NativeListArena {
                     Ok(value) => (native_backend::NATIVE_TAGGED_RESULT_OK, Value::Json(value)),
                     Err(error) => (
                         native_backend::NATIVE_TAGGED_RESULT_ERR,
-                        Value::JsonError(error),
+                        Value::JsonError(Box::new(error)),
                     ),
                 }
             }
@@ -2359,7 +2508,7 @@ impl NativeListArena {
                     ),
                     Err(error) => (
                         native_backend::NATIVE_TAGGED_RESULT_ERR,
-                        Value::JsonError(error),
+                        Value::JsonError(Box::new(error)),
                     ),
                 }
             }
@@ -2379,7 +2528,7 @@ impl NativeListArena {
                     Ok(_) => return None,
                     Err(error) => (
                         native_backend::NATIVE_TAGGED_RESULT_ERR,
-                        Value::JsonError(error),
+                        Value::JsonError(Box::new(error)),
                     ),
                 }
             }
@@ -2431,10 +2580,10 @@ impl NativeListArena {
         let result = match line {
             Ok(Some(line)) => {
                 Value::ResultOk(Box::new(Value::OptionSome(Box::new(Value::Record(
-                    "SourceLine".into(),
+                    source_line_record_name(),
                     Arc::new(vec![
                         Value::Int(BigInt::from_usize(line.number)),
-                        Value::Text(line.text.into()),
+                        Value::Text(line.text),
                     ]),
                 )))))
             }
@@ -2570,6 +2719,10 @@ impl NativeListArena {
             }
             3 if value == 0 => "false".to_owned(),
             3 if value == 1 => "true".to_owned(),
+            4 => match self.constant_value(value).or_else(|| self.value(value)) {
+                Some(Value::Text(text)) => text.to_string(),
+                _ => return false,
+            },
             _ => return false,
         };
         let bytes = rendered.len().saturating_add(1);
@@ -2759,6 +2912,7 @@ impl HostPolicy {
 
 pub struct Runtime {
     native_enabled: bool,
+    native_whole_program_entry: bool,
     runtime_profile_enabled: bool,
     runtime_profile_sampled: bool,
 }
@@ -2815,6 +2969,7 @@ impl Runtime {
     pub fn new() -> Self {
         Self {
             native_enabled: true,
+            native_whole_program_entry: false,
             runtime_profile_enabled: false,
             runtime_profile_sampled: false,
         }
@@ -2825,6 +2980,7 @@ impl Runtime {
     pub fn vm_only() -> Self {
         Self {
             native_enabled: false,
+            native_whole_program_entry: false,
             runtime_profile_enabled: false,
             runtime_profile_sampled: false,
         }
@@ -2832,6 +2988,13 @@ impl Runtime {
 
     /// Enable diagnostic execution counters for the latest guest invocation.
     /// This adds instrumentation and should be used only for untimed profiles.
+    /// The first function invoked is the only one this runtime will invoke, as for a program
+    /// run from its entry point, so nothing it cannot reach needs native code.
+    pub fn with_whole_program_entry(mut self) -> Self {
+        self.native_whole_program_entry = true;
+        self
+    }
+
     pub fn with_runtime_profile(mut self) -> Self {
         self.runtime_profile_enabled = true;
         self.runtime_profile_sampled = false;
@@ -2875,14 +3038,15 @@ impl Runtime {
         database_roots.extend(policy.file_root_aliases.values().cloned());
         let mut artifact = artifact;
         inline_host_forwarders(&mut artifact);
-        let fused = Arc::new(build_fused_tables(&artifact));
+        let registers = Arc::new(build_register_programs(&artifact));
         let artifact = share_artifact(artifact);
         Ok(Instance {
             artifact,
-            fused,
+            registers,
             native: None,
             native_code: None,
             native_enabled: self.native_enabled,
+            native_whole_program_entry: self.native_whole_program_entry,
             native_compile_attempted: false,
             runtime_profile_enabled: self.runtime_profile_enabled,
             runtime_profile_sampled: self.runtime_profile_sampled,
@@ -2891,6 +3055,7 @@ impl Runtime {
             native_deoptimizations: Arc::new(AtomicUsize::new(0)),
             native_deoptimization_sites: Arc::new(std::sync::Mutex::new(BTreeMap::new())),
             native_compilations: Arc::new(AtomicUsize::new(0)),
+            native_entry_copy_dominated: Vec::new(),
             readers: stdlib_data::FileReaderRegistry::new(
                 policy.max_file_bytes,
                 policy.max_file_bytes,
@@ -2923,10 +3088,11 @@ impl Runtime {
 #[derive(Debug)]
 pub struct Instance {
     artifact: Arc<Artifact>,
-    fused: Arc<Vec<Vec<FusedEntry>>>,
+    registers: Arc<RegisterPrograms>,
     native: Option<NativeBackend>,
     native_code: Option<Arc<NativeCode>>,
     native_enabled: bool,
+    native_whole_program_entry: bool,
     native_compile_attempted: bool,
     runtime_profile_enabled: bool,
     runtime_profile_sampled: bool,
@@ -2935,6 +3101,8 @@ pub struct Instance {
     native_deoptimizations: Arc<AtomicUsize>,
     native_deoptimization_sites: Arc<std::sync::Mutex<BTreeMap<(usize, usize), usize>>>,
     native_compilations: Arc<AtomicUsize>,
+    /// Per function, how many native entries copied far more list items than they used.
+    native_entry_copy_dominated: Vec<u8>,
     policy: HostPolicy,
     readers: stdlib_data::FileReaderRegistry,
     databases: stdlib_services::DatabaseRegistry,
@@ -2971,6 +3139,17 @@ impl HostPolicy {
 /// Replaces calls to tiny forwarding functions (`Load 0..n; <host operation>; Return`) with
 /// the host operation itself. Instruction indices, jump targets and spans are unchanged and
 /// the stack effect is identical, so the VM and the native backend both see the direct op.
+/// Readers build one of these records per row, so each name is allocated only once.
+fn source_line_record_name() -> guion_model::RecordName {
+    static NAME: std::sync::OnceLock<guion_model::RecordName> = std::sync::OnceLock::new();
+    NAME.get_or_init(|| "SourceLine".into()).clone()
+}
+
+fn csv_row_record_name() -> guion_model::RecordName {
+    static NAME: std::sync::OnceLock<guion_model::RecordName> = std::sync::OnceLock::new();
+    NAME.get_or_init(|| "CsvRow".into()).clone()
+}
+
 fn inline_host_forwarders(artifact: &mut Artifact) {
     let operations: Vec<Option<Op>> = artifact
         .functions
@@ -2978,6 +3157,7 @@ fn inline_host_forwarders(artifact: &mut Artifact) {
         .map(|function| {
             guion_vm_core::forwarded_host_operation(function)
                 .filter(|operation| !matches!(operation, Op::MakeSome | Op::MakeNone))
+                .or_else(|| forwarded_text_operation(function))
         })
         .collect();
     if operations.iter().all(Option::is_none) {
@@ -2992,6 +3172,30 @@ fn inline_host_forwarders(artifact: &mut Artifact) {
             }
         }
     }
+}
+
+/// The text operation a `std:text` wrapper such as `text_split` applies to its own
+/// parameters, when the function is exactly `Load 0..n; <operation>; Return`. Inlining it
+/// lets native callers use the operation directly instead of calling into the VM.
+fn forwarded_text_operation(function: &guion_model::Function) -> Option<Op> {
+    let arity = function.parameters.len();
+    let operation = &function.code.get(arity)?.op;
+    let expected = match operation {
+        Op::TextFind | Op::TextReplace => 3,
+        Op::TextSplit | Op::TextJoin => 2,
+        Op::TextTrim => 1,
+        _ => return None,
+    };
+    let loads_parameters = function.code[..arity]
+        .iter()
+        .enumerate()
+        .all(|(slot, instruction)| matches!(instruction.op, Op::Load(loaded) if loaded == slot));
+    (arity == expected
+        && function.local_count == arity
+        && function.code.len() == arity + 2
+        && loads_parameters
+        && matches!(function.code[arity + 1].op, Op::Return))
+    .then(|| operation.clone())
 }
 
 fn value_limit_error(value: &Value, policy: &HostPolicy, span: Span) -> Option<RuntimeError> {
@@ -3054,7 +3258,9 @@ fn http_response_text_value(
             "HTTP response exceeds the configured text byte limit",
         );
         error.trace.push(span);
-        return Ok(Value::ResultErr(Box::new(Value::HttpError(error))));
+        return Ok(Value::ResultErr(Box::new(Value::HttpError(Box::new(
+            error,
+        )))));
     }
     match std::str::from_utf8(body.as_ref()) {
         Ok(text) => {
@@ -3064,7 +3270,9 @@ fn http_response_text_value(
         Err(_) => {
             let mut error = http_error("R_HTTP_ENCODING", "HTTP response body is not valid UTF-8");
             error.trace.push(span);
-            Ok(Value::ResultErr(Box::new(Value::HttpError(error))))
+            Ok(Value::ResultErr(Box::new(Value::HttpError(Box::new(
+                error,
+            )))))
         }
     }
 }
@@ -3102,9 +3310,9 @@ fn std_error_record_value(
     Ok(Value::Record(
         record.name.clone(),
         Arc::new(vec![
-            Value::Text(Arc::from(code)),
-            Value::Text(Arc::from(message)),
-            Value::Text(Arc::from("")),
+            Value::Text(SharedText::from(code)),
+            Value::Text(SharedText::from(message)),
+            Value::Text(SharedText::from("")),
             Value::Int(BigInt::zero()),
             Value::Int(BigInt::zero()),
         ]),
@@ -3222,8 +3430,8 @@ impl VmHost for Instance {
         &self.artifact
     }
 
-    fn fused_tables(&self) -> Option<Arc<Vec<Vec<FusedEntry>>>> {
-        Some(Arc::clone(&self.fused))
+    fn register_programs(&self) -> Option<Arc<RegisterPrograms>> {
+        Some(Arc::clone(&self.registers))
     }
 
     fn limits(&self) -> VmLimits {
@@ -3280,7 +3488,6 @@ impl VmHost for Instance {
             budget,
             depth,
         } = context;
-        let budget = budget.clone();
         let _profile_timer = budget
             .runtime_profile
             .as_ref()
@@ -3500,7 +3707,9 @@ impl VmHost for Instance {
                         push_stack!(Value::ResultOk(Box::new(Value::from_list_items(results))))
                     }
                     Ok(Err(error)) => {
-                        push_stack!(Value::ResultErr(Box::new(Value::TaskError(error))))
+                        push_stack!(Value::ResultErr(Box::new(Value::TaskError(Box::new(
+                            error
+                        )))))
                     }
                     Err(mut error) => {
                         error.trace.push(instruction.span);
@@ -3900,7 +4109,9 @@ impl VmHost for Instance {
                         }
                         self.finish_effect(effect, EffectOutcome::ReturnedError);
                         error.trace.push(instruction.span);
-                        push_stack!(Value::ResultErr(Box::new(Value::HttpError(error))));
+                        push_stack!(Value::ResultErr(Box::new(Value::HttpError(Box::new(
+                            error
+                        )))));
                     }
                 }
             }
@@ -3925,7 +4136,9 @@ impl VmHost for Instance {
                                     "per-request timeout_ms must be a positive 64-bit integer",
                                 );
                                 error.trace.push(instruction.span);
-                                push_stack!(Value::ResultErr(Box::new(Value::HttpError(error))));
+                                push_stack!(Value::ResultErr(Box::new(Value::HttpError(
+                                    Box::new(error)
+                                ))));
                                 return Ok(());
                             }
                         },
@@ -3966,7 +4179,7 @@ impl VmHost for Instance {
                                     instruction.span,
                                 ));
                             };
-                            decoded.insert(name.clone(), value.to_string());
+                            decoded.insert(name.to_string(), value.to_string());
                         }
                         decoded
                     }
@@ -4053,7 +4266,7 @@ impl VmHost for Instance {
                                     self.finish_effect(effect, EffectOutcome::ReturnedError);
                                     error.trace.push(instruction.span);
                                     push_stack!(Value::ResultErr(Box::new(Value::HttpError(
-                                        error
+                                        Box::new(error)
                                     ))));
                                 }
                             }
@@ -4066,7 +4279,9 @@ impl VmHost for Instance {
                         }
                         self.finish_effect(effect, EffectOutcome::ReturnedError);
                         error.trace.push(instruction.span);
-                        push_stack!(Value::ResultErr(Box::new(Value::HttpError(error))));
+                        push_stack!(Value::ResultErr(Box::new(Value::HttpError(Box::new(
+                            error
+                        )))));
                     }
                 }
             }
@@ -4118,9 +4333,9 @@ impl VmHost for Instance {
                     Ok(handle) => {
                         self.finish_effect(effect, EffectOutcome::Returned);
                         let (owner, id) = handle.parts();
-                        push_stack!(Value::ResultOk(Box::new(Value::NativeResource(
+                        push_stack!(Value::ResultOk(Box::new(Value::NativeResource(Box::new(
                             NativeResourceValue::new("FileReader", owner, id),
-                        ))));
+                        )))));
                     }
                     Err(error) => {
                         self.finish_effect(effect, EffectOutcome::ReturnedError);
@@ -4165,10 +4380,10 @@ impl VmHost for Instance {
                     match self.readers.next_line(handle) {
                         Ok(Some(line)) => push_stack!(Value::ResultOk(Box::new(
                             Value::OptionSome(Box::new(Value::Record(
-                                "SourceLine".into(),
+                                source_line_record_name(),
                                 Arc::new(vec![
                                     Value::Int(BigInt::from_usize(line.number)),
-                                    Value::Text(line.text.into())
+                                    Value::Text(line.text)
                                 ]),
                             )))
                         ))),
@@ -4183,20 +4398,33 @@ impl VmHost for Instance {
                     }
                 } else {
                     match self.readers.next_csv(handle) {
-                        Ok(Some(row)) => push_stack!(Value::ResultOk(Box::new(Value::OptionSome(
-                            Box::new(Value::Record(
-                                "CsvRow".into(),
-                                Arc::new(vec![
-                                    Value::Int(BigInt::from_usize(row.start_line)),
-                                    Value::from_list_items(
-                                        row.fields
-                                            .into_iter()
-                                            .map(|field| Value::Text(field.into()))
-                                            .collect()
-                                    )
-                                ]),
-                            ))
-                        )))),
+                        Ok(Some(row)) => {
+                            let within_limits = self.policy.max_integer_digits >= 19
+                                && row.fields.len() <= self.policy.max_collection_items
+                                && row
+                                    .fields
+                                    .iter()
+                                    .all(|field| field.len() <= self.policy.max_text_bytes);
+                            let result = Value::ResultOk(Box::new(Value::OptionSome(Box::new(
+                                Value::Record(
+                                    csv_row_record_name(),
+                                    Arc::new(vec![
+                                        Value::Int(BigInt::from_usize(row.start_line)),
+                                        Value::from_list_items(
+                                            row.fields.into_iter().map(Value::Text).collect(),
+                                        ),
+                                    ]),
+                                ),
+                            ))));
+                            if !within_limits {
+                                if let Some(error) =
+                                    value_limit_error(&result, &self.policy, instruction.span)
+                                {
+                                    return Err(error);
+                                }
+                            }
+                            push_stack!(result);
+                        }
                         Ok(None) => push_stack!(Value::ResultOk(Box::new(Value::OptionNone))),
                         Err(error) => {
                             let (code, line, column, message) = match error {
@@ -4691,7 +4919,7 @@ impl VmHost for Instance {
                                     ),
                                 )
                             })
-                            .collect::<BTreeMap<_, _>>();
+                            .collect::<TextMap>();
                         let result = Value::Record(
                             "CliArgs".into(),
                             Arc::new(vec![
@@ -5014,7 +5242,9 @@ impl VmHost for Instance {
                     match host_file_path(&self.policy, &path, true, instruction.span) {
                         Ok(path) => self.databases.open(path).map(|handle| {
                             let (owner, id) = handle.parts();
-                            Value::NativeResource(NativeResourceValue::new("Db", owner, id))
+                            Value::NativeResource(Box::new(NativeResourceValue::new(
+                                "Db", owner, id,
+                            )))
                         }),
                         Err(error) => Err(stdlib_services::ServiceError::new(
                             "E_SQLITE_PATH",
@@ -5034,11 +5264,11 @@ impl VmHost for Instance {
                         let cancellation = budget.cancellation.cancelled.clone();
                         self.databases.set_cancelled(handle, cancellation)?;
                         let (owner, id) = handle.parts();
-                        Ok(Value::NativeResource(NativeResourceValue::new(
+                        Ok(Value::NativeResource(Box::new(NativeResourceValue::new(
                             "Transaction",
                             owner,
                             id,
-                        )))
+                        ))))
                     });
                 push_stack!(service_result_value(result));
             }
@@ -5145,7 +5375,11 @@ impl VmHost for Instance {
                 };
                 let result = self.toml_documents.parse(&source).map(|handle| {
                     let (owner, id) = handle.parts();
-                    Value::NativeResource(NativeResourceValue::new("TomlDocument", owner, id))
+                    Value::NativeResource(Box::new(NativeResourceValue::new(
+                        "TomlDocument",
+                        owner,
+                        id,
+                    )))
                 });
                 push_stack!(service_result_value(result));
             }
@@ -5182,7 +5416,7 @@ impl VmHost for Instance {
                 let (owner, id) =
                     runtime_service_resource(&pop!(), "TomlDocument", instruction.span)?;
                 let handle = stdlib_services::TomlHandle::from_parts(owner, id);
-                let result = match (instruction.op, replacement) {
+                let result = match (&instruction.op, replacement) {
                     (Op::TomlPutText, Value::Text(value)) => {
                         self.toml_documents.put_text(handle, &path, &value)
                     }
@@ -5772,7 +6006,7 @@ impl VmHost for Instance {
                     self.call_python(target, &call_args, &[], budget.as_ref(), instruction.span)?;
                 push_stack!(result);
             }
-            Op::PythonCallKw(target, positional_count, keyword_names) => {
+            Op::PythonCallKw(target, positional_count, ref keyword_names) => {
                 let mut supplied = Vec::with_capacity(positional_count + keyword_names.len());
                 for _ in 0..positional_count + keyword_names.len() {
                     supplied.push(pop!());
@@ -5780,7 +6014,8 @@ impl VmHost for Instance {
                 supplied.reverse();
                 let keyword_values = supplied.split_off(positional_count);
                 let call_kwargs = keyword_names
-                    .into_iter()
+                    .iter()
+                    .cloned()
                     .zip(keyword_values)
                     .collect::<Vec<_>>();
                 let result = self.call_python(
@@ -6030,25 +6265,25 @@ impl VmHost for Instance {
                 let value = match parsed {
                     Ok(value) => value,
                     Err(JsonDecodeError::Parse(error)) => {
-                        push_stack!(Value::ResultErr(Box::new(Value::JsonError(
+                        push_stack!(Value::ResultErr(Box::new(Value::JsonError(Box::new(
                             JsonErrorValue {
                                 code: "R_JSON_PARSE".into(),
                                 message: error.to_string(),
                                 line: error.line(),
                                 column: error.column(),
                             },
-                        ))));
+                        )))));
                         return Ok(());
                     }
                     Err(JsonDecodeError::DuplicateKey { key, line, column }) => {
-                        push_stack!(Value::ResultErr(Box::new(Value::JsonError(
+                        push_stack!(Value::ResultErr(Box::new(Value::JsonError(Box::new(
                             JsonErrorValue {
                                 code: "R_JSON_DUPLICATE_KEY".into(),
                                 message: format!("JSON object contains duplicate key `{key}`"),
                                 line,
                                 column,
                             },
-                        ))));
+                        )))));
                         return Ok(());
                     }
                 };
@@ -6357,7 +6592,9 @@ impl VmHost for Instance {
                         push_stack!(Value::ResultOk(Box::new(value)));
                     }
                     Err(error) => {
-                        push_stack!(Value::ResultErr(Box::new(Value::JsonError(error))))
+                        push_stack!(Value::ResultErr(Box::new(Value::JsonError(Box::new(
+                            error
+                        )))))
                     }
                 }
             }
@@ -6792,7 +7029,9 @@ impl VmHost for Instance {
                         instruction.span,
                     )?))),
                     Err(error) => {
-                        push_stack!(Value::ResultErr(Box::new(Value::JsonError(error,))))
+                        push_stack!(Value::ResultErr(Box::new(Value::JsonError(Box::new(
+                            error,
+                        )))))
                     }
                 }
             }
@@ -7001,7 +7240,7 @@ impl VmHost for Instance {
                     ));
                 }
             },
-            other => {
+            ref other => {
                 return Err(RuntimeError::new(
                     "R_HOST_UNSUPPORTED",
                     format!("instruction {other:?} is not implemented by the runtime host"),
@@ -7256,6 +7495,12 @@ impl Instance {
                         native_direct_text_slice as *const () as *const u8,
                         native_direct_json_set_local as *const () as *const u8,
                         native_direct_json_push_local as *const () as *const u8,
+                        native_direct_text_find as *const () as *const u8,
+                        native_direct_text_split as *const () as *const u8,
+                        native_direct_text_replace as *const () as *const u8,
+                        native_direct_text_trim as *const () as *const u8,
+                        native_direct_text_join as *const () as *const u8,
+                        native_direct_text_length as *const () as *const u8,
                     ],
                     make_record: native_direct_make_record as *const () as *const u8,
                     capture_vm_continuation: native_capture_vm_continuation as *const ()
@@ -7268,6 +7513,7 @@ impl Instance {
                     loop_safepoint: native_loop_safepoint as *const () as *const u8,
                 },
                 runtime_profile.is_some(),
+                self.native_whole_program_entry.then_some(index),
             );
             if let Some(native) = self.native.as_ref() {
                 self.native_code = Some(native.shared_code());
@@ -7458,7 +7704,28 @@ impl Instance {
         let artifact = Arc::clone(&self.artifact);
         let f = &artifact.functions[index];
         check_call_depth(&artifact, &self.policy.vm_limits(), index, depth)?;
-        if !allow_native {
+        // Entering native code copies every list argument into a fresh arena. A small
+        // function called from a VM loop with the same large list would pay that copy on
+        // every call, so once its entries are shown to be dominated by the copy, keep it in
+        // the VM. Results are identical in both tiers; only the cost changes.
+        let entry_list_items = args
+            .iter()
+            .map(|value| match value {
+                Value::List(items) => items.len(),
+                Value::Float64List(items) => items.len(),
+                _ => 0,
+            })
+            .sum::<usize>();
+        let large_entry = entry_list_items >= LIST_ITEMS_TRACKED_AT_ENTRY;
+        if !allow_native
+            || (large_entry
+                && self
+                    .native_entry_copy_dominated
+                    .get(index)
+                    .copied()
+                    .unwrap_or(0)
+                    >= COPY_DOMINATED_ENTRY_LIMIT)
+        {
             return Ok(FrameStart::Vm(new_vm_frame(
                 &artifact, index, args, depth, call_site,
             )));
@@ -7703,7 +7970,7 @@ impl Instance {
                     let texts = items
                         .iter()
                         .map(|value| match value {
-                            Value::Text(text) => Some(Arc::clone(text)),
+                            Value::Text(text) => Some(SharedText::clone(text)),
                             _ => None,
                         })
                         .collect::<Option<Vec<_>>>()?;
@@ -7716,6 +7983,7 @@ impl Instance {
         if let Some(native_args) = native_args {
             let native_code = self.native_code.clone();
             let call_depth_limit = self.policy.call_depth_limit;
+            let fuel_before = budget.remaining.load(Ordering::Relaxed);
             if let Some(mut outcome) = native_code.as_ref().and_then(|native| {
                 native.invoke(
                     index,
@@ -7728,6 +7996,25 @@ impl Instance {
             }) {
                 self.native_calls
                     .fetch_add(outcome.calls, Ordering::Relaxed);
+                if large_entry {
+                    let fuel_used =
+                        fuel_before.saturating_sub(budget.remaining.load(Ordering::Relaxed));
+                    if usize::try_from(fuel_used)
+                        .is_ok_and(|used| used.saturating_mul(4) < entry_list_items)
+                    {
+                        if self.native_entry_copy_dominated.len() <= index {
+                            self.native_entry_copy_dominated
+                                .resize(artifact.functions.len(), 0);
+                        }
+                        let count = &mut self.native_entry_copy_dominated[index];
+                        *count = count.saturating_add(1);
+                    }
+                }
+                // A native failure ends the program, so what it printed first must still reach
+                // the output, as it does in the VM. A plain deoptimization replays instead.
+                if outcome.status >= 2 || native_arena.host_error.is_some() {
+                    self.commit_native_output(&mut native_arena);
+                }
                 let fault_frame = self
                     .artifact
                     .functions
@@ -7980,7 +8267,7 @@ impl Instance {
                                     };
                                     fields.push(field);
                                 }
-                                Value::Record(name.clone(), Arc::new(fields))
+                                Value::Record(name.as_str().into(), Arc::new(fields))
                             }
                             _ => native_arena
                                 .materialize_native_value(outcome.value)
@@ -8360,7 +8647,7 @@ impl Instance {
         let next = Arc::new(AtomicUsize::new(worker_count));
         let cancelled = Arc::new(AtomicBool::new(false));
         let artifact = Arc::clone(&self.artifact);
-        let fused = Arc::clone(&self.fused);
+        let registers = Arc::clone(&self.registers);
         let policy = self.policy.clone();
         let native_enabled = self.native_enabled;
         let native_code = self.native_code.clone();
@@ -8386,7 +8673,7 @@ impl Instance {
             let next = next.clone();
             let cancelled = cancelled.clone();
             let artifact = artifact.clone();
-            let fused = fused.clone();
+            let registers = registers.clone();
             let policy = policy.clone();
             let values = values.clone();
             let budget = worker_budget.clone();
@@ -8420,10 +8707,11 @@ impl Instance {
                     database_roots.extend(policy.file_root_aliases.values().cloned());
                     let mut worker = Instance {
                         artifact: Arc::clone(&artifact),
-                        fused: Arc::clone(&fused),
+                        registers: Arc::clone(&registers),
                         native: None,
                         native_code: native_code.clone(),
                         native_enabled,
+                        native_whole_program_entry: false,
                         native_compile_attempted: false,
                         runtime_profile_enabled: false,
                         runtime_profile_sampled: false,
@@ -8431,6 +8719,7 @@ impl Instance {
                         native_calls: native_calls.clone(),
                         native_deoptimizations: native_deoptimizations.clone(),
                         native_deoptimization_sites: native_deoptimization_sites.clone(),
+                        native_entry_copy_dominated: Vec::new(),
                         native_compilations: native_compilations.clone(),
                         policy: policy.clone(),
                         http: http.clone(),
@@ -9385,6 +9674,36 @@ native_direct_operation_entry!(
     native_backend::NATIVE_BRIDGE_JSON_PUSH_LOCAL,
     3
 );
+native_direct_operation_entry!(
+    native_direct_text_find,
+    native_backend::NATIVE_BRIDGE_TEXT_FIND,
+    3
+);
+native_direct_operation_entry!(
+    native_direct_text_split,
+    native_backend::NATIVE_BRIDGE_TEXT_SPLIT,
+    2
+);
+native_direct_operation_entry!(
+    native_direct_text_replace,
+    native_backend::NATIVE_BRIDGE_TEXT_REPLACE,
+    3
+);
+native_direct_operation_entry!(
+    native_direct_text_trim,
+    native_backend::NATIVE_BRIDGE_TEXT_TRIM,
+    1
+);
+native_direct_operation_entry!(
+    native_direct_text_join,
+    native_backend::NATIVE_BRIDGE_TEXT_JOIN,
+    2
+);
+native_direct_operation_entry!(
+    native_direct_text_length,
+    native_backend::NATIVE_BRIDGE_TEXT_LENGTH,
+    1
+);
 unsafe extern "C" fn native_direct_make_record(
     arena: *mut NativeListArena,
     function_index: i64,
@@ -9590,11 +9909,11 @@ fn input_value_allocation(value: &Value) -> usize {
 }
 
 fn file_error_result(error: RuntimeError) -> Value {
-    Value::ResultErr(Box::new(Value::FileError(FileErrorValue {
+    Value::ResultErr(Box::new(Value::FileError(Box::new(FileErrorValue {
         code: error.code,
         message: error.message,
         trace: error.trace,
-    })))
+    }))))
 }
 
 fn runtime_reader_handle(
@@ -10373,7 +10692,7 @@ fn restore_reserved_shared_json_keys(value: &mut SharedJson, reserved_key: &str)
 pub(crate) fn escape_reserved_json_keys<'a>(source: &'a str) -> (Cow<'a, str>, Option<String>) {
     const RESERVED: &str = "$serde_json::private::Number";
     // The reserved key starts with `$` and can otherwise only appear through an escape.
-    if !source.contains(['$', '\\']) {
+    if memchr::memchr2(b'$', b'\\', source.as_bytes()).is_none() {
         return (Cow::Borrowed(source), None);
     }
     let bytes = source.as_bytes();
@@ -10601,11 +10920,11 @@ impl<'de> serde::de::Visitor<'de> for SharedJsonVisitor<'_> {
     }
 
     fn visit_str<E>(self, value: &str) -> Result<Self::Value, E> {
-        Ok(SharedJson::String(Arc::from(value)))
+        Ok(SharedJson::String(SharedText::from(value)))
     }
 
     fn visit_string<E>(self, value: String) -> Result<Self::Value, E> {
-        Ok(SharedJson::String(Arc::from(value)))
+        Ok(SharedJson::String(SharedText::from(value)))
     }
 
     fn visit_unit<E>(self) -> Result<Self::Value, E> {

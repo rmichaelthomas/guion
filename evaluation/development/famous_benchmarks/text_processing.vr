@@ -1,0 +1,28 @@
+import "std:text"
+
+fn main() -> Int:
+    let words = ["alpha", "beta", "café", "delta", "epsilon", "zeta", "eta", "theta"]
+    var lines: List[Text] = []
+    var index = 0
+    while index < 40000:
+        set lines = list_push(lines, "  " + words[index % 8] + ",{{name}}," + words[(index * 3) % 8] + " likes {{thing}}  ")
+        set index = index + 1
+    let document = text_join(lines, "\n")
+    let rows = text_split(document, "\n")
+    var total = 0
+    var row = 0
+    while row < len(rows):
+        let fields = text_split(rows[row], ",")
+        set total = total + len(text_trim(fields[0])) + len(text_trim(fields[2]))
+        set row = row + 1
+    let filled = text_replace(text_replace(document, "{{name}}", "Ada"), "{{thing}}", "tea")
+    var found = 0
+    var position = text_find(filled, "tea", 0)
+    while position >= 0:
+        set found = found + 1
+        set position = text_find(filled, "tea", position + 3)
+    print(len(rows))
+    print(total)
+    print(len(filled))
+    print(found)
+    return 0

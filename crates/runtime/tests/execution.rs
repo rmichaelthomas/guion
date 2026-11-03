@@ -6,6 +6,62 @@ use guion_runtime::{
 use std::time::Duration;
 
 #[test]
+fn text_append_to_a_local_grows_in_place_without_changing_shared_copies() {
+    let source = r#"fn build(count: Int) -> Text:
+    var s = ""
+    var index = 0
+    while index < count:
+        set s = s + "ab"
+        set index = index + 1
+    return s
+
+fn main() -> Int:
+    var s = "start"
+    let before = s
+    var kept: List[Text] = []
+    set s = s + "-one"
+    set kept = list_push(kept, s)
+    set s = s + "-two"
+    set s = s + s
+    let piece = "é"
+    var index = 0
+    while index < 3:
+        set s = s + piece
+        set index = index + 1
+    print(before)
+    print(kept[0])
+    print(s)
+    print(len(build(50000)))
+    return 0
+"#;
+    let artifact = compile("text-append.gu", source).expect("text append source compiles");
+    let mut native = Runtime::new()
+        .load(artifact.clone(), HostPolicy::default())
+        .expect("native runtime loads the artifact");
+    let mut vm = Runtime::vm_only()
+        .load(artifact, HostPolicy::default())
+        .expect("runtime loads the artifact");
+
+    native.invoke("main", vec![]).expect("native program runs");
+    vm.invoke("main", vec![]).expect("VM program runs");
+    let output = native.take_output();
+    assert_eq!(
+        output,
+        "start\nstart-one\nstart-one-twostart-one-twoééé\n100000\n"
+    );
+    assert_eq!(output, vm.take_output());
+    let compile_profile = native.native_compile_profile();
+    let build = compile_profile["rejected_functions"]
+        .as_array()
+        .expect("native compile profile lists rejected functions")
+        .iter()
+        .find(|function| function["name"] == "build")
+        .expect("text append loop stays in the VM")
+        .clone();
+    assert_eq!(build["reason_code"], "text_append_to_local");
+}
+
+#[test]
 fn text_length_and_index_use_unicode_scalar_positions() {
     let source =
         "fn main() -> Int:\n    print(len(\"a🙂é\"))\n    print(\"a🙂é\"[1])\n    return 0\n";
@@ -17,6 +73,298 @@ fn text_length_and_index_use_unicode_scalar_positions() {
     instance.invoke("main", vec![]).expect("program runs");
 
     assert_eq!(instance.take_output(), "3\n🙂\n");
+}
+
+#[test]
+fn text_print_compiles_natively_and_matches_the_vm() {
+    let source = "fn main() -> Int:\n    var total = 0\n    var index = 0\n    while index < 1000:\n        set total = total + index % 3\n        set index = index + 1\n    print(\"a🙂é\")\n    print(\"\")\n    print(\"total \" + json_stringify(json_int(total)))\n    return 0\n";
+    let artifact = compile("text-print.gu", source).expect("text print source compiles");
+    let mut native = Runtime::new()
+        .load(artifact.clone(), HostPolicy::default())
+        .expect("native runtime loads the artifact");
+    let mut vm = Runtime::vm_only()
+        .load(artifact, HostPolicy::default())
+        .expect("runtime loads the artifact");
+
+    native.invoke("main", vec![]).expect("native program runs");
+    vm.invoke("main", vec![]).expect("VM program runs");
+    let output = native.take_output();
+    assert_eq!(output, "a🙂é\n\ntotal 999\n");
+    assert_eq!(output, vm.take_output());
+    assert!(
+        native
+            .native_function_names()
+            .iter()
+            .any(|name| name == "main"),
+        "{}",
+        native.native_compile_profile()
+    );
+    assert_eq!(native.native_deoptimizations(), 0);
+}
+
+/// The register form must not be observable: both VM paths have to agree on the result, the
+/// output, and the error with its location and remaining budget at every limit.
+#[test]
+fn register_form_matches_the_stack_interpreter_at_every_limit() {
+    let source = r#"import "std:json"
+
+record Item:
+    name: Text
+    count: Int
+
+fn pick(flag: Bool) -> Option[Int]:
+    if flag:
+        return Some(7)
+    return None
+
+fn checked(value: Int) -> Result[Int, Text]:
+    if value < 0:
+        return Err("negative")
+    return Ok(value * 2)
+
+fn main() -> Int:
+    var counts: Map[Text, Int] = {}
+    var seen: List[Text] = []
+    var total = 0
+    var ratio = 1.5
+    var index = 0
+    let names = ["a", "bb", "a", "ccc", "bb", "a"]
+    while index < len(names):
+        let name = names[index]
+        if not map_has(counts, name):
+            set counts = map_set(counts, name, 0)
+            set seen = list_push(seen, name)
+        set counts = map_set(counts, name, counts[name] + index)
+        set total = total + counts[name] * 2 - 1
+        set ratio = ratio * 1.25 - 0.5
+        set index = index + 1
+    let item = Item("tool", total)
+    let shadow = item
+    if shadow.name == "tool" and shadow.count != 0 and item.name != "":
+        set total = total + shadow.count
+    let some = pick(total > 3)
+    let none = pick(total < 3)
+    if is_some(some) and not is_some(none):
+        set total = total + unwrap(some)
+    let good = checked(total)
+    let bad = checked(0 - total)
+    if is_ok(good) and not is_ok(bad):
+        set total = total + unwrap(good)
+    let record = json_parse("{\"id\": 41, \"name\": \"nine\", \"big\": 123456789012345678901234567890, \"tag\": [1]}")
+    if is_ok(record):
+        let document = unwrap(record)
+        let id = json_int_safe(unwrap(json_get_safe(document, "id")))
+        let name = json_text_safe(unwrap(json_get_safe(document, "name")))
+        let held = json_get_safe(document, "name")
+        let held_text = json_text_safe(unwrap(held))
+        let number = json_get_safe(document, "id")
+        let held_int = json_int_safe(unwrap(number))
+        let huge = json_int_safe(unwrap(json_get_safe(document, "big")))
+        let wrong = json_int_safe(unwrap(json_get_safe(document, "name")))
+        let missing = json_get_safe(document, "absent")
+        if is_ok(id) and is_ok(name) and is_ok(held_text) and is_ok(held_int) and not is_ok(wrong) and not is_ok(missing):
+            set total = total + unwrap(id) + unwrap(held_int)
+            print(unwrap(name) + unwrap(held_text))
+        print(is_ok(huge))
+    print(seen[0] + seen[len(seen) - 1])
+    print(total)
+    print(ratio)
+    let last = names[total - total + 5]
+    print(last)
+    print(counts["missing" + last])
+    return total
+"#;
+    let project_root = std::env::temp_dir().join(format!(
+        "guion-register-exact-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    std::fs::create_dir_all(&project_root).unwrap();
+    let entry = project_root.join("main.gu");
+    std::fs::write(&entry, source).unwrap();
+    let stdlib_root =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../language/stdlib");
+    let artifact = compile_project_with_roots(
+        &entry,
+        &project_root,
+        Some(&stdlib_root),
+        &std::collections::HashMap::new(),
+    )
+    .expect("source compiles");
+    let _ = std::fs::remove_dir_all(&project_root);
+    let run = |plain: bool, instructions: u64, bytes: usize| {
+        let policy = HostPolicy {
+            instruction_limit: instructions,
+            allocation_limit_bytes: bytes,
+            ..HostPolicy::default()
+        };
+        let runtime = if plain {
+            // Profiled runs do not use the register form.
+            Runtime::vm_only().with_runtime_profile()
+        } else {
+            Runtime::vm_only()
+        };
+        let mut instance = runtime.load(artifact.clone(), policy).expect("loads");
+        let result = instance.invoke("main", vec![]);
+        (format!("{result:?}"), instance.take_output())
+    };
+    let (finished, output) = run(false, 1_000_000, 1 << 24);
+    assert!(
+        finished.contains("R_MAP_KEY_MISSING"),
+        "the program ends on its deliberate error: {finished}"
+    );
+    assert!(output.contains("ninenine"), "{output}");
+    assert_eq!(run(true, 1_000_000, 1 << 24), (finished, output));
+    let mut stopped_by_fuel = 0;
+    for instructions in 0..1200 {
+        let plain = run(true, instructions, 1 << 24);
+        stopped_by_fuel += usize::from(plain.0.contains("R_STEP_LIMIT"));
+        assert_eq!(plain, run(false, instructions, 1 << 24), "{instructions}");
+    }
+    assert!(stopped_by_fuel > 200, "{stopped_by_fuel}");
+    let mut stopped_by_bytes = 0;
+    for bytes in (0..3000).step_by(3) {
+        let plain = run(true, 1_000_000, bytes);
+        stopped_by_bytes += usize::from(plain.0.contains("R_ALLOCATION_LIMIT"));
+        assert_eq!(plain, run(false, 1_000_000, bytes), "{bytes}");
+    }
+    assert!(stopped_by_bytes > 100, "{stopped_by_bytes}");
+}
+
+#[test]
+fn csv_rows_over_the_limits_fail_the_same_on_both_vm_paths() {
+    let source = "import \"std:csv\"\n\nfn main() -> Int:\n    let reader = unwrap(csv_open_reader(\"rows.csv\"))\n    var rows = 0\n    var done = false\n    while not done:\n        let next = unwrap(csv_next_row(reader))\n        if is_some(next):\n            set rows = rows + len(unwrap(next).fields)\n        else:\n            set done = true\n    return rows\n";
+    let root = std::env::temp_dir().join(format!(
+        "guion-csv-limits-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    std::fs::create_dir_all(&root).unwrap();
+    let entry = root.join("main.gu");
+    std::fs::write(&entry, source).unwrap();
+    std::fs::write(root.join("rows.csv"), "a,b\nc,d,e\nlonger,f\n").unwrap();
+    let stdlib_root =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../language/stdlib");
+    let artifact = compile_project_with_roots(
+        &entry,
+        &root,
+        Some(&stdlib_root),
+        &std::collections::HashMap::new(),
+    )
+    .expect("source compiles");
+    let run = |plain: bool, text: usize, items: usize, digits: usize| {
+        let policy = HostPolicy {
+            max_text_bytes: text,
+            max_collection_items: items,
+            max_integer_digits: digits,
+            ..HostPolicy::default()
+        }
+        .with_file_access(root.clone(), true, false);
+        let runtime = if plain {
+            Runtime::vm_only().with_runtime_profile()
+        } else {
+            Runtime::vm_only()
+        };
+        let mut instance = runtime.load(artifact.clone(), policy).expect("loads");
+        format!("{:?}", instance.invoke("main", vec![]))
+    };
+    for (text, items, digits, expected) in [
+        (1000, 1000, 100, "7"),
+        (3, 1000, 100, "R_TEXT_LIMIT"),
+        (1000, 2, 100, "R_COLLECTION_LIMIT"),
+        (1000, 1000, 1, "7"),
+    ] {
+        let register = run(false, text, items, digits);
+        assert!(register.contains(expected), "{register}");
+        assert_eq!(run(true, text, items, digits), register);
+    }
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+#[test]
+fn integer_division_in_the_register_form_matches_the_stack_interpreter() {
+    let source = "fn main() -> Int:\n    let lowest = 0 - 9223372036854775807 - 1\n    let values = [7, 0 - 7, 6, 0 - 6, 0, 1, 0 - 1, lowest, 9223372036854775807]\n    var left = 0\n    while left < len(values):\n        var right = 0\n        while right < len(values):\n            if values[right] != 0:\n                print(values[left] / values[right])\n                print(values[left] // values[right])\n                print(values[left] % values[right])\n            set right = right + 1\n        set left = left + 1\n    print(lowest / (0 - 1))\n    print(lowest // (0 - 1))\n    print(lowest % (0 - 1))\n    print(left % (left - left))\n    return 0\n";
+    let artifact = compile("division.gu", source).expect("source compiles");
+    let run = |runtime: Runtime| {
+        let mut instance = runtime
+            .load(artifact.clone(), HostPolicy::default())
+            .expect("loads");
+        let result = instance.invoke("main", vec![]);
+        (format!("{result:?}"), instance.take_output())
+    };
+    let registers = run(Runtime::vm_only());
+    assert!(registers.0.contains("R_DIV_ZERO"), "{}", registers.0);
+    assert!(
+        registers.1.contains("9223372036854775808"),
+        "the lowest integer over -1 does not fit in 64 bits: {}",
+        registers.1
+    );
+    // Profiled runs do not use the register form.
+    assert_eq!(run(Runtime::vm_only().with_runtime_profile()), registers);
+}
+
+#[test]
+fn map_order_is_sorted_by_key_however_it_was_built() {
+    let source = "fn main() -> Int:\n    var values: Map[Text, Int] = {}\n    let keys = [\"pear\", \"apple\", \"zebra\", \"mango\", \"é\", \"\", \"Apple\", \"a\", \"ab\"]\n    var index = 0\n    while index < len(keys):\n        set values = map_set(values, keys[index], index)\n        set index = index + 1\n    set values = map_set(values, \"pear\", 40)\n    for name in values:\n        print(\"[\" + name + \"]\")\n        print(values[name])\n    print(values)\n    return 0\n";
+    let artifact = compile("map-order.gu", source).expect("source compiles");
+    let mut instance = Runtime::vm_only()
+        .load(artifact, HostPolicy::default())
+        .expect("loads");
+    instance.invoke("main", vec![]).expect("runs");
+    let output = instance.take_output();
+    let names: Vec<&str> = output
+        .lines()
+        .filter(|line| line.starts_with('['))
+        .collect();
+    assert_eq!(
+        names,
+        ["[]", "[Apple]", "[a]", "[ab]", "[apple]", "[mango]", "[pear]", "[zebra]", "[é]"]
+    );
+    assert!(output.contains("40"), "{output}");
+    let rendered = output.lines().last().unwrap();
+    let order =
+        ["Apple", "apple", "mango", "pear", "zebra"].map(|key| rendered.find(key).expect(key));
+    assert!(order.windows(2).all(|pair| pair[0] < pair[1]), "{rendered}");
+}
+
+#[test]
+fn native_failure_keeps_output_printed_before_it() {
+    for (source, expected) in [
+        ("fn main() -> Int:\n    print(7)\n    return 1 / 0\n", "7\n"),
+        (
+            "fn main() -> Int:\n    var index = 0\n    while index < 3:\n        set index = index + 1\n    print(\"before\")\n    return 1 / 0\n",
+            "before\n",
+        ),
+    ] {
+        let artifact = compile("print-then-fail.gu", source).expect("source compiles");
+        let mut native = Runtime::new()
+            .load(artifact.clone(), HostPolicy::default())
+            .expect("native runtime loads");
+        let mut vm = Runtime::vm_only()
+            .load(artifact, HostPolicy::default())
+            .expect("VM runtime loads");
+        assert_eq!(
+            native.invoke("main", vec![]).unwrap_err().code,
+            "R_DIV_ZERO"
+        );
+        assert_eq!(vm.invoke("main", vec![]).unwrap_err().code, "R_DIV_ZERO");
+        assert_eq!(native.take_output(), expected);
+        assert_eq!(vm.take_output(), expected);
+        assert!(
+            native
+                .native_function_names()
+                .iter()
+                .any(|name| name == "main"),
+            "{}",
+            native.native_compile_profile()
+        );
+    }
 }
 
 #[test]
@@ -50,6 +398,207 @@ fn text_slice_uses_unicode_scalar_half_open_bounds() {
 }
 
 #[test]
+fn native_text_search_matches_scalar_semantics() {
+    let source = "fn main() -> Int:\n    assert(text_find(\"a🙂b🙂\", \"🙂\", 0) == 1)\n    assert(text_find(\"a🙂b🙂\", \"🙂\", 2) == 3)\n    assert(text_find(\"a🙂b🙂\", \"x\", 0) == -1)\n    assert(text_find(\"abcabc\", \"bc\", 2) == 4)\n    assert(text_find(\"abc\", \"\", 3) == 3)\n    assert(text_find(\"\", \"a\", 0) == -1)\n    let fields = text_split_native(\"|α||🙂|\", \"|\")\n    assert(len(fields) == 5)\n    assert(fields[1] == \"α\" and fields[2] == \"\" and fields[3] == \"🙂\" and fields[4] == \"\")\n    assert(len(text_split_native(\"aaaa\", \"aa\")) == 3)\n    assert(text_split_native(\"abc\", \"\")[0] == \"abc\")\n    assert(len(text_split_native(\"\", \",\")) == 1)\n    assert(text_replace_native(\"αββ\", \"β\", \"X\") == \"αXX\")\n    assert(text_replace_native(\"aaa\", \"aa\", \"b\") == \"ba\")\n    assert(text_replace_native(\"abc\", \"\", \"x\") == \"abc\")\n    assert(text_trim_native(\"\\u{3000} hi \\u{00a0}\\n\") == \"hi\")\n    assert(text_trim_native(\" \\t\") == \"\")\n    return 0\n\nfn find_past_end() -> Int:\n    return text_find(\"ab\", \"a\", 3)\n";
+    let artifact = compile("text-search.gu", source).expect("text search source compiles");
+    for runtime in [Runtime::new(), Runtime::vm_only()] {
+        let mut instance = runtime
+            .load(artifact.clone(), HostPolicy::default())
+            .expect("runtime loads the artifact");
+        assert_eq!(
+            instance.invoke("main", vec![]).expect("program runs"),
+            Value::Int(BigInt::from_i64(0))
+        );
+        assert_eq!(
+            instance
+                .invoke("find_past_end", vec![])
+                .expect_err("a start past the end is rejected")
+                .code,
+            "R_INDEX_BOUNDS"
+        );
+    }
+}
+
+#[test]
+fn native_text_operations_match_the_vm() {
+    let source = "fn text_split(value: Text, delimiter: Text) -> List[Text]:\n    return text_split_native(value, delimiter)\n\nfn text_trim(value: Text) -> Text:\n    return text_trim_native(value)\n\nfn text_replace(value: Text, needle: Text, replacement: Text) -> Text:\n    return text_replace_native(value, needle, replacement)\n\nfn text_join(values: List[Text], delimiter: Text) -> Text:\n    return text_join_native(values, delimiter)\n\nfn fields(row: Text) -> Int:\n    let parts = text_split(row, \",\")\n    return len(text_trim(parts[0])) + len(parts) * 100\n\nfn fill(template: Text) -> Text:\n    return text_replace(text_replace(template, \"{{name}}\", \"Ada\"), \"{{x}}\", \"é\")\n\nfn rejoin(row: Text) -> Text:\n    return text_join(text_split(row, \",\"), \"|\")\n\nfn count(text: Text, needle: Text) -> Int:\n    var found = 0\n    var position = text_find(text, needle, 0)\n    while position >= 0:\n        set found = found + 1\n        set position = text_find(text, needle, position + 1)\n    return found\n\nfn find_past_end(text: Text) -> Int:\n    return text_find(text, \"a\", len(text) + 1)\n\nfn main() -> Int:\n    return 0\n";
+    let artifact = compile("native-text-ops.gu", source).expect("text operations compile");
+    let mut native = Runtime::new()
+        .load(artifact.clone(), HostPolicy::default())
+        .expect("native runtime loads the artifact");
+    let mut vm = Runtime::vm_only()
+        .load(artifact, HostPolicy::default())
+        .expect("runtime loads the artifact");
+    let long = "aé🙂b".repeat(3000);
+    let cases = [
+        ("fields", vec![Value::Text("  α  ,b,,c".into())]),
+        (
+            "fill",
+            vec![Value::Text("{{name}} {{x}}{{x}} {{nam".into())],
+        ),
+        ("fill", vec![Value::Text("unchanged".into())]),
+        ("rejoin", vec![Value::Text("a,,é,".into())]),
+        (
+            "count",
+            vec![Value::Text(long.as_str().into()), Value::Text("🙂".into())],
+        ),
+        (
+            "count",
+            vec![Value::Text(long.as_str().into()), Value::Text("éx".into())],
+        ),
+    ];
+    for (function, arguments) in cases {
+        assert_eq!(
+            native
+                .invoke(function, arguments.clone())
+                .expect("native call runs"),
+            vm.invoke(function, arguments).expect("VM call runs"),
+            "{function}"
+        );
+    }
+    let names = native.native_function_names();
+    for function in ["fields", "fill", "rejoin", "count"] {
+        assert!(
+            names.iter().any(|name| name == function),
+            "{function} is not native: {}",
+            native.native_compile_profile()
+        );
+    }
+    assert_eq!(native.native_deoptimizations(), 0);
+
+    let arguments = vec![Value::Text("abc".into())];
+    let native_error = native
+        .invoke("find_past_end", arguments.clone())
+        .expect_err("a start past the end is rejected");
+    let vm_error = vm
+        .invoke("find_past_end", arguments)
+        .expect_err("a start past the end is rejected");
+    assert_eq!(native_error.code, "R_INDEX_BOUNDS");
+    assert_eq!(native_error.code, vm_error.code);
+    assert_eq!(native.native_deoptimizations(), 1);
+}
+
+#[test]
+fn native_text_split_and_join_charge_the_same_allocation_as_the_vm() {
+    let source = "fn split_join(row: Text) -> Text:\n    return text_join_native(text_split_native(row, \",\"), \"|\")\n\nfn main() -> Int:\n    return 0\n";
+    let artifact = compile("native-text-split-allocation.gu", source).unwrap();
+    let input = vec![Value::Text("a,bb,ccc".into())];
+    let outcome = |runtime: Runtime, limit: usize| {
+        runtime
+            .load(
+                artifact.clone(),
+                HostPolicy {
+                    allocation_limit_bytes: limit,
+                    ..HostPolicy::default()
+                },
+            )
+            .unwrap()
+            .invoke("split_join", input.clone())
+            .map_err(|error| error.code)
+    };
+    let mut limit = 1;
+    while outcome(Runtime::vm_only(), limit).is_err() {
+        limit += 1;
+    }
+    assert_eq!(
+        outcome(Runtime::new(), limit),
+        Ok(Value::Text("a|bb|ccc".into()))
+    );
+    assert_eq!(
+        outcome(Runtime::new(), limit - 1),
+        Err("R_ALLOCATION_LIMIT".to_string())
+    );
+}
+
+#[test]
+fn text_find_seeks_scalar_indices_in_long_unicode_text() {
+    let source = "fn main() -> Int:\n    var parts: List[Text] = []\n    var index = 0\n    while index < 3000:\n        set parts = list_push(parts, \"é-ab\")\n        set index = index + 1\n    let text = text_join_native(parts, \"\")\n    var found = 0\n    var position = text_find(text, \"ab\", 0)\n    while position >= 0:\n        assert(position % 4 == 2)\n        set found = found + 1\n        set position = text_find(text, \"ab\", position + 2)\n    assert(text_find(text, \"ab\", 8001) == 8002)\n    assert(text_find(text, \"é\", 11999) == -1)\n    assert(text_find(text, \"x\", 12000) == -1)\n    return found\n\nfn find_past_end() -> Int:\n    var parts: List[Text] = []\n    var index = 0\n    while index < 3000:\n        set parts = list_push(parts, \"é-ab\")\n        set index = index + 1\n    return text_find(text_join_native(parts, \"\"), \"ab\", 12001)\n";
+    let artifact = compile("text-find-long.gu", source).expect("long text search compiles");
+    for runtime in [Runtime::new(), Runtime::vm_only()] {
+        let mut instance = runtime
+            .load(artifact.clone(), HostPolicy::default())
+            .expect("runtime loads the artifact");
+        assert_eq!(
+            instance.invoke("main", vec![]).expect("program runs"),
+            Value::Int(BigInt::from_i64(3000))
+        );
+        assert_eq!(
+            instance
+                .invoke("find_past_end", vec![])
+                .expect_err("a start past the end is rejected")
+                .code,
+            "R_INDEX_BOUNDS"
+        );
+    }
+}
+
+#[test]
+fn vm_callers_keep_copy_dominated_native_entries_in_the_vm() {
+    // `main` stays in the VM (it pushes onto a local list); `first_is` is native, does
+    // constant work, and would otherwise copy the whole list on every call.
+    let source = "fn first_is(values: List[Text], expected: Text) -> Bool:\n    return values[0] == expected\n\nfn main() -> Int:\n    var values: List[Text] = []\n    var index = 0\n    while index < 5000:\n        set values = list_push(values, \"x\")\n        set index = index + 1\n    var hits = 0\n    var call = 0\n    while call < 200:\n        if first_is(values, \"x\"):\n            set hits = hits + 1\n        set call = call + 1\n    return hits\n";
+    let artifact = compile("entry-cost.gu", source).expect("entry-cost source compiles");
+    let mut native = Runtime::new()
+        .load(artifact.clone(), HostPolicy::default())
+        .expect("native runtime loads the artifact");
+    let mut vm = Runtime::vm_only()
+        .load(artifact, HostPolicy::default())
+        .expect("runtime loads the artifact");
+    assert_eq!(
+        native.invoke("main", vec![]).expect("native program runs"),
+        Value::Int(BigInt::from_i64(200))
+    );
+    assert_eq!(
+        vm.invoke("main", vec![]).expect("VM program runs"),
+        Value::Int(BigInt::from_i64(200))
+    );
+    assert!(
+        native
+            .native_function_names()
+            .iter()
+            .any(|name| name == "first_is"),
+        "{}",
+        native.native_compile_profile()
+    );
+    assert!(
+        native.native_calls() < 50,
+        "copy-dominated entries kept entering native code: {}",
+        native.native_calls()
+    );
+}
+
+#[test]
+fn list_push_and_in_place_set_keep_item_limits() {
+    let source = "fn main() -> Int:\n    var values: List[Text] = []\n    var index = 0\n    while index < 20000:\n        set values = list_push(values, \"x\")\n        set index = index + 1\n    set values = list_set(values, 3, \"y\")\n    return len(values)\n\nfn oversized() -> Int:\n    var values: List[Text] = [\"a\"]\n    set values = list_push(values, \"abcdefgh\")\n    return len(values)\n";
+    let artifact = compile("list-push-limits.gu", source).expect("list push source compiles");
+    let policy = HostPolicy {
+        instruction_limit: 10_000_000,
+        ..HostPolicy::default()
+    };
+    let mut vm = Runtime::vm_only()
+        .load(artifact.clone(), policy)
+        .expect("runtime loads the artifact");
+    assert_eq!(
+        vm.invoke("main", vec![]).expect("program runs"),
+        Value::Int(BigInt::from_i64(20000))
+    );
+    let policy = HostPolicy {
+        max_text_bytes: 4,
+        ..HostPolicy::default()
+    };
+    let mut limited = Runtime::vm_only()
+        .load(artifact, policy)
+        .expect("runtime loads the artifact");
+    assert_eq!(
+        limited
+            .invoke("oversized", vec![])
+            .expect_err("an oversized pushed text is rejected")
+            .code,
+        "R_TEXT_LIMIT"
+    );
+}
+
+#[test]
 fn text_slice_rejects_invalid_scalar_ranges() {
     let source = "fn invalid_slice() -> Text:\n    return text_slice(\"abc\", 2, 1)\n\nfn main() -> Int:\n    return 0\n";
     let artifact = compile("text-slice-range.gu", source).expect("text_slice source compiles");
@@ -80,9 +629,11 @@ fn text_slice_rejects_invalid_scalar_ranges() {
 fn native_text_slice_preserves_allocation_charges_and_full_slice_reuse() {
     let source = "fn full_slice() -> Text:\n    return text_slice(\"a🙂é\", 0, 3)\n\nfn partial_slice() -> Text:\n    return text_slice(\"a🙂é\", 1, 3)\n\nfn main() -> Int:\n    return 0\n";
     let artifact = compile("native-text-slice-allocation.gu", source).unwrap();
-    let literal_allocation = std::mem::size_of::<String>() + "a🙂é".len();
+    // The full slice reuses the shared literal and allocates nothing; the partial slice
+    // allocates a new text, one byte more than the limit allows.
+    let partial_allocation = std::mem::size_of::<String>() + "🙂é".len();
     let policy = HostPolicy {
-        allocation_limit_bytes: literal_allocation,
+        allocation_limit_bytes: partial_allocation - 1,
         ..HostPolicy::default()
     };
     let mut native = Runtime::new()
@@ -449,7 +1000,9 @@ fn vm_text_chars_concat_fast_path_preserves_allocation_limit_outcomes() {
     let fallback_artifact = compile("text-chars-allocation-fallback.gu", fallback_source)
         .expect("fallback allocation fixture compiles");
 
-    for allocation_limit_bytes in [0, 100, 256, 512, 1024, 4096] {
+    // The fallback's extra `+ ""` shifts its charges after byte 505, so limits between 506 and
+    // 587 legitimately stop the two programs at different points.
+    for allocation_limit_bytes in [0, 100, 256, 505, 1024, 4096] {
         let run = |artifact: &guion_model::Artifact| {
             let mut instance = Runtime::vm_only()
                 .load(
@@ -1077,7 +1630,7 @@ fn text_chars_reuses_immutable_storage_for_ascii_scalars() {
         panic!("text_chars must return text values");
     };
 
-    assert!(std::sync::Arc::ptr_eq(first, second));
+    assert!(guion_model::SharedText::ptr_eq(first, second));
 }
 
 #[test]
@@ -3369,12 +3922,14 @@ fn native_backend_keeps_json_result_tag_checks_in_the_native_tier_by_default() {
         native
             .invoke("get_text_field", vec![missing_json.clone()])
             .unwrap(),
-        Value::ResultErr(Box::new(Value::JsonError(guion_model::JsonErrorValue {
-            code: "E_JSON_MISSING".into(),
-            message: "JSON object has no key `name`".into(),
-            line: 0,
-            column: 0,
-        })))
+        Value::ResultErr(Box::new(Value::JsonError(Box::new(
+            guion_model::JsonErrorValue {
+                code: "E_JSON_MISSING".into(),
+                message: "JSON object has no key `name`".into(),
+                line: 0,
+                column: 0,
+            }
+        ))))
     );
     assert_eq!(
         native
@@ -3386,12 +3941,14 @@ fn native_backend_keeps_json_result_tag_checks_in_the_native_tier_by_default() {
         native
             .invoke("parse_integer", vec![text_json.clone()])
             .unwrap(),
-        Value::ResultErr(Box::new(Value::JsonError(guion_model::JsonErrorValue {
-            code: "E_JSON_TYPE".into(),
-            message: "expected a JSON integer".into(),
-            line: 0,
-            column: 0,
-        })))
+        Value::ResultErr(Box::new(Value::JsonError(Box::new(
+            guion_model::JsonErrorValue {
+                code: "E_JSON_TYPE".into(),
+                message: "expected a JSON integer".into(),
+                line: 0,
+                column: 0,
+            }
+        ))))
     );
     for (function, argument) in [
         ("get_text_field", object_json.clone()),
@@ -5135,8 +5692,9 @@ fn runtime_enforces_a_configurable_integer_size_limit() {
 fn allocation_limit_is_shared_across_nested_calls_and_resets_per_invocation() {
     let source = "fn churn(rounds: Int) -> Int:\n    var i = 0\n    while i < rounds:\n        let text = \"12345678\" + \"abcdefgh\"\n        set i = i + 1\n    return 0\n\nfn main() -> Int:\n    return churn(20)\n";
     let artifact = compile("allocation-limit.gu", source).unwrap();
+    // Each round's concatenation allocates a fresh 16-byte text; the literals are shared.
     let policy = HostPolicy {
-        allocation_limit_bytes: 2048,
+        allocation_limit_bytes: 512,
         ..HostPolicy::default()
     };
     let mut instance = Runtime::new().load(artifact, policy).unwrap();
@@ -5232,8 +5790,9 @@ fn allocation_limit_accounts_for_print_rendering() {
     let payload = "a".repeat(900_000);
     let source = format!("fn main() -> Int:\n    print(\"{payload}\")\n    return 0\n");
     let artifact = compile("print-allocation-limit.gu", &source).unwrap();
+    // The literal is shared and allocates nothing; rendering it for output does.
     let policy = HostPolicy {
-        allocation_limit_bytes: 1_500_000,
+        allocation_limit_bytes: 800_000,
         ..HostPolicy::default()
     };
     let mut instance = Runtime::new().load(artifact, policy).unwrap();
@@ -5916,7 +6475,7 @@ fn native_map_keys_produces_text_list_with_vm_quota_parity() {
         "fn key_count(values: Map[Text, Bool]) -> Int:\n    var count = 0\n    for key in values:\n        set count = count + 1\n    return count\n\nfn main() -> Int:\n    return 0\n",
     )
     .unwrap();
-    let values = Value::Map(std::sync::Arc::new(std::collections::BTreeMap::from([
+    let values = Value::Map(std::sync::Arc::new(guion_model::TextMap::from([
         ("first".to_owned(), Value::Bool(true)),
         ("second".to_owned(), Value::Bool(false)),
     ])));
@@ -6388,7 +6947,7 @@ fn native_record_from_map_bridge_preserves_primitive_list_fields() {
             Value::Int(BigInt::from_i64(7)),
         ]))]),
     );
-    let frames = Value::Map(std::sync::Arc::new(std::collections::BTreeMap::from([(
+    let frames = Value::Map(std::sync::Arc::new(guion_model::TextMap::from([(
         "current".to_owned(),
         frame,
     )])));
@@ -6755,7 +7314,7 @@ fn native_map_index_preserves_values_and_vm_errors() {
         "fn value_at(values: Map[Text, Text], key: Text) -> Text:\n    return values[key]\n\nfn main() -> Int:\n    return 0\n",
     )
     .unwrap();
-    let values = Value::Map(std::sync::Arc::new(std::collections::BTreeMap::from([(
+    let values = Value::Map(std::sync::Arc::new(guion_model::TextMap::from([(
         "answer".to_owned(),
         Value::Text("forty-two".into()),
     )])));
@@ -6789,7 +7348,7 @@ fn native_map_has_preserves_membership_results() {
         "fn contains(values: Map[Text, Bool], key: Text) -> Bool:\n    return map_has(values, key)\n\nfn main() -> Int:\n    return 0\n",
     )
     .unwrap();
-    let values = Value::Map(std::sync::Arc::new(std::collections::BTreeMap::from([(
+    let values = Value::Map(std::sync::Arc::new(guion_model::TextMap::from([(
         "service-a".to_owned(),
         Value::Bool(true),
     )])));
@@ -6819,7 +7378,7 @@ fn native_map_set_preserves_copy_on_write_and_vm_limits() {
         "fn update(values: Map[Text, Text], key: Text, value: Text) -> Map[Text, Text]:\n    var copy = values\n    set copy = map_set(copy, key, value)\n    return copy\n\nfn main() -> Int:\n    return 0\n",
     )
     .unwrap();
-    let values = Value::Map(std::sync::Arc::new(std::collections::BTreeMap::from([(
+    let values = Value::Map(std::sync::Arc::new(guion_model::TextMap::from([(
         "answer".to_owned(),
         Value::Text("old".into()),
     )])));
@@ -6839,14 +7398,14 @@ fn native_map_set_preserves_copy_on_write_and_vm_limits() {
     assert_eq!(native_value, vm_value);
     assert_eq!(
         native_value,
-        Value::Map(std::sync::Arc::new(std::collections::BTreeMap::from([(
+        Value::Map(std::sync::Arc::new(guion_model::TextMap::from([(
             "answer".to_owned(),
             Value::Text("new".into())
         ),])))
     );
     assert_eq!(
         values,
-        Value::Map(std::sync::Arc::new(std::collections::BTreeMap::from([(
+        Value::Map(std::sync::Arc::new(guion_model::TextMap::from([(
             "answer".to_owned(),
             Value::Text("old".into())
         ),])))
@@ -6865,7 +7424,7 @@ fn native_map_set_preserves_copy_on_write_and_vm_limits() {
         .unwrap();
     let mut vm = Runtime::vm_only().load(artifact, limited).unwrap();
     let args = vec![
-        Value::Map(std::sync::Arc::new(std::collections::BTreeMap::new())),
+        Value::Map(std::sync::Arc::new(guion_model::TextMap::new())),
         Value::Text("new".into()),
         Value::Text("value".into()),
     ];
@@ -6937,10 +7496,26 @@ fn native_text_chars_index_charges_the_cloned_scalar() {
     )
     .unwrap();
     let policy = HostPolicy {
-        allocation_limit_bytes: 399,
+        allocation_limit_bytes: 177,
         ..HostPolicy::default()
     };
     let input = vec![Value::Text("a🙂".into())];
+    let sufficient = HostPolicy {
+        allocation_limit_bytes: 178,
+        ..HostPolicy::default()
+    };
+    assert_eq!(
+        Runtime::new()
+            .load(artifact.clone(), sufficient.clone())
+            .unwrap()
+            .invoke("first", input.clone())
+            .unwrap(),
+        Runtime::vm_only()
+            .load(artifact.clone(), sufficient)
+            .unwrap()
+            .invoke("first", input.clone())
+            .unwrap()
+    );
     let mut native = Runtime::new()
         .load(artifact.clone(), policy.clone())
         .unwrap();

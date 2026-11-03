@@ -38,6 +38,63 @@ thread_local! {
     };
 }
 
+/// The free lists of the thread that claimed them with its thread pointer. On macOS every
+/// `thread_local!` access is a call into dyld, which costs a measurable share of an
+/// allocation-heavy run; the claiming thread (the main thread, which allocates first)
+/// reaches its lists with one register read instead.
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+struct OwnedLocal(UnsafeCell<Local>);
+
+// SAFETY: only the live thread whose thread pointer is stored in `OWNER` touches the lists,
+// and a thread pointer identifies one live thread. A thread pointer is reused only after its
+// thread has exited, and thread teardown and creation synchronise, so a new thread with the
+// same pointer inherits the lists as the old one left them.
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+unsafe impl Sync for OwnedLocal {}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+static OWNED: OwnedLocal = OwnedLocal(UnsafeCell::new(Local {
+    heads: [ptr::null_mut(); CLASSES],
+    counts: [0; CLASSES],
+    bump: ptr::null_mut(),
+    bump_end: ptr::null_mut(),
+}));
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+static OWNER: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[inline(always)]
+fn thread_pointer() -> usize {
+    let pointer: usize;
+    // SAFETY: reading the thread pointer register has no side effects.
+    unsafe {
+        std::arch::asm!("mrs {}, tpidrro_el0", out(reg) pointer, options(nomem, nostack, preserves_flags))
+    };
+    pointer
+}
+
+/// Run `action` on the calling thread's free lists.
+#[inline(always)]
+fn with_local<R>(action: impl FnOnce(&mut Local) -> R) -> R {
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    {
+        let thread = thread_pointer();
+        let owner = OWNER.load(Ordering::Relaxed);
+        if owner == thread
+            || (owner == 0
+                && OWNER
+                    .compare_exchange(0, thread, Ordering::Relaxed, Ordering::Relaxed)
+                    .is_ok())
+        {
+            // SAFETY: as for `OwnedLocal`; the allocator never re-enters itself.
+            return action(unsafe { &mut *OWNED.0.get() });
+        }
+    }
+    // SAFETY: the allocator never re-enters itself while this borrow is live.
+    LOCAL.with(|local| action(unsafe { &mut *local.get() }))
+}
+
 struct Shared {
     lock: AtomicBool,
     heads: UnsafeCell<[*mut u8; CLASSES]>,
@@ -150,9 +207,7 @@ unsafe impl GlobalAlloc for PoolAllocator {
             return unsafe { System.alloc(layout) };
         }
         let class = class_of(layout.size());
-        LOCAL.with(|local| {
-            // SAFETY: the allocator never re-enters itself while this borrow is live.
-            let local = unsafe { &mut *local.get() };
+        with_local(|local| {
             let head = local.heads[class];
             if head.is_null() {
                 unsafe { refill(local, class) }
@@ -170,10 +225,8 @@ unsafe impl GlobalAlloc for PoolAllocator {
             return unsafe { System.dealloc(block, layout) };
         }
         let class = class_of(layout.size());
-        LOCAL.with(|local| {
-            // SAFETY: as in `alloc`.
-            unsafe { push(&mut *local.get(), class, block) };
-        });
+        // SAFETY: `block` is a free block of this class.
+        with_local(|local| unsafe { push(local, class, block) });
     }
 
     #[inline]

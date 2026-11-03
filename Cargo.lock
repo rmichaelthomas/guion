@@ -492,6 +492,7 @@ dependencies = [
 name = "guion-model"
 version = "0.1.0"
 dependencies = [
+ "hashbrown 0.16.1",
  "serde",
  "serde_json",
 ]
@@ -515,6 +516,7 @@ dependencies = [
  "icu_normalizer",
  "icu_properties",
  "libc",
+ "memchr",
  "reqwest",
  "rusqlite",
  "serde",
@@ -530,6 +532,7 @@ version = "0.1.0"
 dependencies = [
  "guion-compiler",
  "guion-model",
+ "memchr",
  "serde_json",
 ]
 

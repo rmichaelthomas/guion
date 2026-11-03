@@ -8,7 +8,7 @@
 
 use guion_model::{
     Artifact, BigInt, FileErrorValue, Float64, HttpErrorValue, JsonErrorValue, NativeResourceValue,
-    Op, RuntimeError, SharedJson, Span, TaskErrorValue, Type, Value,
+    Op, RuntimeError, SharedJson, SharedText, Span, TaskErrorValue, TextMap, Type, Value,
 };
 use std::{
     cell::Cell,
@@ -22,14 +22,238 @@ use std::{
     time::Instant,
 };
 
-fn shared_text_scalar(scalar: char) -> Arc<str> {
-    if !scalar.is_ascii() {
-        return Arc::<str>::from(scalar.to_string());
+mod register;
+
+pub use register::{build_register_programs, RegisterProgram, RegisterPrograms};
+
+/// Byte offsets of every `TEXT_INDEX_STRIDE`th scalar of the text most recently searched,
+/// so repeated `text_find` calls over one long text seek in constant time instead of
+/// rescanning from the start. The cache holds the text alive, so its address cannot be reused.
+struct TextScalarIndex {
+    text: SharedText,
+    ascii: bool,
+    scalars: usize,
+    checkpoints: Vec<usize>,
+    /// The scalar and byte position of the last match, so a search that moves forward
+    /// from it walks only the scalars in between.
+    cursor: (usize, usize),
+    /// The searcher for the needle most recently looked for in this text.
+    finder: Option<memchr::memmem::Finder<'static>>,
+}
+
+const TEXT_INDEX_STRIDE: usize = 64;
+/// Room reserved when appending to a text local first makes it growable.
+const TEXT_APPEND_MIN_CAPACITY: usize = 32;
+/// Texts shorter than this are scanned directly; indexing them would cost more than it saves.
+const TEXT_INDEX_MIN_BYTES: usize = 4096;
+
+thread_local! {
+    static TEXT_INDEX_CACHE: std::cell::RefCell<Option<TextScalarIndex>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+impl TextScalarIndex {
+    fn new(text: &SharedText) -> Self {
+        let ascii = text.is_ascii();
+        let mut checkpoints = Vec::new();
+        let mut scalars = text.len();
+        if !ascii {
+            scalars = 0;
+            for (byte_index, _) in text.char_indices() {
+                if scalars.is_multiple_of(TEXT_INDEX_STRIDE) {
+                    checkpoints.push(byte_index);
+                }
+                scalars += 1;
+            }
+        }
+        Self {
+            text: SharedText::clone(text),
+            ascii,
+            scalars,
+            checkpoints,
+            cursor: (0, 0),
+            finder: None,
+        }
     }
 
-    static ASCII_SCALARS: OnceLock<[OnceLock<Arc<str>>; 128]> = OnceLock::new();
+    fn byte_offset(&self, scalar: usize) -> Option<usize> {
+        if scalar > self.scalars {
+            return None;
+        }
+        if self.ascii || scalar == self.scalars {
+            return Some(if self.ascii { scalar } else { self.text.len() });
+        }
+        let (mut base_scalar, mut base) = (
+            scalar - scalar % TEXT_INDEX_STRIDE,
+            self.checkpoints[scalar / TEXT_INDEX_STRIDE],
+        );
+        if (base_scalar..=scalar).contains(&self.cursor.0) {
+            (base_scalar, base) = self.cursor;
+        }
+        self.text[base..]
+            .char_indices()
+            .nth(scalar - base_scalar)
+            .map(|(offset, _)| base + offset)
+    }
+
+    fn find(&mut self, needle: &str, from: usize) -> Option<Option<usize>> {
+        let byte_start = self.byte_offset(from)?;
+        if self
+            .finder
+            .as_ref()
+            .is_none_or(|finder| finder.needle() != needle.as_bytes())
+        {
+            self.finder = Some(memchr::memmem::Finder::new(needle).into_owned());
+        }
+        let finder = self.finder.as_ref().expect("finder was just stored");
+        let Some(offset) = finder.find(&self.text.as_bytes()[byte_start..]) else {
+            return Some(None);
+        };
+        let found = if self.ascii {
+            from + offset
+        } else {
+            from + self.text[byte_start..byte_start + offset].chars().count()
+        };
+        self.cursor = (found, byte_start + offset);
+        Some(Some(found))
+    }
+}
+
+/// Finds `needle` in `text` at or after the Unicode scalar index `from`.
+/// Returns `None` when `from` is past the end, `Some(None)` when there is no
+/// match, and the scalar index of the first match otherwise.
+pub fn text_find_scalar(text: &SharedText, needle: &str, from: usize) -> Option<Option<usize>> {
+    if text.len() >= TEXT_INDEX_MIN_BYTES {
+        return TEXT_INDEX_CACHE.with(|cache| {
+            let mut cache = cache.borrow_mut();
+            if !cache
+                .as_ref()
+                .is_some_and(|index| SharedText::ptr_eq(&index.text, text))
+            {
+                *cache = Some(TextScalarIndex::new(text));
+            }
+            cache
+                .as_mut()
+                .expect("text scalar index was just stored")
+                .find(needle, from)
+        });
+    }
+    let ascii = text.is_ascii();
+    let byte_start = if ascii || from == 0 {
+        (from <= text.len()).then_some(from)?
+    } else {
+        match text.char_indices().nth(from) {
+            Some((byte_index, _)) => byte_index,
+            None if text.chars().count() == from => text.len(),
+            None => return None,
+        }
+    };
+    Some(
+        memchr::memmem::find(&text.as_bytes()[byte_start..], needle.as_bytes()).map(|offset| {
+            if ascii {
+                from + offset
+            } else {
+                from + text[byte_start..byte_start + offset].chars().count()
+            }
+        }),
+    )
+}
+
+/// Byte offsets of the non-overlapping matches of a non-empty `needle`, left to right, or
+/// `None` when there are more than `limit` of them.
+pub fn text_match_offsets(text: &str, needle: &str, limit: usize) -> Option<Vec<usize>> {
+    let mut offsets = Vec::new();
+    for offset in memchr::memmem::find_iter(text.as_bytes(), needle.as_bytes()) {
+        if offsets.len() == limit {
+            return None;
+        }
+        offsets.push(offset);
+    }
+    Some(offsets)
+}
+
+/// The fields between the delimiter matches at `offsets`, as `text.split(delimiter)` would.
+pub fn text_split_at(text: &str, offsets: &[usize], delimiter_len: usize) -> Vec<Value> {
+    let mut fields = Vec::with_capacity(offsets.len() + 1);
+    let mut start = 0;
+    for &offset in offsets {
+        fields.push(Value::Text(SharedText::from(&text[start..offset])));
+        start = offset + delimiter_len;
+    }
+    fields.push(Value::Text(SharedText::from(&text[start..])));
+    fields
+}
+
+/// The number of non-overlapping matches of a non-empty `needle`.
+pub fn text_match_count(text: &str, needle: &str) -> usize {
+    memchr::memmem::find_iter(text.as_bytes(), needle.as_bytes()).count()
+}
+
+/// `text` with every match of a non-empty `needle` replaced, as `text.replace(needle,
+/// replacement)` would; `total` is the result length in bytes.
+pub fn text_replace_all(text: &str, needle: &str, replacement: &str, total: usize) -> SharedText {
+    let mut replaced = String::with_capacity(total);
+    let mut start = 0;
+    for offset in memchr::memmem::find_iter(text.as_bytes(), needle.as_bytes()) {
+        replaced.push_str(&text[start..offset]);
+        replaced.push_str(replacement);
+        start = offset + needle.len();
+    }
+    replaced.push_str(&text[start..]);
+    SharedText::from(replaced)
+}
+
+/// Joins a `List[Text]` value, or returns `None` when an item is not text or the result
+/// would exceed the item or text-size ceilings. Callers report the specific error.
+pub fn text_join_checked(
+    values: &[Value],
+    delimiter: &str,
+    max_collection_items: usize,
+    max_text_bytes: usize,
+) -> Option<String> {
+    if values.len() > max_collection_items {
+        return None;
+    }
+    let mut total = delimiter
+        .len()
+        .checked_mul(values.len().saturating_sub(1))?;
+    for value in values {
+        let Value::Text(text) = value else {
+            return None;
+        };
+        total = total.checked_add(text.len())?;
+    }
+    if total > max_text_bytes {
+        return None;
+    }
+    let mut joined = String::with_capacity(total);
+    for (index, value) in values.iter().enumerate() {
+        if index > 0 {
+            joined.push_str(delimiter);
+        }
+        if let Value::Text(text) = value {
+            joined.push_str(text);
+        }
+    }
+    Some(joined)
+}
+
+/// The guest allocation charged for a `List[Text]` of `count` items whose text totals
+/// `text_bytes`. Native code charges the same amount when it stores such a list.
+pub fn text_list_allocation(count: usize, text_bytes: usize) -> usize {
+    size_of::<Vec<Value>>()
+        .saturating_add(count.saturating_mul(size_of::<Value>() + size_of::<String>()))
+        .saturating_add(text_bytes)
+}
+
+fn shared_text_scalar(scalar: char) -> SharedText {
+    if !scalar.is_ascii() {
+        return SharedText::from(scalar.to_string());
+    }
+
+    static ASCII_SCALARS: OnceLock<[OnceLock<SharedText>; 128]> = OnceLock::new();
     let scalars = ASCII_SCALARS.get_or_init(|| std::array::from_fn(|_| OnceLock::new()));
-    Arc::clone(scalars[scalar as usize].get_or_init(|| Arc::<str>::from(scalar.to_string())))
+    SharedText::clone(scalars[scalar as usize].get_or_init(|| SharedText::from(scalar.to_string())))
 }
 
 /// Size and depth limits the shared VM enforces while executing guest code.
@@ -69,7 +293,7 @@ pub enum OutputStream {
 
 /// Mutable view of the executing frame handed to [`VmHost::host_op`].
 pub struct HostOpContext<'a> {
-    pub instruction: guion_model::Instruction,
+    pub instruction: &'a guion_model::Instruction,
     pub function: &'a guion_model::Function,
     pub stack: &'a mut Vec<Value>,
     pub locals: &'a mut Vec<Value>,
@@ -80,9 +304,8 @@ pub struct HostOpContext<'a> {
 /// Services the shared VM requests from whatever environment embeds it.
 pub trait VmHost {
     fn artifact(&self) -> &Arc<Artifact>;
-    /// Load-time fused instruction entries for every function, indexed by original
-    /// instruction position. Hosts that do not build tables return `None`.
-    fn fused_tables(&self) -> Option<Arc<Vec<Vec<FusedEntry>>>> {
+    /// Register form of the functions that run. Hosts that do not build it return `None`.
+    fn register_programs(&self) -> Option<Arc<RegisterPrograms>> {
         None
     }
     fn limits(&self) -> VmLimits;
@@ -190,23 +413,32 @@ fn run_frames_with_stack_profiled<const PROFILED: bool, H: VmHost>(
         .iter()
         .map(fast_host_forwarder)
         .collect::<Vec<_>>();
+    let artifact = Arc::clone(host.artifact());
+    let register_programs = if PROFILED {
+        None
+    } else {
+        host.register_programs()
+    };
+    let shared = VmRunShared {
+        artifact: &artifact,
+        limits: host.limits(),
+        registers: register_programs.as_deref(),
+        fast_host_forwarders: &fast_host_forwarders,
+    };
+    let mut pool = VmVecPool::default();
     loop {
         let frame = frames.pop().expect("guest frame stack is non-empty");
         let current_call_site = frame.call_site;
         match execute_vm_frame_with_forwarders::<PROFILED, _>(
-            host,
-            frame,
-            budget.clone(),
-            &fast_host_forwarders,
+            host, frame, &budget, &shared, &mut pool,
         ) {
             Err(mut error) => {
                 append_guest_call_trace(&mut error, current_call_site, &frames);
                 return Err(error);
             }
             Ok(VmStep::Return(value)) => {
-                if let Some(mut parent) = frames.pop() {
+                if let Some(parent) = frames.last_mut() {
                     parent.stack.push(value);
-                    frames.push(parent);
                 } else {
                     return Ok(value);
                 }
@@ -257,231 +489,24 @@ pub fn execute_vm_frame<H: VmHost>(
         .iter()
         .map(fast_host_forwarder)
         .collect::<Vec<_>>();
-    if budget.runtime_profile.is_some() {
-        execute_vm_frame_with_forwarders::<true, _>(host, frame, budget, &fast_host_forwarders)
-    } else {
-        execute_vm_frame_with_forwarders::<false, _>(host, frame, budget, &fast_host_forwarders)
-    }
-}
-
-/// A short instruction sequence the VM executes as one step.
-///
-/// Entries are indexed by the position of the first original instruction, so
-/// `ip`, spans and jump targets keep their original meaning. Each entry charges
-/// the exact fuel and allocation the plain sequence would, and the VM falls back
-/// to the plain instruction whenever an entry's preconditions do not hold.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct FusedEntry {
-    kind: FusedKind,
-    slot: u32,
-    dest: u32,
-    target: u32,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum FusedKind {
-    None,
-    /// `Load slot; IsOk|IsSome; [Not]; JumpIfFalse target`
-    ProbeBranch {
-        is_ok: bool,
-        negate: bool,
-    },
-    /// `Not; JumpIfFalse target`
-    NotBranch,
-    /// `Load slot; Unwrap; Store dest`
-    UnwrapStore,
-    /// `Const; Store dest`
-    ConstStore,
-}
-
-impl FusedEntry {
-    const NONE: Self = Self {
-        kind: FusedKind::None,
-        slot: 0,
-        dest: 0,
-        target: 0,
+    let artifact = Arc::clone(host.artifact());
+    let register_programs = host.register_programs();
+    let profiled = budget.runtime_profile.is_some();
+    let shared = VmRunShared {
+        artifact: &artifact,
+        limits: host.limits(),
+        registers: if profiled {
+            None
+        } else {
+            register_programs.as_deref()
+        },
+        fast_host_forwarders: &fast_host_forwarders,
     };
-
-    #[inline]
-    fn extra_fuel(&self) -> u64 {
-        match self.kind {
-            FusedKind::None => 0,
-            FusedKind::ProbeBranch { negate, .. } => 2 + u64::from(negate),
-            FusedKind::NotBranch | FusedKind::ConstStore => 1,
-            FusedKind::UnwrapStore => 2,
-        }
-    }
-}
-
-/// Build the fused-entry tables for every function of a verified artifact.
-pub fn build_fused_tables(artifact: &Artifact) -> Vec<Vec<FusedEntry>> {
-    artifact.functions.iter().map(build_fused_table).collect()
-}
-
-fn build_fused_table(function: &guion_model::Function) -> Vec<FusedEntry> {
-    let code = &function.code;
-    let mut is_target = vec![false; code.len() + 1];
-    for instruction in code {
-        if let Op::Jump(target) | Op::JumpIfFalse(target) = &instruction.op {
-            if let Some(slot) = is_target.get_mut(*target) {
-                *slot = true;
-            }
-        }
-    }
-    let op_at = |ip: usize| code.get(ip).map(|instruction| &instruction.op);
-    let mut table = vec![FusedEntry::NONE; code.len()];
-    let mut any = false;
-    for (ip, table_entry) in table.iter_mut().enumerate() {
-        let entry = match op_at(ip) {
-            Some(Op::Load(slot)) => match (op_at(ip + 1), op_at(ip + 2), op_at(ip + 3)) {
-                (Some(op @ (Op::IsOk | Op::IsSome)), Some(Op::JumpIfFalse(target)), _) => Some((
-                    FusedEntry {
-                        kind: FusedKind::ProbeBranch {
-                            is_ok: matches!(op, Op::IsOk),
-                            negate: false,
-                        },
-                        slot: *slot as u32,
-                        dest: 0,
-                        target: *target as u32,
-                    },
-                    3,
-                )),
-                (
-                    Some(op @ (Op::IsOk | Op::IsSome)),
-                    Some(Op::Not),
-                    Some(Op::JumpIfFalse(target)),
-                ) => Some((
-                    FusedEntry {
-                        kind: FusedKind::ProbeBranch {
-                            is_ok: matches!(op, Op::IsOk),
-                            negate: true,
-                        },
-                        slot: *slot as u32,
-                        dest: 0,
-                        target: *target as u32,
-                    },
-                    4,
-                )),
-                (Some(Op::Unwrap), Some(Op::Store(dest)), _) => Some((
-                    FusedEntry {
-                        kind: FusedKind::UnwrapStore,
-                        slot: *slot as u32,
-                        dest: *dest as u32,
-                        target: 0,
-                    },
-                    3,
-                )),
-                _ => None,
-            },
-            Some(Op::Not) => match op_at(ip + 1) {
-                Some(Op::JumpIfFalse(target)) => Some((
-                    FusedEntry {
-                        kind: FusedKind::NotBranch,
-                        slot: 0,
-                        dest: 0,
-                        target: *target as u32,
-                    },
-                    2,
-                )),
-                _ => None,
-            },
-            Some(Op::Const(_)) => match op_at(ip + 1) {
-                Some(Op::Store(dest)) => Some((
-                    FusedEntry {
-                        kind: FusedKind::ConstStore,
-                        slot: 0,
-                        dest: *dest as u32,
-                        target: 0,
-                    },
-                    2,
-                )),
-                _ => None,
-            },
-            _ => None,
-        };
-        if let Some((entry, length)) = entry {
-            // A jump into the middle of a sequence must still see the plain instructions.
-            if (1..length).all(|offset| !is_target.get(ip + offset).copied().unwrap_or(false)) {
-                *table_entry = entry;
-                any = true;
-            }
-        }
-    }
-    if any {
-        table
+    let mut pool = VmVecPool::default();
+    if profiled {
+        execute_vm_frame_with_forwarders::<true, _>(host, frame, &budget, &shared, &mut pool)
     } else {
-        Vec::new()
-    }
-}
-
-/// Execute one fused entry. Returns `Ok(false)` without side effects when the
-/// entry's preconditions do not hold, so the caller runs the plain instructions.
-#[inline(never)]
-fn run_fused_entry(
-    entry: &FusedEntry,
-    instruction: &guion_model::Instruction,
-    locals: &mut [Value],
-    stack: &mut Vec<Value>,
-    budget: &Budget,
-    limits: &VmLimits,
-    ip: &mut usize,
-) -> Result<bool, RuntimeError> {
-    let start = *ip - 1;
-    match entry.kind {
-        FusedKind::ProbeBranch { is_ok, negate } => {
-            let value = &locals[entry.slot as usize];
-            let probe = match (is_ok, value) {
-                (true, Value::ResultOk(_)) | (false, Value::OptionSome(_)) => true,
-                (true, Value::ResultErr(_)) | (false, Value::OptionNone) => false,
-                _ => return Ok(false),
-            };
-            charge_allocation(budget, cloned_value_allocation(value), instruction.span)?;
-            budget.record_guest_conditional_branch();
-            *ip = if probe != negate {
-                start + entry.extra_fuel() as usize + 1
-            } else {
-                entry.target as usize
-            };
-            Ok(true)
-        }
-        FusedKind::NotBranch => {
-            let Some(Value::Bool(condition)) = stack.last() else {
-                return Ok(false);
-            };
-            let condition = *condition;
-            stack.pop();
-            budget.record_guest_conditional_branch();
-            *ip = if condition {
-                entry.target as usize
-            } else {
-                start + 2
-            };
-            Ok(true)
-        }
-        FusedKind::UnwrapStore => {
-            let value = &locals[entry.slot as usize];
-            let payload = match value {
-                Value::ResultOk(payload) | Value::OptionSome(payload) => payload.as_ref().clone(),
-                _ => return Ok(false),
-            };
-            charge_allocation(budget, cloned_value_allocation(value), instruction.span)?;
-            locals[entry.dest as usize] = payload;
-            *ip = start + 3;
-            Ok(true)
-        }
-        FusedKind::ConstStore => {
-            let Op::Const(constant) = &instruction.op else {
-                unreachable!("const-store entries start at a Const instruction")
-            };
-            if let Some(error) = value_limit_error_at_boundary(constant, limits, instruction.span) {
-                return Err(error);
-            }
-            charge_allocation(budget, cloned_value_allocation(constant), instruction.span)?;
-            locals[entry.dest as usize] = constant.clone();
-            *ip = start + 2;
-            Ok(true)
-        }
-        FusedKind::None => Ok(false),
+        execute_vm_frame_with_forwarders::<false, _>(host, frame, &budget, &shared, &mut pool)
     }
 }
 
@@ -571,11 +596,54 @@ fn text_chars_concat_fast_path(
     })
 }
 
+/// Per-run state that every frame entry reads, resolved once so calls and returns do
+/// not touch reference counts or rebuild it.
+struct VmRunShared<'r> {
+    artifact: &'r Arc<Artifact>,
+    limits: VmLimits,
+    registers: Option<&'r RegisterPrograms>,
+    fast_host_forwarders: &'r [Option<FastHostForwarder>],
+}
+
+/// Emptied frame vectors kept for the next call, so a call does not allocate.
+#[derive(Default)]
+struct VmVecPool {
+    free: Vec<Vec<Value>>,
+}
+
+const VM_VEC_POOL_ENTRIES: usize = 64;
+const VM_VEC_POOL_MAX_CAPACITY: usize = 256;
+
+impl VmVecPool {
+    #[inline]
+    fn take(&mut self, capacity: usize) -> Vec<Value> {
+        match self.free.pop() {
+            Some(mut values) => {
+                values.reserve(capacity);
+                values
+            }
+            None => Vec::with_capacity(capacity),
+        }
+    }
+
+    #[inline]
+    fn give(&mut self, mut values: Vec<Value>) {
+        if self.free.len() < VM_VEC_POOL_ENTRIES
+            && values.capacity() > 0
+            && values.capacity() <= VM_VEC_POOL_MAX_CAPACITY
+        {
+            values.clear();
+            self.free.push(values);
+        }
+    }
+}
+
 fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
     host: &mut H,
     frame: VmFrame,
-    budget: Arc<Budget>,
-    fast_host_forwarders: &[Option<FastHostForwarder>],
+    budget: &Arc<Budget>,
+    shared: &VmRunShared<'_>,
+    pool: &mut VmVecPool,
 ) -> Result<VmStep, RuntimeError> {
     let VmFrame {
         function_index,
@@ -585,9 +653,13 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
         mut stack,
         mut ip,
     } = frame;
-    let artifact = Arc::clone(host.artifact());
-    let limits = host.limits();
+    let artifact = shared.artifact;
+    let limits = &shared.limits;
+    let fast_host_forwarders = shared.fast_host_forwarders;
     let f = &artifact.functions[function_index];
+    if stack.capacity() == 0 {
+        stack = pool.take(0);
+    }
     let profile_sample = if PROFILED {
         budget
             .runtime_profile
@@ -597,20 +669,57 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
     } else {
         None
     };
-    let mut instruction_fuel = InstructionFuel::new(&budget);
+    let mut instruction_fuel = InstructionFuel::new(budget);
     let mut previous_profiled_instruction: Option<(usize, &'static str)> = None;
-    let fused_tables = if PROFILED { None } else { host.fused_tables() };
-    let fused: &[FusedEntry] = fused_tables
-        .as_ref()
-        .and_then(|tables| tables.get(function_index))
-        .map_or(&[], |table| table.as_slice());
+    // Parallel workers charge fuel exactly, one atomic at a time, which this form does not; they
+    // stay on the stack interpreter.
+    let registers = shared
+        .registers
+        .filter(|_| instruction_fuel.reserve_locally)
+        .and_then(|programs| programs.get(function_index, f))
+        .filter(|program| program.usable_under(limits));
+    // The stack interpreter takes at least one instruction after this form hands back.
+    let mut stay_on_stack = false;
+    // Cancellation is polled on frame entry, on every taken backward jump and after every host
+    // operation: code between two polls is straight-line, so it stops soon after a cancellation.
+    let mut poll_cancellation = true;
     loop {
-        if budget.is_cancelled() || host.externally_cancelled() {
-            return Err(RuntimeError::new(
-                "R_CANCELLED",
-                "parallel task was cancelled after a sibling failed",
-                f.code.first().map(|i| i.span).unwrap_or_default(),
-            ));
+        if poll_cancellation {
+            poll_cancellation = false;
+            if budget.is_cancelled() || host.externally_cancelled() {
+                return Err(RuntimeError::new(
+                    "R_CANCELLED",
+                    "parallel task was cancelled after a sibling failed",
+                    f.code.first().map(|i| i.span).unwrap_or_default(),
+                ));
+            }
+        }
+        if let Some(program) = registers {
+            if !stay_on_stack {
+                if let Some(pc) = program.entry(ip) {
+                    instruction_fuel.top_up();
+                    let exit = register::run_registers(
+                        program,
+                        pc as usize,
+                        register::RegisterRun {
+                            host: &mut *host,
+                            artifact,
+                            function: f,
+                            locals: &mut locals,
+                            stack: &mut stack,
+                            fuel: &mut instruction_fuel,
+                            budget,
+                            limits,
+                            depth,
+                        },
+                    )?;
+                    ip = exit.ip;
+                    poll_cancellation = exit.poll_cancellation;
+                    stay_on_stack = true;
+                    continue;
+                }
+            }
+            stay_on_stack = false;
         }
         if ip >= f.code.len() {
             return Err(RuntimeError::new(
@@ -684,6 +793,26 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                 })?
             };
         }
+        // Both operands inline: `$compute` yields the result, or None to take the general
+        // path. Inline operands own nothing and an inline result needs no digit check
+        // or allocation charge, so the slower handler is skipped.
+        macro_rules! small_int_binary {
+            ($compute:expr) => {
+                if let [.., Value::Int(left), Value::Int(right)] = stack.as_slice() {
+                    if let (Some(left), Some(right)) = (left.small(), right.small()) {
+                        let compute: fn(i64, i64) -> Option<Value> = $compute;
+                        if limits.max_integer_digits >= 19 {
+                            if let Some(result) = compute(left, right) {
+                                std::mem::forget(stack.pop());
+                                std::mem::forget(stack.pop());
+                                stack.push(result);
+                                continue;
+                            }
+                        }
+                    }
+                }
+            };
+        }
         macro_rules! record_skipped_instruction {
             ($instruction_ip:expr, $skipped:expr) => {{
                 if PROFILED {
@@ -720,24 +849,6 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
             }};
         }
         let instruction = instruction_ref;
-        if let Some(entry) = fused.get(ip - 1) {
-            if entry.kind != FusedKind::None && instruction_fuel.consume_extra(entry.extra_fuel()) {
-                if run_fused_entry(
-                    entry,
-                    instruction,
-                    &mut locals,
-                    &mut stack,
-                    budget.as_ref(),
-                    &limits,
-                    &mut ip,
-                )? {
-                    continue;
-                }
-                // Preconditions failed after the fuel was taken: give it back so the
-                // plain instructions charge it themselves.
-                instruction_fuel.remaining += entry.extra_fuel();
-            }
-        }
         match &instruction.op {
             Op::Load(slot) => {
                 let value = &locals[*slot];
@@ -752,7 +863,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                     }
                     (Op::GetField(record_index, field_index), Value::Record(name, fields)) => {
                         let record = artifact.records.get(*record_index)?;
-                        if name != &record.name {
+                        if name.as_str() != record.name.as_str() {
                             return None;
                         }
                         let expected_field = record.fields.get(*field_index)?;
@@ -780,13 +891,6 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                         cloned_value_allocation(value),
                         instruction_ref.span,
                     )?;
-                    if budget.is_cancelled() || host.externally_cancelled() {
-                        return Err(RuntimeError::new(
-                            "R_CANCELLED",
-                            "parallel task was cancelled after a sibling failed",
-                            f.code.first().map(|i| i.span).unwrap_or_default(),
-                        ));
-                    }
                     if !instruction_fuel.consume() {
                         return Err(RuntimeError::new(
                             "R_STEP_LIMIT",
@@ -796,13 +900,6 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                     }
                     record_skipped_instruction!(ip, next);
                     if let LoadFastPath::ListIndex(field) = fast_path {
-                        if budget.is_cancelled() || host.externally_cancelled() {
-                            return Err(RuntimeError::new(
-                                "R_CANCELLED",
-                                "parallel task was cancelled after a sibling failed",
-                                f.code.first().map(|i| i.span).unwrap_or_default(),
-                            ));
-                        }
                         let index_ip = ip + 1;
                         let index_instruction = &f.code[index_ip];
                         if !instruction_fuel.consume() {
@@ -876,10 +973,10 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                 }
                 charge_allocation(
                     budget.as_ref(),
-                    cloned_value_allocation(value),
+                    cloned_value_allocation_fast(value),
                     instruction_ref.span,
                 )?;
-                push_stack!(value.clone());
+                push_stack!(clone_value_fast(value));
                 continue;
             }
             Op::Store(slot) => {
@@ -890,24 +987,25 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                         instruction_ref.span,
                     )
                 })?;
-                locals[*slot] = value;
+                drop_value_fast(std::mem::replace(&mut locals[*slot], value));
                 continue;
             }
             Op::Const(v) => {
-                if let Some(error) = value_limit_error_at_boundary(v, &limits, instruction.span) {
+                if let Some(error) = value_limit_error_at_boundary(v, limits, instruction.span) {
                     return Err(error);
                 }
                 charge_allocation(
                     budget.as_ref(),
-                    cloned_value_allocation(v),
+                    cloned_value_allocation_fast(v),
                     instruction.span,
                 )?;
-                push_stack!(v.clone())
+                push_stack!(clone_value_fast(v))
             }
             Op::Pop => {
                 pop!();
             }
             Op::Add => {
+                small_int_binary!(|a, b| a.checked_add(b).map(|v| Value::Int(BigInt::from_i64(v))));
                 let b = pop!();
                 let a = pop!();
                 let v = match (a, b) {
@@ -922,7 +1020,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                         })?;
                         Value::Float64(value)
                     }
-                    (Value::Text(x), Value::Text(y)) => {
+                    (Value::Text(mut x), Value::Text(y)) => {
                         if x.len().saturating_add(y.len()) > limits.max_text_bytes {
                             return Err(RuntimeError::new(
                                 "R_TEXT_LIMIT",
@@ -930,10 +1028,33 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                                 instruction.span,
                             ));
                         }
-                        let mut text = String::with_capacity(x.len() + y.len());
-                        text.push_str(&x);
-                        text.push_str(&y);
-                        Value::Text(text.into())
+                        // `set s = s + piece` stores straight back into the local it read.
+                        // Releasing the local's reference first lets the append extend the
+                        // text in place, so building text this way stays linear. Other
+                        // concatenations produce ordinary single-allocation text.
+                        let appending = match f.code.get(ip).map(|next| &next.op) {
+                            Some(Op::Store(slot)) => matches!(
+                                &locals[*slot],
+                                Value::Text(local) if SharedText::ptr_eq(local, &x)
+                            )
+                            .then_some(*slot),
+                            _ => None,
+                        };
+                        if let Some(slot) = appending {
+                            drop_value_fast(std::mem::replace(&mut locals[slot], Value::Unit));
+                            // The budget counts the appended bytes, as a fresh concatenation
+                            // counts its length, so it does not depend on how text grows.
+                            if SharedText::try_append(&mut x, &y) {
+                                charge_allocation(budget.as_ref(), y.len(), instruction.span)?;
+                                push_stack!(Value::Text(x));
+                                continue;
+                            }
+                        }
+                        Value::Text(if appending.is_some() {
+                            SharedText::concat(&x, &y, TEXT_APPEND_MIN_CAPACITY, true)
+                        } else {
+                            SharedText::concat(&x, &y, 0, false)
+                        })
                     }
                     _ => {
                         return Err(RuntimeError::new(
@@ -943,13 +1064,14 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                         ));
                     }
                 };
-                if let Some(error) = value_limit_error(&v, &limits, instruction.span) {
+                if let Some(error) = value_limit_error(&v, limits, instruction.span) {
                     return Err(error);
                 }
                 charge_allocation(budget.as_ref(), new_value_allocation(&v), instruction.span)?;
                 push_stack!(v);
             }
             Op::Subtract => {
+                small_int_binary!(|a, b| a.checked_sub(b).map(|v| Value::Int(BigInt::from_i64(v))));
                 let b = pop!();
                 let a = pop!();
                 let v = match (a, b) {
@@ -971,13 +1093,14 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                         ));
                     }
                 };
-                if let Some(error) = value_limit_error(&v, &limits, instruction.span) {
+                if let Some(error) = value_limit_error(&v, limits, instruction.span) {
                     return Err(error);
                 }
                 charge_allocation(budget.as_ref(), new_value_allocation(&v), instruction.span)?;
                 push_stack!(v);
             }
             Op::Multiply => {
+                small_int_binary!(|a, b| a.checked_mul(b).map(|v| Value::Int(BigInt::from_i64(v))));
                 let b = pop!();
                 let a = pop!();
                 let v = match (a, b) {
@@ -999,7 +1122,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                         ));
                     }
                 };
-                if let Some(error) = value_limit_error(&v, &limits, instruction.span) {
+                if let Some(error) = value_limit_error(&v, limits, instruction.span) {
                     return Err(error);
                 }
                 charge_allocation(budget.as_ref(), new_value_allocation(&v), instruction.span)?;
@@ -1056,6 +1179,21 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                 push_stack!(Value::Float64(result));
             }
             Op::IntegerDivide | Op::FloorDivide | Op::Remainder => {
+                match instruction.op {
+                    Op::IntegerDivide => small_int_binary!(|a, b| {
+                        a.checked_div(b).map(|q| Value::Int(BigInt::from_i64(q)))
+                    }),
+                    Op::FloorDivide => small_int_binary!(|a, b| {
+                        let (q, r) = (a.checked_div(b)?, a.checked_rem(b)?);
+                        let adjust = r != 0 && (a < 0) != (b < 0);
+                        Some(Value::Int(BigInt::from_i64(if adjust { q - 1 } else { q })))
+                    }),
+                    _ => small_int_binary!(|a, b| {
+                        let r = a.checked_rem(b)?;
+                        let adjust = r != 0 && (a < 0) != (b < 0);
+                        Some(Value::Int(BigInt::from_i64(if adjust { r + b } else { r })))
+                    }),
+                }
                 let right = pop!();
                 let left = pop!();
                 let (Value::Int(left), Value::Int(right)) = (left, right) else {
@@ -1083,7 +1221,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                     quotient
                 };
                 let value = Value::Int(value);
-                if let Some(error) = value_limit_error(&value, &limits, instruction.span) {
+                if let Some(error) = value_limit_error(&value, limits, instruction.span) {
                     return Err(error);
                 }
                 charge_allocation(
@@ -1170,11 +1308,11 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                 }
                 charge_allocation(
                     budget.as_ref(),
-                    size_of::<BTreeMap<String, Value>>()
+                    TextMap::ACCOUNTED_HEADER_BYTES
                         .saturating_add(count.saturating_mul(size_of::<(String, Value)>())),
                     instruction.span,
                 )?;
-                let mut values = BTreeMap::new();
+                let mut values = TextMap::new();
                 let mut entries = Vec::with_capacity(*count);
                 for _ in 0..*count {
                     let value = pop!();
@@ -1197,7 +1335,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                             .saturating_add(size_of::<String>() + size_of::<Value>() * 2),
                         instruction.span,
                     )?;
-                    if values.insert(key.to_string(), value).is_some() {
+                    if values.insert(SharedText::clone(&key), value).is_some() {
                         return Err(RuntimeError::new(
                             "R_MAP_DUPLICATE_KEY",
                             format!("duplicate map key `{key}`"),
@@ -1206,7 +1344,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                     }
                 }
                 let map = Value::Map(Arc::new(values));
-                if let Some(error) = value_limit_error(&map, &limits, instruction.span) {
+                if let Some(error) = value_limit_error(&map, limits, instruction.span) {
                     return Err(error);
                 }
                 push_stack!(map);
@@ -1214,10 +1352,10 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
             Op::MakeTypedMap(_) => {
                 charge_allocation(
                     budget.as_ref(),
-                    size_of::<BTreeMap<String, Value>>(),
+                    TextMap::ACCOUNTED_HEADER_BYTES,
                     instruction.span,
                 )?;
-                push_stack!(Value::Map(Arc::new(BTreeMap::new())));
+                push_stack!(Value::Map(Arc::new(TextMap::new())));
             }
             Op::MakeRecord(record_index, count) => {
                 let record = host.artifact().records.get(*record_index).ok_or_else(|| {
@@ -1268,7 +1406,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                         instruction.span,
                     ));
                 };
-                if name != record.name {
+                if name.as_str() != record.name.as_str() {
                     return Err(RuntimeError::new(
                         "R_TYPE_INVALID",
                         "field access record type does not match",
@@ -1298,15 +1436,15 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
             }
             Op::MapKeys => match pop!() {
                 Value::Map(values) => {
-                    let allocation = values.keys().fold(
+                    let allocation = values.iter_unordered().fold(
                         size_of::<Vec<Value>>()
                             .saturating_add(values.len().saturating_mul(size_of::<Value>())),
-                        |total, key| total.saturating_add(size_of::<String>() + key.len()),
+                        |total, (key, _)| total.saturating_add(size_of::<String>() + key.len()),
                     );
                     charge_allocation(budget.as_ref(), allocation, instruction.span)?;
                     let keys = values
                         .keys()
-                        .map(|key| Value::Text(Arc::<str>::from(key.as_str())))
+                        .map(|key| Value::Text(SharedText::clone(key)))
                         .collect::<Vec<_>>();
                     push_stack!(Value::List(Arc::new(keys)));
                 }
@@ -1382,7 +1520,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                         instruction.span,
                     ));
                 };
-                if record_name != &record.name {
+                if record_name.as_str() != record.name.as_str() {
                     return Err(RuntimeError::new(
                         "R_TYPE_INVALID",
                         "map_record_get record type does not match the declared Map value",
@@ -1465,7 +1603,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                         instruction.span,
                     )
                 })?;
-                if let Some(error) = value_limit_error(&value, &limits, instruction.span) {
+                if let Some(error) = value_limit_error(&value, limits, instruction.span) {
                     return Err(error);
                 }
                 let entry = match (values.get(key.as_ref()), nested_key.as_deref()) {
@@ -1483,7 +1621,9 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                         instruction.span,
                     ));
                 };
-                if record_name != &record.name || fields.get(*field_index).is_none() {
+                if record_name.as_str() != record.name.as_str()
+                    || fields.get(*field_index).is_none()
+                {
                     return Err(RuntimeError::new(
                         "R_TYPE_INVALID",
                         "map_record_set record does not match its declared type",
@@ -1648,7 +1788,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                 };
                 Arc::make_mut(fields)[*field_index] = value;
                 let map = Value::Map(Arc::new(updated));
-                if let Some(error) = value_limit_error(&map, &limits, instruction.span) {
+                if let Some(error) = value_limit_error(&map, limits, instruction.span) {
                     return Err(error);
                 }
                 if PROFILED {
@@ -1719,7 +1859,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                         size_of::<(String, Value)>().saturating_add(key.len())
                     };
                     charge_allocation(budget.as_ref(), allocation, instruction.span)?;
-                    if let Some(error) = value_limit_error(&value, &limits, instruction.span) {
+                    if let Some(error) = value_limit_error(&value, limits, instruction.span) {
                         return Err(error);
                     }
 
@@ -1764,7 +1904,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                         let inner_values = Arc::get_mut(inner_arc).expect(
                             "nested writeback child uniqueness was checked before mutation",
                         );
-                        replace_map_value(inner_values, key.as_ref(), value);
+                        replace_map_value(inner_values, &key, value);
                         Value::Map(Arc::clone(inner_arc))
                     };
                     locals[child_slot] = updated.clone();
@@ -1800,7 +1940,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                         size_of::<(String, Value)>().saturating_add(key.len())
                     };
                     charge_allocation(budget.as_ref(), allocation, instruction.span)?;
-                    if let Some(error) = value_limit_error(&value, &limits, instruction.span) {
+                    if let Some(error) = value_limit_error(&value, limits, instruction.span) {
                         return Err(error);
                     }
 
@@ -1836,7 +1976,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                         };
                         let inner_values = Arc::get_mut(inner_arc)
                             .expect("nested update child uniqueness was checked before mutation");
-                        replace_map_value(inner_values, key.as_ref(), value);
+                        replace_map_value(inner_values, &key, value);
                         Value::Map(Arc::clone(inner_arc))
                     };
                     let parent_result = Value::Map(Arc::clone(parent_arc));
@@ -1869,6 +2009,25 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                             instruction.span,
                         ));
                     };
+                    // Updating an existing key of a unique map charges nothing: one lookup is enough.
+                    if key.len() <= limits.max_text_bytes {
+                        if let Some(existing) =
+                            Arc::get_mut(items).and_then(|entries| entries.get_mut(key.as_ref()))
+                        {
+                            if let Some(error) = value_limit_error(&value, limits, instruction.span)
+                            {
+                                return Err(error);
+                            }
+                            *existing = value;
+                            if PROFILED {
+                                if let Some(profile) = &budget.runtime_profile {
+                                    profile.record_map_set(true, 0);
+                                }
+                            }
+                            push_stack!(Value::Map(Arc::clone(items)));
+                            continue;
+                        }
+                    }
                     let contains_key = items.contains_key(key.as_ref());
                     if !contains_key && items.len() >= limits.max_collection_items {
                         return Err(RuntimeError::new(
@@ -1893,10 +2052,10 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                         size_of::<(String, Value)>().saturating_add(key.len())
                     };
                     charge_allocation(budget.as_ref(), allocation, instruction.span)?;
-                    if let Some(error) = value_limit_error(&value, &limits, instruction.span) {
+                    if let Some(error) = value_limit_error(&value, limits, instruction.span) {
                         return Err(error);
                     }
-                    replace_map_value(Arc::make_mut(items), key.as_ref(), value);
+                    replace_map_value(Arc::make_mut(items), &key, value);
                     if PROFILED {
                         if let Some(profile) = &budget.runtime_profile {
                             profile.record_map_set(!shared, if shared { allocation } else { 0 });
@@ -1924,14 +2083,14 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                     map_clone_allocation(values.as_ref(), Some(key.as_ref()), &value);
                 charge_allocation(budget.as_ref(), map_clone_bytes, instruction.span)?;
                 let mut updated = values.as_ref().clone();
-                replace_map_value(&mut updated, key.as_ref(), value);
+                replace_map_value(&mut updated, &key, value);
                 if PROFILED {
                     if let Some(profile) = &budget.runtime_profile {
                         profile.record_map_set(false, map_clone_bytes);
                     }
                 }
                 let map = Value::Map(Arc::new(updated));
-                if let Some(error) = value_limit_error(&map, &limits, instruction.span) {
+                if let Some(error) = value_limit_error(&map, limits, instruction.span) {
                     return Err(error);
                 }
                 push_stack!(map);
@@ -2093,7 +2252,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                         for scalar in text.chars().take(fast_path.required_characters) {
                             joined.push(scalar);
                         }
-                        let value = Value::Text(Arc::<str>::from(joined));
+                        let value = Value::Text(SharedText::from(joined));
                         if PROFILED {
                             if let Some(profile) = &budget.runtime_profile {
                                 profile
@@ -2213,7 +2372,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                     continue;
                 }
                 let sliced = &text[byte_start..byte_end];
-                let value = Value::Text(Arc::<str>::from(sliced));
+                let value = Value::Text(SharedText::from(sliced));
                 charge_allocation(
                     budget.as_ref(),
                     new_value_allocation(&value),
@@ -2293,7 +2452,192 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                         joined.push_str(text);
                     }
                 }
-                push_stack!(Value::Text(Arc::<str>::from(joined)));
+                push_stack!(Value::Text(SharedText::from(joined)));
+            }
+            Op::TextFind => {
+                let from = match pop!() {
+                    Value::Int(index) => index.to_usize().ok_or_else(|| {
+                        RuntimeError::new(
+                            "R_INDEX_INVALID",
+                            "text_find start must be a non-negative machine-sized integer",
+                            instruction.span,
+                        )
+                    })?,
+                    _ => {
+                        return Err(RuntimeError::new(
+                            "R_TYPE_INVALID",
+                            "text_find start must be Int",
+                            instruction.span,
+                        ));
+                    }
+                };
+                let needle = match pop!() {
+                    Value::Text(text) => text,
+                    _ => {
+                        return Err(RuntimeError::new(
+                            "R_TYPE_INVALID",
+                            "text_find requires Text needle",
+                            instruction.span,
+                        ));
+                    }
+                };
+                let text = match pop!() {
+                    Value::Text(text) => text,
+                    _ => {
+                        return Err(RuntimeError::new(
+                            "R_TYPE_INVALID",
+                            "text_find requires Text",
+                            instruction.span,
+                        ));
+                    }
+                };
+                let found = text_find_scalar(&text, &needle, from).ok_or_else(|| {
+                    RuntimeError::new(
+                        "R_INDEX_BOUNDS",
+                        format!("text_find start {from} is past the end of the text"),
+                        instruction.span,
+                    )
+                })?;
+                let found = match found {
+                    Some(index) => BigInt::from_usize(index),
+                    None => BigInt::from_i64(-1),
+                };
+                push_stack!(Value::Int(found));
+            }
+            Op::TextSplit => {
+                let delimiter = match pop!() {
+                    Value::Text(text) => text,
+                    _ => {
+                        return Err(RuntimeError::new(
+                            "R_TYPE_INVALID",
+                            "text_split_native requires Text delimiter",
+                            instruction.span,
+                        ));
+                    }
+                };
+                let text = match pop!() {
+                    Value::Text(text) => text,
+                    _ => {
+                        return Err(RuntimeError::new(
+                            "R_TYPE_INVALID",
+                            "text_split_native requires Text",
+                            instruction.span,
+                        ));
+                    }
+                };
+                if delimiter.is_empty() {
+                    charge_allocation(
+                        budget.as_ref(),
+                        text_list_allocation(1, text.len()),
+                        instruction.span,
+                    )?;
+                    push_stack!(Value::from_list_items(vec![Value::Text(text)]));
+                    continue;
+                }
+                let Some(offsets) = text_match_offsets(
+                    &text,
+                    &delimiter,
+                    limits.max_collection_items.saturating_sub(1),
+                ) else {
+                    return Err(RuntimeError::new(
+                        "R_COLLECTION_LIMIT",
+                        "text_split result exceeds the configured item limit",
+                        instruction.span,
+                    ));
+                };
+                let count = offsets.len() + 1;
+                let field_bytes = text.len() - (count - 1) * delimiter.len();
+                charge_allocation(
+                    budget.as_ref(),
+                    text_list_allocation(count, field_bytes),
+                    instruction.span,
+                )?;
+                push_stack!(Value::from_list_items(text_split_at(
+                    &text,
+                    &offsets,
+                    delimiter.len()
+                )));
+            }
+            Op::TextReplace => {
+                let replacement = match pop!() {
+                    Value::Text(text) => text,
+                    _ => {
+                        return Err(RuntimeError::new(
+                            "R_TYPE_INVALID",
+                            "text_replace_native requires Text replacement",
+                            instruction.span,
+                        ));
+                    }
+                };
+                let needle = match pop!() {
+                    Value::Text(text) => text,
+                    _ => {
+                        return Err(RuntimeError::new(
+                            "R_TYPE_INVALID",
+                            "text_replace_native requires Text needle",
+                            instruction.span,
+                        ));
+                    }
+                };
+                let text = match pop!() {
+                    Value::Text(text) => text,
+                    _ => {
+                        return Err(RuntimeError::new(
+                            "R_TYPE_INVALID",
+                            "text_replace_native requires Text",
+                            instruction.span,
+                        ));
+                    }
+                };
+                let count = if needle.is_empty() {
+                    0
+                } else {
+                    text_match_count(&text, &needle)
+                };
+                if count == 0 {
+                    push_stack!(Value::Text(text));
+                    continue;
+                }
+                let total = (text.len() - count * needle.len())
+                    .saturating_add(count.saturating_mul(replacement.len()));
+                if total > limits.max_text_bytes {
+                    return Err(RuntimeError::new(
+                        "R_ALLOCATION_LIMIT",
+                        "replaced text exceeds the configured text limit",
+                        instruction.span,
+                    ));
+                }
+                charge_allocation(budget.as_ref(), total, instruction.span)?;
+                push_stack!(Value::Text(text_replace_all(
+                    &text,
+                    &needle,
+                    &replacement,
+                    total
+                )));
+            }
+            Op::TextTrim => {
+                let text = match pop!() {
+                    Value::Text(text) => text,
+                    _ => {
+                        return Err(RuntimeError::new(
+                            "R_TYPE_INVALID",
+                            "text_trim_native requires Text",
+                            instruction.span,
+                        ));
+                    }
+                };
+                let trimmed = text.trim();
+                if trimmed.len() == text.len() {
+                    push_stack!(Value::Text(text));
+                    continue;
+                }
+                let value = Value::Text(SharedText::from(trimmed));
+                charge_allocation(
+                    budget.as_ref(),
+                    new_value_allocation(&value),
+                    instruction.span,
+                )?;
+                push_stack!(value);
             }
             Op::BytesFromInts => {
                 let values = match pop!() {
@@ -2615,13 +2959,18 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                     }
                     _ => unreachable!("list type checked above"),
                 };
-                if let Some(error) = value_limit_error(&list, &limits, instruction.span) {
+                if let Some(error) = value_limit_error(&list, limits, instruction.span) {
                     return Err(error);
                 }
                 push_stack!(list);
             }
             Op::ListPushLocal(slot) => {
                 let value = pop!();
+                // Items already in the list passed this check when they were created, so
+                // checking the pushed value keeps each push constant-time.
+                if let Some(error) = value_limit_error(&value, limits, instruction.span) {
+                    return Err(error);
+                }
                 let local = locals.get_mut(*slot).ok_or_else(|| {
                     RuntimeError::new(
                         "R_LOCAL_UNINITIALIZED",
@@ -2688,9 +3037,6 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                             instruction.span,
                         ));
                     }
-                }
-                if let Some(error) = value_limit_error(local, &limits, instruction.span) {
-                    return Err(error);
                 }
             }
             Op::ListSet => {
@@ -2759,7 +3105,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                     _ => unreachable!("list type checked above"),
                 };
                 budget.record_list_set_copy(len, copy_bytes);
-                if let Some(error) = value_limit_error(&list, &limits, instruction.span) {
+                if let Some(error) = value_limit_error(&list, limits, instruction.span) {
                     return Err(error);
                 }
                 push_stack!(list);
@@ -2782,6 +3128,11 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                         ));
                     }
                 };
+                // The other items passed this check when they were created, so checking the
+                // stored value keeps each in-place update constant-time.
+                if let Some(error) = value_limit_error(&value, limits, instruction.span) {
+                    return Err(error);
+                }
                 let local = locals.get_mut(*slot).ok_or_else(|| {
                     RuntimeError::new(
                         "R_LOCAL_UNINITIALIZED",
@@ -2846,11 +3197,13 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                     }
                     _ => unreachable!("list type checked above"),
                 }
-                if let Some(error) = value_limit_error(local, &limits, instruction.span) {
-                    return Err(error);
-                }
             }
             Op::Equal | Op::NotEqual => {
+                if matches!(instruction.op, Op::Equal) {
+                    small_int_binary!(|a, b| Some(Value::Bool(a == b)));
+                } else {
+                    small_int_binary!(|a, b| Some(Value::Bool(a != b)));
+                }
                 let b = pop!();
                 let a = pop!();
                 let eq = a == b;
@@ -2861,6 +3214,12 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                 }));
             }
             Op::Less | Op::LessEqual | Op::Greater | Op::GreaterEqual => {
+                match instruction.op {
+                    Op::Less => small_int_binary!(|a, b| Some(Value::Bool(a < b))),
+                    Op::LessEqual => small_int_binary!(|a, b| Some(Value::Bool(a <= b))),
+                    Op::Greater => small_int_binary!(|a, b| Some(Value::Bool(a > b))),
+                    _ => small_int_binary!(|a, b| Some(Value::Bool(a >= b))),
+                }
                 let b = pop!();
                 let a = pop!();
                 let ord = match (&a, &b) {
@@ -2896,6 +3255,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                         }
                     }
                 }
+                poll_cancellation = *target < ip;
                 ip = *target;
             }
             Op::JumpIfFalse(target) => {
@@ -2912,6 +3272,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                                 }
                             }
                         }
+                        poll_cancellation = *target < ip;
                         ip = *target;
                     }
                 } else {
@@ -2935,7 +3296,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                         fast_host_forwarders.get(*target).and_then(|value| *value)
                     {
                         if let Err(mut error) =
-                            check_call_depth(&artifact, &limits, *target, depth.saturating_add(1))
+                            check_call_depth(artifact, limits, *target, depth.saturating_add(1))
                         {
                             error.trace.push(instruction.span);
                             return Err(error);
@@ -2948,12 +3309,12 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                         let forwarder_result = execute_fast_host_forwarder::<PROFILED, _>(
                             FastHostForwarderExecution {
                                 host,
-                                artifact: &artifact,
+                                artifact,
                                 target: *target,
                                 forwarder,
                                 stack: &mut stack,
                                 locals: &mut locals,
-                                budget: &budget,
+                                budget,
                                 instruction_fuel: &mut instruction_fuel,
                                 depth: depth.saturating_add(1),
                             },
@@ -2977,7 +3338,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                     .functions
                     .get(*target)
                     .map_or(*argc, |callee| callee.local_count);
-                let mut call_args = Vec::with_capacity(local_count.max(*argc));
+                let mut call_args = pool.take(local_count.max(*argc));
                 for _ in 0..*argc {
                     call_args.push(pop!());
                 }
@@ -3144,9 +3505,11 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                         instruction.span,
                     ));
                 }
-                if let Some(error) = value_limit_error(&result, &limits, instruction.span) {
+                if let Some(error) = value_limit_error(&result, limits, instruction.span) {
                     return Err(error);
                 }
+                pool.give(locals);
+                pool.give(stack);
                 return Ok(VmStep::Return(result));
             }
             _ => {
@@ -3157,38 +3520,25 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                     None
                 };
                 let host_result = host.host_op(HostOpContext {
-                    instruction: instruction.clone(),
+                    instruction,
                     function: f,
                     stack: &mut stack,
                     locals: &mut locals,
-                    budget: &budget,
+                    budget,
                     depth,
                 });
                 if let (Some(sample), Some(started)) = (&profile_sample, host_started) {
                     sample.record_host_duration(started.elapsed());
                 }
                 host_result?;
-                // These operations were reached through forwarding wrappers whose return
-                // applied the value limits; keep that check now that they are called directly.
-                if matches!(
-                    instruction.op,
-                    Op::JsonTryGet
-                        | Op::JsonTryIndex
-                        | Op::JsonTryGetText
-                        | Op::JsonTryGetInt
-                        | Op::JsonTryText
-                        | Op::JsonTryInt
-                        | Op::JsonTryBool
-                        | Op::JsonTryFloat
-                        | Op::FileNextLine
-                        | Op::TextCollapseWhitespace
-                        | Op::TimeParseTimestamp
-                        | Op::TimeFormatUtc
-                        | Op::TimeFormatUtcDate
-                        | Op::HttpResponseJson
-                ) {
+                // A host operation can stop early on cancellation, leaving no result behind.
+                poll_cancellation = true;
+                if budget.is_cancelled() || host.externally_cancelled() {
+                    continue;
+                }
+                if host_result_needs_limit_check(&instruction.op) {
                     if let Some(result) = stack.last() {
-                        if let Some(error) = value_limit_error(result, &limits, instruction.span) {
+                        if let Some(error) = value_limit_error(result, limits, instruction.span) {
                             return Err(error);
                         }
                     }
@@ -3196,6 +3546,31 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
             }
         }
     }
+}
+
+/// These operations were reached through forwarding wrappers whose return applied the
+/// value limits; the check stays now that they are called directly. `CsvNext` checks its own
+/// row, where it knows the shape.
+fn host_result_needs_limit_check(op: &Op) -> bool {
+    matches!(
+        op,
+        Op::JsonTryGet
+            | Op::JsonTryIndex
+            | Op::JsonTryGetText
+            | Op::JsonTryGetInt
+            | Op::JsonTryText
+            | Op::JsonTryInt
+            | Op::JsonTryBool
+            | Op::JsonTryFloat
+            | Op::FileNextLine
+            | Op::TextParseInt
+            | Op::TextParseFloat
+            | Op::TextCollapseWhitespace
+            | Op::TimeParseTimestamp
+            | Op::TimeFormatUtc
+            | Op::TimeFormatUtcDate
+            | Op::HttpResponseJson
+    )
 }
 
 #[derive(Clone, Copy)]
@@ -3235,6 +3610,9 @@ fn fast_host_forwarder(function: &guion_model::Function) -> Option<FastHostForwa
         | Op::JsonTryBool
         | Op::JsonTryFloat
         | Op::FileNextLine
+        | Op::CsvNext
+        | Op::TextParseInt
+        | Op::TextParseFloat
         | Op::TextCollapseWhitespace
         | Op::TimeParseTimestamp
         | Op::TimeFormatUtc
@@ -3365,7 +3743,7 @@ fn execute_fast_host_forwarder<const PROFILED: bool, H: VmHost>(
                         None
                     };
                     let host_result = host.host_op(HostOpContext {
-                        instruction: instruction.clone(),
+                        instruction,
                         function,
                         stack,
                         locals,
@@ -3419,8 +3797,8 @@ fn unique_nested_map_update_target(
     next_ip: usize,
     stack: &[Value],
     locals: &[Value],
-    inner: &Arc<BTreeMap<String, Value>>,
-) -> Option<(usize, Arc<str>)> {
+    inner: &Arc<TextMap>,
+) -> Option<(usize, SharedText)> {
     let Some(Op::MapSet) = code.get(next_ip).map(|instruction| &instruction.op) else {
         return None;
     };
@@ -3441,7 +3819,7 @@ fn unique_nested_map_update_target(
     {
         return None;
     }
-    Some((*parent_slot, Arc::clone(parent_key)))
+    Some((*parent_slot, SharedText::clone(parent_key)))
 }
 
 fn unique_pending_nested_map_writeback_target(
@@ -3449,8 +3827,8 @@ fn unique_pending_nested_map_writeback_target(
     child_store_ip: usize,
     child_slot: usize,
     locals: &[Value],
-    inner: &Arc<BTreeMap<String, Value>>,
-) -> Option<(usize, Arc<str>)> {
+    inner: &Arc<TextMap>,
+) -> Option<(usize, SharedText)> {
     let Some(Op::Store(stored_child)) = code.get(child_store_ip).map(|instruction| &instruction.op)
     else {
         return None;
@@ -3470,10 +3848,10 @@ fn unique_pending_nested_map_writeback_target(
             Op::Load(parent_slot) if *parent_slot != child_slot => {
                 let parent_key = match &code.get(ip + 1)?.op {
                     Op::Load(key_slot) => match locals.get(*key_slot)? {
-                        Value::Text(key) => Arc::clone(key),
+                        Value::Text(key) => SharedText::clone(key),
                         _ => return None,
                     },
-                    Op::Const(Value::Text(key)) => Arc::clone(key),
+                    Op::Const(Value::Text(key)) => SharedText::clone(key),
                     _ => return None,
                 };
                 if !matches!(code.get(ip + 2).map(|instruction| &instruction.op), Some(Op::Load(slot)) if *slot == child_slot)
@@ -3508,7 +3886,7 @@ fn unique_pending_nested_map_writeback_target(
     let mut matching_key = None;
     for (key, value) in parent.iter() {
         if matches!(value, Value::Map(child) if Arc::ptr_eq(child, inner))
-            && matching_key.replace(key.as_str()).is_some()
+            && matching_key.replace(&**key).is_some()
         {
             return None;
         }
@@ -4219,6 +4597,10 @@ pub fn opcode_profile_name(op: &Op) -> &'static str {
         Op::TextChars => "TextChars",
         Op::TextSlice => "TextSlice",
         Op::TextJoin => "TextJoin",
+        Op::TextFind => "TextFind",
+        Op::TextSplit => "TextSplit",
+        Op::TextReplace => "TextReplace",
+        Op::TextTrim => "TextTrim",
         Op::BytesFromInts => "BytesFromInts",
         Op::BytesFromText => "BytesFromText",
         Op::BytesJoin => "BytesJoin",
@@ -4356,7 +4738,7 @@ pub struct Budget {
     pub runtime_profile: Option<Arc<RuntimeProfileCounters>>,
 }
 
-const INSTRUCTION_FUEL_RESERVATION: u64 = 32;
+const INSTRUCTION_FUEL_RESERVATION: u64 = 4096;
 
 struct InstructionFuel<'a> {
     budget: &'a Budget,
@@ -4377,28 +4759,32 @@ impl<'a> InstructionFuel<'a> {
 
     #[inline]
     fn consume(&mut self) -> bool {
+        // `remaining` stays zero under exact atomic charging, so one test covers both.
+        if self.remaining != 0 {
+            self.remaining -= 1;
+            return true;
+        }
+        self.consume_slow()
+    }
+
+    #[cold]
+    fn consume_slow(&mut self) -> bool {
         if !self.reserve_locally {
             return self.budget.consume();
         }
+        self.remaining = self.budget.reserve(INSTRUCTION_FUEL_RESERVATION);
         if self.remaining == 0 {
-            self.remaining = self.budget.reserve(INSTRUCTION_FUEL_RESERVATION);
-            if self.remaining == 0 {
-                return false;
-            }
+            return false;
         }
         self.remaining -= 1;
         true
     }
 
-    /// Take `count` more units from the local reservation. Returns false, taking
-    /// nothing, when exact atomic charging is in force or the reservation is short.
+    /// Reserve more fuel once the local reservation has run out.
     #[inline]
-    fn consume_extra(&mut self, count: u64) -> bool {
-        if self.reserve_locally && self.remaining >= count {
-            self.remaining -= count;
-            true
-        } else {
-            false
+    fn top_up(&mut self) {
+        if self.remaining == 0 && self.reserve_locally {
+            self.remaining = self.budget.reserve(INSTRUCTION_FUEL_RESERVATION);
         }
     }
 
@@ -4589,19 +4975,65 @@ impl Budget {
     }
 }
 
-#[inline]
+#[inline(always)]
 pub fn charge_allocation(budget: &Budget, bytes: usize, span: Span) -> Result<(), RuntimeError> {
-    if budget.allocate(bytes) {
+    if bytes == 0 || budget.allocate(bytes) {
         Ok(())
     } else {
-        let remaining = budget.allocation_remaining.load(Ordering::Relaxed);
-        Err(RuntimeError::new(
-            "R_ALLOCATION_LIMIT",
-            format!(
-                "cumulative allocation budget exhausted during this invocation (requested {bytes} bytes; {remaining} remain)"
-            ),
-            span,
-        ))
+        Err(allocation_limit_error(budget, bytes, span))
+    }
+}
+
+#[cold]
+fn allocation_limit_error(budget: &Budget, bytes: usize, span: Span) -> RuntimeError {
+    let remaining = budget.allocation_remaining.load(Ordering::Relaxed);
+    RuntimeError::new(
+        "R_ALLOCATION_LIMIT",
+        format!(
+            "cumulative allocation budget exhausted during this invocation (requested {bytes} bytes; {remaining} remain)"
+        ),
+        span,
+    )
+}
+
+/// The clone charge for the common values, without a call.
+#[inline(always)]
+fn cloned_value_allocation_fast(value: &Value) -> usize {
+    match value {
+        Value::Int(_) | Value::Bool(_) | Value::Float64(_) | Value::Unit | Value::OptionNone => 0,
+        Value::Json(_) | Value::Map(_) | Value::List(_) | Value::Text(_) => 0,
+        _ => cloned_value_allocation(value),
+    }
+}
+
+/// `Value::clone` for the common values, without a call.
+#[inline(always)]
+fn clone_value_fast(value: &Value) -> Value {
+    match value {
+        Value::Int(int) => match int.small() {
+            Some(small) => Value::Int(BigInt::from_i64(small)),
+            None => value.clone(),
+        },
+        Value::Bool(flag) => Value::Bool(*flag),
+        Value::Float64(float) => Value::Float64(*float),
+        Value::Text(text) => Value::Text(SharedText::clone(text)),
+        Value::Json(json) => Value::Json(Arc::clone(json)),
+        Value::Map(map) => Value::Map(Arc::clone(map)),
+        Value::List(items) => Value::List(Arc::clone(items)),
+        _ => value.clone(),
+    }
+}
+
+/// Drop a value, skipping the drop call when it owns nothing.
+#[inline(always)]
+fn drop_value_fast(value: Value) {
+    let owns_nothing = match &value {
+        Value::Int(int) => int.small().is_some(),
+        Value::Bool(_) | Value::Float64(_) | Value::Unit | Value::OptionNone => true,
+        _ => false,
+    };
+    if owns_nothing {
+        std::mem::forget(value);
     }
 }
 
@@ -4619,7 +5051,7 @@ pub fn new_value_allocation(value: &Value) -> usize {
         // remain Arc-shared. Their payloads were charged when first created.
         Value::Record(name, fields) => size_of::<Vec<Value>>()
             .saturating_add(fields.len().saturating_mul(size_of::<Value>()))
-            .saturating_add(name.capacity()),
+            .saturating_add(name.len()),
         // JSON nodes are immutable and Arc-shared; cloning a value allocates no subtree.
         Value::Json(_) => 0,
         Value::TaskError(error) => size_of::<TaskErrorValue>()
@@ -4646,14 +5078,27 @@ pub fn new_value_allocation(value: &Value) -> usize {
 
 #[inline]
 pub fn cloned_value_allocation(value: &Value) -> usize {
+    // Each Option or Result wrapper clones one boxed value around its payload.
+    let mut wrappers = 0usize;
+    let mut value = value;
+    while let Value::OptionSome(inner) | Value::ResultOk(inner) | Value::ResultErr(inner) = value {
+        wrappers += 1;
+        value = inner;
+    }
+    wrappers
+        .saturating_mul(size_of::<Value>())
+        .saturating_add(cloned_payload_allocation(value))
+}
+
+#[inline]
+fn cloned_payload_allocation(value: &Value) -> usize {
     match value {
-        Value::Int(_) => 0,
-        // Keep the existing logical copy quota even though the clone now
-        // shares its immutable backing storage.
-        Value::Text(text) => size_of::<String>().saturating_add(text.len()),
+        // A text clone shares its immutable backing storage, as Lists, Maps and JSON do,
+        // so it allocates nothing. The text was charged once when it was created.
+        Value::Int(_) | Value::Text(_) => 0,
         Value::Record(name, _) => size_of::<String>().saturating_add(name.len()),
-        Value::OptionSome(value) | Value::ResultOk(value) | Value::ResultErr(value) => {
-            size_of::<Value>().saturating_add(cloned_value_allocation(value))
+        Value::OptionSome(_) | Value::ResultOk(_) | Value::ResultErr(_) => {
+            unreachable!("wrappers are unwrapped by cloned_value_allocation")
         }
         Value::TaskError(error) => size_of::<TaskErrorValue>()
             .saturating_add(error.code.len())
@@ -4680,22 +5125,18 @@ pub fn cloned_value_allocation(value: &Value) -> usize {
 }
 
 #[inline]
-fn replace_map_value(values: &mut BTreeMap<String, Value>, key: &str, value: Value) {
+fn replace_map_value(values: &mut TextMap, key: &SharedText, value: Value) {
     if let Some(existing_value) = values.get_mut(key) {
         *existing_value = value;
     } else {
-        values.insert(key.to_owned(), value);
+        values.insert(SharedText::clone(key), value);
     }
 }
 
 #[inline]
-pub fn map_clone_allocation(
-    values: &BTreeMap<String, Value>,
-    new_key: Option<&str>,
-    new_value: &Value,
-) -> usize {
-    let mut total = size_of::<BTreeMap<String, Value>>();
-    for (key, value) in values {
+pub fn map_clone_allocation(values: &TextMap, new_key: Option<&str>, new_value: &Value) -> usize {
+    let mut total = TextMap::ACCOUNTED_HEADER_BYTES;
+    for (key, value) in values.iter_unordered() {
         total = total
             .saturating_add(size_of::<String>() + key.len())
             .saturating_add(size_of::<Value>() * 3)
@@ -4858,15 +5299,17 @@ pub fn shared_json_metrics(value: &SharedJson, max_integer_digits: usize) -> Jso
             },
         },
         SharedJson::Number(number) => {
-            let text = number.to_string();
-            let digits = text.strip_prefix('-').unwrap_or(&text);
+            // Numbers keep their source text, so measuring one needs no formatting.
+            let text = number.as_str();
+            let digits = text.strip_prefix('-').unwrap_or(text);
             let is_integer = !digits.is_empty() && digits.bytes().all(|byte| byte.is_ascii_digit());
+            let (len, digits) = (text.len(), is_integer.then_some(digits.len()));
             JsonMetrics {
                 depth: 0,
                 item_count: 0,
-                oversized_integer: is_integer && digits.len() > max_integer_digits,
-                allocation_bytes: size_of::<SharedJson>().saturating_add(text.len()),
-                encoded_len: text.len(),
+                oversized_integer: digits.is_some_and(|digits| digits > max_integer_digits),
+                allocation_bytes: size_of::<SharedJson>().saturating_add(len),
+                encoded_len: len,
             }
         }
         SharedJson::String(text) => JsonMetrics {
@@ -5047,22 +5490,26 @@ pub fn value_matches(value: &Value, ty: &Type, records: &[guion_model::RecordDef
             .all(|item| value_matches(item, item_ty, records)),
         (Value::Float64List(_), Type::List(item_ty)) => **item_ty == Type::Float64,
         (Value::Map(items), Type::Map(item_ty)) => items
-            .values()
-            .all(|item| value_matches(item, item_ty, records)),
+            .iter_unordered()
+            .all(|(_, item)| value_matches(item, item_ty, records)),
         (Value::OptionNone, Type::Option(_)) => true,
         (Value::OptionSome(value), Type::Option(item)) => value_matches(value, item, records),
         (Value::ResultOk(value), Type::Result(ok, _)) => value_matches(value, ok, records),
         (Value::ResultErr(value), Type::Result(_, err)) => value_matches(value, err, records),
-        (Value::Record(name, fields), Type::Record(expected)) if name == expected => records
-            .iter()
-            .find(|record| record.name == *name)
-            .is_some_and(|record| {
-                fields.len() == record.fields.len()
-                    && fields
-                        .iter()
-                        .zip(&record.fields)
-                        .all(|(value, field)| value_matches(value, &field.ty, records))
-            }),
+        (Value::Record(name, fields), Type::Record(expected))
+            if name.as_str() == expected.as_str() =>
+        {
+            records
+                .iter()
+                .find(|record| record.name.as_str() == name.as_str())
+                .is_some_and(|record| {
+                    fields.len() == record.fields.len()
+                        && fields
+                            .iter()
+                            .zip(&record.fields)
+                            .all(|(value, field)| value_matches(value, &field.ty, records))
+                })
+        }
         (Value::TaskError(_), Type::TaskError) => true,
         (Value::Json(_), Type::Json) => true,
         (Value::JsonError(_), Type::JsonError) => true,
@@ -5080,10 +5527,41 @@ pub fn value_limit_error(value: &Value, limits: &VmLimits, span: Span) -> Option
     // Scalars within their limits are the common case on arithmetic and comparison
     // results; answer them without entering the recursive walk.
     match value {
-        Value::Int(i) if i.digit_count() <= limits.max_integer_digits => None,
+        // This check leaves JSON payloads to the boundary check.
+        Value::Json(_) => None,
+        Value::ResultOk(inner) | Value::OptionSome(inner) => match inner.as_ref() {
+            Value::Int(i) if !i.exceeds_digits(limits.max_integer_digits) => None,
+            Value::Text(s) if s.len() <= limits.max_text_bytes => None,
+            Value::Json(_) | Value::Bool(_) | Value::Float64(_) => None,
+            _ => value_limit_error_with_json(value, limits, span, false),
+        },
+        Value::Int(i) if !i.exceeds_digits(limits.max_integer_digits) => None,
         Value::Text(s) if s.len() <= limits.max_text_bytes => None,
         Value::Bool(_) | Value::Float64(_) | Value::Unit | Value::OptionNone => None,
+        // Records of scalars, such as an aggregate row stored back into a map, are checked
+        // field by field without entering the recursive walk.
+        Value::Record(_, fields)
+            if fields
+                .iter()
+                .all(|field| scalar_within_limits(field, limits)) =>
+        {
+            None
+        }
         _ => value_limit_error_with_json(value, limits, span, false),
+    }
+}
+
+/// Whether `value` is a scalar within its limits; JSON payloads are left to the boundary
+/// check, as `value_limit_error` leaves them.
+#[inline(always)]
+fn scalar_within_limits(value: &Value, limits: &VmLimits) -> bool {
+    match value {
+        Value::Int(i) => !i.exceeds_digits(limits.max_integer_digits),
+        Value::Text(s) => s.len() <= limits.max_text_bytes,
+        Value::Bool(_) | Value::Float64(_) | Value::Unit | Value::OptionNone | Value::Json(_) => {
+            true
+        }
+        _ => false,
     }
 }
 
@@ -5093,7 +5571,12 @@ pub fn value_limit_error_at_boundary(
     limits: &VmLimits,
     span: Span,
 ) -> Option<RuntimeError> {
-    value_limit_error_with_json(value, limits, span, true)
+    match value {
+        Value::Int(i) if !i.exceeds_digits(limits.max_integer_digits) => None,
+        Value::Text(s) if s.len() <= limits.max_text_bytes => None,
+        Value::Bool(_) | Value::Float64(_) | Value::Unit | Value::OptionNone => None,
+        _ => value_limit_error_with_json(value, limits, span, true),
+    }
 }
 
 fn value_limit_error_with_json(
@@ -5106,7 +5589,7 @@ fn value_limit_error_with_json(
         Value::Record(_, fields) => fields
             .iter()
             .find_map(|field| value_limit_error_with_json(field, limits, span, check_json)),
-        Value::Int(i) if i.digit_count() > limits.max_integer_digits => Some(RuntimeError::new(
+        Value::Int(i) if i.exceeds_digits(limits.max_integer_digits) => Some(RuntimeError::new(
             "R_INTEGER_LIMIT",
             format!(
                 "integer has {} digits; configured limit is {}",
@@ -5166,6 +5649,15 @@ fn value_limit_error_with_json(
             ),
             span,
         )),
+        // Which violation is reported depends on key order, so only a violation pays for it.
+        Value::Map(items)
+            if items.iter_unordered().all(|(key, value)| {
+                key.len() <= limits.max_text_bytes
+                    && value_limit_error_with_json(value, limits, span, check_json).is_none()
+            }) =>
+        {
+            None
+        }
         Value::Map(items) => items.iter().find_map(|(key, value)| {
             if key.len() > limits.max_text_bytes {
                 Some(RuntimeError::new(
@@ -5289,7 +5781,7 @@ pub fn verify(artifact: &Artifact) -> Result<(), RuntimeError> {
     }
     let mut names = record_names
         .iter()
-        .map(String::as_str)
+        .map(|name| name.as_str())
         .collect::<HashSet<_>>();
     for function in &artifact.functions {
         if function.name.is_empty() || !names.insert(function.name.as_str()) {
@@ -5450,9 +5942,9 @@ pub fn verify(artifact: &Artifact) -> Result<(), RuntimeError> {
     Ok(())
 }
 
-fn artifact_type_known(ty: &Type, record_names: &HashSet<String>) -> bool {
+fn artifact_type_known(ty: &Type, record_names: &HashSet<guion_model::RecordName>) -> bool {
     match ty {
-        Type::Record(name) => record_names.contains(name),
+        Type::Record(name) => record_names.contains(name.as_str()),
         Type::NativeResource(name) => matches!(
             name.as_str(),
             "FileReader" | "Db" | "Transaction" | "TomlDocument"
@@ -5506,7 +5998,7 @@ fn value_type(value: &Value) -> Option<Type> {
     Some(match value {
         Value::Int(_) => Type::Int,
         Value::Float64(_) => Type::Float64,
-        Value::Record(name, _) => Type::Record(name.clone()),
+        Value::Record(name, _) => Type::Record(name.to_string()),
         Value::NativeResource(resource) => Type::NativeResource(resource.kind().to_owned()),
         Value::Bool(_) => Type::Bool,
         Value::Text(_) => Type::Text,
@@ -5526,12 +6018,11 @@ fn value_type(value: &Value) -> Option<Type> {
         }
         Value::Float64List(_) => Type::List(Box::new(Type::Float64)),
         Value::Map(items) => {
-            let first = items.values().next()?;
+            let first = items.iter_unordered().next()?.1;
             let item_type = value_type(first)?;
             if items
-                .values()
-                .skip(1)
-                .any(|item| value_type(item).as_ref() != Some(&item_type))
+                .iter_unordered()
+                .any(|(_, item)| value_type(item).as_ref() != Some(&item_type))
             {
                 return None;
             }
@@ -6122,6 +6613,46 @@ fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result
                 }
                 state.stack.push(Type::Text);
             }
+            Op::TextFind => {
+                if pop_type(&mut state.stack, pc)? != Type::Int
+                    || pop_type(&mut state.stack, pc)? != Type::Text
+                    || pop_type(&mut state.stack, pc)? != Type::Text
+                {
+                    return Err(format!(
+                        "text_find requires Text, Text and an Int start at instruction {pc}"
+                    ));
+                }
+                state.stack.push(Type::Int);
+            }
+            Op::TextSplit => {
+                if pop_type(&mut state.stack, pc)? != Type::Text
+                    || pop_type(&mut state.stack, pc)? != Type::Text
+                {
+                    return Err(format!(
+                        "text_split_native requires Text and Text at instruction {pc}"
+                    ));
+                }
+                state.stack.push(Type::List(Box::new(Type::Text)));
+            }
+            Op::TextReplace => {
+                if pop_type(&mut state.stack, pc)? != Type::Text
+                    || pop_type(&mut state.stack, pc)? != Type::Text
+                    || pop_type(&mut state.stack, pc)? != Type::Text
+                {
+                    return Err(format!(
+                        "text_replace_native requires three Text arguments at instruction {pc}"
+                    ));
+                }
+                state.stack.push(Type::Text);
+            }
+            Op::TextTrim => {
+                if pop_type(&mut state.stack, pc)? != Type::Text {
+                    return Err(format!(
+                        "text_trim_native requires Text at instruction {pc}"
+                    ));
+                }
+                state.stack.push(Type::Text);
+            }
             Op::BytesFromInts => {
                 if pop_type(&mut state.stack, pc)? != Type::List(Box::new(Type::Int)) {
                     return Err(format!(
@@ -6221,7 +6752,7 @@ fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result
                         ));
                     }
                 }
-                state.stack.push(Type::Record(record.name.clone()));
+                state.stack.push(Type::Record(record.name.to_string()));
             }
             Op::GetField(record_index, field_index) => {
                 let record = artifact.records.get(*record_index).ok_or_else(|| {
@@ -6230,7 +6761,7 @@ fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result
                 let field = record.fields.get(*field_index).ok_or_else(|| {
                     format!("field access references missing field at instruction {pc}")
                 })?;
-                if pop_type(&mut state.stack, pc)? != Type::Record(record.name.clone()) {
+                if pop_type(&mut state.stack, pc)? != Type::Record(record.name.to_string()) {
                     return Err(format!(
                         "field access record type mismatch at instruction {pc}"
                     ));
@@ -6288,7 +6819,7 @@ fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result
                 } else {
                     item_type.as_ref()
                 };
-                if *value_type != Type::Record(record.name.clone()) {
+                if *value_type != Type::Record(record.name.to_string()) {
                     return Err(format!(
                         "map_record_get value type does not match record at instruction {pc}"
                     ));
@@ -6326,7 +6857,7 @@ fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result
                 } else {
                     item_type.as_ref()
                 };
-                if *record_type != Type::Record(record.name.clone()) || value_type != field.ty {
+                if *record_type != Type::Record(record.name.to_string()) || value_type != field.ty {
                     return Err(format!(
                         "map_record_set types do not match record field at instruction {pc}"
                     ));
@@ -7238,6 +7769,46 @@ mod tests {
     use guion_model::{Function, Instruction};
 
     #[test]
+    fn text_search_helpers_match_the_standard_library() {
+        let cases = [
+            ("a,b,,c", ","),
+            ("aaaa", "aa"),
+            ("aaa", "aa"),
+            ("α::🙂::", "::"),
+            ("café|é|", "é"),
+            ("no match", "xyz"),
+            ("", ","),
+            ("{{x}}{{x}}", "{{x}}"),
+        ];
+        for (text, needle) in cases {
+            let offsets = text_match_offsets(text, needle, usize::MAX).unwrap();
+            let fields: Vec<String> = text_split_at(text, &offsets, needle.len())
+                .into_iter()
+                .map(|value| match value {
+                    Value::Text(field) => field.to_string(),
+                    _ => unreachable!(),
+                })
+                .collect();
+            assert_eq!(fields, text.split(needle).collect::<Vec<_>>(), "{text:?}");
+            let count = text_match_count(text, needle);
+            assert_eq!(count, text.matches(needle).count(), "{text:?}");
+            let total = text.len() - count * needle.len() + count * 2;
+            assert_eq!(
+                &*text_replace_all(text, needle, "§", total),
+                text.replace(needle, "§"),
+                "{text:?}"
+            );
+        }
+        assert_eq!(text_match_offsets("a,b,c", ",", 1), None);
+        assert_eq!(text_match_offsets("a,b,c", ",", 2), Some(vec![1, 3]));
+        let long: SharedText = SharedText::from("é".repeat(5000) + "tea" + &"x".repeat(10) + "tea");
+        assert_eq!(text_find_scalar(&long, "tea", 0), Some(Some(5000)));
+        assert_eq!(text_find_scalar(&long, "tea", 5001), Some(Some(5013)));
+        assert_eq!(text_find_scalar(&long, "x", 5001), Some(Some(5003)));
+        assert_eq!(text_find_scalar(&long, "zz", 0), Some(None));
+    }
+
+    #[test]
     fn instruction_fuel_refunds_unused_reservation_and_keeps_exact_exhaustion() {
         let budget = Budget::new(5, usize::MAX, CancellationToken::new(), None);
         let mut fuel = InstructionFuel::new(&budget);
@@ -7371,12 +7942,12 @@ mod tests {
         };
         let mut args = Vec::with_capacity(8);
         args.push(Value::Int(BigInt::one()));
-        args.push(Value::Text(Arc::<str>::from("kept")));
+        args.push(Value::Text(SharedText::from("kept")));
 
         let frame = new_vm_frame(&artifact, 0, args, 1, None);
 
         assert_eq!(frame.locals[0], Value::Int(BigInt::one()));
-        assert_eq!(frame.locals[1], Value::Text(Arc::<str>::from("kept")));
+        assert_eq!(frame.locals[1], Value::Text(SharedText::from("kept")));
         assert!(frame.locals.capacity() >= 8);
     }
 
@@ -7445,7 +8016,7 @@ mod tests {
             artifact: Arc::clone(&artifact),
             observed_stack_len: None,
         };
-        let mut stack = vec![Value::Bool(true), Value::Text(Arc::<str>::from("example"))];
+        let mut stack = vec![Value::Bool(true), Value::Text(SharedText::from("example"))];
         let mut locals = Vec::new();
         let budget = Arc::new(Budget::new(3, 1024, CancellationToken::new(), None));
         let mut instruction_fuel = InstructionFuel::new(&budget);
@@ -7465,7 +8036,7 @@ mod tests {
 
         assert_eq!(host.observed_stack_len, Some(2));
         assert_eq!(stack, vec![Value::Bool(true)]);
-        assert_eq!(result, Value::Text(Arc::<str>::from("example")));
+        assert_eq!(result, Value::Text(SharedText::from("example")));
         drop(instruction_fuel);
         assert_eq!(budget.remaining.load(Ordering::Relaxed), 0);
     }
@@ -7516,18 +8087,18 @@ mod tests {
         }
     }
 
-    struct FusionTestHost {
+    struct RegisterTestHost {
         artifact: Arc<Artifact>,
-        fused: Option<Arc<Vec<Vec<FusedEntry>>>>,
+        registers: Option<Arc<RegisterPrograms>>,
     }
 
-    impl VmHost for FusionTestHost {
+    impl VmHost for RegisterTestHost {
         fn artifact(&self) -> &Arc<Artifact> {
             &self.artifact
         }
 
-        fn fused_tables(&self) -> Option<Arc<Vec<Vec<FusedEntry>>>> {
-            self.fused.clone()
+        fn register_programs(&self) -> Option<Arc<RegisterPrograms>> {
+            self.registers.clone()
         }
 
         fn limits(&self) -> VmLimits {
@@ -7563,7 +8134,7 @@ mod tests {
         }
     }
 
-    fn fusion_test_artifact() -> Arc<Artifact> {
+    fn register_test_artifact() -> Arc<Artifact> {
         let ops = vec![
             Op::Const(Value::Int(BigInt::from_i64(7))),
             Op::MakeOk,
@@ -7611,7 +8182,7 @@ mod tests {
             format_version: Artifact::CURRENT_VERSION,
             build_metadata: None,
             compiled_source_sha256: None,
-            source_name: "fusion-test.gu".into(),
+            source_name: "register-test.gu".into(),
             sources: vec![],
             entry: "main".into(),
             functions: vec![guion_model::Function {
@@ -7627,17 +8198,20 @@ mod tests {
     }
 
     #[test]
-    fn fused_entries_match_plain_execution_at_every_instruction_limit() {
-        let artifact = fusion_test_artifact();
-        let tables = Arc::new(build_fused_tables(&artifact));
+    fn register_form_matches_plain_execution_at_every_instruction_limit() {
+        let artifact = register_test_artifact();
+        let tables = Arc::new(build_register_programs(&artifact));
         assert!(
-            tables[0].iter().any(|entry| entry.kind != FusedKind::None),
-            "the test program must contain fusable sequences"
+            tables
+                .get(0, &artifact.functions[0])
+                .unwrap()
+                .covers_instruction_ranges(),
+            "the test program must contain register instructions"
         );
-        let run = |fused: Option<Arc<Vec<Vec<FusedEntry>>>>, limit: u64| {
-            let mut host = FusionTestHost {
+        let run = |registers: Option<Arc<RegisterPrograms>>, limit: u64| {
+            let mut host = RegisterTestHost {
                 artifact: Arc::clone(&artifact),
-                fused,
+                registers,
             };
             let budget = Arc::new(Budget::new(limit, 1 << 20, CancellationToken::new(), None));
             let frame = new_vm_frame(&artifact, 0, vec![], 1, None);
@@ -7651,8 +8225,8 @@ mod tests {
         let mut succeeded = false;
         for limit in 0..40 {
             let plain = run(None, limit);
-            let fused = run(Some(Arc::clone(&tables)), limit);
-            assert_eq!(plain, fused, "instruction limit {limit}");
+            let registers = run(Some(Arc::clone(&tables)), limit);
+            assert_eq!(plain, registers, "instruction limit {limit}");
             succeeded |= plain.0.is_ok();
         }
         assert!(succeeded, "a large enough limit completes the program");
@@ -7661,18 +8235,239 @@ mod tests {
     }
 
     #[test]
+    fn register_reads_and_constructor_calls_match_plain_execution_at_every_limit() {
+        let span = |index: usize| Span {
+            source_id: 0,
+            start: index,
+            end: index + 1,
+            line: index + 1,
+            column: 1,
+        };
+        let function =
+            |name: &str, parameters, result, local_count, ops: Vec<Op>| guion_model::Function {
+                name: name.into(),
+                parameters,
+                result,
+                local_count,
+                code: ops
+                    .into_iter()
+                    .enumerate()
+                    .map(|(index, op)| Instruction {
+                        op,
+                        span: span(index),
+                    })
+                    .collect(),
+            };
+        let int = |value| Value::Int(BigInt::from_i64(value));
+        let mut entries = TextMap::new();
+        entries.insert("key".to_owned(), Value::Text("value".into()));
+        let main = function(
+            "main",
+            vec![],
+            Type::Int,
+            4,
+            vec![
+                Op::Const(Value::Map(Arc::new(entries))),
+                Op::Store(0),
+                Op::Const(Value::Text("key".into())),
+                Op::Store(1),
+                Op::Const(Value::List(Arc::new(vec![int(5)]))),
+                Op::Store(2),
+                Op::Const(int(0)),
+                Op::Store(3),
+                Op::Load(0),
+                Op::Load(1),
+                Op::MapHas,
+                Op::Pop,
+                Op::Load(0),
+                Op::Load(1),
+                Op::Index,
+                Op::Pop,
+                Op::Load(2),
+                Op::Load(3),
+                Op::Index,
+                Op::Pop,
+                Op::Const(int(1)),
+                Op::Call(1, 1),
+                Op::Pop,
+                Op::Call(2, 0),
+                Op::Pop,
+                Op::Const(int(7)),
+                Op::Return,
+            ],
+        );
+        let some = function(
+            "some",
+            vec![Type::Int],
+            Type::Option(Box::new(Type::Int)),
+            1,
+            vec![Op::Load(0), Op::MakeSome, Op::Return],
+        );
+        let none = function(
+            "none",
+            vec![],
+            Type::Option(Box::new(Type::Int)),
+            0,
+            vec![Op::MakeNone, Op::Return],
+        );
+        let artifact = Arc::new(Artifact {
+            format_version: Artifact::CURRENT_VERSION,
+            build_metadata: None,
+            compiled_source_sha256: None,
+            source_name: "register-reads-test.gu".into(),
+            sources: vec![],
+            entry: "main".into(),
+            functions: vec![main, some, none],
+            externals: vec![],
+            records: vec![],
+        });
+        let tables = Arc::new(build_register_programs(&artifact));
+        for kind in ["Index", "MapHas", "CallSome", "CallNone"] {
+            assert!(
+                tables
+                    .get(0, &artifact.functions[0])
+                    .unwrap()
+                    .has_kind(kind),
+                "the test program must reach {kind}"
+            );
+        }
+        let run = |registers: Option<Arc<RegisterPrograms>>, instructions: u64, bytes: usize| {
+            let mut host = RegisterTestHost {
+                artifact: Arc::clone(&artifact),
+                registers,
+            };
+            let budget = Arc::new(Budget::new(
+                instructions,
+                bytes,
+                CancellationToken::new(),
+                None,
+            ));
+            let frame = new_vm_frame(&artifact, 0, vec![], 1, None);
+            let outcome = match run_frames(&mut host, frame, Arc::clone(&budget)) {
+                Ok(value) => Ok(value),
+                Err(error) => Err((error.code, error.trace)),
+            };
+            (
+                outcome,
+                budget.remaining.load(Ordering::Relaxed),
+                budget.allocation_remaining.load(Ordering::Relaxed),
+            )
+        };
+        for limit in 0..50 {
+            let plain = run(None, limit, 1 << 20);
+            let registers = run(Some(Arc::clone(&tables)), limit, 1 << 20);
+            assert_eq!(plain, registers, "instruction limit {limit}");
+        }
+        let mut exhausted = false;
+        for bytes in 0..200 {
+            let plain = run(None, 1000, bytes);
+            let registers = run(Some(Arc::clone(&tables)), 1000, bytes);
+            // The failing program stops here, so the fuel left over is not observable.
+            assert_eq!(
+                (&plain.0, plain.2),
+                (&registers.0, registers.2),
+                "allocation limit {bytes}"
+            );
+            exhausted |= plain.0.is_err();
+        }
+        assert!(exhausted, "a small allocation budget must be exhausted");
+        assert_eq!(run(Some(tables), 1000, 1 << 20).0, Ok(int(7)));
+    }
+
+    #[test]
     fn map_update_existing_key_preserves_owned_key_storage() {
-        let mut values = BTreeMap::new();
-        let key = String::from("service");
+        let mut values = TextMap::new();
+        let key = SharedText::from("service");
         let original_key_ptr = key.as_ptr();
         values.insert(key, Value::Bool(false));
 
-        replace_map_value(&mut values, "service", Value::Bool(true));
+        replace_map_value(&mut values, &SharedText::from("service"), Value::Bool(true));
 
         let (stored_key, stored_value) = values
             .get_key_value("service")
             .expect("the existing map key remains present");
         assert_eq!(stored_key.as_ptr(), original_key_ptr);
         assert_eq!(stored_value, &Value::Bool(true));
+    }
+
+    #[test]
+    fn record_limit_fast_path_agrees_with_the_full_walk() {
+        let limits = VmLimits {
+            max_integer_digits: 3,
+            max_text_bytes: 4,
+            max_collection_items: 2,
+            ..VmLimits::default()
+        };
+        let record = |fields: Vec<Value>| Value::Record("Row".into(), Arc::new(fields));
+        let text = |text: &str| Value::Text(SharedText::from(text));
+        let int = |value: i64| Value::Int(BigInt::from_i64(value));
+        let cases = [
+            record(vec![]),
+            record(vec![int(123), text("ok"), Value::Bool(true), Value::Unit]),
+            record(vec![int(1234), text("ok")]),
+            record(vec![int(1), text("too long")]),
+            record(vec![
+                Value::OptionNone,
+                Value::Json(Arc::new(SharedJson::Null)),
+            ]),
+            record(vec![record(vec![text("too long")])]),
+            record(vec![Value::OptionSome(Box::new(int(12345)))]),
+            record(vec![Value::List(Arc::new(vec![int(1), int(2), int(3)]))]),
+        ];
+        for value in cases {
+            let code = |error: Option<RuntimeError>| error.map(|error| error.code);
+            assert_eq!(
+                code(value_limit_error(&value, &limits, Span::default())),
+                code(value_limit_error_with_json(
+                    &value,
+                    &limits,
+                    Span::default(),
+                    false
+                )),
+                "{value:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn cloned_allocation_counts_every_option_and_result_wrapper() {
+        let text = Value::Text(SharedText::from("payload"));
+        let wrapped = Value::OptionSome(Box::new(Value::ResultOk(Box::new(Value::ResultErr(
+            Box::new(text.clone()),
+        )))));
+        assert_eq!(cloned_value_allocation(&text), 0);
+        assert_eq!(cloned_value_allocation(&wrapped), 3 * size_of::<Value>());
+        let record = Value::Record("Row".into(), Arc::new(vec![]));
+        assert_eq!(
+            cloned_value_allocation(&Value::ResultOk(Box::new(record.clone()))),
+            size_of::<Value>() + cloned_value_allocation(&record)
+        );
+    }
+
+    #[test]
+    fn json_number_metrics_measure_the_number_as_written() {
+        // The parser stores a number's text (normalising exponents), and both `as_str` and
+        // `Display` return that stored text.
+        for (source, digits_over_three) in [
+            ("0", false),
+            ("-123", false),
+            ("1234", true),
+            ("-12345678901234567890123", true),
+            ("1.5", false),
+            ("-2.50e10", false),
+            ("1E400", false),
+        ] {
+            let number: serde_json::Number = serde_json::from_str(source).unwrap();
+            let written = number.to_string();
+            assert_eq!(number.as_str(), written);
+            let metrics = shared_json_metrics(&SharedJson::Number(number), 3);
+            assert_eq!(metrics.encoded_len, written.len(), "{source}");
+            assert_eq!(metrics.oversized_integer, digits_over_three, "{source}");
+            assert_eq!(
+                metrics.allocation_bytes,
+                size_of::<SharedJson>() + written.len(),
+                "{source}"
+            );
+        }
     }
 }

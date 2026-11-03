@@ -256,6 +256,14 @@ pub fn builtin_catalog_signature(name: Text) -> Text:
             return "3:TextSlice:Text:Text;Int;Int"
         if name == "text_join_native":
             return "2:TextJoin:Text:List[Text];Text"
+        if name == "text_find":
+            return "3:TextFind:Int:Text;Text;Int"
+        if name == "text_split_native":
+            return "2:TextSplit:List[Text]:Text;Text"
+        if name == "text_replace_native":
+            return "3:TextReplace:Text:Text;Text;Text"
+        if name == "text_trim_native":
+            return "1:TextTrim:Text:Text"
         if name == "text_parse_float":
             return "1:TextParseFloat:Result[Float64, FileError]:Text"
         if name == "text_parse_int":

@@ -8,11 +8,11 @@
 //! The exported ABI is the one the AllHereHTML loader already consumes.
 
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
-use guion_model::{Artifact, BigInt, Float64, RecordDefinition, SharedJson, Value};
+use guion_model::{Artifact, BigInt, Float64, RecordDefinition, SharedJson, TextMap, Value};
 use guion_vm_core::{PortableHost, VmLimits};
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 use std::{cell::UnsafeCell, sync::Arc};
 
 pub const MAX_ARTIFACT_BYTES: usize = 1024 * 1024;
@@ -663,7 +663,7 @@ fn decode_wire_value(
                     "map contains too many values",
                 ));
             }
-            let mut values = BTreeMap::new();
+            let mut values = TextMap::new();
             let mut previous: Option<String> = None;
             for entry in entries {
                 check_string(&entry.key)?;
@@ -709,7 +709,7 @@ fn decode_wire_value(
                 }
                 values.push(decode_wire_value(field.value, records, depth + 1, nodes)?);
             }
-            Ok(Value::Record(record.name, Arc::new(values)))
+            Ok(Value::Record(record.name.into(), Arc::new(values)))
         }
         WireValue::OptionNone => Ok(Value::OptionNone),
         WireValue::OptionSome(value) => Ok(Value::OptionSome(Box::new(decode_wire_value(
@@ -814,7 +814,7 @@ fn encode_wire_value(
                     .map(|(key, value)| {
                         check_string(key)?;
                         Ok(WireMapEntry {
-                            key: key.clone(),
+                            key: key.to_string(),
                             value: encode_wire_value(value, records, depth + 1, nodes)?,
                         })
                     })
@@ -840,7 +840,7 @@ fn encode_wire_value(
                 });
             }
             Ok(WireValue::Record(WireRecord {
-                name: name.clone(),
+                name: name.to_string(),
                 fields: encoded,
             }))
         }
@@ -1043,9 +1043,9 @@ mod typed_abi_tests {
     #[test]
     fn wire_round_trips_every_supported_value_family() {
         let records = records();
-        let mut map = BTreeMap::new();
-        map.insert("alpha".into(), Value::Bool(true));
-        map.insert("omega".into(), Value::Text("last".into()));
+        let mut map = TextMap::new();
+        map.insert("alpha", Value::Bool(true));
+        map.insert("omega", Value::Text("last".into()));
         let samples = vec![
             Value::Int(BigInt::parse("123456789012345678901234567890").unwrap()),
             Value::Float64(Float64::new(-123.5).unwrap()),
@@ -1165,7 +1165,9 @@ mod typed_abi_tests {
     fn runtime_resource_values_are_not_transferable() {
         let mut nodes = 0;
         let error = encode_wire_value(
-            &Value::NativeResource(guion_model::NativeResourceValue::new("test", 1, 1)),
+            &Value::NativeResource(Box::new(guion_model::NativeResourceValue::new(
+                "test", 1, 1,
+            ))),
             &[],
             0,
             &mut nodes,

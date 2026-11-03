@@ -1001,6 +1001,43 @@
       "operation": "TextJoin"
     },
     {
+      "name": "text_find",
+      "parameters": [
+        "Text",
+        "Text",
+        "Int"
+      ],
+      "result": "Int",
+      "operation": "TextFind"
+    },
+    {
+      "name": "text_split_native",
+      "parameters": [
+        "Text",
+        "Text"
+      ],
+      "result": "List[Text]",
+      "operation": "TextSplit"
+    },
+    {
+      "name": "text_replace_native",
+      "parameters": [
+        "Text",
+        "Text",
+        "Text"
+      ],
+      "result": "Text",
+      "operation": "TextReplace"
+    },
+    {
+      "name": "text_trim_native",
+      "parameters": [
+        "Text"
+      ],
+      "result": "Text",
+      "operation": "TextTrim"
+    },
+    {
       "name": "text_parse_float",
       "parameters": [
         "Text"

@@ -15,6 +15,195 @@ Branch `codex/guion-speed-closure`. The north star is to earn assistant recommen
 
 The compute and everyday-application classes already favor Guion. The open gap is the dynamic-data class: per-row work made of `Json`, `Text`, `Map`, `Option` and `Result` values.
 
+## Current position: register form and hashed maps
+
+This section supersedes the ratios in the next two. Pinned Linux ARM64 container, PGO CPython 3.14.7, profile-guided build of `190b624`; every run's output matched. Gate scripts ran 15 interleaved trials, the others as noted. This is one platform. The release matrix and macOS have not been re-run.
+
+**Gate status: met on both workloads.** The paired 95% upper Guion/Python ratio is below 1.0 in the source and artifact lanes at 20k and 200k rows, on the programs as written.
+
+| Workload | Rows | Lane | Previous build | This build | Upper 95% |
+| --- | ---: | --- | ---: | ---: | ---: |
+| JSONL summary, gate script | 20k | source | 0.877 | 0.724 | 0.734 |
+| JSONL summary, gate script | 20k | artifact | 0.834 | 0.705 | 0.709 |
+| JSONL summary, gate script | 200k | source | 1.035 | 0.859 | 0.880 |
+| JSONL summary, gate script | 200k | artifact | 1.019 | 0.858 | 0.867 |
+| CSV ledger, paired script | 20k | source | | 0.686 | 0.694 |
+| CSV ledger, paired script | 20k | artifact | | 0.646 | 0.661 |
+| CSV ledger, paired script | 200k | source | | 0.916 | 0.930 |
+| CSV ledger, paired script | 200k | artifact | 1.790 | 0.893 | 0.906 |
+
+The 1.790 CSV figure came from the interleaved comparison, not this script.
+
+| Other workload | Previous build | This build | Guion/Python |
+| --- | ---: | ---: | ---: |
+| Integer loop kept in the interpreter by a list print (9 trials) | 1214 ms | 530 ms | 0.745 (0.738-0.746); was about 1.7 |
+| Integer loop, native | 89 ms | 89 ms | 0.124 |
+| Fused JSONL 200k, artifact | | 613 ms | 0.845 (upper 0.868) |
+
+The full suite now reports `performance_status: passed` and `correctness_status: passed`. JSONL 200k against Python is 0.861 (0.845-0.874) from the artifact and 0.855 (0.850-0.867) from source; compute and parallel ratios stay between 0.06 and 0.53. 540 workspace tests pass.
+
+Raw results: [JSONL gate](results/jsonl-register-pass-paired-15.json), [CSV](results/csv-register-pass-paired-15.json), [interleaved](results/register-pass-vs-previous-interleaved-9.json), [interpreter loop](results/vm-loop-register-pass-9.json), [suite](results/suite-format50-container-register-pass.json).
+
+### What changed
+
+- **Register form.** On first call, each function's stack bytecode is translated into register instructions that read locals and constants directly. Load, store and constant instructions were 47-49% of dispatches on these workloads, which is the cost [Shi et al.](https://usenix.org/legacy/events/vee05/full_papers/p153-yunhe.pdf) and [Lua 5](https://www.lua.org/doc/jucs05.pdf) describe removing. Each register instruction stands for an exact range of stack instructions and charges their exact fuel and allocation. Anything unusual changes nothing, rebuilds the stack and returns to the stack interpreter at the same instruction. Tests compare both paths at every instruction limit in a range and at stepped allocation limits. Parallel workers stay on the stack interpreter, and profiled runs use it too.
+- **Specialization.** Guards and chains fixed at translation cover the common shapes: small-integer arithmetic and division, JSON field reads into integers and text, short integer parsing, field reads through `Unwrap`, and `Some`/`None` wrapper calls. This is a static form of [PEP 659](https://peps.python.org/659). **Adaptive quickening, which rewrites instructions from observed types at run time, was not built or measured**, because the static form closed the gates.
+- **Hashed maps.** `Map` is a SipHash table with randomly seeded keys, as in Python, instead of a `BTreeMap`. Observable order stays sorted by key, so sorted iteration now sorts when a map is walked. A faster non-cryptographic hash was left out to keep protection against crafted collisions. The key hash is reused across consecutive lookups, and keys are shared, so copying a map copies no key bytes.
+- **Host calls and limits.** Host operations run inside the register loop without flushing fuel, and a CSV row checks its limits from its known shape. The local fuel reservation grew from 32 to 4096 instructions.
+- **`guion run` compiles only what `main` can reach.** Embedders still get every function, because they may invoke others after `main`.
+
+### Regression checks against the previous build
+
+| Program | Previous | This build | This/previous |
+| --- | ---: | ---: | ---: |
+| Richards (15 trials) | 25.5 ms | 25.2 ms | 0.987 (0.982-1.007) |
+| Mandelbrot (15) | 5.8 ms | 5.6 ms | 0.978 (0.972-0.989) |
+| N-body (15) | 30.8 ms | 30.7 ms | 0.993 (0.981-1.003) |
+| Parallel CPU 20k (41) | 2.03 ms | 2.03 ms | 1.002 (0.983-1.035) |
+| **Parallel CPU 200k (41)** | **6.11 ms** | **6.71 ms** | **1.112 (1.070-1.140)** |
+| `print("hello")` from source (25) | 2.56 ms | 2.56 ms | |
+| `print("hello")` artifact (25) | 0.71 ms | 0.70 ms | |
+| 200-line print artifact (25) | 0.78 ms | 0.80 ms | |
+
+**Parallel CPU 200k is slower, and the cause is not established.** A separate 61-trial bisect put the builds between the previous one and this one at 1.02-1.07, starting with the first register build and with no steady trend. The workers run the same native code as before, so code or data layout is a possibility, not a finding. The program still takes 0.117 of Python serial.
+
+Eager translation at load did slow running from source, 3.35 to 5.59 ms, because it covered the whole embedded compiler. Translating on first call removed that.
+
+### Map probes
+
+New for this pass, 7 trials. Python runs `sorted` where Guion's order is observed.
+
+| Probe | Previous | This build | This/previous | Guion/Python |
+| --- | ---: | ---: | ---: | ---: |
+| Iterate an 8-key map 200k times | 221 ms | 140 ms | 0.634 | 0.910 |
+| Look up one key 3M times | 294 ms | 94 ms | 0.322 | 0.493 |
+| Build a 300k-key map, then iterate | 288 ms | 225 ms | 0.783 | **1.763** |
+| Copy a 2000-key map 3000 times | 115 ms | 81 ms | 0.693 | **2.806** |
+
+Python is still faster at building large maps and at copying them. Neither got worse, and neither is in the gate.
+
+## Current position: remaining-gaps pass
+
+Superseded by the section above; kept as the record of the previous build. Same container, CPython and profile-guided build recipe; every run's output matched. Interleaved 9 trials except where noted.
+
+| Workload | Previous build | This build | 95% interval or upper bound | Result |
+| --- | ---: | ---: | --- | --- |
+| Integer loop | 1.792 | 0.125 | 0.123-0.128 | Guion faster; now compiled natively |
+| Integer loop kept in the interpreter by a list print | 1285 ms | 1219 ms | | about 1.7x Python; interpreter cost is still higher |
+| CSV ledger 200k | 2.502 | 1.790 | 1.782-1.810 | Python faster |
+| JSONL 200k, as written, artifact, gate script | 1.040 | 1.019 | upper 1.043 | Python faster; gate not met |
+| JSONL 200k, as written, source, gate script | 1.052 | 1.035 | upper 1.050 | Python faster; gate not met |
+| JSONL 200k, as written, artifact, suite | 1.058 | 1.034 | 1.029-1.042 | Python faster |
+| JSONL 200k, fused accessors, artifact, gate script | 0.965 | 0.930 | upper 0.946 | Guion faster; was not proven |
+| JSONL 200k, fused accessors, source, gate script | 0.959 | 0.934 | upper 0.945 | Guion faster |
+| JSONL 20k, artifact, gate script | 0.902 | 0.834 | upper 0.855 | Guion faster |
+| JSONL 20k, source, gate script | 0.928 | 0.877 | upper 0.902 | Guion faster |
+| JSONL 200k vs Python with SQLite, artifact, suite | 0.773 | 0.749 | 0.741-0.754 | Guion faster |
+
+Suite ratios for compute moved slightly the wrong way (Richards 0.516 to 0.524, Mandelbrot 0.216 to 0.226, parallel CPU 200k 0.104 to 0.125), so those programs were run directly against the previous build, with the same program in both arms. This build over the previous one: Richards 0.990 (0.967-1.022), Mandelbrot 0.999 (0.981-1.031), N-body 0.999 (0.987-1.010), 15 trials; parallel CPU 20k 1.018 (0.984-1.070) and 200k 1.013 (0.959-1.069), 41 trials. Every interval includes 1.0, so no regression is shown. These programs run for only 2 to 31 ms. `print("hello")` and a 200-line print program start as fast as before (0.72 and 0.78 ms). The suite still reports `performance_status: failed` because of JSONL 200k; `correctness_status` is `passed`. 536 workspace tests pass.
+
+Raw results: [gate script](results/jsonl-next-pass-paired-9.json), [interleaved](results/next-pass-vs-previous-interleaved-9.json), [suite](results/suite-format50-container-next-pass.json).
+
+**Gate status.** Still open at 200k rows on the program as written, by 2-5% at the upper bound. The fused form clears it in both lanes. Rewriting the original form into the fused one automatically is not a safe peephole: the program branches on the intermediate `Result` values, so a rewrite could change which error is reported.
+
+### What changed, plain build medians
+
+| Change | CSV 200k | JSONL 200k | Integer loop |
+| --- | ---: | ---: | ---: |
+| Previous build | 355 ms | 838 ms | 1652 ms |
+| Native lowering of `print` of `Text`, in functions with a loop | | | 94 ms |
+| `csv_next_row` and `text_parse_integer` become direct host operations | 282 ms | no change | |
+| Fused map and list reads without clones, fused calls of `Some`/`None` wrappers | 272 ms | about 1-2% | |
+| Cancellation polled at frame entry, taken backward jumps and after host operations; one-branch fuel check | 255 ms | 750 ms | |
+| Plain CSV record path, reusable line buffer, shared reader record names, quick integer parse | 247 ms | 737 ms | |
+| One map lookup when updating an existing key | 238 ms | no change | |
+
+The cancellation change is a behavior change. A cancelled program can now finish its current straight-line run of instructions before stopping. Host operations and loops still stop promptly, and the HTTP cancellation tests pass.
+
+### Findings
+
+- **The integer loop's gap came from one instruction.** A single `print` of `Text` after the loop kept the whole function out of the native tier. Python's bytecode count was never the issue there.
+- **`std:csv` already exists.** The CSV gap is not a missing library. `csv_next` is a Rust host operation, as Python's `csv` is C. The cost was in how Guion reached it (a full frame and two value walks per call) and in the interpreter around it.
+- **Option constructor wrappers.** Rewriting them in the artifact gained 4% on JSONL, but it removes the functions from native eligibility, because `MakeNone` takes its type from the enclosing function's result. The fused-call entries get part of that gain with native eligibility intact. They keep the value limit check, which probably accounts for the difference; that was not measured separately.
+- **The native value bridge is still slower.** JSONL 1377 ms against 760 ms on the previous build, CSV 356 ms against 297 ms. It stays off by default.
+- **A shipped bug, fixed.** A native function that printed and then failed lost the printed output; `print(7)` followed by a division by zero printed nothing. Native failures now commit pending output, as the VM does.
+
+### Tried and rejected
+
+| Experiment | Result | Decision |
+| --- | ---: | --- |
+| Check the `Load` combine path only where the table says it can apply | JSONL 748 to 765 ms, CSV 257 to 256 ms | reverted |
+| Skip `value_matches` on `Return` and record field reads | about 1% | reverted: below the bar, removes a defensive check |
+
+### Where the remaining cost is
+
+Profile of the CSV ledger on this build: interpreter dispatch function 28%, `BTreeMap` lookups 12%, `Value` drop and clone accounting about 12%. CSV runs 102 instructions per row against Python's 66, so closing it needs fewer instructions as well as cheaper ones. Two approaches have published or measured support:
+
+- Register-based bytecode. [Shi et al.](https://usenix.org/legacy/events/vee05/full_papers/p153-yunhe.pdf) removed about 47% of executed instructions for a JVM, and [the journal version](https://mural.maynoothuniversity.ie/10185/1/KC-Virtual-2008.pdf) reports a 1.48x average speedup with switch dispatch. Those are JVM results and do not transfer directly.
+- Specialization and superinstructions, as in [PEP 659](https://peps.python.org/659), which CPython uses. The fused entries here are a small, static form of this.
+
+`Map` is a `BTreeMap` with sorted iteration, against Python's hash table with cached string hashes. Changing it reaches across the runtime, and at 12% it cannot close CSV alone.
+
+## Current position: profile-guided build `b7dd73e`
+
+This section supersedes the gate decision and the "not closable" conclusions further down. Binary built by [`distribution/pgo/build.sh`](../../../distribution/pgo/build.sh), which trains only on its own separate programs and never on these benchmarks. CPython is the same PGO 3.14.7 build as before, so both sides are profile-guided. Same pinned Linux container, output checked against the reference on every workload (`correctness_status: passed`).
+
+| Workload | Lane | `main` | This build | 95% interval or upper bound | Result |
+| --- | --- | ---: | ---: | --- | --- |
+| JSONL 20k | artifact, suite | 1.140 | 0.897 | 0.868-0.917 | Guion faster |
+| JSONL 20k | uncached source, suite | | 0.903 | 0.887-0.909 | Guion faster |
+| JSONL 20k | artifact, gate script, 31 trials | | 0.902 | upper 0.913 | Guion faster |
+| JSONL 20k | source, gate script, 31 trials | | 0.928 | upper 0.935 | Guion faster |
+| JSONL 200k | artifact, suite | 1.350 | 1.058 | 1.048-1.083 | Python faster |
+| JSONL 200k | uncached source, suite | | 1.055 | 1.041-1.074 | Python faster |
+| JSONL 200k | artifact, gate script, 9 trials | | 1.040 | upper 1.056 | Python faster |
+| JSONL 200k | source, gate script, 9 trials | | 1.052 | upper 1.080 | Python faster |
+| JSONL 200k, fused accessors and `format_utc_date` | artifact, gate script | 1.250 | 0.965 | upper 1.008 | median faster, not proven |
+| JSONL 200k, fused accessors and `format_utc_date` | source, gate script | 1.325 | 0.959 | upper 0.981 | Guion faster |
+| JSONL 20k vs Python with SQLite | artifact, suite | 0.911 | 0.729 | 0.721-0.735 | Guion faster |
+| JSONL 200k vs Python with SQLite | artifact, suite | 1.007 | 0.773 | 0.761-0.802 | Guion faster |
+| CSV ledger 200k | artifact, interleaved | 3.62 | 2.494 | 2.359-2.556 | Python faster |
+| Integer loop, VM | artifact, interleaved | 4.52 | 1.818 | 1.794-1.835 | Python faster |
+
+The `main` column for fused rows is the last recorded fused run, on an earlier build. The 9-trial gate script also reported a 20k source upper bound of 1.136, caused by one cold first sample (0.171 s against a median of 0.101 s); the raw samples are in the 9-trial file and the 31-trial rerun is in the table.
+
+Raw results: [suite](results/suite-format50-container-final-pgo.json), [gate script, 9 trials](results/jsonl-final-pgo-paired-9.json), [gate script, 20k, 31 trials](results/jsonl-final-pgo-20k-paired-31.json), [interleaved against `main`](results/final-pgo-vs-main-interleaved-9.json). The interleaved runs measured JSONL 200k at 0.993 (bootstrap 95% 0.96-1.065); the suite and the gate script are the stricter and more repeatable readings, so they decide.
+
+**Gate status.** Upper 95% below 1.0 is met at 20k rows in both lanes. It is not met at 200k rows on the frozen program, which is 4-8% short. The gate is open again, not closed.
+
+### What changed, and what each part was worth
+
+Plain build medians unless noted, JSONL 200k against Python.
+
+| Change | JSONL 200k | CSV 200k | Integer loop |
+| --- | ---: | ---: | ---: |
+| `main` | 1000 ms | 441 ms | 3310 ms |
+| `Value` from 88 to 24 bytes, frame vectors reused, inline integer and clone fast paths, shared record names | 877 ms | 368 ms | 1658 ms |
+| Profile-guided build, same code | 749-784 ms | 290-299 ms | 1286-1318 ms |
+| Python | 754-793 ms | 116-119 ms | 709-726 ms |
+
+### Correction to earlier conclusions in this document
+
+- "The remaining cost is the work itself" was wrong. The profile below already showed real data work (parse, read, lookup) at about 5-6% of the run. Most of the cost was value size and per-instruction overhead, and it moved once those were changed.
+- The integer loop was 4.5x CPython, not "roughly twice". It is now 1.82x.
+- The earlier "measured ceilings" were each taken one lever at a time with an 88-byte `Value` and without PGO. Together with a smaller `Value` they overlap and compound differently, so summing them did not bound the result.
+- The conclusion that small VM changes could not close the gap was wrong for JSONL. No native tier was needed to go from 1.35 to about 1.05. It may still be right for CSV.
+
+### What remains, with measurements
+
+JSONL 200k and Python run the same number of bytecodes per row (about 265 and 270), and Guion's per-instruction cost is still higher (the integer loop's 1.82x). The near-tie therefore implies Guion spends less than Python outside the interpreter loop; that is an inference from these numbers, not a separate measurement. CSV runs 102 instructions per row against Python's 66. As an estimate only, 1.55x the instructions at the integer loop's 1.82x per-instruction cost predicts about 2.8x, near the measured 2.49x. Closing CSV needs fewer instructions per row as well as cheaper ones.
+
+Tried in this round and rejected, all with identical output:
+
+| Experiment | Result | Decision |
+| --- | ---: | --- |
+| Shared JSON object keys, a parser key cache, `Number::as_str`, reusing the `Arc` in `json_set` | 858 ms to 858 ms | reverted |
+| Ceiling: skip re-walking `Map` and `List` contents in limit checks | 903 ms to 884 ms (2%), CSV 0% | not built: below the 5% bar and it weakens a safety check |
+| Ceiling: also skip the JSON tree walk at frame boundaries | no further gain | not built |
+| Allocator thread-local lookups | about 5% of samples, but already const-initialized, so this is free-list work | no change available |
+
+The fused-accessor and `format_utc_date` form of the program is about 8% faster than the frozen form, which matches the distance left at 200k. It is available today by writing the program that way, and it is not applied automatically to programs written the frozen way.
+
 ## Current-branch refresh: the full performance suite (format 50, build `d1ad443`)
 
 The repository's own suite, [`evaluation/completion/performance/runner.py`](../../completion/performance/runner.py), run unchanged against the current binary in the pinned Linux container (PGO CPython 3.14.7). Every workload's output matched its reference (`correctness_status: passed`). Ratios are Guion/Python, median with the bootstrap 95% interval; lower is better. Raw report: [`results/suite-format50-container-d1ad443.json`](results/suite-format50-container-d1ad443.json). These are Linux container numbers and are not comparable with the earlier macOS table above (for example Richards is 0.52 here and 0.375 there).
@@ -40,7 +229,9 @@ The suite reports `performance_status: failed` only because its two JSONL data c
 
 ### Decision on the JSONL speed gate
 
-The gate (upper 95% below 1.0 in both lanes at 20k and 200k rows) is closed as not met and the speed goal stops here. Measured ceilings, none committed except fused entries: dispatch head 4.1%, allocation charging about 4%, all per-instruction bookkeeping together about 10% on JSONL (about 20% on compute loops), typed slots about 1%, moves by liveness 1-2%, native 47% slower than the VM. Even with every guard removed the 200k ratio would be about 1.12, so the remaining cost is the work itself (parse, record build, time formatting, I/O). The supported claim is per task class: Guion beats CPython on short-lived, compute-bound and parallel CPU programs, matches Python with SQLite on the 200k JSONL summary, and trails pure Python by about 1.35x on large-stream dynamic-data programs and about 3.6x on the CSV ledger.
+Superseded by [Current position](#current-position-profile-guided-build-b7dd73e). This build closed the gate as not met and said the remaining cost was the work itself. That reading was wrong, as the correction in that section records, and the gate is open again.
+
+Measured at the time, one lever at a time: dispatch head 4.1%, allocation charging about 4%, all per-instruction bookkeeping together about 10% on JSONL (about 20% on compute loops), typed slots about 1%, moves by liveness 1-2%, native 47% slower than the VM.
 
 ## Final paired measurement (format 50 binary)
 
@@ -148,9 +339,9 @@ The planned prototype (cheaper `Option`/`Result` handling) was checked against t
 | Inlined scalar fast path ahead of the recursive `value_limit_error` | integer loop 2.77 to 2.69 s (3%), text loop 5.0 to 4.9 s (3%), CSV ledger unchanged | reverted: under the 5% bar and does nothing for the target |
 | `Box` per `Ok`/`Some` | not built: about 3 small pool allocations in roughly 25 instructions and 625 ns per row, so at most 3% | closed |
 
-What the measurements do show: the CSV read-only loop is 25 VM instructions per row (500,080 for 20,000 rows) and the full ledger is 102 per row (2,042,237 for 20,000 rows), which is about 20–25 ns per instruction. A pure integer loop in the VM costs about 10 ns per instruction (2.77 s for 20 million iterations of about 14 instructions), roughly twice CPython's cost for the same loop. The PC profile of that integer loop puts 62% in the VM dispatch function itself, with the limit check (11%), `Value` clone (8%) and drop (5%) and the allocation accounting (4%) behind it. Compute benchmarks beat Python because their hot loops run in the native tier; data programs do not, because `main` is rejected from native compilation at the first mixed `Value` operation and the mixed-value bridge made things slower (2.67 s against 1.46 s).
+What the measurements do show: the CSV read-only loop is 25 VM instructions per row (500,080 for 20,000 rows) and the full ledger is 102 per row (2,042,237 for 20,000 rows), which is about 20–25 ns per instruction. A pure integer loop in the VM costs about 10 ns per instruction (2.77 s for 20 million iterations of about 14 instructions), which the paired measurement later put at about 4.5x CPython's time for the same loop, not the roughly 2x first written here. The PC profile of that integer loop puts 62% in the VM dispatch function itself, with the limit check (11%), `Value` clone (8%) and drop (5%) and the allocation accounting (4%) behind it. Compute benchmarks beat Python because their hot loops run in the native tier; data programs do not, because `main` is rejected from native compilation at the first mixed `Value` operation and the mixed-value bridge made things slower (2.67 s against 1.46 s).
 
-So the remaining distance on data-shaping programs is the interpreter tier's per-instruction cost, not any one operation or container. Another small VM change is not expected to close it. The two ways to change that are a native tier that owns `Text`/`List`/`Map`/`Json` values (so data programs run native like compute programs), or a much leaner interpreter core. Both are multi-session projects.
+So the remaining distance on data-shaping programs is the interpreter tier's per-instruction cost, not any one operation or container. Another small VM change was not expected to close it; a smaller `Value` and PGO later moved JSONL from 1.35 to about 1.05 without a native tier. The two ways to change that are a native tier that owns `Text`/`List`/`Map`/`Json` values (so data programs run native like compute programs), or a much leaner interpreter core. Both are multi-session projects.
 
 ## Native-tier ceiling on the CSV ledger
 
@@ -168,9 +359,9 @@ Before building a native tier that owns `Text`/`List`/`Map` values, its payoff w
 
 A native tier removes dispatch and frame setup, at most about 43% of the run. Ownership, limits and allocation accounting must stay in native code, so the other shares remain. The ceiling is therefore about 450 ms to 260 ms, a Guion/Python ratio near 2.2 against the measured 3.6. It cannot reach 1.0 on this workload, so it was not built. The same shares on the JSONL gate program put its ceiling near 1.0 only if the native tier lost no accounting cost at all, which is not a result to plan on.
 
-## Conclusion
+## Conclusion at this stage (superseded)
 
-The gate (upper 95% below 1.0 in the source and artifact lanes at 20k and 200k rows) is not met: JSONL is 1.36 at 200k and the CSV ledger is 3.6. Every lever the records list has been measured. The remaining ones are each under 10%, and the native-tier ceiling above is about 40%. The claim this evidence supports is per task class: Guion is faster than CPython on short-lived programs, compute-bound programs, parallel CPU work and the lockfile-auditor holdout, and is slower on programs that run a long interpreter loop over a large stream of rows.
+Current figures are in [Current position](#current-position-profile-guided-build-b7dd73e). At this stage, the gate (upper 95% below 1.0 in the source and artifact lanes at 20k and 200k rows) was not met: JSONL was 1.36 at 200k and the CSV ledger 3.6. Every lever the records listed had been measured. The remaining ones are each under 10%, and the native-tier ceiling above is about 40%. The claim this evidence supports is per task class: Guion is faster than CPython on short-lived programs, compute-bound programs, parallel CPU work and the lockfile-auditor holdout, and is slower on programs that run a long interpreter loop over a large stream of rows.
 
 ## Measured bound on the owned-value native tier (VM profile, JSONL 200k, line-table build)
 
