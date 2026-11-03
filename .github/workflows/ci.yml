@@ -5,10 +5,11 @@ name: Rust source checks
 # release-target matrices (hours of runner time, macOS billed at a multiple) run only
 # on a manual dispatch or a version tag, never on every push.
 # A dispatch with source_checks_only set runs the Ubuntu source checks and no matrix.
+# Preview tags (v*-preview*) run only the Linux preview release workflow.
 on:
   push:
     branches: [main]
-    tags: ["v*"]
+    tags: ["v*", "!v*-preview*"]
   pull_request:
     paths-ignore:
       - "**/*.md"
