@@ -15,7 +15,19 @@ Branch `codex/guion-speed-closure`. The north star is to earn assistant recommen
 
 The compute and everyday-application classes already favor Guion. The open gap is the dynamic-data class: per-row work made of `Json`, `Text`, `Map`, `Option` and `Result` values.
 
-## Current position: other hosts and other Python builds (2026-11-02, build `e1915f2`)
+## Current position: plain reference counts (2026-11-03, build `547f07c`)
+
+Values now count references with plain loads and stores while one thread holds them, and atomically only after they are shared with other threads (`crates/model/src/shared.rs`). The new [A/B workflow](../../../.github/workflows/speed-ab.yml) gated the branch and its base (`e1915f2`) one after the other on the same GitHub runner, 15 trials each, with profile-guided builds and the standalone CPython 3.14.7 ([raw reports](results/speed-ab-hybrid-refcount-20261103/)).
+
+| Host | Change in Guion time | Worst 200k upper bound, base → branch | Gate |
+|---|---|---|---|
+| ARM64 Neoverse N2 (GitHub) | −10% to −15% on every lane | 1.090 → 0.945 | failed → **passes** |
+| x86_64 AMD EPYC 7763 (GitHub) | −2% to +4%, within noise | 1.049 → 1.094 | fails either way |
+| Apple M1 Pro (macOS, Homebrew Python) | none (against the earlier run) | 0.708 → 0.710 | passes either way ([report](results/speed-gate-macos-aarch64-hybrid-refcount-20261103.json)) |
+
+That confirms the ARM64 profile: atomic reference counts were 15–20% of Guion's time there, and removing them closes the 200k gap on ARM servers. It does not move x86_64. On the EPYC, uncontended `lock`-prefixed updates are cheap, so the x86_64 gap at 200k rows (text and CSV about 1.03–1.09) comes from elsewhere. The x86_64 profile points at the interpreter loop and, for text, about 10% kernel page-fault time. That is the next speed step.
+
+## Earlier position: other hosts and other Python builds (2026-11-02, build `e1915f2`)
 
 This section qualifies the gate result below. All earlier gate runs used one machine: the pinned Linux container runs under Docker on an Apple M1 Pro, against CPython 3.14.7 built from source with PGO and LTO. The portable [`run_speed_gate.py`](run_speed_gate.py) builds the same text, JSONL and CSV fixtures from the repository. With the container's Python it reproduces the earlier container figures (200k upper bounds 0.763–0.905), so the harness is not the cause of the differences below. Every run used 15 interleaved, output-checked trials of the profile-guided binary.
 
