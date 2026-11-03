@@ -25,3 +25,6 @@ __pycache__/
 
 # Local pre-release and historical package archives; keep Git source history lean.
 /artifacts/local/
+
+# Whole-host spindumps capture every running process; keep them local.
+/evaluation/completion/results/runtime-efficiency/*-spindump.txt
