@@ -1,0 +1,67 @@
+# To display the perf.data header info, please use --header/--header-only options.
+#
+#
+# Total Lost Samples: 0
+#
+# Samples: 664  of event 'cpu-clock'
+# Event count (approx.): 132826560
+#
+# Overhead  Shared Object         Symbol                                                    IPC   [IPC Coverage]
+# ........  ....................  ........................................................  ....................
+#
+    12.65%  python3.14            [.] ucs1lib__two_way.cold                                 -      -            
+     7.08%  python3.14            [.] _PyObject_Malloc                                      -      -            
+     5.87%  python3.14            [.] PyUnicode_Concat                                      -      -            
+     3.01%  python3.14            [.] PyUnicode_DecodeLatin1.warm                           -      -            
+     3.01%  python3.14            [.] _PyObject_Free                                        -      -            
+     2.41%  [kernel.kallsyms]     [k] _raw_spin_lock                                        -      -            
+     2.41%  python3.14            [.] ucs1lib_find.cold                                     -      -            
+     2.26%  python3.14            [.] _TAIL_CALL_LOAD_CONST_MORTAL                          -      -            
+     2.26%  python3.14            [.] _TAIL_CALL_STORE_FAST                                 -      -            
+     2.11%  python3.14            [.] _PyUnicode_FromASCII                                  -      -            
+     2.11%  python3.14            [.] list_dealloc                                          -      -            
+     1.96%  [kernel.kallsyms]     [k] do_user_addr_fault                                    -      -            
+     1.96%  python3.14            [.] _TAIL_CALL_BINARY_OP_ADD_INT                          -      -            
+     1.81%  [kernel.kallsyms]     [k] __rmqueue_pcplist                                     -      -            
+     1.81%  python3.14            [.] _TAIL_CALL_LOAD_ATTR_METHOD_NO_DICT                   -      -            
+     1.81%  python3.14            [.] split                                                 -      -            
+     1.66%  [kernel.kallsyms]     [k] memcg1_commit_charge                                  -      -            
+     1.66%  python3.14            [.] split.warm                                            -      -            
+     1.66%  python3.14            [.] ucs1lib__preprocess                                   -      -            
+     1.51%  [kernel.kallsyms]     [k] _raw_spin_unlock_irqrestore                           -      -            
+     1.51%  python3.14            [.] _TAIL_CALL_CALL_METHOD_DESCRIPTOR_FAST                -      -            
+     1.51%  python3.14            [.] unicode_dealloc                                       -      -            
+     1.36%  python3.14            [.] _PyUnicode_JoinArray                                  -      -            
+     1.05%  [kernel.kallsyms]     [k] blk_cgroup_congested                                  -      -            
+     1.05%  [kernel.kallsyms]     [k] zap_present_ptes.constprop.0                          -      -            
+     1.05%  python3.14            [.] ucs1lib__two_way                                      -      -            
+     0.90%  [kernel.kallsyms]     [k] pte_offset_map_lock                                   -      -            
+     0.90%  python3.14            [.] _TAIL_CALL_CALL_LEN                                   -      -            
+     0.90%  python3.14            [.] do_argstrip.3647                                      -      -            
+     0.90%  python3.14            [.] replace                                               -      -            
+     0.75%  python3.14            [.] _PyEval_SliceIndex                                    -      -            
+     0.75%  python3.14            [.] _TAIL_CALL_BINARY_OP_ADD_UNICODE                      -      -            
+     0.75%  python3.14            [.] _TAIL_CALL_LOAD_FAST_BORROW                           -      -            
+     0.75%  python3.14            [.] _TAIL_CALL_LOAD_GLOBAL_BUILTIN                        -      -            
+     0.75%  python3.14            [.] l_mod                                                 -      -            
+     0.75%  python3.14            [.] type_new                                              -      -            
+     0.75%  python3.14            [.] ucs1lib__two_way_find                                 -      -            
+     0.60%  [kernel.kallsyms]     [k] __handle_mm_fault                                     -      -            
+     0.60%  python3.14            [.] PyUnicode_DecodeLatin1                                -      -            
+     0.60%  python3.14            [.] _PyObject_Calloc                                      -      -            
+     0.60%  python3.14            [.] _PyUnicode_ExactDealloc                               -      -            
+     0.60%  python3.14            [.] _TAIL_CALL_BINARY_OP                                  -      -            
+     0.60%  python3.14            [.] _TAIL_CALL_BINARY_OP_SUBSCR_LIST_INT                  -      -            
+     0.60%  python3.14            [.] long_dealloc                                          -      -            
+     0.45%  libc.so.6             [.] 0x00000000001a169f                                    -      -            
+     0.45%  libc.so.6             [.] 0x00000000001a16db                                    -      -            
+     0.45%  python3.14            [.] _TAIL_CALL_CALL_METHOD_DESCRIPTOR_FAST_WITH_KEYWORDS  -      -            
+     0.45%  python3.14            [.] _TAIL_CALL_FOR_ITER_RANGE                             -      -            
+     0.45%  python3.14            [.] _TAIL_CALL_LOAD_SMALL_INT                             -      -            
+     0.45%  python3.14            [.] do_argstrip.3647.warm                                 -      -            
+     0.45%  python3.14            [.] gc_collect_main                                       -      -            
+
+
+#
+# (Cannot load tips.txt file, please install perf!)
+#

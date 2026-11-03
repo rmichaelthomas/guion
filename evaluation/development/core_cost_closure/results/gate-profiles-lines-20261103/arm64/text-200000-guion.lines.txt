@@ -1,0 +1,89 @@
+# To display the perf.data header info, please use --header/--header-only options.
+#
+#
+# Total Lost Samples: 0
+#
+# Samples: 899  of event 'cpu-clock'
+# Event count (approx.): 179835960
+#
+# Overhead  Source:Line        
+# ........  ...................
+#
+     3.23%  mut_ptr.rs:961
+     3.00%  mod.rs:1933
+     2.56%  register.rs:1077
+     2.22%  atomic.rs:4045
+     2.22%  lib.rs:859
+     2.11%  lib.rs:5009
+     1.89%  mod.rs:614
+     1.89%  non_null.rs:1714
+     1.78%  lib.rs:0
+     1.67%  index.rs:272
+     1.67%  mod.rs:1733
+     1.45%  const_ptr.rs:863
+     1.45%  mod.rs:1864
+     1.45%  option.rs:633
+     1.33%  lib.rs:789
+     1.33%  lse.S:154
+     1.33%  pool_alloc.rs:144
+     1.22%  lib.rs:2583
+     1.22%  mod.rs:1046
+     1.22%  mod.rs:551
+     1.22%  register.rs:1051
+     1.11%  lse.S:252
+     1.11%  non_null.rs:441
+     1.11%  pool_alloc.rs:0
+     1.11%  shared.rs:105
+     1.00%  memchr.rs:165
+     1.00%  mod.rs:825
+     1.00%  register.rs:1163
+     1.00%  shared.rs:82
+     1.00%  validations.rs:38
+     0.89%  lib.rs:4926
+     0.78%  register.rs:1058
+     0.67%  cell.rs:555
+     0.67%  lib.rs:1001
+     0.67%  lib.rs:1030
+     0.67%  lib.rs:1953
+     0.67%  mod.rs:0
+     0.67%  register.rs:935
+     0.67%  register.rs:957
+     0.67%  validations.rs:0
+     0.56%  lib.rs:1018
+     0.56%  lib.rs:170
+     0.56%  macros.rs:180
+     0.56%  mod.rs:131
+     0.56%  uint_macros.rs:178
+     0.56%  validations.rs:24
+     0.44%  lib.rs:2090
+     0.44%  lib.rs:704
+     0.44%  lib.rs:794
+     0.44%  mod.rs:2844
+     0.44%  mod.rs:75
+     0.44%  range.rs:900
+     0.44%  register.rs:0
+     0.44%  register.rs:245
+     0.44%  register.rs:924
+     0.33%  atomic.rs:4054
+     0.33%  filter.rs:138
+     0.33%  generated.rs:56668
+     0.33%  index.rs:0
+     0.33%  lib.rs:4918
+     0.33%  lib.rs:706
+     0.33%  lse.S:146
+     0.33%  macros.rs:284
+     0.33%  mod.rs:2848
+     0.33%  mod.rs:459
+     0.33%  option.rs:2775
+     0.33%  pool_alloc.rs:142
+     0.33%  pool_alloc.rs:143
+     0.33%  pool_alloc.rs:163
+     0.33%  pool_alloc.rs:212
+     0.33%  register.rs:246
+     0.33%  register.rs:949
+     0.33%  validations.rs:37
+
+
+#
+# (Cannot load tips.txt file, please install perf!)
+#

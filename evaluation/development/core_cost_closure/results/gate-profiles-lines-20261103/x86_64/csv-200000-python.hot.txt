@@ -1,0 +1,59 @@
+# To display the perf.data header info, please use --header/--header-only options.
+#
+#
+# Total Lost Samples: 0
+#
+# Samples: 521  of event 'cpu-clock'
+# Event count (approx.): 104220840
+#
+# Overhead  Shared Object         Symbol                                             IPC   [IPC Coverage]
+# ........  ....................  .................................................  ....................
+#
+     7.29%  python3.14            [.] _PyObject_Malloc                               -      -            
+     6.72%  python3.14            [.] parse_process_char                             -      -            
+     6.33%  python3.14            [.] _TAIL_CALL_BINARY_OP_SUBSCR_DICT               -      -            
+     5.37%  python3.14            [.] _PyUnicode_FromUCS4                            -      -            
+     5.18%  python3.14            [.] PyLong_FromString                              -      -            
+     4.61%  python3.14            [.] _TAIL_CALL_STORE_SUBSCR_DICT                   -      -            
+     4.22%  python3.14            [.] PyDict_Contains                                -      -            
+     2.69%  python3.14            [.] _TAIL_CALL_CALL_BUILTIN_CLASS                  -      -            
+     2.69%  python3.14            [.] parse_add_char                                 -      -            
+     2.50%  python3.14            [.] _TAIL_CALL_LOAD_GLOBAL_BUILTIN                 -      -            
+     2.50%  python3.14            [.] _TAIL_CALL_STORE_FAST                          -      -            
+     2.30%  python3.14            [.] _TAIL_CALL_BINARY_OP_SUBSCR_LIST_INT           -      -            
+     2.11%  python3.14            [.] _TAIL_CALL_COMPARE_OP_INT                      -      -            
+     1.92%  python3.14            [.] _TAIL_CALL_COPY                                -      -            
+     1.73%  python3.14            [.] PyList_New                                     -      -            
+     1.54%  python3.14            [.] PyList_Append                                  -      -            
+     1.54%  python3.14            [.] Reader_iternext_lock_held                      -      -            
+     1.54%  python3.14            [.] _PyObject_Free                                 -      -            
+     1.54%  python3.14            [.] _Py_Dealloc                                    -      -            
+     1.54%  python3.14            [.] _TAIL_CALL_LOAD_FAST_LOAD_FAST                 -      -            
+     1.54%  python3.14            [.] _textiowrapper_readline.cold                   -      -            
+     1.54%  python3.14            [.] parse_save_field                               -      -            
+     1.54%  python3.14            [.] pysiphash                                      -      -            
+     1.34%  python3.14            [.] long_dealloc                                   -      -            
+     1.15%  libc.so.6             [.] 0x000000000019869e                             -      -            
+     1.15%  libc.so.6             [.] 0x00000000001986a5                             -      -            
+     1.15%  python3.14            [.] _TAIL_CALL_LOAD_FAST                           -      -            
+     0.96%  python3.14            [.] PyUnicode_New                                  -      -            
+     0.96%  python3.14            [.] _PyUnicode_FromASCII                           -      -            
+     0.96%  python3.14            [.] type_new                                       -      -            
+     0.77%  libc.so.6             [.] 0x0000000000198698                             -      -            
+     0.77%  python3.14            [.] PyUnicode_AsUTF8AndSize                        -      -            
+     0.77%  python3.14            [.] PyUnicode_FromKindAndData.warm                 -      -            
+     0.77%  python3.14            [.] _PyObject_Realloc                              -      -            
+     0.77%  python3.14            [.] _TAIL_CALL_COMPARE_OP_STR                      -      -            
+     0.58%  python3.14            [.] PyUnicode_FromKindAndData                      -      -            
+     0.58%  python3.14            [.] _TAIL_CALL_BINARY_OP_ADD_INT                   -      -            
+     0.58%  python3.14            [.] _TAIL_CALL_FOR_ITER                            -      -            
+     0.58%  python3.14            [.] _TAIL_CALL_SWAP                                -      -            
+     0.58%  python3.14            [.] dictresize                                     -      -            
+     0.58%  python3.14            [.] list_dealloc                                   -      -            
+     0.58%  python3.14            [.] unicode_dealloc                                -      -            
+     0.58%  python3.14            [.] visit_decref                                   -      -            
+
+
+#
+# (Cannot load tips.txt file, please install perf!)
+#

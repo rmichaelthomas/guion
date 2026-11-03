@@ -1,0 +1,26 @@
+# To display the perf.data header info, please use --header/--header-only options.
+#
+#
+# Total Lost Samples: 0
+#
+# Samples: 694  of event 'cpu-clock'
+# Event count (approx.): 138827760
+#
+# Overhead  Shared Object          Symbol                                                                                                                                                                                                                                                                             IPC   [IPC Coverage]
+# ........  .....................  .................................................................................................................................................................................................................................................................................  ....................
+#
+    61.67%  guion                  [.] guion_vm_core::execute_vm_frame_with_forwarders::<false, guion_runtime::Instance>                                                                                                                                                                                              -      -            
+    20.75%  guion                  [.] <guion_runtime::Instance as guion_vm_core::VmHost>::host_op                                                                                                                                                                                                                    -      -            
+     3.31%  guion                  [.] core::ptr::drop_glue::<guion_model::Value>                                                                                                                                                                                                                                     -      -            
+     3.17%  guion                  [.] core::ptr::drop_glue::<guion_model::Value>                                                                                                                                                                                                                                     -      -            
+     2.02%  guion                  [.] guion_vm_core::value_matches                                                                                                                                                                                                                                                   -      -            
+     1.87%  guion                  [.] __aarch64_cas8_relax                                                                                                                                                                                                                                                           -      -            
+     1.44%  guion                  [.] <guion_model::shared::Shared<alloc::vec::Vec<guion_model::Value>>>::free                                                                                                                                                                                                       -      -            
+     1.15%  guion                  [.] <guion_model::Value as core::cmp::PartialEq>::eq                                                                                                                                                                                                                               -      -            
+     1.15%  libc.so.6              [.] memcmp                                                                                                                                                                                                                                                                         -      -            
+     1.01%  guion                  [.] <guion_model::Value as core::clone::Clone>::clone.480                                                                                                                                                                                                                          -      -            
+
+
+#
+# (Cannot load tips.txt file, please install perf!)
+#

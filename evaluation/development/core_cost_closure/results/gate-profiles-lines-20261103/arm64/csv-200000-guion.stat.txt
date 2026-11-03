@@ -1,0 +1,9 @@
+
+ Performance counter stats for '/home/runner/work/guion/guion/target/pgo/guion run main.gub --input ledger.csv' (5 runs):
+
+            138.11 msec task-clock                                                              ( +-  0.20% )
+               368      page-faults                                                           
+                 2      context-switches                                                        ( +- 29.15% )
+
+       0.139186027 +- 0.000266501 seconds time elapsed  ( +-  0.19% )
+

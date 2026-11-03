@@ -4736,9 +4736,70 @@ pub fn append_guest_call_trace(
     }
 }
 
+/// The allocation allowance one invocation and its parallel workers draw from. While no
+/// workers share it, one thread updates it with plain loads and stores, as an atomic
+/// read-modify-write on every allocation costs a locked instruction on x86_64.
+#[derive(Debug)]
+pub struct AllocationPool {
+    remaining: AtomicUsize,
+    /// Parallel operations currently sharing this pool with worker threads.
+    sharers: AtomicUsize,
+}
+
+impl AllocationPool {
+    pub fn new(limit: usize) -> Self {
+        Self {
+            remaining: AtomicUsize::new(limit),
+            sharers: AtomicUsize::new(0),
+        }
+    }
+
+    pub fn remaining(&self) -> usize {
+        self.remaining.load(Ordering::Relaxed)
+    }
+
+    /// Mark the pool as shared with worker threads; call it before starting them.
+    pub fn begin_sharing(&self) {
+        self.sharers.fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// Call it after every worker started since `begin_sharing` has been joined.
+    pub fn end_sharing(&self) {
+        self.sharers.fetch_sub(1, Ordering::Relaxed);
+    }
+
+    #[inline]
+    fn take(&self, bytes: usize, floor: usize) -> bool {
+        if self.sharers.load(Ordering::Relaxed) == 0 {
+            let left = self.remaining.load(Ordering::Relaxed);
+            if bytes > left.saturating_sub(floor) {
+                return false;
+            }
+            self.remaining.store(left - bytes, Ordering::Relaxed);
+            return true;
+        }
+        self.remaining
+            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |left| {
+                (bytes <= left.saturating_sub(floor)).then(|| left - bytes)
+            })
+            .is_ok()
+    }
+
+    #[inline]
+    fn give_back(&self, bytes: usize) {
+        if self.sharers.load(Ordering::Relaxed) == 0 {
+            let left = self.remaining.load(Ordering::Relaxed);
+            self.remaining
+                .store(left.saturating_add(bytes), Ordering::Relaxed);
+        } else {
+            self.remaining.fetch_add(bytes, Ordering::Relaxed);
+        }
+    }
+}
+
 pub struct Budget {
     pub remaining: AtomicU64,
-    pub allocation_remaining: Arc<AtomicUsize>,
+    pub allocation: Arc<AllocationPool>,
     pub allocation_floor: usize,
     pub cancellation: CancellationToken,
     pub local_cancellation: Option<Arc<AtomicBool>>,
@@ -4845,7 +4906,7 @@ impl Budget {
     ) -> Self {
         Self {
             remaining: AtomicU64::new(instruction_limit),
-            allocation_remaining: Arc::new(AtomicUsize::new(allocation_limit)),
+            allocation: Arc::new(AllocationPool::new(allocation_limit)),
             allocation_floor: 0,
             cancellation,
             local_cancellation: None,
@@ -4912,16 +4973,7 @@ impl Budget {
         if bytes == 0 {
             return true;
         }
-        let allocated = self
-            .allocation_remaining
-            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |left| {
-                if bytes <= left.saturating_sub(self.allocation_floor) {
-                    Some(left - bytes)
-                } else {
-                    None
-                }
-            })
-            .is_ok();
+        let allocated = self.allocation.take(bytes, self.allocation_floor);
         if allocated {
             if let Some(profile) = &self.runtime_profile {
                 profile.record_allocation_charge(bytes);
@@ -4932,8 +4984,7 @@ impl Budget {
 
     #[inline]
     pub fn refund_allocation(&self, bytes: usize) {
-        self.allocation_remaining
-            .fetch_add(bytes, Ordering::Relaxed);
+        self.allocation.give_back(bytes);
         if let Some(profile) = &self.runtime_profile {
             profile.record_allocation_refund(bytes);
         }
@@ -4976,7 +5027,7 @@ impl Budget {
 
     #[inline]
     pub fn parallel_allocation_floor(&self) -> usize {
-        let remaining = self.allocation_remaining.load(Ordering::Relaxed);
+        let remaining = self.allocation.remaining();
         let available = remaining.saturating_sub(self.allocation_floor);
         remaining.saturating_sub(available.saturating_mul(3) / 4)
     }
@@ -4993,7 +5044,7 @@ pub fn charge_allocation(budget: &Budget, bytes: usize, span: Span) -> Result<()
 
 #[cold]
 fn allocation_limit_error(budget: &Budget, bytes: usize, span: Span) -> RuntimeError {
-    let remaining = budget.allocation_remaining.load(Ordering::Relaxed);
+    let remaining = budget.allocation.remaining();
     RuntimeError::new(
         "R_ALLOCATION_LIMIT",
         format!(
@@ -7835,11 +7886,37 @@ mod tests {
     }
 
     #[test]
+    fn allocation_pool_charges_the_same_whether_or_not_it_is_shared() {
+        let pool = Arc::new(AllocationPool::new(100));
+        assert!(pool.take(60, 0));
+        assert!(!pool.take(41, 0));
+        assert!(!pool.take(31, 10));
+        pool.give_back(20);
+        assert_eq!(pool.remaining(), 60);
+
+        pool.begin_sharing();
+        let workers: Vec<_> = (0..4)
+            .map(|_| {
+                let pool = Arc::clone(&pool);
+                std::thread::spawn(move || (0..20).filter(|_| pool.take(1, 0)).count())
+            })
+            .collect();
+        let taken: usize = workers
+            .into_iter()
+            .map(|worker| worker.join().unwrap())
+            .sum();
+        pool.end_sharing();
+        assert_eq!(taken, 60);
+        assert_eq!(pool.remaining(), 0);
+        assert!(!pool.take(1, 0));
+    }
+
+    #[test]
     fn parallel_worker_instruction_fuel_remains_directly_atomic() {
         let parent = Budget::new(10, usize::MAX, CancellationToken::new(), None);
         let worker = Budget {
             remaining: AtomicU64::new(3),
-            allocation_remaining: parent.allocation_remaining.clone(),
+            allocation: parent.allocation.clone(),
             allocation_floor: 0,
             cancellation: parent.cancellation.clone(),
             local_cancellation: Some(Arc::new(AtomicBool::new(false))),
@@ -8357,7 +8434,7 @@ mod tests {
             (
                 outcome,
                 budget.remaining.load(Ordering::Relaxed),
-                budget.allocation_remaining.load(Ordering::Relaxed),
+                budget.allocation.remaining(),
             )
         };
         for limit in 0..50 {

@@ -1,0 +1,81 @@
+# To display the perf.data header info, please use --header/--header-only options.
+#
+#
+# Total Lost Samples: 0
+#
+# Samples: 3K of event 'cpu-clock'
+# Event count (approx.): 610922160
+#
+# Overhead  Source:Line           
+# ........  ......................
+#
+     7.79%  mod.rs:1933
+     5.89%  atomic.rs:3413
+     2.46%  boxed.rs:289
+     2.23%  mod.rs:825
+     2.03%  lib.rs:0
+     1.67%  register.rs:1077
+     1.54%  register.rs:0
+     1.38%  index.rs:272
+     1.24%  mod.rs:931
+     1.15%  mod.rs:0
+     1.15%  non_null.rs:1714
+     1.05%  mod.rs:1046
+     0.98%  mod.rs:551
+     0.92%  lib.rs:5102
+     0.88%  mut_ptr.rs:961
+     0.88%  result.rs:2173
+     0.85%  atomic.rs:4045
+     0.82%  lib.rs:3530
+     0.75%  mod.rs:767
+     0.72%  lib.rs:5595
+     0.72%  lib.rs:5700
+     0.72%  non_null.rs:441
+     0.72%  pool_alloc.rs:215
+     0.72%  shared.rs:67
+     0.69%  mod.rs:614
+     0.69%  pool_alloc.rs:143
+     0.65%  lib.rs:5589
+     0.62%  filter.rs:138
+     0.59%  lib.rs:2090
+     0.59%  mod.rs:1864
+     0.59%  option.rs:2138
+     0.59%  shared.rs:82
+     0.56%  lib.rs:5009
+     0.56%  uint_macros.rs:2428
+     0.52%  mod.rs:1733
+     0.49%  lib.rs:3556
+     0.49%  lib.rs:5091
+     0.49%  stdlib_services.rs:270
+     0.46%  de.rs:0
+     0.46%  lib.rs:2583
+     0.46%  lib.rs:789
+     0.43%  atomic.rs:3904
+     0.43%  cmp.rs:21
+     0.43%  lib.rs:2527
+     0.43%  macros.rs:0
+     0.43%  mod.rs:628
+     0.43%  non_null.rs:656
+     0.39%  lib.rs:5019
+     0.39%  lib.rs:5539
+     0.36%  atomic.rs:0
+     0.36%  cmp.rs:2011
+     0.36%  mod.rs:1830
+     0.36%  option.rs:742
+     0.36%  pool_alloc.rs:142
+     0.36%  pool_alloc.rs:144
+     0.36%  stdlib_data.rs:706
+     0.36%  sync.rs:2831
+     0.33%  de.rs:1459
+     0.33%  lib.rs:3516
+     0.33%  macros.rs:180
+     0.33%  mod.rs:2492
+     0.33%  mod.rs:2844
+     0.33%  register.rs:957
+     0.33%  result.rs:0
+     0.33%  uint_macros.rs:3758
+
+
+#
+# (Cannot load tips.txt file, please install perf!)
+#

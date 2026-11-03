@@ -1,0 +1,74 @@
+# To display the perf.data header info, please use --header/--header-only options.
+#
+#
+# Total Lost Samples: 0
+#
+# Samples: 771  of event 'cpu-clock'
+# Event count (approx.): 154230840
+#
+# Overhead  Source:Line        
+# ........  ...................
+#
+     7.65%  mod.rs:1933
+     3.24%  atomic.rs:3413
+     3.24%  pool_alloc.rs:0
+     2.85%  pool_alloc.rs:163
+     2.33%  index.rs:272
+     2.20%  non_null.rs:1714
+     1.95%  lib.rs:0
+     1.82%  mod.rs:931
+     1.69%  filter.rs:138
+     1.69%  mod.rs:825
+     1.30%  avx2.rs:699
+     1.30%  lib.rs:1018
+     1.30%  validations.rs:38
+     1.17%  lib.rs:794
+     1.17%  mod.rs:1046
+     1.17%  mod.rs:1733
+     1.17%  uint_macros.rs:2428
+     1.04%  register.rs:1077
+     1.04%  shared.rs:90
+     0.91%  atomic.rs:1044
+     0.91%  lib.rs:2583
+     0.91%  lib.rs:5009
+     0.91%  mod.rs:0
+     0.91%  shared.rs:82
+     0.78%  atomic.rs:3954
+     0.78%  register.rs:0
+     0.78%  validations.rs:0
+     0.65%  lib.rs:704
+     0.65%  lib.rs:859
+     0.65%  pool_alloc.rs:212
+     0.65%  pool_alloc.rs:215
+     0.65%  register.rs:1058
+     0.52%  avx2.rs:2163
+     0.52%  avx2.rs:264
+     0.52%  cmp.rs:1916
+     0.52%  mod.rs:614
+     0.52%  mut_ptr.rs:961
+     0.52%  option.rs:633
+     0.52%  register.rs:957
+     0.52%  register.rs:972
+     0.39%  accum.rs:55
+     0.39%  atomic.rs:3904
+     0.39%  cow.rs:0
+     0.39%  int_macros.rs:1207
+     0.39%  lib.rs:1074
+     0.39%  lib.rs:5049
+     0.39%  lib.rs:808
+     0.39%  macros.rs:279
+     0.39%  mod.rs:2363
+     0.39%  mod.rs:2848
+     0.39%  mod.rs:459
+     0.39%  non_null.rs:441
+     0.39%  option.rs:742
+     0.39%  register.rs:248
+     0.39%  register.rs:949
+     0.39%  uint_macros.rs:2621
+     0.39%  uint_macros.rs:3758
+     0.39%  vector.rs:147
+
+
+#
+# (Cannot load tips.txt file, please install perf!)
+#

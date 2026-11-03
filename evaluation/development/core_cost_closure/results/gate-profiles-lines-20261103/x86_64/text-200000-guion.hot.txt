@@ -1,0 +1,36 @@
+# To display the perf.data header info, please use --header/--header-only options.
+#
+#
+# Total Lost Samples: 0
+#
+# Samples: 771  of event 'cpu-clock'
+# Event count (approx.): 154230840
+#
+# Overhead  Shared Object         Symbol                                                                                 IPC   [IPC Coverage]
+# ........  ....................  .....................................................................................  ....................
+#
+    57.33%  guion                 [.] guion_vm_core::execute_vm_frame_with_forwarders::<false, guion_runtime::Instance>  -      -            
+     7.78%  guion                 [.] core::ptr::drop_glue::<guion_model::Value>                                         -      -            
+     6.49%  [kernel.kallsyms]     [k] do_user_addr_fault                                                                 -      -            
+     4.41%  guion                 [.] <memchr::arch::x86_64::avx2::packedpair::Finder>::find_impl                        -      -            
+     2.08%  [kernel.kallsyms]     [k] __rmqueue_pcplist                                                                  -      -            
+     1.82%  guion                 [.] <guion_model::Value as core::clone::Clone>::clone.575                              -      -            
+     1.17%  [kernel.kallsyms]     [k] _raw_spin_lock                                                                     -      -            
+     1.04%  guion                 [.] <memchr::arch::x86_64::avx2::memchr::One>::find_raw                                -      -            
+     1.04%  guion                 [.] core::ptr::drop_glue::<guion_model::Value>                                         -      -            
+     0.91%  [kernel.kallsyms]     [k] _raw_spin_unlock_irqrestore                                                        -      -            
+     0.91%  [kernel.kallsyms]     [k] blk_cgroup_congested                                                               -      -            
+     0.91%  guion                 [.] <memchr::arch::x86_64::avx2::memchr::One>::find_raw_avx2                           -      -            
+     0.78%  [kernel.kallsyms]     [k] memcg1_commit_charge                                                               -      -            
+     0.78%  libc.so.6             [.] 0x00000000001a1640                                                                 -      -            
+     0.78%  libc.so.6             [.] 0x00000000001a19d2                                                                 -      -            
+     0.65%  [kernel.kallsyms]     [k] __raw_callee_save___pv_queued_spin_unlock                                          -      -            
+     0.65%  [kernel.kallsyms]     [k] zap_present_ptes.constprop.0                                                       -      -            
+     0.65%  guion                 [.] guion_vm_core::new_value_allocation                                                -      -            
+     0.65%  guion                 [.] guion_vm_core::text_match_count                                                    -      -            
+     0.65%  libc.so.6             [.] 0x00000000001a16ce                                                                 -      -            
+
+
+#
+# (Cannot load tips.txt file, please install perf!)
+#

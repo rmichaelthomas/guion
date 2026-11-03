@@ -1,0 +1,9 @@
+
+ Performance counter stats for '/home/runner/work/guion/guion/target/pgo/guion run main.gub' (5 runs):
+
+            179.13 msec task-clock                                                              ( +-  0.42% )
+             18301      page-faults                                                             ( +-  0.00% )
+                47      context-switches                                                        ( +- 99.15% )
+
+       0.183312366 +- 0.001076010 seconds time elapsed  ( +-  0.59% )
+

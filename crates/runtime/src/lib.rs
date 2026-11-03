@@ -2301,8 +2301,7 @@ impl NativeListArena {
                 // These bridged host operations do not access guest locals. Avoid
                 // allocating a frame-sized local vector for each native callback.
                 let mut locals = Vec::new();
-                let allocations_before =
-                    runtime.budget.allocation_remaining.load(Ordering::Relaxed);
+                let allocations_before = runtime.budget.allocation.remaining();
                 // This native invocation is synchronous. NativeCode is held through a
                 // cloned Arc, so the callback is the only Instance access while JIT
                 // code is running.
@@ -2319,7 +2318,7 @@ impl NativeListArena {
                         },
                     )
                 };
-                let allocations_after = runtime.budget.allocation_remaining.load(Ordering::Relaxed);
+                let allocations_after = runtime.budget.allocation.remaining();
                 self.charged_bytes = self
                     .charged_bytes
                     .saturating_add(allocations_before.saturating_sub(allocations_after));
@@ -2421,16 +2420,14 @@ impl NativeListArena {
                 }
                 match parsed {
                     Ok(value) => {
-                        let allocations_before =
-                            runtime.budget.allocation_remaining.load(Ordering::Relaxed);
+                        let allocations_before = runtime.budget.allocation.remaining();
                         let parsed = finish_shared_json(
                             value,
                             &runtime.limits,
                             runtime.budget.as_ref(),
                             span,
                         );
-                        let allocations_after =
-                            runtime.budget.allocation_remaining.load(Ordering::Relaxed);
+                        let allocations_after = runtime.budget.allocation.remaining();
                         self.charged_bytes = self
                             .charged_bytes
                             .saturating_add(allocations_before.saturating_sub(allocations_after));
@@ -8670,12 +8667,15 @@ impl Instance {
         // The workers share one bounded child budget, so the total remains bounded.
         let worker_budget = Arc::new(Budget {
             remaining: AtomicU64::new(budget.reserve_parallel()),
-            allocation_remaining: budget.allocation_remaining.clone(),
+            allocation: budget.allocation.clone(),
             allocation_floor: budget.parallel_allocation_floor(),
             cancellation: budget.cancellation.clone(),
             local_cancellation: Some(cancelled.clone()),
             runtime_profile: budget.runtime_profile.clone(),
         });
+        // Workers draw from the same allocation pool, so it is updated atomically until
+        // every worker has been joined.
+        budget.allocation.begin_sharing();
         let (sender, receiver) = mpsc::channel();
         let mut handles = Vec::new();
         for initial_index in 0..worker_count {
@@ -8782,6 +8782,7 @@ impl Instance {
         for handle in handles {
             worker_panicked |= handle.join().is_err();
         }
+        budget.allocation.end_sharing();
         if budget.cancellation.is_cancelled() {
             return Err(RuntimeError::new(
                 "R_CANCELLED",
