@@ -163,7 +163,7 @@
 
   /* ---------- Receipts ---------- */
   .receipts { background: var(--paper-2); }
-  .receipts-top { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, .5fr); gap: clamp(1.2rem, 3vw, 3rem); align-items: start; }
+  .receipts-top { display: grid; grid-template-columns: minmax(0, 1fr); gap: clamp(1.2rem, 3vw, 3rem); align-items: start; }
   .ratio-figure { margin: 0; background: var(--cream); border: 1px solid var(--ink); border-radius: var(--radius); padding: clamp(.8rem, 2vw, 1.6rem); overflow-x: auto; }
   .ratio-chart { width: 100%; min-width: 640px; height: auto; display: block; font-family: var(--sans); }
   .ratio-chart .band-fast { fill: color-mix(in srgb, var(--blue) 8%, transparent); }
@@ -241,7 +241,7 @@
   .story { background: var(--lily); }
   .story .sectionhead p { color: var(--ink-2); }
   .story .overline { color: var(--ink); }
-  .time-ribbon { list-style: none; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; position: relative; counter-reset: ribbon; padding-top: 2.2rem; }
+  .time-ribbon { list-style: none; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 0; position: relative; counter-reset: ribbon; padding-top: 2.2rem; }
   .time-ribbon::before { content: ""; position: absolute; left: 0; right: 0; top: .7rem; border-top: 3px solid var(--ink); }
   .time-ribbon > li { position: relative; padding: 1rem clamp(1rem, 2.4vw, 2.4rem) 0 0; }
   .time-ribbon > li::before { content: ""; position: absolute; top: -1.9rem; left: 0; width: 1.3rem; height: 1.3rem; border-radius: 50%; background: var(--blue); border: 4px solid var(--lily); box-shadow: 0 0 0 3px var(--ink); }
@@ -279,7 +279,7 @@
     .route > li { padding: 0 0 0 4rem; min-height: 2.7rem; }
     .panel { grid-template-columns: minmax(0, 1fr); }
     .perm-grid, .inspect-grid, .receipts-top, .python-grid, .agents-grid, .footer-grid { grid-template-columns: minmax(0, 1fr); }
-    .time-ribbon { grid-template-columns: minmax(0, 1fr); gap: 1.6rem; padding-top: 0; }
+    .time-ribbon { grid-auto-flow: row; grid-template-columns: minmax(0, 1fr); gap: 1.6rem; padding-top: 0; }
     .time-ribbon::before { top: 0; bottom: 0; left: .6rem; right: auto; border-top: 0; border-left: 3px solid var(--ink); }
     .time-ribbon > li { padding: 0 0 0 2.6rem; }
     .time-ribbon > li::before { top: .1rem; left: 0; }
@@ -292,6 +292,7 @@
     .specs > div { grid-template-columns: minmax(0, 1fr); gap: .1rem; }
     .lab-bar .btn { margin-left: 0; }
     .sectionhead h2 { font-size: clamp(2.5rem, 13vw, 3.4rem); }
+    .receipt > div { grid-template-columns: minmax(0, 1fr); gap: .25rem; }
   }
 }
 
@@ -301,7 +302,7 @@
 
 @layer components {
   /* Grid children must be allowed to shrink below their content, or code blocks stretch the page. */
-  :is(.panel, .inspect-grid, .perm-grid, .python-grid, .agents-grid, .hero-grid, .receipts-top, .lab-panes, .footer-grid, .time-ribbon, .receipt-list) > * { min-width: 0; }
+  :is(.panel, .inspect-grid, .perm-grid, .python-grid, .agents-grid, .hero-grid, .receipts-top, .lab-panes, .footer-grid, .time-ribbon, .receipt-list, .casefiles, .namesake) > * { min-width: 0; }
   :is(pre, .code) { max-width: 100%; }
   :is(p, li, dd, td, th, figcaption) code { overflow-wrap: anywhere; }
 }
@@ -334,5 +335,42 @@
     .ratio-chart .dot { forced-color-adjust: none; }
     .ratio-chart .dot-fast { fill: Highlight; }
     .ratio-chart .dot-slow { fill: LinkText; }
+  }
+}
+
+@layer components {
+  /* ---------- Name: pronunciation in the hero, namesake in the story ---------- */
+  .pronounce { margin: -.4rem 0 1.2rem; }
+  .pronounce p { display: flex; flex-wrap: wrap; align-items: baseline; gap: .35rem .8rem; font-size: 1rem; color: var(--ink-2); }
+  .pronounce dfn { font-style: normal; font-weight: 800; color: var(--ink); }
+  .pronounce .say { font: 800 .95rem var(--mono); letter-spacing: .08em; color: var(--blue); }
+  .pronounce a { color: var(--blue); }
+  .namesake { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: clamp(1.2rem, 3vw, 3rem); align-items: start; margin-bottom: clamp(2.5rem, 6vw, 4.5rem); }
+  .namesake-label { border-left: 6px solid var(--ink); padding: .2rem 0 .2rem clamp(1rem, 2.4vw, 1.8rem); display: flex; flex-direction: column; gap: .8rem; }
+  .namesake-label h3 { font-size: clamp(1.8rem, 3.4vw, 2.8rem); letter-spacing: -.045em; line-height: 1.02; }
+  .namesake-label p { color: var(--ink-2); }
+  .namesake-label .credit { font: 700 .74rem var(--mono); letter-spacing: .04em; color: var(--muted); }
+  .namesake > .claim::before { content: "THE RECORD"; }
+
+  /* ---------- Receipts: one case-file viewer ---------- */
+  .casefiles { display: grid; grid-template-columns: minmax(15rem, .75fr) minmax(0, 1.6fr); gap: clamp(1rem, 2.6vw, 2.4rem); align-items: start; margin-top: 1.4rem; }
+  .case-index { display: flex; flex-direction: column; gap: .45rem; position: sticky; top: 5rem; }
+  .case-tab { display: grid; grid-template-columns: 2.4rem minmax(0, 1fr); gap: .6rem; align-items: baseline; padding: .7rem .9rem; border: 1px solid var(--line); border-radius: 10px; background: var(--cream); cursor: pointer; font-weight: 650; line-height: 1.25; }
+  .case-tab:hover { border-color: var(--ink); }
+  .case-n { font: 800 .72rem var(--mono); letter-spacing: .1em; color: var(--blue); }
+  .case-panels { display: grid; gap: 1.4rem; min-width: 0; }
+  .case-panels > .claim { font-size: 1rem; padding: 1.8rem 1.8rem 2rem; }
+  .case-panels > .claim h3 { font-size: clamp(1.6rem, 2.6vw, 2.2rem); }
+  .casefiles .claim::before { content: "CASE FILE " attr(data-case); }
+  .receipts:has(#f-speed:checked) .case-tab:not([data-group="speed"]),
+  .receipts:has(#f-behaviour:checked) .case-tab:not([data-group="behaviour"]),
+  .receipts:has(#f-reach:checked) .case-tab:not([data-group="reach"]) { display: none; }
+}
+
+@layer responsive {
+  @media (max-width: 1000px) {
+    .namesake, .casefiles { grid-template-columns: minmax(0, 1fr); }
+    .case-index { position: static; flex-direction: row; overflow-x: auto; scroll-snap-type: x proximity; padding-bottom: .5rem; }
+    .case-tab { flex: 0 0 min(78%, 15rem); scroll-snap-align: start; }
   }
 }

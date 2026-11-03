@@ -125,10 +125,6 @@
   .darkzone .overline { color: var(--lily); }
 
   /* Status bar and navigation */
-  .sitebar { background: var(--ink); color: #e5eddf; min-height: 39px; display: flex; align-items: center; font-size: .72rem; letter-spacing: .08em; }
-  .sitebar .shell { display: flex; justify-content: space-between; gap: 1rem; align-items: center; padding-block: .45rem; flex-wrap: wrap; }
-  .pillstatus { display: inline-flex; gap: .55rem; align-items: center; }
-  .pillstatus::before { content: ""; width: 7px; height: 7px; background: var(--lily); border-radius: 100%; box-shadow: 0 0 0 4px #d9f9872c; flex: none; }
   .navwrap { position: sticky; top: 0; z-index: 30; border-bottom: 1px solid #10251d29; background: #e9edf0ed; background: color-mix(in srgb, var(--paper) 93%, transparent); backdrop-filter: blur(16px); }
   .nav { min-height: 68px; display: flex; gap: 1.2rem; align-items: center; justify-content: space-between; flex-wrap: wrap; padding-block: .5rem; }
   .wordmark { display: inline-flex; align-items: center; gap: .7rem; text-decoration: none; font-size: 1.5rem; font-weight: 800; letter-spacing: -.07em; }
@@ -164,7 +160,6 @@
   @media (max-width: 520px) {
     .wordmark { font-size: 1.3rem; }
     .viewswitch label { padding: .5rem .7rem; font-size: .66rem; }
-    .sitebar { font-size: .66rem; }
   }
 }
 
@@ -383,7 +378,7 @@
 
   /* ---------- Receipts ---------- */
   .receipts { background: var(--paper-2); }
-  .receipts-top { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, .5fr); gap: clamp(1.2rem, 3vw, 3rem); align-items: start; }
+  .receipts-top { display: grid; grid-template-columns: minmax(0, 1fr); gap: clamp(1.2rem, 3vw, 3rem); align-items: start; }
   .ratio-figure { margin: 0; background: var(--cream); border: 1px solid var(--ink); border-radius: var(--radius); padding: clamp(.8rem, 2vw, 1.6rem); overflow-x: auto; }
   .ratio-chart { width: 100%; min-width: 640px; height: auto; display: block; font-family: var(--sans); }
   .ratio-chart .band-fast { fill: color-mix(in srgb, var(--blue) 8%, transparent); }
@@ -461,7 +456,7 @@
   .story { background: var(--lily); }
   .story .sectionhead p { color: var(--ink-2); }
   .story .overline { color: var(--ink); }
-  .time-ribbon { list-style: none; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; position: relative; counter-reset: ribbon; padding-top: 2.2rem; }
+  .time-ribbon { list-style: none; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 0; position: relative; counter-reset: ribbon; padding-top: 2.2rem; }
   .time-ribbon::before { content: ""; position: absolute; left: 0; right: 0; top: .7rem; border-top: 3px solid var(--ink); }
   .time-ribbon > li { position: relative; padding: 1rem clamp(1rem, 2.4vw, 2.4rem) 0 0; }
   .time-ribbon > li::before { content: ""; position: absolute; top: -1.9rem; left: 0; width: 1.3rem; height: 1.3rem; border-radius: 50%; background: var(--blue); border: 4px solid var(--lily); box-shadow: 0 0 0 3px var(--ink); }
@@ -499,7 +494,7 @@
     .route > li { padding: 0 0 0 4rem; min-height: 2.7rem; }
     .panel { grid-template-columns: minmax(0, 1fr); }
     .perm-grid, .inspect-grid, .receipts-top, .python-grid, .agents-grid, .footer-grid { grid-template-columns: minmax(0, 1fr); }
-    .time-ribbon { grid-template-columns: minmax(0, 1fr); gap: 1.6rem; padding-top: 0; }
+    .time-ribbon { grid-auto-flow: row; grid-template-columns: minmax(0, 1fr); gap: 1.6rem; padding-top: 0; }
     .time-ribbon::before { top: 0; bottom: 0; left: .6rem; right: auto; border-top: 0; border-left: 3px solid var(--ink); }
     .time-ribbon > li { padding: 0 0 0 2.6rem; }
     .time-ribbon > li::before { top: .1rem; left: 0; }
@@ -512,6 +507,7 @@
     .specs > div { grid-template-columns: minmax(0, 1fr); gap: .1rem; }
     .lab-bar .btn { margin-left: 0; }
     .sectionhead h2 { font-size: clamp(2.5rem, 13vw, 3.4rem); }
+    .receipt > div { grid-template-columns: minmax(0, 1fr); gap: .25rem; }
   }
 }
 
@@ -521,7 +517,7 @@
 
 @layer components {
   /* Grid children must be allowed to shrink below their content, or code blocks stretch the page. */
-  :is(.panel, .inspect-grid, .perm-grid, .python-grid, .agents-grid, .hero-grid, .receipts-top, .lab-panes, .footer-grid, .time-ribbon, .receipt-list) > * { min-width: 0; }
+  :is(.panel, .inspect-grid, .perm-grid, .python-grid, .agents-grid, .hero-grid, .receipts-top, .lab-panes, .footer-grid, .time-ribbon, .receipt-list, .casefiles, .namesake) > * { min-width: 0; }
   :is(pre, .code) { max-width: 100%; }
   :is(p, li, dd, td, th, figcaption) code { overflow-wrap: anywhere; }
 }
@@ -557,11 +553,48 @@
   }
 }
 
+@layer components {
+  /* ---------- Name: pronunciation in the hero, namesake in the story ---------- */
+  .pronounce { margin: -.4rem 0 1.2rem; }
+  .pronounce p { display: flex; flex-wrap: wrap; align-items: baseline; gap: .35rem .8rem; font-size: 1rem; color: var(--ink-2); }
+  .pronounce dfn { font-style: normal; font-weight: 800; color: var(--ink); }
+  .pronounce .say { font: 800 .95rem var(--mono); letter-spacing: .08em; color: var(--blue); }
+  .pronounce a { color: var(--blue); }
+  .namesake { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: clamp(1.2rem, 3vw, 3rem); align-items: start; margin-bottom: clamp(2.5rem, 6vw, 4.5rem); }
+  .namesake-label { border-left: 6px solid var(--ink); padding: .2rem 0 .2rem clamp(1rem, 2.4vw, 1.8rem); display: flex; flex-direction: column; gap: .8rem; }
+  .namesake-label h3 { font-size: clamp(1.8rem, 3.4vw, 2.8rem); letter-spacing: -.045em; line-height: 1.02; }
+  .namesake-label p { color: var(--ink-2); }
+  .namesake-label .credit { font: 700 .74rem var(--mono); letter-spacing: .04em; color: var(--muted); }
+  .namesake > .claim::before { content: "THE RECORD"; }
+
+  /* ---------- Receipts: one case-file viewer ---------- */
+  .casefiles { display: grid; grid-template-columns: minmax(15rem, .75fr) minmax(0, 1.6fr); gap: clamp(1rem, 2.6vw, 2.4rem); align-items: start; margin-top: 1.4rem; }
+  .case-index { display: flex; flex-direction: column; gap: .45rem; position: sticky; top: 5rem; }
+  .case-tab { display: grid; grid-template-columns: 2.4rem minmax(0, 1fr); gap: .6rem; align-items: baseline; padding: .7rem .9rem; border: 1px solid var(--line); border-radius: 10px; background: var(--cream); cursor: pointer; font-weight: 650; line-height: 1.25; }
+  .case-tab:hover { border-color: var(--ink); }
+  .case-n { font: 800 .72rem var(--mono); letter-spacing: .1em; color: var(--blue); }
+  .case-panels { display: grid; gap: 1.4rem; min-width: 0; }
+  .case-panels > .claim { font-size: 1rem; padding: 1.8rem 1.8rem 2rem; }
+  .case-panels > .claim h3 { font-size: clamp(1.6rem, 2.6vw, 2.2rem); }
+  .casefiles .claim::before { content: "CASE FILE " attr(data-case); }
+  .receipts:has(#f-speed:checked) .case-tab:not([data-group="speed"]),
+  .receipts:has(#f-behaviour:checked) .case-tab:not([data-group="behaviour"]),
+  .receipts:has(#f-reach:checked) .case-tab:not([data-group="reach"]) { display: none; }
+}
+
+@layer responsive {
+  @media (max-width: 1000px) {
+    .namesake, .casefiles { grid-template-columns: minmax(0, 1fr); }
+    .case-index { position: static; flex-direction: row; overflow-x: auto; scroll-snap-type: x proximity; padding-bottom: .5rem; }
+    .case-tab { flex: 0 0 min(78%, 15rem); scroll-snap-align: start; }
+  }
+}
+
 @layer print {
   @media print {
     @page { margin: 16mm; }
     body { background: #fff !important; color: #000; background-image: none !important; font-size: 10.5pt; }
-    .sitebar, .navwrap, .skip, .pg-actions, .lab-bar, .pg-notice, [data-pg-load], .viewswitch, .filters { display: none !important; }
+    .navwrap, .skip, .pg-actions, .lab-bar, .pg-notice, [data-pg-load], .viewswitch, .filters { display: none !important; }
     .darkzone { background: #fff !important; color: #000 !important; }
     .darkzone p { color: #000 !important; }
     .section { padding-block: 14mm; break-inside: auto; border-top: 1px solid #000; }
@@ -589,6 +622,51 @@
     .time-ribbon > li::before { box-shadow: none; border-color: #000; background: #000; }
   }
 }
+@layer components {
+@supports selector(:has(*)) {
+.case-panels > .claim { display: none; }
+.casefiles:has(#case-server-gate:checked) #claim-server-gate { display: flex; }
+.casefiles:has(#case-server-gate:checked) label[for="case-server-gate"] { background: var(--ink); color: var(--lily); border-color: var(--ink); }
+.casefiles:has(#case-server-gate:checked) label[for="case-server-gate"] .case-n { color: var(--lily); }
+.casefiles:has(#case-server-gate:focus-visible) label[for="case-server-gate"] { outline: 3px solid var(--blue); outline-offset: 2px; }
+@media (forced-colors: active) { .casefiles:has(#case-server-gate:checked) label[for="case-server-gate"] { outline: 3px solid Highlight; } }
+.casefiles:has(#case-richards:checked) #claim-richards { display: flex; }
+.casefiles:has(#case-richards:checked) label[for="case-richards"] { background: var(--ink); color: var(--lily); border-color: var(--ink); }
+.casefiles:has(#case-richards:checked) label[for="case-richards"] .case-n { color: var(--lily); }
+.casefiles:has(#case-richards:focus-visible) label[for="case-richards"] { outline: 3px solid var(--blue); outline-offset: 2px; }
+@media (forced-colors: active) { .casefiles:has(#case-richards:checked) label[for="case-richards"] { outline: 3px solid Highlight; } }
+.casefiles:has(#case-short-source:checked) #claim-short-source { display: flex; }
+.casefiles:has(#case-short-source:checked) label[for="case-short-source"] { background: var(--ink); color: var(--lily); border-color: var(--ink); }
+.casefiles:has(#case-short-source:checked) label[for="case-short-source"] .case-n { color: var(--lily); }
+.casefiles:has(#case-short-source:focus-visible) label[for="case-short-source"] { outline: 3px solid var(--blue); outline-offset: 2px; }
+@media (forced-colors: active) { .casefiles:has(#case-short-source:checked) label[for="case-short-source"] { outline: 3px solid Highlight; } }
+.casefiles:has(#case-nine-apps:checked) #claim-nine-apps { display: flex; }
+.casefiles:has(#case-nine-apps:checked) label[for="case-nine-apps"] { background: var(--ink); color: var(--lily); border-color: var(--ink); }
+.casefiles:has(#case-nine-apps:checked) label[for="case-nine-apps"] .case-n { color: var(--lily); }
+.casefiles:has(#case-nine-apps:focus-visible) label[for="case-nine-apps"] { outline: 3px solid var(--blue); outline-offset: 2px; }
+@media (forced-colors: active) { .casefiles:has(#case-nine-apps:checked) label[for="case-nine-apps"] { outline: 3px solid Highlight; } }
+.casefiles:has(#case-lockfile:checked) #claim-lockfile { display: flex; }
+.casefiles:has(#case-lockfile:checked) label[for="case-lockfile"] { background: var(--ink); color: var(--lily); border-color: var(--ink); }
+.casefiles:has(#case-lockfile:checked) label[for="case-lockfile"] .case-n { color: var(--lily); }
+.casefiles:has(#case-lockfile:focus-visible) label[for="case-lockfile"] { outline: 3px solid var(--blue); outline-offset: 2px; }
+@media (forced-colors: active) { .casefiles:has(#case-lockfile:checked) label[for="case-lockfile"] { outline: 3px solid Highlight; } }
+.casefiles:has(#case-conformance:checked) #claim-conformance { display: flex; }
+.casefiles:has(#case-conformance:checked) label[for="case-conformance"] { background: var(--ink); color: var(--lily); border-color: var(--ink); }
+.casefiles:has(#case-conformance:checked) label[for="case-conformance"] .case-n { color: var(--lily); }
+.casefiles:has(#case-conformance:focus-visible) label[for="case-conformance"] { outline: 3px solid var(--blue); outline-offset: 2px; }
+@media (forced-colors: active) { .casefiles:has(#case-conformance:checked) label[for="case-conformance"] { outline: 3px solid Highlight; } }
+.casefiles:has(#case-concurrency-cancel:checked) #claim-concurrency-cancel { display: flex; }
+.casefiles:has(#case-concurrency-cancel:checked) label[for="case-concurrency-cancel"] { background: var(--ink); color: var(--lily); border-color: var(--ink); }
+.casefiles:has(#case-concurrency-cancel:checked) label[for="case-concurrency-cancel"] .case-n { color: var(--lily); }
+.casefiles:has(#case-concurrency-cancel:focus-visible) label[for="case-concurrency-cancel"] { outline: 3px solid var(--blue); outline-offset: 2px; }
+@media (forced-colors: active) { .casefiles:has(#case-concurrency-cancel:checked) label[for="case-concurrency-cancel"] { outline: 3px solid Highlight; } }
+.casefiles:has(#case-targets:checked) #claim-targets { display: flex; }
+.casefiles:has(#case-targets:checked) label[for="case-targets"] { background: var(--ink); color: var(--lily); border-color: var(--ink); }
+.casefiles:has(#case-targets:checked) label[for="case-targets"] .case-n { color: var(--lily); }
+.casefiles:has(#case-targets:focus-visible) label[for="case-targets"] { outline: 3px solid var(--blue); outline-offset: 2px; }
+@media (forced-colors: active) { .casefiles:has(#case-targets:checked) label[for="case-targets"] { outline: 3px solid Highlight; } }
+}
+}
 
 </style>
 </head>
@@ -596,7 +674,6 @@
 <a class="skip" href="#content">Skip to the page</a>
 <input type="radio" name="view" id="view-plain" class="sr-only" checked>
 <input type="radio" name="view" id="view-dev" class="sr-only">
-<div class="sitebar"><div class="shell"><span class="pillstatus">Pre-release · No public Guion release has been published</span><span class="v-dev mono">artifact format 51 · browser ABI 1.0</span></div></div>
 <header class="navwrap"><div class="shell nav">
 <a class="wordmark" href="#top"><span class="brandmark" aria-hidden="true">g</span><span class="wm">guion</span></a>
 <nav class="navlinks" data-ahi="ahi.navigation-journeys.chapter-rail" aria-label="Page sections"><a href="#try">Try it</a><a href="#why">Why</a><a href="#lifecycle">One command</a><a href="#read">Read it</a><a href="#permissions">Permissions</a><a href="#receipts">Receipts</a><a href="#python">Python</a><a href="#agents">Agents</a><a href="#story">Story</a></nav>
@@ -608,6 +685,7 @@
 <div class="hero-grid">
 <div class="hero-copy">
 <h1 class="hero-title" id="hero-title">guion<span class="dot">.</span></h1>
+<section class="pronounce" data-ahi="ahi.annotation-evidence.context-definition" aria-label="How to say the name"><p><dfn>Guion</dfn> <span class="say">/ GUY-on /</span> <span class="named">Named for astronaut Guion “Guy” Bluford. <a href="#namesake">Why that name</a></span></p></section>
 <div class="ahi"><section id="slot-hero-headline" class="instrument family-typography-reading renderer-kinetic-headline interaction-progressive-css" data-ahi="ahi.typography-reading.kinetic-headline" data-ahi-renderer="kinetic-headline" data-ahi-element="section" data-ahi-version="1"><section class="instrument-semantic instrument-semantic-section" data-ahi-semantic="section"><header class="kinetic-headline"><h2>A language for the work ahead.</h2><p class="headline-deck">Programming, re-examined</p><p>A general-purpose programming language and toolchain built around one challenge: make useful software easier to write, understand, run, and deliver.</p></header></section></section></div>
 <div class="v-dev hero-specs">
 <dl class="specs">
@@ -615,6 +693,7 @@
 <div><dt>Files</dt><dd><code>.gu</code> source · <code>.gub</code> artifact · <code>guion.toml</code> · <code>guion.lock</code> · <code>.guion/</code></dd></div>
 <div><dt>Compiler</dt><dd>self-hosted, written in Guion; normal source runs use the in-process Rust compiler</dd></div>
 <div><dt>Runtime</dt><dd>Rust, with explicit host permissions</dd></div>
+<div><dt>Browser</dt><dd>WebAssembly ABI 1.0, which runs the playground below</dd></div>
 <div><dt>Tooling</dt><dd>16 subcommands in one binary, most with <code>--json</code></dd></div>
 </dl>
 </div>
@@ -742,7 +821,7 @@
 <div class="reason-main">
 <h3>A claim should survive contact.</h3>
 <p class="v-plain">Every number on this page says which program it measured, on which machine, and what it does not tell you. Then it points at the file it came from, so you can check.</p>
-<p class="v-dev">13 receipts, each with workload, host, interval, scope limit, and linked report and raw-sample files. A build step fails if a figure on this page is not in the file it cites.</p>
+<p class="v-dev">14 receipts, each with workload, host, interval, scope limit, and linked report and raw-sample files. A build step fails if a figure on this page is not in the file it cites.</p>
 </div>
 <aside class="marginalia v-dev"><span class="smallcaps">Margin note</span><p>Files are copied byte for byte to the <a href="evidence/">evidence page</a> with their SHA-256.</p></aside>
 </li>
@@ -1017,7 +1096,7 @@ hosts = [&quot;api.example.test&quot;]
 <div class="shell">
 <div class="sectionhead">
 <div><p class="overline">06 / Evidence, not mythology</p><h2>Show the work.<br><span class="serif">Keep the caveats.</span></h2></div>
-<p class="v-plain">Each card below is one claim, the conditions it holds under, what it does not tell you, and where to check it. The first chart shows every one of the headline results, including the ones where Guion is slower.</p>
+<p class="v-plain">Each case file below is one claim, the conditions it holds under, what it does not tell you, and where to check it. Pick one from the index to open it. The chart shows every headline result, including the ones where Guion is slower.</p>
 <p class="v-dev">Ratios are Guion median ÷ comparison median, with the 95% interval from each report. Left of the line Guion took less time. Source files are on the <a href="evidence/">evidence page</a> with SHA-256.</p>
 </div>
 <div class="receipts-top">
@@ -1148,7 +1227,6 @@ hosts = [&quot;api.example.test&quot;]
 </svg>
 <figcaption class="caption"><span class="v-plain">Each dot is how long Guion took divided by how long the comparison took. Left of the dashed line is faster. The line through each dot is its 95% interval. Different machines, programs and Python versions would move every dot.</span><span class="v-dev">Log scale, 0.1× to 1.6×. Comparison and sample counts are on each receipt. Hosts: GitHub's x86_64 and ARM64 Linux runners for the rows marked server, against the uv standalone CPython 3.14.7; one Apple Silicon Mac, macOS 27, with CPython 3.14.7 for the rest unless a receipt says otherwise.</span></figcaption>
 </figure>
-<div class="dossier"><div class="ahi"><section id="slot-receipts-richards-dossier" class="instrument family-publications-objects renderer-case-dossier interaction-details" data-ahi="ahi.publications-objects.case-dossier" data-ahi-renderer="case-dossier" data-ahi-element="article" data-ahi-version="1"><article data-ahi-semantic="article" class="case-dossier"><header><p class="dossier-id">Case file 01</p><h2>Richards, uncached source</h2></header><details open><summary>Evidence</summary><p>27.46 ms for Guion against 72.92 ms for CPython 3.14.7, from a fresh source run.</p></details><details><summary>Working note</summary><p>One benchmark on one Mac. Guion also used more memory here: 24.2 MiB against 18.3 MiB.</p></details></article></section></div></div>
 </div>
 <div class="filters" role="group" aria-label="Show receipts about">
 <input type="radio" name="receipt-filter" id="f-all" class="sr-only" checked>
@@ -1158,8 +1236,27 @@ hosts = [&quot;api.example.test&quot;]
 <span class="smallcaps">Show</span>
 <label for="f-all">All</label><label for="f-speed">Speed and memory</label><label for="f-behaviour">Behaviour</label><label for="f-reach">Where it runs</label>
 </div>
-<div class="receipt-list">
-<article class="claim" id="claim-server-gate" data-claim="server-gate" data-group="speed">
+<div class="casefiles" data-ahi="ahi.reveals-discoveries.tabbed-scene">
+<input type="radio" name="case-file" id="case-server-gate" class="sr-only" checked>
+<input type="radio" name="case-file" id="case-richards" class="sr-only">
+<input type="radio" name="case-file" id="case-short-source" class="sr-only">
+<input type="radio" name="case-file" id="case-nine-apps" class="sr-only">
+<input type="radio" name="case-file" id="case-lockfile" class="sr-only">
+<input type="radio" name="case-file" id="case-conformance" class="sr-only">
+<input type="radio" name="case-file" id="case-concurrency-cancel" class="sr-only">
+<input type="radio" name="case-file" id="case-targets" class="sr-only">
+<div class="case-index" role="group" aria-label="Case files">
+<label for="case-server-gate" class="case-tab" data-group="speed"><span class="case-n">01</span><span class="case-title">Text, JSON Lines and CSV on two server CPUs</span></label>
+<label for="case-richards" class="case-tab" data-group="speed"><span class="case-n">02</span><span class="case-title">Richards, a classic benchmark program</span></label>
+<label for="case-short-source" class="case-tab" data-group="speed"><span class="case-n">03</span><span class="case-title">Five short programs, start to finish</span></label>
+<label for="case-nine-apps" class="case-tab" data-group="speed"><span class="case-n">04</span><span class="case-title">Nine everyday applications</span></label>
+<label for="case-lockfile" class="case-tab" data-group="speed"><span class="case-n">05</span><span class="case-title">A lockfile auditor, up to 16,384 packages</span></label>
+<label for="case-conformance" class="case-tab" data-group="behaviour"><span class="case-n">06</span><span class="case-title">Does it behave the same as Python?</span></label>
+<label for="case-concurrency-cancel" class="case-tab" data-group="behaviour"><span class="case-n">07</span><span class="case-title">A failing worker cancels its siblings</span></label>
+<label for="case-targets" class="case-tab" data-group="reach"><span class="case-n">08</span><span class="case-title">Where it has been tested</span></label>
+</div>
+<div class="case-panels" data-ahi="ahi.publications-objects.case-dossier">
+<article class="claim" id="claim-server-gate" data-claim="server-gate" data-group="speed" data-case="01">
 <h3>Text, JSON Lines and CSV on two server CPUs</h3>
 <dl class="receipt">
 <div><dt>Claim</dt><dd>On GitHub's x86_64 and ARM64 Linux runners, Guion took less time than CPython on every text, JSON Lines and CSV lane, at 20,000 and 200,000 rows. The worst 95% upper bound of Guion's time divided by Python's was 0.976 on x86_64 and 0.859 on ARM64.</dd></div>
@@ -1170,7 +1267,7 @@ hosts = [&quot;api.example.test&quot;]
 </dl>
 <div class="v-dev"><table class="claim-table"><tbody><tr><th scope="row">x86_64, 200,000 rows: text / JSONL / CSV</th><td>0.957 / 0.892 / 0.862 (median ratio, artifact)</td></tr><tr><th scope="row">ARM64, 200,000 rows: text / JSONL / CSV</th><td>0.810 / 0.854 / 0.789</td></tr><tr><th scope="row">Worst upper 95%, x86_64 / ARM64</th><td>0.976 / 0.859</td></tr><tr><th scope="row">20,000 rows, every lane</th><td>0.536–0.710</td></tr><tr><th scope="row">Trials</th><td>15 per lane, shuffled order</td></tr><tr><th scope="row">Python</th><td>uv standalone CPython 3.14.7</td></tr><tr><th scope="row">Hosts</th><td>AMD EPYC 7763 · Neoverse N2, Linux, 4 CPUs</td></tr><tr><th scope="row">Commit</th><td>1746d10 (artifact format 51)</td></tr></tbody></table></div>
 </article>
-<article class="claim" id="claim-richards" data-claim="richards" data-group="speed">
+<article class="claim" id="claim-richards" data-claim="richards" data-group="speed" data-case="02">
 <h3>Richards, a classic benchmark program</h3>
 <dl class="receipt">
 <div><dt>Claim</dt><dd>Starting from source with no compile cache, Guion finished the Richards benchmark in 27.46 ms. CPython took 72.92 ms.</dd></div>
@@ -1181,7 +1278,7 @@ hosts = [&quot;api.example.test&quot;]
 </dl>
 <div class="v-dev"><table class="claim-table"><tbody><tr><th scope="row">Guion median</th><td>27.46 ms</td></tr><tr><th scope="row">CPython median</th><td>72.92 ms</td></tr><tr><th scope="row">Ratio (95% interval)</th><td>0.375 (0.370–0.379)</td></tr><tr><th scope="row">Sprint target</th><td>0.60 (passed)</td></tr><tr><th scope="row">Peak RSS, Guion / Python</th><td>24.2 MiB / 18.3 MiB</td></tr><tr><th scope="row">Trials</th><td>15 randomized</td></tr><tr><th scope="row">Host</th><td>macOS 27, Apple Silicon</td></tr><tr><th scope="row">Python</th><td>CPython 3.14.7</td></tr><tr><th scope="row">Artifact format</th><td>44</td></tr><tr><th scope="row">Commit</th><td>6b5e5aba</td></tr></tbody></table></div>
 </article>
-<article class="claim" id="claim-short-source" data-claim="short-source" data-group="speed">
+<article class="claim" id="claim-short-source" data-claim="short-source" data-group="speed" data-case="03">
 <h3>Five short programs, start to finish</h3>
 <dl class="receipt">
 <div><dt>Claim</dt><dd>Five small programs were each run from source in 21 randomized pairs against Python. Guion took 0.182 to 0.236 of Python's time on every one.</dd></div>
@@ -1192,7 +1289,7 @@ hosts = [&quot;api.example.test&quot;]
 </dl>
 <div class="v-dev"><table class="claim-table"><tbody><tr><th scope="row">Tiny launch</th><td>0.204 (0.200–0.211)</td></tr><tr><th scope="row">Arithmetic</th><td>0.236 (0.231–0.253)</td></tr><tr><th scope="row">JSON file</th><td>0.182 (0.177–0.192)</td></tr><tr><th scope="row">Imported helper</th><td>0.234 (0.227–0.239)</td></tr><tr><th scope="row">SQLite and TOML</th><td>0.221 (0.213–0.245)</td></tr><tr><th scope="row">Pairs per task</th><td>21 randomized</td></tr></tbody></table></div>
 </article>
-<article class="claim" id="claim-nine-apps" data-claim="nine-apps" data-group="speed">
+<article class="claim" id="claim-nine-apps" data-claim="nine-apps" data-group="speed" data-case="04">
 <h3>Nine everyday applications</h3>
 <dl class="receipt">
 <div><dt>Claim</dt><dd>On nine ordinary applications, timed in seven randomized pairs each, Guion's median was lower than Python's every time. The ratios run from 0.137 to 0.845.</dd></div>
@@ -1203,7 +1300,7 @@ hosts = [&quot;api.example.test&quot;]
 </dl>
 <div class="v-dev"><table class="claim-table"><tbody><tr><th scope="row">SLA report</th><td>15.5 ms vs 102.8 ms · 0.150 (0.142–0.153)</td></tr><tr><th scope="row">JSONL summary</th><td>15.2 ms vs 102.2 ms · 0.152 (0.144–0.157)</td></tr><tr><th scope="row">Release notes</th><td>21.6 ms vs 105.1 ms · 0.211 (0.197–0.216)</td></tr><tr><th scope="row">Calendar conflicts</th><td>252.7 ms vs 372.7 ms · 0.676 (0.660–0.678)</td></tr><tr><th scope="row">Webhook replay</th><td>143.1 ms vs 825.7 ms · 0.173 (0.169–0.180)</td></tr><tr><th scope="row">Service health</th><td>529.8 ms vs 630.6 ms · 0.845 (0.837–0.854)</td></tr><tr><th scope="row">Config migrator</th><td>13.6 ms vs 97.3 ms · 0.137 (0.130–0.151)</td></tr><tr><th scope="row">Document index</th><td>54.0 ms vs 295.8 ms · 0.183 (0.182–0.193)</td></tr><tr><th scope="row">Lockfile auditor</th><td>18.4 ms vs 95.6 ms · 0.192 (0.162–0.202)</td></tr></tbody></table></div>
 </article>
-<article class="claim" id="claim-lockfile" data-claim="lockfile" data-group="speed">
+<article class="claim" id="claim-lockfile" data-claim="lockfile" data-group="speed" data-case="05">
 <h3>A lockfile auditor, up to 16,384 packages</h3>
 <dl class="receipt">
 <div><dt>Claim</dt><dd>Auditing 16,384 packages took Guion 171.82 ms and 40.92 MiB. Python took 179.87 ms and 47.13 MiB. Output was exact through 32,768 diagnostics.</dd></div>
@@ -1214,7 +1311,7 @@ hosts = [&quot;api.example.test&quot;]
 </dl>
 <div class="v-dev"><table class="claim-table"><tbody><tr><th scope="row">16,384 packages, Guion / Python</th><td>171.82 ms / 179.87 ms</td></tr><tr><th scope="row">Ratio (95% interval)</th><td>0.948× (0.942–0.975)</td></tr><tr><th scope="row">Peak RSS, Guion / Python</th><td>40.92 / 47.13 MiB</td></tr><tr><th scope="row">8,192 packages</th><td>95.29 ms vs 137.88 ms · 0.692× (0.676–0.700)</td></tr><tr><th scope="row">4,096 packages</th><td>56.35 ms vs 117.45 ms · 0.479× (0.469–0.490)</td></tr><tr><th scope="row">Frozen acceptance cases</th><td>17/17 in Guion and 17/17 in Python</td></tr></tbody></table></div>
 </article>
-<article class="claim" id="claim-conformance" data-claim="conformance" data-group="behaviour">
+<article class="claim" id="claim-conformance" data-claim="conformance" data-group="behaviour" data-case="06">
 <h3>Does it behave the same as Python?</h3>
 <dl class="receipt">
 <div><dt>Claim</dt><dd>On the frozen application suite, Guion passed 127 of 127 cases and the independent Python version passed 127 of 127.</dd></div>
@@ -1225,7 +1322,7 @@ hosts = [&quot;api.example.test&quot;]
 </dl>
 <div class="v-dev"><table class="claim-table"><tbody><tr><th scope="row">Cases, Guion</th><td>127/127</td></tr><tr><th scope="row">Cases, Python</th><td>127/127</td></tr><tr><th scope="row">Commit</th><td>6b5e5aba</td></tr><tr><th scope="row">Artifact format</th><td>44</td></tr><tr><th scope="row">Host</th><td>macOS ARM64</td></tr></tbody></table></div>
 </article>
-<article class="claim" id="claim-concurrency-cancel" data-claim="concurrency-cancel" data-group="behaviour">
+<article class="claim" id="claim-concurrency-cancel" data-claim="concurrency-cancel" data-group="behaviour" data-case="07">
 <h3>A failing worker cancels its siblings</h3>
 <dl class="receipt">
 <div><dt>Claim</dt><dd>When one parallel worker fails, a sibling still waiting on an HTTP response is interrupted and its connection is closed. The original failure is the one reported.</dd></div>
@@ -1236,7 +1333,7 @@ hosts = [&quot;api.example.test&quot;]
 </dl>
 <div class="v-dev"><table class="claim-table"><tbody><tr><th scope="row">Focused test</th><td>passed 1/1</td></tr><tr><th scope="row">Failing input index</th><td>1</td></tr><tr><th scope="row">Error code</th><td>R_ASSERTION</td></tr><tr><th scope="row">Network contacted</th><td>none (loopback fixture)</td></tr><tr><th scope="row">Calendar case</th><td>6/6 checks, at most two requests in flight</td></tr><tr><th scope="row">Service-health cases</th><td>5/5 and 5/5</td></tr><tr><th scope="row">Agent examples</th><td>26/26</td></tr></tbody></table><pre class="claim-command"><code>cargo test --locked --offline --jobs 2 -p guion-runtime --test http parallel_worker_failure_cancels_in_flight_http_sibling_and_closes_socket -- --exact</code></pre></div>
 </article>
-<article class="claim" id="claim-targets" data-claim="targets" data-group="reach">
+<article class="claim" id="claim-targets" data-claim="targets" data-group="reach" data-case="08">
 <h3>Where it has been tested</h3>
 <dl class="receipt">
 <div><dt>Claim</dt><dd>An earlier cohort passed on macOS ARM64 and Debian 12 GNU/Linux on ARM64 and x86_64, all with glibc: 54 of 54 application reports. The latest speed gate ran on Linux on x86_64 and ARM64.</dd></div>
@@ -1247,6 +1344,7 @@ hosts = [&quot;api.example.test&quot;]
 </dl>
 <div class="v-dev"><table class="claim-table"><tbody><tr><th scope="row">Earlier cohort</th><td>54 of 54 application reports passed</td></tr><tr><th scope="row">Targets</th><td>macOS ARM64 · Debian 12 ARM64 · Debian 12 x86_64 (glibc)</td></tr><tr><th scope="row">Latest speed gate</th><td>Linux x86_64 and ARM64 (GitHub runners)</td></tr></tbody></table></div>
 </article>
+</div>
 </div>
 </div>
 </section>
@@ -1263,7 +1361,7 @@ hosts = [&quot;api.example.test&quot;]
 <div class="ahi"><section id="slot-python-accordion-bridge" class="instrument family-reveals-discoveries renderer-accordion interaction-details" data-ahi="ahi.reveals-discoveries.accordion" data-ahi-renderer="accordion" data-ahi-element="details" data-ahi-version="1"><details data-ahi-semantic="details" class="accordion native-accordion"><summary>Calling NumPy from Guion</summary><section class="accordion-content"><div><p>On the one 100,000-row task measured, Guion took 1.025 times as long as the same function called from Python.</p></div><p>Sending raw bytes instead of text closed most of the gap. Not all of it.</p></section></details></section></div>
 <div class="ahi"><section id="slot-python-accordion-release" class="instrument family-reveals-discoveries renderer-accordion interaction-details" data-ahi="ahi.reveals-discoveries.accordion" data-ahi-renderer="accordion" data-ahi-element="details" data-ahi-version="1"><details data-ahi-semantic="details" class="accordion native-accordion"><summary>A release you can use</summary><section class="accordion-content"><div><p>No public Guion release has been published. Python is a released language with a long track record.</p></div><p>Guion is in active development. It has been validated on macOS ARM64 and on Debian 12 for ARM64 and x86_64. No other target is claimed.</p></section></details></section></div>
 <div class="ahi"><section id="slot-python-accordion-learn" class="instrument family-reveals-discoveries renderer-accordion interaction-details" data-ahi="ahi.reveals-discoveries.accordion" data-ahi-renderer="accordion" data-ahi-element="details" data-ahi-version="1"><details data-ahi-semantic="details" class="accordion native-accordion"><summary>Learning it</summary><section class="accordion-content"><div><p>Whether a new builder can learn Guion, find its APIs and make a realistic change from the guides is still being tested.</p></div><p>Learnability is listed as an open outcome on the project status page.</p></section></details></section></div>
-<div class="ahi"><section id="slot-python-accordion-compare" class="instrument family-reveals-discoveries renderer-accordion interaction-details" data-ahi="ahi.reveals-discoveries.accordion" data-ahi-renderer="accordion" data-ahi-element="details" data-ahi-version="1"><details data-ahi-semantic="details" class="accordion native-accordion"><summary>Beyond the tasks measured</summary><section class="accordion-content"><div><p>Every number on this page is for a named program on one machine against one Python version. Free-threaded Python was not available to compare.</p></div><p>Overall competitiveness remains open, in the project&#39;s own words.</p></section></details></section></div>
+<div class="ahi"><section id="slot-python-accordion-compare" class="instrument family-reveals-discoveries renderer-accordion interaction-details" data-ahi="ahi.reveals-discoveries.accordion" data-ahi-renderer="accordion" data-ahi-element="details" data-ahi-version="1"><details data-ahi-semantic="details" class="accordion native-accordion"><summary>Beyond the tasks measured</summary><section class="accordion-content"><div><p>Every number on this page is for a named program on a named machine against a named Python version. The server results come from one run on each of two cloud machines; an Intel Xeon server measured Guion slower on an earlier build and has not been rerun. Free-threaded Python and PyPy were not compared.</p></div><p>Overall competitiveness remains open, in the project&#39;s own words.</p></section></details></section></div>
 </div>
 <div class="receipt-list python-receipts">
 <article class="claim" id="claim-bridge-bytes" data-claim="bridge-bytes" data-group="python">
@@ -1376,6 +1474,26 @@ hosts = [&quot;api.example.test&quot;]
 <div><p class="overline">09 / The origin</p><h2>The reason<br><span class="serif">before the name.</span></h2></div>
 <p>Guion began with a north-star question: could a new general-purpose language earn a recommendation over Python for real work, through the whole experience of writing, checking, running, delivering and maintaining a program?</p>
 </div>
+<div class="namesake" id="namesake">
+<aside class="namesake-label" data-ahi="ahi.publications-objects.exhibition-label" aria-labelledby="namesake-title">
+<p class="smallcaps">The name</p>
+<h3 id="namesake-title">Guion, said GUY-on.</h3>
+<p>The language is named for Guion “Guy” Bluford, the aerospace engineer, Air Force pilot and NASA astronaut who became the first African American to fly in space. The name honours what he did.</p>
+<p>It was also chosen for its sound. Said aloud, Guion sounds like the name of a subatomic particle, alongside the muon, the gluon and the quark.</p>
+<p class="credit">Recorded in <code>docs/namesake.md</code>, from the project's architect and NASA's records.</p>
+</aside>
+<article class="claim" id="claim-namesake" data-claim="namesake" data-group="origin">
+<h3>The name, and who it honours</h3>
+<dl class="receipt">
+<div><dt>Claim</dt><dd>Guion is named for Guion S. “Guy” Bluford Jr. On August 30, 1983, aboard Challenger on STS-8, he became the first African American to fly in space. He flew four shuttle missions and logged over 688 hours in space.</dd></div>
+<div><dt>Holds when</dt><dd>The naming is recorded from the project's architect. The record of his flights and career comes from NASA's biographical data and NASA's article on his first flight.</dd></div>
+<div><dt>Doesn't tell you</dt><dd>How NASA says his name. NASA confirms he goes by “Guy”; “GUY-on” is the project's own pronunciation, not a NASA record.</dd></div>
+<div><dt>Check it</dt><dd><a href="evidence/namesake.md">namesake.md</a></dd></div>
+<div><dt>Say it's wrong</dt><dd><a href="mailto:rmichael@rmichaelthomas.com?subject=Guion%20claim%3A%20The%20name%2C%20and%20who%20it%20honours">rmichael@rmichaelthomas.com</a></dd></div>
+</dl>
+<div class="v-dev"><table class="claim-table"><tbody><tr><th scope="row">Pronunciation</th><td>GUY-on</td></tr><tr><th scope="row">Namesake</th><td>Guion S. Bluford Jr., Colonel, USAF (retired), former NASA astronaut</td></tr><tr><th scope="row">First flight</th><td>STS-8, Challenger, August 30, 1983</td></tr><tr><th scope="row">Shuttle flights</th><td>STS-8 · STS 61-A · STS-39 · STS-53</td></tr><tr><th scope="row">Time in space</th><td>over 688 hours</td></tr><tr><th scope="row">Before NASA</th><td>144 combat missions as an Air Force pilot</td></tr><tr><th scope="row">Doctorate</th><td>Aerospace engineering, Air Force Institute of Technology, 1978</td></tr><tr><th scope="row">Recorded</th><td>docs/namesake.md, 2026-11-03</td></tr></tbody></table></div>
+</article>
+</div>
 <ol class="time-ribbon" data-ahi="ahi.motion-time.time-ribbon">
 <li><time datetime="2026-10-22">22 Oct 2026</time><h3>The question was written down.</h3><p class="v-plain">Under the working name Veritas, the first design put usability, one coherent toolchain, honest comparison and executable evidence at the center.</p><p class="v-dev"><code>docs/north-star-design.md</code> v0.2, “approved build direction.” Veritas, then.</p></li>
 <li><time datetime="2026-10-25">25 Oct 2026</time><h3>It became Guion.</h3><p class="v-plain">The implementation and its tools were renamed. The earlier results stay on file under their original name.</p><p class="v-dev">Commit <code>6a4fab1</code>, “rename Veritas product surfaces to Guion.” Veritas-era checkpoints and results are preserved as history; selected legacy manifests and files remain readable.</p></li>
@@ -1404,10 +1522,10 @@ hosts = [&quot;api.example.test&quot;]
 <div class="footer-about">
 <p class="smallcaps">Good to know</p>
 <p>Guion is MIT licensed. Third-party notices are kept in the project repository. To say a claim is wrong, write to <a href="mailto:rmichael@rmichaelthomas.com">rmichael@rmichaelthomas.com</a>.</p>
-<p class="v-plain">This page is about 80 KB of HTML and 50 KB of styles, with 9.9 KB of JavaScript and 0 requests to anyone else. The 1.6 MB playground loads only when you press Run.</p>
+<p class="v-plain">This page is about 90 KB of HTML and 60 KB of styles, with 9.9 KB of JavaScript and 0 requests to anyone else. The 1.6 MB playground loads only when you press Run.</p>
 <table class="v-dev spec-table"><caption>Page weight</caption><tbody>
-<tr><th scope="row">HTML</th><td>80 KB</td></tr>
-<tr><th scope="row">CSS</th><td>50 KB</td></tr>
+<tr><th scope="row">HTML</th><td>90 KB</td></tr>
+<tr><th scope="row">CSS</th><td>60 KB</td></tr>
 <tr><th scope="row">JavaScript</th><td>9.9 KB (the playground loader; inert until Run)</td></tr>
 <tr><th scope="row">Wasm</th><td>1.6 MB, fetched on first Run</td></tr>
 <tr><th scope="row">Remote requests</th><td>0</td></tr>

@@ -2,7 +2,7 @@
   @media print {
     @page { margin: 16mm; }
     body { background: #fff !important; color: #000; background-image: none !important; font-size: 10.5pt; }
-    .sitebar, .navwrap, .skip, .pg-actions, .lab-bar, .pg-notice, [data-pg-load], .viewswitch, .filters { display: none !important; }
+    .navwrap, .skip, .pg-actions, .lab-bar, .pg-notice, [data-pg-load], .viewswitch, .filters { display: none !important; }
     .darkzone { background: #fff !important; color: #000 !important; }
     .darkzone p { color: #000 !important; }
     .section { padding-block: 14mm; break-inside: auto; border-top: 1px solid #000; }

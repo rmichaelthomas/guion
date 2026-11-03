@@ -776,5 +776,74 @@
       "docs/status.md"
     ],
     "group": "python"
+  },
+  {
+    "id": "namesake",
+    "title": "The name, and who it honours",
+    "plain": {
+      "say": "Guion is named for Guion S. “Guy” Bluford Jr. On August 30, 1983, aboard Challenger on STS-8, he became the first African American to fly in space. He flew four shuttle missions and logged over 688 hours in space.",
+      "holdsWhen": "The naming is recorded from the project's architect. The record of his flights and career comes from NASA's biographical data and NASA's article on his first flight.",
+      "doesntTell": "How NASA says his name. NASA confirms he goes by “Guy”; “GUY-on” is the project's own pronunciation, not a NASA record."
+    },
+    "dev": {
+      "rows": [
+        [
+          "Pronunciation",
+          "GUY-on"
+        ],
+        [
+          "Namesake",
+          "Guion S. Bluford Jr., Colonel, USAF (retired), former NASA astronaut"
+        ],
+        [
+          "First flight",
+          "STS-8, Challenger, August 30, 1983"
+        ],
+        [
+          "Shuttle flights",
+          "STS-8 · STS 61-A · STS-39 · STS-53"
+        ],
+        [
+          "Time in space",
+          "over 688 hours"
+        ],
+        [
+          "Before NASA",
+          "144 combat missions as an Air Force pilot"
+        ],
+        [
+          "Doctorate",
+          "Aerospace engineering, Air Force Institute of Technology, 1978"
+        ],
+        [
+          "Recorded",
+          "docs/namesake.md, 2026-11-03"
+        ]
+      ]
+    },
+    "figures": [
+      "August 30, 1983",
+      "688 hours",
+      "144 combat missions",
+      "GUY-on",
+      "1978"
+    ],
+    "sources": [
+      {
+        "path": "docs/namesake.md",
+        "needles": [
+          "became the first African-American to fly in space",
+          "better known as Guy",
+          "A veteran of four space flights",
+          "STS-8, STS 61-A, STS-39 and STS-53",
+          "not as a NASA record",
+          "The language is named in honour of Guion Bluford"
+        ]
+      }
+    ],
+    "evidence": [
+      "docs/namesake.md"
+    ],
+    "group": "origin"
   }
 ]

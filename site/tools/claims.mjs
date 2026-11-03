@@ -80,7 +80,44 @@ export function checkClaims(claims, repoRoot) {
   return issues;
 }
 
-export function renderClaimCard(claim, { base = '' } = {}) {
+/**
+ * Several claims as one case-file viewer: a numbered index of radio labels and a panel that
+ * shows the chosen receipt. Returns the markup and the per-claim rules that link them; where
+ * `:has()` is unsupported the rules do not apply and every receipt shows in order.
+ */
+export function renderCaseFiles(claims, { base = '' } = {}) {
+  const number = (index) => String(index + 1).padStart(2, '0');
+  const radios = claims
+    .map((claim, index) => `<input type="radio" name="case-file" id="case-${escapeHtml(claim.id)}" class="sr-only"${index === 0 ? ' checked' : ''}>`)
+    .join('\n');
+  const tabs = claims
+    .map((claim, index) => `<label for="case-${escapeHtml(claim.id)}" class="case-tab" data-group="${escapeHtml(claim.group ?? '')}"><span class="case-n">${number(index)}</span><span class="case-title">${escapeHtml(claim.title)}</span></label>`)
+    .join('\n');
+  const cards = claims
+    .map((claim, index) => renderClaimCard(claim, { base, caseNumber: number(index) }))
+    .join('\n');
+  const markup = `<div class="casefiles" data-ahi="ahi.reveals-discoveries.tabbed-scene">
+${radios}
+<div class="case-index" role="group" aria-label="Case files">
+${tabs}
+</div>
+<div class="case-panels" data-ahi="ahi.publications-objects.case-dossier">
+${cards}
+</div>
+</div>`;
+  const rules = claims.map((claim) => {
+    const id = claim.id;
+    return `.casefiles:has(#case-${id}:checked) #claim-${id} { display: flex; }
+.casefiles:has(#case-${id}:checked) label[for="case-${id}"] { background: var(--ink); color: var(--lily); border-color: var(--ink); }
+.casefiles:has(#case-${id}:checked) label[for="case-${id}"] .case-n { color: var(--lily); }
+.casefiles:has(#case-${id}:focus-visible) label[for="case-${id}"] { outline: 3px solid var(--blue); outline-offset: 2px; }
+@media (forced-colors: active) { .casefiles:has(#case-${id}:checked) label[for="case-${id}"] { outline: 3px solid Highlight; } }`;
+  });
+  const css = `@layer components {\n@supports selector(:has(*)) {\n.case-panels > .claim { display: none; }\n${rules.join('\n')}\n}\n}\n`;
+  return { markup, css };
+}
+
+export function renderClaimCard(claim, { base = '', caseNumber } = {}) {
   const evidenceLinks = claim.evidence
     .map((file) => `<a href="${base}evidence/${escapeHtml(path.basename(file))}">${escapeHtml(path.basename(file))}</a>`)
     .join(' · ');
@@ -89,7 +126,8 @@ export function renderClaimCard(claim, { base = '' } = {}) {
     .map(([label, value]) => `<tr><th scope="row">${escapeHtml(label)}</th><td>${escapeHtml(value)}</td></tr>`)
     .join('');
   const command = claim.dev.command ? `<pre class="claim-command"><code>${escapeHtml(claim.dev.command)}</code></pre>` : '';
-  return `<article class="claim" id="claim-${escapeHtml(claim.id)}" data-claim="${escapeHtml(claim.id)}" data-group="${escapeHtml(claim.group ?? '')}">
+  const caseAttribute = caseNumber ? ` data-case="${escapeHtml(caseNumber)}"` : '';
+  return `<article class="claim" id="claim-${escapeHtml(claim.id)}" data-claim="${escapeHtml(claim.id)}" data-group="${escapeHtml(claim.group ?? '')}"${caseAttribute}>
 <h3>${escapeHtml(claim.title)}</h3>
 <dl class="receipt">
 <div><dt>Claim</dt><dd>${escapeHtml(claim.plain.say)}</dd></div>

@@ -2,7 +2,7 @@
 <div class="shell">
 <div class="sectionhead">
 <div><p class="overline">06 / Evidence, not mythology</p><h2>Show the work.<br><span class="serif">Keep the caveats.</span></h2></div>
-<p class="v-plain">Each card below is one claim, the conditions it holds under, what it does not tell you, and where to check it. The first chart shows every one of the headline results, including the ones where Guion is slower.</p>
+<p class="v-plain">Each case file below is one claim, the conditions it holds under, what it does not tell you, and where to check it. Pick one from the index to open it. The chart shows every headline result, including the ones where Guion is slower.</p>
 <p class="v-dev">Ratios are Guion median ÷ comparison median, with the 95% interval from each report. Left of the line Guion took less time. Source files are on the <a href="{{base}}evidence/">evidence page</a> with SHA-256.</p>
 </div>
 <div class="receipts-top">
@@ -10,7 +10,6 @@
 {{ratio-chart}}
 <figcaption class="caption"><span class="v-plain">Each dot is how long Guion took divided by how long the comparison took. Left of the dashed line is faster. The line through each dot is its 95% interval. Different machines, programs and Python versions would move every dot.</span><span class="v-dev">Log scale, 0.1× to 1.6×. Comparison and sample counts are on each receipt. Hosts: GitHub's x86_64 and ARM64 Linux runners for the rows marked server, against the uv standalone CPython 3.14.7; one Apple Silicon Mac, macOS 27, with CPython 3.14.7 for the rest unless a receipt says otherwise.</span></figcaption>
 </figure>
-<div class="dossier">{{slot:receipts-richards-dossier}}</div>
 </div>
 <div class="filters" role="group" aria-label="Show receipts about">
 <input type="radio" name="receipt-filter" id="f-all" class="sr-only" checked>
@@ -20,15 +19,6 @@
 <span class="smallcaps">Show</span>
 <label for="f-all">All</label><label for="f-speed">Speed and memory</label><label for="f-behaviour">Behaviour</label><label for="f-reach">Where it runs</label>
 </div>
-<div class="receipt-list">
-{{claim:server-gate}}
-{{claim:richards}}
-{{claim:short-source}}
-{{claim:nine-apps}}
-{{claim:lockfile}}
-{{claim:conformance}}
-{{claim:concurrency-cancel}}
-{{claim:targets}}
-</div>
+{{casefiles:server-gate richards short-source nine-apps lockfile conformance concurrency-cancel targets}}
 </div>
 </section>

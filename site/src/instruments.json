@@ -21,17 +21,6 @@
       }
     },
     {
-      "id": "receipts-richards-dossier",
-      "mode": "render",
-      "instrumentId": "ahi.publications-objects.case-dossier",
-      "content": {
-        "heading": "Richards, uncached source",
-        "body": "27.46 ms for Guion against 72.92 ms for CPython 3.14.7, from a fresh source run.",
-        "caption": "Case file 01",
-        "note": "One benchmark on one Mac. Guion also used more memory here: 24.2 MiB against 18.3 MiB."
-      }
-    },
-    {
       "id": "python-accordion-ecosystem",
       "mode": "render",
       "instrumentId": "ahi.reveals-discoveries.accordion",
@@ -81,7 +70,7 @@
       "instrumentId": "ahi.reveals-discoveries.accordion",
       "content": {
         "heading": "Beyond the tasks measured",
-        "body": "Every number on this page is for a named program on one machine against one Python version. Free-threaded Python was not available to compare.",
+        "body": "Every number on this page is for a named program on a named machine against a named Python version. The server results come from one run on each of two cloud machines; an Intel Xeon server measured Guion slower on an earlier build and has not been rerun. Free-threaded Python and PyPy were not compared.",
         "caption": "Beyond the tasks measured",
         "note": "Overall competitiveness remains open, in the project's own words."
       }
