@@ -8458,6 +8458,150 @@ mod tests {
     }
 
     #[test]
+    fn register_text_operations_match_plain_execution_at_every_limit() {
+        let int = |value| Value::Int(BigInt::from_i64(value));
+        let text = |value: &str| Value::Text(SharedText::from(value));
+        let ops = vec![
+            // lines = []; line = "  a" + "," + "b  "; push it twice, once from the local
+            Op::Const(Value::List(Shared::new(vec![]))),
+            Op::Store(0),
+            Op::Const(text("  a")),
+            Op::Const(text(",")),
+            Op::Add,
+            Op::Const(text("b  ")),
+            Op::Add,
+            Op::Store(1),
+            Op::Load(1),
+            Op::ListPushLocal(0),
+            Op::Load(1),
+            Op::Const(text("!")),
+            Op::Add,
+            Op::ListPushLocal(0),
+            // fields = text_split(lines[1], ","); total = len(trim(fields[0])) + len(trim(fields[1]))
+            Op::Load(0),
+            Op::Const(int(1)),
+            Op::Index,
+            Op::Const(text(",")),
+            Op::TextSplit,
+            Op::Store(2),
+            Op::Load(2),
+            Op::Const(int(0)),
+            Op::Index,
+            Op::TextTrim,
+            Op::Length,
+            Op::Load(2),
+            Op::Const(int(1)),
+            Op::Index,
+            Op::TextTrim,
+            Op::Length,
+            Op::Add,
+            Op::Store(3),
+            // set s = s + "x" keeps appending in place through the stack interpreter
+            Op::Load(1),
+            Op::Const(text("x")),
+            Op::Add,
+            Op::Store(1),
+            // total = total + text_find(s, "b", 0) + text_find(s, "zz", 1) + len(lines)
+            Op::Load(3),
+            Op::Load(1),
+            Op::Const(text("b")),
+            Op::Const(int(0)),
+            Op::TextFind,
+            Op::Add,
+            Op::Load(1),
+            Op::Const(text("zz")),
+            Op::Const(int(1)),
+            Op::TextFind,
+            Op::Add,
+            Op::Load(0),
+            Op::Length,
+            Op::Add,
+            Op::Return,
+        ];
+        let artifact = Arc::new(Artifact {
+            format_version: Artifact::CURRENT_VERSION,
+            build_metadata: None,
+            compiled_source_sha256: None,
+            source_name: "register-text-test.gu".into(),
+            sources: vec![],
+            entry: "main".into(),
+            functions: vec![guion_model::Function {
+                name: "main".into(),
+                parameters: vec![],
+                result: Type::Int,
+                local_count: 4,
+                code: ops
+                    .into_iter()
+                    .enumerate()
+                    .map(|(index, op)| Instruction {
+                        op,
+                        span: Span {
+                            source_id: 0,
+                            start: index,
+                            end: index + 1,
+                            line: index + 1,
+                            column: 1,
+                        },
+                    })
+                    .collect(),
+            }],
+            externals: vec![],
+            records: vec![],
+        });
+        let tables = Arc::new(build_register_programs(&artifact));
+        for kind in ["Add", "TextSplit", "TextTrim", "TextFind", "ListPush"] {
+            assert!(
+                tables
+                    .get(0, &artifact.functions[0])
+                    .unwrap()
+                    .has_kind(kind),
+                "the test program must reach {kind}"
+            );
+        }
+        let run = |registers: Option<Arc<RegisterPrograms>>, instructions: u64, bytes: usize| {
+            let mut host = RegisterTestHost {
+                artifact: Arc::clone(&artifact),
+                registers,
+            };
+            let budget = Arc::new(Budget::new(
+                instructions,
+                bytes,
+                CancellationToken::new(),
+                None,
+            ));
+            let frame = new_vm_frame(&artifact, 0, vec![], 1, None);
+            let outcome = match run_frames(&mut host, frame, Arc::clone(&budget)) {
+                Ok(value) => Ok(value),
+                Err(error) => Err((error.code, error.trace)),
+            };
+            (
+                outcome,
+                budget.remaining.load(Ordering::Relaxed),
+                budget.allocation.remaining(),
+            )
+        };
+        for limit in 0..70 {
+            let plain = run(None, limit, 1 << 20);
+            let registers = run(Some(Arc::clone(&tables)), limit, 1 << 20);
+            assert_eq!(plain, registers, "instruction limit {limit}");
+        }
+        let mut exhausted = false;
+        for bytes in 0..600 {
+            let plain = run(None, 1000, bytes);
+            let registers = run(Some(Arc::clone(&tables)), 1000, bytes);
+            assert_eq!(
+                (&plain.0, plain.2),
+                (&registers.0, registers.2),
+                "allocation limit {bytes}"
+            );
+            exhausted |= plain.0.is_err();
+        }
+        assert!(exhausted, "a small allocation budget must be exhausted");
+        // "a" + "b  !" = 5, "  a,b  x" has "b" at 4, "zz" is absent, two lines.
+        assert_eq!(run(Some(tables), 1000, 1 << 20).0, Ok(int(5 + 4 - 1 + 2)));
+    }
+
+    #[test]
     fn map_update_existing_key_preserves_owned_key_storage() {
         let mut values = TextMap::new();
         let key = SharedText::from("service");

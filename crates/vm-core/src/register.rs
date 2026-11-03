@@ -112,6 +112,13 @@ enum Kind {
         record: u32,
         field: u32,
     },
+    TextTrim,
+    TextSplit,
+    TextFind,
+    /// `list_push` assigned back to the list's own local.
+    ListPush {
+        slot: u32,
+    },
     /// A host operation at `op_ip`. Its pending operands go on the stack first.
     Host {
         op_ip: u32,
@@ -687,7 +694,22 @@ impl<'a> Translator<'a> {
                 }
                 covered
             }
-            Op::Add => self.emit_value(Kind::Add, 2, ip),
+            Op::Add => {
+                // `set s = s + piece` appends in place when the `Store` follows directly, which
+                // the stack interpreter does; a `Store` this form cannot fold leaves to it.
+                if let Some(Op::Store(slot)) = self.op_at(ip + 1) {
+                    let remaining = self.stack.len().saturating_sub(2);
+                    if self.is_leader[ip + 1]
+                        || self.stack[..remaining].contains(&Virtual::Deferred(Src::Local(
+                            *slot as u32,
+                        )))
+                    {
+                        self.emit_exit(ip);
+                        return 0;
+                    }
+                }
+                self.emit_value(Kind::Add, 2, ip)
+            }
             Op::Subtract => self.emit_value(Kind::Subtract, 2, ip),
             Op::Multiply => self.emit_value(Kind::Multiply, 2, ip),
             Op::IntegerDivide => self.emit_value(Kind::IntegerDivide, 2, ip),
@@ -699,6 +721,22 @@ impl<'a> Translator<'a> {
             },
             Op::TextParseInt => self.emit_value(Kind::ParseInt, 1, ip),
             Op::Length => self.emit_value(Kind::Length, 1, ip),
+            Op::TextTrim => self.emit_value(Kind::TextTrim, 1, ip),
+            Op::TextSplit => self.emit_value(Kind::TextSplit, 2, ip),
+            Op::TextFind => self.emit_value(Kind::TextFind, 3, ip),
+            Op::ListPushLocal(slot) => {
+                let slot = *slot as u32;
+                let top = self.stack.pop();
+                let held_below = self.holds_local(slot);
+                if let Some(top) = top {
+                    self.stack.push(top);
+                }
+                if held_below {
+                    self.realize_all(ip);
+                }
+                self.emit(Kind::ListPush { slot }, 1, ip, Dest::Local(u32::MAX), 0);
+                0
+            }
             Op::Unwrap => match self.follower(ip + 1) {
                 Some(Op::JsonTryInt) => self.emit_chain(Kind::UnwrapJsonInt, 1, ip, 1),
                 Some(Op::JsonTryText) => self.emit_chain(Kind::UnwrapJsonText, 1, ip, 1),
@@ -1127,7 +1165,28 @@ pub(super) fn run_registers<H: VmHost>(
                 commit!(0);
                 finish_bool!(value)
             }
-            Kind::Add => arithmetic!(i64::checked_add, |left, right| left + right),
+            Kind::Add => {
+                if let (Value::Text(left), Value::Text(right)) =
+                    (read!(instruction.a), read!(instruction.b))
+                {
+                    let total = left.len().saturating_add(right.len());
+                    if total > limits.max_text_bytes {
+                        exit!();
+                    }
+                    if let Dest::Local(slot) = instruction.dest {
+                        // `set s = s + piece`: the stack interpreter appends in place.
+                        if matches!(&locals[slot as usize], Value::Text(local) if SharedText::ptr_eq(local, left))
+                        {
+                            exit!();
+                        }
+                    }
+                    commit!(size_of::<String>().saturating_add(total));
+                    let value = Value::Text(SharedText::concat(left, right, 0, false));
+                    drop_operands!();
+                    finish_value!(value)
+                }
+                arithmetic!(i64::checked_add, |left, right| left + right)
+            }
             Kind::Subtract => arithmetic!(i64::checked_sub, |left, right| left - right),
             Kind::Multiply => arithmetic!(i64::checked_mul, |left, right| left * right),
             // A float operand gives a non-finite result here, which leaves, and the stack
@@ -1271,6 +1330,106 @@ pub(super) fn run_registers<H: VmHost>(
                 commit!(0);
                 drop_operands!();
                 finish_value!(Value::Int(BigInt::from_i64(length as i64)))
+            }
+            Kind::TextTrim => {
+                let Value::Text(text) = read!(instruction.a) else {
+                    exit!()
+                };
+                let trimmed = text.trim();
+                let unchanged = trimmed.len() == text.len();
+                commit!(if unchanged {
+                    0
+                } else {
+                    size_of::<String>().saturating_add(trimmed.len())
+                });
+                let value = if unchanged {
+                    Value::Text(SharedText::clone(text))
+                } else {
+                    Value::Text(SharedText::from(trimmed))
+                };
+                drop_operands!();
+                finish_value!(value)
+            }
+            Kind::TextSplit => {
+                let (Value::Text(text), Value::Text(delimiter)) =
+                    (read!(instruction.a), read!(instruction.b))
+                else {
+                    exit!()
+                };
+                if delimiter.is_empty() {
+                    exit!();
+                }
+                let Some(offsets) = text_match_offsets(
+                    text,
+                    delimiter,
+                    limits.max_collection_items.saturating_sub(1),
+                ) else {
+                    exit!()
+                };
+                let count = offsets.len() + 1;
+                let field_bytes = text.len() - (count - 1) * delimiter.len();
+                commit!(text_list_allocation(count, field_bytes));
+                let value =
+                    Value::from_list_items(text_split_at(text, &offsets, delimiter.len()));
+                drop_operands!();
+                finish_value!(value)
+            }
+            Kind::TextFind => {
+                let (Value::Text(text), Value::Text(needle), Value::Int(from)) = (
+                    read!(instruction.a),
+                    read!(instruction.b),
+                    read!(instruction.c),
+                ) else {
+                    exit!()
+                };
+                let Some(found) = from
+                    .to_usize()
+                    .and_then(|from| text_find_scalar(text, needle, from))
+                else {
+                    exit!()
+                };
+                commit!(0);
+                let found = match found {
+                    Some(index) => BigInt::from_usize(index),
+                    None => BigInt::from_i64(-1),
+                };
+                drop_operands!();
+                finish_value!(Value::Int(found))
+            }
+            Kind::ListPush { slot } => {
+                let value = read!(instruction.a);
+                if value_limit_error(value, limits, Span::default()).is_some() {
+                    exit!();
+                }
+                let Value::List(items) = &locals[slot as usize] else {
+                    exit!()
+                };
+                let len = items.len();
+                if len >= limits.max_collection_items {
+                    exit!();
+                }
+                // Pushing the list's own local clones it first, which makes the list shared.
+                let shared = Shared::strong_count(items) > 1 || instruction.a == Src::Local(slot);
+                let capacity = items.capacity();
+                commit!(if shared || capacity == len {
+                    let grown = capacity.saturating_mul(2).max(len.saturating_add(1)).max(4);
+                    size_of::<Vec<Value>>().saturating_add(grown.saturating_mul(size_of::<Value>()))
+                } else {
+                    0
+                });
+                let value = match instruction.a {
+                    Src::Stack(_) => match stack.pop() {
+                        Some(value) => value,
+                        None => unreachable!("the value was read from the stack just above"),
+                    },
+                    Src::Local(source) => clone_value_fast(&locals[source as usize]),
+                    Src::Const(index) => clone_value_fast(&program.consts[index as usize]),
+                };
+                let Value::List(items) = &mut locals[slot as usize] else {
+                    unreachable!("the local was checked just above")
+                };
+                Shared::make_mut(items).push(value);
+                pc += 1;
             }
             Kind::Unwrap => {
                 if !matches!(
