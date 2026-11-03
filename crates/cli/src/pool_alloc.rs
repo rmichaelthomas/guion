@@ -12,7 +12,7 @@
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::cell::UnsafeCell;
 use std::ptr;
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, Ordering};
 
 const GRANULE: usize = 16;
 const MAX_SMALL: usize = 512;
@@ -61,7 +61,7 @@ static OWNED: OwnedLocal = OwnedLocal(UnsafeCell::new(Local {
 }));
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
-static OWNER: AtomicUsize = AtomicUsize::new(0);
+static OWNER: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[inline(always)]
