@@ -1,7 +1,9 @@
 #![recursion_limit = "256"]
 
 use guion_compiler::compile_project;
-use guion_model::{Artifact, BigInt, Function, Instruction, Op, Span, Type, Value};
+use guion_model::{
+    Artifact, BigInt, Function, Instruction, Op, ShareAcrossThreads, Span, Type, Value,
+};
 use guion_runtime::{HostPolicy, Runtime};
 use std::{fs, path::PathBuf, process::Command};
 
@@ -174,13 +176,20 @@ fn guion_artifact_writer_matches_native_writer_and_reader() {
         Value::Json(guion_model::SharedJson::from_serde(serde_json::json!({}))),
     ];
     let smoke_policy = HostPolicy::default().with_file_access(&repository, true, false);
+    // Values that another thread will use must have shared reference counts.
+    compiler_args.share_across_threads();
+    smoke_compiler_artifact.share_across_threads();
     let compiled = std::thread::Builder::new()
         .name("guion-artifact-writer-smoke".into())
         .spawn(move || {
             let mut runtime = Runtime::new()
                 .load(smoke_compiler_artifact, smoke_policy)
                 .expect("load smoke compiler");
-            runtime.invoke("compiler_compile_project", compiler_args)
+            let result = runtime.invoke("compiler_compile_project", compiler_args);
+            if let Ok(value) = &result {
+                value.share_across_threads();
+            }
+            result
         })
         .unwrap()
         .join()

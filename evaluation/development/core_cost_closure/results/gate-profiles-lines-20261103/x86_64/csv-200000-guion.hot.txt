@@ -1,0 +1,29 @@
+# To display the perf.data header info, please use --header/--header-only options.
+#
+#
+# Total Lost Samples: 0
+#
+# Samples: 514  of event 'cpu-clock'
+# Event count (approx.): 102820560
+#
+# Overhead  Shared Object      Symbol                                                                                                                                                        IPC   [IPC Coverage]
+# ........  .................  ............................................................................................................................................................  ....................
+#
+    60.89%  guion              [.] guion_vm_core::execute_vm_frame_with_forwarders::<false, guion_runtime::Instance>                                                                         -      -            
+    18.87%  guion              [.] <guion_runtime::Instance as guion_vm_core::VmHost>::host_op                                                                                               -      -            
+     3.11%  guion              [.] <guion_model::shared::Shared<alloc::vec::Vec<guion_model::Value>>>::free                                                                                  -      -            
+     2.33%  guion              [.] core::ptr::drop_glue::<guion_model::Value>                                                                                                                -      -            
+     1.75%  guion              [.] <guion_model::Value as core::clone::Clone>::clone.476                                                                                                     -      -            
+     1.75%  libc.so.6          [.] 0x00000000001986a5                                                                                                                                        -      -            
+     1.56%  guion              [.] <memchr::arch::x86_64::avx2::memchr::One>::find_raw                                                                                                       -      -            
+     1.56%  guion              [.] memchr::arch::x86_64::memchr::memchr_raw::find_avx2                                                                                                       -      -            
+     1.36%  guion              [.] guion_vm_core::value_matches                                                                                                                              -      -            
+     0.97%  guion              [.] <memchr::arch::x86_64::avx2::memchr::Two>::find_raw                                                                                                       -      -            
+     0.78%  guion              [.] core::ptr::drop_glue::<guion_model::Value>                                                                                                                -      -            
+     0.58%  guion              [.] <guion_model::Value as core::cmp::PartialEq>::eq                                                                                                          -      -            
+     0.58%  libc.so.6          [.] 0x0000000000198680                                                                                                                                        -      -            
+
+
+#
+# (Cannot load tips.txt file, please install perf!)
+#

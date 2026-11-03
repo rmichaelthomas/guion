@@ -1,0 +1,87 @@
+# To display the perf.data header info, please use --header/--header-only options.
+#
+#
+# Total Lost Samples: 0
+#
+# Samples: 3K of event 'cpu-clock'
+# Event count (approx.): 685137000
+#
+# Overhead  Shared Object         Symbol                                             IPC   [IPC Coverage]
+# ........  ....................  .................................................  ....................
+#
+     5.55%  python3.14            [.] _PyObject_Malloc                               -      -            
+     4.35%  python3.14            [.] PyDict_GetItemRef                              -      -            
+     2.92%  python3.14            [.] _PyObject_Free                                 -      -            
+     2.86%  python3.14            [.] do_mkvalue                                     -      -            
+     1.99%  python3.14            [.] tuple_dealloc                                  -      -            
+     1.93%  python3.14            [.] pysiphash                                      -      -            
+     1.69%  python3.14            [.] _TAIL_CALL_CALL_NON_PY_GENERAL                 -      -            
+     1.66%  python3.14            [.] PyObject_GenericGetAttr                        -      -            
+     1.61%  python3.14            [.] _TAIL_CALL_LOAD_GLOBAL_BUILTIN                 -      -            
+     1.55%  python3.14            [.] vgetargs1_impl                                 -      -            
+     1.43%  python3.14            [.] scanstring_unicode                             -      -            
+     1.31%  python3.14            [.] _PyUnicode_FromASCII                           -      -            
+     1.28%  python3.14            [.] _PyObject_CallFunctionVa                       -      -            
+     1.23%  python3.14            [.] _PyObject_GenericGetAttrWithDict               -      -            
+     1.20%  python3.14            [.] PyUnicode_FromString                           -      -            
+     1.17%  python3.14            [.] PyObject_GetOptionalAttr                       -      -            
+     1.17%  python3.14            [.] _TAIL_CALL_LOAD_ATTR_MODULE                    -      -            
+     1.08%  python3.14            [.] _textiowrapper_readline.cold                   -      -            
+     1.05%  python3.14            [.] PyDict_GetItemWithError                        -      -            
+     1.02%  python3.14            [.] _Py_dict_lookup_threadsafe_stackref            -      -            
+     1.02%  python3.14            [.] _sre_SRE_Pattern_match                         -      -            
+     1.02%  python3.14            [.] dict_dealloc                                   -      -            
+     0.93%  python3.14            [.] wrap_strftime                                  -      -            
+     0.91%  python3.14            [.] _TAIL_CALL_CALL_METHOD_DESCRIPTOR_FAST         -      -            
+     0.88%  python3.14            [.] PyImport_Import                                -      -            
+     0.88%  python3.14            [.] _Py_Dealloc                                    -      -            
+     0.88%  python3.14            [.] _TAIL_CALL_LOAD_ATTR_METHOD_NO_DICT            -      -            
+     0.82%  python3.14            [.] _TAIL_CALL_BINARY_OP_SUBSCR_LIST_INT           -      -            
+     0.76%  [kernel.kallsyms]     [k] memcg1_commit_charge                           -      -            
+     0.73%  python3.14            [.] _TAIL_CALL_LOAD_ATTR                           -      -            
+     0.73%  python3.14            [.] _TAIL_CALL_LOAD_CONST_MORTAL                   -      -            
+     0.70%  python3.14            [.] _TAIL_CALL_CALL_PY_GENERAL                     -      -            
+     0.70%  python3.14            [.] unicode_hash                                   -      -            
+     0.67%  [kernel.kallsyms]     [k] do_user_addr_fault                             -      -            
+     0.67%  python3.14            [.] _TAIL_CALL_BUILD_TUPLE                         -      -            
+     0.64%  python3.14            [.] _TAIL_CALL_LOAD_GLOBAL_MODULE                  -      -            
+     0.64%  python3.14            [.] _TAIL_CALL_RETURN_VALUE                        -      -            
+     0.64%  python3.14            [.] _TAIL_CALL_STORE_FAST                          -      -            
+     0.64%  python3.14            [.] unicode_subscript                              -      -            
+     0.61%  python3.14            [.] _TAIL_CALL_CALL_ISINSTANCE                     -      -            
+     0.61%  python3.14            [.] gc_collect_main                                -      -            
+     0.61%  python3.14            [.] vgetargskeywords                               -      -            
+     0.58%  python3.14            [.] scan_once_unicode                              -      -            
+     0.58%  python3.14            [.] unicode_dealloc                                -      -            
+     0.55%  python3.14            [.] PyUnicode_FromWideChar                         -      -            
+     0.55%  python3.14            [.] dict_subscript                                 -      -            
+     0.55%  python3.14            [.] sre_ucs1_match                                 -      -            
+     0.53%  libc.so.6             [.] malloc                                         -      -            
+     0.53%  python3.14            [.] _PyObject_GetMethodStackRef                    -      -            
+     0.53%  python3.14            [.] _TAIL_CALL_CALL                                -      -            
+     0.53%  python3.14            [.] type_new                                       -      -            
+     0.50%  [kernel.kallsyms]     [k] __rmqueue_pcplist                              -      -            
+     0.50%  python3.14            [.] PyDict_SetItem                                 -      -            
+     0.50%  python3.14            [.] PyUnicode_FindChar                             -      -            
+     0.50%  python3.14            [.] _TAIL_CALL_UNPACK_SEQUENCE_TWO_TUPLE           -      -            
+     0.50%  python3.14            [.] dict_get                                       -      -            
+     0.47%  python3.14            [.] _PySet_Contains                                -      -            
+     0.47%  python3.14            [.] _TAIL_CALL_CALL_KW_PY                          -      -            
+     0.47%  python3.14            [.] _TAIL_CALL_CALL_LEN                            -      -            
+     0.47%  python3.14            [.] _TAIL_CALL_COMPARE_OP_INT                      -      -            
+     0.47%  python3.14            [.] structseq_dealloc                              -      -            
+     0.44%  libc.so.6             [.] 0x000000000019869e                             -      -            
+     0.44%  python3.14            [.] _TAIL_CALL_CALL_PY_EXACT_ARGS                  -      -            
+     0.44%  python3.14            [.] _TAIL_CALL_POP_JUMP_IF_NOT_NONE                -      -            
+     0.44%  python3.14            [.] object_vacall                                  -      -            
+     0.41%  [kernel.kallsyms]     [k] _raw_spin_lock                                 -      -            
+     0.41%  python3.14            [.] PyDict_Contains                                -      -            
+     0.41%  python3.14            [.] PyDict_New                                     -      -            
+     0.41%  python3.14            [.] PyUnicode_RichCompare                          -      -            
+     0.41%  python3.14            [.] _TAIL_CALL_TO_BOOL                             -      -            
+     0.41%  python3.14            [.] insert_to_emptydict                            -      -            
+
+
+#
+# (Cannot load tips.txt file, please install perf!)
+#

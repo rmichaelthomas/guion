@@ -1,6 +1,7 @@
 use guion_model::{
     Artifact, BigInt, FileErrorValue, Float64, HttpErrorValue, JsonErrorValue, NativeResourceValue,
-    Op, RuntimeError, SharedJson, SharedText, Span, TaskErrorValue, TextMap, Type, Value,
+    Op, RuntimeError, ShareAcrossThreads, Shared, SharedJson, SharedText, Span, TaskErrorValue,
+    TextMap, Type, Value,
 };
 pub use guion_vm_core::CancellationToken;
 use guion_vm_core::{
@@ -156,7 +157,7 @@ mod native_inline_arena_tests {
         let mut arena = NativeListArena::new(&budget, 10000, 10000, 0, None);
         let payload = Value::Record(
             "EventLine".into(),
-            std::sync::Arc::new(vec![Value::Text("record payload".into())]),
+            guion_model::Shared::new(vec![Value::Text("record payload".into())]),
         );
         let payload_handle = arena.store_value(payload.clone()).unwrap();
         assert!(arena.native_value_handle_exists(payload_handle));
@@ -569,7 +570,7 @@ impl NativeListArena {
         &mut self,
         record_index: usize,
         name: String,
-        fields: Arc<Vec<Value>>,
+        fields: Shared<Vec<Value>>,
     ) -> Option<i64> {
         let definition = self
             .runtime_context
@@ -808,7 +809,7 @@ impl NativeListArena {
             };
             fields.push(value);
         }
-        Some(Value::Record(definition.name.clone(), Arc::new(fields)))
+        Some(Value::Record(definition.name.clone(), Shared::new(fields)))
     }
 
     fn tagged_value(&self, handle: i64) -> Option<&NativeTaggedValue> {
@@ -1147,7 +1148,7 @@ impl NativeListArena {
                 .iter()
                 .map(|value| self.materialize_native_value(*value))
                 .collect::<Option<Vec<_>>>()?;
-            return Some(Value::List(Arc::new(values)));
+            return Some(Value::List(Shared::new(values)));
         }
         let Some(tagged) = self.tagged_value(handle) else {
             return self.value(handle).cloned();
@@ -1351,8 +1352,9 @@ impl NativeListArena {
                         return None;
                     };
                     let contains_key = map.contains_key(&key);
-                    let unique =
-                        unique_store_target && map_is_mutable_handle && Arc::strong_count(map) == 1;
+                    let unique = unique_store_target
+                        && map_is_mutable_handle
+                        && Shared::strong_count(map) == 1;
                     let clone_allocation = if unique {
                         if contains_key {
                             0
@@ -1386,7 +1388,7 @@ impl NativeListArena {
                     let Value::Map(map) = self.values.get_mut(index)? else {
                         return None;
                     };
-                    let values = Arc::get_mut(map)?;
+                    let values = Shared::get_mut(map)?;
                     if let Some(existing) = values.get_mut(&key) {
                         *existing = value;
                     } else {
@@ -1400,7 +1402,7 @@ impl NativeListArena {
                 } else {
                     updated.insert(key, value);
                 }
-                return self.store_value(Value::Map(Arc::new(updated)));
+                return self.store_value(Value::Map(Shared::new(updated)));
             }
             Op::JsonSetLocal(_) => {
                 if arguments.len() != 4 || argument_tags != [4, 4, 4, 3] || result_tag != 4 {
@@ -1418,7 +1420,7 @@ impl NativeListArena {
                 else {
                     return None;
                 };
-                let value = Arc::clone(value);
+                let value = Shared::clone(value);
                 if key.len() > runtime.limits.max_text_bytes {
                     return None;
                 }
@@ -1440,16 +1442,16 @@ impl NativeListArena {
                         shared_json_set_local_allocation(object, &key)
                     } else {
                         // Native locals carry arena handles, so aliases do not
-                        // increment the Arc count as VM locals do. Add one
+                        // increment the reference count as VM locals do. Add one
                         // logical reference while estimating the COW charge.
-                        let aliased = Arc::clone(object);
+                        let aliased = Shared::clone(object);
                         shared_json_set_local_allocation(&aliased, &key)
                     };
                     let shared = !unique_target
-                        || Arc::strong_count(object) > 1
+                        || Shared::strong_count(object) > 1
                         || matches!(
                             object.as_ref(),
-                            SharedJson::Object(values) if Arc::strong_count(values) > 1
+                            SharedJson::Object(values) if Shared::strong_count(values) > 1
                         );
                     (
                         fields.len(),
@@ -1470,7 +1472,7 @@ impl NativeListArena {
                     let Value::Json(object) = self.values.get_mut(index)? else {
                         return None;
                     };
-                    Arc::make_mut(object)
+                    Shared::make_mut(object)
                         .as_object_mut()?
                         .insert(key.clone(), value);
                     object_handle
@@ -1481,7 +1483,7 @@ impl NativeListArena {
                     else {
                         return None;
                     };
-                    Arc::make_mut(&mut object)
+                    Shared::make_mut(&mut object)
                         .as_object_mut()?
                         .insert(key.clone(), value);
                     self.store_value(Value::Json(object))?
@@ -1522,7 +1524,7 @@ impl NativeListArena {
                 else {
                     return None;
                 };
-                let value = Arc::clone(value);
+                let value = Shared::clone(value);
 
                 let array_handle = arguments[0];
                 let array_index = array_handle
@@ -1540,9 +1542,9 @@ impl NativeListArena {
                     let copied_bytes = if unique_target {
                         shared_json_push_local_allocation(array)
                     } else {
-                        // Arena handles do not increase Arc counts for aliases
+                        // Arena handles do not increase reference counts for aliases
                         // held in native locals. Model the VM's shared local.
-                        let aliased = Arc::clone(array);
+                        let aliased = Shared::clone(array);
                         shared_json_push_local_allocation(&aliased)
                     };
                     (items.len(), copied_bytes)
@@ -1559,7 +1561,7 @@ impl NativeListArena {
                     let Value::Json(array) = self.values.get_mut(index)? else {
                         return None;
                     };
-                    Arc::make_mut(array).as_array_mut()?.push(value);
+                    Shared::make_mut(array).as_array_mut()?.push(value);
                     array_handle
                 } else {
                     let Value::Json(mut array) = self
@@ -1568,7 +1570,7 @@ impl NativeListArena {
                     else {
                         return None;
                     };
-                    Arc::make_mut(&mut array).as_array_mut()?.push(value);
+                    Shared::make_mut(&mut array).as_array_mut()?.push(value);
                     self.store_value(Value::Json(array))?
                 };
 
@@ -1771,7 +1773,7 @@ impl NativeListArena {
                 if !self.charge(allocation) {
                     return None;
                 }
-                return self.store_value(Value::Map(Arc::new(TextMap::new())));
+                return self.store_value(Value::Map(Shared::new(TextMap::new())));
             }
             Op::MapKeys => {
                 if arguments.len() != 1 || argument_tags != [4] || result_tag != 4 {
@@ -1794,7 +1796,7 @@ impl NativeListArena {
                 else {
                     return None;
                 };
-                let character_count = text.chars().count();
+                let character_count = text.char_count();
                 if character_count > self.max_collection_items {
                     return None;
                 }
@@ -1868,7 +1870,7 @@ impl NativeListArena {
                 else {
                     return None;
                 };
-                return i64::try_from(text.chars().count()).ok();
+                return i64::try_from(text.char_count()).ok();
             }
             Op::TextFind => {
                 if arguments.len() != 3 || argument_tags != [4, 4, 1] || result_tag != 1 {
@@ -2208,7 +2210,7 @@ impl NativeListArena {
                 let result = match parsed {
                     Ok(microseconds) => Value::ResultOk(Box::new(Value::Record(
                         "Instant".into(),
-                        Arc::new(vec![Value::Int(BigInt::from_i64(microseconds))]),
+                        Shared::new(vec![Value::Int(BigInt::from_i64(microseconds))]),
                     ))),
                     Err(error) => file_error_result(RuntimeError::new(
                         error.code,
@@ -2292,15 +2294,14 @@ impl NativeListArena {
                 if !self.charge_or_error(charge_bytes, instruction.span) {
                     return None;
                 }
-                Value::Record(definition.name.clone(), Arc::new(values))
+                Value::Record(definition.name.clone(), Shared::new(values))
             }
             _ => {
                 let mut stack = self.decode_bridge_arguments(arguments, argument_tags)?;
                 // These bridged host operations do not access guest locals. Avoid
                 // allocating a frame-sized local vector for each native callback.
                 let mut locals = Vec::new();
-                let allocations_before =
-                    runtime.budget.allocation_remaining.load(Ordering::Relaxed);
+                let allocations_before = runtime.budget.allocation.remaining();
                 // This native invocation is synchronous. NativeCode is held through a
                 // cloned Arc, so the callback is the only Instance access while JIT
                 // code is running.
@@ -2317,7 +2318,7 @@ impl NativeListArena {
                         },
                     )
                 };
-                let allocations_after = runtime.budget.allocation_remaining.load(Ordering::Relaxed);
+                let allocations_after = runtime.budget.allocation.remaining();
                 self.charged_bytes = self
                     .charged_bytes
                     .saturating_add(allocations_before.saturating_sub(allocations_after));
@@ -2419,16 +2420,14 @@ impl NativeListArena {
                 }
                 match parsed {
                     Ok(value) => {
-                        let allocations_before =
-                            runtime.budget.allocation_remaining.load(Ordering::Relaxed);
+                        let allocations_before = runtime.budget.allocation.remaining();
                         let parsed = finish_shared_json(
                             value,
                             &runtime.limits,
                             runtime.budget.as_ref(),
                             span,
                         );
-                        let allocations_after =
-                            runtime.budget.allocation_remaining.load(Ordering::Relaxed);
+                        let allocations_after = runtime.budget.allocation.remaining();
                         self.charged_bytes = self
                             .charged_bytes
                             .saturating_add(allocations_before.saturating_sub(allocations_after));
@@ -2581,7 +2580,7 @@ impl NativeListArena {
             Ok(Some(line)) => {
                 Value::ResultOk(Box::new(Value::OptionSome(Box::new(Value::Record(
                     source_line_record_name(),
-                    Arc::new(vec![
+                    Shared::new(vec![
                         Value::Int(BigInt::from_usize(line.number)),
                         Value::Text(line.text),
                     ]),
@@ -3142,12 +3141,14 @@ impl HostPolicy {
 /// Readers build one of these records per row, so each name is allocated only once.
 fn source_line_record_name() -> guion_model::RecordName {
     static NAME: std::sync::OnceLock<guion_model::RecordName> = std::sync::OnceLock::new();
-    NAME.get_or_init(|| "SourceLine".into()).clone()
+    NAME.get_or_init(|| guion_model::RecordName::immortal("SourceLine"))
+        .clone()
 }
 
 fn csv_row_record_name() -> guion_model::RecordName {
     static NAME: std::sync::OnceLock<guion_model::RecordName> = std::sync::OnceLock::new();
-    NAME.get_or_init(|| "CsvRow".into()).clone()
+    NAME.get_or_init(|| guion_model::RecordName::immortal("CsvRow"))
+        .clone()
 }
 
 fn inline_host_forwarders(artifact: &mut Artifact) {
@@ -3309,7 +3310,7 @@ fn std_error_record_value(
     budget.record_record_charge(record_bytes);
     Ok(Value::Record(
         record.name.clone(),
-        Arc::new(vec![
+        Shared::new(vec![
             Value::Text(SharedText::from(code)),
             Value::Text(SharedText::from(message)),
             Value::Text(SharedText::from("")),
@@ -3569,7 +3570,7 @@ impl VmHost for Instance {
                     shared_json_push_local_allocation(array),
                     instruction.span,
                 )?;
-                Arc::make_mut(array)
+                Shared::make_mut(array)
                     .as_array_mut()
                     .expect("array type was checked before copy-on-write")
                     .push(value);
@@ -3635,11 +3636,11 @@ impl VmHost for Instance {
                         instruction.span,
                     ));
                 }
-                let shared = Arc::strong_count(object) > 1
-                    || matches!(object.as_ref(), SharedJson::Object(values) if Arc::strong_count(values) > 1);
+                let shared = Shared::strong_count(object) > 1
+                    || matches!(object.as_ref(), SharedJson::Object(values) if Shared::strong_count(values) > 1);
                 let copied_bytes = shared_json_set_local_allocation(object, &key);
                 charge_allocation(budget.as_ref(), copied_bytes, instruction.span)?;
-                Arc::make_mut(object)
+                Shared::make_mut(object)
                     .as_object_mut()
                     .expect("object type was checked before copy-on-write")
                     .insert(key.to_string(), value);
@@ -3971,10 +3972,10 @@ impl VmHost for Instance {
                 let mut feeds = Vec::with_capacity(input_feeds.len());
                 let mut total = 0usize;
                 for feed in input_feeds {
-                    let values: Arc<Vec<Value>> = match feed {
+                    let values: Shared<Vec<Value>> = match feed {
                         Value::List(values) => values,
                         Value::Float64List(values) => {
-                            Arc::new(values.iter().copied().map(Value::Float64).collect())
+                            Shared::new(values.iter().copied().map(Value::Float64).collect())
                         }
                         _ => {
                             return Err(RuntimeError::new(
@@ -4003,8 +4004,8 @@ impl VmHost for Instance {
                             .map(cloned_value_allocation)
                             .fold(0usize, usize::saturating_add),
                     );
-                let key_storage = size_of::<Vec<Arc<Vec<Value>>>>()
-                    .saturating_add(feeds.len().saturating_mul(size_of::<Arc<Vec<Value>>>()))
+                let key_storage = size_of::<Vec<Shared<Vec<Value>>>>()
+                    .saturating_add(feeds.len().saturating_mul(size_of::<Shared<Vec<Value>>>()))
                     .saturating_add(size_of::<Vec<Vec<BigInt>>>())
                     .saturating_add(feeds.len().saturating_mul(size_of::<Vec<BigInt>>()))
                     .saturating_add(total.saturating_mul(size_of::<BigInt>()))
@@ -4244,10 +4245,10 @@ impl VmHost for Instance {
                                 .collect();
                             push_stack!(Value::ResultOk(Box::new(Value::Record(
                                 "HttpResponse".into(),
-                                Arc::new(vec![
+                                Shared::new(vec![
                                     Value::Int(BigInt::from_i64(response.status as i64)),
-                                    Value::Map(Arc::new(response_headers)),
-                                    Value::Bytes(Arc::new(response.body)),
+                                    Value::Map(Shared::new(response_headers)),
+                                    Value::Bytes(Shared::new(response.body)),
                                 ]),
                             ))));
                         } else {
@@ -4381,7 +4382,7 @@ impl VmHost for Instance {
                         Ok(Some(line)) => push_stack!(Value::ResultOk(Box::new(
                             Value::OptionSome(Box::new(Value::Record(
                                 source_line_record_name(),
-                                Arc::new(vec![
+                                Shared::new(vec![
                                     Value::Int(BigInt::from_usize(line.number)),
                                     Value::Text(line.text)
                                 ]),
@@ -4408,7 +4409,7 @@ impl VmHost for Instance {
                             let result = Value::ResultOk(Box::new(Value::OptionSome(Box::new(
                                 Value::Record(
                                     csv_row_record_name(),
-                                    Arc::new(vec![
+                                    Shared::new(vec![
                                         Value::Int(BigInt::from_usize(row.start_line)),
                                         Value::from_list_items(
                                             row.fields.into_iter().map(Value::Text).collect(),
@@ -4539,7 +4540,7 @@ impl VmHost for Instance {
                     Op::TimeParseDate => stdlib_data::Date::parse(&text).map(|date| {
                         Value::Record(
                             "Date".into(),
-                            Arc::new(vec![
+                            Shared::new(vec![
                                 Value::Int(BigInt::from_i64(date.year as i64)),
                                 Value::Int(BigInt::from_u64(date.month as u64)),
                                 Value::Int(BigInt::from_u64(date.day as u64)),
@@ -4549,13 +4550,13 @@ impl VmHost for Instance {
                     Op::TimeParseTimestamp => stdlib_data::parse_timestamp(&text).map(|micros| {
                         Value::Record(
                             "Instant".into(),
-                            Arc::new(vec![Value::Int(BigInt::from_i64(micros))]),
+                            Shared::new(vec![Value::Int(BigInt::from_i64(micros))]),
                         )
                     }),
                     Op::SemVerParse => stdlib_data::parse_semver(&text).map(|version| {
                         Value::Record(
                             "SemVer".into(),
-                            Arc::new(vec![
+                            Shared::new(vec![
                                 Value::Text(version.major.into()),
                                 Value::Text(version.minor.into()),
                                 Value::Text(version.patch.into()),
@@ -4779,7 +4780,7 @@ impl VmHost for Instance {
                             self.finish_effect(effect, EffectOutcome::Returned);
                             push_stack!(Value::Record(
                                 "Date".into(),
-                                Arc::new(vec![
+                                Shared::new(vec![
                                     Value::Int(BigInt::from_i64(year as i64)),
                                     Value::Int(BigInt::from_i64(month as i64)),
                                     Value::Int(BigInt::from_i64(day as i64)),
@@ -4922,8 +4923,8 @@ impl VmHost for Instance {
                             .collect::<TextMap>();
                         let result = Value::Record(
                             "CliArgs".into(),
-                            Arc::new(vec![
-                                Value::Map(Arc::new(values)),
+                            Shared::new(vec![
+                                Value::Map(Shared::new(values)),
                                 Value::from_list_items(
                                     parsed
                                         .positionals
@@ -4977,7 +4978,7 @@ impl VmHost for Instance {
                             .map(|entry| {
                                 Value::Record(
                                     "DirectoryEntry".into(),
-                                    Arc::new(vec![
+                                    Shared::new(vec![
                                         Value::Text(entry.relative_path.into()),
                                         Value::Text(entry.kind.into()),
                                     ]),
@@ -5183,9 +5184,9 @@ impl VmHost for Instance {
                         ));
                     }
                 };
-                push_stack!(Value::Bytes(Arc::new(stdlib_services::crypto_hmac_sha256(
-                    &key, &body
-                ))));
+                push_stack!(Value::Bytes(Shared::new(
+                    stdlib_services::crypto_hmac_sha256(&key, &body)
+                )));
             }
             Op::CryptoVerifyHmacSha256 => {
                 let expected = match pop!() {
@@ -5309,7 +5310,7 @@ impl VmHost for Instance {
                                     .map(|row| {
                                         Value::Record(
                                             "SqlRow".into(),
-                                            Arc::new(vec![
+                                            Shared::new(vec![
                                                 Value::from_list_items(
                                                     row.columns
                                                         .into_iter()
@@ -5728,7 +5729,7 @@ impl VmHost for Instance {
                 )?;
                 let effect = self.begin_effect(EffectKind::FileRead, path.as_ref());
                 self.finish_effect(effect, EffectOutcome::Returned);
-                push_stack!(Value::ResultOk(Box::new(Value::Bytes(Arc::new(bytes)))));
+                push_stack!(Value::ResultOk(Box::new(Value::Bytes(Shared::new(bytes)))));
             }
             Op::WriteBytes => {
                 let content = match pop!() {
@@ -5809,7 +5810,7 @@ impl VmHost for Instance {
                 {
                     return Err(error);
                 }
-                push_stack!(Value::List(Arc::new(values)));
+                push_stack!(Value::List(Shared::new(values)));
             }
             Op::ArgsFrom => {
                 let start = match pop!() {
@@ -5861,7 +5862,7 @@ impl VmHost for Instance {
                 {
                     return Err(error);
                 }
-                push_stack!(Value::List(Arc::new(values)));
+                push_stack!(Value::List(Shared::new(values)));
             }
             Op::Environment => {
                 let name = match pop!() {
@@ -6176,7 +6177,7 @@ impl VmHost for Instance {
                         instruction.span,
                     ));
                 };
-                items.push(Arc::new(child));
+                items.push(Shared::new(child));
                 push_stack!(finish_shared_json(
                     array,
                     &self.policy.vm_limits(),
@@ -6229,7 +6230,7 @@ impl VmHost for Instance {
                         instruction.span,
                     ));
                 };
-                fields.insert(key.to_string(), Arc::new(child));
+                fields.insert(key.to_string(), Shared::new(child));
                 push_stack!(finish_shared_json(
                     object,
                     &self.policy.vm_limits(),
@@ -6803,7 +6804,7 @@ impl VmHost for Instance {
                     values.push(Value::Int(integer));
                 }
                 charge_allocation(budget.as_ref(), allocation, instruction.span)?;
-                push_stack!(Value::List(Arc::new(values)));
+                push_stack!(Value::List(Shared::new(values)));
             }
             Op::JsonTextCategories => {
                 let field = match pop!() {
@@ -6952,7 +6953,7 @@ impl VmHost for Instance {
                     values.push(Value::Int(integer));
                 }
                 charge_allocation(budget.as_ref(), allocation, instruction.span)?;
-                push_stack!(Value::List(Arc::new(values)));
+                push_stack!(Value::List(Shared::new(values)));
             }
             Op::JsonProjectColumns => {
                 let fields = match pop!() {
@@ -8046,11 +8047,11 @@ impl Instance {
                                     .expect("native record result has a verified definition");
                                 let mut fields = Vec::with_capacity(definition.fields.len());
                                 let mut decoded_float_lists =
-                                    std::collections::HashMap::<usize, Arc<Vec<Float64>>>::new();
+                                    std::collections::HashMap::<usize, Shared<Vec<Float64>>>::new();
                                 let mut decoded_int_lists =
-                                    std::collections::HashMap::<usize, Arc<Vec<Value>>>::new();
+                                    std::collections::HashMap::<usize, Shared<Vec<Value>>>::new();
                                 let mut decoded_bool_lists =
-                                    std::collections::HashMap::<usize, Arc<Vec<Value>>>::new();
+                                    std::collections::HashMap::<usize, Shared<Vec<Value>>>::new();
                                 for (field_type, encoded) in definition
                                     .fields
                                     .iter()
@@ -8079,13 +8080,13 @@ impl Instance {
                                                 ));
                                             }
                                             let list_key = descriptor as usize;
-                                            let values: Arc<Vec<Float64>> = if let Some(values) =
+                                            let values: Shared<Vec<Float64>> = if let Some(values) =
                                                 decoded_float_lists.get(&list_key)
                                             {
                                                 values.clone()
                                             } else {
                                                 let descriptor = unsafe { &*descriptor };
-                                                let values: Arc<Vec<Float64>> = if descriptor
+                                                let values: Shared<Vec<Float64>> = if descriptor
                                                     .inline_storage
                                                 {
                                                     let encoded = unsafe {
@@ -8094,7 +8095,7 @@ impl Instance {
                                                             descriptor.len,
                                                         )
                                                     };
-                                                    Arc::new(
+                                                    Shared::new(
                                                         encoded
                                                             .iter()
                                                             .map(|bits| {
@@ -8117,7 +8118,7 @@ impl Instance {
                                                                 .unwrap_or_default(),
                                                         ));
                                                     };
-                                                    Arc::new(std::mem::take(storage))
+                                                    Shared::new(std::mem::take(storage))
                                                 };
                                                 decoded_float_lists
                                                     .insert(list_key, values.clone());
@@ -8139,13 +8140,13 @@ impl Instance {
                                                 ));
                                             }
                                             let list_key = descriptor as usize;
-                                            let values: Arc<Vec<Value>> = if let Some(values) =
+                                            let values: Shared<Vec<Value>> = if let Some(values) =
                                                 decoded_int_lists.get(&list_key)
                                             {
                                                 values.clone()
                                             } else {
                                                 let descriptor = unsafe { &*descriptor };
-                                                let values: Arc<Vec<Value>> = if descriptor
+                                                let values: Shared<Vec<Value>> = if descriptor
                                                     .inline_storage
                                                 {
                                                     let encoded = unsafe {
@@ -8154,7 +8155,7 @@ impl Instance {
                                                             descriptor.len,
                                                         )
                                                     };
-                                                    Arc::new(
+                                                    Shared::new(
                                                         encoded
                                                             .iter()
                                                             .map(|value| {
@@ -8181,7 +8182,7 @@ impl Instance {
                                                                 .unwrap_or_default(),
                                                         ));
                                                     };
-                                                    Arc::new(
+                                                    Shared::new(
                                                         std::mem::take(storage)
                                                             .into_iter()
                                                             .map(|value| {
@@ -8214,13 +8215,13 @@ impl Instance {
                                                 ));
                                             }
                                             let list_key = descriptor as usize;
-                                            let values: Arc<Vec<Value>> = if let Some(values) =
+                                            let values: Shared<Vec<Value>> = if let Some(values) =
                                                 decoded_bool_lists.get(&list_key)
                                             {
                                                 values.clone()
                                             } else {
                                                 let descriptor = unsafe { &*descriptor };
-                                                let values: Arc<Vec<Value>> = if descriptor
+                                                let values: Shared<Vec<Value>> = if descriptor
                                                     .inline_storage
                                                 {
                                                     let encoded = unsafe {
@@ -8229,7 +8230,7 @@ impl Instance {
                                                             descriptor.len,
                                                         )
                                                     };
-                                                    Arc::new(
+                                                    Shared::new(
                                                         encoded
                                                             .iter()
                                                             .map(|value| Value::Bool(*value != 0))
@@ -8249,7 +8250,7 @@ impl Instance {
                                                                 .unwrap_or_default(),
                                                         ));
                                                     };
-                                                    Arc::new(
+                                                    Shared::new(
                                                         std::mem::take(storage)
                                                             .into_iter()
                                                             .map(|value| Value::Bool(value != 0))
@@ -8267,7 +8268,7 @@ impl Instance {
                                     };
                                     fields.push(field);
                                 }
-                                Value::Record(name.as_str().into(), Arc::new(fields))
+                                Value::Record(name.as_str().into(), Shared::new(fields))
                             }
                             _ => native_arena
                                 .materialize_native_value(outcome.value)
@@ -8644,6 +8645,11 @@ impl Instance {
                 ),
             span,
         )?;
+        // Workers read the inputs and the artifact's constants, so their reference counts
+        // must be atomic before any worker starts.
+        values.share_across_threads();
+        self.artifact.share_across_threads();
+        self.registers.share_across_threads();
         let next = Arc::new(AtomicUsize::new(worker_count));
         let cancelled = Arc::new(AtomicBool::new(false));
         let artifact = Arc::clone(&self.artifact);
@@ -8661,12 +8667,15 @@ impl Instance {
         // The workers share one bounded child budget, so the total remains bounded.
         let worker_budget = Arc::new(Budget {
             remaining: AtomicU64::new(budget.reserve_parallel()),
-            allocation_remaining: budget.allocation_remaining.clone(),
+            allocation: budget.allocation.clone(),
             allocation_floor: budget.parallel_allocation_floor(),
             cancellation: budget.cancellation.clone(),
             local_cancellation: Some(cancelled.clone()),
             runtime_profile: budget.runtime_profile.clone(),
         });
+        // Workers draw from the same allocation pool, so it is updated atomically until
+        // every worker has been joined.
+        budget.allocation.begin_sharing();
         let (sender, receiver) = mpsc::channel();
         let mut handles = Vec::new();
         for initial_index in 0..worker_count {
@@ -8753,8 +8762,10 @@ impl Instance {
                         depth,
                         budget.clone(),
                     );
-                    if result.is_err() {
-                        cancelled.store(true, Ordering::Relaxed);
+                    match &result {
+                        // The result may share parts with values this worker still holds.
+                        Ok(value) => value.share_across_threads(),
+                        Err(_) => cancelled.store(true, Ordering::Relaxed),
                     }
                     let _ = sender.send((index, result, worker.output, thread_id));
                 }
@@ -8771,6 +8782,7 @@ impl Instance {
         for handle in handles {
             worker_panicked |= handle.join().is_err();
         }
+        budget.allocation.end_sharing();
         if budget.cancellation.is_cancelled() {
             return Err(RuntimeError::new(
                 "R_CANCELLED",
@@ -10059,7 +10071,7 @@ fn runtime_sql_values(
 fn service_error_value(error: stdlib_services::ServiceError) -> Value {
     Value::Record(
         "StdError".into(),
-        Arc::new(vec![
+        Shared::new(vec![
             Value::Text(error.code.into()),
             Value::Text(error.message.into()),
             Value::Text(error.path.into()),
@@ -10076,7 +10088,7 @@ fn temporal_resolution_result_value(
         Ok(resolution) => Value::ResultOk(Box::new(temporal_resolution_value(resolution))),
         Err(error) => Value::ResultErr(Box::new(Value::Record(
             "TimeError".into(),
-            Arc::new(vec![
+            Shared::new(vec![
                 Value::Text(error.code.into()),
                 Value::Text(error.message.into()),
             ]),
@@ -10103,12 +10115,12 @@ fn service_sql_value(value: stdlib_services::SqlValue) -> Value {
     };
     Value::Record(
         "SqlValue".into(),
-        Arc::new(vec![
+        Shared::new(vec![
             Value::Text(kind.into()),
             Value::Int(BigInt::from_i64(integer)),
             Value::Float64(Float64::new(real).expect("SQLite service returns finite reals")),
             Value::Text(text.into()),
-            Value::Bytes(Arc::new(blob)),
+            Value::Bytes(Shared::new(blob)),
         ]),
     )
 }
@@ -10123,7 +10135,7 @@ fn service_calendar_event(event: stdlib_services::CalendarEvent) -> Value {
         date.map(|(year, month, day)| {
             Value::OptionSome(Box::new(Value::Record(
                 "Date".into(),
-                Arc::new(vec![
+                Shared::new(vec![
                     Value::Int(BigInt::from_i64(i64::from(year))),
                     Value::Int(BigInt::from_i64(i64::from(month))),
                     Value::Int(BigInt::from_i64(i64::from(day))),
@@ -10138,7 +10150,7 @@ fn service_calendar_event(event: stdlib_services::CalendarEvent) -> Value {
         .unwrap_or(Value::OptionNone);
     Value::Record(
         "CalendarEvent".into(),
-        Arc::new(vec![
+        Shared::new(vec![
             Value::Text(event.uid.into()),
             Value::Text(event.summary.into()),
             resolution(event.start_resolution),
@@ -10160,17 +10172,17 @@ fn temporal_resolution_value(resolution: stdlib_services::TemporalResolution) ->
         .map(|microseconds| {
             Value::Record(
                 "Instant".into(),
-                Arc::new(vec![Value::Int(BigInt::from_i64(microseconds))]),
+                Shared::new(vec![Value::Int(BigInt::from_i64(microseconds))]),
             )
         })
         .collect();
     Value::Record(
         "TemporalResolution".into(),
-        Arc::new(vec![
+        Shared::new(vec![
             Value::Text(resolution.kind.into()),
             Value::Record(
                 "LocalDateTime".into(),
-                Arc::new(vec![
+                Shared::new(vec![
                     Value::Int(BigInt::from_i64(local.year)),
                     Value::Int(BigInt::from_i64(local.month)),
                     Value::Int(BigInt::from_i64(local.day)),
@@ -10671,18 +10683,18 @@ fn parse_unique_shared_json(source: &str) -> Result<SharedJson, JsonDecodeError>
 fn restore_reserved_shared_json_keys(value: &mut SharedJson, reserved_key: &str) {
     match value {
         SharedJson::Array(values) => {
-            for value in Arc::make_mut(values) {
-                restore_reserved_shared_json_keys(Arc::make_mut(value), reserved_key);
+            for value in Shared::make_mut(values) {
+                restore_reserved_shared_json_keys(Shared::make_mut(value), reserved_key);
             }
         }
         SharedJson::Object(values) => {
-            let values = Arc::make_mut(values);
+            let values = Shared::make_mut(values);
             if let Some(mut value) = values.remove(reserved_key) {
-                restore_reserved_shared_json_keys(Arc::make_mut(&mut value), reserved_key);
+                restore_reserved_shared_json_keys(Shared::make_mut(&mut value), reserved_key);
                 values.insert("$serde_json::private::Number".to_owned(), value);
             }
             for value in values.values_mut() {
-                restore_reserved_shared_json_keys(Arc::make_mut(value), reserved_key);
+                restore_reserved_shared_json_keys(Shared::make_mut(value), reserved_key);
             }
         }
         _ => {}
@@ -10954,9 +10966,9 @@ impl<'de> serde::de::Visitor<'de> for SharedJsonVisitor<'_> {
         while let Some(value) = sequence.next_element_seed(SharedJsonSeed {
             duplicate: &mut *self.duplicate,
         })? {
-            values.push(Arc::new(value));
+            values.push(Shared::new(value));
         }
-        Ok(SharedJson::Array(Arc::new(values)))
+        Ok(SharedJson::Array(Shared::new(values)))
     }
 
     fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
@@ -10972,18 +10984,19 @@ impl<'de> serde::de::Visitor<'de> for SharedJsonVisitor<'_> {
             let value = map.next_value_seed(SharedJsonSeed {
                 duplicate: &mut *self.duplicate,
             })?;
-            object.insert(key, Arc::new(value));
+            object.insert(key, Shared::new(value));
         }
         if object.len() == 1 {
-            if let Some(SharedJson::String(number)) =
-                object.get("$serde_json::private::Number").map(Arc::as_ref)
+            if let Some(SharedJson::String(number)) = object
+                .get("$serde_json::private::Number")
+                .map(Shared::as_ref)
             {
                 if let Ok(number) = number.parse::<serde_json::Number>() {
                     return Ok(SharedJson::Number(number));
                 }
             }
         }
-        Ok(SharedJson::Object(Arc::new(object)))
+        Ok(SharedJson::Object(Shared::new(object)))
     }
 }
 

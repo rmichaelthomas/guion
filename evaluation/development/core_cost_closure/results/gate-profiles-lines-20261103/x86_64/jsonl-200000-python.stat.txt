@@ -1,0 +1,9 @@
+
+ Performance counter stats for '/home/runner/.local/share/uv/python/cpython-3.14.7-linux-x86_64-gnu/bin/python3.14 data_reference.py python performance-inputs/events.jsonl performance-inputs/services.txt summary.json' (5 runs):
+
+            667.77 msec task-clock                                                              ( +-  1.44% )
+             16217      page-faults                                                             ( +-  0.00% )
+                 7      context-switches                                                        ( +- 24.99% )
+
+       0.669167406 +- 0.009628235 seconds time elapsed  ( +-  1.44% )
+

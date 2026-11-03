@@ -13,7 +13,11 @@
 //! interpreter, which then produces the exact behavior and error.
 
 use super::*;
-use std::sync::OnceLock;
+use guion_model::ShareAcrossThreads;
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    OnceLock,
+};
 
 const NO_ENTRY: u32 = u32::MAX;
 const NO_RECIPE: u32 = 0;
@@ -108,6 +112,14 @@ enum Kind {
         record: u32,
         field: u32,
     },
+    TextTrim,
+    TextSplit,
+    TextSlice,
+    TextFind,
+    /// `list_push` assigned back to the list's own local.
+    ListPush {
+        slot: u32,
+    },
     /// A host operation at `op_ip`. Its pending operands go on the stack first.
     Host {
         op_ip: u32,
@@ -160,6 +172,7 @@ pub fn build_register_programs(artifact: &Artifact) -> RegisterPrograms {
             })
             .collect(),
         programs: artifact.functions.iter().map(|_| OnceLock::new()).collect(),
+        shared: AtomicBool::new(false),
     }
 }
 
@@ -169,6 +182,9 @@ pub fn build_register_programs(artifact: &Artifact) -> RegisterPrograms {
 pub struct RegisterPrograms {
     constructors: Vec<Option<Kind>>,
     programs: Vec<OnceLock<RegisterProgram>>,
+    /// Set once other threads may run these programs; constants of programs translated
+    /// afterwards are shared as they are made.
+    shared: AtomicBool,
 }
 
 impl RegisterPrograms {
@@ -178,8 +194,26 @@ impl RegisterPrograms {
         function: &guion_model::Function,
     ) -> Option<&RegisterProgram> {
         self.programs.get(index).map(|program| {
-            program.get_or_init(|| Translator::new(function, &self.constructors).translate())
+            program.get_or_init(|| {
+                let program = Translator::new(function, &self.constructors).translate();
+                if self.shared.load(Ordering::Acquire) {
+                    program.consts.share_across_threads();
+                }
+                program
+            })
         })
+    }
+
+    /// Prepare the programs to be run from other threads: share the constants of those
+    /// already translated, and of those translated from now on. Call it on the thread that
+    /// has been running them, before other threads can reach them.
+    pub fn share_across_threads(&self) {
+        self.shared.store(true, Ordering::Release);
+        for program in &self.programs {
+            if let Some(program) = program.get() {
+                program.consts.share_across_threads();
+            }
+        }
     }
 }
 
@@ -661,7 +695,21 @@ impl<'a> Translator<'a> {
                 }
                 covered
             }
-            Op::Add => self.emit_value(Kind::Add, 2, ip),
+            Op::Add => {
+                // `set s = s + piece` appends in place when the `Store` follows directly, which
+                // the stack interpreter does; a `Store` this form cannot fold leaves to it.
+                if let Some(Op::Store(slot)) = self.op_at(ip + 1) {
+                    let remaining = self.stack.len().saturating_sub(2);
+                    if self.is_leader[ip + 1]
+                        || self.stack[..remaining]
+                            .contains(&Virtual::Deferred(Src::Local(*slot as u32)))
+                    {
+                        self.emit_exit(ip);
+                        return 0;
+                    }
+                }
+                self.emit_value(Kind::Add, 2, ip)
+            }
             Op::Subtract => self.emit_value(Kind::Subtract, 2, ip),
             Op::Multiply => self.emit_value(Kind::Multiply, 2, ip),
             Op::IntegerDivide => self.emit_value(Kind::IntegerDivide, 2, ip),
@@ -673,6 +721,23 @@ impl<'a> Translator<'a> {
             },
             Op::TextParseInt => self.emit_value(Kind::ParseInt, 1, ip),
             Op::Length => self.emit_value(Kind::Length, 1, ip),
+            Op::TextTrim => self.emit_value(Kind::TextTrim, 1, ip),
+            Op::TextSplit => self.emit_value(Kind::TextSplit, 2, ip),
+            Op::TextSlice => self.emit_value(Kind::TextSlice, 3, ip),
+            Op::TextFind => self.emit_value(Kind::TextFind, 3, ip),
+            Op::ListPushLocal(slot) => {
+                let slot = *slot as u32;
+                let top = self.stack.pop();
+                let held_below = self.holds_local(slot);
+                if let Some(top) = top {
+                    self.stack.push(top);
+                }
+                if held_below {
+                    self.realize_all(ip);
+                }
+                self.emit(Kind::ListPush { slot }, 1, ip, Dest::Local(u32::MAX), 0);
+                0
+            }
             Op::Unwrap => match self.follower(ip + 1) {
                 Some(Op::JsonTryInt) => self.emit_chain(Kind::UnwrapJsonInt, 1, ip, 1),
                 Some(Op::JsonTryText) => self.emit_chain(Kind::UnwrapJsonText, 1, ip, 1),
@@ -1021,7 +1086,11 @@ pub(super) fn run_registers<H: VmHost>(
             }};
         }
         macro_rules! arithmetic {
-            ($int:expr, $float:expr) => {{
+            ($int:expr, $float:expr) => {
+                arithmetic!($int, $float, exit!())
+            };
+            // `$other` handles any other operand types; it must not fall through.
+            ($int:expr, $float:expr, $other:expr) => {{
                 let result = match (read!(instruction.a), read!(instruction.b)) {
                     (Value::Int(left), Value::Int(right)) => {
                         let (Some(left), Some(right)) = (left.small(), right.small()) else {
@@ -1040,7 +1109,7 @@ pub(super) fn run_registers<H: VmHost>(
                             None => exit!(),
                         }
                     }
-                    _ => exit!(),
+                    _ => $other,
                 };
                 commit!(0);
                 drop_operands!();
@@ -1101,7 +1170,29 @@ pub(super) fn run_registers<H: VmHost>(
                 commit!(0);
                 finish_bool!(value)
             }
-            Kind::Add => arithmetic!(i64::checked_add, |left, right| left + right),
+            // Integers and floats first; text concatenation is the fallback.
+            Kind::Add => arithmetic!(i64::checked_add, |left, right| left + right, {
+                if let (Dest::Local(slot), Value::Text(left)) =
+                    (instruction.dest, read!(instruction.a))
+                {
+                    // `set s = s + piece`: the stack interpreter appends in place.
+                    if matches!(&locals[slot as usize], Value::Text(local) if SharedText::ptr_eq(local, left))
+                    {
+                        exit!();
+                    }
+                }
+                let (Value::Text(left), Value::Text(right)) =
+                    (read!(instruction.a), read!(instruction.b))
+                else {
+                    exit!()
+                };
+                let Some((charge, value)) = concatenate_text(left, right, limits) else {
+                    exit!()
+                };
+                commit!(charge);
+                drop_operands!();
+                finish_value!(value)
+            }),
             Kind::Subtract => arithmetic!(i64::checked_sub, |left, right| left - right),
             Kind::Multiply => arithmetic!(i64::checked_mul, |left, right| left * right),
             // A float operand gives a non-finite result here, which leaves, and the stack
@@ -1142,6 +1233,15 @@ pub(super) fn run_registers<H: VmHost>(
                         .small()
                         .and_then(|position| usize::try_from(position).ok())
                         .and_then(|position| items.get(position)),
+                    // Lists and maps first; a text index is the fallback.
+                    (Value::Text(text), Value::Int(position)) => {
+                        let Some((charge, value)) = text_scalar_value(text, position) else {
+                            exit!()
+                        };
+                        commit!(charge);
+                        drop_operands!();
+                        finish_value!(value)
+                    }
                     _ => None,
                 };
                 let Some(item) = item else { exit!() };
@@ -1185,7 +1285,7 @@ pub(super) fn run_registers<H: VmHost>(
                         _ => leave!(),
                     };
                     let hash = key_hash(key);
-                    Arc::get_mut(&mut map)
+                    Shared::get_mut(&mut map)
                         .and_then(|entries| entries.get_mut_hashed(hash, key.as_ref()))
                 };
                 let Some(existing) = existing else { leave!() };
@@ -1239,12 +1339,101 @@ pub(super) fn run_registers<H: VmHost>(
                     Value::Float64List(items) => items.len(),
                     Value::Map(items) => items.len(),
                     Value::Bytes(items) => items.len(),
-                    Value::Text(text) => text.chars().count(),
+                    Value::Text(text) => text.char_count(),
                     _ => exit!(),
                 };
                 commit!(0);
                 drop_operands!();
                 finish_value!(Value::Int(BigInt::from_i64(length as i64)))
+            }
+            Kind::TextTrim => {
+                let Value::Text(text) = read!(instruction.a) else {
+                    exit!()
+                };
+                let Some((charge, value)) = trim_text(text) else {
+                    exit!()
+                };
+                commit!(charge);
+                drop_operands!();
+                finish_value!(value)
+            }
+            Kind::TextSplit => {
+                let (Value::Text(text), Value::Text(delimiter)) =
+                    (read!(instruction.a), read!(instruction.b))
+                else {
+                    exit!()
+                };
+                let Some((charge, value)) = split_text(text, delimiter, limits) else {
+                    exit!()
+                };
+                commit!(charge);
+                drop_operands!();
+                finish_value!(value)
+            }
+            Kind::TextSlice => {
+                let (Value::Text(text), Value::Int(start), Value::Int(end)) = (
+                    read!(instruction.a),
+                    read!(instruction.b),
+                    read!(instruction.c),
+                ) else {
+                    exit!()
+                };
+                let Some((charge, value)) = slice_text(text, start, end) else {
+                    exit!()
+                };
+                commit!(charge);
+                drop_operands!();
+                finish_value!(value)
+            }
+            Kind::TextFind => {
+                let (Value::Text(text), Value::Text(needle), Value::Int(from)) = (
+                    read!(instruction.a),
+                    read!(instruction.b),
+                    read!(instruction.c),
+                ) else {
+                    exit!()
+                };
+                let Some((charge, value)) = find_text(text, needle, from) else {
+                    exit!()
+                };
+                commit!(charge);
+                drop_operands!();
+                finish_value!(value)
+            }
+            Kind::ListPush { slot } => {
+                let value = read!(instruction.a);
+                if value_limit_error(value, limits, Span::default()).is_some() {
+                    exit!();
+                }
+                let Value::List(items) = &locals[slot as usize] else {
+                    exit!()
+                };
+                let len = items.len();
+                if len >= limits.max_collection_items {
+                    exit!();
+                }
+                // Pushing the list's own local clones it first, which makes the list shared.
+                let shared = Shared::strong_count(items) > 1 || instruction.a == Src::Local(slot);
+                let capacity = items.capacity();
+                commit!(if shared || capacity == len {
+                    let grown = capacity.saturating_mul(2).max(len.saturating_add(1)).max(4);
+                    size_of::<Vec<Value>>().saturating_add(grown.saturating_mul(size_of::<Value>()))
+                } else {
+                    0
+                });
+                let value = match instruction.a {
+                    Src::Stack(_) => match stack.pop() {
+                        Some(value) => value,
+                        None => unreachable!("the value was read from the stack just above"),
+                    },
+                    Src::Local(source) => clone_value_fast(&locals[source as usize]),
+                    Src::Const(index) => clone_value_fast(&program.consts[index as usize]),
+                };
+                let Value::List(items) = &mut locals[slot as usize] else {
+                    unreachable!("the local was checked just above")
+                };
+                Shared::make_mut(items).push(value);
+                pc += 1;
             }
             Kind::Unwrap => {
                 if !matches!(
@@ -1321,14 +1510,14 @@ pub(super) fn run_registers<H: VmHost>(
                     .saturating_add(definition.name.len());
                 commit!(record_bytes);
                 let fields = stack.split_off(stack.len() - count);
-                finish_value!(Value::Record(definition.name.clone(), Arc::new(fields)))
+                finish_value!(Value::Record(definition.name.clone(), Shared::new(fields)))
             }
             Kind::JsonGet => {
                 let Some(child) = json_field(read!(instruction.a), read!(instruction.b), limits)
                 else {
                     exit!()
                 };
-                let result = Value::ResultOk(Box::new(Value::Json(Arc::clone(child))));
+                let result = Value::ResultOk(Box::new(Value::Json(Shared::clone(child))));
                 commit!(0);
                 drop_operands!();
                 finish_value!(result)
@@ -1512,6 +1701,90 @@ pub(super) fn run_registers<H: VmHost>(
     }
 }
 
+// The text operations of this form are kept out of the dispatch loop so the arithmetic and
+// collection paths stay compact. Each returns the allocation the plain instruction charges
+// and the result, or `None` for anything the stack interpreter must handle.
+
+fn new_text(text: SharedText) -> (usize, Value) {
+    (
+        size_of::<String>().saturating_add(text.len()),
+        Value::Text(text),
+    )
+}
+
+#[inline(never)]
+fn concatenate_text(
+    left: &SharedText,
+    right: &SharedText,
+    limits: &VmLimits,
+) -> Option<(usize, Value)> {
+    if left.len().saturating_add(right.len()) > limits.max_text_bytes {
+        return None;
+    }
+    Some(new_text(SharedText::concat(left, right, 0, false)))
+}
+
+#[inline(never)]
+fn text_scalar_value(text: &SharedText, position: &BigInt) -> Option<(usize, Value)> {
+    text_scalar_at(text, position.to_usize()?).map(new_text)
+}
+
+#[inline(never)]
+fn trim_text(text: &SharedText) -> Option<(usize, Value)> {
+    let trimmed = text.trim();
+    Some(if trimmed.len() == text.len() {
+        (0, Value::Text(SharedText::clone(text)))
+    } else {
+        new_text(SharedText::from(trimmed))
+    })
+}
+
+#[inline(never)]
+fn split_text(
+    text: &SharedText,
+    delimiter: &SharedText,
+    limits: &VmLimits,
+) -> Option<(usize, Value)> {
+    if delimiter.is_empty() {
+        return None;
+    }
+    let offsets = text_match_offsets(
+        text,
+        delimiter,
+        limits.max_collection_items.saturating_sub(1),
+    )?;
+    let count = offsets.len() + 1;
+    let field_bytes = text.len() - (count - 1) * delimiter.len();
+    Some((
+        text_list_allocation(count, field_bytes),
+        Value::from_list_items(text_split_at(text, &offsets, delimiter.len())),
+    ))
+}
+
+#[inline(never)]
+fn slice_text(text: &SharedText, start: &BigInt, end: &BigInt) -> Option<(usize, Value)> {
+    let (start, end) = (start.to_usize()?, end.to_usize()?);
+    if start > end {
+        return None;
+    }
+    let (byte_start, byte_end) = text_scalar_range(text, start, end)?;
+    Some(if byte_start == 0 && byte_end == text.len() {
+        (0, Value::Text(SharedText::clone(text)))
+    } else {
+        new_text(SharedText::from(&text[byte_start..byte_end]))
+    })
+}
+
+#[inline(never)]
+fn find_text(text: &SharedText, needle: &SharedText, from: &BigInt) -> Option<(usize, Value)> {
+    let found = text_find_scalar(text, needle, from.to_usize()?)?;
+    let found = match found {
+        Some(index) => BigInt::from_usize(index),
+        None => BigInt::from_i64(-1),
+    };
+    Some((0, Value::Int(found)))
+}
+
 #[inline]
 fn read_operand<'v>(
     program: &'v RegisterProgram,
@@ -1530,7 +1803,11 @@ fn read_operand<'v>(
 }
 
 #[inline]
-fn json_field<'v>(json: &'v Value, key: &Value, limits: &VmLimits) -> Option<&'v Arc<SharedJson>> {
+fn json_field<'v>(
+    json: &'v Value,
+    key: &Value,
+    limits: &VmLimits,
+) -> Option<&'v Shared<SharedJson>> {
     let (Value::Json(json), Value::Text(key)) = (json, key) else {
         return None;
     };

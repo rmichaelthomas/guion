@@ -8,7 +8,8 @@
 
 use guion_model::{
     Artifact, BigInt, FileErrorValue, Float64, HttpErrorValue, JsonErrorValue, NativeResourceValue,
-    Op, RuntimeError, SharedJson, SharedText, Span, TaskErrorValue, TextMap, Type, Value,
+    Op, RuntimeError, ShareAcrossThreads, Shared, SharedJson, SharedText, Span, TaskErrorValue,
+    TextMap, Type, Value,
 };
 use std::{
     cell::Cell,
@@ -130,6 +131,9 @@ pub fn text_find_scalar(text: &SharedText, needle: &str, from: usize) -> Option<
                 .as_ref()
                 .is_some_and(|index| SharedText::ptr_eq(&index.text, text))
             {
+                // The cache outlives the program on this thread and keeps a reference to the
+                // text, which other threads may hold too, so it is counted atomically.
+                text.share_across_threads();
                 *cache = Some(TextScalarIndex::new(text));
             }
             cache
@@ -138,13 +142,13 @@ pub fn text_find_scalar(text: &SharedText, needle: &str, from: usize) -> Option<
                 .find(needle, from)
         });
     }
-    let ascii = text.is_ascii();
+    let ascii = text.char_count() == text.len();
     let byte_start = if ascii || from == 0 {
         (from <= text.len()).then_some(from)?
     } else {
         match text.char_indices().nth(from) {
             Some((byte_index, _)) => byte_index,
-            None if text.chars().count() == from => text.len(),
+            None if text.char_count() == from => text.len(),
             None => return None,
         }
     };
@@ -157,6 +161,41 @@ pub fn text_find_scalar(text: &SharedText, needle: &str, from: usize) -> Option<
             }
         }),
     )
+}
+
+/// The Unicode scalar at `index` as its own text, or `None` past the end. ASCII text is
+/// indexed by byte, and ASCII scalars share one immortal text each.
+pub fn text_scalar_at(text: &SharedText, index: usize) -> Option<SharedText> {
+    let scalar = if text.char_count() == text.len() {
+        text.as_bytes().get(index).map(|&byte| char::from(byte))
+    } else {
+        text.chars().nth(index)
+    };
+    scalar.map(shared_text_scalar)
+}
+
+/// The byte range of the scalars `start..end` (with `start <= end`), or `None` when `end` is
+/// past the end. ASCII text is indexed by byte.
+pub fn text_scalar_range(text: &SharedText, start: usize, end: usize) -> Option<(usize, usize)> {
+    let length = text.char_count();
+    if end > length {
+        return None;
+    }
+    if length == text.len() {
+        return Some((start, end));
+    }
+    let byte_at = |scalar: usize| {
+        text.char_indices()
+            .nth(scalar)
+            .map_or(text.len(), |(byte, _)| byte)
+    };
+    let byte_start = byte_at(start);
+    let byte_end = byte_start
+        + text[byte_start..]
+            .char_indices()
+            .nth(end - start)
+            .map_or(text.len() - byte_start, |(byte, _)| byte);
+    Some((byte_start, byte_end))
 }
 
 /// Byte offsets of the non-overlapping matches of a non-empty `needle`, left to right, or
@@ -253,7 +292,10 @@ fn shared_text_scalar(scalar: char) -> SharedText {
 
     static ASCII_SCALARS: OnceLock<[OnceLock<SharedText>; 128]> = OnceLock::new();
     let scalars = ASCII_SCALARS.get_or_init(|| std::array::from_fn(|_| OnceLock::new()));
-    SharedText::clone(scalars[scalar as usize].get_or_init(|| SharedText::from(scalar.to_string())))
+    SharedText::clone(
+        scalars[scalar as usize]
+            .get_or_init(|| SharedText::immortal(scalar.encode_utf8(&mut [0; 4]))),
+    )
 }
 
 /// Size and depth limits the shared VM enforces while executing guest code.
@@ -1292,11 +1334,11 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
             }
             Op::MakeTypedList(Type::Float64) => {
                 charge_allocation(budget.as_ref(), size_of::<Vec<Float64>>(), instruction.span)?;
-                push_stack!(Value::Float64List(Arc::new(Vec::new())));
+                push_stack!(Value::Float64List(Shared::new(Vec::new())));
             }
             Op::MakeTypedList(_) => {
                 charge_allocation(budget.as_ref(), size_of::<Vec<Value>>(), instruction.span)?;
-                push_stack!(Value::List(Arc::new(Vec::new())));
+                push_stack!(Value::List(Shared::new(Vec::new())));
             }
             Op::MakeMap(count) => {
                 if *count > limits.max_collection_items {
@@ -1343,7 +1385,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                         ));
                     }
                 }
-                let map = Value::Map(Arc::new(values));
+                let map = Value::Map(Shared::new(values));
                 if let Some(error) = value_limit_error(&map, limits, instruction.span) {
                     return Err(error);
                 }
@@ -1355,7 +1397,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                     TextMap::ACCOUNTED_HEADER_BYTES,
                     instruction.span,
                 )?;
-                push_stack!(Value::Map(Arc::new(TextMap::new())));
+                push_stack!(Value::Map(Shared::new(TextMap::new())));
             }
             Op::MakeRecord(record_index, count) => {
                 let record = host.artifact().records.get(*record_index).ok_or_else(|| {
@@ -1382,7 +1424,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                     fields.push(pop!());
                 }
                 fields.reverse();
-                push_stack!(Value::Record(record.name.clone(), Arc::new(fields)));
+                push_stack!(Value::Record(record.name.clone(), Shared::new(fields)));
             }
             Op::GetField(record_index, field_index) => {
                 let record = host.artifact().records.get(*record_index).ok_or_else(|| {
@@ -1446,7 +1488,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                         .keys()
                         .map(|key| Value::Text(SharedText::clone(key)))
                         .collect::<Vec<_>>();
-                    push_stack!(Value::List(Arc::new(keys)));
+                    push_stack!(Value::List(Shared::new(keys)));
                 }
                 _ => {
                     return Err(RuntimeError::new(
@@ -1640,7 +1682,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                 let local_store_slot = match f.code.get(ip).map(|next| &next.op) {
                     Some(Op::Store(slot))
                         if locals.get(*slot).is_some_and(|local| {
-                            matches!(local, Value::Map(current) if Arc::ptr_eq(current, &values))
+                            matches!(local, Value::Map(current) if Shared::ptr_eq(current, &values))
                         }) =>
                     {
                         Some(*slot)
@@ -1663,7 +1705,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                             instruction.span,
                         ));
                     };
-                    let map_shared = Arc::strong_count(items) > 1;
+                    let map_shared = Shared::strong_count(items) > 1;
                     let mut map_copy_bytes = if map_shared {
                         map_clone_allocation(items.as_ref(), None, &Value::Unit)
                     } else {
@@ -1686,8 +1728,8 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                                 instruction.span,
                             ));
                         };
-                        let inner_shared = Arc::strong_count(inner) > 1;
-                        let fields_shared = Arc::strong_count(fields) > 1;
+                        let inner_shared = Shared::strong_count(inner) > 1;
+                        let fields_shared = Shared::strong_count(fields) > 1;
                         let inner_will_copy = map_shared || inner_shared;
                         if inner_will_copy {
                             map_copy_bytes = map_copy_bytes.saturating_add(map_clone_allocation(
@@ -1705,7 +1747,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                                 instruction.span,
                             ));
                         };
-                        (map_shared || Arc::strong_count(fields) > 1, fields.len())
+                        (map_shared || Shared::strong_count(fields) > 1, fields.len())
                     };
                     let record_copy_bytes = if record_fields_shared {
                         size_of::<Vec<Value>>()
@@ -1718,12 +1760,12 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                         map_copy_bytes.saturating_add(record_copy_bytes),
                         instruction.span,
                     )?;
-                    let map = Arc::make_mut(items);
+                    let map = Shared::make_mut(items);
                     let fields = if let Some(inner_key) = nested_key.as_deref() {
                         let Some(Value::Map(inner)) = map.get_mut(key.as_ref()) else {
                             unreachable!("map_record_set outer map was checked before mutation")
                         };
-                        let inner = Arc::make_mut(inner);
+                        let inner = Shared::make_mut(inner);
                         let Some(Value::Record(_, fields)) = inner.get_mut(inner_key) else {
                             unreachable!("map_record_set inner map was checked before mutation")
                         };
@@ -1734,13 +1776,13 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                         };
                         fields
                     };
-                    Arc::make_mut(fields)[*field_index] = value;
+                    Shared::make_mut(fields)[*field_index] = value;
                     if PROFILED {
                         if let Some(profile) = &budget.runtime_profile {
                             profile.record_map_record_set(map_copy_bytes, record_copy_bytes);
                         }
                     }
-                    let updated = Value::Map(Arc::clone(items));
+                    let updated = Value::Map(Shared::clone(items));
                     push_stack!(updated);
                     continue;
                 }
@@ -1775,7 +1817,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                     let Some(Value::Map(inner)) = updated.get_mut(key.as_ref()) else {
                         unreachable!("map_record_set cloned outer map must retain nested map")
                     };
-                    let inner = Arc::make_mut(inner);
+                    let inner = Shared::make_mut(inner);
                     let Some(Value::Record(_, fields)) = inner.get_mut(inner_key) else {
                         unreachable!("map_record_set cloned inner map must retain record")
                     };
@@ -1786,8 +1828,8 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                     };
                     fields
                 };
-                Arc::make_mut(fields)[*field_index] = value;
-                let map = Value::Map(Arc::new(updated));
+                Shared::make_mut(fields)[*field_index] = value;
+                let map = Value::Map(Shared::new(updated));
                 if let Some(error) = value_limit_error(&map, limits, instruction.span) {
                     return Err(error);
                 }
@@ -1823,7 +1865,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                 let local_store_slot = match f.code.get(ip).map(|next| &next.op) {
                         Some(Op::Store(slot))
                             if locals.get(*slot).is_some_and(|local| {
-                                matches!(local, Value::Map(current) if Arc::ptr_eq(current, &values))
+                                matches!(local, Value::Map(current) if Shared::ptr_eq(current, &values))
                             }) =>
                         {
                             Some(*slot)
@@ -1893,7 +1935,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                                 instruction.span,
                             ));
                         };
-                        let parent_values = Arc::get_mut(parent_arc).expect(
+                        let parent_values = Shared::get_mut(parent_arc).expect(
                             "nested writeback parent uniqueness was checked before mutation",
                         );
                         let Some(Value::Map(inner_arc)) =
@@ -1901,11 +1943,11 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                         else {
                             unreachable!("nested writeback child was checked before mutation")
                         };
-                        let inner_values = Arc::get_mut(inner_arc).expect(
+                        let inner_values = Shared::get_mut(inner_arc).expect(
                             "nested writeback child uniqueness was checked before mutation",
                         );
                         replace_map_value(inner_values, &key, value);
-                        Value::Map(Arc::clone(inner_arc))
+                        Value::Map(Shared::clone(inner_arc))
                     };
                     locals[child_slot] = updated.clone();
                     stack.push(updated);
@@ -1967,19 +2009,19 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                         ));
                     };
                     let nested_result = {
-                        let parent_values = Arc::get_mut(parent_arc)
+                        let parent_values = Shared::get_mut(parent_arc)
                             .expect("nested update parent uniqueness was checked before mutation");
                         let Some(Value::Map(inner_arc)) =
                             parent_values.get_mut(parent_key.as_ref())
                         else {
                             unreachable!("nested update target was checked before mutation")
                         };
-                        let inner_values = Arc::get_mut(inner_arc)
+                        let inner_values = Shared::get_mut(inner_arc)
                             .expect("nested update child uniqueness was checked before mutation");
                         replace_map_value(inner_values, &key, value);
-                        Value::Map(Arc::clone(inner_arc))
+                        Value::Map(Shared::clone(inner_arc))
                     };
-                    let parent_result = Value::Map(Arc::clone(parent_arc));
+                    let parent_result = Value::Map(Shared::clone(parent_arc));
                     stack.push(parent_result);
                     stack.push(Value::Text(parent_key));
                     stack.push(nested_result);
@@ -2012,7 +2054,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                     // Updating an existing key of a unique map charges nothing: one lookup is enough.
                     if key.len() <= limits.max_text_bytes {
                         if let Some(existing) =
-                            Arc::get_mut(items).and_then(|entries| entries.get_mut(key.as_ref()))
+                            Shared::get_mut(items).and_then(|entries| entries.get_mut(key.as_ref()))
                         {
                             if let Some(error) = value_limit_error(&value, limits, instruction.span)
                             {
@@ -2024,7 +2066,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                                     profile.record_map_set(true, 0);
                                 }
                             }
-                            push_stack!(Value::Map(Arc::clone(items)));
+                            push_stack!(Value::Map(Shared::clone(items)));
                             continue;
                         }
                     }
@@ -2043,7 +2085,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                             instruction.span,
                         ));
                     }
-                    let shared = Arc::strong_count(items) > 1;
+                    let shared = Shared::strong_count(items) > 1;
                     let allocation = if shared {
                         map_clone_allocation(items.as_ref(), Some(key.as_ref()), &value)
                     } else if contains_key {
@@ -2055,13 +2097,13 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                     if let Some(error) = value_limit_error(&value, limits, instruction.span) {
                         return Err(error);
                     }
-                    replace_map_value(Arc::make_mut(items), &key, value);
+                    replace_map_value(Shared::make_mut(items), &key, value);
                     if PROFILED {
                         if let Some(profile) = &budget.runtime_profile {
                             profile.record_map_set(!shared, if shared { allocation } else { 0 });
                         }
                     }
-                    push_stack!(Value::Map(Arc::clone(items)));
+                    push_stack!(Value::Map(Shared::clone(items)));
                     continue;
                 }
                 if !values.contains_key(key.as_ref()) && values.len() >= limits.max_collection_items
@@ -2089,7 +2131,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                         profile.record_map_set(false, map_clone_bytes);
                     }
                 }
-                let map = Value::Map(Arc::new(updated));
+                let map = Value::Map(Shared::new(updated));
                 if let Some(error) = value_limit_error(&map, limits, instruction.span) {
                     return Err(error);
                 }
@@ -2124,7 +2166,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                     Value::Float64List(values) => values.len(),
                     Value::Map(values) => values.len(),
                     Value::Bytes(values) => values.len(),
-                    Value::Text(values) => values.chars().count(),
+                    Value::Text(values) => values.char_count(),
                     _ => {
                         return Err(RuntimeError::new(
                             "R_TYPE_INVALID",
@@ -2265,7 +2307,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                         continue;
                     }
                 }
-                let count = text.chars().count();
+                let count = text.char_count();
                 if count > limits.max_collection_items {
                     return Err(RuntimeError::new(
                         "R_COLLECTION_LIMIT",
@@ -2335,39 +2377,17 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                         instruction.span,
                     ));
                 }
-                let mut scalar_index = 0;
-                let mut byte_start = (start == 0).then_some(0);
-                let mut byte_end = (end == 0).then_some(0);
-                let mut reached_end = false;
-                for (byte_index, _) in text.char_indices() {
-                    if scalar_index == start {
-                        byte_start = Some(byte_index);
-                    }
-                    if scalar_index == end {
-                        byte_end = Some(byte_index);
-                        reached_end = true;
-                        break;
-                    }
-                    scalar_index += 1;
-                }
-                if byte_start.is_none() && start == scalar_index {
-                    byte_start = Some(text.len());
-                }
-                if byte_end.is_none() && end == scalar_index {
-                    byte_end = Some(text.len());
-                }
-                if end > scalar_index {
+                let Some((byte_start, byte_end)) = text_scalar_range(&text, start, end) else {
                     return Err(RuntimeError::new(
                         "R_INDEX_BOUNDS",
                         format!(
-                            "text slice range {start}..{end} is out of bounds for length {scalar_index}"
+                            "text slice range {start}..{end} is out of bounds for length {}",
+                            text.char_count()
                         ),
                         instruction.span,
                     ));
-                }
-                let byte_start = byte_start.expect("validated text slice start");
-                let byte_end = byte_end.expect("validated text slice end");
-                if start == 0 && !reached_end {
+                };
+                if byte_start == 0 && byte_end == text.len() {
                     push_stack!(Value::Text(text));
                     continue;
                 }
@@ -2683,7 +2703,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                     bytes.push(byte as u8);
                 }
                 charge_allocation(budget.as_ref(), bytes.capacity(), instruction.span)?;
-                push_stack!(Value::Bytes(Arc::new(bytes)));
+                push_stack!(Value::Bytes(Shared::new(bytes)));
             }
             Op::BytesFromText => {
                 let text = match pop!() {
@@ -2704,7 +2724,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                     ));
                 }
                 charge_allocation(budget.as_ref(), text.len(), instruction.span)?;
-                push_stack!(Value::Bytes(Arc::new(text.as_bytes().to_vec())));
+                push_stack!(Value::Bytes(Shared::new(text.as_bytes().to_vec())));
             }
             Op::BytesJoin => {
                 let values = match pop!() {
@@ -2755,7 +2775,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                         bytes.extend_from_slice(part);
                     }
                 }
-                push_stack!(Value::Bytes(Arc::new(bytes)));
+                push_stack!(Value::Bytes(Shared::new(bytes)));
             }
             Op::Float64Bits => match pop!() {
                 Value::Float64(value) => {
@@ -2851,21 +2871,17 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                                 instruction.span,
                             )
                         })?;
-                        let length = text.chars().count();
-                        let value = text
-                            .chars()
-                            .nth(index)
-                            .map(|scalar| scalar.to_string())
-                            .ok_or_else(|| {
-                                RuntimeError::new(
-                                    "R_INDEX_BOUNDS",
-                                    format!(
-                                        "text index {index} is out of range for length {length}"
-                                    ),
-                                    instruction.span,
-                                )
-                            })?;
-                        let value = Value::Text(value.into());
+                        let value = text_scalar_at(&text, index).ok_or_else(|| {
+                            RuntimeError::new(
+                                "R_INDEX_BOUNDS",
+                                format!(
+                                    "text index {index} is out of range for length {}",
+                                    text.char_count()
+                                ),
+                                instruction.span,
+                            )
+                        })?;
+                        let value = Value::Text(value);
                         charge_allocation(
                             budget.as_ref(),
                             new_value_allocation(&value),
@@ -2955,7 +2971,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                         };
                         let mut updated = items.as_ref().clone();
                         updated.push(value);
-                        Value::Float64List(Arc::new(updated))
+                        Value::Float64List(Shared::new(updated))
                     }
                     _ => unreachable!("list type checked above"),
                 };
@@ -2988,7 +3004,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                                 instruction.span,
                             ));
                         }
-                        let shared = Arc::strong_count(items) > 1;
+                        let shared = Shared::strong_count(items) > 1;
                         let capacity = items.capacity();
                         let allocation = if shared || capacity == len {
                             let grown_capacity =
@@ -2999,7 +3015,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                             0
                         };
                         charge_allocation(budget.as_ref(), allocation, instruction.span)?;
-                        Arc::make_mut(items).push(value);
+                        Shared::make_mut(items).push(value);
                     }
                     Value::Float64List(items) => {
                         let Value::Float64(value) = value else {
@@ -3017,7 +3033,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                                 instruction.span,
                             ));
                         }
-                        let shared = Arc::strong_count(items) > 1;
+                        let shared = Shared::strong_count(items) > 1;
                         let capacity = items.capacity();
                         let allocation = if shared || capacity == len {
                             let grown_capacity =
@@ -3028,7 +3044,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                             0
                         };
                         charge_allocation(budget.as_ref(), allocation, instruction.span)?;
-                        Arc::make_mut(items).push(value);
+                        Shared::make_mut(items).push(value);
                     }
                     _ => {
                         return Err(RuntimeError::new(
@@ -3100,7 +3116,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                         };
                         let mut updated = items.as_ref().clone();
                         updated[index] = value;
-                        Value::Float64List(Arc::new(updated))
+                        Value::Float64List(Shared::new(updated))
                     }
                     _ => unreachable!("list type checked above"),
                 };
@@ -3161,13 +3177,13 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                 budget.record_list_set_operation();
                 match local {
                     Value::List(items) => {
-                        let needs_copy = Arc::strong_count(items) > 1;
+                        let needs_copy = Shared::strong_count(items) > 1;
                         let copy_bytes = size_of::<Vec<Value>>()
                             .saturating_add(len.saturating_mul(size_of::<Value>()));
                         if needs_copy {
                             charge_allocation(budget.as_ref(), copy_bytes, instruction.span)?;
                         }
-                        Arc::make_mut(items)[index] = value;
+                        Shared::make_mut(items)[index] = value;
                         if needs_copy {
                             budget.record_list_set_copy(len, copy_bytes);
                         } else {
@@ -3182,13 +3198,13 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                                 instruction.span,
                             ));
                         };
-                        let needs_copy = Arc::strong_count(items) > 1;
+                        let needs_copy = Shared::strong_count(items) > 1;
                         let copy_bytes = size_of::<Vec<Float64>>()
                             .saturating_add(len.saturating_mul(size_of::<Float64>()));
                         if needs_copy {
                             charge_allocation(budget.as_ref(), copy_bytes, instruction.span)?;
                         }
-                        Arc::make_mut(items)[index] = value;
+                        Shared::make_mut(items)[index] = value;
                         if needs_copy {
                             budget.record_list_set_copy(len, copy_bytes);
                         } else {
@@ -3797,7 +3813,7 @@ fn unique_nested_map_update_target(
     next_ip: usize,
     stack: &[Value],
     locals: &[Value],
-    inner: &Arc<TextMap>,
+    inner: &Shared<TextMap>,
 ) -> Option<(usize, SharedText)> {
     let Some(Op::MapSet) = code.get(next_ip).map(|instruction| &instruction.op) else {
         return None;
@@ -3812,10 +3828,10 @@ fn unique_nested_map_update_target(
     let Some(Value::Map(local_parent)) = locals.get(*parent_slot) else {
         return None;
     };
-    if !Arc::ptr_eq(parent, local_parent)
-        || Arc::strong_count(parent) != 2
-        || Arc::strong_count(inner) != 2
-        || !matches!(parent.get(parent_key.as_ref()), Some(Value::Map(child)) if Arc::ptr_eq(child, inner))
+    if !Shared::ptr_eq(parent, local_parent)
+        || Shared::strong_count(parent) != 2
+        || Shared::strong_count(inner) != 2
+        || !matches!(parent.get(parent_key.as_ref()), Some(Value::Map(child)) if Shared::ptr_eq(child, inner))
     {
         return None;
     }
@@ -3827,7 +3843,7 @@ fn unique_pending_nested_map_writeback_target(
     child_store_ip: usize,
     child_slot: usize,
     locals: &[Value],
-    inner: &Arc<TextMap>,
+    inner: &Shared<TextMap>,
 ) -> Option<(usize, SharedText)> {
     let Some(Op::Store(stored_child)) = code.get(child_store_ip).map(|instruction| &instruction.op)
     else {
@@ -3877,15 +3893,15 @@ fn unique_pending_nested_map_writeback_target(
     let Some(Value::Map(parent)) = locals.get(parent_slot) else {
         return None;
     };
-    if !Arc::ptr_eq(local_child, inner)
-        || Arc::strong_count(parent) != 1
-        || Arc::strong_count(inner) != 3
+    if !Shared::ptr_eq(local_child, inner)
+        || Shared::strong_count(parent) != 1
+        || Shared::strong_count(inner) != 3
     {
         return None;
     }
     let mut matching_key = None;
     for (key, value) in parent.iter() {
-        if matches!(value, Value::Map(child) if Arc::ptr_eq(child, inner))
+        if matches!(value, Value::Map(child) if Shared::ptr_eq(child, inner))
             && matching_key.replace(&**key).is_some()
         {
             return None;
@@ -4729,9 +4745,70 @@ pub fn append_guest_call_trace(
     }
 }
 
+/// The allocation allowance one invocation and its parallel workers draw from. While no
+/// workers share it, one thread updates it with plain loads and stores, as an atomic
+/// read-modify-write on every allocation costs a locked instruction on x86_64.
+#[derive(Debug)]
+pub struct AllocationPool {
+    remaining: AtomicUsize,
+    /// Parallel operations currently sharing this pool with worker threads.
+    sharers: AtomicUsize,
+}
+
+impl AllocationPool {
+    pub fn new(limit: usize) -> Self {
+        Self {
+            remaining: AtomicUsize::new(limit),
+            sharers: AtomicUsize::new(0),
+        }
+    }
+
+    pub fn remaining(&self) -> usize {
+        self.remaining.load(Ordering::Relaxed)
+    }
+
+    /// Mark the pool as shared with worker threads; call it before starting them.
+    pub fn begin_sharing(&self) {
+        self.sharers.fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// Call it after every worker started since `begin_sharing` has been joined.
+    pub fn end_sharing(&self) {
+        self.sharers.fetch_sub(1, Ordering::Relaxed);
+    }
+
+    #[inline]
+    fn take(&self, bytes: usize, floor: usize) -> bool {
+        if self.sharers.load(Ordering::Relaxed) == 0 {
+            let left = self.remaining.load(Ordering::Relaxed);
+            if bytes > left.saturating_sub(floor) {
+                return false;
+            }
+            self.remaining.store(left - bytes, Ordering::Relaxed);
+            return true;
+        }
+        self.remaining
+            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |left| {
+                (bytes <= left.saturating_sub(floor)).then(|| left - bytes)
+            })
+            .is_ok()
+    }
+
+    #[inline]
+    fn give_back(&self, bytes: usize) {
+        if self.sharers.load(Ordering::Relaxed) == 0 {
+            let left = self.remaining.load(Ordering::Relaxed);
+            self.remaining
+                .store(left.saturating_add(bytes), Ordering::Relaxed);
+        } else {
+            self.remaining.fetch_add(bytes, Ordering::Relaxed);
+        }
+    }
+}
+
 pub struct Budget {
     pub remaining: AtomicU64,
-    pub allocation_remaining: Arc<AtomicUsize>,
+    pub allocation: Arc<AllocationPool>,
     pub allocation_floor: usize,
     pub cancellation: CancellationToken,
     pub local_cancellation: Option<Arc<AtomicBool>>,
@@ -4838,7 +4915,7 @@ impl Budget {
     ) -> Self {
         Self {
             remaining: AtomicU64::new(instruction_limit),
-            allocation_remaining: Arc::new(AtomicUsize::new(allocation_limit)),
+            allocation: Arc::new(AllocationPool::new(allocation_limit)),
             allocation_floor: 0,
             cancellation,
             local_cancellation: None,
@@ -4905,16 +4982,7 @@ impl Budget {
         if bytes == 0 {
             return true;
         }
-        let allocated = self
-            .allocation_remaining
-            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |left| {
-                if bytes <= left.saturating_sub(self.allocation_floor) {
-                    Some(left - bytes)
-                } else {
-                    None
-                }
-            })
-            .is_ok();
+        let allocated = self.allocation.take(bytes, self.allocation_floor);
         if allocated {
             if let Some(profile) = &self.runtime_profile {
                 profile.record_allocation_charge(bytes);
@@ -4925,8 +4993,7 @@ impl Budget {
 
     #[inline]
     pub fn refund_allocation(&self, bytes: usize) {
-        self.allocation_remaining
-            .fetch_add(bytes, Ordering::Relaxed);
+        self.allocation.give_back(bytes);
         if let Some(profile) = &self.runtime_profile {
             profile.record_allocation_refund(bytes);
         }
@@ -4969,7 +5036,7 @@ impl Budget {
 
     #[inline]
     pub fn parallel_allocation_floor(&self) -> usize {
-        let remaining = self.allocation_remaining.load(Ordering::Relaxed);
+        let remaining = self.allocation.remaining();
         let available = remaining.saturating_sub(self.allocation_floor);
         remaining.saturating_sub(available.saturating_mul(3) / 4)
     }
@@ -4986,7 +5053,7 @@ pub fn charge_allocation(budget: &Budget, bytes: usize, span: Span) -> Result<()
 
 #[cold]
 fn allocation_limit_error(budget: &Budget, bytes: usize, span: Span) -> RuntimeError {
-    let remaining = budget.allocation_remaining.load(Ordering::Relaxed);
+    let remaining = budget.allocation.remaining();
     RuntimeError::new(
         "R_ALLOCATION_LIMIT",
         format!(
@@ -5017,9 +5084,9 @@ fn clone_value_fast(value: &Value) -> Value {
         Value::Bool(flag) => Value::Bool(*flag),
         Value::Float64(float) => Value::Float64(*float),
         Value::Text(text) => Value::Text(SharedText::clone(text)),
-        Value::Json(json) => Value::Json(Arc::clone(json)),
-        Value::Map(map) => Value::Map(Arc::clone(map)),
-        Value::List(items) => Value::List(Arc::clone(items)),
+        Value::Json(json) => Value::Json(Shared::clone(json)),
+        Value::Map(map) => Value::Map(Shared::clone(map)),
+        Value::List(items) => Value::List(Shared::clone(items)),
         _ => value.clone(),
     }
 }
@@ -5048,11 +5115,11 @@ pub fn new_value_allocation(value: &Value) -> usize {
         Value::Float64List(items) => size_of::<Vec<Float64>>()
             .saturating_add(items.len().saturating_mul(size_of::<Float64>())),
         // Records own a fresh field-vector, but nested Lists, Maps, and JSON
-        // remain Arc-shared. Their payloads were charged when first created.
+        // remain shared. Their payloads were charged when first created.
         Value::Record(name, fields) => size_of::<Vec<Value>>()
             .saturating_add(fields.len().saturating_mul(size_of::<Value>()))
             .saturating_add(name.len()),
-        // JSON nodes are immutable and Arc-shared; cloning a value allocates no subtree.
+        // JSON nodes are immutable and shared by reference; cloning a value allocates no subtree.
         Value::Json(_) => 0,
         Value::TaskError(error) => size_of::<TaskErrorValue>()
             .saturating_add(error.code.capacity())
@@ -5325,11 +5392,11 @@ pub fn shared_json_metrics(value: &SharedJson, max_integer_digits: usize) -> Jso
                 item_count: items.len(),
                 oversized_integer: false,
                 allocation_bytes: size_of::<SharedJson>()
-                    .saturating_add(size_of::<Vec<Arc<SharedJson>>>())
+                    .saturating_add(size_of::<Vec<Shared<SharedJson>>>())
                     .saturating_add(
                         items
                             .capacity()
-                            .saturating_mul(size_of::<Arc<SharedJson>>()),
+                            .saturating_mul(size_of::<Shared<SharedJson>>()),
                     ),
                 encoded_len: 2usize.saturating_add(items.len().saturating_sub(1)),
             };
@@ -5348,7 +5415,7 @@ pub fn shared_json_metrics(value: &SharedJson, max_integer_digits: usize) -> Jso
                 item_count: items.len(),
                 oversized_integer: false,
                 allocation_bytes: size_of::<SharedJson>()
-                    .saturating_add(size_of::<BTreeMap<String, Arc<SharedJson>>>()),
+                    .saturating_add(size_of::<BTreeMap<String, Shared<SharedJson>>>()),
                 encoded_len: 2usize.saturating_add(items.len().saturating_sub(1)),
             };
             for (key, child_value) in items.iter() {
@@ -5359,7 +5426,7 @@ pub fn shared_json_metrics(value: &SharedJson, max_integer_digits: usize) -> Jso
                 metrics.allocation_bytes = metrics
                     .allocation_bytes
                     .saturating_add(size_of::<String>() + key.len())
-                    .saturating_add(size_of::<Arc<SharedJson>>() * 3);
+                    .saturating_add(size_of::<Shared<SharedJson>>() * 3);
                 metrics.encoded_len = metrics
                     .encoded_len
                     .saturating_add(encoded_json_string_len(key))
@@ -5384,7 +5451,7 @@ pub fn finish_shared_json(
     }
     validate_json_metrics(&metrics, limits, span)?;
     charge_allocation(budget, metrics.allocation_bytes, span)?;
-    Ok(Value::Json(Arc::new(value)))
+    Ok(Value::Json(Shared::new(value)))
 }
 
 pub fn validate_json_metrics(
@@ -5423,57 +5490,57 @@ pub fn validate_json_metrics(
     Ok(())
 }
 
-pub fn shared_json_push_local_allocation(value: &Arc<SharedJson>) -> usize {
+pub fn shared_json_push_local_allocation(value: &Shared<SharedJson>) -> usize {
     let SharedJson::Array(items) = value.as_ref() else {
         return 0;
     };
     let len = items.len();
-    let mut allocation = if Arc::strong_count(value) > 1 {
+    let mut allocation = if Shared::strong_count(value) > 1 {
         size_of::<SharedJson>()
     } else {
         0
     };
-    if Arc::strong_count(items) > 1 {
+    if Shared::strong_count(items) > 1 {
         allocation = allocation.saturating_add(
-            size_of::<Vec<Arc<SharedJson>>>()
-                .saturating_add(len.saturating_mul(size_of::<Arc<SharedJson>>())),
+            size_of::<Vec<Shared<SharedJson>>>()
+                .saturating_add(len.saturating_mul(size_of::<Shared<SharedJson>>())),
         );
     } else if items.capacity() == len {
         allocation = allocation.saturating_add(
-            size_of::<Vec<Arc<SharedJson>>>().saturating_add(
+            size_of::<Vec<Shared<SharedJson>>>().saturating_add(
                 items
                     .capacity()
                     .saturating_mul(2)
                     .max(len.saturating_add(1))
                     .max(4)
-                    .saturating_mul(size_of::<Arc<SharedJson>>()),
+                    .saturating_mul(size_of::<Shared<SharedJson>>()),
             ),
         );
     }
     allocation
 }
 
-pub fn shared_json_set_local_allocation(value: &Arc<SharedJson>, key: &str) -> usize {
+pub fn shared_json_set_local_allocation(value: &Shared<SharedJson>, key: &str) -> usize {
     let SharedJson::Object(fields) = value.as_ref() else {
         return 0;
     };
-    let outer_shared = Arc::strong_count(value) > 1;
+    let outer_shared = Shared::strong_count(value) > 1;
     let mut allocation = if outer_shared {
         size_of::<SharedJson>()
     } else {
         0
     };
-    if outer_shared || Arc::strong_count(fields) > 1 {
-        allocation = allocation.saturating_add(size_of::<BTreeMap<String, Arc<SharedJson>>>());
+    if outer_shared || Shared::strong_count(fields) > 1 {
+        allocation = allocation.saturating_add(size_of::<BTreeMap<String, Shared<SharedJson>>>());
         for existing_key in fields.keys() {
             allocation = allocation
                 .saturating_add(size_of::<String>() + existing_key.len())
-                .saturating_add(size_of::<Arc<SharedJson>>() * 3);
+                .saturating_add(size_of::<Shared<SharedJson>>() * 3);
         }
     }
     allocation
         .saturating_add(size_of::<String>() + key.len())
-        .saturating_add(size_of::<Arc<SharedJson>>() * 3)
+        .saturating_add(size_of::<Shared<SharedJson>>() * 3)
 }
 
 #[inline]
@@ -7828,11 +7895,37 @@ mod tests {
     }
 
     #[test]
+    fn allocation_pool_charges_the_same_whether_or_not_it_is_shared() {
+        let pool = Arc::new(AllocationPool::new(100));
+        assert!(pool.take(60, 0));
+        assert!(!pool.take(41, 0));
+        assert!(!pool.take(31, 10));
+        pool.give_back(20);
+        assert_eq!(pool.remaining(), 60);
+
+        pool.begin_sharing();
+        let workers: Vec<_> = (0..4)
+            .map(|_| {
+                let pool = Arc::clone(&pool);
+                std::thread::spawn(move || (0..20).filter(|_| pool.take(1, 0)).count())
+            })
+            .collect();
+        let taken: usize = workers
+            .into_iter()
+            .map(|worker| worker.join().unwrap())
+            .sum();
+        pool.end_sharing();
+        assert_eq!(taken, 60);
+        assert_eq!(pool.remaining(), 0);
+        assert!(!pool.take(1, 0));
+    }
+
+    #[test]
     fn parallel_worker_instruction_fuel_remains_directly_atomic() {
         let parent = Budget::new(10, usize::MAX, CancellationToken::new(), None);
         let worker = Budget {
             remaining: AtomicU64::new(3),
-            allocation_remaining: parent.allocation_remaining.clone(),
+            allocation: parent.allocation.clone(),
             allocation_floor: 0,
             cancellation: parent.cancellation.clone(),
             local_cancellation: Some(Arc::new(AtomicBool::new(false))),
@@ -8267,11 +8360,11 @@ mod tests {
             Type::Int,
             4,
             vec![
-                Op::Const(Value::Map(Arc::new(entries))),
+                Op::Const(Value::Map(Shared::new(entries))),
                 Op::Store(0),
                 Op::Const(Value::Text("key".into())),
                 Op::Store(1),
-                Op::Const(Value::List(Arc::new(vec![int(5)]))),
+                Op::Const(Value::List(Shared::new(vec![int(5)]))),
                 Op::Store(2),
                 Op::Const(int(0)),
                 Op::Store(3),
@@ -8350,7 +8443,7 @@ mod tests {
             (
                 outcome,
                 budget.remaining.load(Ordering::Relaxed),
-                budget.allocation_remaining.load(Ordering::Relaxed),
+                budget.allocation.remaining(),
             )
         };
         for limit in 0..50 {
@@ -8372,6 +8465,228 @@ mod tests {
         }
         assert!(exhausted, "a small allocation budget must be exhausted");
         assert_eq!(run(Some(tables), 1000, 1 << 20).0, Ok(int(7)));
+    }
+
+    #[test]
+    fn register_text_operations_match_plain_execution_at_every_limit() {
+        let int = |value| Value::Int(BigInt::from_i64(value));
+        let text = |value: &str| Value::Text(SharedText::from(value));
+        let ops = vec![
+            // lines = []; line = "  a" + "," + "b  "; push it twice, once from the local
+            Op::Const(Value::List(Shared::new(vec![]))),
+            Op::Store(0),
+            Op::Const(text("  a")),
+            Op::Const(text(",")),
+            Op::Add,
+            Op::Const(text("b  ")),
+            Op::Add,
+            Op::Store(1),
+            Op::Load(1),
+            Op::ListPushLocal(0),
+            Op::Load(1),
+            Op::Const(text("!")),
+            Op::Add,
+            Op::ListPushLocal(0),
+            // fields = text_split(lines[1], ","); total = len(trim(fields[0])) + len(trim(fields[1]))
+            Op::Load(0),
+            Op::Const(int(1)),
+            Op::Index,
+            Op::Const(text(",")),
+            Op::TextSplit,
+            Op::Store(2),
+            Op::Load(2),
+            Op::Const(int(0)),
+            Op::Index,
+            Op::TextTrim,
+            Op::Length,
+            Op::Load(2),
+            Op::Const(int(1)),
+            Op::Index,
+            Op::TextTrim,
+            Op::Length,
+            Op::Add,
+            Op::Store(3),
+            // set s = s + "x" keeps appending in place through the stack interpreter
+            Op::Load(1),
+            Op::Const(text("x")),
+            Op::Add,
+            Op::Store(1),
+            // total = total + text_find(s, "b", 0) + text_find(s, "zz", 1) + len(lines)
+            Op::Load(3),
+            Op::Load(1),
+            Op::Const(text("b")),
+            Op::Const(int(0)),
+            Op::TextFind,
+            Op::Add,
+            Op::Load(1),
+            Op::Const(text("zz")),
+            Op::Const(int(1)),
+            Op::TextFind,
+            Op::Add,
+            Op::Load(0),
+            Op::Length,
+            Op::Add,
+            // slices and scalars of ASCII and non-ASCII text, including a whole-text slice
+            Op::Load(1),
+            Op::Const(int(2)),
+            Op::Const(int(5)),
+            Op::TextSlice,
+            Op::Length,
+            Op::Add,
+            Op::Const(text("héllo")),
+            Op::Const(int(1)),
+            Op::Const(int(3)),
+            Op::TextSlice,
+            Op::Length,
+            Op::Add,
+            Op::Const(text("héllo")),
+            Op::Const(int(0)),
+            Op::Const(int(5)),
+            Op::TextSlice,
+            Op::Length,
+            Op::Add,
+            Op::Const(text("héllo")),
+            Op::Const(int(1)),
+            Op::Index,
+            Op::Length,
+            Op::Add,
+            Op::Load(1),
+            Op::Const(int(2)),
+            Op::Index,
+            Op::Length,
+            Op::Add,
+            Op::Return,
+        ];
+        let artifact = Arc::new(Artifact {
+            format_version: Artifact::CURRENT_VERSION,
+            build_metadata: None,
+            compiled_source_sha256: None,
+            source_name: "register-text-test.gu".into(),
+            sources: vec![],
+            entry: "main".into(),
+            functions: vec![guion_model::Function {
+                name: "main".into(),
+                parameters: vec![],
+                result: Type::Int,
+                local_count: 4,
+                code: ops
+                    .into_iter()
+                    .enumerate()
+                    .map(|(index, op)| Instruction {
+                        op,
+                        span: Span {
+                            source_id: 0,
+                            start: index,
+                            end: index + 1,
+                            line: index + 1,
+                            column: 1,
+                        },
+                    })
+                    .collect(),
+            }],
+            externals: vec![],
+            records: vec![],
+        });
+        let tables = Arc::new(build_register_programs(&artifact));
+        for kind in [
+            "Add",
+            "Index",
+            "TextSplit",
+            "TextSlice",
+            "TextTrim",
+            "TextFind",
+            "ListPush",
+        ] {
+            assert!(
+                tables
+                    .get(0, &artifact.functions[0])
+                    .unwrap()
+                    .has_kind(kind),
+                "the test program must reach {kind}"
+            );
+        }
+        let run = |registers: Option<Arc<RegisterPrograms>>, instructions: u64, bytes: usize| {
+            let mut host = RegisterTestHost {
+                artifact: Arc::clone(&artifact),
+                registers,
+            };
+            let budget = Arc::new(Budget::new(
+                instructions,
+                bytes,
+                CancellationToken::new(),
+                None,
+            ));
+            let frame = new_vm_frame(&artifact, 0, vec![], 1, None);
+            let outcome = match run_frames(&mut host, frame, Arc::clone(&budget)) {
+                Ok(value) => Ok(value),
+                Err(error) => Err((error.code, error.trace)),
+            };
+            (
+                outcome,
+                budget.remaining.load(Ordering::Relaxed),
+                budget.allocation.remaining(),
+            )
+        };
+        for limit in 0..110 {
+            let plain = run(None, limit, 1 << 20);
+            let registers = run(Some(Arc::clone(&tables)), limit, 1 << 20);
+            assert_eq!(plain, registers, "instruction limit {limit}");
+        }
+        let mut exhausted = false;
+        for bytes in 0..800 {
+            let plain = run(None, 1000, bytes);
+            let registers = run(Some(Arc::clone(&tables)), 1000, bytes);
+            assert_eq!(
+                (&plain.0, plain.2),
+                (&registers.0, registers.2),
+                "allocation limit {bytes}"
+            );
+            exhausted |= plain.0.is_err();
+        }
+        assert!(exhausted, "a small allocation budget must be exhausted");
+        // "a" + "b  !" = 5, "  a,b  x" has "b" at 4, "zz" is absent, two lines; then the
+        // slices "a,b", "él" and "héllo" and the scalars "é" and "a".
+        assert_eq!(
+            run(Some(tables), 1000, 1 << 20).0,
+            Ok(int(5 + 4 - 1 + 2 + 3 + 2 + 5 + 1 + 1))
+        );
+    }
+
+    #[test]
+    fn text_scalar_range_agrees_with_a_scalar_walk() {
+        for sample in [
+            "",
+            "a",
+            "plain ascii",
+            "héllo wörld",
+            "日本語テキスト",
+            "a😀b",
+        ] {
+            let text = SharedText::from(sample);
+            let scalars: Vec<usize> = sample
+                .char_indices()
+                .map(|(byte, _)| byte)
+                .chain([sample.len()])
+                .collect();
+            let length = scalars.len() - 1;
+            for start in 0..=length + 1 {
+                for end in start..=length + 2 {
+                    let expected = (end <= length).then(|| (scalars[start], scalars[end]));
+                    assert_eq!(
+                        text_scalar_range(&text, start, end),
+                        expected,
+                        "{sample:?} {start}..{end}"
+                    );
+                }
+            }
+            for index in 0..=length {
+                assert_eq!(
+                    text_scalar_at(&text, index).map(|scalar| scalar.to_string()),
+                    sample.chars().nth(index).map(String::from),
+                    "{sample:?} [{index}]"
+                );
+            }
+        }
     }
 
     #[test]
@@ -8398,7 +8713,7 @@ mod tests {
             max_collection_items: 2,
             ..VmLimits::default()
         };
-        let record = |fields: Vec<Value>| Value::Record("Row".into(), Arc::new(fields));
+        let record = |fields: Vec<Value>| Value::Record("Row".into(), Shared::new(fields));
         let text = |text: &str| Value::Text(SharedText::from(text));
         let int = |value: i64| Value::Int(BigInt::from_i64(value));
         let cases = [
@@ -8408,11 +8723,11 @@ mod tests {
             record(vec![int(1), text("too long")]),
             record(vec![
                 Value::OptionNone,
-                Value::Json(Arc::new(SharedJson::Null)),
+                Value::Json(Shared::new(SharedJson::Null)),
             ]),
             record(vec![record(vec![text("too long")])]),
             record(vec![Value::OptionSome(Box::new(int(12345)))]),
-            record(vec![Value::List(Arc::new(vec![int(1), int(2), int(3)]))]),
+            record(vec![Value::List(Shared::new(vec![int(1), int(2), int(3)]))]),
         ];
         for value in cases {
             let code = |error: Option<RuntimeError>| error.map(|error| error.code);
@@ -8437,7 +8752,7 @@ mod tests {
         )))));
         assert_eq!(cloned_value_allocation(&text), 0);
         assert_eq!(cloned_value_allocation(&wrapped), 3 * size_of::<Value>());
-        let record = Value::Record("Row".into(), Arc::new(vec![]));
+        let record = Value::Record("Row".into(), Shared::new(vec![]));
         assert_eq!(
             cloned_value_allocation(&Value::ResultOk(Box::new(record.clone()))),
             size_of::<Value>() + cloned_value_allocation(&record)

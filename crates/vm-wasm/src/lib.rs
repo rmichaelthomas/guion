@@ -8,7 +8,9 @@
 //! The exported ABI is the one the AllHereHTML loader already consumes.
 
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
-use guion_model::{Artifact, BigInt, Float64, RecordDefinition, SharedJson, TextMap, Value};
+use guion_model::{
+    Artifact, BigInt, Float64, RecordDefinition, Shared, SharedJson, TextMap, Value,
+};
 use guion_vm_core::{PortableHost, VmLimits};
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
@@ -640,7 +642,7 @@ fn decode_wire_value(
             if bytes.len() > MAX_WIRE_VALUE_BYTES {
                 return Err(AbiFailure::new("E_ABI_LIMIT", "byte value is too large"));
             }
-            Ok(Value::Bytes(Arc::new(bytes)))
+            Ok(Value::Bytes(Shared::new(bytes)))
         }
         WireValue::Unit => Ok(Value::Unit),
         WireValue::List(items) => {
@@ -677,7 +679,7 @@ fn decode_wire_value(
                 let value = decode_wire_value(entry.value, records, depth + 1, nodes)?;
                 values.insert(entry.key, value);
             }
-            Ok(Value::Map(Arc::new(values)))
+            Ok(Value::Map(Shared::new(values)))
         }
         WireValue::Record(record) => {
             check_string(&record.name)?;
@@ -709,7 +711,7 @@ fn decode_wire_value(
                 }
                 values.push(decode_wire_value(field.value, records, depth + 1, nodes)?);
             }
-            Ok(Value::Record(record.name.into(), Arc::new(values)))
+            Ok(Value::Record(record.name.into(), Shared::new(values)))
         }
         WireValue::OptionNone => Ok(Value::OptionNone),
         WireValue::OptionSome(value) => Ok(Value::OptionSome(Box::new(decode_wire_value(
@@ -1051,16 +1053,16 @@ mod typed_abi_tests {
             Value::Float64(Float64::new(-123.5).unwrap()),
             Value::Bool(false),
             Value::Text("hello 🌱".into()),
-            Value::Bytes(Arc::new(vec![0, 1, 127, 255])),
+            Value::Bytes(Shared::new(vec![0, 1, 127, 255])),
             Value::Unit,
             Value::from_list_items(vec![
                 Value::Int(BigInt::from_i64(1)),
                 Value::Int(BigInt::from_i64(2)),
             ]),
-            Value::Map(Arc::new(map)),
+            Value::Map(Shared::new(map)),
             Value::Record(
                 "Card".into(),
-                Arc::new(vec![
+                Shared::new(vec![
                     Value::Text("A title".into()),
                     Value::Int(BigInt::from_i64(7)),
                 ]),

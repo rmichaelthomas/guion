@@ -1,0 +1,9 @@
+
+ Performance counter stats for '/home/runner/work/guion/guion/target/pgo/guion run fused.gub --events performance-inputs/events.jsonl --output summary.json --services performance-inputs/services.txt' (5 runs):
+
+            594.17 msec task-clock                                                              ( +-  1.28% )
+              1317      page-faults                                                             ( +-  0.07% )
+                10      context-switches                                                        ( +-  9.80% )
+
+       0.595931231 +- 0.007576041 seconds time elapsed  ( +-  1.27% )
+

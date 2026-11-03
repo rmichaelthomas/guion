@@ -1,0 +1,92 @@
+# To display the perf.data header info, please use --header/--header-only options.
+#
+#
+# Total Lost Samples: 0
+#
+# Samples: 3K of event 'cpu-clock'
+# Event count (approx.): 795759120
+#
+# Overhead  Source:Line               
+# ........  ..........................
+#
+     3.75%  atomic.rs:4045
+     2.99%  mod.rs:825
+     2.54%  mut_ptr.rs:961
+     2.46%  lib.rs:0
+     2.16%  register.rs:1077
+     2.09%  mod.rs:1933
+     2.09%  non_null.rs:441
+     2.01%  lse.S:154
+     1.73%  pool_alloc.rs:216
+     1.53%  lib.rs:3521
+     1.41%  lib.rs:3516
+     1.36%  lib.rs:2091
+     1.28%  register.rs:0
+     1.16%  lib.rs:5009
+     1.16%  mod.rs:1830
+     1.13%  generated.rs:5397
+     1.11%  mod.rs:930
+     1.01%  mod.rs:0
+     0.96%  lse.S:252
+     0.96%  mod.rs:614
+     0.96%  mod.rs:767
+     0.96%  pool_alloc.rs:144
+     0.93%  lib.rs:5662
+     0.90%  index.rs:272
+     0.90%  pool_alloc.rs:142
+     0.88%  mod.rs:1864
+     0.80%  mod.rs:75
+     0.73%  lib.rs:5700
+     0.73%  mod.rs:1733
+     0.73%  option.rs:2138
+     0.73%  shared.rs:67
+     0.70%  boxed.rs:289
+     0.70%  cmp.rs:21
+     0.70%  lib.rs:4926
+     0.68%  lib.rs:5091
+     0.68%  shared.rs:82
+     0.65%  lib.rs:5488
+     0.60%  lib.rs:5589
+     0.60%  macros.rs:180
+     0.60%  maybe_uninit.rs:574
+     0.58%  lib.rs:5175
+     0.58%  macros.rs:0
+     0.55%  lib.rs:2583
+     0.55%  option.rs:742
+     0.53%  lib.rs:3530
+     0.53%  search.rs:226
+     0.53%  stdlib_services.rs:270
+     0.48%  main.rs:19
+     0.48%  pool_alloc.rs:212
+     0.48%  register.rs:957
+     0.48%  result.rs:2173
+     0.45%  lib.rs:4858
+     0.45%  lib.rs:5595
+     0.45%  lib.rs:7256
+     0.45%  register.rs:949
+     0.43%  lib.rs:859
+     0.43%  option.rs:1580
+     0.43%  search.rs:225
+     0.40%  lib.rs:5037
+     0.40%  lib.rs:789
+     0.40%  nonzero.rs:644
+     0.40%  register.rs:1482
+     0.38%  mod.rs:3054
+     0.38%  mod.rs:551
+     0.38%  register.rs:935
+     0.38%  result.rs:2174
+     0.38%  shared.rs:0
+     0.35%  mod.rs:2844
+     0.35%  mod.rs:931
+     0.35%  option.rs:633
+     0.35%  stdlib_services.rs:0
+     0.33%  lib.rs:5539
+     0.33%  pool_alloc.rs:143
+     0.33%  read.rs:512
+     0.30%  pool_alloc.rs:211
+     0.30%  uint_macros.rs:2428
+
+
+#
+# (Cannot load tips.txt file, please install perf!)
+#

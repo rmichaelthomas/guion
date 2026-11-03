@@ -1,0 +1,70 @@
+# To display the perf.data header info, please use --header/--header-only options.
+#
+#
+# Total Lost Samples: 0
+#
+# Samples: 749  of event 'cpu-clock'
+# Event count (approx.): 149829960
+#
+# Overhead  Shared Object          Symbol                                          IPC   [IPC Coverage]
+# ........  .....................  ..............................................  ....................
+#
+     6.41%  python3.14             [.] _TAIL_CALL_BINARY_OP_SUBSCR_DICT            -      -            
+     6.28%  python3.14             [.] parse_process_char                          -      -            
+     6.14%  python3.14             [.] PyLong_FromString                           -      -            
+     5.74%  python3.14             [.] _PyObject_Free                              -      -            
+     5.21%  python3.14             [.] _PyObject_Malloc                            -      -            
+     4.14%  python3.14             [.] _PyUnicode_FromUCS4                         -      -            
+     3.34%  python3.14             [.] _PyDict_SetItem_Take2                       -      -            
+     3.07%  python3.14             [.] _TAIL_CALL_STORE_FAST                       -      -            
+     2.94%  python3.14             [.] _textiowrapper_readline                     -      -            
+     2.80%  python3.14             [.] PyDict_Contains                             -      -            
+     2.80%  python3.14             [.] _TAIL_CALL_LOAD_GLOBAL_BUILTIN              -      -            
+     2.27%  python3.14             [.] _TAIL_CALL_CALL_BUILTIN_CLASS               -      -            
+     2.00%  python3.14             [.] PyUnicode_New                               -      -            
+     1.87%  python3.14             [.] _TAIL_CALL_BINARY_OP_ADD_INT                -      -            
+     1.74%  python3.14             [.] _TAIL_CALL_BINARY_OP_SUBSCR_LIST_INT        -      -            
+     1.74%  python3.14             [.] long_vectorcall                             -      -            
+     1.74%  python3.14             [.] parse_add_char                              -      -            
+     1.47%  libc.so.6              [.] memcmp                                      -      -            
+     1.47%  python3.14             [.] PyList_Append                               -      -            
+     1.47%  python3.14             [.] parse_save_field                            -      -            
+     1.34%  python3.14             [.] long_dealloc                                -      -            
+     1.20%  python3.14             [.] PyUnicode_AsUTF8AndSize                     -      -            
+     1.07%  python3.14             [.] PyUnicode_FromKindAndData                   -      -            
+     1.07%  python3.14             [.] Reader_iternext_lock_held                   -      -            
+     1.07%  python3.14             [.] _TAIL_CALL_COMPARE_OP_STR                   -      -            
+     0.93%  python3.14             [.] _PyObject_Realloc                           -      -            
+     0.93%  python3.14             [.] _PyUnicode_FromASCII                        -      -            
+     0.93%  python3.14             [.] _TAIL_CALL_LOAD_FAST                        -      -            
+     0.93%  python3.14             [.] list_dealloc                                -      -            
+     0.80%  python3.14             [.] PyObject_Free                               -      -            
+     0.80%  python3.14             [.] PyType_GetModuleByDef                       -      -            
+     0.80%  python3.14             [.] _TAIL_CALL_COMPARE_OP_INT                   -      -            
+     0.80%  python3.14             [.] _TAIL_CALL_LOAD_CONST_MORTAL                -      -            
+     0.80%  python3.14             [.] _TAIL_CALL_LOAD_FAST_LOAD_FAST              -      -            
+     0.80%  python3.14             [.] _TAIL_CALL_POP_JUMP_IF_TRUE                 -      -            
+     0.80%  python3.14             [.] _TAIL_CALL_SWAP                             -      -            
+     0.67%  [kernel.kallsyms]      [k] __arch_copy_to_user                         -      -            
+     0.67%  python3.14             [.] PyIter_Next                                 -      -            
+     0.67%  python3.14             [.] PyList_New                                  -      -            
+     0.67%  python3.14             [.] _TAIL_CALL_CALL_LEN                         -      -            
+     0.67%  python3.14             [.] _TAIL_CALL_COPY                             -      -            
+     0.67%  python3.14             [.] _TAIL_CALL_POP_JUMP_IF_FALSE                -      -            
+     0.67%  python3.14             [.] _TAIL_CALL_STORE_SUBSCR_DICT                -      -            
+     0.67%  python3.14             [.] unicode_dealloc                             -      -            
+     0.53%  [kernel.kallsyms]      [k] __pi_clear_page                             -      -            
+     0.53%  python3.14             [.] _Py_Dealloc                                 -      -            
+     0.53%  python3.14             [.] _TAIL_CALL_LOAD_CONST_IMMORTAL              -      -            
+     0.53%  python3.14             [.] _TAIL_CALL_LOAD_SMALL_INT                   -      -            
+     0.53%  python3.14             [.] pysiphash                                   -      -            
+     0.53%  python3.14             [.] r_object                                    -      -            
+     0.40%  python3.14             [.] PyLong_FromUnicodeObject                    -      -            
+     0.40%  python3.14             [.] _textiowrapper_writeflush                   -      -            
+     0.40%  python3.14             [.] textiowrapper_iternext                      -      -            
+     0.40%  python3.14             [.] visit_reachable                             -      -            
+
+
+#
+# (Cannot load tips.txt file, please install perf!)
+#
