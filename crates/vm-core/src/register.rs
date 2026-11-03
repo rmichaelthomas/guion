@@ -1570,79 +1570,23 @@ pub(super) fn run_registers<H: VmHost>(
                 pc += 1;
             }
             Kind::MapAddLocal { unwrap } => {
-                let Src::Local(slot) = instruction.a else {
+                let Value::Text(key) = read!(instruction.b) else {
                     exit!()
                 };
-                if !matches!(locals[slot as usize], Value::Map(_)) {
+                let hash = key_hash(key);
+                if !add_to_map_entry(
+                    program,
+                    instruction,
+                    unwrap,
+                    hash,
+                    locals,
+                    stack,
+                    fuel,
+                    budget,
+                    limits,
+                ) {
                     exit!();
                 }
-                let Value::Map(mut map) =
-                    std::mem::replace(&mut locals[slot as usize], Value::Unit)
-                else {
-                    unreachable!("the local was checked just above")
-                };
-                macro_rules! leave {
-                    () => {{
-                        locals[slot as usize] = Value::Map(map);
-                        exit!()
-                    }};
-                }
-                let addend = match (read_operand(program, locals, stack, instruction.c), unwrap) {
-                    (Some(Value::ResultOk(payload) | Value::OptionSome(payload)), true) => {
-                        payload.as_ref()
-                    }
-                    (Some(value), false) => value,
-                    _ => leave!(),
-                };
-                let Some(addend) = (match addend {
-                    Value::Int(addend) => addend.small(),
-                    _ => None,
-                }) else {
-                    leave!()
-                };
-                let existing = {
-                    let key = match read_operand(program, locals, stack, instruction.b) {
-                        Some(Value::Text(key)) if key.len() <= limits.max_text_bytes => key,
-                        _ => leave!(),
-                    };
-                    let hash = key_hash(key);
-                    Shared::get_mut(&mut map)
-                        .and_then(|entries| entries.get_mut_hashed(hash, key.as_ref()))
-                };
-                let Some(existing) = existing else { leave!() };
-                let Some(sum) = (match existing {
-                    Value::Int(current) => current
-                        .small()
-                        .and_then(|current| current.checked_add(addend)),
-                    _ => None,
-                }) else {
-                    leave!()
-                };
-                if fuel.remaining < u64::from(instruction.fuel) {
-                    leave!();
-                }
-                let mut charge = 0usize;
-                for source in &program.charges
-                    [instruction.charges_start as usize..instruction.charges_end as usize]
-                {
-                    let value = match *source {
-                        // The map itself charges nothing, and it is out of its local here.
-                        Src::Local(charged) if charged == slot => continue,
-                        Src::Local(charged) => &locals[charged as usize],
-                        Src::Const(index) => &program.consts[index as usize],
-                        Src::Stack(_) => unreachable!("charges only name locals and constants"),
-                    };
-                    charge = charge.saturating_add(cloned_value_allocation_fast(value));
-                }
-                if charge != 0 && !budget.allocate(charge) {
-                    leave!();
-                }
-                fuel.remaining -= u64::from(instruction.fuel);
-                drop_value_fast(std::mem::replace(
-                    existing,
-                    Value::Int(BigInt::from_i64(sum)),
-                ));
-                locals[slot as usize] = Value::Map(map);
                 pc += 1;
             }
             Kind::Length => {
@@ -2022,6 +1966,83 @@ fn new_text(text: SharedText) -> (usize, Value) {
         size_of::<String>().saturating_add(text.len()),
         Value::Text(text),
     )
+}
+
+/// `Kind::MapAddLocal`, out of the dispatch loop: true when the entry was updated and the
+/// range charged; false, with nothing changed, when the stack interpreter must run it.
+#[inline(never)]
+#[allow(clippy::too_many_arguments)]
+fn add_to_map_entry(
+    program: &RegisterProgram,
+    instruction: &Instr,
+    unwrap: bool,
+    hash: u64,
+    locals: &mut [Value],
+    stack: &[Value],
+    fuel: &mut InstructionFuel<'_>,
+    budget: &Budget,
+    limits: &VmLimits,
+) -> bool {
+    let Src::Local(slot) = instruction.a else {
+        return false;
+    };
+    if !matches!(locals[slot as usize], Value::Map(_)) {
+        return false;
+    }
+    // Out of the local so the key and addend can still be read from the others.
+    let Value::Map(mut map) = std::mem::replace(&mut locals[slot as usize], Value::Unit) else {
+        unreachable!("the local was checked just above")
+    };
+    let mut update = || -> Option<()> {
+        let addend = match (read_operand(program, locals, stack, instruction.c)?, unwrap) {
+            (Value::ResultOk(payload) | Value::OptionSome(payload), true) => payload.as_ref(),
+            (value, false) => value,
+            _ => return None,
+        };
+        let Value::Int(addend) = addend else {
+            return None;
+        };
+        let addend = addend.small()?;
+        let Value::Text(key) = read_operand(program, locals, stack, instruction.b)? else {
+            return None;
+        };
+        if key.len() > limits.max_text_bytes {
+            return None;
+        }
+        let existing = Shared::get_mut(&mut map)?.get_mut_hashed(hash, key.as_ref())?;
+        let Value::Int(current) = existing else {
+            return None;
+        };
+        let sum = current.small()?.checked_add(addend)?;
+        if fuel.remaining < u64::from(instruction.fuel) {
+            return None;
+        }
+        let mut charge = 0usize;
+        for source in
+            &program.charges[instruction.charges_start as usize..instruction.charges_end as usize]
+        {
+            let value = match *source {
+                // The map itself charges nothing, and it is out of its local here.
+                Src::Local(charged) if charged == slot => continue,
+                Src::Local(charged) => &locals[charged as usize],
+                Src::Const(index) => &program.consts[index as usize],
+                Src::Stack(_) => unreachable!("charges only name locals and constants"),
+            };
+            charge = charge.saturating_add(cloned_value_allocation_fast(value));
+        }
+        if charge != 0 && !budget.allocate(charge) {
+            return None;
+        }
+        fuel.remaining -= u64::from(instruction.fuel);
+        drop_value_fast(std::mem::replace(
+            existing,
+            Value::Int(BigInt::from_i64(sum)),
+        ));
+        Some(())
+    };
+    let updated = update().is_some();
+    locals[slot as usize] = Value::Map(map);
+    updated
 }
 
 #[inline(never)]
