@@ -822,7 +822,7 @@
 <div class="reason-main">
 <h3>A claim should survive contact.</h3>
 <p class="v-plain">Every number on this page says which program it measured, on which machine, and what it does not tell you. Then it points at the file it came from, so you can check.</p>
-<p class="v-dev">14 receipts, each with workload, host, interval, scope limit, and linked report and raw-sample files. A build step fails if a figure on this page is not in the file it cites.</p>
+<p class="v-dev">10 receipts, each with workload, host, interval, scope limit, and linked report and raw-sample files. A build step fails if a figure on this page is not in the file it cites.</p>
 </div>
 <aside class="marginalia v-dev"><span class="smallcaps">Margin note</span><p>Files are copied byte for byte to the <a href="../evidence/">evidence page</a> with their SHA-256.</p></aside>
 </li>
@@ -1102,25 +1102,25 @@ hosts = [&quot;api.example.test&quot;]
 </div>
 <div class="receipts-top">
 <figure class="ratio-figure" data-ahi="ahi.relationships-diagrams.comparison-bridge">
-<svg class="ratio-chart" viewBox="0 0 960 772" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="ratio-title ratio-desc">
+<svg class="ratio-chart" viewBox="0 0 960 600" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="ratio-title ratio-desc">
 <title id="ratio-title">Guion's time as a fraction of the comparison's time, on a log scale</title>
 <desc id="ratio-desc">Each dot is the ratio of Guion's median time to the comparison's, with its 95% interval as a line. A dot left of the dashed line means Guion took less time; right of it means Guion took more.</desc>
-<rect class="band-fast" x="360" y="46" width="465.07" height="668"/>
-<rect class="band-slow" x="825.07" y="46" width="94.93" height="668"/>
+<rect class="band-fast" x="360" y="46" width="465.07" height="496"/>
+<rect class="band-slow" x="825.07" y="46" width="94.93" height="496"/>
 <text class="band-label" x="815.07" y="34" text-anchor="end">← Guion faster</text>
 <text class="band-label" x="835.07" y="34">Guion slower →</text>
-<line class="grid" x1="360" x2="360" y1="46" y2="732"/>
-<text class="tick" x="360" y="752" text-anchor="middle">0.1×</text>
-<line class="grid" x1="500" x2="500" y1="46" y2="732"/>
-<text class="tick" x="500" y="752" text-anchor="middle">0.2×</text>
-<line class="grid" x1="685.07" x2="685.07" y1="46" y2="732"/>
-<text class="tick" x="685.07" y="752" text-anchor="middle">0.5×</text>
-<line class="grid" x1="825.07" x2="825.07" y1="46" y2="732"/>
-<text class="tick" x="825.07" y="752" text-anchor="middle">1×</text>
-<line class="grid" x1="906.96" x2="906.96" y1="46" y2="732"/>
-<text class="tick" x="906.96" y="752" text-anchor="middle">1.5×</text>
-<line data-reference="1" class="reference" x1="825.07" x2="825.07" y1="42" y2="732"/>
-<text class="reference-label" x="825.07" y="768" text-anchor="middle">same time as Python</text>
+<line class="grid" x1="360" x2="360" y1="46" y2="560"/>
+<text class="tick" x="360" y="580" text-anchor="middle">0.1×</text>
+<line class="grid" x1="500" x2="500" y1="46" y2="560"/>
+<text class="tick" x="500" y="580" text-anchor="middle">0.2×</text>
+<line class="grid" x1="685.07" x2="685.07" y1="46" y2="560"/>
+<text class="tick" x="685.07" y="580" text-anchor="middle">0.5×</text>
+<line class="grid" x1="825.07" x2="825.07" y1="46" y2="560"/>
+<text class="tick" x="825.07" y="580" text-anchor="middle">1×</text>
+<line class="grid" x1="906.96" x2="906.96" y1="46" y2="560"/>
+<text class="tick" x="906.96" y="580" text-anchor="middle">1.5×</text>
+<line data-reference="1" class="reference" x1="825.07" x2="825.07" y1="42" y2="560"/>
+<text class="reference-label" x="825.07" y="596" text-anchor="middle">same time as Python</text>
 <text class="group" x="20" y="82">Guion faster</text>
 <g class="row row-fast">
 <text class="row-label" x="326" y="117" text-anchor="end">Parallel CPU, 200,000 items</text>
@@ -1199,31 +1199,6 @@ hosts = [&quot;api.example.test&quot;]
 <line class="whisker" x1="812.57" x2="818.29" y1="521" y2="521"/>
 <circle data-id="gate-text-x86" class="dot dot-fast" cx="815.56" cy="521" r="6.5"/>
 <text class="value" x="830.29" y="525">0.954×</text>
-</g>
-<text class="group" x="20" y="560">Guion slower</text>
-<g class="row row-slow">
-<text class="row-label" x="326" y="595" text-anchor="end">NumPy call, raw bytes, vs the same Python function</text>
-<line class="whisker" x1="825.27" x2="830.45" y1="591" y2="591"/>
-<circle data-id="bridge-bytes-pkg" class="dot dot-slow" cx="830.06" cy="591" r="6.5"/>
-<text class="value" x="842.45" y="595">1.025×</text>
-</g>
-<g class="row row-slow">
-<text class="row-label" x="326" y="629" text-anchor="end">NumPy call, fewer copies, vs the same Python function</text>
-<line class="whisker" x1="845.42" x2="853.12" y1="625" y2="625"/>
-<circle data-id="bridge-ser-pkg" class="dot dot-slow" cx="849.58" cy="625" r="6.5"/>
-<text class="value" x="865.12" y="629">1.129×</text>
-</g>
-<g class="row row-slow">
-<text class="row-label" x="326" y="663" text-anchor="end">NumPy call, raw bytes, vs standard-library Python</text>
-<line class="whisker" x1="863.74" x2="867.54" y1="659" y2="659"/>
-<circle data-id="bridge-bytes-std" class="dot dot-slow" cx="865.23" cy="659" r="6.5"/>
-<text class="value" x="879.54" y="663">1.220×</text>
-</g>
-<g class="row row-slow">
-<text class="row-label" x="326" y="697" text-anchor="end">NumPy call, fewer copies, vs standard-library Python</text>
-<line class="whisker" x1="889.1" x2="899" y1="693" y2="693"/>
-<circle data-id="bridge-ser-std" class="dot dot-slow" cx="893.89" cy="693" r="6.5"/>
-<text class="value" x="911" y="697">1.406×</text>
 </g>
 </svg>
 <figcaption class="caption"><span class="v-plain">Each dot is how long Guion took divided by how long the comparison took. Left of the dashed line is faster. The line through each dot is its 95% interval. Different machines, programs and Python versions would move every dot.</span><span class="v-dev">Log scale, 0.1× to 1.6×. Comparison and sample counts are on each receipt. Hosts: GitHub's x86_64 and ARM64 Linux runners for the rows marked server, against the uv standalone CPython 3.14.7; one Apple Silicon Mac, macOS 27, with CPython 3.14.7 for the rest unless a receipt says otherwise.</span></figcaption>
@@ -1352,63 +1327,19 @@ hosts = [&quot;api.example.test&quot;]
 
 <section class="section shell" id="python">
 <div class="sectionhead">
-<div><p class="overline">07 / The other side</p><h2>Where Python<br><span class="serif">still wins.</span></h2></div>
-<p class="v-plain">A language that only talks about its wins is selling something. Here is where the evidence stops, and where Python is the safer choice today.</p>
-<p class="v-dev">Counter-evidence and open outcomes, with the same receipts.</p>
+<div><p class="overline">07 / The other side</p><h2>Where Python<br><span class="serif">still leads.</span></h2></div>
+<p class="v-plain">Python has a long head start. Here is where it still leads today, and the work planned to close each gap.</p>
+<p class="v-dev">Open gaps, the planned work for each, and the remaining counter-evidence.</p>
 </div>
 <div class="python-grid">
 <div class="python-says">
-<div class="ahi"><section id="slot-python-accordion-ecosystem" class="instrument family-reveals-discoveries renderer-accordion interaction-details" data-ahi="ahi.reveals-discoveries.accordion" data-ahi-renderer="accordion" data-ahi-element="details" data-ahi-version="1"><details data-ahi-semantic="details" class="accordion native-accordion"><summary>Packages and ecosystem</summary><section class="accordion-content"><div><p>Guion can call Python libraries such as NumPy through a typed bridge, and the packages tested so far work. Broad package compatibility is still open, so for a project that leans on many libraries, Python is the safer choice today.</p></div><p>The bridge is an explicit typed call. It is not transparent Python compatibility.</p></section></details></section></div>
-<div class="ahi"><section id="slot-python-accordion-bridge" class="instrument family-reveals-discoveries renderer-accordion interaction-details" data-ahi="ahi.reveals-discoveries.accordion" data-ahi-renderer="accordion" data-ahi-element="details" data-ahi-version="1"><details data-ahi-semantic="details" class="accordion native-accordion"><summary>Calling NumPy from Guion</summary><section class="accordion-content"><div><p>On the one 100,000-row task measured, Guion took 1.025 times as long as the same function called from Python.</p></div><p>Sending raw bytes instead of text closed most of the gap. Not all of it.</p></section></details></section></div>
-<div class="ahi"><section id="slot-python-accordion-release" class="instrument family-reveals-discoveries renderer-accordion interaction-details" data-ahi="ahi.reveals-discoveries.accordion" data-ahi-renderer="accordion" data-ahi-element="details" data-ahi-version="1"><details data-ahi-semantic="details" class="accordion native-accordion"><summary>A release you can use</summary><section class="accordion-content"><div><p>No public Guion release has been published. Python is a released language with a long track record.</p></div><p>Guion is in active development. It has been validated on macOS ARM64 and on Debian 12 for ARM64 and x86_64. No other target is claimed.</p></section></details></section></div>
+<div class="ahi"><section id="slot-python-accordion-ecosystem" class="instrument family-reveals-discoveries renderer-accordion interaction-details" data-ahi="ahi.reveals-discoveries.accordion" data-ahi-renderer="accordion" data-ahi-element="details" data-ahi-version="1"><details data-ahi-semantic="details" class="accordion native-accordion"><summary>Libraries and packages</summary><section class="accordion-content"><div><p>Python has hundreds of thousands of packages and decades of libraries behind it. Guion ships 17 standard-library modules and a package manager that installs from a local path or a checksummed URL. It has no public package registry yet.</p></div><p>Next: a much wider standard library, with processes, regular expressions, sockets, an HTTP server and compression, plus version ranges, guion publish and a hosted registry.</p></section></details></section></div>
+<div class="ahi"><section id="slot-python-accordion-arrays" class="instrument family-reveals-discoveries renderer-accordion interaction-details" data-ahi="ahi.reveals-discoveries.accordion" data-ahi-renderer="accordion" data-ahi-element="details" data-ahi-version="1"><details data-ahi-semantic="details" class="accordion native-accordion"><summary>Arrays and data science</summary><section class="accordion-content"><div><p>NumPy and pandas make Python the default for numeric and data work. Guion does not have a native array type yet.</p></div><p>Next: typed n-dimensional arrays built into the runtime, then data frames, measured head to head against NumPy and pandas. Earlier tests that reached NumPy through Python are retired.</p></section></details></section></div>
+<div class="ahi"><section id="slot-python-accordion-release" class="instrument family-reveals-discoveries renderer-accordion interaction-details" data-ahi="ahi.reveals-discoveries.accordion" data-ahi-renderer="accordion" data-ahi-element="details" data-ahi-version="1"><details data-ahi-semantic="details" class="accordion native-accordion"><summary>A release you can use</summary><section class="accordion-content"><div><p>Guion&#39;s first public build is a Linux pre-release, v0.1.0-preview, for Debian 12 on ARM64 and x86_64. There is no macOS package yet. Python is a released language with a long track record.</p></div><p>Next: release 0.2.0, with installers for macOS ARM64 and both Debian targets and a written stability policy.</p></section></details></section></div>
 <div class="ahi"><section id="slot-python-accordion-learn" class="instrument family-reveals-discoveries renderer-accordion interaction-details" data-ahi="ahi.reveals-discoveries.accordion" data-ahi-renderer="accordion" data-ahi-element="details" data-ahi-version="1"><details data-ahi-semantic="details" class="accordion native-accordion"><summary>Learning it</summary><section class="accordion-content"><div><p>Whether a new builder can learn Guion, find its APIs and make a realistic change from the guides is still being tested.</p></div><p>Learnability is listed as an open outcome on the project status page.</p></section></details></section></div>
 <div class="ahi"><section id="slot-python-accordion-compare" class="instrument family-reveals-discoveries renderer-accordion interaction-details" data-ahi="ahi.reveals-discoveries.accordion" data-ahi-renderer="accordion" data-ahi-element="details" data-ahi-version="1"><details data-ahi-semantic="details" class="accordion native-accordion"><summary>Beyond the tasks measured</summary><section class="accordion-content"><div><p>Every number on this page is for a named program on a named machine against a named Python version. The server results come from one run on each of two cloud machines; an Intel Xeon server measured Guion slower on an earlier build and has not been rerun. Free-threaded Python and PyPy were not compared.</p></div><p>Overall competitiveness remains open, in the project&#39;s own words.</p></section></details></section></div>
 </div>
 <div class="receipt-list python-receipts">
-<article class="claim" id="claim-bridge-bytes" data-claim="bridge-bytes" data-group="python">
-<h3>Calling NumPy from Guion: raw bytes</h3>
-<dl class="receipt">
-<div><dt>Claim</dt><dd>Sending the input as raw bytes instead of text cut the cost of a 100,000-row NumPy and orjson task by 13.7%, from 161.60 ms to 140.59 ms. Guion is still a little slower than the same Python function, which took 137.93 ms.</dd></div>
-<div><dt>Holds when</dt><dd>One typed Python call, 100,000 rows, 15 randomized fresh-process pairs, macOS ARM64, CPython 3.14.7, NumPy 2.5.1 and orjson 3.11.9. Outputs matched byte for byte.</dd></div>
-<div><dt>Doesn't tell you</dt><dd>That Guion beats Python on this task: it took 1.025× as long as the same package function and 1.220× as long as plain standard-library Python. CPU attribution and peak memory were not measured.</dd></div>
-<div><dt>Check it</dt><dd><a href="../evidence/2026-10-27-python-bridge-bytes.md">2026-10-27-python-bridge-bytes.md</a> · <a href="../evidence/2026-10-27-python-bridge-bytes.json">2026-10-27-python-bridge-bytes.json</a></dd></div>
-<div><dt>Say it's wrong</dt><dd><a href="mailto:rmichael@rmichaelthomas.com?subject=Guion%20claim%3A%20Calling%20NumPy%20from%20Guion%3A%20raw%20bytes">rmichael@rmichaelthomas.com</a></dd></div>
-</dl>
-<div class="v-dev"><table class="claim-table"><tbody><tr><th scope="row">Guion Bytes lane</th><td>140.59 ms</td></tr><tr><th scope="row">Guion Text lane</th><td>161.60 ms</td></tr><tr><th scope="row">Bytes / Text</th><td>0.863× (0.859–0.879)</td></tr><tr><th scope="row">Python package bytes</th><td>137.93 ms</td></tr><tr><th scope="row">Guion Bytes / Python package</th><td>1.025× (1.001–1.027)</td></tr><tr><th scope="row">Python standard library</th><td>114.38 ms</td></tr><tr><th scope="row">Guion Bytes / stdlib</th><td>1.220× (1.211–1.234)</td></tr><tr><th scope="row">Input</th><td>5,100,867 bytes, 13 groups</td></tr></tbody></table><pre class="claim-command"><code>GUION_PYTHON=/path/to/python3.14 python3 -B evaluation/completion/performance/benchmark_python_bridge_payloads.py --binary target/release/guion --python /path/to/python3.14 --trials 15</code></pre></div>
-</article>
-<article class="claim" id="claim-bridge-serialization" data-claim="bridge-serialization" data-group="python">
-<h3>Calling NumPy from Guion: fewer copies</h3>
-<dl class="receipt">
-<div><dt>Claim</dt><dd>A change that removes payload-sized copies did not measurably change the speed. The ratio against the previous build was 1.012, and its interval includes 1.</dd></div>
-<div><dt>Holds when</dt><dd>15 randomized pairs on the same 100,000-row task and host as the raw-bytes card.</dd></div>
-<div><dt>Doesn't tell you</dt><dd>A speedup. The candidate was slower in 10 of 15 pairs, and peak memory was not measured. Against Python it stayed at 1.129× the same NumPy function and 1.406× the standard-library reference, slower in all 15 pairs.</dd></div>
-<div><dt>Check it</dt><dd><a href="../evidence/2026-10-27-python-bridge-serialization.md">2026-10-27-python-bridge-serialization.md</a> · <a href="../evidence/2026-10-27-python-bridge-serialization.json">2026-10-27-python-bridge-serialization.json</a></dd></div>
-<div><dt>Say it's wrong</dt><dd><a href="mailto:rmichael@rmichaelthomas.com?subject=Guion%20claim%3A%20Calling%20NumPy%20from%20Guion%3A%20fewer%20copies">rmichael@rmichaelthomas.com</a></dd></div>
-</dl>
-<div class="v-dev"><table class="claim-table"><tbody><tr><th scope="row">Candidate / pre-change</th><td>1.012× (0.985–1.025)</td></tr><tr><th scope="row">Pre-change Guion bridge</th><td>166.7 ms</td></tr><tr><th scope="row">Candidate Guion bridge</th><td>167.9 ms</td></tr><tr><th scope="row">Candidate / NumPy function</th><td>1.129× (1.106–1.149)</td></tr><tr><th scope="row">Candidate / stdlib Python</th><td>1.406× (1.373–1.442)</td></tr><tr><th scope="row">Pairs</th><td>15 randomized</td></tr></tbody></table></div>
-</article>
-<article class="claim" id="claim-managed-packages" data-claim="managed-packages" data-group="python">
-<h3>Packaging a Python-backed app into one folder</h3>
-<dl class="receipt">
-<div><dt>Claim</dt><dd>A Guion program that uses NumPy and orjson was packaged into a self-contained folder. It ran after being moved to a path with spaces and Unicode, with no external Python or uv settings.</dd></div>
-<div><dt>Holds when</dt><dd>The 100,000-row analysis app on artifact format 44, passing on macOS ARM64 and, in separate runs, on Debian 12 for ARM64 and x86_64. Output matched the independent Python report exactly.</dd></div>
-<div><dt>Doesn't tell you</dt><dd>Download size: the folder sizes are uncompressed. It is a packaging result, not a speed claim and not broad Python package compatibility.</dd></div>
-<div><dt>Check it</dt><dd><a href="../evidence/2026-10-27-current-format-managed-package-analysis.md">2026-10-27-current-format-managed-package-analysis.md</a> · <a href="../evidence/2026-10-27-current-format-managed-package-analysis-debian-aarch64.md">2026-10-27-current-format-managed-package-analysis-debian-aarch64.md</a> · <a href="../evidence/2026-10-27-current-format-managed-package-analysis-debian-x86_64.md">2026-10-27-current-format-managed-package-analysis-debian-x86_64.md</a></dd></div>
-<div><dt>Say it's wrong</dt><dd><a href="mailto:rmichael@rmichaelthomas.com?subject=Guion%20claim%3A%20Packaging%20a%20Python-backed%20app%20into%20one%20folder">rmichael@rmichaelthomas.com</a></dd></div>
-</dl>
-<div class="v-dev"><table class="claim-table"><tbody><tr><th scope="row">macOS ARM64</th><td>157,585,367 bytes</td></tr><tr><th scope="row">Debian 12 ARM64</th><td>244,199,858 bytes</td></tr><tr><th scope="row">Debian 12 x86_64</th><td>274,853,607 bytes</td></tr><tr><th scope="row">Launches per target</th><td>two, moved to a path with spaces and Unicode</td></tr><tr><th scope="row">Output</th><td>identical to the Python reference</td></tr></tbody></table></div>
-</article>
-<article class="claim" id="claim-feed-digest" data-claim="feed-digest" data-group="python">
-<h3>A feed digest app with feedparser</h3>
-<dl class="receipt">
-<div><dt>Claim</dt><dd>A Guion Feed Digest app that uses the pure-Python feedparser library passed the same six acceptance cases as an independent Python version. Every digest matched byte for byte.</dd></div>
-<div><dt>Holds when</dt><dd>macOS ARM64, artifact format 44, managed CPython 3.14.8 and feedparser 6.0.14, run offline against a local loopback server.</dd></div>
-<div><dt>Doesn't tell you</dt><dd>Broad package compatibility, native-wheel coverage, package-size advantages or any speed result. It is one more library and one more application shape.</dd></div>
-<div><dt>Check it</dt><dd><a href="../evidence/2026-10-27-feed-digest-managed-package.md">2026-10-27-feed-digest-managed-package.md</a> · <a href="../evidence/2026-10-27-feed-digest-managed-package.json">2026-10-27-feed-digest-managed-package.json</a></dd></div>
-<div><dt>Say it's wrong</dt><dd><a href="mailto:rmichael@rmichaelthomas.com?subject=Guion%20claim%3A%20A%20feed%20digest%20app%20with%20feedparser">rmichael@rmichaelthomas.com</a></dd></div>
-</dl>
-<div class="v-dev"><table class="claim-table"><tbody><tr><th scope="row">Package directory</th><td>172,422,430 bytes (164.4 MiB, 2,946 files)</td></tr><tr><th scope="row">Dependencies</th><td>feedparser 6.0.14, feedparser-sgmllib 2.1.0</td></tr><tr><th scope="row">Native extensions from them</th><td>0</td></tr><tr><th scope="row">Acceptance cases</th><td>6, relocated and original</td></tr></tbody></table></div>
-</article>
 <article class="claim" id="claim-python-choice" data-claim="python-choice" data-group="python">
 <h3>When an assistant was asked to choose</h3>
 <dl class="receipt">
@@ -1523,9 +1454,9 @@ hosts = [&quot;api.example.test&quot;]
 <div class="footer-about">
 <p class="smallcaps">Good to know</p>
 <p>Guion is MIT licensed. Third-party notices are kept in the project repository. To say a claim is wrong, write to <a href="mailto:rmichael@rmichaelthomas.com">rmichael@rmichaelthomas.com</a>.</p>
-<p class="v-plain">This page is about 90 KB of HTML and 60 KB of styles, with 9.9 KB of JavaScript and 0 requests to anyone else. The 1.6 MB playground loads only when you press Run.</p>
+<p class="v-plain">This page is about 80 KB of HTML and 60 KB of styles, with 9.9 KB of JavaScript and 0 requests to anyone else. The 1.6 MB playground loads only when you press Run.</p>
 <table class="v-dev spec-table"><caption>Page weight</caption><tbody>
-<tr><th scope="row">HTML</th><td>90 KB</td></tr>
+<tr><th scope="row">HTML</th><td>80 KB</td></tr>
 <tr><th scope="row">CSS</th><td>60 KB</td></tr>
 <tr><th scope="row">JavaScript</th><td>9.9 KB (the playground loader; inert until Run)</td></tr>
 <tr><th scope="row">Wasm</th><td>1.6 MB, fetched on first Run</td></tr>
