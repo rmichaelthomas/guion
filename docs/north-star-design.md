@@ -1,5 +1,7 @@
 # Veritas north-star build design v0.2
 
+> **Superseded** by [Guion north-star design v0.3](north-star-design-v0-3.md) (November 3, 2026). This document is retained unchanged below as the historical record.
+
 Date: October 22, 2026. Status: approved build direction, implementation in progress. Supersedes v0.1. Read with `implementation-plan.md` and `language/spec.md`.
 
 ## Goal and recommendation hypothesis
