@@ -163,6 +163,41 @@ pub fn text_find_scalar(text: &SharedText, needle: &str, from: usize) -> Option<
     )
 }
 
+/// The Unicode scalar at `index` as its own text, or `None` past the end. ASCII text is
+/// indexed by byte, and ASCII scalars share one immortal text each.
+pub fn text_scalar_at(text: &SharedText, index: usize) -> Option<SharedText> {
+    let scalar = if text.char_count() == text.len() {
+        text.as_bytes().get(index).map(|&byte| char::from(byte))
+    } else {
+        text.chars().nth(index)
+    };
+    scalar.map(shared_text_scalar)
+}
+
+/// The byte range of the scalars `start..end` (with `start <= end`), or `None` when `end` is
+/// past the end. ASCII text is indexed by byte.
+pub fn text_scalar_range(text: &SharedText, start: usize, end: usize) -> Option<(usize, usize)> {
+    let length = text.char_count();
+    if end > length {
+        return None;
+    }
+    if length == text.len() {
+        return Some((start, end));
+    }
+    let byte_at = |scalar: usize| {
+        text.char_indices()
+            .nth(scalar)
+            .map_or(text.len(), |(byte, _)| byte)
+    };
+    let byte_start = byte_at(start);
+    let byte_end = byte_start
+        + text[byte_start..]
+            .char_indices()
+            .nth(end - start)
+            .map_or(text.len() - byte_start, |(byte, _)| byte);
+    Some((byte_start, byte_end))
+}
+
 /// Byte offsets of the non-overlapping matches of a non-empty `needle`, left to right, or
 /// `None` when there are more than `limit` of them.
 pub fn text_match_offsets(text: &str, needle: &str, limit: usize) -> Option<Vec<usize>> {
@@ -2342,39 +2377,17 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                         instruction.span,
                     ));
                 }
-                let mut scalar_index = 0;
-                let mut byte_start = (start == 0).then_some(0);
-                let mut byte_end = (end == 0).then_some(0);
-                let mut reached_end = false;
-                for (byte_index, _) in text.char_indices() {
-                    if scalar_index == start {
-                        byte_start = Some(byte_index);
-                    }
-                    if scalar_index == end {
-                        byte_end = Some(byte_index);
-                        reached_end = true;
-                        break;
-                    }
-                    scalar_index += 1;
-                }
-                if byte_start.is_none() && start == scalar_index {
-                    byte_start = Some(text.len());
-                }
-                if byte_end.is_none() && end == scalar_index {
-                    byte_end = Some(text.len());
-                }
-                if end > scalar_index {
+                let Some((byte_start, byte_end)) = text_scalar_range(&text, start, end) else {
                     return Err(RuntimeError::new(
                         "R_INDEX_BOUNDS",
                         format!(
-                            "text slice range {start}..{end} is out of bounds for length {scalar_index}"
+                            "text slice range {start}..{end} is out of bounds for length {}",
+                            text.char_count()
                         ),
                         instruction.span,
                     ));
-                }
-                let byte_start = byte_start.expect("validated text slice start");
-                let byte_end = byte_end.expect("validated text slice end");
-                if start == 0 && !reached_end {
+                };
+                if byte_start == 0 && byte_end == text.len() {
                     push_stack!(Value::Text(text));
                     continue;
                 }
@@ -2858,20 +2871,17 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                                 instruction.span,
                             )
                         })?;
-                        let length = text.char_count();
-                        let scalar = if length == text.len() {
-                            text.as_bytes().get(index).map(|&byte| char::from(byte))
-                        } else {
-                            text.chars().nth(index)
-                        };
-                        let value = scalar.map(|scalar| scalar.to_string()).ok_or_else(|| {
+                        let value = text_scalar_at(&text, index).ok_or_else(|| {
                             RuntimeError::new(
                                 "R_INDEX_BOUNDS",
-                                format!("text index {index} is out of range for length {length}"),
+                                format!(
+                                    "text index {index} is out of range for length {}",
+                                    text.char_count()
+                                ),
                                 instruction.span,
                             )
                         })?;
-                        let value = Value::Text(value.into());
+                        let value = Value::Text(value);
                         charge_allocation(
                             budget.as_ref(),
                             new_value_allocation(&value),
@@ -8516,6 +8526,35 @@ mod tests {
             Op::Load(0),
             Op::Length,
             Op::Add,
+            // slices and scalars of ASCII and non-ASCII text, including a whole-text slice
+            Op::Load(1),
+            Op::Const(int(2)),
+            Op::Const(int(5)),
+            Op::TextSlice,
+            Op::Length,
+            Op::Add,
+            Op::Const(text("héllo")),
+            Op::Const(int(1)),
+            Op::Const(int(3)),
+            Op::TextSlice,
+            Op::Length,
+            Op::Add,
+            Op::Const(text("héllo")),
+            Op::Const(int(0)),
+            Op::Const(int(5)),
+            Op::TextSlice,
+            Op::Length,
+            Op::Add,
+            Op::Const(text("héllo")),
+            Op::Const(int(1)),
+            Op::Index,
+            Op::Length,
+            Op::Add,
+            Op::Load(1),
+            Op::Const(int(2)),
+            Op::Index,
+            Op::Length,
+            Op::Add,
             Op::Return,
         ];
         let artifact = Arc::new(Artifact {
@@ -8549,7 +8588,15 @@ mod tests {
             records: vec![],
         });
         let tables = Arc::new(build_register_programs(&artifact));
-        for kind in ["Add", "TextSplit", "TextTrim", "TextFind", "ListPush"] {
+        for kind in [
+            "Add",
+            "Index",
+            "TextSplit",
+            "TextSlice",
+            "TextTrim",
+            "TextFind",
+            "ListPush",
+        ] {
             assert!(
                 tables
                     .get(0, &artifact.functions[0])
@@ -8580,13 +8627,13 @@ mod tests {
                 budget.allocation.remaining(),
             )
         };
-        for limit in 0..70 {
+        for limit in 0..110 {
             let plain = run(None, limit, 1 << 20);
             let registers = run(Some(Arc::clone(&tables)), limit, 1 << 20);
             assert_eq!(plain, registers, "instruction limit {limit}");
         }
         let mut exhausted = false;
-        for bytes in 0..600 {
+        for bytes in 0..800 {
             let plain = run(None, 1000, bytes);
             let registers = run(Some(Arc::clone(&tables)), 1000, bytes);
             assert_eq!(
@@ -8597,8 +8644,42 @@ mod tests {
             exhausted |= plain.0.is_err();
         }
         assert!(exhausted, "a small allocation budget must be exhausted");
-        // "a" + "b  !" = 5, "  a,b  x" has "b" at 4, "zz" is absent, two lines.
-        assert_eq!(run(Some(tables), 1000, 1 << 20).0, Ok(int(5 + 4 - 1 + 2)));
+        // "a" + "b  !" = 5, "  a,b  x" has "b" at 4, "zz" is absent, two lines; then the
+        // slices "a,b", "él" and "héllo" and the scalars "é" and "a".
+        assert_eq!(
+            run(Some(tables), 1000, 1 << 20).0,
+            Ok(int(5 + 4 - 1 + 2 + 3 + 2 + 5 + 1 + 1))
+        );
+    }
+
+    #[test]
+    fn text_scalar_range_agrees_with_a_scalar_walk() {
+        for sample in ["", "a", "plain ascii", "héllo wörld", "日本語テキスト", "a😀b"] {
+            let text = SharedText::from(sample);
+            let scalars: Vec<usize> = sample
+                .char_indices()
+                .map(|(byte, _)| byte)
+                .chain([sample.len()])
+                .collect();
+            let length = scalars.len() - 1;
+            for start in 0..=length + 1 {
+                for end in start..=length + 2 {
+                    let expected = (end <= length).then(|| (scalars[start], scalars[end]));
+                    assert_eq!(
+                        text_scalar_range(&text, start, end),
+                        expected,
+                        "{sample:?} {start}..{end}"
+                    );
+                }
+            }
+            for index in 0..=length {
+                assert_eq!(
+                    text_scalar_at(&text, index).map(|scalar| scalar.to_string()),
+                    sample.chars().nth(index).map(String::from),
+                    "{sample:?} [{index}]"
+                );
+            }
+        }
     }
 
     #[test]

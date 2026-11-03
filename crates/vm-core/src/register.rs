@@ -114,6 +114,7 @@ enum Kind {
     },
     TextTrim,
     TextSplit,
+    TextSlice,
     TextFind,
     /// `list_push` assigned back to the list's own local.
     ListPush {
@@ -723,6 +724,7 @@ impl<'a> Translator<'a> {
             Op::Length => self.emit_value(Kind::Length, 1, ip),
             Op::TextTrim => self.emit_value(Kind::TextTrim, 1, ip),
             Op::TextSplit => self.emit_value(Kind::TextSplit, 2, ip),
+            Op::TextSlice => self.emit_value(Kind::TextSlice, 3, ip),
             Op::TextFind => self.emit_value(Kind::TextFind, 3, ip),
             Op::ListPushLocal(slot) => {
                 let slot = *slot as u32;
@@ -1219,6 +1221,19 @@ pub(super) fn run_registers<H: VmHost>(
             Kind::Greater => compare!(i64::gt, f64::gt, |left, right| left > right),
             Kind::GreaterEqual => compare!(i64::ge, f64::ge, |left, right| left >= right),
             Kind::Index => {
+                if let (Value::Text(text), Value::Int(position)) =
+                    (read!(instruction.a), read!(instruction.b))
+                {
+                    let Some(scalar) = position
+                        .to_usize()
+                        .and_then(|position| text_scalar_at(text, position))
+                    else {
+                        exit!()
+                    };
+                    commit!(size_of::<String>().saturating_add(scalar.len()));
+                    drop_operands!();
+                    finish_value!(Value::Text(scalar))
+                }
                 let item = match (read!(instruction.a), read!(instruction.b)) {
                     (Value::Map(items), Value::Text(key)) => {
                         items.get_hashed(key_hash(key), key.as_ref())
@@ -1373,6 +1388,39 @@ pub(super) fn run_registers<H: VmHost>(
                     Value::from_list_items(text_split_at(text, &offsets, delimiter.len()));
                 drop_operands!();
                 finish_value!(value)
+            }
+            Kind::TextSlice => {
+                let (Value::Text(text), Value::Int(start), Value::Int(end)) = (
+                    read!(instruction.a),
+                    read!(instruction.b),
+                    read!(instruction.c),
+                ) else {
+                    exit!()
+                };
+                let (Some(start), Some(end)) = (start.to_usize(), end.to_usize()) else {
+                    exit!()
+                };
+                let range = if start <= end {
+                    text_scalar_range(text, start, end)
+                } else {
+                    None
+                };
+                let Some((byte_start, byte_end)) = range else {
+                    exit!()
+                };
+                let whole = byte_start == 0 && byte_end == text.len();
+                commit!(if whole {
+                    0
+                } else {
+                    size_of::<String>().saturating_add(byte_end - byte_start)
+                });
+                let value = if whole {
+                    SharedText::clone(text)
+                } else {
+                    SharedText::from(&text[byte_start..byte_end])
+                };
+                drop_operands!();
+                finish_value!(Value::Text(value))
             }
             Kind::TextFind => {
                 let (Value::Text(text), Value::Text(needle), Value::Int(from)) = (
