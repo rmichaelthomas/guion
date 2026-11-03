@@ -178,67 +178,14 @@ pub fn text_match_offsets(text: &str, needle: &str, limit: usize) -> Option<Vec<
 
 /// The fields between the delimiter matches at `offsets`, as `text.split(delimiter)` would.
 pub fn text_split_at(text: &str, offsets: &[usize], delimiter_len: usize) -> Vec<Value> {
-    let bytes = text.as_bytes();
-    // The first non-ASCII byte at or after the start of the field being cut. Fields before it
-    // are marked ASCII, so that their length and trimming need not decode them.
-    let mut non_ascii = first_non_ascii(bytes, 0);
-    let mut field = |start: usize, end: usize| {
-        if non_ascii < start {
-            non_ascii = first_non_ascii(bytes, start);
-        }
-        let piece = &text[start..end];
-        Value::Text(if non_ascii >= end {
-            SharedText::ascii(piece)
-        } else {
-            SharedText::from(piece)
-        })
-    };
     let mut fields = Vec::with_capacity(offsets.len() + 1);
     let mut start = 0;
     for &offset in offsets {
-        fields.push(field(start, offset));
+        fields.push(Value::Text(SharedText::from(&text[start..offset])));
         start = offset + delimiter_len;
     }
-    fields.push(field(start, text.len()));
+    fields.push(Value::Text(SharedText::from(&text[start..])));
     fields
-}
-
-/// The index of the first byte at or after `from` that is not ASCII, or the length.
-fn first_non_ascii(bytes: &[u8], from: usize) -> usize {
-    const HIGH_BITS: u64 = 0x8080_8080_8080_8080;
-    let mut index = from;
-    while let Some(word) = bytes.get(index..index + 8) {
-        let word = u64::from_ne_bytes(word.try_into().expect("eight bytes"));
-        if word & HIGH_BITS != 0 {
-            break;
-        }
-        index += 8;
-    }
-    while bytes.get(index).is_some_and(u8::is_ascii) {
-        index += 1;
-    }
-    index
-}
-
-/// `text` without leading and trailing whitespace, as `str::trim` would. Text known to be
-/// ASCII is trimmed byte by byte, and the result stays known ASCII.
-pub fn text_trim(text: &SharedText) -> Option<SharedText> {
-    if text.known_ascii() {
-        // The ASCII characters `char::is_whitespace` accepts.
-        let space = |byte: &u8| matches!(byte, b'\t' | b'\n' | 0x0B | 0x0C | b'\r' | b' ');
-        let bytes = text.as_bytes();
-        let start = bytes
-            .iter()
-            .position(|byte| !space(byte))
-            .unwrap_or(bytes.len());
-        let end = bytes
-            .iter()
-            .rposition(|byte| !space(byte))
-            .map_or(start, |end| end + 1);
-        return (end - start != bytes.len()).then(|| SharedText::ascii(&text[start..end]));
-    }
-    let trimmed = text.trim();
-    (trimmed.len() != text.len()).then(|| SharedText::from(trimmed))
 }
 
 /// The number of non-overlapping matches of a non-empty `needle`.
@@ -2686,11 +2633,12 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                         ));
                     }
                 };
-                let Some(trimmed) = text_trim(&text) else {
+                let trimmed = text.trim();
+                if trimmed.len() == text.len() {
                     push_stack!(Value::Text(text));
                     continue;
-                };
-                let value = Value::Text(trimmed);
+                }
+                let value = Value::Text(SharedText::from(trimmed));
                 charge_allocation(
                     budget.as_ref(),
                     new_value_allocation(&value),
@@ -7915,54 +7863,6 @@ mod tests {
         assert_eq!(text_find_scalar(&long, "tea", 5001), Some(Some(5013)));
         assert_eq!(text_find_scalar(&long, "x", 5001), Some(Some(5003)));
         assert_eq!(text_find_scalar(&long, "zz", 0), Some(None));
-    }
-
-    #[test]
-    fn split_fields_are_marked_ascii_exactly_when_they_are() {
-        let text = "plain,café,,a long field of plain ascii text,ü,end".to_owned();
-        let offsets = text_match_offsets(&text, ",", usize::MAX).unwrap();
-        let fields = text_split_at(&text, &offsets, 1);
-        let expected: Vec<&str> = text.split(',').collect();
-        assert_eq!(fields.len(), expected.len());
-        for (field, expected) in fields.iter().zip(expected) {
-            let Value::Text(field) = field else {
-                panic!("split yields text")
-            };
-            assert_eq!(&**field, expected);
-            assert_eq!(field.known_ascii(), expected.is_ascii(), "{expected:?}");
-            assert_eq!(field.char_count(), expected.chars().count());
-        }
-    }
-
-    #[test]
-    fn trim_matches_str_trim_for_ascii_and_other_text() {
-        let samples = [
-            "",
-            " ",
-            "x",
-            "  both  ",
-            "\t\n\x0B\x0Cinner\r ",
-            "none",
-            "\u{a0}nbsp\u{a0}",
-            " café ",
-            "\u{2003}em\u{2003}",
-        ];
-        for sample in samples {
-            // Once uncounted, then counted, which marks ASCII text as known ASCII.
-            for counted in [false, true] {
-                let text = SharedText::from(sample);
-                if counted {
-                    text.char_count();
-                }
-                let trimmed = text_trim(&text);
-                let result = trimmed.as_deref().unwrap_or(&text);
-                assert_eq!(result, sample.trim(), "{sample:?}");
-                assert_eq!(trimmed.is_none(), sample.trim().len() == sample.len());
-                if let Some(trimmed) = trimmed.filter(|_| counted && sample.is_ascii()) {
-                    assert!(trimmed.known_ascii());
-                }
-            }
-        }
     }
 
     #[test]
