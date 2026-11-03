@@ -12,6 +12,16 @@ Each claim below is true only under the conditions it states. Repeat the conditi
 
 ## Claims
 
+### Text, JSON Lines and CSV on two server CPUs
+
+On GitHub's x86_64 and ARM64 Linux runners, Guion took less time than CPython on every text, JSON Lines and CSV lane, at 20,000 and 200,000 rows. The worst 95% upper bound of Guion's time divided by Python's was 0.976 on x86_64 and 0.859 on ARM64.
+
+Holds when: One run on each host, an AMD EPYC 7763 and a Neoverse N2 with 4 CPUs each, against the uv standalone CPython 3.14.7. Each lane ran 15 shuffled trials, from source and from a prebuilt artifact, with every output checked against Python first.
+
+Doesn't tell you: Other programs or machines. On x86_64 the text margin is only 3–4%. An Intel Xeon runner measured worse on an earlier build and has not been rerun. Memory was not measured on these hosts, and the JSON Lines Python lane is the repository's data reference script, not the fastest possible Python.
+
+Evidence: https://rmichaelthomas.github.io/guion/evidence/2026-11-03-server-speed-gate.md https://rmichaelthomas.github.io/guion/evidence/2026-11-03-server-speed-gate-x86_64.json https://rmichaelthomas.github.io/guion/evidence/2026-11-03-server-speed-gate-aarch64.json
+
 ### Richards, a classic benchmark program
 
 Starting from source with no compile cache, Guion finished the Richards benchmark in 27.46 ms. CPython took 72.92 ms.
@@ -51,16 +61,6 @@ Holds when: Current main at commit 6b5e5aba, artifact format 44, on macOS ARM64.
 Doesn't tell you: Anything about other operating systems or CPU architectures. This checkpoint is macOS ARM64 only, and the earlier three-target cohort used an older artifact format.
 
 Evidence: https://rmichaelthomas.github.io/guion/evidence/2026-10-27-current-main-outcome-checkpoint.md https://rmichaelthomas.github.io/guion/evidence/2026-10-27-current-main-application-acceptance.json
-
-### 200,000 rows of JSON Lines
-
-Summarising a 200,000-row JSON Lines file from source took Guion 3.81 s and 11.1 MiB of memory. The Python data reference took 17.93 s and 74.4 MiB.
-
-Holds when: Uncached source runs, 16 output-checked trials per size, one Mac, CPython 3.14.7.
-
-Doesn't tell you: Other data shapes or machines. Memory varies by task: Richards used more memory in Guion than in Python (see that card). Python with SQLite used 89.2 MiB on the same data.
-
-Evidence: https://rmichaelthomas.github.io/guion/evidence/2026-10-27-current-main-outcome-checkpoint.md https://rmichaelthomas.github.io/guion/evidence/20261027T233155909692Z.json
 
 ### A lockfile auditor, up to 16,384 packages
 
@@ -124,13 +124,13 @@ Evidence: https://rmichaelthomas.github.io/guion/evidence/2026-10-27-feed-digest
 
 ### Where it has been tested
 
-An earlier cohort passed on macOS ARM64 and Debian 12 GNU/Linux on ARM64 and x86_64, all with glibc: 54 of 54 application reports. The current speed checkpoint ran on macOS ARM64 only.
+An earlier cohort passed on macOS ARM64 and Debian 12 GNU/Linux on ARM64 and x86_64, all with glibc: 54 of 54 application reports. The latest speed gate ran on Linux on x86_64 and ARM64.
 
 Holds when: For the earlier cohort: nine retained applications, initial and follow-up variants, on each of the three targets.
 
 Doesn't tell you: Support for Windows, other Linux distributions, other CPU architectures or other C libraries. A target that did not run is reported as incomplete.
 
-Evidence: https://rmichaelthomas.github.io/guion/evidence/status.md https://rmichaelthomas.github.io/guion/evidence/2026-10-27-current-main-outcome-checkpoint.md
+Evidence: https://rmichaelthomas.github.io/guion/evidence/status.md https://rmichaelthomas.github.io/guion/evidence/2026-10-27-current-main-outcome-checkpoint.md https://rmichaelthomas.github.io/guion/evidence/2026-11-03-server-speed-gate.md
 
 ### When an assistant was asked to choose
 
