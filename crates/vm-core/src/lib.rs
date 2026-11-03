@@ -8654,7 +8654,14 @@ mod tests {
 
     #[test]
     fn text_scalar_range_agrees_with_a_scalar_walk() {
-        for sample in ["", "a", "plain ascii", "héllo wörld", "日本語テキスト", "a😀b"] {
+        for sample in [
+            "",
+            "a",
+            "plain ascii",
+            "héllo wörld",
+            "日本語テキスト",
+            "a😀b",
+        ] {
             let text = SharedText::from(sample);
             let scalars: Vec<usize> = sample
                 .char_indices()
