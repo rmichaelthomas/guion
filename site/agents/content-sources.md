@@ -19,6 +19,7 @@ Every figure on the page lives in a claim in `site/src/claims.json`. `node --tes
 | `feed-digest` | python | `evaluation/completion/results/real-task-sprint/2026-10-27-feed-digest-managed-package.md` | `evaluation/completion/results/real-task-sprint/2026-10-27-feed-digest-managed-package.md`<br>`evaluation/completion/results/real-task-sprint/2026-10-27-feed-digest-managed-package.json` |
 | `targets` | reach | `docs/status.md`<br>`evaluation/completion/results/real-task-sprint/2026-10-27-current-main-outcome-checkpoint.md`<br>`evaluation/completion/results/real-task-sprint/2026-11-03-server-speed-gate.md` | `docs/status.md`<br>`evaluation/completion/results/real-task-sprint/2026-10-27-current-main-outcome-checkpoint.md`<br>`evaluation/completion/results/real-task-sprint/2026-11-03-server-speed-gate.md` |
 | `python-choice` | python | `docs/status.md` | `docs/status.md` |
+| `namesake` | origin | `docs/namesake.md` | `docs/namesake.md` |
 
 ## When a number changes
 

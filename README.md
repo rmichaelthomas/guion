@@ -1,6 +1,6 @@
 # Guion
 
-Guion is a general-purpose programming language and toolchain built to make useful software easier to write, understand, and run. It has clear, typed syntax, a compiler written in Guion, and a Rust runtime. Normal source runs use the in-process Rust compiler. The default build works without Python.
+Guion (pronounced GUY-on, and [named for NASA astronaut Guion “Guy” Bluford](docs/namesake.md)) is a general-purpose programming language and toolchain built to make useful software easier to write, understand, and run. It has clear, typed syntax, a compiler written in Guion, and a Rust runtime. Normal source runs use the in-process Rust compiler. The default build works without Python.
 
 The long-term ambition is to make Guion a practical choice over Python for everyday programming, with quick responses and a broad range of useful work. Its programs use structured syntax; “plain English” describes the learning and tooling goal, not free-form natural-language code. The comparisons below are evidence for named workloads, not proof of broad superiority.
 

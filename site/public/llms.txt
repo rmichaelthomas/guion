@@ -142,3 +142,13 @@ Doesn't tell you: Today's recommendation. Neither study is an estimate of genera
 
 Evidence: https://rmichaelthomas.github.io/guion/evidence/status.md
 
+### The name, and who it honours
+
+Guion is named for Guion S. “Guy” Bluford Jr. On August 30, 1983, aboard Challenger on STS-8, he became the first African American to fly in space. He flew four shuttle missions and logged over 688 hours in space.
+
+Holds when: The naming is recorded from the project's architect. The record of his flights and career comes from NASA's biographical data and NASA's article on his first flight.
+
+Doesn't tell you: How NASA says his name. NASA confirms he goes by “Guy”; “GUY-on” is the project's own pronunciation, not a NASA record.
+
+Evidence: https://rmichaelthomas.github.io/guion/evidence/namesake.md
+

@@ -12,10 +12,6 @@
   .darkzone .overline { color: var(--lily); }
 
   /* Status bar and navigation */
-  .sitebar { background: var(--ink); color: #e5eddf; min-height: 39px; display: flex; align-items: center; font-size: .72rem; letter-spacing: .08em; }
-  .sitebar .shell { display: flex; justify-content: space-between; gap: 1rem; align-items: center; padding-block: .45rem; flex-wrap: wrap; }
-  .pillstatus { display: inline-flex; gap: .55rem; align-items: center; }
-  .pillstatus::before { content: ""; width: 7px; height: 7px; background: var(--lily); border-radius: 100%; box-shadow: 0 0 0 4px #d9f9872c; flex: none; }
   .navwrap { position: sticky; top: 0; z-index: 30; border-bottom: 1px solid #10251d29; background: #e9edf0ed; background: color-mix(in srgb, var(--paper) 93%, transparent); backdrop-filter: blur(16px); }
   .nav { min-height: 68px; display: flex; gap: 1.2rem; align-items: center; justify-content: space-between; flex-wrap: wrap; padding-block: .5rem; }
   .wordmark { display: inline-flex; align-items: center; gap: .7rem; text-decoration: none; font-size: 1.5rem; font-weight: 800; letter-spacing: -.07em; }
@@ -51,6 +47,5 @@
   @media (max-width: 520px) {
     .wordmark { font-size: 1.3rem; }
     .viewswitch label { padding: .5rem .7rem; font-size: .66rem; }
-    .sitebar { font-size: .66rem; }
   }
 }

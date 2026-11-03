@@ -3,7 +3,7 @@ import { cp, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { REPO_ROOT, SITE_ROOT } from './lib/paths.mjs';
-import { loadClaims, renderClaimCard } from './claims.mjs';
+import { loadClaims, renderCaseFiles, renderClaimCard } from './claims.mjs';
 import { publishEvidence } from './evidence.mjs';
 import { highlightGuion } from './highlight.mjs';
 import { renderRatioChart } from './ratios.mjs';
@@ -115,6 +115,9 @@ export async function buildSite({ srcDir, vendorDir, outDir, repoRoot = REPO_ROO
     return cache.get(relative);
   };
 
+  // Rules that markup tokens need, such as the case-file links; the same for every page.
+  const generatedCss = new Set();
+
   async function resolve(text, context, report) {
     let current = text;
     for (let pass = 0; pass < 12; pass += 1) {
@@ -131,6 +134,13 @@ export async function buildSite({ srcDir, vendorDir, outDir, repoRoot = REPO_ROO
           value = existsSync(file) ? (await readFile(file, 'utf8')).trim() : undefined;
         } else if (name === 'claim' && argument) {
           value = claimById.has(argument) ? renderClaimCard(claimById.get(argument), { base: context.base }) : undefined;
+        } else if (name === 'casefiles' && argument) {
+          const ids = argument.trim().split(/\s+/);
+          if (ids.every((id) => claimById.has(id))) {
+            const files = renderCaseFiles(ids.map((id) => claimById.get(id)), { base: context.base });
+            generatedCss.add(files.css);
+            value = files.markup;
+          }
         } else if (name === 'report' && argument) {
           value = report[argument];
         } else if (dynamic[name]) {
@@ -145,7 +155,7 @@ export async function buildSite({ srcDir, vendorDir, outDir, repoRoot = REPO_ROO
     }
     const left = [...current.matchAll(TOKEN)].find(([, name]) => name !== 'css');
     if (left) throw new Error(`unresolved token: ${left[0]}`);
-    return current.replace('{{css}}', () => css);
+    return current.replace('{{css}}', () => css + [...generatedCss].join(''));
   }
 
   const pages = [
