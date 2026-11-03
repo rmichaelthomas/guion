@@ -28,3 +28,15 @@ __pycache__/
 
 # Whole-host spindumps capture every running process; keep them local.
 /evaluation/completion/results/runtime-efficiency/*-spindump.txt
+
+# Internal working records (checkpoints, design docs, plans, history) stay local and unpublished.
+/docs/veritas_checkpoint_*.md
+/docs/guion_checkpoint_*.md
+/docs/north-star-design*.md
+/docs/north-star-sprint-log.md
+/docs/implementation-plan.md
+/docs/reuse-inventory.md
+/docs/prior-language-build-lessons.md
+/docs/completion-report.md
+/docs/superpowers/
+/docs/history/

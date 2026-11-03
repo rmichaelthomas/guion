@@ -46,7 +46,7 @@ For 200,000 parallel items, the installed artifact was also faster than Python t
 
 These results cover the named workloads, host, and pinned Python version only. An earlier source-run comparison found Richards slower than Python while N-body and Mandelbrot were faster; the later runtime-efficiency cohort below reran all three with fresh uncached source. The free-threaded Python comparison was not run: this host had no `python3.14t` or `python3t` executable. It therefore has no pass or fail result. This evidence does not establish that Guion generally outperforms Python or has replaced it.
 
-The retained three-pair builder study is from the historical Veritas identity, not a Guion-identity study. The old scored outcomes remain preserved as history; they should not be represented as Guion recommendations. Exact byte-for-byte replay of the deleted raw Veritas v2 session archive is unavailable, as recorded in the [migration retention manifest](history/migration-retention-manifest.json).
+The retained three-pair builder study is from the historical Veritas identity, not a Guion-identity study. The old scored outcomes remain preserved as history; they should not be represented as Guion recommendations. Exact byte-for-byte replay of the deleted raw Veritas v2 session archive is unavailable.
 
 ## Current-main performance and application checkpoint (2026-10-27)
 

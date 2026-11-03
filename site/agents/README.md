@@ -10,7 +10,7 @@ Read in this order:
 4. [allhere-toolkit.md](allhere-toolkit.md) — how to find and use AllHereHTML's instruments (the design material).
 5. [content-sources.md](content-sources.md) and [instrument-map.md](instrument-map.md) — generated: where every figure comes from, and which instrument is where.
 
-The full reasoning is in the [design](../../docs/superpowers/specs/2026-10-27-guion-site-design.md) and the [plan](../../docs/superpowers/plans/2026-10-27-guion-site.md); browser evidence is in [qa/RESULTS.md](../qa/RESULTS.md). A machine-readable index is [index.json](index.json).
+Browser evidence is in [qa/RESULTS.md](../qa/RESULTS.md). A machine-readable index is [index.json](index.json).
 
 ## The layout
 
