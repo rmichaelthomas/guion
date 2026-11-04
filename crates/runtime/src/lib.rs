@@ -28,6 +28,7 @@ use std::{
 mod fs_ops;
 mod json_projection;
 mod native_backend;
+mod net_ops;
 mod process_ops;
 #[cfg(feature = "python-interop")]
 pub mod python_bridge;
@@ -2759,6 +2760,7 @@ pub enum EffectKind {
     EnvironmentRead,
     ClockRead,
     ProcessSpawn,
+    NetworkSocket,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -2815,6 +2817,12 @@ pub struct HostPolicy {
     pub allowed_commands: HashSet<String>,
     pub process_timeout: Duration,
     pub max_process_output_bytes: usize,
+    /// Exact `host:port` (or `host:*`) entries sockets may connect or send to.
+    pub allowed_connect: HashSet<String>,
+    /// Exact `host:port` (or `host:*`) entries sockets may bind.
+    pub allowed_bind: HashSet<String>,
+    pub max_socket_timeout: Duration,
+    pub max_socket_read_bytes: usize,
 }
 impl Default for HostPolicy {
     fn default() -> Self {
@@ -2852,6 +2860,10 @@ impl Default for HostPolicy {
             allowed_commands: HashSet::new(),
             process_timeout: Duration::from_secs(30),
             max_process_output_bytes: 16 * 1024 * 1024,
+            allowed_connect: HashSet::new(),
+            allowed_bind: HashSet::new(),
+            max_socket_timeout: Duration::from_secs(30),
+            max_socket_read_bytes: 1024 * 1024,
         }
     }
 }
@@ -3069,6 +3081,7 @@ impl Runtime {
                 policy.max_file_bytes,
                 policy.max_file_bytes,
             ),
+            sockets: net_ops::SocketTable::default(),
             databases: stdlib_services::DatabaseRegistry::with_roots(
                 database_roots,
                 policy.max_file_bytes,
@@ -3115,6 +3128,7 @@ pub struct Instance {
     policy: HostPolicy,
     readers: stdlib_data::FileReaderRegistry,
     databases: stdlib_services::DatabaseRegistry,
+    sockets: net_ops::SocketTable,
     http: Option<Arc<HostHttpClient>>,
     toml_documents: stdlib_services::TomlRegistry,
     output: String,
@@ -4977,6 +4991,39 @@ impl VmHost for Instance {
                     operands[0].as_str(),
                 );
                 let outcome = fs_ops::run(&self.policy, function, &operands, instruction.span);
+                self.finish_effect(
+                    effect,
+                    match &outcome {
+                        Ok(Value::ResultErr(_)) => EffectOutcome::ReturnedError,
+                        _ => EffectOutcome::Returned,
+                    },
+                );
+                let value = outcome?;
+                charge_allocation(
+                    budget.as_ref(),
+                    guion_vm_core::cloned_value_allocation(&value),
+                    instruction.span,
+                )?;
+                push_stack!(value);
+            }
+            Op::Net(function) => {
+                let mut operands = Vec::with_capacity(function.arity());
+                for _ in 0..function.arity() {
+                    operands.push(pop!());
+                }
+                operands.reverse();
+                let target = match operands.first() {
+                    Some(Value::Text(host)) => host.as_ref().to_owned(),
+                    _ => function.op_name().to_owned(),
+                };
+                let effect = self.begin_effect(EffectKind::NetworkSocket, target.as_str());
+                let outcome = net_ops::run(
+                    &self.policy,
+                    &mut self.sockets,
+                    function,
+                    operands,
+                    instruction.span,
+                );
                 self.finish_effect(
                     effect,
                     match &outcome {
@@ -7449,7 +7496,10 @@ impl Instance {
 
     /// Number of native filesystem, database, and TOML handles owned by this instance.
     pub fn open_native_resource_count(&self) -> usize {
-        self.readers.open_count() + self.databases.open_count() + self.toml_documents.open_count()
+        self.readers.open_count()
+            + self.databases.open_count()
+            + self.sockets.open_count()
+            + self.toml_documents.open_count()
     }
 
     fn shared_http_client(&mut self, span: Span) -> Result<Arc<HostHttpClient>, RuntimeError> {
@@ -7534,6 +7584,7 @@ impl Instance {
         self.worker_threads.clear();
         self.readers.close_all();
         self.databases.close_all();
+        self.sockets.close_all();
         self.toml_documents.close_all();
         if args.len() != self.artifact.functions[index].parameters.len() {
             return Err(RuntimeError::new(
@@ -7662,6 +7713,7 @@ impl Instance {
         let result = self.invoke_inner(index, args, 0, budget);
         self.readers.close_all();
         self.databases.close_all();
+        self.sockets.close_all();
         self.toml_documents.close_all();
         result
     }
@@ -7678,6 +7730,7 @@ impl Instance {
         }
         self.readers.close_all();
         self.databases.close_all();
+        self.sockets.close_all();
         self.toml_documents.close_all();
         self.http = None;
         self.output.clear();
@@ -8856,6 +8909,7 @@ impl Instance {
                             policy.max_file_bytes,
                             policy.max_file_bytes,
                         ),
+                        sockets: net_ops::SocketTable::default(),
                         databases: stdlib_services::DatabaseRegistry::with_roots(
                             database_roots,
                             policy.max_file_bytes,

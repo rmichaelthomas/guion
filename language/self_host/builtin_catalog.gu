@@ -421,6 +421,26 @@ pub fn builtin_catalog_signature(name: Text) -> Text:
             return "0:ProcessPid:Int:"
         if name == "native_process_signal_poll":
             return "0:ProcessSignalPoll:Text:"
+        if name == "native_net_tcp_connect":
+            return "3:NetTcpConnect:Result[Int, List[Text]]:Text;Int;Int"
+        if name == "native_net_tcp_listen":
+            return "2:NetTcpListen:Result[Int, List[Text]]:Text;Int"
+        if name == "native_net_tcp_accept":
+            return "2:NetTcpAccept:Result[Int, List[Text]]:Int;Int"
+        if name == "native_net_local_port":
+            return "1:NetLocalPort:Result[Int, List[Text]]:Int"
+        if name == "native_net_send":
+            return "2:NetSend:Result[Int, List[Text]]:Int;Bytes"
+        if name == "native_net_recv":
+            return "3:NetRecv:Result[Bytes, List[Text]]:Int;Int;Int"
+        if name == "native_net_close":
+            return "1:NetClose:Result[Unit, List[Text]]:Int"
+        if name == "native_net_udp_bind":
+            return "2:NetUdpBind:Result[Int, List[Text]]:Text;Int"
+        if name == "native_net_udp_send_to":
+            return "4:NetUdpSendTo:Result[Int, List[Text]]:Int;Text;Int;Bytes"
+        if name == "native_net_udp_recv_from":
+            return "3:NetUdpRecvFrom:Result[List[Bytes], List[Text]]:Int;Int;Int"
     return ""
 
 fn builtin_catalog_part(value: Text, delimiter: Text, wanted: Int) -> Text:

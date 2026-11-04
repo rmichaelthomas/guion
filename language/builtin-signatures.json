@@ -1631,6 +1631,99 @@
       "parameters": [],
       "result": "Text",
       "operation": "ProcessSignalPoll"
+    },
+    {
+      "name": "native_net_tcp_connect",
+      "parameters": [
+        "Text",
+        "Int",
+        "Int"
+      ],
+      "result": "Result[Int, List[Text]]",
+      "operation": "NetTcpConnect"
+    },
+    {
+      "name": "native_net_tcp_listen",
+      "parameters": [
+        "Text",
+        "Int"
+      ],
+      "result": "Result[Int, List[Text]]",
+      "operation": "NetTcpListen"
+    },
+    {
+      "name": "native_net_tcp_accept",
+      "parameters": [
+        "Int",
+        "Int"
+      ],
+      "result": "Result[Int, List[Text]]",
+      "operation": "NetTcpAccept"
+    },
+    {
+      "name": "native_net_local_port",
+      "parameters": [
+        "Int"
+      ],
+      "result": "Result[Int, List[Text]]",
+      "operation": "NetLocalPort"
+    },
+    {
+      "name": "native_net_send",
+      "parameters": [
+        "Int",
+        "Bytes"
+      ],
+      "result": "Result[Int, List[Text]]",
+      "operation": "NetSend"
+    },
+    {
+      "name": "native_net_recv",
+      "parameters": [
+        "Int",
+        "Int",
+        "Int"
+      ],
+      "result": "Result[Bytes, List[Text]]",
+      "operation": "NetRecv"
+    },
+    {
+      "name": "native_net_close",
+      "parameters": [
+        "Int"
+      ],
+      "result": "Result[Unit, List[Text]]",
+      "operation": "NetClose"
+    },
+    {
+      "name": "native_net_udp_bind",
+      "parameters": [
+        "Text",
+        "Int"
+      ],
+      "result": "Result[Int, List[Text]]",
+      "operation": "NetUdpBind"
+    },
+    {
+      "name": "native_net_udp_send_to",
+      "parameters": [
+        "Int",
+        "Text",
+        "Int",
+        "Bytes"
+      ],
+      "result": "Result[Int, List[Text]]",
+      "operation": "NetUdpSendTo"
+    },
+    {
+      "name": "native_net_udp_recv_from",
+      "parameters": [
+        "Int",
+        "Int",
+        "Int"
+      ],
+      "result": "Result[List[Bytes], List[Text]]",
+      "operation": "NetUdpRecvFrom"
     }
   ]
 }

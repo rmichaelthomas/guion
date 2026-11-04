@@ -36,6 +36,7 @@ Statements: `let`, `var`, `set`, `return`, `if`/`else`, `while`, `for name in li
 - Filesystem and paths (artifact format 54): `std:fs` adds `fs_exists`, `fs_kind` (`"file"`, `"directory"`, `"other"` or `"missing"`), `fs_size`, `fs_modified_ms`, `fs_list_dir` (sorted names), `fs_make_dir` (creates missing parents; succeeds if the directory exists), `fs_remove` (a file or an empty directory), `fs_remove_all`, `fs_rename`, `fs_copy` (returns the bytes copied) and `fs_temp_dir`/`fs_temp_file` (a unique entry under `.guion-tmp/` in the granted root; the prefix is 1 to 64 ASCII letters, digits, `-` or `_`). All return `Result[T, FileError]`. Each path is relative to a granted file root, may not contain `..`, and is confined after symlink resolution, as for `read_text`; mutating operations need the file-write grant. Symlinks are followed, so removing or renaming a link acts on its confined target. The granted root itself cannot be removed. `std:path` provides POSIX path text functions that never touch the disk: `path_normalize`, `path_join`, `path_dirname`, `path_basename`, `path_extension`, `path_stem`, `path_with_extension`, `path_components` and `path_is_absolute`. Static inspection now reports `filesystem.read` for `fs_walk`, `file_open_lines` and CSV opening as well.
 - Regular expressions (artifact format 55): `std:regex` provides `regex_is_match`, `regex_find` (the first match as a list of capture groups, group 0 first, unmatched groups as `""`), `regex_find_all`, `regex_replace`, `regex_replace_first` (replacement text expands `$1`, `${name}`; `$$` is a literal `$`), `regex_split` and `regex_escape`. Patterns use the Rust `regex` crate syntax: Unicode-aware, RE2-style, matching time linear in the subject, with no backreferences and no lookaround. An invalid or unsupported pattern, a pattern over 4,096 bytes, or one that compiles to more than 1 MiB of program returns `Err` with code `E_REGEX_INVALID`; no grant is required. Compiled patterns are cached per thread.
 - Processes and signals (artifact format 56): `std:process` provides `process_run(command, arguments, stdin)` returning `Result[ProcessResult, StdError]` with `exit_code`, `stdout` and `stderr` (a child killed by signal N reports `128 + N`; output is decoded as lossy UTF-8), `process_pid()` and `process_signal_poll()`. Starting a program is denied by default: the command name must be listed exactly in `guion.toml` `[process].commands` or passed with `guion run --allow-command NAME`; a grant for one command never covers another. The command starts without a shell from an argument list, with a cleared environment holding only `PATH` and the variables granted in `[environment]`, the project file root as working directory, and its own process group. `[process].timeout_ms` (default 30,000) and `[process].max_output_bytes` (default 16 MiB per stream) bound each call; exceeding either kills the whole group and returns `E_PROCESS_TIMEOUT` or `E_PROCESS_OUTPUT_LIMIT`. Other error codes are `E_PROCESS_DENIED`, `E_PROCESS_ARGUMENT` and `E_PROCESS_SPAWN`. `process_signal_poll()` installs `INT`, `TERM` and `HUP` handlers on first use, so those signals no longer end the program by themselves; it returns and clears the pending signal name, or `""`. Calls are synchronous: there is no way to leave a child running after the call returns. Static inspection reports `process.spawn` and `process.signals`, with a `process_grant` section.
+- Sockets (artifact format 57): `std:net` provides blocking TCP and UDP over integer-handle records `TcpConn`, `TcpListener`, `UdpSock`: `tcp_connect`, `tcp_listen`, `tcp_listener_port`, `tcp_accept`, `tcp_send`, `tcp_send_text`, `tcp_recv`, `tcp_close`, `tcp_listener_close`, `udp_bind`, `udp_port`, `udp_send_to`, `udp_recv_from` (a `Datagram` with `data`, `host`, `port`) and `udp_close`. Everything is denied by default. Connecting and sending datagrams need an exact `host:port` (or `host:*`) entry in `guion.toml` `[sockets].connect` or `guion run --allow-connect`; listening and binding need one in `[sockets].bind` or `--allow-bind` (`127.0.0.1:0` allows an ephemeral port on loopback). The host name is matched as written, before resolution, so grant IP literals when the name could resolve elsewhere. Every connect, accept, receive and datagram receive takes a timeout of 1 ms up to `[sockets].timeout_ms` (default 30,000); reads are capped at `[sockets].max_read_bytes` (default 1 MiB) and at most 64 sockets may be open. A zero-length receive on TCP means the peer closed. Error codes: `E_NET_DENIED`, `E_NET_ARGUMENT`, `E_NET_RESOLVE`, `E_NET_REFUSED`, `E_NET_TIMEOUT`, `E_NET_IO`, `E_NET_HANDLE`, `E_NET_LIMIT`. Calls block the calling task until they finish or time out; a cancelled sibling task is noticed at the next call boundary, so cancellation latency is bounded by the timeout. Static inspection reports `network.socket` with a `socket_grant` section. TLS is not part of this module.
 - Runtime and compile errors preserve source spans. Format-17 artifacts add Bytes values and byte file operations; format-18 artifacts add source-level Python keyword calls; format-19 artifacts add HTTP GET and `HttpError`; format-38 artifacts add byte HTTP; format-39 artifacts add explicitly granted clock access; format-16 metadata carries source and dependency-lock provenance; format-15 metadata and format-14 artifacts remain readable. Runtime combines recorded ceilings with host policy by taking the stricter value. The bytecode is an implementation detail apart from the versioned artifact boundary.
 
 ## Builtin signatures
@@ -169,6 +170,16 @@ native_math_sin(Float64) -> Float64
 native_math_sinh(Float64) -> Float64
 native_math_tan(Float64) -> Float64
 native_math_tanh(Float64) -> Float64
+native_net_close(Int) -> Result[Unit, List[Text]]
+native_net_local_port(Int) -> Result[Int, List[Text]]
+native_net_recv(Int, Int, Int) -> Result[Bytes, List[Text]]
+native_net_send(Int, Bytes) -> Result[Int, List[Text]]
+native_net_tcp_accept(Int, Int) -> Result[Int, List[Text]]
+native_net_tcp_connect(Text, Int, Int) -> Result[Int, List[Text]]
+native_net_tcp_listen(Text, Int) -> Result[Int, List[Text]]
+native_net_udp_bind(Text, Int) -> Result[Int, List[Text]]
+native_net_udp_recv_from(Int, Int, Int) -> Result[List[Bytes], List[Text]]
+native_net_udp_send_to(Int, Text, Int, Bytes) -> Result[Int, List[Text]]
 native_percent_decode(Text) -> Option[Text]
 native_percent_encode(Text) -> Text
 native_process_pid() -> Int
@@ -321,6 +332,20 @@ std:math — pub fn math_ceil_int(value: Float64) -> Int
 std:math — pub fn math_round_int(value: Float64) -> Int
 std:math — pub fn math_radians(degrees: Float64) -> Float64
 std:math — pub fn math_degrees(radians: Float64) -> Float64
+std:net — pub fn tcp_connect(host: Text, port: Int, timeout_ms: Int) -> Result[TcpConn, StdError]
+std:net — pub fn tcp_listen(host: Text, port: Int) -> Result[TcpListener, StdError]
+std:net — pub fn tcp_listener_port(listener: TcpListener) -> Result[Int, StdError]
+std:net — pub fn tcp_accept(listener: TcpListener, timeout_ms: Int) -> Result[TcpConn, StdError]
+std:net — pub fn tcp_send(conn: TcpConn, data: Bytes) -> Result[Int, StdError]
+std:net — pub fn tcp_send_text(conn: TcpConn, text: Text) -> Result[Int, StdError]
+std:net — pub fn tcp_recv(conn: TcpConn, max_bytes: Int, timeout_ms: Int) -> Result[Bytes, StdError]
+std:net — pub fn tcp_close(conn: TcpConn) -> Result[Unit, StdError]
+std:net — pub fn tcp_listener_close(listener: TcpListener) -> Result[Unit, StdError]
+std:net — pub fn udp_bind(host: Text, port: Int) -> Result[UdpSock, StdError]
+std:net — pub fn udp_port(socket: UdpSock) -> Result[Int, StdError]
+std:net — pub fn udp_send_to(socket: UdpSock, host: Text, port: Int, data: Bytes) -> Result[Int, StdError]
+std:net — pub fn udp_recv_from(socket: UdpSock, max_bytes: Int, timeout_ms: Int) -> Result[Datagram, StdError]
+std:net — pub fn udp_close(socket: UdpSock) -> Result[Unit, StdError]
 std:path — pub fn path_is_absolute(path: Text) -> Bool
 std:path — pub fn path_normalize(path: Text) -> Text
 std:path — pub fn path_join(base: Text, child: Text) -> Text
@@ -683,6 +708,14 @@ E_MS
 E_NAME_AMBIGUOUS
 E_NAME_DUPLICATE
 E_NAME_UNKNOWN
+E_NET_ARGUMENT
+E_NET_DENIED
+E_NET_HANDLE
+E_NET_IO
+E_NET_LIMIT
+E_NET_REFUSED
+E_NET_RESOLVE
+E_NET_TIMEOUT
 E_NODES
 E_NOREPLACE
 E_NORMALIZATION_FORM
@@ -1163,4 +1196,4 @@ fn main() -> Int:
 - [Host API and effects](../../language/host-api.md)
 - [Agent recipes](recipes.md)
 
-<!-- Generated reference content digest: sha256:9623cb03d2725675fe8b9b2df13e5a6b482cbb35e45ebaf519d8e03f70e9378a. Validated by `cargo xtask agent-reference --check`. -->
+<!-- Generated reference content digest: sha256:32e88e11282cc9903fc5e2508ab3aa8e7ec91cc65265d42e8cba4e96e18fb1bd. Validated by `cargo xtask agent-reference --check`. -->

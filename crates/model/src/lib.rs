@@ -125,8 +125,8 @@ mod tests {
     use super::Shared;
     use super::{
         Artifact, BigInt, BuildMetadata, ExternalFunction, FileErrorValue, Function, Instruction,
-        JsonErrorValue, Op, ProcessFunction, RegexFunction, ResourceLimits, SharedJson, Span, Type,
-        Value,
+        JsonErrorValue, NetFunction, Op, ProcessFunction, RegexFunction, ResourceLimits,
+        SharedJson, Span, Type, Value,
     };
 
     #[test]
@@ -1312,6 +1312,46 @@ mod tests {
         assert_eq!(artifact.to_bytes().unwrap_err().code, "E_ARTIFACT_VERSION");
         let mut old = bytes;
         old[4..8].copy_from_slice(&55u32.to_le_bytes());
+        assert_eq!(
+            Artifact::from_bytes(&old).unwrap_err().code,
+            "E_ARTIFACT_VERSION"
+        );
+    }
+
+    #[test]
+    fn socket_instructions_are_gated_on_format_57() {
+        let mut artifact = Artifact {
+            format_version: Artifact::CURRENT_VERSION,
+            build_metadata: None,
+            compiled_source_sha256: None,
+            source_name: "x".into(),
+            sources: vec!["x".into()],
+            entry: "main".into(),
+            functions: vec![Function {
+                name: "main".into(),
+                parameters: vec![],
+                result: Type::Unit,
+                local_count: 0,
+                code: vec![
+                    Instruction {
+                        op: Op::Net(NetFunction::Close),
+                        span: Span::default(),
+                    },
+                    Instruction {
+                        op: Op::Return,
+                        span: Span::default(),
+                    },
+                ],
+            }],
+            externals: vec![],
+            records: vec![],
+        };
+        let bytes = artifact.to_bytes().unwrap();
+        assert_eq!(Artifact::from_bytes(&bytes).unwrap(), artifact);
+        artifact.format_version = 56;
+        assert_eq!(artifact.to_bytes().unwrap_err().code, "E_ARTIFACT_VERSION");
+        let mut old = bytes;
+        old[4..8].copy_from_slice(&56u32.to_le_bytes());
         assert_eq!(
             Artifact::from_bytes(&old).unwrap_err().code,
             "E_ARTIFACT_VERSION"
@@ -3339,6 +3379,83 @@ impl ProcessFunction {
     }
 }
 
+/// TCP and UDP socket operations behind `Op::Net`. Sockets are integer handles; every call is
+/// bounded by a timeout and checked against the host's `host:port` grants. Codes are part of
+/// artifact format 57.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NetFunction {
+    TcpConnect,
+    TcpListen,
+    TcpAccept,
+    LocalPort,
+    Send,
+    Recv,
+    Close,
+    UdpBind,
+    UdpSendTo,
+    UdpRecvFrom,
+}
+
+impl NetFunction {
+    const ALL: [NetFunction; 10] = [
+        NetFunction::TcpConnect,
+        NetFunction::TcpListen,
+        NetFunction::TcpAccept,
+        NetFunction::LocalPort,
+        NetFunction::Send,
+        NetFunction::Recv,
+        NetFunction::Close,
+        NetFunction::UdpBind,
+        NetFunction::UdpSendTo,
+        NetFunction::UdpRecvFrom,
+    ];
+
+    pub fn code(self) -> u8 {
+        Self::ALL
+            .iter()
+            .position(|candidate| *candidate == self)
+            .expect("every socket function is listed") as u8
+    }
+
+    pub fn from_code(code: u8) -> Option<Self> {
+        Self::ALL.get(usize::from(code)).copied()
+    }
+
+    /// The instruction name used by builtin catalogs and the textual bytecode form.
+    pub fn op_name(self) -> &'static str {
+        match self {
+            NetFunction::TcpConnect => "NetTcpConnect",
+            NetFunction::TcpListen => "NetTcpListen",
+            NetFunction::TcpAccept => "NetTcpAccept",
+            NetFunction::LocalPort => "NetLocalPort",
+            NetFunction::Send => "NetSend",
+            NetFunction::Recv => "NetRecv",
+            NetFunction::Close => "NetClose",
+            NetFunction::UdpBind => "NetUdpBind",
+            NetFunction::UdpSendTo => "NetUdpSendTo",
+            NetFunction::UdpRecvFrom => "NetUdpRecvFrom",
+        }
+    }
+
+    pub fn from_op_name(name: &str) -> Option<Self> {
+        Self::ALL
+            .iter()
+            .copied()
+            .find(|candidate| candidate.op_name() == name)
+    }
+
+    /// Number of operands the function pops.
+    pub fn arity(self) -> usize {
+        match self {
+            NetFunction::LocalPort | NetFunction::Close => 1,
+            NetFunction::TcpListen | NetFunction::TcpAccept | NetFunction::UdpBind => 2,
+            NetFunction::Send => 2,
+            NetFunction::TcpConnect | NetFunction::Recv | NetFunction::UdpRecvFrom => 3,
+            NetFunction::UdpSendTo => 4,
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Op {
     Const(Value),
@@ -3462,6 +3579,7 @@ pub enum Op {
     Fs(FsFunction),
     Regex(RegexFunction),
     Process(ProcessFunction),
+    Net(NetFunction),
     IntToFloat,
     FloatToInt,
     NumberToText,
@@ -3604,7 +3722,7 @@ pub struct Artifact {
 }
 
 impl Artifact {
-    pub const CURRENT_VERSION: u32 = 56;
+    pub const CURRENT_VERSION: u32 = 57;
     pub fn entry(&self) -> &str {
         &self.entry
     }
@@ -3864,6 +3982,12 @@ impl Artifact {
                 "subprocess and signal instructions require artifact format 56",
             ));
         }
+        if self.format_version < 57 && artifact_uses_net(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "socket instructions require artifact format 57",
+            ));
+        }
         validate_sort_comparator_effects(self)
             .map_err(|message| ArtifactError::new("E_SORT_EFFECT", message))?;
         let mut w = Writer(Vec::new());
@@ -4117,6 +4241,10 @@ impl Artifact {
                     }
                     Op::Process(function) => {
                         w.u8(185);
+                        w.u8(function.code());
+                    }
+                    Op::Net(function) => {
+                        w.u8(186);
                         w.u8(function.code());
                     }
                     Op::IntToFloat => w.u8(178),
@@ -4490,6 +4618,21 @@ impl Artifact {
                         return Err(ArtifactError::new(
                             "E_ARTIFACT_VERSION",
                             "fused JSON field accessors require artifact format 50",
+                        ));
+                    }
+                    186 if format_version >= 57 => {
+                        let code = r.u8()?;
+                        Op::Net(NetFunction::from_code(code).ok_or_else(|| {
+                            ArtifactError::new(
+                                "E_ARTIFACT_ENCODING",
+                                format!("socket instruction has unknown function code {code}"),
+                            )
+                        })?)
+                    }
+                    186 => {
+                        return Err(ArtifactError::new(
+                            "E_ARTIFACT_VERSION",
+                            "socket instructions require artifact format 57",
                         ));
                     }
                     185 if format_version >= 56 => {
@@ -5159,6 +5302,15 @@ fn artifact_uses_codecs(artifact: &Artifact) -> bool {
             .code
             .iter()
             .any(|instruction| matches!(instruction.op, Op::Codec(_)))
+    })
+}
+
+fn artifact_uses_net(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function
+            .code
+            .iter()
+            .any(|instruction| matches!(instruction.op, Op::Net(_)))
     })
 }
 

@@ -99,7 +99,7 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
             .iter()
             .any(|argument| argument == "--help" || argument == "-h")
     {
-        println!("usage: guion run [--json] [--no-cache] [--file-root DIR] [--allow-http-host HOST] [--allow-clock] [--allow-command NAME] <source|artifact|project> [ARGS...]");
+        println!("usage: guion run [--json] [--no-cache] [--file-root DIR] [--allow-http-host HOST] [--allow-clock] [--allow-command NAME] [--allow-connect HOST:PORT] [--allow-bind HOST:PORT] <source|artifact|project> [ARGS...]");
         return Ok(ExitCode::SUCCESS);
     }
     if command == "sync" {
@@ -443,6 +443,7 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
     let mut http_host_overrides = Vec::new();
     let mut clock_override = false;
     let mut command_overrides = Vec::new();
+    let mut socket_overrides: Vec<String> = Vec::new();
     let json_inspect = command == "inspect" && args.iter().any(|argument| argument == "--json");
     let json_doc = command == "doc" && args.get(1).is_some_and(|arg| arg == "--json");
     let json_build = command == "build" && args.get(1).is_some_and(|arg| arg == "--json");
@@ -477,6 +478,14 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
                 "--allow-clock" => {
                     clock_override = true;
                     index += 1;
+                }
+                "--allow-connect" | "--allow-bind" => {
+                    let Some(entry) = args.get(index + 1) else {
+                        return Err(format!("usage: guion run [{argument} HOST:PORT] <source|artifact|project> [ARGS...]"));
+                    };
+                    validate_socket_entry(entry)?;
+                    socket_overrides.push(format!("{}={entry}", &argument[8..]));
+                    index += 2;
                 }
                 "--allow-command" => {
                     let Some(name) = args.get(index + 1) else {
@@ -621,6 +630,7 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
                     &http_host_overrides,
                     clock_override,
                     &command_overrides,
+                    &socket_overrides,
                     phase_timings_enabled,
                 );
                 source_compile_or_cache_ns =
@@ -838,6 +848,13 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
             if clock_override {
                 policy = policy.with_clock_access();
             }
+            for entry in socket_overrides {
+                match entry.split_once('=') {
+                    Some(("connect", value)) => policy.allowed_connect.insert(value.to_owned()),
+                    Some((_, value)) => policy.allowed_bind.insert(value.to_owned()),
+                    None => false,
+                };
+            }
             for name in command_overrides {
                 validate_command_name(&name)?;
                 policy.allowed_commands.insert(name);
@@ -910,6 +927,7 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
                         EffectKind::EnvironmentRead => "environment_read",
                         EffectKind::ClockRead => "clock_read",
                         EffectKind::ProcessSpawn => "process_spawn",
+                        EffectKind::NetworkSocket => "network_socket",
                     };
                     let outcome = match effect.outcome {
                         EffectOutcome::Started => "started",
@@ -1387,6 +1405,7 @@ fn compile_project_for_run(
     http_hosts: &[String],
     clock_override: bool,
     commands: &[String],
+    sockets: &[String],
     profile_compilation: bool,
 ) -> Result<
     (
@@ -1425,11 +1444,14 @@ fn compile_project_for_run(
     http_hosts.sort();
     let mut commands = commands.to_vec();
     commands.sort();
+    let mut sockets = sockets.to_vec();
+    sockets.sort();
     let runtime_identity = serde_json::json!({
         "file_roots": file_roots,
         "http_hosts": http_hosts,
         "clock": clock_override,
         "commands": commands,
+        "sockets": sockets,
     })
     .to_string();
     let compiler_identity = compiler_driver::cache_identity();
@@ -2341,6 +2363,9 @@ fn inspection_report(
                 Op::WriteText | Op::WriteTextAtomic | Op::WriteBytes => {
                     direct_effects[function_index].insert("filesystem.write".into());
                 }
+                Op::Net(_) => {
+                    direct_effects[function_index].insert("network.socket".into());
+                }
                 Op::Process(function) => match function {
                     guion_model::ProcessFunction::Run => {
                         direct_effects[function_index].insert("process.spawn".into());
@@ -2437,6 +2462,12 @@ fn inspection_report(
         .position(|function| function.name == artifact.entry)
         .and_then(|index| effects.get(index))
         .is_some_and(|effects| effects.contains("network.http"));
+    let entry_socket_grant_required = artifact
+        .functions
+        .iter()
+        .position(|function| function.name == artifact.entry)
+        .and_then(|index| effects.get(index))
+        .is_some_and(|effects| effects.contains("network.socket"));
     let entry_process_grant_required = artifact
         .functions
         .iter()
@@ -2469,12 +2500,18 @@ fn inspection_report(
                 hosts.sort();
                 let mut commands = policy.allowed_commands.iter().cloned().collect::<Vec<_>>();
                 commands.sort();
+                let mut socket_connect = policy.allowed_connect.iter().cloned().collect::<Vec<_>>();
+                socket_connect.sort();
+                let mut socket_bind = policy.allowed_bind.iter().cloned().collect::<Vec<_>>();
+                socket_bind.sort();
                 (
                     serde_json::json!({
                         "provenance": "guion.toml",
                         "network_hosts": hosts,
                         "clock_enabled": policy.allow_clock,
                         "process_commands": commands,
+                        "socket_connect": socket_connect,
+                        "socket_bind": socket_bind,
                     }),
                     "guion.toml",
                 )
@@ -2573,6 +2610,12 @@ fn inspection_report(
             "run_option": "guion run --allow-http-host HOST",
             "grant_model": "exact hostname; network access is denied when no grant is present",
             "runtime_supplied_urls_require_an_explicit_hostname_grant": true,
+        },
+        "socket_grant": {
+            "required_for_entry": entry_socket_grant_required,
+            "manifest_key": "[sockets].connect / [sockets].bind",
+            "run_option": "guion run --allow-connect HOST:PORT --allow-bind HOST:PORT",
+            "grant_model": "exact host and port (or host:*); connecting, sending datagrams and binding are denied without a matching entry; every call has a timeout and size cap",
         },
         "process_grant": {
             "required_for_entry": entry_process_grant_required,
@@ -3330,6 +3373,40 @@ fn runtime_policy(root: &std::path::Path) -> Result<HostPolicy, String> {
         policy.max_process_output_bytes =
             runtime_usize(process, "max_output_bytes", policy.max_process_output_bytes)?;
     }
+    if let Some(sockets) = manifest.get("sockets") {
+        let sockets = sockets
+            .as_table()
+            .ok_or("guion.toml [sockets] must be a table")?;
+        let allowed = ["connect", "bind", "timeout_ms", "max_read_bytes"];
+        if let Some(key) = sockets.keys().find(|key| !allowed.contains(&key.as_str())) {
+            return Err(format!("unsupported guion.toml [sockets] field `{key}`"));
+        }
+        for (field, target) in [
+            ("connect", &mut policy.allowed_connect),
+            ("bind", &mut policy.allowed_bind),
+        ] {
+            let Some(entries) = sockets.get(field) else {
+                continue;
+            };
+            let entries = entries
+                .as_array()
+                .ok_or_else(|| format!("guion.toml [sockets].{field} must be an array"))?;
+            for value in entries {
+                let entry = value.as_str().ok_or_else(|| {
+                    format!("guion.toml [sockets].{field} entries must be strings")
+                })?;
+                validate_socket_entry(entry)?;
+                target.insert(entry.to_owned());
+            }
+        }
+        policy.max_socket_timeout = Duration::from_millis(runtime_u64(
+            sockets,
+            "timeout_ms",
+            policy.max_socket_timeout.as_millis() as u64,
+        )?);
+        policy.max_socket_read_bytes =
+            runtime_usize(sockets, "max_read_bytes", policy.max_socket_read_bytes)?;
+    }
     if let Some(clock) = manifest.get("clock") {
         let clock = clock
             .as_table()
@@ -3343,6 +3420,22 @@ fn runtime_policy(root: &std::path::Path) -> Result<HostPolicy, String> {
             .ok_or("guion.toml [clock].enabled must be a boolean")?;
     }
     Ok(policy)
+}
+
+/// A socket grant is `host:port` or `host:*` with a non-empty host and no whitespace.
+fn validate_socket_entry(entry: &str) -> Result<(), String> {
+    let valid = entry.rsplit_once(':').is_some_and(|(host, port)| {
+        !host.is_empty()
+            && !host.chars().any(char::is_whitespace)
+            && (port == "*" || port.parse::<u16>().is_ok())
+    });
+    if valid {
+        Ok(())
+    } else {
+        Err(format!(
+            "invalid socket grant `{entry}`; expected HOST:PORT or HOST:*"
+        ))
+    }
 }
 
 /// A granted command is an exact program name or path: non-empty, no NUL, no whitespace.

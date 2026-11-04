@@ -4747,6 +4747,7 @@ pub fn opcode_profile_name(op: &Op) -> &'static str {
         Op::Fs(function) => function.op_name(),
         Op::Regex(function) => function.op_name(),
         Op::Process(function) => function.op_name(),
+        Op::Net(function) => function.op_name(),
         Op::IntToFloat => "IntToFloat",
         Op::FloatToInt => "FloatToInt",
         Op::NumberToText => "NumberToText",
@@ -6734,6 +6735,21 @@ fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result
                 }
                 state.stack.push(result);
             }
+            Op::Net(function) => {
+                let (parameters, ok) = net_signature(*function);
+                for expected in parameters.iter().rev() {
+                    if pop_type(&mut state.stack, pc)? != *expected {
+                        return Err(format!(
+                            "{} received an operand of the wrong type at instruction {pc}",
+                            function.op_name()
+                        ));
+                    }
+                }
+                state.stack.push(Type::Result(
+                    Box::new(ok),
+                    Box::new(Type::List(Box::new(Type::Text))),
+                ));
+            }
             Op::Process(function) => {
                 let texts = Type::List(Box::new(Type::Text));
                 match function {
@@ -8154,6 +8170,28 @@ fn fs_result_type(function: FsFunction) -> Type {
         }
     };
     Type::Result(Box::new(ok), Box::new(Type::FileError))
+}
+
+/// Operand types (push order) and success type of a socket function; failures are `[code, message]`.
+fn net_signature(function: guion_model::NetFunction) -> (Vec<Type>, Type) {
+    use guion_model::NetFunction as N;
+    match function {
+        N::TcpConnect => (vec![Type::Text, Type::Int, Type::Int], Type::Int),
+        N::TcpListen | N::UdpBind => (vec![Type::Text, Type::Int], Type::Int),
+        N::TcpAccept => (vec![Type::Int, Type::Int], Type::Int),
+        N::LocalPort => (vec![Type::Int], Type::Int),
+        N::Send => (vec![Type::Int, Type::Bytes], Type::Int),
+        N::Recv => (vec![Type::Int, Type::Int, Type::Int], Type::Bytes),
+        N::Close => (vec![Type::Int], Type::Unit),
+        N::UdpSendTo => (
+            vec![Type::Int, Type::Text, Type::Int, Type::Bytes],
+            Type::Int,
+        ),
+        N::UdpRecvFrom => (
+            vec![Type::Int, Type::Int, Type::Int],
+            Type::List(Box::new(Type::Bytes)),
+        ),
+    }
 }
 
 /// The type a regex function pushes: `Result[T, Text]` (the error is the pattern's compile

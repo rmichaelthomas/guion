@@ -783,6 +783,29 @@ fn ab_process_code(name: Text) -> Int:
         return 2
     return -1
 
+fn ab_net_code(name: Text) -> Int:
+    if name == "NetTcpConnect":
+        return 0
+    if name == "NetTcpListen":
+        return 1
+    if name == "NetTcpAccept":
+        return 2
+    if name == "NetLocalPort":
+        return 3
+    if name == "NetSend":
+        return 4
+    if name == "NetRecv":
+        return 5
+    if name == "NetClose":
+        return 6
+    if name == "NetUdpBind":
+        return 7
+    if name == "NetUdpSendTo":
+        return 8
+    if name == "NetUdpRecvFrom":
+        return 9
+    return -1
+
 fn ab_instruction(instruction: Json, pc: Int, functions: Json, records: Json, externals: Json, labels: Json, source_id: Int) -> Bytes:
     let name = json_as_text(json_get(instruction, "op"))
     if name == "ConstInt" or name == "ConstBool" or name == "ConstText" or name == "ConstFloat64" or name == "ConstUnit" or name == "ConstValue":
@@ -802,6 +825,9 @@ fn ab_instruction(instruction: Json, pc: Int, functions: Json, records: Json, ex
     let process_code = ab_process_code(name)
     if process_code >= 0:
         return ab_join([ab_instruction_span(instruction, pc, source_id), ab_u8(185), ab_u8(process_code)])
+    let net_code = ab_net_code(name)
+    if net_code >= 0:
+        return ab_join([ab_instruction_span(instruction, pc, source_id), ab_u8(186), ab_u8(net_code)])
     let tag = ab_plain_opcode(name)
     if tag < 0:
         return ab_u8(255)
@@ -929,7 +955,7 @@ pub fn artifact_assemble(ir: Json) -> Bytes:
     let records = json_get(ir, "records")
     let externals = json_get(ir, "externals")
     let functions = json_get(ir, "functions")
-    var parts: List[Bytes] = [bytes_from_text("VRTA"), ab_u32(56), ab_string(source_name), ab_string(entry), ab_count(json_len(sources))]
+    var parts: List[Bytes] = [bytes_from_text("VRTA"), ab_u32(57), ab_string(source_name), ab_string(entry), ab_count(json_len(sources))]
     var cursor = 0
     while cursor < json_len(sources):
         set parts = list_push(parts, ab_string(json_as_text(json_index(sources, cursor))))
