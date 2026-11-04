@@ -164,6 +164,85 @@ fn main() -> Unit:
 }
 
 #[test]
+fn nested_records_run_natively_and_kept_records_are_not_overwritten() {
+    // `previous` keeps last iteration's record. Native code once pointed it at the call's output
+    // block, so the next call to `point` overwrote it and `next.x == previous.x` held every time.
+    let source = r#"record Point:
+    x: Int
+    y: Float64
+
+record Segment:
+    start: Point
+    end: Point
+    closed: Bool
+
+record Path:
+    first: Segment
+    weight: Int
+
+fn point(x: Int) -> Point:
+    return Point(x, int_to_float(x) / 2.0)
+
+fn shift(segment: Segment, by: Int) -> Segment:
+    return Segment(point(segment.start.x + by), segment.end, not segment.closed)
+
+fn path(seed: Int) -> Path:
+    return Path(Segment(point(seed), point(seed + 1), false), seed)
+
+fn main() -> Int:
+    var previous = point(0)
+    var stale = 0
+    var current = path(1)
+    var i = 1
+    while i < 1000:
+        let next = point(i)
+        if next.x == previous.x:
+            set stale = stale + 1
+        set previous = next
+        let moved = shift(current.first, 1)
+        set current = Path(moved, current.weight + moved.start.x)
+        set i = i + 1
+    print(stale)
+    print(previous.x)
+    print(current.first.start.x)
+    print(current.first.end.y)
+    print(current.weight)
+    print(current.first.closed)
+    return 0
+"#;
+    let artifact = compile("nested-records.gu", source).expect("nested records compile");
+    let mut native = Runtime::new()
+        .load(artifact.clone(), HostPolicy::default())
+        .expect("native runtime loads");
+    let mut vm = Runtime::vm_only()
+        .load(artifact, HostPolicy::default())
+        .expect("VM runtime loads");
+    native.invoke("main", vec![]).expect("native program runs");
+    vm.invoke("main", vec![]).expect("VM program runs");
+    let output = native.take_output();
+    assert_eq!(output, "0\n999\n1000\n1\n500500\ntrue\n");
+    assert_eq!(output, vm.take_output());
+    let compiled = native.native_function_names();
+    for name in ["main", "point", "shift", "path"] {
+        assert!(compiled.iter().any(|compiled| compiled == name), "{name} did not compile: {compiled:?}");
+    }
+    assert_eq!(native.native_deoptimizations(), 0);
+
+    // Nested records cross the boundary in both directions: a VM value becomes a native argument
+    // and the native result comes back as the same value the VM computes.
+    let seed = vec![Value::Int(BigInt::from_i64(7))];
+    let built = native.invoke("path", seed.clone()).expect("native path runs");
+    assert_eq!(built, vm.invoke("path", seed).expect("VM path runs"));
+    let Value::Record(_, fields) = &built else {
+        panic!("path returns a record: {built:?}");
+    };
+    let arguments = vec![fields[0].clone(), Value::Int(BigInt::from_i64(5))];
+    let shifted = native.invoke("shift", arguments.clone()).expect("native shift runs");
+    assert_eq!(shifted, vm.invoke("shift", arguments).expect("VM shift runs"));
+    assert_eq!(native.native_deoptimizations(), 0);
+}
+
+#[test]
 fn loops_that_build_handle_values_through_the_bridge_stay_in_the_vm() {
     // Each `Labelled(...)` and each concatenation leaves a new arena handle; with no safepoint
     // to retire them, compiling this loop natively would hold every one until the call ends.

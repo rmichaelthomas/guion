@@ -18,6 +18,11 @@ Date: 2026-11-04. Branch `feat/follow-ups`, artifact format 61. Each open item f
 | Network hosts not verified | `guion check` and `guion publish` compare declared `network` hosts with hosts in URL literals in the library's own functions: an undeclared literal host is an error; network use with no literal host at all warns that the declaration cannot be confirmed. Hosts built at run time remain unverifiable statically. | `hosts_named_in_the_code_must_be_declared` |
 | `remove`/`rename` followed symlinks | They now act on the named entry: removing or renaming a link removes or moves the link, and a link pointing outside the root can be removed. | `symlinks_are_removed_and_renamed_as_entries_and_never_written_through_when_dangling` |
 | TLS client certificates | `tls_connect_with_identity` presents a client certificate; `tls_accept_verified` requires one and verifies it against a given CA only (format 61). | `mutual_tls_accepts_...`, `mutual_tls_rejects_missing_and_untrusted_client_certificates` |
+| Default runtime limits (decision) | `guion run` and the other commands bound *memory in use*, read from the CLI's pool allocator, instead of cumulative allocation, and have no default instruction limit. The 256 MiB default and `[runtime]` overrides are unchanged; embedders keep `HostPolicy::default()`. Loops that build handle values through the native bridge now stay in the VM, because native code retained every such value until the call returned (300k iterations reached 206 MB). | `command_line_programs_have_no_instruction_limit_and_a_memory_in_use_limit`, `loops_that_build_handle_values_through_the_bridge_stay_in_the_vm` |
+| File grants (decision) | The read and write grant on the project root stays. `guion check` and `guion inspect` print a `writes files:` line naming the folder when code reachable from `main` can write, rename or remove files; the check report carries `writes_files`. | `check_and_inspect_say_plainly_when_a_program_writes_files` |
+| Signing (decision) | The registry signs each log entry and the head with ed25519 over `guion-registry-log-v1:<seq>:<hash>`; because the hash covers `prev`, one signature vouches for the chain. Without `SIGNING_KEY` the Worker refuses writes, so the log never holds an unsigned entry. The client pins the default registry's key (id `2cbb71082c5a7848`), reads another registry's from `GUION_REGISTRY_PUBLIC_KEY` or `[registry] public_key`, and fails closed on an unsigned or wrongly signed entry. Publisher signatures are left to trusted publishing. | 2 Worker tests; 3 client unit tests; end-to-end install refused under a wrong key |
+| `.gub` attachments (decision) | Deferred until libraries compile separately. The client no longer sends a `cache` list, the Worker ignores one from older clients, and the index no longer carries it. | Worker tests |
+| Nested records on the machine-code path | A record whose fields include records made only of scalars (nested to any depth up to 8) now has a native layout: the inner record's words are stored inline in the outer one, read in place, and copied when kept. | `nested_records_run_natively_and_kept_records_are_not_overwritten`, `random_draws_and_unit_functions_compile_natively_and_match_the_vm` |
 
 ## Defects found and fixed along the way
 
@@ -26,28 +31,27 @@ Date: 2026-11-04. Branch `feat/follow-ups`, artifact format 61. Each open item f
 - **`assert` blocked native compilation** of any function that used it. It now compiles; a failed assertion replays in the VM, which raises `R_ASSERTION`.
 - **Native code deoptimized on every call that built a record holding another record** (for example `RandomFloat(value, Rng(state))`), because the native-layout inner record was passed to the bridge as an untagged pointer. It is now tagged and decoded; deoptimizations in the random benchmark went from 2,000,000 to 0.
 - **`docs/self-hosted-compiler.md` was wrong**: the CLI compiles with the Rust `guion-compiler` crate (since 7a909f7), not the embedded seed. Corrected; code-generation changes go into both compilers.
+- **Native code could overwrite a record kept from an earlier loop iteration.** A record returned by a call pointed at that call's output block, and keeping it in a variable kept the pointer, so the next call from the same place overwrote it: with `set prev = cur` in a loop, `cur.x == prev.x` held on 99,998 of 99,999 iterations. Each record variable now holds its own copy. Covered by the nested-records test.
+- A CLI test relied on the instruction limit to stop an infinite loop; with no CLI default it ran forever. It now raises a deterministic `R_DIV_ZERO`.
 - The registry end-to-end tests each start `wrangler dev`; run in parallel on a busy machine they could miss the start-up wait. They now take turns.
 
 ## Measurements (macOS ARM64, best of three warm runs)
 
 | Benchmark | Before | After | CPython 3 |
 |---|---|---|---|
-| 1,000,000 iterations of `random_next_float` + `random_next_range` | 5.57 s | 1.17 s | 0.32 s |
-| 20,000,000-iteration integer loop in `fn main() -> Unit` | 0.61 s | 0.11 s | 1.36 s |
-| 200,000 chained appends (`text + int_to_text(i) + ","`, 1.29 MB) | fails with `R_ALLOCATION_LIMIT` at about 60 KB | 0.056 s | 5.04 s |
+| 1,000,000 iterations of `random_next_float` + `random_next_range` | 5.57 s | 0.06 s | 0.28 s |
+| 20,000,000-iteration integer loop in `fn main() -> Unit` | 0.61 s | 0.08 s | 1.24 s |
+| 200,000 chained appends (`text + int_to_text(i) + ","`, 1.29 MB) | fails with `R_ALLOCATION_LIMIT` at about 60 KB | 0.03 s | 5.29 s |
 
-The random benchmark needs `instruction_limit` and `allocation_limit_bytes` raised above their defaults (see open items).
+All three run with default limits. CPython uses `random.Random(42)` with `random()` and `randrange(0, 6)`. The random benchmark's `main` and the three library functions it calls run as machine code with no deoptimizations; before nested records had a native layout, `main` stayed in the VM and the run took about 1.1 s. Timings with and without the source cache are the same.
 
 ## Verification
 
-Full workspace: 659 tests passed, 0 failed (registry end-to-end tests also run serially: 4 passed). Clippy with warnings denied is clean. Three-stage bootstrap and conformance (stage2, stage3) pass. Registry Worker tests: 11 passed. Site build, site check and 112 site tests pass. Not run: Linux, and the `verify-wave-1.sh` / `verify-package-registry.sh` table refresh.
+Full workspace: 666 tests passed, 0 failed, including the registry end-to-end tests against a local signing Worker. Clippy with warnings denied is clean. The compiler seed reproduces byte for byte; the three-stage bootstrap and conformance (stage2, stage3) pass. Registry Worker tests: 12 passed. Site build, site check and 112 site tests pass. Not run: Linux, and the `verify-wave-1.sh` / `verify-package-registry.sh` table refresh.
 
 ## Still open
 
-- **Nested records on the machine-code path.** The remaining gap to CPython in the random benchmark is native code handing records that contain records through the VM bridge. Giving nested native-layout records a native layout is a general backend feature.
-- **Default runtime limits.** A plain `guion run` allows 2,000,000 instructions and 256 MiB of *cumulative* allocation, so a long loop that allocates small records stops even when its live memory is tiny. Changing either is a product decision.
-- **`guion run` grants read and write on the project root by default.** A policy decision.
-- **Signing.** The protocol reserves a `signature` field; who signs (publishers, the registry, or both) is a design decision.
-- **`.gub` cache attachments.** Nothing can consume a precompiled library: the compiler links whole programs from source. Attachments only make sense after separate compilation exists.
-- **Deployment.** The Worker with the token endpoints is not deployed; the live registry still runs the earlier version.
+- **Deployment.** The Worker with token endpoints and log signing is not deployed; the live registry still runs the earlier version. It needs the `SIGNING_KEY` secret (generated into `~/.guion-registry/signing-key`, never in the repository) before it will accept a publish.
+- **Records holding lists inside records**, and records holding `Text`, still go through the VM bridge. Only scalar-only records are stored inline.
+- Publisher signatures (via trusted publishing) and registry key rotation.
 - Socket hostname grants still match the name as written, before resolution; HTTP/2, `Expect: 100-continue`, ALPN and session-resumption control are not offered; TLS hostname mismatch is not tested against a real mismatching peer; Linux results for Wave 1 are not established.
