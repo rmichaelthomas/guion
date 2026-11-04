@@ -4,6 +4,7 @@ use guion_model::{
     TextMap, Type, Value,
 };
 pub use guion_vm_core::CancellationToken;
+pub use guion_vm_core::{live_memory, set_live_memory_probe};
 use guion_vm_core::{
     build_register_programs, charge_allocation, check_call_depth, cloned_value_allocation,
     encoded_json_string_len, finish_json_value, finish_shared_json, json_exact_integer,
@@ -518,11 +519,16 @@ impl NativeListArena {
         if self.charge(bytes) {
             true
         } else {
-            self.host_error = Some(RuntimeError::new(
-                "R_ALLOCATION_LIMIT",
-                "cumulative allocation budget exhausted during this invocation",
-                span,
-            ));
+            self.host_error = Some(if self.budget.is_null() {
+                RuntimeError::new(
+                    "R_ALLOCATION_LIMIT",
+                    "cumulative allocation budget exhausted during this invocation",
+                    span,
+                )
+            } else {
+                // SAFETY: a non-null budget outlives the native invocation using this arena.
+                guion_vm_core::allocation_limit_error(unsafe { &*self.budget }, bytes, span)
+            });
             false
         }
     }

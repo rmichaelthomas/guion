@@ -164,6 +164,51 @@ fn main() -> Unit:
 }
 
 #[test]
+fn loops_that_build_handle_values_through_the_bridge_stay_in_the_vm() {
+    // Each `Labelled(...)` and each concatenation leaves a new arena handle; with no safepoint
+    // to retire them, compiling this loop natively would hold every one until the call ends.
+    let source = r#"record Labelled:
+    name: Text
+    weight: Int
+
+fn label(index: Int) -> Labelled:
+    return Labelled("item " + int_to_text(index), index)
+
+fn total(count: Int) -> Int:
+    var sum = 0
+    var index = 0
+    while index < count:
+        let item = label(index)
+        set sum = sum + item.weight + len(item.name)
+        set index = index + 1
+    return sum
+
+fn main() -> Int:
+    print(total(2000))
+    return 0
+"#;
+    let artifact = compile("bridge-retention.gu", source).expect("source compiles");
+    let mut native = Runtime::new()
+        .load(artifact.clone(), HostPolicy::default())
+        .expect("native runtime loads");
+    let mut vm = Runtime::vm_only()
+        .load(artifact, HostPolicy::default())
+        .expect("VM runtime loads");
+    native.invoke("main", vec![]).expect("native program runs");
+    vm.invoke("main", vec![]).expect("VM program runs");
+    assert_eq!(native.take_output(), vm.take_output());
+    let profile = native.native_compile_profile();
+    let total = profile["rejected_functions"]
+        .as_array()
+        .expect("native compile profile lists rejected functions")
+        .iter()
+        .find(|function| function["name"] == "total")
+        .expect("the allocating loop stays in the VM")
+        .clone();
+    assert_eq!(total["reason_code"], "native_loop_value_arena_retention");
+}
+
+#[test]
 fn text_length_and_index_use_unicode_scalar_positions() {
     let source =
         "fn main() -> Int:\n    print(len(\"a🙂é\"))\n    print(\"a🙂é\"[1])\n    return 0\n";

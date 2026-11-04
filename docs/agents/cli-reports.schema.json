@@ -97,6 +97,9 @@
             "function_count": {
               "type": "integer",
               "minimum": 0
+            },
+            "writes_files": {
+              "type": "boolean"
             }
           }
         }

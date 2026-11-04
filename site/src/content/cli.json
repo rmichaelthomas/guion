@@ -12,8 +12,8 @@
     {
       "name": "check",
       "args": "FILE.gu [--json]",
-      "plain": "Read the code and say what is wrong, with the line and a stable code.",
-      "dev": "Compiles and reports the function count. --json gives a versioned report, or a diagnostic with a stable code and line/column.",
+      "plain": "Read the code and say what is wrong, with the line and a stable code. It also says when the program can change files.",
+      "dev": "Compiles and reports the function count, and a writes-files line when code reachable from main can write, rename or remove files under the project root. --json gives a versioned report, or a diagnostic with a stable code and line/column.",
       "report": "guion_check_report v1"
     },
     {

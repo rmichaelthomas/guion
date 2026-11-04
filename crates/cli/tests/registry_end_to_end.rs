@@ -6,6 +6,9 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Output, Stdio};
 
 const ADMIN_TOKEN: &str = "local-admin-token-for-tests";
+// A throwaway ed25519 seed for the local registry's log signatures, and its public key.
+const SIGNING_KEY: &str = "2222222222222222222222222222222222222222222222222222222222222222";
+const PUBLIC_KEY: &str = "a09aa5f47a6759802ff955f8dc2d2a14a5c99d23be97f864127ff9383455a4f0";
 
 struct LocalRegistry {
     child: Child,
@@ -73,6 +76,7 @@ fn start_registry(name: &str) -> LocalRegistry {
         ])
         .arg(&state)
         .args(["--var", &format!("ADMIN_TOKEN:{ADMIN_TOKEN}")])
+        .args(["--var", &format!("SIGNING_KEY:{SIGNING_KEY}")])
         .current_dir(registry_dir)
         .stdout(Stdio::null())
         .stderr(Stdio::null())
@@ -123,11 +127,22 @@ fn guion(
     token: Option<&str>,
     arguments: &[&str],
 ) -> Output {
+    guion_trusting(directory, registry, token, arguments, PUBLIC_KEY)
+}
+
+fn guion_trusting(
+    directory: &Path,
+    registry: &LocalRegistry,
+    token: Option<&str>,
+    arguments: &[&str],
+    public_key: &str,
+) -> Output {
     let mut command = Command::new(env!("CARGO_BIN_EXE_guion"));
     command
         .args(arguments)
         .current_dir(directory)
         .env("GUION_REGISTRY_URL", &registry.url)
+        .env("GUION_REGISTRY_PUBLIC_KEY", public_key)
         .env_remove("GUION_REGISTRY_TOKEN");
     if let Some(token) = token {
         command.env("GUION_REGISTRY_TOKEN", token);
@@ -594,6 +609,20 @@ fn token_rotate_and_revoke_retire_the_old_token() {
     assert!(!text(&refused).contains(&first));
     let published = guion(&library, &registry, Some(&second), &["publish"]);
     assert!(published.status.success(), "{}", text(&published));
+
+    // The log is signed: a client that trusts a different key refuses to install from it.
+    let app = work.join("app");
+    new_project(&app, "pkg:token-lib/src/lib.gu", "one()");
+    let wrong_key = "3".repeat(64);
+    let untrusted = guion_trusting(&app, &registry, None, &["add", "token-lib"], &wrong_key);
+    assert!(!untrusted.status.success());
+    assert!(
+        text(&untrusted).contains("not signed by the registry's key"),
+        "{}",
+        text(&untrusted)
+    );
+    let trusted = guion(&app, &registry, None, &["add", "token-lib"]);
+    assert!(trusted.status.success(), "{}", text(&trusted));
 
     let revoked = guion(&work, &registry, Some(&second), &["token", "revoke"]);
     assert!(revoked.status.success(), "{}", text(&revoked));

@@ -4931,14 +4931,32 @@ pub fn append_guest_call_trace(
 #[derive(Debug)]
 pub struct AllocationPool {
     remaining: AtomicUsize,
+    limit: usize,
     /// Parallel operations currently sharing this pool with worker threads.
     sharers: AtomicUsize,
+}
+
+static LIVE_MEMORY_PROBE: std::sync::OnceLock<fn() -> usize> = std::sync::OnceLock::new();
+
+/// Registers a measure of the memory the process holds now. With one registered, the
+/// allocation limit bounds memory in use rather than the total ever allocated: running out of
+/// the per-allocation estimate asks the probe, refills the allowance to the limit minus what
+/// is held, and fails only when what is held reaches the limit. Without one (the default for
+/// embedders) the estimate is a cumulative budget. Only the first registration counts.
+pub fn set_live_memory_probe(probe: fn() -> usize) {
+    let _ = LIVE_MEMORY_PROBE.set(probe);
+}
+
+/// The memory the process holds, when a probe is registered.
+pub fn live_memory() -> Option<usize> {
+    LIVE_MEMORY_PROBE.get().map(|probe| probe())
 }
 
 impl AllocationPool {
     pub fn new(limit: usize) -> Self {
         Self {
             remaining: AtomicUsize::new(limit),
+            limit,
             sharers: AtomicUsize::new(0),
         }
     }
@@ -4959,6 +4977,11 @@ impl AllocationPool {
 
     #[inline]
     fn take(&self, bytes: usize, floor: usize) -> bool {
+        self.try_take(bytes, floor) || self.refill_from_live_memory(bytes, floor)
+    }
+
+    #[inline]
+    fn try_take(&self, bytes: usize, floor: usize) -> bool {
         if self.sharers.load(Ordering::Relaxed) == 0 {
             let left = self.remaining.load(Ordering::Relaxed);
             if bytes > left.saturating_sub(floor) {
@@ -4972,6 +4995,22 @@ impl AllocationPool {
                 (bytes <= left.saturating_sub(floor)).then(|| left - bytes)
             })
             .is_ok()
+    }
+
+    /// Resets the allowance to the limit minus the memory actually held, then retries.
+    #[cold]
+    fn refill_from_live_memory(&self, bytes: usize, floor: usize) -> bool {
+        let Some(held) = live_memory() else {
+            return false;
+        };
+        let refilled = self.limit.saturating_sub(held);
+        self.remaining.fetch_max(refilled, Ordering::Relaxed);
+        self.try_take(bytes, floor)
+    }
+
+    /// The limit this pool enforces.
+    pub fn limit(&self) -> usize {
+        self.limit
     }
 
     #[inline]
@@ -5232,15 +5271,18 @@ pub fn charge_allocation(budget: &Budget, bytes: usize, span: Span) -> Result<()
 }
 
 #[cold]
-fn allocation_limit_error(budget: &Budget, bytes: usize, span: Span) -> RuntimeError {
+pub fn allocation_limit_error(budget: &Budget, bytes: usize, span: Span) -> RuntimeError {
     let remaining = budget.allocation.remaining();
-    RuntimeError::new(
-        "R_ALLOCATION_LIMIT",
-        format!(
+    let message = match live_memory() {
+        Some(held) => format!(
+            "memory limit reached: {held} bytes in use of {} allowed (requested {bytes} more)",
+            budget.allocation.limit()
+        ),
+        None => format!(
             "cumulative allocation budget exhausted during this invocation (requested {bytes} bytes; {remaining} remain)"
         ),
-        span,
-    )
+    };
+    RuntimeError::new("R_ALLOCATION_LIMIT", message, span)
 }
 
 /// The clone charge for the common values, without a call.

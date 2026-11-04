@@ -25,6 +25,9 @@ use guion_model::{Artifact, BuildMetadata, Op, ResourceLimits, Value};
 use guion_runtime::{EffectKind, EffectOutcome, HostPolicy, Runtime};
 
 fn main() -> ExitCode {
+    // `allocation_limit_bytes` bounds the memory a program holds, measured by this binary's
+    // allocator, rather than the total it ever allocates.
+    guion_runtime::set_live_memory_probe(pool_alloc::held_bytes);
     let args = env::args().skip(1).collect();
     match execute(args) {
         Ok(code) => code,
@@ -732,6 +735,12 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
     };
     match command {
         "check" => {
+            let writes_files = entry_writes_files(&inspection_report(
+                &path,
+                &artifact,
+                &project_root,
+                false,
+            ));
             if json_check {
                 println!(
                     "{}",
@@ -740,11 +749,15 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
                         "kind": "guion_check_report",
                         "source": path,
                         "status": "passed",
-                        "function_count": artifact.functions.len()
+                        "function_count": artifact.functions.len(),
+                        "writes_files": writes_files
                     })
                 );
             } else {
                 println!("checked {} ({} functions)", path, artifact.functions.len());
+                if writes_files {
+                    println!("{}", file_write_notice(&project_root));
+                }
             }
             if let Some(report) = native_packages::check_library_surface(&project_root)? {
                 if !json_check {
@@ -858,6 +871,9 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
             if !artifact.externals.is_empty() {
                 println!("  Python declarations are opaque external effects; declared types do not prove behavior.");
             }
+            if entry_writes_files(&effects_report) {
+                println!("{}", file_write_notice(&project_root));
+            }
             println!(
                 "artifact format: {}\nentry: {}\nsource: {}",
                 artifact.format_version, artifact.entry, artifact.source_name
@@ -874,7 +890,11 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
                         .dependency_lock_sha256
                         .as_deref()
                         .unwrap_or("absent"),
-                    limits.instruction_limit,
+                    if limits.instruction_limit == u64::MAX {
+                        "none".to_owned()
+                    } else {
+                        limits.instruction_limit.to_string()
+                    },
                     limits.allocation_limit_bytes,
                     limits.call_depth_limit,
                     limits.output_limit_bytes,
@@ -3405,16 +3425,42 @@ fn normalize_http_host(input: &str) -> Result<String, String> {
     Ok(host)
 }
 
+/// Whether code reachable from the entry point can write, rename or remove files.
+fn entry_writes_files(report: &serde_json::Value) -> bool {
+    report["functions"].as_object().is_some_and(|functions| {
+        functions.values().any(|function| {
+            function["entry_reachable"] == true
+                && function["effects"]
+                    .as_array()
+                    .is_some_and(|effects| effects.iter().any(|e| e == "filesystem.write"))
+        })
+    })
+}
+
+fn file_write_notice(project_root: &std::path::Path) -> String {
+    format!(
+        "writes files: `guion run` lets this program create, change and remove files under {}",
+        project_root.display()
+    )
+}
+
 fn runtime_policy(root: &std::path::Path) -> Result<HostPolicy, String> {
     let manifest_path = project_manifest_path(root);
+    // Programs run by the command line have no instruction limit unless `[runtime]` sets one;
+    // embedders keep `HostPolicy::default()`'s bound. An artifact still carries the limit it was
+    // built with, and the runtime applies the stricter of the two.
+    let cli_default = HostPolicy {
+        instruction_limit: u64::MAX,
+        ..HostPolicy::default()
+    };
     if !manifest_path.is_file() {
-        return Ok(HostPolicy::default());
+        return Ok(cli_default);
     }
     let text = fs::read_to_string(&manifest_path)
         .map_err(|error| format!("cannot read {}: {error}", manifest_path.display()))?;
     let manifest: toml::Value = toml::from_str(&text)
         .map_err(|error| format!("{}: invalid TOML: {error}", manifest_path.display()))?;
-    let mut policy = HostPolicy::default();
+    let mut policy = cli_default;
     if let Some(runtime) = manifest.get("runtime") {
         let runtime = runtime
             .as_table()

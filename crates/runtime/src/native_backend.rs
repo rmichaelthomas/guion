@@ -500,6 +500,7 @@ pub(crate) struct NativeBackend {
     loop_safepoint: FuncId,
     loop_safepoint_functions: Vec<bool>,
     reaches_arena_allocation: Vec<bool>,
+    arena_allocation_sites: Vec<Vec<bool>>,
     constant_handles: Vec<Vec<Option<i64>>>,
     functions: Vec<Option<*const u8>>,
     result_words: Vec<usize>,
@@ -984,7 +985,11 @@ impl NativeBackend {
             count_guest_branch: count_guest_branch_id,
             loop_safepoint: loop_safepoint_id,
             loop_safepoint_functions: loop_safepoint_functions(artifact),
-            reaches_arena_allocation: functions_reaching_native_arena_allocations(artifact),
+            reaches_arena_allocation: functions_reaching_native_arena_allocations(
+                artifact,
+                &native_arena_allocation_sites(artifact),
+            ),
+            arena_allocation_sites: native_arena_allocation_sites(artifact),
             constant_handles: native_constant_handles(artifact),
             functions: vec![None; artifact.functions.len()],
             result_words: artifact
@@ -2513,6 +2518,7 @@ impl NativeBackend {
                             && self.loop_safepoint_functions[index]
                             && loop_backedge_allocates_arena_values(
                                 function,
+                                &self.arena_allocation_sites[index],
                                 &self.reaches_arena_allocation,
                                 ip,
                             )
@@ -5913,16 +5919,73 @@ fn functions_reaching_native_host_callbacks(artifact: &Artifact) -> Vec<bool> {
     reaches_callback
 }
 
-fn functions_reaching_native_arena_allocations(artifact: &Artifact) -> Vec<bool> {
+/// For each function, which instructions leave a new arena handle behind: the listed host
+/// operations, plus bridged operations whose result is a handle (a record that is not a block
+/// of scalars, a handle-typed field, a map, concatenated text, a handle-typed index result).
+fn native_arena_allocation_sites(artifact: &Artifact) -> Vec<Vec<bool>> {
+    artifact
+        .functions
+        .iter()
+        .map(|function| {
+            let mut blocking_ip = None;
+            let type_states = infer_native_types(
+                function,
+                &artifact.functions,
+                &artifact.records,
+                &mut blocking_ip,
+            );
+            let result_is_handle = |ip: usize| {
+                type_states
+                    .as_ref()
+                    .and_then(|states| states.stack_at_ip.get(ip + 1))
+                    .and_then(Option::as_ref)
+                    .and_then(|stack| stack.last())
+                    .is_some_and(|ty| {
+                        continuation_tag(ty, &artifact.records) == NATIVE_BRIDGE_TAG_HANDLE
+                    })
+            };
+            function
+                .code
+                .iter()
+                .enumerate()
+                .map(|(ip, instruction)| {
+                    let op = &instruction.op;
+                    instruction_may_allocate_native_arena_value(op)
+                        || match op {
+                            Op::MakeRecord(record_index, _) => artifact
+                                .records
+                                .get(*record_index)
+                                .is_some_and(|record| !native_record_has_native_layout(record)),
+                            Op::MakeTypedMap(_) | Op::MapKeys | Op::MapSet => true,
+                            Op::GetField(_, _) | Op::Add => result_is_handle(ip),
+                            // Indexing a list hands back a handle the list already holds;
+                            // only a map lookup goes through the bridge and allocates one.
+                            Op::Index => {
+                                result_is_handle(ip)
+                                    && type_states
+                                        .as_ref()
+                                        .and_then(|states| states.stack_at_ip.get(ip))
+                                        .and_then(Option::as_ref)
+                                        .and_then(|stack| stack.len().checked_sub(2).map(|at| &stack[at]))
+                                        .is_some_and(|ty| matches!(ty, Type::Map(_)))
+                            }
+                            _ => false,
+                        }
+                })
+                .collect()
+        })
+        .collect()
+}
+
+fn functions_reaching_native_arena_allocations(
+    artifact: &Artifact,
+    sites: &[Vec<bool>],
+) -> Vec<bool> {
     let mut reaches_allocation = vec![false; artifact.functions.len()];
     let mut callers = vec![Vec::new(); artifact.functions.len()];
     let mut pending = VecDeque::new();
     for (caller, function) in artifact.functions.iter().enumerate() {
-        if function
-            .code
-            .iter()
-            .any(|instruction| instruction_may_allocate_native_arena_value(&instruction.op))
-        {
+        if sites[caller].iter().any(|site| *site) {
             reaches_allocation[caller] = true;
             pending.push_back(caller);
         }
@@ -6006,7 +6069,8 @@ fn loop_safepoint_functions(artifact: &Artifact) -> Vec<bool> {
         return vec![false; artifact.functions.len()];
     }
     let recursive = recursive_functions(&artifact.functions);
-    let reaches_allocation = functions_reaching_native_arena_allocations(artifact);
+    let sites = native_arena_allocation_sites(artifact);
+    let reaches_allocation = functions_reaching_native_arena_allocations(artifact, &sites);
     let mut has_caller = vec![false; artifact.functions.len()];
     for (caller, function) in artifact.functions.iter().enumerate() {
         for instruction in &function.code {
@@ -6026,8 +6090,12 @@ fn loop_safepoint_functions(artifact: &Artifact) -> Vec<bool> {
         .map(|(index, function)| {
             if recursive[index]
                 || has_caller[index]
-                || function_loop_backedge_with_arena_allocation(function, &reaches_allocation)
-                    .is_none()
+                || function_loop_backedge_with_arena_allocation(
+                    function,
+                    &sites[index],
+                    &reaches_allocation,
+                )
+                .is_none()
             {
                 return false;
             }
@@ -6043,7 +6111,12 @@ fn loop_safepoint_functions(artifact: &Artifact) -> Vec<bool> {
             let live = live_local_slots_at_ip(function);
             (0..function.code.len())
                 .filter(|ip| {
-                    loop_backedge_allocates_arena_values(function, &reaches_allocation, *ip)
+                    loop_backedge_allocates_arena_values(
+                        function,
+                        &sites[index],
+                        &reaches_allocation,
+                        *ip,
+                    )
                 })
                 .all(|ip| match &function.code[ip].op {
                     Op::Jump(target) => loop_safepoint_roots(
@@ -6116,7 +6189,9 @@ fn native_eligibility_report(
     native_value_bridge_enabled: bool,
 ) -> (Vec<bool>, Vec<Option<NativeFunctionRejectionProfile>>) {
     let recursive = recursive_functions(&artifact.functions);
-    let reaches_native_arena_allocation = functions_reaching_native_arena_allocations(artifact);
+    let allocation_sites = native_arena_allocation_sites(artifact);
+    let reaches_native_arena_allocation =
+        functions_reaching_native_arena_allocations(artifact, &allocation_sites);
     let safepoint_functions = loop_safepoint_functions(artifact);
     let native_list_mutator: Vec<_> = artifact
         .functions
@@ -6141,25 +6216,6 @@ fn native_eligibility_report(
                     reason_code: "recursive_function".into(),
                     reason: "recursive functions are not compiled by the native backend".into(),
                     blocking_instruction: None,
-                    blocking_callee: None,
-                });
-            }
-            if let Some(backedge_ip) = (!safepoint_functions[index])
-                .then(|| {
-                    function_loop_backedge_with_arena_allocation(
-                        function,
-                        &reaches_native_arena_allocation,
-                    )
-                })
-                .flatten()
-            {
-                return Some(NativeFunctionRejectionProfile {
-                    name: function.name.clone(),
-                    reason_code: "native_loop_value_arena_retention".into(),
-                    reason: "native arena handles are retained for the invocation, so loops that allocate JSON, file, or text values must stay in the VM until the native arena can retire dead handles".into(),
-                    blocking_instruction: Some(format!(
-                        "loop backedge at bytecode instruction {backedge_ip}"
-                    )),
                     blocking_callee: None,
                 });
             }
@@ -6195,6 +6251,26 @@ fn native_eligibility_report(
                     reason: "the VM appends to a text local in place; native handles can be shared, so native code would copy the whole text on every append".into(),
                     blocking_instruction: Some(format!(
                         "bytecode instruction {append_ip}: Add"
+                    )),
+                    blocking_callee: None,
+                });
+            }
+            if let Some(backedge_ip) = (!safepoint_functions[index])
+                .then(|| {
+                    function_loop_backedge_with_arena_allocation(
+                        function,
+                        &allocation_sites[index],
+                        &reaches_native_arena_allocation,
+                    )
+                })
+                .flatten()
+            {
+                return Some(NativeFunctionRejectionProfile {
+                    name: function.name.clone(),
+                    reason_code: "native_loop_value_arena_retention".into(),
+                    reason: "native arena handles are retained for the invocation, so loops that allocate JSON, file, or text values must stay in the VM until the native arena can retire dead handles".into(),
+                    blocking_instruction: Some(format!(
+                        "loop backedge at bytecode instruction {backedge_ip}"
                     )),
                     blocking_callee: None,
                 });
@@ -6265,6 +6341,7 @@ fn native_eligibility_report(
 
 fn loop_backedge_allocates_arena_values(
     function: &Function,
+    sites: &[bool],
     reaches_native_arena_allocation: &[bool],
     ip: usize,
 ) -> bool {
@@ -6273,22 +6350,26 @@ fn loop_backedge_allocates_arena_values(
         _ => return false,
     };
     function.code.get(target..=ip).is_some_and(|loop_body| {
-        loop_body.iter().any(|instruction| match &instruction.op {
-            Op::Call(callee, _) => reaches_native_arena_allocation
-                .get(*callee)
-                .copied()
-                .unwrap_or(false),
-            op => instruction_may_allocate_native_arena_value(op),
-        })
+        loop_body
+            .iter()
+            .enumerate()
+            .any(|(offset, instruction)| match &instruction.op {
+                Op::Call(callee, _) => reaches_native_arena_allocation
+                    .get(*callee)
+                    .copied()
+                    .unwrap_or(false),
+                _ => sites.get(target + offset).copied().unwrap_or(false),
+            })
     })
 }
 
 fn function_loop_backedge_with_arena_allocation(
     function: &Function,
+    sites: &[bool],
     reaches_native_arena_allocation: &[bool],
 ) -> Option<usize> {
     (0..function.code.len()).find(|ip| {
-        loop_backedge_allocates_arena_values(function, reaches_native_arena_allocation, *ip)
+        loop_backedge_allocates_arena_values(function, sites, reaches_native_arena_allocation, *ip)
     })
 }
 

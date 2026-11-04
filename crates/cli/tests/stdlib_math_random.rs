@@ -204,3 +204,51 @@ fn format_61_random_instructions_are_rejected_in_format_60_artifacts() {
     assert!(!output.status.success());
     assert!(String::from_utf8_lossy(&output.stderr).contains("E_ARTIFACT_VERSION"));
 }
+
+#[test]
+fn command_line_programs_have_no_instruction_limit_and_a_memory_in_use_limit() {
+    // Far more than 2,000,000 instructions and far more than 256 MiB allocated in total, while
+    // holding almost nothing: both used to fail under the command line's defaults.
+    let churn = r#"fn main() -> Unit:
+    var kept = 0
+    var i = 0
+    while i < 3000000:
+        let line = "row " + int_to_text(i) + " with a little padding to make it allocate"
+        set kept = kept + len(line)
+        set i = i + 1
+    print(kept)
+"#;
+    let output = run_source("live-memory-churn", churn);
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    // Memory actually held still stops at the limit.
+    let dir = std::env::temp_dir().join(format!("guion-live-memory-hold-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(
+        dir.join("guion.toml"),
+        "[project]\nname = \"hold\"\nversion = \"0.1.0\"\nentry = \"main.gu\"\n\n[runtime]\nallocation_limit_bytes = 40000000\n",
+    )
+    .unwrap();
+    std::fs::write(
+        dir.join("main.gu"),
+        "fn main() -> Unit:\n    var items: List[Text] = []\n    var i = 0\n    while i < 2000000:\n        set items = list_push(items, \"held item \" + int_to_text(i) + \" with padding text\")\n        set i = i + 1\n    print(len(items))\n",
+    )
+    .unwrap();
+    let held = Command::new(env!("CARGO_BIN_EXE_guion"))
+        .args(["run", "main.gu"])
+        .current_dir(&dir)
+        .output()
+        .unwrap();
+    let _ = std::fs::remove_dir_all(&dir);
+    assert!(!held.status.success());
+    let stderr = String::from_utf8_lossy(&held.stderr);
+    assert!(
+        stderr.contains("R_ALLOCATION_LIMIT") && stderr.contains("memory limit reached"),
+        "{stderr}"
+    );
+}

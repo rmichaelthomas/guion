@@ -297,7 +297,6 @@ pub fn publish_library(library: &Path) -> Result<String, String> {
         let meta = serde_json::json!({
             "capabilities": manifest_capabilities_json(&manifest),
             "dependencies": {},
-            "cache": [],
         });
         registry.publish(&manifest.name, &manifest.version, archive, meta)
     })();

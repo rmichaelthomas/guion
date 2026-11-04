@@ -12,7 +12,24 @@
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::cell::UnsafeCell;
 use std::ptr;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+
+/// Bytes this allocator holds from the system: every small-object chunk (chunks are never
+/// returned) plus the large blocks currently allocated. Updated once per chunk or large block,
+/// so small allocations stay free of shared atomics.
+static HELD_BYTES: AtomicUsize = AtomicUsize::new(0);
+
+/// The memory the program holds, for the runtime's allocation limit.
+pub fn held_bytes() -> usize {
+    HELD_BYTES.load(Ordering::Relaxed)
+}
+
+fn note_large(block: *mut u8, bytes: usize) -> *mut u8 {
+    if !block.is_null() {
+        HELD_BYTES.fetch_add(bytes, Ordering::Relaxed);
+    }
+    block
+}
 
 const GRANULE: usize = 16;
 const MAX_SMALL: usize = 512;
@@ -192,6 +209,7 @@ unsafe fn refill(local: &mut Local, class: usize) -> *mut u8 {
         if chunk.is_null() {
             return ptr::null_mut();
         }
+        HELD_BYTES.fetch_add(CHUNK_BYTES, Ordering::Relaxed);
         local.bump = chunk;
         local.bump_end = unsafe { chunk.add(CHUNK_BYTES) };
     }
@@ -204,7 +222,7 @@ unsafe impl GlobalAlloc for PoolAllocator {
     #[inline]
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
         if !is_small(&layout) {
-            return unsafe { System.alloc(layout) };
+            return note_large(unsafe { System.alloc(layout) }, layout.size());
         }
         let class = class_of(layout.size());
         with_local(|local| {
@@ -222,6 +240,7 @@ unsafe impl GlobalAlloc for PoolAllocator {
     #[inline]
     unsafe fn dealloc(&self, block: *mut u8, layout: Layout) {
         if !is_small(&layout) {
+            HELD_BYTES.fetch_sub(layout.size(), Ordering::Relaxed);
             return unsafe { System.dealloc(block, layout) };
         }
         let class = class_of(layout.size());
@@ -232,7 +251,7 @@ unsafe impl GlobalAlloc for PoolAllocator {
     #[inline]
     unsafe fn alloc_zeroed(&self, layout: Layout) -> *mut u8 {
         if !is_small(&layout) {
-            return unsafe { System.alloc_zeroed(layout) };
+            return note_large(unsafe { System.alloc_zeroed(layout) }, layout.size());
         }
         let block = unsafe { self.alloc(layout) };
         if !block.is_null() {
@@ -245,7 +264,14 @@ unsafe impl GlobalAlloc for PoolAllocator {
     unsafe fn realloc(&self, block: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
         let new_layout = unsafe { Layout::from_size_align_unchecked(new_size, layout.align()) };
         match (is_small(&layout), is_small(&new_layout)) {
-            (false, false) => unsafe { System.realloc(block, layout, new_size) },
+            (false, false) => {
+                let moved = unsafe { System.realloc(block, layout, new_size) };
+                if !moved.is_null() {
+                    HELD_BYTES.fetch_add(new_size, Ordering::Relaxed);
+                    HELD_BYTES.fetch_sub(layout.size(), Ordering::Relaxed);
+                }
+                moved
+            }
             (true, true) if class_of(layout.size()) == class_of(new_size) => block,
             _ => {
                 let replacement = unsafe { self.alloc(new_layout) };

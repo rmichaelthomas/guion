@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { createHash } from "node:crypto";
+import { createHash, createPublicKey, verify } from "node:crypto";
 import { readdirSync } from "node:fs";
 import { test } from "node:test";
 import { handle } from "../src/core.js";
@@ -8,10 +8,12 @@ import reserved from "../reserved-names.json" with { type: "json" };
 import { MemoryStore } from "./memory-store.js";
 
 const ADMIN = "admin-secret-for-tests";
+// A throwaway ed25519 seed; it protects nothing.
+const SIGNING_KEY = "11".repeat(32);
 const sha = (bytes) => createHash("sha256").update(bytes).digest("hex");
 
 function registry() {
-  const env = { REGISTRY: new MemoryStore(), ADMIN_TOKEN: ADMIN };
+  const env = { REGISTRY: new MemoryStore(), ADMIN_TOKEN: ADMIN, SIGNING_KEY };
   const call = (method, path, { token, body, headers = {} } = {}) =>
     handle(
       new Request(`http://registry.test/${path}`, {
@@ -81,10 +83,41 @@ test("publish, download and verify the log chain", async () => {
   const second = await (await call("GET", "log/0000000002.json")).json();
   const first = await (await call("GET", "log/0000000001.json")).json();
   assert.equal(second.prev, first.hash);
-  const { hash, ...body } = second;
+  const { hash, key_id, signature, ...body } = second;
   assert.equal(hash, sha(JSON.stringify(body)));
   assert.equal(head.hash, hash);
+
+  // Every entry and the head are signed over "guion-registry-log-v1:<seq>:<hash>".
+  const published = await (await call("GET", "v1/signing-key")).json();
+  assert.equal(published.algorithm, "ed25519");
+  assert.equal(key_id, published.key_id);
+  assert.equal(published.key_id, sha(Buffer.from(published.public_key, "hex")).slice(0, 16));
+  const publicKey = createPublicKey({
+    key: Buffer.concat([Buffer.from("302a300506032b6570032100", "hex"), Buffer.from(published.public_key, "hex")]),
+    format: "der",
+    type: "spki",
+  });
+  const signed = (seq, entryHash, sig) =>
+    verify(null, Buffer.from(`guion-registry-log-v1:${seq}:${entryHash}`), publicKey, Buffer.from(sig, "hex"));
+  assert.ok(signed(2, hash, signature));
+  assert.ok(signed(1, first.hash, first.signature));
+  assert.ok(signed(head.seq, head.hash, head.signature));
+  assert.ok(!signed(1, hash, signature), "a signature is bound to its sequence number");
   assert.equal((await (await call("GET", "index/my_lib.json")).json()).versions.length, 2);
+});
+
+test("without a signing key the registry refuses writes but still serves reads", async () => {
+  const { env, call } = registry();
+  const token = await newPublisher(call, "alice");
+  assert.equal((await publish(call, token, "my-lib", "1.0.0", "archive one")).status, 201);
+  delete env.SIGNING_KEY;
+  const refused = await publish(call, token, "my-lib", "1.1.0", "archive two");
+  assert.equal(refused.status, 503);
+  assert.equal((await refused.json()).error.code, "E_SIGNING_UNAVAILABLE");
+  assert.equal((await call("POST", "v1/yank/my-lib/1.0.0", { token })).status, 503);
+  assert.equal((await call("GET", "log/head.json")).status, 200);
+  assert.equal((await (await call("GET", "log/head.json")).json()).seq, 1);
+  assert.equal((await call("GET", "v1/signing-key")).status, 503);
 });
 
 test("a published version is immutable", async () => {

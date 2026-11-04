@@ -868,7 +868,7 @@
 <thead><tr><th scope="col">Command</th><th scope="col">Usage</th><th scope="col">What it does</th><th scope="col">JSON report</th></tr></thead>
 <tbody>
 <tr><th scope="row"><code>guion new</code></th><td><code>DIRECTORY</code></td><td>Creates guion.toml, README.md and src/main.gu; refuses a path that already exists.</td><td>—</td></tr>
-<tr><th scope="row"><code>guion check</code></th><td><code>FILE.gu [--json]</code></td><td>Compiles and reports the function count. --json gives a versioned report, or a diagnostic with a stable code and line/column.</td><td><code>guion_check_report v1</code></td></tr>
+<tr><th scope="row"><code>guion check</code></th><td><code>FILE.gu [--json]</code></td><td>Compiles and reports the function count, and a writes-files line when code reachable from main can write, rename or remove files under the project root. --json gives a versioned report, or a diagnostic with a stable code and line/column.</td><td><code>guion_check_report v1</code></td></tr>
 <tr><th scope="row"><code>guion fmt</code></th><td><code>FILE.gu [--check]</code></td><td>Tokenizes outside comments and strings and normalizes spacing; --check reports unformatted files without writing.</td><td>—</td></tr>
 <tr><th scope="row"><code>guion lint</code></th><td><code>FILE.gu [--json]</code></td><td>Compiles first, then warns with W_UNUSED_IMPORT, W_UNUSED_LOCAL and W_UNREACHABLE_STATEMENT.</td><td><code>guion_lint_report v1</code></td></tr>
 <tr><th scope="row"><code>guion test</code></th><td><code>FILE.gu [--json]</code></td><td>Runs each zero-argument Unit function named test_* in its own fresh runtime instance.</td><td><code>guion_test_report v1</code></td></tr>
