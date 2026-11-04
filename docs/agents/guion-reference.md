@@ -34,6 +34,7 @@ Statements: `let`, `var`, `set`, `return`, `if`/`else`, `while`, `for name in li
 - Numeric conversion and math (artifact format 52): `int_to_float(Int) -> Float64`, `float_to_int(Float64) -> Int` (truncates toward zero), `int_to_text(Int) -> Text`, and `float_to_text(Float64) -> Text` (the same shortest round-trip text `print` shows). `std:math` provides `math_sin`, `math_cos`, `math_tan`, `math_asin`, `math_acos`, `math_atan`, `math_atan2`, `math_sinh`, `math_cosh`, `math_tanh`, `math_exp`, `math_ln`, `math_log10`, `math_log2`, `math_log`, `math_pow`, `math_hypot`, `math_abs`, `math_floor`, `math_ceil`, `math_round` (half away from zero), `math_floor_int`, `math_ceil_int`, `math_round_int`, `math_radians`, `math_degrees`, and the constants `math_pi()`, `math_tau()`, `math_e()`. A domain error raises `R_MATH_DOMAIN`, zero to a negative power raises `R_DIV_ZERO`, and a non-finite result raises `R_FLOAT_NONFINITE`. Results use the platform's IEEE 754 libm, so they can differ in the last digit between targets. `std:random` is a deterministic SplitMix64 generator over immutable `Rng` values: `random_new(seed)`, `random_next_u64`, `random_next_float` (in `[0, 1)`), and `random_next_range(rng, low, high)` (uniform over `low <= value < high`, by rejection sampling); each returns the value together with the next `Rng`. The same seed gives the same sequence on every target. It reads no clock; seed it from `unix_time_ms()` when a changing sequence is wanted.
 - Bytes, encodings and URLs (artifact format 53): `bytes_to_ints(Bytes) -> List[Int]`, `bytes_slice(Bytes, start, end) -> Bytes` (raises `R_INDEX_BOUNDS` outside `0 <= start <= end <= len`), `text_from_bytes(Bytes) -> Option[Text]` (strict UTF-8) and `text_from_bytes_lossy(Bytes) -> Text`. `std:encoding` provides `base64_encode`/`base64_decode` and `base64url_encode`/`base64url_decode` (padded; decoding is strict about alphabet, length and padding and returns `E_BASE64_INVALID`), `hex_encode`/`hex_decode` (lowercase output; either case accepted; `E_HEX_INVALID`), and `encoding_utf8_encode`, `encoding_utf8_decode` (`E_UTF8_INVALID`) and `encoding_utf8_decode_lossy`. `std:url` provides `url_parse(Text) -> Result[Url, StdError]` (an RFC 3986 split into `scheme`, `userinfo`, `host`, `port` (`-1` when absent), `path`, `query` and `fragment`, with no normalization; bracketed IPv6 hosts; `E_URL_INVALID`), `url_to_text`, `url_encode_component` (everything except `A-Z a-z 0-9 - . _ ~` is percent-encoded as UTF-8), `url_decode_component`, `url_query_parse` (`+` decodes to a space) and `url_query_build`.
 - Filesystem and paths (artifact format 54): `std:fs` adds `fs_exists`, `fs_kind` (`"file"`, `"directory"`, `"other"` or `"missing"`), `fs_size`, `fs_modified_ms`, `fs_list_dir` (sorted names), `fs_make_dir` (creates missing parents; succeeds if the directory exists), `fs_remove` (a file or an empty directory), `fs_remove_all`, `fs_rename`, `fs_copy` (returns the bytes copied) and `fs_temp_dir`/`fs_temp_file` (a unique entry under `.guion-tmp/` in the granted root; the prefix is 1 to 64 ASCII letters, digits, `-` or `_`). All return `Result[T, FileError]`. Each path is relative to a granted file root, may not contain `..`, and is confined after symlink resolution, as for `read_text`; mutating operations need the file-write grant. Symlinks are followed, so removing or renaming a link acts on its confined target. The granted root itself cannot be removed. `std:path` provides POSIX path text functions that never touch the disk: `path_normalize`, `path_join`, `path_dirname`, `path_basename`, `path_extension`, `path_stem`, `path_with_extension`, `path_components` and `path_is_absolute`. Static inspection now reports `filesystem.read` for `fs_walk`, `file_open_lines` and CSV opening as well.
+- Regular expressions (artifact format 55): `std:regex` provides `regex_is_match`, `regex_find` (the first match as a list of capture groups, group 0 first, unmatched groups as `""`), `regex_find_all`, `regex_replace`, `regex_replace_first` (replacement text expands `$1`, `${name}`; `$$` is a literal `$`), `regex_split` and `regex_escape`. Patterns use the Rust `regex` crate syntax: Unicode-aware, RE2-style, matching time linear in the subject, with no backreferences and no lookaround. An invalid or unsupported pattern, a pattern over 4,096 bytes, or one that compiles to more than 1 MiB of program returns `Err` with code `E_REGEX_INVALID`; no grant is required. Compiled patterns are cached per thread.
 - Runtime and compile errors preserve source spans. Format-17 artifacts add Bytes values and byte file operations; format-18 artifacts add source-level Python keyword calls; format-19 artifacts add HTTP GET and `HttpError`; format-38 artifacts add byte HTTP; format-39 artifacts add explicitly granted clock access; format-16 metadata carries source and dependency-lock provenance; format-15 metadata and format-14 artifacts remain readable. Runtime combines recorded ceilings with host policy by taking the stricter value. The bytecode is an implementation detail apart from the versioned artifact boundary.
 
 ## Builtin signatures
@@ -170,6 +171,13 @@ native_math_tanh(Float64) -> Float64
 native_percent_decode(Text) -> Option[Text]
 native_percent_encode(Text) -> Text
 native_random_mix(Int) -> Int
+native_regex_escape(Text) -> Text
+native_regex_find(Text, Text) -> Result[Option[List[Text]], Text]
+native_regex_find_all(Text, Text) -> Result[List[Text], Text]
+native_regex_is_match(Text, Text) -> Result[Bool, Text]
+native_regex_replace(Text, Text, Text) -> Result[Text, Text]
+native_regex_replace_first(Text, Text, Text) -> Result[Text, Text]
+native_regex_split(Text, Text) -> Result[List[Text], Text]
 native_sqlite_begin(Db) -> Result[Transaction, Record[StdError]]
 native_sqlite_close(Db) -> Result[Unit, Record[StdError]]
 native_sqlite_commit(Transaction) -> Result[Unit, Record[StdError]]
@@ -322,6 +330,13 @@ std:random — pub fn random_new(seed: Int) -> Rng
 std:random — pub fn random_next_u64(rng: Rng) -> RandomInt
 std:random — pub fn random_next_float(rng: Rng) -> RandomFloat
 std:random — pub fn random_next_range(rng: Rng, low: Int, high: Int) -> RandomInt
+std:regex — pub fn regex_is_match(pattern: Text, text: Text) -> Result[Bool, StdError]
+std:regex — pub fn regex_find(pattern: Text, text: Text) -> Result[Option[List[Text]], StdError]
+std:regex — pub fn regex_find_all(pattern: Text, text: Text) -> Result[List[Text], StdError]
+std:regex — pub fn regex_replace(pattern: Text, text: Text, replacement: Text) -> Result[Text, StdError]
+std:regex — pub fn regex_replace_first(pattern: Text, text: Text, replacement: Text) -> Result[Text, StdError]
+std:regex — pub fn regex_split(pattern: Text, text: Text) -> Result[List[Text], StdError]
+std:regex — pub fn regex_escape(text: Text) -> Text
 std:semver — pub fn parse_version(value: Text) -> Result[SemVer, FileError]
 std:semver — pub fn compare_versions(left: SemVer, right: SemVer) -> Int
 std:sqlite — pub fn sqlite_open(path: Text) -> Result[Db, StdError]
@@ -584,6 +599,7 @@ E_DIR
 E_DIRECTORY
 E_DIRECT_OPERATION_NAMES
 E_DISABLE_FIND_PACKAGE_ICU
+E_ENTRIES
 E_ENTRY_MISSING
 E_ENTRY_SIGNATURE
 E_EXCL
@@ -633,6 +649,7 @@ E_JSON_INDEX
 E_JSON_MISSING
 E_JSON_SHAPE
 E_JSON_TYPE
+E_LIMIT
 E_LIST_BOOL_KIND
 E_LIST_FLOAT_KIND
 E_LIST_HANDLE_KIND
@@ -700,6 +717,7 @@ E_RECORD_EMPTY
 E_RECORD_FIELD_DUPLICATE
 E_RECORD_NAME
 E_RECORD_UNCLOSED
+E_REGEX_INVALID
 E_RESOURCE_CLOSED
 E_RESOURCE_LIMIT
 E_RESOURCE_OWNER
@@ -1131,4 +1149,4 @@ fn main() -> Int:
 - [Host API and effects](../../language/host-api.md)
 - [Agent recipes](recipes.md)
 
-<!-- Generated reference content digest: sha256:47361ab54b196ba34bda02f5ebd4dabe0ec0bc055cb5a2a07d091a0fa9e615ae. Validated by `cargo xtask agent-reference --check`. -->
+<!-- Generated reference content digest: sha256:69da1b7a4a27bcc7081ce41190ddf8c93320aab33de74b04c1e68fd566593558. Validated by `cargo xtask agent-reference --check`. -->

@@ -4,7 +4,7 @@ use std::{collections::BTreeMap, fs};
 
 use guion_model::{
     Artifact, BigInt, CodecFunction, ExternalFunction, Float64, FsFunction, Function, Instruction,
-    MathFunction, Op, RecordDefinition, RecordField, Span, Type, Value,
+    MathFunction, Op, RecordDefinition, RecordField, RegexFunction, Span, Type, Value,
 };
 use serde_json::Value as Json;
 
@@ -455,11 +455,13 @@ fn parse_instruction(
             MathFunction::from_op_name(other),
             CodecFunction::from_op_name(other),
             FsFunction::from_op_name(other),
+            RegexFunction::from_op_name(other),
         ) {
-            (Some(function), _, _) => Op::Math(function),
-            (None, Some(function), _) => Op::Codec(function),
-            (None, None, Some(function)) => Op::Fs(function),
-            (None, None, None) => {
+            (Some(function), _, _, _) => Op::Math(function),
+            (None, Some(function), _, _) => Op::Codec(function),
+            (None, None, Some(function), _) => Op::Fs(function),
+            (None, None, None, Some(function)) => Op::Regex(function),
+            (None, None, None, None) => {
                 return Err(format!(
                     "unsupported IR opcode `{op_name}` at instruction {pc}"
                 ))

@@ -1,0 +1,21 @@
+import "std:regex"
+fn build(n: Int) -> Text:
+    var text = ""
+    var i = 0
+    while i < n:
+        set text = text + "user" + int_to_text(i) + "@example.com, order " + int_to_text(i * 7) + " shipped; "
+        set i = i + 1
+    return text
+fn main() -> Int:
+    let text = build(1500)
+    var total = 0
+    var round = 0
+    while round < 20:
+        let emails = unwrap(regex_find_all("[a-z0-9]+@[a-z]+\\.com", text))
+        let numbers = unwrap(regex_find_all("[0-9]+", text))
+        let swapped = unwrap(regex_replace("order ([0-9]+)", text, "#$1"))
+        let parts = unwrap(regex_split(";\\s*", text))
+        set total = total + len(emails) + len(numbers) + len(swapped) + len(parts)
+        set round = round + 1
+    print(total)
+    return 0

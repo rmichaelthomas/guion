@@ -8,8 +8,8 @@
 
 use guion_model::{
     Artifact, BigInt, CodecFunction, FileErrorValue, Float64, FsFunction, HttpErrorValue,
-    JsonErrorValue, MathFunction, NativeResourceValue, Op, RuntimeError, ShareAcrossThreads,
-    Shared, SharedJson, SharedText, Span, TaskErrorValue, TextMap, Type, Value,
+    JsonErrorValue, MathFunction, NativeResourceValue, Op, RegexFunction, RuntimeError,
+    ShareAcrossThreads, Shared, SharedJson, SharedText, Span, TaskErrorValue, TextMap, Type, Value,
 };
 use std::{
     cell::Cell,
@@ -2704,6 +2704,23 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                 )?;
                 push_stack!(value);
             }
+            Op::Regex(function) => {
+                let function = *function;
+                let mut operands = Vec::with_capacity(function.arity());
+                for _ in 0..function.arity() {
+                    operands.push(pop!());
+                }
+                operands.reverse();
+                let value = apply_regex(function, operands).map_err(|(code, message)| {
+                    RuntimeError::new(code, message, instruction.span)
+                })?;
+                charge_allocation(
+                    budget.as_ref(),
+                    new_value_allocation(&value),
+                    instruction.span,
+                )?;
+                push_stack!(value);
+            }
             Op::IntToFloat => {
                 let Value::Int(value) = pop!() else {
                     return Err(RuntimeError::new(
@@ -4728,6 +4745,7 @@ pub fn opcode_profile_name(op: &Op) -> &'static str {
         Op::Math(function) => function.op_name(),
         Op::Codec(function) => function.op_name(),
         Op::Fs(function) => function.op_name(),
+        Op::Regex(function) => function.op_name(),
         Op::IntToFloat => "IntToFloat",
         Op::FloatToInt => "FloatToInt",
         Op::NumberToText => "NumberToText",
@@ -6715,6 +6733,17 @@ fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result
                 }
                 state.stack.push(result);
             }
+            Op::Regex(function) => {
+                for _ in 0..function.arity() {
+                    if pop_type(&mut state.stack, pc)? != Type::Text {
+                        return Err(format!(
+                            "{} requires Text operands at instruction {pc}",
+                            function.op_name()
+                        ));
+                    }
+                }
+                state.stack.push(regex_result_type(*function));
+            }
             Op::Fs(function) => {
                 for _ in 0..function.arity() {
                     if pop_type(&mut state.stack, pc)? != Type::Text {
@@ -8104,6 +8133,104 @@ fn fs_result_type(function: FsFunction) -> Type {
         }
     };
     Type::Result(Box::new(ok), Box::new(Type::FileError))
+}
+
+/// The type a regex function pushes: `Result[T, Text]` (the error is the pattern's compile
+/// message), except `escape`, which cannot fail.
+fn regex_result_type(function: RegexFunction) -> Type {
+    let ok = match function {
+        RegexFunction::IsMatch => Type::Bool,
+        RegexFunction::Find => Type::Option(Box::new(Type::List(Box::new(Type::Text)))),
+        RegexFunction::FindAll | RegexFunction::Split => Type::List(Box::new(Type::Text)),
+        RegexFunction::Replace | RegexFunction::ReplaceFirst => Type::Text,
+        RegexFunction::Escape => return Type::Text,
+    };
+    Type::Result(Box::new(ok), Box::new(Type::Text))
+}
+
+const REGEX_MAX_PATTERN_BYTES: usize = 4096;
+const REGEX_SIZE_LIMIT: usize = 1 << 20;
+const REGEX_CACHE_ENTRIES: usize = 64;
+
+thread_local! {
+    static REGEX_CACHE: std::cell::RefCell<std::collections::HashMap<String, regex::Regex>> =
+        std::cell::RefCell::new(std::collections::HashMap::new());
+}
+
+/// Compiles `pattern` with bounded program size, reusing a small per-thread cache.
+fn compile_regex(pattern: &str) -> Result<regex::Regex, String> {
+    if pattern.len() > REGEX_MAX_PATTERN_BYTES {
+        return Err(format!(
+            "pattern is longer than {REGEX_MAX_PATTERN_BYTES} bytes"
+        ));
+    }
+    REGEX_CACHE.with(|cache| {
+        if let Some(found) = cache.borrow().get(pattern) {
+            return Ok(found.clone());
+        }
+        let compiled = regex::RegexBuilder::new(pattern)
+            .size_limit(REGEX_SIZE_LIMIT)
+            .dfa_size_limit(REGEX_SIZE_LIMIT)
+            .build()
+            .map_err(|error| error.to_string())?;
+        let mut cache = cache.borrow_mut();
+        if cache.len() >= REGEX_CACHE_ENTRIES {
+            cache.clear();
+        }
+        cache.insert(pattern.to_string(), compiled.clone());
+        Ok(compiled)
+    })
+}
+
+fn apply_regex(
+    function: RegexFunction,
+    mut operands: Vec<Value>,
+) -> Result<Value, (&'static str, &'static str)> {
+    const TYPE: (&str, &str) = (
+        "R_TYPE_INVALID",
+        "regex function received an invalid operand",
+    );
+    let text_value = |text: &str| Value::Text(SharedText::from(text));
+    let mut texts = Vec::with_capacity(operands.len());
+    for operand in operands.drain(..) {
+        let Value::Text(text) = operand else {
+            return Err(TYPE);
+        };
+        texts.push(text.to_string());
+    }
+    if function == RegexFunction::Escape {
+        return Ok(text_value(&regex::escape(&texts[0])));
+    }
+    let compiled = match compile_regex(&texts[0]) {
+        Ok(compiled) => compiled,
+        Err(message) => return Ok(Value::ResultErr(Box::new(text_value(&message)))),
+    };
+    let subject = texts[1].as_str();
+    let text_list = |items: Vec<&str>| {
+        Value::List(Shared::new(
+            items.into_iter().map(text_value).collect::<Vec<_>>(),
+        ))
+    };
+    let ok = match function {
+        RegexFunction::IsMatch => Value::Bool(compiled.is_match(subject)),
+        RegexFunction::Find => match compiled.captures(subject) {
+            Some(captures) => Value::OptionSome(Box::new(text_list(
+                captures
+                    .iter()
+                    .map(|group| group.map_or("", |matched| matched.as_str()))
+                    .collect(),
+            ))),
+            None => Value::OptionNone,
+        },
+        RegexFunction::FindAll => {
+            text_list(compiled.find_iter(subject).map(|m| m.as_str()).collect())
+        }
+        RegexFunction::Replace => text_value(&compiled.replace_all(subject, texts[2].as_str())),
+        RegexFunction::ReplaceFirst => text_value(&compiled.replace(subject, texts[2].as_str())),
+        RegexFunction::Split => text_list(compiled.split(subject).collect()),
+        RegexFunction::Escape => unreachable!("handled above"),
+    };
+    Ok(Value::ResultOk(Box::new(ok)))
 }
 
 /// Operand and result types of a codec function; operands are listed in push order.

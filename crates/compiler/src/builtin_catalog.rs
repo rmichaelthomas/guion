@@ -1,4 +1,4 @@
-use guion_model::{CodecFunction, FsFunction, MathFunction, Op, Type};
+use guion_model::{CodecFunction, FsFunction, MathFunction, Op, RegexFunction, Type};
 use std::collections::HashMap;
 use std::sync::OnceLock;
 
@@ -278,7 +278,10 @@ pub(crate) fn operation(name: &str) -> Option<Op> {
             Some(function) => Op::Math(function),
             None => match CodecFunction::from_op_name(other) {
                 Some(function) => Op::Codec(function),
-                None => Op::Fs(FsFunction::from_op_name(other)?),
+                None => match FsFunction::from_op_name(other) {
+                    Some(function) => Op::Fs(function),
+                    None => Op::Regex(RegexFunction::from_op_name(other)?),
+                },
             },
         },
     })

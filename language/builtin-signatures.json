@@ -1545,6 +1545,70 @@
       ],
       "result": "Result[Text, FileError]",
       "operation": "FsOpTempFile"
+    },
+    {
+      "name": "native_regex_is_match",
+      "parameters": [
+        "Text",
+        "Text"
+      ],
+      "result": "Result[Bool, Text]",
+      "operation": "RegexIsMatch"
+    },
+    {
+      "name": "native_regex_find",
+      "parameters": [
+        "Text",
+        "Text"
+      ],
+      "result": "Result[Option[List[Text]], Text]",
+      "operation": "RegexFind"
+    },
+    {
+      "name": "native_regex_find_all",
+      "parameters": [
+        "Text",
+        "Text"
+      ],
+      "result": "Result[List[Text], Text]",
+      "operation": "RegexFindAll"
+    },
+    {
+      "name": "native_regex_replace",
+      "parameters": [
+        "Text",
+        "Text",
+        "Text"
+      ],
+      "result": "Result[Text, Text]",
+      "operation": "RegexReplace"
+    },
+    {
+      "name": "native_regex_replace_first",
+      "parameters": [
+        "Text",
+        "Text",
+        "Text"
+      ],
+      "result": "Result[Text, Text]",
+      "operation": "RegexReplaceFirst"
+    },
+    {
+      "name": "native_regex_split",
+      "parameters": [
+        "Text",
+        "Text"
+      ],
+      "result": "Result[List[Text], Text]",
+      "operation": "RegexSplit"
+    },
+    {
+      "name": "native_regex_escape",
+      "parameters": [
+        "Text"
+      ],
+      "result": "Text",
+      "operation": "RegexEscape"
     }
   ]
 }

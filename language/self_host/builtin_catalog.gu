@@ -401,6 +401,20 @@ pub fn builtin_catalog_signature(name: Text) -> Text:
             return "1:FsOpTempDir:Result[Text, FileError]:Text"
         if name == "native_fs_temp_file":
             return "1:FsOpTempFile:Result[Text, FileError]:Text"
+        if name == "native_regex_is_match":
+            return "2:RegexIsMatch:Result[Bool, Text]:Text;Text"
+        if name == "native_regex_find":
+            return "2:RegexFind:Result[Option[List[Text]], Text]:Text;Text"
+        if name == "native_regex_find_all":
+            return "2:RegexFindAll:Result[List[Text], Text]:Text;Text"
+        if name == "native_regex_replace":
+            return "3:RegexReplace:Result[Text, Text]:Text;Text;Text"
+        if name == "native_regex_replace_first":
+            return "3:RegexReplaceFirst:Result[Text, Text]:Text;Text;Text"
+        if name == "native_regex_split":
+            return "2:RegexSplit:Result[List[Text], Text]:Text;Text"
+        if name == "native_regex_escape":
+            return "1:RegexEscape:Text:Text"
     return ""
 
 fn builtin_catalog_part(value: Text, delimiter: Text, wanted: Int) -> Text:

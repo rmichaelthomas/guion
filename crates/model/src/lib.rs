@@ -125,7 +125,7 @@ mod tests {
     use super::Shared;
     use super::{
         Artifact, BigInt, BuildMetadata, ExternalFunction, FileErrorValue, Function, Instruction,
-        JsonErrorValue, Op, ResourceLimits, SharedJson, Span, Type, Value,
+        JsonErrorValue, Op, RegexFunction, ResourceLimits, SharedJson, Span, Type, Value,
     };
 
     #[test]
@@ -1234,6 +1234,46 @@ mod tests {
         assert_eq!(
             Artifact::from_bytes(&corrupted).unwrap_err().code,
             "E_ARTIFACT_MAGIC"
+        );
+    }
+
+    #[test]
+    fn regex_instructions_are_gated_on_format_55() {
+        let mut artifact = Artifact {
+            format_version: Artifact::CURRENT_VERSION,
+            build_metadata: None,
+            compiled_source_sha256: None,
+            source_name: "x".into(),
+            sources: vec!["x".into()],
+            entry: "main".into(),
+            functions: vec![Function {
+                name: "main".into(),
+                parameters: vec![],
+                result: Type::Unit,
+                local_count: 0,
+                code: vec![
+                    Instruction {
+                        op: Op::Regex(RegexFunction::Split),
+                        span: Span::default(),
+                    },
+                    Instruction {
+                        op: Op::Return,
+                        span: Span::default(),
+                    },
+                ],
+            }],
+            externals: vec![],
+            records: vec![],
+        };
+        let bytes = artifact.to_bytes().unwrap();
+        assert_eq!(Artifact::from_bytes(&bytes).unwrap(), artifact);
+        artifact.format_version = 54;
+        assert_eq!(artifact.to_bytes().unwrap_err().code, "E_ARTIFACT_VERSION");
+        let mut old = bytes;
+        old[4..8].copy_from_slice(&54u32.to_le_bytes());
+        assert_eq!(
+            Artifact::from_bytes(&old).unwrap_err().code,
+            "E_ARTIFACT_VERSION"
         );
     }
 
@@ -3140,6 +3180,72 @@ impl FsFunction {
     }
 }
 
+/// Regular-expression functions behind `Op::Regex`. Patterns use the linear-time RE2-style
+/// syntax of the Rust `regex` crate (no backreferences or lookaround). Codes are part of
+/// artifact format 55.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RegexFunction {
+    IsMatch,
+    Find,
+    FindAll,
+    Replace,
+    ReplaceFirst,
+    Split,
+    Escape,
+}
+
+impl RegexFunction {
+    const ALL: [RegexFunction; 7] = [
+        RegexFunction::IsMatch,
+        RegexFunction::Find,
+        RegexFunction::FindAll,
+        RegexFunction::Replace,
+        RegexFunction::ReplaceFirst,
+        RegexFunction::Split,
+        RegexFunction::Escape,
+    ];
+
+    pub fn code(self) -> u8 {
+        Self::ALL
+            .iter()
+            .position(|candidate| *candidate == self)
+            .expect("every regex function is listed") as u8
+    }
+
+    pub fn from_code(code: u8) -> Option<Self> {
+        Self::ALL.get(usize::from(code)).copied()
+    }
+
+    /// The instruction name used by builtin catalogs and the textual bytecode form.
+    pub fn op_name(self) -> &'static str {
+        match self {
+            RegexFunction::IsMatch => "RegexIsMatch",
+            RegexFunction::Find => "RegexFind",
+            RegexFunction::FindAll => "RegexFindAll",
+            RegexFunction::Replace => "RegexReplace",
+            RegexFunction::ReplaceFirst => "RegexReplaceFirst",
+            RegexFunction::Split => "RegexSplit",
+            RegexFunction::Escape => "RegexEscape",
+        }
+    }
+
+    pub fn from_op_name(name: &str) -> Option<Self> {
+        Self::ALL
+            .iter()
+            .copied()
+            .find(|candidate| candidate.op_name() == name)
+    }
+
+    /// Number of `Text` operands the function pops.
+    pub fn arity(self) -> usize {
+        match self {
+            RegexFunction::Replace | RegexFunction::ReplaceFirst => 3,
+            RegexFunction::Escape => 1,
+            _ => 2,
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Op {
     Const(Value),
@@ -3261,6 +3367,7 @@ pub enum Op {
     Math(MathFunction),
     Codec(CodecFunction),
     Fs(FsFunction),
+    Regex(RegexFunction),
     IntToFloat,
     FloatToInt,
     NumberToText,
@@ -3403,7 +3510,7 @@ pub struct Artifact {
 }
 
 impl Artifact {
-    pub const CURRENT_VERSION: u32 = 54;
+    pub const CURRENT_VERSION: u32 = 55;
     pub fn entry(&self) -> &str {
         &self.entry
     }
@@ -3651,6 +3758,12 @@ impl Artifact {
                 "filesystem instructions require artifact format 54",
             ));
         }
+        if self.format_version < 55 && artifact_uses_regex(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "regular-expression instructions require artifact format 55",
+            ));
+        }
         validate_sort_comparator_effects(self)
             .map_err(|message| ArtifactError::new("E_SORT_EFFECT", message))?;
         let mut w = Writer(Vec::new());
@@ -3896,6 +4009,10 @@ impl Artifact {
                     }
                     Op::Fs(function) => {
                         w.u8(183);
+                        w.u8(function.code());
+                    }
+                    Op::Regex(function) => {
+                        w.u8(184);
                         w.u8(function.code());
                     }
                     Op::IntToFloat => w.u8(178),
@@ -4269,6 +4386,21 @@ impl Artifact {
                         return Err(ArtifactError::new(
                             "E_ARTIFACT_VERSION",
                             "fused JSON field accessors require artifact format 50",
+                        ));
+                    }
+                    184 if format_version >= 55 => {
+                        let code = r.u8()?;
+                        Op::Regex(RegexFunction::from_code(code).ok_or_else(|| {
+                            ArtifactError::new(
+                                "E_ARTIFACT_ENCODING",
+                                format!("regex instruction has unknown function code {code}"),
+                            )
+                        })?)
+                    }
+                    184 => {
+                        return Err(ArtifactError::new(
+                            "E_ARTIFACT_VERSION",
+                            "regular-expression instructions require artifact format 55",
                         ));
                     }
                     183 if format_version >= 54 => {
@@ -4908,6 +5040,15 @@ fn artifact_uses_codecs(artifact: &Artifact) -> bool {
             .code
             .iter()
             .any(|instruction| matches!(instruction.op, Op::Codec(_)))
+    })
+}
+
+fn artifact_uses_regex(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function
+            .code
+            .iter()
+            .any(|instruction| matches!(instruction.op, Op::Regex(_)))
     })
 }
 
