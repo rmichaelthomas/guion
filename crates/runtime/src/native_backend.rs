@@ -12,8 +12,8 @@ use super::{NativeListArena, NativeVmContinuationFrame};
 use cranelift_codegen::{
     ir::{
         condcodes::{FloatCC, IntCC},
-        types, AbiParam, BlockArg, FuncRef, InstBuilder, MemFlagsData, Signature, StackSlotData,
-        StackSlotKind, UserFuncName,
+        types, AbiParam, BlockArg, FuncRef, InstBuilder, MemFlagsData, Signature, StackSlot,
+        StackSlotData, StackSlotKind, UserFuncName,
     },
     Context,
 };
@@ -350,11 +350,169 @@ fn native_bridge_tag(ty: &Type) -> i64 {
     }
 }
 
-pub(crate) fn native_record_has_native_layout(record: &guion_model::RecordDefinition) -> bool {
-    let native_item = |ty: &Type| matches!(ty, Type::Int | Type::Float64 | Type::Bool);
-    record.fields.iter().all(|field| {
-        native_item(&field.ty) || matches!(&field.ty, Type::List(item) if native_item(item))
+// A native-layout record is a block of 64-bit words, one per scalar or list field. A field that
+// holds another record whose fields are all scalars (or such records, nested) is stored inline as
+// that record's words, so reading it needs no allocation and returning the outer record copies
+// the whole value. Lists are allowed only at the outer level.
+const MAX_NESTED_RECORD_DEPTH: usize = 8;
+
+fn native_scalar(ty: &Type) -> bool {
+    matches!(ty, Type::Int | Type::Float64 | Type::Bool)
+}
+
+fn native_record_words_at(
+    record: &guion_model::RecordDefinition,
+    records: &[guion_model::RecordDefinition],
+    depth: usize,
+) -> Option<usize> {
+    if depth > MAX_NESTED_RECORD_DEPTH {
+        return None;
+    }
+    record.fields.iter().try_fold(0_usize, |words, field| {
+        let field_words = match &field.ty {
+            ty if native_scalar(ty) => 1,
+            Type::List(item) if depth == 0 && native_scalar(item) => 1,
+            Type::Record(_) => {
+                native_record_words_at(inline_record(&field.ty, records)?, records, depth + 1)?
+            }
+            _ => return None,
+        };
+        words.checked_add(field_words)
     })
+}
+
+fn inline_record<'a>(
+    ty: &Type,
+    records: &'a [guion_model::RecordDefinition],
+) -> Option<&'a guion_model::RecordDefinition> {
+    match ty {
+        Type::Record(name) => records.iter().find(|record| record.name == *name),
+        _ => None,
+    }
+}
+
+/// The number of words a native-layout record occupies, or `None` if it has no native layout.
+pub(crate) fn native_record_words(
+    record: &guion_model::RecordDefinition,
+    records: &[guion_model::RecordDefinition],
+) -> Option<usize> {
+    native_record_words_at(record, records, 0)
+}
+
+pub(crate) fn native_record_has_native_layout(
+    record: &guion_model::RecordDefinition,
+    records: &[guion_model::RecordDefinition],
+) -> bool {
+    native_record_words(record, records).is_some()
+}
+
+/// The word offset of `field` within a native-layout record.
+pub(crate) fn native_record_field_offset(
+    record: &guion_model::RecordDefinition,
+    field: usize,
+    records: &[guion_model::RecordDefinition],
+) -> Option<usize> {
+    record
+        .fields
+        .get(..field)?
+        .iter()
+        .try_fold(0_usize, |offset, field| {
+            let words = match inline_record(&field.ty, records) {
+                Some(nested) => native_record_words_at(nested, records, 1)?,
+                None => 1,
+            };
+            offset.checked_add(words)
+        })
+}
+
+/// The record stored inline in a field of type `ty`, if any.
+pub(crate) fn native_inline_record<'a>(
+    ty: &Type,
+    records: &'a [guion_model::RecordDefinition],
+) -> Option<&'a guion_model::RecordDefinition> {
+    inline_record(ty, records).filter(|record| native_record_words_at(record, records, 1).is_some())
+}
+
+/// The scalar and list types of a native-layout record's words, nested records flattened.
+fn native_record_word_types(
+    record: &guion_model::RecordDefinition,
+    records: &[guion_model::RecordDefinition],
+    out: &mut Vec<Type>,
+) {
+    for field in &record.fields {
+        match native_inline_record(&field.ty, records) {
+            Some(nested) => native_record_word_types(nested, records, out),
+            None => out.push(field.ty.clone()),
+        }
+    }
+}
+
+/// Encodes a record stored inline (scalars only) as its words.
+pub(crate) fn encode_inline_native_record(
+    value: &Value,
+    record: &guion_model::RecordDefinition,
+    records: &[guion_model::RecordDefinition],
+    out: &mut Vec<i64>,
+) -> Option<()> {
+    let Value::Record(name, fields) = value else {
+        return None;
+    };
+    if *name != record.name || fields.len() != record.fields.len() {
+        return None;
+    }
+    for (value, field) in fields.iter().zip(&record.fields) {
+        match (value, &field.ty) {
+            (Value::Int(value), Type::Int) => out.push(value.to_i64()?),
+            (Value::Float64(value), Type::Float64) => out.push(value.get().to_bits() as i64),
+            (Value::Bool(value), Type::Bool) => out.push(i64::from(*value)),
+            (value, ty) => encode_inline_native_record(
+                value,
+                native_inline_record(ty, records)?,
+                records,
+                out,
+            )?,
+        }
+    }
+    Some(())
+}
+
+/// Decodes a record stored inline (scalars only) from its words.
+pub(crate) fn decode_inline_native_record(
+    words: &[i64],
+    record: &guion_model::RecordDefinition,
+    records: &[guion_model::RecordDefinition],
+) -> Option<Value> {
+    let mut fields = Vec::new();
+    fields.try_reserve_exact(record.fields.len()).ok()?;
+    let mut offset = 0;
+    for field in &record.fields {
+        let word = *words.get(offset)?;
+        let value = match &field.ty {
+            Type::Int => Value::Int(guion_model::BigInt::from_i64(word)),
+            Type::Float64 => {
+                Value::Float64(guion_model::Float64::new(f64::from_bits(word as u64))?)
+            }
+            Type::Bool => Value::Bool(word != 0),
+            ty => {
+                let nested = native_inline_record(ty, records)?;
+                let words_needed = native_record_words_at(nested, records, 1)?;
+                let value = decode_inline_native_record(
+                    words.get(offset..offset.checked_add(words_needed)?)?,
+                    nested,
+                    records,
+                )?;
+                offset += words_needed;
+                fields.push(value);
+                continue;
+            }
+        };
+        offset += 1;
+        fields.push(value);
+    }
+    Some(Value::Record(
+        record.name.clone(),
+        guion_model::Shared::new(fields),
+    ))
 }
 
 fn may_contain_map_handle(ty: &Type, records: &[guion_model::RecordDefinition]) -> bool {
@@ -500,6 +658,7 @@ pub(crate) struct NativeBackend {
     loop_safepoint: FuncId,
     loop_safepoint_functions: Vec<bool>,
     reaches_arena_allocation: Vec<bool>,
+    arena_allocation_sites: Vec<Vec<bool>>,
     constant_handles: Vec<Vec<Option<i64>>>,
     functions: Vec<Option<*const u8>>,
     result_words: Vec<usize>,
@@ -984,7 +1143,11 @@ impl NativeBackend {
             count_guest_branch: count_guest_branch_id,
             loop_safepoint: loop_safepoint_id,
             loop_safepoint_functions: loop_safepoint_functions(artifact),
-            reaches_arena_allocation: functions_reaching_native_arena_allocations(artifact),
+            reaches_arena_allocation: functions_reaching_native_arena_allocations(
+                artifact,
+                &native_arena_allocation_sites(artifact),
+            ),
+            arena_allocation_sites: native_arena_allocation_sites(artifact),
             constant_handles: native_constant_handles(artifact),
             functions: vec![None; artifact.functions.len()],
             result_words: artifact
@@ -1308,7 +1471,7 @@ impl NativeBackend {
             let record_requires_direct_call = match &instruction.op {
                 Op::GetField(record_index, _) | Op::MakeRecord(record_index, _) => records
                     .get(*record_index)
-                    .is_some_and(|record| !native_record_has_native_layout(record)),
+                    .is_some_and(|record| !native_record_has_native_layout(record, records)),
                 _ => false,
             };
             let direct_operation_requires_capture = match &instruction.op {
@@ -1543,6 +1706,8 @@ impl NativeBackend {
             let steps_var = builder.declare_var(types::I64);
             let fuel_var = builder.declare_var(types::I64);
             let native_calls_var = builder.declare_var(types::I64);
+            let mut record_local_storage =
+                std::collections::HashMap::<(usize, String), StackSlot>::new();
             let local_vars: Vec<Variable> = (0..function.local_count)
                 .map(|_| builder.declare_var(types::I64))
                 .collect();
@@ -1727,6 +1892,9 @@ impl NativeBackend {
                     Op::Const(Value::Bool(value)) => {
                         stack.push(builder.ins().iconst(types::I64, i64::from(*value)));
                     }
+                    Op::Const(Value::Unit) => {
+                        stack.push(builder.ins().iconst(types::I64, 0));
+                    }
                     Op::Const(Value::Float64(value)) => {
                         stack.push(
                             builder
@@ -1879,7 +2047,7 @@ impl NativeBackend {
                         let definition = records
                             .get(*record_index)
                             .ok_or_else(|| "record definition is missing".to_owned())?;
-                        if native_record_has_native_layout(definition) {
+                        if native_record_has_native_layout(definition, records) {
                             let record = stack.pop().ok_or_else(|| "stack underflow".to_owned())?;
                             let fields = builder.ins().load(
                                 ptr,
@@ -1887,17 +2055,34 @@ impl NativeBackend {
                                 record,
                                 std::mem::offset_of!(NativeRecord, fields) as i32,
                             );
+                            let offset =
+                                native_record_field_offset(definition, *field_index, records)
+                                    .ok_or_else(|| "native record field is missing".to_owned())?;
                             let field_address = builder
                                 .ins()
-                                .iadd_imm_s(fields, (*field_index).saturating_mul(8) as i64);
-                            let value = builder.ins().load(
-                                types::I64,
-                                MemFlagsData::new(),
-                                field_address,
-                                0,
-                            );
+                                .iadd_imm_s(fields, offset.saturating_mul(8) as i64);
                             let field_type =
                                 definition.fields.get(*field_index).map(|field| &field.ty);
+                            let inline_words = field_type
+                                .and_then(|ty| native_inline_record(ty, records))
+                                .and_then(|nested| native_record_words(nested, records));
+                            let value = if let Some(words) = inline_words {
+                                // An inline record is read in place: its descriptor points into
+                                // the outer record's words. Anything that keeps it copies them.
+                                emit_native_record_descriptor(
+                                    &mut builder,
+                                    ptr,
+                                    field_address,
+                                    words,
+                                )
+                            } else {
+                                builder.ins().load(
+                                    types::I64,
+                                    MemFlagsData::new(),
+                                    field_address,
+                                    0,
+                                )
+                            };
                             let clone_bytes =
                                 field_type.map(native_cloned_value_bytes).unwrap_or(0);
                             if clone_bytes > 0 {
@@ -1970,7 +2155,7 @@ impl NativeBackend {
                         if definition.fields.len() != *field_count {
                             return Err("record field count mismatch".into());
                         }
-                        if !native_record_has_native_layout(definition) {
+                        if !native_record_has_native_layout(definition, records) {
                             let input_types = stack_types[ip]
                                 .as_ref()
                                 .ok_or_else(|| "missing native bridge input types".to_owned())?;
@@ -2002,6 +2187,7 @@ impl NativeBackend {
                                 &arguments,
                                 &input_types[argument_start..],
                                 result_type,
+                                records,
                                 &local_tags,
                                 &instruction_stack,
                                 &stack_tags,
@@ -2040,33 +2226,47 @@ impl NativeBackend {
                                     .push(stack.pop().ok_or_else(|| "stack underflow".to_owned())?);
                             }
                             fields.reverse();
+                            let words = native_record_words(definition, records)
+                                .ok_or_else(|| "native record layout is missing".to_owned())?;
                             let fields_slot = builder.create_sized_stack_slot(StackSlotData::new(
                                 StackSlotKind::ExplicitSlot,
-                                ((*field_count).max(1).saturating_mul(8)) as u32,
+                                (words.max(1).saturating_mul(8)) as u32,
                                 3,
                             ));
                             let fields_pointer = builder.ins().stack_addr(ptr, fields_slot, 0);
-                            for (field, value) in fields.iter().enumerate() {
-                                builder.ins().store(
-                                    MemFlagsData::new(),
-                                    *value,
-                                    fields_pointer,
-                                    (field * 8) as i32,
-                                );
+                            let mut offset = 0;
+                            for (value, field) in fields.iter().zip(&definition.fields) {
+                                if let Some(nested) = native_inline_record(&field.ty, records) {
+                                    let nested_words = native_record_words(nested, records)
+                                        .ok_or_else(|| {
+                                            "native record layout is missing".to_owned()
+                                        })?;
+                                    let destination = builder
+                                        .ins()
+                                        .iadd_imm_s(fields_pointer, (offset * 8) as i64);
+                                    emit_native_record_copy(
+                                        &mut builder,
+                                        ptr,
+                                        *value,
+                                        destination,
+                                        nested_words,
+                                    );
+                                    offset += nested_words;
+                                } else {
+                                    builder.ins().store(
+                                        MemFlagsData::new(),
+                                        *value,
+                                        fields_pointer,
+                                        (offset * 8) as i32,
+                                    );
+                                    offset += 1;
+                                }
                             }
-                            let descriptor_slot = builder.create_sized_stack_slot(
-                                StackSlotData::new(StackSlotKind::ExplicitSlot, 16, 3),
-                            );
-                            let descriptor = builder.ins().stack_addr(ptr, descriptor_slot, 0);
-                            builder
-                                .ins()
-                                .store(MemFlagsData::new(), fields_pointer, descriptor, 0);
-                            let count = builder.ins().iconst(types::I64, *field_count as i64);
-                            builder.ins().store(
-                                MemFlagsData::new(),
-                                count,
-                                descriptor,
-                                std::mem::offset_of!(NativeRecord, len) as i32,
+                            let descriptor = emit_native_record_descriptor(
+                                &mut builder,
+                                ptr,
+                                fields_pointer,
+                                words,
                             );
                             stack.push(descriptor);
                         }
@@ -2267,10 +2467,59 @@ impl NativeBackend {
                         let Some(value) = stack.pop() else {
                             return Err("stack underflow".into());
                         };
-                        builder.def_var(local_vars[*slot], value);
+                        let stored_record = stack_types[ip]
+                            .as_ref()
+                            .and_then(|types| types.last())
+                            .and_then(|ty| inline_record(ty, records))
+                            .and_then(|record| {
+                                Some((record.name.clone(), native_record_words(record, records)?))
+                            });
+                        if let Some((name, words)) = stored_record {
+                            // A native-layout record lives in memory owned by whatever made it (a
+                            // call's output block, a constructor's slot, another local), and that
+                            // memory is reused when the code runs again. Each record local
+                            // therefore keeps its own copy.
+                            let storage = *record_local_storage
+                                .entry((*slot, name.to_string()))
+                                .or_insert_with(|| {
+                                    builder.create_sized_stack_slot(StackSlotData::new(
+                                        StackSlotKind::ExplicitSlot,
+                                        (words.max(1).saturating_mul(8)) as u32,
+                                        3,
+                                    ))
+                                });
+                            let destination = builder.ins().stack_addr(ptr, storage, 0);
+                            emit_native_record_copy(&mut builder, ptr, value, destination, words);
+                            let descriptor = emit_native_record_descriptor(
+                                &mut builder,
+                                ptr,
+                                destination,
+                                words,
+                            );
+                            builder.def_var(local_vars[*slot], descriptor);
+                        } else {
+                            builder.def_var(local_vars[*slot], value);
+                        }
                     }
                     Op::Pop => {
                         stack.pop().ok_or_else(|| "stack underflow".to_owned())?;
+                    }
+                    Op::Assert => {
+                        let condition = stack.pop().ok_or_else(|| "stack underflow".to_owned())?;
+                        // A failed assertion replays in the VM, which raises `R_ASSERTION`.
+                        let holds = builder.create_block();
+                        let exit_args = step_exit_args(
+                            &mut builder,
+                            steps_var,
+                            ip,
+                            block_instruction_offsets[ip],
+                        );
+                        builder
+                            .ins()
+                            .brif(condition, holds, &[], fallback, &exit_args);
+                        builder.switch_to_block(holds);
+                        builder.seal_block(holds);
+                        stack.push(builder.ins().iconst(types::I64, 0));
                     }
                     Op::Add | Op::Subtract | Op::Multiply => {
                         let right = stack.pop().ok_or_else(|| "stack underflow".to_owned())?;
@@ -2492,6 +2741,7 @@ impl NativeBackend {
                             && self.loop_safepoint_functions[index]
                             && loop_backedge_allocates_arena_values(
                                 function,
+                                &self.arena_allocation_sites[index],
                                 &self.reaches_arena_allocation,
                                 ip,
                             )
@@ -2767,10 +3017,11 @@ impl NativeBackend {
                             ),
                             _ => None,
                         };
-                        let value = if let Some(definition) =
-                            callee_record.filter(|record| native_record_has_native_layout(record))
+                        let value = if let Some(definition) = callee_record
+                            .filter(|record| native_record_has_native_layout(record, records))
                         {
-                            let fields = definition.fields.len();
+                            let fields = native_record_words(definition, records)
+                                .ok_or_else(|| "native record layout is missing".to_owned())?;
                             let descriptor_slot = builder.create_sized_stack_slot(
                                 StackSlotData::new(StackSlotKind::ExplicitSlot, 16, 3),
                             );
@@ -3117,7 +3368,8 @@ impl NativeBackend {
                         let mut argument_tag_overrides = vec![None; arguments.len()];
                         if let Type::Record(name) = &value_type {
                             if let Some(record_index) = records.iter().position(|record| {
-                                record.name == *name && native_record_has_native_layout(record)
+                                record.name == *name
+                                    && native_record_has_native_layout(record, records)
                             }) {
                                 argument_tag_overrides[2] = Some(
                                     native_record_bridge_tag(record_index)
@@ -3317,6 +3569,64 @@ impl NativeBackend {
                             MemFlagsData::new(),
                             converted,
                         ));
+                    }
+                    // The generator state is a signed 64-bit bit pattern, so the register already
+                    // holds its low 64 bits and wrapping arithmetic matches the VM exactly.
+                    Op::RandomSeed => {}
+                    Op::RandomAdvance => {
+                        let value = stack.pop().ok_or_else(|| "stack underflow".to_owned())?;
+                        stack.push(
+                            builder
+                                .ins()
+                                .iadd_imm_s(value, 0x9E37_79B9_7F4A_7C15_u64 as i64),
+                        );
+                    }
+                    Op::RandomBits => {
+                        let value = stack.pop().ok_or_else(|| "stack underflow".to_owned())?;
+                        stack.push(emit_splitmix64_mix(&mut builder, value));
+                    }
+                    Op::RandomUnitFloat => {
+                        let value = stack.pop().ok_or_else(|| "stack underflow".to_owned())?;
+                        let bits = emit_splitmix64_mix(&mut builder, value);
+                        let top = builder.ins().ushr_imm_u(bits, 11);
+                        let whole = builder.ins().fcvt_from_uint(types::F64, top);
+                        let scale = builder.ins().f64const(1.0 / 9_007_199_254_740_992.0);
+                        let fraction = builder.ins().fmul(whole, scale);
+                        stack.push(builder.ins().bitcast(
+                            types::I64,
+                            MemFlagsData::new(),
+                            fraction,
+                        ));
+                    }
+                    Op::RandomBelow => {
+                        let span = stack.pop().ok_or_else(|| "stack underflow".to_owned())?;
+                        let value = stack.pop().ok_or_else(|| "stack underflow".to_owned())?;
+                        // A span below one is an error; the VM replays it to raise exactly that.
+                        let invalid = builder.ins().icmp_imm_s(IntCC::SignedLessThan, span, 1);
+                        let draw = builder.create_block();
+                        let exit_args = step_exit_args(
+                            &mut builder,
+                            steps_var,
+                            ip,
+                            block_instruction_offsets[ip],
+                        );
+                        builder.ins().brif(invalid, fallback, &exit_args, draw, &[]);
+                        builder.switch_to_block(draw);
+                        builder.seal_block(draw);
+                        let bits = emit_splitmix64_mix(&mut builder, value);
+                        // Reject outputs at or above 2^64 - (2^64 mod span), as the VM does.
+                        let all_ones = builder.ins().iconst(types::I64, -1);
+                        let below_max = builder.ins().urem(all_ones, span);
+                        let next = builder.ins().iadd_imm_s(below_max, 1);
+                        let tail = builder.ins().urem(next, span);
+                        let limit = builder.ins().bnot(tail);
+                        let accept =
+                            builder
+                                .ins()
+                                .icmp(IntCC::UnsignedLessThanOrEqual, bits, limit);
+                        let reduced = builder.ins().urem(bits, span);
+                        let rejected = builder.ins().iconst(types::I64, -1);
+                        stack.push(builder.ins().select(accept, reduced, rejected));
                     }
                     Op::FloatToInt => {
                         // Beyond this bound the result is a big integer, which the VM builds.
@@ -3899,21 +4209,21 @@ impl NativeBackend {
                             fuel_count_after(&mut builder, fuel_var, completed_instructions);
                         builder.def_var(fuel_var, remaining_fuel);
                         let value = stack.pop().ok_or_else(|| "stack underflow".to_owned())?;
-                        let native_record_result = match &function.result {
+                        let native_record_words_result = match &function.result {
                             Type::Record(name) => records
                                 .iter()
                                 .find(|record| record.name == *name)
-                                .filter(|record| native_record_has_native_layout(record)),
+                                .and_then(|record| native_record_words(record, records)),
                             _ => None,
                         };
-                        if let Some(definition) = native_record_result {
+                        if let Some(words) = native_record_words_result {
                             let fields = builder.ins().load(
                                 ptr,
                                 MemFlagsData::new(),
                                 value,
                                 std::mem::offset_of!(NativeRecord, fields) as i32,
                             );
-                            for (field_index, _) in definition.fields.iter().enumerate() {
+                            for field_index in 0..words {
                                 let address =
                                     builder.ins().iadd_imm_s(fields, (field_index * 8) as i64);
                                 let field =
@@ -4276,6 +4586,7 @@ fn emit_native_make_record_call(
     arguments: &[cranelift_codegen::ir::Value],
     argument_types: &[Type],
     result_type: &Type,
+    records: &[guion_model::RecordDefinition],
     local_tags: &[i64],
     stack_values: &[cranelift_codegen::ir::Value],
     stack_tags: &[i64],
@@ -4303,7 +4614,19 @@ fn emit_native_make_record_call(
             .ins()
             .store(MemFlagsData::new(), *value, value_address, 0);
         let tag_address = builder.ins().stack_addr(pointer_type, tags_slot, offset);
-        let tag = builder.ins().iconst(types::I64, native_bridge_tag(ty));
+        // A field holding a native-layout record is passed as a record pointer, not a handle.
+        let native_record = match ty {
+            Type::Record(name) => records.iter().position(|record| {
+                record.name == *name && native_record_has_native_layout(record, records)
+            }),
+            _ => None,
+        };
+        let tag = match native_record {
+            Some(record_index) => native_record_bridge_tag(record_index)
+                .ok_or_else(|| "native record tag overflow".to_owned())?,
+            None => native_bridge_tag(ty),
+        };
+        let tag = builder.ins().iconst(types::I64, tag);
         builder
             .ins()
             .store(MemFlagsData::new(), tag, tag_address, 0);
@@ -4738,6 +5061,21 @@ fn emit_native_capture_exit(
     );
 }
 
+/// The SplitMix64 output function on a 64-bit register, with wrapping multiplication.
+fn emit_splitmix64_mix(
+    builder: &mut FunctionBuilder<'_>,
+    value: cranelift_codegen::ir::Value,
+) -> cranelift_codegen::ir::Value {
+    let mut z = value;
+    for (shift, multiplier) in [(30, 0xBF58_476D_1CE4_E5B9_u64), (27, 0x94D0_49BB_1331_11EB)] {
+        let shifted = builder.ins().ushr_imm_u(z, shift);
+        let mixed = builder.ins().bxor(z, shifted);
+        z = builder.ins().imul_imm_s(mixed, multiplier as i64);
+    }
+    let shifted = builder.ins().ushr_imm_u(z, 31);
+    builder.ins().bxor(z, shifted)
+}
+
 fn emit_float_finite_guard(
     builder: &mut FunctionBuilder<'_>,
     value: cranelift_codegen::ir::Value,
@@ -4795,6 +5133,61 @@ fn emit_exit(
     store_output(builder, output, 4, calls);
     let status = builder.ins().iconst(types::I32, i64::from(status));
     builder.ins().return_(&[status]);
+}
+
+/// Builds a `NativeRecord` descriptor in a fresh stack slot for `words` words at `fields`.
+fn emit_native_record_descriptor(
+    builder: &mut FunctionBuilder<'_>,
+    pointer_type: types::Type,
+    fields: cranelift_codegen::ir::Value,
+    words: usize,
+) -> cranelift_codegen::ir::Value {
+    let slot =
+        builder.create_sized_stack_slot(StackSlotData::new(StackSlotKind::ExplicitSlot, 16, 3));
+    let descriptor = builder.ins().stack_addr(pointer_type, slot, 0);
+    builder.ins().store(
+        MemFlagsData::new(),
+        fields,
+        descriptor,
+        std::mem::offset_of!(NativeRecord, fields) as i32,
+    );
+    let count = builder.ins().iconst(types::I64, words as i64);
+    builder.ins().store(
+        MemFlagsData::new(),
+        count,
+        descriptor,
+        std::mem::offset_of!(NativeRecord, len) as i32,
+    );
+    descriptor
+}
+
+/// Copies the `words` words of the record behind `descriptor` to `destination`.
+fn emit_native_record_copy(
+    builder: &mut FunctionBuilder<'_>,
+    pointer_type: types::Type,
+    descriptor: cranelift_codegen::ir::Value,
+    destination: cranelift_codegen::ir::Value,
+    words: usize,
+) {
+    let source = builder.ins().load(
+        pointer_type,
+        MemFlagsData::new(),
+        descriptor,
+        std::mem::offset_of!(NativeRecord, fields) as i32,
+    );
+    // All words are loaded before any is stored, so a copy onto itself is harmless.
+    let values: Vec<_> = (0..words)
+        .map(|word| {
+            builder
+                .ins()
+                .load(types::I64, MemFlagsData::new(), source, (word * 8) as i32)
+        })
+        .collect();
+    for (word, value) in values.into_iter().enumerate() {
+        builder
+            .ins()
+            .store(MemFlagsData::new(), value, destination, (word * 8) as i32);
+    }
 }
 
 fn store_output(
@@ -5013,6 +5406,7 @@ fn infer_native_types(
             Op::Const(Value::Bytes(_)) => state.stack.push(Type::Bytes),
             Op::Const(Value::Float64(_)) => state.stack.push(Type::Float64),
             Op::Const(Value::Bool(_)) => state.stack.push(Type::Bool),
+            Op::Const(Value::Unit) => state.stack.push(Type::Unit),
             Op::Load(slot) => state.stack.push(state.locals.get(*slot)?.clone()?),
             Op::GetField(record_index, field_index) => {
                 let definition = records.get(*record_index)?;
@@ -5060,6 +5454,12 @@ fn infer_native_types(
             Op::Pop => {
                 state.stack.pop()?;
             }
+            Op::Assert => {
+                if state.stack.pop()? != Type::Bool {
+                    return None;
+                }
+                state.stack.push(Type::Unit);
+            }
             Op::Add | Op::Subtract | Op::Multiply | Op::Divide => {
                 let right = state.stack.pop()?;
                 let left = state.stack.pop()?;
@@ -5078,6 +5478,24 @@ fn infer_native_types(
             }
             Op::FloatToInt => {
                 if state.stack.pop()? != Type::Float64 {
+                    return None;
+                }
+                state.stack.push(Type::Int);
+            }
+            Op::RandomSeed | Op::RandomAdvance | Op::RandomBits => {
+                if state.stack.pop()? != Type::Int {
+                    return None;
+                }
+                state.stack.push(Type::Int);
+            }
+            Op::RandomUnitFloat => {
+                if state.stack.pop()? != Type::Int {
+                    return None;
+                }
+                state.stack.push(Type::Float64);
+            }
+            Op::RandomBelow => {
+                if state.stack.pop()? != Type::Int || state.stack.pop()? != Type::Int {
                     return None;
                 }
                 state.stack.push(Type::Int);
@@ -5576,7 +5994,7 @@ fn continuation_tag(ty: &Type, records: &[guion_model::RecordDefinition]) -> i64
             if records
                 .iter()
                 .find(|record| record.name == *name)
-                .is_some_and(native_record_has_native_layout) =>
+                .is_some_and(|record| native_record_has_native_layout(record, records)) =>
         {
             -1
         }
@@ -5780,16 +6198,76 @@ fn functions_reaching_native_host_callbacks(artifact: &Artifact) -> Vec<bool> {
     reaches_callback
 }
 
-fn functions_reaching_native_arena_allocations(artifact: &Artifact) -> Vec<bool> {
+/// For each function, which instructions leave a new arena handle behind: the listed host
+/// operations, plus bridged operations whose result is a handle (a record that is not a block
+/// of scalars, a handle-typed field, a map, concatenated text, a handle-typed index result).
+fn native_arena_allocation_sites(artifact: &Artifact) -> Vec<Vec<bool>> {
+    artifact
+        .functions
+        .iter()
+        .map(|function| {
+            let mut blocking_ip = None;
+            let type_states = infer_native_types(
+                function,
+                &artifact.functions,
+                &artifact.records,
+                &mut blocking_ip,
+            );
+            let result_is_handle = |ip: usize| {
+                type_states
+                    .as_ref()
+                    .and_then(|states| states.stack_at_ip.get(ip + 1))
+                    .and_then(Option::as_ref)
+                    .and_then(|stack| stack.last())
+                    .is_some_and(|ty| {
+                        continuation_tag(ty, &artifact.records) == NATIVE_BRIDGE_TAG_HANDLE
+                    })
+            };
+            function
+                .code
+                .iter()
+                .enumerate()
+                .map(|(ip, instruction)| {
+                    let op = &instruction.op;
+                    instruction_may_allocate_native_arena_value(op)
+                        || match op {
+                            Op::MakeRecord(record_index, _) => {
+                                artifact.records.get(*record_index).is_some_and(|record| {
+                                    !native_record_has_native_layout(record, &artifact.records)
+                                })
+                            }
+                            Op::MakeTypedMap(_) | Op::MapKeys | Op::MapSet => true,
+                            Op::GetField(_, _) | Op::Add => result_is_handle(ip),
+                            // Indexing a list hands back a handle the list already holds;
+                            // only a map lookup goes through the bridge and allocates one.
+                            Op::Index => {
+                                result_is_handle(ip)
+                                    && type_states
+                                        .as_ref()
+                                        .and_then(|states| states.stack_at_ip.get(ip))
+                                        .and_then(Option::as_ref)
+                                        .and_then(|stack| {
+                                            stack.len().checked_sub(2).map(|at| &stack[at])
+                                        })
+                                        .is_some_and(|ty| matches!(ty, Type::Map(_)))
+                            }
+                            _ => false,
+                        }
+                })
+                .collect()
+        })
+        .collect()
+}
+
+fn functions_reaching_native_arena_allocations(
+    artifact: &Artifact,
+    sites: &[Vec<bool>],
+) -> Vec<bool> {
     let mut reaches_allocation = vec![false; artifact.functions.len()];
     let mut callers = vec![Vec::new(); artifact.functions.len()];
     let mut pending = VecDeque::new();
     for (caller, function) in artifact.functions.iter().enumerate() {
-        if function
-            .code
-            .iter()
-            .any(|instruction| instruction_may_allocate_native_arena_value(&instruction.op))
-        {
+        if sites[caller].iter().any(|site| *site) {
             reaches_allocation[caller] = true;
             pending.push_back(caller);
         }
@@ -5873,7 +6351,8 @@ fn loop_safepoint_functions(artifact: &Artifact) -> Vec<bool> {
         return vec![false; artifact.functions.len()];
     }
     let recursive = recursive_functions(&artifact.functions);
-    let reaches_allocation = functions_reaching_native_arena_allocations(artifact);
+    let sites = native_arena_allocation_sites(artifact);
+    let reaches_allocation = functions_reaching_native_arena_allocations(artifact, &sites);
     let mut has_caller = vec![false; artifact.functions.len()];
     for (caller, function) in artifact.functions.iter().enumerate() {
         for instruction in &function.code {
@@ -5893,8 +6372,12 @@ fn loop_safepoint_functions(artifact: &Artifact) -> Vec<bool> {
         .map(|(index, function)| {
             if recursive[index]
                 || has_caller[index]
-                || function_loop_backedge_with_arena_allocation(function, &reaches_allocation)
-                    .is_none()
+                || function_loop_backedge_with_arena_allocation(
+                    function,
+                    &sites[index],
+                    &reaches_allocation,
+                )
+                .is_none()
             {
                 return false;
             }
@@ -5910,7 +6393,12 @@ fn loop_safepoint_functions(artifact: &Artifact) -> Vec<bool> {
             let live = live_local_slots_at_ip(function);
             (0..function.code.len())
                 .filter(|ip| {
-                    loop_backedge_allocates_arena_values(function, &reaches_allocation, *ip)
+                    loop_backedge_allocates_arena_values(
+                        function,
+                        &sites[index],
+                        &reaches_allocation,
+                        *ip,
+                    )
                 })
                 .all(|ip| match &function.code[ip].op {
                     Op::Jump(target) => loop_safepoint_roots(
@@ -5983,7 +6471,9 @@ fn native_eligibility_report(
     native_value_bridge_enabled: bool,
 ) -> (Vec<bool>, Vec<Option<NativeFunctionRejectionProfile>>) {
     let recursive = recursive_functions(&artifact.functions);
-    let reaches_native_arena_allocation = functions_reaching_native_arena_allocations(artifact);
+    let allocation_sites = native_arena_allocation_sites(artifact);
+    let reaches_native_arena_allocation =
+        functions_reaching_native_arena_allocations(artifact, &allocation_sites);
     let safepoint_functions = loop_safepoint_functions(artifact);
     let native_list_mutator: Vec<_> = artifact
         .functions
@@ -6008,25 +6498,6 @@ fn native_eligibility_report(
                     reason_code: "recursive_function".into(),
                     reason: "recursive functions are not compiled by the native backend".into(),
                     blocking_instruction: None,
-                    blocking_callee: None,
-                });
-            }
-            if let Some(backedge_ip) = (!safepoint_functions[index])
-                .then(|| {
-                    function_loop_backedge_with_arena_allocation(
-                        function,
-                        &reaches_native_arena_allocation,
-                    )
-                })
-                .flatten()
-            {
-                return Some(NativeFunctionRejectionProfile {
-                    name: function.name.clone(),
-                    reason_code: "native_loop_value_arena_retention".into(),
-                    reason: "native arena handles are retained for the invocation, so loops that allocate JSON, file, or text values must stay in the VM until the native arena can retire dead handles".into(),
-                    blocking_instruction: Some(format!(
-                        "loop backedge at bytecode instruction {backedge_ip}"
-                    )),
                     blocking_callee: None,
                 });
             }
@@ -6062,6 +6533,26 @@ fn native_eligibility_report(
                     reason: "the VM appends to a text local in place; native handles can be shared, so native code would copy the whole text on every append".into(),
                     blocking_instruction: Some(format!(
                         "bytecode instruction {append_ip}: Add"
+                    )),
+                    blocking_callee: None,
+                });
+            }
+            if let Some(backedge_ip) = (!safepoint_functions[index])
+                .then(|| {
+                    function_loop_backedge_with_arena_allocation(
+                        function,
+                        &allocation_sites[index],
+                        &reaches_native_arena_allocation,
+                    )
+                })
+                .flatten()
+            {
+                return Some(NativeFunctionRejectionProfile {
+                    name: function.name.clone(),
+                    reason_code: "native_loop_value_arena_retention".into(),
+                    reason: "native arena handles are retained for the invocation, so loops that allocate JSON, file, or text values must stay in the VM until the native arena can retire dead handles".into(),
+                    blocking_instruction: Some(format!(
+                        "loop backedge at bytecode instruction {backedge_ip}"
                     )),
                     blocking_callee: None,
                 });
@@ -6132,6 +6623,7 @@ fn native_eligibility_report(
 
 fn loop_backedge_allocates_arena_values(
     function: &Function,
+    sites: &[bool],
     reaches_native_arena_allocation: &[bool],
     ip: usize,
 ) -> bool {
@@ -6140,22 +6632,26 @@ fn loop_backedge_allocates_arena_values(
         _ => return false,
     };
     function.code.get(target..=ip).is_some_and(|loop_body| {
-        loop_body.iter().any(|instruction| match &instruction.op {
-            Op::Call(callee, _) => reaches_native_arena_allocation
-                .get(*callee)
-                .copied()
-                .unwrap_or(false),
-            op => instruction_may_allocate_native_arena_value(op),
-        })
+        loop_body
+            .iter()
+            .enumerate()
+            .any(|(offset, instruction)| match &instruction.op {
+                Op::Call(callee, _) => reaches_native_arena_allocation
+                    .get(*callee)
+                    .copied()
+                    .unwrap_or(false),
+                _ => sites.get(target + offset).copied().unwrap_or(false),
+            })
     })
 }
 
 fn function_loop_backedge_with_arena_allocation(
     function: &Function,
+    sites: &[bool],
     reaches_native_arena_allocation: &[bool],
 ) -> Option<usize> {
     (0..function.code.len()).find(|ip| {
-        loop_backedge_allocates_arena_values(function, reaches_native_arena_allocation, *ip)
+        loop_backedge_allocates_arena_values(function, sites, reaches_native_arena_allocation, *ip)
     })
 }
 
@@ -6163,26 +6659,15 @@ fn native_result_types(
     result: &Type,
     records: &[guion_model::RecordDefinition],
 ) -> Option<Vec<Type>> {
-    let is_numeric = |ty: &Type| matches!(ty, Type::Int | Type::Float64);
-    let is_native_item = |ty: &Type| is_numeric(ty) || *ty == Type::Bool;
-    let supported_field =
-        |ty: &Type| is_native_item(ty) || matches!(ty, Type::List(item) if is_native_item(item));
     match result {
-        Type::Int | Type::Float64 | Type::Bool => Some(vec![result.clone()]),
+        // Unit is one word holding zero.
+        Type::Int | Type::Float64 | Type::Bool | Type::Unit => Some(vec![result.clone()]),
         Type::Record(name) => {
             let definition = records.iter().find(|record| record.name == *name)?;
-            if definition
-                .fields
-                .iter()
-                .all(|field| supported_field(&field.ty))
-            {
-                Some(
-                    definition
-                        .fields
-                        .iter()
-                        .map(|field| field.ty.clone())
-                        .collect(),
-                )
+            if native_record_has_native_layout(definition, records) {
+                let mut words = Vec::new();
+                native_record_word_types(definition, records, &mut words);
+                Some(words)
             } else {
                 Some(vec![result.clone()])
             }
@@ -6305,9 +6790,14 @@ fn stack_depths(function: &Function) -> Option<Vec<Option<usize>>> {
             }
             Op::Negate
             | Op::Not
+            | Op::Assert
             | Op::FloatSqrt
             | Op::IntToFloat
             | Op::FloatToInt
+            | Op::RandomSeed
+            | Op::RandomAdvance
+            | Op::RandomBits
+            | Op::RandomUnitFloat
             | Op::TextChars
             | Op::JsonTryText
             | Op::JsonTryInt
@@ -6321,7 +6811,7 @@ fn stack_depths(function: &Function) -> Option<Vec<Option<usize>>> {
             | Op::MakeOk
             | Op::MakeErr
             | Op::MakeSome => (1, 1),
-            Op::JsonTryGet => (2, 1),
+            Op::JsonTryGet | Op::RandomBelow => (2, 1),
             Op::Math(function) => (function.arity(), 1),
             Op::MakeNone => (0, 1),
             Op::TextSlice | Op::TextFind | Op::TextReplace => (3, 1),

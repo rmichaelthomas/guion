@@ -658,6 +658,38 @@ impl Expr {
     }
 }
 
+/// `set s = s + a + b` parses as `(s + a) + b`, whose first addition copies `s`. Text
+/// concatenation is associative, so this regroups it as `s + (a + b)`: the operands still
+/// evaluate in source order, and the final addition is followed by the store into `s`, which
+/// the VM turns into an in-place append. Callers apply it only to Text locals.
+fn regroup_local_text_append(value: &Expr, name: &str) -> Option<Expr> {
+    let mut spine = Vec::new();
+    let mut cursor = value;
+    while let Expr::Binary(op, left, _, _) = cursor {
+        if op != "+" {
+            break;
+        }
+        spine.push(cursor);
+        cursor = left;
+    }
+    if spine.len() < 2 || !matches!(cursor, Expr::Name(source, _) if source == name) {
+        return None;
+    }
+    let Some(Expr::Binary(op, head, first, span)) = spine.pop() else {
+        unreachable!("the spine holds only additions");
+    };
+    let mut rest = (**first).clone();
+    while let Some(Expr::Binary(op, _, right, span)) = spine.pop() {
+        rest = Expr::Binary(op.clone(), Box::new(rest), right.clone(), *span);
+    }
+    Some(Expr::Binary(
+        op.clone(),
+        head.clone(),
+        Box::new(rest),
+        *span,
+    ))
+}
+
 struct Parser {
     tokens: Vec<Token>,
     at: usize,
@@ -2758,6 +2790,19 @@ impl<'a> FnCompiler<'a> {
                         || optimized_json_set.is_some();
                     let ty = if optimized_local_update {
                         local.ty.clone()
+                    } else if let Some(regrouped) = (local.ty == Type::Text)
+                        .then(|| regroup_local_text_append(value, name))
+                        .flatten()
+                    {
+                        let start = self.code.len();
+                        match self.expr_with_expected(&regrouped, Some(&local.ty)) {
+                            Ok(ty) => ty,
+                            // Report errors against the expression as written.
+                            Err(_) => {
+                                self.code.truncate(start);
+                                self.expr_with_expected(value, Some(&local.ty))?
+                            }
+                        }
                     } else {
                         self.expr_with_expected(value, Some(&local.ty))?
                     };

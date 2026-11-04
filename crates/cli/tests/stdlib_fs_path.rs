@@ -112,6 +112,61 @@ fn main() -> Int:
     assert!(!scratch.0.join("made").exists());
 }
 
+#[cfg(unix)]
+#[test]
+fn symlinks_are_removed_and_renamed_as_entries_and_never_written_through_when_dangling() {
+    let scratch = Scratch::new("fs-symlinks");
+    let root = scratch.root();
+    let outside = scratch.0.join("outside");
+    std::fs::create_dir_all(&outside).unwrap();
+    std::fs::write(outside.join("kept.txt"), "outside").unwrap();
+    std::fs::write(root.join("target.txt"), "inside").unwrap();
+    std::fs::create_dir_all(root.join("sub")).unwrap();
+    let link = |target: &Path, name: &str| std::os::unix::fs::symlink(target, root.join(name));
+    link(&outside.join("created.txt"), "dangling").unwrap();
+    link(Path::new("target.txt"), "inside_link").unwrap();
+    link(&outside.join("kept.txt"), "outside_link").unwrap();
+    link(Path::new("../target.txt"), "moving_link").unwrap();
+    let output = run_with_root(
+        &scratch,
+        r#"import "std:fs"
+fn main() -> Int:
+    assert(not is_ok(write_text("dangling", "escaped")))
+    assert(not is_ok(write_bytes("dangling", bytes_from_text("escaped"))))
+    unwrap(fs_remove("inside_link"))
+    unwrap(fs_remove("outside_link"))
+    unwrap(fs_remove("dangling"))
+    unwrap(fs_rename("moving_link", "sub/moved"))
+    assert(unwrap(read_text("sub/moved")) == "inside")
+    return 0
+"#,
+    );
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(!outside.join("created.txt").exists());
+    assert_eq!(
+        std::fs::read_to_string(outside.join("kept.txt")).unwrap(),
+        "outside"
+    );
+    assert_eq!(
+        std::fs::read_to_string(root.join("target.txt")).unwrap(),
+        "inside"
+    );
+    for removed in ["inside_link", "outside_link", "dangling", "moving_link"] {
+        assert!(
+            std::fs::symlink_metadata(root.join(removed)).is_err(),
+            "{removed}"
+        );
+    }
+    assert!(std::fs::symlink_metadata(root.join("sub/moved"))
+        .unwrap()
+        .file_type()
+        .is_symlink());
+}
+
 #[test]
 fn static_inspection_reports_filesystem_read_and_write_for_new_operations() {
     let scratch = Scratch::new("fs-inspect");

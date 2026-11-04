@@ -6,11 +6,15 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Output, Stdio};
 
 const ADMIN_TOKEN: &str = "local-admin-token-for-tests";
+// A throwaway ed25519 seed for the local registry's log signatures, and its public key.
+const SIGNING_KEY: &str = "2222222222222222222222222222222222222222222222222222222222222222";
+const PUBLIC_KEY: &str = "a09aa5f47a6759802ff955f8dc2d2a14a5c99d23be97f864127ff9383455a4f0";
 
 struct LocalRegistry {
     child: Child,
     url: String,
     state: PathBuf,
+    _turn: std::sync::MutexGuard<'static, ()>,
 }
 
 impl Drop for LocalRegistry {
@@ -48,7 +52,15 @@ fn free_port() -> u16 {
         .port()
 }
 
+/// Each test starts its own `wrangler dev`; several starting at once on a busy machine can
+/// exceed the start-up wait, so the tests take turns.
+static ONE_REGISTRY_AT_A_TIME: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 fn start_registry(name: &str) -> LocalRegistry {
+    // A test that panicked while holding the turn has already reported its failure.
+    let turn = ONE_REGISTRY_AT_A_TIME
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     let state = std::env::temp_dir().join(format!("guion-{name}-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&state);
     std::fs::create_dir_all(&state).unwrap();
@@ -64,13 +76,19 @@ fn start_registry(name: &str) -> LocalRegistry {
         ])
         .arg(&state)
         .args(["--var", &format!("ADMIN_TOKEN:{ADMIN_TOKEN}")])
+        .args(["--var", &format!("SIGNING_KEY:{SIGNING_KEY}")])
         .current_dir(registry_dir)
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .spawn()
         .expect("wrangler starts");
     let url = format!("http://127.0.0.1:{port}");
-    let registry = LocalRegistry { child, url, state };
+    let registry = LocalRegistry {
+        child,
+        url,
+        state,
+        _turn: turn,
+    };
     for _ in 0..120 {
         if curl(&["-s", "-m", "1", &format!("{}/", registry.url)]).contains("guion-registry") {
             return registry;
@@ -109,11 +127,22 @@ fn guion(
     token: Option<&str>,
     arguments: &[&str],
 ) -> Output {
+    guion_trusting(directory, registry, token, arguments, PUBLIC_KEY)
+}
+
+fn guion_trusting(
+    directory: &Path,
+    registry: &LocalRegistry,
+    token: Option<&str>,
+    arguments: &[&str],
+    public_key: &str,
+) -> Output {
     let mut command = Command::new(env!("CARGO_BIN_EXE_guion"));
     command
         .args(arguments)
         .current_dir(directory)
         .env("GUION_REGISTRY_URL", &registry.url)
+        .env("GUION_REGISTRY_PUBLIC_KEY", public_key)
         .env_remove("GUION_REGISTRY_TOKEN");
     if let Some(token) = token {
         command.env("GUION_REGISTRY_TOKEN", token);
@@ -445,5 +474,182 @@ fn a_published_library_can_depend_on_another_registry_library() {
     let run = guion(&app, &registry, None, &["run", "src/main.gu"]);
     assert!(run.status.success(), "{}", text(&run));
     assert!(text(&run).contains("20"), "{}", text(&run));
+    let _ = std::fs::remove_dir_all(&work);
+}
+
+#[test]
+fn update_moves_a_registry_package_to_the_newest_release_its_range_allows() {
+    if !wrangler_available() {
+        eprintln!(
+            "SKIPPED: wrangler is not installed; scripts/verify-package-registry.sh requires it"
+        );
+        return;
+    }
+    let registry = start_registry("registry-update");
+    let alice = new_publisher(&registry, "alice");
+    let work = std::env::temp_dir().join(format!("guion-update-work-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&work);
+    std::fs::create_dir_all(&work).unwrap();
+    let library = work.join("step-tools");
+    let publish = |version: &str, factor: u32| {
+        write_library(
+            &library,
+            "step-tools",
+            version,
+            "",
+            &format!("pub fn step(value: Int) -> Int:\n    return value * {factor}\n"),
+        );
+        let published = guion(&library, &registry, Some(&alice), &["publish"]);
+        assert!(published.status.success(), "{}", text(&published));
+    };
+    publish("1.0.0", 2);
+
+    // With no range given, `add` records a caret on the chosen version.
+    let app = work.join("app");
+    new_project(&app, "pkg:step-tools/src/lib.gu", "step(10)");
+    let added = guion(&app, &registry, None, &["add", "step-tools"]);
+    assert!(added.status.success(), "{}", text(&added));
+    let manifest = std::fs::read_to_string(app.join("guion.toml")).unwrap();
+    assert!(manifest.contains("registry = \"^1.0.0\""), "{manifest}");
+
+    // Nothing newer yet: update keeps 1.0.0.
+    let unchanged = guion(&app, &registry, None, &["update"]);
+    assert!(unchanged.status.success(), "{}", text(&unchanged));
+    assert!(std::fs::read_to_string(app.join("guion.lock"))
+        .unwrap()
+        .contains("version = \"1.0.0\""));
+
+    // A compatible release is picked up; a major release is not.
+    publish("1.3.0", 3);
+    publish("2.0.0", 4);
+    let updated = guion(&app, &registry, None, &["update"]);
+    assert!(updated.status.success(), "{}", text(&updated));
+    assert!(text(&updated).contains("was 1.0.0"), "{}", text(&updated));
+    let lock = std::fs::read_to_string(app.join("guion.lock")).unwrap();
+    assert!(lock.contains("version = \"1.3.0\""), "{lock}");
+    let manifest = std::fs::read_to_string(app.join("guion.toml")).unwrap();
+    assert!(manifest.contains("registry = \"^1.0.0\""), "{manifest}");
+    let run = guion(&app, &registry, None, &["run", "src/main.gu"]);
+    assert!(run.status.success(), "{}", text(&run));
+    assert_eq!(String::from_utf8_lossy(&run.stdout).trim(), "30");
+
+    // Yanking the installed release does not force a downgrade: the locked 1.3.0 stays eligible.
+    let yanked = guion(
+        &library,
+        &registry,
+        Some(&alice),
+        &["yank", "step-tools", "1.3.0"],
+    );
+    assert!(yanked.status.success(), "{}", text(&yanked));
+    let after_yank = guion(&app, &registry, None, &["update"]);
+    assert!(after_yank.status.success(), "{}", text(&after_yank));
+    assert!(std::fs::read_to_string(app.join("guion.lock"))
+        .unwrap()
+        .contains("version = \"1.3.0\""));
+
+    // An explicit range is kept as written and allows the major release.
+    let wide = work.join("wide");
+    new_project(&wide, "pkg:step-tools/src/lib.gu", "step(10)");
+    let added = guion(
+        &wide,
+        &registry,
+        None,
+        &["add", "step-tools", "--version", "=1.0.0"],
+    );
+    assert!(added.status.success(), "{}", text(&added));
+    let manifest = std::fs::read_to_string(wide.join("guion.toml")).unwrap();
+    std::fs::write(
+        wide.join("guion.toml"),
+        manifest.replace("registry = \"=1.0.0\"", "registry = \">=1.0, <3.0\""),
+    )
+    .unwrap();
+    let updated = guion(&wide, &registry, None, &["update"]);
+    assert!(updated.status.success(), "{}", text(&updated));
+    assert!(std::fs::read_to_string(wide.join("guion.lock"))
+        .unwrap()
+        .contains("version = \"2.0.0\""));
+    let _ = std::fs::remove_dir_all(&work);
+}
+
+#[test]
+fn token_rotate_and_revoke_retire_the_old_token() {
+    if !wrangler_available() {
+        eprintln!(
+            "SKIPPED: wrangler is not installed; scripts/verify-package-registry.sh requires it"
+        );
+        return;
+    }
+    let registry = start_registry("registry-tokens");
+    let first = new_publisher(&registry, "alice");
+    let work = std::env::temp_dir().join(format!("guion-token-work-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&work);
+    std::fs::create_dir_all(&work).unwrap();
+    let library = work.join("token-lib");
+    write_library(
+        &library,
+        "token-lib",
+        "1.0.0",
+        "",
+        "pub fn one() -> Int:\n    return 1\n",
+    );
+
+    let rotated = guion(&work, &registry, Some(&first), &["token", "rotate"]);
+    assert!(rotated.status.success(), "{}", text(&rotated));
+    let second = String::from_utf8_lossy(&rotated.stdout)
+        .lines()
+        .last()
+        .unwrap()
+        .trim()
+        .to_owned();
+    assert!(second.starts_with("gpt_") && second != first, "{second}");
+
+    let refused = guion(&library, &registry, Some(&first), &["publish"]);
+    assert!(!refused.status.success());
+    assert!(
+        text(&refused).contains("E_AUTH_INVALID"),
+        "{}",
+        text(&refused)
+    );
+    assert!(!text(&refused).contains(&first));
+    let published = guion(&library, &registry, Some(&second), &["publish"]);
+    assert!(published.status.success(), "{}", text(&published));
+
+    // The log is signed: a client that trusts a different key refuses to install from it.
+    let app = work.join("app");
+    new_project(&app, "pkg:token-lib/src/lib.gu", "one()");
+    let wrong_key = "3".repeat(64);
+    let untrusted = guion_trusting(&app, &registry, None, &["add", "token-lib"], &wrong_key);
+    assert!(!untrusted.status.success());
+    assert!(
+        text(&untrusted).contains("not signed by the registry's key"),
+        "{}",
+        text(&untrusted)
+    );
+    // Trusting several keys (as during a key rotation) accepts an entry signed by any of them.
+    let trusted = guion_trusting(
+        &app,
+        &registry,
+        None,
+        &["add", "token-lib"],
+        &format!("{wrong_key}, {PUBLIC_KEY}"),
+    );
+    assert!(trusted.status.success(), "{}", text(&trusted));
+
+    let revoked = guion(&work, &registry, Some(&second), &["token", "revoke"]);
+    assert!(revoked.status.success(), "{}", text(&revoked));
+    assert!(!text(&revoked).contains(&second));
+    write_library(
+        &library,
+        "token-lib",
+        "1.1.0",
+        "",
+        "pub fn one() -> Int:\n    return 1\n",
+    );
+    let after = guion(&library, &registry, Some(&second), &["publish"]);
+    assert!(!after.status.success());
+
+    let usage = guion(&work, &registry, None, &["token"]);
+    assert!(!usage.status.success());
+    assert!(text(&usage).contains("guion token <rotate|revoke>"));
     let _ = std::fs::remove_dir_all(&work);
 }

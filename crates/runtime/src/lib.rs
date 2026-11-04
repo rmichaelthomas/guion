@@ -11,6 +11,7 @@ use guion_vm_core::{
     shared_json_set_local_allocation, value_matches, verify, Budget, FrameStart, HostOpContext,
     OutputStream, RegisterPrograms, RuntimeProfileCounters, VmFrame, VmHost, VmLimits,
 };
+pub use guion_vm_core::{live_memory, set_live_memory_probe};
 use std::{
     borrow::Cow,
     collections::{BTreeMap, HashMap, HashSet},
@@ -35,10 +36,12 @@ pub mod python_bridge;
 pub mod stdlib_data;
 pub mod stdlib_services;
 use native_backend::{
-    native_record_has_native_layout, NativeBackend, NativeCode, NativeFloatList, NativeHandleList,
-    NativeIntList, NativeRecord, NativeSymbols, NativeTaggedValue, NATIVE_CONSTANT_HANDLE_BASE,
-    NATIVE_INLINE_LIST_ITEMS, NATIVE_TAGGED_OPTION_NONE, NATIVE_TAGGED_OPTION_SOME,
-    NATIVE_TAGGED_RESULT_ERR, NATIVE_TAGGED_RESULT_OK,
+    decode_inline_native_record, encode_inline_native_record, native_inline_record,
+    native_record_has_native_layout, native_record_words, NativeBackend, NativeCode,
+    NativeFloatList, NativeHandleList, NativeIntList, NativeRecord, NativeSymbols,
+    NativeTaggedValue, NATIVE_CONSTANT_HANDLE_BASE, NATIVE_INLINE_LIST_ITEMS,
+    NATIVE_TAGGED_OPTION_NONE, NATIVE_TAGGED_OPTION_SOME, NATIVE_TAGGED_RESULT_ERR,
+    NATIVE_TAGGED_RESULT_OK,
 };
 
 struct JsonTextPairRows<'a> {
@@ -518,11 +521,16 @@ impl NativeListArena {
         if self.charge(bytes) {
             true
         } else {
-            self.host_error = Some(RuntimeError::new(
-                "R_ALLOCATION_LIMIT",
-                "cumulative allocation budget exhausted during this invocation",
-                span,
-            ));
+            self.host_error = Some(if self.budget.is_null() {
+                RuntimeError::new(
+                    "R_ALLOCATION_LIMIT",
+                    "cumulative allocation budget exhausted during this invocation",
+                    span,
+                )
+            } else {
+                // SAFETY: a non-null budget outlives the native invocation using this arena.
+                guion_vm_core::allocation_limit_error(unsafe { &*self.budget }, bytes, span)
+            });
             false
         }
     }
@@ -582,16 +590,19 @@ impl NativeListArena {
             .records
             .get(record_index)?
             .clone();
-        if definition.name != name
-            || fields.len() != definition.fields.len()
-            || !native_record_has_native_layout(&definition)
-        {
+        let records = &self.runtime_context.as_ref()?.artifact.records;
+        let words = native_record_words(&definition, records)?;
+        if definition.name != name || fields.len() != definition.fields.len() {
             return None;
         }
 
         let mut encoded_fields = Vec::new();
-        encoded_fields.try_reserve_exact(fields.len()).ok()?;
+        encoded_fields.try_reserve_exact(words).ok()?;
         for (value, field) in fields.iter().zip(&definition.fields) {
+            if let Some(nested) = native_inline_record(&field.ty, records) {
+                encode_inline_native_record(value, nested, records, &mut encoded_fields)?;
+                continue;
+            }
             let encoded = match (value, &field.ty) {
                 (Value::Int(value), Type::Int) => value.to_i64()?,
                 (Value::Float64(value), Type::Float64) => value.get().to_bits() as i64,
@@ -736,8 +747,8 @@ impl NativeListArena {
             .artifact
             .records
             .get(record_index)?;
-        if !native_record_has_native_layout(definition)
-            || descriptor.len != definition.fields.len()
+        let records = &self.runtime_context.as_ref()?.artifact.records;
+        if native_record_words(definition, records) != Some(descriptor.len)
             || (descriptor.len > 0 && descriptor.fields.is_null())
         {
             return None;
@@ -748,8 +759,21 @@ impl NativeListArena {
             unsafe { std::slice::from_raw_parts(descriptor.fields, descriptor.len) }
         };
         let mut fields = Vec::new();
-        fields.try_reserve_exact(encoded_fields.len()).ok()?;
-        for (encoded, field) in encoded_fields.iter().zip(&definition.fields) {
+        fields.try_reserve_exact(definition.fields.len()).ok()?;
+        let mut offset = 0_usize;
+        for field in &definition.fields {
+            if let Some(nested) = native_inline_record(&field.ty, records) {
+                let words = native_record_words(nested, records)?;
+                fields.push(decode_inline_native_record(
+                    encoded_fields.get(offset..offset.checked_add(words)?)?,
+                    nested,
+                    records,
+                )?);
+                offset += words;
+                continue;
+            }
+            let encoded = encoded_fields.get(offset)?;
+            offset += 1;
             let value = match &field.ty {
                 Type::Int => Value::Int(BigInt::parse(&encoded.to_string()).ok()?),
                 Type::Float64 => Value::Float64(Float64::new(f64::from_bits(*encoded as u64))?),
@@ -927,13 +951,8 @@ impl NativeListArena {
                     .records
                     .iter()
                     .position(|record| record.name == name)?;
-                if native_record_has_native_layout(
-                    self.runtime_context
-                        .as_ref()?
-                        .artifact
-                        .records
-                        .get(record_index)?,
-                ) {
+                let records = &self.runtime_context.as_ref()?.artifact.records;
+                if native_record_has_native_layout(records.get(record_index)?, records) {
                     self.store_native_record_value(record_index, name.into(), fields)
                 } else {
                     self.store_value(Value::Record(name, fields))
@@ -1330,7 +1349,7 @@ impl NativeListArena {
                     native_backend::native_record_bridge_index(argument_tags[2])
                 {
                     let record = runtime.artifact.records.get(record_index)?;
-                    if !native_record_has_native_layout(record) {
+                    if !native_record_has_native_layout(record, &runtime.artifact.records) {
                         return None;
                     }
                     self.materialize_native_record_pointer(arguments[2], record_index)?
@@ -2609,7 +2628,14 @@ impl NativeListArena {
             2 => Some(Value::Float64(Float64::new(f64::from_bits(value as u64))?)),
             3 => Some(Value::Bool(value != 0)),
             4 => self.materialize_native_value(value),
-            _ => None,
+            _ => {
+                let record_index = native_backend::native_record_bridge_index(tag)?;
+                let records = &self.runtime_context.as_ref()?.artifact.records;
+                if !native_record_has_native_layout(records.get(record_index)?, records) {
+                    return None;
+                }
+                self.materialize_native_record_pointer(value, record_index)
+            }
         }
     }
 
@@ -5013,9 +5039,11 @@ impl VmHost for Instance {
                 }
                 operands.reverse();
                 let target = match (function, operands.first()) {
-                    (guion_model::TlsFunction::Connect, Some(Value::Text(host))) => {
-                        host.as_ref().to_owned()
-                    }
+                    (
+                        guion_model::TlsFunction::Connect
+                        | guion_model::TlsFunction::ConnectIdentity,
+                        Some(Value::Text(host)),
+                    ) => host.as_ref().to_owned(),
                     _ => function.op_name().to_owned(),
                 };
                 let effect = self.begin_effect(EffectKind::NetworkSocket, target.as_str());
@@ -8056,11 +8084,23 @@ impl Instance {
                     if fields.len() != definition.fields.len() {
                         return None;
                     }
-                    if !native_record_has_native_layout(definition) {
+                    let Some(words) = native_record_words(definition, &self.artifact.records)
+                    else {
                         return native_arena.store_value(value.clone());
-                    }
-                    let mut encoded_fields = Vec::with_capacity(fields.len());
+                    };
+                    let mut encoded_fields = Vec::with_capacity(words);
                     for (value, field) in fields.iter().zip(&definition.fields) {
+                        if let Some(nested) =
+                            native_inline_record(&field.ty, &self.artifact.records)
+                        {
+                            encode_inline_native_record(
+                                value,
+                                nested,
+                                &self.artifact.records,
+                                &mut encoded_fields,
+                            )?;
+                            continue;
+                        }
                         let encoded = match (value, &field.ty) {
                             (Value::Int(integer), Type::Int) => integer.to_i64()?,
                             (Value::Float64(float), Type::Float64) => float.get().to_bits() as i64,
@@ -8240,13 +8280,19 @@ impl Instance {
                                 Float64::new(f64::from_bits(outcome.value as u64)).unwrap(),
                             ),
                             Type::Bool => Value::Bool(outcome.value != 0),
+                            Type::Unit => Value::Unit,
                             Type::Record(name)
                                 if self
                                     .artifact
                                     .records
                                     .iter()
                                     .find(|record| record.name == *name)
-                                    .is_some_and(native_record_has_native_layout) =>
+                                    .is_some_and(|record| {
+                                        native_record_has_native_layout(
+                                            record,
+                                            &self.artifact.records,
+                                        )
+                                    }) =>
                             {
                                 let definition = self
                                     .artifact
@@ -8261,12 +8307,39 @@ impl Instance {
                                     std::collections::HashMap::<usize, Shared<Vec<Value>>>::new();
                                 let mut decoded_bool_lists =
                                     std::collections::HashMap::<usize, Shared<Vec<Value>>>::new();
-                                for (field_type, encoded) in definition
-                                    .fields
-                                    .iter()
-                                    .map(|field| &field.ty)
-                                    .zip(&outcome.result_values)
-                                {
+                                let records = &self.artifact.records;
+                                let mut word = 0_usize;
+                                for field_type in definition.fields.iter().map(|field| &field.ty) {
+                                    if let Some(nested) = native_inline_record(field_type, records)
+                                    {
+                                        let words = native_record_words(nested, records)
+                                            .unwrap_or(usize::MAX);
+                                        let value = outcome
+                                            .result_values
+                                            .get(word..word.saturating_add(words))
+                                            .and_then(|encoded| {
+                                                decode_inline_native_record(encoded, nested, records)
+                                            })
+                                            .ok_or_else(|| {
+                                                RuntimeError::new(
+                                                    "R_NATIVE_RESULT",
+                                                    "native record returned an invalid nested record",
+                                                    f.code
+                                                        .last()
+                                                        .map(|instruction| instruction.span)
+                                                        .unwrap_or_default(),
+                                                )
+                                            })?;
+                                        word = word.saturating_add(words);
+                                        fields.push(value);
+                                        continue;
+                                    }
+                                    let Some(encoded) = outcome.result_values.get(word) else {
+                                        unreachable!(
+                                            "native result words are sized at compile time"
+                                        )
+                                    };
+                                    word += 1;
                                     let field = match field_type {
                                         Type::Int => {
                                             Value::Int(BigInt::parse(&encoded.to_string()).unwrap())
@@ -11637,6 +11710,34 @@ fn host_file_path(
     host_file_path_with_walk_root(policy, requested, write, span, false)
 }
 
+/// The directory entry `requested` names, for operations that act on the entry itself rather
+/// than on what a symlink points to (`remove`, `rename`). The parent directory is resolved and
+/// confined like a write; the final component is not followed.
+fn host_file_entry_path(
+    policy: &HostPolicy,
+    requested: &str,
+    span: Span,
+) -> Result<PathBuf, RuntimeError> {
+    let path = Path::new(requested);
+    let Some(std::path::Component::Normal(name)) = path.components().next_back() else {
+        return Err(RuntimeError::new(
+            "R_HOST_DENIED",
+            "file path must name an entry inside the granted project root",
+            span,
+        ));
+    };
+    let parent = path
+        .parent()
+        .map(|parent| parent.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let parent = if parent.is_empty() {
+        ".".to_owned()
+    } else {
+        format!("{parent}/.")
+    };
+    Ok(host_file_path(policy, &parent, true, span)?.join(name))
+}
+
 fn host_file_path_no_follow(
     policy: &HostPolicy,
     requested: &str,
@@ -11815,6 +11916,17 @@ fn host_file_path_with_walk_root(
 
     let root = roots.last().expect("at least one file root was checked");
     let candidate = root.join(requested_path);
+    // A dangling symlink does not "exist", but writing through it would create its target,
+    // which may lie outside the root.
+    if !candidate.exists()
+        && fs::symlink_metadata(&candidate).is_ok_and(|metadata| metadata.file_type().is_symlink())
+    {
+        return Err(RuntimeError::new(
+            "R_HOST_DENIED",
+            "cannot write through a symlink whose target does not exist",
+            span,
+        ));
+    }
     let resolved = if !candidate.exists() {
         let name = candidate.file_name().ok_or_else(|| {
             RuntimeError::new("R_HOST_DENIED", "file path must name a file", span)

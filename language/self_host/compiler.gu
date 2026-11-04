@@ -830,6 +830,31 @@ fn is_local_list_push(value: Json, name: Text) -> Bool:
     let first = json_index(arguments, 0)
     return json_as_text(json_get(first, "kind")) == "Name" and json_as_text(json_get(first, "text")) == name
 
+fn is_plus(node: Json) -> Bool:
+    return json_as_text(json_get(node, "kind")) == "Binary" and json_as_text(json_get(node, "operator")) == "+"
+
+# `set s = s + a + b` parses as `(s + a) + b`, whose first addition copies `s`. Text
+# concatenation is associative, so regroup it as `s + (a + b)`: the operands still evaluate in
+# source order, and the final addition is followed by the store into `s`, which the VM turns
+# into an in-place append. Only used for Text locals.
+fn regroup_local_text_append(value: Json, name: Text) -> Json:
+    var spine: List[Json] = []
+    var cursor = value
+    while is_plus(cursor):
+        set spine = list_push(spine, cursor)
+        set cursor = json_get(cursor, "left")
+    if len(spine) < 2:
+        return value
+    if json_as_text(json_get(cursor, "kind")) != "Name" or json_as_text(json_get(cursor, "text")) != name:
+        return value
+    let innermost = len(spine) - 1
+    var rest = json_get(spine[innermost], "right")
+    var index = innermost - 1
+    while index >= 0:
+        set rest = json_set(spine[index], "left", rest)
+        set index = index - 1
+    return json_set(spine[innermost], "right", rest)
+
 fn is_comparison(operator: Text) -> Bool:
     if operator == "==":
         return true
@@ -1258,7 +1283,10 @@ fn compile_statement(statement: Json, state: CompilerState, functions: List[Func
                     set next_code = append_code(code, expression_code(item))
                     set next_code = append_code(next_code, singleton(ir_integer("ListPushLocal", "local", slot)))
                 else:
-                    let value = expression(value_node, state, functions, records, local_type(locals, name))
+                    var value_tree = value_node
+                    if local_type(locals, name) == "Text":
+                        set value_tree = regroup_local_text_append(value_node, name)
+                    let value = expression(value_tree, state, functions, records, local_type(locals, name))
                     set next_code = append_code(code, expression_code(value))
                     set next_code = append_code(next_code, singleton(ir_integer("Store", "local", slot)))
         return state_with_code(state, next_code)

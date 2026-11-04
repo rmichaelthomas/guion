@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { createHash } from "node:crypto";
+import { createHash, createPublicKey, verify } from "node:crypto";
 import { readdirSync } from "node:fs";
 import { test } from "node:test";
 import { handle } from "../src/core.js";
@@ -8,10 +8,12 @@ import reserved from "../reserved-names.json" with { type: "json" };
 import { MemoryStore } from "./memory-store.js";
 
 const ADMIN = "admin-secret-for-tests";
+// A throwaway ed25519 seed; it protects nothing.
+const SIGNING_KEY = "11".repeat(32);
 const sha = (bytes) => createHash("sha256").update(bytes).digest("hex");
 
 function registry() {
-  const env = { REGISTRY: new MemoryStore(), ADMIN_TOKEN: ADMIN };
+  const env = { REGISTRY: new MemoryStore(), ADMIN_TOKEN: ADMIN, SIGNING_KEY };
   const call = (method, path, { token, body, headers = {} } = {}) =>
     handle(
       new Request(`http://registry.test/${path}`, {
@@ -81,10 +83,41 @@ test("publish, download and verify the log chain", async () => {
   const second = await (await call("GET", "log/0000000002.json")).json();
   const first = await (await call("GET", "log/0000000001.json")).json();
   assert.equal(second.prev, first.hash);
-  const { hash, ...body } = second;
+  const { hash, key_id, signature, ...body } = second;
   assert.equal(hash, sha(JSON.stringify(body)));
   assert.equal(head.hash, hash);
+
+  // Every entry and the head are signed over "guion-registry-log-v1:<seq>:<hash>".
+  const published = await (await call("GET", "v1/signing-key")).json();
+  assert.equal(published.algorithm, "ed25519");
+  assert.equal(key_id, published.key_id);
+  assert.equal(published.key_id, sha(Buffer.from(published.public_key, "hex")).slice(0, 16));
+  const publicKey = createPublicKey({
+    key: Buffer.concat([Buffer.from("302a300506032b6570032100", "hex"), Buffer.from(published.public_key, "hex")]),
+    format: "der",
+    type: "spki",
+  });
+  const signed = (seq, entryHash, sig) =>
+    verify(null, Buffer.from(`guion-registry-log-v1:${seq}:${entryHash}`), publicKey, Buffer.from(sig, "hex"));
+  assert.ok(signed(2, hash, signature));
+  assert.ok(signed(1, first.hash, first.signature));
+  assert.ok(signed(head.seq, head.hash, head.signature));
+  assert.ok(!signed(1, hash, signature), "a signature is bound to its sequence number");
   assert.equal((await (await call("GET", "index/my_lib.json")).json()).versions.length, 2);
+});
+
+test("without a signing key the registry refuses writes but still serves reads", async () => {
+  const { env, call } = registry();
+  const token = await newPublisher(call, "alice");
+  assert.equal((await publish(call, token, "my-lib", "1.0.0", "archive one")).status, 201);
+  delete env.SIGNING_KEY;
+  const refused = await publish(call, token, "my-lib", "1.1.0", "archive two");
+  assert.equal(refused.status, 503);
+  assert.equal((await refused.json()).error.code, "E_SIGNING_UNAVAILABLE");
+  assert.equal((await call("POST", "v1/yank/my-lib/1.0.0", { token })).status, 503);
+  assert.equal((await call("GET", "log/head.json")).status, 200);
+  assert.equal((await (await call("GET", "log/head.json")).json()).seq, 1);
+  assert.equal((await call("GET", "v1/signing-key")).status, 503);
 });
 
 test("a published version is immutable", async () => {
@@ -185,4 +218,51 @@ test("a failed publish can be retried and leaves no half-committed version", asy
   assert.equal((await (await call("GET", "log/head.json")).json()).seq, 1);
   // Different bytes for a version that already completed are refused.
   assert.equal((await publish(call, token, "sample", "1.0.0", "other")).status, 409);
+});
+
+test("a publisher can rotate or revoke its own token, and the administrator can revoke them all", async () => {
+  const { call } = registry();
+  const first = await newPublisher(call, "alice");
+  assert.equal((await publish(call, first, "rotating", "1.0.0", "one")).status, 201);
+
+  const rotated = await call("POST", "v1/tokens/rotate", { token: first });
+  assert.equal(rotated.status, 200);
+  const second = (await rotated.json()).token;
+  assert.match(second, /^gpt_[0-9a-f]{64}$/);
+  assert.notEqual(second, first);
+  assert.equal((await publish(call, first, "rotating", "1.1.0", "two")).status, 401);
+  assert.equal((await publish(call, second, "rotating", "1.1.0", "two")).status, 201);
+
+  const revoked = await call("POST", "v1/tokens/revoke", { token: second });
+  assert.equal(revoked.status, 200);
+  assert.equal((await revoked.json()).revoked, 1);
+  assert.equal((await publish(call, second, "rotating", "1.2.0", "three")).status, 401);
+  assert.equal((await call("POST", "v1/tokens/revoke", { token: second })).status, 401);
+
+  // A second token for the same publisher, then an administrator revocation of both.
+  const third = await newPublisher(call, "alice");
+  const fourth = await newPublisher(call, "alice");
+  const bob = await newPublisher(call, "bob");
+  assert.equal((await call("POST", "v1/admin/publishers/alice/revoke", { token: third })).status, 401);
+  const all = await call("POST", "v1/admin/publishers/alice/revoke", { token: ADMIN });
+  assert.equal(all.status, 200);
+  assert.equal((await all.json()).revoked, 2);
+  for (const token of [third, fourth]) {
+    assert.equal((await publish(call, token, "rotating", "1.3.0", "four")).status, 401);
+  }
+  // Other publishers are untouched, and token bookkeeping is never served.
+  assert.equal((await publish(call, bob, "bobs-package", "1.0.0", "bob")).status, 201);
+  assert.equal((await call("GET", "publisher-tokens/bob")).status, 404);
+  assert.equal((await call("POST", "v1/admin/publishers/Not_Valid/revoke", { token: ADMIN })).status, 400);
+});
+
+test("administrator revocation also finds tokens issued before the per-publisher index", async () => {
+  const { env, call } = registry();
+  const legacy = await newPublisher(call, "carol");
+  for (const key of [...env.REGISTRY.objects.keys()]) {
+    if (key.startsWith("publisher-tokens/")) env.REGISTRY.objects.delete(key);
+  }
+  const revoked = await call("POST", "v1/admin/publishers/carol/revoke", { token: ADMIN });
+  assert.equal((await revoked.json()).revoked, 1);
+  assert.equal((await publish(call, legacy, "carols", "1.0.0", "c")).status, 401);
 });

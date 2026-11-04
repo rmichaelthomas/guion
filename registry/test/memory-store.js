@@ -29,6 +29,10 @@ export class MemoryStore {
     return { key, etag };
   }
 
+  async delete(key) {
+    this.objects.delete(key);
+  }
+
   async list({ prefix = "" } = {}) {
     const objects = [...this.objects.keys()].filter((key) => key.startsWith(prefix)).sort().map((key) => ({ key }));
     return { objects, truncated: false };

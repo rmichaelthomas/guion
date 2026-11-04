@@ -350,6 +350,16 @@ pub fn builtin_catalog_signature(name: Text) -> Text:
     if name[0] == "n":
         if name == "native_random_mix":
             return "1:RandomMix:Int:Int"
+        if name == "native_random_seed":
+            return "1:RandomSeed:Int:Int"
+        if name == "native_random_advance":
+            return "1:RandomAdvance:Int:Int"
+        if name == "native_random_bits":
+            return "1:RandomBits:Int:Int"
+        if name == "native_random_unit_float":
+            return "1:RandomUnitFloat:Float64:Int"
+        if name == "native_random_below":
+            return "2:RandomBelow:Int:Int;Int"
     if name[0] == "b":
         if name == "bytes_to_ints":
             return "1:CodecBytesToInts:List[Int]:Bytes"
@@ -449,6 +459,10 @@ pub fn builtin_catalog_signature(name: Text) -> Text:
             return "4:TlsConnect:Result[Int, List[Text]]:Text;Int;Int;Text"
         if name == "native_tls_accept":
             return "4:TlsAccept:Result[Int, List[Text]]:Int;Int;Text;Text"
+        if name == "native_tls_connect_identity":
+            return "6:TlsConnectIdentity:Result[Int, List[Text]]:Text;Int;Int;Text;Text;Text"
+        if name == "native_tls_accept_verified":
+            return "5:TlsAcceptVerified:Result[Int, List[Text]]:Int;Int;Text;Text;Text"
     return ""
 
 fn builtin_catalog_part(value: Text, delimiter: Text, wanted: Int) -> Text:

@@ -9,28 +9,33 @@ pub record RandomFloat:
     value: Float64
     rng: Rng
 
-fn random_modulus() -> Int:
-    return 18446744073709551616
+# The SplitMix64 state is kept as a signed 64-bit bit pattern, so every function except
+# `random_next_u64` (whose result can exceed the signed range) runs on machine code.
 
 pub fn random_new(seed: Int) -> Rng:
-    return Rng(seed % random_modulus())
+    return Rng(native_random_seed(seed))
 
 pub fn random_next_u64(rng: Rng) -> RandomInt:
-    let state = (rng.state + 11400714819323198485) % random_modulus()
-    return RandomInt(native_random_mix(state), Rng(state))
+    let state = native_random_advance(rng.state)
+    let bits = native_random_bits(state)
+    if bits < 0:
+        return RandomInt(bits + 18446744073709551616, Rng(state))
+    return RandomInt(bits, Rng(state))
+
+pub fn random_next_i64(rng: Rng) -> RandomInt:
+    let state = native_random_advance(rng.state)
+    return RandomInt(native_random_bits(state), Rng(state))
 
 pub fn random_next_float(rng: Rng) -> RandomFloat:
-    let draw = random_next_u64(rng)
-    let fraction = int_to_float(draw.value // 2048) / 9007199254740992.0
-    return RandomFloat(fraction, draw.rng)
+    let state = native_random_advance(rng.state)
+    return RandomFloat(native_random_unit_float(state), Rng(state))
 
 pub fn random_next_range(rng: Rng, low: Int, high: Int) -> RandomInt:
     let span = high - low
     assert(span > 0)
-    let limit = random_modulus() - (random_modulus() % span)
-    var current = rng
-    var draw = random_next_u64(current)
-    while draw.value >= limit:
-        set current = draw.rng
-        set draw = random_next_u64(current)
-    return RandomInt(low + draw.value % span, draw.rng)
+    var state = native_random_advance(rng.state)
+    var value = native_random_below(state, span)
+    while value < 0:
+        set state = native_random_advance(state)
+        set value = native_random_below(state, span)
+    return RandomInt(low + value, Rng(state))

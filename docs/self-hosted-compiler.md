@@ -1,6 +1,6 @@
 # Self-hosted compiler and seed updates
 
-The normal `guion` executable embeds `language/self_host/compiler.gub`. It invokes the Guion compiler's `compiler_compile_project` entry for source checking, formatting validation, testing, running source, building, documentation, inspection, and packaging. It has no normal Cargo dependency on `guion-compiler` and does not recover from compiler errors by invoking the Rust source compiler.
+The normal `guion` executable compiles source with the Rust `guion-compiler` crate, which has been the faster path since commit 7a909f7. The self-hosted compiler in `language/self_host/compiler.gu` must produce the same programs: its checked artifact `compiler.gub` is verified by the CLI build script against `compiler-seed.json`, and the bootstrap and conformance runs below compare it stage against stage. A language or code-generation change therefore goes into both compilers, followed by a seed update.
 
 The Rust implementation is retained as explicitly named developer tooling: the `guion-stage0` binary in `crates/bootstrap`. It creates the first compiler artifact from `language/self_host/compiler.gu` and its imported source graph. The checked artifact seed is then verified through the native reader and reproduced by successive Guion compiler stages.
 

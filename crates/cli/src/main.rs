@@ -25,6 +25,9 @@ use guion_model::{Artifact, BuildMetadata, Op, ResourceLimits, Value};
 use guion_runtime::{EffectKind, EffectOutcome, HostPolicy, Runtime};
 
 fn main() -> ExitCode {
+    // `allocation_limit_bytes` bounds the memory a program holds, measured by this binary's
+    // allocator, rather than the total it ever allocates.
+    guion_runtime::set_live_memory_probe(pool_alloc::held_bytes);
     let args = env::args().skip(1).collect();
     match execute(args) {
         Ok(code) => code,
@@ -47,7 +50,7 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
         runtime_profile_setting.as_deref() == Some(std::ffi::OsStr::new("sampled"));
     let Some(command) = args.first().map(String::as_str) else {
         return Err(
-            "usage: guion <new|check|fmt|lint|test|run|build|package|verify-package|add|sync|update|inspect|doc|doctor|install|publish|yank> [path]"
+            "usage: guion <new|check|fmt|lint|test|run|build|package|verify-package|add|sync|update|inspect|doc|doctor|install|publish|yank|token> [path]"
                 .into(),
         );
     };
@@ -320,6 +323,20 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
         );
         return Ok(ExitCode::SUCCESS);
     }
+    if command == "token" {
+        let rotate = match args.get(1).map(String::as_str) {
+            Some("rotate") => true,
+            Some("revoke") => false,
+            _ => return Err("usage: guion token <rotate|revoke>".into()),
+        };
+        let project = std::env::current_dir()
+            .map_err(|error| format!("cannot inspect current directory: {error}"))?;
+        println!(
+            "{}",
+            registry::Registry::configured(&project)?.retire_token(rotate)?
+        );
+        return Ok(ExitCode::SUCCESS);
+    }
     if command == "update" {
         let project = std::env::current_dir()
             .map_err(|error| format!("cannot inspect current directory: {error}"))?;
@@ -488,7 +505,7 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
     ]
     .contains(&command)
     {
-        return Err(format!("unknown command `{command}`\nusage: guion <new|check|fmt|lint|test|run|build|package|verify-package|add|sync|update|inspect|doc|doctor|install|publish|yank> [path]"));
+        return Err(format!("unknown command `{command}`\nusage: guion <new|check|fmt|lint|test|run|build|package|verify-package|add|sync|update|inspect|doc|doctor|install|publish|yank|token> [path]"));
     }
     let mut json_run = false;
     let mut no_source_cache = false;
@@ -718,6 +735,8 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
     };
     match command {
         "check" => {
+            let writes_files =
+                entry_writes_files(&inspection_report(&path, &artifact, &project_root, false));
             if json_check {
                 println!(
                     "{}",
@@ -726,11 +745,15 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
                         "kind": "guion_check_report",
                         "source": path,
                         "status": "passed",
-                        "function_count": artifact.functions.len()
+                        "function_count": artifact.functions.len(),
+                        "writes_files": writes_files
                     })
                 );
             } else {
                 println!("checked {} ({} functions)", path, artifact.functions.len());
+                if writes_files {
+                    println!("{}", file_write_notice(&project_root));
+                }
             }
             if let Some(report) = native_packages::check_library_surface(&project_root)? {
                 if !json_check {
@@ -740,7 +763,11 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
                     native_packages::library_declaration(&project_root)?
                 {
                     let used = library_used_effects(&path, &artifact, &project_root, &exports);
-                    let (errors, warnings) = declared.compare_with_effects(&used);
+                    let (mut errors, mut warnings) = declared.compare_with_effects(&used);
+                    let hosts = library_literal_hosts(&artifact, &project_root, &exports);
+                    let (host_errors, host_warnings) = declared.compare_with_hosts(&used, &hosts);
+                    errors.extend(host_errors);
+                    warnings.extend(host_warnings);
                     for warning in &warnings {
                         eprintln!("warning: {warning}");
                     }
@@ -840,6 +867,9 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
             if !artifact.externals.is_empty() {
                 println!("  Python declarations are opaque external effects; declared types do not prove behavior.");
             }
+            if entry_writes_files(&effects_report) {
+                println!("{}", file_write_notice(&project_root));
+            }
             println!(
                 "artifact format: {}\nentry: {}\nsource: {}",
                 artifact.format_version, artifact.entry, artifact.source_name
@@ -856,7 +886,11 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
                         .dependency_lock_sha256
                         .as_deref()
                         .unwrap_or("absent"),
-                    limits.instruction_limit,
+                    if limits.instruction_limit == u64::MAX {
+                        "none".to_owned()
+                    } else {
+                        limits.instruction_limit.to_string()
+                    },
                     limits.allocation_limit_bytes,
                     limits.call_depth_limit,
                     limits.output_limit_bytes,
@@ -2396,20 +2430,19 @@ fn display_type(ty: &guion_model::Type) -> String {
 /// Effects (including those of callees) found in the library's own exported modules. A function
 /// belongs to the library when it is declared in an exported file; modules whose names clash get
 /// an `@module/N/` prefix that points back at their source.
-fn library_used_effects(
-    source: &str,
-    artifact: &Artifact,
+/// The functions declared in the library's exported modules.
+fn library_functions<'a>(
+    artifact: &'a Artifact,
     project_root: &Path,
     exports: &[String],
-) -> BTreeSet<String> {
-    let inspected = inspection_report(source, artifact, project_root, false);
+) -> Vec<&'a guion_model::Function> {
     let declared: BTreeSet<String> = exports
         .iter()
         .filter_map(|export| fs::read_to_string(project_root.join(export)).ok())
         .flat_map(|text| function_declarations(&text))
         .map(|(name, _, _)| name)
         .collect();
-    let mut used = BTreeSet::new();
+    let mut functions = Vec::new();
     for function in &artifact.functions {
         let belongs = match function.name.strip_prefix("@module/") {
             Some(rest) => {
@@ -2423,15 +2456,65 @@ fn library_used_effects(
             }
             None => declared.contains(function.name.as_str()),
         };
-        if !belongs {
-            continue;
+        if belongs {
+            functions.push(function);
         }
+    }
+    functions
+}
+
+fn library_used_effects(
+    source: &str,
+    artifact: &Artifact,
+    project_root: &Path,
+    exports: &[String],
+) -> BTreeSet<String> {
+    let inspected = inspection_report(source, artifact, project_root, false);
+    let mut used = BTreeSet::new();
+    for function in library_functions(artifact, project_root, exports) {
         if let Some(effects) = inspected["functions"][function.name.as_str()]["effects"].as_array()
         {
             used.extend(effects.iter().filter_map(|e| e.as_str().map(str::to_owned)));
         }
     }
     used
+}
+
+/// Hosts named by URL literals (`http`, `https`, `ws`, `wss`) in the library's own functions,
+/// each with the first function that names it. Hosts built at run time are not visible here.
+fn library_literal_hosts(
+    artifact: &Artifact,
+    project_root: &Path,
+    exports: &[String],
+) -> std::collections::BTreeMap<String, String> {
+    let mut hosts = std::collections::BTreeMap::new();
+    for function in library_functions(artifact, project_root, exports) {
+        for instruction in &function.code {
+            let Op::Const(Value::Text(text)) = &instruction.op else {
+                continue;
+            };
+            let text: &str = text.as_ref();
+            if !["http://", "https://", "ws://", "wss://"]
+                .iter()
+                .any(|scheme| text.starts_with(scheme))
+            {
+                continue;
+            }
+            if let Some(host) = reqwest::Url::parse(text)
+                .ok()
+                .and_then(|url| url.host_str().map(str::to_ascii_lowercase))
+            {
+                let name = function
+                    .name
+                    .rsplit('/')
+                    .next()
+                    .unwrap_or(&function.name)
+                    .to_owned();
+                hosts.entry(host).or_insert(name);
+            }
+        }
+    }
+    hosts
 }
 
 fn inspection_report(
@@ -3338,16 +3421,42 @@ fn normalize_http_host(input: &str) -> Result<String, String> {
     Ok(host)
 }
 
+/// Whether code reachable from the entry point can write, rename or remove files.
+fn entry_writes_files(report: &serde_json::Value) -> bool {
+    report["functions"].as_object().is_some_and(|functions| {
+        functions.values().any(|function| {
+            function["entry_reachable"] == true
+                && function["effects"]
+                    .as_array()
+                    .is_some_and(|effects| effects.iter().any(|e| e == "filesystem.write"))
+        })
+    })
+}
+
+fn file_write_notice(project_root: &std::path::Path) -> String {
+    format!(
+        "writes files: `guion run` lets this program create, change and remove files under {}",
+        project_root.display()
+    )
+}
+
 fn runtime_policy(root: &std::path::Path) -> Result<HostPolicy, String> {
     let manifest_path = project_manifest_path(root);
+    // Programs run by the command line have no instruction limit unless `[runtime]` sets one;
+    // embedders keep `HostPolicy::default()`'s bound. An artifact still carries the limit it was
+    // built with, and the runtime applies the stricter of the two.
+    let cli_default = HostPolicy {
+        instruction_limit: u64::MAX,
+        ..HostPolicy::default()
+    };
     if !manifest_path.is_file() {
-        return Ok(HostPolicy::default());
+        return Ok(cli_default);
     }
     let text = fs::read_to_string(&manifest_path)
         .map_err(|error| format!("cannot read {}: {error}", manifest_path.display()))?;
     let manifest: toml::Value = toml::from_str(&text)
         .map_err(|error| format!("{}: invalid TOML: {error}", manifest_path.display()))?;
-    let mut policy = HostPolicy::default();
+    let mut policy = cli_default;
     if let Some(runtime) = manifest.get("runtime") {
         let runtime = runtime
             .as_table()

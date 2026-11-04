@@ -3624,10 +3624,19 @@ impl NetFunction {
 pub enum TlsFunction {
     Connect,
     Accept,
+    /// Format 61: a client that presents a certificate (mutual TLS).
+    ConnectIdentity,
+    /// Format 61: a server that requires and verifies a client certificate.
+    AcceptVerified,
 }
 
 impl TlsFunction {
-    const ALL: [TlsFunction; 2] = [TlsFunction::Connect, TlsFunction::Accept];
+    const ALL: [TlsFunction; 4] = [
+        TlsFunction::Connect,
+        TlsFunction::Accept,
+        TlsFunction::ConnectIdentity,
+        TlsFunction::AcceptVerified,
+    ];
 
     pub fn code(self) -> u8 {
         Self::ALL
@@ -3645,6 +3654,8 @@ impl TlsFunction {
         match self {
             TlsFunction::Connect => "TlsConnect",
             TlsFunction::Accept => "TlsAccept",
+            TlsFunction::ConnectIdentity => "TlsConnectIdentity",
+            TlsFunction::AcceptVerified => "TlsAcceptVerified",
         }
     }
 
@@ -3655,9 +3666,21 @@ impl TlsFunction {
             .find(|candidate| candidate.op_name() == name)
     }
 
-    /// Number of operands the function pops (four for both).
+    /// Number of operands the function pops.
     pub fn arity(self) -> usize {
-        4
+        match self {
+            TlsFunction::Connect | TlsFunction::Accept => 4,
+            TlsFunction::ConnectIdentity => 6,
+            TlsFunction::AcceptVerified => 5,
+        }
+    }
+
+    /// The first artifact format that has this function.
+    pub fn format_version(self) -> u32 {
+        match self {
+            TlsFunction::Connect | TlsFunction::Accept => 58,
+            TlsFunction::ConnectIdentity | TlsFunction::AcceptVerified => 61,
+        }
     }
 }
 
@@ -3790,6 +3813,11 @@ pub enum Op {
     FloatToInt,
     NumberToText,
     RandomMix,
+    RandomSeed,
+    RandomAdvance,
+    RandomBits,
+    RandomUnitFloat,
+    RandomBelow,
     BytesFromInts,
     BytesFromText,
     BytesJoin,
@@ -3938,7 +3966,7 @@ pub struct Artifact {
 }
 
 impl Artifact {
-    pub const CURRENT_VERSION: u32 = 60;
+    pub const CURRENT_VERSION: u32 = 61;
     pub fn entry(&self) -> &str {
         &self.entry
     }
@@ -4208,6 +4236,18 @@ impl Artifact {
             return Err(ArtifactError::new(
                 "E_ARTIFACT_VERSION",
                 "SHA-1 and byte XOR instructions require artifact format 59",
+            ));
+        }
+        if self.format_version < 61 && artifact_uses_mutual_tls(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "mutual TLS instructions require artifact format 61",
+            ));
+        }
+        if self.format_version < 61 && artifact_uses_random_bits(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "64-bit random instructions require artifact format 61",
             ));
         }
         if self.format_version < 58 && artifact_uses_tls(self) {
@@ -4483,6 +4523,13 @@ impl Artifact {
                     Op::FloatToInt => w.u8(179),
                     Op::NumberToText => w.u8(180),
                     Op::RandomMix => w.u8(181),
+                    // Format 61 random instructions hold the 64-bit generator state as a signed
+                    // bit pattern, so the machine-code path runs them on plain 64-bit integers.
+                    Op::RandomSeed => w.u8(188),
+                    Op::RandomAdvance => w.u8(189),
+                    Op::RandomBits => w.u8(190),
+                    Op::RandomUnitFloat => w.u8(191),
+                    Op::RandomBelow => w.u8(192),
                     Op::ListPushLocal(slot) => {
                         w.u8(103);
                         w.count(*slot)?;
@@ -4868,12 +4915,19 @@ impl Artifact {
                     }
                     187 if format_version >= 58 => {
                         let code = r.u8()?;
-                        Op::Tls(TlsFunction::from_code(code).ok_or_else(|| {
+                        let function = TlsFunction::from_code(code).ok_or_else(|| {
                             ArtifactError::new(
                                 "E_ARTIFACT_ENCODING",
                                 format!("TLS instruction has unknown function code {code}"),
                             )
-                        })?)
+                        })?;
+                        if format_version < function.format_version() {
+                            return Err(ArtifactError::new(
+                                "E_ARTIFACT_VERSION",
+                                "mutual TLS instructions require artifact format 61",
+                            ));
+                        }
+                        Op::Tls(function)
                     }
                     187 => {
                         return Err(ArtifactError::new(
@@ -4975,6 +5029,17 @@ impl Artifact {
                     179 if format_version >= 52 => Op::FloatToInt,
                     180 if format_version >= 52 => Op::NumberToText,
                     181 if format_version >= 52 => Op::RandomMix,
+                    188 if format_version >= 61 => Op::RandomSeed,
+                    189 if format_version >= 61 => Op::RandomAdvance,
+                    190 if format_version >= 61 => Op::RandomBits,
+                    191 if format_version >= 61 => Op::RandomUnitFloat,
+                    192 if format_version >= 61 => Op::RandomBelow,
+                    188..=192 => {
+                        return Err(ArtifactError::new(
+                            "E_ARTIFACT_VERSION",
+                            "64-bit random instructions require artifact format 61",
+                        ));
+                    }
                     177..=181 => {
                         return Err(ArtifactError::new(
                             "E_ARTIFACT_VERSION",
@@ -5579,6 +5644,21 @@ fn artifact_uses_math_and_conversions(artifact: &Artifact) -> bool {
     })
 }
 
+fn artifact_uses_random_bits(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function.code.iter().any(|instruction| {
+            matches!(
+                instruction.op,
+                Op::RandomSeed
+                    | Op::RandomAdvance
+                    | Op::RandomBits
+                    | Op::RandomUnitFloat
+                    | Op::RandomBelow
+            )
+        })
+    })
+}
+
 fn artifact_uses_sha1_or_xor(artifact: &Artifact) -> bool {
     artifact.functions.iter().any(|function| {
         function.code.iter().any(|instruction| {
@@ -5596,6 +5676,14 @@ fn artifact_uses_codecs(artifact: &Artifact) -> bool {
             .code
             .iter()
             .any(|instruction| matches!(instruction.op, Op::Codec(_)))
+    })
+}
+
+fn artifact_uses_mutual_tls(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function.code.iter().any(|instruction| {
+            matches!(&instruction.op, Op::Tls(function) if function.format_version() >= 61)
+        })
     })
 }
 

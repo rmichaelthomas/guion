@@ -482,6 +482,7 @@ dependencies = [
  "guion-runtime",
  "libc",
  "reqwest",
+ "ring",
  "serde_json",
  "sha2",
  "tokio",

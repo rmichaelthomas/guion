@@ -143,6 +143,49 @@ fn undeclared_capability_use_fails_check_and_declaring_it_passes() {
 }
 
 #[test]
+fn hosts_named_in_the_code_must_be_declared() {
+    let dir = scratch("lib-hosts");
+    let library = dir.join("fetcher");
+    let two_hosts = "pub fn today() -> Bool:\n    return is_ok(http_get(\"https://api.weather.example/today\"))\n\npub fn backup() -> Bool:\n    return is_ok(http_get(\"https://Mirror.Example.org/x\"))\n";
+    write_library(
+        &library,
+        "\n[capabilities]\nnetwork = [\"api.weather.example\"]\n",
+        two_hosts,
+    );
+    let missing = guion(&library, &["check", "tests.gu"]);
+    assert!(!missing.status.success());
+    assert!(
+        text(&missing).contains("`backup` contacts `mirror.example.org`"),
+        "{}",
+        text(&missing)
+    );
+
+    write_library(
+        &library,
+        "\n[capabilities]\nnetwork = [\"api.weather.example\", \"mirror.example.org\"]\n",
+        two_hosts,
+    );
+    let declared = guion(&library, &["check", "tests.gu"]);
+    assert!(declared.status.success(), "{}", text(&declared));
+    assert!(!text(&declared).contains("cannot be confirmed"));
+
+    // A host built at run time cannot be confirmed, which check reports without failing.
+    write_library(
+        &library,
+        "\n[capabilities]\nnetwork = [\"api.weather.example\"]\n",
+        "pub fn fetch(url: Text) -> Bool:\n    return is_ok(http_get(url))\n",
+    );
+    let dynamic = guion(&library, &["check", "tests.gu"]);
+    assert!(dynamic.status.success(), "{}", text(&dynamic));
+    assert!(
+        text(&dynamic).contains("cannot be confirmed"),
+        "{}",
+        text(&dynamic)
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
 fn an_update_that_widens_capabilities_needs_explicit_approval() {
     let dir = scratch("lib-widen");
     let library = dir.join("fetcher");

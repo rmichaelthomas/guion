@@ -2784,6 +2784,45 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                     bigint_low_u64(&state)
                 ))));
             }
+            Op::RandomSeed | Op::RandomAdvance | Op::RandomBits | Op::RandomUnitFloat => {
+                let Value::Int(state) = pop!() else {
+                    return Err(RuntimeError::new(
+                        "R_TYPE_INVALID",
+                        "random instructions require an Int state",
+                        instruction.span,
+                    ));
+                };
+                let bits = bigint_low_u64(&state);
+                push_stack!(match &instruction.op {
+                    Op::RandomSeed => Value::Int(BigInt::from_i64(bits as i64)),
+                    Op::RandomAdvance => {
+                        Value::Int(BigInt::from_i64(bits.wrapping_add(SPLITMIX64_GAMMA) as i64))
+                    }
+                    Op::RandomBits => Value::Int(BigInt::from_i64(splitmix64_mix(bits) as i64)),
+                    _ => Value::Float64(random_unit_float(bits)),
+                });
+            }
+            Op::RandomBelow => {
+                let (Value::Int(span), Value::Int(state)) = (pop!(), pop!()) else {
+                    return Err(RuntimeError::new(
+                        "R_TYPE_INVALID",
+                        "random_below requires Int operands",
+                        instruction.span,
+                    ));
+                };
+                let Some(span) = random_span(&span) else {
+                    return Err(RuntimeError::new(
+                        "R_RANDOM_RANGE",
+                        "a random range must hold between 1 and 2^64 values",
+                        instruction.span,
+                    ));
+                };
+                let value = match random_below(bigint_low_u64(&state), span) {
+                    Some(value) => BigInt::from_u64(value),
+                    None => BigInt::from_i64(-1),
+                };
+                push_stack!(Value::Int(value));
+            }
             Op::BytesFromInts => {
                 let values = match pop!() {
                     Value::List(values) => values,
@@ -4753,6 +4792,11 @@ pub fn opcode_profile_name(op: &Op) -> &'static str {
         Op::FloatToInt => "FloatToInt",
         Op::NumberToText => "NumberToText",
         Op::RandomMix => "RandomMix",
+        Op::RandomSeed => "RandomSeed",
+        Op::RandomAdvance => "RandomAdvance",
+        Op::RandomBits => "RandomBits",
+        Op::RandomUnitFloat => "RandomUnitFloat",
+        Op::RandomBelow => "RandomBelow",
         Op::BytesFromInts => "BytesFromInts",
         Op::BytesFromText => "BytesFromText",
         Op::BytesJoin => "BytesJoin",
@@ -4887,14 +4931,32 @@ pub fn append_guest_call_trace(
 #[derive(Debug)]
 pub struct AllocationPool {
     remaining: AtomicUsize,
+    limit: usize,
     /// Parallel operations currently sharing this pool with worker threads.
     sharers: AtomicUsize,
+}
+
+static LIVE_MEMORY_PROBE: std::sync::OnceLock<fn() -> usize> = std::sync::OnceLock::new();
+
+/// Registers a measure of the memory the process holds now. With one registered, the
+/// allocation limit bounds memory in use rather than the total ever allocated: running out of
+/// the per-allocation estimate asks the probe, refills the allowance to the limit minus what
+/// is held, and fails only when what is held reaches the limit. Without one (the default for
+/// embedders) the estimate is a cumulative budget. Only the first registration counts.
+pub fn set_live_memory_probe(probe: fn() -> usize) {
+    let _ = LIVE_MEMORY_PROBE.set(probe);
+}
+
+/// The memory the process holds, when a probe is registered.
+pub fn live_memory() -> Option<usize> {
+    LIVE_MEMORY_PROBE.get().map(|probe| probe())
 }
 
 impl AllocationPool {
     pub fn new(limit: usize) -> Self {
         Self {
             remaining: AtomicUsize::new(limit),
+            limit,
             sharers: AtomicUsize::new(0),
         }
     }
@@ -4915,6 +4977,11 @@ impl AllocationPool {
 
     #[inline]
     fn take(&self, bytes: usize, floor: usize) -> bool {
+        self.try_take(bytes, floor) || self.refill_from_live_memory(bytes, floor)
+    }
+
+    #[inline]
+    fn try_take(&self, bytes: usize, floor: usize) -> bool {
         if self.sharers.load(Ordering::Relaxed) == 0 {
             let left = self.remaining.load(Ordering::Relaxed);
             if bytes > left.saturating_sub(floor) {
@@ -4928,6 +4995,22 @@ impl AllocationPool {
                 (bytes <= left.saturating_sub(floor)).then(|| left - bytes)
             })
             .is_ok()
+    }
+
+    /// Resets the allowance to the limit minus the memory actually held, then retries.
+    #[cold]
+    fn refill_from_live_memory(&self, bytes: usize, floor: usize) -> bool {
+        let Some(held) = live_memory() else {
+            return false;
+        };
+        let refilled = self.limit.saturating_sub(held);
+        self.remaining.fetch_max(refilled, Ordering::Relaxed);
+        self.try_take(bytes, floor)
+    }
+
+    /// The limit this pool enforces.
+    pub fn limit(&self) -> usize {
+        self.limit
     }
 
     #[inline]
@@ -5188,15 +5271,18 @@ pub fn charge_allocation(budget: &Budget, bytes: usize, span: Span) -> Result<()
 }
 
 #[cold]
-fn allocation_limit_error(budget: &Budget, bytes: usize, span: Span) -> RuntimeError {
+pub fn allocation_limit_error(budget: &Budget, bytes: usize, span: Span) -> RuntimeError {
     let remaining = budget.allocation.remaining();
-    RuntimeError::new(
-        "R_ALLOCATION_LIMIT",
-        format!(
+    let message = match live_memory() {
+        Some(held) => format!(
+            "memory limit reached: {held} bytes in use of {} allowed (requested {bytes} more)",
+            budget.allocation.limit()
+        ),
+        None => format!(
             "cumulative allocation budget exhausted during this invocation (requested {bytes} bytes; {remaining} remain)"
         ),
-        span,
-    )
+    };
+    RuntimeError::new("R_ALLOCATION_LIMIT", message, span)
 }
 
 /// The clone charge for the common values, without a call.
@@ -6737,12 +6823,23 @@ fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result
                 state.stack.push(result);
             }
             Op::Tls(function) => {
-                let expected = match function {
+                let expected: &[Type] = match function {
                     guion_model::TlsFunction::Connect => {
-                        [Type::Text, Type::Int, Type::Int, Type::Text]
+                        &[Type::Text, Type::Int, Type::Int, Type::Text]
                     }
                     guion_model::TlsFunction::Accept => {
-                        [Type::Int, Type::Int, Type::Text, Type::Text]
+                        &[Type::Int, Type::Int, Type::Text, Type::Text]
+                    }
+                    guion_model::TlsFunction::ConnectIdentity => &[
+                        Type::Text,
+                        Type::Int,
+                        Type::Int,
+                        Type::Text,
+                        Type::Text,
+                        Type::Text,
+                    ],
+                    guion_model::TlsFunction::AcceptVerified => {
+                        &[Type::Int, Type::Int, Type::Text, Type::Text, Type::Text]
                     }
                 };
                 for expected in expected.iter().rev() {
@@ -6835,9 +6932,25 @@ fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result
                 }
                 state.stack.push(Type::Text);
             }
-            Op::RandomMix => {
+            Op::RandomMix | Op::RandomSeed | Op::RandomAdvance | Op::RandomBits => {
                 if pop_type(&mut state.stack, pc)? != Type::Int {
-                    return Err(format!("random_mix requires Int at instruction {pc}"));
+                    return Err(format!("random state requires Int at instruction {pc}"));
+                }
+                state.stack.push(Type::Int);
+            }
+            Op::RandomUnitFloat => {
+                if pop_type(&mut state.stack, pc)? != Type::Int {
+                    return Err(format!("random state requires Int at instruction {pc}"));
+                }
+                state.stack.push(Type::Float64);
+            }
+            Op::RandomBelow => {
+                if pop_type(&mut state.stack, pc)? != Type::Int
+                    || pop_type(&mut state.stack, pc)? != Type::Int
+                {
+                    return Err(format!(
+                        "random_below requires Int operands at instruction {pc}"
+                    ));
                 }
                 state.stack.push(Type::Int);
             }
@@ -8180,8 +8293,42 @@ fn bigint_low_u64(value: &BigInt) -> u64 {
     }
 }
 
+/// The SplitMix64 state increment (the golden-ratio constant).
+const SPLITMIX64_GAMMA: u64 = 0x9E37_79B9_7F4A_7C15;
+
+/// A draw from `[0, 1)` built from the top 53 bits of the SplitMix64 output for `state`.
+pub fn random_unit_float(state: u64) -> Float64 {
+    let fraction = (splitmix64_mix(state) >> 11) as f64 * (1.0 / 9_007_199_254_740_992.0);
+    Float64::new(fraction).expect("a fraction in [0, 1) is finite")
+}
+
+/// A range size as a 64-bit count, where 0 stands for 2^64; `None` outside `1..=2^64`.
+fn random_span(span: &BigInt) -> Option<u64> {
+    if let Some(small) = span.small() {
+        return (small > 0).then_some(small as u64);
+    }
+    let modulus = BigInt::parse("18446744073709551616").expect("2^64 parses");
+    if *span == modulus {
+        return Some(0);
+    }
+    None
+}
+
+/// The SplitMix64 output for `state` reduced into `0..span` by rejection sampling, or `None`
+/// when the output falls in the biased tail and the caller must draw again. A `span` of 0
+/// stands for 2^64 and accepts every output.
+pub fn random_below(state: u64, span: u64) -> Option<u64> {
+    let bits = splitmix64_mix(state);
+    if span == 0 {
+        return Some(bits);
+    }
+    // 2^64 mod span, so that outputs at or above 2^64 - tail are rejected.
+    let tail = (u64::MAX % span + 1) % span;
+    (bits <= u64::MAX - tail).then_some(bits % span)
+}
+
 /// The SplitMix64 output function.
-fn splitmix64_mix(state: u64) -> u64 {
+pub fn splitmix64_mix(state: u64) -> u64 {
     let mut z = state;
     z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
     z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
