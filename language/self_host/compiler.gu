@@ -402,6 +402,8 @@ fn load_program(source_name: Text, source_path: Text, module_root: Text, root_la
                 let package_path = suffix_after(requested, ":")
                 let package = prefix_before(package_path, "/")
                 let relative = suffix_after(package_path, "/")
+                if starts_with(package, "@"):
+                    return json_set(json_object(), "compile_error", compile_failure("E_PACKAGE_SCOPE_RESERVED", "scoped package names (`@owner/name`) are reserved and not available yet", source_name, 0, 0, 1, 1))
                 if package == "" or relative == "" or not safe_relative_path(relative):
                     return json_set(json_object(), "compile_error", compile_failure("E_IMPORT_PATH", "package import must use `pkg:name/path.gu` inside a package root", source_name, 0, 0, 1, 1))
                 if not json_has(package_roots, package):

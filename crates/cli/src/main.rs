@@ -12,6 +12,7 @@ mod compiler_driver;
 mod dependencies;
 mod native_dependencies;
 mod native_packages;
+mod package_name;
 mod pool_alloc;
 mod source_run_cache;
 

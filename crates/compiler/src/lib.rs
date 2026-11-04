@@ -3466,6 +3466,13 @@ impl ModuleLoader {
                     "package import must use `pkg:name/path.gu`".into(),
                 ));
             };
+            if package.starts_with('@') {
+                return Err(fail(
+                    "E_PACKAGE_SCOPE_RESERVED",
+                    "scoped package names (`@owner/name`) are reserved and not available yet"
+                        .into(),
+                ));
+            }
             let requested = Path::new(relative);
             if package.is_empty()
                 || requested.is_absolute()

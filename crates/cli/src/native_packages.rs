@@ -146,7 +146,7 @@ fn add_url_internal(
     archive_sha256: &str,
     updating: bool,
 ) -> Result<String, String> {
-    validate_package_name(expected_name)?;
+    validate_package_name_for_add(expected_name, updating)?;
     validate_exact_version(version)?;
     validate_sha256(archive_sha256)?;
     let parsed =
@@ -421,7 +421,7 @@ fn install_package_graph(
     source_sha256: Option<&str>,
     updating: bool,
 ) -> Result<String, String> {
-    validate_package_name(expected_name)?;
+    validate_package_name_for_add(expected_name, updating)?;
     let project = fs::canonicalize(project)
         .map_err(|error| format!("cannot resolve project {}: {error}", project.display()))?;
     let source_root = fs::canonicalize(source_root).map_err(|error| {
@@ -718,7 +718,7 @@ fn add_path_internal(
     source: &Path,
     updating: bool,
 ) -> Result<String, String> {
-    validate_package_name(expected_name)?;
+    validate_package_name_for_add(expected_name, updating)?;
     let project = fs::canonicalize(project)
         .map_err(|error| format!("cannot resolve project {}: {error}", project.display()))?;
     let source = fs::canonicalize(source).map_err(|error| {
@@ -1606,15 +1606,20 @@ fn requirement_version(requirement: &toml::Value) -> Result<String, String> {
     Ok(version)
 }
 
+/// Names already present in a lock or manifest keep loading under the older rule (with a warning
+/// when they break the current one).
 fn validate_package_name(name: &str) -> Result<(), String> {
-    if name.is_empty()
-        || !name
-            .bytes()
-            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_')
-    {
-        return Err(format!("invalid native package name `{name}`"));
+    crate::package_name::check_existing_package_name(name)
+}
+
+/// A new `add` follows the full rule set; updating an existing dependency does not re-litigate its
+/// name.
+fn validate_package_name_for_add(name: &str, updating: bool) -> Result<(), String> {
+    if updating {
+        validate_package_name(name)
+    } else {
+        crate::package_name::validate_new_package_name(name)
     }
-    Ok(())
 }
 
 fn validate_sha256(value: &str) -> Result<(), String> {
