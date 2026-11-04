@@ -64,10 +64,10 @@ test('the agents section offers a copyable prompt and, for developers, the file 
   assert.ok(markup.includes('guion_inspection_report') && markup.includes('guion_check_report'));
 });
 
-test('the story has exactly the four dated events, with the rename commit in the Developer view', () => {
+test('the story has exactly the five dated events, with the rename commit in the Developer view', () => {
   const markup = section('story');
   const dates = [...markup.matchAll(/<time datetime="([^"]+)"/g)].map((match) => match[1]);
-  assert.deepEqual(dates, ['2026-10-22', '2026-10-25', '2026-10-27', '2026-11-03']);
+  assert.deepEqual(dates, ['2026-10-22', '2026-10-25', '2026-10-27', '2026-11-03', '2026-11-04']);
   assert.ok(markup.includes('Veritas'));
   assert.ok(markup.includes('6a4fab1'));
 });

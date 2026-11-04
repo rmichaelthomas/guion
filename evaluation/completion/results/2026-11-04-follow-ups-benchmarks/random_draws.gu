@@ -1,0 +1,16 @@
+import "std:random"
+
+fn main() -> Unit:
+    var rng = random_new(42)
+    var i = 0
+    var total = 0
+    var sum = 0.0
+    while i < 1000000:
+        let f = random_next_float(rng)
+        let r = random_next_range(f.rng, 0, 6)
+        set rng = r.rng
+        set sum = sum + f.value
+        set total = total + r.value
+        set i = i + 1
+    print(total)
+    print(sum)

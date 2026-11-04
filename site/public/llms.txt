@@ -32,6 +32,16 @@ Doesn't tell you: Anything about other programs, other machines or other Python 
 
 Evidence: https://rmichaelthomas.github.io/guion/evidence/2026-10-27-current-main-outcome-checkpoint.md https://rmichaelthomas.github.io/guion/evidence/20261027T233155909692Z.json
 
+### Three small loops after the machine-code work
+
+On three small loops, Guion took 0.058 s for 1,000,000 random draws against CPython's 0.282 s, 0.165 s for a 20,000,000-step integer loop against 1.593 s, and 0.031 s for 200,000 text appends against 0.057 s for the way Python programmers normally write that loop.
+
+Holds when: One Apple Silicon Mac, a release build of main at artifact format 61, against CPython 3.14.7, with 7 alternating runs per lane. The integer loop and the appends were checked for identical output before timing.
+
+Doesn't tell you: Anything about real programs. These are synthetic loops, there are no confidence intervals, and the random lane compares speed only because the two generators draw different numbers. The same append statement written the slow way in Python took 4.901 s; that is Python's copy-on-every-pass pattern, not its normal style, so it is not the headline. Other machines, Linux and other Python versions were not measured.
+
+Evidence: https://rmichaelthomas.github.io/guion/evidence/2026-11-04-follow-ups-report.md https://rmichaelthomas.github.io/guion/evidence/run.py
+
 ### Five short programs, start to finish
 
 Five small programs were each run from source in 21 randomized pairs against Python. Guion took 0.182 to 0.236 of Python's time on every one.

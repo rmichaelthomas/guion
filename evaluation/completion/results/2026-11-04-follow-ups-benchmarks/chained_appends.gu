@@ -1,0 +1,7 @@
+fn main() -> Unit:
+    var s = ""
+    var i = 0
+    while i < 200000:
+        set s = s + int_to_text(i) + ","
+        set i = i + 1
+    print(len(s))
