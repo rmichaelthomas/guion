@@ -1447,6 +1447,104 @@
       ],
       "result": "Option[Text]",
       "operation": "CodecPercentDecode"
+    },
+    {
+      "name": "native_fs_exists",
+      "parameters": [
+        "Text"
+      ],
+      "result": "Result[Bool, FileError]",
+      "operation": "FsOpExists"
+    },
+    {
+      "name": "native_fs_kind",
+      "parameters": [
+        "Text"
+      ],
+      "result": "Result[Text, FileError]",
+      "operation": "FsOpKind"
+    },
+    {
+      "name": "native_fs_size",
+      "parameters": [
+        "Text"
+      ],
+      "result": "Result[Int, FileError]",
+      "operation": "FsOpSize"
+    },
+    {
+      "name": "native_fs_modified_ms",
+      "parameters": [
+        "Text"
+      ],
+      "result": "Result[Int, FileError]",
+      "operation": "FsOpModifiedMs"
+    },
+    {
+      "name": "native_fs_list_dir",
+      "parameters": [
+        "Text"
+      ],
+      "result": "Result[List[Text], FileError]",
+      "operation": "FsOpListDir"
+    },
+    {
+      "name": "native_fs_make_dir",
+      "parameters": [
+        "Text"
+      ],
+      "result": "Result[Unit, FileError]",
+      "operation": "FsOpMakeDir"
+    },
+    {
+      "name": "native_fs_remove",
+      "parameters": [
+        "Text"
+      ],
+      "result": "Result[Unit, FileError]",
+      "operation": "FsOpRemove"
+    },
+    {
+      "name": "native_fs_remove_all",
+      "parameters": [
+        "Text"
+      ],
+      "result": "Result[Unit, FileError]",
+      "operation": "FsOpRemoveAll"
+    },
+    {
+      "name": "native_fs_rename",
+      "parameters": [
+        "Text",
+        "Text"
+      ],
+      "result": "Result[Unit, FileError]",
+      "operation": "FsOpRename"
+    },
+    {
+      "name": "native_fs_copy",
+      "parameters": [
+        "Text",
+        "Text"
+      ],
+      "result": "Result[Int, FileError]",
+      "operation": "FsOpCopy"
+    },
+    {
+      "name": "native_fs_temp_dir",
+      "parameters": [
+        "Text"
+      ],
+      "result": "Result[Text, FileError]",
+      "operation": "FsOpTempDir"
+    },
+    {
+      "name": "native_fs_temp_file",
+      "parameters": [
+        "Text"
+      ],
+      "result": "Result[Text, FileError]",
+      "operation": "FsOpTempFile"
     }
   ]
 }

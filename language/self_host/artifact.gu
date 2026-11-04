@@ -730,6 +730,33 @@ fn ab_codec_code(name: Text) -> Int:
         return 11
     return -1
 
+fn ab_fs_code(name: Text) -> Int:
+    if name == "FsOpExists":
+        return 0
+    if name == "FsOpKind":
+        return 1
+    if name == "FsOpSize":
+        return 2
+    if name == "FsOpModifiedMs":
+        return 3
+    if name == "FsOpListDir":
+        return 4
+    if name == "FsOpMakeDir":
+        return 5
+    if name == "FsOpRemove":
+        return 6
+    if name == "FsOpRemoveAll":
+        return 7
+    if name == "FsOpRename":
+        return 8
+    if name == "FsOpCopy":
+        return 9
+    if name == "FsOpTempDir":
+        return 10
+    if name == "FsOpTempFile":
+        return 11
+    return -1
+
 fn ab_instruction(instruction: Json, pc: Int, functions: Json, records: Json, externals: Json, labels: Json, source_id: Int) -> Bytes:
     let name = json_as_text(json_get(instruction, "op"))
     if name == "ConstInt" or name == "ConstBool" or name == "ConstText" or name == "ConstFloat64" or name == "ConstUnit" or name == "ConstValue":
@@ -740,6 +767,9 @@ fn ab_instruction(instruction: Json, pc: Int, functions: Json, records: Json, ex
     let codec_code = ab_codec_code(name)
     if codec_code >= 0:
         return ab_join([ab_instruction_span(instruction, pc, source_id), ab_u8(182), ab_u8(codec_code)])
+    let fs_code = ab_fs_code(name)
+    if fs_code >= 0:
+        return ab_join([ab_instruction_span(instruction, pc, source_id), ab_u8(183), ab_u8(fs_code)])
     let tag = ab_plain_opcode(name)
     if tag < 0:
         return ab_u8(255)
@@ -867,7 +897,7 @@ pub fn artifact_assemble(ir: Json) -> Bytes:
     let records = json_get(ir, "records")
     let externals = json_get(ir, "externals")
     let functions = json_get(ir, "functions")
-    var parts: List[Bytes] = [bytes_from_text("VRTA"), ab_u32(53), ab_string(source_name), ab_string(entry), ab_count(json_len(sources))]
+    var parts: List[Bytes] = [bytes_from_text("VRTA"), ab_u32(54), ab_string(source_name), ab_string(entry), ab_count(json_len(sources))]
     var cursor = 0
     while cursor < json_len(sources):
         set parts = list_push(parts, ab_string(json_as_text(json_index(sources, cursor))))

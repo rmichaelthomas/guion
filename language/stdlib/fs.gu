@@ -23,3 +23,39 @@ pub fn fs_next_line(reader: FileReader) -> Result[Option[SourceLine], FileError]
 
 pub fn fs_close_reader(reader: FileReader) -> Result[Unit, FileError]:
     return file_close(reader)
+
+pub fn fs_exists(path: Text) -> Result[Bool, FileError]:
+    return native_fs_exists(path)
+
+pub fn fs_kind(path: Text) -> Result[Text, FileError]:
+    return native_fs_kind(path)
+
+pub fn fs_size(path: Text) -> Result[Int, FileError]:
+    return native_fs_size(path)
+
+pub fn fs_modified_ms(path: Text) -> Result[Int, FileError]:
+    return native_fs_modified_ms(path)
+
+pub fn fs_list_dir(path: Text) -> Result[List[Text], FileError]:
+    return native_fs_list_dir(path)
+
+pub fn fs_make_dir(path: Text) -> Result[Unit, FileError]:
+    return native_fs_make_dir(path)
+
+pub fn fs_remove(path: Text) -> Result[Unit, FileError]:
+    return native_fs_remove(path)
+
+pub fn fs_remove_all(path: Text) -> Result[Unit, FileError]:
+    return native_fs_remove_all(path)
+
+pub fn fs_rename(from: Text, to: Text) -> Result[Unit, FileError]:
+    return native_fs_rename(from, to)
+
+pub fn fs_copy(from: Text, to: Text) -> Result[Int, FileError]:
+    return native_fs_copy(from, to)
+
+pub fn fs_temp_dir(prefix: Text) -> Result[Text, FileError]:
+    return native_fs_temp_dir(prefix)
+
+pub fn fs_temp_file(prefix: Text) -> Result[Text, FileError]:
+    return native_fs_temp_file(prefix)

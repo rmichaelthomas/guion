@@ -2306,8 +2306,18 @@ fn inspection_report(
                 Op::PrintErr => {
                     direct_effects[function_index].insert("output.stderr".into());
                 }
-                Op::ReadText | Op::ReadBytes => {
+                Op::ReadText | Op::ReadBytes | Op::FsWalk | Op::FileOpenLines | Op::CsvOpen => {
                     direct_effects[function_index].insert("filesystem.read".into());
+                }
+                Op::Fs(function) => {
+                    direct_effects[function_index].insert(
+                        if function.writes() {
+                            "filesystem.write"
+                        } else {
+                            "filesystem.read"
+                        }
+                        .into(),
+                    );
                 }
                 Op::WriteText | Op::WriteTextAtomic | Op::WriteBytes => {
                     direct_effects[function_index].insert("filesystem.write".into());

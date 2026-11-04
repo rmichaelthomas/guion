@@ -1,0 +1,119 @@
+fn path_split_parts(path: Text) -> List[Text]:
+    var parts: List[Text] = []
+    var current = ""
+    var index = 0
+    while index < len(path):
+        let ch = path[index]
+        if ch == "/":
+            if len(current) > 0:
+                set parts = list_push(parts, current)
+            set current = ""
+        else:
+            set current = current + ch
+        set index = index + 1
+    if len(current) > 0:
+        set parts = list_push(parts, current)
+    return parts
+
+pub fn path_is_absolute(path: Text) -> Bool:
+    return len(path) > 0 and path[0] == "/"
+
+pub fn path_normalize(path: Text) -> Text:
+    let absolute = path_is_absolute(path)
+    let parts = path_split_parts(path)
+    var kept: List[Text] = []
+    var index = 0
+    while index < len(parts):
+        let part = parts[index]
+        if part == "." or len(part) == 0:
+            set index = index + 1
+        else:
+            if part == "..":
+                if len(kept) > 0 and kept[len(kept) - 1] != "..":
+                    set kept = list_set_length(kept, len(kept) - 1)
+                else:
+                    if not absolute:
+                        set kept = list_push(kept, part)
+            else:
+                set kept = list_push(kept, part)
+            set index = index + 1
+    var out = ""
+    var joined = 0
+    while joined < len(kept):
+        if joined > 0:
+            set out = out + "/"
+        set out = out + kept[joined]
+        set joined = joined + 1
+    if absolute:
+        return "/" + out
+    if len(out) == 0:
+        return "."
+    return out
+
+fn list_set_length(values: List[Text], length: Int) -> List[Text]:
+    var out: List[Text] = []
+    var index = 0
+    while index < length:
+        set out = list_push(out, values[index])
+        set index = index + 1
+    return out
+
+pub fn path_join(base: Text, child: Text) -> Text:
+    if path_is_absolute(child) or len(base) == 0:
+        return child
+    if len(child) == 0:
+        return base
+    if base[len(base) - 1] == "/":
+        return base + child
+    return base + "/" + child
+
+pub fn path_basename(path: Text) -> Text:
+    let parts = path_split_parts(path)
+    if len(parts) == 0:
+        return ""
+    return parts[len(parts) - 1]
+
+pub fn path_dirname(path: Text) -> Text:
+    let parts = path_split_parts(path)
+    let absolute = path_is_absolute(path)
+    if len(parts) <= 1:
+        if absolute:
+            return "/"
+        return ""
+    var out = ""
+    var index = 0
+    while index < len(parts) - 1:
+        if index > 0:
+            set out = out + "/"
+        set out = out + parts[index]
+        set index = index + 1
+    if absolute:
+        return "/" + out
+    return out
+
+pub fn path_extension(path: Text) -> Text:
+    let name = path_basename(path)
+    var dot = -1
+    var index = 0
+    while index < len(name):
+        if name[index] == ".":
+            set dot = index
+        set index = index + 1
+    if dot <= 0:
+        return ""
+    return text_slice(name, dot, len(name))
+
+pub fn path_stem(path: Text) -> Text:
+    let name = path_basename(path)
+    let extension = path_extension(path)
+    return text_slice(name, 0, len(name) - len(extension))
+
+pub fn path_with_extension(path: Text, extension: Text) -> Text:
+    let directory = path_dirname(path)
+    var name = path_stem(path) + extension
+    if len(directory) == 0:
+        return name
+    return path_join(directory, name)
+
+pub fn path_components(path: Text) -> List[Text]:
+    return path_split_parts(path)

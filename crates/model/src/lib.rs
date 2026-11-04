@@ -3049,6 +3049,97 @@ impl CodecFunction {
     }
 }
 
+/// Filesystem operations behind `Op::Fs`. Every path is checked against the host's file grants.
+/// Codes are part of artifact format 54.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FsFunction {
+    Exists,
+    Kind,
+    Size,
+    ModifiedMs,
+    ListDir,
+    MakeDir,
+    Remove,
+    RemoveAll,
+    Rename,
+    Copy,
+    TempDir,
+    TempFile,
+}
+
+impl FsFunction {
+    const ALL: [FsFunction; 12] = [
+        FsFunction::Exists,
+        FsFunction::Kind,
+        FsFunction::Size,
+        FsFunction::ModifiedMs,
+        FsFunction::ListDir,
+        FsFunction::MakeDir,
+        FsFunction::Remove,
+        FsFunction::RemoveAll,
+        FsFunction::Rename,
+        FsFunction::Copy,
+        FsFunction::TempDir,
+        FsFunction::TempFile,
+    ];
+
+    pub fn code(self) -> u8 {
+        Self::ALL
+            .iter()
+            .position(|candidate| *candidate == self)
+            .expect("every filesystem function is listed") as u8
+    }
+
+    pub fn from_code(code: u8) -> Option<Self> {
+        Self::ALL.get(usize::from(code)).copied()
+    }
+
+    /// The instruction name used by builtin catalogs and the textual bytecode form.
+    pub fn op_name(self) -> &'static str {
+        match self {
+            FsFunction::Exists => "FsOpExists",
+            FsFunction::Kind => "FsOpKind",
+            FsFunction::Size => "FsOpSize",
+            FsFunction::ModifiedMs => "FsOpModifiedMs",
+            FsFunction::ListDir => "FsOpListDir",
+            FsFunction::MakeDir => "FsOpMakeDir",
+            FsFunction::Remove => "FsOpRemove",
+            FsFunction::RemoveAll => "FsOpRemoveAll",
+            FsFunction::Rename => "FsOpRename",
+            FsFunction::Copy => "FsOpCopy",
+            FsFunction::TempDir => "FsOpTempDir",
+            FsFunction::TempFile => "FsOpTempFile",
+        }
+    }
+
+    pub fn from_op_name(name: &str) -> Option<Self> {
+        Self::ALL
+            .iter()
+            .copied()
+            .find(|candidate| candidate.op_name() == name)
+    }
+
+    /// Number of `Text` operands the function pops.
+    pub fn arity(self) -> usize {
+        match self {
+            FsFunction::Rename | FsFunction::Copy => 2,
+            _ => 1,
+        }
+    }
+
+    /// Whether the function needs the host's file-write grant (otherwise file-read).
+    pub fn writes(self) -> bool {
+        !matches!(
+            self,
+            FsFunction::Exists
+                | FsFunction::Kind
+                | FsFunction::Size
+                | FsFunction::ModifiedMs
+                | FsFunction::ListDir
+        )
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Op {
     Const(Value),
@@ -3169,6 +3260,7 @@ pub enum Op {
     TextTrim,
     Math(MathFunction),
     Codec(CodecFunction),
+    Fs(FsFunction),
     IntToFloat,
     FloatToInt,
     NumberToText,
@@ -3311,7 +3403,7 @@ pub struct Artifact {
 }
 
 impl Artifact {
-    pub const CURRENT_VERSION: u32 = 53;
+    pub const CURRENT_VERSION: u32 = 54;
     pub fn entry(&self) -> &str {
         &self.entry
     }
@@ -3551,6 +3643,12 @@ impl Artifact {
             return Err(ArtifactError::new(
                 "E_ARTIFACT_VERSION",
                 "byte, encoding and percent-encoding instructions require artifact format 53",
+            ));
+        }
+        if self.format_version < 54 && artifact_uses_fs(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "filesystem instructions require artifact format 54",
             ));
         }
         validate_sort_comparator_effects(self)
@@ -3794,6 +3892,10 @@ impl Artifact {
                     }
                     Op::Codec(function) => {
                         w.u8(182);
+                        w.u8(function.code());
+                    }
+                    Op::Fs(function) => {
+                        w.u8(183);
                         w.u8(function.code());
                     }
                     Op::IntToFloat => w.u8(178),
@@ -4167,6 +4269,21 @@ impl Artifact {
                         return Err(ArtifactError::new(
                             "E_ARTIFACT_VERSION",
                             "fused JSON field accessors require artifact format 50",
+                        ));
+                    }
+                    183 if format_version >= 54 => {
+                        let code = r.u8()?;
+                        Op::Fs(FsFunction::from_code(code).ok_or_else(|| {
+                            ArtifactError::new(
+                                "E_ARTIFACT_ENCODING",
+                                format!("filesystem instruction has unknown function code {code}"),
+                            )
+                        })?)
+                    }
+                    183 => {
+                        return Err(ArtifactError::new(
+                            "E_ARTIFACT_VERSION",
+                            "filesystem instructions require artifact format 54",
                         ));
                     }
                     182 if format_version >= 53 => {
@@ -4791,6 +4908,15 @@ fn artifact_uses_codecs(artifact: &Artifact) -> bool {
             .code
             .iter()
             .any(|instruction| matches!(instruction.op, Op::Codec(_)))
+    })
+}
+
+fn artifact_uses_fs(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function
+            .code
+            .iter()
+            .any(|instruction| matches!(instruction.op, Op::Fs(_)))
     })
 }
 

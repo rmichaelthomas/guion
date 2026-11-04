@@ -33,6 +33,7 @@ Statements: `let`, `var`, `set`, `return`, `if`/`else`, `while`, `for name in li
 - `parallel_map(items, worker, limit)` calls a named unary function on immutable list items in worker-local VM instances and returns `Result[List[U], TaskError]`. `is_ok(result)` tests the variant; `unwrap(result)` returns the list from `Ok`; `error(result)` returns the `TaskError` from `Err`. `task_index`, `task_code`, and `task_message` read its failed input index and failure details. Workers preserve result order, use a bounded shared worker instruction allowance, stop scheduling and poll cancellation after failure, join running tasks, and merge completed output by input index. An instruction-limit failure inside a worker is a `TaskError`; host setup errors still fail the invocation.
 - Numeric conversion and math (artifact format 52): `int_to_float(Int) -> Float64`, `float_to_int(Float64) -> Int` (truncates toward zero), `int_to_text(Int) -> Text`, and `float_to_text(Float64) -> Text` (the same shortest round-trip text `print` shows). `std:math` provides `math_sin`, `math_cos`, `math_tan`, `math_asin`, `math_acos`, `math_atan`, `math_atan2`, `math_sinh`, `math_cosh`, `math_tanh`, `math_exp`, `math_ln`, `math_log10`, `math_log2`, `math_log`, `math_pow`, `math_hypot`, `math_abs`, `math_floor`, `math_ceil`, `math_round` (half away from zero), `math_floor_int`, `math_ceil_int`, `math_round_int`, `math_radians`, `math_degrees`, and the constants `math_pi()`, `math_tau()`, `math_e()`. A domain error raises `R_MATH_DOMAIN`, zero to a negative power raises `R_DIV_ZERO`, and a non-finite result raises `R_FLOAT_NONFINITE`. Results use the platform's IEEE 754 libm, so they can differ in the last digit between targets. `std:random` is a deterministic SplitMix64 generator over immutable `Rng` values: `random_new(seed)`, `random_next_u64`, `random_next_float` (in `[0, 1)`), and `random_next_range(rng, low, high)` (uniform over `low <= value < high`, by rejection sampling); each returns the value together with the next `Rng`. The same seed gives the same sequence on every target. It reads no clock; seed it from `unix_time_ms()` when a changing sequence is wanted.
 - Bytes, encodings and URLs (artifact format 53): `bytes_to_ints(Bytes) -> List[Int]`, `bytes_slice(Bytes, start, end) -> Bytes` (raises `R_INDEX_BOUNDS` outside `0 <= start <= end <= len`), `text_from_bytes(Bytes) -> Option[Text]` (strict UTF-8) and `text_from_bytes_lossy(Bytes) -> Text`. `std:encoding` provides `base64_encode`/`base64_decode` and `base64url_encode`/`base64url_decode` (padded; decoding is strict about alphabet, length and padding and returns `E_BASE64_INVALID`), `hex_encode`/`hex_decode` (lowercase output; either case accepted; `E_HEX_INVALID`), and `encoding_utf8_encode`, `encoding_utf8_decode` (`E_UTF8_INVALID`) and `encoding_utf8_decode_lossy`. `std:url` provides `url_parse(Text) -> Result[Url, StdError]` (an RFC 3986 split into `scheme`, `userinfo`, `host`, `port` (`-1` when absent), `path`, `query` and `fragment`, with no normalization; bracketed IPv6 hosts; `E_URL_INVALID`), `url_to_text`, `url_encode_component` (everything except `A-Z a-z 0-9 - . _ ~` is percent-encoded as UTF-8), `url_decode_component`, `url_query_parse` (`+` decodes to a space) and `url_query_build`.
+- Filesystem and paths (artifact format 54): `std:fs` adds `fs_exists`, `fs_kind` (`"file"`, `"directory"`, `"other"` or `"missing"`), `fs_size`, `fs_modified_ms`, `fs_list_dir` (sorted names), `fs_make_dir` (creates missing parents; succeeds if the directory exists), `fs_remove` (a file or an empty directory), `fs_remove_all`, `fs_rename`, `fs_copy` (returns the bytes copied) and `fs_temp_dir`/`fs_temp_file` (a unique entry under `.guion-tmp/` in the granted root; the prefix is 1 to 64 ASCII letters, digits, `-` or `_`). All return `Result[T, FileError]`. Each path is relative to a granted file root, may not contain `..`, and is confined after symlink resolution, as for `read_text`; mutating operations need the file-write grant. Symlinks are followed, so removing or renaming a link acts on its confined target. The granted root itself cannot be removed. `std:path` provides POSIX path text functions that never touch the disk: `path_normalize`, `path_join`, `path_dirname`, `path_basename`, `path_extension`, `path_stem`, `path_with_extension`, `path_components` and `path_is_absolute`. Static inspection now reports `filesystem.read` for `fs_walk`, `file_open_lines` and CSV opening as well.
 - Runtime and compile errors preserve source spans. Format-17 artifacts add Bytes values and byte file operations; format-18 artifacts add source-level Python keyword calls; format-19 artifacts add HTTP GET and `HttpError`; format-38 artifacts add byte HTTP; format-39 artifacts add explicitly granted clock access; format-16 metadata carries source and dependency-lock provenance; format-15 metadata and format-14 artifacts remain readable. Runtime combines recorded ceilings with host policy by taking the stricter value. The bytecode is an implementation detail apart from the versioned artifact boundary.
 
 ## Builtin signatures
@@ -132,6 +133,18 @@ native_base64url_encode(Bytes) -> Text
 native_calendar_parse(Text) -> Result[List[Record[CalendarEvent]], Record[StdError]]
 native_crypto_hmac_sha256(Bytes, Bytes) -> Bytes
 native_crypto_verify_hmac_sha256(Bytes, Bytes, Bytes) -> Bool
+native_fs_copy(Text, Text) -> Result[Int, FileError]
+native_fs_exists(Text) -> Result[Bool, FileError]
+native_fs_kind(Text) -> Result[Text, FileError]
+native_fs_list_dir(Text) -> Result[List[Text], FileError]
+native_fs_make_dir(Text) -> Result[Unit, FileError]
+native_fs_modified_ms(Text) -> Result[Int, FileError]
+native_fs_remove(Text) -> Result[Unit, FileError]
+native_fs_remove_all(Text) -> Result[Unit, FileError]
+native_fs_rename(Text, Text) -> Result[Unit, FileError]
+native_fs_size(Text) -> Result[Int, FileError]
+native_fs_temp_dir(Text) -> Result[Text, FileError]
+native_fs_temp_file(Text) -> Result[Text, FileError]
 native_hex_decode(Text) -> Option[Bytes]
 native_hex_encode(Bytes) -> Text
 native_math_abs(Float64) -> Float64
@@ -242,6 +255,18 @@ std:fs — pub fn fs_read_text(path: Text) -> Result[Text, StdError]
 std:fs — pub fn fs_open_lines(path: Text) -> Result[FileReader, FileError]
 std:fs — pub fn fs_next_line(reader: FileReader) -> Result[Option[SourceLine], FileError]
 std:fs — pub fn fs_close_reader(reader: FileReader) -> Result[Unit, FileError]
+std:fs — pub fn fs_exists(path: Text) -> Result[Bool, FileError]
+std:fs — pub fn fs_kind(path: Text) -> Result[Text, FileError]
+std:fs — pub fn fs_size(path: Text) -> Result[Int, FileError]
+std:fs — pub fn fs_modified_ms(path: Text) -> Result[Int, FileError]
+std:fs — pub fn fs_list_dir(path: Text) -> Result[List[Text], FileError]
+std:fs — pub fn fs_make_dir(path: Text) -> Result[Unit, FileError]
+std:fs — pub fn fs_remove(path: Text) -> Result[Unit, FileError]
+std:fs — pub fn fs_remove_all(path: Text) -> Result[Unit, FileError]
+std:fs — pub fn fs_rename(from: Text, to: Text) -> Result[Unit, FileError]
+std:fs — pub fn fs_copy(from: Text, to: Text) -> Result[Int, FileError]
+std:fs — pub fn fs_temp_dir(prefix: Text) -> Result[Text, FileError]
+std:fs — pub fn fs_temp_file(prefix: Text) -> Result[Text, FileError]
 std:http — pub fn http_response_json(response: HttpResponse) -> Result[Json, StdError]
 std:json — pub fn json_get_safe(value: Json, key: Text) -> Result[Json, JsonError]
 std:json — pub fn json_get_text_safe(value: Json, key: Text) -> Result[Text, JsonError]
@@ -284,6 +309,15 @@ std:math — pub fn math_ceil_int(value: Float64) -> Int
 std:math — pub fn math_round_int(value: Float64) -> Int
 std:math — pub fn math_radians(degrees: Float64) -> Float64
 std:math — pub fn math_degrees(radians: Float64) -> Float64
+std:path — pub fn path_is_absolute(path: Text) -> Bool
+std:path — pub fn path_normalize(path: Text) -> Text
+std:path — pub fn path_join(base: Text, child: Text) -> Text
+std:path — pub fn path_basename(path: Text) -> Text
+std:path — pub fn path_dirname(path: Text) -> Text
+std:path — pub fn path_extension(path: Text) -> Text
+std:path — pub fn path_stem(path: Text) -> Text
+std:path — pub fn path_with_extension(path: Text, extension: Text) -> Text
+std:path — pub fn path_components(path: Text) -> List[Text]
 std:random — pub fn random_new(seed: Int) -> Rng
 std:random — pub fn random_next_u64(rng: Rng) -> RandomInt
 std:random — pub fn random_next_float(rng: Rng) -> RandomFloat
@@ -1097,4 +1131,4 @@ fn main() -> Int:
 - [Host API and effects](../../language/host-api.md)
 - [Agent recipes](recipes.md)
 
-<!-- Generated reference content digest: sha256:e386f36435d8d02bf8ec84ba06bb8f470df73c21ee2ddf6abf1d73590e440f77. Validated by `cargo xtask agent-reference --check`. -->
+<!-- Generated reference content digest: sha256:47361ab54b196ba34bda02f5ebd4dabe0ec0bc055cb5a2a07d091a0fa9e615ae. Validated by `cargo xtask agent-reference --check`. -->

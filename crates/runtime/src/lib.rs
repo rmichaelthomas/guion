@@ -25,6 +25,7 @@ use std::{
     thread,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
+mod fs_ops;
 mod json_projection;
 mod native_backend;
 #[cfg(feature = "python-interop")]
@@ -4942,6 +4943,45 @@ impl VmHost for Instance {
                         instruction.span
                     ))),
                 }
+            }
+            Op::Fs(function) => {
+                let mut operands = Vec::with_capacity(function.arity());
+                for _ in 0..function.arity() {
+                    match pop!() {
+                        Value::Text(text) => operands.push(text.as_ref().to_owned()),
+                        _ => {
+                            return Err(RuntimeError::new(
+                                "R_TYPE_INVALID",
+                                "filesystem paths must be Text",
+                                instruction.span,
+                            ));
+                        }
+                    }
+                }
+                operands.reverse();
+                let effect = self.begin_effect(
+                    if function.writes() {
+                        EffectKind::FileWrite
+                    } else {
+                        EffectKind::FileRead
+                    },
+                    operands[0].as_str(),
+                );
+                let outcome = fs_ops::run(&self.policy, function, &operands, instruction.span);
+                self.finish_effect(
+                    effect,
+                    match &outcome {
+                        Ok(Value::ResultErr(_)) => EffectOutcome::ReturnedError,
+                        _ => EffectOutcome::Returned,
+                    },
+                );
+                let value = outcome?;
+                charge_allocation(
+                    budget.as_ref(),
+                    guion_vm_core::cloned_value_allocation(&value),
+                    instruction.span,
+                )?;
+                push_stack!(value);
             }
             Op::FsWalk => {
                 let path = match pop!() {

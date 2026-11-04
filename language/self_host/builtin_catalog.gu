@@ -377,6 +377,30 @@ pub fn builtin_catalog_signature(name: Text) -> Text:
             return "1:CodecPercentEncode:Text:Text"
         if name == "native_percent_decode":
             return "1:CodecPercentDecode:Option[Text]:Text"
+        if name == "native_fs_exists":
+            return "1:FsOpExists:Result[Bool, FileError]:Text"
+        if name == "native_fs_kind":
+            return "1:FsOpKind:Result[Text, FileError]:Text"
+        if name == "native_fs_size":
+            return "1:FsOpSize:Result[Int, FileError]:Text"
+        if name == "native_fs_modified_ms":
+            return "1:FsOpModifiedMs:Result[Int, FileError]:Text"
+        if name == "native_fs_list_dir":
+            return "1:FsOpListDir:Result[List[Text], FileError]:Text"
+        if name == "native_fs_make_dir":
+            return "1:FsOpMakeDir:Result[Unit, FileError]:Text"
+        if name == "native_fs_remove":
+            return "1:FsOpRemove:Result[Unit, FileError]:Text"
+        if name == "native_fs_remove_all":
+            return "1:FsOpRemoveAll:Result[Unit, FileError]:Text"
+        if name == "native_fs_rename":
+            return "2:FsOpRename:Result[Unit, FileError]:Text;Text"
+        if name == "native_fs_copy":
+            return "2:FsOpCopy:Result[Int, FileError]:Text;Text"
+        if name == "native_fs_temp_dir":
+            return "1:FsOpTempDir:Result[Text, FileError]:Text"
+        if name == "native_fs_temp_file":
+            return "1:FsOpTempFile:Result[Text, FileError]:Text"
     return ""
 
 fn builtin_catalog_part(value: Text, delimiter: Text, wanted: Int) -> Text:

@@ -1,4 +1,4 @@
-use guion_model::{CodecFunction, MathFunction, Op, Type};
+use guion_model::{CodecFunction, FsFunction, MathFunction, Op, Type};
 use std::collections::HashMap;
 use std::sync::OnceLock;
 
@@ -276,7 +276,10 @@ pub(crate) fn operation(name: &str) -> Option<Op> {
         "ParallelMap" => return None,
         other => match MathFunction::from_op_name(other) {
             Some(function) => Op::Math(function),
-            None => Op::Codec(CodecFunction::from_op_name(other)?),
+            None => match CodecFunction::from_op_name(other) {
+                Some(function) => Op::Codec(function),
+                None => Op::Fs(FsFunction::from_op_name(other)?),
+            },
         },
     })
 }

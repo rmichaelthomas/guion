@@ -7559,3 +7559,27 @@ fn native_loop_safepoints_retire_dead_handles_without_changing_results() {
         native.native_compile_profile()
     );
 }
+
+#[test]
+fn filesystem_functions_are_denied_without_a_policy_grant_and_confined_with_one() {
+    let dir = std::env::temp_dir().join(format!("guion-fs-ops-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let source = "fn code_of(result: Result[Unit, FileError]) -> Text:\n    if is_ok(result):\n        return \"ok\"\n    return file_error_code(error(result))\n\nfn main() -> Int:\n    print(code_of(native_fs_make_dir(\"nested/dir\")))\n    print(code_of(native_fs_make_dir(\"../escape\")))\n    return 0\n";
+    let artifact = compile("fs-ops.gu", source).unwrap();
+
+    let mut denied = Runtime::new()
+        .load(artifact.clone(), HostPolicy::default())
+        .unwrap();
+    denied.invoke("main", vec![]).unwrap();
+    assert_eq!(denied.take_output(), "R_HOST_DENIED\nR_HOST_DENIED\n");
+    assert!(!dir.join("nested").exists());
+
+    let policy = HostPolicy::default().with_file_access(&dir, true, true);
+    let mut allowed = Runtime::new().load(artifact, policy).unwrap();
+    allowed.invoke("main", vec![]).unwrap();
+    assert_eq!(allowed.take_output(), "ok\nR_HOST_DENIED\n");
+    assert!(dir.join("nested/dir").is_dir());
+    assert!(!dir.parent().unwrap().join("escape").exists());
+    std::fs::remove_dir_all(&dir).unwrap();
+}

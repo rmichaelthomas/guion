@@ -7,9 +7,9 @@
 //! implements it for environments such as WebAssembly by rejecting those operations.
 
 use guion_model::{
-    Artifact, BigInt, CodecFunction, FileErrorValue, Float64, HttpErrorValue, JsonErrorValue,
-    MathFunction, NativeResourceValue, Op, RuntimeError, ShareAcrossThreads, Shared, SharedJson,
-    SharedText, Span, TaskErrorValue, TextMap, Type, Value,
+    Artifact, BigInt, CodecFunction, FileErrorValue, Float64, FsFunction, HttpErrorValue,
+    JsonErrorValue, MathFunction, NativeResourceValue, Op, RuntimeError, ShareAcrossThreads,
+    Shared, SharedJson, SharedText, Span, TaskErrorValue, TextMap, Type, Value,
 };
 use std::{
     cell::Cell,
@@ -4727,6 +4727,7 @@ pub fn opcode_profile_name(op: &Op) -> &'static str {
         Op::TextTrim => "TextTrim",
         Op::Math(function) => function.op_name(),
         Op::Codec(function) => function.op_name(),
+        Op::Fs(function) => function.op_name(),
         Op::IntToFloat => "IntToFloat",
         Op::FloatToInt => "FloatToInt",
         Op::NumberToText => "NumberToText",
@@ -6714,6 +6715,17 @@ fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result
                 }
                 state.stack.push(result);
             }
+            Op::Fs(function) => {
+                for _ in 0..function.arity() {
+                    if pop_type(&mut state.stack, pc)? != Type::Text {
+                        return Err(format!(
+                            "{} requires Text paths at instruction {pc}",
+                            function.op_name()
+                        ));
+                    }
+                }
+                state.stack.push(fs_result_type(*function));
+            }
             Op::IntToFloat => {
                 if pop_type(&mut state.stack, pc)? != Type::Int {
                     return Err(format!("int_to_float requires Int at instruction {pc}"));
@@ -8078,6 +8090,20 @@ fn splitmix64_mix(state: u64) -> u64 {
     z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
     z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
     z ^ (z >> 31)
+}
+
+/// The `Result[T, FileError]` type a filesystem function pushes.
+fn fs_result_type(function: FsFunction) -> Type {
+    let ok = match function {
+        FsFunction::Exists => Type::Bool,
+        FsFunction::Kind | FsFunction::TempDir | FsFunction::TempFile => Type::Text,
+        FsFunction::Size | FsFunction::ModifiedMs | FsFunction::Copy => Type::Int,
+        FsFunction::ListDir => Type::List(Box::new(Type::Text)),
+        FsFunction::MakeDir | FsFunction::Remove | FsFunction::RemoveAll | FsFunction::Rename => {
+            Type::Unit
+        }
+    };
+    Type::Result(Box::new(ok), Box::new(Type::FileError))
 }
 
 /// Operand and result types of a codec function; operands are listed in push order.
