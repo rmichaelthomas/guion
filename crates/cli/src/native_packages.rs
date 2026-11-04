@@ -204,6 +204,7 @@ pub fn add_from_registry(
     requirement: Option<&str>,
 ) -> Result<String, String> {
     crate::package_name::validate_new_package_name(name)?;
+    let requirement_text = requirement;
     let requirement = crate::package_version::VersionReq::parse(requirement.unwrap_or("*"))?;
     let project = fs::canonicalize(project)
         .map_err(|error| format!("cannot resolve project {}: {error}", project.display()))?;
@@ -220,7 +221,7 @@ pub fn add_from_registry(
     }
     let chosen = registry.select(name, &requirement, &pinned)?;
     let archive = registry.download(&chosen.sha256)?;
-    add_url_internal(
+    let added = add_url_internal(
         &project,
         name,
         &registry.object_url(&chosen.sha256),
@@ -228,7 +229,32 @@ pub fn add_from_registry(
         &chosen.sha256,
         false,
         Some(archive),
-    )
+    )?;
+    // Remember the range so `guion update` can move to newer releases within it. Without an
+    // explicit range, newer compatible releases (a caret on the chosen version) are allowed.
+    let range = match requirement_text {
+        Some(text) => text.trim().to_owned(),
+        None => format!("^{}", chosen.version),
+    };
+    set_dependency_registry_range(&project_manifest_path(&project), name, &range)?;
+    Ok(added)
+}
+
+/// Records on a dependency installed from the registry the version range it was asked for.
+fn set_dependency_registry_range(manifest_path: &Path, name: &str, range: &str) -> Result<(), String> {
+    let text = fs::read_to_string(manifest_path)
+        .map_err(|error| format!("cannot read {}: {error}", manifest_path.display()))?;
+    let mut manifest: toml::Value = toml::from_str(&text)
+        .map_err(|error| format!("{}: invalid TOML: {error}", manifest_path.display()))?;
+    let dependency = manifest
+        .get_mut("dependencies")
+        .and_then(|dependencies| dependencies.get_mut(name))
+        .and_then(toml::Value::as_table_mut)
+        .ok_or_else(|| format!("dependency `{name}` is missing from the project manifest"))?;
+    dependency.insert("registry".into(), toml::Value::String(range.into()));
+    let serialized = toml::to_string_pretty(&manifest)
+        .map_err(|error| format!("cannot serialize project manifest: {error}"))?;
+    atomic_write(manifest_path, serialized.as_bytes())
 }
 
 /// `guion publish`: checks the library, packages its source and uploads it.
@@ -1122,6 +1148,40 @@ fn add_path_internal(
     ))
 }
 
+/// Moves a registry dependency to the highest release its recorded range allows (staying on the
+/// current version when nothing newer qualifies, even if it was yanked), with the same index,
+/// log and byte checks as `guion add`.
+fn update_from_registry(
+    project: &Path,
+    name: &str,
+    current: &str,
+    range: &str,
+) -> Result<String, String> {
+    let registry = crate::registry::Registry::configured(project)?;
+    let requirement = crate::package_version::VersionReq::parse(range)?;
+    let mut pinned = BTreeMap::new();
+    if let Ok(version) = crate::package_version::Version::parse(current) {
+        pinned.insert(name.to_owned(), version);
+    }
+    let chosen = registry.select(name, &requirement, &pinned)?;
+    let archive = registry.download(&chosen.sha256)?;
+    let installed = add_url_internal(
+        project,
+        name,
+        &registry.object_url(&chosen.sha256),
+        &chosen.version,
+        &chosen.sha256,
+        true,
+        Some(archive),
+    )?;
+    set_dependency_registry_range(&project_manifest_path(project), name, range)?;
+    Ok(if chosen.version == current {
+        installed
+    } else {
+        format!("{installed} (was {current})")
+    })
+}
+
 pub fn update_paths(project: &Path, approve_capabilities: bool) -> Result<String, String> {
     let project = fs::canonicalize(project)
         .map_err(|error| format!("cannot resolve project {}: {error}", project.display()))?;
@@ -1138,7 +1198,7 @@ pub fn update_paths(project: &Path, approve_capabilities: bool) -> Result<String
             let url = dependency.get("url").and_then(toml::Value::as_str);
             match (path, url) {
                 (Some(path), None) => {
-                    sources.push((name.clone(), version, Some(PathBuf::from(path)), None))
+                    sources.push((name.clone(), version, Some(PathBuf::from(path)), None, None))
                 }
                 (None, Some(url)) => {
                     let sha256 = dependency
@@ -1146,11 +1206,21 @@ pub fn update_paths(project: &Path, approve_capabilities: bool) -> Result<String
                         .and_then(toml::Value::as_str)
                         .ok_or_else(|| format!("URL dependency `{name}` requires `sha256`"))?;
                     validate_sha256(sha256)?;
+                    let range = dependency
+                        .get("registry")
+                        .map(|range| {
+                            range
+                                .as_str()
+                                .map(str::to_owned)
+                                .ok_or_else(|| format!("dependency `{name}`: `registry` must be a version range"))
+                        })
+                        .transpose()?;
                     sources.push((
                         name.clone(),
                         version,
                         None,
                         Some((url.to_owned(), sha256.to_owned())),
+                        range,
                     ));
                 }
                 _ => {
@@ -1188,7 +1258,7 @@ pub fn update_paths(project: &Path, approve_capabilities: bool) -> Result<String
     }
     let update_result: Result<Vec<String>, String> = (|| {
         let mut updated = Vec::new();
-        for (name, version, path, url) in &sources {
+        for (name, version, path, url, range) in &sources {
             let result = if let Some(source) = path {
                 let source = fs::canonicalize(source).map_err(|error| {
                     format!("cannot resolve update source {}: {error}", source.display())
@@ -1202,6 +1272,8 @@ pub fn update_paths(project: &Path, approve_capabilities: bool) -> Result<String
                     None,
                     true,
                 )?
+            } else if let (Some(range), Some(_)) = (range, url) {
+                update_from_registry(&project, name, version, range)?
             } else if let Some((url, sha256)) = url {
                 add_url_internal(&project, name, url, version, sha256, true, None)?
             } else {

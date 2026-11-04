@@ -315,6 +315,37 @@ impl Registry {
         Ok(format!("{action}ed {name} {version}"))
     }
 
+    /// Retires the token in `GUION_REGISTRY_TOKEN`. With `rotate`, the registry first issues a
+    /// replacement, which is returned; without it the token is revoked outright.
+    pub fn retire_token(&self, rotate: bool) -> Result<String, String> {
+        let token = Self::token()?;
+        let (client, runtime) = Self::client()?;
+        let action = if rotate { "rotate" } else { "revoke" };
+        let url = format!("{}/v1/tokens/{action}", self.base);
+        let result = runtime.block_on(async {
+            let response = client
+                .post(&url)
+                .bearer_auth(&token)
+                .send()
+                .await
+                .map_err(|error| format!("cannot reach the registry: {error}"))?;
+            Self::read_outcome(response).await
+        });
+        let body = result.map_err(|message| Self::redact(message, &token))?;
+        let publisher = body["publisher"].as_str().unwrap_or("the publisher");
+        if !rotate {
+            return Ok(format!(
+                "revoked the token for {publisher}; it no longer works"
+            ));
+        }
+        let replacement = body["token"]
+            .as_str()
+            .ok_or("the registry did not return a replacement token")?;
+        Ok(format!(
+            "new token for {publisher} (the previous one no longer works; store this now, it is not shown again):\n{replacement}"
+        ))
+    }
+
     async fn read_outcome(response: reqwest::Response) -> Result<Value, String> {
         let status = response.status();
         let text = response

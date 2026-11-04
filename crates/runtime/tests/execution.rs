@@ -62,6 +62,108 @@ fn main() -> Int:
 }
 
 #[test]
+fn chained_text_append_to_a_local_stays_linear_under_the_allocation_budget() {
+    // `s + piece + ","` used to copy `s` on its first addition, so a 600 KB build needed far
+    // more than this budget. Regrouped as `s + (piece + ",")`, it appends in place.
+    let source = r#"fn main() -> Int:
+    var s = ""
+    var index = 0
+    while index < 100000:
+        set s = s + int_to_text(index) + ","
+        set index = index + 1
+    var t = "ab"
+    set t = t + "-" + t + "|" + int_to_text(len(t))
+    print(len(s))
+    print(text_slice(s, 0, 8))
+    print(t)
+    return 0
+"#;
+    let artifact = compile("text-append-chain.gu", source).expect("chained append compiles");
+    let policy = HostPolicy {
+        allocation_limit_bytes: 8 << 20,
+        ..HostPolicy::default()
+    };
+    for runtime in [Runtime::new(), Runtime::vm_only()] {
+        let mut instance = runtime
+            .load(artifact.clone(), policy.clone())
+            .expect("runtime loads the artifact");
+        instance.invoke("main", vec![]).expect("program runs");
+        assert_eq!(instance.take_output(), "588890\n0,1,2,3,\nab-ab|2\n");
+    }
+}
+
+#[test]
+fn random_draws_and_unit_functions_compile_natively_and_match_the_vm() {
+    let source = r#"import "std:random"
+
+fn report(total: Float64, hits: Int) -> Unit:
+    assert(hits >= 0)
+    print(total)
+    print(hits)
+
+fn main() -> Unit:
+    var rng = random_new(42)
+    var total = 0.0
+    var hits = 0
+    var i = 0
+    while i < 2000:
+        let draw = random_next_float(rng)
+        set rng = draw.rng
+        set total = total + draw.value
+        let roll = random_next_range(rng, 0, 6)
+        set rng = roll.rng
+        set hits = hits + roll.value
+        set i = i + 1
+    report(total, hits)
+"#;
+    let project_root = std::env::temp_dir().join(format!(
+        "guion-native-random-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    std::fs::create_dir_all(&project_root).unwrap();
+    let entry = project_root.join("main.gu");
+    std::fs::write(&entry, source).unwrap();
+    let stdlib_root =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../language/stdlib");
+    let artifact = compile_project_with_roots(
+        &entry,
+        &project_root,
+        Some(&stdlib_root),
+        &std::collections::HashMap::new(),
+    )
+    .expect("source compiles");
+    let _ = std::fs::remove_dir_all(&project_root);
+    let mut native = Runtime::new()
+        .load(artifact.clone(), HostPolicy::default())
+        .expect("native runtime loads");
+    let mut vm = Runtime::vm_only()
+        .load(artifact, HostPolicy::default())
+        .expect("VM runtime loads");
+    native.invoke("main", vec![]).expect("native program runs");
+    vm.invoke("main", vec![]).expect("VM program runs");
+    let output = native.take_output();
+    assert_eq!(output, vm.take_output());
+    let compiled = native.native_function_names();
+    for name in [
+        "main",
+        "report",
+        "random_new",
+        "random_next_float",
+        "random_next_range",
+    ] {
+        assert!(
+            compiled.iter().any(|compiled| compiled == name),
+            "{name} should compile natively; compiled: {compiled:?}"
+        );
+    }
+    assert_eq!(native.native_deoptimizations(), 0);
+}
+
+#[test]
 fn text_length_and_index_use_unicode_scalar_positions() {
     let source =
         "fn main() -> Int:\n    print(len(\"a🙂é\"))\n    print(\"a🙂é\"[1])\n    return 0\n";

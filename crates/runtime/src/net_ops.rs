@@ -8,6 +8,7 @@ use super::{HostPolicy, RuntimeError, Shared, SharedText, Span, Value};
 use guion_model::{BigInt, NetFunction, TlsFunction};
 use rustls::pki_types::pem::PemObject;
 use rustls::pki_types::{CertificateDer, PrivateKeyDer, ServerName};
+use rustls::server::WebPkiClientVerifier;
 use rustls::{
     ClientConfig, ClientConnection, RootCertStore, ServerConfig, ServerConnection, StreamOwned,
 };
@@ -654,6 +655,18 @@ fn parse_certificates(pem: &str) -> Result<Vec<CertificateDer<'static>>, Failure
         })
 }
 
+fn parse_private_key(pem: &str) -> Result<PrivateKeyDer<'static>, Failure> {
+    if pem.len() > MAX_PEM_BYTES {
+        return Err(Failure::new("E_TLS_ARGUMENT", "PEM text is too large"));
+    }
+    PrivateKeyDer::from_pem_slice(pem.as_bytes()).map_err(|error| {
+        Failure::new(
+            "E_TLS_ARGUMENT",
+            format!("invalid private key PEM: {error}"),
+        )
+    })
+}
+
 fn complete_handshake<D>(
     connection: &mut rustls::ConnectionCommon<D>,
     tcp: &mut TcpStream,
@@ -686,11 +699,19 @@ pub(crate) fn run_tls(
     operands.reverse();
     let mut next = || operands.pop().ok_or_else(|| type_error(span));
     let outcome = match function {
-        TlsFunction::Connect => {
+        TlsFunction::Connect | TlsFunction::ConnectIdentity => {
             let (Value::Text(host), Value::Int(port), Value::Int(timeout), Value::Text(ca)) =
                 (next()?, next()?, next()?, next()?)
             else {
                 return Err(type_error(span));
+            };
+            let identity = if function == TlsFunction::ConnectIdentity {
+                let (Value::Text(chain), Value::Text(key)) = (next()?, next()?) else {
+                    return Err(type_error(span));
+                };
+                Some((chain, key))
+            } else {
+                None
             };
             tls_connect(
                 policy,
@@ -699,13 +720,24 @@ pub(crate) fn run_tls(
                 port.to_i64().unwrap_or(-1),
                 timeout.to_i64().unwrap_or(-1),
                 ca.as_ref(),
+                identity
+                    .as_ref()
+                    .map(|(chain, key)| (chain.as_ref(), key.as_ref())),
             )
         }
-        TlsFunction::Accept => {
+        TlsFunction::Accept | TlsFunction::AcceptVerified => {
             let (Value::Int(handle), Value::Int(timeout), Value::Text(chain), Value::Text(key)) =
                 (next()?, next()?, next()?, next()?)
             else {
                 return Err(type_error(span));
+            };
+            let client_ca = if function == TlsFunction::AcceptVerified {
+                let Value::Text(client_ca) = next()? else {
+                    return Err(type_error(span));
+                };
+                Some(client_ca)
+            } else {
+                None
             };
             tls_accept(
                 policy,
@@ -714,6 +746,7 @@ pub(crate) fn run_tls(
                 timeout.to_i64().unwrap_or(-1),
                 chain.as_ref(),
                 key.as_ref(),
+                client_ca.as_ref().map(|client_ca| client_ca.as_ref()),
             )
         }
     };
@@ -733,6 +766,7 @@ fn tls_connect(
     port: i64,
     timeout: i64,
     extra_ca: &str,
+    identity: Option<(&str, &str)>,
 ) -> Result<Value, Failure> {
     let port = port_of(port)?;
     let timeout_value = timeout_of(policy, timeout)?;
@@ -753,11 +787,21 @@ fn tls_connect(
             })?;
         }
     }
-    let config = ClientConfig::builder_with_provider(crypto_provider())
+    let builder = ClientConfig::builder_with_provider(crypto_provider())
         .with_safe_default_protocol_versions()
         .map_err(|error| Failure::new("E_TLS_HANDSHAKE", error.to_string()))?
-        .with_root_certificates(roots)
-        .with_no_client_auth();
+        .with_root_certificates(roots);
+    let config = match identity {
+        None => builder.with_no_client_auth(),
+        Some((chain, key)) => builder
+            .with_client_auth_cert(parse_certificates(chain)?, parse_private_key(key)?)
+            .map_err(|error| {
+                Failure::new(
+                    "E_TLS_ARGUMENT",
+                    format!("client certificate and key do not match: {error}"),
+                )
+            })?,
+    };
     let mut connection = ClientConnection::new(Arc::new(config), server_name)
         .map_err(|error| Failure::new("E_TLS_HANDSHAKE", error.to_string()))?;
     let mut last = Failure::new("E_NET_RESOLVE", format!("`{host}` has no addresses"));
@@ -784,22 +828,38 @@ fn tls_accept(
     timeout: i64,
     chain: &str,
     key: &str,
+    client_ca: Option<&str>,
 ) -> Result<Value, Failure> {
     let timeout_value = timeout_of(policy, timeout)?;
     let certificates = parse_certificates(chain)?;
-    if key.len() > MAX_PEM_BYTES {
-        return Err(Failure::new("E_TLS_ARGUMENT", "PEM text is too large"));
-    }
-    let key = PrivateKeyDer::from_pem_slice(key.as_bytes()).map_err(|error| {
-        Failure::new(
-            "E_TLS_ARGUMENT",
-            format!("invalid private key PEM: {error}"),
-        )
-    })?;
-    let config = ServerConfig::builder_with_provider(crypto_provider())
+    let key = parse_private_key(key)?;
+    let builder = ServerConfig::builder_with_provider(crypto_provider())
         .with_safe_default_protocol_versions()
-        .map_err(|error| Failure::new("E_TLS_HANDSHAKE", error.to_string()))?
-        .with_no_client_auth()
+        .map_err(|error| Failure::new("E_TLS_HANDSHAKE", error.to_string()))?;
+    let builder = match client_ca {
+        None => builder.with_no_client_auth(),
+        Some(client_ca) => {
+            let mut roots = RootCertStore::empty();
+            for certificate in parse_certificates(client_ca)? {
+                roots.add(certificate).map_err(|error| {
+                    Failure::new(
+                        "E_TLS_ARGUMENT",
+                        format!("bad client CA certificate: {error}"),
+                    )
+                })?;
+            }
+            let verifier = WebPkiClientVerifier::builder_with_provider(
+                Arc::new(roots),
+                crypto_provider(),
+            )
+            .build()
+            .map_err(|error| {
+                Failure::new("E_TLS_ARGUMENT", format!("bad client CA: {error}"))
+            })?;
+            builder.with_client_cert_verifier(verifier)
+        }
+    };
+    let config = builder
         .with_single_cert(certificates, key)
         .map_err(|error| {
             Failure::new(

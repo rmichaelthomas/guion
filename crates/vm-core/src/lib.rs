@@ -2784,6 +2784,45 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                     bigint_low_u64(&state)
                 ))));
             }
+            Op::RandomSeed | Op::RandomAdvance | Op::RandomBits | Op::RandomUnitFloat => {
+                let Value::Int(state) = pop!() else {
+                    return Err(RuntimeError::new(
+                        "R_TYPE_INVALID",
+                        "random instructions require an Int state",
+                        instruction.span,
+                    ));
+                };
+                let bits = bigint_low_u64(&state);
+                push_stack!(match &instruction.op {
+                    Op::RandomSeed => Value::Int(BigInt::from_i64(bits as i64)),
+                    Op::RandomAdvance => {
+                        Value::Int(BigInt::from_i64(bits.wrapping_add(SPLITMIX64_GAMMA) as i64))
+                    }
+                    Op::RandomBits => Value::Int(BigInt::from_i64(splitmix64_mix(bits) as i64)),
+                    _ => Value::Float64(random_unit_float(bits)),
+                });
+            }
+            Op::RandomBelow => {
+                let (Value::Int(span), Value::Int(state)) = (pop!(), pop!()) else {
+                    return Err(RuntimeError::new(
+                        "R_TYPE_INVALID",
+                        "random_below requires Int operands",
+                        instruction.span,
+                    ));
+                };
+                let Some(span) = random_span(&span) else {
+                    return Err(RuntimeError::new(
+                        "R_RANDOM_RANGE",
+                        "a random range must hold between 1 and 2^64 values",
+                        instruction.span,
+                    ));
+                };
+                let value = match random_below(bigint_low_u64(&state), span) {
+                    Some(value) => BigInt::from_u64(value),
+                    None => BigInt::from_i64(-1),
+                };
+                push_stack!(Value::Int(value));
+            }
             Op::BytesFromInts => {
                 let values = match pop!() {
                     Value::List(values) => values,
@@ -4753,6 +4792,11 @@ pub fn opcode_profile_name(op: &Op) -> &'static str {
         Op::FloatToInt => "FloatToInt",
         Op::NumberToText => "NumberToText",
         Op::RandomMix => "RandomMix",
+        Op::RandomSeed => "RandomSeed",
+        Op::RandomAdvance => "RandomAdvance",
+        Op::RandomBits => "RandomBits",
+        Op::RandomUnitFloat => "RandomUnitFloat",
+        Op::RandomBelow => "RandomBelow",
         Op::BytesFromInts => "BytesFromInts",
         Op::BytesFromText => "BytesFromText",
         Op::BytesJoin => "BytesJoin",
@@ -6737,12 +6781,23 @@ fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result
                 state.stack.push(result);
             }
             Op::Tls(function) => {
-                let expected = match function {
+                let expected: &[Type] = match function {
                     guion_model::TlsFunction::Connect => {
-                        [Type::Text, Type::Int, Type::Int, Type::Text]
+                        &[Type::Text, Type::Int, Type::Int, Type::Text]
                     }
                     guion_model::TlsFunction::Accept => {
-                        [Type::Int, Type::Int, Type::Text, Type::Text]
+                        &[Type::Int, Type::Int, Type::Text, Type::Text]
+                    }
+                    guion_model::TlsFunction::ConnectIdentity => &[
+                        Type::Text,
+                        Type::Int,
+                        Type::Int,
+                        Type::Text,
+                        Type::Text,
+                        Type::Text,
+                    ],
+                    guion_model::TlsFunction::AcceptVerified => {
+                        &[Type::Int, Type::Int, Type::Text, Type::Text, Type::Text]
                     }
                 };
                 for expected in expected.iter().rev() {
@@ -6835,9 +6890,23 @@ fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result
                 }
                 state.stack.push(Type::Text);
             }
-            Op::RandomMix => {
+            Op::RandomMix | Op::RandomSeed | Op::RandomAdvance | Op::RandomBits => {
                 if pop_type(&mut state.stack, pc)? != Type::Int {
-                    return Err(format!("random_mix requires Int at instruction {pc}"));
+                    return Err(format!("random state requires Int at instruction {pc}"));
+                }
+                state.stack.push(Type::Int);
+            }
+            Op::RandomUnitFloat => {
+                if pop_type(&mut state.stack, pc)? != Type::Int {
+                    return Err(format!("random state requires Int at instruction {pc}"));
+                }
+                state.stack.push(Type::Float64);
+            }
+            Op::RandomBelow => {
+                if pop_type(&mut state.stack, pc)? != Type::Int
+                    || pop_type(&mut state.stack, pc)? != Type::Int
+                {
+                    return Err(format!("random_below requires Int operands at instruction {pc}"));
                 }
                 state.stack.push(Type::Int);
             }
@@ -8180,8 +8249,42 @@ fn bigint_low_u64(value: &BigInt) -> u64 {
     }
 }
 
+/// The SplitMix64 state increment (the golden-ratio constant).
+const SPLITMIX64_GAMMA: u64 = 0x9E37_79B9_7F4A_7C15;
+
+/// A draw from `[0, 1)` built from the top 53 bits of the SplitMix64 output for `state`.
+pub fn random_unit_float(state: u64) -> Float64 {
+    let fraction = (splitmix64_mix(state) >> 11) as f64 * (1.0 / 9_007_199_254_740_992.0);
+    Float64::new(fraction).expect("a fraction in [0, 1) is finite")
+}
+
+/// A range size as a 64-bit count, where 0 stands for 2^64; `None` outside `1..=2^64`.
+fn random_span(span: &BigInt) -> Option<u64> {
+    if let Some(small) = span.small() {
+        return (small > 0).then_some(small as u64);
+    }
+    let modulus = BigInt::parse("18446744073709551616").expect("2^64 parses");
+    if *span == modulus {
+        return Some(0);
+    }
+    None
+}
+
+/// The SplitMix64 output for `state` reduced into `0..span` by rejection sampling, or `None`
+/// when the output falls in the biased tail and the caller must draw again. A `span` of 0
+/// stands for 2^64 and accepts every output.
+pub fn random_below(state: u64, span: u64) -> Option<u64> {
+    let bits = splitmix64_mix(state);
+    if span == 0 {
+        return Some(bits);
+    }
+    // 2^64 mod span, so that outputs at or above 2^64 - tail are rejected.
+    let tail = (u64::MAX % span + 1) % span;
+    (bits <= u64::MAX - tail).then_some(bits % span)
+}
+
 /// The SplitMix64 output function.
-fn splitmix64_mix(state: u64) -> u64 {
+pub fn splitmix64_mix(state: u64) -> u64 {
     let mut z = state;
     z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
     z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);

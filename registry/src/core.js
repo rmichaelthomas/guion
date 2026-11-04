@@ -7,6 +7,7 @@
 //   versions/<name>/<version>.json  the version's immutable claim (the yanked flag is the only mutable field)
 //   owners/<name>.json            who owns the name (never served)
 //   tokens/<sha256(token)>.json   publisher tokens, stored only as hashes (never served)
+//   publisher-tokens/<publisher>/<sha256(token)>  which token hashes a publisher holds (never served)
 
 import { collisionKey, compareVersions, nameProblem, parseVersion } from "./names.js";
 
@@ -45,13 +46,83 @@ async function createOnce(store, key, value) {
   return written !== null && written !== undefined;
 }
 
-async function authenticate(request, store) {
+async function authenticateToken(request, store) {
   const header = request.headers.get("authorization") ?? "";
   const match = /^Bearer (\S+)$/.exec(header);
   if (!match) throw new HttpError(401, "E_AUTH_REQUIRED", "a publisher token is required (Authorization: Bearer ...)");
-  const record = await readJson(store, `tokens/${await sha256Hex(match[1])}.json`);
+  const hash = await sha256Hex(match[1]);
+  const record = await readJson(store, `tokens/${hash}.json`);
   if (!record) throw new HttpError(401, "E_AUTH_INVALID", "the publisher token is not recognised");
-  return record.publisher;
+  return { publisher: record.publisher, hash };
+}
+
+async function authenticate(request, store) {
+  return (await authenticateToken(request, store)).publisher;
+}
+
+function requireAdmin(request, env) {
+  const header = request.headers.get("authorization") ?? "";
+  const supplied = header.startsWith("Bearer ") ? header.slice(7) : "";
+  if (!env.ADMIN_TOKEN || !constantTimeEqual(supplied, env.ADMIN_TOKEN)) {
+    throw new HttpError(401, "E_AUTH_INVALID", "administrator token required");
+  }
+}
+
+/** Issues a new token for `publisher`; the registry keeps only its hash. */
+async function issueToken(store, publisher) {
+  const random = crypto.getRandomValues(new Uint8Array(32));
+  const token = `gpt_${[...random].map((byte) => byte.toString(16).padStart(2, "0")).join("")}`;
+  const hash = await sha256Hex(token);
+  const created_at = new Date().toISOString();
+  await store.put(`tokens/${hash}.json`, JSON.stringify({ publisher, created_at }));
+  await store.put(`publisher-tokens/${publisher}/${hash}`, created_at);
+  return token;
+}
+
+async function revokeTokenHash(store, publisher, hash) {
+  await store.delete(`tokens/${hash}.json`);
+  await store.delete(`publisher-tokens/${publisher}/${hash}`);
+}
+
+async function listKeys(store, prefix) {
+  const keys = [];
+  let cursor;
+  do {
+    const page = await store.list({ prefix, cursor });
+    keys.push(...page.objects.map((object) => object.key));
+    cursor = page.truncated ? page.cursor : undefined;
+  } while (cursor);
+  return keys;
+}
+
+const validPublisherId = (id) => typeof id === "string" && /^[a-z0-9][a-z0-9-]{0,38}$/.test(id);
+
+/** The caller's token stops working. With `rotate`, a replacement is issued first. */
+async function retireOwnToken(request, store, rotate) {
+  const { publisher, hash } = await authenticateToken(request, store);
+  const token = rotate ? await issueToken(store, publisher) : null;
+  await revokeTokenHash(store, publisher, hash);
+  return rotate
+    ? json({ publisher, token, note: "store this token now; the previous one no longer works" })
+    : json({ publisher, revoked: 1 });
+}
+
+/** Administrator: every token `id` holds stops working. */
+async function revokePublisherTokens(request, store, env, id) {
+  requireAdmin(request, env);
+  if (!validPublisherId(id)) {
+    throw new HttpError(400, "E_PUBLISHER_INVALID", "publisher id must be 1 to 39 lowercase letters, digits or '-'");
+  }
+  const hashes = new Set(
+    (await listKeys(store, `publisher-tokens/${id}/`)).map((key) => key.slice(`publisher-tokens/${id}/`.length)),
+  );
+  // Tokens issued before the per-publisher index existed are found by their own records.
+  for (const key of await listKeys(store, "tokens/")) {
+    const hash = key.slice("tokens/".length, -".json".length);
+    if (!hashes.has(hash) && (await readJson(store, key))?.publisher === id) hashes.add(hash);
+  }
+  for (const hash of hashes) await revokeTokenHash(store, id, hash);
+  return json({ publisher: id, revoked: hashes.size });
 }
 
 function constantTimeEqual(left, right) {
@@ -231,11 +302,7 @@ async function setYanked(request, store, nameParam, version, yanked) {
 }
 
 async function createPublisher(request, store, env) {
-  const header = request.headers.get("authorization") ?? "";
-  const supplied = header.startsWith("Bearer ") ? header.slice(7) : "";
-  if (!env.ADMIN_TOKEN || !constantTimeEqual(supplied, env.ADMIN_TOKEN)) {
-    throw new HttpError(401, "E_AUTH_INVALID", "administrator token required");
-  }
+  requireAdmin(request, env);
   let body;
   try {
     body = await request.json();
@@ -243,12 +310,10 @@ async function createPublisher(request, store, env) {
     throw new HttpError(400, "E_BODY_INVALID", "body must be JSON");
   }
   const id = body?.id;
-  if (typeof id !== "string" || !/^[a-z0-9][a-z0-9-]{0,38}$/.test(id)) {
+  if (!validPublisherId(id)) {
     throw new HttpError(400, "E_PUBLISHER_INVALID", "publisher id must be 1 to 39 lowercase letters, digits or '-'");
   }
-  const random = crypto.getRandomValues(new Uint8Array(32));
-  const token = `gpt_${[...random].map((byte) => byte.toString(16).padStart(2, "0")).join("")}`;
-  await store.put(`tokens/${await sha256Hex(token)}.json`, JSON.stringify({ publisher: id, created_at: new Date().toISOString() }));
+  const token = await issueToken(store, id);
   return json({ publisher: id, token, note: "store this token now; the registry keeps only its hash" }, 201);
 }
 
@@ -297,6 +362,12 @@ export async function handle(request, env) {
     }
     if (request.method === "POST" && path === "v1/admin/publishers") {
       return await createPublisher(request, store, env);
+    }
+    if (request.method === "POST" && parts.length === 5 && path.startsWith("v1/admin/publishers/") && parts[4] === "revoke") {
+      return await revokePublisherTokens(request, store, env, parts[3]);
+    }
+    if (request.method === "POST" && (path === "v1/tokens/rotate" || path === "v1/tokens/revoke")) {
+      return await retireOwnToken(request, store, path === "v1/tokens/rotate");
     }
     throw new HttpError(404, "E_NOT_FOUND", "not found");
   } catch (error) {

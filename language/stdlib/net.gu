@@ -130,3 +130,17 @@ pub fn tls_accept(listener: TcpListener, timeout_ms: Int, certificate_chain_pem:
             return Ok(TcpConn(handle))
         Err(failure):
             return Err(std_error(failure[0], failure[1]))
+
+pub fn tls_connect_with_identity(host: Text, port: Int, timeout_ms: Int, extra_ca_pem: Text, certificate_chain_pem: Text, private_key_pem: Text) -> Result[TcpConn, StdError]:
+    match native_tls_connect_identity(host, port, timeout_ms, extra_ca_pem, certificate_chain_pem, private_key_pem):
+        Ok(handle):
+            return Ok(TcpConn(handle))
+        Err(failure):
+            return Err(std_error(failure[0], failure[1]))
+
+pub fn tls_accept_verified(listener: TcpListener, timeout_ms: Int, certificate_chain_pem: Text, private_key_pem: Text, client_ca_pem: Text) -> Result[TcpConn, StdError]:
+    match native_tls_accept_verified(listener.handle, timeout_ms, certificate_chain_pem, private_key_pem, client_ca_pem):
+        Ok(handle):
+            return Ok(TcpConn(handle))
+        Err(failure):
+            return Err(std_error(failure[0], failure[1]))

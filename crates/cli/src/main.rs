@@ -47,7 +47,7 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
         runtime_profile_setting.as_deref() == Some(std::ffi::OsStr::new("sampled"));
     let Some(command) = args.first().map(String::as_str) else {
         return Err(
-            "usage: guion <new|check|fmt|lint|test|run|build|package|verify-package|add|sync|update|inspect|doc|doctor|install|publish|yank> [path]"
+            "usage: guion <new|check|fmt|lint|test|run|build|package|verify-package|add|sync|update|inspect|doc|doctor|install|publish|yank|token> [path]"
                 .into(),
         );
     };
@@ -320,6 +320,20 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
         );
         return Ok(ExitCode::SUCCESS);
     }
+    if command == "token" {
+        let rotate = match args.get(1).map(String::as_str) {
+            Some("rotate") => true,
+            Some("revoke") => false,
+            _ => return Err("usage: guion token <rotate|revoke>".into()),
+        };
+        let project = std::env::current_dir()
+            .map_err(|error| format!("cannot inspect current directory: {error}"))?;
+        println!(
+            "{}",
+            registry::Registry::configured(&project)?.retire_token(rotate)?
+        );
+        return Ok(ExitCode::SUCCESS);
+    }
     if command == "update" {
         let project = std::env::current_dir()
             .map_err(|error| format!("cannot inspect current directory: {error}"))?;
@@ -488,7 +502,7 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
     ]
     .contains(&command)
     {
-        return Err(format!("unknown command `{command}`\nusage: guion <new|check|fmt|lint|test|run|build|package|verify-package|add|sync|update|inspect|doc|doctor|install|publish|yank> [path]"));
+        return Err(format!("unknown command `{command}`\nusage: guion <new|check|fmt|lint|test|run|build|package|verify-package|add|sync|update|inspect|doc|doctor|install|publish|yank|token> [path]"));
     }
     let mut json_run = false;
     let mut no_source_cache = false;
@@ -740,7 +754,11 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
                     native_packages::library_declaration(&project_root)?
                 {
                     let used = library_used_effects(&path, &artifact, &project_root, &exports);
-                    let (errors, warnings) = declared.compare_with_effects(&used);
+                    let (mut errors, mut warnings) = declared.compare_with_effects(&used);
+                    let hosts = library_literal_hosts(&artifact, &project_root, &exports);
+                    let (host_errors, host_warnings) = declared.compare_with_hosts(&used, &hosts);
+                    errors.extend(host_errors);
+                    warnings.extend(host_warnings);
                     for warning in &warnings {
                         eprintln!("warning: {warning}");
                     }
@@ -2396,20 +2414,19 @@ fn display_type(ty: &guion_model::Type) -> String {
 /// Effects (including those of callees) found in the library's own exported modules. A function
 /// belongs to the library when it is declared in an exported file; modules whose names clash get
 /// an `@module/N/` prefix that points back at their source.
-fn library_used_effects(
-    source: &str,
-    artifact: &Artifact,
+/// The functions declared in the library's exported modules.
+fn library_functions<'a>(
+    artifact: &'a Artifact,
     project_root: &Path,
     exports: &[String],
-) -> BTreeSet<String> {
-    let inspected = inspection_report(source, artifact, project_root, false);
+) -> Vec<&'a guion_model::Function> {
     let declared: BTreeSet<String> = exports
         .iter()
         .filter_map(|export| fs::read_to_string(project_root.join(export)).ok())
         .flat_map(|text| function_declarations(&text))
         .map(|(name, _, _)| name)
         .collect();
-    let mut used = BTreeSet::new();
+    let mut functions = Vec::new();
     for function in &artifact.functions {
         let belongs = match function.name.strip_prefix("@module/") {
             Some(rest) => {
@@ -2423,15 +2440,65 @@ fn library_used_effects(
             }
             None => declared.contains(function.name.as_str()),
         };
-        if !belongs {
-            continue;
+        if belongs {
+            functions.push(function);
         }
+    }
+    functions
+}
+
+fn library_used_effects(
+    source: &str,
+    artifact: &Artifact,
+    project_root: &Path,
+    exports: &[String],
+) -> BTreeSet<String> {
+    let inspected = inspection_report(source, artifact, project_root, false);
+    let mut used = BTreeSet::new();
+    for function in library_functions(artifact, project_root, exports) {
         if let Some(effects) = inspected["functions"][function.name.as_str()]["effects"].as_array()
         {
             used.extend(effects.iter().filter_map(|e| e.as_str().map(str::to_owned)));
         }
     }
     used
+}
+
+/// Hosts named by URL literals (`http`, `https`, `ws`, `wss`) in the library's own functions,
+/// each with the first function that names it. Hosts built at run time are not visible here.
+fn library_literal_hosts(
+    artifact: &Artifact,
+    project_root: &Path,
+    exports: &[String],
+) -> std::collections::BTreeMap<String, String> {
+    let mut hosts = std::collections::BTreeMap::new();
+    for function in library_functions(artifact, project_root, exports) {
+        for instruction in &function.code {
+            let Op::Const(Value::Text(text)) = &instruction.op else {
+                continue;
+            };
+            let text: &str = text.as_ref();
+            if !["http://", "https://", "ws://", "wss://"]
+                .iter()
+                .any(|scheme| text.starts_with(scheme))
+            {
+                continue;
+            }
+            if let Some(host) = reqwest::Url::parse(text)
+                .ok()
+                .and_then(|url| url.host_str().map(str::to_ascii_lowercase))
+            {
+                let name = function
+                    .name
+                    .rsplit('/')
+                    .next()
+                    .unwrap_or(&function.name)
+                    .to_owned();
+                hosts.entry(host).or_insert(name);
+            }
+        }
+    }
+    hosts
 }
 
 fn inspection_report(

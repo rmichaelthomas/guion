@@ -1351,6 +1351,47 @@
       "operation": "RandomMix"
     },
     {
+      "name": "native_random_seed",
+      "parameters": [
+        "Int"
+      ],
+      "result": "Int",
+      "operation": "RandomSeed"
+    },
+    {
+      "name": "native_random_advance",
+      "parameters": [
+        "Int"
+      ],
+      "result": "Int",
+      "operation": "RandomAdvance"
+    },
+    {
+      "name": "native_random_bits",
+      "parameters": [
+        "Int"
+      ],
+      "result": "Int",
+      "operation": "RandomBits"
+    },
+    {
+      "name": "native_random_unit_float",
+      "parameters": [
+        "Int"
+      ],
+      "result": "Float64",
+      "operation": "RandomUnitFloat"
+    },
+    {
+      "name": "native_random_below",
+      "parameters": [
+        "Int",
+        "Int"
+      ],
+      "result": "Int",
+      "operation": "RandomBelow"
+    },
+    {
       "name": "bytes_to_ints",
       "parameters": [
         "Bytes"
@@ -1763,6 +1804,31 @@
       ],
       "result": "Result[Int, List[Text]]",
       "operation": "TlsAccept"
+    },
+    {
+      "name": "native_tls_connect_identity",
+      "parameters": [
+        "Text",
+        "Int",
+        "Int",
+        "Text",
+        "Text",
+        "Text"
+      ],
+      "result": "Result[Int, List[Text]]",
+      "operation": "TlsConnectIdentity"
+    },
+    {
+      "name": "native_tls_accept_verified",
+      "parameters": [
+        "Int",
+        "Int",
+        "Text",
+        "Text",
+        "Text"
+      ],
+      "result": "Result[Int, List[Text]]",
+      "operation": "TlsAcceptVerified"
     }
   ]
 }

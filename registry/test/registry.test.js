@@ -186,3 +186,50 @@ test("a failed publish can be retried and leaves no half-committed version", asy
   // Different bytes for a version that already completed are refused.
   assert.equal((await publish(call, token, "sample", "1.0.0", "other")).status, 409);
 });
+
+test("a publisher can rotate or revoke its own token, and the administrator can revoke them all", async () => {
+  const { call } = registry();
+  const first = await newPublisher(call, "alice");
+  assert.equal((await publish(call, first, "rotating", "1.0.0", "one")).status, 201);
+
+  const rotated = await call("POST", "v1/tokens/rotate", { token: first });
+  assert.equal(rotated.status, 200);
+  const second = (await rotated.json()).token;
+  assert.match(second, /^gpt_[0-9a-f]{64}$/);
+  assert.notEqual(second, first);
+  assert.equal((await publish(call, first, "rotating", "1.1.0", "two")).status, 401);
+  assert.equal((await publish(call, second, "rotating", "1.1.0", "two")).status, 201);
+
+  const revoked = await call("POST", "v1/tokens/revoke", { token: second });
+  assert.equal(revoked.status, 200);
+  assert.equal((await revoked.json()).revoked, 1);
+  assert.equal((await publish(call, second, "rotating", "1.2.0", "three")).status, 401);
+  assert.equal((await call("POST", "v1/tokens/revoke", { token: second })).status, 401);
+
+  // A second token for the same publisher, then an administrator revocation of both.
+  const third = await newPublisher(call, "alice");
+  const fourth = await newPublisher(call, "alice");
+  const bob = await newPublisher(call, "bob");
+  assert.equal((await call("POST", "v1/admin/publishers/alice/revoke", { token: third })).status, 401);
+  const all = await call("POST", "v1/admin/publishers/alice/revoke", { token: ADMIN });
+  assert.equal(all.status, 200);
+  assert.equal((await all.json()).revoked, 2);
+  for (const token of [third, fourth]) {
+    assert.equal((await publish(call, token, "rotating", "1.3.0", "four")).status, 401);
+  }
+  // Other publishers are untouched, and token bookkeeping is never served.
+  assert.equal((await publish(call, bob, "bobs-package", "1.0.0", "bob")).status, 201);
+  assert.equal((await call("GET", "publisher-tokens/bob")).status, 404);
+  assert.equal((await call("POST", "v1/admin/publishers/Not_Valid/revoke", { token: ADMIN })).status, 400);
+});
+
+test("administrator revocation also finds tokens issued before the per-publisher index", async () => {
+  const { env, call } = registry();
+  const legacy = await newPublisher(call, "carol");
+  for (const key of [...env.REGISTRY.objects.keys()]) {
+    if (key.startsWith("publisher-tokens/")) env.REGISTRY.objects.delete(key);
+  }
+  const revoked = await call("POST", "v1/admin/publishers/carol/revoke", { token: ADMIN });
+  assert.equal((await revoked.json()).revoked, 1);
+  assert.equal((await publish(call, legacy, "carols", "1.0.0", "c")).status, 401);
+});

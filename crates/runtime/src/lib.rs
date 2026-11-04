@@ -2609,7 +2609,14 @@ impl NativeListArena {
             2 => Some(Value::Float64(Float64::new(f64::from_bits(value as u64))?)),
             3 => Some(Value::Bool(value != 0)),
             4 => self.materialize_native_value(value),
-            _ => None,
+            _ => {
+                let record_index = native_backend::native_record_bridge_index(tag)?;
+                let record = self.runtime_context.as_ref()?.artifact.records.get(record_index)?;
+                if !native_record_has_native_layout(record) {
+                    return None;
+                }
+                self.materialize_native_record_pointer(value, record_index)
+            }
         }
     }
 
@@ -5013,9 +5020,11 @@ impl VmHost for Instance {
                 }
                 operands.reverse();
                 let target = match (function, operands.first()) {
-                    (guion_model::TlsFunction::Connect, Some(Value::Text(host))) => {
-                        host.as_ref().to_owned()
-                    }
+                    (
+                        guion_model::TlsFunction::Connect
+                        | guion_model::TlsFunction::ConnectIdentity,
+                        Some(Value::Text(host)),
+                    ) => host.as_ref().to_owned(),
                     _ => function.op_name().to_owned(),
                 };
                 let effect = self.begin_effect(EffectKind::NetworkSocket, target.as_str());
@@ -8240,6 +8249,7 @@ impl Instance {
                                 Float64::new(f64::from_bits(outcome.value as u64)).unwrap(),
                             ),
                             Type::Bool => Value::Bool(outcome.value != 0),
+                            Type::Unit => Value::Unit,
                             Type::Record(name)
                                 if self
                                     .artifact
@@ -11637,6 +11647,34 @@ fn host_file_path(
     host_file_path_with_walk_root(policy, requested, write, span, false)
 }
 
+/// The directory entry `requested` names, for operations that act on the entry itself rather
+/// than on what a symlink points to (`remove`, `rename`). The parent directory is resolved and
+/// confined like a write; the final component is not followed.
+fn host_file_entry_path(
+    policy: &HostPolicy,
+    requested: &str,
+    span: Span,
+) -> Result<PathBuf, RuntimeError> {
+    let path = Path::new(requested);
+    let Some(std::path::Component::Normal(name)) = path.components().next_back() else {
+        return Err(RuntimeError::new(
+            "R_HOST_DENIED",
+            "file path must name an entry inside the granted project root",
+            span,
+        ));
+    };
+    let parent = path
+        .parent()
+        .map(|parent| parent.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let parent = if parent.is_empty() {
+        ".".to_owned()
+    } else {
+        format!("{parent}/.")
+    };
+    Ok(host_file_path(policy, &parent, true, span)?.join(name))
+}
+
 fn host_file_path_no_follow(
     policy: &HostPolicy,
     requested: &str,
@@ -11815,6 +11853,17 @@ fn host_file_path_with_walk_root(
 
     let root = roots.last().expect("at least one file root was checked");
     let candidate = root.join(requested_path);
+    // A dangling symlink does not "exist", but writing through it would create its target,
+    // which may lie outside the root.
+    if !candidate.exists()
+        && fs::symlink_metadata(&candidate).is_ok_and(|metadata| metadata.file_type().is_symlink())
+    {
+        return Err(RuntimeError::new(
+            "R_HOST_DENIED",
+            "cannot write through a symlink whose target does not exist",
+            span,
+        ));
+    }
     let resolved = if !candidate.exists() {
         let name = candidate.file_name().ok_or_else(|| {
             RuntimeError::new("R_HOST_DENIED", "file path must name a file", span)

@@ -72,7 +72,13 @@ A successful publish returns `201` with `{ name, version, sha256, log_seq, log_h
 
 ### Administration
 
-`POST /v1/admin/publishers` with `Authorization: Bearer <ADMIN_TOKEN>` and body `{ "id": "alice" }` creates a publisher and returns its token once. The administrator token is a deployment secret, never part of the repository.
+`POST /v1/admin/publishers` with `Authorization: Bearer <ADMIN_TOKEN>` and body `{ "id": "alice" }` creates a publisher and returns its token once; calling it again for an existing id issues an additional token. The administrator token is a deployment secret, never part of the repository.
+
+`POST /v1/admin/publishers/<id>/revoke` with the administrator token revokes every token the publisher holds and returns `{ "publisher": "<id>", "revoked": <count> }`. Ownership of names is unchanged, so the administrator can then issue a fresh token.
+
+### Tokens
+
+`POST /v1/tokens/rotate` with a publisher token issues a replacement token for the same publisher, returns it once, and revokes the presented token. `POST /v1/tokens/revoke` revokes the presented token. A revoked token is unknown from then on (401 `E_AUTH_INVALID`). The client exposes these as `guion token rotate` and `guion token revoke`, which use `GUION_REGISTRY_TOKEN`.
 
 ## Errors
 
@@ -84,4 +90,4 @@ For every package it installs, a client checks that the same hash appears in all
 
 ## Not in this version
 
-Signature verification (the field is reserved), namespaces, trusted publishing from CI, token revocation tooling, and organisation ownership.
+Signature verification (the field is reserved), namespaces, trusted publishing from CI, and organisation ownership.

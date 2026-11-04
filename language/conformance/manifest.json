@@ -8776,6 +8776,35 @@
       "declared_status": "implemented_current_cli"
     },
     {
+      "id": "cli-command-token",
+      "kind": "cli_command",
+      "name": "token",
+      "owner_task": 8,
+      "source": "crates/cli/src/main.rs::usage-and-dispatch",
+      "compiler_status": {
+        "bootstrap": "not_applicable",
+        "self_hosted": "not_applicable"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "cli-command-token.positive",
+          "state": "implemented",
+          "owner_task": 8
+        },
+        "negative": {
+          "case_id": "cli-command-token.negative",
+          "state": "implemented",
+          "owner_task": 8
+        },
+        "interaction": {
+          "case_id": "cli-command-token.interaction",
+          "state": "implemented",
+          "owner_task": 8
+        }
+      },
+      "declared_status": "implemented_current_cli"
+    },
+    {
       "id": "cli-command-lint",
       "kind": "cli_command",
       "name": "lint",
@@ -9742,6 +9771,146 @@
         },
         "interaction": {
           "case_id": "opcode-randommix.interaction",
+          "state": "implemented",
+          "owner_task": 5
+        }
+      }
+    },
+    {
+      "id": "opcode-randomseed",
+      "kind": "opcode",
+      "name": "RandomSeed",
+      "owner_task": 5,
+      "source": "crates/model/src/lib.rs::Op",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "implemented_current_subset"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "opcode-randomseed.positive",
+          "state": "implemented",
+          "owner_task": 5
+        },
+        "negative": {
+          "case_id": "opcode-randomseed.negative",
+          "state": "implemented",
+          "owner_task": 5
+        },
+        "interaction": {
+          "case_id": "opcode-randomseed.interaction",
+          "state": "implemented",
+          "owner_task": 5
+        }
+      }
+    },
+    {
+      "id": "opcode-randomadvance",
+      "kind": "opcode",
+      "name": "RandomAdvance",
+      "owner_task": 5,
+      "source": "crates/model/src/lib.rs::Op",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "implemented_current_subset"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "opcode-randomadvance.positive",
+          "state": "implemented",
+          "owner_task": 5
+        },
+        "negative": {
+          "case_id": "opcode-randomadvance.negative",
+          "state": "implemented",
+          "owner_task": 5
+        },
+        "interaction": {
+          "case_id": "opcode-randomadvance.interaction",
+          "state": "implemented",
+          "owner_task": 5
+        }
+      }
+    },
+    {
+      "id": "opcode-randombits",
+      "kind": "opcode",
+      "name": "RandomBits",
+      "owner_task": 5,
+      "source": "crates/model/src/lib.rs::Op",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "implemented_current_subset"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "opcode-randombits.positive",
+          "state": "implemented",
+          "owner_task": 5
+        },
+        "negative": {
+          "case_id": "opcode-randombits.negative",
+          "state": "implemented",
+          "owner_task": 5
+        },
+        "interaction": {
+          "case_id": "opcode-randombits.interaction",
+          "state": "implemented",
+          "owner_task": 5
+        }
+      }
+    },
+    {
+      "id": "opcode-randomunitfloat",
+      "kind": "opcode",
+      "name": "RandomUnitFloat",
+      "owner_task": 5,
+      "source": "crates/model/src/lib.rs::Op",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "implemented_current_subset"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "opcode-randomunitfloat.positive",
+          "state": "implemented",
+          "owner_task": 5
+        },
+        "negative": {
+          "case_id": "opcode-randomunitfloat.negative",
+          "state": "implemented",
+          "owner_task": 5
+        },
+        "interaction": {
+          "case_id": "opcode-randomunitfloat.interaction",
+          "state": "implemented",
+          "owner_task": 5
+        }
+      }
+    },
+    {
+      "id": "opcode-randombelow",
+      "kind": "opcode",
+      "name": "RandomBelow",
+      "owner_task": 5,
+      "source": "crates/model/src/lib.rs::Op",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "implemented_current_subset"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "opcode-randombelow.positive",
+          "state": "implemented",
+          "owner_task": 5
+        },
+        "negative": {
+          "case_id": "opcode-randombelow.negative",
+          "state": "implemented",
+          "owner_task": 5
+        },
+        "interaction": {
+          "case_id": "opcode-randombelow.interaction",
           "state": "implemented",
           "owner_task": 5
         }

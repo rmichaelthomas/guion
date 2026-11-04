@@ -580,6 +580,16 @@ fn ab_plain_opcode(name: Text) -> Int:
         return 180
     if name == "RandomMix":
         return 181
+    if name == "RandomSeed":
+        return 188
+    if name == "RandomAdvance":
+        return 189
+    if name == "RandomBits":
+        return 190
+    if name == "RandomUnitFloat":
+        return 191
+    if name == "RandomBelow":
+        return 192
     if name == "UnixTimeMs":
         return 156
     if name == "TimeTodayLocal":
@@ -815,6 +825,10 @@ fn ab_tls_code(name: Text) -> Int:
         return 0
     if name == "TlsAccept":
         return 1
+    if name == "TlsConnectIdentity":
+        return 2
+    if name == "TlsAcceptVerified":
+        return 3
     return -1
 
 fn ab_instruction(instruction: Json, pc: Int, functions: Json, records: Json, externals: Json, labels: Json, source_id: Int) -> Bytes:
@@ -969,7 +983,7 @@ pub fn artifact_assemble(ir: Json) -> Bytes:
     let records = json_get(ir, "records")
     let externals = json_get(ir, "externals")
     let functions = json_get(ir, "functions")
-    var parts: List[Bytes] = [bytes_from_text("VRTA"), ab_u32(60), ab_string(source_name), ab_string(entry), ab_count(json_len(sources))]
+    var parts: List[Bytes] = [bytes_from_text("VRTA"), ab_u32(61), ab_string(source_name), ab_string(entry), ab_count(json_len(sources))]
     var cursor = 0
     while cursor < json_len(sources):
         set parts = list_push(parts, ab_string(json_as_text(json_index(sources, cursor))))

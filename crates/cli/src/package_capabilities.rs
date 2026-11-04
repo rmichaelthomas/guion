@@ -200,6 +200,37 @@ impl Capabilities {
     }
 }
 
+impl Capabilities {
+    /// Compares declared network hosts with the hosts named by URL literals in the library's
+    /// code. An undeclared literal host is an error; network use with no literal host at all is
+    /// reported, because the declaration then cannot be confirmed from the code.
+    pub fn compare_with_hosts(
+        &self,
+        used: &BTreeSet<String>,
+        literal_hosts: &std::collections::BTreeMap<String, String>,
+    ) -> (Vec<String>, Vec<String>) {
+        let mut errors = Vec::new();
+        let mut warnings = Vec::new();
+        if !(used.contains("network.http") || used.contains("network.socket")) {
+            return (errors, warnings);
+        }
+        let declared: BTreeSet<String> = self
+            .network
+            .iter()
+            .map(|host| host.to_ascii_lowercase())
+            .collect();
+        for (host, function) in literal_hosts {
+            if !declared.contains(host) {
+                errors.push(format!("`{function}` contacts `{host}`, which [capabilities] `network` does not list; add it to `network` in guion.toml"));
+            }
+        }
+        if literal_hosts.is_empty() && !self.network.is_empty() {
+            warnings.push("no host in [capabilities] `network` appears as a URL in the library's code, so the declaration cannot be confirmed; reviewers should check where requests go".into());
+        }
+        (errors, warnings)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

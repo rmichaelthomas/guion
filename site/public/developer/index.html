@@ -705,12 +705,12 @@
 <div class="ahi"><section id="slot-hero-headline" class="instrument family-typography-reading renderer-kinetic-headline interaction-progressive-css" data-ahi="ahi.typography-reading.kinetic-headline" data-ahi-renderer="kinetic-headline" data-ahi-element="section" data-ahi-version="1"><section class="instrument-semantic instrument-semantic-section" data-ahi-semantic="section"><header class="kinetic-headline"><h2>A language for the work ahead.</h2><p class="headline-deck">Programming, re-examined</p><p>A general-purpose programming language and toolchain built around one challenge: make useful software easier to write, understand, run, and deliver.</p></header></section></section></div>
 <div class="v-dev hero-specs">
 <dl class="specs">
-<div><dt>Version</dt><dd><code>guion 0.1.0 (artifact format 60, timezone data 2026c)</code></dd></div>
+<div><dt>Version</dt><dd><code>guion 0.1.0 (artifact format 61, timezone data 2026c)</code></dd></div>
 <div><dt>Files</dt><dd><code>.gu</code> source · <code>.gub</code> artifact · <code>guion.toml</code> · <code>guion.lock</code> · <code>.guion/</code></dd></div>
 <div><dt>Compiler</dt><dd>self-hosted, written in Guion; normal source runs use the in-process Rust compiler</dd></div>
 <div><dt>Runtime</dt><dd>Rust, with explicit host permissions</dd></div>
 <div><dt>Browser</dt><dd>WebAssembly ABI 1.0, which runs the playground below</dd></div>
-<div><dt>Tooling</dt><dd>18 subcommands in one binary, most with <code>--json</code></dd></div>
+<div><dt>Tooling</dt><dd>19 subcommands in one binary, most with <code>--json</code></dd></div>
 </dl>
 </div>
 <div class="cta-row">
@@ -829,7 +829,7 @@
 <div class="reason-main">
 <h3>More than a language.</h3>
 <p class="v-plain">One command makes a project, checks it, tidies it, tests it, runs it, packs it up, and tells you what it can do. A person, or an assistant, can ask for a report instead of text.</p>
-<p class="v-dev">18 subcommands in one binary. <code>--json</code> on check, lint, test, run, build, package, verify-package, inspect, doc, doctor and sync returns a versioned report with stable fields and codes.</p>
+<p class="v-dev">19 subcommands in one binary. <code>--json</code> on check, lint, test, run, build, package, verify-package, inspect, doc, doctor and sync returns a versioned report with stable fields and codes.</p>
 </div>
 <aside class="marginalia v-dev"><span class="smallcaps">Margin note</span><p>Report kinds and schemas are indexed in <code>docs/agents/index.json</code>; the table in section 03 lists each one.</p></aside>
 </li>
@@ -849,7 +849,7 @@
 <div class="sectionhead">
 <div><p class="overline">03 / The apparatus</p><h2>One command.<br><span class="serif">The whole job.</span></h2></div>
 <p class="v-plain">Most languages leave you to put the tools together yourself. Guion ships one program that walks the whole path, from an empty folder to something you can hand to someone else.</p>
-<p class="v-dev">18 subcommands behind one binary. Core commands never discover or launch Python or uv.</p>
+<p class="v-dev">19 subcommands behind one binary. Core commands never discover or launch Python or uv.</p>
 </div>
 <div class="v-plain" data-ahi="ahi.relationships-diagrams.flow-map">
 <ol class="route">
@@ -876,15 +876,16 @@
 <tr><th scope="row"><code>guion build</code></th><td><code>FILE.gu [-o FILE.gub] [--json]</code></td><td>Writes a versioned bytecode artifact; metadata records compiler version, build host and the exact source graph digest.</td><td><code>guion_build_report v1</code></td></tr>
 <tr><th scope="row"><code>guion package</code></th><td><code>PROJECT [--output DIR] [--json]</code></td><td>Creates a current-host, source-free application directory: compiled artifact, matching runtime, project policy, launcher and declared resources.</td><td><code>guion_package_report v1</code></td></tr>
 <tr><th scope="row"><code>guion verify-package</code></th><td><code>PACKAGE_DIRECTORY [--json]</code></td><td>Checks the package target and the recorded SHA-256 digests of the artifact, runtime and resources.</td><td><code>guion_package_verification_report v1</code></td></tr>
-<tr><th scope="row"><code>guion add</code></th><td><code>NAME --path DIR | --url HTTPS_URL --version V --sha256 H</code></td><td>Adds a local native package or a content-verified archive to the project.</td><td>—</td></tr>
+<tr><th scope="row"><code>guion add</code></th><td><code>NAME [--version RANGE] | NAME --path DIR | NAME --url HTTPS_URL --version V --sha256 H</code></td><td>Adds a registry library (after checking the index, the hash log and the bytes agree), a local native package, or a content-verified archive. A registry range is recorded so update can follow it.</td><td>—</td></tr>
 <tr><th scope="row"><code>guion sync</code></th><td><code>PROJECT [--locked --offline] [--json]</code></td><td>In a core build, --locked --offline validates native packages against the lock.</td><td><code>guion_sync_report v1</code></td></tr>
-<tr><th scope="row"><code>guion update</code></th><td><code>—</code></td><td>Explicitly resolves native package sources and transactionally updates the lock.</td><td>—</td></tr>
+<tr><th scope="row"><code>guion update</code></th><td><code>—</code></td><td>Explicitly resolves native package sources, moves registry libraries to the newest release their recorded range allows, and transactionally updates the lock; a capability widening needs --approve-capabilities.</td><td>—</td></tr>
 <tr><th scope="row"><code>guion inspect</code></th><td><code>FILE.gu|FILE.gub [--json]</code></td><td>Prints artifact and function metadata plus statically reachable runtime effects.</td><td><code>guion_inspection_report v1</code></td></tr>
 <tr><th scope="row"><code>guion doc</code></th><td><code>FILE.gu [--json]</code></td><td>Prints signatures; --json emits guion_api_report with parameter names, checked types and reachable effects.</td><td><code>guion_api_report v2</code></td></tr>
 <tr><th scope="row"><code>guion doctor</code></th><td><code>[--json]</code></td><td>Reports the current host and enabled profile; a core build reports Python interoperability disabled.</td><td><code>guion_doctor_report v1</code></td></tr>
 <tr><th scope="row"><code>guion install</code></th><td><code>PACKAGE_DIRECTORY [--prefix DIR]</code></td><td>Verifies the package, installs into share/guion/apps/NAME/VERSION and creates its launcher.</td><td>—</td></tr>
 <tr><th scope="row"><code>guion publish</code></th><td><code>[DIRECTORY]</code></td><td>Checks the library (including its declared capabilities), packs it and uploads it with the publisher token in GUION_REGISTRY_TOKEN; a published version never changes.</td><td>—</td></tr>
 <tr><th scope="row"><code>guion yank</code></th><td><code>NAME VERSION [--undo]</code></td><td>Marks a published version yanked so resolution skips it; existing locks keep working. --undo restores it.</td><td>—</td></tr>
+<tr><th scope="row"><code>guion token</code></th><td><code>rotate | revoke</code></td><td>rotate issues a new token for the publisher in GUION_REGISTRY_TOKEN, prints it once and revokes the old one; revoke withdraws the token outright.</td><td>—</td></tr>
 </tbody>
 </table>
 </div>
@@ -1039,9 +1040,9 @@ entry = &quot;main.gu&quot;
 [network]
 hosts = [&quot;api.example.test&quot;]
 </code></pre></div>
-<div><p class="mono muted">report (schema_version 1, captured with guion 0.1.0 (artifact format 60, timezone data 2026c))</p><pre class="code light"><code>{
+<div><p class="mono muted">report (schema_version 1, captured with guion 0.1.0 (artifact format 61, timezone data 2026c))</p><pre class="code light"><code>{
   <span class="k">&quot;analysis_scope&quot;</span>: &quot;reachable direct calls and parallel_map worker functions; host effects are categorized from bytecode operations&quot;,
-  <span class="k">&quot;artifact_format&quot;</span>: 60,
+  <span class="k">&quot;artifact_format&quot;</span>: 61,
   <span class="k">&quot;capability_claim&quot;</span>: &quot;static_bytecode_reachability_not_sandbox&quot;,
   <span class="k">&quot;clock_grant&quot;</span>: {
     <span class="k">&quot;grant_model&quot;</span>: &quot;wall-clock reads are denied unless explicitly enabled&quot;,

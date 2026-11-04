@@ -1,9 +1,10 @@
 //! Filesystem operations behind `Op::Fs`. Every path goes through the same grant checks as
 //! `read_text` and `write_text`: relative to a granted root, no parent traversal, confined after
-//! symlink resolution. Mutating operations need the file-write grant.
+//! symlink resolution. Mutating operations need the file-write grant. `remove` and `rename` act
+//! on the named entry itself, so a symlink is removed or moved rather than its target.
 use super::{
-    file_error_result, file_io_error_code, host_file_path, HostPolicy, RuntimeError, Shared, Span,
-    Value,
+    file_error_result, file_io_error_code, host_file_entry_path, host_file_path, HostPolicy,
+    RuntimeError, Shared, Span, Value,
 };
 use guion_model::{BigInt, FsFunction};
 use std::fs;
@@ -182,7 +183,7 @@ fn run_inner(
             Ok(ok(Value::Unit))
         }
         FsFunction::Remove | FsFunction::RemoveAll => {
-            let resolved = host_file_path(policy, path, true, span)?;
+            let resolved = host_file_entry_path(policy, path, span)?;
             if granted_roots(policy).contains(&resolved) {
                 return Err(RuntimeError::new(
                     "R_HOST_DENIED",
@@ -190,7 +191,7 @@ fn run_inner(
                     span,
                 ));
             }
-            let metadata = fs::metadata(&resolved)
+            let metadata = fs::symlink_metadata(&resolved)
                 .map_err(|error| file_error(&error, "R_FILE_WRITE", "inspect", path, span))?;
             let result = if metadata.is_dir() {
                 if function == FsFunction::RemoveAll {
@@ -206,13 +207,25 @@ fn run_inner(
         }
         FsFunction::Rename | FsFunction::Copy => {
             let destination = operands[1].as_str();
-            let source_path = host_file_path(policy, path, function == FsFunction::Rename, span)?;
-            let destination_path = host_file_path(policy, destination, true, span)?;
             if function == FsFunction::Rename {
+                let source_path = host_file_entry_path(policy, path, span)?;
+                let destination_path = host_file_entry_path(policy, destination, span)?;
+                let roots = granted_roots(policy);
+                if roots.contains(&source_path) || roots.contains(&destination_path) {
+                    return Err(RuntimeError::new(
+                        "R_HOST_DENIED",
+                        "the granted file root itself cannot be renamed or replaced",
+                        span,
+                    ));
+                }
+                fs::symlink_metadata(&source_path)
+                    .map_err(|error| file_error(&error, "R_FILE_WRITE", "rename", path, span))?;
                 fs::rename(&source_path, &destination_path)
                     .map_err(|error| file_error(&error, "R_FILE_WRITE", "rename", path, span))?;
                 return Ok(ok(Value::Unit));
             }
+            let source_path = host_file_path(policy, path, false, span)?;
+            let destination_path = host_file_path(policy, destination, true, span)?;
             let length = fs::metadata(&source_path)
                 .map_err(|error| file_error(&error, "R_FILE_READ", "inspect", path, span))?
                 .len();

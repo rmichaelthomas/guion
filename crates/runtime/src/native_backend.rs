@@ -1727,6 +1727,9 @@ impl NativeBackend {
                     Op::Const(Value::Bool(value)) => {
                         stack.push(builder.ins().iconst(types::I64, i64::from(*value)));
                     }
+                    Op::Const(Value::Unit) => {
+                        stack.push(builder.ins().iconst(types::I64, 0));
+                    }
                     Op::Const(Value::Float64(value)) => {
                         stack.push(
                             builder
@@ -2002,6 +2005,7 @@ impl NativeBackend {
                                 &arguments,
                                 &input_types[argument_start..],
                                 result_type,
+                                records,
                                 &local_tags,
                                 &instruction_stack,
                                 &stack_tags,
@@ -2271,6 +2275,23 @@ impl NativeBackend {
                     }
                     Op::Pop => {
                         stack.pop().ok_or_else(|| "stack underflow".to_owned())?;
+                    }
+                    Op::Assert => {
+                        let condition = stack.pop().ok_or_else(|| "stack underflow".to_owned())?;
+                        // A failed assertion replays in the VM, which raises `R_ASSERTION`.
+                        let holds = builder.create_block();
+                        let exit_args = step_exit_args(
+                            &mut builder,
+                            steps_var,
+                            ip,
+                            block_instruction_offsets[ip],
+                        );
+                        builder
+                            .ins()
+                            .brif(condition, holds, &[], fallback, &exit_args);
+                        builder.switch_to_block(holds);
+                        builder.seal_block(holds);
+                        stack.push(builder.ins().iconst(types::I64, 0));
                     }
                     Op::Add | Op::Subtract | Op::Multiply => {
                         let right = stack.pop().ok_or_else(|| "stack underflow".to_owned())?;
@@ -3318,6 +3339,65 @@ impl NativeBackend {
                             converted,
                         ));
                     }
+                    // The generator state is a signed 64-bit bit pattern, so the register already
+                    // holds its low 64 bits and wrapping arithmetic matches the VM exactly.
+                    Op::RandomSeed => {}
+                    Op::RandomAdvance => {
+                        let value = stack.pop().ok_or_else(|| "stack underflow".to_owned())?;
+                        stack.push(
+                            builder
+                                .ins()
+                                .iadd_imm_s(value, 0x9E37_79B9_7F4A_7C15_u64 as i64),
+                        );
+                    }
+                    Op::RandomBits => {
+                        let value = stack.pop().ok_or_else(|| "stack underflow".to_owned())?;
+                        stack.push(emit_splitmix64_mix(&mut builder, value));
+                    }
+                    Op::RandomUnitFloat => {
+                        let value = stack.pop().ok_or_else(|| "stack underflow".to_owned())?;
+                        let bits = emit_splitmix64_mix(&mut builder, value);
+                        let top = builder.ins().ushr_imm_u(bits, 11);
+                        let whole = builder.ins().fcvt_from_uint(types::F64, top);
+                        let scale = builder.ins().f64const(1.0 / 9_007_199_254_740_992.0);
+                        let fraction = builder.ins().fmul(whole, scale);
+                        stack.push(builder.ins().bitcast(
+                            types::I64,
+                            MemFlagsData::new(),
+                            fraction,
+                        ));
+                    }
+                    Op::RandomBelow => {
+                        let span = stack.pop().ok_or_else(|| "stack underflow".to_owned())?;
+                        let value = stack.pop().ok_or_else(|| "stack underflow".to_owned())?;
+                        // A span below one is an error; the VM replays it to raise exactly that.
+                        let invalid = builder.ins().icmp_imm_s(IntCC::SignedLessThan, span, 1);
+                        let draw = builder.create_block();
+                        let exit_args = step_exit_args(
+                            &mut builder,
+                            steps_var,
+                            ip,
+                            block_instruction_offsets[ip],
+                        );
+                        builder
+                            .ins()
+                            .brif(invalid, fallback, &exit_args, draw, &[]);
+                        builder.switch_to_block(draw);
+                        builder.seal_block(draw);
+                        let bits = emit_splitmix64_mix(&mut builder, value);
+                        // Reject outputs at or above 2^64 - (2^64 mod span), as the VM does.
+                        let all_ones = builder.ins().iconst(types::I64, -1);
+                        let below_max = builder.ins().urem(all_ones, span);
+                        let next = builder.ins().iadd_imm_s(below_max, 1);
+                        let tail = builder.ins().urem(next, span);
+                        let limit = builder.ins().bnot(tail);
+                        let accept = builder
+                            .ins()
+                            .icmp(IntCC::UnsignedLessThanOrEqual, bits, limit);
+                        let reduced = builder.ins().urem(bits, span);
+                        let rejected = builder.ins().iconst(types::I64, -1);
+                        stack.push(builder.ins().select(accept, reduced, rejected));
+                    }
                     Op::FloatToInt => {
                         // Beyond this bound the result is a big integer, which the VM builds.
                         let value = stack.pop().ok_or_else(|| "stack underflow".to_owned())?;
@@ -4276,6 +4356,7 @@ fn emit_native_make_record_call(
     arguments: &[cranelift_codegen::ir::Value],
     argument_types: &[Type],
     result_type: &Type,
+    records: &[guion_model::RecordDefinition],
     local_tags: &[i64],
     stack_values: &[cranelift_codegen::ir::Value],
     stack_tags: &[i64],
@@ -4303,7 +4384,19 @@ fn emit_native_make_record_call(
             .ins()
             .store(MemFlagsData::new(), *value, value_address, 0);
         let tag_address = builder.ins().stack_addr(pointer_type, tags_slot, offset);
-        let tag = builder.ins().iconst(types::I64, native_bridge_tag(ty));
+        // A field holding a native-layout record is passed as a record pointer, not a handle.
+        let native_record = match ty {
+            Type::Record(name) => records.iter().position(|record| {
+                record.name == *name && native_record_has_native_layout(record)
+            }),
+            _ => None,
+        };
+        let tag = match native_record {
+            Some(record_index) => native_record_bridge_tag(record_index)
+                .ok_or_else(|| "native record tag overflow".to_owned())?,
+            None => native_bridge_tag(ty),
+        };
+        let tag = builder.ins().iconst(types::I64, tag);
         builder
             .ins()
             .store(MemFlagsData::new(), tag, tag_address, 0);
@@ -4738,6 +4831,21 @@ fn emit_native_capture_exit(
     );
 }
 
+/// The SplitMix64 output function on a 64-bit register, with wrapping multiplication.
+fn emit_splitmix64_mix(
+    builder: &mut FunctionBuilder<'_>,
+    value: cranelift_codegen::ir::Value,
+) -> cranelift_codegen::ir::Value {
+    let mut z = value;
+    for (shift, multiplier) in [(30, 0xBF58_476D_1CE4_E5B9_u64), (27, 0x94D0_49BB_1331_11EB)] {
+        let shifted = builder.ins().ushr_imm_u(z, shift);
+        let mixed = builder.ins().bxor(z, shifted);
+        z = builder.ins().imul_imm_s(mixed, multiplier as i64);
+    }
+    let shifted = builder.ins().ushr_imm_u(z, 31);
+    builder.ins().bxor(z, shifted)
+}
+
 fn emit_float_finite_guard(
     builder: &mut FunctionBuilder<'_>,
     value: cranelift_codegen::ir::Value,
@@ -5013,6 +5121,7 @@ fn infer_native_types(
             Op::Const(Value::Bytes(_)) => state.stack.push(Type::Bytes),
             Op::Const(Value::Float64(_)) => state.stack.push(Type::Float64),
             Op::Const(Value::Bool(_)) => state.stack.push(Type::Bool),
+            Op::Const(Value::Unit) => state.stack.push(Type::Unit),
             Op::Load(slot) => state.stack.push(state.locals.get(*slot)?.clone()?),
             Op::GetField(record_index, field_index) => {
                 let definition = records.get(*record_index)?;
@@ -5060,6 +5169,12 @@ fn infer_native_types(
             Op::Pop => {
                 state.stack.pop()?;
             }
+            Op::Assert => {
+                if state.stack.pop()? != Type::Bool {
+                    return None;
+                }
+                state.stack.push(Type::Unit);
+            }
             Op::Add | Op::Subtract | Op::Multiply | Op::Divide => {
                 let right = state.stack.pop()?;
                 let left = state.stack.pop()?;
@@ -5078,6 +5193,24 @@ fn infer_native_types(
             }
             Op::FloatToInt => {
                 if state.stack.pop()? != Type::Float64 {
+                    return None;
+                }
+                state.stack.push(Type::Int);
+            }
+            Op::RandomSeed | Op::RandomAdvance | Op::RandomBits => {
+                if state.stack.pop()? != Type::Int {
+                    return None;
+                }
+                state.stack.push(Type::Int);
+            }
+            Op::RandomUnitFloat => {
+                if state.stack.pop()? != Type::Int {
+                    return None;
+                }
+                state.stack.push(Type::Float64);
+            }
+            Op::RandomBelow => {
+                if state.stack.pop()? != Type::Int || state.stack.pop()? != Type::Int {
                     return None;
                 }
                 state.stack.push(Type::Int);
@@ -6168,7 +6301,8 @@ fn native_result_types(
     let supported_field =
         |ty: &Type| is_native_item(ty) || matches!(ty, Type::List(item) if is_native_item(item));
     match result {
-        Type::Int | Type::Float64 | Type::Bool => Some(vec![result.clone()]),
+        // Unit is one word holding zero.
+        Type::Int | Type::Float64 | Type::Bool | Type::Unit => Some(vec![result.clone()]),
         Type::Record(name) => {
             let definition = records.iter().find(|record| record.name == *name)?;
             if definition
@@ -6305,9 +6439,14 @@ fn stack_depths(function: &Function) -> Option<Vec<Option<usize>>> {
             }
             Op::Negate
             | Op::Not
+            | Op::Assert
             | Op::FloatSqrt
             | Op::IntToFloat
             | Op::FloatToInt
+            | Op::RandomSeed
+            | Op::RandomAdvance
+            | Op::RandomBits
+            | Op::RandomUnitFloat
             | Op::TextChars
             | Op::JsonTryText
             | Op::JsonTryInt
@@ -6321,7 +6460,7 @@ fn stack_depths(function: &Function) -> Option<Vec<Option<usize>>> {
             | Op::MakeOk
             | Op::MakeErr
             | Op::MakeSome => (1, 1),
-            Op::JsonTryGet => (2, 1),
+            Op::JsonTryGet | Op::RandomBelow => (2, 1),
             Op::Math(function) => (function.arity(), 1),
             Op::MakeNone => (0, 1),
             Op::TextSlice | Op::TextFind | Op::TextReplace => (3, 1),
