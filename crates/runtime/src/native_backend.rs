@@ -2739,15 +2739,23 @@ impl NativeBackend {
                         let total_calls = builder.ins().iadd(parent_calls, child_calls);
                         builder.def_var(native_calls_var, total_calls);
                         let callee_result = &all_functions[*target].result;
-                        let value = if let Type::Record(name) = callee_result {
-                            let fields = records
-                                .iter()
-                                .find(|record| record.name == *name)
-                                .ok_or_else(|| {
-                                    "callee record result definition is missing".to_owned()
-                                })?
-                                .fields
-                                .len();
+                        // Only records with a plain numeric layout come back as a field block; any
+                        // other record (for example one holding Text) returns a single handle.
+                        let callee_record = match callee_result {
+                            Type::Record(name) => Some(
+                                records
+                                    .iter()
+                                    .find(|record| record.name == *name)
+                                    .ok_or_else(|| {
+                                        "callee record result definition is missing".to_owned()
+                                    })?,
+                            ),
+                            _ => None,
+                        };
+                        let value = if let Some(definition) =
+                            callee_record.filter(|record| native_record_has_native_layout(record))
+                        {
+                            let fields = definition.fields.len();
                             let descriptor_slot = builder.create_sized_stack_slot(
                                 StackSlotData::new(StackSlotKind::ExplicitSlot, 16, 3),
                             );
