@@ -17,7 +17,7 @@
 <label for="perm-clock"><span class="tab-n">3</span> The clock</label>
 </div>
 <div class="ladder-panel" id="perm-panel-none">
-<p class="v-plain">By default a program can print, and read files inside its own project. The network and the clock are refused.</p>
+<p class="v-plain">By default a program can print, and read and write files inside its own project. The network and the clock are refused. Before it runs, check and inspect say plainly if it can write files.</p>
 <p class="v-dev"><code>guion run main.gu</code> · no <code>[network].hosts</code>, so <code>network.http</code> is denied; <code>[clock].enabled</code> is false, so <code>clock.read</code> is denied.</p>
 </div>
 <div class="ladder-panel" id="perm-panel-folder">

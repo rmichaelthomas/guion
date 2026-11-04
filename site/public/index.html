@@ -650,6 +650,11 @@
 .casefiles:has(#case-richards:checked) label[for="case-richards"] .case-n { color: var(--lily); }
 .casefiles:has(#case-richards:focus-visible) label[for="case-richards"] { outline: 3px solid var(--blue); outline-offset: 2px; }
 @media (forced-colors: active) { .casefiles:has(#case-richards:checked) label[for="case-richards"] { outline: 3px solid Highlight; } }
+.casefiles:has(#case-machine-code-loops:checked) #claim-machine-code-loops { display: flex; }
+.casefiles:has(#case-machine-code-loops:checked) label[for="case-machine-code-loops"] { background: var(--ink); color: var(--lily); border-color: var(--ink); }
+.casefiles:has(#case-machine-code-loops:checked) label[for="case-machine-code-loops"] .case-n { color: var(--lily); }
+.casefiles:has(#case-machine-code-loops:focus-visible) label[for="case-machine-code-loops"] { outline: 3px solid var(--blue); outline-offset: 2px; }
+@media (forced-colors: active) { .casefiles:has(#case-machine-code-loops:checked) label[for="case-machine-code-loops"] { outline: 3px solid Highlight; } }
 .casefiles:has(#case-short-source:checked) #claim-short-source { display: flex; }
 .casefiles:has(#case-short-source:checked) label[for="case-short-source"] { background: var(--ink); color: var(--lily); border-color: var(--ink); }
 .casefiles:has(#case-short-source:checked) label[for="case-short-source"] .case-n { color: var(--lily); }
@@ -836,7 +841,7 @@
 <div class="reason-main">
 <h3>A claim should survive contact.</h3>
 <p class="v-plain">Every number on this page says which program it measured, on which machine, and what it does not tell you. Then it points at the file it came from, so you can check.</p>
-<p class="v-dev">10 receipts, each with workload, host, interval, scope limit, and linked report and raw-sample files. A build step fails if a figure on this page is not in the file it cites.</p>
+<p class="v-dev">11 receipts, each with workload, host, interval, scope limit, and linked report and raw-sample files. A build step fails if a figure on this page is not in the file it cites.</p>
 </div>
 <aside class="marginalia v-dev"><span class="smallcaps">Margin note</span><p>Files are copied byte for byte to the <a href="evidence/">evidence page</a> with their SHA-256.</p></aside>
 </li>
@@ -992,7 +997,7 @@
 <label for="perm-clock"><span class="tab-n">3</span> The clock</label>
 </div>
 <div class="ladder-panel" id="perm-panel-none">
-<p class="v-plain">By default a program can print, and read files inside its own project. The network and the clock are refused.</p>
+<p class="v-plain">By default a program can print, and read and write files inside its own project. The network and the clock are refused. Before it runs, check and inspect say plainly if it can write files.</p>
 <p class="v-dev"><code>guion run main.gu</code> · no <code>[network].hosts</code>, so <code>network.http</code> is denied; <code>[clock].enabled</code> is false, so <code>clock.read</code> is denied.</p>
 </div>
 <div class="ladder-panel" id="perm-panel-folder">
@@ -1247,6 +1252,7 @@ hosts = [&quot;api.example.test&quot;]
 <div class="casefiles" data-ahi="ahi.reveals-discoveries.tabbed-scene">
 <input type="radio" name="case-file" id="case-server-gate" class="sr-only" checked>
 <input type="radio" name="case-file" id="case-richards" class="sr-only">
+<input type="radio" name="case-file" id="case-machine-code-loops" class="sr-only">
 <input type="radio" name="case-file" id="case-short-source" class="sr-only">
 <input type="radio" name="case-file" id="case-nine-apps" class="sr-only">
 <input type="radio" name="case-file" id="case-lockfile" class="sr-only">
@@ -1256,12 +1262,13 @@ hosts = [&quot;api.example.test&quot;]
 <div class="case-index" role="group" aria-label="Case files">
 <label for="case-server-gate" class="case-tab" data-group="speed"><span class="case-n">01</span><span class="case-title">Text, JSON Lines and CSV on two server CPUs</span></label>
 <label for="case-richards" class="case-tab" data-group="speed"><span class="case-n">02</span><span class="case-title">Richards, a classic benchmark program</span></label>
-<label for="case-short-source" class="case-tab" data-group="speed"><span class="case-n">03</span><span class="case-title">Five short programs, start to finish</span></label>
-<label for="case-nine-apps" class="case-tab" data-group="speed"><span class="case-n">04</span><span class="case-title">Nine everyday applications</span></label>
-<label for="case-lockfile" class="case-tab" data-group="speed"><span class="case-n">05</span><span class="case-title">A lockfile auditor, up to 16,384 packages</span></label>
-<label for="case-conformance" class="case-tab" data-group="behaviour"><span class="case-n">06</span><span class="case-title">Does it behave the same as Python?</span></label>
-<label for="case-concurrency-cancel" class="case-tab" data-group="behaviour"><span class="case-n">07</span><span class="case-title">A failing worker cancels its siblings</span></label>
-<label for="case-targets" class="case-tab" data-group="reach"><span class="case-n">08</span><span class="case-title">Where it has been tested</span></label>
+<label for="case-machine-code-loops" class="case-tab" data-group="speed"><span class="case-n">03</span><span class="case-title">Three small loops after the machine-code work</span></label>
+<label for="case-short-source" class="case-tab" data-group="speed"><span class="case-n">04</span><span class="case-title">Five short programs, start to finish</span></label>
+<label for="case-nine-apps" class="case-tab" data-group="speed"><span class="case-n">05</span><span class="case-title">Nine everyday applications</span></label>
+<label for="case-lockfile" class="case-tab" data-group="speed"><span class="case-n">06</span><span class="case-title">A lockfile auditor, up to 16,384 packages</span></label>
+<label for="case-conformance" class="case-tab" data-group="behaviour"><span class="case-n">07</span><span class="case-title">Does it behave the same as Python?</span></label>
+<label for="case-concurrency-cancel" class="case-tab" data-group="behaviour"><span class="case-n">08</span><span class="case-title">A failing worker cancels its siblings</span></label>
+<label for="case-targets" class="case-tab" data-group="reach"><span class="case-n">09</span><span class="case-title">Where it has been tested</span></label>
 </div>
 <div class="case-panels" data-ahi="ahi.publications-objects.case-dossier">
 <article class="claim" id="claim-server-gate" data-claim="server-gate" data-group="speed" data-case="01">
@@ -1286,7 +1293,18 @@ hosts = [&quot;api.example.test&quot;]
 </dl>
 <div class="v-dev"><table class="claim-table"><tbody><tr><th scope="row">Guion median</th><td>27.46 ms</td></tr><tr><th scope="row">CPython median</th><td>72.92 ms</td></tr><tr><th scope="row">Ratio (95% interval)</th><td>0.375 (0.370–0.379)</td></tr><tr><th scope="row">Sprint target</th><td>0.60 (passed)</td></tr><tr><th scope="row">Peak RSS, Guion / Python</th><td>24.2 MiB / 18.3 MiB</td></tr><tr><th scope="row">Trials</th><td>15 randomized</td></tr><tr><th scope="row">Host</th><td>macOS 27, Apple Silicon</td></tr><tr><th scope="row">Python</th><td>CPython 3.14.7</td></tr><tr><th scope="row">Artifact format</th><td>44</td></tr><tr><th scope="row">Commit</th><td>6b5e5aba</td></tr></tbody></table></div>
 </article>
-<article class="claim" id="claim-short-source" data-claim="short-source" data-group="speed" data-case="03">
+<article class="claim" id="claim-machine-code-loops" data-claim="machine-code-loops" data-group="speed" data-case="03">
+<h3>Three small loops after the machine-code work</h3>
+<dl class="receipt">
+<div><dt>Claim</dt><dd>On three small loops, Guion took 0.058 s for 1,000,000 random draws against CPython's 0.282 s, 0.165 s for a 20,000,000-step integer loop against 1.593 s, and 0.031 s for 200,000 text appends against 0.057 s for the way Python programmers normally write that loop.</dd></div>
+<div><dt>Holds when</dt><dd>One Apple Silicon Mac, a release build of main at artifact format 61, against CPython 3.14.7, with 7 alternating runs per lane. The integer loop and the appends were checked for identical output before timing.</dd></div>
+<div><dt>Doesn't tell you</dt><dd>Anything about real programs. These are synthetic loops, there are no confidence intervals, and the random lane compares speed only because the two generators draw different numbers. The same append statement written the slow way in Python took 4.901 s; that is Python's copy-on-every-pass pattern, not its normal style, so it is not the headline. Other machines, Linux and other Python versions were not measured.</dd></div>
+<div><dt>Check it</dt><dd><a href="evidence/2026-11-04-follow-ups-report.md">2026-11-04-follow-ups-report.md</a> · <a href="evidence/run.py">run.py</a></dd></div>
+<div><dt>Say it's wrong</dt><dd><a href="mailto:rmichael@rmichaelthomas.com?subject=Guion%20claim%3A%20Three%20small%20loops%20after%20the%20machine-code%20work">rmichael@rmichaelthomas.com</a></dd></div>
+</dl>
+<div class="v-dev"><table class="claim-table"><tbody><tr><th scope="row">1,000,000 random draws, Guion / CPython</th><td>0.058 s / 0.282 s</td></tr><tr><th scope="row">20,000,000-step integer loop</th><td>0.165 s / 1.593 s</td></tr><tr><th scope="row">200,000 appends, idiomatic Python</th><td>0.031 s / 0.057 s</td></tr><tr><th scope="row">200,000 appends, same statement in Python</th><td>0.031 s / 4.901 s</td></tr><tr><th scope="row">Runs</th><td>7 alternating per lane, median</td></tr><tr><th scope="row">Host</th><td>macOS 27, Apple Silicon</td></tr><tr><th scope="row">Python</th><td>CPython 3.14.7</td></tr><tr><th scope="row">Artifact format</th><td>61</td></tr><tr><th scope="row">Commit</th><td>af41d43</td></tr></tbody></table></div>
+</article>
+<article class="claim" id="claim-short-source" data-claim="short-source" data-group="speed" data-case="04">
 <h3>Five short programs, start to finish</h3>
 <dl class="receipt">
 <div><dt>Claim</dt><dd>Five small programs were each run from source in 21 randomized pairs against Python. Guion took 0.182 to 0.236 of Python's time on every one.</dd></div>
@@ -1297,7 +1315,7 @@ hosts = [&quot;api.example.test&quot;]
 </dl>
 <div class="v-dev"><table class="claim-table"><tbody><tr><th scope="row">Tiny launch</th><td>0.204 (0.200–0.211)</td></tr><tr><th scope="row">Arithmetic</th><td>0.236 (0.231–0.253)</td></tr><tr><th scope="row">JSON file</th><td>0.182 (0.177–0.192)</td></tr><tr><th scope="row">Imported helper</th><td>0.234 (0.227–0.239)</td></tr><tr><th scope="row">SQLite and TOML</th><td>0.221 (0.213–0.245)</td></tr><tr><th scope="row">Pairs per task</th><td>21 randomized</td></tr></tbody></table></div>
 </article>
-<article class="claim" id="claim-nine-apps" data-claim="nine-apps" data-group="speed" data-case="04">
+<article class="claim" id="claim-nine-apps" data-claim="nine-apps" data-group="speed" data-case="05">
 <h3>Nine everyday applications</h3>
 <dl class="receipt">
 <div><dt>Claim</dt><dd>On nine ordinary applications, timed in seven randomized pairs each, Guion's median was lower than Python's every time. The ratios run from 0.137 to 0.845.</dd></div>
@@ -1308,7 +1326,7 @@ hosts = [&quot;api.example.test&quot;]
 </dl>
 <div class="v-dev"><table class="claim-table"><tbody><tr><th scope="row">SLA report</th><td>15.5 ms vs 102.8 ms · 0.150 (0.142–0.153)</td></tr><tr><th scope="row">JSONL summary</th><td>15.2 ms vs 102.2 ms · 0.152 (0.144–0.157)</td></tr><tr><th scope="row">Release notes</th><td>21.6 ms vs 105.1 ms · 0.211 (0.197–0.216)</td></tr><tr><th scope="row">Calendar conflicts</th><td>252.7 ms vs 372.7 ms · 0.676 (0.660–0.678)</td></tr><tr><th scope="row">Webhook replay</th><td>143.1 ms vs 825.7 ms · 0.173 (0.169–0.180)</td></tr><tr><th scope="row">Service health</th><td>529.8 ms vs 630.6 ms · 0.845 (0.837–0.854)</td></tr><tr><th scope="row">Config migrator</th><td>13.6 ms vs 97.3 ms · 0.137 (0.130–0.151)</td></tr><tr><th scope="row">Document index</th><td>54.0 ms vs 295.8 ms · 0.183 (0.182–0.193)</td></tr><tr><th scope="row">Lockfile auditor</th><td>18.4 ms vs 95.6 ms · 0.192 (0.162–0.202)</td></tr></tbody></table></div>
 </article>
-<article class="claim" id="claim-lockfile" data-claim="lockfile" data-group="speed" data-case="05">
+<article class="claim" id="claim-lockfile" data-claim="lockfile" data-group="speed" data-case="06">
 <h3>A lockfile auditor, up to 16,384 packages</h3>
 <dl class="receipt">
 <div><dt>Claim</dt><dd>Auditing 16,384 packages took Guion 171.82 ms and 40.92 MiB. Python took 179.87 ms and 47.13 MiB. Output was exact through 32,768 diagnostics.</dd></div>
@@ -1319,7 +1337,7 @@ hosts = [&quot;api.example.test&quot;]
 </dl>
 <div class="v-dev"><table class="claim-table"><tbody><tr><th scope="row">16,384 packages, Guion / Python</th><td>171.82 ms / 179.87 ms</td></tr><tr><th scope="row">Ratio (95% interval)</th><td>0.948× (0.942–0.975)</td></tr><tr><th scope="row">Peak RSS, Guion / Python</th><td>40.92 / 47.13 MiB</td></tr><tr><th scope="row">8,192 packages</th><td>95.29 ms vs 137.88 ms · 0.692× (0.676–0.700)</td></tr><tr><th scope="row">4,096 packages</th><td>56.35 ms vs 117.45 ms · 0.479× (0.469–0.490)</td></tr><tr><th scope="row">Frozen acceptance cases</th><td>17/17 in Guion and 17/17 in Python</td></tr></tbody></table></div>
 </article>
-<article class="claim" id="claim-conformance" data-claim="conformance" data-group="behaviour" data-case="06">
+<article class="claim" id="claim-conformance" data-claim="conformance" data-group="behaviour" data-case="07">
 <h3>Does it behave the same as Python?</h3>
 <dl class="receipt">
 <div><dt>Claim</dt><dd>On the frozen application suite, Guion passed 127 of 127 cases and the independent Python version passed 127 of 127.</dd></div>
@@ -1330,7 +1348,7 @@ hosts = [&quot;api.example.test&quot;]
 </dl>
 <div class="v-dev"><table class="claim-table"><tbody><tr><th scope="row">Cases, Guion</th><td>127/127</td></tr><tr><th scope="row">Cases, Python</th><td>127/127</td></tr><tr><th scope="row">Commit</th><td>6b5e5aba</td></tr><tr><th scope="row">Artifact format</th><td>44</td></tr><tr><th scope="row">Host</th><td>macOS ARM64</td></tr></tbody></table></div>
 </article>
-<article class="claim" id="claim-concurrency-cancel" data-claim="concurrency-cancel" data-group="behaviour" data-case="07">
+<article class="claim" id="claim-concurrency-cancel" data-claim="concurrency-cancel" data-group="behaviour" data-case="08">
 <h3>A failing worker cancels its siblings</h3>
 <dl class="receipt">
 <div><dt>Claim</dt><dd>When one parallel worker fails, a sibling still waiting on an HTTP response is interrupted and its connection is closed. The original failure is the one reported.</dd></div>
@@ -1341,7 +1359,7 @@ hosts = [&quot;api.example.test&quot;]
 </dl>
 <div class="v-dev"><table class="claim-table"><tbody><tr><th scope="row">Focused test</th><td>passed 1/1</td></tr><tr><th scope="row">Failing input index</th><td>1</td></tr><tr><th scope="row">Error code</th><td>R_ASSERTION</td></tr><tr><th scope="row">Network contacted</th><td>none (loopback fixture)</td></tr><tr><th scope="row">Calendar case</th><td>6/6 checks, at most two requests in flight</td></tr><tr><th scope="row">Service-health cases</th><td>5/5 and 5/5</td></tr><tr><th scope="row">Agent examples</th><td>26/26</td></tr></tbody></table><pre class="claim-command"><code>cargo test --locked --offline --jobs 2 -p guion-runtime --test http parallel_worker_failure_cancels_in_flight_http_sibling_and_closes_socket -- --exact</code></pre></div>
 </article>
-<article class="claim" id="claim-targets" data-claim="targets" data-group="reach" data-case="08">
+<article class="claim" id="claim-targets" data-claim="targets" data-group="reach" data-case="09">
 <h3>Where it has been tested</h3>
 <dl class="receipt">
 <div><dt>Claim</dt><dd>An earlier cohort passed on macOS ARM64 and Debian 12 GNU/Linux on ARM64 and x86_64, all with glibc: 54 of 54 application reports. The latest speed gate ran on Linux on x86_64 and ARM64.</dd></div>
@@ -1463,6 +1481,7 @@ hosts = [&quot;api.example.test&quot;]
 <li><time datetime="2026-10-25">25 Oct 2026</time><h3>It became Guion.</h3><p class="v-plain">The implementation and its tools were renamed. The earlier results stay on file under their original name.</p><p class="v-dev">Commit <code>6a4fab1</code>, “rename Veritas product surfaces to Guion.” Veritas-era results are preserved; selected legacy manifests and files remain readable.</p></li>
 <li><time datetime="2026-10-27">27 Oct 2026</time><h3>The application checkpoint.</h3><p class="v-plain">Most results on this page come from it, including the ones where Guion is still behind. It is a checkpoint, not a finish line.</p><p class="v-dev">Build at commit <code>6b5e5aba</code>, artifact format 44, macOS ARM64. Summary in <code>docs/status.md</code>.</p></li>
 <li><time datetime="2026-11-03">3 Nov 2026</time><h3>The server speed gate.</h3><p class="v-plain">On two kinds of server CPU, Guion took less time than Python on every text, JSON Lines and CSV run, at both sizes. A week earlier it was several times slower on the same kind of work.</p><p class="v-dev">Build <code>1746d10</code>, artifact format 51, Linux x86_64 and ARM64. Report in <code>evaluation/completion/results/real-task-sprint/2026-11-03-server-speed-gate.md</code>.</p></li>
+<li><time datetime="2026-11-04">4 Nov 2026</time><h3>A package registry, and more machine code.</h3><p class="v-plain">Libraries can now be published to and installed from a package registry whose history is signed, and more of a program runs as machine code. Nothing has been published to the registry yet, and the preview build does not include it.</p><p class="v-dev">Pull request #35, artifact format 61, the registry Worker deployed with its signing key. Report in <code>evaluation/completion/results/2026-11-04-follow-ups-report.md</code>.</p></li>
 </ol>
 </div>
 </section>
@@ -1486,9 +1505,9 @@ hosts = [&quot;api.example.test&quot;]
 <div class="footer-about">
 <p class="smallcaps">Good to know</p>
 <p>Guion is MIT licensed. Third-party notices are kept in the project repository. To say a claim is wrong, write to <a href="mailto:rmichael@rmichaelthomas.com">rmichael@rmichaelthomas.com</a>.</p>
-<p class="v-plain">This page is about 80 KB of HTML and 60 KB of styles, with 9.9 KB of JavaScript and 0 requests to anyone else. The 1.6 MB playground loads only when you press Run.</p>
+<p class="v-plain">This page is about 90 KB of HTML and 60 KB of styles, with 9.9 KB of JavaScript and 0 requests to anyone else. The 1.6 MB playground loads only when you press Run.</p>
 <table class="v-dev spec-table"><caption>Page weight</caption><tbody>
-<tr><th scope="row">HTML</th><td>80 KB</td></tr>
+<tr><th scope="row">HTML</th><td>90 KB</td></tr>
 <tr><th scope="row">CSS</th><td>60 KB</td></tr>
 <tr><th scope="row">JavaScript</th><td>9.9 KB (the playground loader; inert until Run)</td></tr>
 <tr><th scope="row">Wasm</th><td>1.6 MB, fetched on first Run</td></tr>

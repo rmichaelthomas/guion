@@ -35,15 +35,22 @@ Date: 2026-11-04. Branch `feat/follow-ups`, artifact format 61. Each open item f
 - A CLI test relied on the instruction limit to stop an infinite loop; with no CLI default it ran forever. It now raises a deterministic `R_DIV_ZERO`.
 - The registry end-to-end tests each start `wrangler dev`; run in parallel on a busy machine they could miss the start-up wait. They now take turns.
 
-## Measurements (macOS ARM64, best of three warm runs)
+## Measurements (macOS ARM64, release build of main)
 
-| Benchmark | Before | After | CPython 3 |
-|---|---|---|---|
-| 1,000,000 iterations of `random_next_float` + `random_next_range` | 5.57 s | 0.06 s | 0.28 s |
-| 20,000,000-iteration integer loop in `fn main() -> Unit` | 0.61 s | 0.08 s | 1.24 s |
-| 200,000 chained appends (`text + int_to_text(i) + ","`, 1.29 MB) | fails with `R_ALLOCATION_LIMIT` at about 60 KB | 0.03 s | 5.29 s |
+The programs and the runner are in [`2026-11-04-follow-ups-benchmarks/`](2026-11-04-follow-ups-benchmarks/); `python3 run.py PATH_TO_GUION 7` reproduces the table. CPython 3.14.7, 7 alternating runs per lane, default limits for Guion, median with the minimum and maximum in parentheses. No confidence intervals were computed.
 
-All three run with default limits. CPython uses `random.Random(42)` with `random()` and `randrange(0, 6)`. The random benchmark's `main` and the three library functions it calls run as machine code with no deoptimizations; before nested records had a native layout, `main` stayed in the VM and the run took about 1.1 s. Timings with and without the source cache are the same.
+| Benchmark | Before | Guion | CPython 3.14.7 | CPython, idiomatic form |
+|---|---|---|---|---|
+| 1,000,000 iterations of `random_next_float` + `random_next_range` | 5.57 s | 0.058 s (0.058–0.059) | 0.282 s (0.278–0.294) | same form |
+| 20,000,000-iteration integer loop in `fn main() -> Unit` | 0.61 s | 0.165 s (0.162–0.170) | 1.593 s (1.485–1.909) | same form |
+| 200,000 chained appends (`s = s + int_to_text(i) + ","`, 1.29 MB) | fails with `R_ALLOCATION_LIMIT` at about 60 KB | 0.031 s (0.030–0.031) | 4.901 s (4.518–5.118) | 0.057 s (0.053–0.060) |
+
+What the table does and does not show:
+
+- The "Before" column is from the earlier build and the earlier version of the integer-loop program; the loop program in the benchmarks folder is a different loop (it adds a modulo), so only its Guion and CPython columns are comparable.
+- In the append lane, the CPython column runs the same statement as the Guion program. In CPython `s = s + a + b` copies `s` on every pass, so it is quadratic. Python programmers write this with `"".join` or a list of parts, which is the last column; against that form Guion is about 1.8× faster, not 150×.
+- The random lane compares speed only. Guion uses SplitMix64 and CPython uses the Mersenne Twister, so the two draw different numbers; the other two lanes were checked for identical output before timing.
+- All three are small synthetic loops on one Apple Silicon Mac. They are not a statement about other programs, other machines or other Python versions. The random benchmark's `main` and the three library functions it calls run as machine code with no deoptimizations; before nested records had a native layout, `main` stayed in the VM and the run took about 1.1 s. Timings with and without the source cache are the same.
 
 ## Verification
 

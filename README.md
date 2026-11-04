@@ -125,7 +125,7 @@ Earlier tests on a Mac found Guion 2.7× faster on the Richards benchmark and fa
 
 Python is mature and widely used. Here is where it's still ahead of Guion today:
 
-- **Libraries and packages.** Guion ships 17 standard-library modules, including JSON, CSV, TOML, SQLite, HTTP, files, text and time, plus a package manager. It doesn't have a public package registry yet.
+- **Libraries and packages.** Guion ships 27 standard-library modules, including JSON, CSV, TOML, SQLite, HTTP, files, text, time, random and regex, plus a package manager and a package registry with a signed log. Nothing has been published to the registry yet.
 - **Arrays and data science.** Guion has no native array type yet, so NumPy and pandas have no Guion counterpart.
 - **A stable release.** The current build is a Linux preview, with no macOS package and no stability promise yet.
 

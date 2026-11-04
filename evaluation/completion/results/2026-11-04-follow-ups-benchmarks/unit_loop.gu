@@ -1,0 +1,7 @@
+fn main() -> Unit:
+    var i = 0
+    var acc = 0
+    while i < 20000000:
+        set acc = (acc + i * 3) % 1000003
+        set i = i + 1
+    print(acc)

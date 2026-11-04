@@ -154,6 +154,80 @@
     "group": "speed"
   },
   {
+    "id": "machine-code-loops",
+    "title": "Three small loops after the machine-code work",
+    "plain": {
+      "say": "On three small loops, Guion took 0.058 s for 1,000,000 random draws against CPython's 0.282 s, 0.165 s for a 20,000,000-step integer loop against 1.593 s, and 0.031 s for 200,000 text appends against 0.057 s for the way Python programmers normally write that loop.",
+      "holdsWhen": "One Apple Silicon Mac, a release build of main at artifact format 61, against CPython 3.14.7, with 7 alternating runs per lane. The integer loop and the appends were checked for identical output before timing.",
+      "doesntTell": "Anything about real programs. These are synthetic loops, there are no confidence intervals, and the random lane compares speed only because the two generators draw different numbers. The same append statement written the slow way in Python took 4.901 s; that is Python's copy-on-every-pass pattern, not its normal style, so it is not the headline. Other machines, Linux and other Python versions were not measured."
+    },
+    "dev": {
+      "rows": [
+        [
+          "1,000,000 random draws, Guion / CPython",
+          "0.058 s / 0.282 s"
+        ],
+        [
+          "20,000,000-step integer loop",
+          "0.165 s / 1.593 s"
+        ],
+        [
+          "200,000 appends, idiomatic Python",
+          "0.031 s / 0.057 s"
+        ],
+        [
+          "200,000 appends, same statement in Python",
+          "0.031 s / 4.901 s"
+        ],
+        [
+          "Runs",
+          "7 alternating per lane, median"
+        ],
+        [
+          "Host",
+          "macOS 27, Apple Silicon"
+        ],
+        [
+          "Python",
+          "CPython 3.14.7"
+        ],
+        [
+          "Artifact format",
+          "61"
+        ],
+        [
+          "Commit",
+          "af41d43"
+        ]
+      ]
+    },
+    "figures": [
+      "0.058 s",
+      "0.282 s",
+      "0.165 s",
+      "1.593 s",
+      "0.031 s",
+      "0.057 s",
+      "4.901 s"
+    ],
+    "sources": [
+      {
+        "path": "evaluation/completion/results/2026-11-04-follow-ups-report.md",
+        "needles": [
+          "CPython 3.14.7, 7 alternating runs per lane",
+          "No confidence intervals were computed",
+          "the two draw different numbers",
+          "Python programmers write this with `\"\".join`"
+        ]
+      }
+    ],
+    "evidence": [
+      "evaluation/completion/results/2026-11-04-follow-ups-report.md",
+      "evaluation/completion/results/2026-11-04-follow-ups-benchmarks/run.py"
+    ],
+    "group": "speed"
+  },
+  {
     "id": "short-source",
     "title": "Five short programs, start to finish",
     "plain": {
