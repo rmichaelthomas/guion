@@ -17,7 +17,7 @@ step() { # name command...
   local log
   log=$(mktemp)
   if "$@" >"$log" 2>&1; then
-    record "$name" PASS "$(grep -E '^test result' "$log" | tail -1 | cut -c1-80)"
+    record "$name" PASS "$(grep -E '^test result' "$log" | awk '{p+=$4; f+=$6} END {print p " passed, " f " failed"}')"
   else
     record "$name" FAIL "see $log"
   fi
