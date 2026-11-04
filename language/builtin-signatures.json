@@ -1449,6 +1449,23 @@
       "operation": "CodecPercentDecode"
     },
     {
+      "name": "native_sha1",
+      "parameters": [
+        "Bytes"
+      ],
+      "result": "Bytes",
+      "operation": "CodecSha1"
+    },
+    {
+      "name": "native_bytes_xor",
+      "parameters": [
+        "Bytes",
+        "Bytes"
+      ],
+      "result": "Bytes",
+      "operation": "CodecBytesXor"
+    },
+    {
       "name": "native_fs_exists",
       "parameters": [
         "Text"

@@ -124,9 +124,9 @@ mod shared_text_tests {
 mod tests {
     use super::Shared;
     use super::{
-        Artifact, BigInt, BuildMetadata, ExternalFunction, FileErrorValue, Function, Instruction,
-        JsonErrorValue, NetFunction, Op, ProcessFunction, RegexFunction, ResourceLimits,
-        SharedJson, Span, TlsFunction, Type, Value,
+        Artifact, BigInt, BuildMetadata, CodecFunction, ExternalFunction, FileErrorValue, Function,
+        Instruction, JsonErrorValue, NetFunction, Op, ProcessFunction, RegexFunction,
+        ResourceLimits, SharedJson, Span, TlsFunction, Type, Value,
     };
 
     #[test]
@@ -1392,6 +1392,46 @@ mod tests {
         assert_eq!(artifact.to_bytes().unwrap_err().code, "E_ARTIFACT_VERSION");
         let mut old = bytes;
         old[4..8].copy_from_slice(&57u32.to_le_bytes());
+        assert_eq!(
+            Artifact::from_bytes(&old).unwrap_err().code,
+            "E_ARTIFACT_VERSION"
+        );
+    }
+
+    #[test]
+    fn sha1_and_xor_instructions_are_gated_on_format_59() {
+        let mut artifact = Artifact {
+            format_version: Artifact::CURRENT_VERSION,
+            build_metadata: None,
+            compiled_source_sha256: None,
+            source_name: "x".into(),
+            sources: vec!["x".into()],
+            entry: "main".into(),
+            functions: vec![Function {
+                name: "main".into(),
+                parameters: vec![],
+                result: Type::Unit,
+                local_count: 0,
+                code: vec![
+                    Instruction {
+                        op: Op::Codec(CodecFunction::Sha1),
+                        span: Span::default(),
+                    },
+                    Instruction {
+                        op: Op::Return,
+                        span: Span::default(),
+                    },
+                ],
+            }],
+            externals: vec![],
+            records: vec![],
+        };
+        let bytes = artifact.to_bytes().unwrap();
+        assert_eq!(Artifact::from_bytes(&bytes).unwrap(), artifact);
+        artifact.format_version = 58;
+        assert_eq!(artifact.to_bytes().unwrap_err().code, "E_ARTIFACT_VERSION");
+        let mut old = bytes;
+        old[4..8].copy_from_slice(&58u32.to_le_bytes());
         assert_eq!(
             Artifact::from_bytes(&old).unwrap_err().code,
             "E_ARTIFACT_VERSION"
@@ -3147,10 +3187,14 @@ pub enum CodecFunction {
     TextFromBytesLossy,
     PercentEncode,
     PercentDecode,
+    /// SHA-1 digest (format 59); needed by the WebSocket handshake, not for new security uses.
+    Sha1,
+    /// XOR of a byte string with a repeating key (format 59); used for WebSocket masking.
+    BytesXor,
 }
 
 impl CodecFunction {
-    const ALL: [CodecFunction; 12] = [
+    const ALL: [CodecFunction; 14] = [
         CodecFunction::Base64Encode,
         CodecFunction::Base64UrlEncode,
         CodecFunction::Base64Decode,
@@ -3163,6 +3207,8 @@ impl CodecFunction {
         CodecFunction::TextFromBytesLossy,
         CodecFunction::PercentEncode,
         CodecFunction::PercentDecode,
+        CodecFunction::Sha1,
+        CodecFunction::BytesXor,
     ];
 
     pub fn code(self) -> u8 {
@@ -3191,6 +3237,8 @@ impl CodecFunction {
             CodecFunction::TextFromBytesLossy => "CodecTextFromBytesLossy",
             CodecFunction::PercentEncode => "CodecPercentEncode",
             CodecFunction::PercentDecode => "CodecPercentDecode",
+            CodecFunction::Sha1 => "CodecSha1",
+            CodecFunction::BytesXor => "CodecBytesXor",
         }
     }
 
@@ -3205,6 +3253,7 @@ impl CodecFunction {
     pub fn arity(self) -> usize {
         match self {
             CodecFunction::BytesSlice => 3,
+            CodecFunction::BytesXor => 2,
             _ => 1,
         }
     }
@@ -3806,7 +3855,7 @@ pub struct Artifact {
 }
 
 impl Artifact {
-    pub const CURRENT_VERSION: u32 = 58;
+    pub const CURRENT_VERSION: u32 = 59;
     pub fn entry(&self) -> &str {
         &self.entry
     }
@@ -4070,6 +4119,12 @@ impl Artifact {
             return Err(ArtifactError::new(
                 "E_ARTIFACT_VERSION",
                 "socket instructions require artifact format 57",
+            ));
+        }
+        if self.format_version < 59 && artifact_uses_sha1_or_xor(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "SHA-1 and byte XOR instructions require artifact format 59",
             ));
         }
         if self.format_version < 58 && artifact_uses_tls(self) {
@@ -4791,6 +4846,12 @@ impl Artifact {
                     }
                     182 if format_version >= 53 => {
                         let code = r.u8()?;
+                        if code >= 12 && format_version < 59 {
+                            return Err(ArtifactError::new(
+                                "E_ARTIFACT_VERSION",
+                                "SHA-1 and byte XOR instructions require artifact format 59",
+                            ));
+                        }
                         Op::Codec(CodecFunction::from_code(code).ok_or_else(|| {
                             ArtifactError::new(
                                 "E_ARTIFACT_ENCODING",
@@ -5400,6 +5461,17 @@ fn artifact_uses_math_and_conversions(artifact: &Artifact) -> bool {
             matches!(
                 instruction.op,
                 Op::Math(_) | Op::IntToFloat | Op::FloatToInt | Op::NumberToText | Op::RandomMix
+            )
+        })
+    })
+}
+
+fn artifact_uses_sha1_or_xor(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function.code.iter().any(|instruction| {
+            matches!(
+                instruction.op,
+                Op::Codec(CodecFunction::Sha1 | CodecFunction::BytesXor)
             )
         })
     })

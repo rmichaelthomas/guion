@@ -377,6 +377,10 @@ pub fn builtin_catalog_signature(name: Text) -> Text:
             return "1:CodecPercentEncode:Text:Text"
         if name == "native_percent_decode":
             return "1:CodecPercentDecode:Option[Text]:Text"
+        if name == "native_sha1":
+            return "1:CodecSha1:Bytes:Bytes"
+        if name == "native_bytes_xor":
+            return "2:CodecBytesXor:Bytes:Bytes;Bytes"
         if name == "native_fs_exists":
             return "1:FsOpExists:Result[Bool, FileError]:Text"
         if name == "native_fs_kind":

@@ -3,3 +3,9 @@ pub fn crypto_hmac_sha256(key: Bytes, body: Bytes) -> Bytes:
 
 pub fn crypto_verify_hmac_sha256(key: Bytes, body: Bytes, expected: Bytes) -> Bool:
     return native_crypto_verify_hmac_sha256(key, body, expected)
+
+pub fn crypto_sha1(data: Bytes) -> Bytes:
+    return native_sha1(data)
+
+pub fn bytes_xor_key(data: Bytes, key: Bytes) -> Bytes:
+    return native_bytes_xor(data, key)
