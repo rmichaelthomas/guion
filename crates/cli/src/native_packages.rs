@@ -47,6 +47,7 @@ struct LibraryManifest {
     exports: Vec<String>,
     dependencies: BTreeMap<String, PackageDependency>,
     declared_sha256: Option<String>,
+    capabilities: crate::package_capabilities::Capabilities,
 }
 
 #[derive(Clone, Debug)]
@@ -135,6 +136,23 @@ pub fn check_library_surface(root: &Path) -> Result<Option<String>, String> {
         manifest.version,
         manifest.exports.len()
     )))
+}
+
+/// A library's exported modules and declared capabilities, or `None` for an ordinary project.
+pub fn library_declaration(
+    root: &Path,
+) -> Result<Option<(Vec<String>, crate::package_capabilities::Capabilities)>, String> {
+    let Ok(text) = fs::read_to_string(project_manifest_path(root)) else {
+        return Ok(None);
+    };
+    let Ok(value) = toml::from_str::<toml::Value>(&text) else {
+        return Ok(None);
+    };
+    if value.get("package").is_none() {
+        return Ok(None);
+    }
+    let manifest = read_library_manifest(root, None)?;
+    Ok(Some((manifest.exports, manifest.capabilities)))
 }
 
 pub fn package_library(source: &Path, output: &Path) -> Result<String, String> {
@@ -926,7 +944,7 @@ fn add_path_internal(
     ))
 }
 
-pub fn update_paths(project: &Path) -> Result<String, String> {
+pub fn update_paths(project: &Path, approve_capabilities: bool) -> Result<String, String> {
     let project = fs::canonicalize(project)
         .map_err(|error| format!("cannot resolve project {}: {error}", project.display()))?;
     let manifest_path = project_manifest_path(&project);
@@ -1013,6 +1031,9 @@ pub fn update_paths(project: &Path) -> Result<String, String> {
             };
             updated.push(result);
         }
+        if !approve_capabilities {
+            refuse_widened_capabilities(old_lock.as_deref(), &project)?;
+        }
         Ok(updated)
     })();
     let updated = match update_result {
@@ -1044,6 +1065,61 @@ pub fn update_paths(project: &Path) -> Result<String, String> {
         updated.len(),
         updated.join(", ")
     ))
+}
+
+/// Capabilities a package declares in a lock, keyed by package name.
+fn locked_capabilities(
+    lock_text: &str,
+) -> BTreeMap<String, crate::package_capabilities::Capabilities> {
+    let Ok(value) = toml::from_str::<toml::Value>(lock_text) else {
+        return BTreeMap::new();
+    };
+    let Some(native) = value.get("native").and_then(toml::Value::as_table) else {
+        return BTreeMap::new();
+    };
+    native
+        .iter()
+        .filter_map(|(name, package)| {
+            let capabilities =
+                crate::package_capabilities::Capabilities::from_toml(package.get("capabilities"))
+                    .ok()?;
+            package.get("version")?;
+            Some((name.clone(), capabilities))
+        })
+        .collect()
+}
+
+/// An update that gives a package more access than the lock recorded stops here, naming what
+/// changed. `--approve-capabilities` is the explicit approval.
+fn refuse_widened_capabilities(old_lock: Option<&[u8]>, project: &Path) -> Result<(), String> {
+    let Some(old_lock) = old_lock else {
+        return Ok(());
+    };
+    let before = locked_capabilities(&String::from_utf8_lossy(old_lock));
+    let after_text = fs::read_to_string(project_lock_path(project)).unwrap_or_default();
+    let after = locked_capabilities(&after_text);
+    let mut problems = Vec::new();
+    for (name, capabilities) in &after {
+        let earlier = before.get(name).cloned().unwrap_or_default();
+        if !before.contains_key(name) {
+            continue;
+        }
+        let added = capabilities.widened_beyond(&earlier);
+        if !added.is_empty() {
+            problems.push(format!(
+                "  - `{name}` now also requests: {}",
+                added.join(", ")
+            ));
+        }
+    }
+    if problems.is_empty() {
+        Ok(())
+    } else {
+        Err(format!(
+            "this update widens package capabilities:\n{}\nreview the change, then rerun with `--approve-capabilities`",
+            problems.join("\n")
+        ))
+    }
 }
 
 pub fn load_locked_roots(project: &Path) -> Result<BTreeMap<String, PathBuf>, String> {
@@ -1337,6 +1413,9 @@ fn read_library_manifest(
             );
         }
     }
+    let capabilities =
+        crate::package_capabilities::Capabilities::from_toml(value.get("capabilities"))
+            .map_err(|error| format!("{}: {error}", path.display()))?;
     Ok(LibraryManifest {
         name,
         version,
@@ -1344,6 +1423,7 @@ fn read_library_manifest(
         exports,
         dependencies,
         declared_sha256,
+        capabilities,
     })
 }
 
@@ -1379,6 +1459,9 @@ fn locked_library_value(manifest: &LibraryManifest, digest: &str, source: &Path)
         })
         .collect();
     value.insert("dependencies".into(), toml::Value::Table(dependencies));
+    if !manifest.capabilities.is_empty() {
+        value.insert("capabilities".into(), manifest.capabilities.to_toml());
+    }
     value.insert("source_kind".into(), toml::Value::String("path".into()));
     value.insert(
         "source".into(),

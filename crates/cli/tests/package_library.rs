@@ -87,3 +87,115 @@ fn new_lib_enforces_the_name_rules() {
     }
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+fn write_library(root: &Path, capabilities: &str, body: &str) {
+    std::fs::create_dir_all(root.join("src")).unwrap();
+    std::fs::write(
+        root.join("guion.toml"),
+        format!("[package]\nname = \"fetcher\"\nversion = \"1.0.0\"\nentry = \"src/lib.gu\"\nexports = [\"src/lib.gu\"]\n{capabilities}"),
+    )
+    .unwrap();
+    std::fs::write(root.join("src/lib.gu"), body).unwrap();
+    std::fs::write(
+        root.join("tests.gu"),
+        "import \"src/lib.gu\"\n\nfn main() -> Int:\n    return 0\n",
+    )
+    .unwrap();
+}
+
+const READS_A_FILE: &str = "pub fn load(path: Text) -> Bool:\n    return is_ok(read_text(path))\n";
+
+#[test]
+fn undeclared_capability_use_fails_check_and_declaring_it_passes() {
+    let dir = scratch("lib-caps");
+    let library = dir.join("fetcher");
+    write_library(&library, "", READS_A_FILE);
+    let undeclared = guion(&library, &["check", "tests.gu"]);
+    assert!(!undeclared.status.success());
+    assert!(
+        text(&undeclared).contains("filesystem.read")
+            && text(&undeclared).contains("files = [\"read\"]"),
+        "{}",
+        text(&undeclared)
+    );
+
+    write_library(
+        &library,
+        "\n[capabilities]\nfiles = [\"read\"]\n",
+        READS_A_FILE,
+    );
+    let declared = guion(&library, &["check", "tests.gu"]);
+    assert!(declared.status.success(), "{}", text(&declared));
+
+    write_library(
+        &library,
+        "\n[capabilities]\nfiles = [\"read\"]\nclock = true\n",
+        READS_A_FILE,
+    );
+    let extra = guion(&library, &["check", "tests.gu"]);
+    assert!(extra.status.success(), "{}", text(&extra));
+    assert!(
+        text(&extra).contains("never uses `clock.read`"),
+        "{}",
+        text(&extra)
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn an_update_that_widens_capabilities_needs_explicit_approval() {
+    let dir = scratch("lib-widen");
+    let library = dir.join("fetcher");
+    let project = dir.join("app");
+    write_library(
+        &library,
+        "\n[capabilities]\nfiles = [\"read\"]\n",
+        READS_A_FILE,
+    );
+    std::fs::create_dir_all(project.join("src")).unwrap();
+    std::fs::write(
+        project.join("guion.toml"),
+        "[project]\nname = \"app\"\nversion = \"0.1.0\"\nentry = \"src/main.gu\"\n",
+    )
+    .unwrap();
+    std::fs::write(
+        project.join("src/main.gu"),
+        "fn main() -> Int:\n    return 0\n",
+    )
+    .unwrap();
+    let added = guion(
+        &project,
+        &["add", "fetcher", "--path", library.to_str().unwrap()],
+    );
+    assert!(added.status.success(), "{}", text(&added));
+    let lock = std::fs::read_to_string(project.join("guion.lock")).unwrap();
+    assert!(lock.contains("capabilities"), "{lock}");
+
+    // A new library version asks for more.
+    write_library(
+        &library,
+        "\n[capabilities]\nfiles = [\"read\", \"write\"]\nprocesses = [\"git\"]\n",
+        READS_A_FILE,
+    );
+    let refused = guion(&project, &["update"]);
+    assert!(!refused.status.success());
+    let message = text(&refused);
+    assert!(
+        message.contains("widens package capabilities")
+            && message.contains("file access `write`")
+            && message.contains("command `git`")
+            && message.contains("--approve-capabilities"),
+        "{message}"
+    );
+    let still_locked = std::fs::read_to_string(project.join("guion.lock")).unwrap();
+    assert_eq!(
+        lock, still_locked,
+        "a refused update must leave the lock unchanged"
+    );
+
+    let approved = guion(&project, &["update", "--approve-capabilities"]);
+    assert!(approved.status.success(), "{}", text(&approved));
+    let widened = std::fs::read_to_string(project.join("guion.lock")).unwrap();
+    assert!(widened.contains("git"), "{widened}");
+    let _ = std::fs::remove_dir_all(&dir);
+}

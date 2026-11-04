@@ -12,6 +12,7 @@ mod compiler_driver;
 mod dependencies;
 mod native_dependencies;
 mod native_packages;
+mod package_capabilities;
 mod package_name;
 mod package_version;
 mod pool_alloc;
@@ -287,7 +288,14 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
     if command == "update" {
         let project = std::env::current_dir()
             .map_err(|error| format!("cannot inspect current directory: {error}"))?;
-        println!("{}", native_packages::update_paths(&project)?);
+        println!(
+            "{}",
+            native_packages::update_paths(
+                &project,
+                args.iter()
+                    .any(|argument| argument == "--approve-capabilities")
+            )?
+        );
         return Ok(ExitCode::SUCCESS);
     }
     if command == "package" {
@@ -692,6 +700,18 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
             if let Some(report) = native_packages::check_library_surface(&project_root)? {
                 if !json_check {
                     println!("{report}");
+                }
+                if let Some((exports, declared)) =
+                    native_packages::library_declaration(&project_root)?
+                {
+                    let used = library_used_effects(&path, &artifact, &project_root, &exports);
+                    let (errors, warnings) = declared.compare_with_effects(&used);
+                    for warning in &warnings {
+                        eprintln!("warning: {warning}");
+                    }
+                    if !errors.is_empty() {
+                        return Err(errors.join("\n"));
+                    }
                 }
             }
         }
@@ -2335,6 +2355,47 @@ fn display_type(ty: &guion_model::Type) -> String {
         Type::Option(item) => format!("Option[{}]", display_type(item)),
         Type::Result(ok, err) => format!("Result[{}, {}]", display_type(ok), display_type(err)),
     }
+}
+
+/// Effects (including those of callees) found in the library's own exported modules. A function
+/// belongs to the library when it is declared in an exported file; modules whose names clash get
+/// an `@module/N/` prefix that points back at their source.
+fn library_used_effects(
+    source: &str,
+    artifact: &Artifact,
+    project_root: &Path,
+    exports: &[String],
+) -> BTreeSet<String> {
+    let inspected = inspection_report(source, artifact, project_root, false);
+    let declared: BTreeSet<String> = exports
+        .iter()
+        .filter_map(|export| fs::read_to_string(project_root.join(export)).ok())
+        .flat_map(|text| function_declarations(&text))
+        .map(|(name, _, _)| name)
+        .collect();
+    let mut used = BTreeSet::new();
+    for function in &artifact.functions {
+        let belongs = match function.name.strip_prefix("@module/") {
+            Some(rest) => {
+                let (module_id, name) = rest.split_once('/').unwrap_or(("", rest));
+                module_id
+                    .parse::<usize>()
+                    .ok()
+                    .and_then(|index| artifact.sources.get(index))
+                    .is_some_and(|identity| exports.iter().any(|export| export == identity))
+                    && declared.contains(name)
+            }
+            None => declared.contains(function.name.as_str()),
+        };
+        if !belongs {
+            continue;
+        }
+        if let Some(effects) = inspected["functions"][function.name.as_str()]["effects"].as_array()
+        {
+            used.extend(effects.iter().filter_map(|e| e.as_str().map(str::to_owned)));
+        }
+    }
+    used
 }
 
 fn inspection_report(
