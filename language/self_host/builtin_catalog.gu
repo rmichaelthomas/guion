@@ -415,6 +415,12 @@ pub fn builtin_catalog_signature(name: Text) -> Text:
             return "2:RegexSplit:Result[List[Text], Text]:Text;Text"
         if name == "native_regex_escape":
             return "1:RegexEscape:Text:Text"
+        if name == "native_process_run":
+            return "3:ProcessRun:Result[List[Text], List[Text]]:Text;List[Text];Text"
+        if name == "native_process_pid":
+            return "0:ProcessPid:Int:"
+        if name == "native_process_signal_poll":
+            return "0:ProcessSignalPoll:Text:"
     return ""
 
 fn builtin_catalog_part(value: Text, delimiter: Text, wanted: Int) -> Text:

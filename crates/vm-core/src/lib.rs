@@ -4746,6 +4746,7 @@ pub fn opcode_profile_name(op: &Op) -> &'static str {
         Op::Codec(function) => function.op_name(),
         Op::Fs(function) => function.op_name(),
         Op::Regex(function) => function.op_name(),
+        Op::Process(function) => function.op_name(),
         Op::IntToFloat => "IntToFloat",
         Op::FloatToInt => "FloatToInt",
         Op::NumberToText => "NumberToText",
@@ -6732,6 +6733,26 @@ fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result
                     }
                 }
                 state.stack.push(result);
+            }
+            Op::Process(function) => {
+                let texts = Type::List(Box::new(Type::Text));
+                match function {
+                    guion_model::ProcessFunction::Run => {
+                        let stdin = pop_type(&mut state.stack, pc)?;
+                        let arguments = pop_type(&mut state.stack, pc)?;
+                        let command = pop_type(&mut state.stack, pc)?;
+                        if stdin != Type::Text || arguments != texts || command != Type::Text {
+                            return Err(format!(
+                                "process_run requires Text, List[Text], Text operands at instruction {pc}"
+                            ));
+                        }
+                        state
+                            .stack
+                            .push(Type::Result(Box::new(texts.clone()), Box::new(texts)));
+                    }
+                    guion_model::ProcessFunction::Pid => state.stack.push(Type::Int),
+                    guion_model::ProcessFunction::SignalPoll => state.stack.push(Type::Text),
+                }
             }
             Op::Regex(function) => {
                 for _ in 0..function.arity() {

@@ -1609,6 +1609,28 @@
       ],
       "result": "Text",
       "operation": "RegexEscape"
+    },
+    {
+      "name": "native_process_run",
+      "parameters": [
+        "Text",
+        "List[Text]",
+        "Text"
+      ],
+      "result": "Result[List[Text], List[Text]]",
+      "operation": "ProcessRun"
+    },
+    {
+      "name": "native_process_pid",
+      "parameters": [],
+      "result": "Int",
+      "operation": "ProcessPid"
+    },
+    {
+      "name": "native_process_signal_poll",
+      "parameters": [],
+      "result": "Text",
+      "operation": "ProcessSignalPoll"
     }
   ]
 }

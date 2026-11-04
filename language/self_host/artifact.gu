@@ -774,6 +774,15 @@ fn ab_regex_code(name: Text) -> Int:
         return 6
     return -1
 
+fn ab_process_code(name: Text) -> Int:
+    if name == "ProcessRun":
+        return 0
+    if name == "ProcessPid":
+        return 1
+    if name == "ProcessSignalPoll":
+        return 2
+    return -1
+
 fn ab_instruction(instruction: Json, pc: Int, functions: Json, records: Json, externals: Json, labels: Json, source_id: Int) -> Bytes:
     let name = json_as_text(json_get(instruction, "op"))
     if name == "ConstInt" or name == "ConstBool" or name == "ConstText" or name == "ConstFloat64" or name == "ConstUnit" or name == "ConstValue":
@@ -790,6 +799,9 @@ fn ab_instruction(instruction: Json, pc: Int, functions: Json, records: Json, ex
     let regex_code = ab_regex_code(name)
     if regex_code >= 0:
         return ab_join([ab_instruction_span(instruction, pc, source_id), ab_u8(184), ab_u8(regex_code)])
+    let process_code = ab_process_code(name)
+    if process_code >= 0:
+        return ab_join([ab_instruction_span(instruction, pc, source_id), ab_u8(185), ab_u8(process_code)])
     let tag = ab_plain_opcode(name)
     if tag < 0:
         return ab_u8(255)
@@ -917,7 +929,7 @@ pub fn artifact_assemble(ir: Json) -> Bytes:
     let records = json_get(ir, "records")
     let externals = json_get(ir, "externals")
     let functions = json_get(ir, "functions")
-    var parts: List[Bytes] = [bytes_from_text("VRTA"), ab_u32(55), ab_string(source_name), ab_string(entry), ab_count(json_len(sources))]
+    var parts: List[Bytes] = [bytes_from_text("VRTA"), ab_u32(56), ab_string(source_name), ab_string(entry), ab_count(json_len(sources))]
     var cursor = 0
     while cursor < json_len(sources):
         set parts = list_push(parts, ab_string(json_as_text(json_index(sources, cursor))))

@@ -28,6 +28,7 @@ use std::{
 mod fs_ops;
 mod json_projection;
 mod native_backend;
+mod process_ops;
 #[cfg(feature = "python-interop")]
 pub mod python_bridge;
 pub mod stdlib_data;
@@ -2757,6 +2758,7 @@ pub enum EffectKind {
     PythonCall,
     EnvironmentRead,
     ClockRead,
+    ProcessSpawn,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -2809,6 +2811,10 @@ pub struct HostPolicy {
     pub max_http_request_bytes: usize,
     pub max_http_response_bytes: usize,
     pub max_http_redirects: usize,
+    /// Exact command names `process_run` may start; empty denies every command.
+    pub allowed_commands: HashSet<String>,
+    pub process_timeout: Duration,
+    pub max_process_output_bytes: usize,
 }
 impl Default for HostPolicy {
     fn default() -> Self {
@@ -2843,6 +2849,9 @@ impl Default for HostPolicy {
             max_http_request_bytes: 1024 * 1024,
             max_http_response_bytes: 16 * 1024 * 1024,
             max_http_redirects: 5,
+            allowed_commands: HashSet::new(),
+            process_timeout: Duration::from_secs(30),
+            max_process_output_bytes: 16 * 1024 * 1024,
         }
     }
 }
@@ -4976,6 +4985,77 @@ impl VmHost for Instance {
                     },
                 );
                 let value = outcome?;
+                charge_allocation(
+                    budget.as_ref(),
+                    guion_vm_core::cloned_value_allocation(&value),
+                    instruction.span,
+                )?;
+                push_stack!(value);
+            }
+            Op::Process(function) => {
+                let value = match function {
+                    guion_model::ProcessFunction::Run => {
+                        let stdin = match pop!() {
+                            Value::Text(text) => text.as_ref().to_owned(),
+                            _ => {
+                                return Err(RuntimeError::new(
+                                    "R_TYPE_INVALID",
+                                    "process_run standard input must be Text",
+                                    instruction.span,
+                                ))
+                            }
+                        };
+                        let arguments = match pop!() {
+                            Value::List(items) => {
+                                let mut arguments = Vec::with_capacity(items.len());
+                                for item in items.iter() {
+                                    let Value::Text(text) = item else {
+                                        return Err(RuntimeError::new(
+                                            "R_TYPE_INVALID",
+                                            "process_run arguments must be Text",
+                                            instruction.span,
+                                        ));
+                                    };
+                                    arguments.push(text.as_ref().to_owned());
+                                }
+                                arguments
+                            }
+                            _ => {
+                                return Err(RuntimeError::new(
+                                    "R_TYPE_INVALID",
+                                    "process_run arguments must be a list",
+                                    instruction.span,
+                                ))
+                            }
+                        };
+                        let command = match pop!() {
+                            Value::Text(text) => text.as_ref().to_owned(),
+                            _ => {
+                                return Err(RuntimeError::new(
+                                    "R_TYPE_INVALID",
+                                    "process_run command must be Text",
+                                    instruction.span,
+                                ))
+                            }
+                        };
+                        let effect = self.begin_effect(EffectKind::ProcessSpawn, command.as_str());
+                        let outcome = process_ops::run(&self.policy, &command, &arguments, &stdin);
+                        self.finish_effect(
+                            effect,
+                            match &outcome {
+                                Value::ResultErr(_) => EffectOutcome::ReturnedError,
+                                _ => EffectOutcome::Returned,
+                            },
+                        );
+                        outcome
+                    }
+                    guion_model::ProcessFunction::Pid => {
+                        Value::Int(BigInt::from_i64(i64::from(std::process::id())))
+                    }
+                    guion_model::ProcessFunction::SignalPoll => {
+                        Value::Text(SharedText::from(process_ops::signal_poll()))
+                    }
+                };
                 charge_allocation(
                     budget.as_ref(),
                     guion_vm_core::cloned_value_allocation(&value),

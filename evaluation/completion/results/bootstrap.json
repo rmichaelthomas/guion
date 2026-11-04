@@ -1,12 +1,12 @@
 {
   "artifact_identities": {
-    "artifact_schema": "sha256:30f50d9420f590611656440f5db9bd52e1c91aeee1fdcc83b167e6364f571286",
-    "compiler_seed": "sha256:7e5df777a1877814da2422eddcd55c1e01365877263bdb153072871323c0557c",
-    "compiler_seed_manifest": "sha256:491e86d0b74f787d0c3f94b51f9077ed6bd0a8ad72ceeb4c37be92f574b81e9a",
-    "runtime": "sha256:d30840bd40871dd17d48fd1ee3086aa72f7199b31d1dfd675aa0bd5f99e2f47d",
-    "stdlib": "sha256:5d63001a359a6c1ceb57890a68c99af043aec99ed86afa64c69a778d41a12094"
+    "artifact_schema": "sha256:8270580c412a7050788340c73d38294358b8bb6f07415137283924218eb1b570",
+    "compiler_seed": "sha256:acdae996eb9a6593d85169ff5bccefe31c106479acce0329b174d548337f5fb6",
+    "compiler_seed_manifest": "sha256:7626eb67e44ca9ec85f8628bac4e9b2c645e63466469c16457336346ff2b0fa0",
+    "runtime": "sha256:bd55a3ccedfbef9e8d10f54578636e771a2f683ab5fc09e822aee5cd572440f2",
+    "stdlib": "sha256:e8b726c782d54b69c06bb2d0157f637413392b4b8f256e4d666c4fb73c82083a"
   },
-  "changed_path_count": 19,
+  "changed_path_count": 20,
   "checks": [
     {
       "command": [
@@ -16,7 +16,7 @@
       ],
       "exit_status": 0,
       "id": "artifact-format-test-audit",
-      "output": "artifact-format equality assertions use guion_model::Artifact::CURRENT_VERSION (55)",
+      "output": "artifact-format equality assertions use guion_model::Artifact::CURRENT_VERSION (56)",
       "status": "passed"
     },
     {
@@ -33,7 +33,7 @@
       ],
       "exit_status": 0,
       "id": "self-host-compiler-parity",
-      "output": "\nrunning 1 test\ntest guion_source_compiler_compiles_itself_and_real_programs_with_parity has been running for over 60 seconds\ntest guion_source_compiler_compiles_itself_and_real_programs_with_parity ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 53 filtered out; finished in 263.39s\n\n\n   Compiling ring v0.17.14\n   Compiling guion-model v0.1.0 (/Users/rmichaelthomas/guion/crates/model)\n   Compiling guion-cli v0.1.0 (/Users/rmichaelthomas/guion/crates/cli)\n   Compiling guion-compiler v0.1.0 (/Users/rmichaelthomas/guion/crates/compiler)\n   Compiling guion-vm-core v0.1.0 (/Users/rmichaelthomas/guion/crates/vm-core)\n   Compiling guion-bootstrap v0.1.0 (/Users/rmichaelthomas/guion/crates/bootstrap)\n   Compiling rustls v0.23.43\n   Compiling rustls-webpki v0.103.15\n   Compiling tokio-rustls v0.26.4\n   Compiling hyper-rustls v0.27.9\n   Compiling reqwest v0.12.28\n   Compiling guion-runtime v0.1.0 (/Users/rmichaelthomas/guion/crates/runtime)\n    Finished `test` profile [optimized + debuginfo] target(s) in 21.81s\n     Running tests/cli.rs (target/debug/deps/cli-71d065786091ac7a)\n",
+      "output": "\nrunning 1 test\ntest guion_source_compiler_compiles_itself_and_real_programs_with_parity has been running for over 60 seconds\ntest guion_source_compiler_compiles_itself_and_real_programs_with_parity ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 53 filtered out; finished in 260.00s\n\n\n   Compiling ring v0.17.14\n   Compiling guion-model v0.1.0 (/Users/rmichaelthomas/guion/crates/model)\n   Compiling guion-cli v0.1.0 (/Users/rmichaelthomas/guion/crates/cli)\n   Compiling guion-vm-core v0.1.0 (/Users/rmichaelthomas/guion/crates/vm-core)\n   Compiling guion-compiler v0.1.0 (/Users/rmichaelthomas/guion/crates/compiler)\n   Compiling guion-bootstrap v0.1.0 (/Users/rmichaelthomas/guion/crates/bootstrap)\n   Compiling rustls v0.23.43\n   Compiling rustls-webpki v0.103.15\n   Compiling tokio-rustls v0.26.4\n   Compiling hyper-rustls v0.27.9\n   Compiling reqwest v0.12.28\n   Compiling guion-runtime v0.1.0 (/Users/rmichaelthomas/guion/crates/runtime)\n    Finished `test` profile [optimized + debuginfo] target(s) in 21.72s\n     Running tests/cli.rs (target/debug/deps/cli-71d065786091ac7a)\n",
       "status": "passed"
     },
     {
@@ -52,7 +52,7 @@
       ],
       "exit_status": 0,
       "id": "compiler-seed-regeneration",
-      "output": "wrote /Users/rmichaelthomas/guion/language/self_host/compiler.gub (1077934 bytes); source sha256 5f53ea73e03fc1063375fca5c145f3a8bfbe899d82641915ab8809708f46e115\n\n    Finished `dev` profile [optimized + debuginfo] target(s) in 0.08s\n     Running `target/debug/guion-stage0 seed .`\n",
+      "output": "wrote /Users/rmichaelthomas/guion/language/self_host/compiler.gub (1080775 bytes); source sha256 51360aee3a4c451aa23e1910311680efe7a29fd8f65fc07c7b39726d2a24990f\n\n    Finished `dev` profile [optimized + debuginfo] target(s) in 0.15s\n     Running `target/debug/guion-stage0 seed .`\n",
       "status": "passed"
     },
     {
@@ -68,7 +68,7 @@
       ],
       "exit_status": 0,
       "id": "compiler-stage-equality",
-      "output": "\nrunning 1 test\ntest compiler_stage_equality has been running for over 60 seconds\ntest compiler_stage_equality ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 183.83s\n\n\n   Compiling guion-cli v0.1.0 (/Users/rmichaelthomas/guion/crates/cli)\n    Finished `test` profile [optimized + debuginfo] target(s) in 0.64s\n     Running tests/bootstrap.rs (target/debug/deps/bootstrap-36816fc69d2fa745)\n",
+      "output": "\nrunning 1 test\ntest compiler_stage_equality has been running for over 60 seconds\ntest compiler_stage_equality ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 187.06s\n\n\n   Compiling guion-cli v0.1.0 (/Users/rmichaelthomas/guion/crates/cli)\n    Finished `test` profile [optimized + debuginfo] target(s) in 1.59s\n     Running tests/bootstrap.rs (target/debug/deps/bootstrap-36816fc69d2fa745)\n",
       "status": "passed"
     },
     {
@@ -84,7 +84,7 @@
       ],
       "exit_status": 0,
       "id": "default-cli-embedded-selfhost",
-      "output": "\nrunning 3 tests\ntest default_cli_compiles_without_external_compiler_tools ... ok\ntest default_cli_reports_rust_compiler_import_diagnostics ... ok\ntest default_cli_resolves_standard_modules_through_their_virtual_grant ... ok\n\ntest result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.44s\n\n\n   Compiling guion-cli v0.1.0 (/Users/rmichaelthomas/guion/crates/cli)\n    Finished `test` profile [optimized + debuginfo] target(s) in 0.50s\n     Running tests/compiler_driver.rs (target/debug/deps/compiler_driver-75b3aacb22c743ec)\n",
+      "output": "\nrunning 3 tests\ntest default_cli_reports_rust_compiler_import_diagnostics ... ok\ntest default_cli_compiles_without_external_compiler_tools ... ok\ntest default_cli_resolves_standard_modules_through_their_virtual_grant ... ok\n\ntest result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.37s\n\n\n   Compiling guion-cli v0.1.0 (/Users/rmichaelthomas/guion/crates/cli)\n    Finished `test` profile [optimized + debuginfo] target(s) in 0.99s\n     Running tests/compiler_driver.rs (target/debug/deps/compiler_driver-75b3aacb22c743ec)\n",
       "status": "passed"
     },
     {
@@ -117,14 +117,14 @@
   "required_targets": [
     "macos-aarch64"
   ],
-  "runtime_hash": "sha256:d30840bd40871dd17d48fd1ee3086aa72f7199b31d1dfd675aa0bd5f99e2f47d",
+  "runtime_hash": "sha256:bd55a3ccedfbef9e8d10f54578636e771a2f683ab5fc09e822aee5cd572440f2",
   "schema_version": 1,
-  "seed_hash": "sha256:7e5df777a1877814da2422eddcd55c1e01365877263bdb153072871323c0557c",
+  "seed_hash": "sha256:acdae996eb9a6593d85169ff5bccefe31c106479acce0329b174d548337f5fb6",
   "skipped_targets": [],
-  "source_revision": "ab46dcb2827cf63a613c606629b749ad5bed6ab0",
+  "source_revision": "484a6721f88749051d69cbbcd1b60ba3b641afc2",
   "status": "passed",
-  "stdlib_hash": "sha256:5d63001a359a6c1ceb57890a68c99af043aec99ed86afa64c69a778d41a12094",
+  "stdlib_hash": "sha256:e8b726c782d54b69c06bb2d0157f637413392b4b8f256e4d666c4fb73c82083a",
   "target": "macos-aarch64",
   "unsatisfied_goal_ids": [],
-  "working_tree_digest": "sha256:c2bac3d5045d375864e8938be50ff10a7ec56a088b66bfd9f2ed06f31f041910"
+  "working_tree_digest": "sha256:e9b72b68f99e734bacc8c473071c8d86133e0f2e59ed968dde2a156765284038"
 }

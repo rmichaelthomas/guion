@@ -99,7 +99,7 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
             .iter()
             .any(|argument| argument == "--help" || argument == "-h")
     {
-        println!("usage: guion run [--json] [--no-cache] [--file-root DIR] [--allow-http-host HOST] [--allow-clock] <source|artifact|project> [ARGS...]");
+        println!("usage: guion run [--json] [--no-cache] [--file-root DIR] [--allow-http-host HOST] [--allow-clock] [--allow-command NAME] <source|artifact|project> [ARGS...]");
         return Ok(ExitCode::SUCCESS);
     }
     if command == "sync" {
@@ -442,6 +442,7 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
     let mut file_root_overrides = Vec::new();
     let mut http_host_overrides = Vec::new();
     let mut clock_override = false;
+    let mut command_overrides = Vec::new();
     let json_inspect = command == "inspect" && args.iter().any(|argument| argument == "--json");
     let json_doc = command == "doc" && args.get(1).is_some_and(|arg| arg == "--json");
     let json_build = command == "build" && args.get(1).is_some_and(|arg| arg == "--json");
@@ -476,6 +477,13 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
                 "--allow-clock" => {
                     clock_override = true;
                     index += 1;
+                }
+                "--allow-command" => {
+                    let Some(name) = args.get(index + 1) else {
+                        return Err("usage: guion run [--allow-command NAME] <source|artifact|project> [ARGS...]".into());
+                    };
+                    command_overrides.push(name.clone());
+                    index += 2;
                 }
                 _ => break,
             }
@@ -612,6 +620,7 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
                     &runtime_file_roots,
                     &http_host_overrides,
                     clock_override,
+                    &command_overrides,
                     phase_timings_enabled,
                 );
                 source_compile_or_cache_ns =
@@ -829,6 +838,10 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
             if clock_override {
                 policy = policy.with_clock_access();
             }
+            for name in command_overrides {
+                validate_command_name(&name)?;
+                policy.allowed_commands.insert(name);
+            }
             for root in runtime_file_roots {
                 policy = policy.with_additional_file_root(root);
             }
@@ -896,6 +909,7 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
                         EffectKind::PythonCall => "python_call",
                         EffectKind::EnvironmentRead => "environment_read",
                         EffectKind::ClockRead => "clock_read",
+                        EffectKind::ProcessSpawn => "process_spawn",
                     };
                     let outcome = match effect.outcome {
                         EffectOutcome::Started => "started",
@@ -1364,6 +1378,7 @@ fn compile_project(
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 fn compile_project_for_run(
     entry: &Path,
     project_root: &Path,
@@ -1371,6 +1386,7 @@ fn compile_project_for_run(
     file_roots: &[std::path::PathBuf],
     http_hosts: &[String],
     clock_override: bool,
+    commands: &[String],
     profile_compilation: bool,
 ) -> Result<
     (
@@ -1407,10 +1423,13 @@ fn compile_project_for_run(
     let mut http_hosts = http_hosts.to_vec();
     file_roots.sort();
     http_hosts.sort();
+    let mut commands = commands.to_vec();
+    commands.sort();
     let runtime_identity = serde_json::json!({
         "file_roots": file_roots,
         "http_hosts": http_hosts,
         "clock": clock_override,
+        "commands": commands,
     })
     .to_string();
     let compiler_identity = compiler_driver::cache_identity();
@@ -2322,6 +2341,15 @@ fn inspection_report(
                 Op::WriteText | Op::WriteTextAtomic | Op::WriteBytes => {
                     direct_effects[function_index].insert("filesystem.write".into());
                 }
+                Op::Process(function) => match function {
+                    guion_model::ProcessFunction::Run => {
+                        direct_effects[function_index].insert("process.spawn".into());
+                    }
+                    guion_model::ProcessFunction::SignalPoll => {
+                        direct_effects[function_index].insert("process.signals".into());
+                    }
+                    guion_model::ProcessFunction::Pid => {}
+                },
                 Op::Args | Op::ArgsFrom => {
                     direct_effects[function_index].insert("process.arguments".into());
                 }
@@ -2409,6 +2437,12 @@ fn inspection_report(
         .position(|function| function.name == artifact.entry)
         .and_then(|index| effects.get(index))
         .is_some_and(|effects| effects.contains("network.http"));
+    let entry_process_grant_required = artifact
+        .functions
+        .iter()
+        .position(|function| function.name == artifact.entry)
+        .and_then(|index| effects.get(index))
+        .is_some_and(|effects| effects.contains("process.spawn"));
     let entry_clock_grant_required = artifact
         .functions
         .iter()
@@ -2433,11 +2467,14 @@ fn inspection_report(
                     .cloned()
                     .collect::<Vec<_>>();
                 hosts.sort();
+                let mut commands = policy.allowed_commands.iter().cloned().collect::<Vec<_>>();
+                commands.sort();
                 (
                     serde_json::json!({
                         "provenance": "guion.toml",
                         "network_hosts": hosts,
                         "clock_enabled": policy.allow_clock,
+                        "process_commands": commands,
                     }),
                     "guion.toml",
                 )
@@ -2536,6 +2573,12 @@ fn inspection_report(
             "run_option": "guion run --allow-http-host HOST",
             "grant_model": "exact hostname; network access is denied when no grant is present",
             "runtime_supplied_urls_require_an_explicit_hostname_grant": true,
+        },
+        "process_grant": {
+            "required_for_entry": entry_process_grant_required,
+            "manifest_key": "[process].commands",
+            "run_option": "guion run --allow-command NAME",
+            "grant_model": "exact command name; every command is denied when no grant is present; no shell, cleared environment, timeout and output caps apply",
         },
         "clock_grant": {
             "required_for_entry": entry_clock_grant_required,
@@ -3260,6 +3303,33 @@ fn runtime_policy(root: &std::path::Path) -> Result<HostPolicy, String> {
             policy.allowed_environment_variables.insert(name.to_owned());
         }
     }
+    if let Some(process) = manifest.get("process") {
+        let process = process
+            .as_table()
+            .ok_or("guion.toml [process] must be a table")?;
+        let allowed = ["commands", "timeout_ms", "max_output_bytes"];
+        if let Some(key) = process.keys().find(|key| !allowed.contains(&key.as_str())) {
+            return Err(format!("unsupported guion.toml [process] field `{key}`"));
+        }
+        let commands = process
+            .get("commands")
+            .and_then(toml::Value::as_array)
+            .ok_or("guion.toml [process].commands must be an array of command names")?;
+        for value in commands {
+            let name = value
+                .as_str()
+                .ok_or("guion.toml [process].commands entries must be strings")?;
+            validate_command_name(name)?;
+            policy.allowed_commands.insert(name.to_owned());
+        }
+        policy.process_timeout = Duration::from_millis(runtime_u64(
+            process,
+            "timeout_ms",
+            policy.process_timeout.as_millis() as u64,
+        )?);
+        policy.max_process_output_bytes =
+            runtime_usize(process, "max_output_bytes", policy.max_process_output_bytes)?;
+    }
     if let Some(clock) = manifest.get("clock") {
         let clock = clock
             .as_table()
@@ -3273,6 +3343,14 @@ fn runtime_policy(root: &std::path::Path) -> Result<HostPolicy, String> {
             .ok_or("guion.toml [clock].enabled must be a boolean")?;
     }
     Ok(policy)
+}
+
+/// A granted command is an exact program name or path: non-empty, no NUL, no whitespace.
+fn validate_command_name(name: &str) -> Result<(), String> {
+    if name.is_empty() || name.contains('\0') || name.chars().any(char::is_whitespace) {
+        return Err(format!("invalid command name `{name}`"));
+    }
+    Ok(())
 }
 
 fn runtime_usize(

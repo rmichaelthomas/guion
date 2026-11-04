@@ -35,6 +35,7 @@ Statements: `let`, `var`, `set`, `return`, `if`/`else`, `while`, `for name in li
 - Bytes, encodings and URLs (artifact format 53): `bytes_to_ints(Bytes) -> List[Int]`, `bytes_slice(Bytes, start, end) -> Bytes` (raises `R_INDEX_BOUNDS` outside `0 <= start <= end <= len`), `text_from_bytes(Bytes) -> Option[Text]` (strict UTF-8) and `text_from_bytes_lossy(Bytes) -> Text`. `std:encoding` provides `base64_encode`/`base64_decode` and `base64url_encode`/`base64url_decode` (padded; decoding is strict about alphabet, length and padding and returns `E_BASE64_INVALID`), `hex_encode`/`hex_decode` (lowercase output; either case accepted; `E_HEX_INVALID`), and `encoding_utf8_encode`, `encoding_utf8_decode` (`E_UTF8_INVALID`) and `encoding_utf8_decode_lossy`. `std:url` provides `url_parse(Text) -> Result[Url, StdError]` (an RFC 3986 split into `scheme`, `userinfo`, `host`, `port` (`-1` when absent), `path`, `query` and `fragment`, with no normalization; bracketed IPv6 hosts; `E_URL_INVALID`), `url_to_text`, `url_encode_component` (everything except `A-Z a-z 0-9 - . _ ~` is percent-encoded as UTF-8), `url_decode_component`, `url_query_parse` (`+` decodes to a space) and `url_query_build`.
 - Filesystem and paths (artifact format 54): `std:fs` adds `fs_exists`, `fs_kind` (`"file"`, `"directory"`, `"other"` or `"missing"`), `fs_size`, `fs_modified_ms`, `fs_list_dir` (sorted names), `fs_make_dir` (creates missing parents; succeeds if the directory exists), `fs_remove` (a file or an empty directory), `fs_remove_all`, `fs_rename`, `fs_copy` (returns the bytes copied) and `fs_temp_dir`/`fs_temp_file` (a unique entry under `.guion-tmp/` in the granted root; the prefix is 1 to 64 ASCII letters, digits, `-` or `_`). All return `Result[T, FileError]`. Each path is relative to a granted file root, may not contain `..`, and is confined after symlink resolution, as for `read_text`; mutating operations need the file-write grant. Symlinks are followed, so removing or renaming a link acts on its confined target. The granted root itself cannot be removed. `std:path` provides POSIX path text functions that never touch the disk: `path_normalize`, `path_join`, `path_dirname`, `path_basename`, `path_extension`, `path_stem`, `path_with_extension`, `path_components` and `path_is_absolute`. Static inspection now reports `filesystem.read` for `fs_walk`, `file_open_lines` and CSV opening as well.
 - Regular expressions (artifact format 55): `std:regex` provides `regex_is_match`, `regex_find` (the first match as a list of capture groups, group 0 first, unmatched groups as `""`), `regex_find_all`, `regex_replace`, `regex_replace_first` (replacement text expands `$1`, `${name}`; `$$` is a literal `$`), `regex_split` and `regex_escape`. Patterns use the Rust `regex` crate syntax: Unicode-aware, RE2-style, matching time linear in the subject, with no backreferences and no lookaround. An invalid or unsupported pattern, a pattern over 4,096 bytes, or one that compiles to more than 1 MiB of program returns `Err` with code `E_REGEX_INVALID`; no grant is required. Compiled patterns are cached per thread.
+- Processes and signals (artifact format 56): `std:process` provides `process_run(command, arguments, stdin)` returning `Result[ProcessResult, StdError]` with `exit_code`, `stdout` and `stderr` (a child killed by signal N reports `128 + N`; output is decoded as lossy UTF-8), `process_pid()` and `process_signal_poll()`. Starting a program is denied by default: the command name must be listed exactly in `guion.toml` `[process].commands` or passed with `guion run --allow-command NAME`; a grant for one command never covers another. The command starts without a shell from an argument list, with a cleared environment holding only `PATH` and the variables granted in `[environment]`, the project file root as working directory, and its own process group. `[process].timeout_ms` (default 30,000) and `[process].max_output_bytes` (default 16 MiB per stream) bound each call; exceeding either kills the whole group and returns `E_PROCESS_TIMEOUT` or `E_PROCESS_OUTPUT_LIMIT`. Other error codes are `E_PROCESS_DENIED`, `E_PROCESS_ARGUMENT` and `E_PROCESS_SPAWN`. `process_signal_poll()` installs `INT`, `TERM` and `HUP` handlers on first use, so those signals no longer end the program by themselves; it returns and clears the pending signal name, or `""`. Calls are synchronous: there is no way to leave a child running after the call returns. Static inspection reports `process.spawn` and `process.signals`, with a `process_grant` section.
 - Runtime and compile errors preserve source spans. Format-17 artifacts add Bytes values and byte file operations; format-18 artifacts add source-level Python keyword calls; format-19 artifacts add HTTP GET and `HttpError`; format-38 artifacts add byte HTTP; format-39 artifacts add explicitly granted clock access; format-16 metadata carries source and dependency-lock provenance; format-15 metadata and format-14 artifacts remain readable. Runtime combines recorded ceilings with host policy by taking the stricter value. The bytecode is an implementation detail apart from the versioned artifact boundary.
 
 ## Builtin signatures
@@ -170,6 +171,9 @@ native_math_tan(Float64) -> Float64
 native_math_tanh(Float64) -> Float64
 native_percent_decode(Text) -> Option[Text]
 native_percent_encode(Text) -> Text
+native_process_pid() -> Int
+native_process_run(Text, List[Text], Text) -> Result[List[Text], List[Text]]
+native_process_signal_poll() -> Text
 native_random_mix(Int) -> Int
 native_regex_escape(Text) -> Text
 native_regex_find(Text, Text) -> Result[Option[List[Text]], Text]
@@ -326,6 +330,9 @@ std:path — pub fn path_extension(path: Text) -> Text
 std:path — pub fn path_stem(path: Text) -> Text
 std:path — pub fn path_with_extension(path: Text, extension: Text) -> Text
 std:path — pub fn path_components(path: Text) -> List[Text]
+std:process — pub fn process_run(command: Text, arguments: List[Text], stdin: Text) -> Result[ProcessResult, StdError]
+std:process — pub fn process_pid() -> Int
+std:process — pub fn process_signal_poll() -> Text
 std:random — pub fn random_new(seed: Int) -> Rng
 std:random — pub fn random_next_u64(rng: Rng) -> RandomInt
 std:random — pub fn random_next_float(rng: Rng) -> RandomFloat
@@ -696,6 +703,13 @@ E_PACKAGE_VERIFY_FAILED
 E_PARALLEL_RESOURCE
 E_PARALLEL_WORKER
 E_PRINT_VALUE
+E_PROCESS_ARGUMENT
+E_PROCESS_DENIED
+E_PROCESS_OUTPUT_LIMIT
+E_PROCESS_RESULT
+E_PROCESS_SPAWN
+E_PROCESS_TIMEOUT
+E_PROCESS_WAIT
 E_PROFILE
 E_PROFILE_OUT
 E_PROJECT_ENTRY
@@ -1149,4 +1163,4 @@ fn main() -> Int:
 - [Host API and effects](../../language/host-api.md)
 - [Agent recipes](recipes.md)
 
-<!-- Generated reference content digest: sha256:69da1b7a4a27bcc7081ce41190ddf8c93320aab33de74b04c1e68fd566593558. Validated by `cargo xtask agent-reference --check`. -->
+<!-- Generated reference content digest: sha256:9623cb03d2725675fe8b9b2df13e5a6b482cbb35e45ebaf519d8e03f70e9378a. Validated by `cargo xtask agent-reference --check`. -->
